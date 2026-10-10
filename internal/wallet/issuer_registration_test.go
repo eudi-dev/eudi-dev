@@ -246,7 +246,7 @@ func TestTheDemoIssuerRegistersAnUncategorizedTemplateAsAnEAA(t *testing.T) {
 	if _, err := credtemplate.Save(w.Templates, credtemplate.Template{Name: "badge", Format: "sdjwt", VCT: "urn:example:badge:1", Claims: map[string]any{"level": 1}}); err != nil {
 		t.Fatal(err)
 	}
-	rp, _, err := w.demoIssuerRegistration()
+	rp, err := w.demoIssuerRegistration()
 	if err != nil {
 		t.Fatal(err)
 	}

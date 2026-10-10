@@ -354,3 +354,22 @@ func TestTheDemoRegistrationsFollowTheTemplates(t *testing.T) {
 		t.Errorf("entitlements %v, want the PuB-EAA provider", issuer.Services[0].Entitlements)
 	}
 }
+
+// The demo issuer holds a provider certificate and a verifier certificate for
+// its identity check from the start, also when its registration is kept.
+func TestTheDemoPartiesHoldEveryCertificateFromTheStart(t *testing.T) {
+	for _, register := range []func(*Wallet) (bool, error){(*Wallet).EnsureDemoRegistrations, (*Wallet).RegisterMissingDemoParties} {
+		w := generateTestWallet(t)
+		if _, err := register(w); err != nil {
+			t.Fatal(err)
+		}
+		issuer := ownProviderIdentifier(t, w)
+		var uses []string
+		for _, s := range w.Registrar().RegistrationCertificateStatuses(issuer) {
+			uses = append(uses, s.Service+"/"+s.IntendedUse)
+		}
+		if !slices.Contains(uses, demoIssuerServiceID+"/") || !slices.Contains(uses, "/"+identityCheckIntendedUseID) {
+			t.Errorf("certificates %v, want the provider and the identity check", uses)
+		}
+	}
+}

@@ -157,6 +157,23 @@ func (r *Registrar) CurrentRegistrationCertificate(req RegistrationCertificateRe
 	return result, false, err
 }
 
+// CertificateRequests names every registration certificate of a relying
+// party: one per attestation provider service and one per intended use (ARF
+// RPRC_13).
+func CertificateRequests(rp WalletRelyingParty) []RegistrationCertificateRequest {
+	id := rp.Identifier[0].Identifier
+	var reqs []RegistrationCertificateRequest
+	for _, service := range rp.Services {
+		if isAttestationProvider(service) {
+			reqs = append(reqs, RegistrationCertificateRequest{Identifier: id, ServiceIdentifier: service.ServiceIdentifier})
+		}
+		for _, use := range service.IntendedUses {
+			reqs = append(reqs, RegistrationCertificateRequest{Identifier: id, IntendedUseIdentifier: use.IntendedUseIdentifier})
+		}
+	}
+	return reqs
+}
+
 // certificateSubject finds the registration and what the certificate
 // certifies.
 func (r *Registrar) certificateSubject(req RegistrationCertificateRequest) (WalletRelyingParty, certificateKey, error) {

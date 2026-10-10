@@ -97,13 +97,15 @@ func (w *Wallet) demoAccessSigningMaterial(keyName string, identity demoIdentity
 
 // EnsureDemoRegistrations registers the demo issuer and the demo verifier, or
 // updates them to the wallet's templates, and makes sure both have a current
-// registration certificate. It reports whether the registrar state changed.
+// certificate for each of their registered uses. It reports whether the
+// registrar state changed.
 func (w *Wallet) EnsureDemoRegistrations() (bool, error) {
 	return w.registerDemoParties(true)
 }
 
 // RegisterMissingDemoParties registers the demo issuer and verifier when the
-// registrar has no registration for them, and keeps an existing one.
+// registrar has no registration for them, and keeps an existing one. Both get
+// a current certificate for each of their registered uses.
 func (w *Wallet) RegisterMissingDemoParties() (bool, error) {
 	return w.registerDemoParties(false)
 }
@@ -123,7 +125,7 @@ func (w *Wallet) registerDemoParties(overwrite bool) (bool, error) {
 // DemoIssuerInfo is the issuer_info of the demo issuer (ETSI TS 119 472-3
 // V1.1.1 §4.2.3): its registrar dataset and its registration certificate.
 func (w *Wallet) DemoIssuerInfo() ([]any, error) {
-	result, err := w.demoCertificate(w.demoIssuerRegistration)
+	result, err := w.demoCertificate(w.demoIssuerRegistration, registrar.RegistrationCertificateRequest{ServiceIdentifier: demoIssuerServiceID})
 	if err != nil || result == nil {
 		return nil, err
 	}
@@ -133,7 +135,7 @@ func (w *Wallet) DemoIssuerInfo() ([]any, error) {
 // DemoVerifierInfo is the verifier_info of the demo verifier (OpenID4VP 1.0
 // §5.1): the registration certificate of its intended use.
 func (w *Wallet) DemoVerifierInfo() ([]any, error) {
-	result, err := w.demoCertificate(w.demoVerifierRegistration)
+	result, err := w.demoCertificate(w.demoVerifierRegistration, registrar.RegistrationCertificateRequest{IntendedUseIdentifier: demoVerifierIntendedUseID})
 	if err != nil || result == nil {
 		return nil, err
 	}
@@ -144,35 +146,33 @@ func (w *Wallet) DemoVerifierInfo() ([]any, error) {
 // identity check. The demo issuer asks for a PID before it issues, and this
 // is the registration certificate of that intended use.
 func (w *Wallet) DemoIdentityCheckVerifierInfo() ([]any, error) {
-	result, err := w.demoCertificate(func() (registrar.WalletRelyingParty, registrar.RegistrationCertificateRequest, error) {
-		rp, req, err := w.demoIssuerRegistration()
-		req.IntendedUseIdentifier = identityCheckIntendedUseID
-		return rp, req, err
-	})
+	result, err := w.demoCertificate(w.demoIssuerRegistration, registrar.RegistrationCertificateRequest{IntendedUseIdentifier: identityCheckIntendedUseID})
 	if err != nil || result == nil {
 		return nil, err
 	}
 	return decodeInfo(result.VerifierInfo, "verifier_info")
 }
 
-type demoRegistration func() (registrar.WalletRelyingParty, registrar.RegistrationCertificateRequest, error)
+type demoRegistration func() (registrar.WalletRelyingParty, error)
 
-// demoCertificate returns the current certificate of a demo registration
-// and issues one when there is none or it expires soon. A deleted
-// registration has no certificate, and the result is nil. A running server
-// saves a new certificate.
-func (w *Wallet) demoCertificate(build demoRegistration) (*registrar.RegistrationCertificateResult, error) {
+// demoCertificate returns the current certificate that req names in a demo
+// registration and issues one when there is none or it expires soon. The
+// registration fills in the identifier. A deleted registration has no
+// certificate, and the result is nil. A running server saves a new
+// certificate.
+func (w *Wallet) demoCertificate(build demoRegistration, req registrar.RegistrationCertificateRequest) (*registrar.RegistrationCertificateResult, error) {
 	var result *registrar.RegistrationCertificateResult
 	var err error
 	change := func() bool {
 		w.demoRegistrationMu.Lock()
 		defer w.demoRegistrationMu.Unlock()
 		var issued bool
-		_, req, buildErr := build()
+		rp, buildErr := build()
 		if buildErr != nil {
 			err = buildErr
 			return false
 		}
+		req.Identifier = rp.Identifier[0].Identifier
 		result, issued, err = w.Registrar().CurrentRegistrationCertificate(req)
 		return issued
 	}
@@ -190,19 +190,28 @@ func (w *Wallet) demoCertificate(build demoRegistration) (*registrar.Registratio
 func (w *Wallet) ensureDemoRegistration(build demoRegistration, overwrite bool) (bool, error) {
 	w.demoRegistrationMu.Lock()
 	defer w.demoRegistrationMu.Unlock()
-	rp, req, err := build()
+	rp, err := build()
 	if err != nil {
 		return false, err
 	}
+	var updated bool
 	if stored, exists := w.Registrar().RelyingParty(rp.Identifier[0].Identifier); exists && !overwrite {
-		return w.rebaseDemoParty(stored)
+		updated, err = w.rebaseDemoParty(stored)
+		rp = stored
+	} else {
+		_, updated, err = w.Registrar().EnsureRelyingParty(rp)
 	}
-	_, updated, err := w.Registrar().EnsureRelyingParty(rp)
 	if err != nil {
 		return false, err
 	}
-	_, issued, err := w.Registrar().CurrentRegistrationCertificate(req)
-	return updated || issued, err
+	for _, req := range registrar.CertificateRequests(rp) {
+		_, issued, err := w.Registrar().CurrentRegistrationCertificate(req)
+		if err != nil {
+			return updated, err
+		}
+		updated = updated || issued
+	}
+	return updated, nil
 }
 
 func decodeInfo(value, name string) ([]any, error) {
@@ -219,7 +228,7 @@ func decodeInfo(value, name string) ([]any, error) {
 // its catalogue entry. A type without one is an EAA, and an unlisted type is
 // left out. Its identity check asks for a PID before it issues, so it
 // registers that intended use too.
-func (w *Wallet) demoIssuerRegistration() (registrar.WalletRelyingParty, registrar.RegistrationCertificateRequest, error) {
+func (w *Wallet) demoIssuerRegistration() (registrar.WalletRelyingParty, error) {
 	catalogue := w.Registrar().CatalogAttestations()
 	var entitlements, vcts, docTypes []string
 	add := func(category, format, vct, docType string) {
@@ -279,13 +288,13 @@ func (w *Wallet) demoIssuerRegistration() (registrar.WalletRelyingParty, registr
 			},
 		}},
 	})
-	return rp, registrar.RegistrationCertificateRequest{Identifier: rp.Identifier[0].Identifier, ServiceIdentifier: demoIssuerServiceID}, nil
+	return rp, nil
 }
 
 // demoVerifierRegistration registers the demo verifier with one intended use.
 // It covers the claims of every predefined credential template, so the demo
 // requests ask only for registered claims (ARF RPRC_21).
-func (w *Wallet) demoVerifierRegistration() (registrar.WalletRelyingParty, registrar.RegistrationCertificateRequest, error) {
+func (w *Wallet) demoVerifierRegistration() (registrar.WalletRelyingParty, error) {
 	var credentials []registrar.RegisteredCredential
 	for _, entry := range w.Registrar().CatalogAttestations() {
 		if !entry.Template {
@@ -313,7 +322,7 @@ func (w *Wallet) demoVerifierRegistration() (registrar.WalletRelyingParty, regis
 			Credentials:           credentials,
 		}},
 	})
-	return rp, registrar.RegistrationCertificateRequest{Identifier: rp.Identifier[0].Identifier, IntendedUseIdentifier: demoVerifierIntendedUseID}, nil
+	return rp, nil
 }
 
 func (w *Wallet) demoRelyingParty(identity demoIdentity, service registrar.WalletRelyingPartyService) registrar.WalletRelyingParty {
