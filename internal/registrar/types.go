@@ -27,7 +27,8 @@ const (
 	PIDProviderEntitlement     = "https://uri.etsi.org/19475/Entitlement/PID_Provider"
 )
 
-// IssuerInfoEntry is one element of issuer_info (ETSI TS 119 472-3).
+// IssuerInfoEntry is one element of issuer_info (ETSI TS 119 472-3) or
+// verifier_info (ETSI TS 119 472-2).
 type IssuerInfoEntry struct {
 	Format string `json:"format"`
 	Data   any    `json:"data"`
@@ -110,6 +111,17 @@ type RegistrarDataset struct {
 	SrvDescription       []MultiLangString     `json:"srvDescription"`
 	RegistryURI          string                `json:"registryURI"`
 	ProvidesAttestations []ProvidedAttestation `json:"providesAttestations"`
+}
+
+// VerifierRegistrarDataset is the registrar_dataset element of verifier_info.
+// ETSI TS 119 472-2 V1.2.1 §6.3.2.2 RO-06 to RO-11 require these members.
+type VerifierRegistrarDataset struct {
+	Identifier            []Identifier      `json:"identifier"`
+	SrvDescription        []MultiLangString `json:"srvDescription"`
+	RegistryURI           string            `json:"registryURI"`
+	IntendedUseIdentifier string            `json:"intendedUseIdentifier"`
+	Purpose               []MultiLangString `json:"purpose"`
+	PolicyURI             string            `json:"policyURI"`
 }
 
 // registeredEntitlements are the entitlements of ETSI TS 119 475 V1.2.1 Annex

@@ -15,6 +15,8 @@
 package registrar
 
 import (
+	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -52,6 +54,47 @@ func issueTestRegistrationCertificate(t *testing.T, w *testWallet, rp WalletRely
 		t.Fatalf("IssueRegistrationCertificate: %v", err)
 	}
 	return result
+}
+
+// ETSI TS 119 472-2 V1.2.1 §6.3.2.2: verifier_info carries the registration
+// certificate and a registrar_dataset with the registered data of the intended
+// use (RO-04 to RO-11). The status list shows the same value.
+func TestVerifierInfoCarriesTheRegistrarDataset(t *testing.T) {
+	w := generateTestWallet(t)
+	rp := registerTestRelyingParty(t, w)
+	result := issueTestRegistrationCertificate(t, w, rp)
+	use := rp.Services[0].IntendedUses[0]
+
+	var info []struct {
+		Format string          `json:"format"`
+		Data   json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(result.VerifierInfo), &info); err != nil || len(info) != 2 {
+		t.Fatalf("verifier_info %s (%v), want two elements", result.VerifierInfo, err)
+	}
+	var certificate string
+	var dataset VerifierRegistrarDataset
+	if info[0].Format != "registration_cert" || json.Unmarshal(info[0].Data, &certificate) != nil || certificate != result.RegistrationCertificate {
+		t.Errorf("first element %s %s, want the registration certificate", info[0].Format, info[0].Data)
+	}
+	if info[1].Format != "registrar_dataset" || json.Unmarshal(info[1].Data, &dataset) != nil {
+		t.Fatalf("second element %s %s, want the registrar dataset", info[1].Format, info[1].Data)
+	}
+	want := VerifierRegistrarDataset{
+		Identifier:            rp.Identifier,
+		SrvDescription:        []MultiLangString{{Lang: "en", Content: "Example Shop"}},
+		RegistryURI:           rp.RegistryURI,
+		IntendedUseIdentifier: use.IntendedUseIdentifier,
+		Purpose:               use.Purpose,
+		PolicyURI:             "https://wallet.example/privacy-policy",
+	}
+	if !reflect.DeepEqual(dataset, want) {
+		t.Errorf("registrar dataset %+v, want %+v", dataset, want)
+	}
+	views := w.RegistrationCertificateViews(rp.Identifier[0].Identifier)
+	if len(views) != 1 || views[0].VerifierInfo != result.VerifierInfo {
+		t.Errorf("views %+v, want the verifier_info of the certificate", views)
+	}
 }
 
 func TestRegistrationCertificateRequestsAreChecked(t *testing.T) {

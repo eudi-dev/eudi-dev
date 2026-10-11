@@ -15,6 +15,7 @@
 package registrar
 
 import (
+	"errors"
 	"reflect"
 	"slices"
 	"testing"
@@ -109,5 +110,46 @@ func TestEnrolCertifiesTheAddedIntendedUse(t *testing.T) {
 	certificates := w.RegistrationCertificateStatuses(stored.Identifier[0].Identifier)
 	if len(certificates) != 1 || certificates[0].IntendedUse != uses[1].IntendedUseIdentifier {
 		t.Errorf("certificates = %+v, want one for %s", certificates, uses[1].IntendedUseIdentifier)
+	}
+}
+
+// A failed update changes nothing: the certificates of an intended use it
+// would change stay valid. A DNS name is checked before the update, and a
+// signer that fails afterwards puts everything back.
+func TestFailedEnrolmentKeepsTheCertificates(t *testing.T) {
+	w := generateTestWallet(t)
+	stored := registerTestRelyingParty(t, w)
+	identifier := stored.Identifier[0].Identifier
+	if _, err := w.IssueRegistrationCertificate(RegistrationCertificateRequest{Identifier: identifier, IntendedUseIdentifier: stored.Services[0].IntendedUses[0].IntendedUseIdentifier}); err != nil {
+		t.Fatal(err)
+	}
+	certificates := w.RegistrationCertificateStatuses(identifier)
+	key, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed := stored
+	changed.Services = []WalletRelyingPartyService{stored.Services[0]}
+	changed.Services[0].IntendedUses = []IntendedUse{stored.Services[0].IntendedUses[0], ageCheckUse("Second check")}
+	changed.Services[0].IntendedUses[0].Purpose = []MultiLangString{{Lang: "en", Content: "Changed purpose"}}
+
+	for name, fail := range map[string]func(e *Enrolment){
+		"bad DNS name": func(e *Enrolment) {
+			e.Access = &AccessCertificateRequest{CSR: testAccessCSR(t, key), DNSNames: []string{"*.shop.example"}}
+		},
+		"signer failure": func(e *Enrolment) { w.env.signErr = errors.New("signer down") },
+	} {
+		e := Enrolment{RelyingParty: changed, Registration: &EnrolmentRegistration{}}
+		fail(&e)
+		if _, err := w.Enrol(e, true); err == nil {
+			t.Fatalf("%s: the enrolment succeeded", name)
+		}
+		w.env.signErr = nil
+		if after, _ := w.RelyingParty(identifier); !reflect.DeepEqual(after, stored) {
+			t.Errorf("%s: the registration changed to %+v", name, after)
+		}
+		if after := w.RegistrationCertificateStatuses(identifier); !reflect.DeepEqual(after, certificates) {
+			t.Errorf("%s: certificates %+v, want %+v", name, after, certificates)
+		}
 	}
 }

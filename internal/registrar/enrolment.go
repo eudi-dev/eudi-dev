@@ -15,9 +15,9 @@
 package registrar
 
 import (
-	"errors"
 	"fmt"
 	"slices"
+	"strings"
 )
 
 // Enrolment registers a relying party, or changes its registration, and issues
@@ -48,79 +48,129 @@ type EnrolmentResult struct {
 }
 
 // Enrol registers e.RelyingParty, or with update changes the registration with
-// its first identifier, and issues the requested certificates.
+// its first identifier, and issues the requested certificates. It checks the
+// whole enrolment before it changes anything. If a certificate still fails,
+// the registration and the status of its certificates are put back.
 func (r *Registrar) Enrol(e Enrolment, update bool) (*EnrolmentResult, error) {
-	// The inputs are checked before the registration changes.
-	if e.Access != nil {
-		if _, _, err := e.Access.parse(); err != nil {
-			return nil, err
-		}
+	candidate, before, err := r.enrolmentCandidate(e.RelyingParty, update)
+	if err != nil {
+		return nil, err
 	}
-	if e.Registration != nil {
-		if _, err := registrationValidity(e.Registration.Validity); err != nil {
-			return nil, err
-		}
+	access, registration, err := enrolmentRequests(candidate, before, e)
+	if err != nil {
+		return nil, err
 	}
-
-	var before *WalletRelyingParty
+	identifier := candidate.Identifier[0].Identifier
+	statuses := r.RegistrationCertificateStatuses(identifier)
 	var stored WalletRelyingParty
-	var err error
-	if update {
-		if len(e.RelyingParty.Identifier) == 0 {
-			return nil, fmt.Errorf("an update needs the identifier of the registered relying party")
-		}
-		previous, ok := r.RelyingParty(e.RelyingParty.Identifier[0].Identifier)
-		if !ok {
-			return nil, fmt.Errorf("%w: %s", errRelyingPartyNotFound, e.RelyingParty.Identifier[0].Identifier)
-		}
-		before = &previous
-		stored, err = r.UpdateRelyingParty(e.RelyingParty)
+	if before != nil {
+		stored, err = r.UpdateRelyingParty(candidate)
 	} else {
-		stored, err = r.RegisterRelyingParty(e.RelyingParty)
+		stored, err = r.RegisterRelyingParty(candidate)
 	}
 	if err != nil {
 		return nil, err
 	}
-
-	result, err := r.enrolmentCertificates(stored, before, e)
+	result := &EnrolmentResult{RelyingParty: stored}
+	if access != nil {
+		result.Access, err = r.IssueAccessCertificate(*access)
+	}
+	if err == nil && registration != nil {
+		result.Registration, err = r.IssueRegistrationCertificate(*registration)
+	}
 	if err != nil {
-		identifier := stored.Identifier[0].Identifier
-		var undo error
-		if before != nil {
-			_, undo = r.UpdateRelyingParty(*before)
-		} else {
-			undo = r.DeleteRelyingParty(identifier)
-		}
-		return nil, errors.Join(err, undo)
+		r.undoEnrolment(identifier, before, statuses)
+		return nil, err
 	}
 	return result, nil
 }
 
-func (r *Registrar) enrolmentCertificates(stored WalletRelyingParty, before *WalletRelyingParty, e Enrolment) (*EnrolmentResult, error) {
-	identifier := stored.Identifier[0].Identifier
-	result := &EnrolmentResult{RelyingParty: stored}
+// enrolmentCandidate returns the registration as the enrolment would store it,
+// and for an update the stored one. It changes nothing.
+func (r *Registrar) enrolmentCandidate(rp WalletRelyingParty, update bool) (WalletRelyingParty, *WalletRelyingParty, error) {
+	if !update {
+		candidate, err := r.NormalizedRelyingParty(rp)
+		return candidate, nil, err
+	}
+	if len(rp.Identifier) == 0 || strings.TrimSpace(rp.Identifier[0].Identifier) == "" {
+		return WalletRelyingParty{}, nil, errUpdateWithoutIdentifier
+	}
+	before, ok := r.RelyingParty(rp.Identifier[0].Identifier)
+	if !ok {
+		return WalletRelyingParty{}, nil, fmt.Errorf("%w: %s", errRelyingPartyNotFound, rp.Identifier[0].Identifier)
+	}
+	candidate, err := cloneRelyingParty(rp)
+	if err != nil {
+		return WalletRelyingParty{}, nil, err
+	}
+	err = normalizeUpdate(&candidate, before, r.env.RegistrarBase(), r.attestationCategories())
+	return candidate, &before, err
+}
+
+// enrolmentRequests checks the certificates an enrolment asks for against the
+// registration it would store, and returns the requests for them.
+func enrolmentRequests(candidate WalletRelyingParty, before *WalletRelyingParty, e Enrolment) (*AccessCertificateRequest, *RegistrationCertificateRequest, error) {
+	identifier := candidate.Identifier[0].Identifier
+	var access *AccessCertificateRequest
 	if e.Access != nil {
-		access := *e.Access
-		access.Identifier = identifier
-		var err error
-		if result.Access, err = r.IssueAccessCertificate(access); err != nil {
-			return nil, err
+		req := *e.Access
+		req.Identifier = identifier
+		if _, _, err := req.parse(); err != nil {
+			return nil, nil, err
 		}
+		if _, err := findService(candidate, req.ServiceIdentifier); err != nil {
+			return nil, nil, err
+		}
+		if _, err := accessCertificateDNSNames(req.DNSNames); err != nil {
+			return nil, nil, err
+		}
+		access = &req
 	}
 	if e.Registration == nil {
-		return result, nil
+		return access, nil, nil
+	}
+	if _, err := registrationValidity(e.Registration.Validity); err != nil {
+		return nil, nil, err
 	}
 	req := RegistrationCertificateRequest{Identifier: identifier, ServiceIdentifier: e.Registration.ServiceIdentifier, Validity: e.Registration.Validity}
-	if !e.Registration.Provider {
-		added := addedIntendedUses(stored, before)
-		if len(added) != 1 {
-			return nil, fmt.Errorf("a registration certificate covers one intended use, and this step adds %d", len(added))
+	if e.Registration.Provider {
+		if _, err := providerService(candidate, req.ServiceIdentifier); err != nil {
+			return nil, nil, err
 		}
-		req.IntendedUseIdentifier = added[0]
+		return access, &req, nil
 	}
-	var err error
-	result.Registration, err = r.IssueRegistrationCertificate(req)
-	return result, err
+	added := addedIntendedUses(candidate, before)
+	if len(added) != 1 {
+		return nil, nil, fmt.Errorf("a registration certificate covers one intended use, and this step adds %d", len(added))
+	}
+	if _, _, ok := findIntendedUse(candidate, req.ServiceIdentifier, added[0]); !ok {
+		return nil, nil, fmt.Errorf("%w: no intended use %q in service %q", errRelyingPartyNotFound, added[0], req.ServiceIdentifier)
+	}
+	req.IntendedUseIdentifier = added[0]
+	return access, &req, nil
+}
+
+// undoEnrolment puts back the registration and the statuses of its
+// certificates as they were before the enrolment. A new registration is
+// removed.
+func (r *Registrar) undoEnrolment(identifier string, before *WalletRelyingParty, statuses []RegistrationStatus) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if i := relyingPartyIndex(r.state.RelyingParties, identifier); i >= 0 {
+		if before != nil {
+			r.state.RelyingParties[i] = *before
+		} else {
+			r.state.RelyingParties = slices.Delete(r.state.RelyingParties, i, i+1)
+		}
+	}
+	for _, kept := range statuses {
+		j := slices.IndexFunc(r.state.RegistrationStatuses, func(s RegistrationStatus) bool {
+			return s.Index == kept.Index && s.Identifier == kept.Identifier
+		})
+		if j >= 0 {
+			r.state.RegistrationStatuses[j] = kept
+		}
+	}
 }
 
 // addedIntendedUses lists the intended uses of after that before doesn't have.

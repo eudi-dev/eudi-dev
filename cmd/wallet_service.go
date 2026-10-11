@@ -54,7 +54,7 @@ type walletService interface {
 	AccessCertificate(req registrar.AccessCertificateRequest) (*registrar.AccessCertificateResult, error)
 	RegisterRelyingParty(rp registrar.WalletRelyingParty) (registrar.WalletRelyingParty, error)
 	RegistrarRecords() ([]registrar.WalletRelyingParty, error)
-	UpdateRelyingParty(rp registrar.WalletRelyingParty) (registrar.WalletRelyingParty, error)
+	Enrol(e registrar.Enrolment, update bool) (*registrar.EnrolmentResult, error)
 	RegistrationCertificateViews(identifier string) ([]registrar.RegistrationStatusView, error)
 	SetRegistrationCertificatesRevoked(identifier string, scope registrar.RegistrationScope, revoked bool) (int, error)
 	DeleteRelyingParty(identifier string) error
@@ -183,10 +183,12 @@ func (r *remoteWallet) RegisterRelyingParty(rp registrar.WalletRelyingParty) (re
 	return out, err
 }
 
-func (r *remoteWallet) UpdateRelyingParty(rp registrar.WalletRelyingParty) (registrar.WalletRelyingParty, error) {
-	var out registrar.WalletRelyingParty
-	err := r.c.UpdateRelyingParty(rp, &out)
-	return out, err
+func (r *remoteWallet) Enrol(e registrar.Enrolment, update bool) (*registrar.EnrolmentResult, error) {
+	var out registrar.EnrolmentResult
+	if err := r.c.Enrol(e, update, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
 func (r *remoteWallet) RegistrationCertificateViews(identifier string) ([]registrar.RegistrationStatusView, error) {
@@ -573,19 +575,13 @@ func (l *localWallet) change(apply func(*wallet.Wallet) error) error {
 	return nil
 }
 
-func (l *localWallet) UpdateRelyingParty(rp registrar.WalletRelyingParty) (registrar.WalletRelyingParty, error) {
-	w, store, err := l.load()
-	if err != nil {
-		return registrar.WalletRelyingParty{}, err
-	}
-	stored, err := w.Registrar().UpdateRelyingParty(rp)
-	if err != nil {
-		return registrar.WalletRelyingParty{}, err
-	}
-	if err := store.Save(w); err != nil {
-		return registrar.WalletRelyingParty{}, fmt.Errorf("saving wallet: %w", err)
-	}
-	return stored, nil
+func (l *localWallet) Enrol(e registrar.Enrolment, update bool) (*registrar.EnrolmentResult, error) {
+	var result *registrar.EnrolmentResult
+	err := l.change(func(w *wallet.Wallet) (err error) {
+		result, err = w.Registrar().Enrol(e, update)
+		return err
+	})
+	return result, err
 }
 
 func (l *localWallet) RegistrationCertificateViews(identifier string) ([]registrar.RegistrationStatusView, error) {

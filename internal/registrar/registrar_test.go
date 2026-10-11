@@ -152,3 +152,21 @@ func TestTheAPIRefusesAnOversizedRegistration(t *testing.T) {
 		t.Errorf("%d %s, want the size limit", rec.Code, rec.Body)
 	}
 }
+
+// A service that only acts as an intermediary has no entitlement (TS05 v1.5
+// §2.4.1).
+func TestAPureIntermediaryHasNoEntitlement(t *testing.T) {
+	w := generateTestWallet(t)
+	intermediary := WalletRelyingParty{TradeName: "Example Intermediary", Services: []WalletRelyingPartyService{{IsIntermediary: true}}}
+	stored, err := w.RegisterRelyingParty(intermediary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := stored.Services[0].Entitlements; len(got) != 0 {
+		t.Errorf("entitlements %v, want none", got)
+	}
+	intermediary.Services[0].Entitlements = []string{ServiceProviderEntitlement}
+	if _, err := w.RegisterRelyingParty(intermediary); err == nil || !strings.Contains(err.Error(), "intermediary") {
+		t.Errorf("error %v, want the entitlement refused", err)
+	}
+}

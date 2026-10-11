@@ -33,13 +33,20 @@ const (
 	registrationStatusListSize = 1 << 17
 )
 
-// maxCertificatesPerRelyingParty bounds the certificates the API issues to one
-// relying party. With MaxRelyingParties parties the status list keeps room.
+// maxCertificatesPerRelyingParty bounds the certificates of one relying party
+// that the registrar has not replaced. With MaxRelyingParties parties they
+// fill at most half of maxRegistrationStatuses.
 const maxCertificatesPerRelyingParty = 100
 
+// maxRegistrationStatuses bounds the entries of the status list. A replaced
+// certificate keeps its entry until it expires, because each certificate has
+// its own index (ETSI TS 119 475 V1.2.1 GEN-6.2.6.1-05). The rest of the list
+// stays free, so a random index is found in a few tries.
+const maxRegistrationStatuses = registrationStatusListSize * 3 / 4
+
 var (
-	errRegistrationStatusFull = errors.New("the registrar has issued its maximum number of registration certificates. Entries free up when certificates expire")
-	errPartyCertificatesFull  = fmt.Errorf("the relying party holds %d registration certificates, the most the registrar issues to one relying party. Older ones free up when they expire", maxCertificatesPerRelyingParty)
+	errRegistrationStatusFull = errors.New("the registrar's status list is full. Entries free up when certificates expire")
+	errPartyCertificatesFull  = fmt.Errorf("the relying party holds %d registration certificates, the most the registrar issues to one relying party. A certificate frees up when it expires, or when a new one replaces it", maxCertificatesPerRelyingParty)
 	errRegistrationChanged    = errors.New("the registration changed while the certificate was being issued. Try again")
 )
 
@@ -110,12 +117,12 @@ func (r *Registrar) allocateRegistrationStatus(rp WalletRelyingParty, key certif
 	}
 	now := time.Now().Unix()
 	r.state.RegistrationStatuses = slices.DeleteFunc(r.state.RegistrationStatuses, func(s RegistrationStatus) bool { return s.Expires > 0 && s.Expires < now })
-	if len(r.state.RegistrationStatuses) >= registrationStatusListSize/2 {
+	if len(r.state.RegistrationStatuses) >= maxRegistrationStatuses {
 		return 0, errRegistrationStatusFull
 	}
 	held := 0
 	for _, s := range r.state.RegistrationStatuses {
-		if s.Identifier == identifier {
+		if s.Identifier == identifier && !s.Superseded {
 			held++
 		}
 	}
@@ -229,17 +236,9 @@ func (r *Registrar) RegistrationCertificateViews(identifier string) []Registrati
 	views := make([]RegistrationStatusView, 0, len(statuses))
 	for _, s := range statuses {
 		view := RegistrationStatusView{RegistrationStatus: s}
-		switch {
-		case s.Certificate == "":
-		case s.IntendedUse != "":
-			view.VerifierInfo = VerifierInfoValue(s.Certificate)
-		default:
-			if rp, ok := r.RelyingParty(s.Identifier); ok {
-				for _, service := range rp.Services {
-					if service.ServiceIdentifier == s.Service {
-						view.IssuerInfo, _ = IssuerInfoValue(RegistrarDatasetFor(rp, service), s.Certificate)
-					}
-				}
+		if rp, ok := r.RelyingParty(s.Identifier); ok && s.Certificate != "" {
+			if result, err := certificateResult(rp, statusKey(s), s.Certificate); err == nil {
+				view.VerifierInfo, view.IssuerInfo = result.VerifierInfo, result.IssuerInfo
 			}
 		}
 		views = append(views, view)

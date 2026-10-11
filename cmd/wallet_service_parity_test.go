@@ -364,14 +364,15 @@ func parityCases() []parityCase {
 			}
 			return false
 		}},
-		{method: "UpdateRelyingParty", observe: func(t *testing.T, s walletService) any {
+		{method: "Enrol", observe: func(t *testing.T, s walletService) any {
 			rp := registerParityRelyingParty(t, s)
 			rp.Services[0].ProvidesAttestations = []registrar.ProvidedAttestation{{Format: "dc+sd-jwt", Type: "urn:example:parity:1"}}
-			stored, err := s.UpdateRelyingParty(rp)
+			result, err := s.Enrol(registrar.Enrolment{RelyingParty: rp, Registration: &registrar.EnrolmentRegistration{Provider: true}}, true)
 			if err != nil {
 				t.Fatal(err)
 			}
-			return []any{len(stored.Services[0].IntendedUses), stored.Services[0].ProvidesAttestations[0].Type}
+			stored := result.RelyingParty
+			return []any{len(stored.Services[0].IntendedUses), stored.Services[0].ProvidesAttestations[0].Type, strings.Contains(result.Registration.IssuerInfo, "registrar_dataset")}
 		}},
 		{method: "RegistrationCertificateViews", observe: func(t *testing.T, s walletService) any {
 			rp := registerParityRelyingParty(t, s)

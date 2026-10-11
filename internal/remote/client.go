@@ -218,6 +218,17 @@ func (c *Client) UpdateRelyingParty(rp, out any) error {
 	return json.Unmarshal(envelope.Data, out)
 }
 
+// Enrol registers a relying party, or with update changes its registration,
+// and issues its certificates in one step. It decodes the enrolment result
+// into out.
+func (c *Client) Enrol(enrolment any, update bool, out any) error {
+	method := http.MethodPost
+	if update {
+		method = http.MethodPut
+	}
+	return c.do(method, apiPath("registrar", "enrolments"), enrolment, out)
+}
+
 // RegistrationCertificateViews lists the registration certificates of a
 // relying party with the value of each stored certificate.
 func (c *Client) RegistrationCertificateViews(identifier string, out any) error {

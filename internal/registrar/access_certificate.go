@@ -22,6 +22,7 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
+	"net/mail"
 	"net/url"
 	"regexp"
 	"strings"
@@ -125,18 +126,13 @@ func (r *Registrar) AccessCertificateFor(rp WalletRelyingParty, serviceIdentifie
 	if err != nil {
 		return nil, err
 	}
-	dnsNames = trimmedNonEmpty(dnsNames)
-	if len(dnsNames) > maxRegistrationItems {
-		return nil, fmt.Errorf("an access certificate may name at most %d DNS names", maxRegistrationItems)
+	dnsNames, err = accessCertificateDNSNames(dnsNames)
+	if err != nil {
+		return nil, err
 	}
-	for _, name := range dnsNames {
-		if !dnsNamePattern.MatchString(name) {
-			return nil, fmt.Errorf("%q is not a DNS name", name)
-		}
-	}
-	var uris []*url.URL
-	if u, err := url.Parse(service.SupportURI); err == nil && u.Scheme != "" {
-		uris = append(uris, u)
+	uris, emails, err := supportContact(service.SupportURI)
+	if err != nil {
+		return nil, err
 	}
 	caKey, ca, err := r.env.RelyingPartyAccessCA()
 	if err != nil {
@@ -150,6 +146,7 @@ func (r *Registrar) AccessCertificateFor(rp WalletRelyingParty, serviceIdentifie
 		OrganizationIdentifier: subject,
 		Role:                   mock.AccessCertificate,
 		URIs:                   uris,
+		EmailAddresses:         emails,
 		DNSNames:               dnsNames,
 		Validity:               validity,
 	})
@@ -157,6 +154,40 @@ func (r *Registrar) AccessCertificateFor(rp WalletRelyingParty, serviceIdentifie
 		return nil, fmt.Errorf("%w: signing the access certificate: %w", errRegistrarSigning, err)
 	}
 	return []*x509.Certificate{leaf, ca}, nil
+}
+
+// supportContact maps the support contact of a service to the subject
+// alternative names of ETSI TS 119 411-8 V1.1.1 GEN-6.6.1-07: a website is a
+// uniformResourceIdentifier and an email address an rfc822Name.
+func supportContact(supportURI string) (uris []*url.URL, emails []string, err error) {
+	u, err := url.Parse(supportURI)
+	switch {
+	case err != nil:
+	case u.Scheme == "mailto":
+		if address, err := mail.ParseAddress(u.Opaque); err == nil && address.Address == u.Opaque {
+			return nil, []string{u.Opaque}, nil
+		}
+	case u.Scheme == "https" || u.Scheme == "http":
+		if u.Host != "" {
+			return []*url.URL{u}, nil, nil
+		}
+	}
+	return nil, nil, fmt.Errorf("the support contact %q is not a web address or a mailto: address", supportURI)
+}
+
+// accessCertificateDNSNames checks the DNS names for the subject alternative
+// names of an access certificate.
+func accessCertificateDNSNames(dnsNames []string) ([]string, error) {
+	dnsNames = trimmedNonEmpty(dnsNames)
+	if len(dnsNames) > maxRegistrationItems {
+		return nil, fmt.Errorf("an access certificate may name at most %d DNS names", maxRegistrationItems)
+	}
+	for _, name := range dnsNames {
+		if !dnsNamePattern.MatchString(name) {
+			return nil, fmt.Errorf("%q is not a DNS name", name)
+		}
+	}
+	return dnsNames, nil
 }
 
 // csrPublicKey returns the P-256 key of a CSR after checking that its signature

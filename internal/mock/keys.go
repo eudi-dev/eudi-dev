@@ -269,9 +269,10 @@ type LeafCertOptions struct {
 	// DNSNames, URIs and IPAddresses become the subject alternative names.
 	// A verifier that resolves an issuer key from the x5c header checks the
 	// credential's iss against them (HAIP 1.0).
-	DNSNames    []string
-	URIs        []*url.URL
-	IPAddresses []net.IP
+	DNSNames       []string
+	URIs           []*url.URL
+	IPAddresses    []net.IP
+	EmailAddresses []string
 	// OrganizationalUnit names one service of the organization (ARF Reg_33,
 	// ETSI TS 119 411-8 GEN-6.6.1-08). Empty leaves it out.
 	OrganizationalUnit string
@@ -339,6 +340,7 @@ func GenerateLeafCertWithOptions(caKey *ecdsa.PrivateKey, caCert *x509.Certifica
 		DNSNames:              opts.DNSNames,
 		URIs:                  opts.URIs,
 		IPAddresses:           opts.IPAddresses,
+		EmailAddresses:        opts.EmailAddresses,
 		IssuingCertificateURL: opts.IssuingCertificateURL,
 		ExtraExtensions: []pkix.Extension{
 			issuerAltName,

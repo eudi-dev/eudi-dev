@@ -46,7 +46,7 @@ Without a subcommand, or with list, it lists what you added.`,
 		Args: cobra.NoArgs,
 		RunE: listTrust,
 	}
-	cmd.AddCommand(walletTrustAddCACmd(), walletTrustRemoveCACmd(), walletTrustAddListCmd(), walletTrustRemoveListCmd(), listSubcommand(cmd))
+	cmd.AddCommand(walletTrustAddCACmd(), walletTrustRemoveCACmd(), walletTrustAddListCmd(), walletTrustRemoveListCmd(), listSubcommand(cmd, "List the providers and lists you added"))
 	return cmd
 }
 

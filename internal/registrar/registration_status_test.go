@@ -86,6 +86,38 @@ func TestAnUnchangedUpdateKeepsCertificatesValid(t *testing.T) {
 	}
 }
 
+// A certificate lists the entitlements of its service (TS05 v1.5 §2.4.1). An
+// intended use added to an issuer service gives that service the
+// Service_Provider entitlement, so the service's provider certificate is out
+// of date. The certificates of another service stay valid.
+func TestANewRoleRevokesOnlyTheCertificatesOfItsService(t *testing.T) {
+	w := generateTestWallet(t)
+	rp, err := w.RegisterRelyingParty(WalletRelyingParty{TradeName: "Example University", Services: []WalletRelyingPartyService{
+		{ServiceIdentifier: "checkout", IntendedUses: []IntendedUse{ageCheckUse("Age check")}},
+		{ServiceIdentifier: "diplomas", ProvidesAttestations: []ProvidedAttestation{{Format: "dc+sd-jwt", Type: testDiplomaVCT}}},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	identifier := rp.Identifier[0].Identifier
+	verifier := issueTestRegistrationCertificate(t, w, rp)
+	if _, err := w.IssueRegistrationCertificate(RegistrationCertificateRequest{Identifier: identifier, ServiceIdentifier: "diplomas"}); err != nil {
+		t.Fatal(err)
+	}
+	rp.Services[1].IntendedUses = []IntendedUse{ageCheckUse("Identity check")}
+	if _, err := w.UpdateRelyingParty(rp); err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range w.RegistrationCertificateStatuses(identifier) {
+		if provider := s.IntendedUse == ""; s.Superseded != provider {
+			t.Errorf("status %+v: superseded %v, want %v", s, s.Superseded, provider)
+		}
+		if s.IntendedUse != "" && s.Certificate != verifier.RegistrationCertificate {
+			t.Errorf("status %+v lost the verifier certificate", s)
+		}
+	}
+}
+
 func TestActivatingLeavesRemovedIntendedUsesRevoked(t *testing.T) {
 	w := generateTestWallet(t)
 	rp := registerTestRelyingParty(t, w)
@@ -141,13 +173,13 @@ func TestACertificateForChangedContentIsNotIssued(t *testing.T) {
 	}
 }
 
-// The registrar issues at most 100 certificates to one relying party, so
+// One relying party holds at most 100 certificates that were not replaced, so
 // visitors of a public demo can't fill the status list.
 func TestTheRegistrarCapsTheCertificatesOfARelyingParty(t *testing.T) {
 	reg := generateTestWallet(t)
 	rp := registerTestRelyingParty(t, reg)
 	for i := range maxCertificatesPerRelyingParty {
-		reg.State.RegistrationStatuses = append(reg.State.RegistrationStatuses, RegistrationStatus{Index: i + 1, Identifier: rp.Identifier[0].Identifier, Superseded: true})
+		reg.State.RegistrationStatuses = append(reg.State.RegistrationStatuses, RegistrationStatus{Index: i + 1, Identifier: rp.Identifier[0].Identifier, Revoked: i%2 == 0})
 	}
 	h := &Server{Registrar: func() *Registrar { return reg.Registrar }, Mutate: func(change func() bool) { change() }}
 	request := RegistrationCertificateRequest{Identifier: rp.Identifier[0].Identifier, IntendedUseIdentifier: rp.Services[0].IntendedUses[0].IntendedUseIdentifier}
@@ -160,6 +192,30 @@ func TestTheRegistrarCapsTheCertificatesOfARelyingParty(t *testing.T) {
 	// Direct callers get the same cap.
 	if _, err := reg.Registrar.IssueRegistrationCertificate(request); err == nil {
 		t.Error("a direct call issued past the cap")
+	}
+}
+
+// A replaced certificate and those of a deleted relying party keep their
+// entries until they expire, but they don't count against the cap of a relying
+// party. The whole list is capped.
+func TestReplacedCertificatesKeepTheirEntriesOutsideThePartyCap(t *testing.T) {
+	reg := generateTestWallet(t)
+	rp := registerTestRelyingParty(t, reg)
+	identifier := rp.Identifier[0].Identifier
+	for i := range maxCertificatesPerRelyingParty {
+		reg.State.RegistrationStatuses = append(reg.State.RegistrationStatuses, RegistrationStatus{Index: i + 1, Identifier: identifier, Revoked: true, Superseded: true, Expires: time.Now().Add(time.Hour).Unix()})
+	}
+	issueTestRegistrationCertificate(t, reg, rp)
+	if len(reg.State.RegistrationStatuses) != maxCertificatesPerRelyingParty+1 {
+		t.Errorf("%d entries, want the replaced ones kept", len(reg.State.RegistrationStatuses))
+	}
+
+	for i := len(reg.State.RegistrationStatuses); i < maxRegistrationStatuses; i++ {
+		reg.State.RegistrationStatuses = append(reg.State.RegistrationStatuses, RegistrationStatus{Index: i + 1, Identifier: "NLTEST.DELETED", Revoked: true, Superseded: true, Expires: time.Now().Add(time.Hour).Unix()})
+	}
+	request := RegistrationCertificateRequest{Identifier: identifier, IntendedUseIdentifier: rp.Services[0].IntendedUses[0].IntendedUseIdentifier}
+	if _, err := reg.IssueRegistrationCertificate(request); !errors.Is(err, errRegistrationStatusFull) {
+		t.Errorf("error %v, want the full status list", err)
 	}
 }
 

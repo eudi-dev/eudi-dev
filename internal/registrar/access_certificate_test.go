@@ -69,3 +69,45 @@ func TestAccessCertificateDNSNamesAreChecked(t *testing.T) {
 		}
 	}
 }
+
+// ETSI TS 119 411-8 V1.1.1 GEN-6.6.1-07 puts a support website in a
+// uniformResourceIdentifier and an email address in an rfc822Name.
+func TestTheSupportContactIsASubjectAlternativeName(t *testing.T) {
+	w := generateTestWallet(t)
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for contact, want := range map[string]string{
+		"https://shop.example/help":   "URI https://shop.example/help",
+		"support@shop.example":        "email support@shop.example",
+		"mailto:support@shop.example": "email support@shop.example",
+	} {
+		rp, err := w.RegisterRelyingParty(WalletRelyingParty{TradeName: "Shop " + contact, Services: []WalletRelyingPartyService{{SupportURI: contact, IntendedUses: []IntendedUse{ageCheckUse("Age check")}}}})
+		if err != nil {
+			t.Fatalf("%s: %v", contact, err)
+		}
+		issued, err := w.IssueAccessCertificate(AccessCertificateRequest{Identifier: rp.Identifier[0].Identifier, CSR: testAccessCSR(t, key)})
+		if err != nil {
+			t.Fatalf("%s: %v", contact, err)
+		}
+		block, _ := pem.Decode([]byte(issued.Certificate))
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var names []string
+		for _, u := range cert.URIs {
+			names = append(names, "URI "+u.String())
+		}
+		for _, e := range cert.EmailAddresses {
+			names = append(names, "email "+e)
+		}
+		if len(names) != 1 || names[0] != want {
+			t.Errorf("%s: subject alternative names %v, want %s", contact, names, want)
+		}
+	}
+	if _, err := w.RegisterRelyingParty(WalletRelyingParty{TradeName: "Shop", Services: []WalletRelyingPartyService{{SupportURI: "call us"}}}); err == nil || !strings.Contains(err.Error(), "support contact") {
+		t.Errorf("error %v, want the support contact refused", err)
+	}
+}

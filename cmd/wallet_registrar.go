@@ -58,7 +58,7 @@ func (f *partyFlags) add(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.identifier, "identifier", "", "Identifier: an EUID, or the organizationIdentifier of a certificate such as LEIXG-529900T8BM49AURSDO55 (default: an assigned EUID)")
 	cmd.Flags().StringVar(&f.legalName, "legal-name", "", "Legal name (default --name)")
 	cmd.Flags().StringVar(&f.rp.Country, "country", "", "Country code (default the identifier's country)")
-	cmd.Flags().StringVar(&f.supportURI, "support-uri", "", "Support contact URL (default a placeholder page on the wallet)")
+	cmd.Flags().StringVar(&f.supportURI, "support-uri", "", "Support contact: a web address or an email address (default a placeholder page on the wallet)")
 	cmd.Flags().StringVar(&f.serviceID, "service-id", "", "Service identifier (the organizational unit in access certificates)")
 }
 
@@ -91,23 +91,6 @@ func registeredParty(svc walletService, identifier string) (registrar.WalletRely
 		}
 	}
 	return registrar.WalletRelyingParty{}, fmt.Errorf("relying party %s is not registered", identifier)
-}
-
-// extendParty saves a changed registration and issues the certificate for the
-// change. If the certificate fails, it restores the registration.
-func extendParty(svc walletService, before, changed registrar.WalletRelyingParty, request func(registrar.WalletRelyingParty) registrar.RegistrationCertificateRequest) (registrar.WalletRelyingParty, *registrar.RegistrationCertificateResult, error) {
-	stored, err := svc.UpdateRelyingParty(changed)
-	if err != nil {
-		return registrar.WalletRelyingParty{}, nil, err
-	}
-	result, err := svc.RegistrationCertificate(request(stored))
-	if err != nil {
-		if _, restoreErr := svc.UpdateRelyingParty(before); restoreErr != nil {
-			return registrar.WalletRelyingParty{}, nil, fmt.Errorf("%w (restoring the registration: %w)", err, restoreErr)
-		}
-		return registrar.WalletRelyingParty{}, nil, err
-	}
-	return stored, result, nil
 }
 
 // extensionResult is the --json document of add --to.
@@ -182,7 +165,7 @@ func walletPartiesCmd(role string) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.AddCommand(add, walletPartyRemoveCmd(role), listSubcommand(cmd))
+	cmd.AddCommand(add, walletPartyRemoveCmd(role), listSubcommand(cmd, "List the registered "+role))
 	return cmd
 }
 
@@ -199,10 +182,10 @@ func hasRole(rp registrar.WalletRelyingParty, role string) bool {
 
 // listSubcommand runs the parent's listing as "list", like wallet list and
 // templates list.
-func listSubcommand(parent *cobra.Command) *cobra.Command {
+func listSubcommand(parent *cobra.Command, short string) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
-		Short: parent.Short,
+		Short: short,
 		Args:  cobra.NoArgs,
 		RunE:  parent.RunE,
 	}
@@ -260,7 +243,9 @@ Run registration-cert to get its registration certificate.
 --to adds the intended use to a registered relying party instead, such as an
 issuer that asks for a PID before it issues. It stays one registration with
 both roles. The command issues the verifier registration certificate and
-prints its verifier_info.`,
+prints its verifier_info. The service gets the Service_Provider entitlement,
+so the registrar revokes the issuer registration certificate of the service.
+Run registration-cert --provider for a new one.`,
 		Example: `  eudi wallet registrar verifiers add --name "Example Shop" --purpose "Age check" --dcql query.json
   eudi wallet registrar verifiers add --to NLTEST.1A2B3C4D5E6F7A8B --purpose "Identity check before issuance" --dcql pid.json`,
 		Args: cobra.NoArgs,
@@ -317,10 +302,11 @@ registration-cert to get the registration certificate. It comes inside an
 issuer_info value for your issuer metadata.
 
 --to adds the attestation types to a registered relying party instead. A
-verifier issues as well and stays one registration with both roles. An issuer
-lists the new types next to its others. The command issues the new issuer
-registration certificate, which revokes the current one, and prints its
-issuer_info.`,
+verifier issues as well and stays one registration with both roles. Its
+service gets a provider entitlement, so the registrar revokes the verifier
+registration certificates of the service. An issuer lists the new types next to
+its others. The command issues the new issuer registration certificate, which
+revokes the current one, and prints its issuer_info.`,
 		Example: `  eudi wallet registrar issuers add --name "Example University" --attestation dc+sd-jwt:urn:example:diploma:1
   eudi wallet registrar issuers add --name "Example PID Provider" --attestation dc+sd-jwt:urn:eudi:pid:1 --attestation mso_mdoc:eu.europa.ec.eudi.pid.1
   eudi wallet registrar issuers add --name "Example Bank" --category qeaa --attestation dc+sd-jwt:urn:example:account:1
@@ -385,17 +371,19 @@ func addIntendedUse(cmd *cobra.Command, identifier string, use registrar.Intende
 	}
 	changed := cloneParty(before)
 	changed.Services[0].IntendedUses = append(changed.Services[0].IntendedUses, use)
-	var added string
-	stored, result, err := extendParty(svc, before, changed, func(stored registrar.WalletRelyingParty) registrar.RegistrationCertificateRequest {
-		for _, u := range stored.Services[0].IntendedUses {
-			if !known[u.IntendedUseIdentifier] {
-				added = u.IntendedUseIdentifier
-			}
-		}
-		return registrar.RegistrationCertificateRequest{Identifier: identifier, ServiceIdentifier: stored.Services[0].ServiceIdentifier, IntendedUseIdentifier: added}
-	})
+	enrolled, err := svc.Enrol(registrar.Enrolment{
+		RelyingParty: changed,
+		Registration: &registrar.EnrolmentRegistration{ServiceIdentifier: changed.Services[0].ServiceIdentifier},
+	}, true)
 	if err != nil {
 		return err
+	}
+	stored, result := enrolled.RelyingParty, enrolled.Registration
+	var added string
+	for _, u := range stored.Services[0].IntendedUses {
+		if !known[u.IntendedUseIdentifier] {
+			added = u.IntendedUseIdentifier
+		}
 	}
 	printResult(extensionResult{RelyingParty: stored, IntendedUse: added, Registration: result}, func() {
 		fmt.Fprintf(cmd.ErrOrStderr(), "Added intended use %s to %s (%s)\n", added, stored.TradeName, identifier)
@@ -432,12 +420,14 @@ func addProvidedAttestations(cmd *cobra.Command, identifier string, entitlements
 	// Without provider entitlements the registrar derives them from the
 	// categories of all types, so the new types get matching entitlements.
 	service.Entitlements = append(slices.DeleteFunc(service.Entitlements, isProviderEntitlement), entitlements...)
-	stored, result, err := extendParty(svc, before, changed, func(stored registrar.WalletRelyingParty) registrar.RegistrationCertificateRequest {
-		return registrar.RegistrationCertificateRequest{Identifier: identifier, ServiceIdentifier: stored.Services[i].ServiceIdentifier}
-	})
+	enrolled, err := svc.Enrol(registrar.Enrolment{
+		RelyingParty: changed,
+		Registration: &registrar.EnrolmentRegistration{Provider: true, ServiceIdentifier: service.ServiceIdentifier},
+	}, true)
 	if err != nil {
 		return err
 	}
+	stored, result := enrolled.RelyingParty, enrolled.Registration
 	printResult(extensionResult{RelyingParty: stored, Registration: result}, func() {
 		fmt.Fprintf(cmd.ErrOrStderr(), "Added the attestation types to %s (%s)\n", stored.TradeName, identifier)
 		fmt.Fprintln(cmd.OutOrStdout(), result.IssuerInfo)
@@ -554,7 +544,7 @@ with --json.`,
 		},
 	}
 	cmd.Flags().StringVar(&req.Identifier, "identifier", "", "Identifier of the registered relying party (required)")
-	cmd.Flags().StringVar(&req.ServiceIdentifier, "service-id", "", "Service of the relying party (default the first service)")
+	cmd.Flags().StringVar(&req.ServiceIdentifier, "service-id", "", "Service the certificate is for (default the only service)")
 	cmd.Flags().StringVar(&csrPath, "csr", "", "PEM certificate signing request (file or '-' for stdin, required)")
 	cmd.Flags().StringSliceVar(&req.DNSNames, "dns", nil, "DNS name for the x509_san_dns client identifier (repeatable)")
 	cmd.Flags().StringVar(&req.Validity, "validity", "", "Validity as a Go duration, at most 8760h (default 8760h)")
@@ -634,7 +624,7 @@ only provider service. --provider selects the provider service of
 		},
 	}
 	cmd.Flags().StringVar(&req.Identifier, "identifier", "", "Identifier of the registered relying party (required)")
-	cmd.Flags().StringVar(&req.ServiceIdentifier, "service-id", "", "Service of the relying party (default the service of the intended use)")
+	cmd.Flags().StringVar(&req.ServiceIdentifier, "service-id", "", "Service of the intended use, or the issuer service (default any service)")
 	cmd.Flags().StringVar(&req.IntendedUseIdentifier, "intended-use", "", "Intended use of the certificate (default the only one)")
 	cmd.Flags().BoolVar(&provider, "provider", false, "Use the attestation provider service instead of an intended use")
 	cmd.Flags().BoolVar(&renew, "new", false, "Issue a new certificate and revoke the current one")

@@ -59,7 +59,7 @@ func TestWalletRegistrarRegistersAndCertifies(t *testing.T) {
 		}
 		return strings.TrimSpace(buf.String())
 	}
-	var verifierInfo []map[string]string
+	var verifierInfo []map[string]any
 	if out := registrationCert(); json.Unmarshal([]byte(out), &verifierInfo) != nil || verifierInfo[0]["format"] != "registration_cert" {
 		t.Fatalf("output %q, want the verifier_info value alone", out)
 	}
@@ -191,7 +191,7 @@ func TestRegistrarAddsTheOtherRoleToARegistration(t *testing.T) {
 		t.Fatalf("issuers add --to on an issuer printed %q, want a new issuer_info with both types", extended)
 	}
 
-	var verifierInfo []map[string]string
+	var verifierInfo []map[string]any
 	added := run("verifiers", "add", "--to", identifier, "--purpose", "Identity check", "--dcql", dcql)
 	if json.Unmarshal([]byte(added), &verifierInfo) != nil || verifierInfo[0]["format"] != "registration_cert" {
 		t.Fatalf("verifiers add --to printed %q, want the verifier_info value", added)
@@ -201,5 +201,23 @@ func TestRegistrarAddsTheOtherRoleToARegistration(t *testing.T) {
 	}
 	if out := run("verifiers"); !strings.Contains(out, identifier) {
 		t.Errorf("verifiers %q, want the party", out)
+	}
+}
+
+// Each list subcommand describes the listing, not its parent's subcommands.
+func TestListSubcommandsDescribeTheListing(t *testing.T) {
+	for _, path := range [][]string{
+		{"wallet", "catalog", "list"},
+		{"wallet", "trust", "list"},
+		{"wallet", "registrar", "verifiers", "list"},
+		{"wallet", "registrar", "issuers", "list"},
+	} {
+		list, _, err := rootCmd.Find(path)
+		if err != nil {
+			t.Fatalf("%v: %v", path, err)
+		}
+		if !strings.HasPrefix(list.Short, "List the ") || list.Short == list.Parent().Short {
+			t.Errorf("%v: Short %q, want a description of the listing", path, list.Short)
+		}
 	}
 }

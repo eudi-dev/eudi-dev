@@ -41,11 +41,13 @@ type testEnv struct {
 	accessCAKey    *ecdsa.PrivateKey
 	accessCA       *x509.Certificate
 	templates      credtemplate.Location
+	// signErr makes the registrar signer fail.
+	signErr error
 }
 
 func (e *testEnv) RegistrarBase() string { return e.base }
 func (e *testEnv) RegistrarSigningMaterial() (*ecdsa.PrivateKey, []*x509.Certificate, error) {
-	return e.registrarKey, e.registrarChain, nil
+	return e.registrarKey, e.registrarChain, e.signErr
 }
 func (e *testEnv) RelyingPartyAccessCA() (*ecdsa.PrivateKey, *x509.Certificate, error) {
 	return e.accessCAKey, e.accessCA, nil

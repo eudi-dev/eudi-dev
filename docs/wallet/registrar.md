@@ -5,13 +5,13 @@
 The wallet includes a relying party registrar. Each member state runs a registrar like this one (ARF Topic 27). You register a verifier or an issuer with it and get two certificates:
 
 - An **access certificate** (ETSI TS 119 411-8 V1.1.1). You send a certificate signing request and keep the private key. A verifier signs its request objects with that key and puts the certificate in `x5c`. An issuer signs its Credential Issuer Metadata with it (ARF ISSU_22 and ISSU_32).
-- A **registration certificate** (ETSI TS 119 475 V1.2.1, typ `rc-wrp+jwt`). A verifier gets one for each intended use. It lists which credentials and claims the verifier may request, and the purpose shown in the consent dialog. The verifier sends it in `verifier_info` (OpenID4VP 1.0 §5.1). An issuer gets one for its service (ARF RPRC_13). It lists which attestation types the issuer may issue, and the issuer publishes it in `issuer_info` (ETSI TS 119 472-3 V1.1.1 §4.2.3).
+- A **registration certificate** (ETSI TS 119 475 V1.2.1, typ `rc-wrp+jwt`). A verifier gets one for each intended use. It lists which credentials and claims the verifier may request, and the purpose shown in the consent dialog. The verifier sends it in `verifier_info` (OpenID4VP 1.0 §5.1) next to a `registrar_dataset` with its identifier, service description, registry URI, intended use, purpose and privacy policy (ETSI TS 119 472-2 V1.2.1 §6.3.2.2). An issuer gets one for its service (ARF RPRC_13). It lists which attestation types the issuer may issue, and the issuer publishes it in `issuer_info` (ETSI TS 119 472-3 V1.1.1 §4.2.3).
 
 Both certificates contain the same identifier (ARF Reg_32 and RPRC_07). The registrar API follows the TS05 v1.5 data model and registry API. The [registrar API walkthrough](registrar-api.md) registers a verifier and an issuer with curl and then uses their certificates with the wallet.
 
 ## Registrations
 
-A relying party offers services. A verifier's service has intended uses (TS05 v1.5 §2.4). Each intended use needs a purpose (TS05 v1.5 §2.4.4) and lists which credentials and claims the verifier may request. A credential has the format `dc+sd-jwt` or `mso_mdoc` and its type in `meta`. Every credential lists at least one claim (TS05 v1.5 §2.4.5). A privacy policy without a `type` gets `http://data.europa.eu/eudi/policy/privacy-policy` (ETSI TS 119 475 V1.2.1 Annex B.2.8). A service has at most one `supportURI`.
+A relying party offers services. A verifier's service has intended uses (TS05 v1.5 §2.4). Each intended use needs a purpose (TS05 v1.5 §2.4.4) and lists which credentials and claims the verifier may request. A credential has the format `dc+sd-jwt` or `mso_mdoc` and its type in `meta`. Every credential lists at least one claim (TS05 v1.5 §2.4.5). A privacy policy without a `type` gets `http://data.europa.eu/eudi/policy/privacy-policy` (ETSI TS 119 475 V1.2.1 Annex B.2.8). A service has at most one `supportURI`. It is a web address or an email address. The access certificate carries a web address as a URI and an email address as an email name (ETSI TS 119 411-8 V1.1.1 GEN-6.6.1-07). A service that only acts as an intermediary has no entitlement (TS05 v1.5 §2.4.1).
 
 A registration names its supervisory authority with `name`, `country` and at least one contact in `email`, `phone` or `formURI` (TS05 v1.5 §2.4.7). `email`, `phone` and `formURI` are lists. If you give no contact, the registrar adds the test address `dpa@eudi-test.dev` and the form `<issuer URL>/supervisory-authority`. The name defaults to `Test Supervisory Authority` and the country to the relying party's country.
 
@@ -45,12 +45,14 @@ An issuer's registration certificate covers its service. It has `entitlements` a
 To use the certificates, an issuer:
 
 1. puts the `issuer_info` array at the top level of its Credential Issuer Metadata
-2. signs the metadata as OpenID4VCI 1.0 §12.2.3 describes, with the key of its access certificate and the access certificate chain in `x5c` (ETSI TS 119 472-3 §4.2.2)
+2. signs the metadata as OpenID4VCI 1.0 §12.2.3 describes, with the key of its access certificate and the certificate in `x5c` without the trust anchor (ETSI TS 119 472-3 §4.2.2, HAIP 1.0 §4.1)
 3. serves the signed metadata when a wallet asks for `application/jwt`
 
 A wallet with `--arf` then checks the issuer before it requests a credential (see [issuing](issuing.md#arf-checks)).
 
-A provider that also requests attributes, for example to authenticate the user during issuance, registers intended uses too. The registrar then adds the `Service_Provider` entitlement (ARF RPRC_05 note). A registration certificate lists every entitlement of the party (ETSI TS 119 475 V1.2.1 Table 7). Adding the other role therefore makes the certificates issued before out of date, and the registrar revokes them. Issue new ones afterwards, or register both roles at once.
+A provider that also requests attributes, for example to authenticate the user during issuance, registers intended uses in the same service (ARF RPRC_05 note, TS05 v1.5 §2.4.1). The registrar then adds the `Service_Provider` entitlement to that service.
+
+Entitlements belong to a service. The ARF registers the data of TS6 (Reg_01a), and TS6 v1.1 records the entitlements per service. A registration certificate covers one service, or one intended use of a service (ARF RPRC_09 and RPRC_13). It lists the entitlements of that service. ETSI TS 119 475 V1.2.1 Table 7 still takes them from the relying party, and the registrar follows the ARF. Adding the other role to a service changes its entitlements. The registrar then revokes the certificates of that service, and those of other services stay valid. Issue new ones afterwards, or register both roles at once.
 
 ## Revocation
 
@@ -77,9 +79,9 @@ The search looks at names, identifiers, purposes and credential types.
 
 A verifier registration certificate belongs to one intended use. An issuer registration certificate belongs to the service. The registrar keeps the current certificate, so its `verifier_info` or `issuer_info` value stays available. Issuing a new certificate revokes the old one. A certificate the registrar revoked itself can't be activated again.
 
-**+ Add verifier registration certificate** adds an intended use (ETSI TS 119 475) and issues a verifier registration certificate for it. The existing certificates stay valid. For an issuer, the dialog suggests an intended use that asks for a PID before issuance. The party stays one relying party with both roles, because CIR (EU) 2025/848 Annex I keeps all entitlements and intended uses of a party in one registration. The registrar adds the `Service_Provider` entitlement. The issuer signs its request with its access certificate and sends the new certificate in `verifier_info`.
+**+ Add verifier registration certificate** adds an intended use (ETSI TS 119 475) and issues a verifier registration certificate for it. The certificates of the other intended uses stay valid. For an issuer, the dialog suggests an intended use that asks for a PID before issuance. The party stays one relying party with both roles, because CIR (EU) 2025/848 Annex I keeps all entitlements and intended uses of a party in one registration. The registrar adds the `Service_Provider` entitlement to the service and revokes its issuer registration certificate, because that certificate lists the entitlements. Issue a new one for the service. The issuer signs its request with its access certificate and sends the new certificate in `verifier_info`.
 
-**+ Add issuer registration certificate** adds attestation types to a party without them and issues the issuer registration certificate. A party has one issuer registration certificate for its service (ARF RPRC_13). **Edit attestation types** changes its list and issues a new certificate. The registrar then derives the provider entitlements from the categories of the types, unless you pick one.
+**+ Add issuer registration certificate** adds attestation types to a party without them and issues the issuer registration certificate. The service gets a provider entitlement, so the registrar revokes the verifier registration certificates of the service. Issue new ones. A party has one issuer registration certificate for its service (ARF RPRC_13). **Edit attestation types** changes its list and issues a new certificate. The registrar then derives the provider entitlements from the categories of the types, unless you pick one.
 
 Deleting a registration certificate removes what it certifies from the registration: the intended use, or the attestation types of the service. The registrar revokes the certificates of that intended use or service. Deleting the relying party revokes all its certificates.
 
@@ -111,13 +113,13 @@ Every element has an ID for automated tests:
 | Identifier | `organizationIdentifier` | `sub` |
 | Legal name | Organization | `sub_ln` |
 | Country | Country | `country` |
-| Support URL | URI in the subject alternative name | `support_uri` |
+| Support contact | URI or email address in the subject alternative name | `support_uri` |
 | Service | Organizational unit | Not included |
 | Intended use (verifier) | Not included | `intended_use_id` (ETSI TS 119 475 V1.2.1 Table 9) |
 | Purpose (verifier) | Not included | `purpose` |
 | Privacy policy (verifier) | Not included | `privacy_policy` |
 | Credentials and claims (verifier) | Not included | `credentials` |
-| Entitlement (issuer) | Not included | `entitlements` |
+| Entitlements of the service | Not included | `entitlements` |
 | Attestation types (issuer) | Not included | `provides_attestations` |
 | Supervisory authority | Not included | `supervisory_authority` with the name, the country and the first email, phone and form URI (ETSI TS 119 475 V1.2.1 Table 7) |
 | Validity (registration certificate) | Not included | `iat` and `exp`, at most 12 months (GEN-5.2.4-08) |
@@ -300,7 +302,7 @@ eudi wallet catalog rm 3f1c3b0d-71ad-496b-9f94-68198503e761
 
 `verifiers` and `issuers` list the registered verifiers and issuers, and so do `verifiers list` and `issuers list`. `add` registers one and prints the assigned identifier, and `rm` deletes a registration and revokes its certificates. `verifiers add` takes the credentials and claims of a DCQL query, so requests with that query pass the over-asking check (ARF RPRC_21). `issuers add` takes the attestation types and optionally the categories of its entitlements.
 
-With `--to`, both add the other role to a registered relying party instead. `verifiers add --to` adds an intended use, and `issuers add --to` adds attestation types. On an issuer, the new types join its others, and the new certificate revokes the current one. It stays one registration with both roles. The command issues the new registration certificate and prints its `verifier_info` or `issuer_info` value.
+With `--to`, both add the other role to a registered relying party instead. `verifiers add --to` adds an intended use, and `issuers add --to` adds attestation types. On an issuer, the new types join its others, and the new certificate revokes the current one. It stays one registration with both roles. The command issues the new registration certificate and prints its `verifier_info` or `issuer_info` value. The other role changes the entitlements of the service, so the registrar revokes the certificates of the first role. `registration-cert` then issues new ones.
 
 `access-cert` prints the PEM certificate and writes the client identifiers to stderr: `x509_hash` for the certificate and `x509_san_dns` for each `--dns` name (OpenID4VP 1.0 §5.9.3). The name becomes the common name (ETSI TS 119 411-8 GEN-6.1.1-04, ARF RPRC_06). The key must be P-256, because HAIP 1.0 requires ES256 for request objects.
 
@@ -315,7 +317,7 @@ With `--to`, both add the other role to a registered relying party instead. `ver
 | `verifiers add`, `issuers add` | `--identifier` | Assigned EUID | EUID, or an `organizationIdentifier` such as `LEIXG-529900T8BM49AURSDO55` |
 | `verifiers add`, `issuers add` | `--legal-name` | `--name` | Legal name |
 | `verifiers add`, `issuers add` | `--country` | The identifier's country (`NL` for an assigned identifier) | Country code |
-| `verifiers add`, `issuers add` | `--support-uri` | `<issuer URL>/support` | Support contact URL |
+| `verifiers add`, `issuers add` | `--support-uri` | `<issuer URL>/support` | Support contact: a web address or an email address |
 | `verifiers add`, `issuers add` | `--service-id` | None | Service identifier |
 | `verifiers add` | `--dcql` | None | DCQL query to register (file, JSON or `-` for stdin, required) |
 | `verifiers add` | `--purpose` | None | Purpose of the intended use (required) |
@@ -323,7 +325,7 @@ With `--to`, both add the other role to a registered relying party instead. `ver
 | `issuers add` | `--attestation` | None | Attestation type as `format:type`, such as `dc+sd-jwt:urn:eudi:pid:1` (repeatable, required) |
 | `issuers add` | `--category` | The categories of the attestation types | Category for the issuer's provider entitlement: `pid`, `qeaa`, `pub-eaa` or `eaa` (repeatable) |
 | `access-cert` | `--identifier` | None | Registered identifier (required) |
-| `access-cert` | `--service-id` | The first service | Service the certificate is for |
+| `access-cert` | `--service-id` | The only service | Service the certificate is for |
 | `access-cert` | `--csr` | None | PEM certificate signing request (file or `-` for stdin, required) |
 | `access-cert` | `--dns` | None | DNS name for the `x509_san_dns` client identifier (repeatable) |
 | `access-cert` | `--validity` | `8760h` | Validity as a Go duration, at most `8760h` |

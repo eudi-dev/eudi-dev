@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/mail"
 	"net/url"
 	"reflect"
 	"regexp"
@@ -152,10 +153,11 @@ type RegisteredClaim struct {
 }
 
 var (
-	errRelyingPartyNotFound = errors.New("relying party not registered")
-	errRelyingPartyExists   = errors.New("relying party already registered")
-	errRegistrarFull        = errors.New("the registrar holds the maximum number of relying parties")
-	countryCodePattern      = regexp.MustCompile(`^[A-Z]{2}$`)
+	errRelyingPartyNotFound    = errors.New("relying party not registered")
+	errUpdateWithoutIdentifier = errors.New("an update needs the identifier of the registered relying party")
+	errRelyingPartyExists      = errors.New("relying party already registered")
+	errRegistrarFull           = errors.New("the registrar holds the maximum number of relying parties")
+	countryCodePattern         = regexp.MustCompile(`^[A-Z]{2}$`)
 )
 
 // RegisterRelyingParty stores a new relying party. If the request leaves them
@@ -202,7 +204,7 @@ func (r *Registrar) UpdateRelyingParty(rp WalletRelyingParty) (WalletRelyingPart
 		return WalletRelyingParty{}, err
 	}
 	if len(rp.Identifier) == 0 || strings.TrimSpace(rp.Identifier[0].Identifier) == "" {
-		return WalletRelyingParty{}, fmt.Errorf("an update needs the identifier of the registered relying party")
+		return WalletRelyingParty{}, errUpdateWithoutIdentifier
 	}
 	categories := r.attestationCategories()
 	r.mu.Lock()
@@ -211,11 +213,8 @@ func (r *Registrar) UpdateRelyingParty(rp WalletRelyingParty) (WalletRelyingPart
 	if i < 0 {
 		return WalletRelyingParty{}, fmt.Errorf("%w: %s", errRelyingPartyNotFound, rp.Identifier[0].Identifier)
 	}
-	// The first identifier never changes, because the issued certificates and
-	// their status entries contain it.
 	stored := r.state.RelyingParties[i].Identifier[0]
-	rp.Identifier = append([]Identifier{stored}, rp.Identifier...)
-	if err := normalizeRelyingParty(&rp, base, &r.state.RelyingParties[i], categories); err != nil {
+	if err := normalizeUpdate(&rp, r.state.RelyingParties[i], base, categories); err != nil {
 		return WalletRelyingParty{}, err
 	}
 	if err := r.checkIdentifiersFreeLocked(rp, i); err != nil {
@@ -230,6 +229,14 @@ func (r *Registrar) UpdateRelyingParty(rp WalletRelyingParty) (WalletRelyingPart
 	})
 	r.state.RelyingParties[i] = rp
 	return cloneRelyingParty(rp)
+}
+
+// normalizeUpdate checks an update of the stored registration and fills in
+// the values the registrar assigns. The first identifier never changes,
+// because the issued certificates and their status entries contain it.
+func normalizeUpdate(rp *WalletRelyingParty, stored WalletRelyingParty, base string, category func(format, typ string) string) error {
+	rp.Identifier = append([]Identifier{stored.Identifier[0]}, rp.Identifier...)
+	return normalizeRelyingParty(rp, base, &stored, category)
 }
 
 // EnsureRelyingParty registers rp, or updates the registration with its
@@ -428,6 +435,12 @@ func normalizeRelyingParty(rp *WalletRelyingParty, base string, before *WalletRe
 		services[service.ServiceIdentifier] = true
 		service.ServiceTradeName = firstNonEmpty(service.ServiceTradeName, rp.TradeName)
 		service.SupportURI = firstNonEmpty(service.SupportURI, base+"/support")
+		if address, err := mail.ParseAddress(service.SupportURI); err == nil && address.Address == service.SupportURI {
+			service.SupportURI = "mailto:" + service.SupportURI
+		}
+		if _, _, err := supportContact(service.SupportURI); err != nil {
+			return err
+		}
 		if len(service.SrvDescription) == 0 {
 			service.SrvDescription = ServiceDescription{{{Lang: "en", Content: service.ServiceTradeName}}}
 		}
@@ -544,6 +557,14 @@ func normalizeIntendedUse(use *IntendedUse, base string, before *WalletRelyingPa
 // PID_14). Otherwise it is an EAA.
 func normalizeEntitlements(service *WalletRelyingPartyService, category func(format, typ string) string) error {
 	service.Entitlements = dedupeStrings(service.Entitlements)
+	// TS05 v1.5 §2.4.1: "A pure intermediary service SHALL NOT be registered
+	// an entitlement."
+	if service.IsIntermediary && len(service.IntendedUses) == 0 && len(service.ProvidesAttestations) == 0 {
+		if len(service.Entitlements) > 0 {
+			return fmt.Errorf("service %q only acts as an intermediary, so it has no entitlement (TS05 v1.5 §2.4.1)", service.ServiceTradeName)
+		}
+		return nil
+	}
 	if len(service.ProvidesAttestations) > 0 && !isAttestationProvider(*service) {
 		for _, attestation := range service.ProvidesAttestations {
 			id := category(attestation.Format, strings.TrimSpace(attestation.Type))

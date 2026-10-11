@@ -27,7 +27,7 @@ sign_es256() {
   printf '%s.%s' "$input" "$sig"
 }
 
-# x5c turns a PEM chain into the JSON strings of an x5c header.
+# x5c turns PEM certificates into the JSON strings of an x5c header.
 x5c() { awk '/BEGIN/ {c=""} !/-----/ {c=c $0} /END/ {printf "%s\"%s\"", (n++ ? "," : ""), c}' "$1"; }
 ```
 
@@ -113,7 +113,7 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr
 jq -n --arg id "$ID" --rawfile csr verifier.csr \
   '{identifier: $id, serviceIdentifier: "checkout", csr: $csr, dnsNames: ["shop.example"]}' |
   curl -s -X POST localhost:8085/api/registrar/access-certificates -H 'Content-Type: application/json' -d @- > access.json
-jq -r .chain access.json > verifier-chain.pem
+jq -r .certificate access.json > verifier.pem
 ```
 
 ```json
@@ -127,7 +127,7 @@ jq -r .chain access.json > verifier-chain.pem
 }
 ```
 
-The chain holds the access certificate and the relying party access CA. The certificate carries the registered identity:
+The chain holds the access certificate and the relying party access CA. That CA is the trust anchor, which a signed request must not carry in `x5c` (HAIP 1.0 §5). So the request uses `certificate` alone. The certificate carries the registered identity:
 
 ```text
 subject=C=NL, O=Example Shop B.V., OU=checkout, CN=Example Shop, organizationIdentifier=NTRNL-NLTEST.79AA013C47925C7B
@@ -148,11 +148,24 @@ curl -s -X POST localhost:8085/api/registrar/registration-certificates -H 'Conte
 ```json
 {
   "registrationCertificate": "eyJhbGciOiJFUzI1NiIsImlh...",
-  "verifierInfo": "[{\"data\":\"eyJhbGciOiJFUz...\",\"format\":\"registration_cert\"}]"
+  "verifierInfo": "[{\"format\":\"registration_cert\",\"data\":\"eyJhbGciOiJFUz...\"},{\"format\":\"registrar_dataset\",\"data\":{...}}]"
 }
 ```
 
-`verifierInfo` is a JSON string. Its content is the value of the `verifier_info` request parameter (OpenID4VP 1.0 §5.1). The payload of the certificate (ETSI TS 119 475 V1.2.1, typ `rc-wrp+jwt`) looks like this:
+`verifierInfo` is a JSON string. Its content is the value of the `verifier_info` request parameter (OpenID4VP 1.0 §5.1). It has two elements. The `registration_cert` holds the certificate, and the `registrar_dataset` holds the registered data of the intended use (ETSI TS 119 472-2 V1.2.1 §6.3.2.2):
+
+```json
+{
+  "identifier": [{ "identifier": "NLTEST.79AA013C47925C7B", "type": "http://data.europa.eu/eudi/id/EUID" }],
+  "srvDescription": [{ "lang": "en", "content": "Example Shop" }],
+  "registryURI": "https://localhost:8086/api/registrar/wrp/NLTEST.79AA013C47925C7B",
+  "intendedUseIdentifier": "age-check",
+  "purpose": [{ "lang": "en", "content": "Check that you are of age" }],
+  "policyURI": "https://localhost:8086/privacy-policy"
+}
+```
+
+The payload of the certificate (ETSI TS 119 475 V1.2.1, typ `rc-wrp+jwt`) looks like this:
 
 ```json
 {
@@ -189,11 +202,11 @@ curl -s -X POST localhost:8085/api/registrar/registration-certificates -H 'Conte
 
 ### 4. Send a request to the wallet
 
-Sign a request object with the verifier key. Put the access certificate chain in `x5c` and the registration certificate in `verifier_info`. The `response_uri` is your verifier's endpoint.
+Sign a request object with the verifier key. Put the access certificate in `x5c` and the registration certificate in `verifier_info`. The `response_uri` is your verifier's endpoint.
 
 ```bash
 CLIENT_ID=$(jq -r '.clientIds[0]' access.json)
-HEADER='{"alg":"ES256","typ":"oauth-authz-req+jwt","x5c":['"$(x5c verifier-chain.pem)"']}'
+HEADER='{"alg":"ES256","typ":"oauth-authz-req+jwt","x5c":['"$(x5c verifier.pem)"']}'
 PAYLOAD=$(jq -cn --arg client_id "$CLIENT_ID" --argjson verifier_info "$(jq -r .verifierInfo registration.json)" '{
   client_id: $client_id,
   response_type: "vp_token",
@@ -299,7 +312,7 @@ openssl ecparam -name prime256v1 -genkey -noout -out issuer.key
 openssl req -new -key issuer.key -subj "/" -out issuer.csr
 jq -n --arg id "$ID" --rawfile csr issuer.csr '{identifier: $id, serviceIdentifier: "diplomas", csr: $csr}' |
   curl -s -X POST localhost:8085/api/registrar/access-certificates -H 'Content-Type: application/json' -d @- > issuer-access.json
-jq -r .chain issuer-access.json > issuer-chain.pem
+jq -r .certificate issuer-access.json > issuer.pem
 
 curl -s -X POST localhost:8085/api/registrar/registration-certificates -H 'Content-Type: application/json' \
   -d "{\"identifier\": \"$ID\", \"serviceIdentifier\": \"diplomas\"}" > issuer-registration.json
@@ -335,7 +348,7 @@ The certificate has `entitlements` and `provides_attestations` instead of an int
 
 ### 3. Sign the issuer metadata
 
-Put `issuer_info` at the top level of the Credential Issuer Metadata. Sign the metadata with the issuer key and the access certificate chain in `x5c` (OpenID4VCI 1.0 §12.2.3, ETSI TS 119 472-3 §4.2.2). The signed metadata needs `sub`, the Credential Issuer Identifier, and `iat`.
+Put `issuer_info` at the top level of the Credential Issuer Metadata. Sign the metadata with the issuer key and the access certificate in `x5c` (OpenID4VCI 1.0 §12.2.3, ETSI TS 119 472-3 §4.2.2). The trust anchor stays out of `x5c` (HAIP 1.0 §4.1). The signed metadata needs `sub`, the Credential Issuer Identifier, and `iat`.
 
 ```bash
 ISSUER=https://university.example
@@ -348,7 +361,7 @@ METADATA=$(jq -c --arg iss "$ISSUER" --argjson info "$(jq -r .issuerInfo issuer-
     proof_types_supported: {jwt: {proof_signing_alg_values_supported: ["ES256"]}}}}
 }')
 PAYLOAD=$(jq -c --argjson iat "$(date +%s)" '. + {sub: .credential_issuer, iat: $iat}' <<< "$METADATA")
-sign_es256 issuer.key '{"alg":"ES256","typ":"openidvci-issuer-metadata+jwt","x5c":['"$(x5c issuer-chain.pem)"']}' "$PAYLOAD" > metadata.jwt
+sign_es256 issuer.key '{"alg":"ES256","typ":"openidvci-issuer-metadata+jwt","x5c":['"$(x5c issuer.pem)"']}' "$PAYLOAD" > metadata.jwt
 ```
 
 Serve `metadata.jwt` at `/.well-known/openid-credential-issuer` with the content type `application/jwt` when the request's `Accept` header includes `application/jwt`. With `--arf` the wallet sends this header.
@@ -382,7 +395,7 @@ In strict mode the wallet refuses the offer before it requests a token:
 
 ### 5. Ask for a PID before you issue
 
-An issuer that checks your identity before issuance also acts as a verifier. CIR (EU) 2025/848 Annex I keeps all entitlements and intended uses of a party in one registration, so add an intended use to the registration from step 1. `PUT /wrp` replaces the whole record, so send the stored record back with the new intended use.
+An issuer that checks your identity before issuance also acts as a verifier. CIR (EU) 2025/848 Annex I keeps all entitlements and intended uses of a party in one registration, so add an intended use to the service from step 1 (TS05 v1.5 §2.4.1). `PUT /wrp` replaces the whole record, so send the stored record back with the new intended use.
 
 ```bash
 jq '.services[0].intendedUses = [{
@@ -409,21 +422,23 @@ The service keeps its provider entitlement and gets `Service_Provider`:
 }
 ```
 
-Request a registration certificate for the intended use. The certificate for the service stays valid.
+The certificate of a service lists its entitlements, so the registrar revoked the certificate from step 2. Request a new one for the service and one for the intended use. Put the new `issuerInfo` in the metadata and sign it again as in step 3.
 
 ```bash
+curl -s -X POST localhost:8085/api/registrar/registration-certificates -H 'Content-Type: application/json' \
+  -d "{\"identifier\": \"$ID\", \"serviceIdentifier\": \"diplomas\"}" > issuer-registration.json
 USE=$(jq -r '.data.services[0].intendedUses[0].intendedUseIdentifier' issuer-updated.json)
 curl -s -X POST localhost:8085/api/registrar/registration-certificates -H 'Content-Type: application/json' \
   -d "{\"identifier\": \"$ID\", \"intendedUseIdentifier\": \"$USE\"}" > identity-check.json
 ```
 
-The CLI does both steps in one: `eudi wallet registrar verifiers add --to $ID --purpose "Checks who you are before a diploma is issued" --dcql pid.json` prints the `verifier_info` value.
+The CLI adds the intended use and issues its certificate in one step: `eudi wallet registrar verifiers add --to $ID --purpose "Checks who you are before a diploma is issued" --dcql pid.json` prints the `verifier_info` value. `eudi wallet registrar registration-cert --identifier $ID --provider` then prints the new `issuer_info`.
 
 The answer has `verifierInfo` like a verifier's. Sign the request as in [step 4 of the verifier](#4-send-a-request-to-the-wallet), with the issuer's key and access certificate:
 
 ```bash
 CLIENT_ID=$(jq -r '.clientIds[0]' issuer-access.json)
-HEADER='{"alg":"ES256","typ":"oauth-authz-req+jwt","x5c":['"$(x5c issuer-chain.pem)"']}'
+HEADER='{"alg":"ES256","typ":"oauth-authz-req+jwt","x5c":['"$(x5c issuer.pem)"']}'
 PAYLOAD=$(jq -cn --arg client_id "$CLIENT_ID" --argjson verifier_info "$(jq -r .verifierInfo identity-check.json)" '{
   client_id: $client_id,
   response_type: "vp_token",

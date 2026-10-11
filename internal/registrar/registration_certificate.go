@@ -195,7 +195,12 @@ func (r *Registrar) certificateSubject(req RegistrationCertificateRequest) (Wall
 // provider's certificate in issuer_info (ARF RPRC_13 and RPRC_15).
 func certificateResult(rp WalletRelyingParty, key certificateKey, signed string) (*RegistrationCertificateResult, error) {
 	if key.intendedUse != "" {
-		return &RegistrationCertificateResult{RegistrationCertificate: signed, VerifierInfo: VerifierInfoValue(signed)}, nil
+		service, use, _ := findIntendedUse(rp, "", key.intendedUse)
+		info, err := VerifierInfoValue(verifierRegistrarDataset(rp, service, use), signed)
+		if err != nil {
+			return nil, err
+		}
+		return &RegistrationCertificateResult{RegistrationCertificate: signed, VerifierInfo: info}, nil
 	}
 	service, _ := serviceByIdentifier(rp, key.service)
 	info, err := IssuerInfoValue(RegistrarDatasetFor(rp, service), signed)
@@ -277,12 +282,33 @@ func RegistrarDatasetFor(rp WalletRelyingParty, service WalletRelyingPartyServic
 // IssuerInfoValue builds the issuer_info array of ETSI TS 119 472-3 V1.1.1
 // §4.2.3: the registrar dataset and the registration certificate.
 func IssuerInfoValue(dataset RegistrarDataset, registrationCertificate string) (string, error) {
-	encoded, err := json.Marshal([]IssuerInfoEntry{
-		{Format: "registrar_dataset", Data: dataset},
-		{Format: "registration_cert", Data: registrationCertificate},
-	})
+	return infoValue("issuer_info", IssuerInfoEntry{Format: "registrar_dataset", Data: dataset}, IssuerInfoEntry{Format: "registration_cert", Data: registrationCertificate})
+}
+
+// verifierRegistrarDataset is the registrar_dataset entry of verifier_info
+// (ETSI TS 119 472-2 V1.2.1 §6.3.2.2) for an intended use.
+func verifierRegistrarDataset(rp WalletRelyingParty, service WalletRelyingPartyService, use IntendedUse) VerifierRegistrarDataset {
+	return VerifierRegistrarDataset{
+		Identifier:            rp.Identifier,
+		SrvDescription:        service.SrvDescription.Strings(),
+		RegistryURI:           rp.RegistryURI,
+		IntendedUseIdentifier: use.IntendedUseIdentifier,
+		Purpose:               use.Purpose,
+		PolicyURI:             privacyPolicyURI(use),
+	}
+}
+
+// VerifierInfoValue builds the verifier_info array of OpenID4VP 1.0 §5.1 as
+// ETSI TS 119 472-2 V1.2.1 §6.3.2.2 profiles it: the registration certificate
+// and the registrar dataset.
+func VerifierInfoValue(dataset VerifierRegistrarDataset, registrationCertificate string) (string, error) {
+	return infoValue("verifier_info", IssuerInfoEntry{Format: "registration_cert", Data: registrationCertificate}, IssuerInfoEntry{Format: "registrar_dataset", Data: dataset})
+}
+
+func infoValue(name string, entries ...IssuerInfoEntry) (string, error) {
+	encoded, err := json.Marshal(entries)
 	if err != nil {
-		return "", fmt.Errorf("encoding issuer_info: %w", err)
+		return "", fmt.Errorf("encoding %s: %w", name, err)
 	}
 	return string(encoded), nil
 }
@@ -291,13 +317,16 @@ func IssuerInfoValue(dataset RegistrarDataset, registrationCertificate string) (
 // apart from the credentials.
 func registrationContent(rp WalletRelyingParty, service WalletRelyingPartyService, use IntendedUse) RegistrationCertificateContent {
 	return RegistrationCertificateContent{
-		Name:                  service.ServiceTradeName,
-		Purpose:               use.Purpose,
-		Identifier:            rp.Identifier[0].Identifier,
-		Subject:               semanticIdentifier(rp),
-		LegalName:             rp.LegalPerson.LegalName[0],
-		Country:               rp.Country,
-		Description:           service.SrvDescription.Strings(),
+		Name:        service.ServiceTradeName,
+		Purpose:     use.Purpose,
+		Identifier:  rp.Identifier[0].Identifier,
+		Subject:     semanticIdentifier(rp),
+		LegalName:   rp.LegalPerson.LegalName[0],
+		Country:     rp.Country,
+		Description: service.SrvDescription.Strings(),
+		// ARF Reg_01a registers the data of EC TS6, which keeps the
+		// entitlements per service (TS6 v1.1 row 12, TS05 v1.5 §2.4.1). ETSI
+		// TS 119 475 V1.2.1 Annex B.2.1 keeps them per relying party.
 		Entitlements:          service.Entitlements,
 		RegistryURI:           rp.RegistryURI,
 		PrivacyPolicy:         privacyPolicyURI(use),
@@ -341,13 +370,6 @@ func (r *Registrar) signRegistrationCertificate(content RegistrationCertificateC
 		return "", fmt.Errorf("%w: signing the registration certificate: %w", errRegistrarSigning, err)
 	}
 	return signed, nil
-}
-
-// VerifierInfoValue wraps a registration certificate in a verifier_info array
-// (OpenID4VP 1.0 §5.1, format registration_cert).
-func VerifierInfoValue(registrationCertificate string) string {
-	encoded, _ := json.Marshal([]map[string]any{{"format": "registration_cert", "data": registrationCertificate}})
-	return string(encoded)
 }
 
 // RegistrationCertificateClaimsFor builds the payload of ETSI TS 119 475 V1.2.1

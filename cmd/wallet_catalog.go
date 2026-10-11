@@ -44,7 +44,7 @@ Without a subcommand, or with list, it lists the catalogue.`,
 		Args: cobra.NoArgs,
 		RunE: listCatalog,
 	}
-	cmd.AddCommand(walletCatalogAddCmd(), walletCatalogRemoveCmd(), listSubcommand(cmd))
+	cmd.AddCommand(walletCatalogAddCmd(), walletCatalogRemoveCmd(), listSubcommand(cmd, "List the attestation types in the catalogue"))
 	return cmd
 }
 

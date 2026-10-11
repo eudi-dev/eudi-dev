@@ -294,7 +294,7 @@ func TestARFRefusesARegistrationSignedWithAnAccessCertificate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	params := signedARFRequest(t, w, key, chain, registrar.VerifierInfoValue(forged))
+	params := signedARFRequest(t, w, key, chain, `[{"format":"registration_cert","data":"`+forged+`"}]`)
 	if findings := ARFFindings(params); !containsSubstring(findings, "RPRC_02a") {
 		t.Errorf("findings %v, want RPRC_02a for a registration certificate signed with an access certificate", findings)
 	}
