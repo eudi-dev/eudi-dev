@@ -115,7 +115,7 @@ func TestVerifyClientID_X509SanDNS(t *testing.T) {
 }
 
 // x509_san_dns binds the FQDN of the response destination to the client_id
-// (OID4VP 1.0 §5.9.1). A signed request with a valid certificate cannot send
+// (OID4VP 1.0 §5.9.3). A signed request with a valid certificate cannot send
 // the response and its disclosed claims to another host. The DC API is
 // origin-bound and exempt.
 func TestVerifyClientID_X509SanDNSResponseFQDN(t *testing.T) {
@@ -238,12 +238,6 @@ func TestValidateRequestObject(t *testing.T) {
 			wantMsg:  "missing the required typ header",
 		},
 		{
-			name:      "missing typ allowed for alg none",
-			clientID:  "redirect_uri:https://verifier.example/cb",
-			reqObj:    &oid4vc.RequestObjectJWT{Header: map[string]any{"alg": "none"}},
-			wantEmpty: true,
-		},
-		{
 			name:     "wrong typ",
 			clientID: "x509_san_dns:example.com",
 			reqObj:   &oid4vc.RequestObjectJWT{Header: map[string]any{"typ": "JWT"}},
@@ -276,7 +270,7 @@ func TestValidateRequestObject(t *testing.T) {
 		{
 			name:      "unsigned request object with redirect_uri prefix",
 			clientID:  "redirect_uri:https://verifier.example/cb",
-			reqObj:    &oid4vc.RequestObjectJWT{Header: map[string]any{"alg": "none"}},
+			reqObj:    &oid4vc.RequestObjectJWT{Header: map[string]any{"alg": "none", "typ": "oauth-authz-req+jwt"}},
 			wantEmpty: true,
 		},
 	}

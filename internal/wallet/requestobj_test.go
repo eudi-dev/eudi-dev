@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jwe"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 )
@@ -243,46 +244,45 @@ func TestMakeFetchRequestURI_POST(t *testing.T) {
 	assertWalletLogEvent(t, walletLogs, "request_object_fetch_response")
 }
 
-func TestMakeFetchRequestURI_POST_WalletNonceMismatch(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		jwt := makeTestJWT(map[string]any{"alg": "ES256"}, map[string]any{
-			"client_id":    "test-client",
-			"wallet_nonce": "wrong-nonce",
-		})
-		w.Header().Set("Content-Type", "application/oauth-authz-req+jwt")
-		w.Write([]byte(jwt))
-	}))
-	defer srv.Close()
-
-	wallet := &Wallet{}
-	fetch := MakeFetchRequestURI(wallet, nil)
-	_, err := fetch(srv.URL, "post", "")
-	if err == nil {
-		t.Fatal("expected error for wallet_nonce mismatch")
+func hasWarning(w *Wallet, text string) bool {
+	for _, entry := range w.GetLog() {
+		if entry.Severity == severityWarning && contains(entry.Detail, text) {
+			return true
+		}
 	}
-	if !contains(err.Error(), "wallet_nonce mismatch") {
-		t.Errorf("expected wallet_nonce mismatch error, got: %v", err)
-	}
+	return false
 }
 
-func TestMakeFetchRequestURI_POST_AllowsMissingWalletNonce(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		jwt := makeTestJWT(map[string]any{"alg": "ES256"}, map[string]any{
-			"client_id": "test-client",
+// OID4VP 1.0 §5.10.1: "if the Wallet passed a wallet_nonce in the POST request,
+// the Wallet MUST validate whether the request object contains the respective
+// nonce value in a wallet_nonce claim. If it does not, the Wallet MUST
+// terminate request processing." Strict mode terminates. Debug mode reports it.
+func TestMakeFetchRequestURI_POST_WalletNonceFollowsTheValidationMode(t *testing.T) {
+	for name, payload := range map[string]map[string]any{
+		"mismatch": {"client_id": "test-client", "wallet_nonce": "wrong-nonce"},
+		"missing":  {"client_id": "test-client"},
+	} {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/oauth-authz-req+jwt")
+			w.Write([]byte(makeTestJWT(map[string]any{"alg": "ES256"}, payload)))
+		}))
+		t.Run(name+" strict", func(t *testing.T) {
+			w := &Wallet{ConformanceSettings: ConformanceSettings{ValidationMode: ValidationModeStrict}}
+			if _, err := MakeFetchRequestURI(w, nil)(srv.URL, "post", ""); err == nil || !contains(err.Error(), "wallet_nonce") {
+				t.Fatalf("strict mode returned %v, want a wallet_nonce refusal", err)
+			}
 		})
-		w.Header().Set("Content-Type", "application/oauth-authz-req+jwt")
-		w.Write([]byte(jwt))
-	}))
-	defer srv.Close()
-
-	wallet := &Wallet{}
-	fetch := MakeFetchRequestURI(wallet, nil)
-	result, err := fetch(srv.URL, "post", "")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !isJWT(result) {
-		t.Fatalf("expected JWT result, got %q", result)
+		t.Run(name+" debug", func(t *testing.T) {
+			w := &Wallet{ConformanceSettings: ConformanceSettings{ValidationMode: ValidationModeDebug}}
+			result, err := MakeFetchRequestURI(w, nil)(srv.URL, "post", "")
+			if err != nil || !isJWT(result) {
+				t.Fatalf("debug mode returned %q, %v, want the request object", result, err)
+			}
+			if !hasWarning(w, "wallet_nonce") {
+				t.Error("debug mode recorded no wallet_nonce warning")
+			}
+		})
+		srv.Close()
 	}
 }
 
@@ -331,7 +331,7 @@ func TestValidateClientMetadata_RejectsInvalidMDocAlgValuesSupported(t *testing.
 			"client_metadata": map[string]any{
 				"vp_formats_supported": map[string]any{
 					"mso_mdoc": map[string]any{
-						"alg_values_supported": []any{"ES256"},
+						"issuerauth_alg_values": []any{"ES256"},
 					},
 				},
 			},
@@ -340,7 +340,7 @@ func TestValidateClientMetadata_RejectsInvalidMDocAlgValuesSupported(t *testing.
 
 	err := ValidateClientMetadata(reqObj.Payload["client_metadata"].(map[string]any))
 	if err == nil {
-		t.Fatal("expected error for string mso_mdoc alg_values_supported entry")
+		t.Fatal("expected error for string mso_mdoc issuerauth_alg_values entry")
 	}
 	if !contains(err.Error(), "COSE algorithm number") {
 		t.Fatalf("unexpected error: %v", err)
@@ -353,10 +353,10 @@ func TestValidateClientMetadata_AcceptsNumericMDocAlgValuesSupported(t *testing.
 			"client_metadata": map[string]any{
 				"vp_formats_supported": map[string]any{
 					"mso_mdoc": map[string]any{
-						"alg_values_supported": []any{-7.0},
+						"deviceauth_alg_values": []any{-7.0},
 					},
 					"dc+sd-jwt": map[string]any{
-						"alg_values_supported": []any{"ES256"},
+						"sd-jwt_alg_values": []any{"ES256"},
 					},
 				},
 			},
@@ -365,6 +365,20 @@ func TestValidateClientMetadata_AcceptsNumericMDocAlgValuesSupported(t *testing.
 
 	if err := ValidateClientMetadata(reqObj.Payload["client_metadata"].(map[string]any)); err != nil {
 		t.Fatalf("expected valid client_metadata, got %v", err)
+	}
+}
+
+// OID4VP 1.0 Appendix B.3.4 names the SD-JWT algorithm members of
+// vp_formats_supported. §5.1: "Other metadata parameters MUST be ignored".
+func TestValidateClientMetadataChecksTheOID4VPMemberNames(t *testing.T) {
+	err := ValidateClientMetadata(map[string]any{
+		"vp_formats_supported": map[string]any{"dc+sd-jwt": map[string]any{"kb-jwt_alg_values": []any{-7.0}}},
+	})
+	if err == nil || !contains(err.Error(), "kb-jwt_alg_values") {
+		t.Errorf("a numeric kb-jwt_alg_values entry gave %v, want an error", err)
+	}
+	if err := ValidateClientMetadata(map[string]any{"authorization_encryption_alg_values_supported": "ECDH-ES"}); err != nil {
+		t.Errorf("a wallet metadata member in client_metadata gave %v, want it ignored", err)
 	}
 }
 
@@ -380,7 +394,7 @@ func TestDecryptRequestObjectJWE(t *testing.T) {
 		"nonce":         "test-nonce",
 	})
 
-	jweStr, _, err := EncryptJWE([]byte(jwt), &walletKey.PublicKey, "test-kid", "ECDH-ES", "A128GCM", nil, nil)
+	jweStr, _, err := jwe.EncryptECDHES([]byte(jwt), &walletKey.PublicKey, "test-kid", "A128GCM", "", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -431,7 +445,7 @@ func TestMakeFetchRequestURI_POST_Encrypted(t *testing.T) {
 			"wallet_nonce":  walletNonce,
 		})
 
-		jweStr, _, err := EncryptJWE([]byte(jwt), pubKey, "verifier-kid", "ECDH-ES", "A128GCM", nil, nil)
+		jweStr, _, err := jwe.EncryptECDHES([]byte(jwt), pubKey, "verifier-kid", "A128GCM", "", nil, nil)
 		if err != nil {
 			t.Fatalf("encrypting request object: %v", err)
 		}
@@ -541,6 +555,9 @@ func TestParseWithOptionsRequestURIMethodPost(t *testing.T) {
 	}
 }
 
+// OID4VP 1.0 §5.10.1 requires application/oauth-authz-req+jwt for a POST
+// response, so strict mode refuses another type. RFC 9101 only advises the
+// check for GET, so the wallet warns and reads the request object.
 func TestRequestURIMediaTypeFollowsTheValidationMode(t *testing.T) {
 	jwt := makeTestJWT(map[string]any{"alg": "ES256"}, map[string]any{
 		"client_id":     "test-client",
@@ -552,32 +569,64 @@ func TestRequestURIMediaTypeFollowsTheValidationMode(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	for _, method := range []string{"get", "post"} {
-		t.Run(method+" strict", func(t *testing.T) {
-			w := &Wallet{ConformanceSettings: ConformanceSettings{ValidationMode: ValidationModeStrict}}
-			if _, err := MakeFetchRequestURI(w, nil)(srv.URL, method, ""); err == nil {
-				t.Fatal("expected the wrong media type to be refused in strict mode")
-			}
-		})
-		t.Run(method+" debug", func(t *testing.T) {
-			w := &Wallet{ConformanceSettings: ConformanceSettings{ValidationMode: ValidationModeDebug}}
-			result, err := MakeFetchRequestURI(w, nil)(srv.URL, method, "")
+	t.Run("post strict", func(t *testing.T) {
+		w := &Wallet{ConformanceSettings: ConformanceSettings{ValidationMode: ValidationModeStrict}}
+		if _, err := MakeFetchRequestURI(w, nil)(srv.URL, "post", ""); err == nil || !contains(err.Error(), "Content-Type") {
+			t.Fatalf("strict mode returned %v, want a media type refusal", err)
+		}
+	})
+	for _, tc := range []struct{ method, mode string }{
+		{"post", "debug"},
+		{"get", "debug"},
+		{"get", "strict"},
+	} {
+		t.Run(tc.method+" "+tc.mode, func(t *testing.T) {
+			w := &Wallet{ConformanceSettings: ConformanceSettings{ValidationMode: ValidationMode(tc.mode)}}
+			result, err := MakeFetchRequestURI(w, nil)(srv.URL, tc.method, "")
 			if err != nil {
-				t.Fatalf("debug mode should read the request object: %v", err)
+				t.Fatalf("the wallet should read the request object: %v", err)
 			}
 			if result != jwt {
 				t.Errorf("unexpected result %q", result)
 			}
-			var warned bool
-			for _, entry := range w.GetLog() {
-				if entry.Severity == severityWarning && contains(entry.Detail, "Content-Type") {
-					warned = true
-				}
-			}
-			if !warned {
-				t.Error("expected a profile warning about the media type")
+			if !hasWarning(w, "Content-Type") {
+				t.Error("expected a warning about the media type")
 			}
 		})
+	}
+}
+
+// RFC 9101 §4: "some existing deployments may alternatively be using the type
+// application/jwt".
+func TestRequestURIGETAcceptsApplicationJWT(t *testing.T) {
+	jwt := makeTestJWT(map[string]any{"alg": "ES256"}, map[string]any{"client_id": "test-client"})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/jwt")
+		w.Write([]byte(jwt))
+	}))
+	defer srv.Close()
+
+	w := &Wallet{ConformanceSettings: ConformanceSettings{ValidationMode: ValidationModeStrict}}
+	if _, err := MakeFetchRequestURI(w, nil)(srv.URL, "get", ""); err != nil {
+		t.Fatalf("strict GET with application/jwt: %v", err)
+	}
+	if hasWarning(w, "Content-Type") {
+		t.Error("application/jwt drew a media type warning")
+	}
+}
+
+// --require-encrypted-request applies to every request_uri fetch.
+func TestRequireEncryptedRequestAppliesToGET(t *testing.T) {
+	jwt := makeTestJWT(map[string]any{"alg": "ES256"}, map[string]any{"client_id": "test-client"})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/oauth-authz-req+jwt")
+		w.Write([]byte(jwt))
+	}))
+	defer srv.Close()
+
+	w := &Wallet{ConformanceSettings: ConformanceSettings{RequireEncryptedRequest: true}}
+	if _, err := MakeFetchRequestURI(w, nil)(srv.URL, "get", ""); err == nil || !contains(err.Error(), "JWE") {
+		t.Fatalf("GET of a plain request object returned %v, want a refusal", err)
 	}
 }
 
@@ -601,7 +650,7 @@ func containsStr(s, substr string) bool {
 }
 
 // OID4VP 1.0 §10.1 defaults to pre-registered when client_id_prefixes_supported is
-// absent. Explicitly listing x509_hash lets verifiers choose it (§5.9.1).
+// absent. Explicitly listing x509_hash lets verifiers choose it (§5.9.3).
 func TestWalletMetadataAdvertisesTheClientIDPrefixesItAccepts(t *testing.T) {
 	meta := BuildWalletMetadata(generateTestWallet(t), "")
 

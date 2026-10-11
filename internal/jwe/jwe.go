@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package jwe decrypts ECDH-ES compact JWEs for the wallet and the proxy.
+// Package jwe encrypts and decrypts compact JWEs for the wallet, the verifier
+// and the proxy (ADR-0008).
 package jwe
 
 import (
@@ -20,6 +21,7 @@ import (
 	"crypto/cipher"
 	"crypto/ecdh"
 	"crypto/ecdsa"
+	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/json"
@@ -107,11 +109,6 @@ func DecryptWithCEK(compact string, cek []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	switch header.Enc {
-	case "A128GCM", "A256GCM":
-	default:
-		return nil, fmt.Errorf("unsupported content encryption algorithm: %s", header.Enc)
-	}
 
 	iv, err := format.DecodeBase64URL(parts[2])
 	if err != nil {
@@ -126,7 +123,38 @@ func DecryptWithCEK(compact string, cek []byte) ([]byte, error) {
 		return nil, fmt.Errorf("decoding tag: %w", err)
 	}
 	// The AAD is the ASCII of the encoded protected header (RFC 7516 §5.1).
-	return OpenAESGCM(cek, iv, ciphertext, tag, []byte(parts[0]))
+	switch header.Enc {
+	case "A128GCM", "A256GCM":
+		return OpenAESGCM(cek, iv, ciphertext, tag, []byte(parts[0]))
+	case "A128CBC-HS256":
+		return openAESCBCHS256(cek, iv, ciphertext, tag, []byte(parts[0]))
+	default:
+		return nil, fmt.Errorf("unsupported content encryption algorithm: %s", header.Enc)
+	}
+}
+
+// openAESCBCHS256 checks the tag before it decrypts (RFC 7518 §5.2.2.2).
+func openAESCBCHS256(key, iv, ciphertext, tag, aad []byte) ([]byte, error) {
+	if len(key) != 32 {
+		return nil, fmt.Errorf("A128CBC-HS256 requires 256-bit key, got %d bits", len(key)*8)
+	}
+	if !hmac.Equal(tag, cbcHS256Tag(key[:16], aad, iv, ciphertext)) {
+		return nil, fmt.Errorf("A128CBC-HS256 authentication tag does not match")
+	}
+	if len(iv) != aes.BlockSize || len(ciphertext) == 0 || len(ciphertext)%aes.BlockSize != 0 {
+		return nil, fmt.Errorf("A128CBC-HS256 IV or ciphertext has the wrong length")
+	}
+	block, err := aes.NewCipher(key[16:])
+	if err != nil {
+		return nil, fmt.Errorf("creating AES cipher: %w", err)
+	}
+	plaintext := make([]byte, len(ciphertext))
+	cipher.NewCBCDecrypter(block, iv).CryptBlocks(plaintext, ciphertext)
+	padding := int(plaintext[len(plaintext)-1])
+	if padding == 0 || padding > aes.BlockSize {
+		return nil, fmt.Errorf("A128CBC-HS256 plaintext has invalid padding")
+	}
+	return plaintext[:len(plaintext)-padding], nil
 }
 
 // OpenAESGCM opens an AES-GCM ciphertext given the tag separately, the way

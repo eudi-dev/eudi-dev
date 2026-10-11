@@ -57,7 +57,7 @@ func VerifyRequestObjectSignature(clientID string, reqObj *oid4vc.RequestObjectJ
 	}
 
 	if len(jsonutil.GetArray(reqObj.Header, "x5c")) == 0 {
-		if clientIDVerifiesViaX5C(clientID) {
+		if prefix, _, _ := lookupClientIDPrefix(clientID); prefix.x5c {
 			return "OID4VP 1.0 §5.9.3: Request Object signature verification requires an x5c header"
 		}
 		return unverifiedSignatureFinding(clientID)
@@ -119,69 +119,38 @@ func (r *ConsentRequest) applyClientAuth(params *AuthorizationRequestParams) {
 	r.ClientName = clientMetadataName(params)
 }
 
-// unverifiedSignatureFinding explains why a signed request stays unverified
-// when the wallet does not support the key resolution of its prefix. See
-// docs/adr/0013-only-the-eudi-stack-is-supported.md.
+// unverifiedSignatureFinding explains why a signed request without x5c stays
+// unverified.
 func unverifiedSignatureFinding(clientID string) string {
+	prefix, value, known := lookupClientIDPrefix(clientID)
 	switch {
-	case strings.HasPrefix(clientID, "decentralized_identifier:"):
-		return fmt.Sprintf("Request Object signature was not verified: decentralized_identifier: resolves its key through the DID %s, which this wallet does not resolve",
-			strings.TrimPrefix(clientID, "decentralized_identifier:"))
-	case strings.HasPrefix(clientID, "verifier_attestation:"):
-		return "Request Object signature was not verified: verifier_attestation: carries its key in the cnf claim of the Verifier Attestation JWT, which this wallet does not read"
-	case strings.HasPrefix(clientID, "openid_federation:"):
-		return "Request Object signature was not verified: openid_federation: resolves its key through an OpenID Federation trust chain, which this wallet does not resolve"
-	case strings.HasPrefix(clientID, "redirect_uri:"):
-		// VerifyClientID already reports a signed Request Object under this
-		// prefix.
-		return ""
 	case clientID == "":
 		// Other checks report a missing client_id.
 		return ""
+	case known && prefix.unverified != nil:
+		return prefix.unverified(value)
+	case known:
+		// VerifyClientID reports the prefix.
+		return ""
 	default:
-		return fmt.Sprintf("Request Object signature was not verified: client_id %q carries no Client Identifier Prefix, so its key would have been pre-registered with this wallet, and nothing is", clientID)
+		// §5.9.2 treats a client_id without a known prefix as pre-registered.
+		return fmt.Sprintf("Request Object signature was not verified: client_id %q carries no Client Identifier Prefix this wallet knows, so its key would have been pre-registered with this wallet, and nothing is", clientID)
 	}
-}
-
-// clientIDVerifiesViaX5C reports whether the prefix carries the signing
-// certificate in x5c. Only the x509 prefixes do.
-func clientIDVerifiesViaX5C(clientID string) bool {
-	return strings.HasPrefix(clientID, "x509_san_dns:") || strings.HasPrefix(clientID, "x509_hash:")
 }
 
 // VerifyClientID checks the client_id prefix against the request object and
-// the response URI (OID4VP 1.0 Client Identifier Prefixes). It returns a
-// warning on a mismatch and "" otherwise.
+// the response URI (OID4VP 1.0 §5.9.3). It returns a finding on a mismatch
+// and "" otherwise.
 func VerifyClientID(clientID string, reqObj *oid4vc.RequestObjectJWT, responseURI string, requestOrigin string) string {
-	switch {
-	case strings.HasPrefix(clientID, "x509_san_dns:"):
-		return verifyX509SAN(clientID, "x509_san_dns:", "dns", reqObj, responseURI, requestOrigin)
-	case strings.HasPrefix(clientID, "x509_hash:"):
-		return verifyX509Hash(clientID, reqObj)
-	case strings.HasPrefix(clientID, "origin:"):
-		// OID4VP 1.0 §5.9.3: "The Wallet MUST NOT accept this Client Identifier
-		// Prefix in requests." The prefix marks the audience of a Digital
-		// Credentials API presentation. The wallet derives it from the origin
-		// reported by the platform.
-		return "OID4VP 1.0 §5.9.3: origin: is a reserved Client Identifier Prefix and MUST NOT be accepted in a request"
-	case strings.HasPrefix(clientID, "openid_federation:"):
-		// §5.9.3 defers to OpenID Federation for this prefix. This wallet does
-		// not resolve federation trust chains.
-		return "openid_federation: client_id is not supported by this wallet"
-	case strings.HasPrefix(clientID, "redirect_uri:"):
-		return verifyRedirectURI(clientID, reqObj, responseURI)
-	case strings.HasPrefix(clientID, "verifier_attestation:"):
-		return verifyVerifierAttestation(clientID, reqObj)
-	case strings.HasPrefix(clientID, "decentralized_identifier:"):
-		return verifyDecentralizedIdentifier(clientID, reqObj)
-	default:
-		return ""
+	if prefix, _, known := lookupClientIDPrefix(clientID); known {
+		return prefix.verify(clientID, reqObj, responseURI, requestOrigin)
 	}
+	return ""
 }
 
 // verifyX509SAN checks that the leaf certificate SAN contains the expected DNS
 // name. Outside the DC API it also checks that the FQDN of the response
-// destination matches the client_id (OID4VP 1.0 §5.9.1).
+// destination matches the client_id (OID4VP 1.0 §5.9.3).
 func verifyX509SAN(clientID, prefix, scheme string, reqObj *oid4vc.RequestObjectJWT, responseURI, requestOrigin string) string {
 	expected := strings.TrimPrefix(clientID, prefix)
 
@@ -338,13 +307,8 @@ func extractCertChain(reqObj *oid4vc.RequestObjectJWT) ([]*x509.Certificate, str
 // prefixRequiresSigning reports whether OID4VP 1.0 requires a signed Request
 // Object for the client_id prefix.
 func prefixRequiresSigning(clientID string) bool {
-	prefixes := []string{"x509_san_dns:", "x509_hash:", "decentralized_identifier:", "verifier_attestation:"}
-	for _, p := range prefixes {
-		if strings.HasPrefix(clientID, p) {
-			return true
-		}
-	}
-	return false
+	prefix, _, _ := lookupClientIDPrefix(clientID)
+	return prefix.signed
 }
 
 // ValidateRequestObject checks that the typ header of the Request Object is
@@ -372,10 +336,9 @@ func ValidateRequestObject(clientID string, reqObj *oid4vc.RequestObjectJWT) str
 		return "OID4VP 1.0 §5.9.3: the client_id prefix requires a signed Request Object but the Request Object is unsigned (alg \"none\")"
 	}
 
+	// §5: "Wallets MUST NOT process Request Objects where the typ Header
+	// Parameter is not present", signed or not.
 	if typ == "" {
-		if alg == "none" {
-			return ""
-		}
 		return "OID4VP 1.0 §5: the Request Object is missing the required typ header 'oauth-authz-req+jwt'"
 	}
 	if typ != "oauth-authz-req+jwt" {

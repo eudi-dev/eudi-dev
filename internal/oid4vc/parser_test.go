@@ -107,6 +107,18 @@ func TestParseVCIJWT(t *testing.T) {
 	}
 }
 
+// RFC 3986 §3.1: "schemes are case-insensitive".
+func TestParseReadsSchemesWithoutCase(t *testing.T) {
+	reqType, _, err := Parse("OPENID4VP://?client_id=https://verifier.example&response_type=vp_token&nonce=abc")
+	if err != nil || reqType != TypeVP {
+		t.Fatalf("Parse = %d, %v, want a presentation request", reqType, err)
+	}
+	reqType, _, err = Parse(`OpenID-Credential-Offer://?credential_offer={"credential_issuer":"https://issuer.example","credential_configuration_ids":["pid"]}`)
+	if err != nil || reqType != TypeVCI {
+		t.Fatalf("Parse = %d, %v, want a credential offer", reqType, err)
+	}
+}
+
 func TestParseVPInlineParams(t *testing.T) {
 	uri := "openid4vp://?client_id=https://verifier.example&response_type=vp_token&nonce=abc&response_mode=direct_post&response_uri=https://verifier.example/cb"
 

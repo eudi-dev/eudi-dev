@@ -160,6 +160,37 @@ func TestAnExpiredAccessCertificate(t *testing.T) {
 	}
 }
 
+// A registration certificate is enough for the wallet. ETSI TS 119 472-2
+// RO-01 to RO-11 bind the relying party, so verifier_info needs no
+// registrar_dataset, and the wallet ignores entries of other formats.
+func TestVerifierInfoNeedsOnlyARegistrationCertificate(t *testing.T) {
+	w := generateTestWallet(t)
+	key, chain, verifierInfo := registeredVerifier(t, w)
+	var entries []map[string]any
+	if err := json.Unmarshal([]byte(verifierInfo), &entries); err != nil {
+		t.Fatal(err)
+	}
+	var certOnly []map[string]any
+	for _, entry := range entries {
+		if entry["format"] == "registration_cert" {
+			certOnly = append(certOnly, entry)
+		}
+	}
+	if len(certOnly) != 1 {
+		t.Fatalf("verifier_info %s carries %d registration_cert entries, want 1", verifierInfo, len(certOnly))
+	}
+	withUnknown := append(append([]map[string]any{}, certOnly...), map[string]any{"format": "x-unknown", "data": map[string]any{"note": "ignored"}})
+	for name, info := range map[string][]map[string]any{"registration_cert only": certOnly, "with an unknown format": withUnknown} {
+		encoded, err := json.Marshal(info)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if findings := ARFFindings(signedARFRequest(t, w, key, chain, string(encoded))); len(findings) != 0 {
+			t.Errorf("%s: findings %v, want none", name, findings)
+		}
+	}
+}
+
 func TestARFTrustsTheWalletsOwnRegistrar(t *testing.T) {
 	w := generateTestWallet(t)
 	findings := ARFFindings(arfRequest(t, w, w))

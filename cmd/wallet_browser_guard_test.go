@@ -24,7 +24,6 @@ import (
 // Each browser opener needs a reason to navigate. Some authorization URLs can be used
 // only once, so duplicate navigation breaks the flow. Add new call sites to this list.
 var browserOpeners = map[string]string{
-	"cmd/wallet_present.go:openBrowser(addr)": "enlists a browser for the local consent UI, which nothing else is showing",
 	"cmd/wallet_present.go:openBrowser(redirectURI)": "guarded by navigatesHere through followVerifierRedirect: " +
 		"the consent tab receives the result and navigates there itself",
 	"cmd/wallet_remote_ops.go:openBrowser(target)": "enlists a browser for the remote wallet UI and names it on the call, " +

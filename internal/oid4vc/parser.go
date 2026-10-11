@@ -22,6 +22,7 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc/scheme"
 )
 
 func Parse(raw string) (RequestType, any, error) {
@@ -31,10 +32,10 @@ func Parse(raw string) (RequestType, any, error) {
 func ParseWithOptions(raw string, opts ParseOptions) (RequestType, any, error) {
 	raw = strings.TrimSpace(raw)
 
-	if strings.HasPrefix(raw, "openid-credential-offer://") || strings.HasPrefix(raw, "haip-vci://") || strings.HasPrefix(raw, "eu-eaa-offer://") {
+	if scheme.IsIssuance(raw) {
 		return parseVCIURI(raw, opts)
 	}
-	if strings.HasPrefix(raw, "openid4vp://") || strings.HasPrefix(raw, "haip-vp://") || strings.HasPrefix(raw, "eudi-openid4vp://") {
+	if scheme.IsPresentation(raw) {
 		return parseVPURI(raw, opts)
 	}
 
@@ -231,6 +232,12 @@ func parseVPParams(q url.Values, opts ParseOptions) (RequestType, any, error) {
 		method := req.RequestURIMethod
 		if method == "" {
 			method = "get"
+		}
+		// OID4VP 1.0 §5.1: "Two case-sensitive valid values are defined in
+		// this specification: get and post." The wallet fetches nothing for
+		// another value.
+		if method != "get" && method != "post" {
+			return TypeVP, nil, fmt.Errorf("unsupported request_uri_method %q", method)
 		}
 
 		var fetched string

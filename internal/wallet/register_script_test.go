@@ -75,6 +75,18 @@ func TestHandlerScriptSource(t *testing.T) {
 	if !strings.Contains(script, `BINARY="/usr/local/bin/eudi"`) {
 		t.Error("the binary path must be rendered into the script")
 	}
+
+	// Every offer scheme goes to the offer branch, whatever its case (RFC 3986
+	// §3.1).
+	caseIdx := strings.Index(script, `case "$URI" in`)
+	if nocase := strings.Index(script, "shopt -s nocasematch"); nocase < 0 || nocase > caseIdx {
+		t.Error("the URI case statement must match schemes without case")
+	}
+	for _, s := range issuanceURLSchemes {
+		if !strings.Contains(script[caseIdx:], s+"://*") {
+			t.Errorf("the offer branch does not match %s", s)
+		}
+	}
 }
 
 func TestHandlerScriptSourceAutoAccept(t *testing.T) {

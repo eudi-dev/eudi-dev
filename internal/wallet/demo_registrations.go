@@ -176,11 +176,7 @@ func (w *Wallet) demoCertificate(build demoRegistration, req registrar.Registrat
 		result, issued, err = w.Registrar().CurrentRegistrationCertificate(req)
 		return issued
 	}
-	if w.saveRegistrarChange != nil {
-		w.saveRegistrarChange(change)
-	} else {
-		change()
-	}
+	w.saveChange(change)
 	if registrar.IsNotRegistered(err) {
 		return nil, nil
 	}

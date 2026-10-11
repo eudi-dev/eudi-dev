@@ -30,8 +30,10 @@ import (
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/dcql"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/httpsec"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jwe"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
@@ -721,40 +723,11 @@ func parseSigningKeyBundle(pemBundle string) (*ecdsa.PrivateKey, []*x509.Certifi
 	return key, chain, nil
 }
 
-// claimPathPresent reports whether a DCQL claims path points at a value
-// (OpenID4VP 1.0 §7.1): a string selects an object key, an integer an array
-// element and null every element of an array, one of which must match.
-func claimPathPresent(value any, path []any) bool {
-	if len(path) == 0 {
-		return value != nil
-	}
-	switch step := path[0].(type) {
-	case string:
-		object, ok := value.(map[string]any)
-		if !ok {
-			return false
-		}
-		next, ok := object[step]
-		return ok && claimPathPresent(next, path[1:])
-	case nil:
-		array, _ := value.([]any)
-		return slices.ContainsFunc(array, func(element any) bool { return claimPathPresent(element, path[1:]) })
-	case float64, int:
-		array, ok := value.([]any)
-		index, _ := step.(int)
-		if f, isFloat := step.(float64); isFloat {
-			index = int(f)
-		}
-		return ok && index >= 0 && index < len(array) && claimPathPresent(array[index], path[1:])
-	}
-	return false
-}
-
 // missingClaimPaths lists the requested paths without a value.
 func missingClaimPaths(claims map[string]any, paths [][]any) []string {
 	var missing []string
 	for _, path := range paths {
-		if !claimPathPresent(claims, path) {
+		if _, ok := dcql.SelectClaims(claims, path); !ok {
 			missing = append(missing, fmt.Sprint(path))
 		}
 	}
@@ -794,9 +767,9 @@ func checkPresentationAudience(req *requestState, aud string) error {
 func (d *DemoRP) rebuildSessionTranscript(req *requestState) ([]byte, error) {
 	if req.interactiveEndpoint != "" {
 		// ia_post: the response is unencrypted, so the third element is null.
-		return wallet.BuildOID4VCIIAESessionTranscript(req.interactiveEndpoint, req.nonce, nil)
+		return mdoc.OID4VCIIAESessionTranscript(req.interactiveEndpoint, req.nonce, nil)
 	}
-	return wallet.BuildOID4VPSessionTranscript(
+	return mdoc.OID4VPSessionTranscript(
 		req.clientID, req.nonce, encryptionJWKThumbprint(req.encKey), d.baseURL()+"/verifier/response/"+req.id)
 }
 
@@ -970,11 +943,15 @@ func authorizationResponse(req *requestState, form url.Values) (map[string]any, 
 		if req.encKey == nil {
 			return nil, fmt.Errorf("this request has no response encryption key")
 		}
-		plaintext, err := wallet.DecryptCompactJWE(encrypted, req.encKey)
+		ecdhKey, err := req.encKey.ECDH()
+		if err != nil {
+			return nil, fmt.Errorf("converting the response encryption key: %w", err)
+		}
+		plaintext, err := jwe.Decrypt(encrypted, ecdhKey)
 		if err != nil {
 			return nil, fmt.Errorf("decrypting the response: %w", err)
 		}
-		if err := json.Unmarshal([]byte(plaintext), &params); err != nil {
+		if err := json.Unmarshal(plaintext, &params); err != nil {
 			return nil, fmt.Errorf("parsing the decrypted response: %w", err)
 		}
 	case form.Get("error") != "":
@@ -1219,13 +1196,9 @@ func errIf(cond bool, format string, args ...any) error {
 
 // disclosedClaims leaves JWT protocol fields out of the displayed claims.
 func disclosedClaims(token *sdjwt.Token) map[string]any {
-	internal := map[string]bool{
-		"iss": true, "iat": true, "exp": true, "nbf": true, "cnf": true,
-		"vct": true, "status": true, "_sd_alg": true, "_sd": true,
-	}
 	claims := make(map[string]any)
 	for name, value := range token.ResolvedClaims {
-		if !internal[name] {
+		if !sdjwt.IsProtocolClaim(name) {
 			claims[name] = value
 		}
 	}

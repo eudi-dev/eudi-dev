@@ -24,7 +24,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jwe"
 )
 
 // transactionOf is the transaction_id that the page creating the request got.
@@ -118,7 +118,7 @@ func TestAuthorizationResponseRequiresTheRequestState(t *testing.T) {
 	req := &requestState{id: "req-1", encKey: key}
 	respond := func(payload map[string]any) (map[string]any, error) {
 		body, _ := json.Marshal(payload)
-		jwe, _, err := wallet.EncryptJWE(body, &key.PublicKey, "", "ECDH-ES", "A128GCM", nil, nil)
+		jwe, _, err := jwe.EncryptECDHES(body, &key.PublicKey, "", "A128GCM", "", nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

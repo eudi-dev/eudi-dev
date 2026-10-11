@@ -272,7 +272,7 @@ test.describe("Demo mode consent visibility", () => {
     await expect(summary).toContainText("about this verifier");
     await expect(page.locator("#consent-findings-list")).toBeHidden();
     await summary.click();
-    await expect(page.locator("#consent-findings-list")).toContainText("ARF RPRC_19");
+    await expect(page.locator("#consent-findings-list")).toContainText("ARF RPRC_17 and RPRC_19");
     await page.locator("#consent-deny").click();
   });
 

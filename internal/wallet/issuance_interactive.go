@@ -357,40 +357,36 @@ func (w *Wallet) runPresentationInteraction(endpoint string, response map[string
 	}
 	w.addPresentationRequestLogEntry(authReq)
 
-	params := PresentationParams{
-		Nonce:                            authReq.Nonce,
-		ClientID:                         authReq.ClientID,
-		ResponseMode:                     authReq.ResponseMode,
-		ClientMetadata:                   authReq.ClientMetadata,
-		RequestObject:                    authReq.RequestObject,
-		InteractiveAuthorizationEndpoint: endpoint,
-	}
-
-	matches, credentialOptions, err := w.EvaluateDCQLWithOptions(authReq.DCQLQuery)
-	if err != nil {
-		return w.interactionErrorResponse(params, authorizationErrorCode(err), err.Error())
-	}
-	if len(matches) == 0 {
+	outcome := w.evaluatePresentationRequest(authReq, presentationEntry{
+		action: "issuance", subject: "The issuer's openid4vp_request", owner: setup.owner,
+		interactive: !w.AutoAccept && !setup.presentationConsented,
+	})
+	params := authReq.presentationParams()
+	switch {
+	case outcome.invalid != nil:
+		return nil, fmt.Errorf("openid4vp_request: %w", outcome.invalid)
+	case outcome.refusal != nil:
 		// §6.2.1.1: openid4vp_response "in the case of an error instead
 		// encodes the Authorization Error Response parameters".
-		return w.interactionErrorResponse(params, "access_denied", "no credential in this wallet satisfies the request")
+		return w.interactionErrorResponse(params, outcome.refusal.code, outcome.refusal.description)
 	}
 
-	matches, approved, err := w.awaitInteractivePresentationConsent(endpoint, authReq, matches, credentialOptions, setup.presentationConsented, setup.owner)
+	matches, approved, err := w.awaitInteractivePresentationConsent(endpoint, authReq, outcome, setup.presentationConsented, setup.owner)
 	if err != nil {
 		return nil, err
 	}
 	if !approved {
 		w.AddLog("issuance", "Denied the presentation the issuer asked for", false)
-		return w.interactionErrorResponse(params, "access_denied", "user denied the presentation")
+		return w.interactionErrorResponse(params, errorCodeAccessDenied, "user denied the presentation")
 	}
 
-	vpResult, err := w.CreateVPTokenMap(matches, params)
+	prepared, err := w.preparePresentation(authReq, matches)
 	if err != nil {
 		return nil, fmt.Errorf("creating the presentation for interactive authorization: %w", err)
 	}
+	vpResult := prepared.VPResult
 	// In Interactive Authorization the auth_session correlates the exchange.
-	envelope, err := w.BuildAuthorizationResponse(vpResult, "", authReq.State, params)
+	envelope, err := w.BuildAuthorizationResponse(vpResult, prepared.IDToken, authReq.State, params)
 	if err != nil {
 		return nil, fmt.Errorf("building the presentation response for interactive authorization: %w", err)
 	}
@@ -480,21 +476,13 @@ func (w *Wallet) parseInteractiveAuthorizationRequest(request map[string]any, en
 	params := authorizationParams(parsed)
 	params.Source = "interactive_authorization"
 	params.RequestOrigin = derivedOrigin(endpoint)
+	params.InteractiveAuthorizationEndpoint = endpoint
 
 	// §6.2.1.1: "The response_mode MUST be either ia_post for unencrypted
 	// responses or ia_post.jwt for encrypted responses."
 	if !isInteractiveAuthorizationResponseMode(params.ResponseMode) {
 		return nil, fmt.Errorf("openid4vp_request has response_mode %q, which OpenID4VCI 1.1 §6.2.1.1 does not allow here (ia_post or ia_post.jwt)", params.ResponseMode)
 	}
-
-	w.PrepareARFChecks(params)
-	findings, err := ValidateAuthorizationRequest(w.Conformance(), params)
-	if err != nil {
-		return nil, fmt.Errorf("openid4vp_request: %w", err)
-	}
-	params.Findings = findings
-	w.warnFindings("issuance", specCitedSummary("The issuer's openid4vp_request", findings), findings)
-	w.warnUndefinedRequestParameters("issuance", params)
 
 	return params, nil
 }
@@ -513,9 +501,9 @@ func derivedOrigin(rawURL string) string {
 // awaitInteractivePresentationConsent asks the user to approve the
 // presentation the issuer requires for issuance. Consent to receive a
 // credential does not cover disclosing one, so this is a separate prompt.
-func (w *Wallet) awaitInteractivePresentationConsent(endpoint string, authReq *AuthorizationRequestParams, matches []CredentialMatch, credentialOptions *ConsentCredentialOptions, consented bool, owner string) ([]CredentialMatch, bool, error) {
+func (w *Wallet) awaitInteractivePresentationConsent(endpoint string, authReq *AuthorizationRequestParams, outcome presentationOutcome, consented bool, owner string) ([]CredentialMatch, bool, error) {
 	if w.AutoAccept || consented {
-		return matches, true, nil
+		return outcome.matches, true, nil
 	}
 
 	// An unsigned request carries no client_id (Appendix A.2). The prompt then
@@ -525,19 +513,13 @@ func (w *Wallet) awaitInteractivePresentationConsent(endpoint string, authReq *A
 		asking = derivedOrigin(endpoint)
 	}
 	// On a shared wallet the browser that started issuance gets this prompt.
-	consentReq := newPresentationConsent(ConsentTypeIssuancePresentation, owner, asking, authReq, matches, credentialOptions)
-	w.CreateConsentRequest(consentReq)
-
-	result, answered := w.awaitConsent(consentReq, interactiveAuthorizationConsentTimeout)
+	consentReq, matches, approved, answered := w.askPresentationConsent(ConsentTypeIssuancePresentation, owner, asking, authReq, outcome, interactiveAuthorizationConsentTimeout, nil)
 	if !answered {
 		consentReq.SubmissionCh <- SubmissionResult{Error: "consent timeout"}
-		return matches, false, fmt.Errorf("no answer to the presentation the issuer asked for")
+		return nil, false, fmt.Errorf("no answer to the presentation the issuer asked for")
 	}
 	consentReq.SubmissionCh <- SubmissionResult{StatusCode: 200}
-	if !result.Approved {
-		return matches, false, nil
-	}
-	return w.consentedMatches(consentReq, matches, result), true, nil
+	return matches, approved, nil
 }
 
 func (w *Wallet) addPresentationRequestLogEntry(authReq *AuthorizationRequestParams) {

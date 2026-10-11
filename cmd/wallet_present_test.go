@@ -109,6 +109,43 @@ func TestPresentationStaysWithItsWalletDirectory(t *testing.T) {
 	}
 }
 
+// The local accept runs the wallet's presentation flow, so a verifier whose
+// query matches nothing gets access_denied (OpenID4VP 1.0 §8.5) as it does
+// from a running wallet.
+func TestOneShotPresentationTellsTheVerifierAboutNoMatch(t *testing.T) {
+	resetRemoteTestState(t)
+	received := make(chan url.Values, 1)
+	verifier := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		received <- r.PostForm
+	}))
+	defer verifier.Close()
+	cb := verifier.URL + "/cb"
+	uri := "openid4vp://?client_id=" + url.QueryEscape("redirect_uri:"+cb) +
+		"&response_type=vp_token&response_mode=direct_post&nonce=n-1&response_uri=" + url.QueryEscape(cb) +
+		"&dcql_query=" + url.QueryEscape(`{"credentials":[{"id":"pid","format":"dc+sd-jwt","meta":{"vct_values":["urn:test:unheld"]}}]}`)
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	_ = listener.Close()
+
+	err = acceptOID4URI(uri, dispatchOID4Opts{port: port, portExplicit: true, autoAccept: true, mode: string(wallet.ValidationModeDebug)})
+	if err == nil || !strings.Contains(err.Error(), "no matching credentials") {
+		t.Fatalf("err = %v, want no match", err)
+	}
+	select {
+	case form := <-received:
+		if form.Get("error") != "access_denied" {
+			t.Errorf("the verifier received %v, want access_denied", form)
+		}
+	default:
+		t.Error("the verifier received no response")
+	}
+}
+
 func TestOneShotAcceptAppliesHAIPToOffers(t *testing.T) {
 	for _, tc := range []struct {
 		name          string

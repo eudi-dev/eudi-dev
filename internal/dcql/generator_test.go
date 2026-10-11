@@ -26,14 +26,16 @@ import (
 func TestFromSDJWT(t *testing.T) {
 	token := &sdjwt.Token{
 		ResolvedClaims: map[string]any{
-			"iss":         "https://issuer.example",
-			"vct":         "urn:eudi:pid:1",
-			"exp":         float64(999999999),
-			"iat":         float64(100000000),
-			"cnf":         map[string]any{"jwk": map[string]any{}},
-			"given_name":  "Erika",
-			"family_name": "Mustermann",
-			"birthdate":   "1984-01-26",
+			"iss":           "https://issuer.example",
+			"vct":           "urn:eudi:pid:1",
+			"exp":           float64(999999999),
+			"iat":           float64(100000000),
+			"cnf":           map[string]any{"jwk": map[string]any{}},
+			"vct#integrity": "sha256-abc",
+			"aka_vcts":      []any{"urn:example:other"},
+			"given_name":    "Erika",
+			"family_name":   "Mustermann",
+			"birthdate":     "1984-01-26",
 		},
 	}
 
@@ -53,7 +55,7 @@ func TestFromSDJWT(t *testing.T) {
 
 	for _, c := range cq.Claims {
 		name, _ := c.Path[0].(string)
-		if skipClaims[name] {
+		if sdjwt.IsProtocolClaim(name) {
 			t.Errorf("DCQL query should not include standard claim %q", name)
 		}
 	}
@@ -194,7 +196,7 @@ func TestFromJWT(t *testing.T) {
 
 	for _, c := range cq.Claims {
 		name, _ := c.Path[0].(string)
-		if skipClaims[name] {
+		if sdjwt.IsProtocolClaim(name) {
 			t.Errorf("DCQL query should not include standard claim %q", name)
 		}
 	}

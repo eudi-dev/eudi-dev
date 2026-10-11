@@ -258,6 +258,7 @@ func TestAClaimsPathPointsIntoTheClaims(t *testing.T) {
 		"address":                 map[string]any{"locality": "Berlin"},
 		"nationalities":           []any{"DE", "NL"},
 		"eu.europa.ec.eudi.pid.1": map[string]any{"given_name": "Erika"},
+		"middle_name":             nil,
 	}
 	for _, tc := range []struct {
 		path []any
@@ -270,8 +271,9 @@ func TestAClaimsPathPointsIntoTheClaims(t *testing.T) {
 		{[]any{"nationalities", float64(2)}, false},
 		{[]any{"eu.europa.ec.eudi.pid.1", "given_name"}, true},
 		{[]any{"eu.europa.ec.eudi.pid.de.1", "given_name"}, false},
+		{[]any{"middle_name"}, true},
 	} {
-		if got := claimPathPresent(claims, tc.path); got != tc.want {
+		if got := len(missingClaimPaths(claims, [][]any{tc.path})) == 0; got != tc.want {
 			t.Errorf("%v: %t, want %t", tc.path, got, tc.want)
 		}
 	}

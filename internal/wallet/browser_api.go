@@ -17,6 +17,7 @@ package wallet
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/url"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
@@ -175,6 +176,15 @@ func parseMultiSignedBrowserAuthorizationRequest(requestObject map[string]any, o
 
 		candidate := authorizationParams(parsed)
 		candidate.ClientID = clientID
+		// Appendix A.3.2.2: client_id and verifier_info "MUST be present only
+		// in the protected header of the respective signature object".
+		if info, ok := parsed.RequestObject.Header["verifier_info"]; ok {
+			candidate.RequestPayload = maps.Clone(candidate.RequestPayload)
+			if candidate.RequestPayload == nil {
+				candidate.RequestPayload = map[string]any{}
+			}
+			candidate.RequestPayload["verifier_info"] = info
+		}
 		candidate.RequestOrigin = requestOrigin
 		if firstCandidate == nil {
 			firstCandidate = candidate

@@ -29,6 +29,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc/scheme"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/output"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/remote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
@@ -358,15 +359,8 @@ func printGeneratedPID(vct string) {
 
 func remoteAccept(c *remote.Client, uri, txCode, sessionTranscript string, interactive bool) error {
 	isVCI := isCredentialOfferURI(uri)
-	// Assign an owner so this tab receives the consent request on a shared wallet.
-	if interactive && !noOpen {
-		owner := remote.NewOwnerToken()
-		target := strings.TrimRight(c.BaseURL, "/") + "/?focus=overview&owner=" + url.QueryEscape(owner)
-		if openBrowser(target) {
-			c.ActingFor(owner)
-		} else {
-			fmt.Fprintf(humanOut(), "Waiting for consent at: %s\n", strings.TrimRight(c.BaseURL, "/"))
-		}
+	if interactive {
+		enlistBrowser(c)
 	}
 	var result map[string]any
 	var err error
@@ -386,6 +380,22 @@ func remoteAccept(c *remote.Client, uri, txCode, sessionTranscript string, inter
 	}
 	output.PrintJSON(result)
 	return remoteFlowError(result)
+}
+
+// enlistBrowser opens the wallet UI for a flow that waits for consent. The
+// client names the tab, so this tab receives the consent request on a shared
+// wallet.
+func enlistBrowser(c *remote.Client) {
+	if noOpen {
+		return
+	}
+	owner := remote.NewOwnerToken()
+	target := strings.TrimRight(c.BaseURL, "/") + "/?focus=overview&owner=" + url.QueryEscape(owner)
+	if openBrowser(target) {
+		c.ActingFor(owner)
+	} else {
+		fmt.Fprintf(humanOut(), "Waiting for consent at: %s\n", strings.TrimRight(c.BaseURL, "/"))
+	}
 }
 
 // remoteFlowError returns an error when the remote wallet refused or failed the
@@ -458,10 +468,7 @@ func completeSignIn(c *remote.Client, pending map[string]any) (map[string]any, e
 }
 
 func isCredentialOfferURI(uri string) bool {
-	return strings.Contains(uri, "credential_offer") ||
-		strings.HasPrefix(uri, "openid-credential-offer://") ||
-		strings.HasPrefix(uri, "haip-vci://") ||
-		strings.HasPrefix(uri, "eu-eaa-offer://")
+	return strings.Contains(uri, "credential_offer") || scheme.IsIssuance(uri)
 }
 
 // A browser tab with an owner receives the sign-in URL from the wallet. Opening it

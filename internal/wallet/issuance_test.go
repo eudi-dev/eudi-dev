@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jwe"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 )
@@ -313,7 +314,7 @@ func TestParseCredentialResponseBody_EncryptedJWE(t *testing.T) {
 		t.Fatalf("GenerateKey: %v", err)
 	}
 
-	jwe, _, err := EncryptJWE([]byte(`{"credential":"encrypted-credential"}`), &holderKey.PublicKey, "kid1", "ECDH-ES", "A128GCM", nil, nil)
+	jwe, _, err := jwe.EncryptECDHES([]byte(`{"credential":"encrypted-credential"}`), &holderKey.PublicKey, "kid1", "A128GCM", "", nil, nil)
 	if err != nil {
 		t.Fatalf("EncryptJWE: %v", err)
 	}

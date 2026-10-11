@@ -34,7 +34,7 @@ func TestParseAuthParamsKeepsEveryParameter(t *testing.T) {
 		"scope":         {"openid profile"},
 		"dcql_query":    {`{"credentials":[{"id":"q","format":"dc+sd-jwt"}]}`},
 	}
-	params, err := parseAuthParams(values, oid4vc.ParseOptions{}, ValidationModeDebug)
+	params, err := parseAuthParams(values, oid4vc.ParseOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,11 @@ func TestParseAuthParamsKeepsEveryParameter(t *testing.T) {
 	if params.FullParams["scope"] != "openid profile" || params.DCQLQuery == nil {
 		t.Errorf("full params %v, dcql %v", params.FullParams, params.DCQLQuery)
 	}
-	if _, err := parseAuthParams(url.Values{"client_id": {"x"}, "dcql_query": {"{"}}, oid4vc.ParseOptions{}, ValidationModeDebug); err == nil {
+	broken, err := parseAuthParams(url.Values{"client_id": {"x"}, "dcql_query": {"{"}}, oid4vc.ParseOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ValidateAuthorizationRequest(ConformanceSettings{ValidationMode: ValidationModeDebug}, broken); err == nil {
 		t.Error("a broken dcql_query was accepted")
 	}
 }

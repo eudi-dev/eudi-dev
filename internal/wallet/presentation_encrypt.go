@@ -20,15 +20,29 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"slices"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jwe"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 )
 
-// extractJWKThumbprint returns the RFC 7638 SHA-256 thumbprint of the request
-// object's encryption JWK. It returns nil when there is no encryption key.
-func extractJWKThumbprint(reqObj *oid4vc.RequestObjectJWT, clientMetadata map[string]any) []byte {
-	jwk := findEncryptionJWK(reqObj, clientMetadata)
+// responseModeEncrypts reports whether a response mode sends the response as
+// a JWE (OID4VP 1.0 §8.3.1 and Appendix A.4, OpenID4VCI 1.1 §6.2.1.1).
+func responseModeEncrypts(mode string) bool {
+	return mode == "direct_post.jwt" || mode == "dc_api.jwt" || mode == "ia_post.jwt"
+}
+
+// handoverJWKThumbprint is the jwkThumbprint of an mdoc handover. OID4VP 1.0
+// Appendix B.2.6.1: "If the response is encrypted [...] the third element MUST
+// be the JWK SHA-256 Thumbprint [...] of the Verifier's public key used to
+// encrypt the response. Otherwise, the third element MUST be null." B.2.6.2
+// says the same for dc_api.jwt and dc_api.
+func (w *Wallet) handoverJWKThumbprint(params PresentationParams) []byte {
+	if !responseModeEncrypts(params.ResponseMode) {
+		return nil
+	}
+	jwk, _ := responseEncryptionJWK(w.Mode(), params.RequestObject, params.ClientMetadata)
 	if jwk == nil {
 		return nil
 	}
@@ -36,9 +50,24 @@ func extractJWKThumbprint(reqObj *oid4vc.RequestObjectJWT, clientMetadata map[st
 }
 
 // findEncryptionJWK returns the first encryption JWK in client_metadata.jwks
-// (OID4VP 1.0).
+// that the wallet can encrypt to (OID4VP 1.0 §8.3).
 func findEncryptionJWK(reqObj *oid4vc.RequestObjectJWT, clientMetadata map[string]any) map[string]any {
 	return firstJWK(encryptionJWKS(reqObj, clientMetadata))
+}
+
+// responseEncryptionJWK selects the key the response is encrypted to. The
+// finding is set when debug mode falls back to a key marked for signing.
+func responseEncryptionJWK(mode ValidationMode, reqObj *oid4vc.RequestObjectJWT, clientMetadata map[string]any) (map[string]any, string) {
+	if jwk := findEncryptionJWK(reqObj, clientMetadata); jwk != nil {
+		return jwk, ""
+	}
+	if mode != ValidationModeDebug {
+		return nil, ""
+	}
+	if jwk := firstSigningOnlyEncryptionJWK(encryptionJWKS(reqObj, clientMetadata)); jwk != nil {
+		return jwk, `verifier's key in client_metadata.jwks is marked "use":"sig" (signing only). OID4VP 1.0 needs an encryption key for a direct_post.jwt response, so it was used for encryption`
+	}
+	return nil, ""
 }
 
 func encryptionJWKS(reqObj *oid4vc.RequestObjectJWT, clientMetadata map[string]any) any {
@@ -69,7 +98,7 @@ func firstSigningOnlyEncryptionJWK(jwksVal any) map[string]any {
 		if !ok {
 			continue
 		}
-		if use, _ := jwk["use"].(string); use == "sig" && encryptableKeyMaterial(jwk) {
+		if use, _ := jwk["use"].(string); use == "sig" && encryptableKeyMaterial(jwk) && walletImplementsKeyAlg(jwk) {
 			return jwk
 		}
 	}
@@ -110,7 +139,23 @@ func usableEncryptionJWK(jwk map[string]any) bool {
 	if use, ok := jwk["use"].(string); ok && use != "enc" {
 		return false
 	}
-	return encryptableKeyMaterial(jwk)
+	return encryptableKeyMaterial(jwk) && walletImplementsKeyAlg(jwk)
+}
+
+// walletImplementsKeyAlg reports whether the wallet implements the key's alg.
+// OID4VP 1.0 §8.3: "The alg parameter MUST be present in the JWKs. The JWE alg
+// algorithm used MUST be equal to the alg value of the chosen jwk." The wallet
+// does direct key agreement with EC keys and key wrapping with RSA keys.
+func walletImplementsKeyAlg(jwk map[string]any) bool {
+	alg, _ := jwk["alg"].(string)
+	switch kty, _ := jwk["kty"].(string); kty {
+	case "EC":
+		return alg == "ECDH-ES"
+	case "RSA":
+		return alg == "RSA-OAEP" || alg == "RSA-OAEP-256"
+	default:
+		return false
+	}
 }
 
 func encryptableKeyMaterial(jwk map[string]any) bool {
@@ -157,25 +202,13 @@ type encryptionKeyInfo struct {
 // client_metadata.jwks per OID4VP 1.0. An EC key is used with ECDH-ES, an RSA
 // key with RSA-OAEP.
 func extractEncryptionKey(mode ValidationMode, reqObj *oid4vc.RequestObjectJWT, clientMetadata map[string]any) (*encryptionKeyInfo, error) {
-	jwk := findEncryptionJWK(reqObj, clientMetadata)
-	selectionFinding := ""
-	if jwk == nil && mode == ValidationModeDebug {
-		// The verifier published no encryption-marked key. Debug mode encrypts
-		// to a signing-marked key of a usable type and records a finding.
-		if cand := firstSigningOnlyEncryptionJWK(encryptionJWKS(reqObj, clientMetadata)); cand != nil {
-			jwk = cand
-			selectionFinding = `verifier's key in client_metadata.jwks is marked "use":"sig" (signing only). OID4VP 1.0 needs an encryption key for a direct_post.jwt response, so it was used for encryption`
-		}
-	}
+	jwk, selectionFinding := responseEncryptionJWK(mode, reqObj, clientMetadata)
 	if jwk == nil {
-		return nil, fmt.Errorf("client_metadata.jwks carries no encryption key (OID4VP 1.0 requires one for an encrypted response)")
+		return nil, fmt.Errorf("client_metadata.jwks carries no encryption key with an alg this wallet implements (ECDH-ES on P-256, RSA-OAEP or RSA-OAEP-256). OID4VP 1.0 §8.3 requires one for an encrypted response")
 	}
 
 	kid, _ := jwk["kid"].(string)
 	alg, _ := jwk["alg"].(string)
-	if alg == "" {
-		return nil, fmt.Errorf("JWK missing required 'alg' parameter (OID4VP 1.0 requires alg in each JWK)")
-	}
 
 	switch kty, _ := jwk["kty"].(string); kty {
 	case "RSA":
@@ -235,12 +268,15 @@ func (w *Wallet) encryptDirectPostJWTPayload(payload map[string]any, mdocNonce s
 		w.AddLog("presentation", keyInfo.Finding, false)
 	}
 
-	enc := detectEncAlgorithm(params.RequestObject, params.ClientMetadata, "A128GCM")
+	enc, err := responseEncAlgorithm(params.RequestObject, params.ClientMetadata)
+	if err != nil {
+		return "", nil, err
+	}
 
 	// RSA-OAEP wraps the key without key agreement, so the response has no ephemeral
 	// key, apu or apv.
 	if keyInfo.RSAKey != nil {
-		return EncryptJWERSA(payloadJSON, keyInfo.RSAKey, keyInfo.Kid, keyInfo.Alg, enc)
+		return jwe.EncryptRSAOAEP(payloadJSON, keyInfo.RSAKey, keyInfo.Kid, keyInfo.Alg, enc)
 	}
 
 	// For ISO mode with mdoc_generated_nonce, set apu and apv per ISO 18013-7 Annex B.
@@ -252,7 +288,7 @@ func (w *Wallet) encryptDirectPostJWTPayload(payload map[string]any, mdocNonce s
 		}
 	}
 
-	return EncryptJWE(payloadJSON, keyInfo.Key, keyInfo.Kid, keyInfo.Alg, enc, apu, apv)
+	return jwe.EncryptECDHES(payloadJSON, keyInfo.Key, keyInfo.Kid, enc, "", apu, apv)
 }
 
 // EncryptResponse also returns the content encryption key (CEK) for debugging.
@@ -291,22 +327,28 @@ func (w *Wallet) EncryptErrorResponse(errorCode, errorDescription, state string,
 	return w.encryptDirectPostJWTPayload(payload, "", params)
 }
 
-func detectEncAlgorithm(reqObj *oid4vc.RequestObjectJWT, clientMetadata map[string]any, fallback string) string {
+// responseEncAlgorithm picks the JWE enc of the response. OID4VP 1.0 §8.3
+// takes it from encrypted_response_enc_values_supported, "allowing for the
+// default value of A128GCM when not explicitly set". HAIP 1.0 §5: "If both are
+// supported, the Wallet SHOULD use A256GCM for the JWE enc."
+func responseEncAlgorithm(reqObj *oid4vc.RequestObjectJWT, clientMetadata map[string]any) (string, error) {
 	clientMeta := clientMetadata
 	if reqObj != nil && reqObj.Payload != nil {
 		if reqClientMeta, ok := reqObj.Payload["client_metadata"].(map[string]any); ok {
 			clientMeta = reqClientMeta
 		}
 	}
-	if len(clientMeta) == 0 {
-		return fallback
+	offered := stringValues(clientMeta["encrypted_response_enc_values_supported"])
+	if len(offered) == 0 {
+		return "A128GCM", nil
 	}
-
-	if arr, ok := clientMeta["encrypted_response_enc_values_supported"].([]any); ok && len(arr) > 0 {
-		if v, ok := arr[0].(string); ok && v != "" {
-			return v
+	if slices.Contains(offered, "A256GCM") {
+		return "A256GCM", nil
+	}
+	for _, enc := range offered {
+		if _, err := jwe.EncKeyBitLen(enc); err == nil {
+			return enc, nil
 		}
 	}
-
-	return fallback
+	return "", fmt.Errorf("client_metadata.encrypted_response_enc_values_supported lists %v, and this wallet implements none of them", offered)
 }

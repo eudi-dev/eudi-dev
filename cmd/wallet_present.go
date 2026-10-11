@@ -15,7 +15,6 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -23,10 +22,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/fatih/color"
-	"github.com/google/uuid"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
@@ -34,6 +31,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/netaddr"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/output"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/remote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
 )
 
@@ -107,60 +105,11 @@ func dispatchURI(uri string, opts dispatchOID4Opts) error {
 	}
 }
 
+// runPresent answers a presentation request on a local wallet server. The
+// request takes the flow of POST /api/presentations, the one every entry
+// point uses (ADR-0012). The server also serves the trusted list the verifier
+// reads and the consent dialog.
 func runPresent(w *wallet.Wallet, store *wallet.WalletStore, uri string, port int, docker bool) error {
-	parsed, err := wallet.ParseAuthorizationRequestWithOptions(uri, oid4vc.ParseOptions{
-		FetchRequestURI: wallet.MakeFetchRequestURI(w, nil),
-	})
-	if err != nil {
-		return fmt.Errorf("parsing authorization request: %w", err)
-	}
-
-	responseURI := wallet.GetResponseURI(parsed)
-	authReq := authorizationRequestParamsFromParsed(parsed, responseURI, "cli")
-	w.PrepareARFChecks(authReq)
-	findings, err := wallet.ValidateAuthorizationRequest(w.Conformance(), authReq)
-	var refusal *wallet.ARFRefusal
-	if errors.As(err, &refusal) {
-		// The verifier authenticated with a trusted access certificate, so it
-		// gets the refusal, as on the wallet's /authorize endpoint.
-		params := wallet.PresentationParams{Nonce: parsed.Nonce, ClientID: parsed.ClientID, ResponseURI: responseURI, ResponseMode: parsed.ResponseMode, ClientMetadata: authReq.ClientMetadata, RequestObject: parsed.RequestObject}
-		description := "The request does not meet the ARF registration rules: " + strings.Join(refusal.Findings, ", ")
-		if _, sendErr := w.SubmitAuthorizationError("access_denied", description, parsed.State, responseURI, params); sendErr != nil {
-			return errors.Join(err, fmt.Errorf("sending access_denied: %w", sendErr))
-		}
-		return err
-	}
-	if err != nil {
-		return err
-	}
-	for _, warning := range findings {
-		yellow := color.New(color.FgYellow)
-		yellow.Fprintf(humanOut(), "  WARNING: %s\n", warning)
-		w.AddLog("presentation", fmt.Sprintf("request validation warning: %s", warning), false)
-	}
-
-	requiresVP := wallet.ResponseTypeRequiresVP(parsed.ResponseType)
-
-	var matches []wallet.CredentialMatch
-	if parsed.DCQLQuery != nil && requiresVP {
-		if matches, err = w.EvaluateDCQL(parsed.DCQLQuery); err != nil {
-			return err
-		}
-	}
-
-	if requiresVP && len(matches) == 0 {
-		return fmt.Errorf("no matching credentials found for the DCQL query")
-	}
-
-	requestDetails := wallet.PresentationSubmissionLogDetails(authReq, w, nil, nil, "", nil)
-	requestDetails["event"] = "presentation_request"
-	requestDetails["direction"] = "inbound"
-	requestDetails["source"] = "cli"
-	w.AddLogDetails("presentation", fmt.Sprintf("Received presentation request from %s", parsed.ClientID), true, requestDetails)
-
-	dim := color.New(color.Faint)
-
-	// Start the server so the verifier can fetch the trusted list.
 	setLocalPresentationIssuerURL(w, port, docker)
 	srv := wallet.NewServer(w, port, nil)
 	if err := configureIssuerTLSCertificate(srv, store, w.IssuerURL); err != nil {
@@ -172,29 +121,46 @@ func runPresent(w *wallet.Wallet, store *wallet.WalletStore, uri string, port in
 	}
 	defer srv.Shutdown()
 
+	dim := color.New(color.Faint)
 	_, _ = dim.Fprintln(humanOut(), "───────────────────────────────────────")
-	yellow := color.New(color.FgYellow)
-	yellow.Fprintf(humanOut(), "  Verifier: %s\n", parsed.ClientID)
 	fmt.Fprintf(humanOut(), "  Trust List:  %s/api/trustlist\n", addr)
 	dim.Fprintf(humanOut(), "               http://host.docker.internal:%d/api/trustlist\n", port)
-	for _, m := range matches {
-		fmt.Fprintf(humanOut(), "  Credential: %s (%s)\n", m.Format, typeLabel(m.VCT, m.DocType, m.Format))
-		fmt.Fprintf(humanOut(), "  Disclosing: %v\n", m.SelectedKeys)
-	}
 
-	matches, submissionCh, err := waitForConsent(w, matches, parsed, responseURI, addr, dim)
+	c := remote.NewClient(addr)
+	interactive := !w.AutoAccept
+	if interactive {
+		fmt.Fprintf(humanOut(), "  Consent UI: %s\n", addr)
+		enlistBrowser(c)
+	}
+	result, err := c.Present(uri, interactive, "")
+	if saveErr := store.Save(w); saveErr != nil {
+		fmt.Fprintf(os.Stderr, "warning: saving wallet: %v\n", saveErr)
+	}
 	if err != nil {
 		return err
 	}
-
 	_, _ = dim.Fprintln(humanOut(), "───────────────────────────────────────")
+	printPresentationResult(result, interactive)
+	return remoteFlowError(result)
+}
 
-	err = submitPresentation(w, store, matches, parsed, responseURI, submissionCh, findings, dim)
-	if err != nil {
-		return err
+// printPresentationResult reports the outcome. With --json, stdout carries
+// only the document (ADR 0020).
+func printPresentationResult(result map[string]any, browserWaiting bool) {
+	if jsonOutput {
+		output.PrintJSON(result)
+		return
 	}
-
-	return nil
+	status, _ := result["status"].(string)
+	if response, ok := result["response"].(map[string]any); ok {
+		if code, _ := response["status_code"].(float64); code > 0 {
+			fmt.Fprintf(humanOut(), "  %s: HTTP %d\n", status, int(code))
+		}
+	} else {
+		fmt.Fprintf(humanOut(), "  %s\n", status)
+	}
+	redirectURI, _ := result["redirect_uri"].(string)
+	followVerifierRedirect(redirectURI, browserWaiting)
 }
 
 func setLocalPresentationIssuerURL(w *wallet.Wallet, port int, docker bool) {
@@ -233,17 +199,20 @@ func resolvePresentationPort(port int, autoAccept bool, portExplicit bool) (int,
 }
 
 func presentationPortPairAvailable(port int) bool {
-	httpListener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
-	if err != nil {
-		return false
-	}
-	_ = httpListener.Close()
+	return portFree(port) && portFree(port+1)
+}
 
-	httpsListener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port+1))
-	if err != nil {
-		return false
+// portFree checks the wildcard address the wallet server binds and the
+// loopback address. Either bind can succeed while another server holds the
+// other one.
+func portFree(port int) bool {
+	for _, host := range []string{"", "127.0.0.1"} {
+		ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", host, port))
+		if err != nil {
+			return false
+		}
+		_ = ln.Close()
 	}
-	_ = httpsListener.Close()
 	return true
 }
 
@@ -325,176 +294,6 @@ func effectivePresentationPort(port int) int {
 		return port
 	}
 	return config.DefaultWalletPort
-}
-
-// waitForConsent shows a consent UI and waits for the user's decision. It
-// returns the matches with the user's changes and a channel that reports the
-// submission back to the UI. A denial or a timeout returns an error.
-func waitForConsent(w *wallet.Wallet, matches []wallet.CredentialMatch, parsed *oid4vc.AuthorizationRequest, responseURI, addr string, dim *color.Color) ([]wallet.CredentialMatch, chan wallet.SubmissionResult, error) {
-	if w.AutoAccept {
-		return matches, nil, nil
-	}
-
-	consentReq := &wallet.ConsentRequest{
-		ID:           uuid.New().String(),
-		Type:         "presentation",
-		MatchedCreds: matches,
-		Status:       "pending",
-		ResultCh:     make(chan wallet.ConsentResult, 1),
-		SubmissionCh: make(chan wallet.SubmissionResult, 1),
-		CreatedAt:    time.Now(),
-		ClientID:     parsed.ClientID,
-		Nonce:        parsed.Nonce,
-		ResponseURI:  responseURI,
-		DCQLQuery:    parsed.DCQLQuery,
-	}
-
-	w.CreateConsentRequest(consentReq)
-
-	fmt.Fprintf(humanOut(), "  Consent UI: %s\n", addr)
-	_, _ = dim.Fprintln(humanOut(), "───────────────────────────────────────")
-	fmt.Fprintln(humanOut(), "Waiting for consent decision...")
-
-	if !noOpen {
-		openBrowser(addr)
-	}
-
-	select {
-	case result := <-consentReq.ResultCh:
-		if !result.Approved {
-			consentReq.SubmissionCh <- wallet.SubmissionResult{}
-			return nil, nil, fmt.Errorf("presentation denied")
-		}
-		if result.SelectedClaims != nil {
-			for i, m := range matches {
-				if selectedKeys, ok := result.SelectedClaims[m.CredentialID]; ok {
-					matches[i].SelectedKeys = selectedKeys
-				}
-			}
-		}
-	case <-time.After(config.ConsentTimeout):
-		return nil, nil, fmt.Errorf("consent timeout")
-	}
-
-	return matches, consentReq.SubmissionCh, nil
-}
-
-func submitPresentation(w *wallet.Wallet, store *wallet.WalletStore, matches []wallet.CredentialMatch, parsed *oid4vc.AuthorizationRequest, responseURI string, submissionCh chan wallet.SubmissionResult, findings []string, dim *color.Color) error {
-	params := wallet.PresentationParams{
-		Nonce:         parsed.Nonce,
-		ClientID:      parsed.ClientID,
-		ResponseURI:   responseURI,
-		ResponseMode:  parsed.ResponseMode,
-		RequestObject: parsed.RequestObject,
-	}
-	vpResult, err := w.CreateVPTokenMap(matches, params)
-	if err != nil {
-		w.AddLog("presentation", fmt.Sprintf("VP token creation failed: %v", err), false)
-		if submissionCh != nil {
-			submissionCh <- wallet.SubmissionResult{Error: err.Error()}
-		}
-		return fmt.Errorf("creating VP tokens: %w", err)
-	}
-
-	var idToken string
-	if wallet.ResponseTypeContains(parsed.ResponseType, "id_token") {
-		idToken, err = w.CreateSelfIssuedIDToken(parsed.Nonce, parsed.ClientID)
-		if err != nil {
-			return fmt.Errorf("creating self-issued id_token: %w", err)
-		}
-	}
-
-	authReq := authorizationRequestParamsFromParsed(parsed, responseURI, "cli")
-	responseDetails := wallet.PresentationResponseLogDetails(authReq, w, matches, vpResult, idToken, responseURI)
-	responseDetails["event"] = "presentation_response"
-	result, err := w.SubmitPresentation(vpResult, idToken, parsed.State, responseURI, params, func(response *wallet.AuthorizationResponseEnvelope) {
-		w.AddLogPayload("presentation", fmt.Sprintf("Sending presentation response to %s", parsed.ClientID), true, responseDetails, wallet.PresentationLogPayload(response))
-	})
-	if err != nil {
-		w.AddLogPayload("presentation", fmt.Sprintf("Submission failed: %v", err), false, nil, wallet.VerifierResponseErrorPayload(err))
-		if submissionCh != nil {
-			submissionCh <- wallet.SubmissionResult{Error: err.Error()}
-		}
-		return fmt.Errorf("submitting presentation: %w", err)
-	}
-
-	submission := wallet.SubmissionResult{
-		RedirectURI: result.RedirectURI,
-		StatusCode:  result.StatusCode,
-	}
-
-	if result.StatusCode >= 400 {
-		red := color.New(color.FgRed)
-		red.Fprintf(humanOut(), "  Error: %s\n", wallet.FormatDirectPostResult(result))
-		fmt.Fprintf(humanOut(), "  Body:  %s\n", result.Body)
-		submission.Error = result.Body
-		w.AddLog("presentation", fmt.Sprintf("Verifier %s rejected: %s", parsed.ClientID, result.Body), false)
-	} else {
-		green := color.New(color.FgGreen)
-		green.Fprintf(humanOut(), "  Submitted: %s\n", wallet.FormatDirectPostResult(result))
-	}
-	resultDetails := map[string]any{
-		"event":          "verifier_response",
-		"direction":      "inbound",
-		"source":         "cli",
-		"client_id":      parsed.ClientID,
-		"response_mode":  parsed.ResponseMode,
-		"state":          parsed.State,
-		"submission_uri": responseURI,
-		"status_code":    result.StatusCode,
-	}
-	if result.RedirectURI != "" {
-		resultDetails["redirect_uri"] = result.RedirectURI
-	}
-	if result.Body != "" {
-		resultDetails["response_body"] = result.Body
-	}
-	w.AddLogDetails("presentation", fmt.Sprintf("Verifier result from %s: %s", parsed.ClientID, wallet.FormatDirectPostResult(result)), result.StatusCode < 400, resultDetails)
-	_, _ = dim.Fprintln(humanOut(), "───────────────────────────────────────")
-
-	followVerifierRedirect(result.RedirectURI, submissionCh != nil)
-
-	if submissionCh != nil {
-		submissionCh <- submission
-	}
-
-	if err := store.Save(w); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: saving wallet: %v\n", err)
-	}
-
-	if jsonOutput {
-		output.PrintJSON(wallet.SubmittedPresentation(result, vpResult, findings))
-	}
-	return verifierRejection(result)
-}
-
-// verifierRejection fails the command when the verifier rejected the
-// presentation (ADR 0020).
-func verifierRejection(result *wallet.DirectPostResult) error {
-	if result.StatusCode >= 400 {
-		return fmt.Errorf("the verifier rejected the presentation: %s", wallet.FormatDirectPostResult(result))
-	}
-	return nil
-}
-
-func authorizationRequestParamsFromParsed(parsed *oid4vc.AuthorizationRequest, responseURI, source string) *wallet.AuthorizationRequestParams {
-	return &wallet.AuthorizationRequestParams{
-		ClientID:         parsed.ClientID,
-		ResponseType:     parsed.ResponseType,
-		ResponseMode:     parsed.ResponseMode,
-		Nonce:            parsed.Nonce,
-		State:            parsed.State,
-		RedirectURI:      parsed.RedirectURI,
-		ResponseURI:      responseURI,
-		Scope:            parsed.Scope,
-		RequestURIMethod: parsed.RequestURIMethod,
-		RequestURI:       parsed.RequestURI,
-		ClientMetadata:   parsed.ClientMetadata,
-		DCQLQuery:        parsed.DCQLQuery,
-		RequestObject:    parsed.RequestObject,
-		RequestPayload:   wallet.RequestPayload(parsed.RequestObject, parsed.FullJSON),
-		Source:           source,
-	}
 }
 
 func processCredentialOffer(uri string, opts dispatchOID4Opts) error {

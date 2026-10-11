@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jwe"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 )
 
@@ -55,7 +56,7 @@ func TestEncryptJWERSARoundTrip(t *testing.T) {
 	}
 	payload := []byte(`{"vp_token":"eyJ...","state":"abc"}`)
 
-	compact, cek, err := EncryptJWERSA(payload, &priv.PublicKey, "verifier-enc-1", "RSA-OAEP", "A128GCM")
+	compact, cek, err := jwe.EncryptRSAOAEP(payload, &priv.PublicKey, "verifier-enc-1", "RSA-OAEP", "A128GCM")
 	if err != nil {
 		t.Fatalf("EncryptJWERSA: %v", err)
 	}
@@ -126,7 +127,7 @@ func TestExtractEncryptionKeyRSA(t *testing.T) {
 // ECDH-ES is the OID4VP baseline and the only option HAIP allows.
 func TestFindEncryptionJWKPrefersECOverRSA(t *testing.T) {
 	rsaPriv, _ := rsa.GenerateKey(rand.Reader, 2048)
-	ecJWK := map[string]any{"kty": "EC", "crv": "P-256", "use": "enc", "kid": "ec", "x": "8Yrbbg", "y": "V2Ki0w"}
+	ecJWK := map[string]any{"kty": "EC", "crv": "P-256", "use": "enc", "alg": "ECDH-ES", "kid": "ec", "x": "8Yrbbg", "y": "V2Ki0w"}
 	meta := map[string]any{"jwks": map[string]any{"keys": []any{
 		rsaEncJWK(&rsaPriv.PublicKey, "RSA-OAEP"),
 		ecJWK,
@@ -181,7 +182,7 @@ func TestHaipEncryptionKeyViolationsRSA(t *testing.T) {
 		t.Fatal("HAIP must flag an RSA response encryption key")
 	}
 
-	ecJWK := map[string]any{"kty": "EC", "crv": "P-256", "use": "enc", "kid": "ec", "x": "8Yrbbg", "y": "V2Ki0w"}
+	ecJWK := map[string]any{"kty": "EC", "crv": "P-256", "use": "enc", "alg": "ECDH-ES", "kid": "ec", "x": "8Yrbbg", "y": "V2Ki0w"}
 	ecMeta := map[string]any{"jwks": map[string]any{"keys": []any{ecJWK}}}
 	if v := haipEncryptionKeyViolations(nil, ecMeta); len(v) != 0 {
 		t.Fatalf("an EC P-256 key is HAIP-conformant, got %v", v)
@@ -190,10 +191,10 @@ func TestHaipEncryptionKeyViolationsRSA(t *testing.T) {
 
 func TestEncryptJWERSAUnsupportedAlg(t *testing.T) {
 	priv, _ := rsa.GenerateKey(rand.Reader, 2048)
-	if _, _, err := EncryptJWERSA([]byte("{}"), &priv.PublicKey, "k", "RSA1_5", "A128GCM"); err == nil {
+	if _, _, err := jwe.EncryptRSAOAEP([]byte("{}"), &priv.PublicKey, "k", "RSA1_5", "A128GCM"); err == nil {
 		t.Fatal("expected an error for an unsupported RSA alg")
 	}
-	compact, _, err := EncryptJWERSA([]byte("{}"), &priv.PublicKey, "k", "RSA-OAEP-256", "A256GCM")
+	compact, _, err := jwe.EncryptRSAOAEP([]byte("{}"), &priv.PublicKey, "k", "RSA-OAEP-256", "A256GCM")
 	if err != nil {
 		t.Fatalf("RSA-OAEP-256 with A256GCM: %v", err)
 	}

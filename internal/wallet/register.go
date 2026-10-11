@@ -14,7 +14,11 @@
 
 package wallet
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc/scheme"
+)
 
 type RegisterOptions struct {
 	ListenerPort int
@@ -24,8 +28,8 @@ type RegisterOptions struct {
 
 // The wallet registers as the OS handler for these URL schemes.
 var (
-	presentationURLSchemes = []string{"openid4vp", "eudi-openid4vp", "haip-vp"}
-	issuanceURLSchemes     = []string{"openid-credential-offer", "haip-vci", "eu-eaa-offer"}
+	presentationURLSchemes = scheme.Presentation
+	issuanceURLSchemes     = scheme.Issuance
 	URLSchemes             = append(slices.Clone(presentationURLSchemes), issuanceURLSchemes...)
 )
 

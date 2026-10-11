@@ -56,60 +56,6 @@ func TestParseSDJWTSelector(t *testing.T) {
 	}
 }
 
-func TestClaimValueAtPath(t *testing.T) {
-	value := map[string]any{
-		"address": map[string]any{"locality": "Berlin", "postal_code": "10115"},
-		"degrees": []any{
-			map[string]any{"type": "BA", "year": float64(2019)},
-			map[string]any{"type": "MA"},
-		},
-		"nicknames": []any{"Ada", "Addy"},
-	}
-
-	tests := []struct {
-		name   string
-		path   []any
-		want   any
-		wantOK bool
-	}{
-		{name: "an empty path is the value itself", path: nil, want: value, wantOK: true},
-		{name: "a nested object", path: []any{"address", "locality"}, want: "Berlin", wantOK: true},
-		{name: "an array element", path: []any{"degrees", 0, "type"}, want: "BA", wantOK: true},
-		{name: "a whole array under a wildcard", path: []any{"nicknames", nil}, want: []any{"Ada", "Addy"}, wantOK: true},
-		{name: "a wildcard collecting a member", path: []any{"degrees", nil, "type"}, want: []any{"BA", "MA"}, wantOK: true},
-
-		{name: "a key that is not there", path: []any{"address", "country"}, wantOK: false},
-		{name: "descending into a scalar", path: []any{"address", "locality", "deeper"}, wantOK: false},
-		{name: "an index past the end", path: []any{"degrees", 9}, wantOK: false},
-		{name: "a negative index", path: []any{"degrees", -1}, wantOK: false},
-		{name: "an index into an object", path: []any{"address", 0}, wantOK: false},
-		{name: "a wildcard over an object", path: []any{"address", nil}, wantOK: false},
-		{name: "a segment of an unusable type", path: []any{1.5}, wantOK: false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, ok := claimValueAtPath(value, tt.path)
-			if ok != tt.wantOK {
-				t.Fatalf("ok = %v, want %v (got %#v)", ok, tt.wantOK, got)
-			}
-			if tt.wantOK && !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("value = %#v, want %#v", got, tt.want)
-			}
-		})
-	}
-}
-
-// A wildcard that matches nothing reports no match. An empty list would make
-// a credential without the claim look like it has it.
-func TestClaimValueAtPathWildcardWithNoMatches(t *testing.T) {
-	value := map[string]any{"degrees": []any{map[string]any{"other": 1}}}
-
-	if got, ok := claimValueAtPath(value, []any{"degrees", nil, "type"}); ok {
-		t.Errorf("value = %#v, ok = %v, want no match", got, ok)
-	}
-}
-
 func TestClaimValueBySelector(t *testing.T) {
 	sdjwt := StoredCredential{
 		Format: "dc+sd-jwt",

@@ -29,8 +29,8 @@ import (
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jwe"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/web"
 )
 
@@ -946,7 +946,7 @@ func TestDecodeJARMResponseJWEWithCEK(t *testing.T) {
 	payload := map[string]any{"vp_token": "test-cred", "state": "s1"}
 	payloadJSON, _ := json.Marshal(payload)
 
-	jwe, cek, err := wallet.EncryptJWE(payloadJSON, &key.PublicKey, "kid", "ECDH-ES", "A128GCM", nil, nil)
+	jwe, cek, err := jwe.EncryptECDHES(payloadJSON, &key.PublicKey, "kid", "A128GCM", "", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1002,7 +1002,7 @@ func TestDecodeJARMResponseJWEWithJWK(t *testing.T) {
 	payload := map[string]any{"vp_token": "jwk-cred", "state": "s2"}
 	payloadJSON, _ := json.Marshal(payload)
 
-	jwe, _, err := wallet.EncryptJWE(payloadJSON, &key.PublicKey, "kid", "ECDH-ES", "A256GCM", nil, nil)
+	jwe, _, err := jwe.EncryptECDHES(payloadJSON, &key.PublicKey, "kid", "A256GCM", "", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1118,7 +1118,7 @@ func TestExtractCredentialsFromDecryptedJARM(t *testing.T) {
 	}
 	payloadJSON, _ := json.Marshal(payload)
 
-	jwe, cek, err := wallet.EncryptJWE(payloadJSON, &key.PublicKey, "kid", "ECDH-ES", "A128GCM", nil, nil)
+	jwe, cek, err := jwe.EncryptECDHES(payloadJSON, &key.PublicKey, "kid", "A128GCM", "", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1154,7 +1154,7 @@ func TestClassifyVPAuthResponseWithDebugKey(t *testing.T) {
 	payload := map[string]any{"vp_token": "decrypted-token", "state": "s1"}
 	payloadJSON, _ := json.Marshal(payload)
 
-	jwe, cek, err := wallet.EncryptJWE(payloadJSON, &key.PublicKey, "kid", "ECDH-ES", "A128GCM", nil, nil)
+	jwe, cek, err := jwe.EncryptECDHES(payloadJSON, &key.PublicKey, "kid", "A128GCM", "", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

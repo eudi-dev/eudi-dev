@@ -327,11 +327,11 @@ func TestOverAskingFindings(t *testing.T) {
 }
 
 // ARF RPRC_19 requires a registration certificate even though OpenID4VP makes
-// verifier_info optional.
+// verifier_info optional. RPRC_17 has the wallet warn the user without one.
 func TestARFRequiresARegistrationCertificate(t *testing.T) {
 	findings := ARFFindings(&AuthorizationRequestParams{RequestPayload: map[string]any{"dcql_query": map[string]any{}}})
-	if !containsSubstring(findings, "RPRC_19") {
-		t.Errorf("findings %v, want the RPRC_19 finding", findings)
+	if !containsSubstring(findings, "ARF RPRC_17 and RPRC_19: the request carries no registration certificate") {
+		t.Errorf("findings %v, want the RPRC_17 and RPRC_19 finding", findings)
 	}
 }
 

@@ -18,6 +18,8 @@ import (
 	"encoding/hex"
 	"strings"
 	"testing"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 )
 
 // The expected bytes come from the worked example in OpenID4VCI 1.1 Appendix A.2.5.
@@ -36,9 +38,9 @@ func TestBuildSessionTranscriptOID4VCIIAEMatchesTheDraftExample(t *testing.T) {
 		t.Fatalf("decoding the example thumbprint: %v", err)
 	}
 
-	transcript, err := buildSessionTranscriptOID4VCIIAE(iaeExampleEndpoint, iaeExampleNonce, thumbprint)
+	transcript, err := mdoc.OID4VCIIAESessionTranscript(iaeExampleEndpoint, iaeExampleNonce, thumbprint)
 	if err != nil {
-		t.Fatalf("buildSessionTranscriptOID4VCIIAE() error = %v", err)
+		t.Fatalf("mdoc.OID4VCIIAESessionTranscript() error = %v", err)
 	}
 	if got := hex.EncodeToString(transcript); got != iaeExampleTranscript {
 		t.Errorf("SessionTranscript =\n  %s\nwant\n  %s", got, iaeExampleTranscript)
@@ -48,42 +50,16 @@ func TestBuildSessionTranscriptOID4VCIIAEMatchesTheDraftExample(t *testing.T) {
 // OpenID4VCI 1.1 Appendix A.2.5: "If the Response Mode is ia_post, the third
 // element MUST be null". This holds even when the request carried an encryption key.
 func TestBuildSessionTranscriptOID4VCIIAEOmitsTheThumbprintForIAPost(t *testing.T) {
-	thumbprint, err := hex.DecodeString(iaeExampleThumb)
-	if err != nil {
-		t.Fatalf("decoding the example thumbprint: %v", err)
-	}
 	w := generateTestWallet(t)
+	key := ecEncJWK(t, "enc")
+	meta := map[string]any{"jwks": map[string]any{"keys": []any{key}}}
 
-	encrypted, err := w.buildSessionTranscript(PresentationParams{
-		ResponseMode:                     "ia_post.jwt",
-		Nonce:                            iaeExampleNonce,
-		InteractiveAuthorizationEndpoint: iaeExampleEndpoint,
-	}, "", thumbprint)
-	if err != nil {
-		t.Fatalf("encrypted transcript: %v", err)
+	if got := w.handoverJWKThumbprint(PresentationParams{ResponseMode: "ia_post", ClientMetadata: meta}); got != nil {
+		t.Errorf("ia_post handover thumbprint = %x, want null", got)
 	}
-	if got := hex.EncodeToString(encrypted); got != iaeExampleTranscript {
-		t.Errorf("ia_post.jwt transcript = %s, want the draft example", got)
-	}
-
-	plain, err := w.buildSessionTranscript(PresentationParams{
-		ResponseMode:                     "ia_post",
-		Nonce:                            iaeExampleNonce,
-		InteractiveAuthorizationEndpoint: iaeExampleEndpoint,
-	}, "", thumbprint)
-	if err != nil {
-		t.Fatalf("plain transcript: %v", err)
-	}
-	if hex.EncodeToString(plain) == iaeExampleTranscript {
-		t.Error("ia_post transcript kept the encryption key thumbprint")
-	}
-
-	withoutKey, err := buildSessionTranscriptOID4VCIIAE(iaeExampleEndpoint, iaeExampleNonce, nil)
-	if err != nil {
-		t.Fatalf("transcript without a key: %v", err)
-	}
-	if hex.EncodeToString(plain) != hex.EncodeToString(withoutKey) {
-		t.Error("ia_post transcript differs from one built with no key at all")
+	want := computeJWKThumbprint(key)
+	if got := w.handoverJWKThumbprint(PresentationParams{ResponseMode: "ia_post.jwt", ClientMetadata: meta}); hex.EncodeToString(got) != hex.EncodeToString(want) {
+		t.Errorf("ia_post.jwt handover thumbprint = %x, want %x", got, want)
 	}
 }
 
@@ -118,7 +94,7 @@ func TestInteractiveAuthorizationTranscriptIgnoresTheSessionTranscriptMode(t *te
 // The challenge endpoint is required to bind the presentation to the authorization
 // request.
 func TestBuildSessionTranscriptOID4VCIIAERefusesAnEmptyEndpoint(t *testing.T) {
-	if _, err := buildSessionTranscriptOID4VCIIAE("  ", iaeExampleNonce, nil); err == nil {
+	if _, err := mdoc.OID4VCIIAESessionTranscript("  ", iaeExampleNonce, nil); err == nil {
 		t.Fatal("built a transcript without an authorization challenge endpoint")
 	}
 }

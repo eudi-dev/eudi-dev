@@ -1,0 +1,59 @@
+// Copyright 2026 Dominik Schlosser
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package wallet
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"testing"
+)
+
+// ADR-0012: /authorize and POST /api/presentations run the same checks.
+func TestAuthorizeAndThePresentationAPIRefuseTheSameRequest(t *testing.T) {
+	query := "client_id=" + url.QueryEscape("redirect_uri:https://verifier.example/cb") +
+		"&response_type=vp_token&response_mode=direct_post&nonce=n&response_uri=" + url.QueryEscape("https://verifier.example/cb")
+	for name, extra := range map[string]string{
+		"request_uri_method without request_uri": "&request_uri_method=post",
+		"client_metadata that is not JSON":       "&client_metadata=" + url.QueryEscape("{"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			srv := newTestServer(t, true)
+			authorize := httptest.NewRecorder()
+			srv.mux.ServeHTTP(authorize, httptest.NewRequest("GET", "/authorize?"+query+extra, nil))
+			body, _ := json.Marshal(map[string]string{"uri": "openid4vp://?" + query + extra})
+			api := serverRequest(t, srv, "POST", "/api/presentations", string(body))
+			for entry, rec := range map[string]*httptest.ResponseRecorder{"/authorize": authorize, "/api/presentations": api} {
+				if rec.Code != http.StatusBadRequest {
+					t.Errorf("%s answered %d, want 400: %s", entry, rec.Code, rec.Body)
+				}
+			}
+		})
+	}
+}
+
+// Debug mode records a finding in the activity log, so the UI shows it.
+func TestTransactionDataInTheQueryIsAnActivityLogFinding(t *testing.T) {
+	srv := newTestServer(t, true)
+	query := "client_id=" + url.QueryEscape("redirect_uri:https://verifier.example/cb") +
+		"&response_type=vp_token&response_mode=direct_post&nonce=n&response_uri=" + url.QueryEscape("https://verifier.example/cb") +
+		"&transaction_data=" + url.QueryEscape(`["e30"]`) +
+		"&dcql_query=" + url.QueryEscape(`{"credentials":[{"id":"q","format":"dc+sd-jwt","meta":{"vct_values":["urn:test:unheld"]}}]}`)
+	srv.mux.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/authorize?"+query, nil))
+	if !hasWarning(srv.wallet, "transaction_data") {
+		t.Error("the activity log has no transaction_data finding")
+	}
+}

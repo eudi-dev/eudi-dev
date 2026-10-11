@@ -116,9 +116,13 @@ func (c *Client) doWithTimeout(timeout time.Duration, method, path string, body 
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		var apiErr struct {
-			Error string `json:"error"`
+			Error       string `json:"error"`
+			Description string `json:"error_description"`
 		}
 		if json.Unmarshal(data, &apiErr) == nil && apiErr.Error != "" {
+			if apiErr.Description != "" {
+				return fmt.Errorf("remote wallet: %s: %s (HTTP %d)", apiErr.Error, apiErr.Description, resp.StatusCode)
+			}
 			return fmt.Errorf("remote wallet: %s (HTTP %d)", apiErr.Error, resp.StatusCode)
 		}
 		msg := strings.TrimSpace(string(data))

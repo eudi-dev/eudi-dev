@@ -20,6 +20,8 @@ import (
 	"encoding/json"
 	"net/url"
 	"strings"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc/scheme"
 )
 
 type CredentialFormat string
@@ -41,13 +43,14 @@ func Detect(input string) CredentialFormat {
 		return FormatUnknown
 	}
 
-	lower := strings.ToLower(input)
-	if strings.HasPrefix(lower, "openid-credential-offer://") || strings.HasPrefix(lower, "haip-vci://") || strings.HasPrefix(lower, "eu-eaa-offer://") {
+	if scheme.IsIssuance(input) {
 		return FormatOID4VCI
 	}
-	if strings.HasPrefix(lower, "openid4vp://") || strings.HasPrefix(lower, "haip-vp://") || strings.HasPrefix(lower, "eudi-openid4vp://") {
+	if scheme.IsPresentation(input) {
 		return FormatOID4VP
 	}
+
+	lower := strings.ToLower(input)
 
 	if strings.HasPrefix(lower, "https://") || strings.HasPrefix(lower, "http://") {
 		if f := detectHTTPOID4(input); f != FormatUnknown {

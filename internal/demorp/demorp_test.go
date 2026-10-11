@@ -36,6 +36,7 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jwe"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
@@ -743,7 +744,7 @@ func postPresentationResponse(t *testing.T, h http.Handler, requestID, state, qu
 	if err != nil {
 		t.Fatalf("building response payload: %v", err)
 	}
-	jwe, _, err := wallet.EncryptJWE(body, pub, kid, "ECDH-ES", "A128GCM", nil, nil)
+	jwe, _, err := jwe.EncryptECDHES(body, pub, kid, "A128GCM", "", nil, nil)
 	if err != nil {
 		t.Fatalf("encrypting response: %v", err)
 	}

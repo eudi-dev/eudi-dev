@@ -90,19 +90,12 @@ func FromMDOC(doc *mdoc.Document) *Query {
 	return &Query{Credentials: []CredentialQuery{cq}}
 }
 
-// skipClaims are JWT protocol claims that a DCQL query never requests.
-var skipClaims = map[string]bool{
-	"iss": true, "sub": true, "aud": true, "exp": true,
-	"nbf": true, "iat": true, "jti": true, "vct": true,
-	"cnf": true, "_sd_alg": true, "status": true,
-}
-
 func extractSDJWTClaims(claims map[string]any) []ClaimQuery {
 	var result []ClaimQuery
 
 	keys := sortedKeys(claims)
 	for _, k := range keys {
-		if skipClaims[k] {
+		if sdjwt.IsProtocolClaim(k) {
 			continue
 		}
 		prefix := []any{k}

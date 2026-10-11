@@ -100,7 +100,9 @@ func SubmitDirectPostJWT(responseURI string, responseJWT string, cek []byte, cli
 	form := url.Values{}
 	form.Set("response", responseJWT)
 
-	req, err := http.NewRequest("POST", responseURI, strings.NewReader(form.Encode()))
+	// OID4VP 1.0 §8.2 sends the response to the verifier's response_uri. The
+	// wallet's client limits the addresses it dials (ADR-0024).
+	req, err := http.NewRequest("POST", responseURI, strings.NewReader(form.Encode())) //nolint:gosec // G704: see above
 	if err != nil {
 		return nil, fmt.Errorf("creating request: %w", err)
 	}
@@ -112,7 +114,7 @@ func SubmitDirectPostJWT(responseURI string, responseJWT string, cek []byte, cli
 		log.Printf("[VP] JWE content encryption key for proxy debugging: %s", cekB64)
 	}
 
-	resp, err := format.HTTPClientForURL(responseURI, clients...).Do(req)
+	resp, err := format.HTTPClientForURL(responseURI, clients...).Do(req) //nolint:gosec // G704: the response_uri of OID4VP 1.0 §8.2
 	if err != nil {
 		return nil, fmt.Errorf("posting to response_uri: %w", err)
 	}

@@ -38,7 +38,7 @@ func encryptionKeyCoords(w *Wallet) (x, y []byte, err error) {
 }
 
 // BuildWalletMetadata advertises signing algorithms only when the client identifier prefix
-// permits signed requests (OID4VP 1.0 §10).
+// permits signed requests (OID4VP 1.0 §5.10).
 func BuildWalletMetadata(w *Wallet, clientID string) map[string]any {
 	meta := map[string]any{
 		// Appendix B defines different algorithm fields for each format. SD-JWT fields
@@ -55,31 +55,25 @@ func BuildWalletMetadata(w *Wallet, clientID string) map[string]any {
 			},
 		},
 		// OID4VP 1.0 §10.1 defaults to pre-registered when this field is absent.
-		// Listing the prefixes allows x509_hash. The wallet cannot verify
-		// verifier_attestation or decentralized_identifier requests, so it leaves
-		// those out.
-		"client_id_prefixes_supported": []string{
-			"pre-registered",
-			"redirect_uri",
-			"x509_san_dns",
-			"x509_hash",
-		},
+		// Listing the prefixes allows x509_hash.
+		"client_id_prefixes_supported": advertisedClientIDPrefixes(),
 		// OID4VP 1.0 §10 uses RFC 8414 metadata, which requires
 		// response_types_supported. OpenID4VP returns vp_token (§5.6).
 		"response_types_supported": []string{"vp_token"},
 		// RFC 8414 defaults to query and fragment, so the wallet lists its own
 		// response modes.
 		"response_modes_supported": []string{"direct_post", "direct_post.jwt", "dc_api", "dc_api.jwt"},
-		// OID4VP 1.0 §10 advertises response encryption for direct_post.jwt and
+		// OID4VP 1.0 §5.10 advertises response encryption for direct_post.jwt and
 		// dc_api.jwt. ECDH-ES with P-256 is the baseline. HAIP requires both A128GCM
 		// and A256GCM.
 		"authorization_encryption_alg_values_supported": []string{"ECDH-ES"},
 		"authorization_encryption_enc_values_supported": []string{"A128GCM", "A256GCM"},
 	}
 
-	// OID4VP 1.0 §10 permits signing algorithms only for prefixes that support signed
-	// Request Objects. The redirect_uri prefix forbids them (§5.9.1).
-	if !strings.HasPrefix(clientID, "redirect_uri:") {
+	// OID4VP 1.0 §5.10: "the Wallet MUST NOT include this parameter if the Client
+	// Identifier Prefix precludes signed Request Objects". The redirect_uri prefix
+	// does (§5.9.3).
+	if prefix, _, _ := lookupClientIDPrefix(clientID); !prefix.unsigned {
 		meta["request_object_signing_alg_values_supported"] = []string{"ES256"}
 	}
 
@@ -96,7 +90,7 @@ func BuildWalletMetadata(w *Wallet, clientID string) map[string]any {
 				},
 			},
 		}
-		// OID4VP 1.0 §5.10.5 puts request encryption keys in jwks. The
+		// OID4VP 1.0 §5.10 puts request encryption keys in jwks. The
 		// request_object_encryption_* fields follow OpenID Connect Discovery, with the
 		// wallet acting as the server.
 		meta["request_object_encryption_alg_values_supported"] = []string{"ECDH-ES"}
@@ -120,19 +114,35 @@ func GenerateWalletNonce() (string, error) {
 // key.
 func MakeFetchRequestURI(w *Wallet, logFn func(string, ...any)) func(url, method, clientID string) (string, error) {
 	return func(requestURI, method, clientID string) (string, error) {
+		var fetched *fetchedRequestObject
+		var err error
 		if method == "post" {
-			return fetchRequestURIPOST(w, requestURI, clientID, logFn)
+			fetched, err = fetchRequestURIPOST(w, requestURI, clientID, logFn)
+		} else {
+			fetched, err = fetchRequestURIGET(w, requestURI)
 		}
-		return fetchRequestURIGET(w, requestURI)
+		if err != nil {
+			return "", err
+		}
+		return w.resolveFetchedRequestObject(fetched, logFn)
 	}
 }
 
-func fetchRequestURIGET(w *Wallet, requestURI string) (string, error) {
+// fetchedRequestObject is a request_uri response before the wallet checks it.
+// walletNonce is the wallet_nonce the wallet sent, empty for GET.
+type fetchedRequestObject struct {
+	method      string
+	contentType string
+	body        string
+	walletNonce string
+}
+
+func fetchRequestURIGET(w *Wallet, requestURI string) (*fetchedRequestObject, error) {
 	logRequestObjectFetchRequest(w, "GET", requestURI, nil)
 	resp, err := w.HTTPClient().Get(requestURI)
 	if err != nil {
 		logRequestObjectFetchResponse(w, "GET", requestURI, nil, err)
-		return "", fmt.Errorf("fetching %s: %w", requestURI, err)
+		return nil, fmt.Errorf("fetching %s: %w", requestURI, err)
 	}
 	defer resp.Body.Close()
 
@@ -145,49 +155,30 @@ func fetchRequestURIGET(w *Wallet, requestURI string) (string, error) {
 	}
 	logRequestObjectFetchResponse(w, "GET", requestURI, responseLogResult(resp.StatusCode, details), readErr)
 	if readErr != nil {
-		return "", fmt.Errorf("reading response from %s: %w", requestURI, readErr)
+		return nil, fmt.Errorf("reading response from %s: %w", requestURI, readErr)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("fetching %s: HTTP %d", requestURI, resp.StatusCode)
+		return nil, fmt.Errorf("fetching %s: HTTP %d", requestURI, resp.StatusCode)
 	}
-	if err := w.judgeRequestURIMediaType(resp.Header.Get("Content-Type")); err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(body)), nil
+	return &fetchedRequestObject{method: "get", contentType: resp.Header.Get("Content-Type"), body: strings.TrimSpace(string(body))}, nil
 }
 
-// Strict mode rejects an incorrect media type. Debug mode warns and reads the Request
-// Object.
-func (w *Wallet) judgeRequestURIMediaType(contentType string) error {
-	err := validateRequestURIResponse(contentType)
-	if err == nil {
-		return nil
-	}
-	if w != nil && w.Mode() == ValidationModeStrict {
-		return err
-	}
-	if w != nil {
-		w.AddWarning("presentation", err.Error(), nil)
-	}
-	return nil
-}
-
-func fetchRequestURIPOST(w *Wallet, requestURI, clientID string, logFn func(string, ...any)) (string, error) {
+func fetchRequestURIPOST(w *Wallet, requestURI, clientID string, logFn func(string, ...any)) (*fetchedRequestObject, error) {
 	walletMeta := BuildWalletMetadata(w, clientID)
 	walletMetaJSON, err := json.Marshal(walletMeta)
 	if err != nil {
-		return "", fmt.Errorf("marshaling wallet_metadata: %w", err)
+		return nil, fmt.Errorf("marshaling wallet_metadata: %w", err)
 	}
 
 	walletNonce, err := GenerateWalletNonce()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if logFn != nil {
 		logFn("  request_uri_method: post")
 		logFn("  wallet_nonce:       %s", walletNonce)
-		if w.RequireEncryptedRequest {
+		if w.Conformance().RequireEncryptedRequest {
 			logFn("  wallet_metadata:    sends encryption keys (encrypted request object required)")
 		} else {
 			logFn("  wallet_metadata:    sends encryption keys")
@@ -205,7 +196,7 @@ func fetchRequestURIPOST(w *Wallet, requestURI, clientID string, logFn func(stri
 
 	req, err := http.NewRequest("POST", requestURI, strings.NewReader(form.Encode()))
 	if err != nil {
-		return "", fmt.Errorf("creating POST request: %w", err)
+		return nil, fmt.Errorf("creating POST request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/oauth-authz-req+jwt")
@@ -213,7 +204,7 @@ func fetchRequestURIPOST(w *Wallet, requestURI, clientID string, logFn func(stri
 	resp, err := w.HTTPClient().Do(req)
 	if err != nil {
 		logRequestObjectFetchResponse(w, "POST", requestURI, nil, err)
-		return "", fmt.Errorf("POSTing to request_uri: %w", err)
+		return nil, fmt.Errorf("POSTing to request_uri: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -222,7 +213,7 @@ func fetchRequestURIPOST(w *Wallet, requestURI, clientID string, logFn func(stri
 		logRequestObjectFetchResponse(w, "POST", requestURI, responseLogResult(resp.StatusCode, map[string]any{
 			"content_type": resp.Header.Get("Content-Type"),
 		}), err)
-		return "", fmt.Errorf("reading request_uri response: %w", err)
+		return nil, fmt.Errorf("reading request_uri response: %w", err)
 	}
 	result := strings.TrimSpace(string(body))
 	logRequestObjectFetchResponse(w, "POST", requestURI, responseLogResult(resp.StatusCode, map[string]any{
@@ -231,16 +222,23 @@ func fetchRequestURIPOST(w *Wallet, requestURI, clientID string, logFn func(stri
 	}), nil)
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("POST to request_uri returned HTTP %d", resp.StatusCode)
+		return nil, fmt.Errorf("POST to request_uri returned HTTP %d", resp.StatusCode)
 	}
-	if err := w.judgeRequestURIMediaType(resp.Header.Get("Content-Type")); err != nil {
+	return &fetchedRequestObject{method: "post", contentType: resp.Header.Get("Content-Type"), body: result, walletNonce: walletNonce}, nil
+}
+
+// resolveFetchedRequestObject checks a request_uri response the same way for
+// both methods and returns the compact Request Object JWT.
+func (w *Wallet) resolveFetchedRequestObject(fetched *fetchedRequestObject, logFn func(string, ...any)) (string, error) {
+	if err := w.judgeRequestURIMediaType(fetched.method, fetched.contentType); err != nil {
 		return "", err
 	}
 
+	result := fetched.body
 	if !isJWT(result) && !isJWE(result) {
 		return "", fmt.Errorf("request_uri response must be a compact JWT or JWE")
 	}
-	if w.RequireEncryptedRequest && !isJWE(result) {
+	if w.Conformance().RequireEncryptedRequest && !isJWE(result) {
 		return "", fmt.Errorf("request_uri response must be a compact JWE when encrypted request objects are required")
 	}
 
@@ -261,26 +259,50 @@ func fetchRequestURIPOST(w *Wallet, requestURI, clientID string, logFn func(stri
 		return "", fmt.Errorf("request_uri response did not resolve to a compact JWT")
 	}
 
-	// wallet_nonce is optional in the returned request object. If the verifier
-	// echoes it back, it must match the value sent in the POST body. The
-	// returned request object may be signed or unsecured.
-	if header, payload, _, err := format.ParseJWTParts(result); err == nil {
-		if returnedNonce, ok := payload["wallet_nonce"].(string); ok {
-			if returnedNonce != walletNonce {
-				return "", fmt.Errorf("wallet_nonce mismatch in request object: expected %s, got %s", walletNonce, returnedNonce)
-			}
-			if logFn != nil {
-				logFn("  wallet_nonce validated in request object")
-			}
-		} else if logFn != nil {
-			if alg, _ := header["alg"].(string); alg != "" {
-				logFn("  request object alg:      %s", alg)
-			}
-			logFn("  request object did not include wallet_nonce")
+	if fetched.walletNonce != "" {
+		if err := w.checkWalletNonce(result, fetched.walletNonce); err != nil {
+			return "", err
 		}
 	}
-
 	return result, nil
+}
+
+// judgeRequestURIMediaType refuses a POST response of another media type in
+// strict mode, because OID4VP 1.0 §5.10.1 requires one. RFC 9101 only advises
+// the check for GET (§10.4.1), so a GET response gets a warning.
+func (w *Wallet) judgeRequestURIMediaType(method, contentType string) error {
+	err := validateRequestURIResponse(method, contentType)
+	if err == nil {
+		return nil
+	}
+	if method == "post" && w.Mode() == ValidationModeStrict {
+		return err
+	}
+	w.AddWarning("presentation", err.Error(), nil)
+	return nil
+}
+
+// checkWalletNonce applies OID4VP 1.0 §5.10.1: "if the Wallet passed a
+// wallet_nonce in the POST request, the Wallet MUST validate whether the
+// request object contains the respective nonce value in a wallet_nonce claim.
+// If it does not, the Wallet MUST terminate request processing."
+func (w *Wallet) checkWalletNonce(requestObject, sent string) error {
+	_, payload, _, err := format.ParseJWTParts(requestObject)
+	if err != nil {
+		return fmt.Errorf("parsing the request object: %w", err)
+	}
+	returned, present := payload["wallet_nonce"].(string)
+	if present && returned == sent {
+		return nil
+	}
+	detail := fmt.Sprintf("OID4VP 1.0 §5.10.1: the request object does not contain the wallet_nonce %s the wallet sent", sent)
+	if present {
+		detail = fmt.Sprintf("OID4VP 1.0 §5.10.1: wallet_nonce mismatch in request object: expected %s, got %s", sent, returned)
+	}
+	return w.reportDeviation(deviation{
+		action: "presentation", event: "wallet_nonce_mismatch", detail: detail,
+		details: map[string]any{"wallet_nonce": sent, "returned_wallet_nonce": returned},
+	})
 }
 
 func logRequestObjectFetchRequest(w *Wallet, method, requestURI string, details map[string]any, payloads ...*LogPayload) {
@@ -336,19 +358,27 @@ func responseLogResult(statusCode int, details map[string]any) map[string]any {
 	return details
 }
 
-// validateRequestURIResponse checks the media type required by OID4VP 1.0 §5.10.1.
-func validateRequestURIResponse(contentType string) error {
+// validateRequestURIResponse checks the media type of a request_uri response.
+// For POST, OID4VP 1.0 §5.10.1 requires "the content type
+// application/oauth-authz-req+jwt". For GET, RFC 9101 §4 gives a Request
+// Object that type and notes "some existing deployments may alternatively be
+// using the type application/jwt".
+func validateRequestURIResponse(method, contentType string) error {
+	cite := "OID4VP 1.0 §5.10.1"
+	if method != "post" {
+		cite = "RFC 9101 §4"
+	}
 	if contentType == "" {
-		return fmt.Errorf("OID4VP 1.0 §5.10.1: the request_uri response is missing the Content-Type application/oauth-authz-req+jwt")
+		return fmt.Errorf("%s: the request_uri response is missing the Content-Type application/oauth-authz-req+jwt", cite)
 	}
 	mediaType, _, err := mime.ParseMediaType(contentType)
 	if err != nil {
-		return fmt.Errorf("OID4VP 1.0 §5.10.1: the request_uri response Content-Type does not parse: %w", err)
+		return fmt.Errorf("%s: the request_uri response Content-Type does not parse: %w", cite, err)
 	}
-	if mediaType != "application/oauth-authz-req+jwt" {
-		return fmt.Errorf("OID4VP 1.0 §5.10.1: the request_uri response Content-Type must be application/oauth-authz-req+jwt, got %q", contentType)
+	if mediaType == "application/oauth-authz-req+jwt" || (method != "post" && mediaType == "application/jwt") {
+		return nil
 	}
-	return nil
+	return fmt.Errorf("%s: the request_uri response Content-Type must be application/oauth-authz-req+jwt, got %q", cite, contentType)
 }
 
 func isJWT(s string) bool {

@@ -17,14 +17,13 @@ package wallet
 import (
 	"crypto/ecdsa"
 	"crypto/rand"
-	"crypto/sha256"
 	"fmt"
-	"strings"
 
 	"github.com/fxamacker/cbor/v2"
 	"github.com/veraison/go-cose"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 )
 
 // An empty mdocNonce makes this document generate the nonce for its response.
@@ -101,8 +100,7 @@ func (w *Wallet) createMDocPresentation(cred StoredCredential, selectedKeys []st
 		mdocNonce = generated
 	}
 
-	jwkThumbprint := extractJWKThumbprint(params.RequestObject, params.ClientMetadata)
-	sessionTranscriptBytes, err := w.buildSessionTranscript(params, mdocNonce, jwkThumbprint)
+	sessionTranscriptBytes, err := w.buildSessionTranscript(params, mdocNonce, w.handoverJWKThumbprint(params))
 	if err != nil {
 		return VPTokenResult{}, fmt.Errorf("building SessionTranscript: %w", err)
 	}
@@ -163,13 +161,10 @@ func newMDocGeneratedNonce() (string, error) {
 func (w *Wallet) buildSessionTranscript(params PresentationParams, mdocNonce string, jwkThumbprint []byte) ([]byte, error) {
 	// Interactive Authorization uses the challenge endpoint in its handover regardless
 	// of the configured transcript mode (OpenID4VCI 1.1 Appendix A.2.5).
+	// A.2.5: "If the Response Mode is ia_post, the third element MUST be
+	// null". handoverJWKThumbprint gives null for every unencrypted mode.
 	if isInteractiveAuthorizationResponseMode(params.ResponseMode) {
-		// A.2.5: "If the Response Mode is ia_post, the third element MUST be
-		// null", even where client_metadata carried an encryption key.
-		if params.ResponseMode == "ia_post" {
-			jwkThumbprint = nil
-		}
-		return buildSessionTranscriptOID4VCIIAE(params.InteractiveAuthorizationEndpoint, params.Nonce, jwkThumbprint)
+		return mdoc.OID4VCIIAESessionTranscript(params.InteractiveAuthorizationEndpoint, params.Nonce, jwkThumbprint)
 	}
 
 	mode := w.sessionTranscriptFor(params)
@@ -179,123 +174,15 @@ func (w *Wallet) buildSessionTranscript(params PresentationParams, mdocNonce str
 
 	switch mode {
 	case SessionTranscriptISO:
-		return buildSessionTranscriptISO(params.ClientID, params.ResponseURI, params.Nonce, mdocNonce)
+		return mdoc.ISOSessionTranscript(params.ClientID, params.ResponseURI, params.Nonce, mdocNonce)
 	case SessionTranscriptOID4VP:
 		if params.ResponseMode == "dc_api" || params.ResponseMode == "dc_api.jwt" {
-			return buildSessionTranscriptOID4VPDCAPI(params.RequestOrigin, params.Nonce, jwkThumbprint)
+			return mdoc.OID4VPDCAPISessionTranscript(params.RequestOrigin, params.Nonce, jwkThumbprint)
 		}
-		return buildSessionTranscriptOID4VP(params.ClientID, params.Nonce, jwkThumbprint, params.ResponseURI)
+		return mdoc.OID4VPSessionTranscript(params.ClientID, params.Nonce, jwkThumbprint, params.ResponseURI)
 	default:
 		return nil, fmt.Errorf("unknown session transcript mode: %s", mode)
 	}
-}
-
-func BuildOID4VCIIAESessionTranscript(challengeEndpoint, nonce string, jwkThumbprint []byte) ([]byte, error) {
-	return buildSessionTranscriptOID4VCIIAE(challengeEndpoint, nonce, jwkThumbprint)
-}
-
-// buildSessionTranscriptOID4VCIIAE builds the session transcript of OpenID4VCI
-// 1.1 Appendix A.2.5.
-//
-//	OpenID4VCIIAEHandoverInfo = [iae, nonce, jwkThumbprint]
-//	OpenID4VCIIAEHandover     = ["OpenID4VCIIAEHandover", SHA256(HandoverInfo)]
-//	SessionTranscript         = [null, null, OpenID4VCIIAEHandover]
-//
-// iae is the challenge endpoint and "MUST NOT be prefixed with ia:", unlike a
-// Key Binding JWT audience.
-func buildSessionTranscriptOID4VCIIAE(challengeEndpoint, nonce string, jwkThumbprint []byte) ([]byte, error) {
-	if strings.TrimSpace(challengeEndpoint) == "" {
-		return nil, fmt.Errorf("interactive authorization session transcript needs the authorization challenge endpoint")
-	}
-	var thumbprintValue any
-	if len(jwkThumbprint) > 0 {
-		thumbprintValue = jwkThumbprint
-	}
-	handoverInfo, err := cbor.Marshal([]any{challengeEndpoint, nonce, thumbprintValue})
-	if err != nil {
-		return nil, fmt.Errorf("encoding OpenID4VCIIAEHandoverInfo: %w", err)
-	}
-	hash := sha256.Sum256(handoverInfo)
-
-	handover := []any{"OpenID4VCIIAEHandover", hash[:]}
-	sessionTranscript := []any{nil, nil, handover}
-	return cbor.Marshal(sessionTranscript)
-}
-
-// buildSessionTranscriptISO builds the ISO 18013-7 Annex B.4.4 session transcript.
-// Hash inputs are CBOR-encoded [value, mdocGeneratedNonce] arrays.
-func buildSessionTranscriptISO(clientID, responseURI, nonce, mdocNonce string) ([]byte, error) {
-	// clientIdToHash = CBOR_encode([clientId, mdocGeneratedNonce])
-	clientIDToHash, err := cbor.Marshal([]string{clientID, mdocNonce})
-	if err != nil {
-		return nil, fmt.Errorf("encoding clientIdToHash: %w", err)
-	}
-	clientIDHash := sha256.Sum256(clientIDToHash)
-
-	// responseUriToHash = CBOR_encode([responseUri, mdocGeneratedNonce])
-	responseURIToHash, err := cbor.Marshal([]string{responseURI, mdocNonce})
-	if err != nil {
-		return nil, fmt.Errorf("encoding responseUriToHash: %w", err)
-	}
-	responseURIHash := sha256.Sum256(responseURIToHash)
-
-	// Handover = [clientIdHash, responseUriHash, nonce]
-	handover := []any{
-		clientIDHash[:],
-		responseURIHash[:],
-		nonce,
-	}
-
-	// SessionTranscript = [null, null, Handover]
-	sessionTranscript := []any{nil, nil, handover}
-	return cbor.Marshal(sessionTranscript)
-}
-
-func BuildOID4VPSessionTranscript(clientID, nonce string, jwkThumbprint []byte, responseURI string) ([]byte, error) {
-	return buildSessionTranscriptOID4VP(clientID, nonce, jwkThumbprint, responseURI)
-}
-
-// buildSessionTranscriptOID4VP builds the OID4VP 1.0 session transcript.
-// OID4VPHandover = ["OpenID4VPHandover", SHA256(HandoverInfo)]
-// SessionTranscript = [null, null, OID4VPHandover]
-func buildSessionTranscriptOID4VP(clientID, nonce string, jwkThumbprint []byte, responseURI string) ([]byte, error) {
-	// HandoverInfo = CBOR([clientId, nonce, jwkThumbprint|null, responseUri])
-	var thumbprintValue any
-	if len(jwkThumbprint) > 0 {
-		thumbprintValue = jwkThumbprint
-	}
-	handoverInfo, err := cbor.Marshal([]any{clientID, nonce, thumbprintValue, responseURI})
-	if err != nil {
-		return nil, fmt.Errorf("encoding HandoverInfo: %w", err)
-	}
-	hash := sha256.Sum256(handoverInfo)
-
-	// OID4VPHandover = ["OpenID4VPHandover", hash]
-	oid4vpHandover := []any{"OpenID4VPHandover", hash[:]}
-
-	// SessionTranscript = [null, null, OID4VPHandover]
-	sessionTranscript := []any{nil, nil, oid4vpHandover}
-	return cbor.Marshal(sessionTranscript)
-}
-
-// buildSessionTranscriptOID4VPDCAPI builds the OID4VP DC API session transcript.
-// HandoverInfo = CBOR([origin, nonce, jwkThumbprint|null])
-// OID4VPDCAPIHandover = ["OpenID4VPDCAPIHandover", SHA256(HandoverInfo)]
-// SessionTranscript = [null, null, OID4VPDCAPIHandover]
-func buildSessionTranscriptOID4VPDCAPI(origin, nonce string, jwkThumbprint []byte) ([]byte, error) {
-	var thumbprintValue any
-	if len(jwkThumbprint) > 0 {
-		thumbprintValue = jwkThumbprint
-	}
-	handoverInfo, err := cbor.Marshal([]any{origin, nonce, thumbprintValue})
-	if err != nil {
-		return nil, fmt.Errorf("encoding DC API HandoverInfo: %w", err)
-	}
-	hash := sha256.Sum256(handoverInfo)
-
-	oid4vpHandover := []any{"OpenID4VPDCAPIHandover", hash[:]}
-	sessionTranscript := []any{nil, nil, oid4vpHandover}
-	return cbor.Marshal(sessionTranscript)
 }
 
 func emptyDeviceNamespacesBytes() ([]byte, error) {

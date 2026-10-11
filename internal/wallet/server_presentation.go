@@ -39,7 +39,7 @@ func (s *Server) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 		}
 		values = r.Form
 	}
-	authReq, err = parseAuthParams(values, s.parseOpts, s.wallet.Mode())
+	authReq, err = parseAuthParams(values, s.parseOpts)
 
 	if err != nil {
 		// Report parsing failures to the caller. Do not send a response to an invalid

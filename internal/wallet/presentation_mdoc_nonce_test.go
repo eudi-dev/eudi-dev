@@ -127,7 +127,7 @@ func TestISOResponseSignsEveryMDocOverTheReportedNonce(t *testing.T) {
 		t.Fatal("ISO mode reported no mdoc generated nonce")
 	}
 
-	transcript, err := buildSessionTranscriptISO(params.ClientID, params.ResponseURI, params.Nonce, result.MDocNonce)
+	transcript, err := mdoc.ISOSessionTranscript(params.ClientID, params.ResponseURI, params.Nonce, result.MDocNonce)
 	if err != nil {
 		t.Fatalf("rebuilding the session transcript: %v", err)
 	}

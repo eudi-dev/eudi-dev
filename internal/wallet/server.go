@@ -114,7 +114,7 @@ func NewServer(w *Wallet, port int, onSave func()) *Server {
 	s.mux = http.NewServeMux()
 	s.routeRoots = map[string]bool{}
 	s.setupRoutes()
-	w.saveRegistrarChange = s.saveMutation
+	w.saveMutation = s.saveMutation
 	// Read logFunc lazily because SetLogger may run after NewServer.
 	s.parseOpts = oid4vc.ParseOptions{
 		FetchRequestURI: MakeFetchRequestURI(w, func(format string, args ...any) {

@@ -25,6 +25,8 @@ import (
 	"github.com/fxamacker/cbor/v2"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jwe"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
@@ -727,7 +729,7 @@ func TestBuildSessionTranscriptOID4VP(t *testing.T) {
 	nonce := "test-nonce"
 	responseURI := "https://verifier.example/response"
 
-	transcript, err := buildSessionTranscriptOID4VP(clientID, nonce, nil, responseURI)
+	transcript, err := mdoc.OID4VPSessionTranscript(clientID, nonce, nil, responseURI)
 	if err != nil {
 		t.Fatalf("buildSessionTranscriptOID4VP error: %v", err)
 	}
@@ -782,7 +784,7 @@ func TestBuildSessionTranscriptOID4VPDCAPI(t *testing.T) {
 	origin := "https://demo.certification.openid.net"
 	nonce := "test-nonce"
 
-	transcript, err := buildSessionTranscriptOID4VPDCAPI(origin, nonce, nil)
+	transcript, err := mdoc.OID4VPDCAPISessionTranscript(origin, nonce, nil)
 	if err != nil {
 		t.Fatalf("buildSessionTranscriptOID4VPDCAPI error: %v", err)
 	}
@@ -1313,7 +1315,7 @@ func TestEncryptJWE_A128CBCHS256(t *testing.T) {
 	key, _ := mock.GenerateKey()
 	payload := []byte(`{"vp_token":"test","state":"s"}`)
 
-	jweStr, cek, err := EncryptJWE(payload, &key.PublicKey, "kid1", "ECDH-ES", "A128CBC-HS256", nil, nil)
+	jweStr, cek, err := jwe.EncryptECDHES(payload, &key.PublicKey, "kid1", "A128CBC-HS256", "", nil, nil)
 	if err != nil {
 		t.Fatalf("EncryptJWE error: %v", err)
 	}

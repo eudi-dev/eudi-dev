@@ -24,6 +24,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jwe"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 )
 
@@ -36,7 +37,7 @@ func TestActivityRecordsEncryptedCredentialExchange(t *testing.T) {
 	jwk := testEncJWK(t, &issuerKey.PublicKey)
 	jwk["kid"] = "issuer-encryption"
 	responsePlain := `{"credentials":[{"credential":"issued-credential"}]}`
-	responseWire, _, err := EncryptJWE([]byte(responsePlain), &w.HolderKey.PublicKey, "holder", "ECDH-ES", "A128GCM", nil, nil)
+	responseWire, _, err := jwe.EncryptECDHES([]byte(responsePlain), &w.HolderKey.PublicKey, "holder", "A128GCM", "", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -259,7 +260,7 @@ func TestActivityRecordsDeferredExchanges(t *testing.T) {
 			}
 			wire := plain
 			if tc.encrypted {
-				wire, _, err = EncryptJWE([]byte(plain), &w.HolderKey.PublicKey, "holder", "ECDH-ES", "A128GCM", nil, nil)
+				wire, _, err = jwe.EncryptECDHES([]byte(plain), &w.HolderKey.PublicKey, "holder", "A128GCM", "", nil, nil)
 				if err != nil {
 					t.Fatal(err)
 				}

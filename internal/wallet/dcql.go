@@ -17,6 +17,7 @@ package wallet
 import (
 	"crypto"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
 	"log"
 	"maps"
@@ -27,6 +28,7 @@ import (
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/dcql"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
@@ -51,8 +53,9 @@ func (w *Wallet) EvaluateDCQL(query map[string]any) ([]CredentialMatch, error) {
 func (w *Wallet) EvaluateDCQLWithOptions(query map[string]any) ([]CredentialMatch, *ConsentCredentialOptions, error) {
 	credentials := w.GetCredentials()
 	credQueries, _ := query["credentials"].([]any)
-	// The conformance API can change the mode while a query runs.
+	// The conformance API can change these settings while a query runs.
 	mode := w.Mode()
+	preferredFormat := w.PreferredFormatSetting()
 
 	log.Printf("[DCQL] Evaluating query: %d credential queries against %d stored credentials", len(credQueries), len(credentials))
 
@@ -222,8 +225,8 @@ func (w *Wallet) EvaluateDCQLWithOptions(query map[string]any) ([]CredentialMatc
 
 	sortMatchesNewestFirst(matches, credentials)
 
-	if w.PreferredFormat != "" {
-		sortMatchesByPreferredFormat(matches, w.PreferredFormat)
+	if preferredFormat != "" {
+		sortMatchesByPreferredFormat(matches, preferredFormat)
 	}
 
 	sortMatchesTrustedFirst(matches)
@@ -244,7 +247,7 @@ func (w *Wallet) EvaluateDCQLWithOptions(query map[string]any) ([]CredentialMatc
 	credSets, _ := query["credential_sets"].([]any)
 	if len(credSets) > 0 {
 		log.Printf("[DCQL] Applying credential_sets constraints: %d sets, %d matches before", len(credSets), len(matches))
-		matches = applyCredentialSets(matches, credSets, w.PreferredFormat)
+		matches = applyCredentialSets(matches, credSets, preferredFormat)
 		if matches == nil {
 			log.Printf("[DCQL] credential_sets: no option of any set can be satisfied, returning no credentials")
 		} else {
@@ -263,7 +266,15 @@ func (w *Wallet) EvaluateDCQLWithOptions(query map[string]any) ([]CredentialMatc
 	if matches == nil && len(nonMatching) == 0 {
 		return nil, nil, nil
 	}
-	return matches, buildConsentCredentialOptions(candidates, nonMatching, credQueries, credSets, multiple, w.PreferredFormat), nil
+	return matches, buildConsentCredentialOptions(candidates, nonMatching, credQueries, credSets, multiple, preferredFormat), nil
+}
+
+// PreferredFormatSetting takes the lock because PUT
+// /api/config/preferred-format changes the setting at runtime.
+func (w *Wallet) PreferredFormatSetting() string {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	return w.PreferredFormat
 }
 
 // multipleQueries returns the ids of the credential queries that set multiple
@@ -683,7 +694,62 @@ func matchesMeta(cred StoredCredential, cqMap map[string]any) bool {
 		}
 	}
 
+	if typeValues, ok := meta["type_values"].([]any); ok && cred.Format == "jwt_vc_json" {
+		return matchesTypeValues(w3cCredentialTypes(cred.Claims), typeValues)
+	}
+
 	return true
+}
+
+// matchesTypeValues applies OID4VP 1.0 Appendix B.1.1: "Each inner array
+// specifies a set of fully expanded types that MUST be present in the fully
+// expanded types in the type property of the Verifiable Credential".
+func matchesTypeValues(types []string, typeValues []any) bool {
+	for _, alternative := range typeValues {
+		required, ok := alternative.([]any)
+		if !ok || len(required) == 0 {
+			continue
+		}
+		all := true
+		for _, r := range required {
+			iri, _ := r.(string)
+			if !slices.ContainsFunc(types, func(t string) bool { return typeExpandsTo(t, iri) }) {
+				all = false
+				break
+			}
+		}
+		if all {
+			return true
+		}
+	}
+	return false
+}
+
+// typeExpandsTo reports whether a credential type equals a fully expanded type.
+// The wallet does no JSON-LD processing. The W3C credential contexts define
+// each type term as an IRI ending in #term, so a term matches an IRI with that
+// fragment. B.1.1 keeps a type no context defines as the relative IRI itself.
+func typeExpandsTo(credentialType, iri string) bool {
+	if credentialType == iri {
+		return true
+	}
+	return !strings.Contains(credentialType, ":") && strings.HasSuffix(iri, "#"+credentialType)
+}
+
+// w3cCredentialTypes reads the type property of a W3C credential in JWT form.
+// A VCDM 1.1 JWT carries the credential in the vc claim.
+func w3cCredentialTypes(payload map[string]any) []string {
+	raw := payload["type"]
+	if vc, ok := payload["vc"].(map[string]any); ok && vc["type"] != nil {
+		raw = vc["type"]
+	}
+	switch v := raw.(type) {
+	case string:
+		return []string{v}
+	case []any:
+		return stringValues(v)
+	}
+	return nil
 }
 
 // requiresHolderBinding reads require_cryptographic_holder_binding, which
@@ -710,6 +776,9 @@ func metaMismatch(cred StoredCredential, cqMap map[string]any) string {
 			have = cred.DocType
 		}
 		return fmt.Sprintf("type %s, the query asks for %s", have, strings.Join(want, " or "))
+	}
+	if values, ok := meta["type_values"].([]any); ok && cred.Format == "jwt_vc_json" {
+		return fmt.Sprintf("type %v, the query asks for one of the type sets %v", w3cCredentialTypes(cred.Claims), values)
 	}
 	docType, ok := meta["doctype_value"].(string)
 	if !ok {
@@ -900,6 +969,10 @@ func missingClaimLabel(cred StoredCredential, path []any) string {
 	return claimPathString(path)
 }
 
+// claimPathString writes a claims path as a selector such as
+// address.locality or degrees[0]. A name that contains '.', '[', ']' or '"'
+// is written as a quoted segment, ["a.b"], so parseSDJWTSelector reads back
+// the same path.
 func claimPathString(path []any) string {
 	if len(path) == 0 {
 		return "<empty>"
@@ -909,6 +982,13 @@ func claimPathString(path []any) string {
 	for i, segment := range path {
 		switch v := segment.(type) {
 		case string:
+			if v == "" || strings.ContainsAny(v, `.[]"`) {
+				quoted, _ := json.Marshal(v)
+				b.WriteByte('[')
+				b.Write(quoted)
+				b.WriteByte(']')
+				continue
+			}
 			if i > 0 {
 				b.WriteByte('.')
 			}
@@ -950,16 +1030,10 @@ func claimKeyFromPath(cred StoredCredential, path []any) string {
 	if !ok {
 		return ""
 	}
-	val, exists := cred.Claims[key]
-	if !exists {
+	if _, ok := dcql.SelectClaims(cred.Claims, path); !ok {
 		return ""
 	}
-
-	if claimPathExists(val, path[1:]) {
-		return key
-	}
-
-	return ""
+	return key
 }
 
 // mdocClaimKeyFromPath applies a claims path pointer to an mdoc, per §7.2.1.
@@ -1004,76 +1078,8 @@ func claimValuesAtPath(cred StoredCredential, path []any) []any {
 		return []any{mdocValueAsJSON(cred.Claims[key])}
 	}
 
-	return selectJSONClaims(cred.Claims, path)
-}
-
-// selectJSONClaims applies a claims path pointer to a JSON-based credential,
-// per §7.1: "A string value indicates that the respective key is to be
-// selected, a null value indicates that all elements of the currently selected
-// array(s) are to be selected; and a non-negative integer indicates that the
-// respective index in an array is to be selected."
-func selectJSONClaims(root map[string]any, path []any) []any {
-	selection := []any{any(root)}
-
-	for _, segment := range path {
-		var next []any
-		for _, value := range selection {
-			switch seg := segment.(type) {
-			case string:
-				obj, ok := value.(map[string]any)
-				if !ok {
-					continue
-				}
-				if v, exists := obj[seg]; exists {
-					next = append(next, v)
-				}
-			case nil:
-				arr, ok := value.([]any)
-				if !ok {
-					continue
-				}
-				next = append(next, arr...)
-			default:
-				idx, ok := claimPathIndex(seg)
-				if !ok {
-					return nil
-				}
-				arr, isArr := value.([]any)
-				if !isArr || idx >= len(arr) {
-					continue
-				}
-				next = append(next, arr[idx])
-			}
-		}
-		// §7.1: "If the set of elements currently selected is empty, abort
-		// processing and return an error."
-		if len(next) == 0 {
-			return nil
-		}
-		selection = next
-	}
-
-	return selection
-}
-
-// claimPathIndex reads an array index segment. §7: "A claims path pointer MUST
-// be a non-empty array of strings, nulls and non-negative integers". JSON
-// decoding returns those integers as float64.
-func claimPathIndex(segment any) (int, bool) {
-	switch v := segment.(type) {
-	case float64:
-		if v < 0 || v != float64(int(v)) {
-			return 0, false
-		}
-		return int(v), true
-	case int:
-		if v < 0 {
-			return 0, false
-		}
-		return v, true
-	default:
-		return 0, false
-	}
+	selected, _ := dcql.SelectClaims(cred.Claims, path)
+	return selected
 }
 
 // mdocValueAsJSON converts an mdoc data element value to JSON for values
@@ -1165,51 +1171,6 @@ func numericClaimValue(value any) (float64, bool) {
 	}
 }
 
-func claimPathExists(value any, path []any) bool {
-	if len(path) == 0 {
-		return true
-	}
-
-	switch segment := path[0].(type) {
-	case string:
-		obj, ok := value.(map[string]any)
-		if !ok {
-			return false
-		}
-		next, exists := obj[segment]
-		if !exists {
-			return false
-		}
-		return claimPathExists(next, path[1:])
-	case float64:
-		arr, ok := value.([]any)
-		if !ok {
-			return false
-		}
-		idx := int(segment)
-		if idx < 0 || idx >= len(arr) {
-			return false
-		}
-		return claimPathExists(arr[idx], path[1:])
-	case nil:
-		arr, ok := value.([]any)
-		if !ok {
-			return false
-		}
-		if len(path) == 1 {
-			return true
-		}
-		for _, item := range arr {
-			if claimPathExists(item, path[1:]) {
-				return true
-			}
-		}
-		return false
-	default:
-		return false
-	}
-}
-
 func filterClaims(cred StoredCredential, selectedKeys []string) map[string]any {
 	filtered := make(map[string]any, len(selectedKeys))
 	for _, k := range selectedKeys {
@@ -1227,19 +1188,18 @@ func claimValueBySelector(cred StoredCredential, selector string) (any, bool) {
 	}
 
 	path, ok := parseSDJWTSelector(selector)
-	if !ok || len(path) == 0 {
-		return nil, false
-	}
-
-	key, ok := path[0].(string)
 	if !ok {
 		return nil, false
 	}
-	value, ok := cred.Claims[key]
+	selected, ok := dcql.SelectClaims(cred.Claims, path)
 	if !ok {
 		return nil, false
 	}
-	return claimValueAtPath(value, path[1:])
+	// A null component selects every element, so the value is the list.
+	if slices.Contains(path, nil) {
+		return selected, true
+	}
+	return selected[0], true
 }
 
 func parseSDJWTSelector(selector string) ([]any, bool) {
@@ -1275,6 +1235,15 @@ func parseSDJWTSelector(selector string) ([]any, bool) {
 			i++
 		case '[':
 			flushName()
+			if strings.HasPrefix(selector[i:], `["`) {
+				segment, n, ok := quotedSelectorSegment(selector[i+1:])
+				if !ok {
+					return nil, false
+				}
+				path = append(path, segment)
+				i += n + 1
+				continue
+			}
 			end := strings.IndexByte(selector[i:], ']')
 			if end <= 1 {
 				return nil, false
@@ -1303,47 +1272,22 @@ func parseSDJWTSelector(selector string) ([]any, bool) {
 	return path, len(path) > 0
 }
 
-func claimValueAtPath(value any, path []any) (any, bool) {
-	if len(path) == 0 {
-		return value, true
-	}
-
-	switch segment := path[0].(type) {
-	case string:
-		obj, ok := value.(map[string]any)
-		if !ok {
-			return nil, false
-		}
-		next, ok := obj[segment]
-		if !ok {
-			return nil, false
-		}
-		return claimValueAtPath(next, path[1:])
-	case int:
-		arr, ok := value.([]any)
-		if !ok || segment < 0 || segment >= len(arr) {
-			return nil, false
-		}
-		return claimValueAtPath(arr[segment], path[1:])
-	case nil:
-		arr, ok := value.([]any)
-		if !ok {
-			return nil, false
-		}
-		if len(path) < 2 {
-			return arr, true
-		}
-		rest := path[1:]
-		var out []any
-		for _, item := range arr {
-			if v, ok := claimValueAtPath(item, rest); ok {
-				out = append(out, v)
+// quotedSelectorSegment reads a JSON string followed by ']' from the start of
+// s and returns the name and the number of bytes read.
+func quotedSelectorSegment(s string) (string, int, bool) {
+	for end := 1; end < len(s); end++ {
+		switch s[end] {
+		case '\\':
+			end++
+		case '"':
+			var name string
+			if err := json.Unmarshal([]byte(s[:end+1]), &name); err != nil || end+1 >= len(s) || s[end+1] != ']' {
+				return "", 0, false
 			}
+			return name, end + 2, true
 		}
-		return out, len(out) > 0
-	default:
-		return nil, false
 	}
+	return "", 0, false
 }
 
 // applyCredentialSets filters matches to satisfy credential_sets constraints,

@@ -166,8 +166,10 @@ accept_cli() {
   "$BINARY" wallet accept "$URI" 2>&1 | tee -a "$LOG_FILE"
 }
 
+# RFC 3986 §3.1: schemes are case-insensitive.
+shopt -s nocasematch
 case "$URI" in
-  openid-credential-offer://*|haip-vci://*|eu-eaa-offer://*)
+  {{OFFER_PATTERNS}})
     if ensure_listener; then
       open_remote_ui
       submit_offer 2>>"$LOG_FILE" && exit 0
@@ -194,9 +196,19 @@ case "$URI" in
 esac
 `, "{{BINARY_PATH}}", binaryPath), "{{PORT}}", fmt.Sprintf("%d", opts.ListenerPort)), "{{AUTO_ACCEPT}}", fmt.Sprintf("%t", opts.AutoAccept))
 	handler = strings.ReplaceAll(handler, "{{SERVE_ARGS}}", joinShellArgs(opts.ServeArgs))
+	handler = strings.ReplaceAll(handler, "{{OFFER_PATTERNS}}", offerPatterns())
 	handler = strings.ReplaceAll(handler, "{{VERSION}}", handlerScriptVersion)
 	handler = strings.ReplaceAll(handler, "{{CLIENT_HEADER}}", ClientHeader)
 	return strings.ReplaceAll(handler, "{{OWNER_HEADER}}", OwnerHeader)
+}
+
+// offerPatterns matches a credential offer in the handler's case statement.
+func offerPatterns() string {
+	patterns := make([]string, len(issuanceURLSchemes))
+	for i, s := range issuanceURLSchemes {
+		patterns[i] = s + "://*"
+	}
+	return strings.Join(patterns, "|")
 }
 
 func joinShellArgs(args []string) string {

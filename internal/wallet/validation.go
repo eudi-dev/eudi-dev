@@ -15,6 +15,7 @@
 package wallet
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"slices"
@@ -124,6 +125,10 @@ func authorizationFindings(params *AuthorizationRequestParams, payload map[strin
 	if requestRequiresNonce(params.ResponseType) && params.Nonce == "" {
 		findings = append(findings, "OID4VP 1.0 §5.2: nonce is required")
 	}
+	// §5.2 marks response_mode REQUIRED. Debug mode answers with direct_post.
+	if params.ResponseMode == "" {
+		findings = append(findings, "OID4VP 1.0 §5.2: response_mode is required")
+	}
 	// §8.2: "When the response_uri parameter is present, the redirect_uri
 	// Authorization Request parameter MUST NOT be present."
 	if responseModeUsesDirectPost(params.ResponseMode) && params.RedirectURI != "" {
@@ -146,7 +151,7 @@ func authorizationFindings(params *AuthorizationRequestParams, payload map[strin
 	findings = append(findings, DCQLQueryFindings(params.DCQLQuery)...)
 	// §5.1: "Wallets that do not support this parameter MUST reject requests
 	// that contain it."
-	if payloadHasKey(payload, "transaction_data") {
+	if requestHasTransactionData(params, payload) {
 		findings = append(findings, "OID4VP 1.0 §5.1: transaction_data is not supported by this wallet")
 	}
 	if finding := expectedOriginsFinding(params, payload); finding != "" {
@@ -201,20 +206,58 @@ func stringValues(raw any) []string {
 	return out
 }
 
+// specCitedSummary names the specifications the findings cite. A finding
+// starts with its citation, such as "OID4VP 1.0 §5.2:" or "ARF RPRC_19:".
 func specCitedSummary(subject string, findings []string) string {
 	var specs []string
-	for _, spec := range []string{"OID4VP 1.0", "OID4VCI 1.0", "HAIP 1.0"} {
-		for _, finding := range findings {
-			if strings.HasPrefix(finding, spec) {
-				specs = append(specs, spec)
-				break
-			}
+	for _, finding := range findings {
+		if spec := citedSpecification(finding); spec != "" && !slices.Contains(specs, spec) {
+			specs = append(specs, spec)
 		}
 	}
 	if len(specs) == 0 {
 		return subject + " does not follow the specification"
 	}
 	return fmt.Sprintf("%s does not follow %s", subject, strings.Join(specs, " and "))
+}
+
+// citedSpecification is the citation before the first colon of a finding, up
+// to its first section or rule reference. A citation names a version or
+// standard number, or a reference, so plain prose before a colon is none.
+func citedSpecification(finding string) string {
+	citation, _, found := strings.Cut(finding, ":")
+	if !found {
+		return ""
+	}
+	var spec []string
+	referenced, numbered := false, false
+	for _, word := range strings.Fields(citation) {
+		if isSectionReference(word) {
+			referenced = true
+			break
+		}
+		numbered = numbered || isVersionNumber(word)
+		spec = append(spec, word)
+	}
+	if len(spec) == 0 || (!referenced && !numbered) {
+		return ""
+	}
+	return strings.Join(spec, " ")
+}
+
+// isSectionReference matches §5.2, Appendix, Annex and rule identifiers such
+// as RPRC_19 or GEN-5.2.4-08.
+func isSectionReference(word string) bool {
+	if strings.HasPrefix(word, "§") || word == "Appendix" || word == "Annex" {
+		return true
+	}
+	letters := strings.IndexFunc(word, func(r rune) bool { return r < 'A' || r > 'Z' })
+	return letters > 0 && letters+1 < len(word) && (word[letters] == '_' || word[letters] == '-') && word[letters+1] >= '0' && word[letters+1] <= '9'
+}
+
+// isVersionNumber matches 1.0, 18013-5 and similar.
+func isVersionNumber(word string) bool {
+	return strings.Trim(word, "0123456789.-") == "" && strings.ContainsAny(word, "0123456789")
 }
 
 func requestRequiresNonce(responseType string) bool {
@@ -233,21 +276,15 @@ func responseModeUsesDirectPost(responseMode string) bool {
 // OID4VP 1.0 §5.9.2 treats identifiers without a colon as pre-registered clients.
 // Report only unknown prefixes.
 func hasKnownClientIDPrefix(clientID string) bool {
-	if !strings.Contains(clientID, ":") {
-		return true
-	}
-	for _, prefix := range []string{
-		"x509_san_dns:",
-		"x509_hash:",
-		"redirect_uri:",
-		"verifier_attestation:",
-		"decentralized_identifier:",
-	} {
-		if strings.HasPrefix(clientID, prefix) {
-			return true
-		}
-	}
-	return false
+	_, _, known := lookupClientIDPrefix(clientID)
+	return known || !strings.Contains(clientID, ":")
+}
+
+// requestHasTransactionData finds transaction_data in a request object,
+// a JSON request or the query parameters.
+func requestHasTransactionData(params *AuthorizationRequestParams, payload map[string]any) bool {
+	_, inQuery := params.FullParams["transaction_data"]
+	return inQuery || payloadHasKey(payload, "transaction_data")
 }
 
 func payloadHasKey(payload map[string]any, key string) bool {
@@ -277,6 +314,16 @@ func validateAuthorizationRequestSyntax(params *AuthorizationRequestParams) erro
 	}
 	if err := validateRequestURIMethod(params.RequestURIMethod); err != nil {
 		return err
+	}
+	if params.RequestURIMethod != "" && params.RequestURI == "" {
+		return fmt.Errorf("request_uri_method requires request_uri")
+	}
+	// RFC 6749 §4.1.1 carries the request in query parameters, where an
+	// object such as client_metadata is a JSON string (OID4VP 1.0 §5.1).
+	for _, name := range []string{"client_metadata", "dcql_query"} {
+		if raw := params.FullParams[name]; raw != "" && !json.Valid([]byte(raw)) {
+			return fmt.Errorf("parsing %s: not valid JSON", name)
+		}
 	}
 	if err := validateAbsoluteURI("response_uri", params.ResponseURI); err != nil {
 		return err

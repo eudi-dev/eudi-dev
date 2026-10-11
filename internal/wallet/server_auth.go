@@ -16,15 +16,12 @@ package wallet
 
 import (
 	"crypto/x509"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"sort"
 	"strings"
 
-	"github.com/fatih/color"
 	"github.com/google/uuid"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
@@ -112,7 +109,7 @@ func refusalCodeForRequest(authReq *AuthorizationRequestParams, err error) strin
 	}
 	// OpenID4VP 1.0 §8.5 uses invalid_transaction_data for unsupported transaction
 	// types. This wallet supports none.
-	if payloadHasKey(authReq.RequestPayload, "transaction_data") {
+	if requestHasTransactionData(authReq, authReq.RequestPayload) {
 		return errorCodeInvalidTransactionData
 	}
 	return errorCodeInvalidRequest
@@ -167,6 +164,9 @@ type AuthorizationRequestParams struct {
 	// Unsigned DC API requests use the platform's origin to identify the caller and
 	// omit client_id (OpenID4VP 1.0 Appendix A.2 and A.3.1).
 	UnsignedDCAPI bool
+	// InteractiveAuthorizationEndpoint is the Authorization Challenge Endpoint
+	// of a presentation during issuance (OpenID4VCI 1.1 §6.2.1.1).
+	InteractiveAuthorizationEndpoint string
 	// Browser navigations redirect to the verifier after submission. API calls receive
 	// JSON.
 	BrowserRedirect bool
@@ -190,94 +190,26 @@ type preparedPresentation struct {
 }
 
 func (s *Server) handleAuthFlow(w http.ResponseWriter, authReq *AuthorizationRequestParams) {
-	source := authReq.Source
-	if source == "" {
-		source = "authorize"
+	if authReq.Source == "" {
+		authReq.Source = "authorize"
 	}
-	authReq.Source = source
-	s.addPresentationRequestLog(authReq, source)
+	s.addPresentationRequestLog(authReq, authReq.Source)
 
-	s.wallet.PrepareARFChecks(authReq)
-	findings, err := ValidateAuthorizationRequest(s.wallet.Conformance(), authReq)
-	var refusal *ARFRefusal
-	if errors.As(err, &refusal) {
-		s.log("  REFUSED: %v", err)
-		s.wallet.AddLog("presentation", err.Error(), false)
-		s.wallet.NotifyError(WalletError{Owner: authReq.Session, Message: "The request does not meet the ARF registration rules", Detail: err.Error()})
+	outcome := s.wallet.evaluatePresentationRequest(authReq, presentationEntry{
+		action: "presentation", subject: "The request", owner: authReq.Session, interactive: !s.autoAccepts(authReq),
+	})
+	s.logPresentationOutcome(authReq, outcome)
+
+	switch {
+	case outcome.invalid != nil:
 		s.triggerUIRequest("")
-		// The description names the findings, so the verifier under test sees
-		// which rule its request breaks.
-		s.submitAuthorizationError(w, authReq, "refused", errorCodeAccessDenied, "The request does not meet the ARF registration rules: "+strings.Join(refusal.Findings, ", "))
-		return
-	}
-	if err != nil {
-		s.log("  ERROR: %v", err)
-		s.wallet.AddLog("presentation", err.Error(), false)
-		s.wallet.NotifyError(WalletError{
-			Owner:   authReq.Session,
-			Message: "Authorization request validation failed",
-			Detail:  err.Error(),
-		})
-		s.triggerUIRequest("")
-		// Do not send a response to a destination from an invalid request. OpenID4VP
-		// 1.0 §8.5 follows RFC 6749 §4.1.2.1, which forbids automatic redirection when
-		// the client identifier or redirect URI is invalid.
-		errorCode := refusalCodeForRequest(authReq, err)
 		writeJSON(w, http.StatusBadRequest, map[string]any{
-			"error":             errorCode,
-			"error_description": err.Error(),
+			"error":             outcome.invalidCode,
+			"error_description": outcome.invalid.Error(),
 		})
-		return
-	}
-	// The override answers only a valid request. An invalid one gets no
-	// response at its response_uri (RFC 6749 §4.1.2.1, which OpenID4VP 1.0
-	// §8.5 applies).
-	if override := s.wallet.ConsumeNextError(); override != nil {
-		s.log("  Next-error override consumed: %s", override.Error)
-		s.wallet.AddLog("presentation", fmt.Sprintf("Returned error override: %s", override.Error), false)
-		s.submitAuthorizationError(w, authReq, "error", override.Error, override.ErrorDescription)
-		return
-	}
-
-	authReq.Findings = findings
-	for _, finding := range findings {
-		s.log("  WARNING: %s", finding)
-	}
-	s.wallet.warnFindings("presentation", specCitedSummary("The request", findings), findings)
-	s.wallet.warnUndefinedRequestParameters("presentation", authReq)
-
-	if authReq.DCQLQuery != nil {
-		if dcqlJSON, err := json.Marshal(authReq.DCQLQuery); err == nil {
-			s.log("  DCQL Query:    %s", string(dcqlJSON))
-		}
-	}
-
-	requiresVP := ResponseTypeRequiresVP(authReq.ResponseType)
-
-	var matches []CredentialMatch
-	var credentialOptions *ConsentCredentialOptions
-	if authReq.DCQLQuery != nil && requiresVP {
-		var err error
-		if matches, credentialOptions, err = s.wallet.EvaluateDCQLWithOptions(authReq.DCQLQuery); err != nil {
-			s.refuseQuery(w, authReq.Session, err, func(code, description string) {
-				s.submitAuthorizationError(w, authReq, "refused", code, description)
-			})
-			return
-		}
-	}
-
-	s.log("  Matched:       %d credential(s)", len(matches))
-	for _, m := range matches {
-		s.log("    - %s %s (%s), disclosing %d claims", m.Format, credTypeLabel(m), shortID(m.CredentialID), len(m.SelectedKeys))
-	}
-
-	// Debug mode lets the user answer with a credential that does not match. An
-	// API submission or auto-accept has no one to pick it.
-	if requiresVP && len(matches) == 0 && credentialOptions != nil && !s.autoAccepts(authReq) {
-		s.log("  Result:        no matching credentials, debug mode offers the others")
-	} else if requiresVP && len(matches) == 0 {
-		errorCode, description := s.reportNoMatch(authReq, authReq.Session)
-		redirectURI := s.reportRefusalToVerifier(authReq, errorCode, description)
+	case outcome.refusal != nil && outcome.refusal.status == "no_match":
+		s.triggerUIRequest("")
+		redirectURI := s.reportRefusalToVerifier(authReq, outcome.refusal.code, outcome.refusal.description)
 		if authReq.BrowserRedirect {
 			redirectBrowser(w, redirectURI)
 			return
@@ -285,37 +217,51 @@ func (s *Server) handleAuthFlow(w http.ResponseWriter, authReq *AuthorizationReq
 		writeJSON(w, http.StatusOK, withRedirectURI(map[string]any{
 			"status":            "no_match",
 			"error":             "no matching credentials found",
-			"error_code":        errorCode,
-			"error_description": description,
+			"error_code":        outcome.refusal.code,
+			"error_description": outcome.refusal.description,
 		}, redirectURI))
-		return
-	}
-
-	// An API submission provides the caller's consent. Interactive URLs and scheme
-	// handlers still show the consent dialog unless auto-accept is enabled.
-	if s.autoAccepts(authReq) {
+	case outcome.refusal != nil:
+		s.triggerUIRequest("")
+		s.submitAuthorizationError(w, authReq, outcome.refusal.status, outcome.refusal.code, outcome.refusal.description)
+	case s.autoAccepts(authReq):
 		s.log("  Mode:          auto-accept")
-		s.autoAcceptPresentation(w, authReq, matches)
-		return
-	}
-
-	s.log("  Mode:          interactive (waiting for consent)")
-	consentReq := newPresentationConsent("presentation", authReq.Session, authReq.ClientID, authReq, matches, credentialOptions)
-	s.wallet.CreateConsentRequest(consentReq)
-	s.triggerUIRequest(consentReq.ID)
-
-	if s.onConsentRequest != nil {
-		s.onConsentRequest(consentReq)
-	}
-
-	if authReq.BrowserRedirect {
-		// Redirect browser navigations to the wallet UI while waiting for consent.
+		s.autoAcceptPresentation(w, authReq, outcome.matches)
+	case authReq.BrowserRedirect:
+		// Browser navigations go to the wallet UI while the consent waits.
 		// After approval, the UI follows the verifier's redirect_uri.
-		go s.awaitPresentationConsent(noopResponseWriter{}, authReq, matches, consentReq)
-		redirectBrowser(w, "/?request="+consentReq.ID)
+		s.log("  Mode:          interactive (waiting for consent)")
+		shown := make(chan *ConsentRequest, 1)
+		go s.awaitPresentationConsent(noopResponseWriter{}, authReq, outcome, func(req *ConsentRequest) { shown <- req })
+		redirectBrowser(w, "/?request="+(<-shown).ID)
+	default:
+		s.log("  Mode:          interactive (waiting for consent)")
+		s.awaitPresentationConsent(w, authReq, outcome, nil)
+	}
+}
+
+// logPresentationOutcome writes the decision of the shared flow to the console.
+func (s *Server) logPresentationOutcome(authReq *AuthorizationRequestParams, outcome presentationOutcome) {
+	switch {
+	case outcome.invalid != nil:
+		s.log("  ERROR: %v", outcome.invalid)
+		return
+	case outcome.refusal != nil && outcome.refusal.status == "no_match":
+		s.log("  Result:        no matching credentials")
+		return
+	case outcome.refusal != nil:
+		s.log("  REFUSED: %s %s", outcome.refusal.code, outcome.refusal.description)
 		return
 	}
-	s.awaitPresentationConsent(w, authReq, matches, consentReq)
+	for _, finding := range authReq.Findings {
+		s.log("  WARNING: %s", finding)
+	}
+	s.log("  Matched:       %d credential(s)", len(outcome.matches))
+	for _, m := range outcome.matches {
+		s.log("    - %s %s (%s), disclosing %d claims", m.Format, credTypeLabel(m), shortID(m.CredentialID), len(m.SelectedKeys))
+	}
+	if len(outcome.matches) == 0 && outcome.options != nil {
+		s.log("  Result:        no matching credentials, debug mode offers the others")
+	}
 }
 
 // autoAccepts reports whether the request goes without a consent dialog. An
@@ -324,38 +270,31 @@ func (s *Server) autoAccepts(authReq *AuthorizationRequestParams) bool {
 	return s.wallet.AutoAccept || authReq.AutoAccept || authReq.Source == "api"
 }
 
-// reportNoMatch tells the log and the UI that no credential answers the
-// request, and returns the error for the verifier.
-func (s *Server) reportNoMatch(authReq *AuthorizationRequestParams, owner string) (errorCode, description string) {
-	s.log("  Result:        no matching credentials")
-	s.wallet.AddLog("presentation", fmt.Sprintf("No matching credentials for %s", authReq.ClientID), false)
-	s.wallet.NotifyError(WalletError{
-		Owner:   owner,
-		Message: "No matching credentials",
-		Detail:  fmt.Sprintf("Verifier %s requested credentials but none matched the query", authReq.ClientID),
-	})
-	s.triggerUIRequest("")
-	// §8.5 access_denied: "The Wallet did not have the requested Credentials
-	// to satisfy the Authorization Request."
-	return unsatisfiableQueryError(authReq.DCQLQuery)
-}
-
-// The submission channel also delivers the result to the approve API.
-func (s *Server) awaitPresentationConsent(w http.ResponseWriter, authReq *AuthorizationRequestParams, matches []CredentialMatch, consentReq *ConsentRequest) {
+// awaitPresentationConsent asks the user and delivers the answer. The
+// submission channel also delivers the result to the approve API.
+func (s *Server) awaitPresentationConsent(w http.ResponseWriter, authReq *AuthorizationRequestParams, outcome presentationOutcome, shown func(*ConsentRequest)) {
 	s.allowSlowResponse(w, config.ConsentTimeout)
-	result, answered := s.wallet.awaitConsent(consentReq, config.ConsentTimeout)
+	consentReq, matches, approved, answered := s.wallet.askPresentationConsent("presentation", authReq.Session, authReq.ClientID, authReq, outcome, config.ConsentTimeout, func(req *ConsentRequest) {
+		s.triggerUIRequest(req.ID)
+		if s.onConsentRequest != nil {
+			s.onConsentRequest(req)
+		}
+		if shown != nil {
+			shown(req)
+		}
+	})
 	switch {
 	case !answered:
 		s.wallet.AddLog("presentation", "Consent timeout", false)
 		consentReq.SubmissionCh <- SubmissionResult{Error: "consent timeout"}
 		writeJSON(w, http.StatusRequestTimeout, map[string]string{"error": "consent timeout"})
-	case !result.Approved:
+	case !approved:
 		s.log("  Consent:       denied")
 		s.wallet.AddLog("presentation", fmt.Sprintf("Denied presentation to %s", authReq.ClientID), false)
-		consentReq.SubmissionCh <- s.submitAuthorizationError(w, authReq, "denied", "access_denied", "User denied presentation")
+		consentReq.SubmissionCh <- s.submitAuthorizationError(w, authReq, "denied", errorCodeAccessDenied, "User denied presentation")
 	default:
 		s.log("  Consent:       approved")
-		s.submitPresentationWithNotify(w, authReq, s.wallet.consentedMatches(consentReq, matches, result), consentReq.SubmissionCh)
+		consentReq.SubmissionCh <- s.submitPresentation(w, authReq, matches)
 	}
 }
 
@@ -368,80 +307,16 @@ func (noopResponseWriter) Write(b []byte) (int, error) { return len(b), nil }
 func (noopResponseWriter) WriteHeader(int)             {}
 
 func (s *Server) autoAcceptPresentation(w http.ResponseWriter, authReq *AuthorizationRequestParams, matches []CredentialMatch) {
-	dim := color.New(color.Faint)
-	green := color.New(color.FgGreen)
-	yellow := color.New(color.FgYellow)
-
-	dim.Println("───────────────────────────────────────")
-	yellow.Printf("  Verifier: %s\n", authReq.ClientID)
+	s.log("  Verifier:      %s", authReq.ClientID)
 	for _, m := range matches {
-		fmt.Printf("  Credential: %s (%s)\n", m.Format, credTypeLabel(m))
-		fmt.Printf("  Disclosing: %v\n", m.SelectedKeys)
+		s.log("  Credential:    %s (%s), disclosing %v", m.Format, credTypeLabel(m), m.SelectedKeys)
 	}
-
 	s.submitPresentation(w, authReq, matches)
-	green.Printf("  Auto-accepted\n")
-	dim.Println("───────────────────────────────────────")
-}
-
-func (s *Server) submitPresentationWithNotify(w http.ResponseWriter, authReq *AuthorizationRequestParams, matches []CredentialMatch, submissionCh chan SubmissionResult) {
-	result := s.submitPresentation(w, authReq, matches)
-	if submissionCh != nil {
-		submissionCh <- result
-	}
-}
-
-func (s *Server) preparePresentation(authReq *AuthorizationRequestParams, matches []CredentialMatch) (*preparedPresentation, error) {
-	responseURI := authReq.ResponseURI
-	if responseURI == "" {
-		responseURI = authReq.RedirectURI
-	}
-
-	params := PresentationParams{
-		Nonce:             authReq.Nonce,
-		ClientID:          authReq.ClientID,
-		RequestOrigin:     authReq.RequestOrigin,
-		ResponseURI:       responseURI,
-		RedirectURI:       authReq.RedirectURI,
-		ResponseMode:      authReq.ResponseMode,
-		ClientMetadata:    authReq.ClientMetadata,
-		RequestObject:     authReq.RequestObject,
-		SessionTranscript: authReq.SessionTranscript,
-	}
-
-	prepared := &preparedPresentation{
-		ResponseURI: responseURI,
-		Params:      params,
-	}
-
-	if ResponseTypeContains(authReq.ResponseType, "vp_token") || authReq.ResponseType == "" {
-		// A batch credential's use count changes, so it is saved under the
-		// reload lock.
-		var err error
-		s.saveMutation(func() bool {
-			prepared.VPResult, err = s.wallet.CreateVPTokenMap(matches, params)
-			return s.wallet.takeBatchStateDirty()
-		})
-		if err != nil {
-			return nil, fmt.Errorf("creating VP token map: %w", err)
-		}
-	}
-
-	if ResponseTypeContains(authReq.ResponseType, "id_token") {
-		// DC API presentations use the platform origin as the audience, prefixed with
-		// origin: (OID4VP 1.0 §5.9.3).
-		idToken, err := s.wallet.CreateSelfIssuedIDToken(authReq.Nonce, presentationAudience(authReq))
-		if err != nil {
-			return nil, fmt.Errorf("creating id_token: %w", err)
-		}
-		prepared.IDToken = idToken
-	}
-
-	return prepared, nil
+	s.log("  Auto-accepted")
 }
 
 func (s *Server) buildBrowserPresentationResult(authReq *AuthorizationRequestParams, protocol string, matches []CredentialMatch) (*BrowserAPIResult, *preparedPresentation, error) {
-	prepared, err := s.preparePresentation(authReq, matches)
+	prepared, err := s.wallet.preparePresentation(authReq, matches)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -458,18 +333,7 @@ func (s *Server) buildBrowserPresentationResult(authReq *AuthorizationRequestPar
 }
 
 func (s *Server) buildBrowserAuthorizationErrorResult(authReq *AuthorizationRequestParams, protocol, errorCode, errorDescription string) (*BrowserAPIResult, error) {
-	params := PresentationParams{
-		Nonce:             authReq.Nonce,
-		ClientID:          authReq.ClientID,
-		RequestOrigin:     authReq.RequestOrigin,
-		ResponseURI:       authReq.ResponseURI,
-		RedirectURI:       authReq.RedirectURI,
-		ResponseMode:      authReq.ResponseMode,
-		ClientMetadata:    authReq.ClientMetadata,
-		RequestObject:     authReq.RequestObject,
-		SessionTranscript: authReq.SessionTranscript,
-	}
-	response, err := s.wallet.BuildAuthorizationErrorResponse(errorCode, errorDescription, authReq.State, params)
+	response, err := s.wallet.BuildAuthorizationErrorResponse(errorCode, errorDescription, authReq.State, authReq.presentationParams())
 	if err != nil {
 		return nil, err
 	}
@@ -485,56 +349,22 @@ func canDeliverAuthorizationError(authReq *AuthorizationRequestParams) bool {
 	return authReq.ResponseURI != "" || authReq.RedirectURI != ""
 }
 
-// deliverAuthorizationError returns an OpenID4VP 1.0 §8.5 Authorization Error
-// Response over the Response Mode of the request. §5.6: "Both successful and
-// error responses SHOULD be returned using the supplied Response Mode."
+// deliverAuthorizationError logs the delivery of an error response to the
+// console.
 func (s *Server) deliverAuthorizationError(authReq *AuthorizationRequestParams, errorCode, errorDescription string) (*DirectPostResult, error) {
-	responseURI := authReq.ResponseURI
-	if responseURI == "" {
-		responseURI = authReq.RedirectURI
-	}
-
-	s.log("  Submitting authorization error to %s", responseURI)
+	s.log("  Submitting authorization error to %s", authReq.responseDestination())
 	if authReq.State != "" {
 		s.log("  State:         %s", authReq.State)
 	}
-
-	params := PresentationParams{
-		Nonce:             authReq.Nonce,
-		ClientID:          authReq.ClientID,
-		RequestOrigin:     authReq.RequestOrigin,
-		ResponseURI:       responseURI,
-		RedirectURI:       authReq.RedirectURI,
-		ResponseMode:      authReq.ResponseMode,
-		ClientMetadata:    authReq.ClientMetadata,
-		RequestObject:     authReq.RequestObject,
-		SessionTranscript: authReq.SessionTranscript,
-	}
-
-	errorDetails := presentationRequestLogDetails(authReq)
-	addStringDetail(errorDetails, "submission_uri", responseURI)
-	errorDetails["direction"] = "outbound"
-	errorDetails["error"] = errorCode
-	addStringDetail(errorDetails, "error_description", errorDescription)
-	if authReq.Source != "" {
-		errorDetails["source"] = authReq.Source
-	}
-	result, err := s.wallet.SubmitAuthorizationError(errorCode, errorDescription, authReq.State, responseURI, params, func(response *AuthorizationResponseEnvelope) {
-		s.wallet.addProtocolLog("presentation", "presentation_error_response", fmt.Sprintf("Sending authorization error to %s", authReq.ClientID), true, errorDetails, PresentationLogPayload(response))
-	})
+	result, err := s.wallet.deliverAuthorizationError(authReq, errorCode, errorDescription)
 	if err != nil {
 		s.log("  ERROR: Error submission failed: %v", err)
-		s.wallet.AddLogPayload("presentation", fmt.Sprintf("Error submission failed: %v", err), false, nil, VerifierResponseErrorPayload(err))
 		return nil, err
 	}
-
 	s.log("  Response:      HTTP %d", result.StatusCode)
 	if result.RedirectURI != "" {
 		s.log("  Redirect:      %s", result.RedirectURI)
 	}
-
-	s.wallet.addProtocolLog("presentation", "verifier_response", fmt.Sprintf("Verifier result from %s: %s", authReq.ClientID, FormatDirectPostResult(result)), result.StatusCode < 400, verifierResponseLogDetails(authReq, &preparedPresentation{ResponseURI: responseURI}, result))
-
 	return result, nil
 }
 
@@ -553,8 +383,8 @@ func (s *Server) reportRefusalToVerifier(authReq *AuthorizationRequestParams, er
 }
 
 // SubmittedPresentation builds the answer of POST /api/presentations after the
-// verifier received the response. The CLI prints the same document. findings
-// are the checks that failed in debug mode.
+// verifier received the response. findings are the checks that failed in
+// debug mode.
 func SubmittedPresentation(result *DirectPostResult, vp *VPTokenMapResult, findings []string) map[string]any {
 	keys := []string{}
 	if vp != nil && len(vp.QueryIDs()) > 0 {
@@ -594,31 +424,24 @@ func (s *Server) submitAuthorizationError(w http.ResponseWriter, authReq *Author
 			"response":          result,
 		}, result.RedirectURI))
 	}
+	return submissionResult(result)
+}
 
-	return SubmissionResult{
-		RedirectURI: result.RedirectURI,
-		StatusCode:  result.StatusCode,
-		Error: func() string {
-			if result.StatusCode >= 400 {
-				return result.Body
-			}
-			return ""
-		}(),
+func submissionResult(result *DirectPostResult) SubmissionResult {
+	submission := SubmissionResult{RedirectURI: result.RedirectURI, StatusCode: result.StatusCode}
+	if result.StatusCode >= 400 {
+		submission.Error = result.Body
 	}
+	return submission
 }
 
 func (s *Server) submitPresentation(w http.ResponseWriter, authReq *AuthorizationRequestParams, matches []CredentialMatch) SubmissionResult {
-	responseURI := authReq.ResponseURI
-	if responseURI == "" {
-		responseURI = authReq.RedirectURI
-	}
-
-	s.log("  Submitting VP token to %s", responseURI)
+	s.log("  Submitting VP token to %s", authReq.responseDestination())
 	if authReq.State != "" {
 		s.log("  State:         %s", authReq.State)
 	}
 
-	prepared, err := s.preparePresentation(authReq, matches)
+	prepared, err := s.wallet.preparePresentation(authReq, matches)
 	if err != nil {
 		s.log("  ERROR: Presentation preparation failed: %v", err)
 		s.wallet.AddLog("presentation", fmt.Sprintf("Presentation preparation failed: %v", err), false)
@@ -632,12 +455,9 @@ func (s *Server) submitPresentation(w http.ResponseWriter, authReq *Authorizatio
 		s.log("  id_token:      created (SIOPv2)")
 	}
 
-	result, err := s.wallet.SubmitPresentation(prepared.VPResult, prepared.IDToken, authReq.State, responseURI, prepared.Params, func(response *AuthorizationResponseEnvelope) {
-		s.wallet.addProtocolLog("presentation", "presentation_response", fmt.Sprintf("Sending presentation response to %s", authReq.ClientID), true, presentationResponseLogDetails(authReq, s.wallet, matches, prepared), PresentationLogPayload(response))
-	})
+	result, err := s.wallet.submitPreparedPresentation(authReq, matches, prepared)
 	if err != nil {
 		s.log("  ERROR: Submission failed: %v", err)
-		s.wallet.AddLogPayload("presentation", fmt.Sprintf("Submission failed: %v", err), false, nil, VerifierResponseErrorPayload(err))
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 		return SubmissionResult{Error: err.Error()}
 	}
@@ -650,78 +470,25 @@ func (s *Server) submitPresentation(w http.ResponseWriter, authReq *Authorizatio
 		s.log("  ERROR:         %s", result.Body)
 	}
 
-	s.wallet.addProtocolLog("presentation", "verifier_response", fmt.Sprintf("Verifier result from %s: %s", authReq.ClientID, FormatDirectPostResult(result)), result.StatusCode < 400, verifierResponseLogDetails(authReq, prepared, result))
-
 	if authReq.BrowserRedirect {
 		redirectBrowser(w, result.RedirectURI)
 	} else {
 		writeJSON(w, http.StatusOK, SubmittedPresentation(result, prepared.VPResult, authReq.Findings))
 	}
-
-	return SubmissionResult{
-		RedirectURI: result.RedirectURI,
-		StatusCode:  result.StatusCode,
-		Error: func() string {
-			if result.StatusCode >= 400 {
-				return result.Body
-			}
-			return ""
-		}(),
-	}
+	return submissionResult(result)
 }
 
-func parseAuthParams(values map[string][]string, opts oid4vc.ParseOptions, mode ValidationMode) (*AuthorizationRequestParams, error) {
-	get := func(key string) string {
-		if vs, ok := values[key]; ok && len(vs) > 0 {
-			return vs[0]
-		}
-		return ""
-	}
-
-	if cm := get("client_metadata"); cm != "" && !json.Valid([]byte(cm)) {
-		return nil, fmt.Errorf("parsing client_metadata: not valid JSON")
-	}
-	if dq := get("dcql_query"); dq != "" && !json.Valid([]byte(dq)) {
-		return nil, fmt.Errorf("parsing dcql_query: not valid JSON")
-	}
-
-	if td := get("transaction_data"); td != "" {
-		if mode == ValidationModeStrict {
-			// OpenID4VP 1.0 §8.5 uses invalid_transaction_data for unsupported
-			// transaction types. This wallet supports none.
-			return nil, &authorizationError{
-				Code: errorCodeInvalidTransactionData,
-				Err:  fmt.Errorf("transaction_data is not supported by this wallet"),
-			}
-		}
-		log.Printf("[Wallet] WARNING: request contains transaction_data which is not processed (OID4VP §7.2)")
-	}
-	if method := get("request_uri_method"); method != "" && get("request_uri") == "" {
-		return nil, fmt.Errorf("request_uri_method requires request_uri")
-	}
-	if method := get("request_uri_method"); method != "" && method != "get" && method != "post" {
-		// §8.5 invalid_request_uri_method: "The value of the
-		// request_uri_method request parameter is neither get nor post
-		// (case-sensitive)."
-		return nil, &authorizationError{
-			Code: errorCodeInvalidRequestURIMethod,
-			Err:  fmt.Errorf("unsupported request_uri_method %q", method),
-		}
-	}
-
+// parseAuthParams reads the parameters of an /authorize request. The shared
+// validation checks them, as it does for every entry point.
+func parseAuthParams(values map[string][]string, opts oid4vc.ParseOptions) (*AuthorizationRequestParams, error) {
 	parsed, err := oid4vc.ParseAuthorizationParams(values, opts)
 	switch {
-	case err != nil && get("request_uri") != "":
-		return nil, fmt.Errorf("parsing request_uri %q: %w", get("request_uri"), err)
+	case err != nil && len(values["request_uri"]) > 0:
+		return nil, fmt.Errorf("parsing request_uri %q: %w", values["request_uri"][0], err)
 	case err != nil:
 		return nil, fmt.Errorf("parsing request JWT: %w", err)
 	}
-	params := authorizationParams(parsed)
-	if params.ClientID == "" {
-		return nil, fmt.Errorf("missing client_id")
-	}
-
-	return params, nil
+	return authorizationParams(parsed), nil
 }
 
 func requestPayload(reqObj *oid4vc.RequestObjectJWT, fallback map[string]any) map[string]any {

@@ -137,7 +137,7 @@ func (w *Wallet) createVPToken(match CredentialMatch, params PresentationParams,
 		if err != nil {
 			return VPTokenResult{}, err
 		}
-		log.Printf("[VP] mdoc presentation created: docType=%s transcript=%s", cred.DocType, w.SessionTranscript)
+		log.Printf("[VP] mdoc presentation created: docType=%s transcript=%s", cred.DocType, w.sessionTranscriptFor(params))
 		return result, nil
 	default:
 		return VPTokenResult{}, fmt.Errorf("unsupported credential format: %s", cred.Format)

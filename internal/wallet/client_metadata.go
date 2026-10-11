@@ -36,14 +36,21 @@ func ValidateClientMetadata(clientMeta map[string]any) error {
 	if err := validateStringArrayField(clientMeta, "encrypted_response_enc_values_supported"); err != nil {
 		return err
 	}
-	if err := validateStringArrayField(clientMeta, "authorization_encryption_alg_values_supported"); err != nil {
-		return err
-	}
 	if err := validateJWKSField(clientMeta["jwks"]); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+// vpFormatAlgMembers lists the members of each vp_formats_supported entry in
+// OID4VP 1.0 Appendix B, and whether the array holds COSE algorithm numbers.
+// §11.1: "The Wallet MUST ignore any unrecognized parameters."
+var vpFormatAlgMembers = map[string]map[string]bool{
+	"dc+sd-jwt":   {"sd-jwt_alg_values": false, "kb-jwt_alg_values": false},       // B.3.4
+	"mso_mdoc":    {"issuerauth_alg_values": true, "deviceauth_alg_values": true}, // B.2.2
+	"jwt_vc_json": {"alg_values": false},                                          // B.1.3.1.3
+	"ldp_vc":      {"proof_type_values": false, "cryptosuite_values": false},      // B.1.3.2.3
 }
 
 func validateVPFormatsSupported(raw any) error {
@@ -61,34 +68,35 @@ func validateVPFormatsSupported(raw any) error {
 		if !ok {
 			return fmt.Errorf("client_metadata.vp_formats_supported.%s must be an object", formatName)
 		}
-		if err := validateFormatAlgValuesSupported(formatName, formatMeta["alg_values_supported"]); err != nil {
-			return err
+		for member, numeric := range vpFormatAlgMembers[formatName] {
+			if err := validateFormatAlgValues(formatName, member, numeric, formatMeta[member]); err != nil {
+				return err
+			}
 		}
 	}
 
 	return nil
 }
 
-func validateFormatAlgValuesSupported(formatName string, raw any) error {
+func validateFormatAlgValues(formatName, member string, numeric bool, raw any) error {
 	if raw == nil {
 		return nil
 	}
 
 	values, ok := raw.([]any)
 	if !ok {
-		return fmt.Errorf("client_metadata.vp_formats_supported.%s.alg_values_supported must be an array", formatName)
+		return fmt.Errorf("client_metadata.vp_formats_supported.%s.%s must be an array", formatName, member)
 	}
 
 	for i, value := range values {
-		switch formatName {
-		case "mso_mdoc":
+		if numeric {
 			if !isJSONNumber(value) {
-				return fmt.Errorf("client_metadata.vp_formats_supported.%s.alg_values_supported[%d] must be a COSE algorithm number", formatName, i)
+				return fmt.Errorf("client_metadata.vp_formats_supported.%s.%s[%d] must be a COSE algorithm number", formatName, member, i)
 			}
-		default:
-			if _, ok := value.(string); !ok {
-				return fmt.Errorf("client_metadata.vp_formats_supported.%s.alg_values_supported[%d] must be a string", formatName, i)
-			}
+			continue
+		}
+		if _, ok := value.(string); !ok {
+			return fmt.Errorf("client_metadata.vp_formats_supported.%s.%s[%d] must be a string", formatName, member, i)
 		}
 	}
 

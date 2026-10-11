@@ -277,9 +277,8 @@ func TestDecryptErrors(t *testing.T) {
 	}
 }
 
-// A128CBC-HS256 has a key length but no decryption here. It must be refused.
 func TestDecryptWithCEKRejectsUnsupportedEnc(t *testing.T) {
-	header, err := json.Marshal(map[string]any{"enc": "A128CBC-HS256"})
+	header, err := json.Marshal(map[string]any{"enc": "A192GCM"})
 	if err != nil {
 		t.Fatal(err)
 	}

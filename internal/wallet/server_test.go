@@ -37,6 +37,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jwe"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
@@ -206,7 +207,7 @@ func TestAuthorize_RejectsInvalidMDocAlgValuesSupported(t *testing.T) {
 		"client_metadata": map[string]any{
 			"vp_formats_supported": map[string]any{
 				"mso_mdoc": map[string]any{
-					"alg_values_supported": []any{"ES256"},
+					"issuerauth_alg_values": []any{"ES256"},
 				},
 			},
 		},
@@ -226,7 +227,7 @@ func TestAuthorize_RejectsInvalidMDocAlgValuesSupported(t *testing.T) {
 
 func TestAuthorize_RejectsInvalidOuterClientMetadata(t *testing.T) {
 	srv := newTestServer(t, true)
-	clientMetadata := `{"vp_formats_supported":{"mso_mdoc":{"alg_values_supported":["ES256"]}}}`
+	clientMetadata := `{"vp_formats_supported":{"mso_mdoc":{"deviceauth_alg_values":["ES256"]}}}`
 	req := httptest.NewRequest("GET", "/authorize?client_id=https://verifier.example&response_type=vp_token&response_uri=https://verifier.example/response&client_metadata="+url.QueryEscape(clientMetadata), nil)
 	w := httptest.NewRecorder()
 	srv.mux.ServeHTTP(w, req)
@@ -2718,9 +2719,9 @@ func TestFetchRequestURIPOST_AcceptsLocalSelfSignedTLS(t *testing.T) {
 	}))
 	defer requestURIServer.Close()
 
-	result, err := fetchRequestURIPOST(w, requestURIServer.URL, "", nil)
+	result, err := MakeFetchRequestURI(w, nil)(requestURIServer.URL, "post", "")
 	if err != nil {
-		t.Fatalf("fetchRequestURIPOST: %v", err)
+		t.Fatalf("fetching the request_uri with POST: %v", err)
 	}
 	if receivedMethod != http.MethodPost {
 		t.Fatalf("expected POST, got %s", receivedMethod)
@@ -2793,7 +2794,7 @@ func TestPresentationFlow_RequestURIMethodPost_Encrypted(t *testing.T) {
 			"wallet_nonce":  walletNonce,
 		})
 
-		jweStr, _, err := EncryptJWE([]byte(jwt), pubKey, "kid", "ECDH-ES", "A128GCM", nil, nil)
+		jweStr, _, err := jwe.EncryptECDHES([]byte(jwt), pubKey, "kid", "A128GCM", "", nil, nil)
 		if err != nil {
 			t.Fatalf("encrypting request object: %v", err)
 		}

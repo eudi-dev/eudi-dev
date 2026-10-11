@@ -113,14 +113,14 @@ type Wallet struct {
 	demoRegistrationMu sync.Mutex
 	// capacity bounds what a shared wallet stores. Zero means no bound.
 	capacity Capacity
-	// saveRegistrarChange runs a registrar change outside a request to the
-	// registrar and saves it. A server sets it to its saveMutation, which
-	// takes the store lock. Never call it while holding that lock.
-	saveRegistrarChange func(change func() bool)
-	listCacheMu         sync.Mutex
-	listCache           map[string]cachedList
-	listFetches         singleflight.Group
-	outboundHTTP        *http.Client
+	// saveMutation runs a change, such as a registrar change or a batch use
+	// count, and saves it. A server sets it to its saveMutation, which takes
+	// the store lock. Never call it while holding that lock.
+	saveMutation func(change func() bool)
+	listCacheMu  sync.Mutex
+	listCache    map[string]cachedList
+	listFetches  singleflight.Group
+	outboundHTTP *http.Client
 	// Entity backends track the last loaded or saved snapshot and section revisions.
 	// File storage leaves these nil.
 	persisted stateSnapshot
@@ -1197,19 +1197,10 @@ func credentialLabel(c StoredCredential) string {
 	return c.ID
 }
 
-// The claim count shown to the user leaves out these protocol claims: the RFC
-// 7519 registered claims and the SD-JWT VC claims of draft-ietf-oauth-sd-jwt-vc
-// §3.2.2.
-var reservedCredentialClaims = map[string]bool{
-	"iss": true, "sub": true, "aud": true, "exp": true, "nbf": true,
-	"iat": true, "jti": true, "cnf": true, "vct": true, "vct#integrity": true,
-	"status": true, "_sd": true, "_sd_alg": true,
-}
-
 func userClaimCount(claims map[string]any) int {
 	n := 0
 	for key := range claims {
-		if !reservedCredentialClaims[key] {
+		if !sdjwt.IsProtocolClaim(key) {
 			n++
 		}
 	}
