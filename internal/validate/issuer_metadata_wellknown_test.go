@@ -27,9 +27,9 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
 )
 
-// SD-JWT VC §3 forms the metadata location "by inserting the well-known
+// SD-JWT VC §4 forms the metadata location "by inserting the well-known
 // string /.well-known/jwt-vc-issuer between the host component and the path
-// component (if any) of the iss claim value in the JWT", and §3.1 removes any
+// component (if any) of the iss claim value in the JWT", and §4.1 removes any
 // terminating slash from the path first.
 func TestJWTVCIssuerMetadataURL(t *testing.T) {
 	tests := []struct {
@@ -86,7 +86,7 @@ func tenantToken(t *testing.T, issuer string, key *ecdsa.PrivateKey) *sdjwt.Toke
 	return token
 }
 
-func TestResolveJWTIssuerMetadataKey_TenantScopedIssuer(t *testing.T) {
+func TestResolveJWTIssuerMetadataKeys_TenantScopedIssuer(t *testing.T) {
 	key, err := mock.GenerateKey()
 	if err != nil {
 		t.Fatalf("GenerateKey: %v", err)
@@ -108,11 +108,11 @@ func TestResolveJWTIssuerMetadataKey_TenantScopedIssuer(t *testing.T) {
 	issuer = srv.URL + "/tenant/1234"
 
 	token := tenantToken(t, issuer, key)
-	resolved, source, err := ResolveJWTIssuerMetadataKey(token, nil)
+	resolved, source, err := ResolveJWTIssuerMetadataKeys(token, nil)
 	if err != nil {
-		t.Fatalf("ResolveJWTIssuerMetadataKey: %v", err)
+		t.Fatalf("ResolveJWTIssuerMetadataKeys: %v", err)
 	}
-	if resolved == nil {
+	if len(resolved) == 0 {
 		t.Fatal("expected a key from the tenant-scoped metadata")
 	}
 	if !strings.Contains(source, "issuer metadata") {
@@ -120,9 +120,9 @@ func TestResolveJWTIssuerMetadataKey_TenantScopedIssuer(t *testing.T) {
 	}
 }
 
-// SD-JWT VC §3.2: "JWT VC Issuer Metadata MUST include either jwks_uri or
+// SD-JWT VC §4.2: "JWT VC Issuer Metadata MUST include either jwks_uri or
 // jwks in their JWT VC Issuer Metadata, but not both."
-func TestResolveJWTIssuerMetadataKey_JWKSURI(t *testing.T) {
+func TestResolveJWTIssuerMetadataKeys_JWKSURI(t *testing.T) {
 	key, err := mock.GenerateKey()
 	if err != nil {
 		t.Fatalf("GenerateKey: %v", err)
@@ -150,16 +150,16 @@ func TestResolveJWTIssuerMetadataKey_JWKSURI(t *testing.T) {
 	jwksURI = srv.URL + "/keys.jwks"
 
 	token := tenantToken(t, issuer, key)
-	resolved, _, err := ResolveJWTIssuerMetadataKey(token, nil)
+	resolved, _, err := ResolveJWTIssuerMetadataKeys(token, nil)
 	if err != nil {
-		t.Fatalf("ResolveJWTIssuerMetadataKey: %v", err)
+		t.Fatalf("ResolveJWTIssuerMetadataKeys: %v", err)
 	}
-	if resolved == nil {
+	if len(resolved) == 0 {
 		t.Fatal("expected a key from the referenced JWK Set")
 	}
 }
 
-func TestResolveJWTIssuerMetadataKey_RejectsMalformedMetadata(t *testing.T) {
+func TestResolveJWTIssuerMetadataKeys_RejectsMalformedMetadata(t *testing.T) {
 	key, err := mock.GenerateKey()
 	if err != nil {
 		t.Fatalf("GenerateKey: %v", err)
@@ -172,7 +172,7 @@ func TestResolveJWTIssuerMetadataKey_RejectsMalformedMetadata(t *testing.T) {
 		want     string
 	}{
 		{
-			// §3.2: "JWT VC Issuer Metadata MUST include either jwks_uri or
+			// §4.2: "JWT VC Issuer Metadata MUST include either jwks_uri or
 			// jwks in their JWT VC Issuer Metadata, but not both."
 			name: "both jwks and jwks_uri",
 			document: func(issuer string) map[string]any {
@@ -181,7 +181,7 @@ func TestResolveJWTIssuerMetadataKey_RejectsMalformedMetadata(t *testing.T) {
 			want: "both",
 		},
 		{
-			// §3.2 marks the issuer member REQUIRED.
+			// §4.2 marks the issuer member REQUIRED.
 			name: "no issuer member",
 			document: func(string) map[string]any {
 				return map[string]any{"jwks": jwks}
@@ -189,7 +189,7 @@ func TestResolveJWTIssuerMetadataKey_RejectsMalformedMetadata(t *testing.T) {
 			want: "issuer",
 		},
 		{
-			// §3.3: "The issuer value returned MUST be identical to the iss
+			// §4.3: "The issuer value returned MUST be identical to the iss
 			// value of the Issuer-signed JWT."
 			name: "issuer differs by a trailing slash",
 			document: func(issuer string) map[string]any {
@@ -221,9 +221,9 @@ func TestResolveJWTIssuerMetadataKey_RejectsMalformedMetadata(t *testing.T) {
 			issuer = srv.URL + "/tenant/1234"
 
 			token := tenantToken(t, issuer, key)
-			resolved, _, err := ResolveJWTIssuerMetadataKey(token, nil)
+			resolved, _, err := ResolveJWTIssuerMetadataKeys(token, nil)
 			if err == nil {
-				t.Fatalf("ResolveJWTIssuerMetadataKey accepted the document and returned %v", resolved)
+				t.Fatalf("ResolveJWTIssuerMetadataKeys accepted the document and returned %v", resolved)
 			}
 			if !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("error = %v, want it to mention %q", err, tt.want)

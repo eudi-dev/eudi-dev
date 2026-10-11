@@ -272,6 +272,7 @@ type statusListToken struct {
 	subject       string
 	issuedAt      *time.Time
 	expiresAt     *time.Time
+	notBefore     *time.Time
 	bits          int
 	lst           []byte
 	signatureInfo string
@@ -305,6 +306,12 @@ func (t *statusListToken) validate(ref *StatusRef, opts CheckOptions) error {
 		}
 	} else {
 		t.warnings = append(t.warnings, "the status list token has no exp claim, which section 5.1 and 5.2 recommend")
+	}
+	// RFC 7519 §4.1.5: "The nbf (not before) claim identifies the time before
+	// which the JWT MUST NOT be accepted for processing." RFC 8392 §3.1.5
+	// gives claim 5 the same meaning in a CWT.
+	if validity.NotYet(t.notBefore, now) {
+		return fmt.Errorf("the status list token is not valid before %s", t.notBefore.UTC().Format(time.RFC3339))
 	}
 	if validity.NotYet(t.issuedAt, now) {
 		t.warnings = append(t.warnings, fmt.Sprintf("the status list token is issued at %s, which is in the future", t.issuedAt.UTC().Format(time.RFC3339)))
@@ -348,7 +355,7 @@ func resolveKeys(certs []*x509.Certificate, embedded []crypto.PublicKey, named s
 		}
 		return &keyCandidates{
 			keys:     []crypto.PublicKey{leaf.PublicKey},
-			info:     fmt.Sprintf("x5c chain valid, signed by %s", leaf.Subject.CommonName),
+			info:     "signed by " + leaf.Subject.CommonName,
 			anchored: true,
 		}, nil
 	}
@@ -356,7 +363,7 @@ func resolveKeys(certs []*x509.Certificate, embedded []crypto.PublicKey, named s
 	if len(opts.Keys) > 0 {
 		return &keyCandidates{
 			keys:     opts.Keys,
-			info:     "signed by a key the caller resolved out of band",
+			info:     "signed by a supplied key",
 			anchored: true,
 		}, nil
 	}
@@ -365,7 +372,7 @@ func resolveKeys(certs []*x509.Certificate, embedded []crypto.PublicKey, named s
 		if leaf, err := verifyChain(certs, opts.CandidateAnchors); err == nil {
 			return &keyCandidates{
 				keys:     []crypto.PublicKey{leaf.PublicKey},
-				info:     fmt.Sprintf("x5c chain valid, signed by %s", leaf.Subject.CommonName),
+				info:     "signed by " + leaf.Subject.CommonName,
 				anchored: true,
 			}, nil
 		}
@@ -374,7 +381,7 @@ func resolveKeys(certs []*x509.Certificate, embedded []crypto.PublicKey, named s
 	if len(certs) > 0 {
 		return &keyCandidates{
 			keys:    []crypto.PublicKey{certs[0].PublicKey},
-			info:    fmt.Sprintf("signed by the token's own certificate for %s", certs[0].Subject.CommonName),
+			info:    "signed by " + certs[0].Subject.CommonName,
 			warning: "the status list token's certificate chain was not validated against a trust list",
 		}, nil
 	}
@@ -382,7 +389,7 @@ func resolveKeys(certs []*x509.Certificate, embedded []crypto.PublicKey, named s
 	if len(embedded) > 0 {
 		return &keyCandidates{
 			keys:    embedded,
-			info:    "signed by the key the token carries in its own header",
+			info:    "signed by the key in its own header",
 			warning: "the status list token was verified with the key it carries itself, which proves nothing about who issued it",
 		}, nil
 	}
@@ -434,7 +441,7 @@ func parseJWTStatusListToken(body []byte, opts CheckOptions) (*statusListToken, 
 
 	// Section 5.1: "typ: REQUIRED. The JWT type MUST be statuslist+jwt."
 	typ, _ := header["typ"].(string)
-	if !isStatusListTyp(typ, TypJWT) {
+	if !format.JOSETypeIs(typ, TypJWT) {
 		if typ == "" {
 			return nil, fmt.Errorf("the status list token has no typ header, section 5.1 requires %q", TypJWT)
 		}
@@ -497,6 +504,7 @@ func parseJWTStatusListToken(body []byte, opts CheckOptions) (*statusListToken, 
 	tok.subject, _ = payload["sub"].(string)
 	tok.issuedAt = unixClaim(payload["iat"])
 	tok.expiresAt = unixClaim(payload["exp"])
+	tok.notBefore = unixClaim(payload["nbf"])
 	if ttl, present := payload["ttl"]; present {
 		if n, ok := asInt(ttl); !ok || n <= 0 {
 			tok.warnings = append(tok.warnings, "the status list token's ttl claim is not a positive number, which section 5.1 requires")
@@ -522,13 +530,6 @@ func parseJWTStatusListToken(body []byte, opts CheckOptions) (*statusListToken, 
 		tok.lst = decoded
 	}
 	return tok, nil
-}
-
-// isStatusListTyp compares a typ header against the required value. RFC 7515
-// section 4.1.9 allows the "application/" prefix to be omitted.
-func isStatusListTyp(typ, want string) bool {
-	typ = strings.ToLower(strings.TrimSpace(typ))
-	return typ == want || typ == "application/"+want
 }
 
 func publicKeyFromJWK(raw any) (crypto.PublicKey, error) {

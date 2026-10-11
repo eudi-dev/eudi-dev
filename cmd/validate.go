@@ -90,12 +90,6 @@ func runValidate(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	// RFC 9901 §7.1: "If any step fails, the SD-JWT is not valid, and
-	// processing MUST be aborted."
-	if result.SDJWT != nil && len(result.SDJWT.Deviations) > 0 {
-		return fmt.Errorf("parsing SD-JWT: %s", strings.Join(result.SDJWT.Deviations, ". "))
-	}
-
 	var report jsonReport
 	if opts.JSON {
 		report = credentialReport(result)
@@ -269,13 +263,13 @@ func reportCatalogueTrust(anchoring wallet.CatalogueAnchoring, report jsonReport
 	report.add("trust", anchoring, func() {
 		switch {
 		case anchoring.AnchoredBy != "":
-			fmt.Printf("  ✓ Anchored by the trusted list %s of the catalogue entry %q\n", anchoring.AnchoredBy, anchoring.Entry)
+			fmt.Printf("  ✓ Trust: %s (%s)\n", anchoring.Anchor(validate.ServiceIssuance), anchoring.AnchoredBy)
 		case len(anchoring.Findings) > 0:
 			for _, f := range anchoring.Findings {
 				fmt.Printf("  ✗ %s\n", f)
 			}
 		default:
-			fmt.Printf("  – The catalogue entry %q links no readable trusted list\n", anchoring.Entry)
+			fmt.Println("  – No readable trusted list in the catalogue")
 			for _, w := range anchoring.Warnings {
 				fmt.Printf("  ! %s\n", w)
 			}

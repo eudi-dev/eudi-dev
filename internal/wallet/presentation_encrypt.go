@@ -17,11 +17,11 @@ package wallet
 import (
 	"crypto/ecdsa"
 	"crypto/rsa"
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"log"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 )
 
@@ -131,41 +131,14 @@ func encryptableKeyMaterial(jwk map[string]any) bool {
 	}
 }
 
-// computeJWKThumbprint returns the RFC 7638 JWK Thumbprint using SHA-256. The
-// required members in lexicographic order are crv, kty, x, y for EC keys and
-// e, kty, n for RSA keys.
+// computeJWKThumbprint returns the RFC 7638 JWK Thumbprint using SHA-256, or
+// nil for a JWK without its required members.
 func computeJWKThumbprint(jwk map[string]any) []byte {
-	kty, _ := jwk["kty"].(string)
-
-	var canonical map[string]string
-	switch kty {
-	case "EC":
-		crv, _ := jwk["crv"].(string)
-		x, _ := jwk["x"].(string)
-		y, _ := jwk["y"].(string)
-		if crv == "" || x == "" || y == "" {
-			return nil
-		}
-		canonical = map[string]string{"crv": crv, "kty": kty, "x": x, "y": y}
-	case "RSA":
-		e, _ := jwk["e"].(string)
-		n, _ := jwk["n"].(string)
-		if e == "" || n == "" {
-			return nil
-		}
-		canonical = map[string]string{"e": e, "kty": kty, "n": n}
-	default:
-		return nil
-	}
-
-	// RFC 7638 requires the members in lexicographic order and no whitespace.
-	canonicalJSON, err := json.Marshal(canonical)
+	sum, err := keys.Thumbprint(jwk)
 	if err != nil {
 		return nil
 	}
-
-	hash := sha256.Sum256(canonicalJSON)
-	return hash[:]
+	return sum
 }
 
 // encryptionKeyInfo holds the encryption key parameters of a JWK.

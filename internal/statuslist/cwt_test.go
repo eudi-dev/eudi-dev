@@ -28,6 +28,7 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"github.com/veraison/go-cose"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 )
 
@@ -304,6 +305,40 @@ func TestCWTRoundTrip_EveryWidth(t *testing.T) {
 
 func signCWTWithType(t *testing.T, key *ecdsa.PrivateKey, uri string, typ any) []byte {
 	t.Helper()
+	signer, err := cose.NewSigner(cose.AlgorithmES256, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return signCWT(t, signer, uri, typ)
+}
+
+// esp256Signer produces the ES256 signature under the ESP256 label, which
+// go-cose does not know.
+type esp256Signer struct{ cose.Signer }
+
+func (esp256Signer) Algorithm() cose.Algorithm { return mdoc.AlgorithmESP256 }
+
+// HAIP 1.0 §7 names -9 next to -7 for ECDSA with P-256 and SHA-256.
+func TestCheck_AcceptsAnESP256CWT(t *testing.T) {
+	key := mustGenerateKey(t)
+	es256, err := cose.NewSigner(cose.AlgorithmES256, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := statusListServer(t, func(uri string) (string, []byte) {
+		return MediaTypeCWT, signCWT(t, esp256Signer{es256}, uri, MediaTypeCWT)
+	})
+	result, err := CheckWithOptions(&StatusRef{URI: srv.URL, Idx: 0}, CheckOptions{Keys: []crypto.PublicKey{&key.PublicKey}})
+	if err != nil {
+		t.Fatalf("CheckWithOptions: %v", err)
+	}
+	if !result.IsValid {
+		t.Errorf("status = %+v, want valid", result)
+	}
+}
+
+func signCWT(t *testing.T, signer cose.Signer, uri string, typ any) []byte {
+	t.Helper()
 	compressed, err := compressBitstring(make([]byte, 16))
 	if err != nil {
 		t.Fatal(err)
@@ -317,12 +352,8 @@ func signCWTWithType(t *testing.T, key *ecdsa.PrivateKey, uri string, typ any) [
 	if err != nil {
 		t.Fatal(err)
 	}
-	signer, err := cose.NewSigner(cose.AlgorithmES256, key)
-	if err != nil {
-		t.Fatal(err)
-	}
 	msg := cose.NewSign1Message()
-	msg.Headers.Protected.SetAlgorithm(cose.AlgorithmES256)
+	msg.Headers.Protected[cose.HeaderLabelAlgorithm] = signer.Algorithm()
 	if typ != nil {
 		msg.Headers.Protected[int64(coseHeaderType)] = typ
 	}

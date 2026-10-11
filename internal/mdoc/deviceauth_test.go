@@ -55,19 +55,34 @@ func deviceKeyCBOR(t *testing.T, pub *ecdsa.PublicKey) []byte {
 	return encoded
 }
 
-func signDeviceAuth(t *testing.T, key *ecdsa.PrivateKey, sessionTranscript []byte, docType string) []byte {
+func emptyDeviceNameSpaces(t *testing.T) []byte {
 	t.Helper()
-
-	emptyNamespaces, err := tag24(map[string]any{})
+	encoded, err := tag24(map[string]any{})
 	if err != nil {
 		t.Fatal(err)
 	}
+	return encoded
+}
+
+func signDeviceAuth(t *testing.T, key *ecdsa.PrivateKey, sessionTranscript []byte, docType string) []byte {
+	t.Helper()
 	var transcript any
 	if err := cbor.Unmarshal(sessionTranscript, &transcript); err != nil {
 		t.Fatal(err)
 	}
+	reencoded, err := cbor.Marshal(transcript)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return signDeviceAuthWith(t, key, cose.AlgorithmES256, reencoded, docType, emptyDeviceNameSpaces(t))
+}
+
+// signDeviceAuthWith embeds the session transcript and namespaces bytes
+// unchanged, as the wallet does.
+func signDeviceAuthWith(t *testing.T, key *ecdsa.PrivateKey, alg cose.Algorithm, sessionTranscript []byte, docType string, nameSpaces []byte) []byte {
+	t.Helper()
 	authentication, err := cbor.Marshal([]any{
-		"DeviceAuthentication", transcript, docType, cbor.RawMessage(emptyNamespaces),
+		"DeviceAuthentication", cbor.RawMessage(sessionTranscript), docType, cbor.RawMessage(nameSpaces),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -76,13 +91,12 @@ func signDeviceAuth(t *testing.T, key *ecdsa.PrivateKey, sessionTranscript []byt
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	signer, err := cose.NewSigner(cose.AlgorithmES256, key)
+	signer, err := cose.NewSigner(alg, key)
 	if err != nil {
 		t.Fatal(err)
 	}
 	msg := cose.UntaggedSign1Message{
-		Headers: cose.Headers{Protected: cose.ProtectedHeader{cose.HeaderLabelAlgorithm: cose.AlgorithmES256}},
+		Headers: cose.Headers{Protected: cose.ProtectedHeader{cose.HeaderLabelAlgorithm: alg}},
 		Payload: payload,
 	}
 	if err := msg.Sign(rand.Reader, nil, signer); err != nil {
@@ -106,42 +120,6 @@ func transcriptFor(t *testing.T, nonce string) []byte {
 	return encoded
 }
 
-// signDeviceAuthVerbatim embeds the session transcript bytes unchanged, as the wallet does.
-func signDeviceAuthVerbatim(t *testing.T, key *ecdsa.PrivateKey, sessionTranscript []byte, docType string) []byte {
-	t.Helper()
-	emptyNamespaces, err := tag24(map[string]any{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	authentication, err := cbor.Marshal([]any{
-		"DeviceAuthentication", cbor.RawMessage(sessionTranscript), docType, cbor.RawMessage(emptyNamespaces),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	payload, err := tag24Raw(authentication)
-	if err != nil {
-		t.Fatal(err)
-	}
-	signer, err := cose.NewSigner(cose.AlgorithmES256, key)
-	if err != nil {
-		t.Fatal(err)
-	}
-	msg := cose.UntaggedSign1Message{
-		Headers: cose.Headers{Protected: cose.ProtectedHeader{cose.HeaderLabelAlgorithm: cose.AlgorithmES256}},
-		Payload: payload,
-	}
-	if err := msg.Sign(rand.Reader, nil, signer); err != nil {
-		t.Fatal(err)
-	}
-	msg.Payload = nil
-	encoded, err := msg.MarshalCBOR()
-	if err != nil {
-		t.Fatal(err)
-	}
-	return encoded
-}
-
 // The verifier must use the signed transcript bytes unchanged. Re-encoding
 // indefinite-length CBOR changes its bytes.
 func TestVerifyDeviceAuthEmbedsTheTranscriptVerbatim(t *testing.T) {
@@ -155,7 +133,8 @@ func TestVerifyDeviceAuthEmbedsTheTranscriptVerbatim(t *testing.T) {
 		}},
 		DeviceSigned: &DeviceSigned{
 			DeviceAuth:         map[string]any{"deviceSignature": []any{}},
-			RawDeviceSignature: signDeviceAuthVerbatim(t, key, transcript, testDocType),
+			RawDeviceSignature: signDeviceAuthWith(t, key, cose.AlgorithmES256, transcript, testDocType, emptyDeviceNameSpaces(t)),
+			RawNameSpaces:      emptyDeviceNameSpaces(t),
 		},
 	}
 	if err := VerifyDeviceAuth(doc, transcript); err != nil {
@@ -174,6 +153,7 @@ func signedDoc(t *testing.T, key *ecdsa.PrivateKey, transcript []byte) *Document
 		DeviceSigned: &DeviceSigned{
 			DeviceAuth:         map[string]any{"deviceSignature": []any{}},
 			RawDeviceSignature: signDeviceAuth(t, key, transcript, testDocType),
+			RawNameSpaces:      emptyDeviceNameSpaces(t),
 		},
 	}
 }
@@ -360,27 +340,44 @@ func TestDeviceKeyErrors(t *testing.T) {
 	}
 }
 
-// A device key on a curve other than P-256 must be refused.
-func TestDeviceKeyRejectsANonP256Curve(t *testing.T) {
+// The device signature covers the DeviceNameSpacesBytes as received, and its
+// protected header names the algorithm.
+func TestVerifyDeviceAuthUsesTheReceivedNameSpacesAndAlgorithm(t *testing.T) {
 	p384, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
-	coseKey, err := cose.NewKeyEC2(cose.AlgorithmES384,
-		p384.X.FillBytes(make([]byte, 48)), p384.Y.FillBytes(make([]byte, 48)), nil)
+	coseKey, err := cose.NewKeyFromPublic(&p384.PublicKey)
 	if err != nil {
 		t.Fatal(err)
 	}
-	encoded, err := coseKey.MarshalCBOR()
+	keyCBOR, err := coseKey.MarshalCBOR()
 	if err != nil {
 		t.Fatal(err)
 	}
+	nameSpaces, err := tag24(map[string]any{testDocType: map[string]any{"device_claim": "signed by the holder"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	transcript := transcriptFor(t, "nonce")
+	doc := &Document{
+		DocType: testDocType,
+		IssuerAuth: &IssuerAuth{MSO: &MSO{
+			DeviceKeyInfo: map[string]any{"deviceKey": map[string]any{}},
+			DeviceKeyCBOR: keyCBOR,
+		}},
+		DeviceSigned: &DeviceSigned{
+			DeviceAuth:         map[string]any{"deviceSignature": []any{}},
+			RawDeviceSignature: signDeviceAuthWith(t, p384, cose.AlgorithmES384, transcript, testDocType, nameSpaces),
+			RawNameSpaces:      nameSpaces,
+		},
+	}
+	if err := VerifyDeviceAuth(doc, transcript); err != nil {
+		t.Fatalf("an ES384 signature over non-empty device namespaces did not verify: %v", err)
+	}
 
-	doc := signedDoc(t, testKey(t), transcriptFor(t, "nonce"))
-	doc.IssuerAuth.MSO.DeviceKeyCBOR = encoded
-
-	_, err = DeviceKey(doc)
-	if err == nil || !strings.Contains(err.Error(), "not P-256") {
-		t.Errorf("error = %v, want it to refuse the curve", err)
+	doc.DeviceSigned.RawNameSpaces = emptyDeviceNameSpaces(t)
+	if err := VerifyDeviceAuth(doc, transcript); err == nil {
+		t.Error("a signature over other device namespaces verified")
 	}
 }

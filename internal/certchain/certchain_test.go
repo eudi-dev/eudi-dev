@@ -68,8 +68,9 @@ func TestFromX5C(t *testing.T) {
 	b64 := func(c *x509.Certificate) string { return base64.StdEncoding.EncodeToString(c.Raw) }
 
 	for name, value := range map[string]any{
-		"strings": []string{b64(leaf), b64(ca)},
-		"JSON":    []any{b64(leaf), b64(ca)},
+		"strings":  []string{b64(leaf), b64(ca)},
+		"JSON":     []any{b64(leaf), b64(ca)},
+		"unpadded": []any{base64.RawStdEncoding.EncodeToString(leaf.Raw), base64.RawStdEncoding.EncodeToString(ca.Raw)},
 	} {
 		certs, err := FromX5C(value)
 		if err != nil || len(certs) != 2 || certs[0].Subject.String() != leaf.Subject.String() {

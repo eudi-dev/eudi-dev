@@ -32,6 +32,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
@@ -230,30 +231,12 @@ type compactJWT struct {
 }
 
 func parseCompactJWT(raw string) (*compactJWT, error) {
-	parts := strings.Split(strings.TrimSpace(raw), ".")
-	if len(parts) != 3 {
-		return nil, fmt.Errorf("not a compact JWT")
-	}
-	decode := func(part string, target *map[string]any) error {
-		data, err := base64.RawURLEncoding.DecodeString(part)
-		if err != nil {
-			return err
-		}
-		return json.Unmarshal(data, target)
-	}
-	jwt := &compactJWT{signingInput: parts[0] + "." + parts[1]}
-	if err := decode(parts[0], &jwt.header); err != nil {
-		return nil, fmt.Errorf("decoding JWT header: %w", err)
-	}
-	if err := decode(parts[1], &jwt.payload); err != nil {
-		return nil, fmt.Errorf("decoding JWT payload: %w", err)
-	}
-	sig, err := base64.RawURLEncoding.DecodeString(parts[2])
+	raw = strings.TrimSpace(raw)
+	header, payload, sig, err := format.ParseJWTParts(raw)
 	if err != nil {
-		return nil, fmt.Errorf("decoding JWT signature: %w", err)
+		return nil, err
 	}
-	jwt.signature = sig
-	return jwt, nil
+	return &compactJWT{header: header, payload: payload, signature: sig, signingInput: raw[:strings.LastIndex(raw, ".")]}, nil
 }
 
 // jws.Valid only accepts a compact JWT, so the signature is encoded again.

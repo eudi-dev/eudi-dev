@@ -21,11 +21,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/output"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/qr"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/trustlist"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/validate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/web"
@@ -42,9 +40,10 @@ var decodeCmd = &cobra.Command{
 	Short: "Auto-detect and decode credentials and OpenID4VCI/VP requests",
 	Long: `Decode and inspect verifiable credentials (JWT, SD-JWT, mdoc), OpenID4VCI/VP requests, and ETSI trusted lists.
 
-This is a read-only inspection tool. It parses and displays the content, and
-automatically verifies JWT/SD-JWT signatures when issuer metadata can be resolved
-from iss+kid. Use 'validate' for explicit keys, trusted lists, and revocation checks.
+This is a read-only inspection tool. It parses and displays the content and runs
+the checks of the web decoder. It verifies the signature with the embedded
+certificate or the issuer metadata. Use 'validate' for explicit keys, trusted
+lists, and revocation checks.
 
 Accepts:
   - Credential strings: SD-JWT, JWT, mdoc (hex or base64url)
@@ -136,54 +135,8 @@ func runDecode(cmd *cobra.Command, args []string) error {
 	}
 
 	switch detected {
-	case format.FormatSDJWT:
-		if opts.JSON {
-			result, err := web.Validate(raw, web.ValidateOpts{})
-			if err != nil {
-				return err
-			}
-			output.PrintJSON(result)
-			return nil
-		}
-		// Inspect keeps malformed credentials visible and records their
-		// deviations.
-		token, err := sdjwt.Inspect(raw)
-		if err != nil {
-			return fmt.Errorf("parsing SD-JWT: %w", err)
-		}
-		output.PrintSDJWT(token, opts)
-		printAutoVerifyResult(token, opts)
-
-	case format.FormatJWT:
-		if opts.JSON {
-			result, err := web.Validate(raw, web.ValidateOpts{})
-			if err != nil {
-				return err
-			}
-			output.PrintJSON(result)
-			return nil
-		}
-		token, err := sdjwt.Inspect(raw)
-		if err != nil {
-			return fmt.Errorf("parsing JWT: %w", err)
-		}
-		output.PrintJWT(token, opts)
-		printAutoVerifyResult(token, opts)
-
-	case format.FormatMDOC:
-		if opts.JSON {
-			result, err := web.Validate(raw, web.ValidateOpts{})
-			if err != nil {
-				return err
-			}
-			output.PrintJSON(result)
-			return nil
-		}
-		doc, err := mdoc.Parse(raw)
-		if err != nil {
-			return fmt.Errorf("parsing mdoc: %w", err)
-		}
-		output.PrintMDOC(doc, opts)
+	case format.FormatSDJWT, format.FormatJWT, format.FormatMDOC:
+		return decodeCredential(raw, opts)
 
 	case format.FormatOID4VCI, format.FormatOID4VP:
 		return decodeOID4(raw, opts)
@@ -194,8 +147,6 @@ func runDecode(cmd *cobra.Command, args []string) error {
 	default:
 		return fmt.Errorf("unable to auto-detect format (not a credential, OpenID4VCI/VP request, or trusted list)")
 	}
-
-	return nil
 }
 
 func decodeOID4(raw string, opts output.Options) error {
@@ -236,22 +187,38 @@ func isHTTPURL(s string) bool {
 	return strings.HasPrefix(lower, "https://") || strings.HasPrefix(lower, "http://")
 }
 
-func printAutoVerifyResult(token *sdjwt.Token, opts output.Options) {
-	result, _, err := validate.VerifyJWTSignature(token, nil, nil)
-	if result != nil {
-		output.PrintVerifyResultSDJWT(result, opts)
-		return
+// decodeCredential runs the decoder's validation, so text and JSON report the
+// same checks. Validation keeps malformed credentials visible and records
+// their deviations as failed checks.
+func decodeCredential(raw string, opts output.Options) error {
+	if opts.JSON {
+		result, err := web.Validate(raw, web.ValidateOpts{})
+		if err != nil {
+			return err
+		}
+		output.PrintJSON(result)
+		return nil
 	}
-	if err == nil {
-		return
+	result, err := validate.Credential(raw, validate.Trust{}, validate.Options{})
+	if err != nil {
+		return err
 	}
+	printCredential(result, opts)
+	fmt.Println("\n  Checks:")
+	for _, c := range result.Checks {
+		fmt.Printf("    %s %s: %s\n", checkMark(c.Status), c.Name, c.Detail)
+	}
+	return nil
+}
 
-	failed := &sdjwt.VerifyResult{
-		SignatureValid: false,
-		Algorithm:      fmt.Sprint(token.Header["alg"]),
-		KeyID:          fmt.Sprint(token.Header["kid"]),
-		Issuer:         fmt.Sprint(token.Payload["iss"]),
-		Errors:         []string{err.Error()},
+func checkMark(status string) string {
+	switch status {
+	case validate.Pass:
+		return "✓"
+	case validate.Fail:
+		return "✗"
+	case validate.Warning:
+		return "!"
 	}
-	output.PrintVerifyResultSDJWT(failed, opts)
+	return "–"
 }

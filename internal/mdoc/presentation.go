@@ -17,7 +17,6 @@ package mdoc
 import (
 	"bytes"
 	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/sha256"
 	"crypto/sha512"
 	"crypto/x509"
@@ -28,7 +27,7 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"github.com/veraison/go-cose"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 )
 
 // VerifyValueDigests checks the disclosed items against the digests in the MSO.
@@ -87,19 +86,17 @@ func VerifyDeviceAuth(doc *Document, sessionTranscript []byte) error {
 	}
 
 	// DeviceAuthentication = ["DeviceAuthentication", SessionTranscript,
-	// DocType, DeviceNameSpacesBytes]. The payload is Tag24 of its CBOR.
-	// The wallet sends empty DeviceNameSpaces.
-	emptyNamespaces, err := tag24(map[string]any{})
-	if err != nil {
-		return err
+	// DocType, DeviceNameSpacesBytes]. The payload is Tag24 of its CBOR. The
+	// holder signed the session transcript and the namespaces bytes verbatim,
+	// and re-encoding breaks an mdoc handover that carries a map or a tag.
+	if len(doc.DeviceSigned.RawNameSpaces) == 0 {
+		return fmt.Errorf("deviceSigned carries no nameSpaces")
 	}
-	// The holder signed the session transcript bytes verbatim. Re-encoding them
-	// breaks an mdoc handover that carries a map or a tag.
 	if err := cbor.Wellformed(sessionTranscript); err != nil {
 		return fmt.Errorf("the session transcript is not valid CBOR: %w", err)
 	}
 	authentication, err := cbor.Marshal([]any{
-		"DeviceAuthentication", cbor.RawMessage(sessionTranscript), doc.DocType, cbor.RawMessage(emptyNamespaces),
+		"DeviceAuthentication", cbor.RawMessage(sessionTranscript), doc.DocType, cbor.RawMessage(doc.DeviceSigned.RawNameSpaces),
 	})
 	if err != nil {
 		return fmt.Errorf("encoding DeviceAuthentication: %w", err)
@@ -114,7 +111,11 @@ func VerifyDeviceAuth(doc *Document, sessionTranscript []byte) error {
 	if err := msg.UnmarshalCBOR(doc.DeviceSigned.RawDeviceSignature); err != nil {
 		return fmt.Errorf("parsing the device signature: %w", err)
 	}
-	verifier, err := cose.NewVerifier(cose.AlgorithmES256, deviceKey)
+	alg, err := msg.Headers.Protected.Algorithm()
+	if err != nil {
+		return fmt.Errorf("the device signature names no algorithm: %w", err)
+	}
+	verifier, err := NewCOSEVerifier(alg, deviceKey)
 	if err != nil {
 		return fmt.Errorf("creating the device signature verifier: %w", err)
 	}
@@ -154,8 +155,8 @@ func DeviceKey(doc *Document) (*ecdsa.PublicKey, error) {
 	if !ok {
 		return nil, fmt.Errorf("device key is %T, not an EC2 key", pub)
 	}
-	if ecPub.Curve != elliptic.P256() {
-		return nil, fmt.Errorf("device key curve %s is not P-256", ecPub.Curve.Params().Name)
+	if _, err := ecPub.ECDH(); err != nil {
+		return nil, fmt.Errorf("device key is not a point on %s", ecPub.Curve.Params().Name)
 	}
 	return ecPub, nil
 }
@@ -209,16 +210,11 @@ func DeviceKeyThumbprint(key *ecdsa.PublicKey) string {
 	if key == nil {
 		return ""
 	}
-	x, y, err := format.ECPublicCoords(key)
+	sum, err := keys.PublicKeyThumbprint(key)
 	if err != nil {
 		return ""
 	}
-	canonical := fmt.Sprintf(`{"crv":%q,"kty":"EC","x":%q,"y":%q}`,
-		key.Curve.Params().Name,
-		base64.RawURLEncoding.EncodeToString(x),
-		base64.RawURLEncoding.EncodeToString(y))
-	sum := sha256.Sum256([]byte(canonical))
-	return base64.RawURLEncoding.EncodeToString(sum[:])
+	return base64.RawURLEncoding.EncodeToString(sum)
 }
 
 func ItemDigest(doc *Document, namespace string, item IssuerSignedItem) (got, want []byte, err error) {
@@ -242,11 +238,6 @@ var coseHeaderLabels = map[int64]string{
 	32: "x5bag", 33: "x5chain", 34: "x5t", 35: "x5u",
 }
 
-var coseAlgLabels = map[int64]string{
-	-7: "ES256", -35: "ES384", -36: "ES512", -8: "EdDSA",
-	-257: "RS256", -258: "RS384", -259: "RS512",
-}
-
 // NameCOSEHeader replaces numeric COSE labels with registered names for display.
 func NameCOSEHeader(header map[string]any) map[string]any {
 	if len(header) == 0 {
@@ -260,8 +251,8 @@ func NameCOSEHeader(header map[string]any) map[string]any {
 				label = name
 			}
 			if n == 1 {
-				if alg, ok := coseAlgLabels[coseInt(value)]; ok {
-					value = alg
+				if alg, ok := coseAlgorithms[cose.Algorithm(coseInt(value))]; ok {
+					value = alg.name
 				}
 			}
 		}
@@ -333,8 +324,8 @@ func NameCOSEKey(key map[string]any) map[string]any {
 				v = base64.RawURLEncoding.EncodeToString(b)
 			}
 		case "alg":
-			if s, ok := coseAlgLabels[coseInt(v)]; ok {
-				v = s
+			if alg, ok := coseAlgorithms[cose.Algorithm(coseInt(v))]; ok {
+				v = alg.name
 			}
 		}
 		out[name] = v

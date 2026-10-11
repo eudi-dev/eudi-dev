@@ -24,7 +24,7 @@
 // directly. The aka_vcts claim (§2.2.2.2) states further types in the
 // credential itself, and Chain reads it.
 //
-// Inheritance grants no issuing authority (§6.6: "Verifiers and Holders MUST
+// Inheritance grants no issuing authority (§7.7: "Verifiers and Holders MUST
 // NOT assume that any issuer who issues a credential extending a known type is
 // authorized to do so").
 package credtype

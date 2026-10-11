@@ -16,31 +16,52 @@ package validate
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
 )
 
-// CheckSDJWTIntegrity checks that every disclosure has its digest in the
-// payload or in another disclosure (RFC 9901 §7.1 step 4).
+// CheckSDJWTIntegrity reports the RFC 9901 §7.1 processing of the
+// disclosures: "If any step fails, the SD-JWT is not valid, and processing
+// MUST be aborted." Parsing records each failed step as a deviation, such as a
+// repeated digest (step 4) or a disclosure the credential does not reference
+// (step 5). It adds the SD-JWT VC rule that registered claims stay in the
+// Issuer-signed JWT.
 func CheckSDJWTIntegrity(token *sdjwt.Token) Check {
+	findings := append(append([]string{}, token.Deviations...), disclosedRegisteredClaims(token)...)
+	if len(findings) > 0 {
+		return Check{Name: CheckIntegrity, Status: Fail, Detail: strings.Join(findings, ". ")}
+	}
 	if len(token.Disclosures) == 0 {
 		return Check{Name: CheckIntegrity, Status: Skipped, Detail: "No disclosures to verify"}
 	}
+	n := len(token.Disclosures)
+	return Check{Name: CheckIntegrity, Status: Pass, Detail: fmt.Sprintf("%d/%d disclosure digests verified", n, n)}
+}
 
-	referenced := sdjwt.ReferencedDigests(token)
-	matched := 0
-	total := len(token.Disclosures)
-	for _, d := range token.Disclosures {
-		if referenced[d.Digest] {
-			matched++
+// registeredClaims are the claims of draft-ietf-oauth-sd-jwt-vc-19 §2.2.2.3:
+// "The following registered JWT claims, including any of their sub-claims,
+// when used in the SD-JWT component of an SD-JWT VC, MUST NOT be included in
+// Disclosures and therefore MUST NOT be selectively disclosed".
+var registeredClaims = []string{"iss", "nbf", "exp", "cnf", "vct", "vct#integrity", "aka_vcts", "status"}
+
+// disclosedRegisteredClaims names the registered claims that a disclosure
+// provides, or whose signed value holds digests of sub-claims.
+func disclosedRegisteredClaims(token *sdjwt.Token) []string {
+	var findings []string
+	for _, name := range registeredClaims {
+		signed, isSigned := token.Payload[name]
+		_, resolved := token.ResolvedClaims[name]
+		switch {
+		case !isSigned && resolved:
+			findings = append(findings, fmt.Sprintf("the claim %s is selectively disclosed, which draft-ietf-oauth-sd-jwt-vc-19 §2.2.2.3 does not allow", name))
+		case isSigned && len(sdjwt.ReferencedDigests(&sdjwt.Token{Payload: map[string]any{name: signed}})) > 0:
+			findings = append(findings, fmt.Sprintf("the claim %s has selectively disclosable sub-claims, which draft-ietf-oauth-sd-jwt-vc-19 §2.2.2.3 does not allow", name))
 		}
 	}
-
-	if matched == total {
-		return Check{Name: CheckIntegrity, Status: Pass, Detail: fmt.Sprintf("%d/%d disclosure digests verified", matched, total)}
-	}
-	return Check{Name: CheckIntegrity, Status: Fail, Detail: fmt.Sprintf("%d/%d disclosure digests matched", matched, total)}
+	return findings
 }
 
 // CheckSDJWTType verifies the typ header parameter of the Issuer-signed JWT.
@@ -52,7 +73,7 @@ func CheckSDJWTType(token *sdjwt.Token) Check {
 		return Check{Name: CheckType, Status: Fail, Detail: err.Error()}
 	}
 	typ, _ := token.Header["typ"].(string)
-	if typ == sdjwt.TypeSDJWTVCLegacy {
+	if format.JOSETypeIs(typ, sdjwt.TypeSDJWTVCLegacy) {
 		return Check{Name: CheckType, Status: Fail, Detail: fmt.Sprintf("the typ header is %s, draft-ietf-oauth-sd-jwt-vc-19 §2.2.1 requires %s", typ, sdjwt.TypeSDJWTVC)}
 	}
 	return Check{Name: CheckType, Status: Pass, Detail: typ}
@@ -60,8 +81,12 @@ func CheckSDJWTType(token *sdjwt.Token) Check {
 
 // CheckMDOCIntegrity hashes the complete IssuerSignedItem encodings and
 // compares them with the MSO valueDigests. The issuer signature covers only
-// the MSO, so this check binds the element values to it.
+// the MSO, so this check binds the element values to it. A part the parser
+// could not read, or a docType that differs from the signed one, fails it.
 func CheckMDOCIntegrity(doc *mdoc.Document) Check {
+	if len(doc.Deviations) > 0 {
+		return Check{Name: CheckIntegrity, Status: Fail, Detail: strings.Join(doc.Deviations, ". ")}
+	}
 	if doc.IssuerAuth == nil || doc.IssuerAuth.MSO == nil {
 		return Check{Name: CheckIntegrity, Status: Skipped, Detail: "No MSO available for digest verification"}
 	}

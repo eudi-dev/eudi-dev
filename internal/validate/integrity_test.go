@@ -17,145 +17,12 @@ package validate
 import (
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"testing"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
 )
-
-func TestCheckSDJWTIntegrity_AllMatch(t *testing.T) {
-	discRaw1 := base64.RawURLEncoding.EncodeToString([]byte(`["salt1","name","Alice"]`))
-	discRaw2 := base64.RawURLEncoding.EncodeToString([]byte(`["salt2","age",30]`))
-
-	digest1 := sha256Sum(discRaw1)
-	digest2 := sha256Sum(discRaw2)
-
-	token := &sdjwt.Token{
-		Payload: map[string]any{
-			"_sd_alg": "sha-256",
-			"_sd":     []any{digest1, digest2},
-		},
-		Disclosures: []sdjwt.Disclosure{
-			{Raw: discRaw1, Name: "name", Value: "Alice", Digest: digest1},
-			{Raw: discRaw2, Name: "age", Value: float64(30), Digest: digest2},
-		},
-	}
-
-	result := CheckSDJWTIntegrity(token)
-	if result.Status != "pass" {
-		t.Errorf("expected pass, got %s: %s", result.Status, result.Detail)
-	}
-}
-
-func TestCheckSDJWTIntegrity_Mismatch(t *testing.T) {
-	discRaw := base64.RawURLEncoding.EncodeToString([]byte(`["salt","name","Alice"]`))
-	digest := sha256Sum(discRaw)
-
-	token := &sdjwt.Token{
-		Payload: map[string]any{
-			"_sd": []any{"wrong-digest"},
-		},
-		Disclosures: []sdjwt.Disclosure{
-			{Raw: discRaw, Name: "name", Value: "Alice", Digest: digest},
-		},
-	}
-
-	result := CheckSDJWTIntegrity(token)
-	if result.Status != "fail" {
-		t.Errorf("expected fail, got %s: %s", result.Status, result.Detail)
-	}
-}
-
-func TestCheckSDJWTIntegrity_NoDisclosures(t *testing.T) {
-	token := &sdjwt.Token{
-		Payload: map[string]any{"sub": "user"},
-	}
-
-	result := CheckSDJWTIntegrity(token)
-	if result.Status != "skipped" {
-		t.Errorf("expected skipped, got %s", result.Status)
-	}
-}
-
-func TestCheckSDJWTIntegrity_NestedSD(t *testing.T) {
-	discRaw := base64.RawURLEncoding.EncodeToString([]byte(`["salt","email","test@example.com"]`))
-	digest := sha256Sum(discRaw)
-
-	token := &sdjwt.Token{
-		Payload: map[string]any{
-			"address": map[string]any{
-				"_sd": []any{digest},
-			},
-		},
-		Disclosures: []sdjwt.Disclosure{
-			{Raw: discRaw, Name: "email", Value: "test@example.com", Digest: digest},
-		},
-	}
-
-	result := CheckSDJWTIntegrity(token)
-	if result.Status != "pass" {
-		t.Errorf("expected pass for nested _sd, got %s: %s", result.Status, result.Detail)
-	}
-}
-
-func TestCheckSDJWTIntegrity_NestedDisclosureValue(t *testing.T) {
-	// The address disclosure contains the locality digest in its own _sd array.
-
-	addressDiscRaw := base64.RawURLEncoding.EncodeToString([]byte(`["salt-addr","address",{"_sd":["LOCALITY_DIGEST_PLACEHOLDER"]}]`))
-	addressDigest := sha256Sum(addressDiscRaw)
-
-	localityDiscRaw := base64.RawURLEncoding.EncodeToString([]byte(`["salt-loc","locality","KOELN"]`))
-	localityDigest := sha256Sum(localityDiscRaw)
-
-	addressValue := map[string]any{
-		"_sd": []any{localityDigest},
-	}
-
-	token := &sdjwt.Token{
-		Payload: map[string]any{
-			"_sd_alg": "sha-256",
-			"_sd":     []any{addressDigest},
-		},
-		Disclosures: []sdjwt.Disclosure{
-			{Raw: addressDiscRaw, Name: "address", Value: addressValue, Digest: addressDigest},
-			{Raw: localityDiscRaw, Name: "locality", Value: "KOELN", Digest: localityDigest},
-		},
-	}
-
-	result := CheckSDJWTIntegrity(token)
-	if result.Status != "pass" {
-		t.Errorf("expected pass for nested disclosure value with _sd, got %s: %s", result.Status, result.Detail)
-	}
-}
-
-func TestCheckSDJWTIntegrity_NestedArrayDisclosure(t *testing.T) {
-	// The array disclosure contains element digest placeholders.
-
-	subDiscRaw := base64.RawURLEncoding.EncodeToString([]byte(`["salt-de","DE"]`))
-	subDigest := sha256Sum(subDiscRaw)
-
-	natDiscRaw := base64.RawURLEncoding.EncodeToString([]byte(`["salt-nat","nationalities",[]]`))
-	natDigest := sha256Sum(natDiscRaw)
-
-	natValue := []any{
-		map[string]any{"...": subDigest},
-	}
-
-	token := &sdjwt.Token{
-		Payload: map[string]any{
-			"_sd": []any{natDigest},
-		},
-		Disclosures: []sdjwt.Disclosure{
-			{Raw: natDiscRaw, Name: "nationalities", Value: natValue, Digest: natDigest},
-			{Raw: subDiscRaw, Value: "DE", Digest: subDigest, IsArrayEntry: true},
-		},
-	}
-
-	result := CheckSDJWTIntegrity(token)
-	if result.Status != "pass" {
-		t.Errorf("expected pass for nested array disclosure, got %s: %s", result.Status, result.Detail)
-	}
-}
 
 func TestCheckMDOCIntegrity_AllMatch(t *testing.T) {
 	rawCBOR1 := []byte{0xa4, 0x01, 0x02, 0x03, 0x04}
@@ -259,27 +126,6 @@ func sha256Sum(s string) string {
 	return base64.RawURLEncoding.EncodeToString(h[:])
 }
 
-func TestCheckSDJWTIntegrity_ArrayElementDisclosure(t *testing.T) {
-	discRaw := base64.RawURLEncoding.EncodeToString([]byte(`["salt","item1"]`))
-	digest := sha256Sum(discRaw)
-
-	token := &sdjwt.Token{
-		Payload: map[string]any{
-			"items": []any{
-				map[string]any{"...": digest},
-			},
-		},
-		Disclosures: []sdjwt.Disclosure{
-			{Raw: discRaw, Value: "item1", Digest: digest, IsArrayEntry: true},
-		},
-	}
-
-	result := CheckSDJWTIntegrity(token)
-	if result.Status != "pass" {
-		t.Errorf("expected pass for array element, got %s: %s", result.Status, result.Detail)
-	}
-}
-
 func TestCheckMDOCIntegrity_Tag24EncodedRawCBOR(t *testing.T) {
 	// MSO ValueDigests hash the full Tag-24 encoding (#6.24(bstr)).
 	innerCBOR := []byte{0xa4, 0x01, 0x02, 0x03, 0x04}
@@ -341,5 +187,91 @@ func TestCheckMDOCIntegrity_Tag24FailsWithInnerBytesDigest(t *testing.T) {
 	result := CheckMDOCIntegrity(doc)
 	if result.Status != "fail" {
 		t.Errorf("expected fail when digest is over inner bytes but RawCBOR is Tag-24, got %s: %s", result.Status, result.Detail)
+	}
+}
+
+// disclosed returns a disclosure and its sha-256 digest.
+func disclosed(t *testing.T, elements ...any) (string, string) {
+	t.Helper()
+	encoded, err := json.Marshal(elements)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw := base64.RawURLEncoding.EncodeToString(encoded)
+	return raw, sha256Sum(raw)
+}
+
+// inspected parses an unsigned SD-JWT the way validate reads one.
+func inspected(t *testing.T, payload map[string]any, disclosures ...string) *sdjwt.Token {
+	t.Helper()
+	header, err := json.Marshal(map[string]any{"alg": "ES256", "typ": "dc+sd-jwt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw := base64.RawURLEncoding.EncodeToString(header) + "." + base64.RawURLEncoding.EncodeToString(body) + ".c2ln~"
+	for _, d := range disclosures {
+		raw += d + "~"
+	}
+	token, err := sdjwt.Inspect(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return token
+}
+
+func TestCheckSDJWTIntegrity(t *testing.T) {
+	name, nameDigest := disclosed(t, "salt1", "name", "Alice")
+	age, ageDigest := disclosed(t, "salt2", "age", 30)
+	locality, localityDigest := disclosed(t, "salt3", "locality", "KOELN")
+	address, addressDigest := disclosed(t, "salt4", "address", map[string]any{"_sd": []any{localityDigest}})
+	de, deDigest := disclosed(t, "salt5", "DE")
+	nationalities, nationalitiesDigest := disclosed(t, "salt6", "nationalities", []any{map[string]any{"...": deDigest}})
+	exp, expDigest := disclosed(t, "salt7", "exp", 1893456000)
+	status, statusDigest := disclosed(t, "salt8", "status", map[string]any{"status_list": map[string]any{"idx": 0, "uri": "https://example.com/sl"}})
+	jwk, jwkDigest := disclosed(t, "salt9", "jwk", map[string]any{"kty": "EC"})
+
+	tests := []struct {
+		name        string
+		payload     map[string]any
+		disclosures []string
+		want        string
+	}{
+		{"all referenced", map[string]any{"_sd": []any{nameDigest, ageDigest}}, []string{name, age}, Pass},
+		{"no disclosures", map[string]any{"sub": "user"}, nil, Skipped},
+		{"nested _sd", map[string]any{"address": map[string]any{"_sd": []any{nameDigest}}}, []string{name}, Pass},
+		{"digest inside a disclosure", map[string]any{"_sd": []any{addressDigest}}, []string{address, locality}, Pass},
+		{"array element inside a disclosure", map[string]any{"_sd": []any{nationalitiesDigest}}, []string{nationalities, de}, Pass},
+		{"array element", map[string]any{"items": []any{map[string]any{"...": deDigest}}}, []string{de}, Pass},
+		// RFC 9901 §7.1 step 5.
+		{"unreferenced disclosure", map[string]any{"_sd": []any{"wrong-digest"}}, []string{name}, Fail},
+		// RFC 9901 §4.2.4.2 permits only the ... key in a digest placeholder.
+		{"placeholder with an extra key", map[string]any{"items": []any{map[string]any{"...": deDigest, "hint": "DE"}}}, []string{de}, Fail},
+		// RFC 9901 §4: a Holder MUST NOT send a Disclosure more than once.
+		{"disclosure sent twice", map[string]any{"_sd": []any{nameDigest}}, []string{name, name}, Fail},
+		// RFC 9901 §7.1 step 4.
+		{"digest repeated", map[string]any{"_sd": []any{nameDigest}, "address": map[string]any{"_sd": []any{nameDigest}}}, []string{name}, Fail},
+		// draft-ietf-oauth-sd-jwt-vc-19 §2.2.2.3.
+		{"disclosed exp", map[string]any{"_sd": []any{expDigest}}, []string{exp}, Fail},
+		{"disclosed status", map[string]any{"_sd": []any{statusDigest}}, []string{status}, Fail},
+		{"disclosable cnf sub-claim", map[string]any{"cnf": map[string]any{"_sd": []any{jwkDigest}}}, []string{jwk}, Fail},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := CheckSDJWTIntegrity(inspected(t, tt.payload, tt.disclosures...))
+			if got.Status != tt.want {
+				t.Errorf("Status = %q (%s), want %q", got.Status, got.Detail, tt.want)
+			}
+		})
+	}
+}
+
+func TestCheckMDOCIntegrity_FailsOnParseDeviations(t *testing.T) {
+	doc := &mdoc.Document{Deviations: []string{`the document names docType "org.iso.18013.5.1.mDL", but the issuer signed "eu.europa.ec.eudi.pid.1" in the MSO`}}
+	if got := CheckMDOCIntegrity(doc); got.Status != Fail {
+		t.Errorf("Status = %q (%s), want fail", got.Status, got.Detail)
 	}
 }

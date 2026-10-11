@@ -40,14 +40,25 @@ func (w *Wallet) catalogueEntryFor(format string, types []string) (registrar.Cat
 }
 
 func catalogueEntryIn(entries []registrar.CatalogAttestation, format string, types []string) (registrar.CatalogAttestation, bool) {
+	matches := catalogueEntriesIn(entries, format, types)
+	if len(matches) == 0 {
+		return registrar.CatalogAttestation{}, false
+	}
+	return matches[0], true
+}
+
+// catalogueEntriesIn returns every catalogue entry that lists format with one
+// of the types.
+func catalogueEntriesIn(entries []registrar.CatalogAttestation, format string, types []string) []registrar.CatalogAttestation {
+	var matches []registrar.CatalogAttestation
 	for _, entry := range entries {
 		if slices.ContainsFunc(entry.Credentials, func(c registrar.CatalogCredential) bool {
 			return c.Format == format && slices.Contains(types, c.Type)
 		}) {
-			return entry, true
+			matches = append(matches, entry)
 		}
 	}
-	return registrar.CatalogAttestation{}, false
+	return matches
 }
 
 // catalogueFindings reports offered attestations that are missing from the
@@ -119,27 +130,40 @@ func (w *Wallet) CheckCatalogueAnchoring(raw string) (anchoring CatalogueAnchori
 // the wallet has the anchors. PID and PuB-EAA lists on the list of trusted
 // lists count too, because ETSI TS 119 602 V1.1.1 gives them a type (Annexes D
 // and H).
+//
+// Several entries can list one type. Every national PID lists the mdoc doctype
+// eu.europa.ec.eudi.pid.1. Their lists together anchor the credential, and
+// the one entry that links the anchoring list names it. When several entries
+// match and no single one links that list, the result names none.
 func (w *Wallet) catalogueAnchoring(cred StoredCredential) (CatalogueAnchoring, bool) {
-	types := []string{cred.VCT, cred.DocType}
-	entry, ok := w.catalogueEntryFor(cred.Format, types)
-	if !ok {
+	entries := catalogueEntriesIn(w.Registrar().CatalogAttestations(), cred.Format, []string{cred.VCT, cred.DocType})
+	if len(entries) == 0 {
 		return CatalogueAnchoring{}, false
 	}
-	result := CatalogueAnchoring{Entry: entry.Name, Category: registrar.CategoryOf(entry.Category).ID}
-	rule := registrar.CategoryOf(entry.Category).TrustRule
+	category := registrar.CategoryOf(entries[0].Category)
+	result := CatalogueAnchoring{Category: category.ID}
+	if len(entries) == 1 {
+		result.Entry = entries[0].Name
+	}
+	described := "its catalogue entries"
+	if result.Entry != "" {
+		described = fmt.Sprintf("its catalogue entry %q", result.Entry)
+	}
+	rule := category.TrustRule
 	eaa := rule == registrar.CategoryOf(credtemplate.CategoryEAA).TrustRule
 	var candidates []trustedList
-	for _, authority := range entry.Schema.TrustedAuthorities {
-		// The wallet reads lists of trusted entities (ETSI TS 119 602) only.
-		if authority.FrameworkType == "etsi_tl" && authority.IsLOTE != nil && *authority.IsLOTE && authority.Value != "" {
-			list, err := w.readTrustedList(authority.Value)
-			candidates = append(candidates, trustedList{URL: authority.Value, List: list, Err: err})
+	for _, entry := range entries {
+		for _, authority := range entry.Schema.TrustedAuthorities {
+			// The wallet reads lists of trusted entities (ETSI TS 119 602) only.
+			if authority.FrameworkType == "etsi_tl" && authority.IsLOTE != nil && *authority.IsLOTE && authority.Value != "" && !listedIn(candidates, authority.Value) {
+				list, err := w.readTrustedList(authority.Value)
+				candidates = append(candidates, trustedList{URL: authority.Value, List: list, Err: err})
+			}
 		}
 	}
-	if listType := categoryListType(entry.Category); listType != "" {
+	if listType := categoryListType(entries[0].Category); listType != "" {
 		for _, tl := range w.trustedLists() {
-			linked := slices.ContainsFunc(candidates, func(c trustedList) bool { return c.URL == tl.URL })
-			if tl.Err == nil && tl.List.SchemeInfo.LoTEType == listType && !linked {
+			if tl.Err == nil && tl.List.SchemeInfo.LoTEType == listType && !listedIn(candidates, tl.URL) {
 				candidates = append(candidates, tl)
 			}
 		}
@@ -151,7 +175,7 @@ func (w *Wallet) catalogueAnchoring(cred StoredCredential) (CatalogueAnchoring, 
 		switch {
 		case c.Err != nil && eaa:
 			// ISSU_10 needs anchors, so the list is only a warning.
-			result.Warnings = append(result.Warnings, fmt.Sprintf("The trusted list %s of the catalogue entry %q gives no anchors: %v", c.URL, entry.Name, c.Err))
+			result.Warnings = append(result.Warnings, fmt.Sprintf("The trusted list %s of %s gives no anchors: %v", c.URL, described, c.Err))
 			continue
 		case c.Err != nil:
 			problems = append(problems, fmt.Sprintf("%s (%v)", c.URL, c.Err))
@@ -170,6 +194,9 @@ func (w *Wallet) catalogueAnchoring(cred StoredCredential) (CatalogueAnchoring, 
 			result.AnchoredBy = c.URL
 			result.IssuanceAnchors = issuance
 			result.StatusAnchors = revocation
+			if linking := entriesLinking(entries, c.URL); len(linking) == 1 {
+				result.Entry = linking[0].Name
+			}
 			return result, true
 		}
 		problems = append(problems, fmt.Sprintf("%s (%v)", c.URL, err))
@@ -177,11 +204,26 @@ func (w *Wallet) catalogueAnchoring(cred StoredCredential) (CatalogueAnchoring, 
 	switch {
 	case !read && eaa:
 	case !read && len(problems) == 0:
-		result.Findings = []string{fmt.Sprintf("%s: the catalogue entry %q links no readable trusted list, so the wallet cannot validate the received %s", rule, entry.Name, credentialLabel(cred))}
+		result.Findings = []string{fmt.Sprintf("%s: no trusted list of %s is readable, so the wallet cannot validate the received %s", rule, described, credentialLabel(cred))}
 	default:
-		result.Findings = []string{fmt.Sprintf("%s: the signature of the received %s does not validate with the trusted lists of its catalogue entry %q: %s", rule, credentialLabel(cred), entry.Name, strings.Join(problems, ", "))}
+		result.Findings = []string{fmt.Sprintf("%s: the signature of the received %s does not validate with the trusted lists of %s: %s", rule, credentialLabel(cred), described, strings.Join(problems, ", "))}
 	}
 	return result, true
+}
+
+func listedIn(lists []trustedList, url string) bool {
+	return slices.ContainsFunc(lists, func(l trustedList) bool { return l.URL == url })
+}
+
+// entriesLinking returns the catalogue entries that name the trusted list.
+func entriesLinking(entries []registrar.CatalogAttestation, listURL string) []registrar.CatalogAttestation {
+	var out []registrar.CatalogAttestation
+	for _, entry := range entries {
+		if slices.ContainsFunc(entry.Schema.TrustedAuthorities, func(a registrar.TrustAuthority) bool { return a.Value == listURL }) {
+			out = append(out, entry)
+		}
+	}
+	return out
 }
 
 // categoryListType is the ETSI TS 119 602 list type of a category, if it has

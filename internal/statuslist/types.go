@@ -46,6 +46,7 @@ const (
 	cwtClaimIssuer     = 1
 	cwtClaimSubject    = 2
 	cwtClaimExpiration = 4
+	cwtClaimNotBefore  = 5
 	cwtClaimIssuedAt   = 6
 	cwtClaimStatusList = 65533
 	cwtClaimTTL        = 65534

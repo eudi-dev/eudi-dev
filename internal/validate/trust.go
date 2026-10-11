@@ -19,6 +19,8 @@ import (
 	"crypto/x509"
 	"fmt"
 	"net/http"
+	"path"
+	"strings"
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/trustlist"
@@ -117,7 +119,38 @@ type CatalogueAnchoring struct {
 	StatusAnchors   []*x509.Certificate `json:"-"`
 }
 
-// AnchoredByText names the list that anchors the credential.
-func (a CatalogueAnchoring) AnchoredByText() string {
-	return fmt.Sprintf("the trusted list %s of the catalogue entry %q", a.AnchoredBy, a.Entry)
+// Service types of an Anchor. The issuance service of a list anchors a
+// credential and its revocation service the credential's status list (ETSI TS
+// 119 602 V1.1.1 Table D.3).
+const (
+	ServiceIssuance   = "issuance"
+	ServiceRevocation = "revocation"
+)
+
+// Anchor is the trusted list service that anchors a credential or its status
+// list.
+type Anchor struct {
+	// Entry is the catalogue entry that links the list. It is empty when no
+	// single entry does.
+	Entry   string `json:"entry,omitempty"`
+	ListURL string `json:"list_url"`
+	Service string `json:"service"`
+}
+
+// Anchor returns the anchor of the credential's service, or nil when no list
+// of the catalogue anchors the credential.
+func (a CatalogueAnchoring) Anchor(service string) *Anchor {
+	if a.AnchoredBy == "" {
+		return nil
+	}
+	return &Anchor{Entry: a.Entry, ListURL: a.AnchoredBy, Service: service}
+}
+
+// String is the one-line form, such as "German PID, trusted list pid".
+func (a Anchor) String() string {
+	name := "trusted list " + path.Base(strings.TrimRight(a.ListURL, "/"))
+	if a.Entry == "" {
+		return name
+	}
+	return a.Entry + ", " + name
 }

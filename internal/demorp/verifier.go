@@ -18,9 +18,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/sha256"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
@@ -34,6 +32,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/httpsec"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/validate"
@@ -813,18 +812,11 @@ func originOf(raw string) string {
 // responseEncryptionMetadata publishes the public per-request encryption key.
 // The wallet needs a usable JWK with an explicit alg for direct_post.jwt.
 func responseEncryptionMetadata(key *ecdsa.PrivateKey) map[string]any {
-	x, y, _ := format.ECPublicCoords(&key.PublicKey)
+	jwk, _ := keys.PublicJWK(&key.PublicKey)
+	jwk["use"], jwk["alg"], jwk["kid"] = "enc", "ECDH-ES", "demo-verifier-response-enc"
 	return map[string]any{
 		"jwks": map[string]any{
-			"keys": []map[string]any{{
-				"kty": "EC",
-				"crv": "P-256",
-				"use": "enc",
-				"alg": "ECDH-ES",
-				"kid": "demo-verifier-response-enc",
-				"x":   base64.RawURLEncoding.EncodeToString(x),
-				"y":   base64.RawURLEncoding.EncodeToString(y),
-			}},
+			"keys": []map[string]any{jwk},
 		},
 		// HAIP 1.0 §5: "Verifiers MUST list both A128GCM and A256GCM in
 		// encrypted_response_enc_values_supported in their client metadata."
@@ -1120,10 +1112,6 @@ func (d *DemoRP) verifySDJWTEntry(req *requestState, presentation, expectedVCT s
 		log.warn(label+"credential is well-formed (RFC 9901)", fmt.Errorf("%s", warning))
 	}
 
-	if err = check("every disclosure is referenced by the credential", checkDisclosuresReferenced(token)); err != nil {
-		return nil, err
-	}
-
 	// The wallet chose the credential, so check the type. A derived type
 	// answers its base type, such as a German PID for a base PID query.
 	gotVCT, _ := token.ResolvedClaims["vct"].(string)
@@ -1155,7 +1143,7 @@ func (d *DemoRP) verifySDJWTEntry(req *requestState, presentation, expectedVCT s
 		return nil, err
 	}
 	kbTyp, _ := kbJWT.header["typ"].(string)
-	if err = check("key binding JWT is typed kb+jwt", errIf(kbTyp != "kb+jwt", "typ is %q", kbTyp)); err != nil {
+	if err = check("key binding JWT is typed kb+jwt", errIf(!format.JOSETypeIs(kbTyp, sdjwt.TypeKeyBinding), "typ is %q", kbTyp)); err != nil {
 		return nil, err
 	}
 	if err = check("key binding signature verifies with cnf key", errIf(!verifyES256(holderKey, kbJWT.signingInput, kbJWT.signature), "key binding signature is invalid")); err != nil {
@@ -1202,29 +1190,6 @@ func (d *DemoRP) verifySDJWTEntry(req *requestState, presentation, expectedVCT s
 	}
 
 	return disclosed, nil
-}
-
-// checkDisclosuresReferenced requires a digest for every disclosure in the
-// issuer-signed payload or in another disclosure. An unreferenced or
-// duplicate disclosure means the presentation was altered.
-func checkDisclosuresReferenced(token *sdjwt.Token) error {
-	referenced := sdjwt.ReferencedDigests(token)
-
-	seen := make(map[string]bool, len(token.Disclosures))
-	for _, d := range token.Disclosures {
-		if !referenced[d.Digest] {
-			name := d.Name
-			if name == "" {
-				name = "array element"
-			}
-			return fmt.Errorf("disclosure %q is not referenced by any digest in the credential", name)
-		}
-		if seen[d.Digest] {
-			return fmt.Errorf("disclosure %q appears more than once", d.Name)
-		}
-		seen[d.Digest] = true
-	}
-	return nil
 }
 
 // credentialChecks are the shared checks of a presented credential. The
@@ -1333,15 +1298,11 @@ func encryptionJWKThumbprint(key *ecdsa.PrivateKey) []byte {
 	if key == nil {
 		return nil
 	}
-	x, y, err := format.ECPublicCoords(&key.PublicKey)
+	sum, err := keys.PublicKeyThumbprint(&key.PublicKey)
 	if err != nil {
 		return nil
 	}
-	canonical := fmt.Sprintf(`{"crv":"P-256","kty":"EC","x":%q,"y":%q}`,
-		base64.RawURLEncoding.EncodeToString(x),
-		base64.RawURLEncoding.EncodeToString(y))
-	sum := sha256.Sum256([]byte(canonical))
-	return sum[:]
+	return sum
 }
 
 // checklist keeps each check result for the UI.

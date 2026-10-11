@@ -70,35 +70,19 @@ func Verify(doc *Document, pubKey crypto.PublicKey) *VerifyResult {
 		}
 	}
 
-	if doc.IssuerAuth.ProtectedHeader != nil {
-		if alg, ok := doc.IssuerAuth.ProtectedHeader[int64(1)]; ok {
-			switch v := alg.(type) {
-			case int64:
-				result.Algorithm = coseAlgName(v)
-			case uint64:
-				result.Algorithm = coseAlgName(int64(v))
-			}
-		}
-	}
-
-	if result.Algorithm == "" {
-		result.Errors = append(result.Errors, "cannot determine COSE algorithm from protected header")
-		return result
-	}
-
-	coseAlg, ok := coseAlgorithm(result.Algorithm)
-	if !ok {
-		result.Errors = append(result.Errors, fmt.Sprintf("unsupported COSE algorithm: %s", result.Algorithm))
-		return result
-	}
-
 	var msg cose.Sign1Message
 	if err := msg.UnmarshalCBOR(doc.IssuerAuth.RawCOSE); err != nil {
 		result.Errors = append(result.Errors, fmt.Sprintf("parsing COSE_Sign1: %v", err))
 		return result
 	}
+	alg, err := msg.Headers.Protected.Algorithm()
+	if err != nil {
+		result.Errors = append(result.Errors, "cannot determine COSE algorithm from protected header")
+		return result
+	}
+	result.Algorithm = COSEAlgorithmName(alg)
 
-	verifier, err := cose.NewVerifier(coseAlg, pubKey)
+	verifier, err := NewCOSEVerifier(alg, pubKey)
 	if err != nil {
 		result.Errors = append(result.Errors, fmt.Sprintf("creating verifier: %v", err))
 		return result
@@ -111,36 +95,4 @@ func Verify(doc *Document, pubKey crypto.PublicKey) *VerifyResult {
 
 	result.SignatureValid = true
 	return result
-}
-
-func coseAlgName(id int64) string {
-	switch id {
-	case -7:
-		return "ES256"
-	case -35:
-		return "ES384"
-	case -36:
-		return "ES512"
-	case -37:
-		return "PS256"
-	case -257:
-		return "RS256"
-	default:
-		return fmt.Sprintf("unknown(%d)", id)
-	}
-}
-
-func coseAlgorithm(name string) (cose.Algorithm, bool) {
-	switch name {
-	case "ES256":
-		return cose.AlgorithmES256, true
-	case "ES384":
-		return cose.AlgorithmES384, true
-	case "ES512":
-		return cose.AlgorithmES512, true
-	case "PS256":
-		return cose.AlgorithmPS256, true
-	default:
-		return 0, false
-	}
 }

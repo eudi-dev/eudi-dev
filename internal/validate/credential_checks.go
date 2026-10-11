@@ -113,12 +113,13 @@ func (v run) trustCheck(c catalogueState, r *Result) Check {
 	switch {
 	case anchoring.AnchoredBy != "":
 		check.Status = Pass
-		check.Detail = "Anchored by " + anchoring.AnchoredByText()
+		check.Anchor = anchoring.Anchor(ServiceIssuance)
+		check.Detail = check.Anchor.String()
 	case len(anchoring.Findings) > 0:
 		check.Status = Fail
 		check.Detail = strings.Join(anchoring.Findings, " ")
 	default:
-		check.Detail = strings.Join(append([]string{fmt.Sprintf("The catalogue entry %q links no readable trusted list. An EAA needs anchors only when the wallet has them (ARF ISSU_10)", anchoring.Entry)}, anchoring.Warnings...), ". ")
+		check.Detail = strings.Join(append([]string{"No readable trusted list in the catalogue. An EAA needs anchors only when the wallet has them (ARF ISSU_10)"}, anchoring.Warnings...), ". ")
 	}
 	return check
 }
@@ -146,7 +147,7 @@ func (v run) jwtSignature(token *sdjwt.Token, c catalogueState, r *Result) Check
 		if key, err := ExtractAndValidateX5C(token.Header, trustlist.CertInfos(a.IssuanceAnchors)); err == nil && key != nil {
 			if res := sdjwt.Verify(token, key); res.SignatureValid {
 				r.SDJWTVerify, r.SignatureSource = res, SourceX5CChain
-				return Check{Name: CheckSignature, Status: Pass, Detail: fmt.Sprintf("Valid (%s, chain verified to %s)", res.Algorithm, a.AnchoredByText())}
+				return Check{Name: CheckSignature, Status: Pass, Detail: "Valid, " + res.Algorithm}
 			}
 		}
 	}
@@ -159,9 +160,9 @@ func (v run) jwtSignature(token *sdjwt.Token, c catalogueState, r *Result) Check
 			return Check{Name: CheckSignature, Status: Fail, Detail: err.Error()}
 		case res != nil && res.SignatureValid:
 			r.SDJWTVerify, r.SignatureSource = res, source
-			return Check{Name: CheckSignature, Status: Pass, Detail: fmt.Sprintf("Valid (%s, via %s)", res.Algorithm, source)}
-		// Issuer metadata can provide another key after a local key mismatch.
-		case CanResolveJWTIssuerMetadata(token) || (res == nil && v.trust.Pending):
+			return Check{Name: CheckSignature, Status: Pass, Detail: validVia(res.Algorithm, source)}
+		// Without supplied keys, the issuer metadata can provide the key.
+		case (len(v.trust.Keys) == 0 && CanResolveJWTIssuerMetadata(token)) || (res == nil && v.trust.Pending):
 			return Check{Name: CheckSignature, Status: Skipped, Detail: "Needs an issuer key that is only reachable over the network", NeedsNetwork: true}
 		case res == nil:
 			return Check{Name: CheckSignature, Status: Skipped, Detail: noKeyDetail(token)}
@@ -182,9 +183,18 @@ func (v run) jwtSignature(token *sdjwt.Token, c catalogueState, r *Result) Check
 	}
 	r.SDJWTVerify, r.SignatureSource = res, source
 	if res.SignatureValid {
-		return Check{Name: CheckSignature, Status: Pass, Detail: fmt.Sprintf("Valid (%s, via %s)", res.Algorithm, source)}
+		return Check{Name: CheckSignature, Status: Pass, Detail: validVia(res.Algorithm, source)}
 	}
 	return Check{Name: CheckSignature, Status: Fail, Detail: failedDetail(source, res.Errors)}
+}
+
+// validVia is the detail of a passing signature. A chain to a trust anchor
+// needs no source. The trust check names the anchor.
+func validVia(alg, source string) string {
+	if source == SourceX5CChain {
+		return "Valid, " + alg
+	}
+	return fmt.Sprintf("Valid, %s, via %s", alg, source)
 }
 
 // noKeyDetail explains a signature check without a key. A DID key reference
@@ -230,9 +240,9 @@ func (v run) mdocSignature(doc *mdoc.Document, c catalogueState, r *Result) Chec
 		return Check{Name: CheckSignature, Status: Fail, Detail: fmt.Sprintf("Reading the x5chain: %v", err)}
 	}
 
-	anchors, anchoredBy := v.trust.Issuance, ""
+	anchors := v.trust.Issuance
 	if a, ok := v.catalogueAnchors(c); ok {
-		anchors, anchoredBy = a.IssuanceAnchors, a.AnchoredByText()
+		anchors = a.IssuanceAnchors
 	}
 	var reasons []string
 	if len(anchors) > 0 && len(chain) > 0 {
@@ -241,11 +251,8 @@ func (v run) mdocSignature(doc *mdoc.Document, c catalogueState, r *Result) Chec
 		} else {
 			res := mdoc.Verify(doc, leaf.PublicKey)
 			r.MDOCVerify, r.SignatureSource = res, SourceX5CChain
-			switch {
-			case res.SignatureValid && anchoredBy != "":
-				return Check{Name: CheckSignature, Status: Pass, Detail: fmt.Sprintf("Valid (%s, chain verified to %s)", res.Algorithm, anchoredBy)}
-			case res.SignatureValid:
-				return Check{Name: CheckSignature, Status: Pass, Detail: fmt.Sprintf("Valid (%s, via %s)", res.Algorithm, SourceX5CChain)}
+			if res.SignatureValid {
+				return Check{Name: CheckSignature, Status: Pass, Detail: validVia(res.Algorithm, SourceX5CChain)}
 			}
 			reasons = append(reasons, "the key of the trusted chain does not verify the signature")
 		}
@@ -255,7 +262,7 @@ func (v run) mdocSignature(doc *mdoc.Document, c catalogueState, r *Result) Chec
 		res := mdoc.Verify(doc, key)
 		r.MDOCVerify, r.SignatureSource = res, SourceProvidedKey
 		if res.SignatureValid {
-			return Check{Name: CheckSignature, Status: Pass, Detail: fmt.Sprintf("Valid (%s, via %s)", res.Algorithm, SourceProvidedKey)}
+			return Check{Name: CheckSignature, Status: Pass, Detail: validVia(res.Algorithm, SourceProvidedKey)}
 		}
 	}
 
@@ -263,7 +270,7 @@ func (v run) mdocSignature(doc *mdoc.Document, c catalogueState, r *Result) Chec
 		res := mdoc.Verify(doc, chain[0].PublicKey)
 		r.MDOCVerify, r.SignatureSource = res, SourceX5CLeaf
 		if res.SignatureValid {
-			return Check{Name: CheckSignature, Status: Pass, Detail: fmt.Sprintf("Valid (%s, via %s)", res.Algorithm, SourceX5CLeaf)}
+			return Check{Name: CheckSignature, Status: Pass, Detail: validVia(res.Algorithm, SourceX5CLeaf)}
 		}
 		return Check{Name: CheckSignature, Status: Fail, Detail: "Signature invalid (embedded x5chain leaf key)"}
 	}
@@ -317,23 +324,35 @@ func (v run) status(claims map[string]any, prefer string, c catalogueState, r *R
 		return []Check{{Name: CheckStatus, Status: Fail, Detail: fmt.Sprintf("Status check error: %v", err)}}
 	}
 	r.Status = result
+	// draft-ietf-oauth-sd-jwt-vc-19 §2.2.2.3: "If the status claim is present
+	// and using the status_list mechanism, the associated Status List Token
+	// MUST be in JWT format."
+	if r.Format == FormatSDJWT && result.Format == statuslist.FormatCWT {
+		result.Warnings = append(result.Warnings, "the status list token is a CWT, but draft-ietf-oauth-sd-jwt-vc-19 §2.2.2.3 requires a JWT for an SD-JWT VC")
+	}
 
-	statusDetail := fmt.Sprintf("index %d, status=%d %s, %s", result.Index, result.Status, result.StatusName, strings.ToUpper(result.Format))
 	if !result.IsValid {
-		return []Check{{Name: CheckStatus, Status: Fail, Detail: fmt.Sprintf("%s (%s)", result.StatusName, statusDetail)}}
+		return []Check{{Name: CheckStatus, Status: Fail, Detail: fmt.Sprintf("%s (index %d, status %d)", capitalize(result.StatusName), result.Index, result.Status)}}
 	}
-	status := Check{Name: CheckStatus, Status: Pass, Detail: fmt.Sprintf("Valid (%s)", statusDetail)}
+	status := Check{Name: CheckStatus, Status: Pass, Detail: fmt.Sprintf("Valid (index %d)", result.Index)}
 
-	sigDetail := result.SignatureInfo
-	if len(result.Warnings) > 0 {
-		sigDetail = strings.Join(result.Warnings, ". ")
+	signature := Check{Name: CheckStatusSignature, Status: Pass, Detail: "Valid, " + result.SignatureInfo}
+	switch {
+	case !result.TrustAnchored:
+		signature.Status = Warning
+		signature.Detail = strings.Join(append([]string{capitalize(result.SignatureInfo)}, result.Warnings...), ". ")
+	case len(result.Warnings) > 0:
+		signature.Detail += ". " + strings.Join(result.Warnings, ". ")
 	}
-	signature := Check{Name: CheckStatusSignature, Status: Warning, Detail: sigDetail}
-	if result.TrustAnchored {
-		signature.Status = Pass
-		if anchored {
-			signature.Detail = fmt.Sprintf("%s, anchored by the revocation service of %s", sigDetail, a.AnchoredByText())
-		}
+	if result.TrustAnchored && anchored {
+		signature.Anchor = a.Anchor(ServiceRevocation)
 	}
 	return []Check{status, signature}
+}
+
+func capitalize(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
 }

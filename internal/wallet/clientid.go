@@ -23,6 +23,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
@@ -309,27 +310,14 @@ func extractLeafCert(reqObj *oid4vc.RequestObjectJWT) (*x509.Certificate, string
 		return nil, "OID4VP 1.0 §5.9.3: client_id uses an x509 prefix but the request object has no x5c header"
 	}
 
-	x5cArr := jsonutil.GetArray(reqObj.Header, "x5c")
-	if len(x5cArr) == 0 {
+	certs, err := certchain.FromX5C(reqObj.Header["x5c"])
+	if err != nil {
+		return nil, fmt.Sprintf("client_id uses x509 scheme but its x5c header is unreadable: %v", err)
+	}
+	if len(certs) == 0 {
 		return nil, "OID4VP 1.0 §5.9.3: client_id uses an x509 prefix but the x5c header is empty or missing"
 	}
-
-	leafB64, ok := x5cArr[0].(string)
-	if !ok {
-		return nil, "client_id uses x509 scheme but x5c[0] is not a string"
-	}
-
-	der, err := format.DecodeBase64Std(leafB64)
-	if err != nil {
-		return nil, fmt.Sprintf("client_id uses x509 scheme but failed to decode x5c[0]: %v", err)
-	}
-
-	cert, err := x509.ParseCertificate(der)
-	if err != nil {
-		return nil, fmt.Sprintf("client_id uses x509 scheme but failed to parse leaf certificate: %v", err)
-	}
-
-	return cert, ""
+	return certs[0], ""
 }
 
 func extractCertChain(reqObj *oid4vc.RequestObjectJWT) ([]*x509.Certificate, string) {
@@ -337,28 +325,13 @@ func extractCertChain(reqObj *oid4vc.RequestObjectJWT) ([]*x509.Certificate, str
 		return nil, "OID4VP 1.0 §5.9.3: Request Object signature verification requires an x5c header"
 	}
 
-	x5cArr := jsonutil.GetArray(reqObj.Header, "x5c")
-	if len(x5cArr) == 0 {
+	certs, err := certchain.FromX5C(reqObj.Header["x5c"])
+	if err != nil {
+		return nil, fmt.Sprintf("Request Object x5c header is unreadable: %v", err)
+	}
+	if len(certs) == 0 {
 		return nil, "OID4VP 1.0 §5.9.3: Request Object signature verification requires an x5c header"
 	}
-
-	certs := make([]*x509.Certificate, 0, len(x5cArr))
-	for i, entry := range x5cArr {
-		b64, ok := entry.(string)
-		if !ok {
-			return nil, fmt.Sprintf("Request Object x5c[%d] is not a string", i)
-		}
-		der, err := format.DecodeBase64Std(b64)
-		if err != nil {
-			return nil, fmt.Sprintf("failed to decode Request Object x5c[%d]: %v", i, err)
-		}
-		cert, err := x509.ParseCertificate(der)
-		if err != nil {
-			return nil, fmt.Sprintf("failed to parse Request Object x5c[%d]: %v", i, err)
-		}
-		certs = append(certs, cert)
-	}
-
 	return certs, ""
 }
 

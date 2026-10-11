@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 )
 
 func SigningCertificateURL(issuer string, cert *x509.Certificate, extension string) string {
@@ -121,25 +122,24 @@ func GenerateKey() (*ecdsa.PrivateKey, error) {
 }
 
 func PublicKeyJWKMap(key *ecdsa.PublicKey) map[string]string {
-	xBytes, yBytes, err := format.ECPublicCoords(key)
+	jwk, err := keys.PublicJWK(key)
 	if err != nil {
 		return nil
 	}
-	return map[string]string{
-		"kty": "EC",
-		"crv": "P-256",
-		"x":   format.EncodeBase64URL(xBytes),
-		"y":   format.EncodeBase64URL(yBytes),
+	out := make(map[string]string, len(jwk))
+	for name, value := range jwk {
+		out[name], _ = value.(string)
 	}
+	return out
 }
 
-// KeyIDForPublicKey computes the RFC 7638 JWK thumbprint for a P-256 public key.
+// KeyIDForPublicKey computes the RFC 7638 JWK thumbprint of a public key.
 func KeyIDForPublicKey(key *ecdsa.PublicKey) string {
-	jwk := PublicKeyJWKMap(key)
-	canonical := fmt.Sprintf(`{"crv":"%s","kty":"%s","x":"%s","y":"%s"}`,
-		jwk["crv"], jwk["kty"], jwk["x"], jwk["y"])
-	sum := sha256.Sum256([]byte(canonical))
-	return format.EncodeBase64URL(sum[:])
+	sum, err := keys.PublicKeyThumbprint(key)
+	if err != nil {
+		return ""
+	}
+	return format.EncodeBase64URL(sum)
 }
 
 func SigningJWKMap(key *ecdsa.PublicKey) map[string]any {
@@ -156,15 +156,9 @@ func SigningJWKMap(key *ecdsa.PublicKey) map[string]any {
 }
 
 func PublicKeyJWK(key *ecdsa.PublicKey) string {
-	xBytes, yBytes, err := format.ECPublicCoords(key)
+	jwk, err := keys.PublicJWK(key)
 	if err != nil {
 		return fmt.Sprintf(`{"error": %q}`, err)
-	}
-	jwk := map[string]string{
-		"kty": "EC",
-		"crv": "P-256",
-		"x":   format.EncodeBase64URL(xBytes),
-		"y":   format.EncodeBase64URL(yBytes),
 	}
 
 	b, _ := json.MarshalIndent(jwk, "", "  ")
@@ -424,7 +418,7 @@ func WithoutSelfSignedTrustAnchor(chain []*x509.Certificate) []*x509.Certificate
 }
 
 func PrivateKeyJWK(key *ecdsa.PrivateKey) string {
-	xBytes, yBytes, err := format.ECPublicCoords(&key.PublicKey)
+	jwk, err := keys.PublicJWK(&key.PublicKey)
 	if err != nil {
 		return fmt.Sprintf(`{"error": %q}`, err)
 	}
@@ -432,14 +426,7 @@ func PrivateKeyJWK(key *ecdsa.PrivateKey) string {
 	if err != nil {
 		return fmt.Sprintf(`{"error": %q}`, err)
 	}
-
-	jwk := map[string]string{
-		"kty": "EC",
-		"crv": "P-256",
-		"x":   format.EncodeBase64URL(xBytes),
-		"y":   format.EncodeBase64URL(yBytes),
-		"d":   format.EncodeBase64URL(dBytes),
-	}
+	jwk["d"] = format.EncodeBase64URL(dBytes)
 
 	b, err := json.MarshalIndent(jwk, "", "  ")
 	if err != nil {

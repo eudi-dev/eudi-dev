@@ -16,6 +16,9 @@ package mdoc
 
 import (
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"strings"
 	"testing"
 	"time"
@@ -180,12 +183,13 @@ func TestVerify_NoDigestAlgorithm(t *testing.T) {
 	}
 }
 
-func TestCoseAlgName(t *testing.T) {
+func TestCOSEAlgorithmName(t *testing.T) {
 	tests := []struct {
-		id   int64
+		alg  cose.Algorithm
 		want string
 	}{
 		{-7, "ES256"},
+		{-9, "ESP256"},
 		{-35, "ES384"},
 		{-36, "ES512"},
 		{-37, "PS256"},
@@ -194,34 +198,73 @@ func TestCoseAlgName(t *testing.T) {
 		{42, "unknown(42)"},
 	}
 	for _, tt := range tests {
-		got := coseAlgName(tt.id)
-		if got != tt.want {
-			t.Errorf("coseAlgName(%d) = %q, want %q", tt.id, got, tt.want)
+		if got := COSEAlgorithmName(tt.alg); got != tt.want {
+			t.Errorf("COSEAlgorithmName(%d) = %q, want %q", tt.alg, got, tt.want)
 		}
 	}
 }
 
-func TestCoseAlgorithm(t *testing.T) {
+func TestNewCOSEVerifier(t *testing.T) {
+	p256 := &testKey(t).PublicKey
+	p384, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
 	tests := []struct {
 		name   string
-		want   cose.Algorithm
+		alg    cose.Algorithm
+		key    crypto.PublicKey
 		wantOK bool
 	}{
-		{"ES256", cose.AlgorithmES256, true},
-		{"ES384", cose.AlgorithmES384, true},
-		{"ES512", cose.AlgorithmES512, true},
-		{"PS256", cose.AlgorithmPS256, true},
-		{"RS256", 0, false},
-		{"es256", 0, false},
-		{"", 0, false},
+		{"ES256", cose.AlgorithmES256, p256, true},
+		{"ESP256 on P-256", AlgorithmESP256, p256, true},
+		{"ESP256 on P-384", AlgorithmESP256, &p384.PublicKey, false},
+		{"ES384", cose.AlgorithmES384, &p384.PublicKey, true},
+		{"RS256", cose.AlgorithmRS256, p256, false},
+		{"unknown", 42, p256, false},
 	}
 	for _, tt := range tests {
-		got, ok := coseAlgorithm(tt.name)
-		if ok != tt.wantOK || got != tt.want {
-			t.Errorf("coseAlgorithm(%q) = (%v, %v), want (%v, %v)", tt.name, got, ok, tt.want, tt.wantOK)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			v, err := NewCOSEVerifier(tt.alg, tt.key)
+			if (err == nil) != tt.wantOK {
+				t.Fatalf("NewCOSEVerifier error = %v, want ok %v", err, tt.wantOK)
+			}
+			if err == nil && v.Algorithm() != tt.alg {
+				t.Errorf("Algorithm() = %d, want %d", v.Algorithm(), tt.alg)
+			}
+		})
 	}
 }
+
+// HAIP 1.0 §7 allows -9 for the mandatory ECDSA P-256 suite.
+func TestVerifyAcceptsESP256(t *testing.T) {
+	key := testKey(t)
+	signer, err := cose.NewSigner(cose.AlgorithmES256, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg := cose.Sign1Message{
+		Headers: cose.Headers{Protected: cose.ProtectedHeader{cose.HeaderLabelAlgorithm: AlgorithmESP256}},
+		Payload: []byte("mso"),
+	}
+	if err := msg.Sign(rand.Reader, nil, esp256Signer{signer}); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := msg.MarshalCBOR()
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := Verify(&Document{IssuerAuth: &IssuerAuth{RawCOSE: raw}}, &key.PublicKey)
+	if !result.SignatureValid || result.Algorithm != "ESP256" {
+		t.Fatalf("Verify = %+v, want a valid ESP256 signature", result)
+	}
+}
+
+// esp256Signer produces the ES256 signature under the ESP256 label, which
+// go-cose does not know.
+type esp256Signer struct{ cose.Signer }
+
+func (esp256Signer) Algorithm() cose.Algorithm { return AlgorithmESP256 }
 
 func TestConvertCBORMapToStringKeys(t *testing.T) {
 	m := map[any]any{

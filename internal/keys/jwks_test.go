@@ -156,3 +156,48 @@ func TestCertificatePEMToJWKS_NoCertificate(t *testing.T) {
 		t.Fatal("expected error for non-certificate input")
 	}
 }
+
+// RFC 7638 §3.1 example. Members outside the required ones do not count.
+func TestThumbprint(t *testing.T) {
+	jwk := map[string]any{
+		"kty": "RSA",
+		"n":   "0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFxuhDR1L6tSoc_BJECPebWKRXjBZCiFV4n3oknjhMstn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_RN5w6Cf0h4QyQ5v-65YGjQR0_FDW2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvRL5hajrn1n91CbOpbISD08qNLyrdkt-bFTWhAI4vMQFh6WeZu0fM4lFd2NcRwr3XPksINHaQ-G_xBniIqbw0Ls1jF44-csFCur-kEgU8awapJzKnqDKgw",
+		"e":   "AQAB",
+		"alg": "RS256",
+		"kid": "2011-04-29",
+	}
+	sum, err := Thumbprint(jwk)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := base64.RawURLEncoding.EncodeToString(sum); got != "NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs" {
+		t.Errorf("Thumbprint = %s", got)
+	}
+
+	if _, err := Thumbprint(map[string]any{"kty": "EC", "crv": "P-256", "x": "abc"}); err == nil {
+		t.Error("an EC JWK without y was accepted")
+	}
+}
+
+// The thumbprint follows the key's curve.
+func TestPublicKeyThumbprintCoversTheCurve(t *testing.T) {
+	p384, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jwk, err := PublicJWK(&p384.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if jwk["crv"] != "P-384" {
+		t.Fatalf("crv = %v, want P-384", jwk["crv"])
+	}
+	want, err := Thumbprint(jwk)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := PublicKeyThumbprint(&p384.PublicKey)
+	if err != nil || string(got) != string(want) {
+		t.Errorf("PublicKeyThumbprint = %x, %v, want %x", got, err, want)
+	}
+}

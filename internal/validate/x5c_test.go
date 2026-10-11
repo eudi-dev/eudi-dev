@@ -89,7 +89,8 @@ func TestExtractAndValidateJWKX5C(t *testing.T) {
 	})
 }
 
-// Metadata resolution needs an HTTPS issuer, a key ID and a signature.
+// Metadata resolution needs an HTTPS issuer and a signature. SD-JWT VC §4.2
+// only recommends a kid.
 func TestCanResolveJWTIssuerMetadata(t *testing.T) {
 	full := func() *sdjwt.Token {
 		return &sdjwt.Token{
@@ -110,8 +111,6 @@ func TestCanResolveJWTIssuerMetadata(t *testing.T) {
 		{"no issuer", func(tok *sdjwt.Token) { delete(tok.Payload, "iss") }},
 		{"a plain http issuer", func(tok *sdjwt.Token) { tok.Payload["iss"] = "http://issuer.example" }},
 		{"an issuer that is not a URL", func(tok *sdjwt.Token) { tok.Payload["iss"] = "did:example:123" }},
-		{"no kid", func(tok *sdjwt.Token) { delete(tok.Header, "kid") }},
-		{"a blank kid", func(tok *sdjwt.Token) { tok.Header["kid"] = "   " }},
 		{"alg none", func(tok *sdjwt.Token) { tok.Header["alg"] = "none" }},
 		{"alg NONE in any case", func(tok *sdjwt.Token) { tok.Header["alg"] = "NoNe" }},
 		{"no signature", func(tok *sdjwt.Token) { tok.Signature = nil }},
@@ -131,66 +130,71 @@ func TestCanResolveJWTIssuerMetadata(t *testing.T) {
 	}
 }
 
-func TestFindIssuerMetadataJWK(t *testing.T) {
+func TestFindIssuerMetadataJWKs(t *testing.T) {
 	doc := func(keys ...any) map[string]any {
 		return map[string]any{"jwks": map[string]any{"keys": keys}}
 	}
+	kids := func(jwks []map[string]any) []any {
+		var out []any
+		for _, jwk := range jwks {
+			out = append(out, jwk["kid"])
+		}
+		return out
+	}
 
 	t.Run("matches on kid", func(t *testing.T) {
-		got, err := findIssuerMetadataJWK(doc(
+		got, err := findIssuerMetadataJWKs(doc(
 			map[string]any{"kid": "one", "kty": "EC"},
 			map[string]any{"kid": "two", "kty": "EC"},
 		), "two")
 		if err != nil {
-			t.Fatalf("findIssuerMetadataJWK: %v", err)
+			t.Fatalf("findIssuerMetadataJWKs: %v", err)
 		}
-		if got["kid"] != "two" {
-			t.Errorf("kid = %v, want two", got["kid"])
+		if k := kids(got); len(k) != 1 || k[0] != "two" {
+			t.Errorf("kids = %v, want [two]", k)
 		}
 	})
 
-	// An empty kid selects the first key. A metadata document with a single key
-	// relies on that.
-	t.Run("an empty kid takes the first key", func(t *testing.T) {
-		got, err := findIssuerMetadataJWK(doc(map[string]any{"kid": "one"}), "")
+	t.Run("an empty kid takes every key", func(t *testing.T) {
+		got, err := findIssuerMetadataJWKs(doc(map[string]any{"kid": "one"}, map[string]any{"kid": "two"}), "")
 		if err != nil {
-			t.Fatalf("findIssuerMetadataJWK: %v", err)
+			t.Fatalf("findIssuerMetadataJWKs: %v", err)
 		}
-		if got["kid"] != "one" {
-			t.Errorf("kid = %v, want one", got["kid"])
+		if k := kids(got); len(k) != 2 {
+			t.Errorf("kids = %v, want both keys", k)
 		}
 	})
 
 	t.Run("a kid nothing matches", func(t *testing.T) {
-		if _, err := findIssuerMetadataJWK(doc(map[string]any{"kid": "one"}), "other"); err == nil {
+		if _, err := findIssuerMetadataJWKs(doc(map[string]any{"kid": "one"}), "other"); err == nil {
 			t.Error("an unmatched kid was accepted")
 		}
 	})
 
 	t.Run("entries that are not objects are skipped", func(t *testing.T) {
-		got, err := findIssuerMetadataJWK(doc("not an object", map[string]any{"kid": "one"}), "one")
+		got, err := findIssuerMetadataJWKs(doc("not an object", map[string]any{"kid": "one"}), "one")
 		if err != nil {
-			t.Fatalf("findIssuerMetadataJWK: %v", err)
+			t.Fatalf("findIssuerMetadataJWKs: %v", err)
 		}
-		if got["kid"] != "one" {
-			t.Errorf("kid = %v", got["kid"])
+		if k := kids(got); len(k) != 1 || k[0] != "one" {
+			t.Errorf("kids = %v", k)
 		}
 	})
 
 	t.Run("no jwks", func(t *testing.T) {
-		if _, err := findIssuerMetadataJWK(map[string]any{}, "one"); err == nil {
+		if _, err := findIssuerMetadataJWKs(map[string]any{}, "one"); err == nil {
 			t.Error("a document without jwks was accepted")
 		}
 	})
 
 	t.Run("jwks without keys", func(t *testing.T) {
-		if _, err := findIssuerMetadataJWK(map[string]any{"jwks": map[string]any{}}, "one"); err == nil {
+		if _, err := findIssuerMetadataJWKs(map[string]any{"jwks": map[string]any{}}, "one"); err == nil {
 			t.Error("a jwks without keys was accepted")
 		}
 	})
 
 	t.Run("an empty key set", func(t *testing.T) {
-		if _, err := findIssuerMetadataJWK(doc(), "one"); err == nil {
+		if _, err := findIssuerMetadataJWKs(doc(), "one"); err == nil {
 			t.Error("an empty key set was accepted")
 		}
 	})

@@ -15,6 +15,7 @@
 package keys
 
 import (
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rsa"
@@ -60,11 +61,11 @@ func CertificateJWK(certs []*x509.Certificate) (map[string]any, error) {
 		return nil, err
 	}
 
-	kid, err := jwkThumbprint(jwk)
+	kid, err := Thumbprint(jwk)
 	if err != nil {
 		return nil, err
 	}
-	jwk["kid"] = kid
+	jwk["kid"] = format.EncodeBase64URL(kid)
 	jwk["use"] = "sig"
 	jwk["alg"] = alg
 
@@ -113,19 +114,50 @@ func publicKeyJWKParams(pub any) (map[string]any, string, error) {
 	}
 }
 
-// jwkThumbprint computes the RFC 7638 thumbprint over the required members.
-func jwkThumbprint(jwk map[string]any) (string, error) {
-	var canonical string
-	switch jwk["kty"] {
+// PublicJWK returns the required members of the public JWK of an EC or RSA
+// key.
+func PublicJWK(pub crypto.PublicKey) (map[string]any, error) {
+	jwk, _, err := publicKeyJWKParams(pub)
+	return jwk, err
+}
+
+// Thumbprint returns the RFC 7638 JWK Thumbprint with SHA-256. Section 3.2
+// hashes only the required members, in lexicographic order and without
+// whitespace, which json.Marshal of a map produces.
+func Thumbprint(jwk map[string]any) ([]byte, error) {
+	kty, _ := jwk["kty"].(string)
+	var required []string
+	switch kty {
 	case "EC":
-		canonical = fmt.Sprintf(`{"crv":%q,"kty":"EC","x":%q,"y":%q}`, jwk["crv"], jwk["x"], jwk["y"])
+		required = []string{"crv", "x", "y"}
 	case "RSA":
-		canonical = fmt.Sprintf(`{"e":%q,"kty":"RSA","n":%q}`, jwk["e"], jwk["n"])
+		required = []string{"e", "n"}
 	default:
-		return "", fmt.Errorf("unsupported JWK key type: %v", jwk["kty"])
+		return nil, fmt.Errorf("unsupported JWK key type: %v", jwk["kty"])
 	}
-	sum := sha256.Sum256([]byte(canonical))
-	return format.EncodeBase64URL(sum[:]), nil
+	canonical := map[string]string{"kty": kty}
+	for _, name := range required {
+		value, _ := jwk[name].(string)
+		if value == "" {
+			return nil, fmt.Errorf("the %s JWK has no %s member", kty, name)
+		}
+		canonical[name] = value
+	}
+	encoded, err := json.Marshal(canonical)
+	if err != nil {
+		return nil, err
+	}
+	sum := sha256.Sum256(encoded)
+	return sum[:], nil
+}
+
+// PublicKeyThumbprint returns the RFC 7638 thumbprint of a public key.
+func PublicKeyThumbprint(pub crypto.PublicKey) ([]byte, error) {
+	jwk, err := PublicJWK(pub)
+	if err != nil {
+		return nil, err
+	}
+	return Thumbprint(jwk)
 }
 
 func bigEndianInt(n int) []byte {

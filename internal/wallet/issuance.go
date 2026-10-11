@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
@@ -661,26 +662,13 @@ func signedIssuerMetadataChain(token *sdjwt.Token) ([]*x509.Certificate, error) 
 	if !ok {
 		return nil, fmt.Errorf("signed issuer metadata carries no x5c, so its signer cannot be trusted")
 	}
-	entries, err := normalizeMetadataX5CEntries(x5cRaw)
+	certs, err := certchain.FromX5C(x5cRaw)
 	if err != nil {
 		return nil, fmt.Errorf("parsing issuer metadata x5c: %w", err)
 	}
-	if len(entries) == 0 {
+	if len(certs) == 0 {
 		return nil, fmt.Errorf("signed issuer metadata x5c is empty, so its signer cannot be trusted")
 	}
-	certs := make([]*x509.Certificate, 0, len(entries))
-	for i, entry := range entries {
-		der, err := format.DecodeBase64Std(entry)
-		if err != nil {
-			return nil, fmt.Errorf("decoding issuer metadata x5c entry %d: %w", i, err)
-		}
-		cert, err := x509.ParseCertificate(der)
-		if err != nil {
-			return nil, fmt.Errorf("parsing issuer metadata x5c entry %d: %w", i, err)
-		}
-		certs = append(certs, cert)
-	}
-
 	return certs, nil
 }
 
@@ -697,25 +685,6 @@ func verifyIssuerMetadataChainTrust(certs []*x509.Certificate) error {
 		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
 	})
 	return err
-}
-
-func normalizeMetadataX5CEntries(raw any) ([]string, error) {
-	switch v := raw.(type) {
-	case []string:
-		return v, nil
-	case []any:
-		out := make([]string, 0, len(v))
-		for _, entry := range v {
-			s, ok := entry.(string)
-			if !ok {
-				return nil, fmt.Errorf("x5c entry is not a string")
-			}
-			out = append(out, s)
-		}
-		return out, nil
-	default:
-		return nil, fmt.Errorf("x5c is not an array")
-	}
 }
 
 // preAuthorizedCodeGrant is the grant type of the pre-authorized code flow

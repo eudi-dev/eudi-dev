@@ -24,6 +24,8 @@ func TestValidateVCType(t *testing.T) {
 	}{
 		{"current type", map[string]any{"typ": "dc+sd-jwt"}, true},
 		{"legacy type", map[string]any{"typ": "vc+sd-jwt"}, true},
+		{"full media type", map[string]any{"typ": "application/dc+sd-jwt"}, true},
+		{"upper case", map[string]any{"typ": "DC+SD-JWT"}, true},
 		{"missing typ", map[string]any{"alg": "ES256"}, false},
 		{"other typ", map[string]any{"typ": "JWT"}, false},
 		{"non-string typ", map[string]any{"typ": 42}, false},

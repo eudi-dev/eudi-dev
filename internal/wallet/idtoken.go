@@ -16,12 +16,12 @@ package wallet
 
 import (
 	"crypto/ecdsa"
-	"crypto/sha256"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 )
 
@@ -52,16 +52,13 @@ func (w *Wallet) CreateSelfIssuedIDToken(nonce, clientID string) (string, error)
 	return signJWT(header, payload, w.HolderKey)
 }
 
-// jwkThumbprint computes the RFC 7638 thumbprint of a P-256 public key.
+// jwkThumbprint computes the RFC 7638 thumbprint of a public key.
 func jwkThumbprint(key *ecdsa.PublicKey) (string, error) {
-	jwk := mock.PublicKeyJWKMap(key)
-
-	// RFC 7638 §3.2: only the required members, in lexicographic order.
-	canonical := fmt.Sprintf(`{"crv":"%s","kty":"%s","x":"%s","y":"%s"}`,
-		jwk["crv"], jwk["kty"], jwk["x"], jwk["y"])
-
-	h := sha256.Sum256([]byte(canonical))
-	return format.EncodeBase64URL(h[:]), nil
+	sum, err := keys.PublicKeyThumbprint(key)
+	if err != nil {
+		return "", err
+	}
+	return format.EncodeBase64URL(sum), nil
 }
 
 func ResponseTypeContains(responseType, target string) bool {

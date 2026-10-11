@@ -54,8 +54,8 @@ func TestTheDecoderAnchorsACatalogueTypeWithItsTrustedLists(t *testing.T) {
 	}
 	for _, cred := range w.GetCredentials() {
 		check := trustCheck(t, cred.Raw, store)
-		if check.Status != "pass" || !strings.Contains(check.Detail, "/api/trustlists/pid") {
-			t.Errorf("%s: %+v, want anchored by the PID list", cred.Format, check)
+		if check.Status != "pass" || check.Anchor == nil || !strings.HasSuffix(check.Anchor.ListURL, "/api/trustlists/pid") || check.Anchor.Service != "issuance" {
+			t.Errorf("%s: %+v, want anchored by the issuance service of the PID list", cred.Format, check)
 		}
 	}
 }

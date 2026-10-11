@@ -17,6 +17,7 @@ package cmd
 import (
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -24,6 +25,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fxamacker/cbor/v2"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/statuslist"
 )
@@ -115,6 +119,42 @@ func TestValidateDetectsAJWTByItsEncoding(t *testing.T) {
 	jwt := unsignedTestJWT(t, map[string]any{"credential_issuer": "https://issuer.example", "exp": time.Now().Add(time.Hour).Unix()})
 	if err := runValidateArgs(t, jwt); err != nil {
 		t.Errorf("validate: %v", err)
+	}
+}
+
+// A DeviceResponse that names another docType than the signed MSO fails the
+// integrity check.
+func TestValidateFailsAnMDOCRelabelledByItsDeviceResponse(t *testing.T) {
+	caCert, caKey, _ := generateCACert(t)
+	leafCert, leafKey, _ := generateLeafCert(t, caCert, caKey)
+	raw, err := mock.GenerateMDOC(mock.MDOCConfig{
+		DocType:   "eu.example.test.1",
+		Namespace: "eu.example.test.1",
+		Claims:    map[string]any{"family_name": "Mustermann"},
+		Key:       leafKey,
+		ExpiresIn: time.Hour,
+		CertChain: []*x509.Certificate{leafCert, caCert},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	issuerSigned, err := format.DecodeHexOrBase64URL(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := cbor.Marshal(map[string]any{
+		"version": "1.0",
+		"status":  0,
+		"documents": []any{map[string]any{
+			"docType":      "eu.europa.ec.eudi.pid.1",
+			"issuerSigned": cbor.RawMessage(issuerSigned),
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := runValidateArgs(t, hex.EncodeToString(response)); err == nil || !strings.Contains(err.Error(), "integrity") {
+		t.Errorf("validate = %v, want an integrity failure", err)
 	}
 }
 

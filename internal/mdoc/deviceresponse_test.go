@@ -169,8 +169,8 @@ func TestParseDeviceResponseWithADeviceMac(t *testing.T) {
 	}
 }
 
-// Input that is no DeviceResponse is read as a bare IssuerSigned. A malformed
-// response must fail.
+// A map with documents is a DeviceResponse, so a malformed one fails instead of
+// reading as an empty IssuerSigned. A map that is neither fails too.
 func TestParseDeviceResponseRejectsMalformedResponses(t *testing.T) {
 	tests := []struct {
 		name string
@@ -184,9 +184,8 @@ func TestParseDeviceResponseRejectsMalformedResponses(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			doc, err := Parse(deviceResponse(t, tt.resp))
-			if err == nil && doc.IsDeviceResponse {
-				t.Error("a malformed response was accepted as a DeviceResponse")
+			if _, err := Parse(deviceResponse(t, tt.resp)); err == nil {
+				t.Error("a malformed response was accepted")
 			}
 		})
 	}
@@ -198,5 +197,37 @@ func TestParseRejectsInputThatIsNotCBOR(t *testing.T) {
 	}
 	if _, err := Parse(hex.EncodeToString([]byte("still not cbor"))); err == nil {
 		t.Error("bytes that are not CBOR were accepted")
+	}
+}
+
+// The issuer signs the MSO docType. The unsigned document docType cannot
+// relabel the credential.
+func TestParseDeviceResponseKeepsTheSignedDocType(t *testing.T) {
+	resp := fullDeviceResponse(t)
+	resp["documents"].([]any)[0].(map[any]any)["docType"] = "org.iso.18013.5.1.mDL"
+
+	doc, err := Parse(deviceResponse(t, resp))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if doc.DocType != testDocType {
+		t.Errorf("DocType = %q, want the signed %q", doc.DocType, testDocType)
+	}
+	if !strings.Contains(strings.Join(doc.Deviations, "\n"), "org.iso.18013.5.1.mDL") {
+		t.Errorf("Deviations = %v, want the docType mismatch", doc.Deviations)
+	}
+}
+
+func TestParseDeviceResponseKeepsTheDeviceNameSpaces(t *testing.T) {
+	doc, err := Parse(deviceResponse(t, fullDeviceResponse(t)))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	want, err := tag24(map[string]any{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(doc.DeviceSigned.RawNameSpaces) != string(want) {
+		t.Errorf("RawNameSpaces = %x, want %x", doc.DeviceSigned.RawNameSpaces, want)
 	}
 }

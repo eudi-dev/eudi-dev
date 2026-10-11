@@ -81,12 +81,11 @@ func TestParseJWTParts_TwoParts(t *testing.T) {
 	}
 }
 
+// RFC 7515 §7.1: a JWS Compact Serialization has exactly three parts.
 func TestParseJWTParts_FourParts(t *testing.T) {
-	// SplitN leaves c.d in the third part. The header and payload must still
-	// decode as JSON.
-	_, _, _, err := ParseJWTParts("not-base64.not-base64.c.d")
-	if err == nil {
-		t.Error("expected error for invalid base64url header")
+	jwt := makeJWT(map[string]any{"alg": "ES256"}, map[string]any{"sub": "x"}, "sig")
+	if _, _, _, err := ParseJWTParts(jwt + ".extra"); err == nil {
+		t.Error("expected error for 4-part input")
 	}
 }
 
@@ -161,5 +160,26 @@ func TestParseJWTParts_EmptyInput(t *testing.T) {
 	_, _, _, err := ParseJWTParts("")
 	if err == nil {
 		t.Error("expected error for empty input")
+	}
+}
+
+// RFC 7515 §4.1.9.
+func TestJOSETypeIs(t *testing.T) {
+	tests := []struct {
+		typ, want string
+		match     bool
+	}{
+		{"kb+jwt", "kb+jwt", true},
+		{"application/kb+jwt", "kb+jwt", true},
+		{"KB+JWT", "kb+jwt", true},
+		{"statuslist+jwt", "application/statuslist+jwt", true},
+		{"text/kb+jwt", "kb+jwt", false},
+		{"jwt", "kb+jwt", false},
+		{"", "kb+jwt", false},
+	}
+	for _, tt := range tests {
+		if got := JOSETypeIs(tt.typ, tt.want); got != tt.match {
+			t.Errorf("JOSETypeIs(%q, %q) = %v, want %v", tt.typ, tt.want, got, tt.match)
+		}
 	}
 }

@@ -230,6 +230,30 @@ func TestCheck_RejectsExpiredToken(t *testing.T) {
 	}
 }
 
+// RFC 7519 §4.1.5: "The nbf (not before) claim identifies the time before
+// which the JWT MUST NOT be accepted for processing."
+func TestCheck_RejectsTokenBeforeNotBefore(t *testing.T) {
+	key := mustGenerateKey(t)
+	var srv *httptest.Server
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token := handcraftedToken(t, key, nil, map[string]any{
+			"sub":         srv.URL,
+			"iat":         time.Now().Unix(),
+			"nbf":         time.Now().Add(time.Hour).Unix(),
+			"exp":         time.Now().Add(2 * time.Hour).Unix(),
+			"status_list": map[string]any{"bits": 1, "lst": zlibLST(t, make([]byte, 16))},
+		})
+		w.Header().Set("Content-Type", MediaTypeJWT)
+		_, _ = w.Write([]byte(token))
+	}))
+	defer srv.Close()
+
+	_, err := Check(&StatusRef{URI: srv.URL, Idx: 0})
+	if err == nil || !strings.Contains(err.Error(), "not valid before") {
+		t.Fatalf("error = %v, want the token refused before its nbf", err)
+	}
+}
+
 // Section 5.1: "iat: REQUIRED."
 func TestCheck_RejectsTokenWithoutIssuedAt(t *testing.T) {
 	key := mustGenerateKey(t)

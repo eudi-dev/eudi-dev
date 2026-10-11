@@ -116,7 +116,7 @@ func parseKeyBindingJWT(component string) *JWT {
 	if err != nil {
 		return nil
 	}
-	if typ, ok := jwt.Header["typ"].(string); !ok || typ != "kb+jwt" {
+	if typ, ok := jwt.Header["typ"].(string); !ok || !format.JOSETypeIs(typ, TypeKeyBinding) {
 		return nil
 	}
 	return jwt

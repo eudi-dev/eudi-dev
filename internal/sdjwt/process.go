@@ -14,7 +14,10 @@
 
 package sdjwt
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+)
 
 // processor holds the state for RFC 9901 §7.1 step 3. It walks the
 // Issuer-signed JWT payload and every Disclosure value reached from it.
@@ -72,10 +75,19 @@ func processPayload(payload map[string]any, disclosures []Disclosure) (map[strin
 // claims, inserts the claims disclosed by the digests in its "_sd" array and
 // drops the "_sd" key (§7.1 steps 3.b.i, 3.c.ii and 3.e). top marks the
 // SD-JWT payload, the only object where _sd_alg belongs.
+// The object's own digests resolve before its nested values, and nested values
+// resolve in key order, so the first occurrence of a repeated digest is the
+// same on every run.
 func (p *processor) object(obj map[string]any, top bool) map[string]any {
 	result := make(map[string]any, len(obj))
+	p.disclose(obj, result)
 
-	for k, v := range obj {
+	keys := make([]string, 0, len(obj))
+	for k := range obj {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
 		switch k {
 		case "_sd":
 			// Step 3.e: "Remove all _sd keys and their contents from the
@@ -89,36 +101,34 @@ func (p *processor) object(obj map[string]any, top bool) map[string]any {
 			}
 			continue
 		}
-		result[k] = p.value(v)
+		result[k] = p.value(obj[k])
 	}
+	return result
+}
 
+// disclose inserts into result the claims that the "_sd" array of obj discloses.
+func (p *processor) disclose(obj map[string]any, result map[string]any) {
 	rawSD, present := obj["_sd"]
 	if !present {
-		return result
+		return
 	}
 	// RFC 9901 §4.2.4.1: "The _sd key MUST refer to an array of strings, each
 	// string being a digest of a Disclosure or a decoy digest".
 	entries, ok := rawSD.([]any)
 	if !ok {
 		p.deviations = append(p.deviations, `the "_sd" value is not an array, which RFC 9901 §4.2.4.1 requires, so its disclosures are skipped`)
-		return result
+		return
 	}
 
-	localSeen := make(map[string]bool, len(entries))
 	for _, entry := range entries {
 		digest, ok := entry.(string)
 		if !ok {
 			p.deviations = append(p.deviations, `an "_sd" array entry is not a string, which RFC 9901 §4.2.4.1 requires, so it is skipped`)
 			continue
 		}
-		// A digest repeated in one _sd array would insert the same claim twice.
-		// markSeen handles a digest reached through different objects.
-		if localSeen[digest] {
-			p.deviations = append(p.deviations, fmt.Sprintf("digest %s appears more than once in one _sd array, so the repeat is skipped", shortDigest(digest)))
+		if !p.markSeen(digest) {
 			continue
 		}
-		localSeen[digest] = true
-		p.markSeen(digest)
 		disc, found := p.byDigest[digest]
 		if !found {
 			// Step 3.c.i: "If no such Disclosure can be found, the digest
@@ -136,7 +146,8 @@ func (p *processor) object(obj map[string]any, top bool) map[string]any {
 			p.deviations = append(p.deviations, fmt.Sprintf("disclosure %s discloses a claim named %q, which RFC 9901 §7.1 does not allow, so it is skipped", shortDigest(digest), disc.Name))
 			continue
 		}
-		if _, exists := result[disc.Name]; exists {
+		_, signed := obj[disc.Name]
+		if _, disclosed := result[disc.Name]; signed || disclosed {
 			// Step 3.c.ii.3: a disclosure MUST NOT redefine a claim that already
 			// exists at this level, such as a signed vct. The existing value stays.
 			p.deviations = append(p.deviations, fmt.Sprintf("disclosure %s discloses claim %q, which already exists at this level (RFC 9901 §7.1 does not let a disclosure redefine an existing claim), so the existing value stays", shortDigest(digest), disc.Name))
@@ -147,8 +158,6 @@ func (p *processor) object(obj map[string]any, top bool) map[string]any {
 		// it under the claim name.
 		result[disc.Name] = p.value(disc.Value)
 	}
-
-	return result
 }
 
 // array processes one JSON array. Each {"...": digest} placeholder becomes its
@@ -168,7 +177,9 @@ func (p *processor) array(arr []any) []any {
 			continue
 		}
 
-		p.markSeen(digest)
+		if !p.markSeen(digest) {
+			continue
+		}
 		disc, found := p.byDigest[digest]
 		if !found {
 			// Step 3.d: "Remove all array elements for which the digest was
@@ -200,23 +211,22 @@ func (p *processor) value(v any) any {
 	}
 }
 
-// markSeen records an embedded digest and enforces RFC 9901 §7.1 step 4: "If
-// any digest value is encountered more than once in the Issuer-signed JWT
-// payload (directly or recursively via other Disclosures), the SD-JWT MUST be
-// rejected." §4.1 states the same rule for the Issuer: "The same digest value
-// MUST NOT appear more than once in the SD-JWT."
-// A digest reached through two objects, such as a mirrored credentialSubject,
-// breaks this rule and resolves the same disclosure into both. Lenient parsing
-// records the break once as a deviation.
-func (p *processor) markSeen(digest string) {
+// markSeen records an embedded digest and reports whether it is the first
+// occurrence. RFC 9901 §7.1 step 4: "If any digest value is encountered more
+// than once in the Issuer-signed JWT payload (directly or recursively via other
+// Disclosures), the SD-JWT MUST be rejected." Lenient parsing resolves only the
+// first occurrence. Resolving every occurrence lets a few kilobytes of
+// disclosures that reference each other twice per level expand exponentially.
+func (p *processor) markSeen(digest string) bool {
 	if p.seen[digest] {
 		if !p.reportedDuplicateDigest {
 			p.reportedDuplicateDigest = true
-			p.deviations = append(p.deviations, "the same disclosure digest appears more than once (the credential repeats its claims in a second object). RFC 9901 §4.1 does not allow this.")
+			p.deviations = append(p.deviations, "the same disclosure digest appears more than once, which RFC 9901 §4.1 does not allow, so only its first occurrence is resolved")
 		}
-		return
+		return false
 	}
 	p.seen[digest] = true
+	return true
 }
 
 // arrayElementDigest returns the digest of an array element that is a digest

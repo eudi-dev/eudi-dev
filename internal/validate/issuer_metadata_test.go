@@ -15,6 +15,7 @@
 package validate
 
 import (
+	"crypto"
 	"crypto/x509"
 	"encoding/json"
 	"net/http"
@@ -23,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/trustlist"
@@ -93,6 +95,78 @@ func TestVerifyJWTSignature_UsesIssuerMetadata(t *testing.T) {
 	}
 	if !strings.Contains(source, "issuer metadata") {
 		t.Fatalf("expected issuer metadata source, got %q", source)
+	}
+}
+
+// SD-JWT VC §4.2 only recommends a kid. Without one, every key of the JWK Set
+// is a candidate.
+func TestVerifyJWTSignature_UsesIssuerMetadataWithoutKid(t *testing.T) {
+	key, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var issuer string
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"issuer": issuer,
+			"jwks":   map[string]any{"keys": []any{mock.SigningJWKMap(&other.PublicKey), mock.SigningJWKMap(&key.PublicKey)}},
+		})
+	}))
+	defer srv.Close()
+	issuer = srv.URL
+
+	jwt, err := jws.Sign(map[string]any{"alg": "ES256", "typ": "dc+sd-jwt"}, map[string]any{"iss": issuer, "vct": "urn:test"}, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	token, err := sdjwt.Parse(jwt + "~")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, source, err := VerifyJWTSignature(token, nil, nil, srv.Client())
+	if err != nil {
+		t.Fatalf("VerifyJWTSignature: %v", err)
+	}
+	if result == nil || !result.SignatureValid || source != "issuer metadata" {
+		t.Fatalf("result = %+v via %q, want a valid signature via issuer metadata", result, source)
+	}
+}
+
+// A supplied key is the whole trust. When it does not verify, the issuer
+// metadata does not stand in for it.
+func TestVerifyJWTSignature_SuppliedKeyIsNotReplacedByIssuerMetadata(t *testing.T) {
+	key, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var issuer string
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"issuer": issuer,
+			"jwks":   map[string]any{"keys": []any{mock.SigningJWKMap(&key.PublicKey)}},
+		})
+	}))
+	defer srv.Close()
+	issuer = srv.URL
+	token := tenantToken(t, issuer, key)
+
+	result, source, err := VerifyJWTSignature(token, []crypto.PublicKey{&other.PublicKey}, nil, srv.Client())
+	if err != nil {
+		t.Fatalf("VerifyJWTSignature: %v", err)
+	}
+	if result == nil || result.SignatureValid || source != SourceProvidedKey {
+		t.Fatalf("result = %+v via %q, want the supplied key to fail", result, source)
 	}
 }
 

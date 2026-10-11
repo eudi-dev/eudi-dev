@@ -18,7 +18,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
@@ -403,12 +402,12 @@ func TestTheDecoderAnchorsAStatusListInTheRevocationServiceOfItsList(t *testing.
 			switch c.Name {
 			case "status list signature":
 				found = true
-				if c.Status != "pass" || !strings.Contains(c.Detail, "revocation service of the trusted list "+ts.URL+"/api/trustlists/pid") {
+				if c.Status != "pass" || c.Anchor == nil || c.Anchor.ListURL != ts.URL+"/api/trustlists/pid" || c.Anchor.Service != "revocation" {
 					t.Errorf("%s: status list signature = %+v, want it anchored by the revocation service of the PID list", cred.Format, c)
 				}
-			case "signature":
-				if c.Status != "pass" || !strings.Contains(c.Detail, "the trusted list "+ts.URL+"/api/trustlists/pid of the catalogue entry") {
-					t.Errorf("%s: signature = %+v, want it anchored by the PID list of its catalogue entry", cred.Format, c)
+			case "trust":
+				if c.Status != "pass" || c.Anchor == nil || c.Anchor.ListURL != ts.URL+"/api/trustlists/pid" || c.Anchor.Service != "issuance" {
+					t.Errorf("%s: trust = %+v, want it anchored by the issuance service of the PID list", cred.Format, c)
 				}
 			}
 		}

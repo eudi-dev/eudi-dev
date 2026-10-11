@@ -31,7 +31,9 @@ func TestCheckSDJWTType(t *testing.T) {
 		{name: "dc+sd-jwt", header: map[string]any{"typ": "dc+sd-jwt"}, want: "pass"},
 		{name: "vc+sd-jwt", header: map[string]any{"typ": "vc+sd-jwt"}, want: "fail"},
 		{name: "plain JWT", header: map[string]any{"typ": "JWT"}, want: "fail"},
-		{name: "mixed case", header: map[string]any{"typ": "DC+SD-JWT"}, want: "fail"},
+		{name: "mixed case", header: map[string]any{"typ": "DC+SD-JWT"}, want: "pass"},
+		{name: "full media type", header: map[string]any{"typ": "application/dc+sd-jwt"}, want: "pass"},
+		{name: "legacy full media type", header: map[string]any{"typ": "application/vc+sd-jwt"}, want: "fail"},
 		{name: "missing", header: map[string]any{"alg": "ES256"}, want: "fail"},
 		{name: "not a string", header: map[string]any{"typ": 7}, want: "fail"},
 	}
@@ -43,28 +45,5 @@ func TestCheckSDJWTType(t *testing.T) {
 				t.Errorf("CheckSDJWTType(%v).Status = %q (%s), want %q", tt.header, got.Status, got.Detail, tt.want)
 			}
 		})
-	}
-}
-
-// RFC 9901 §4.2.4.2 permits only the ... key in a digest placeholder. An extra
-// key makes the object no reference.
-func TestCheckSDJWTIntegrity_PlaceholderWithExtraKeyIsNoReference(t *testing.T) {
-	const digest = "X9yH0Ajrdm1Oij4tWso9UzzKJvPoDxwmuEcO3XAdRC0"
-
-	token := &sdjwt.Token{
-		Payload: map[string]any{
-			"iss":           "https://issuer.example",
-			"nationalities": []any{map[string]any{"...": digest, "hint": "FR"}},
-		},
-		Disclosures: []sdjwt.Disclosure{{Digest: digest, IsArrayEntry: true, Value: "FR"}},
-	}
-
-	if got := CheckSDJWTIntegrity(token); got.Status != "fail" {
-		t.Errorf("CheckSDJWTIntegrity().Status = %q (%s), want fail", got.Status, got.Detail)
-	}
-
-	token.Payload["nationalities"] = []any{map[string]any{"...": digest}}
-	if got := CheckSDJWTIntegrity(token); got.Status != "pass" {
-		t.Errorf("CheckSDJWTIntegrity().Status = %q (%s), want pass", got.Status, got.Detail)
 	}
 }

@@ -34,6 +34,9 @@ type Check struct {
 	// NeedsNetwork marks a skipped check that an offline validation could not
 	// run.
 	NeedsNetwork bool `json:"needsNetwork,omitempty"`
+	// Anchor is the trusted list service behind a passing trust or status
+	// list signature check.
+	Anchor *Anchor `json:"anchor,omitempty"`
 }
 
 // Check states.

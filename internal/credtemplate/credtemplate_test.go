@@ -89,8 +89,9 @@ func TestPredefinedGermanPIDTemplates(t *testing.T) {
 	}
 }
 
-// IT-Wallet 1.4.7 §11.2: the PID has no address, keeps the issuer claims out of
-// the selective disclosures and carries an opaque sub unique per credential.
+// IT-Wallet 1.4.7 §11.2: the PID has no address and keeps the issuer claims out of
+// the selective disclosures. §11.1.2.1 makes its sub opaque and unique per
+// credential.
 func TestPredefinedItalianPIDTemplates(t *testing.T) {
 	first, err := Load("italian-pid-sdjwt", FileLocation(t.TempDir()))
 	if err != nil {

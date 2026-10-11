@@ -21,11 +21,13 @@ import (
 	"crypto/rand"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/fxamacker/cbor/v2"
 	"github.com/veraison/go-cose"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 )
 
@@ -85,9 +87,9 @@ func parseCWTStatusListToken(body []byte, opts CheckOptions) (*statusListToken, 
 		return nil, fmt.Errorf("the status list token's protected header has no algorithm: %w", err)
 	}
 	switch alg {
-	case cose.AlgorithmES256, cose.AlgorithmES384:
+	case cose.AlgorithmES256, mdoc.AlgorithmESP256, cose.AlgorithmES384:
 	default:
-		return nil, fmt.Errorf("the status list token is signed with %v, which is not one of the accepted algorithms ES256 and ES384", alg)
+		return nil, fmt.Errorf("the status list token is signed with %s, which is not one of the accepted algorithms ES256, ESP256 and ES384", mdoc.COSEAlgorithmName(alg))
 	}
 
 	certs, err := certchain.FromCOSE(map[any]any(msg.Headers.Protected), map[any]any(msg.Headers.Unprotected))
@@ -104,7 +106,7 @@ func parseCWTStatusListToken(body []byte, opts CheckOptions) (*statusListToken, 
 
 	verified := false
 	for _, key := range candidates.keys {
-		verifier, err := cose.NewVerifier(alg, key)
+		verifier, err := mdoc.NewCOSEVerifier(alg, key)
 		if err != nil {
 			continue
 		}
@@ -114,7 +116,7 @@ func parseCWTStatusListToken(body []byte, opts CheckOptions) (*statusListToken, 
 		}
 	}
 	if !verified {
-		return nil, fmt.Errorf("the status list token's %v signature does not verify", alg)
+		return nil, fmt.Errorf("the status list token's %s signature does not verify", mdoc.COSEAlgorithmName(alg))
 	}
 
 	tok := &statusListToken{
@@ -137,6 +139,7 @@ func parseCWTStatusListToken(body []byte, opts CheckOptions) (*statusListToken, 
 	tok.subject, _ = cwtClaim(claims, cwtClaimSubject).(string)
 	tok.issuedAt = unixClaim(cwtClaim(claims, cwtClaimIssuedAt))
 	tok.expiresAt = unixClaim(cwtClaim(claims, cwtClaimExpiration))
+	tok.notBefore = unixClaim(cwtClaim(claims, cwtClaimNotBefore))
 	if ttl := cwtClaim(claims, cwtClaimTTL); ttl != nil {
 		if n, ok := asInt(ttl); !ok || n <= 0 {
 			tok.warnings = append(tok.warnings, "the status list token's time to live claim is not a positive number, which section 5.2 requires")
@@ -175,7 +178,7 @@ func cwtType(protected cose.ProtectedHeader) (string, error) {
 	}
 	switch v := value.(type) {
 	case string:
-		if isStatusListTyp(v, "statuslist+cwt") {
+		if strings.EqualFold(v, MediaTypeCWT) {
 			return "", nil
 		}
 		return "", fmt.Errorf("the status list token has type %q, section 5.2 requires %q", v, MediaTypeCWT)
@@ -258,8 +261,8 @@ func GenerateStatusListCWT(bitstring []byte, signingKey *ecdsa.PrivateKey, cfg S
 	msg.Headers.Protected[int64(coseHeaderType)] = MediaTypeCWT
 	msg.Payload = payload
 
-	// RFC 9360 section 2 requires integrity protection for the leaf certificate.
-	// EAA-6.2.10.1-08 (EU 2026/1731) places x5chain in the protected header.
+	// RFC 9360 §2: "The end-entity certificate MUST be integrity protected by
+	// COSE", which x5chain in the protected header does.
 	if chain := mock.WithoutSelfSignedTrustAnchor(cfg.CertChain); len(chain) > 0 {
 		if len(chain) == 1 {
 			msg.Headers.Protected[int64(coseHeaderX5Chain)] = chain[0].Raw

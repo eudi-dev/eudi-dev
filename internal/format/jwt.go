@@ -20,8 +20,10 @@ import (
 	"strings"
 )
 
+// ParseJWTParts decodes a JWS Compact Serialization without verifying it. An
+// undecodable signature gives nil, which no key verifies.
 func ParseJWTParts(raw string) (header, payload map[string]any, sig []byte, err error) {
-	parts := strings.SplitN(raw, ".", 3)
+	parts := strings.Split(strings.TrimSpace(raw), ".")
 	if len(parts) != 3 {
 		return nil, nil, nil, fmt.Errorf("expected 3 parts separated by '.', got %d", len(parts))
 	}
@@ -47,4 +49,21 @@ func ParseJWTParts(raw string) (header, payload map[string]any, sig []byte, err 
 	sig, _ = DecodeBase64URL(parts[2])
 
 	return header, payload, sig, nil
+}
+
+// JOSETypeIs reports whether a typ header parameter names the media type
+// want. RFC 7515 §4.1.9: "all media type values, subtype values, and parameter
+// names are case insensitive" and "A recipient using the media type value MUST
+// treat it as if "application/" were prepended to any "typ" value not
+// containing a '/'."
+func JOSETypeIs(typ, want string) bool {
+	return joseMediaType(typ) == joseMediaType(want)
+}
+
+func joseMediaType(typ string) string {
+	typ = strings.ToLower(typ)
+	if !strings.Contains(typ, "/") {
+		typ = "application/" + typ
+	}
+	return typ
 }

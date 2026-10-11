@@ -32,11 +32,22 @@ func Parse(raw string) (*Document, error) {
 		return nil, fmt.Errorf("decoding input: %w", err)
 	}
 
-	doc, err := parseDeviceResponse(data)
-	if err == nil {
+	var top map[any]any
+	if err := cborDecMode.Unmarshal(data, &top); err != nil {
+		return nil, fmt.Errorf("decoding mdoc CBOR: %w", err)
+	}
+	if _, ok := top["documents"]; ok {
+		doc, err := parseDeviceResponse(data)
+		if err != nil {
+			return nil, fmt.Errorf("reading DeviceResponse: %w", err)
+		}
 		return doc, nil
 	}
-
+	_, hasNameSpaces := top["nameSpaces"]
+	_, hasIssuerAuth := top["issuerAuth"]
+	if !hasNameSpaces && !hasIssuerAuth {
+		return nil, fmt.Errorf("the CBOR map is neither a DeviceResponse nor an IssuerSigned structure")
+	}
 	return parseIssuerSigned(data)
 }
 
@@ -77,8 +88,15 @@ func parseDeviceResponse(data []byte) (*Document, error) {
 		return nil, err
 	}
 
+	// The issuer signs only the MSO docType, so the document's own docType
+	// cannot relabel the credential.
 	if dt, ok := docMap["docType"].(string); ok {
-		doc.DocType = dt
+		switch {
+		case doc.DocType == "":
+			doc.DocType = dt
+		case dt != doc.DocType:
+			doc.Deviations = append(doc.Deviations, fmt.Sprintf("the document names docType %q, but the issuer signed %q in the MSO", dt, doc.DocType))
+		}
 	}
 
 	if ds, ok := docMap["deviceSigned"].(map[any]any); ok {
@@ -104,6 +122,11 @@ func parseDeviceResponse(data []byte) (*Document, error) {
 
 func parseDeviceSigned(ds map[any]any) *DeviceSigned {
 	result := &DeviceSigned{}
+	if ns, ok := ds["nameSpaces"]; ok {
+		if encoded, err := cbor.Marshal(ns); err == nil {
+			result.RawNameSpaces = encoded
+		}
+	}
 	da, ok := ds["deviceAuth"].(map[any]any)
 	if !ok {
 		return result

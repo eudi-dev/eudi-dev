@@ -14,7 +14,11 @@
 
 package sdjwt
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+)
 
 const (
 	// TypeSDJWTVC is the typ header parameter of an SD-JWT VC.
@@ -25,16 +29,18 @@ const (
 	// TypeSDJWTVCLegacy is the typ value of earlier SD-JWT VC drafts. Reading
 	// accepts it and reports a deviation. Issuance never uses it.
 	TypeSDJWTVCLegacy = "vc+sd-jwt"
+
+	// TypeKeyBinding is the typ of a Key Binding JWT (RFC 9901 §4.3).
+	TypeKeyBinding = "kb+jwt"
 )
 
 func AcceptedVCTypes() []string {
 	return []string{TypeSDJWTVC, TypeSDJWTVCLegacy}
 }
 
-// IsAcceptedVCType reports whether typ is an SD-JWT VC type. JOSE headers
-// match media types verbatim, so the comparison is case-sensitive.
+// IsAcceptedVCType reports whether typ is an SD-JWT VC type.
 func IsAcceptedVCType(typ string) bool {
-	return typ == TypeSDJWTVC || typ == TypeSDJWTVCLegacy
+	return format.JOSETypeIs(typ, TypeSDJWTVC) || format.JOSETypeIs(typ, TypeSDJWTVCLegacy)
 }
 
 // ValidateVCType checks the typ header parameter of an Issuer-signed JWT

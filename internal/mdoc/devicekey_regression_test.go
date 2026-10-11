@@ -119,7 +119,7 @@ func TestDeviceKey_Rejects(t *testing.T) {
 		{"key type is not EC2", msoWithDeviceKey(t, map[any]any{
 			int64(1): int64(1), int64(-1): int64(1), int64(-2): valid, int64(-3): valid,
 		})},
-		{"curve is not P-256", msoWithDeviceKey(t, map[any]any{
+		{"point is not on the named curve", msoWithDeviceKey(t, map[any]any{
 			int64(1): int64(2), int64(-1): int64(2), int64(-2): valid, int64(-3): valid,
 		})},
 		{"missing x", msoWithDeviceKey(t, map[any]any{

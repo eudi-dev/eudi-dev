@@ -591,23 +591,6 @@ func containsPurpose(purposes []string, purpose string) bool {
 
 // Decoding does not verify the signature. The caller must verify it where possible.
 func decodeCompactJWT(compact string) (header, payload map[string]any, err error) {
-	parts := strings.Split(compact, ".")
-	if len(parts) != 3 {
-		return nil, nil, fmt.Errorf("not a compact JWT")
-	}
-	headerBytes, err := format.DecodeBase64URL(parts[0])
-	if err != nil {
-		return nil, nil, fmt.Errorf("decoding JWT header: %w", err)
-	}
-	if err := json.Unmarshal(headerBytes, &header); err != nil {
-		return nil, nil, fmt.Errorf("parsing JWT header: %w", err)
-	}
-	payloadBytes, err := format.DecodeBase64URL(parts[1])
-	if err != nil {
-		return nil, nil, fmt.Errorf("decoding JWT payload: %w", err)
-	}
-	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-		return nil, nil, fmt.Errorf("parsing JWT payload: %w", err)
-	}
-	return header, payload, nil
+	header, payload, _, err = format.ParseJWTParts(compact)
+	return header, payload, err
 }

@@ -188,7 +188,8 @@ func PredefinedTemplates() []Template {
 		d.Logo, d.LogoAltText = "embedded:logo-nl.svg", "eudi-dev logo on the Dutch flag"
 		return d
 	}
-	// The Italian PID carries an opaque subject identifier (IT-Wallet 1.4.7 §11.2).
+	// The Italian PID carries a subject identifier (IT-Wallet 1.4.7 §11.2), which
+	// §11.1.2.1 makes opaque and unique per credential.
 	const italianSubject = "eu.europa.ec.eudi.pid.it.1:sub"
 	italianSDJWTClaims := mock.RefreshPIDDates(deepCopyClaims(mock.SDJWTItalianPIDClaims))
 	italianSDJWTClaims["sub"] = uuid.NewString()

@@ -39,6 +39,9 @@ type DeviceSigned struct {
 	// RawDeviceSignature is the deviceSignature COSE_Sign1 as it arrived. Only
 	// this form can be verified.
 	RawDeviceSignature []byte
+	// RawNameSpaces is the DeviceNameSpacesBytes as it arrived. The device
+	// signature covers this encoding.
+	RawNameSpaces []byte
 }
 
 type IssuerSignedItem struct {

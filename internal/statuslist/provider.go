@@ -29,7 +29,8 @@ import (
 // The provider regenerates the list on each request. The expiry ends a cached copy.
 const tokenLifetime = 24 * time.Hour
 
-// defaultTTL is the RECOMMENDED caching hint from Section 5.1, in seconds.
+// defaultTTL is the ttl claim in seconds. Section 5.1 RECOMMENDS the claim, and
+// its example uses 12 hours.
 const defaultTTL = 43200
 
 type StatusListConfig struct {

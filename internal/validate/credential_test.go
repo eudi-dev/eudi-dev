@@ -125,9 +125,13 @@ func TestTheCatalogueListAnchorsTheSignature(t *testing.T) {
 		"SD-JWT VC": c.sdjwt(t, mock.SDJWTConfig{}),
 		"mdoc":      c.mdoc(t, mock.MDOCConfig{}),
 	} {
-		got := mustFind(t, validated(t, raw, Trust{Catalogue: anchoredBy(c)}, Options{}), CheckSignature)
-		if got.Status != Pass || !strings.Contains(got.Detail, "chain verified to the trusted list https://lists.example/pid") {
-			t.Errorf("%s: signature = %+v, want it anchored by the catalogue list", name, got)
+		result := validated(t, raw, Trust{Catalogue: anchoredBy(c)}, Options{})
+		if got := mustFind(t, result, CheckSignature); got.Status != Pass || got.Detail != "Valid, ES256" {
+			t.Errorf("%s: signature = %+v, want Valid, ES256", name, got)
+		}
+		want := Anchor{Entry: "Test", ListURL: "https://lists.example/pid", Service: ServiceIssuance}
+		if got := mustFind(t, result, CheckTrust); got.Status != Pass || got.Anchor == nil || *got.Anchor != want || got.Detail != "Test, trusted list pid" {
+			t.Errorf("%s: trust = %+v, want anchored by %+v", name, got, want)
 		}
 	}
 }
@@ -280,16 +284,39 @@ func TestTheStatusListSignatureNeedsATrustAnchor(t *testing.T) {
 	raw := c.sdjwt(t, mock.SDJWTConfig{StatusListURI: srv.URL, StatusListIdx: 3})
 
 	result := validated(t, raw, Trust{}, Options{Status: true})
-	if got := mustFind(t, result, CheckStatus); got.Status != Pass {
-		t.Fatalf("status = %+v, want pass", got)
+	if got := mustFind(t, result, CheckStatus); got.Status != Pass || got.Detail != "Valid (index 3)" {
+		t.Fatalf("status = %+v, want Valid (index 3)", got)
 	}
 	if got := mustFind(t, result, CheckStatusSignature); got.Status != Warning {
 		t.Errorf("status list signature = %+v, want a warning", got)
 	}
 
 	trust := Trust{Supplied: true, Revocation: []*x509.Certificate{c.ca}}
-	if got := mustFind(t, validated(t, raw, trust, Options{Status: true}), CheckStatusSignature); got.Status != Pass {
-		t.Errorf("status list signature = %+v, want pass", got)
+	if got := mustFind(t, validated(t, raw, trust, Options{Status: true}), CheckStatusSignature); got.Status != Pass || got.Detail != "Valid, signed by "+c.leaf.Subject.CommonName {
+		t.Errorf("status list signature = %+v, want Valid, signed by the leaf", got)
+	}
+}
+
+// draft-ietf-oauth-sd-jwt-vc-19 §2.2.2.3: the Status List Token of an SD-JWT
+// VC "MUST be in JWT format".
+func TestASDJWTVCWithACWTStatusListIsReported(t *testing.T) {
+	c := newIssuerChain(t)
+	var srv *httptest.Server
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token, err := statuslist.GenerateStatusListCWT(make([]byte, 16), c.issuerKey, statuslist.StatusListConfig{URI: srv.URL, CertChain: []*x509.Certificate{c.leaf, c.ca}})
+		if err != nil {
+			t.Errorf("GenerateStatusListCWT: %v", err)
+			return
+		}
+		w.Header().Set("Content-Type", statuslist.MediaTypeCWT)
+		_, _ = w.Write(token)
+	}))
+	t.Cleanup(srv.Close)
+	raw := c.sdjwt(t, mock.SDJWTConfig{StatusListURI: srv.URL})
+
+	result := validated(t, raw, Trust{}, Options{Status: true})
+	if result.Status == nil || !strings.Contains(strings.Join(result.Status.Warnings, "\n"), "requires a JWT") {
+		t.Fatalf("status = %+v, want a finding about the CWT status list", result.Status)
 	}
 }
 

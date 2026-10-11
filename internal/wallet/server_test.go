@@ -33,6 +33,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
@@ -142,21 +143,14 @@ func verifyCompactJWTSignatureWithX5CLeaf(t *testing.T, raw string, header map[s
 	if err != nil {
 		t.Fatalf("parsing signed JWT: %v", err)
 	}
-	entries, err := normalizeMetadataX5CEntries(header["x5c"])
+	certs, err := certchain.FromX5C(header["x5c"])
 	if err != nil {
 		t.Fatalf("parsing x5c header: %v", err)
 	}
-	if len(entries) == 0 {
+	if len(certs) == 0 {
 		t.Fatal("expected x5c entries in JWT header")
 	}
-	leafDER, err := base64.StdEncoding.DecodeString(entries[0])
-	if err != nil {
-		t.Fatalf("decoding x5c leaf: %v", err)
-	}
-	leafCert, err := x509.ParseCertificate(leafDER)
-	if err != nil {
-		t.Fatalf("parsing x5c leaf: %v", err)
-	}
+	leafCert := certs[0]
 	result := sdjwt.Verify(token, leafCert.PublicKey)
 	if result == nil || !result.SignatureValid {
 		t.Fatal("expected compact JWT signature to verify with x5c leaf")

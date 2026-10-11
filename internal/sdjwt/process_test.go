@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 )
 
 func disclosureOf(t *testing.T, elements ...any) (raw string, digest string) {
@@ -422,14 +423,22 @@ func TestParse_ResolvesRecursiveDisclosuresAndArrays(t *testing.T) {
 	}
 }
 
+// RFC 7515 §4.1.9 makes the media type case insensitive and lets the
+// application/ prefix be omitted.
 func TestParse_KeyBindingJWT(t *testing.T) {
+	for _, typ := range []string{"kb+jwt", "application/kb+jwt", "KB+JWT"} {
+		t.Run(typ, func(t *testing.T) { testKeyBindingJWT(t, typ) })
+	}
+}
+
+func testKeyBindingJWT(t *testing.T, typ string) {
 	disc, digest := disclosureOf(t, "salt", "given_name", "Erika")
 	raw := assembleSDJWT(t, map[string]any{
 		"iss": "https://issuer.example",
 		"_sd": []any{digest},
 	}, disc)
 
-	header, _ := json.Marshal(map[string]any{"alg": "ES256", "typ": "kb+jwt"})
+	header, _ := json.Marshal(map[string]any{"alg": "ES256", "typ": typ})
 	payload, _ := json.Marshal(map[string]any{"nonce": "n-1", "aud": "https://verifier.example"})
 	kb := base64.RawURLEncoding.EncodeToString(header) + "." +
 		base64.RawURLEncoding.EncodeToString(payload) + ".fakesig"
@@ -459,4 +468,57 @@ func TestArrayElementDigest(t *testing.T) {
 	if _, _, err := arrayElementDigest(map[string]any{"...": "abc", "extra": 1}); err == nil {
 		t.Fatal("expected an error for a placeholder carrying a second key")
 	}
+}
+
+// Each level of this chain references the next disclosure twice. Resolving
+// every reference would build 2^40 objects.
+func TestParseLenient_DuplicatedDigestChainStaysLinear(t *testing.T) {
+	const levels = 40
+	t.Run("object", func(t *testing.T) {
+		disc, digest := disclosureOf(t, "salt", "leaf", "value")
+		disclosures := []string{disc}
+		for i := 0; i < levels; i++ {
+			disc, digest = disclosureOf(t, "salt", "level", map[string]any{
+				"a": map[string]any{"_sd": []any{digest}},
+				"b": map[string]any{"_sd": []any{digest}},
+			})
+			disclosures = append(disclosures, disc)
+		}
+		assertFinishesWithRepeatedDigest(t, assembleSDJWT(t, map[string]any{"iss": "https://issuer.example", "_sd": []any{digest}}, disclosures...))
+	})
+	t.Run("array", func(t *testing.T) {
+		disc, digest := disclosureOf(t, "salt", "leaf")
+		disclosures := []string{disc}
+		for i := 0; i < levels; i++ {
+			disc, digest = disclosureOf(t, "salt", []any{
+				map[string]any{"...": digest},
+				map[string]any{"...": digest},
+			})
+			disclosures = append(disclosures, disc)
+		}
+		assertFinishesWithRepeatedDigest(t, assembleSDJWT(t, map[string]any{"iss": "https://issuer.example", "levels": []any{map[string]any{"...": digest}}}, disclosures...))
+	})
+}
+
+func assertFinishesWithRepeatedDigest(t *testing.T, raw string) {
+	t.Helper()
+	done := make(chan []string, 1)
+	go func() {
+		token, err := ParseLenient(raw)
+		if err != nil {
+			t.Errorf("ParseLenient: %v", err)
+			done <- nil
+			return
+		}
+		done <- token.Deviations
+	}()
+	select {
+	case deviations := <-done:
+		if !strings.Contains(strings.Join(deviations, "\n"), "more than once") {
+			t.Fatalf("deviations = %v, want a repeated digest finding", deviations)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("ParseLenient did not finish within 5s")
+	}
+	parseError(t, raw, "more than once")
 }
