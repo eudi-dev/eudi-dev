@@ -150,7 +150,7 @@ func (r *Registrar) CatalogAttestations() []CatalogAttestation {
 	entries := slices.DeleteFunc(r.templateCatalog(base), removed.hides)
 	sort.SliceStable(added, func(i, j int) bool { return strings.ToLower(added[i].Name) < strings.ToLower(added[j].Name) })
 	for _, entry := range added {
-		entries = append(entries, completed(cloneCatalogAttestation(entry), base))
+		entries = append(entries, r.completed(cloneCatalogAttestation(entry), base))
 	}
 	return entries
 }
@@ -182,7 +182,7 @@ func (r *Registrar) AddCatalogAttestation(entry CatalogAttestation) (CatalogAtte
 		return CatalogAttestation{}, err
 	}
 	r.state.Catalog = append(r.state.Catalog, entry)
-	return completed(cloneCatalogAttestation(entry), base), nil
+	return r.completed(cloneCatalogAttestation(entry), base), nil
 }
 
 // CheckCatalogAttestation reports whether AddCatalogAttestation would accept
@@ -273,7 +273,7 @@ func (r *Registrar) UpdateCatalogSchema(id string, schema AttestationSchema) (Ca
 	if i < 0 {
 		return CatalogAttestation{}, fmt.Errorf("%w: %s", errCatalogNotFound, id)
 	}
-	stored := completed(cloneCatalogAttestation(r.state.Catalog[i]), base)
+	stored := r.completed(cloneCatalogAttestation(r.state.Catalog[i]), base)
 	if (schema.SupportedFormats != nil && !slices.Equal(schema.SupportedFormats, stored.Schema.SupportedFormats)) ||
 		(schema.SchemaURIs != nil && !slices.Equal(schema.SchemaURIs, stored.Schema.SchemaURIs)) {
 		return CatalogAttestation{}, fmt.Errorf("supportedFormats and schemaURIs follow from the attestation's credentials and can't be changed")
@@ -288,7 +288,7 @@ func (r *Registrar) UpdateCatalogSchema(id string, schema AttestationSchema) (Ca
 		return CatalogAttestation{}, err
 	}
 	r.state.Catalog[i] = updated
-	return completed(cloneCatalogAttestation(updated), base), nil
+	return r.completed(cloneCatalogAttestation(updated), base), nil
 }
 
 // DeleteCatalogAttestation removes an entry. The entry of a predefined
@@ -435,11 +435,11 @@ func normalizeCatalogAttestation(entry *CatalogAttestation, base string) error {
 
 // completed fills in the formats with their schema URIs on the wallet. An
 // entry without trusted authorities gets the trusted list of its category.
-func completed(entry CatalogAttestation, base string) CatalogAttestation {
+func (r *Registrar) completed(entry CatalogAttestation, base string) CatalogAttestation {
 	entry.Category = jsonutil.FirstNonEmpty(entry.Category, credtemplate.CategoryEAA)
 	if len(entry.Schema.TrustedAuthorities) == 0 {
 		isLOTE := true
-		entry.Schema.TrustedAuthorities = []TrustAuthority{{FrameworkType: "etsi_tl", Value: CategoryTrustListURL(base, entry.Category), IsLOTE: &isLOTE}}
+		entry.Schema.TrustedAuthorities = []TrustAuthority{{FrameworkType: "etsi_tl", Value: r.env.TrustedListURL(entry.Category), IsLOTE: &isLOTE}}
 	}
 	entry.Schema.SupportedFormats = nil
 	entry.Schema.SchemaURIs = nil
@@ -451,20 +451,6 @@ func completed(entry CatalogAttestation, base string) CatalogAttestation {
 		})
 	}
 	return entry
-}
-
-// TrustListsPath is where the wallet serves its trusted lists.
-const TrustListsPath = "/api/trustlists"
-
-// TrustListPath is the path of one of the wallet's trusted lists.
-func TrustListPath(id string) string {
-	return TrustListsPath + "/" + id
-}
-
-// CategoryTrustListURL returns the URL of the wallet's trusted list for a
-// credential category.
-func CategoryTrustListURL(base, category string) string {
-	return base + TrustListPath(category)
 }
 
 func catalogSchemaURL(base, id, format string) string {
@@ -562,7 +548,7 @@ func (r *Registrar) templateCatalog(base string) []CatalogAttestation {
 	}
 	for i := range entries {
 		sort.Slice(entries[i].Credentials, func(a, b int) bool { return entries[i].Credentials[a].Format < entries[i].Credentials[b].Format })
-		entries[i] = completed(entries[i], base)
+		entries[i] = r.completed(entries[i], base)
 	}
 	sort.SliceStable(entries, func(a, b int) bool { return strings.ToLower(entries[a].Name) < strings.ToLower(entries[b].Name) })
 	return entries

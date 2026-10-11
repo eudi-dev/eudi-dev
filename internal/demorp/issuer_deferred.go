@@ -62,7 +62,7 @@ func (d *DemoRP) deferIssuance(holderKeys []*ecdsa.PublicKey, granted ticketGran
 		holderKeys: holderKeys,
 		granted:    granted,
 		token:      token,
-		readyAt:    now.Add(deferredReadyDelay),
+		readyAt:    now.Add(d.deferredDelay),
 		expires:    now.Add(entryTTL),
 	}
 	d.mu.Unlock()

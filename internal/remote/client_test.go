@@ -480,7 +480,6 @@ func TestClientEscapesEveryIdentifierSegment(t *testing.T) {
 	for _, pattern := range []string{
 		"GET /api/credentials/{id}",
 		"POST /api/credentials/{id}/refresh",
-		"POST /api/credentials/{id}/status",
 		"DELETE /api/credentials/{id}",
 		"GET /api/templates/{id}",
 		"PUT /api/templates/{id}",
@@ -500,17 +499,16 @@ func TestClientEscapesEveryIdentifierSegment(t *testing.T) {
 	c := NewClient(srv.URL)
 
 	calls := map[string]func() error{
-		"Credential":          func() error { _, err := c.Credential(id); return err },
-		"RefreshCredential":   func() error { _, err := c.RefreshCredential(id); return err },
-		"SetCredentialStatus": func() error { return c.SetCredentialStatus(id, 1) },
-		"RemoveCredential":    func() error { return c.RemoveCredential(id) },
-		"Template":            func() error { _, err := c.Template(id); return err },
-		"PutTemplate":         func() error { _, err := c.PutTemplate(id, map[string]any{}); return err },
-		"DeleteTemplate":      func() error { return c.DeleteTemplate(id) },
-		"OfferStatus":         func() error { _, err := c.OfferStatus(id); return err },
-		"CollectDeferred":     func() error { _, err := c.CollectDeferred(id); return err },
-		"AbandonDeferred":     func() error { _, err := c.AbandonDeferred(id); return err },
-		"Certificate":         func() error { _, err := c.Certificate(id, "pem"); return err },
+		"Credential":        func() error { _, err := c.Credential(id); return err },
+		"RefreshCredential": func() error { _, err := c.RefreshCredential(id); return err },
+		"RemoveCredential":  func() error { return c.RemoveCredential(id) },
+		"Template":          func() error { _, err := c.Template(id); return err },
+		"PutTemplate":       func() error { _, err := c.PutTemplate(id, map[string]any{}); return err },
+		"DeleteTemplate":    func() error { return c.DeleteTemplate(id) },
+		"OfferStatus":       func() error { _, err := c.OfferStatus(id); return err },
+		"CollectDeferred":   func() error { _, err := c.CollectDeferred(id); return err },
+		"AbandonDeferred":   func() error { _, err := c.AbandonDeferred(id); return err },
+		"Certificate":       func() error { _, err := c.Certificate(id, "pem"); return err },
 	}
 	for name, call := range calls {
 		if err := call(); err != nil {

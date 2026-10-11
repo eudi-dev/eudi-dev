@@ -155,9 +155,10 @@ func (w *Wallet) obtainInteractiveAuthorizationCode(endpoint string, setup autho
 		if errorCode != errorInsufficientAuthorization {
 			return "", false, authorizationChallengeError(response)
 		}
-		// §6.2.1 makes auth_session REQUIRED here. Without it the next request
-		// starts a new conversation.
-		if authSession == "" {
+		// §6.2.1.1 makes auth_session REQUIRED for a presentation. Without it
+		// the next request starts a new conversation. §6.2.1.2 omits it for
+		// auth_via_web, whose request_uri links the sign-in.
+		if authSession == "" && jsonutil.GetString(response, "interaction_type_required") != interactionTypeAuthViaWeb {
 			return "", false, fmt.Errorf("authorization server asked for an interaction without an auth_session (OpenID4VCI 1.1 §6.2.1)")
 		}
 

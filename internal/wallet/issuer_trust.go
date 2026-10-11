@@ -232,8 +232,8 @@ func entriesLinking(entries []registrar.CatalogAttestation, listURL string) []re
 // categoryListType is the ETSI TS 119 602 list type of a category, if the
 // standard defines one.
 func categoryListType(category string) string {
-	if list := registrar.CategoryOf(category).TrustedList; list.ETSIAnnex != "" {
-		return list.Type
+	if c := registrar.CategoryOf(category); c.ETSIAnnex != "" {
+		return c.LoTEType
 	}
 	return ""
 }

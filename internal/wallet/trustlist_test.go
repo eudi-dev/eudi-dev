@@ -36,17 +36,17 @@ import (
 // generateEAATrustListJWT signs an EAA list with the CA as its
 // trust anchor.
 func signingChain(w *Wallet, spec provider.IssuedAttestationSpec) ([]*x509.Certificate, error) {
-	_, chain, err := w.Signer().ForSpec(spec)
+	_, chain, err := w.Signer().ForList(spec.List(), "")
 	return chain, err
 }
 
 func generateEAATrustListJWT(signingKey *ecdsa.PrivateKey, caCert *x509.Certificate) (string, error) {
 	return provider.SignTrustList(signingKey, caCert, lote.Options{
 		OperatorName: "EUDI Dev Wallet",
-		Profile: lote.Profile{
-			LoTEType:              provider.CategoryProfile(credtemplate.CategoryEAA).LoTEType,
-			IssuanceServiceType:   provider.CategoryProfile(credtemplate.CategoryEAA).IssuanceServiceType,
-			RevocationServiceType: provider.CategoryProfile(credtemplate.CategoryEAA).RevocationServiceType,
+		Scheme: lote.Scheme{
+			LoTEType:              provider.CategoryList(credtemplate.CategoryEAA).LoTEType,
+			IssuanceServiceType:   provider.CategoryList(credtemplate.CategoryEAA).IssuanceServiceType,
+			RevocationServiceType: provider.CategoryList(credtemplate.CategoryEAA).RevocationServiceType,
 			IssuanceServiceName:   "Issuance Service",
 			RevocationServiceName: "Revocation Service",
 			EntityName:            "EUDI Dev Wallet Issuer",
@@ -152,8 +152,8 @@ func TestGenerateTrustListJWT_PayloadStructure(t *testing.T) {
 	if schemeInfo["LoTESequenceNumber"] != float64(1) {
 		t.Errorf("expected LoTESequenceNumber 1, got %v", schemeInfo["LoTESequenceNumber"])
 	}
-	if schemeInfo["LoTEType"] != provider.CategoryProfile(credtemplate.CategoryEAA).LoTEType {
-		t.Errorf("expected the EAA list type %s, got %v", provider.CategoryProfile(credtemplate.CategoryEAA).LoTEType, schemeInfo["LoTEType"])
+	if schemeInfo["LoTEType"] != provider.CategoryList(credtemplate.CategoryEAA).LoTEType {
+		t.Errorf("expected the EAA list type %s, got %v", provider.CategoryList(credtemplate.CategoryEAA).LoTEType, schemeInfo["LoTEType"])
 	}
 	if _, ok := schemeInfo["ListIssueDateTime"].(string); !ok {
 		t.Errorf("expected ListIssueDateTime string, got %T", schemeInfo["ListIssueDateTime"])
@@ -172,7 +172,7 @@ func TestTheSignedPIDListMatchesTheETSIShape(t *testing.T) {
 	w := generateTestWalletWithPID(t)
 	w.IssuerURL = "https://wallet.example:8443"
 
-	jwt, err := w.TrustedLists().SignedList(w.IssuerURL)
+	jwt, err := w.TrustedLists().SignedGroupList(w.IssuerURL, w.TrustedLists().DefaultGroup(), provider.TrustedListPath(credtemplate.CategoryPID))
 	if err != nil {
 		t.Fatalf("SignedList: %v", err)
 	}
@@ -199,8 +199,8 @@ func TestTheSignedPIDListMatchesTheETSIShape(t *testing.T) {
 	if schemeInfo["LoTEType"] != lote.PIDProvidersListType {
 		t.Fatalf("expected PID LoTEType %s, got %v", lote.PIDProvidersListType, schemeInfo["LoTEType"])
 	}
-	if schemeInfo["StatusDeterminationApproach"] != provider.CategoryProfile(credtemplate.CategoryPID).StatusDeterminationApproach {
-		t.Fatalf("expected PID status determination %s, got %v", provider.CategoryProfile(credtemplate.CategoryPID).StatusDeterminationApproach, schemeInfo["StatusDeterminationApproach"])
+	if schemeInfo["StatusDeterminationApproach"] != provider.CategoryList(credtemplate.CategoryPID).StatusDeterminationApproach {
+		t.Fatalf("expected PID status determination %s, got %v", provider.CategoryList(credtemplate.CategoryPID).StatusDeterminationApproach, schemeInfo["StatusDeterminationApproach"])
 	}
 	if schemeInfo["SchemeTerritory"] != "EU" {
 		t.Fatalf("expected EU scheme territory, got %v", schemeInfo["SchemeTerritory"])
@@ -210,20 +210,20 @@ func TestTheSignedPIDListMatchesTheETSIShape(t *testing.T) {
 		t.Fatalf("expected one SchemeTypeCommunityRules entry, got %v", schemeInfo["SchemeTypeCommunityRules"])
 	}
 	rule, ok := rules[0].(map[string]any)
-	if !ok || rule["uriValue"] != provider.CategoryProfile(credtemplate.CategoryPID).SchemeTypeCommunityRules {
-		t.Fatalf("expected PID scheme rule %s, got %v", provider.CategoryProfile(credtemplate.CategoryPID).SchemeTypeCommunityRules, rules)
+	if !ok || rule["uriValue"] != provider.CategoryList(credtemplate.CategoryPID).SchemeTypeCommunityRules {
+		t.Fatalf("expected PID scheme rule %s, got %v", provider.CategoryList(credtemplate.CategoryPID).SchemeTypeCommunityRules, rules)
 	}
 }
 
 func TestTrustedListGroupsWithMixedProfiles(t *testing.T) {
 	w := generateTestWallet(t)
-	if err := w.RegisterIssuedAttestation(provider.ApplyCategoryDefaults(provider.IssuedAttestationSpec{Category: credtemplate.CategoryPID,
+	if err := w.RegisterIssuedAttestation(categorySpec(provider.IssuedAttestationSpec{Category: credtemplate.CategoryPID,
 		Format: "dc+sd-jwt",
 		VCT:    mock.DefaultPIDVCT,
 	})); err != nil {
 		t.Fatalf("registering PID attestation: %v", err)
 	}
-	if err := w.RegisterIssuedAttestation(provider.ApplyCategoryDefaults(provider.IssuedAttestationSpec{Category: credtemplate.CategoryEAA,
+	if err := w.RegisterIssuedAttestation(categorySpec(provider.IssuedAttestationSpec{Category: credtemplate.CategoryEAA,
 		Format:  "mso_mdoc",
 		DocType: "org.iso.23220.photoid.1",
 		Entitlements: []string{
@@ -260,11 +260,11 @@ func TestWalletProviderTrustList_UsesDistinctSignerAndIsNeverDefault(t *testing.
 	if !ok {
 		t.Fatal("expected a wallet-provider trust-list group")
 	}
-	if group.Profile.LoTEType != lote.WalletProvidersListType {
-		t.Fatalf("expected EUWalletProvidersList type, got %s", group.Profile.LoTEType)
+	if group.List.LoTEType != lote.WalletProvidersListType {
+		t.Fatalf("expected EUWalletProvidersList type, got %s", group.List.LoTEType)
 	}
-	if group.Profile.IssuanceServiceType != provider.WalletProviderProfile().IssuanceServiceType {
-		t.Fatalf("expected wallet solution issuance service type, got %s", group.Profile.IssuanceServiceType)
+	if group.List.IssuanceServiceType != provider.WalletProviderList().IssuanceServiceType {
+		t.Fatalf("expected wallet solution issuance service type, got %s", group.List.IssuanceServiceType)
 	}
 
 	defaultGroup := w.TrustedLists().DefaultGroup()
@@ -327,7 +327,7 @@ func trustListAnchorCert(t *testing.T, jwt string) string {
 
 func TestBuildTrustListIndexEntries_UsesRelativePathAndOptionalAdvertisedURL(t *testing.T) {
 	w := generateTestWallet(t)
-	if err := w.RegisterIssuedAttestation(provider.ApplyCategoryDefaults(provider.IssuedAttestationSpec{Category: credtemplate.CategoryPID,
+	if err := w.RegisterIssuedAttestation(categorySpec(provider.IssuedAttestationSpec{Category: credtemplate.CategoryPID,
 		Format: "dc+sd-jwt",
 		VCT:    mock.DefaultPIDVCT,
 	})); err != nil {
@@ -364,11 +364,11 @@ func TestBuildTrustListIndexEntries_UsesRelativePathAndOptionalAdvertisedURL(t *
 // signer keeps the wallet's issuer key.
 func TestEachCategorySignsWithItsOwnKey(t *testing.T) {
 	w := generateTestWallet(t)
-	pid, err := signingChain(w, provider.ApplyCategoryDefaults(provider.IssuedAttestationSpec{Category: credtemplate.CategoryPID, Format: "dc+sd-jwt", VCT: mock.DefaultPIDVCT}))
+	pid, err := signingChain(w, categorySpec(provider.IssuedAttestationSpec{Category: credtemplate.CategoryPID, Format: "dc+sd-jwt", VCT: mock.DefaultPIDVCT}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	eaa, err := signingChain(w, provider.ApplyCategoryDefaults(provider.IssuedAttestationSpec{Category: credtemplate.CategoryEAA, Format: "mso_mdoc", DocType: "org.iso.23220.photoid.1"}))
+	eaa, err := signingChain(w, categorySpec(provider.IssuedAttestationSpec{Category: credtemplate.CategoryEAA, Format: "mso_mdoc", DocType: "org.iso.23220.photoid.1"}))
 	if err != nil {
 		t.Fatal(err)
 	}

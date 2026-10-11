@@ -59,6 +59,9 @@ type Env interface {
 	RegistrarSigningMaterial() (*ecdsa.PrivateKey, []*x509.Certificate, error)
 	RelyingPartyAccessCA() (*ecdsa.PrivateKey, *x509.Certificate, error)
 	TemplateLocation() credtemplate.Location
+	// TrustedListURL is where the wallet publishes the trusted list of a
+	// credential category.
+	TrustedListURL(category string) string
 }
 
 // Registrar changes a State while holding the lock of the wallet that stores

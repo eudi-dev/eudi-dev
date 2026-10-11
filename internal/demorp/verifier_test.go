@@ -19,6 +19,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -120,6 +121,61 @@ func TestVerifierProcessesAnUnencryptedErrorResponse(t *testing.T) {
 	_, status := requestStatus(t, d, id)
 	if status["status"] != "failed" || !strings.Contains(status["error"].(string), "access_denied the user declined") {
 		t.Errorf("result = %v, want the failure with the wallet's error", status)
+	}
+}
+
+// postVPToken posts an encrypted response with the vp_token for the request.
+func postVPToken(t *testing.T, d *DemoRP, requestID string, vpToken any) (int, map[string]any) {
+	t.Helper()
+	pub, kid := responseEncryptionKey(t, fetchRequestObject(t, d.VerifierHandler(), "/request/"+requestID))
+	body, err := json.Marshal(map[string]any{"vp_token": vpToken, "state": requestID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	encrypted, _, err := jwe.EncryptECDHES(body, pub, kid, "A128GCM", "", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return postResponseForm(t, d, requestID, url.Values{"response": {encrypted}})
+}
+
+// The request id is in the QR code, so anyone who sees it can post to the
+// response URI. A response that does not verify leaves the request open for
+// the visitor's wallet.
+func TestAResponseThatDoesNotVerifyLeavesTheRequestOpen(t *testing.T) {
+	d, _, holderKey := newDemoRP(t)
+	h := d.VerifierHandler()
+	id, params := startVerification(t, h, "ticket")
+
+	if code, doc := postResponseForm(t, d, id, url.Values{}); code != http.StatusBadRequest {
+		t.Errorf("an empty response: %d %v, want 400", code, doc)
+	}
+	if _, status := requestStatus(t, d, id); status["status"] != "pending" {
+		t.Errorf("after an empty response the request is %v, want pending", status["status"])
+	}
+	if code, _ := postVPToken(t, d, id, map[string][]string{"ticket": {"not a credential"}}); code != http.StatusOK {
+		t.Errorf("a response that does not verify: %d, want 200 with the failure", code)
+	}
+	if _, status := requestStatus(t, d, id); status["status"] != "failed" || status["open"] != true {
+		t.Errorf("after a response that does not verify: %v, want failed and open", status)
+	}
+	presentation := presentTicket(t, d, holderKey, params.Get("client_id"), params.Get("nonce"))
+	if code := postPresentation(t, h, id, "ticket", presentation); code != http.StatusOK {
+		t.Fatalf("the wallet's response: %d, want 200", code)
+	}
+	if _, status := requestStatus(t, d, id); status["status"] != "verified" || status["open"] == true {
+		t.Errorf("after the wallet's response: %v, want verified and closed", status)
+	}
+}
+
+// OpenID4VP 1.0 §8.1: each vp_token entry is "an array of one or more
+// Presentations".
+func TestAnEmptyPresentationArrayFails(t *testing.T) {
+	d, _, _ := newDemoRP(t)
+	id, _ := startVerification(t, d.VerifierHandler(), "ticket")
+	postVPToken(t, d, id, map[string][]string{"ticket": {}})
+	if _, status := requestStatus(t, d, id); status["status"] != "failed" || !strings.Contains(fmt.Sprint(status["error"]), "one or more") {
+		t.Errorf("result %v, want the §8.1 failure", status)
 	}
 }
 

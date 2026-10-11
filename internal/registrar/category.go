@@ -19,6 +19,7 @@ import (
 	"fmt"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/defaults"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 )
 
 // Category describes a credential category for the wallet, the registrar and
@@ -38,26 +39,16 @@ type Category struct {
 	// test wallet treats QEAAs and PuB-EAAs the same way. The level of other
 	// EAAs depends on their rulebook.
 	AttestationLoS string `json:"attestationLoS"`
-	// TrustedList describes the trusted list of the category's providers.
-	TrustedList CategoryTrustedList `json:"trustedList"`
-}
-
-// CategoryTrustedList holds the scheme and service types of a category's
-// trusted list (ETSI TS 119 602 V1.1.1). The standard defines list types for
-// PID providers (Annex D) and PuB-EAA providers (Annex H). It registers none
-// for QEAA or other EAA providers. Annex C.1 has a scheme operator create its
-// own URIs, and §6.3.3 asks for one type per profile. Those URIs name the
-// profile, so every deployment uses them whatever its base URL.
-type CategoryTrustedList struct {
-	// ETSIAnnex names the annex of ETSI TS 119 602 that defines the list
-	// type. It is empty for a type of this test wallet.
-	ETSIAnnex                   string `json:"etsiAnnex,omitempty"`
-	Type                        string `json:"type"`
-	StatusDeterminationApproach string `json:"statusDeterminationApproach"`
-	SchemeTypeCommunityRules    string `json:"schemeTypeCommunityRules"`
-	SchemeTerritory             string `json:"schemeTerritory,omitempty"`
-	IssuanceServiceType         string `json:"issuanceServiceType"`
-	RevocationServiceType       string `json:"revocationServiceType"`
+	// ETSIAnnex names the annex of ETSI TS 119 602 V1.1.1 that defines the
+	// list type. The standard defines list types for PID providers (Annex D)
+	// and PuB-EAA providers (Annex H) and none for QEAA or other EAA
+	// providers. Annex C.1 has a scheme operator create its own URIs, and
+	// §6.3.3 asks for one type per profile of a list. Those URIs of this test
+	// wallet are the same in every deployment. ETSIAnnex is empty for them.
+	ETSIAnnex string `json:"etsiAnnex,omitempty"`
+	// Scheme is the scheme of the trusted list of the category's providers.
+	// The service and entity names follow from the label.
+	lote.Scheme
 }
 
 var categories = loadCategories()
@@ -104,7 +95,7 @@ func CategoryOfEntitlement(entitlement string) (string, bool) {
 // that type lists.
 func CategoryOfListType(listType string) (string, bool) {
 	for _, c := range categories {
-		if c.TrustedList.Type == listType {
+		if c.LoTEType == listType {
 			return c.ID, true
 		}
 	}

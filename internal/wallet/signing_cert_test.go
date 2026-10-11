@@ -16,7 +16,7 @@ import (
 func TestSigningCertificatesRemainStable(t *testing.T) {
 	w := generateTestWallet(t)
 	w.IssuerURL = "https://issuer.example"
-	spec := provider.ApplyCategoryDefaults(provider.IssuedAttestationSpec{Category: credtemplate.CategoryPID, Format: "dc+sd-jwt", VCT: mock.DefaultPIDVCT})
+	spec := categorySpec(provider.IssuedAttestationSpec{Category: credtemplate.CategoryPID, Format: "dc+sd-jwt", VCT: mock.DefaultPIDVCT})
 	_, first, err := w.Signer().ForCredential(spec, map[string]any{"issuing_country": "NL"})
 	if err != nil {
 		t.Fatal(err)
@@ -52,7 +52,7 @@ func TestSigningCertificatesRemainStable(t *testing.T) {
 func TestSigningCertificatesIdentifyProviderRoles(t *testing.T) {
 	w := generateTestWallet(t)
 	w.IssuerURL = "https://issuer.example"
-	pid := provider.ApplyCategoryDefaults(provider.IssuedAttestationSpec{Category: credtemplate.CategoryPID, Format: "dc+sd-jwt", VCT: mock.DefaultPIDVCT})
+	pid := categorySpec(provider.IssuedAttestationSpec{Category: credtemplate.CategoryPID, Format: "dc+sd-jwt", VCT: mock.DefaultPIDVCT})
 	pidChain, err := signingChain(w, pid)
 	if err != nil {
 		t.Fatal(err)
@@ -120,7 +120,7 @@ func TestSigningCertificatesIdentifyProviderRoles(t *testing.T) {
 func TestSigningCertificatesSurviveReload(t *testing.T) {
 	backend := storage.NewMemory()
 	dir := t.TempDir()
-	spec := provider.ApplyCategoryDefaults(provider.IssuedAttestationSpec{Category: credtemplate.CategoryPID, Format: "dc+sd-jwt", VCT: mock.DefaultPIDVCT})
+	spec := categorySpec(provider.IssuedAttestationSpec{Category: credtemplate.CategoryPID, Format: "dc+sd-jwt", VCT: mock.DefaultPIDVCT})
 	w, err := NewWalletStoreOn(dir, backend).LoadOrCreate()
 	if err != nil {
 		t.Fatal(err)
@@ -150,4 +150,10 @@ func TestSigningCertificatesSurviveReload(t *testing.T) {
 		})
 	}
 	wg.Wait()
+}
+
+// categorySpec gives a credential type the trusted list of its category.
+func categorySpec(spec provider.IssuedAttestationSpec) provider.IssuedAttestationSpec {
+	spec.Scheme = spec.Scheme.Or(provider.CategoryList(spec.Category).Scheme)
+	return spec
 }

@@ -35,24 +35,9 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/validate"
 )
-
-// AddList puts an external list of trusted entities on the wallet's list of
-// trusted lists. The --arf checks then take anchors from it. Strict mode
-// refuses an unreadable list. Debug mode adds it and reports why it can't be
-// read.
-func (t *Set) AddList(rawURL string) (Link, error) {
-	if err := t.ListRoom(rawURL); err != nil {
-		return Link{}, err
-	}
-	link, err := t.CheckList(rawURL)
-	if err != nil {
-		return Link{}, err
-	}
-	return link, t.StoreList(link.URL)
-}
 
 // CheckList reads an external list before it is added. Strict mode refuses a
 // list the wallet can't read. Debug mode reports why in the link.
@@ -77,7 +62,7 @@ func (t *Set) CheckList(rawURL string) (Link, error) {
 // cacheBound keeps every list the wallet reads itself in the cache, together
 // with the lists they point to.
 func (t *Set) cacheBound() int {
-	configured := len(t.env.Settings().ConfiguredLists)
+	configured := len(t.settings.ConfiguredLists)
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return (configured+len(t.additions.AddedTrustedLists))*(1+maxFollowedPointers) + requestedListSlots
@@ -86,7 +71,7 @@ func (t *Set) cacheBound() int {
 // ListRoom reports whether the wallet can add the list. A list it already has
 // always fits.
 func (t *Set) ListRoom(rawURL string) error {
-	limit := t.env.Settings().MaxLists
+	limit := t.settings.MaxLists
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.listRoomLocked(strings.TrimSpace(rawURL), limit)
@@ -102,7 +87,7 @@ func (t *Set) listRoomLocked(rawURL string, limit int) error {
 // StoreList puts the list on the list of trusted lists, unless the wallet is
 // full.
 func (t *Set) StoreList(rawURL string) error {
-	limit := t.env.Settings().MaxLists
+	limit := t.settings.MaxLists
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if err := t.listRoomLocked(rawURL, limit); err != nil {
@@ -126,10 +111,10 @@ func (t *Set) RemoveList(rawURL string) error {
 	return nil
 }
 
-// ExternalLists are the external lists on the list of trusted lists: the ones
+// externalLists are the external lists on the list of trusted lists: the ones
 // from --trusted-list and the ones users added.
-func (t *Set) ExternalLists() []string {
-	out := slices.Clone(t.env.Settings().ConfiguredLists)
+func (t *Set) externalLists() []string {
+	out := slices.Clone(t.settings.ConfiguredLists)
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	for _, u := range t.additions.AddedTrustedLists {
@@ -142,7 +127,7 @@ func (t *Set) ExternalLists() []string {
 
 // OwnListURL is where the wallet publishes one of its lists.
 func (t *Set) OwnListURL(id string) string {
-	return t.env.RegistrarBase() + registrar.TrustListPath(id)
+	return t.env.RegistrarBase() + provider.TrustedListPath(id)
 }
 
 // The wallet reuses a fetched list for listCacheTTL, because an operator can
@@ -203,7 +188,7 @@ func (t *Set) ownListID(rawURL string) (string, bool) {
 	if err != nil || !format.SameOrigin(u, base) {
 		return "", false
 	}
-	return strings.CutPrefix(u.Path, strings.TrimSuffix(base.Path, "/")+registrar.TrustListPath(""))
+	return strings.CutPrefix(u.Path, strings.TrimSuffix(base.Path, "/")+provider.TrustedListPath(""))
 }
 
 // rawList builds one of the wallet's own lists in process, because the
@@ -214,7 +199,7 @@ func (t *Set) rawList(rawURL string) (string, error) {
 		if !found {
 			return "", fmt.Errorf("the wallet has no trusted list %q", id)
 		}
-		return t.SignedGroupList(t.env.IssuerURL(), group, registrar.TrustListPath(group.ID))
+		return t.SignedGroupList(t.env.IssuerURL(), group, provider.TrustedListPath(group.ID))
 	}
 	c := t.cache
 	c.mu.Lock()
@@ -304,14 +289,22 @@ func VerifyListSigner(raw string, operators []*x509.Certificate) error {
 	return nil
 }
 
-// ListURLs are the lists on the wallet's list of trusted lists: its own lists
+// listURLs are the lists on the wallet's list of trusted lists: its own lists
 // and the external ones.
-func (t *Set) ListURLs() []string {
+func (t *Set) listURLs() []string {
 	var urls []string
+	own := map[string]bool{}
 	for _, group := range t.Groups() {
 		urls = append(urls, t.OwnListURL(group.ID))
+		own[group.ID] = true
 	}
-	return append(urls, t.ExternalLists()...)
+	for _, u := range t.externalLists() {
+		// An external URL can name one of the wallet's own lists.
+		if id, ok := t.ownListID(u); !ok || !own[id] {
+			urls = append(urls, u)
+		}
+	}
+	return urls
 }
 
 // List is a list read by the wallet, or the error from reading it. Via is the
@@ -329,7 +322,7 @@ type List struct {
 // be signed with a certificate from its pointer (ETSI TS 119 602 V1.1.1
 // §6.3.13). The wallet follows pointers one level deep.
 func (t *Set) Lists() []List {
-	urls := t.ListURLs()
+	urls := t.listURLs()
 	seen := make(map[string]bool, len(urls))
 	for _, u := range urls {
 		seen[u] = true
@@ -432,7 +425,7 @@ func (t *Set) ListOfLists(issuer string) (string, error) {
 		}
 		location := tl.URL
 		if id, own := t.ownListID(tl.URL); own && issuer != "" {
-			location = issuer + registrar.TrustListPath(id)
+			location = issuer + provider.TrustedListPath(id)
 		}
 		pointers = append(pointers, lote.PointerEntry(location, tl.List.SchemeInfo.LoTEType, tl.List.SchemeInfo.SchemeOperatorName, tl.List.SchemeInfo.SchemeTerritory, base64.StdEncoding.EncodeToString(signers[0].Raw)))
 	}
@@ -440,7 +433,7 @@ func (t *Set) ListOfLists(issuer string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return signer.Keys().SequencedList(jsonutil.FirstNonEmpty(issuer, t.env.RegistrarBase()), registrar.TrustListPath(ListOfListsID), chain[0], content, func(sequence int, issued time.Time, _ string) (string, error) {
+	return signer.Keys().SequencedList(jsonutil.FirstNonEmpty(issuer, t.env.RegistrarBase()), provider.TrustedListPath(ListOfListsID), chain[0], content, func(sequence int, issued time.Time, _ string) (string, error) {
 		scheme := map[string]any{
 			"LoTEVersionIdentifier": 1,
 			"LoTESequenceNumber":    sequence,

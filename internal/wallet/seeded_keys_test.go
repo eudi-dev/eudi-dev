@@ -11,6 +11,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/storage"
 )
@@ -57,16 +58,16 @@ func TestSeededKeysMatchTheGoldenFile(t *testing.T) {
 		return spec
 	}
 	for _, category := range credtemplate.Categories {
-		key, chain, err := w.Signer().ForSpec(spec("urn:golden", category))
+		key, chain, err := w.Signer().ForList(spec("urn:golden", category).List(), "")
 		material("category/"+category, key, chain, err)
 	}
-	custom, err := provider.NormalizeIssuedAttestationSpec(provider.IssuedAttestationSpec{Format: credtype.FormatSDJWT, VCT: "urn:golden:custom", TrustListType: "https://example.org/LoTEType/custom", EntityName: "Custom Provider", SchemeTerritory: "DE"}, "")
+	custom, err := provider.NormalizeIssuedAttestationSpec(provider.IssuedAttestationSpec{Format: credtype.FormatSDJWT, VCT: "urn:golden:custom", Scheme: lote.Scheme{LoTEType: "https://example.org/LoTEType/custom", EntityName: "Custom Provider", SchemeTerritory: "DE"}}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	key, chain, err := w.Signer().ForSpec(custom)
+	key, chain, err := w.Signer().ForList(custom.List(), "")
 	material("custom", key, chain, err)
-	key, chain, err = w.Signer().ForSpec(spec("urn:golden:unlisted", provider.UnlistedCategory))
+	key, chain, err = w.Signer().ForList(spec("urn:golden:unlisted", provider.UnlistedCategory).List(), "")
 	material("unlisted", key, chain, err)
 	key, chain, err = w.Signer().ForCredential(spec("urn:golden", credtemplate.CategoryPID), map[string]any{"issuing_country": "DE"})
 	material("pid/DE", key, chain, err)

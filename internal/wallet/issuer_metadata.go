@@ -33,7 +33,6 @@ import (
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/netaddr"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
@@ -92,17 +91,17 @@ func parseIssuerHost(raw string) string {
 // issuerSigningJWKs lists each signing key with its certificate chain: one
 // for every credential list and one for unlisted credentials.
 func issuerSigningJWKs(w *Wallet, exp time.Time) []any {
-	profiles := []lote.Profile{}
+	lists := []provider.List{}
 	for _, group := range w.TrustedLists().Groups() {
 		if group.ListsCredentialProviders() {
-			profiles = append(profiles, group.Profile)
+			lists = append(lists, group.List)
 		}
 	}
-	profiles = append(profiles, lote.Profile{})
+	lists = append(lists, provider.List{})
 	seen := map[string]bool{}
 	var keys []any
-	for _, profile := range profiles {
-		key, chain, err := w.Signer().ForProfile(profile, "")
+	for _, list := range lists {
+		key, chain, err := w.Signer().ForList(list, "")
 		if err != nil {
 			continue
 		}

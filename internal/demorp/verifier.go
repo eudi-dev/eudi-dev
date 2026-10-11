@@ -866,6 +866,11 @@ func (d *DemoRP) handleRequestStatus(w http.ResponseWriter, r *http.Request) {
 		if req.err != "" {
 			doc["error"] = req.err
 		}
+		// A failure that did not answer the request leaves it open for the
+		// wallet's response, so the page keeps polling.
+		if status == "failed" && !req.answered && time.Now().Before(req.expires) {
+			doc["open"] = true
+		}
 	}
 	d.mu.Unlock()
 	if !ok {
@@ -897,31 +902,25 @@ func (d *DemoRP) handlePresentationResponse(w http.ResponseWriter, r *http.Reque
 		ok = false
 	}
 	replay := ok && req.answered
-	if ok && !replay {
-		req.answered = true
-	}
 	d.mu.Unlock()
 	if !ok {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "unknown or expired request"})
 		return
 	}
 	if replay {
-		// The nonce is fixed per request, so a captured response would verify
-		// again. Each request accepts one response.
-		writeJSON(w, http.StatusConflict, map[string]string{"error": "this request was already answered"})
+		writeAnswered(w)
 		return
 	}
 
+	// The request id is in the QR code, so anyone who sees it can post here.
+	// A response that is not for this request changes nothing.
 	if err := r.ParseForm(); err != nil {
-		d.finishRequest(req, nil, nil, fmt.Errorf("parsing response form: %w", err))
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid_request"})
 		return
 	}
-
 	response, err := authorizationResponse(req, r.PostForm)
 	if err != nil {
-		d.finishRequest(req, nil, nil, err)
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid_request"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid_request", "error_description": err.Error()})
 		return
 	}
 	// §8.2: the Response URI answers 200 once it "has successfully processed
@@ -930,7 +929,10 @@ func (d *DemoRP) handlePresentationResponse(w http.ResponseWriter, r *http.Reque
 	// is and gets no redirect_uri.
 	if refusal, _ := response["error"].(string); refusal != "" {
 		description, _ := response["error_description"].(string)
-		d.finishRequest(req, nil, nil, fmt.Errorf("the wallet answered with the error %s", strings.TrimSpace(refusal+" "+description)))
+		if !d.finishRequest(req, nil, nil, fmt.Errorf("the wallet answered with the error %s", strings.TrimSpace(refusal+" "+description)), true) {
+			writeAnswered(w)
+			return
+		}
 		writeJSON(w, http.StatusOK, map[string]string{})
 		return
 	}
@@ -939,14 +941,24 @@ func (d *DemoRP) handlePresentationResponse(w http.ResponseWriter, r *http.Reque
 		err = fmt.Errorf("the response carried no vp_token")
 	}
 	if err != nil {
-		d.finishRequest(req, nil, nil, err)
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid_request"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid_request", "error_description": err.Error()})
 		return
 	}
 
+	// The page shows a failure. Anyone can encrypt a response to the request's
+	// public key, so only a verified presentation answers the request.
 	claims, checks, err := d.verifyPresentation(req, string(vpToken))
-	d.finishRequest(req, claims, checks, err)
+	if !d.finishRequest(req, claims, checks, err, err == nil) {
+		writeAnswered(w)
+		return
+	}
 	d.answerResponse(w, req)
+}
+
+// writeAnswered refuses a second response. The nonce is fixed per request, so
+// a captured response would verify again.
+func writeAnswered(w http.ResponseWriter) {
+	writeJSON(w, http.StatusConflict, map[string]string{"error": "this request was already answered"})
 }
 
 // answerResponse answers a processed response with the redirect_uri of
@@ -1006,18 +1018,26 @@ func (d *DemoRP) recordPresentation(req *requestState, presentation string) {
 	req.presentation = presentation
 }
 
-func (d *DemoRP) finishRequest(req *requestState, claims map[string]any, checks []map[string]any, err error) {
+// finishRequest records the result of a response unless another response
+// answered the request first. An answer ends the request, and it accepts no
+// further response.
+func (d *DemoRP) finishRequest(req *requestState, claims map[string]any, checks []map[string]any, err error, answer bool) bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	if req.answered {
+		return false
+	}
+	req.answered = answer
 	req.claims = claims
 	req.checks = checks
 	if err != nil {
 		req.status = "failed"
 		req.err = err.Error()
-		return
+		return true
 	}
 	req.status = "verified"
 	req.err = ""
+	return true
 }
 
 // verifyPresentation validates the PID entry of the vp_token and the ticket
@@ -1040,7 +1060,10 @@ func (d *DemoRP) verifyPresentation(req *requestState, vpToken string) (map[stri
 		if !slices.ContainsFunc(req.queries, func(q credentialQuery) bool { return q.id == id }) {
 			return nil, log.entries, check("vp_token answers only requested queries", fmt.Errorf("the request has no credential query %q", id))
 		}
-		answered[id] = len(presentations) > 0
+		if err := check("vp_token entries hold presentations", errIf(len(presentations) == 0, "the vp_token entry %q is empty. OpenID4VP 1.0 §8.1 asks for an array of one or more presentations", id)); err != nil {
+			return nil, log.entries, err
+		}
+		answered[id] = true
 	}
 	if err := check("vp_token satisfies the credential query", req.unsatisfied(answered)); err != nil {
 		return nil, log.entries, err

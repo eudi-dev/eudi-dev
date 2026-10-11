@@ -57,7 +57,7 @@ func TestATrustListBuildsOnTheListItReplaces(t *testing.T) {
 	backend := storage.NewMemory()
 	s := NewKeys(backend, "", nil)
 	other := base64.StdEncoding.EncodeToString(otherCA.Raw)
-	opts := lote.Options{Issuer: "https://wallet.example", Path: "/list", Profile: CategoryProfile(credtemplate.CategoryPubEAA), Entities: []lote.Entity{{Name: "Other", Issuance: []string{other}}}}
+	opts := lote.Options{Issuer: "https://wallet.example", Path: "/list", Scheme: CategoryList(credtemplate.CategoryPubEAA).Scheme, Entities: []lote.Entity{{Name: "Other", Issuance: []string{other}}}}
 	if _, err := s.TrustList(key, ca, opts); err != nil {
 		t.Fatal(err)
 	}

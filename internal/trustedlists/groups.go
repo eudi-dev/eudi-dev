@@ -29,25 +29,25 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 )
 
-// Group is one of the wallet's own lists: its ID, its profile and the
+// Group is one of the wallet's own lists: its ID, its scheme and the
 // credential types it carries.
 type Group struct {
-	ID      string
-	Profile lote.Profile
-	Specs   []provider.IssuedAttestationSpec
+	ID    string
+	List  provider.List
+	Specs []provider.IssuedAttestationSpec
 }
 
 // ListsCredentialProviders reports whether the group lists the providers of
 // credentials, as opposed to wallet providers, access CAs and registrars.
 func (g Group) ListsCredentialProviders() bool {
-	switch g.Profile.LoTEType {
+	switch g.List.LoTEType {
 	case lote.WalletProvidersListType, lote.AccessCertProvidersListType, lote.RegistrationCertProvidersListType:
 		return false
 	}
 	return true
 }
 
-type IndexEntry struct {
+type indexEntry struct {
 	ID                    string                           `json:"id"`
 	Default               bool                             `json:"default"`
 	Description           string                           `json:"description,omitempty"`
@@ -60,12 +60,6 @@ type IndexEntry struct {
 	Attestations          []provider.IssuedAttestationSpec `json:"attestations"`
 	AdvertisedURL         string                           `json:"advertised_url,omitempty"`
 	URL                   string                           `json:"url,omitempty"`
-}
-
-// SignedList returns the current PID list that the issuer publishes.
-func (t *Set) SignedList(issuer string) (string, error) {
-	group := t.DefaultGroup()
-	return t.SignedGroupList(issuer, group, registrar.TrustListPath(group.ID))
 }
 
 // SignedGroupList returns the current list of the group that the issuer
@@ -86,7 +80,7 @@ func (t *Set) SignedGroupList(issuer string, group Group, path string) (string, 
 		OperatorName: config.WalletName,
 		Issuer:       strings.TrimRight(strings.TrimSpace(issuer), "/"),
 		Path:         path,
-		Profile:      group.Profile,
+		Scheme:       group.List.Scheme,
 		Entities:     t.listEntities(group.ID),
 		ProviderName: t.env.ListedProviderName(),
 	}
@@ -111,21 +105,21 @@ func (t *Set) SignedGroupList(issuer string, group Group, path string) (string, 
 	}
 	var issuanceCertificates []string
 	countries := []string{""}
-	if group.Profile.Category == credtemplate.CategoryPID {
+	if group.List.Category == credtemplate.CategoryPID {
 		countries = t.pidCountries()
 	}
 	for _, country := range countries {
-		_, chain, err := signer.ForProfile(group.Profile, country)
+		_, chain, err := signer.ForList(group.List, country)
 		if err != nil {
 			return "", err
 		}
 		issuanceCertificates = append(issuanceCertificates, base64.StdEncoding.EncodeToString(chain[0].Raw))
 	}
-	_, profileChain, err := signer.ForProfile(group.Profile, "")
+	_, signingChain, err := signer.ForList(group.List, "")
 	if err != nil {
 		return "", err
 	}
-	certificates, err := signer.Keys().ProfileCertificates(profileChain[0], signer.TrustAnchor())
+	certificates, err := signer.Keys().ListedCertificates(signingChain[0], signer.TrustAnchor())
 	if err != nil {
 		return "", err
 	}
@@ -165,33 +159,33 @@ func (t *Set) pidCountries() []string {
 }
 
 // Groups lists one trusted list per credential category, the lists of
-// credential types with their own trust profile, the wallet provider list,
+// credential types with their own scheme, the wallet provider list,
 // the access CA list and the registrar list. Unlisted credential types are on
 // no list.
 func (t *Set) Groups() []Group {
 	byID := make(map[string]*Group)
 	var groups []*Group
-	add := func(profile lote.Profile) *Group {
-		id := provider.ListID(profile)
+	add := func(list provider.List) *Group {
+		id := provider.ListID(list)
 		if group := byID[id]; group != nil {
 			return group
 		}
-		group := &Group{ID: id, Profile: profile}
+		group := &Group{ID: id, List: list}
 		byID[id] = group
 		groups = append(groups, group)
 		return group
 	}
 	for _, category := range credtemplate.Categories {
-		add(provider.CategoryProfile(category))
+		add(provider.CategoryList(category))
 	}
-	add(provider.WalletProviderProfile())
-	add(provider.AccessCAProfile())
-	add(provider.RegistrarProfile())
+	add(provider.WalletProviderList())
+	add(provider.AccessCAList())
+	add(provider.RegistrarList())
 	for _, spec := range t.env.IssuedAttestationSpecs() {
-		if spec.TrustListType == "" {
+		if spec.LoTEType == "" {
 			continue
 		}
-		group := add(provider.SpecProfile(spec))
+		group := add(spec.List())
 		group.Specs = append(group.Specs, spec)
 	}
 	out := make([]Group, 0, len(groups))
@@ -248,23 +242,23 @@ func (t *Set) FindGroup(id, vct, docType string) (Group, bool) {
 }
 
 // IndexEntries describes the wallet's own lists as the issuer publishes them.
-func (t *Set) IndexEntries(issuer string) []IndexEntry {
+func (t *Set) IndexEntries(issuer string) []indexEntry {
 	groups := t.Groups()
 	defaultGroup := t.DefaultGroup()
 	issuer = strings.TrimRight(strings.TrimSpace(issuer), "/")
-	entries := make([]IndexEntry, 0, len(groups))
+	entries := make([]indexEntry, 0, len(groups))
 	for _, group := range groups {
-		path := registrar.TrustListPath(group.ID)
-		entry := IndexEntry{
+		path := provider.TrustedListPath(group.ID)
+		entry := indexEntry{
 			ID:                    group.ID,
 			Default:               group.ID == defaultGroup.ID,
 			Description:           groupDescription(group),
 			Category:              groupCategory(group),
 			Path:                  path,
-			LoTEType:              group.Profile.LoTEType,
-			EntityName:            group.Profile.EntityName,
-			IssuanceServiceType:   group.Profile.IssuanceServiceType,
-			RevocationServiceType: group.Profile.RevocationServiceType,
+			LoTEType:              group.List.LoTEType,
+			EntityName:            group.List.EntityName,
+			IssuanceServiceType:   group.List.IssuanceServiceType,
+			RevocationServiceType: group.List.RevocationServiceType,
 			Attestations:          append([]provider.IssuedAttestationSpec(nil), group.Specs...),
 		}
 		if issuer != "" {
@@ -277,7 +271,7 @@ func (t *Set) IndexEntries(issuer string) []IndexEntry {
 }
 
 func groupDescription(group Group) string {
-	switch group.Profile.LoTEType {
+	switch group.List.LoTEType {
 	case lote.WalletProvidersListType:
 		return "Wallet and key attestations, for issuers"
 	case lote.AccessCertProvidersListType:
@@ -285,14 +279,14 @@ func groupDescription(group Group) string {
 	case lote.RegistrationCertProvidersListType:
 		return "Registration certificates and their status list, for wallets"
 	}
-	if group.ID != group.Profile.Category {
+	if group.ID != group.List.Category {
 		return "Credentials with their own trusted list, for verifiers"
 	}
-	return registrar.CategoryOf(group.Profile.Category).Label + "s issued by this wallet, for verifiers"
+	return registrar.CategoryOf(group.List.Category).Label + "s issued by this wallet, for verifiers"
 }
 
 func groupCategory(group Group) string {
-	switch group.Profile.LoTEType {
+	switch group.List.LoTEType {
 	case lote.WalletProvidersListType:
 		return "Wallet providers"
 	case lote.AccessCertProvidersListType, lote.RegistrationCertProvidersListType:

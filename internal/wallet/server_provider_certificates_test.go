@@ -16,7 +16,7 @@ func TestProviderCertificateRetrievalAndCRL(t *testing.T) {
 	srv := newTestServer(t, false)
 	w := srv.wallet
 	w.IssuerURL = "https://issuer.example"
-	spec := provider.ApplyCategoryDefaults(provider.IssuedAttestationSpec{Format: "mso_mdoc", DocType: mock.PIDNamespace, Category: credtemplate.CategoryPID})
+	spec := provider.IssuedAttestationSpec{Format: "mso_mdoc", DocType: mock.PIDNamespace, Category: credtemplate.CategoryPID, Scheme: provider.CategoryList(credtemplate.CategoryPID).Scheme}
 	_, chain, err := w.Signer().ForCredential(spec, map[string]any{"issuing_country": "DE"})
 	if err != nil {
 		t.Fatal(err)

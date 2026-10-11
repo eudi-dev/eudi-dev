@@ -23,13 +23,11 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/httpsec"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
 )
@@ -52,46 +50,64 @@ type templateConfiguration struct {
 // sorted by name. It skips templates that are neither SD-JWT nor mdoc.
 func (d *DemoRP) templateConfigurations() []templateConfiguration {
 	templates, err := credtemplate.List(d.wallet.Templates)
-	if err != nil {
-		log.Printf("[Demo issuer] WARNING: the issuer offers no templates it can't read: %v", err)
-	}
+	d.warnUnreadableTemplates(err)
 	configs := make([]templateConfiguration, 0, len(templates))
 	for _, tpl := range templates {
-		if tpl.Name == "" {
-			continue
+		if cfg, ok := configurationOf(tpl); ok {
+			configs = append(configs, cfg)
 		}
-		format, err := credtemplate.NormalizeFormat(tpl.Format)
-		if err != nil {
-			continue
-		}
-		cfg := templateConfiguration{id: tpl.Name, template: tpl}
-		switch format {
-		case "sdjwt":
-			if tpl.VCT == "" {
-				continue
-			}
-			cfg.format, cfg.vct = credtype.FormatSDJWT, tpl.VCT
-		case "mdoc":
-			if tpl.DocType == "" {
-				continue
-			}
-			cfg.format, cfg.docType = credtype.FormatMDOC, tpl.DocType
-		default:
-			continue
-		}
-		configs = append(configs, cfg)
 	}
 	sort.Slice(configs, func(i, j int) bool { return configs[i].id < configs[j].id })
 	return configs
 }
 
-func (d *DemoRP) templateConfiguration(id string) (templateConfiguration, bool) {
-	for _, cfg := range d.templateConfigurations() {
-		if cfg.id == id {
-			return cfg, true
-		}
+// configurationOf is the configuration of an SD-JWT or mdoc template.
+func configurationOf(tpl credtemplate.Template) (templateConfiguration, bool) {
+	format, err := credtemplate.NormalizeFormat(tpl.Format)
+	if tpl.Name == "" || err != nil {
+		return templateConfiguration{}, false
 	}
-	return templateConfiguration{}, false
+	cfg := templateConfiguration{id: tpl.Name, template: tpl}
+	switch {
+	case format == "sdjwt" && tpl.VCT != "":
+		cfg.format, cfg.vct = credtype.FormatSDJWT, tpl.VCT
+	case format == "mdoc" && tpl.DocType != "":
+		cfg.format, cfg.docType = credtype.FormatMDOC, tpl.DocType
+	default:
+		return templateConfiguration{}, false
+	}
+	return cfg, true
+}
+
+// warnUnreadableTemplates logs a change in the templates the issuer can't
+// read. Every metadata request lists the templates.
+func (d *DemoRP) warnUnreadableTemplates(err error) {
+	var message string
+	if err != nil {
+		message = err.Error()
+	}
+	d.mu.Lock()
+	changed := message != d.templateWarning
+	d.templateWarning = message
+	d.mu.Unlock()
+	if changed && message != "" {
+		log.Printf("[Demo issuer] WARNING: the issuer offers no templates it can't read: %v", err)
+	}
+}
+
+// templateConfiguration reads the one template a credential request names.
+// An id that looks like a path names no template, since Load would read it
+// from disk.
+func (d *DemoRP) templateConfiguration(id string) (templateConfiguration, bool) {
+	if id == "" || strings.ContainsAny(id, `/\`) {
+		return templateConfiguration{}, false
+	}
+	tpl, err := credtemplate.Load(id, d.wallet.Templates)
+	if err != nil {
+		return templateConfiguration{}, false
+	}
+	cfg, ok := configurationOf(*tpl)
+	return cfg, ok && cfg.id == id
 }
 
 // offeredConfigurationIDs returns every template configuration, the ticket
@@ -242,75 +258,19 @@ func (d *DemoRP) signTemplate(cfg templateConfiguration, holderKey *ecdsa.Public
 	if cfg.id == ticketConfigurationID && granted.clientAuth != nil {
 		resolved.Claims["wallet_attestation"] = granted.clientAuth.ticketClaim()
 	}
-	claims := resolved.CredentialClaims()
 	spec := provider.IssuedAttestationSpec{Format: cfg.format, VCT: cfg.vct, DocType: cfg.docType}
 	spec.Category = d.wallet.CredentialCategory(&tpl, spec)
-	spec, err = provider.NormalizeIssuedAttestationSpec(spec, "")
-	if err != nil {
-		return "", fmt.Errorf("building attestation spec for %s: %w", cfg.id, err)
-	}
-	statusURI := ""
+	opts := wallet.HolderSigning{Issuer: d.issuerID()}
 	if granted.withStatus {
-		if statusURI = d.statusListURI(); statusURI == "" {
+		if opts.StatusListURI = d.statusListURI(); opts.StatusListURI == "" {
 			return "", fmt.Errorf("this wallet has no status list URL")
 		}
 	}
-	// The wallet saves the attestation type and the status index before
-	// another request reloads its state.
-	statusIdx := 0
-	d.wallet.SaveChange(func() bool {
-		var changed bool
-		if changed, err = d.wallet.EnsureIssuedAttestation(spec); err != nil {
-			err = fmt.Errorf("registering the attestation type of %s: %w", cfg.id, err)
-			return false
-		}
-		if granted.withStatus {
-			if statusIdx, err = d.wallet.NextStatusIndex(); err != nil {
-				return false
-			}
-			changed = true
-		}
-		return changed
-	})
+	credential, err := d.wallet.SignForHolder(resolved, spec, holderKey, opts)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("signing %s: %w", cfg.id, err)
 	}
-	signingKey, chain, err := d.wallet.Signer().ForCredential(spec, claims)
-	if err != nil {
-		return "", fmt.Errorf("building signing certificate chain for %s: %w", cfg.id, err)
-	}
-	switch cfg.format {
-	case credtype.FormatSDJWT:
-		issuedAt := time.Now().Truncate(time.Hour)
-		return mock.GenerateSDJWT(mock.SDJWTConfig{
-			CertificateIssuer: d.wallet.IssuerURL,
-			Issuer:            d.issuerID(),
-			VCT:               cfg.vct,
-			ExpiresIn:         resolved.Exp,
-			IssuedAt:          &issuedAt,
-			Claims:            claims,
-			Key:               signingKey,
-			HolderKey:         holderKey,
-			CertChain:         chain,
-			AlwaysDisclosed:   resolved.AlwaysDisclosed,
-			StatusListURI:     statusURI,
-			StatusListIdx:     statusIdx,
-		})
-	case credtype.FormatMDOC:
-		return mock.GenerateMDOC(mock.MDOCConfig{
-			CertificateIssuer: d.wallet.IssuerURL,
-			DocType:           cfg.docType,
-			Namespace:         resolved.Namespace,
-			Claims:            claims,
-			Key:               signingKey,
-			HolderKey:         holderKey,
-			ExpiresIn:         resolved.Exp,
-			CertChain:         chain,
-			StatusListURI:     statusURI,
-			StatusListIdx:     statusIdx,
-		})
-	}
-	return "", fmt.Errorf("configuration %s has an unknown format %s", cfg.id, cfg.format)
+	return credential, nil
 }
 
 // offerConfigurationIDs checks the configurations requested for an offer. An

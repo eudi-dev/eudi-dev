@@ -419,6 +419,20 @@ func TestPushedAuthorizationRequestWithoutClientAuthentication(t *testing.T) {
 	})
 }
 
+// OpenID4VCI 1.0 §12.3: pre-authorized_grant_anonymous_access_supported says
+// whether a Token Request with a Pre-Authorized Code may omit client_id,
+// which only the optional mode accepts.
+func TestTheMetadataSaysWhetherAPreAuthorizedCodeNeedsAClient(t *testing.T) {
+	d, _, _ := newDemoRP(t)
+	if got := d.authorizationServerMetadata()["pre-authorized_grant_anonymous_access_supported"]; got != false {
+		t.Errorf("required mode: %v, want false", got)
+	}
+	d.SetClientAuthMode(ClientAuthOptional)
+	if got := d.authorizationServerMetadata()["pre-authorized_grant_anonymous_access_supported"]; got != true {
+		t.Errorf("optional mode: %v, want true", got)
+	}
+}
+
 // A token endpoint refusal is a 400: RFC 6749 §5.2 responds "with an HTTP 400
 // (Bad Request) status code (unless specified otherwise)", and reserves 401
 // for a client that "attempted to authenticate via the Authorization request

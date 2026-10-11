@@ -70,17 +70,11 @@ func (s *Signer) HasCA() bool {
 	return root.CAKey != nil && len(root.Chain) >= 2
 }
 
-// ForSpec returns the signing key and chain of the credential type's trust
-// profile.
-func (s *Signer) ForSpec(spec IssuedAttestationSpec) (*ecdsa.PrivateKey, []*x509.Certificate, error) {
-	return s.ForProfile(SpecProfile(spec), "")
-}
-
-// ForCredential returns the signing key and chain of the type's trust
-// profile. The signer's countryName matches issuing_country, as ISO/IEC
+// ForCredential returns the signing key and chain of the type's trusted
+// list. The signer's countryName matches issuing_country, as ISO/IEC
 // 18013-5 Table B.3 requires.
 func (s *Signer) ForCredential(spec IssuedAttestationSpec, claims map[string]any) (*ecdsa.PrivateKey, []*x509.Certificate, error) {
-	return s.ForProfile(SpecProfile(spec), IssuingCountry(claims))
+	return s.ForList(spec.List(), IssuingCountry(claims))
 }
 
 // IssuingCountry is the issuing_country claim when it is a two-letter
@@ -93,9 +87,9 @@ func IssuingCountry(claims map[string]any) string {
 	return ""
 }
 
-// ForProfile returns the signing key of the profile and its chain under the
+// ForList returns the signing key of the list and its chain under the
 // provider CA of the country.
-func (s *Signer) ForProfile(profile lote.Profile, country string) (*ecdsa.PrivateKey, []*x509.Certificate, error) {
+func (s *Signer) ForList(list List, country string) (*ecdsa.PrivateKey, []*x509.Certificate, error) {
 	if country == "" {
 		country = mock.DefaultCertificateCountry
 	}
@@ -106,13 +100,13 @@ func (s *Signer) ForProfile(profile lote.Profile, country string) (*ecdsa.Privat
 	}
 	caCert := chain[len(chain)-1]
 	opts := mock.LeafCertOptions{
-		CommonName:            signingLeafCommonName(profile),
+		CommonName:            signingLeafCommonName(list),
 		Country:               country,
 		CRLDistributionPoints: CRLDistributionPoints(root.IssuerURL),
 	}
-	role := Role(profile)
+	role := Role(list)
 	switch {
-	case profile.Category == credtemplate.CategoryPID:
+	case list.Category == credtemplate.CategoryPID:
 		opts.Role = mock.PIDProviderCertificate
 	case role == string(mock.WalletProviderCertificate):
 		opts.Role = mock.WalletProviderCertificate
@@ -123,7 +117,7 @@ func (s *Signer) ForProfile(profile lote.Profile, country string) (*ecdsa.Privat
 			return nil, nil, err
 		}
 	}
-	opts.IssuingCertificateURL = IssuingCertificateURLs(root.IssuerURL)
+	opts.IssuingCertificateURL = issuingCertificateURLs(root.IssuerURL)
 	parentKey, parent, err := s.keys.ProviderCA(caKey, caCert, root.IssuerURL, role, country)
 	if err != nil {
 		return nil, nil, fmt.Errorf("generating provider CA: %w", err)
@@ -151,22 +145,22 @@ func (s *Signer) ForProfile(profile lote.Profile, country string) (*ecdsa.Privat
 // list. Each category list, custom list and the wallet provider list has its
 // own, so a list anchors only the credentials signed for it. The pid category
 // signs with the wallet's issuer key.
-func Role(profile lote.Profile) string {
+func Role(list List) string {
 	switch {
-	case profile.LoTEType == lote.WalletProvidersListType:
+	case list.LoTEType == lote.WalletProvidersListType:
 		return string(mock.WalletProviderCertificate)
-	case profile.LoTEType == "":
+	case list.LoTEType == "":
 		return unlistedRole
 	}
-	return ListID(profile)
+	return ListID(list)
 }
 
 const unlistedRole = "unlisted"
 
 var customRolePattern = regexp.MustCompile(`^tl-[0-9a-f]{8}$`)
 
-// IsRole accepts the roles that Role returns.
-func IsRole(role string) bool {
+// isRole accepts the roles that Role returns.
+func isRole(role string) bool {
 	return slices.Contains(credtemplate.Categories, role) || role == unlistedRole ||
 		role == string(mock.WalletProviderCertificate) || customRolePattern.MatchString(role)
 }
@@ -188,8 +182,8 @@ func CRLDistributionPoints(issuerURL string) []string {
 	return []string{issuer + "/api/crl"}
 }
 
-// IssuingCertificateURLs is where the issuer publishes the wallet CA.
-func IssuingCertificateURLs(issuerURL string) []string {
+// issuingCertificateURLs is where the issuer publishes the wallet CA.
+func issuingCertificateURLs(issuerURL string) []string {
 	issuer := strings.TrimRight(strings.TrimSpace(issuerURL), "/")
 	if issuer == "" {
 		return nil
@@ -199,16 +193,16 @@ func IssuingCertificateURLs(issuerURL string) []string {
 
 // WalletProvider signs wallet and key attestations.
 func (s *Signer) WalletProvider() (*ecdsa.PrivateKey, []*x509.Certificate, error) {
-	return s.ForProfile(WalletProviderProfile(), "")
+	return s.ForList(WalletProviderList(), "")
 }
 
 // ProviderCA returns an existing provider CA of the role and country. An
 // unknown role or a CA that was never created wraps fs.ErrNotExist.
 func (s *Signer) ProviderCA(role, country string) (*ecdsa.PrivateKey, *x509.Certificate, error) {
-	if !IsRole(role) {
+	if !isRole(role) {
 		return nil, nil, fmt.Errorf("unknown provider role: %w", fs.ErrNotExist)
 	}
-	if err := s.keys.HasProviderCA(role, country); err != nil {
+	if err := s.keys.hasProviderCA(role, country); err != nil {
 		return nil, nil, err
 	}
 	root := s.env.Root()
@@ -223,7 +217,7 @@ func (s *Signer) ProviderCA(role, country string) (*ecdsa.PrivateKey, *x509.Cert
 // credential issuers and a visitor's CSR must never produce a certificate under
 // it.
 func (s *Signer) RelyingPartyAccessCA() (*ecdsa.PrivateKey, *x509.Certificate, error) {
-	return s.keys.SelfSignedCA("relying-party-access-ca", "EUDI Dev Test Relying Party Access CA")
+	return s.keys.selfSignedCA("relying-party-access-ca", "EUDI Dev Test Relying Party Access CA")
 }
 
 // RegistrarCA is the root of the registrar's signing certificate. It is a
@@ -231,7 +225,7 @@ func (s *Signer) RelyingPartyAccessCA() (*ecdsa.PrivateKey, *x509.Certificate, e
 // certificate providers names only the registrar (ETSI TS 119 602 V1.1.1
 // Annex G).
 func (s *Signer) RegistrarCA() (*ecdsa.PrivateKey, *x509.Certificate, error) {
-	return s.keys.SelfSignedCA("registrar-ca", "EUDI Dev Test Registrar CA")
+	return s.keys.selfSignedCA("registrar-ca", "EUDI Dev Test Registrar CA")
 }
 
 // Registrar signs registration certificates, registrar responses and the
@@ -267,7 +261,7 @@ func (s *Signer) auxiliary(keyRole string, opts mock.LeafCertOptions) (*ecdsa.Pr
 	if err != nil {
 		return nil, nil, err
 	}
-	opts.IssuingCertificateURL = IssuingCertificateURLs(issuer)
+	opts.IssuingCertificateURL = issuingCertificateURLs(issuer)
 	opts.CRLDistributionPoints = CRLDistributionPoints(issuer)
 	opts.DNSNames, opts.IPAddresses, opts.URIs = IssuerSubjectAltNames(issuer)
 	ca := chain[len(chain)-1]
@@ -317,13 +311,7 @@ func (s *Signer) StatusList() (*ecdsa.PrivateKey, []*x509.Certificate, error) {
 // Default is the signing material of the PID list, the first credential
 // category.
 func (s *Signer) Default() (*ecdsa.PrivateKey, []*x509.Certificate, error) {
-	return s.ForProfile(CategoryProfile(credtemplate.Categories[0]), "")
-}
-
-// DefaultChain is the chain of Default.
-func (s *Signer) DefaultChain() ([]*x509.Certificate, error) {
-	_, chain, err := s.Default()
-	return chain, err
+	return s.ForList(CategoryList(credtemplate.Categories[0]), "")
 }
 
 // IssuerSubjectAltNames are the SANs of a signing leaf. SD-JWT VC draft-08
@@ -355,9 +343,9 @@ func HostSubjectAltNames(host string) (dnsNames []string, ips []net.IP) {
 	return []string{host}, nil
 }
 
-func signingLeafCommonName(profile lote.Profile) string {
-	if profile.LoTEType == "" {
+func signingLeafCommonName(list List) string {
+	if list.LoTEType == "" {
 		return config.WalletIssuerName
 	}
-	return jsonutil.FirstNonEmpty(profile.EntityName, config.WalletIssuerName) + " (" + ListID(profile) + ")"
+	return jsonutil.FirstNonEmpty(list.EntityName, config.WalletIssuerName) + " (" + ListID(list) + ")"
 }

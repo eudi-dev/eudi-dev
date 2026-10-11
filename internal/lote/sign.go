@@ -19,6 +19,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
+	"strings"
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
@@ -44,20 +45,41 @@ const (
 	schemeInformationURI = projectURL + "/blob/main/docs/test-certificates.md"
 )
 
-// Profile describes the scheme of a list and the services of its entities.
-// Category is the credential category whose providers the list names. It is
-// empty for the other lists.
-type Profile struct {
-	Category                    string
-	LoTEType                    string
-	StatusDeterminationApproach string
-	SchemeTypeCommunityRules    string
-	SchemeTerritory             string
-	IssuanceServiceType         string
-	RevocationServiceType       string
-	IssuanceServiceName         string
-	RevocationServiceName       string
-	EntityName                  string
+// Scheme is the scheme of a list (ETSI TS 119 602 V1.1.1 §6.3.3, §6.3.8 to
+// §6.3.10) and the types of its services (§6.6.1), with the names a list
+// gives its operator's entity and services.
+type Scheme struct {
+	LoTEType                    string `json:"trust_list_type,omitempty"`
+	StatusDeterminationApproach string `json:"status_determination_approach,omitempty"`
+	SchemeTypeCommunityRules    string `json:"scheme_type_community_rules,omitempty"`
+	SchemeTerritory             string `json:"scheme_territory,omitempty"`
+	EntityName                  string `json:"entity_name,omitempty"`
+	IssuanceServiceType         string `json:"issuance_service_type,omitempty"`
+	RevocationServiceType       string `json:"revocation_service_type,omitempty"`
+	IssuanceServiceName         string `json:"issuance_service_name,omitempty"`
+	RevocationServiceName       string `json:"revocation_service_name,omitempty"`
+}
+
+// Trimmed trims every field.
+func (s Scheme) Trimmed() Scheme {
+	for _, field := range s.fields() {
+		*field = strings.TrimSpace(*field)
+	}
+	return s
+}
+
+// Or fills the empty fields from defaults.
+func (s Scheme) Or(defaults Scheme) Scheme {
+	fallback := defaults.fields()
+	for i, field := range s.fields() {
+		*field = jsonutil.FirstNonEmpty(*field, *fallback[i])
+	}
+	return s
+}
+
+func (s *Scheme) fields() []*string {
+	return []*string{&s.LoTEType, &s.StatusDeterminationApproach, &s.SchemeTypeCommunityRules, &s.SchemeTerritory, &s.EntityName,
+		&s.IssuanceServiceType, &s.RevocationServiceType, &s.IssuanceServiceName, &s.RevocationServiceName}
 }
 
 // Options describe a list that Sign builds. Path is the path of the
@@ -69,7 +91,7 @@ type Options struct {
 	OperatorName           string
 	Issuer                 string
 	Path                   string `json:"TrustListPath"`
-	Profile                Profile
+	Scheme                 Scheme
 	Sequence               int
 	IssuanceCertificates   []string
 	RevocationCertificates []string
@@ -116,24 +138,24 @@ func Sign(signingKey *ecdsa.PrivateKey, signer *x509.Certificate, opts Options) 
 	schemeInfo := map[string]any{
 		"LoTEVersionIdentifier": 1,
 		"LoTESequenceNumber":    opts.Sequence,
-		"LoTEType":              opts.Profile.LoTEType,
+		"LoTEType":              opts.Scheme.LoTEType,
 		"SchemeOperatorName":    []map[string]string{{"lang": "en", "value": opts.OperatorName}},
 		"ListIssueDateTime":     now.Format(time.RFC3339Nano),
 		"NextUpdate":            now.Add(UpdateInterval).Format(time.RFC3339Nano),
 	}
 	// ETSI TS 119 602 V1.1.1 Annexes D to H ask for scheme explicit lists, and
 	// Table 1 makes every scheme element mandatory for them.
-	schemeInfo["SchemeName"] = []map[string]string{{"lang": "en", "value": opts.Profile.SchemeTerritory + ":EUDI Dev Test Providers"}}
+	schemeInfo["SchemeName"] = []map[string]string{{"lang": "en", "value": opts.Scheme.SchemeTerritory + ":EUDI Dev Test Providers"}}
 	schemeInfo["PolicyOrLegalNotice"] = []map[string]string{{"LoTELegalNotice": "Test data of eudi-dev. The listed providers are fictional and carry no official trust."}}
 	schemeInfo["SchemeOperatorAddress"] = map[string]any{
 		"SchemeOperatorPostalAddress": []map[string]string{{"lang": "en", "StreetAddress": "Test address", "Country": opts.Country}},
 		// ETSI TS 119 602 V1.1.1 §6.3.5.2 asks for an email address and a website.
 		"SchemeOperatorElectronicAddress": []map[string]string{{"lang": "en", "uriValue": "mailto:operator@example.invalid"}, {"lang": "en", "uriValue": projectURL}},
 	}
-	schemeInfo["StatusDeterminationApproach"] = opts.Profile.StatusDeterminationApproach
-	schemeInfo["SchemeTypeCommunityRules"] = []map[string]string{{"lang": "en", "uriValue": opts.Profile.SchemeTypeCommunityRules}}
-	if opts.Profile.SchemeTerritory != "" {
-		schemeInfo["SchemeTerritory"] = opts.Profile.SchemeTerritory
+	schemeInfo["StatusDeterminationApproach"] = opts.Scheme.StatusDeterminationApproach
+	schemeInfo["SchemeTypeCommunityRules"] = []map[string]string{{"lang": "en", "uriValue": opts.Scheme.SchemeTypeCommunityRules}}
+	if opts.Scheme.SchemeTerritory != "" {
+		schemeInfo["SchemeTerritory"] = opts.Scheme.SchemeTerritory
 	}
 	schemeURIs := []map[string]string{{"lang": "en", "uriValue": schemeInformationURI}}
 	if opts.Issuer != "" {
@@ -143,10 +165,10 @@ func Sign(signingKey *ecdsa.PrivateKey, signer *x509.Certificate, opts Options) 
 	schemeInfo["SchemeInformationURI"] = schemeURIs
 	// ETSI TS 119 602 V1.1.1 Tables D.1 to G.1 require a pointer to the list
 	// itself. Table H.1 forbids pointers and fixes the history period.
-	if opts.Profile.LoTEType == PubEAAProvidersListType {
+	if opts.Scheme.LoTEType == PubEAAProvidersListType {
 		schemeInfo["HistoricalInformationPeriod"] = 65535
 	} else if opts.Issuer != "" {
-		schemeInfo["PointersToOtherLoTE"] = []map[string]any{PointerEntry(opts.Issuer+opts.Path, opts.Profile.LoTEType, opts.OperatorName, opts.Profile.SchemeTerritory, signerB64)}
+		schemeInfo["PointersToOtherLoTE"] = []map[string]any{PointerEntry(opts.Issuer+opts.Path, opts.Scheme.LoTEType, opts.OperatorName, opts.Scheme.SchemeTerritory, signerB64)}
 	}
 
 	entities := append([]Entity{{Name: opts.ProviderName, Issuance: opts.IssuanceCertificates, Revocation: opts.RevocationCertificates}}, opts.Entities...)
@@ -154,11 +176,11 @@ func Sign(signingKey *ecdsa.PrivateKey, signer *x509.Certificate, opts Options) 
 	for _, entity := range entities {
 		trustedEntities = append(trustedEntities, map[string]any{
 			"TrustedEntityInformation": trustedEntityInformation(opts, entity),
-			"TrustedEntityServices":    services(opts.Profile, entity),
+			"TrustedEntityServices":    services(opts.Scheme, entity),
 		})
 	}
 	var listed any = trustedEntities
-	if opts.Profile.LoTEType == PubEAAProvidersListType {
+	if opts.Scheme.LoTEType == PubEAAProvidersListType {
 		var err error
 		if listed, err = keepPubEAAHistory(opts.Previous, trustedEntities, now); err != nil {
 			return "", err
@@ -222,7 +244,7 @@ func trustedEntityInformation(opts Options, entity Entity) map[string]any {
 	}
 	informationURIs := []map[string]string{{"lang": "en", "uriValue": contact}}
 	country := opts.Country
-	switch opts.Profile.LoTEType {
+	switch opts.Scheme.LoTEType {
 	case PIDProvidersListType:
 		informationURIs = append(informationURIs, map[string]string{"lang": "en", "uriValue": "http://uri.etsi.org/19602/ListOfTrustedEntities/PIDProvider/" + country})
 	case WalletProvidersListType:
@@ -252,14 +274,14 @@ func trustedEntityInformation(opts Options, entity Entity) map[string]any {
 // services are the issuance and revocation services of an entity. A PuB-EAA
 // list has one service per public key, and every service has a status (ETSI
 // TS 119 602 V1.1.1 Table H.3).
-func services(profile Profile, entity Entity) []map[string]any {
+func services(scheme Scheme, entity Entity) []map[string]any {
 	var out []map[string]any
-	if profile.LoTEType == PubEAAProvidersListType {
+	if scheme.LoTEType == PubEAAProvidersListType {
 		for _, certificate := range entity.Issuance {
-			out = append(out, service(profile.IssuanceServiceType, profile.IssuanceServiceName, []string{certificate}))
+			out = append(out, service(scheme.IssuanceServiceType, scheme.IssuanceServiceName, []string{certificate}))
 		}
 		for _, certificate := range entity.Revocation {
-			out = append(out, service(profile.RevocationServiceType, profile.RevocationServiceName, []string{certificate}))
+			out = append(out, service(scheme.RevocationServiceType, scheme.RevocationServiceName, []string{certificate}))
 		}
 		for _, s := range out {
 			s["ServiceInformation"].(map[string]any)["ServiceStatus"] = PubEAANotifiedStatus
@@ -267,10 +289,10 @@ func services(profile Profile, entity Entity) []map[string]any {
 		return out
 	}
 	if len(entity.Issuance) > 0 {
-		out = append(out, service(profile.IssuanceServiceType, profile.IssuanceServiceName, entity.Issuance))
+		out = append(out, service(scheme.IssuanceServiceType, scheme.IssuanceServiceName, entity.Issuance))
 	}
 	if len(entity.Revocation) > 0 {
-		out = append(out, service(profile.RevocationServiceType, profile.RevocationServiceName, entity.Revocation))
+		out = append(out, service(scheme.RevocationServiceType, scheme.RevocationServiceName, entity.Revocation))
 	}
 	return out
 }

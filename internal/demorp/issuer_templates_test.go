@@ -17,14 +17,17 @@ package demorp
 import (
 	"encoding/base64"
 	"encoding/pem"
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/storage"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
 )
 
@@ -54,6 +57,57 @@ func TestIssuerMetadataListsTheTemplates(t *testing.T) {
 				t.Errorf("configuration %s %s = %v, want %s", id, key, entry[key], value)
 			}
 		}
+	}
+}
+
+// readCounter counts the template blobs the issuer reads.
+type readCounter struct {
+	storage.Store
+	reads int
+}
+
+func (c *readCounter) Read(key string) ([]byte, error) {
+	c.reads++
+	return c.Store.Read(key)
+}
+
+// A credential request names one configuration, so the issuer reads that
+// template and not every stored one.
+func TestACredentialRequestReadsOneTemplate(t *testing.T) {
+	d, w, _ := newDemoRP(t)
+	counter := &readCounter{Store: storage.NewMemory()}
+	w.Templates = credtemplate.Location{Store: counter}
+	for _, name := range []string{"one", "two", "three"} {
+		if _, err := credtemplate.Save(w.Templates, credtemplate.Template{Name: name, Format: "sdjwt", VCT: "urn:test:" + name}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	counter.reads = 0
+	cfg, ok := d.templateConfiguration("two")
+	if !ok || cfg.vct != "urn:test:two" {
+		t.Fatalf("configuration %+v, %t", cfg, ok)
+	}
+	if counter.reads != 1 {
+		t.Errorf("the issuer read %d template blobs, want 1", counter.reads)
+	}
+}
+
+// Every metadata request lists the templates. An unreadable template is
+// logged once, not on every request.
+func TestAnUnreadableTemplateIsLoggedOnce(t *testing.T) {
+	d, w, _ := newDemoRP(t)
+	store := storage.NewMemory()
+	w.Templates = credtemplate.Location{Store: store}
+	if _, err := store.Write("broken.json", []byte("{"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out strings.Builder
+	log.SetOutput(&out)
+	t.Cleanup(func() { log.SetOutput(os.Stderr) })
+	d.templateConfigurations()
+	d.templateConfigurations()
+	if n := strings.Count(out.String(), "WARNING"); n != 1 {
+		t.Errorf("logged %d warnings, want 1:\n%s", n, out.String())
 	}
 }
 
@@ -226,7 +280,7 @@ func TestAStrictWalletRefusesACredentialOutsideItsTrustedList(t *testing.T) {
 	foreign := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) { _, _ = rw.Write([]byte(list)) }))
 	t.Cleanup(foreign.Close)
 	// The wallet trusts the other list operator, so the list gives anchors.
-	w.TrustListCAPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: other.Signer().TrustAnchor().Raw})
+	w.TrustSettings.ListCAPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: other.Signer().TrustAnchor().Raw})
 
 	const vct = "urn:example:badge:1"
 	if _, err := credtemplate.Save(w.Templates, credtemplate.Template{Name: "badge", Format: "sdjwt", VCT: vct, Claims: map[string]any{"level": "gold"}}); err != nil {

@@ -203,11 +203,11 @@ func parseCertificate(b64 string) (CertInfo, error) {
 	if err != nil {
 		return CertInfo{}, fmt.Errorf("parsing certificate: %w", err)
 	}
-	return NewCertInfo(cert), nil
+	return newCertInfo(cert), nil
 }
 
-// NewCertInfo describes a certificate as a trusted list entry.
-func NewCertInfo(cert *x509.Certificate) CertInfo {
+// newCertInfo describes a certificate as a trusted list entry.
+func newCertInfo(cert *x509.Certificate) CertInfo {
 	return CertInfo{
 		Subject:   cert.Subject.String(),
 		Issuer:    cert.Issuer.String(),
@@ -222,7 +222,7 @@ func NewCertInfo(cert *x509.Certificate) CertInfo {
 func CertInfos(certs []*x509.Certificate) []CertInfo {
 	infos := make([]CertInfo, 0, len(certs))
 	for _, cert := range certs {
-		infos = append(infos, NewCertInfo(cert))
+		infos = append(infos, newCertInfo(cert))
 	}
 	return infos
 }

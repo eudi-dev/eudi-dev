@@ -209,18 +209,6 @@ func (c *Client) RegisterRelyingParty(rp, out any) error {
 	return c.do(http.MethodPost, apiPath("registrar", "wrp"), rp, out)
 }
 
-// UpdateRelyingParty replaces a registration (TS05 v1.5 PUT /wrp) and decodes
-// the stored record into out.
-func (c *Client) UpdateRelyingParty(rp, out any) error {
-	var envelope struct {
-		Data json.RawMessage `json:"data"`
-	}
-	if err := c.do(http.MethodPut, apiPath("registrar", "wrp"), rp, &envelope); err != nil {
-		return err
-	}
-	return json.Unmarshal(envelope.Data, out)
-}
-
 // Enrol registers a relying party, or with update changes its registration,
 // and issues its certificates in one step. It decodes the enrolment result
 // into out.
@@ -480,12 +468,6 @@ func (c *Client) AbandonDeferred(id string) (map[string]any, error) {
 	var out map[string]any
 	err := c.do(http.MethodDelete, apiPath("deferred", id), nil, &out)
 	return out, err
-}
-
-// SetCredentialStatus revokes (1) or activates (0) a credential on the remote
-// wallet's own status list.
-func (c *Client) SetCredentialStatus(id string, status int) error {
-	return c.do(http.MethodPost, apiPath("credentials", id, "status"), map[string]any{"status": status}, nil)
 }
 
 func (c *Client) Shutdown() error {

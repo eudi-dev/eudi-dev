@@ -67,7 +67,7 @@ func TestVerifierReportsEveryHAIPCredentialFinding(t *testing.T) {
 	h := d.VerifierHandler()
 	id, params := startVerification(t, h, "ticket")
 
-	chain, err := d.wallet.Signer().DefaultChain()
+	_, chain, err := d.wallet.Signer().Default()
 	if err != nil {
 		t.Fatal(err)
 	}

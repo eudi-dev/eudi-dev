@@ -48,7 +48,7 @@ type Link struct {
 
 // Summary describes the wallet's trusted lists for the API.
 func (t *Set) Summary() Summary {
-	settings := t.env.Settings()
+	settings := t.settings
 	summary := Summary{
 		Entities:        t.Entities(),
 		EntityLists:     EntityLists(),
@@ -60,7 +60,7 @@ func (t *Set) Summary() Summary {
 		summary.Entities = []Entity{}
 	}
 	summary.Lists = []Link{}
-	external := t.ExternalLists()
+	external := t.externalLists()
 	for _, tl := range t.Lists() {
 		if tl.Via == "" && !slices.Contains(external, tl.URL) {
 			continue

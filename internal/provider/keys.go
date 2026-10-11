@@ -50,10 +50,10 @@ func NewKeys(backend storage.Store, prefix string, seed mock.Seed) *Keys {
 	return &Keys{backend: backend, prefix: prefix, seed: seed}
 }
 
-// ProfileCertificates returns the base64 DER certificates a trusted list
+// ListedCertificates returns the base64 DER certificates a trusted list
 // names for a signer: every stored current certificate of the leaf's subject
 // and key, each with the CA below root that issued it.
-func (s *Keys) ProfileCertificates(leaf, root *x509.Certificate) ([]string, error) {
+func (s *Keys) ListedCertificates(leaf, root *x509.Certificate) ([]string, error) {
 	blobs, err := s.backend.ReadAll(path.Join(s.prefix, "certificates"))
 	if err != nil {
 		return nil, err
@@ -118,9 +118,9 @@ func (s *Keys) Key(name string) (*ecdsa.PrivateKey, error) {
 	return key, nil
 }
 
-// HasProviderCA reports whether the provider CA of the role and country
+// hasProviderCA reports whether the provider CA of the role and country
 // exists. It returns an error that wraps fs.ErrNotExist when it doesn't.
-func (s *Keys) HasProviderCA(role, country string) error {
+func (s *Keys) hasProviderCA(role, country string) error {
 	_, err := s.backend.Stat(path.Join(s.prefix, "signing-keys", caKeyName(role, country)+".pem"))
 	return err
 }
@@ -147,15 +147,15 @@ func (s *Keys) ProviderCA(rootKey *ecdsa.PrivateKey, root *x509.Certificate, iss
 		CommonName:            "EUDI Dev Test " + role + " CA " + country,
 		Country:               country,
 		CertificateAuthority:  true,
-		IssuingCertificateURL: IssuingCertificateURLs(issuer),
+		IssuingCertificateURL: issuingCertificateURLs(issuer),
 		CRLDistributionPoints: CRLDistributionPoints(issuer),
 	}, false)
 	return key, cert, err
 }
 
-// SelfSignedCA loads or creates a self-signed CA with its own key. The
+// selfSignedCA loads or creates a self-signed CA with its own key. The
 // certificate is stored, so it stays the same across restarts.
-func (s *Keys) SelfSignedCA(role, commonName string) (*ecdsa.PrivateKey, *x509.Certificate, error) {
+func (s *Keys) selfSignedCA(role, commonName string) (*ecdsa.PrivateKey, *x509.Certificate, error) {
 	key, err := s.Key(role)
 	if err != nil {
 		return nil, nil, err

@@ -22,6 +22,7 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 )
 
@@ -251,14 +252,25 @@ func TestARemovedTemplateEntryStaysRemovedAfterARename(t *testing.T) {
 	}
 }
 
+// The categories with a list type of ETSI TS 119 602 use the constants that
+// lote.Sign switches on.
+func TestCategoryListTypesAreTheETSITypes(t *testing.T) {
+	if got := CategoryOf(credtemplate.CategoryPID).LoTEType; got != lote.PIDProvidersListType {
+		t.Errorf("PID list type %q, want %q", got, lote.PIDProvidersListType)
+	}
+	if got := CategoryOf(credtemplate.CategoryPubEAA).LoTEType; got != lote.PubEAAProvidersListType {
+		t.Errorf("PuB-EAA list type %q, want %q", got, lote.PubEAAProvidersListType)
+	}
+}
+
 // The category table names every category of the templates in their order,
 // and each list type and entitlement leads back to its category.
 func TestCategoryTableWorksBothWays(t *testing.T) {
 	var ids []string
 	for _, c := range Categories() {
 		ids = append(ids, c.ID)
-		if got, ok := CategoryOfListType(c.TrustedList.Type); !ok || got != c.ID {
-			t.Errorf("list type %s gives %q, want %s", c.TrustedList.Type, got, c.ID)
+		if got, ok := CategoryOfListType(c.LoTEType); !ok || got != c.ID {
+			t.Errorf("list type %s gives %q, want %s", c.LoTEType, got, c.ID)
 		}
 		if got, ok := CategoryOfEntitlement(c.Entitlement); !ok || got != c.ID {
 			t.Errorf("entitlement %s gives %q, want %s", c.Entitlement, got, c.ID)

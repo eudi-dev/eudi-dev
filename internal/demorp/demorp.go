@@ -44,6 +44,9 @@ const (
 	// maxEntries caps each state map. Anonymous visitors could otherwise grow
 	// memory without limit between TTL sweeps (see makeRoom).
 	maxEntries = 500
+	// maxDPoPProofs caps the DPoP replay cache. It holds 32-byte hashes for
+	// the freshness window.
+	maxDPoPProofs = 20000
 	// maxBodyBytes leaves room for a form-encoded presentation with a portrait.
 	maxBodyBytes = 256 << 10
 )
@@ -79,32 +82,37 @@ type DemoRP struct {
 	// interactive holds the Authorization Challenge conversations of
 	// OpenID4VCI 1.1 §6, keyed by auth_session.
 	interactive map[string]*interactiveSession
-	// nonces keeps Nonce Endpoint challenges until they expire. A wallet can
-	// use one nonce for a whole batch of proofs.
-	nonces map[string]time.Time
+	// nonceKey authenticates the Nonce Endpoint challenges. A wallet can use
+	// one nonce for a whole batch of proofs.
+	nonceKey []byte
 	// dpopJTIs holds a hash of the target URI and jti of each accepted DPoP
 	// proof until its iat leaves the freshness window.
 	dpopJTIs map[string]time.Time
 	// deferred holds accepted issuances that are not delivered yet, keyed by
 	// the transaction id. The wallet polls with that id.
 	deferred map[string]*deferredTicket
+	// templateWarning is the last logged template read failure.
+	templateWarning string
+	// deferredDelay is how long a deferred issuance stays pending.
+	deferredDelay time.Duration
 }
 
 // New creates the demo issuer and verifier. baseURL returns the public origin
 // of the wallet server, for example https://eudi-test.dev.
 func New(w *wallet.Wallet, baseURL func() string) *DemoRP {
 	return &DemoRP{
-		wallet:       w,
-		baseURL:      func() string { return strings.TrimRight(baseURL(), "/") },
-		offers:       make(map[string]*offerState),
-		tokens:       make(map[string]*tokenState),
-		requests:     make(map[string]*requestState),
-		authRequests: make(map[string]*authRequestState),
-		codes:        make(map[string]*authRequestState),
-		interactive:  make(map[string]*interactiveSession),
-		nonces:       make(map[string]time.Time),
-		dpopJTIs:     make(map[string]time.Time),
-		deferred:     make(map[string]*deferredTicket),
+		wallet:        w,
+		baseURL:       func() string { return strings.TrimRight(baseURL(), "/") },
+		offers:        make(map[string]*offerState),
+		tokens:        make(map[string]*tokenState),
+		requests:      make(map[string]*requestState),
+		authRequests:  make(map[string]*authRequestState),
+		codes:         make(map[string]*authRequestState),
+		interactive:   make(map[string]*interactiveSession),
+		nonceKey:      randomBytes(32),
+		dpopJTIs:      make(map[string]time.Time),
+		deferred:      make(map[string]*deferredTicket),
+		deferredDelay: deferredReadyDelay,
 	}
 }
 
@@ -123,11 +131,15 @@ func (d *DemoRP) SetVerifierTrustAnchors(anchors []*x509.Certificate) {
 }
 
 func randToken() string {
-	b := make([]byte, 16)
+	return hex.EncodeToString(randomBytes(16))
+}
+
+func randomBytes(n int) []byte {
+	b := make([]byte, n)
 	if _, err := rand.Read(b); err != nil {
 		panic(fmt.Sprintf("reading random bytes: %v", err))
 	}
-	return hex.EncodeToString(b)
+	return b
 }
 
 // pruneLocked removes expired entries. Callers hold d.mu.
@@ -161,11 +173,6 @@ func (d *DemoRP) pruneLocked() {
 	for code, a := range d.codes {
 		if now.After(a.expires) || a.codeUsed {
 			delete(d.codes, code)
-		}
-	}
-	for nonce, expires := range d.nonces {
-		if now.After(expires) {
-			delete(d.nonces, nonce)
 		}
 	}
 	for seen, expires := range d.dpopJTIs {

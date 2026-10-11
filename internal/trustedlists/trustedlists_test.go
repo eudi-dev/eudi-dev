@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -46,7 +47,6 @@ func (e *testEnv) IssuerURL() string                                        { re
 func (e *testEnv) RegistrarBase() string                                    { return e.base }
 func (e *testEnv) HTTPClient() *http.Client                                 { return http.DefaultClient }
 func (e *testEnv) Strict() bool                                             { return false }
-func (e *testEnv) Settings() Settings                                       { return e.settings }
 func (e *testEnv) ListedProviderName() string                               { return "Provider" }
 
 type testRoot struct{ root provider.Root }
@@ -75,7 +75,7 @@ func newTestTrust(t *testing.T) (*Set, *testEnv) {
 	}
 	root := provider.Root{IssuerKey: issuerKey, CAKey: caKey, Chain: []*x509.Certificate{leaf, ca}, IssuerURL: "https://wallet.example"}
 	env := &testEnv{signer: provider.NewSigner(keys, testRoot{root}), base: "https://wallet.example"}
-	return New(&sync.RWMutex{}, &Additions{}, &ListCache{}, env), env
+	return New(&sync.RWMutex{}, &Additions{}, &ListCache{}, env.settings, env), env
 }
 
 // Any visitor can name a list URL, so the list cache stays bounded. The
@@ -105,7 +105,7 @@ func TestTheTrustedListCacheIsBounded(t *testing.T) {
 // against the wallet CA.
 func TestTheWalletsOwnListVerifiesAgainstItsCA(t *testing.T) {
 	tr, env := newTestTrust(t)
-	raw, err := tr.SignedList("https://wallet.example")
+	raw, err := tr.SignedGroupList("https://wallet.example", tr.DefaultGroup(), provider.TrustedListPath(tr.DefaultGroup().ID))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,6 +135,22 @@ func TestOwnListIDMatchesTheOriginLikeSameURL(t *testing.T) {
 		if id, ok := tr.ownListID(raw); ok != want || (ok && id != "pid") {
 			t.Errorf("%s: %q %t, want %t", raw, id, ok, want)
 		}
+	}
+}
+
+// One of the wallet's own lists added as an external list is still one list.
+func TestAnOwnListAddedAsExternalIsListedOnce(t *testing.T) {
+	tr, _ := newTestTrust(t)
+	own := tr.OwnListURL(tr.DefaultGroup().ID)
+	tr.additions.AddedTrustedLists = []string{own, strings.Replace(own, "https://wallet.example", "https://WALLET.example:443", 1)}
+	count := 0
+	for _, u := range tr.listURLs() {
+		if _, ok := tr.ownListID(u); ok && strings.HasSuffix(u, "/"+tr.DefaultGroup().ID) {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("the own list is on the list of trusted lists %d times, want once", count)
 	}
 }
 

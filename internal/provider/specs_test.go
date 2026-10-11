@@ -25,19 +25,21 @@ import (
 // category.
 func TestAnEudiDev2ListTypeMovesToTheListOfItsCategory(t *testing.T) {
 	legacy := IssuedAttestationSpec{
-		Format:                "dc+sd-jwt",
-		VCT:                   "urn:test:1",
-		TrustListType:         legacyTrustListType,
-		IssuanceServiceType:   legacyIssuanceServiceType,
-		RevocationServiceType: legacyRevocationService,
-		EntityName:            "EUDI Dev Wallet Issuer",
+		Format: "dc+sd-jwt",
+		VCT:    "urn:test:1",
+		Scheme: lote.Scheme{
+			LoTEType:              legacyTrustListType,
+			IssuanceServiceType:   legacyIssuanceServiceType,
+			RevocationServiceType: legacyRevocationService,
+			EntityName:            "EUDI Dev Wallet Issuer",
+		},
 	}
 	for _, tc := range []struct {
 		category string
-		want     lote.Profile
+		want     List
 	}{
-		{"", CategoryProfile(credtemplate.CategoryEAA)},
-		{credtemplate.CategoryQEAA, CategoryProfile(credtemplate.CategoryQEAA)},
+		{"", CategoryList(credtemplate.CategoryEAA)},
+		{credtemplate.CategoryQEAA, CategoryList(credtemplate.CategoryQEAA)},
 	} {
 		spec := legacy
 		spec.Category = tc.category
@@ -45,7 +47,7 @@ func TestAnEudiDev2ListTypeMovesToTheListOfItsCategory(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got.TrustListType != tc.want.LoTEType || got.IssuanceServiceType != tc.want.IssuanceServiceType || got.RevocationServiceType != tc.want.RevocationServiceType || got.EntityName != tc.want.EntityName {
+		if got.LoTEType != tc.want.LoTEType || got.IssuanceServiceType != tc.want.IssuanceServiceType || got.RevocationServiceType != tc.want.RevocationServiceType || got.EntityName != tc.want.EntityName {
 			t.Errorf("category %q: got %+v, want the list of %s", tc.category, got, tc.want.Category)
 		}
 	}
@@ -55,8 +57,8 @@ func TestAnEudiDev2ListTypeMovesToTheListOfItsCategory(t *testing.T) {
 // gets the defaults of its list.
 func TestASpecWithACategoryListTypeGetsThatCategory(t *testing.T) {
 	for _, category := range credtemplate.Categories {
-		want := CategoryProfile(category)
-		got, err := NormalizeIssuedAttestationSpec(IssuedAttestationSpec{Format: "dc+sd-jwt", VCT: "urn:test:1", TrustListType: want.LoTEType}, "")
+		want := CategoryList(category)
+		got, err := NormalizeIssuedAttestationSpec(IssuedAttestationSpec{Format: "dc+sd-jwt", VCT: "urn:test:1", Scheme: lote.Scheme{LoTEType: want.LoTEType}}, "")
 		if err != nil {
 			t.Fatal(err)
 		}

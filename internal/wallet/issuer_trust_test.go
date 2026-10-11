@@ -113,11 +113,11 @@ func TestAnAttestationIsCheckedAgainstAFetchedList(t *testing.T) {
 			if tc.operator != nil {
 				anchor := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: tc.operator.Signer().TrustAnchor().Raw})
 				if tc.added {
-					if _, err := w.TrustedLists().AddEntity(trustedlists.TrustedListCAID, "", string(anchor)); err != nil {
+					if _, err := addTrustedEntity(w, trustedlists.TrustedListCAID, "", string(anchor)); err != nil {
 						t.Fatal(err)
 					}
 				} else {
-					w.TrustListCAPEM = anchor
+					w.TrustSettings.ListCAPEM = anchor
 				}
 			}
 			if _, err := w.Registrar().AddCatalogAttestation(registrar.CatalogAttestation{

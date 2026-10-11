@@ -20,7 +20,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"slices"
 	"strings"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
@@ -108,11 +107,17 @@ func (e registrarEnv) RelyingPartyAccessCA() (*ecdsa.PrivateKey, *x509.Certifica
 	return e.w.Signer().RelyingPartyAccessCA()
 }
 func (e registrarEnv) TemplateLocation() credtemplate.Location { return e.w.Templates }
+func (e registrarEnv) TrustedListURL(category string) string {
+	return e.w.RegistrarBase() + provider.TrustedListPath(category)
+}
 
 // TrustedLists is the wallet's set of trusted lists. It works on the
 // additions stored in the wallet.
 func (w *Wallet) TrustedLists() *trustedlists.Set {
-	return trustedlists.New(&w.mu, &w.Additions, &w.listCache, trustEnv{w})
+	w.mu.RLock()
+	settings := w.TrustSettings
+	w.mu.RUnlock()
+	return trustedlists.New(&w.mu, &w.Additions, &w.listCache, settings, trustEnv{w})
 }
 
 // trustEnv implements trustedlists.Env for the wallet.
@@ -128,17 +133,6 @@ func (e trustEnv) RegistrarBase() string                   { return e.w.Registra
 func (e trustEnv) HTTPClient() *http.Client                { return e.w.HTTPClient() }
 func (e trustEnv) Strict() bool                            { return e.w.Mode() == ValidationModeStrict }
 func (e trustEnv) ListedProviderName() string              { return listedProviderName }
-func (e trustEnv) Settings() trustedlists.Settings {
-	e.w.mu.RLock()
-	defer e.w.mu.RUnlock()
-	return trustedlists.Settings{
-		RelyingPartyCAPEM: e.w.RelyingPartyCAPEM,
-		ListCAPEM:         e.w.TrustListCAPEM,
-		ConfiguredLists:   slices.Clone(e.w.ConfiguredTrustedListURLs),
-		MaxEntities:       e.w.capacity.TrustedEntities,
-		MaxLists:          e.w.capacity.TrustedLists,
-	}
-}
 
 // The listed provider is the demo issuer. Its certificates carry its EUID as
 // NTRNL-NLTEST.00000000 (ETSI EN 319 412-1 V1.6.1 LEG-5.1.4-07 b).

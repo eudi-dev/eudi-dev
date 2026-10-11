@@ -336,8 +336,8 @@ func TestBuildIssueAttestationSpec_CategoryDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NormalizeIssuedAttestationSpec: %v", err)
 	}
-	if spec.Category != "eaa" || spec.TrustListType != "https://eudi-test.dev/LoTEType/EAAProvidersList" {
-		t.Fatalf("category %q and trust-list type %q, want eaa and the EAA list type", spec.Category, spec.TrustListType)
+	if spec.Category != "eaa" || spec.LoTEType != "https://eudi-test.dev/LoTEType/EAAProvidersList" {
+		t.Fatalf("category %q and trust-list type %q, want eaa and the EAA list type", spec.Category, spec.LoTEType)
 	}
 	if len(spec.Entitlements) != 1 || spec.Entitlements[0] != "https://uri.etsi.org/19475/Entitlement/Non_Q_EAA_Provider" {
 		t.Fatalf("expected Non_Q_EAA entitlement, got %v", spec.Entitlements)
@@ -363,8 +363,8 @@ func TestBuildIssueAttestationSpec_RespectsExplicitOverrides(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NormalizeIssuedAttestationSpec: %v", err)
 	}
-	if spec.TrustListType != "http://example.com/LoTEType/Custom" {
-		t.Fatalf("expected custom trust-list type, got %s", spec.TrustListType)
+	if spec.LoTEType != "http://example.com/LoTEType/Custom" {
+		t.Fatalf("expected custom trust-list type, got %s", spec.LoTEType)
 	}
 	if spec.IssuanceServiceType != "http://example.com/SvcType/Custom/Issuance" {
 		t.Fatalf("expected custom issuance service type, got %s", spec.IssuanceServiceType)

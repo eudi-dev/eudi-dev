@@ -2177,14 +2177,14 @@ func TestAnEAATypeIsRegisteredAndListedAsAnEAA(t *testing.T) {
 	}
 	decodeCompactJWTPayload(t, trustListResp.Body.String(), &list)
 	scheme := list.LoTE.ListAndSchemeInformation
-	if scheme["LoTEType"] != provider.CategoryProfile(credtemplate.CategoryEAA).LoTEType || scheme["StatusDeterminationApproach"] != provider.CategoryProfile(credtemplate.CategoryEAA).StatusDeterminationApproach {
+	if scheme["LoTEType"] != provider.CategoryList(credtemplate.CategoryEAA).LoTEType || scheme["StatusDeterminationApproach"] != provider.CategoryList(credtemplate.CategoryEAA).StatusDeterminationApproach {
 		t.Fatalf("scheme %v, want the EAA list type and its status determination approach", scheme)
 	}
 	if len(list.LoTE.TrustedEntitiesList) != 1 || len(list.LoTE.TrustedEntitiesList[0].TrustedEntityServices) != 2 {
 		t.Fatalf("entities %+v, want one entity with two services", list.LoTE.TrustedEntitiesList)
 	}
 	services := list.LoTE.TrustedEntitiesList[0].TrustedEntityServices
-	if services[0].ServiceInformation.ServiceTypeIdentifier != provider.CategoryProfile(credtemplate.CategoryEAA).IssuanceServiceType || services[1].ServiceInformation.ServiceTypeIdentifier != provider.CategoryProfile(credtemplate.CategoryEAA).RevocationServiceType {
+	if services[0].ServiceInformation.ServiceTypeIdentifier != provider.CategoryList(credtemplate.CategoryEAA).IssuanceServiceType || services[1].ServiceInformation.ServiceTypeIdentifier != provider.CategoryList(credtemplate.CategoryEAA).RevocationServiceType {
 		t.Fatalf("services %+v, want the EAA issuance and revocation types", services)
 	}
 }
@@ -2192,13 +2192,13 @@ func TestAnEAATypeIsRegisteredAndListedAsAnEAA(t *testing.T) {
 func TestTrustListsAPI_ListsEveryCategoryWithThePIDListAsDefault(t *testing.T) {
 	w := generateTestWallet(t)
 	w.IssuerURL = "https://localhost:8443"
-	if err := w.RegisterIssuedAttestation(provider.ApplyCategoryDefaults(provider.IssuedAttestationSpec{Category: credtemplate.CategoryPID,
+	if err := w.RegisterIssuedAttestation(provider.IssuedAttestationSpec{Category: credtemplate.CategoryPID,
 		Format: "dc+sd-jwt",
 		VCT:    mock.DefaultPIDVCT,
-	})); err != nil {
+	}); err != nil {
 		t.Fatalf("registering PID attestation: %v", err)
 	}
-	if err := w.RegisterIssuedAttestation(provider.ApplyCategoryDefaults(provider.IssuedAttestationSpec{Category: credtemplate.CategoryEAA,
+	if err := w.RegisterIssuedAttestation(categorySpec(provider.IssuedAttestationSpec{Category: credtemplate.CategoryEAA,
 		Format:  "mso_mdoc",
 		DocType: "org.iso.23220.photoid.1",
 		Entitlements: []string{
@@ -2288,7 +2288,7 @@ func TestTrustListsAPI_ListsEveryCategoryWithThePIDListAsDefault(t *testing.T) {
 		t.Fatalf("expected top-level LoTE object, got %T", selectedPayload["LoTE"])
 	}
 	selectedScheme := selectedLoTE["ListAndSchemeInformation"].(map[string]any)
-	if selectedScheme["LoTEType"] != provider.CategoryProfile(credtemplate.CategoryEAA).LoTEType {
+	if selectedScheme["LoTEType"] != provider.CategoryList(credtemplate.CategoryEAA).LoTEType {
 		t.Fatalf("doctype-selected list has LoTEType %v, want the EAA list type", selectedScheme["LoTEType"])
 	}
 
@@ -2303,7 +2303,7 @@ func TestTrustListsAPI_ListsEveryCategoryWithThePIDListAsDefault(t *testing.T) {
 		t.Fatalf("expected top-level LoTE object, got %T", byIDPayload["LoTE"])
 	}
 	byIDScheme := byIDLoTE["ListAndSchemeInformation"].(map[string]any)
-	if byIDScheme["LoTEType"] != provider.CategoryProfile(credtemplate.CategoryEAA).LoTEType {
+	if byIDScheme["LoTEType"] != provider.CategoryList(credtemplate.CategoryEAA).LoTEType {
 		t.Fatalf("/api/trustlists/eaa has LoTEType %v, want the EAA list type", byIDScheme["LoTEType"])
 	}
 	uris, ok := byIDScheme["SchemeInformationURI"].([]any)
@@ -3141,7 +3141,7 @@ func encryptionClientMetadata(t *testing.T) map[string]any {
 func TestTheWalletServesTheCategoryListsTheCatalogueLinks(t *testing.T) {
 	srv := newTestServer(t, false)
 	for _, category := range credtemplate.Categories {
-		path := registrar.CategoryTrustListURL("", category)
+		path := provider.TrustedListPath(category)
 		if resp := serverRequest(t, srv, "GET", path, ""); resp.Code != http.StatusOK {
 			t.Errorf("GET %s answers %d", path, resp.Code)
 		}

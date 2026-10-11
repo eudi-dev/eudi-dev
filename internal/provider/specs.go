@@ -13,8 +13,8 @@
 // limitations under the License.
 
 // Package provider holds the wallet's provider keys and certificates: the
-// trusted list profile of each credential category, the signing key and CA
-// of each profile, and the CAs of access and registration certificates.
+// trusted list of each credential category, the signing key and CA of each
+// list, and the CAs of access and registration certificates.
 package provider
 
 import (
@@ -52,17 +52,23 @@ type IssuedAttestationSpec struct {
 	DocType string `json:"doctype,omitempty"`
 	// Category is pid, qeaa, pub-eaa, eaa or unlisted. It decides which of the
 	// wallet's trusted lists carries the type. An unlisted type is on none.
-	Category                    string   `json:"category,omitempty"`
-	Entitlements                []string `json:"entitlements,omitempty"`
-	TrustListType               string   `json:"trust_list_type,omitempty"`
-	StatusDeterminationApproach string   `json:"status_determination_approach,omitempty"`
-	SchemeTypeCommunityRules    string   `json:"scheme_type_community_rules,omitempty"`
-	SchemeTerritory             string   `json:"scheme_territory,omitempty"`
-	EntityName                  string   `json:"entity_name,omitempty"`
-	IssuanceServiceType         string   `json:"issuance_service_type,omitempty"`
-	RevocationServiceType       string   `json:"revocation_service_type,omitempty"`
-	IssuanceServiceName         string   `json:"issuance_service_name,omitempty"`
-	RevocationServiceName       string   `json:"revocation_service_name,omitempty"`
+	Category     string   `json:"category,omitempty"`
+	Entitlements []string `json:"entitlements,omitempty"`
+	// Scheme is the scheme of the trusted list that carries the type.
+	lote.Scheme
+}
+
+// List is the trusted list that carries the credential type.
+func (spec IssuedAttestationSpec) List() List {
+	return List{Category: spec.Category, Scheme: spec.Scheme}
+}
+
+// List is one of the wallet's own trusted lists. Category is the credential
+// category whose providers a category list names. It is empty for the other
+// lists.
+type List struct {
+	Category string
+	lote.Scheme
 }
 
 // UnlistedCategory keeps a credential type off every trusted list. It tests
@@ -78,30 +84,21 @@ func NormalizeIssuedAttestationSpec(spec IssuedAttestationSpec, category string)
 	spec.VCT = strings.TrimSpace(spec.VCT)
 	spec.DocType = strings.TrimSpace(spec.DocType)
 	spec.Category = strings.TrimSpace(spec.Category)
-	spec.TrustListType = strings.TrimSpace(spec.TrustListType)
-	spec.StatusDeterminationApproach = strings.TrimSpace(spec.StatusDeterminationApproach)
-	spec.SchemeTypeCommunityRules = strings.TrimSpace(spec.SchemeTypeCommunityRules)
-	spec.SchemeTerritory = strings.TrimSpace(spec.SchemeTerritory)
-	spec.EntityName = strings.TrimSpace(spec.EntityName)
-	spec.IssuanceServiceType = strings.TrimSpace(spec.IssuanceServiceType)
-	spec.RevocationServiceType = strings.TrimSpace(spec.RevocationServiceType)
-	spec.IssuanceServiceName = strings.TrimSpace(spec.IssuanceServiceName)
-	spec.RevocationServiceName = strings.TrimSpace(spec.RevocationServiceName)
+	spec.Scheme = spec.Scheme.Trimmed()
 	spec.Entitlements = dedupeStrings(spec.Entitlements)
 
 	if category != "" {
 		spec.Category = category
 	}
 	if spec.Category == UnlistedCategory {
-		spec.TrustListType, spec.StatusDeterminationApproach, spec.SchemeTypeCommunityRules, spec.SchemeTerritory = "", "", "", ""
-		spec.EntityName, spec.IssuanceServiceType, spec.RevocationServiceType, spec.IssuanceServiceName, spec.RevocationServiceName = "", "", "", "", ""
+		spec.Scheme = lote.Scheme{}
 		return spec, nil
 	}
 	if err := credtemplate.CheckCategory(spec.Category); err != nil {
 		return IssuedAttestationSpec{}, err
 	}
-	if spec.TrustListType == legacyTrustListType {
-		spec.TrustListType = ""
+	if spec.LoTEType == legacyTrustListType {
+		spec.LoTEType = ""
 		if spec.IssuanceServiceType == legacyIssuanceServiceType {
 			spec.IssuanceServiceType = ""
 		}
@@ -112,23 +109,23 @@ func NormalizeIssuedAttestationSpec(spec IssuedAttestationSpec, category string)
 			spec.EntityName = ""
 		}
 	}
-	if spec.TrustListType == lote.WalletProvidersListType {
+	if spec.LoTEType == lote.WalletProvidersListType {
 		return IssuedAttestationSpec{}, fmt.Errorf("the wallet provider list holds wallet and key attestations, not credentials")
 	}
 	if spec.Category == "" {
-		if category, ok := registrar.CategoryOfListType(spec.TrustListType); ok {
+		if category, ok := registrar.CategoryOfListType(spec.LoTEType); ok {
 			spec.Category = category
-		} else if spec.TrustListType == "" {
+		} else if spec.LoTEType == "" {
 			spec.Category = credtemplate.CategoryEAA
 		}
 	}
 	if spec.Category != "" {
-		spec = ApplyCategoryDefaults(spec)
+		spec.Scheme = spec.Scheme.Or(CategoryList(spec.Category).Scheme)
 		if len(spec.Entitlements) == 0 {
 			spec.Entitlements = []string{registrar.CategoryOf(spec.Category).Entitlement}
 		}
 	}
-	if spec.TrustListType != "" {
+	if spec.LoTEType != "" {
 		spec.EntityName = jsonutil.FirstNonEmpty(spec.EntityName, config.WalletIssuerName)
 		spec.IssuanceServiceName = jsonutil.FirstNonEmpty(spec.IssuanceServiceName, "Issuance Service")
 		spec.RevocationServiceName = jsonutil.FirstNonEmpty(spec.RevocationServiceName, "Revocation Service")
@@ -181,38 +178,15 @@ func dedupeStrings(values []string) []string {
 	return out
 }
 
-// CategoryProfile is the trusted list of a credential category. An
-// empty or unknown category is an EAA.
-func CategoryProfile(category string) lote.Profile {
+// CategoryList is the trusted list of a credential category. An empty or
+// unknown category is an EAA.
+func CategoryList(category string) List {
 	c := registrar.CategoryOf(category)
-	return lote.Profile{
-		Category:                    c.ID,
-		LoTEType:                    c.TrustedList.Type,
-		StatusDeterminationApproach: c.TrustedList.StatusDeterminationApproach,
-		SchemeTypeCommunityRules:    c.TrustedList.SchemeTypeCommunityRules,
-		SchemeTerritory:             c.TrustedList.SchemeTerritory,
-		IssuanceServiceType:         c.TrustedList.IssuanceServiceType,
-		RevocationServiceType:       c.TrustedList.RevocationServiceType,
-		IssuanceServiceName:         c.Label + " Issuance Service",
-		RevocationServiceName:       c.Label + " Revocation Service",
-		EntityName:                  config.WalletName + " " + c.Label + " Provider",
-	}
-}
-
-// ApplyCategoryDefaults fills the empty trusted list fields of the spec from
-// the list of its category.
-func ApplyCategoryDefaults(spec IssuedAttestationSpec) IssuedAttestationSpec {
-	p := CategoryProfile(spec.Category)
-	spec.TrustListType = jsonutil.FirstNonEmpty(spec.TrustListType, p.LoTEType)
-	spec.StatusDeterminationApproach = jsonutil.FirstNonEmpty(spec.StatusDeterminationApproach, p.StatusDeterminationApproach)
-	spec.SchemeTypeCommunityRules = jsonutil.FirstNonEmpty(spec.SchemeTypeCommunityRules, p.SchemeTypeCommunityRules)
-	spec.SchemeTerritory = jsonutil.FirstNonEmpty(spec.SchemeTerritory, p.SchemeTerritory)
-	spec.EntityName = jsonutil.FirstNonEmpty(spec.EntityName, p.EntityName)
-	spec.IssuanceServiceType = jsonutil.FirstNonEmpty(spec.IssuanceServiceType, p.IssuanceServiceType)
-	spec.RevocationServiceType = jsonutil.FirstNonEmpty(spec.RevocationServiceType, p.RevocationServiceType)
-	spec.IssuanceServiceName = jsonutil.FirstNonEmpty(spec.IssuanceServiceName, p.IssuanceServiceName)
-	spec.RevocationServiceName = jsonutil.FirstNonEmpty(spec.RevocationServiceName, p.RevocationServiceName)
-	return spec
+	scheme := c.Scheme
+	scheme.IssuanceServiceName = c.Label + " Issuance Service"
+	scheme.RevocationServiceName = c.Label + " Revocation Service"
+	scheme.EntityName = config.WalletName + " " + c.Label + " Provider"
+	return List{Category: c.ID, Scheme: scheme}
 }
 
 // The wallet publishes the providers of access certificates and of
@@ -232,6 +206,14 @@ const (
 	registrarRevocationServiceType = "http://uri.etsi.org/19602/SvcType/WRPRC/Revocation"
 )
 
+// TrustedListsPath is where the wallet serves its trusted lists.
+const TrustedListsPath = "/api/trustlists"
+
+// TrustedListPath is the path of one of the wallet's trusted lists.
+func TrustedListPath(id string) string {
+	return TrustedListsPath + "/" + id
+}
+
 // The IDs of the lists of the wallet provider, the access CA and the
 // registrar. A credential category list has the category as its ID.
 const (
@@ -240,9 +222,9 @@ const (
 	WalletProviderListID = "wallet-provider"
 )
 
-// AccessCAProfile is the list of the CAs of access certificates.
-func AccessCAProfile() lote.Profile {
-	return lote.Profile{
+// AccessCAList is the list of the CAs of access certificates.
+func AccessCAList() List {
+	return List{Scheme: lote.Scheme{
 		LoTEType:                    lote.AccessCertProvidersListType,
 		StatusDeterminationApproach: accessCAStatusDetermination,
 		SchemeTypeCommunityRules:    accessCASchemeCommunityRules,
@@ -252,13 +234,13 @@ func AccessCAProfile() lote.Profile {
 		IssuanceServiceName:         "Access Certificate Issuance",
 		RevocationServiceName:       "Access Certificate Revocation",
 		EntityName:                  config.ProductName + " Relying Party Access CA",
-	}
+	}}
 }
 
-// RegistrarProfile is the list of the registrars that sign registration
+// RegistrarList is the list of the registrars that sign registration
 // certificates.
-func RegistrarProfile() lote.Profile {
-	return lote.Profile{
+func RegistrarList() List {
+	return List{Scheme: lote.Scheme{
 		LoTEType:                    lote.RegistrationCertProvidersListType,
 		StatusDeterminationApproach: registrarStatusDetermination,
 		SchemeTypeCommunityRules:    registrarSchemeCommunityRules,
@@ -268,13 +250,13 @@ func RegistrarProfile() lote.Profile {
 		IssuanceServiceName:         "Registration Certificate Issuance",
 		RevocationServiceName:       "Registration Certificate Revocation",
 		EntityName:                  config.ProductName + " Registrar",
-	}
+	}}
 }
 
-// WalletProviderProfile is the list whose CA anchors the wallet and key
+// WalletProviderList is the list whose CA anchors the wallet and key
 // attestations sent to issuers.
-func WalletProviderProfile() lote.Profile {
-	return lote.Profile{
+func WalletProviderList() List {
+	return List{Scheme: lote.Scheme{
 		LoTEType:                    lote.WalletProvidersListType,
 		StatusDeterminationApproach: walletProviderStatusDetermination,
 		SchemeTypeCommunityRules:    walletProviderSchemeCommunityRules,
@@ -284,45 +266,31 @@ func WalletProviderProfile() lote.Profile {
 		IssuanceServiceName:         "Wallet Attestation Issuance",
 		RevocationServiceName:       "Wallet Attestation Revocation",
 		EntityName:                  config.WalletName + " Provider",
-	}
+	}}
 }
 
-// SpecProfile is the trusted list that carries the credential type of spec.
-func SpecProfile(spec IssuedAttestationSpec) lote.Profile {
-	return lote.Profile{
-		Category:                    spec.Category,
-		LoTEType:                    spec.TrustListType,
-		StatusDeterminationApproach: spec.StatusDeterminationApproach,
-		SchemeTypeCommunityRules:    spec.SchemeTypeCommunityRules,
-		SchemeTerritory:             spec.SchemeTerritory,
-		IssuanceServiceType:         spec.IssuanceServiceType,
-		RevocationServiceType:       spec.RevocationServiceType,
-		IssuanceServiceName:         spec.IssuanceServiceName,
-		RevocationServiceName:       spec.RevocationServiceName,
-		EntityName:                  spec.EntityName,
-	}
-}
-
-func profileKey(profile lote.Profile) string {
+// listKey names the fields in the order that derives the ID of a custom
+// list, which names its stored signing key.
+func listKey(list List) string {
 	parts := []string{
-		profile.Category,
-		profile.LoTEType,
-		profile.StatusDeterminationApproach,
-		profile.SchemeTypeCommunityRules,
-		profile.SchemeTerritory,
-		profile.IssuanceServiceType,
-		profile.RevocationServiceType,
-		profile.IssuanceServiceName,
-		profile.RevocationServiceName,
-		profile.EntityName,
+		list.Category,
+		list.LoTEType,
+		list.StatusDeterminationApproach,
+		list.SchemeTypeCommunityRules,
+		list.SchemeTerritory,
+		list.IssuanceServiceType,
+		list.RevocationServiceType,
+		list.IssuanceServiceName,
+		list.RevocationServiceName,
+		list.EntityName,
 	}
 	return strings.Join(parts, "|")
 }
 
 // ListID uses the category as the ID of a category list. A spec
 // that changes the defaults of its category gets a list of its own.
-func ListID(profile lote.Profile) string {
-	switch profile.LoTEType {
+func ListID(list List) string {
+	switch list.LoTEType {
 	case lote.WalletProvidersListType:
 		return WalletProviderListID
 	case lote.AccessCertProvidersListType:
@@ -330,9 +298,9 @@ func ListID(profile lote.Profile) string {
 	case lote.RegistrationCertProvidersListType:
 		return RegistrarListID
 	}
-	if profile.Category != "" && profile == CategoryProfile(profile.Category) {
-		return profile.Category
+	if list.Category != "" && list == CategoryList(list.Category) {
+		return list.Category
 	}
-	hash := sha256.Sum256([]byte(profileKey(profile)))
+	hash := sha256.Sum256([]byte(listKey(list)))
 	return "tl-" + hex.EncodeToString(hash[:4])
 }

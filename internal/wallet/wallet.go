@@ -66,15 +66,10 @@ type Wallet struct {
 	// The wallet advertises this key even when RequireEncryptedRequest is false.
 	RequestEncryptionKey *ecdsa.PrivateKey
 	ConformanceSettings  `json:"-"`
-	// RelyingPartyCAPEM holds further CAs that issue relying party access and
-	// registration certificates (--relying-party-ca).
-	RelyingPartyCAPEM []byte
-	// TrustListCAPEM holds further CAs of trusted list operators
-	// (--trusted-list-ca). With --arf the signer of a fetched trusted list must
-	// chain to one of them or to the wallet CA.
-	TrustListCAPEM []byte
-	// ConfiguredTrustedListURLs are the external lists from --trusted-list.
-	ConfiguredTrustedListURLs []string
+	// TrustSettings are the CAs and lists of the trust flags and the bounds
+	// of the providers and lists users add. With --arf the signer of a fetched
+	// trusted list must chain to a CA of --trusted-list-ca or to the wallet CA.
+	TrustSettings trustedlists.Settings `json:"-"`
 	// Keeps HTTPS image URLs so the browser fetches them on demand. HTTP images,
 	// data URIs and template images are still stored. By default every image is
 	// fetched through the restricted HTTP client and stored.
@@ -488,7 +483,7 @@ func (w *Wallet) generateDefaultCredentials(claimOverrides map[string]any, vct s
 	// A protected default stays and is not generated again.
 	var keptSD, keptMDoc bool
 	if dropExisting {
-		mdocNamespaces := splitClaimsByNamespace(credtemplate.MergeClaims(mdocTpl.Claims, claimOverrides), mdocNamespace)
+		mdocNamespaces := mock.SplitClaimsByNamespace(credtemplate.MergeClaims(mdocTpl.Claims, claimOverrides), mdocNamespace)
 		keptSD = w.removeByType(credtype.FormatSDJWT, vct) > 0
 		keptMDoc = w.removeMDocsByNamespace(mdocDocType, namespaceNames(mdocNamespaces)) > 0
 		if keptSD || keptMDoc {
@@ -1254,12 +1249,12 @@ func (w *Wallet) PutCredential(cred StoredCredential) {
 
 // Capacity bounds a wallet that visitors share, such as a public demo. Zero
 // means no bound. Credentials and deferred issuances make room by dropping
-// the oldest entry, so a flood doesn't lock out other visitors. Added
-// providers and lists are refused when full, because each one changes what
-// every check trusts. Issued credential types and visitor templates are
-// refused when full, because the wallet publishes them to every visitor.
+// the oldest entry, so a flood doesn't lock out other visitors. Issued
+// credential types and visitor templates are refused when full, because the
+// wallet publishes them to every visitor. TrustSettings bounds the added
+// providers and lists.
 type Capacity struct {
-	Credentials, Deferred, TrustedEntities, TrustedLists, IssuedAttestations, Templates int
+	Credentials, Deferred, IssuedAttestations, Templates int
 }
 
 func (w *Wallet) SetCapacity(c Capacity) {
@@ -1287,14 +1282,6 @@ func (w *Wallet) savedURLsLocked() (baseURL, issuerURL string) {
 		return w.storedURLs[0], w.storedURLs[1]
 	}
 	return w.BaseURL, w.IssuerURL
-}
-
-// SaveChange applies change and saves the wallet when change reports that
-// it changed something. A server saves under its reload lock, so a
-// concurrent reload can't drop the change. Never call it from a change
-// that a server already saves.
-func (w *Wallet) SaveChange(change func() bool) {
-	w.saveChange(change)
 }
 
 // VisitorRules restrict what visitors of a shared wallet can store. Every

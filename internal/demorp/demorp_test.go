@@ -614,7 +614,7 @@ func ticketTemplate(t *testing.T, d *DemoRP) *credtemplate.Template {
 
 func signTicketWithStatus(t *testing.T, d *DemoRP, holderKey *ecdsa.PrivateKey, uri string, idx int) string {
 	t.Helper()
-	chain, err := d.wallet.Signer().DefaultChain()
+	_, chain, err := d.wallet.Signer().Default()
 	if err != nil {
 		t.Fatalf("signing chain: %v", err)
 	}
@@ -808,7 +808,7 @@ func TestVerifierRejectsWrongCredentialType(t *testing.T) {
 
 	id, params := startVerification(t, h, "ticket")
 
-	chain, err := d.wallet.Signer().DefaultChain()
+	_, chain, err := d.wallet.Signer().Default()
 	if err != nil {
 		t.Fatalf("signing chain: %v", err)
 	}
@@ -841,7 +841,7 @@ func TestVerifierAcceptsAnExtendingCredentialType(t *testing.T) {
 
 	id, params := startVerification(t, h, "pid")
 
-	chain, err := d.wallet.Signer().DefaultChain()
+	_, chain, err := d.wallet.Signer().Default()
 	if err != nil {
 		t.Fatalf("signing chain: %v", err)
 	}
@@ -875,7 +875,7 @@ func TestVerifierDomesticPIDRequestRefusesTheCountryIndependentPID(t *testing.T)
 
 	id, params := startVerificationWith(t, h, `{"type":"pid","vct":"urn:eudi:pid:de:1"}`)
 
-	chain, err := d.wallet.Signer().DefaultChain()
+	_, chain, err := d.wallet.Signer().Default()
 	if err != nil {
 		t.Fatalf("signing chain: %v", err)
 	}
@@ -907,7 +907,7 @@ func TestVerifierDomesticPIDRequestAcceptsThatType(t *testing.T) {
 
 	id, params := startVerificationWith(t, h, `{"type":"pid","vct":"urn:eudi:pid:de:1"}`)
 
-	chain, err := d.wallet.Signer().DefaultChain()
+	_, chain, err := d.wallet.Signer().Default()
 	if err != nil {
 		t.Fatalf("signing chain: %v", err)
 	}
@@ -974,7 +974,7 @@ func TestVerifierPIDRequestTakesAnyDomesticType(t *testing.T) {
 	const frenchPID = "urn:eudi:pid:fr:1"
 	id, params := startVerificationWith(t, h, `{"type":"pid","vct":"`+frenchPID+`"}`)
 
-	chain, err := d.wallet.Signer().DefaultChain()
+	_, chain, err := d.wallet.Signer().Default()
 	if err != nil {
 		t.Fatalf("signing chain: %v", err)
 	}

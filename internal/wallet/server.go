@@ -184,17 +184,17 @@ func (s *Server) setupRoutes() {
 	s.routeFunc("POST /api/requests/{id}/deny", s.withFreshStore(s.handleDenyRequest))
 
 	s.routeFunc("GET "+provider.DefaultTrustListPath, s.withFreshStore(s.handleTrustList))
-	s.routeFunc("GET "+registrar.TrustListsPath, s.withFreshStore(s.handleTrustListIndex))
+	s.routeFunc("GET "+provider.TrustedListsPath, s.withFreshStore(s.handleTrustListIndex))
 	s.routeFunc("GET /api/trust", s.withFreshStore(s.handleTrustState))
 	s.routeFunc("POST /api/trust/entities", s.withFreshStore(s.handleAddTrustedEntity))
 	s.routeFunc("DELETE /api/trust/entities/{id}", s.withFreshStore(s.handleRemoveTrustedEntity))
 	s.routeFunc("POST /api/trust/lists", s.withFreshStore(s.handleAddTrustedList))
 	s.routeFunc("DELETE /api/trust/lists", s.withFreshStore(s.handleRemoveTrustedList))
-	s.routeFunc("GET "+registrar.TrustListPath("{id}"), s.withFreshStore(s.handleTrustListByID))
+	s.routeFunc("GET "+provider.TrustedListPath("{id}"), s.withFreshStore(s.handleTrustListByID))
 	s.routeFunc("GET /api/trustlist/history", s.withFreshStore(s.handleTrustListHistory))
 	s.routeFunc("GET /api/trustlist/history/{sequence}", s.withFreshStore(s.handleTrustListHistory))
-	s.routeFunc("GET "+registrar.TrustListPath("{id}")+"/history", s.withFreshStore(s.handleTrustListHistory))
-	s.routeFunc("GET "+registrar.TrustListPath("{id}")+"/history/{sequence}", s.withFreshStore(s.handleTrustListHistory))
+	s.routeFunc("GET "+provider.TrustedListPath("{id}")+"/history", s.withFreshStore(s.handleTrustListHistory))
+	s.routeFunc("GET "+provider.TrustedListPath("{id}")+"/history/{sequence}", s.withFreshStore(s.handleTrustListHistory))
 	// On a public demo the demo registrations follow the catalogue.
 	registrarAPI := &registrar.Server{Registrar: func() *registrar.Registrar { return s.wallet.Registrar() }, Mutate: func(change func() bool) {
 		s.saveMutation(change)

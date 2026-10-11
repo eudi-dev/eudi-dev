@@ -214,7 +214,7 @@ func TestARFRefusesUnknownAuthorities(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	w.RelyingPartyCAPEM = append(
+	w.TrustSettings.RelyingPartyCAPEM = append(
 		pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: foreignRegistrarCA.Raw}),
 		pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: foreignAccessCA.Raw})...)
 	w.PrepareARFChecks(params)

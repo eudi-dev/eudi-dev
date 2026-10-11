@@ -79,15 +79,15 @@ func SignTrustList(signingKey *ecdsa.PrivateKey, caCert *x509.Certificate, opts 
 	if strings.TrimSpace(opts.OperatorName) == "" {
 		opts.OperatorName = config.WalletName
 	}
-	if opts.Profile.LoTEType == "" {
-		opts.Profile = CategoryProfile(credtemplate.CategoryEAA)
+	eaa := CategoryList(credtemplate.CategoryEAA).Scheme
+	if opts.Scheme.LoTEType == "" {
+		opts.Scheme = eaa
 	}
-	if opts.Profile.SchemeTerritory == "" {
-		opts.Profile.SchemeTerritory = mock.DefaultCertificateCountry
+	if opts.Scheme.SchemeTerritory == "" {
+		opts.Scheme.SchemeTerritory = mock.DefaultCertificateCountry
 	}
-	eaa := CategoryProfile(credtemplate.CategoryEAA)
-	opts.Profile.StatusDeterminationApproach = jsonutil.FirstNonEmpty(opts.Profile.StatusDeterminationApproach, eaa.StatusDeterminationApproach)
-	opts.Profile.SchemeTypeCommunityRules = jsonutil.FirstNonEmpty(opts.Profile.SchemeTypeCommunityRules, eaa.SchemeTypeCommunityRules)
+	opts.Scheme.StatusDeterminationApproach = jsonutil.FirstNonEmpty(opts.Scheme.StatusDeterminationApproach, eaa.StatusDeterminationApproach)
+	opts.Scheme.SchemeTypeCommunityRules = jsonutil.FirstNonEmpty(opts.Scheme.SchemeTypeCommunityRules, eaa.SchemeTypeCommunityRules)
 	opts.Path = jsonutil.FirstNonEmpty(opts.Path, DefaultTrustListPath)
 	opts.Country = jsonutil.FirstNonEmpty(opts.Country, mock.DefaultCertificateCountry)
 	return lote.Sign(signingKey, caCert, opts)

@@ -149,7 +149,7 @@ async function poll(id) {
     if (id !== pollID) return;
     restoreSelection(doc.request);
     renderResult(doc);
-    if (doc.status === "pending") {
+    if (doc.status === "pending" || doc.open) {
       schedulePoll(id);
     } else {
       stopPolling();
@@ -192,25 +192,38 @@ let credential = "ticket";
 let vct = "";
 let ticketMode = "combined";
 
-for (const option of document.querySelectorAll("#credential-toggle .toggle-option")) {
-  option.addEventListener("click", () => {
-    credential = option.dataset.credential;
-    vct = option.dataset.vct || "";
-    for (const other of document.querySelectorAll("#credential-toggle .toggle-option")) {
-      const selected = other === option;
-      other.classList.toggle("selected", selected);
-      other.setAttribute("aria-checked", String(selected));
-    }
-    const showsFormat = credential === "pid" || vct !== "" || credential === "pid-ticket";
-    document.getElementById("format-row").hidden = !showsFormat;
-    document.getElementById("format-hint").hidden = !showsFormat;
-    document.getElementById("ticket-row").hidden = credential !== "pid-ticket";
-    document.getElementById("ticket-hint").hidden = credential !== "pid-ticket";
-    // A custom request sets multiple per credential.
-    document.getElementById("multiple-row").hidden = credential === "custom";
-    document.getElementById("custom-panel").hidden = credential !== "custom";
-  });
+// markSelected marks the options of a toggle group that isSelected accepts.
+function markSelected(id, isSelected) {
+  for (const option of document.querySelectorAll(`#${id} .toggle-option`)) {
+    const selected = isSelected(option);
+    option.classList.toggle("selected", selected);
+    option.setAttribute("aria-checked", String(selected));
+  }
 }
+
+// bindToggle selects a clicked option of the group and hands it to onSelect.
+function bindToggle(id, onSelect) {
+  for (const option of document.querySelectorAll(`#${id} .toggle-option`)) {
+    option.addEventListener("click", () => {
+      if (option.disabled) return;
+      markSelected(id, (other) => other === option);
+      onSelect(option);
+    });
+  }
+}
+
+bindToggle("credential-toggle", (option) => {
+  credential = option.dataset.credential;
+  vct = option.dataset.vct || "";
+  const showsFormat = credential === "pid" || vct !== "" || credential === "pid-ticket";
+  document.getElementById("format-row").hidden = !showsFormat;
+  document.getElementById("format-hint").hidden = !showsFormat;
+  document.getElementById("ticket-row").hidden = credential !== "pid-ticket";
+  document.getElementById("ticket-hint").hidden = credential !== "pid-ticket";
+  // A custom request sets multiple per credential.
+  document.getElementById("multiple-row").hidden = credential === "custom";
+  document.getElementById("custom-panel").hidden = credential !== "custom";
+});
 
 // The X.509 prefixes require a signed request object (OpenID4VP 1.0 §5.9).
 const SCHEME_HINTS = {
@@ -221,18 +234,11 @@ const SCHEME_HINTS = {
 };
 
 let clientIDScheme = "x509_hash";
-for (const option of document.querySelectorAll("#scheme-toggle .toggle-option")) {
-  option.addEventListener("click", () => {
-    clientIDScheme = option.dataset.scheme;
-    for (const other of document.querySelectorAll("#scheme-toggle .toggle-option")) {
-      const selected = other === option;
-      other.classList.toggle("selected", selected);
-      other.setAttribute("aria-checked", String(selected));
-    }
-    document.getElementById("scheme-hint").textContent = SCHEME_HINTS[clientIDScheme];
-    document.getElementById("client-id-row").hidden = clientIDScheme !== "pre-registered";
-  });
-}
+bindToggle("scheme-toggle", (option) => {
+  clientIDScheme = option.dataset.scheme;
+  document.getElementById("scheme-hint").textContent = SCHEME_HINTS[clientIDScheme];
+  document.getElementById("client-id-row").hidden = clientIDScheme !== "pre-registered";
+});
 
 function addClaimRow(container, value, id) {
   const row = document.createElement("div");
@@ -357,29 +363,15 @@ function customRequestBody() {
 }
 
 document.getElementById("ticket-hint").textContent = TICKET_HINTS[ticketMode];
-for (const option of document.querySelectorAll("#ticket-toggle .toggle-option")) {
-  option.addEventListener("click", () => {
-    ticketMode = option.dataset.ticket;
-    for (const other of document.querySelectorAll("#ticket-toggle .toggle-option")) {
-      const selected = other === option;
-      other.classList.toggle("selected", selected);
-      other.setAttribute("aria-checked", String(selected));
-    }
-    document.getElementById("ticket-hint").textContent = TICKET_HINTS[ticketMode];
-  });
-}
+bindToggle("ticket-toggle", (option) => {
+  ticketMode = option.dataset.ticket;
+  document.getElementById("ticket-hint").textContent = TICKET_HINTS[ticketMode];
+});
 
-for (const option of document.querySelectorAll("#format-toggle .toggle-option")) {
-  option.addEventListener("click", () => {
-    pidFormat = option.dataset.format;
-    for (const other of document.querySelectorAll("#format-toggle .toggle-option")) {
-      const selected = other === option;
-      other.classList.toggle("selected", selected);
-      other.setAttribute("aria-checked", String(selected));
-    }
-    document.getElementById("format-hint").textContent = FORMAT_HINTS[pidFormat];
-  });
-}
+bindToggle("format-toggle", (option) => {
+  pidFormat = option.dataset.format;
+  document.getElementById("format-hint").textContent = FORMAT_HINTS[pidFormat];
+});
 
 const IDENTITY_HINTS = {
   registered: "Signed with the demo verifier's access certificate and sent with its registration certificate.",
@@ -394,21 +386,14 @@ let chosenIdentity = identity;
 
 function selectIdentity(name) {
   identity = name;
-  for (const other of document.querySelectorAll("#identity-toggle .toggle-option")) {
-    const selected = other.dataset.identity === name;
-    other.classList.toggle("selected", selected);
-    other.setAttribute("aria-checked", String(selected));
-  }
+  markSelected("identity-toggle", (option) => option.dataset.identity === name);
   document.getElementById("identity-hint").textContent = IDENTITY_HINTS[unsignedRequest() ? "unsigned" : identity];
   document.getElementById("identity-own-panel").hidden = identity !== "own";
 }
-for (const option of document.querySelectorAll("#identity-toggle .toggle-option")) {
-  option.addEventListener("click", () => {
-    if (option.disabled) return;
-    chosenIdentity = option.dataset.identity;
-    selectIdentity(chosenIdentity);
-  });
-}
+bindToggle("identity-toggle", (option) => {
+  chosenIdentity = option.dataset.identity;
+  selectIdentity(chosenIdentity);
+});
 selectIdentity(identity);
 
 // verifier_info needs a signed request object (OpenID4VP 1.0 §5.1), so the custom

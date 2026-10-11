@@ -15,7 +15,6 @@
 package demorp
 
 import (
-	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -62,19 +61,13 @@ func normalizeAuthorizationMode(value string) string {
 	return authorizationBrowser
 }
 
-// interactiveSession is one Authorization Challenge conversation. A
-// presentation session holds the request to verify. A browser session holds
-// the data needed to repeat the auth_via_web answer.
+// interactiveSession is one presentation conversation at the Authorization
+// Challenge Endpoint. It holds the request to verify.
 type interactiveSession struct {
 	id string
 	authGrant
 	request *requestState
 	expires time.Time
-
-	// browser marks an auth_via_web session (§6.2.1.2). The sign-in finishes
-	// at the authorization endpoint. A wallet that comes back here with this
-	// auth_session gets the interaction again.
-	browser bool
 }
 
 // challengeEndpoint is the advertised URL. Every presentation made through it
@@ -90,6 +83,10 @@ func (d *DemoRP) handleAuthorizationChallenge(w http.ResponseWriter, r *http.Req
 	// DPoP and client authentication work as at the token endpoint. §6.1 says
 	// a Wallet Attestation "has to be included in this request" if the server
 	// requires one.
+	if err := r.ParseForm(); err != nil {
+		writeJSON(w, http.StatusBadRequest, oauthError("invalid_request", "the request body is not a form: "+err.Error()))
+		return
+	}
 	jkt, errResp := d.dpopKey(r, d.challengeEndpoint())
 	if errResp != nil {
 		writeJSON(w, http.StatusBadRequest, errResp)
@@ -197,12 +194,6 @@ func (d *DemoRP) continueInteractiveAuthorization(w http.ResponseWriter, r *http
 		writeJSON(w, http.StatusBadRequest, errResp)
 		return
 	}
-	// A browser session finishes at the authorization endpoint. A wallet
-	// returning here with its auth_session gets the interaction again.
-	if session.browser {
-		d.answerAuthViaWeb(w, session)
-		return
-	}
 
 	var response map[string]any
 	if err := json.Unmarshal([]byte(r.PostFormValue("openid4vp_response")), &response); err != nil {
@@ -249,10 +240,9 @@ func (d *DemoRP) continueInteractiveAuthorization(w http.ResponseWriter, r *http
 }
 
 // takeInteractiveSession finds the session that an Intermediate Request names.
-// It checks the client and the DPoP key under the same lock that takes a
-// presentation session out, so a session yields at most one authorization
-// code. A browser session stays for the next request. The error codes are
-// those of first-party-apps §5.2.2.1.
+// It checks the client and the DPoP key under the same lock that takes the
+// session out, so a session yields at most one authorization code. The error
+// codes are those of first-party-apps §5.2.2.1.
 func (d *DemoRP) takeInteractiveSession(sessionID, clientID, jkt string) (*interactiveSession, map[string]string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -271,20 +261,14 @@ func (d *DemoRP) takeInteractiveSession(sessionID, clientID, jkt string) (*inter
 	if session.dpopJKT != "" && jkt != session.dpopJKT {
 		return nil, oauthError("invalid_dpop_proof", "the authorization session is bound to another DPoP key")
 	}
-	if !session.browser {
-		delete(d.interactive, sessionID)
-	}
+	delete(d.interactive, sessionID)
 	return session, nil
 }
 
 // newAuthSession returns an auth_session value. first-party-apps §5.3.1:
 // "the value SHOULD have a minimum of 256 bits of entropy".
 func newAuthSession() string {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		panic(fmt.Sprintf("reading random bytes: %v", err))
-	}
-	return hex.EncodeToString(b)
+	return hex.EncodeToString(randomBytes(32))
 }
 
 // pushChallengeAuthRequest stores a pushed authorization request for browser
@@ -305,42 +289,21 @@ func (d *DemoRP) pushChallengeAuthRequest(grant authGrant) *authRequestState {
 
 // startAuthViaWebInteraction answers with the browser interaction of
 // §6.2.1.2. The wallet uses the request_uri for an authorization request
-// (RFC 9126 §4). The authorization code arrives with the redirect from the
-// authorization endpoint.
+// (RFC 9126 §4). The redirect from the authorization endpoint completes the
+// authorization with a code, which the token endpoint redeems with the
+// code_verifier. §6.2.1.2: "the Authorization Server MUST omit auth_session
+// parameter in the response".
 func (d *DemoRP) startAuthViaWebInteraction(w http.ResponseWriter, grant authGrant) {
 	if grant.redirectURI == "" {
 		writeJSON(w, http.StatusBadRequest, oauthError("invalid_request",
 			"the auth_via_web interaction continues at the authorization endpoint, which needs a redirect_uri in the authorization challenge request"))
 		return
 	}
-
-	// §6.2.1 has the wallet send auth_session on every later challenge
-	// request. A wallet that abandoned the sign-in and comes back gets the
-	// interaction again.
-	session := &interactiveSession{
-		id:        newAuthSession(),
-		authGrant: grant,
-		expires:   time.Now().Add(entryTTL),
-		browser:   true,
-	}
-	d.mu.Lock()
-	d.pruneLocked()
-	makeRoom(d.interactive, func(s *interactiveSession) time.Time { return s.expires })
-	d.interactive[session.id] = session
-	d.mu.Unlock()
-
+	request := d.pushChallengeAuthRequest(grant)
 	log.Printf("[Demo issuer] interactive authorization: this offer wants the browser sign-in, asking for the auth_via_web interaction")
-	d.answerAuthViaWeb(w, session)
-}
-
-// answerAuthViaWeb answers a browser session with the Interaction Required
-// Response of §6.2.1.2. Each answer pushes a fresh authorization request.
-func (d *DemoRP) answerAuthViaWeb(w http.ResponseWriter, session *interactiveSession) {
-	request := d.pushChallengeAuthRequest(session.authGrant)
 	writeJSON(w, http.StatusForbidden, map[string]any{
 		"error":                     "insufficient_authorization",
 		"interaction_type_required": interactionTypeAuthViaWeb,
-		"auth_session":              session.id,
 		"request_uri":               request.requestURI,
 		"expires_in":                int(authRequestTTL.Seconds()),
 	})
@@ -391,8 +354,7 @@ func (d *DemoRP) newInteractivePIDRequest() *requestState {
 }
 
 // OpenID4VCI 1.1 §6.2.1.1 uses the Digital Credentials API request form. The
-// request is signed with an x509_hash client ID. Without signing material it
-// is sent unsigned.
+// request is signed with an x509_hash client ID.
 func (d *DemoRP) interactivePresentationRequest(req *requestState) (map[string]any, error) {
 	claims := map[string]any{
 		"response_type":    "vp_token",
@@ -403,8 +365,8 @@ func (d *DemoRP) interactivePresentationRequest(req *requestState) (map[string]a
 	}
 
 	signingKey, chain, err := d.wallet.AccessSigningMaterial()
-	if err != nil || signingKey == nil || len(chain) == 0 {
-		return claims, nil
+	if err != nil {
+		return nil, fmt.Errorf("loading the access certificate: %w", err)
 	}
 
 	// The registration certificate of the identity check goes in
@@ -420,10 +382,9 @@ func (d *DemoRP) interactivePresentationRequest(req *requestState) (map[string]a
 
 	// The x509_hash client ID binds the request to its signing certificate.
 	claims["client_id"] = oid4vp.X509HashClientID(chain[0])
-	jar, jerr := oid4vp.SignRequestObjectJWT(claims, signingKey, chain)
-	if jerr != nil {
-		delete(claims, "client_id")
-		return claims, nil
+	jar, err := oid4vp.SignRequestObjectJWT(claims, signingKey, chain)
+	if err != nil {
+		return nil, fmt.Errorf("signing the presentation request: %w", err)
 	}
 	return map[string]any{"request": jar}, nil
 }

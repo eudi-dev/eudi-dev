@@ -26,8 +26,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/publicpath"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/statuslist"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/trustedlists"
 )
@@ -43,7 +43,7 @@ func (s *Server) handleTrustList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// The selected list is the same instance as /api/trustlists/{id}.
-	jwt, err := s.wallet.TrustedLists().SignedGroupList(s.wallet.IssuerURL, group, registrar.TrustListPath(group.ID))
+	jwt, err := s.wallet.TrustedLists().SignedGroupList(s.wallet.IssuerURL, group, provider.TrustedListPath(group.ID))
 	if err != nil {
 		http.Error(w, fmt.Sprintf("generating trusted list: %v", err), http.StatusInternalServerError)
 		return
@@ -81,7 +81,7 @@ func (s *Server) handleTrustListByID(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "trusted list not found", http.StatusNotFound)
 		return
 	}
-	jwt, err := s.wallet.TrustedLists().SignedGroupList(s.wallet.IssuerURL, group, registrar.TrustListPath(group.ID))
+	jwt, err := s.wallet.TrustedLists().SignedGroupList(s.wallet.IssuerURL, group, provider.TrustedListPath(group.ID))
 	if err != nil {
 		http.Error(w, fmt.Sprintf("generating trusted list: %v", err), http.StatusInternalServerError)
 		return
@@ -96,7 +96,7 @@ func (s *Server) handleTrustListHistory(w http.ResponseWriter, r *http.Request) 
 		http.NotFound(w, r)
 		return
 	}
-	listPath := registrar.TrustListPath(group.ID)
+	listPath := provider.TrustedListPath(group.ID)
 	issuer := strings.TrimRight(s.wallet.IssuerURL, "/")
 	if _, err := s.wallet.TrustedLists().SignedGroupList(issuer, group, listPath); err != nil {
 		http.Error(w, "loading trusted list history: "+err.Error(), http.StatusInternalServerError)

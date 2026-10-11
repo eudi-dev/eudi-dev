@@ -147,17 +147,16 @@ type MDOCConfig struct {
 	CertificateIssuer string
 	DocType           string
 	Namespace         string
-	Claims            map[string]any
-	// NamespaceClaims optionally maps namespaces to their claims. When set it
-	// replaces Namespace and Claims.
-	NamespaceClaims map[string]map[string]any
-	Key             *ecdsa.PrivateKey
-	HolderKey       *ecdsa.PublicKey    // optional: adds deviceKeyInfo to MSO
-	ExpiresIn       time.Duration       // Validity duration. Defaults to 30 days when zero.
-	ValidFrom       *time.Time          // optional: override validFrom (defaults to now)
-	StatusListURI   string              // optional: status list URI for revocation
-	StatusListIdx   int                 // optional: index in the status list
-	CertChain       []*x509.Certificate // optional: x5chain certificate chain [leaf, CA]
+	// Claims go into Namespace, except a key "namespace:element" (see
+	// SplitClaimsByNamespace).
+	Claims        map[string]any
+	Key           *ecdsa.PrivateKey
+	HolderKey     *ecdsa.PublicKey    // optional: adds deviceKeyInfo to MSO
+	ExpiresIn     time.Duration       // Validity duration. Defaults to 30 days when zero.
+	ValidFrom     *time.Time          // optional: override validFrom (defaults to now)
+	StatusListURI string              // optional: status list URI for revocation
+	StatusListIdx int                 // optional: index in the status list
+	CertChain     []*x509.Certificate // optional: x5chain certificate chain [leaf, CA]
 	// KeepTrustAnchor embeds the chain as given, including a terminal
 	// self-signed root.
 	KeepTrustAnchor bool
@@ -181,10 +180,7 @@ func GenerateMDOC(cfg MDOCConfig) (string, error) {
 	}
 	validUntil := now.Add(expiresIn)
 
-	namespaceClaims := cfg.NamespaceClaims
-	if namespaceClaims == nil {
-		namespaceClaims = SplitClaimsByNamespace(cfg.Claims, cfg.Namespace)
-	}
+	namespaceClaims := SplitClaimsByNamespace(cfg.Claims, cfg.Namespace)
 
 	// Digest IDs are unique across namespaces.
 	tag24ItemsByNS := make(map[string]any, len(namespaceClaims))

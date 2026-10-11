@@ -92,10 +92,8 @@ var conformanceFlagNames = []string{"haip", "arf", "relying-party-ca", "trusted-
 // walletConformance is what the conformance flags set: the settings every
 // flow applies, and the trust inputs of the ARF checks.
 type walletConformance struct {
-	settings          wallet.ConformanceSettings
-	relyingPartyCAPEM []byte
-	trustListCAPEM    []byte
-	trustedLists      []string
+	settings wallet.ConformanceSettings
+	trust    trustedlists.Settings
 }
 
 func (f *conformanceFlags) resolve() (walletConformance, error) {
@@ -130,12 +128,12 @@ func (f *conformanceFlags) resolve() (walletConformance, error) {
 			KeyAttestationLevel:     level,
 			ForceClientAttestation:  f.clientAttestation,
 		},
-		trustedLists: f.trustedLists,
+		trust: trustedlists.Settings{ConfiguredLists: f.trustedLists},
 	}
-	if c.relyingPartyCAPEM, err = loadPEMCertificates("relying-party-ca", f.relyingPartyCAs); err != nil {
+	if c.trust.RelyingPartyCAPEM, err = loadPEMCertificates("relying-party-ca", f.relyingPartyCAs); err != nil {
 		return walletConformance{}, err
 	}
-	if c.trustListCAPEM, err = loadPEMCertificates("trusted-list-ca", f.trustListCAs); err != nil {
+	if c.trust.ListCAPEM, err = loadPEMCertificates("trusted-list-ca", f.trustListCAs); err != nil {
 		return walletConformance{}, err
 	}
 	return c, nil
@@ -143,9 +141,7 @@ func (f *conformanceFlags) resolve() (walletConformance, error) {
 
 func (c walletConformance) apply(w *wallet.Wallet) {
 	w.SetConformance(c.settings)
-	w.RelyingPartyCAPEM = c.relyingPartyCAPEM
-	w.TrustListCAPEM = c.trustListCAPEM
-	w.ConfiguredTrustedListURLs = c.trustedLists
+	w.TrustSettings = c.trust
 }
 
 // checkRemoteSettings refuses the flags that would change a running wallet.
@@ -228,15 +224,15 @@ func settingDifference(flag string, want walletConformance, cfg map[string]any, 
 		for _, entity := range summary.Entities {
 			trusted = append(trusted, entity.Certificates...)
 		}
-		if missing := certificatesMissing(want.relyingPartyCAPEM, trusted); missing > 0 {
+		if missing := certificatesMissing(want.trust.RelyingPartyCAPEM, trusted); missing > 0 {
 			return fmt.Sprintf("%s names %d CA certificates the running wallet does not trust", flag, missing)
 		}
 	case "--trusted-list-ca":
-		if missing := certificatesMissing(want.trustListCAPEM, summary.TrustedListCAs); missing > 0 {
+		if missing := certificatesMissing(want.trust.ListCAPEM, summary.TrustedListCAs); missing > 0 {
 			return fmt.Sprintf("%s names %d CA certificates the running wallet does not trust", flag, missing)
 		}
 	case "--trusted-list":
-		for _, url := range want.trustedLists {
+		for _, url := range want.trust.ConfiguredLists {
 			if !slices.ContainsFunc(summary.Lists, func(l trustedlists.Link) bool { return l.URL == url }) {
 				return fmt.Sprintf("%s %s is not on the running wallet's list of trusted lists", flag, url)
 			}

@@ -6,15 +6,13 @@
     "entitlement": "https://uri.etsi.org/19475/Entitlement/PID_Provider",
     "trustRule": "ARF ISSU_07",
     "attestationLoS": "iso_18045_high",
-    "trustedList": {
-      "etsiAnnex": "D",
-      "type": "http://uri.etsi.org/19602/LoTEType/EUPIDProvidersList",
-      "statusDeterminationApproach": "http://uri.etsi.org/19602/PIDProvidersList/StatusDetn/EU",
-      "schemeTypeCommunityRules": "http://uri.etsi.org/19602/PIDProviders/schemerules/EU",
-      "schemeTerritory": "EU",
-      "issuanceServiceType": "http://uri.etsi.org/19602/SvcType/PID/Issuance",
-      "revocationServiceType": "http://uri.etsi.org/19602/SvcType/PID/Revocation"
-    }
+    "etsiAnnex": "D",
+    "trust_list_type": "http://uri.etsi.org/19602/LoTEType/EUPIDProvidersList",
+    "status_determination_approach": "http://uri.etsi.org/19602/PIDProvidersList/StatusDetn/EU",
+    "scheme_type_community_rules": "http://uri.etsi.org/19602/PIDProviders/schemerules/EU",
+    "scheme_territory": "EU",
+    "issuance_service_type": "http://uri.etsi.org/19602/SvcType/PID/Issuance",
+    "revocation_service_type": "http://uri.etsi.org/19602/SvcType/PID/Revocation"
   },
   {
     "id": "qeaa",
@@ -23,13 +21,11 @@
     "entitlement": "https://uri.etsi.org/19475/Entitlement/QEAA_Provider",
     "trustRule": "ARF ISSU_08",
     "attestationLoS": "iso_18045_high",
-    "trustedList": {
-      "type": "https://eudi-test.dev/LoTEType/QEAAProvidersList",
-      "statusDeterminationApproach": "https://eudi-test.dev/QEAAProvidersList/StatusDetn",
-      "schemeTypeCommunityRules": "https://eudi-test.dev/QEAAProvidersList/schemerules",
-      "issuanceServiceType": "https://eudi-test.dev/SvcType/QEAA/Issuance",
-      "revocationServiceType": "https://eudi-test.dev/SvcType/QEAA/Revocation"
-    }
+    "trust_list_type": "https://eudi-test.dev/LoTEType/QEAAProvidersList",
+    "status_determination_approach": "https://eudi-test.dev/QEAAProvidersList/StatusDetn",
+    "scheme_type_community_rules": "https://eudi-test.dev/QEAAProvidersList/schemerules",
+    "issuance_service_type": "https://eudi-test.dev/SvcType/QEAA/Issuance",
+    "revocation_service_type": "https://eudi-test.dev/SvcType/QEAA/Revocation"
   },
   {
     "id": "pub-eaa",
@@ -38,15 +34,13 @@
     "entitlement": "https://uri.etsi.org/19475/Entitlement/PUB_EAA_Provider",
     "trustRule": "ARF ISSU_09",
     "attestationLoS": "iso_18045_high",
-    "trustedList": {
-      "etsiAnnex": "H",
-      "type": "http://uri.etsi.org/19602/LoTEType/EUPubEAAProvidersList",
-      "statusDeterminationApproach": "http://uri.etsi.org/19602/PubEAAProvidersList/StatusDetn/EU",
-      "schemeTypeCommunityRules": "http://uri.etsi.org/19602/PubEAAProvidersList/schemerules/EU",
-      "schemeTerritory": "EU",
-      "issuanceServiceType": "http://uri.etsi.org/19602/SvcType/PubEAA/Issuance",
-      "revocationServiceType": "http://uri.etsi.org/19602/SvcType/PubEAA/Revocation"
-    }
+    "etsiAnnex": "H",
+    "trust_list_type": "http://uri.etsi.org/19602/LoTEType/EUPubEAAProvidersList",
+    "status_determination_approach": "http://uri.etsi.org/19602/PubEAAProvidersList/StatusDetn/EU",
+    "scheme_type_community_rules": "http://uri.etsi.org/19602/PubEAAProvidersList/schemerules/EU",
+    "scheme_territory": "EU",
+    "issuance_service_type": "http://uri.etsi.org/19602/SvcType/PubEAA/Issuance",
+    "revocation_service_type": "http://uri.etsi.org/19602/SvcType/PubEAA/Revocation"
   },
   {
     "id": "eaa",
@@ -55,12 +49,10 @@
     "entitlement": "https://uri.etsi.org/19475/Entitlement/Non_Q_EAA_Provider",
     "trustRule": "ARF ISSU_10",
     "attestationLoS": "iso_18045_basic",
-    "trustedList": {
-      "type": "https://eudi-test.dev/LoTEType/EAAProvidersList",
-      "statusDeterminationApproach": "https://eudi-test.dev/EAAProvidersList/StatusDetn",
-      "schemeTypeCommunityRules": "https://eudi-test.dev/EAAProvidersList/schemerules",
-      "issuanceServiceType": "https://eudi-test.dev/SvcType/EAA/Issuance",
-      "revocationServiceType": "https://eudi-test.dev/SvcType/EAA/Revocation"
-    }
+    "trust_list_type": "https://eudi-test.dev/LoTEType/EAAProvidersList",
+    "status_determination_approach": "https://eudi-test.dev/EAAProvidersList/StatusDetn",
+    "scheme_type_community_rules": "https://eudi-test.dev/EAAProvidersList/schemerules",
+    "issuance_service_type": "https://eudi-test.dev/SvcType/EAA/Issuance",
+    "revocation_service_type": "https://eudi-test.dev/SvcType/EAA/Revocation"
   }
 ]

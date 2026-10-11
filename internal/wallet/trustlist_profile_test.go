@@ -69,7 +69,7 @@ func TestTrustListProfilePublication(t *testing.T) {
 			if !ok || address["TEPostalAddress"] == nil {
 				t.Error("missing required TEPostalAddress")
 			}
-			group.Profile.EntityName += " updated"
+			group.List.EntityName += " updated"
 			updated, err := w.TrustedLists().SignedGroupList(w.IssuerURL, group, path)
 			if err != nil {
 				t.Fatal(err)
@@ -95,7 +95,7 @@ func TestTrustListRetainsProviderTrustAcrossCountriesAndUpdates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	spec := provider.ApplyCategoryDefaults(provider.IssuedAttestationSpec{Category: credtemplate.CategoryPID, Format: "mso_mdoc", DocType: mock.PIDNamespace})
+	spec := categorySpec(provider.IssuedAttestationSpec{Category: credtemplate.CategoryPID, Format: "mso_mdoc", DocType: mock.PIDNamespace})
 	_, chain, err := w.Signer().ForCredential(spec, map[string]any{"issuing_country": "FR"})
 	if err != nil {
 		t.Fatal(err)

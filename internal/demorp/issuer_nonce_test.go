@@ -162,13 +162,30 @@ func TestNonceEndpoint(t *testing.T) {
 
 func TestNonceIssuedRejectsAnExpiredNonce(t *testing.T) {
 	d, _, _ := newDemoRP(t)
-
-	d.mu.Lock()
-	d.nonces["stale"] = time.Now().Add(-time.Minute)
-	d.mu.Unlock()
-
-	if d.nonceIssued("stale") {
+	if d.nonceIssued(d.newNonce(time.Now().Add(-time.Minute))) {
 		t.Error("an expired nonce was accepted")
+	}
+}
+
+// Visitors share the Nonce Endpoint. A nonce stays valid until it expires,
+// however many nonces other clients fetch meanwhile.
+func TestANonceOutlastsTheNoncesOfOtherClients(t *testing.T) {
+	d, _, _ := newDemoRP(t)
+	get := func() string {
+		rec := httptest.NewRecorder()
+		d.handleNonce(rec, httptest.NewRequest(http.MethodPost, "/nonce", nil))
+		var resp map[string]string
+		if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+			t.Fatal(err)
+		}
+		return resp["c_nonce"]
+	}
+	first := get()
+	for range maxEntries + 1 {
+		get()
+	}
+	if !d.nonceIssued(first) {
+		t.Error("the first nonce expired early")
 	}
 }
 
@@ -257,11 +274,7 @@ func selfSignedDER(t *testing.T, key *ecdsa.PrivateKey) []byte {
 
 func issuedNonce(t *testing.T, d *DemoRP) string {
 	t.Helper()
-	nonce := randToken()
-	d.mu.Lock()
-	d.nonces[nonce] = time.Now().Add(time.Minute)
-	d.mu.Unlock()
-	return nonce
+	return d.newNonce(time.Now().Add(time.Minute))
 }
 
 func TestVerifyProofJWTAcceptsANonceFromTheNonceEndpoint(t *testing.T) {

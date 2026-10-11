@@ -32,7 +32,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
 )
@@ -219,7 +219,8 @@ func (d *DemoRP) authorizationServerMetadata() map[string]any {
 	issuer := d.issuerID()
 	authMethods := []string{attestationClientAuth, attestationDPoPClientAuth}
 	popMethods := []string{"attestation_pop_jwt", "dpop_combined"}
-	if d.clientAuthMode() == ClientAuthOptional {
+	anonymous := d.clientAuthMode() == ClientAuthOptional
+	if anonymous {
 		authMethods = append(authMethods, unauthenticatedClientAuth)
 		popMethods = append(popMethods, "none")
 	}
@@ -247,6 +248,9 @@ func (d *DemoRP) authorizationServerMetadata() map[string]any {
 		"client_attestation_pop_signing_alg_values_supported": []string{jws.AlgES256},
 		// In optional mode, none means the client may omit the attestation.
 		"client_attestation_pop_methods_supported": popMethods,
+		// OpenID4VCI 1.0 §12.3: whether a Token Request with a Pre-Authorized
+		// Code may come without a client_id.
+		"pre-authorized_grant_anonymous_access_supported": anonymous,
 	}
 	// OpenID4VCI 1.1 only. Publishing the endpoint is the server side of the
 	// negotiation (§13.3). The server omits require_interactive_authorization
@@ -613,10 +617,20 @@ func (d *DemoRP) verifyDPoPProof(r *http.Request, expectedURL, accessToken strin
 			return "", fmt.Errorf("DPoP ath does not match the access token")
 		}
 	}
-	if !d.firstUseOfDPoPProof(expectedURL, proof.payload) {
-		return "", fmt.Errorf("DPoP proof jti was already used at %s", expectedURL)
+	if err := d.firstUseOfDPoPProof(expectedURL, proof.payload); err != nil {
+		return "", err
 	}
-	return mock.KeyIDForPublicKey(key), nil
+	return jwkThumbprint(key)
+}
+
+// jwkThumbprint is the JWK SHA-256 Thumbprint of RFC 7638 that RFC 9449 §6.1
+// binds a token to.
+func jwkThumbprint(key *ecdsa.PublicKey) (string, error) {
+	sum, err := keys.PublicKeyThumbprint(key)
+	if err != nil {
+		return "", fmt.Errorf("computing the DPoP key thumbprint: %w", err)
+	}
+	return format.EncodeBase64URL(sum), nil
 }
 
 // firstUseOfDPoPProof records the jti of an accepted proof for its target
@@ -624,7 +638,9 @@ func (d *DemoRP) verifyDPoPProof(r *http.Request, expectedURL, accessToken strin
 // for the time window in which the respective DPoP proof JWT would be
 // accepted". §4.3 suggests storing "only a hash thereof" against memory
 // exhaustion.
-func (d *DemoRP) firstUseOfDPoPProof(targetURI string, payload map[string]any) bool {
+// A full cache refuses new proofs. Forgetting a live jti would let its proof
+// be replayed.
+func (d *DemoRP) firstUseOfDPoPProof(targetURI string, payload map[string]any) error {
 	jti, _ := payload["jti"].(string)
 	iat, _ := payload["iat"].(float64)
 	sum := sha256.Sum256([]byte(targetURI + " " + jti))
@@ -632,12 +648,22 @@ func (d *DemoRP) firstUseOfDPoPProof(targetURI string, payload map[string]any) b
 
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if expires, ok := d.dpopJTIs[seen]; ok && time.Now().Before(expires) {
-		return false
+	now := time.Now()
+	if expires, ok := d.dpopJTIs[seen]; ok && now.Before(expires) {
+		return fmt.Errorf("DPoP proof jti was already used at %s", targetURI)
 	}
-	makeRoom(d.dpopJTIs, func(e time.Time) time.Time { return e })
+	if len(d.dpopJTIs) >= maxDPoPProofs {
+		for key, expires := range d.dpopJTIs {
+			if now.After(expires) {
+				delete(d.dpopJTIs, key)
+			}
+		}
+	}
+	if len(d.dpopJTIs) >= maxDPoPProofs {
+		return fmt.Errorf("the issuer holds too many recent DPoP proofs. Retry in a few minutes")
+	}
 	d.dpopJTIs[seen] = time.Unix(int64(iat), 0).Add(freshnessWindow)
-	return true
+	return nil
 }
 
 // clientAuthentication records how a client authenticated and who attested it.
@@ -781,7 +807,7 @@ func (d *DemoRP) authenticateClient(r *http.Request, clientID, jkt string) (clie
 		if jkt == "" {
 			return clientAuthentication{}, attestationFailed("no OAuth-Client-Attestation-PoP and no DPoP proof, so nothing proves possession of the attested key")
 		}
-		if jkt != mock.KeyIDForPublicKey(clientKey) {
+		if attested, err := jwkThumbprint(clientKey); err != nil || jkt != attested {
 			return clientAuthentication{}, attestationFailed("the DPoP proof is signed by a different key than the one the client attestation attests")
 		}
 		if draft < 10 {

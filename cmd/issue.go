@@ -31,6 +31,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
@@ -786,16 +787,18 @@ func addIssueTrustMetadataFlags(cmd *cobra.Command) {
 
 func issueTrustSpecFromFlags() provider.IssuedAttestationSpec {
 	return provider.IssuedAttestationSpec{
-		Entitlements:                append([]string(nil), issueEntitlements...),
-		TrustListType:               issueTrustListType,
-		StatusDeterminationApproach: issueStatusDetermination,
-		SchemeTypeCommunityRules:    issueSchemeCommunityRule,
-		SchemeTerritory:             issueSchemeTerritory,
-		EntityName:                  issueTrustEntityName,
-		IssuanceServiceType:         issueIssuanceServiceType,
-		RevocationServiceType:       issueRevocationServiceType,
-		IssuanceServiceName:         issueIssuanceServiceName,
-		RevocationServiceName:       issueRevocationServiceName,
+		Entitlements: append([]string(nil), issueEntitlements...),
+		Scheme: lote.Scheme{
+			LoTEType:                    issueTrustListType,
+			StatusDeterminationApproach: issueStatusDetermination,
+			SchemeTypeCommunityRules:    issueSchemeCommunityRule,
+			SchemeTerritory:             issueSchemeTerritory,
+			EntityName:                  issueTrustEntityName,
+			IssuanceServiceType:         issueIssuanceServiceType,
+			RevocationServiceType:       issueRevocationServiceType,
+			IssuanceServiceName:         issueIssuanceServiceName,
+			RevocationServiceName:       issueRevocationServiceName,
+		},
 	}
 }
 

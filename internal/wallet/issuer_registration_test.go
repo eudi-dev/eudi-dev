@@ -265,7 +265,7 @@ func TestRegistrationCertificateTypMatchesAsAMediaType(t *testing.T) {
 	if err := w.GenerateDefaultCredentials(nil, ""); err != nil {
 		t.Fatal(err)
 	}
-	chain, err := w.Signer().DefaultChain()
+	_, chain, err := w.Signer().Default()
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -53,6 +53,9 @@ func (e *testEnv) RelyingPartyAccessCA() (*ecdsa.PrivateKey, *x509.Certificate, 
 	return e.accessCAKey, e.accessCA, nil
 }
 func (e *testEnv) TemplateLocation() credtemplate.Location { return e.templates }
+func (e *testEnv) TrustedListURL(category string) string {
+	return e.base + "/api/trustlists/" + category
+}
 func generateTestWallet(t testing.TB) *testWallet {
 	t.Helper()
 	key := func() *ecdsa.PrivateKey {

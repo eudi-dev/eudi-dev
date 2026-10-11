@@ -358,6 +358,7 @@ type credentialSigner struct {
 	resolved  credtemplate.Resolved
 	issuer    string
 	certIss   string
+	issuedAt  *time.Time
 	notBefore *time.Time
 	statusURI string
 	key       *ecdsa.PrivateKey
@@ -367,17 +368,31 @@ type credentialSigner struct {
 	keepAnchor bool
 }
 
+// newCredentialSigner signs with the key and chain of the attestation type.
+// An empty issuer takes the wallet's issuer URL.
+func (w *Wallet) newCredentialSigner(resolved credtemplate.Resolved, spec provider.IssuedAttestationSpec, issuer, statusURI string) (*credentialSigner, error) {
+	key, chain, err := w.Signer().ForCredential(spec, resolved.Claims)
+	if err != nil {
+		return nil, err
+	}
+	issuer = strings.TrimRight(strings.TrimSpace(jsonutil.FirstNonEmpty(issuer, w.IssuerURL)), "/")
+	if issuer == "" {
+		issuer = "https://issuer.example"
+	}
+	return &credentialSigner{resolved: resolved, issuer: issuer, certIss: w.IssuerURL, statusURI: statusURI, key: key, chain: chain}, nil
+}
+
 func (w *Wallet) issueSigner(opts IssueOptions, resolved credtemplate.Resolved, spec provider.IssuedAttestationSpec, statusURI string) (*credentialSigner, error) {
-	key, chain := opts.SigningKey, opts.SigningCertChain
-	if key != nil {
-		if err := w.judgeSigningChainAnchor(resolved.Format, chain); err != nil {
+	if opts.SigningKey == nil {
+		signer, err := w.newCredentialSigner(resolved, spec, "", statusURI)
+		if err != nil {
 			return nil, err
 		}
-	} else {
-		var err error
-		if key, chain, err = w.Signer().ForCredential(spec, resolved.Claims); err != nil {
-			return nil, err
-		}
+		signer.notBefore = opts.NotBefore
+		return signer, nil
+	}
+	if err := w.judgeSigningChainAnchor(resolved.Format, opts.SigningCertChain); err != nil {
+		return nil, err
 	}
 	issuer := strings.TrimRight(strings.TrimSpace(w.IssuerURL), "/")
 	if issuer == "" {
@@ -385,8 +400,55 @@ func (w *Wallet) issueSigner(opts IssueOptions, resolved credtemplate.Resolved, 
 	}
 	return &credentialSigner{
 		resolved: resolved, issuer: issuer, certIss: w.IssuerURL, notBefore: opts.NotBefore,
-		statusURI: statusURI, key: key, chain: chain, keepAnchor: opts.SigningKey != nil,
+		statusURI: statusURI, key: opts.SigningKey, chain: opts.SigningCertChain, keepAnchor: true,
 	}, nil
+}
+
+// HolderSigning describes a credential that the wallet's issuer signs for
+// another holder.
+type HolderSigning struct {
+	// Issuer is the iss claim. Empty uses the wallet's issuer URL.
+	Issuer string
+	// StatusListURI is the wallet's status list. The credential gets the next
+	// index on it. Empty issues it without a status.
+	StatusListURI string
+}
+
+// SignForHolder signs a credential of the resolved template for a holder key
+// outside the wallet. It registers the attestation type and takes the status
+// index under one save, before another request reloads the wallet state. The
+// issuance time is rounded to the hour, so the credentials of one holder are
+// not linkable by the issuance second (RFC 9901 §10.1).
+func (w *Wallet) SignForHolder(resolved credtemplate.Resolved, spec provider.IssuedAttestationSpec, holderKey *ecdsa.PublicKey, opts HolderSigning) (string, error) {
+	spec, err := provider.NormalizeIssuedAttestationSpec(spec, "")
+	if err != nil {
+		return "", err
+	}
+	statusIdx := 0
+	w.saveChange(func() bool {
+		var changed bool
+		if changed, err = w.EnsureIssuedAttestation(spec); err != nil {
+			err = fmt.Errorf("registering the attestation type: %w", err)
+			return false
+		}
+		if opts.StatusListURI != "" {
+			if statusIdx, err = w.NextStatusIndex(); err != nil {
+				return false
+			}
+			changed = true
+		}
+		return changed
+	})
+	if err != nil {
+		return "", err
+	}
+	signer, err := w.newCredentialSigner(resolved, spec, opts.Issuer, opts.StatusListURI)
+	if err != nil {
+		return "", fmt.Errorf("building the signing certificate chain: %w", err)
+	}
+	issuedAt := time.Now().Truncate(time.Hour)
+	signer.issuedAt = &issuedAt
+	return signer.sign(holderKey, statusIdx)
 }
 
 func (s *credentialSigner) sign(holderPub *ecdsa.PublicKey, statusIdx int) (string, error) {
@@ -396,7 +458,7 @@ func (s *credentialSigner) sign(holderPub *ecdsa.PublicKey, statusIdx int) (stri
 	case "sdjwt":
 		return mock.GenerateSDJWT(mock.SDJWTConfig{
 			CertificateIssuer: s.certIss,
-			Issuer:            s.issuer, VCT: r.VCT, ExpiresIn: r.Exp, NotBefore: s.notBefore,
+			Issuer:            s.issuer, VCT: r.VCT, ExpiresIn: r.Exp, IssuedAt: s.issuedAt, NotBefore: s.notBefore,
 			Claims: claims, Key: s.key, HolderKey: holderPub,
 			StatusListURI: s.statusURI, StatusListIdx: statusIdx, CertChain: s.chain,
 			AlwaysDisclosed: r.AlwaysDisclosed, KeepTrustAnchor: s.keepAnchor,
@@ -410,7 +472,7 @@ func (s *credentialSigner) sign(holderPub *ecdsa.PublicKey, statusIdx int) (stri
 	case "mdoc":
 		return mock.GenerateMDOC(mock.MDOCConfig{
 			CertificateIssuer: s.certIss,
-			DocType:           r.DocType, NamespaceClaims: splitClaimsByNamespace(claims, r.Namespace),
+			DocType:           r.DocType, Namespace: r.Namespace, Claims: claims,
 			Key: s.key, HolderKey: holderPub, ExpiresIn: r.Exp, ValidFrom: s.notBefore,
 			StatusListURI: s.statusURI, StatusListIdx: statusIdx, CertChain: s.chain,
 			KeepTrustAnchor: s.keepAnchor,
@@ -542,8 +604,4 @@ func (w *Wallet) resolveIssueStatus(uri *string, idx *int, batch bool) (string, 
 		return "", 0, false, err
 	}
 	return statusURI, statusIdx, true, nil
-}
-
-func splitClaimsByNamespace(claims map[string]any, defaultNamespace string) map[string]map[string]any {
-	return mock.SplitClaimsByNamespace(claims, defaultNamespace)
 }

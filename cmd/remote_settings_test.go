@@ -31,6 +31,7 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/remote"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/trustedlists"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
 )
 
@@ -125,7 +126,7 @@ func TestRunningWalletComparesConformanceFlags(t *testing.T) {
 	issuerKey, _ := mock.GenerateKey()
 	w := wallet.New(holderKey, issuerKey, false)
 	w.RequireHAIP = true
-	w.RelyingPartyCAPEM = trusted
+	w.TrustSettings.RelyingPartyCAPEM = trusted
 	srv := wallet.NewServer(w, 0, nil)
 	srv.ShutdownFunc = func() {}
 	addr, err := srv.ListenAndServeBackground()
@@ -135,12 +136,12 @@ func TestRunningWalletComparesConformanceFlags(t *testing.T) {
 	t.Cleanup(srv.Shutdown)
 	c := remote.NewClient(addr)
 
-	same := walletConformance{settings: wallet.ConformanceSettings{ValidationMode: wallet.ValidationModeDebug, RequireHAIP: true}, relyingPartyCAPEM: trusted}
+	same := walletConformance{settings: wallet.ConformanceSettings{ValidationMode: wallet.ValidationModeDebug, RequireHAIP: true}, trust: trustedlists.Settings{RelyingPartyCAPEM: trusted}}
 	if err := checkRemoteSettings(c, []string{"--haip", "--relying-party-ca"}, same); err != nil {
 		t.Fatalf("flags with the wallet's own values were refused: %v", err)
 	}
 
-	differ := walletConformance{settings: wallet.ConformanceSettings{ValidationMode: wallet.ValidationModeDebug}, relyingPartyCAPEM: testCAPEM(t)}
+	differ := walletConformance{settings: wallet.ConformanceSettings{ValidationMode: wallet.ValidationModeDebug}, trust: trustedlists.Settings{RelyingPartyCAPEM: testCAPEM(t)}}
 	err = checkRemoteSettings(c, []string{"--haip", "--relying-party-ca"}, differ)
 	if err == nil || !strings.Contains(err.Error(), "--haip is set on the running wallet") || !strings.Contains(err.Error(), "--relying-party-ca names 1 CA certificates the running wallet does not trust") {
 		t.Fatalf("differing flags: %v", err)

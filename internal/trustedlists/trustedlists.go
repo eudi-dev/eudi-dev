@@ -67,22 +67,22 @@ type Env interface {
 	HTTPClient() *http.Client
 	// Strict reports strict validation mode.
 	Strict() bool
-	Settings() Settings
 	// ListedProviderName names the wallet's own provider on its lists.
 	ListedProviderName() string
 }
 
 // Set works on the Additions stored in a wallet while holding the lock of
-// that wallet.
+// that wallet. settings is a copy the wallet made when it created the Set.
 type Set struct {
 	mu        *sync.RWMutex
 	additions *Additions
 	cache     *ListCache
+	settings  Settings
 	env       Env
 }
 
-func New(mu *sync.RWMutex, additions *Additions, cache *ListCache, env Env) *Set {
-	return &Set{mu: mu, additions: additions, cache: cache, env: env}
+func New(mu *sync.RWMutex, additions *Additions, cache *ListCache, settings Settings, env Env) *Set {
+	return &Set{mu: mu, additions: additions, cache: cache, settings: settings, env: env}
 }
 
 // The IDs of the list of trusted lists and of the list of trusted list
@@ -119,16 +119,6 @@ var ErrFull = errors.New("the wallet is full")
 // EntityLists are the wallet lists that take trusted entities.
 func EntityLists() []string {
 	return append(slices.Clone(credtemplate.Categories), provider.WalletProviderListID, provider.AccessCAListID, provider.RegistrarListID, TrustedListCAID)
-}
-
-// AddEntity puts a provider with the certificates in PEM on the list. The
-// same certificates on the same list replace the earlier entry.
-func (t *Set) AddEntity(list, name, certificatesPEM string) (Entity, error) {
-	entity, err := NewEntity(list, name, certificatesPEM)
-	if err != nil {
-		return Entity{}, err
-	}
-	return entity, t.StoreEntity(entity)
 }
 
 // NewEntity reads the provider with the certificates in PEM. Its ID follows
@@ -172,7 +162,7 @@ func (e Entity) certificates() ([]*x509.Certificate, error) {
 
 // StoreEntity puts the entity on its list, unless the wallet is full.
 func (t *Set) StoreEntity(entity Entity) error {
-	limit := t.env.Settings().MaxEntities
+	limit := t.settings.MaxEntities
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	others := slices.DeleteFunc(slices.Clone(t.additions.TrustedEntities), func(e Entity) bool { return e.ID == entity.ID })
@@ -214,7 +204,7 @@ func (t *Set) listEntities(listID string) []lote.Entity {
 		}
 	}
 	if listID == provider.AccessCAListID || listID == provider.RegistrarListID {
-		configured, err := keys.ParseCertificatesPEM(t.env.Settings().RelyingPartyCAPEM)
+		configured, err := keys.ParseCertificatesPEM(t.settings.RelyingPartyCAPEM)
 		if err == nil {
 			for _, cert := range configured {
 				encoded := base64.StdEncoding.EncodeToString(cert.Raw)
@@ -234,7 +224,7 @@ func (t *Set) ListCAs() ([]*x509.Certificate, error) {
 	if anchor := t.env.Signer().TrustAnchor(); anchor != nil {
 		cas = append(cas, anchor)
 	}
-	if pemData := t.env.Settings().ListCAPEM; len(pemData) > 0 {
+	if pemData := t.settings.ListCAPEM; len(pemData) > 0 {
 		configured, err := keys.ParseCertificatesPEM(pemData)
 		if err != nil {
 			return nil, fmt.Errorf("the trusted list CAs: %w", err)

@@ -197,8 +197,7 @@ func TestBrowserOfferFallsBackToRedirectToWeb(t *testing.T) {
 
 // A browser offer redeemed by a wallet that advertises auth_via_web gets the
 // Interaction Required Response of §6.2.1.2. It holds insufficient_authorization
-// with the interaction type, an auth_session and a request_uri for the
-// authorization endpoint.
+// with the interaction type and a request_uri for the authorization endpoint.
 func TestBrowserOfferAsksForTheAuthViaWebInteraction(t *testing.T) {
 	d, _, _ := newDemoRP(t)
 	issuerState := createOfferState(t, d, authorizationBrowser)
@@ -229,8 +228,10 @@ func TestBrowserOfferAsksForTheAuthViaWebInteraction(t *testing.T) {
 	if got := response["interaction_type_required"]; got != interactionTypeAuthViaWeb {
 		t.Errorf("interaction_type_required = %v, want %s", got, interactionTypeAuthViaWeb)
 	}
-	if session, _ := response["auth_session"].(string); session == "" {
-		t.Error("the interaction required response carries no auth_session (§6.2.1)")
+	// §6.2.1.2: "the Authorization Server MUST omit auth_session parameter
+	// in the response".
+	if session, ok := response["auth_session"]; ok {
+		t.Errorf("auth_session = %v, want none", session)
 	}
 	requestURI, _ := response["request_uri"].(string)
 	if !strings.HasPrefix(requestURI, requestURIPrefix) {
@@ -238,6 +239,25 @@ func TestBrowserOfferAsksForTheAuthViaWebInteraction(t *testing.T) {
 	}
 	if _, ok := response["expires_in"].(float64); !ok {
 		t.Errorf("expires_in = %v, want a number", response["expires_in"])
+	}
+}
+
+// RFC 6749 §3.1 sends the request parameters as a form. A body that does not
+// parse is an invalid_request.
+func TestAnAuthorizationChallengeWithABrokenFormIsRefused(t *testing.T) {
+	d, _, _ := newDemoRP(t)
+	d.SetClientAuthMode(ClientAuthOptional)
+	key, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, challengePath, strings.NewReader("response_type=code&client_id=%zz"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("DPoP", dpopProof(t, key, "POST", demoIssuerID+challengePath))
+	rec := httptest.NewRecorder()
+	d.IssuerHandler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "not a form") {
+		t.Errorf("status %d %s, want invalid_request for the form", rec.Code, rec.Body.String())
 	}
 }
 
@@ -496,7 +516,7 @@ func TestAuthViaWebFlowEndToEnd(t *testing.T) {
 
 func signPID(t *testing.T, d *DemoRP, holderKey *ecdsa.PrivateKey) string {
 	t.Helper()
-	chain, err := d.wallet.Signer().DefaultChain()
+	_, chain, err := d.wallet.Signer().Default()
 	if err != nil {
 		t.Fatalf("signing chain: %v", err)
 	}
@@ -721,61 +741,6 @@ func TestAFullStateMapMakesRoomForTheNextWallet(t *testing.T) {
 	defer d.mu.Unlock()
 	if _, kept := d.authRequests[requestURIPrefix+"fill-0"]; kept || len(d.authRequests) != maxEntries {
 		t.Errorf("entries = %d, first one kept %t, want %d with the first one evicted", len(d.authRequests), kept, maxEntries)
-	}
-}
-
-// §6.2.1 has the wallet send its auth_session on every further challenge
-// request. A wallet that returns with the auth_session from the auth_via_web
-// answer gets the interaction again with a fresh request_uri.
-func TestAuthViaWebSessionIsReOffered(t *testing.T) {
-	d, _, _ := newDemoRP(t)
-	provider := foreignWalletProvider(t)
-	clientKey, err := mock.GenerateKey()
-	if err != nil {
-		t.Fatalf("generating client key: %v", err)
-	}
-	attested := func() map[string]string {
-		return map[string]string{
-			"OAuth-Client-Attestation":     provider.attest(t, "http://wallet.example", clientKey),
-			"OAuth-Client-Attestation-PoP": attestationPoP(t, clientKey, demoIssuerID),
-			"DPoP":                         dpopProof(t, clientKey, "POST", demoIssuerID+challengePath),
-		}
-	}
-
-	first := postAuthorizationChallenge(t, d, attested(), url.Values{
-		"interaction_types_supported": {interactionTypeAuthViaWeb},
-	})
-	if first.Code != http.StatusForbidden {
-		t.Fatalf("initial answer: status %d, want 403 (%s)", first.Code, first.Body.String())
-	}
-	var initial map[string]any
-	if err := json.Unmarshal(first.Body.Bytes(), &initial); err != nil {
-		t.Fatalf("parsing initial answer: %v", err)
-	}
-	session, _ := initial["auth_session"].(string)
-	firstRequestURI, _ := initial["request_uri"].(string)
-	if session == "" || firstRequestURI == "" {
-		t.Fatalf("initial answer carries no session or request_uri: %v", initial)
-	}
-
-	retry := postAuthorizationChallenge(t, d, attested(), url.Values{
-		"auth_session": {session},
-	})
-	if retry.Code != http.StatusForbidden {
-		t.Fatalf("retry: status %d, want the interaction again (%s)", retry.Code, retry.Body.String())
-	}
-	var again map[string]any
-	if err := json.Unmarshal(retry.Body.Bytes(), &again); err != nil {
-		t.Fatalf("parsing retry answer: %v", err)
-	}
-	if got := again["interaction_type_required"]; got != interactionTypeAuthViaWeb {
-		t.Errorf("interaction_type_required = %v, want %s", got, interactionTypeAuthViaWeb)
-	}
-	if got, _ := again["auth_session"].(string); got != session {
-		t.Errorf("auth_session = %q, want the same session %q", got, session)
-	}
-	if got, _ := again["request_uri"].(string); got == "" || got == firstRequestURI {
-		t.Errorf("request_uri = %q, want a fresh pushed request (first was %q)", got, firstRequestURI)
 	}
 }
 

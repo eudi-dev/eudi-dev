@@ -616,7 +616,7 @@ func TestParseIssuerMetadataResponse_RejectsSignedMetadataForAnotherIssuer(t *te
 	trustSignedIssuerMetadataFrom(t, w)
 
 	// Only sub differs, so the test reaches the issuer identity check alone.
-	chain, err := w.Signer().DefaultChain()
+	_, chain, err := w.Signer().Default()
 	if err != nil {
 		t.Fatalf("building the signing chain: %v", err)
 	}
@@ -830,7 +830,7 @@ func TestParseIssuerMetadataResponse_RequiresIatAndRejectsExpiredMetadata(t *tes
 	w := generateTestWallet(t)
 	w.IssuerURL = "https://issuer.example:8443"
 	trustSignedIssuerMetadataFrom(t, w)
-	chain, err := w.Signer().DefaultChain()
+	_, chain, err := w.Signer().Default()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -878,7 +878,7 @@ func TestParseIssuerMetadataResponse_SignedMetadataTypIsAMediaType(t *testing.T)
 		t.Fatalf("generating credentials: %v", err)
 	}
 	trustSignedIssuerMetadataFrom(t, w)
-	chain, err := w.Signer().DefaultChain()
+	_, chain, err := w.Signer().Default()
 	if err != nil {
 		t.Fatal(err)
 	}

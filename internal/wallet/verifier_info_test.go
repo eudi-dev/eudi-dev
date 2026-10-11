@@ -31,7 +31,7 @@ import (
 
 func signTestRegistrationCertificate(t *testing.T, w *Wallet, purpose any) string {
 	t.Helper()
-	chain, err := w.Signer().DefaultChain()
+	_, chain, err := w.Signer().Default()
 	if err != nil {
 		t.Fatalf("signing chain: %v", err)
 	}
@@ -239,7 +239,7 @@ func TestARFFindingsShareOneLogEntry(t *testing.T) {
 // warns, and without --arf the wallet does not check it.
 func TestARFChecksOverAsking(t *testing.T) {
 	w := generateTestWallet(t)
-	chain, err := w.Signer().DefaultChain()
+	_, chain, err := w.Signer().Default()
 	if err != nil {
 		t.Fatalf("signing chain: %v", err)
 	}

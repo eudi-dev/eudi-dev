@@ -29,6 +29,7 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
 )
 
 // redeemPreAuthOffer creates an offer with the query, redeems its
@@ -89,6 +90,47 @@ func TestADeferredCredentialRequestIsAccepted(t *testing.T) {
 	}
 	if interval, _ := doc["interval"].(float64); interval <= 0 {
 		t.Errorf("interval = %v, want a positive number", doc["interval"])
+	}
+}
+
+// OpenID4VCI 1.0 §9.2: the Deferred Credential Endpoint delivers the
+// credentials of the transaction once they are ready, only to the access
+// token of the issuance, and only once.
+func TestTheDeferredCredentialEndpointDeliversTheCredentialOnce(t *testing.T) {
+	d, _, _ := newDemoRP(t)
+	d.deferredDelay = 0
+	token := redeemPreAuthOffer(t, d, "deferred=true", nil)["access_token"].(string)
+	_, accepted := requestCredential(t, d, token, `"credential_configuration_id":"demo-ticket",`)
+	txID, _ := accepted["transaction_id"].(string)
+	poll := func(accessToken string) (int, map[string]any) {
+		return doJSON(t, d.IssuerHandler(), "POST", "/deferred_credential", `{"transaction_id":"`+txID+`"}`, map[string]string{
+			"Authorization": "Bearer " + accessToken,
+			"Content-Type":  "application/json",
+		})
+	}
+
+	other := redeemPreAuthOffer(t, d, "deferred=true", nil)["access_token"].(string)
+	if code, doc := poll(other); code != http.StatusUnauthorized {
+		t.Errorf("another access token: %d %v, want 401", code, doc)
+	}
+	code, doc := poll(token)
+	if code != http.StatusOK {
+		t.Fatalf("collecting the credential: %d %v", code, doc)
+	}
+	credentials, _ := doc["credentials"].([]any)
+	if len(credentials) != 1 {
+		t.Fatalf("credentials = %v, want one", doc["credentials"])
+	}
+	raw, _ := credentials[0].(map[string]any)["credential"].(string)
+	issued, err := sdjwt.ParseLenient(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if issued.Payload["vct"] != TicketVCT || issued.Payload["cnf"] == nil {
+		t.Errorf("vct %v, cnf %v, want a ticket bound to the proof key", issued.Payload["vct"], issued.Payload["cnf"])
+	}
+	if code, doc := poll(token); code != http.StatusBadRequest || doc["error"] != "invalid_transaction_id" {
+		t.Errorf("collecting again: %d %v, want invalid_transaction_id", code, doc)
 	}
 }
 
@@ -333,6 +375,39 @@ func TestADPoPProofIsAcceptedOncePerTargetURI(t *testing.T) {
 	}
 	if errResp := send(par, proofFor(par)); errResp != nil {
 		t.Errorf("same jti at another URI: %v", errResp)
+	}
+}
+
+// RFC 9449 §11.1: a seen jti is declined while its proof would be accepted.
+// A full replay cache refuses new proofs instead of forgetting a live jti.
+func TestAFullDPoPReplayCacheKeepsEverySeenJTI(t *testing.T) {
+	d, _, _ := newDemoRP(t)
+	key, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	send := func(jti string) map[string]string {
+		req := httptest.NewRequest(http.MethodPost, "/", nil)
+		req.Header.Set("DPoP", signES256(t, key,
+			map[string]any{"alg": "ES256", "typ": "dpop+jwt", "jwk": holderJWK(t, key)},
+			map[string]any{"htm": "POST", "htu": demoIssuerID + "/token", "iat": time.Now().Unix(), "jti": jti},
+		))
+		_, errResp := d.dpopKey(req, demoIssuerID+"/token")
+		return errResp
+	}
+	if errResp := send("first"); errResp != nil {
+		t.Fatalf("first use: %v", errResp)
+	}
+	d.mu.Lock()
+	for i := len(d.dpopJTIs); i < maxDPoPProofs; i++ {
+		d.dpopJTIs[fmt.Sprint("other-", i)] = time.Now().Add(time.Hour)
+	}
+	d.mu.Unlock()
+	if errResp := send("second"); errResp == nil {
+		t.Error("a full replay cache took a new proof")
+	}
+	if errResp := send("first"); errResp == nil {
+		t.Error("a replayed jti was accepted after the cache filled")
 	}
 }
 

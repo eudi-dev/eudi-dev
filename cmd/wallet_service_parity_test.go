@@ -29,6 +29,7 @@ import (
 	"testing"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/remote"
@@ -184,9 +185,25 @@ func credentialID(t *testing.T, s walletService, format string) string {
 
 // importedCredential puts one deletable credential in the wallet and returns
 // its id. The PID baseline is protected and refuses deletion on both backends.
+// It copies the EUDI PID by type, because the two wallets may list their
+// baseline PIDs in different orders.
 func importedCredential(t *testing.T, s walletService) string {
 	t.Helper()
-	full, err := s.Credential(credentialID(t, s, "dc+sd-jwt"))
+	docs, err := s.Credentials()
+	if err != nil {
+		t.Fatalf("listing credentials: %v", err)
+	}
+	var id string
+	for _, doc := range docs {
+		if doc["format"] == "dc+sd-jwt" && doc["vct"] == credtype.PIDVCT {
+			id, _ = doc["id"].(string)
+			break
+		}
+	}
+	if id == "" {
+		t.Fatalf("no EUDI PID among %d stored credentials", len(docs))
+	}
+	full, err := s.Credential(id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,11 +215,11 @@ func importedCredential(t *testing.T, s walletService) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	id, _ := imported["id"].(string)
-	if id == "" {
+	importedID, _ := imported["id"].(string)
+	if importedID == "" {
 		t.Fatalf("import returned no id: %v", imported)
 	}
-	return id
+	return importedID
 }
 
 func saveParityTemplate(t *testing.T, s walletService) {

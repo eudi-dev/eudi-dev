@@ -116,11 +116,14 @@ func (s *Server) SetDemo(opts DemoOptions) error {
 	s.wallet.SetCapacity(Capacity{
 		Credentials:        maxDemoCredentials,
 		Deferred:           maxDemoDeferred,
-		TrustedEntities:    maxDemoTrustedEntities,
-		TrustedLists:       maxDemoTrustedLists,
 		IssuedAttestations: maxDemoIssuedAttestations,
 		Templates:          maxDemoTemplates,
 	})
+	// Added providers and lists are refused when full, because each one
+	// changes what every check trusts.
+	s.wallet.mu.Lock()
+	s.wallet.TrustSettings.MaxEntities, s.wallet.TrustSettings.MaxLists = maxDemoTrustedEntities, maxDemoTrustedLists
+	s.wallet.mu.Unlock()
 	s.wallet.SetVisitorRules(VisitorRules{VisitorTemplates: true, BundledImagesOnly: true})
 	return nil
 }

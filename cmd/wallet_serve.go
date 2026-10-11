@@ -41,7 +41,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/netaddr"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/news"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/remote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/serverlog"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/storage"
@@ -480,7 +480,7 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	w.ServingOrigin = origin.Base
 
 	// The serving URLs are resolved, so the policy can exempt them.
-	operatorURLs := append([]string{w.BaseURL, w.IssuerURL, fmt.Sprintf("http://localhost:%d", opts.Port)}, w.ConfiguredTrustedListURLs...)
+	operatorURLs := append([]string{w.BaseURL, w.IssuerURL, fmt.Sprintf("http://localhost:%d", opts.Port)}, w.TrustSettings.ConfiguredLists...)
 	operatorURLs = append(operatorURLs, format.ProxyURLs(format.ProxySettings{HTTPProxy: walletHTTPProxy, HTTPSProxy: walletHTTPSProxy})...)
 	if err := installFetchPolicy(cmd, opts.AllowPrivateNetworks, opts.Demo, operatorURLs...); err != nil {
 		return err
@@ -550,15 +550,15 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 		fmt.Printf("  Issuer:      %s (served via base URL, external TLS)\n", httpsURL)
 		fmt.Printf("  Authorize:   %s/authorize\n", publicHTTPURL)
 		fmt.Printf("  Trusted list:  %s/api/trustlist\n", publicHTTPURL)
-		fmt.Printf("  Trusted lists: %s%s\n", publicHTTPURL, registrar.TrustListsPath)
+		fmt.Printf("  Trusted lists: %s%s\n", publicHTTPURL, provider.TrustedListsPath)
 	} else {
 		fmt.Printf("  HTTPS:       %s\n", httpsURL)
 		fmt.Printf("  Authorize:   %s/authorize\n", publicHTTPURL)
 		dim.Printf("               %s/authorize\n", httpsURL)
 		fmt.Printf("  Trusted list:  %s/api/trustlist\n", publicHTTPURL)
 		dim.Printf("               %s/api/trustlist\n", httpsURL)
-		fmt.Printf("  Trusted lists: %s%s\n", publicHTTPURL, registrar.TrustListsPath)
-		dim.Printf("               %s%s\n", httpsURL, registrar.TrustListsPath)
+		fmt.Printf("  Trusted lists: %s%s\n", publicHTTPURL, provider.TrustedListsPath)
+		dim.Printf("               %s%s\n", httpsURL, provider.TrustedListsPath)
 	}
 	fmt.Printf("  Metadata:    %s/.well-known/jwt-vc-issuer\n", httpsURL)
 	fmt.Printf("  Credentials: %d loaded\n", len(w.GetCredentials()))

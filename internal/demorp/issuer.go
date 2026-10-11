@@ -16,7 +16,10 @@ package demorp
 
 import (
 	"crypto/ecdsa"
+	"crypto/hmac"
+	"crypto/sha256"
 	"embed"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -684,13 +687,7 @@ func requestedConfiguration(req credentialRequest, granted tokenState) (string, 
 // handleNonce is the Nonce Endpoint of OpenID4VCI 1.0 §7. A 1.0 wallet gets
 // its key proof challenge only from here.
 func (d *DemoRP) handleNonce(w http.ResponseWriter, r *http.Request) {
-	nonce := randToken()
-
-	d.mu.Lock()
-	d.pruneLocked()
-	makeRoom(d.nonces, func(e time.Time) time.Time { return e })
-	d.nonces[nonce] = time.Now().Add(entryTTL)
-	d.mu.Unlock()
+	nonce := d.newNonce(time.Now().Add(entryTTL))
 
 	// A cached response would hand the same challenge to another client.
 	w.Header().Set("Cache-Control", "no-store")
@@ -698,22 +695,32 @@ func (d *DemoRP) handleNonce(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"c_nonce": nonce})
 }
 
+// newNonce issues a challenge that carries its expiry and a MAC under the
+// issuer's nonce key. Visitors share the Nonce Endpoint, so the issuer keeps
+// no list of nonces that one client could fill and push the others out of.
+func (d *DemoRP) newNonce(expires time.Time) string {
+	value := binary.BigEndian.AppendUint64(nil, uint64(expires.Unix())) //nolint:gosec // Expiry times are after 1970.
+	value = append(value, randomBytes(16)...)
+	return format.EncodeBase64URL(append(value, d.nonceMAC(value)...))
+}
+
+func (d *DemoRP) nonceMAC(value []byte) []byte {
+	mac := hmac.New(sha256.New, d.nonceKey)
+	mac.Write(value)
+	return mac.Sum(nil)
+}
+
 // A nonce stays valid until it expires, so all proofs in a batch can use it.
 func (d *DemoRP) nonceIssued(nonce string) bool {
-	if nonce == "" {
+	raw, err := format.DecodeBase64URL(nonce)
+	if err != nil || len(raw) != 8+16+sha256.Size {
 		return false
 	}
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	expires, ok := d.nonces[nonce]
-	if !ok {
+	value := raw[:24]
+	if !hmac.Equal(raw[24:], d.nonceMAC(value)) {
 		return false
 	}
-	if time.Now().After(expires) {
-		delete(d.nonces, nonce)
-		return false
-	}
-	return true
+	return time.Now().Before(time.Unix(int64(binary.BigEndian.Uint64(value[:8])), 0)) //nolint:gosec // The MAC covers the value.
 }
 
 // proofError is a rejected key proof with its §8.3.1.2 error code. A wallet

@@ -198,3 +198,56 @@ func authorityChain(t *testing.T) (ca, leaf *x509.Certificate, leafKey *ecdsa.Pr
 	}
 	return ca, leaf, leafKey, subjectKeyID
 }
+
+// A credential for another holder registers its attestation type, takes the
+// next status index, carries the given issuer and rounds iat to the hour (RFC
+// 9901 §10.1). The wallet stores no copy of it.
+func TestSignForHolderDoesTheIssuersBookkeeping(t *testing.T) {
+	holderKey, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	issuerKey, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := New(holderKey, issuerKey, false)
+	w.Templates = credtemplate.FileLocation(t.TempDir())
+	resolved, err := credtemplate.Resolve(&credtemplate.Template{Format: "sdjwt", VCT: "urn:test:holder:1", Claims: map[string]any{"given_name": "Erika"}}, credtemplate.Request{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	visitor, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := w.StatusListCounter
+	raw, err := w.SignForHolder(resolved, provider.IssuedAttestationSpec{Format: "dc+sd-jwt", VCT: "urn:test:holder:1"}, &visitor.PublicKey,
+		HolderSigning{Issuer: "https://issuer.example/demo", StatusListURI: "https://issuer.example/status"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	token, err := sdjwt.ParseLenient(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if token.Payload["iss"] != "https://issuer.example/demo" {
+		t.Errorf("iss = %v", token.Payload["iss"])
+	}
+	if iat, _ := token.Payload["iat"].(float64); int64(iat)%3600 != 0 {
+		t.Errorf("iat = %v, want a full hour", iat)
+	}
+	if w.StatusListCounter != before+1 {
+		t.Errorf("status counter %d, want %d", w.StatusListCounter, before+1)
+	}
+	registered := false
+	for _, spec := range w.IssuedAttestations {
+		registered = registered || spec.VCT == "urn:test:holder:1"
+	}
+	if !registered {
+		t.Error("the attestation type is not registered")
+	}
+	if n := len(w.GetCredentials()); n != 0 {
+		t.Errorf("the wallet stored %d credentials", n)
+	}
+}

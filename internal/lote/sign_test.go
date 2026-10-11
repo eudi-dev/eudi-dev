@@ -22,10 +22,8 @@ import (
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 )
 
 // Parse reads back what Sign builds: the scheme, the operator's provider
@@ -44,7 +42,7 @@ func TestParseReadsWhatSignBuilds(t *testing.T) {
 		OperatorName: "Operator",
 		Issuer:       "https://issuer.example",
 		Path:         "/api/trustlists/pid",
-		Profile:      Profile{LoTEType: PIDProvidersListType, SchemeTerritory: "NL", IssuanceServiceType: "issuance", RevocationServiceType: "revocation"},
+		Scheme:       Scheme{LoTEType: PIDProvidersListType, SchemeTerritory: "NL", IssuanceServiceType: "issuance", RevocationServiceType: "revocation"},
 		Sequence:     7,
 		Entities:     []Entity{{Name: "Other", Issuance: []string{other}}},
 		ProviderName: "Provider",
@@ -88,17 +86,6 @@ func mustCertificate(t *testing.T, info CertInfo) *x509.Certificate {
 	return cert
 }
 
-// The categories with a list type of ETSI TS 119 602 use the constants Sign
-// switches on.
-func TestCategoryListTypesAreTheETSITypes(t *testing.T) {
-	if got := registrar.CategoryOf(credtemplate.CategoryPID).TrustedList.Type; got != PIDProvidersListType {
-		t.Errorf("PID list type %q, want %q", got, PIDProvidersListType)
-	}
-	if got := registrar.CategoryOf(credtemplate.CategoryPubEAA).TrustedList.Type; got != PubEAAProvidersListType {
-		t.Errorf("PuB-EAA list type %q, want %q", got, PubEAAProvidersListType)
-	}
-}
-
 // An entity's trade name is the registration identifier its own certificates
 // carry, and an entity without one has none (ETSI TS 119 602 V1.1.1 §6.5.2).
 func TestAListedEntityTakesTheTradeNameOfItsCertificates(t *testing.T) {
@@ -134,7 +121,7 @@ func TestAListedEntityTakesTheTradeNameOfItsCertificates(t *testing.T) {
 // ETSI TS 119 602 V1.1.1 §6.3.6 writes the scheme name as CC:name, and
 // §6.3.5.2 asks for the operator's email address and website.
 func TestTheSchemeNameAndOperatorAddressFollowTheirForms(t *testing.T) {
-	scheme := signedPayload(t, Options{OperatorName: "Operator", Profile: Profile{LoTEType: PIDProvidersListType, SchemeTerritory: "NL"}})["ListAndSchemeInformation"].(map[string]any)
+	scheme := signedPayload(t, Options{OperatorName: "Operator", Scheme: Scheme{LoTEType: PIDProvidersListType, SchemeTerritory: "NL"}})["ListAndSchemeInformation"].(map[string]any)
 	if got := firstMultiLangValue(scheme["SchemeName"]); got != "NL:EUDI Dev Test Providers" {
 		t.Errorf("scheme name %q", got)
 	}
@@ -167,7 +154,7 @@ func TestAPubEAAListKeepsTheServicesItWithdraws(t *testing.T) {
 		return base64.StdEncoding.EncodeToString(cert.Raw)
 	}
 	kept, removed, revocationA, revocationB := certificate(), certificate(), certificate(), certificate()
-	profile := Profile{LoTEType: PubEAAProvidersListType, SchemeTerritory: "EU", IssuanceServiceType: "issuance", RevocationServiceType: "revocation"}
+	scheme := Scheme{LoTEType: PubEAAProvidersListType, SchemeTerritory: "EU", IssuanceServiceType: "issuance", RevocationServiceType: "revocation"}
 	key, err := mock.GenerateKey()
 	if err != nil {
 		t.Fatal(err)
@@ -176,7 +163,7 @@ func TestAPubEAAListKeepsTheServicesItWithdraws(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	first, err := Sign(key, signer, Options{Profile: profile, ProviderName: "Provider", IssuedAt: time.Now().Add(-time.Hour),
+	first, err := Sign(key, signer, Options{Scheme: scheme, ProviderName: "Provider", IssuedAt: time.Now().Add(-time.Hour),
 		IssuanceCertificates: []string{kept, removed}, RevocationCertificates: []string{revocationA, revocationB}})
 	if err != nil {
 		t.Fatal(err)
@@ -185,7 +172,7 @@ func TestAPubEAAListKeepsTheServicesItWithdraws(t *testing.T) {
 	if len(firstServices) != 4 {
 		t.Fatalf("services %v, want one per certificate", firstServices)
 	}
-	second, err := Sign(key, signer, Options{Profile: profile, ProviderName: "Provider", Previous: first,
+	second, err := Sign(key, signer, Options{Scheme: scheme, ProviderName: "Provider", Previous: first,
 		IssuanceCertificates: []string{kept}, RevocationCertificates: []string{revocationA, revocationB}})
 	if err != nil {
 		t.Fatal(err)
