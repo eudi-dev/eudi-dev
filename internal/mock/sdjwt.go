@@ -145,7 +145,7 @@ func GenerateSDJWT(cfg SDJWTConfig) (string, error) {
 	// SD-JWT VC §2.2.1: "The Issuer MUST include the typ header parameter in
 	// the SD-JWT. The typ value MUST use dc+sd-jwt."
 	header := map[string]any{
-		"alg": "ES256",
+		"alg": jws.AlgES256,
 		"typ": "dc+sd-jwt",
 		"kid": KeyIDForPublicKey(&cfg.Key.PublicKey),
 	}
@@ -190,21 +190,16 @@ func GenerateSDJWT(cfg SDJWTConfig) (string, error) {
 	return serialized.String(), nil
 }
 
-// forcePlainClaims always stay in plain text. SD-JWT VC §2.2.2.3 lists iss, nbf,
-// exp, cnf, vct, vct#integrity, aka_vcts and status. This generator writes iat
-// itself, and RFC 9901 §7.1 rejects a disclosure for a claim already present
-// next to _sd.
-var forcePlainClaims = map[string]bool{
-	"iss":           true,
-	"nbf":           true,
-	"exp":           true,
-	"cnf":           true,
-	"vct":           true,
-	"vct#integrity": true,
-	"aka_vcts":      true,
-	"status":        true,
-	"iat":           true,
-}
+// forcePlainClaims always stay in plain text: the claims of SD-JWT VC
+// §2.2.2.3 and iat. This generator writes iat itself, and RFC 9901 §7.1
+// rejects a disclosure for a claim already present next to _sd.
+var forcePlainClaims = func() map[string]bool {
+	claims := map[string]bool{"iat": true}
+	for _, name := range credtype.NeverDisclosedClaims {
+		claims[name] = true
+	}
+	return claims
+}()
 
 // checkClaimName refuses the keys RFC 9901 reserves. A disclosure name "MUST
 // NOT be _sd, ..., or a claim name existing in the object as a permanently

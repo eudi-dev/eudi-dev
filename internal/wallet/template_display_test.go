@@ -70,13 +70,13 @@ func TestPredefinedTemplatesCarryDisplay(t *testing.T) {
 			t.Errorf("template %q carries no display", tpl.Name)
 			continue
 		}
-		logo := "embedded:logo.svg"
+		logo := "embedded:images/logo.svg"
 		for country, code := range map[string]string{"german": "de", "italian": "it", "dutch": "nl"} {
 			if !strings.HasPrefix(tpl.Name, country) {
 				continue
 			}
-			logo = "embedded:logo-" + code + ".svg"
-			if tpl.Display.BackgroundImage != "embedded:"+country+"-id-specimen.jpg" {
+			logo = "embedded:images/logo-" + code + ".svg"
+			if tpl.Display.BackgroundImage != "embedded:images/"+country+"-id-specimen.jpg" {
 				t.Errorf("template %q background image = %q, want the %s specimen", tpl.Name, tpl.Display.BackgroundImage, country)
 			}
 		}

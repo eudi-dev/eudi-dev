@@ -20,6 +20,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/output"
@@ -68,17 +69,17 @@ func init() {
 }
 
 var formatAliases = map[string]format.CredentialFormat{
-	"sdjwt":        format.FormatSDJWT,
-	"sd-jwt":       format.FormatSDJWT,
-	"jwt":          format.FormatJWT,
-	"mdoc":         format.FormatMDOC,
-	"mso_mdoc":     format.FormatMDOC,
-	"vci":          format.FormatOID4VCI,
-	"oid4vci":      format.FormatOID4VCI,
-	"vp":           format.FormatOID4VP,
-	"oid4vp":       format.FormatOID4VP,
-	"trusted-list": format.FormatTrustList,
-	"trust":        format.FormatTrustList,
+	"sdjwt":             format.FormatSDJWT,
+	"sd-jwt":            format.FormatSDJWT,
+	"jwt":               format.FormatJWT,
+	"mdoc":              format.FormatMDOC,
+	credtype.FormatMDOC: format.FormatMDOC,
+	"vci":               format.FormatOID4VCI,
+	"oid4vci":           format.FormatOID4VCI,
+	"vp":                format.FormatOID4VP,
+	"oid4vp":            format.FormatOID4VP,
+	"trusted-list":      format.FormatTrustList,
+	"trust":             format.FormatTrustList,
 }
 
 func runDecode(cmd *cobra.Command, args []string) error {

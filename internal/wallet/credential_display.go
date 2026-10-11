@@ -25,7 +25,6 @@ import (
 	"io"
 	"math"
 	"net/http"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -34,6 +33,7 @@ import (
 	"golang.org/x/image/draw"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/defaults"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/publicpath"
 )
 
@@ -342,12 +342,9 @@ func (w *Wallet) templateDisplay(td *credtemplate.TemplateDisplay) *CredentialDi
 // issuer serves the art of its templates from them.
 var bundledImageDigests = sync.OnceValue(func() map[[sha256.Size]byte]bool {
 	digests := map[[sha256.Size]byte]bool{}
-	entries, _ := staticFiles.ReadDir("static")
+	entries, _ := defaults.ReadDir("images")
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasPrefix(embeddedImageMIME(entry.Name()), "image/") {
-			continue
-		}
-		if data, err := staticFiles.ReadFile("static/" + entry.Name()); err == nil {
+		if _, data, ok := TemplateImage(defaults.EmbeddedPrefix + "images/" + entry.Name()); ok {
 			digests[sha256.Sum256(data)] = true
 		}
 	}
@@ -365,38 +362,20 @@ func (w *Wallet) keepsTemplateImage(ref string) bool {
 	return ok && bundledImageDigests()[sha256.Sum256(data)]
 }
 
-// templateImage uses only the base name of an embedded image, so a template
-// cannot read outside static/.
 func (w *Wallet) templateImage(ref, field string) string {
 	ref = strings.TrimSpace(ref)
 	if ref == "" {
 		return ""
 	}
-	if name, ok := strings.CutPrefix(ref, "embedded:"); ok {
-		data, err := staticFiles.ReadFile("static/" + filepath.Base(name))
-		if err != nil {
-			w.rejectDisplayImage(field, ref, "not a bundled asset")
+	if strings.HasPrefix(ref, defaults.EmbeddedPrefix) {
+		contentType, data, ok := TemplateImage(ref)
+		if !ok {
+			w.rejectDisplayImage(field, ref, "not a bundled image")
 			return ""
 		}
-		return "data:" + embeddedImageMIME(name) + ";base64," + base64.StdEncoding.EncodeToString(data)
+		return "data:" + contentType + ";base64," + base64.StdEncoding.EncodeToString(data)
 	}
 	return w.cacheDisplayImage(ref, field)
-}
-
-func embeddedImageMIME(name string) string {
-	switch strings.ToLower(filepath.Ext(name)) {
-	case ".svg":
-		return "image/svg+xml"
-	case ".png":
-		return "image/png"
-	case ".jpg", ".jpeg":
-		return "image/jpeg"
-	case ".gif":
-		return "image/gif"
-	case ".webp":
-		return "image/webp"
-	}
-	return "application/octet-stream"
 }
 
 // issuedDisplay validates operator input like an issuer's display. It

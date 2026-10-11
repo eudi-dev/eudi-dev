@@ -18,6 +18,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
 )
@@ -31,7 +32,7 @@ const renewalMargin = time.Minute
 // zero time.
 func CredentialValidity(cred StoredCredential) (notBefore, expiry time.Time) {
 	switch cred.Format {
-	case "mso_mdoc":
+	case credtype.FormatMDOC:
 		doc, err := mdoc.Parse(cred.Raw)
 		if err != nil || doc.IssuerAuth == nil || doc.IssuerAuth.MSO == nil || doc.IssuerAuth.MSO.ValidityInfo == nil {
 			return time.Time{}, time.Time{}
@@ -78,7 +79,7 @@ func CredentialIssuedAt(cred StoredCredential) time.Time {
 		return cred.issuedAt
 	}
 	switch cred.Format {
-	case "mso_mdoc":
+	case credtype.FormatMDOC:
 		doc, err := mdoc.Parse(cred.Raw)
 		if err != nil {
 			return time.Time{}

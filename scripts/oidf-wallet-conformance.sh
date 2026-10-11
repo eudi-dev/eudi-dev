@@ -87,7 +87,7 @@ WALLET_LOG="$RUN_DIR/wallet.log"
 
 mkdir -p "$RESULTS_DIR" "$WALLET_DIR"
 if [ "$WALLET_MANAGED" = "1" ]; then
-  build_local_oid4vc_dev
+  build_local_eudi_dev
 fi
 fetch_suite_source
 
@@ -139,7 +139,7 @@ if [ "$WALLET_MANAGED" = "1" ]; then
     if [ -n "${OIDF_TLS_CA:-}" ]; then
       set -- "$@" --tls-ca "$OIDF_TLS_CA"
     fi
-    exec "$LOCAL_OID4VC_DEV" wallet serve "$@" \
+    exec "$LOCAL_EUDI_DEV" wallet serve "$@" \
       --mode "$OIDF_WALLET_MODE" \
       --auto-accept \
       --pid \

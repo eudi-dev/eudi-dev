@@ -5,7 +5,6 @@
   const emptyEl = document.getElementById("empty");
   const statusEl = document.getElementById("status");
   const clearBtn = document.getElementById("clear-btn");
-  const themeToggle = document.getElementById("theme-toggle");
   const showAllCheckbox = document.getElementById("show-all");
   const harExportBtn = document.getElementById("har-export");
   const timelineToggle = document.getElementById("timeline-toggle");
@@ -16,40 +15,6 @@
   let clearedThroughID = 0;
   let showAll = false;
   let timelineView = localStorage.getItem("proxy-timeline") === "true";
-
-  // The wallet, decoder and proxy share the theme choice. Without one the
-  // system preference applies.
-  const THEME_KEY = "eudi-dev-theme";
-  const systemLight = window.matchMedia("(prefers-color-scheme: light)");
-
-  function chosenTheme() {
-    try {
-      const value = localStorage.getItem(THEME_KEY);
-      return value === "light" || value === "dark" ? value : null;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  function applyTheme() {
-    const theme = chosenTheme() || (systemLight.matches ? "light" : "dark");
-    if (theme === "light") document.documentElement.setAttribute("data-theme", "light");
-    else document.documentElement.removeAttribute("data-theme");
-  }
-
-  applyTheme();
-  systemLight.addEventListener("change", applyTheme);
-
-  themeToggle.addEventListener("click", function () {
-    const isLight = document.documentElement.getAttribute("data-theme") === "light";
-    try {
-      localStorage.setItem(THEME_KEY, isLight ? "dark" : "light");
-    } catch (e) {
-      // Without storage the choice lasts until the page reloads.
-    }
-    if (isLight) document.documentElement.removeAttribute("data-theme");
-    else document.documentElement.setAttribute("data-theme", "light");
-  });
 
   showAllCheckbox.checked = localStorage.getItem("proxy-show-all") === "true";
   showAll = showAllCheckbox.checked;

@@ -219,7 +219,7 @@ func TestTheCategoryListsFollowTheirLoTEProfiles(t *testing.T) {
 	if len(pid.ListAndSchemeInformation.PointersToOtherLoTE) != 1 || pid.ListAndSchemeInformation.HistoricalInformationPeriod != nil {
 		t.Error("the PID list needs a pointer to itself and no history period (Table D.1)")
 	}
-	if pidEntity.TETradeName[0].Value != "NTRNL-"+listedProviderEUID || !slices.Contains(uris(pidEntity.TEInformationURI), "http://uri.etsi.org/19602/ListOfTrustedEntities/PIDProvider/NL") {
+	if pidEntity.TETradeName[0].Value != "NTRNL-"+demoIdentifier(demoIssuer) || !slices.Contains(uris(pidEntity.TEInformationURI), "http://uri.etsi.org/19602/ListOfTrustedEntities/PIDProvider/NL") {
 		t.Errorf("PID provider %+v, want the registration identifier and the Member State URI (Table D.2)", pidEntity)
 	}
 

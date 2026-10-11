@@ -21,10 +21,12 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
@@ -71,12 +73,20 @@ type TrustListIndexEntry struct {
 	URL                   string                  `json:"url,omitempty"`
 }
 
+// trustListUpdateInterval is the time to the NextUpdate of a trusted list the
+// wallet signs.
+const trustListUpdateInterval = 24 * time.Hour
+
+// defaultTrustListPath serves the PID list for clients that know a single
+// trusted list.
+const defaultTrustListPath = "/api/trustlist"
+
 func GenerateTrustListJWTForWallet(w *Wallet, issuer string) (string, error) {
 	if !w.hasCertificateAuthority() {
 		return "", fmt.Errorf("wallet has no CA certificate chain")
 	}
 	group := DefaultTrustListGroupForWallet(w)
-	return GenerateTrustListJWTForWalletGroup(w, issuer, group, "/api/trustlists/"+group.ID)
+	return GenerateTrustListJWTForWalletGroup(w, issuer, group, registrar.TrustListPath(group.ID))
 }
 
 func GenerateTrustListJWTForWalletGroup(w *Wallet, issuer string, group TrustListGroup, path string) (string, error) {
@@ -84,14 +94,14 @@ func GenerateTrustListJWTForWalletGroup(w *Wallet, issuer string, group TrustLis
 		return "", fmt.Errorf("wallet has no CA certificate chain")
 	}
 	if path == "" {
-		path = "/api/trustlist"
+		path = defaultTrustListPath
 	}
-	listKey, listChain, err := w.TrustListSigningMaterial("EUDI Dev Wallet", mock.DefaultCertificateCountry)
+	listKey, listChain, err := w.TrustListSigningMaterial(config.WalletName, mock.DefaultCertificateCountry)
 	if err != nil {
 		return "", err
 	}
 	opts := trustListOptions{
-		OperatorName:  "EUDI Dev Wallet",
+		OperatorName:  config.WalletName,
 		Issuer:        strings.TrimRight(strings.TrimSpace(issuer), "/"),
 		TrustListPath: path,
 		Profile:       group.Profile,
@@ -119,7 +129,7 @@ func GenerateTrustListJWTForWalletGroup(w *Wallet, issuer string, group TrustLis
 	var issuanceCertificates []string
 	countries := []string{""}
 	if group.Profile.Category == credtemplate.CategoryPID {
-		countries = []string{"NL", "DE", "IT"}
+		countries = w.pidCountries()
 	}
 	for _, country := range countries {
 		_, chain, err := w.signingMaterialForProfile(group.Profile, country)
@@ -153,6 +163,22 @@ func GenerateTrustListJWTForWalletGroup(w *Wallet, issuer string, group TrustLis
 	opts.IssuanceCertificates = issuanceCertificates
 	opts.RevocationCertificates = []string{base64.StdEncoding.EncodeToString(statusChain[0].Raw)}
 	return w.signingStore().trustList(listKey, listChain[0], opts)
+}
+
+// pidCountries lists the issuing countries of the PID templates and the
+// default country. A PID is signed under a provider CA of its issuing
+// country, so the PID list names the CA of each.
+func (w *Wallet) pidCountries() []string {
+	// List returns every readable template with its error.
+	templates, _ := credtemplate.List(w.Templates)
+	var others []string
+	for _, t := range templates {
+		if country := IssuingCountryFromClaims(t.Claims); t.Category == credtemplate.CategoryPID && country != "" && country != mock.DefaultCertificateCountry {
+			others = append(others, country)
+		}
+	}
+	slices.Sort(others)
+	return append([]string{mock.DefaultCertificateCountry}, slices.Compact(others)...)
 }
 
 // TrustListGroupsForWallet lists one trusted list per credential category,
@@ -215,7 +241,7 @@ func walletProviderTrustListProfile() trustListProfile {
 		RevocationServiceType:       walletProviderRevocationServiceType,
 		IssuanceServiceName:         "Wallet Attestation Issuance",
 		RevocationServiceName:       "Wallet Attestation Revocation",
-		EntityName:                  "EUDI Dev Wallet Provider",
+		EntityName:                  config.WalletName + " Provider",
 	}
 }
 
@@ -260,7 +286,7 @@ func BuildTrustListIndexEntries(w *Wallet, issuer string) []TrustListIndexEntry 
 	issuer = strings.TrimRight(strings.TrimSpace(issuer), "/")
 	entries := make([]TrustListIndexEntry, 0, len(groups))
 	for _, group := range groups {
-		path := "/api/trustlists/" + group.ID
+		path := registrar.TrustListPath(group.ID)
 		entry := TrustListIndexEntry{
 			ID:                    group.ID,
 			Default:               group.ID == defaultGroup.ID,
@@ -360,14 +386,11 @@ func trustListGroupID(profile trustListProfile) string {
 // and H.2 ask for its registration identifier as trade name and for a contact
 // email and phone. A PID or PuB-EAA provider also names its Member State with
 // a URI, and a PuB-EAA provider the law it is established under.
-const (
-	listedProviderName = "EUDI Dev Test Provider"
-	// listedProviderEUID is the provider's registered EUID. Its certificates
-	// carry it as NTRNL-NLTEST.00000000 (ETSI EN 319 412-1 V1.6.1
-	// LEG-5.1.4-07 b).
-	listedProviderEUID   = mock.DefaultCertificateCountry + "TEST.00000000"
-	pubEAANotifiedStatus = "http://uri.etsi.org/19602/PubEAAProvidersList/SvcStatus/notified"
-)
+// The listed provider is the demo issuer. Its certificates carry its EUID as
+// NTRNL-NLTEST.00000000 (ETSI EN 319 412-1 V1.6.1 LEG-5.1.4-07 b).
+var listedProviderName = demoIssuer().LegalPerson.LegalName[0]
+
+const pubEAANotifiedStatus = "http://uri.etsi.org/19602/PubEAAProvidersList/SvcStatus/notified"
 
 // trustedEntityInformation describes a listed entity. Its trade name is the
 // official registration identifier its certificates carry, in the semantics
@@ -436,17 +459,17 @@ func generateTrustListJWTWithOptions(signingKey *ecdsa.PrivateKey, caCert *x509.
 		opts.Sequence = 1
 	}
 	if strings.TrimSpace(opts.OperatorName) == "" {
-		opts.OperatorName = "EUDI Dev Wallet"
+		opts.OperatorName = config.WalletName
 	}
 	if opts.Profile.LoTEType == "" {
-		opts.Profile = eaaTrustListProfile()
+		opts.Profile = categoryTrustListProfile(credtemplate.CategoryEAA)
 	}
 
 	if opts.Profile.SchemeTerritory == "" {
-		opts.Profile.SchemeTerritory = "NL"
+		opts.Profile.SchemeTerritory = mock.DefaultCertificateCountry
 	}
 	issueTime := now.Format(time.RFC3339Nano)
-	nextUpdate := now.Add(24 * time.Hour).Format(time.RFC3339Nano)
+	nextUpdate := now.Add(trustListUpdateInterval).Format(time.RFC3339Nano)
 
 	schemeInfo := map[string]any{
 		"LoTEVersionIdentifier": 1,
@@ -461,15 +484,16 @@ func generateTrustListJWTWithOptions(signingKey *ecdsa.PrivateKey, caCert *x509.
 	schemeInfo["SchemeName"] = []map[string]string{{"lang": "en", "value": opts.Profile.SchemeTerritory + ": EUDI Dev Test Providers"}}
 	schemeInfo["PolicyOrLegalNotice"] = []map[string]string{{"LoTELegalNotice": "Test data of eudi-dev. The listed providers are fictional and carry no official trust."}}
 	schemeInfo["SchemeOperatorAddress"] = map[string]any{
-		"SchemeOperatorPostalAddress":     []map[string]string{{"lang": "en", "StreetAddress": "Test address", "Country": "NL"}},
+		"SchemeOperatorPostalAddress":     []map[string]string{{"lang": "en", "StreetAddress": "Test address", "Country": mock.DefaultCertificateCountry}},
 		"SchemeOperatorElectronicAddress": []map[string]string{{"lang": "en", "uriValue": "https://github.com/dominikschlosser/eudi-dev"}},
 	}
-	schemeInfo["StatusDeterminationApproach"] = firstNonEmpty(opts.Profile.StatusDeterminationApproach, eaaStatusDetermination)
-	schemeInfo["SchemeTypeCommunityRules"] = []map[string]string{{"lang": "en", "uriValue": firstNonEmpty(opts.Profile.SchemeTypeCommunityRules, eaaSchemeCommunityRules)}}
+	eaa := categoryTrustListProfile(credtemplate.CategoryEAA)
+	schemeInfo["StatusDeterminationApproach"] = firstNonEmpty(opts.Profile.StatusDeterminationApproach, eaa.StatusDeterminationApproach)
+	schemeInfo["SchemeTypeCommunityRules"] = []map[string]string{{"lang": "en", "uriValue": firstNonEmpty(opts.Profile.SchemeTypeCommunityRules, eaa.SchemeTypeCommunityRules)}}
 	if opts.Profile.SchemeTerritory != "" {
 		schemeInfo["SchemeTerritory"] = opts.Profile.SchemeTerritory
 	}
-	path := firstNonEmpty(opts.TrustListPath, "/api/trustlist")
+	path := firstNonEmpty(opts.TrustListPath, defaultTrustListPath)
 	schemeURIs := []map[string]string{{"lang": "en", "uriValue": "https://github.com/dominikschlosser/eudi-dev/blob/main/docs/test-certificates.md"}}
 	if opts.Issuer != "" {
 		schemeURIs = append(schemeURIs, map[string]string{"lang": "en", "uriValue": opts.Issuer + path + "/history"})
@@ -504,7 +528,7 @@ func generateTrustListJWTWithOptions(signingKey *ecdsa.PrivateKey, caCert *x509.
 	}
 
 	header := map[string]any{
-		"alg":      "ES256",
+		"alg":      jws.AlgES256,
 		"typ":      "JWT",
 		"x5c":      []string{certB64},
 		"iat":      now.Unix(),

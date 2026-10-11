@@ -21,15 +21,16 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc/scheme"
 )
 
 type CredentialFormat string
 
 const (
-	FormatSDJWT     CredentialFormat = "dc+sd-jwt"
+	FormatSDJWT     CredentialFormat = credtype.FormatSDJWT
 	FormatJWT       CredentialFormat = "jwt"
-	FormatMDOC      CredentialFormat = "mso_mdoc"
+	FormatMDOC      CredentialFormat = credtype.FormatMDOC
 	FormatOID4VCI   CredentialFormat = "oid4vci"
 	FormatOID4VP    CredentialFormat = "oid4vp"
 	FormatTrustList CredentialFormat = "trusted-list"

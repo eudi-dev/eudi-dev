@@ -33,7 +33,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 )
 
@@ -151,7 +153,7 @@ func SigningJWKMap(key *ecdsa.PublicKey) map[string]any {
 		"y":   jwk["y"],
 		"kid": KeyIDForPublicKey(key),
 		"use": "sig",
-		"alg": "ES256",
+		"alg": jws.AlgES256,
 	}
 }
 
@@ -181,15 +183,15 @@ func GenerateNamedCACert(caKey *ecdsa.PrivateKey, commonName string) (*x509.Cert
 	return generateNamedCACert(caKey, 0, pkix.Name{
 		CommonName:   commonName,
 		Country:      []string{DefaultCertificateCountry},
-		Organization: []string{"EUDI Dev Test CA"},
+		Organization: []string{config.TestCAOrganization},
 	})
 }
 
 func generateCACert(caKey *ecdsa.PrivateKey, maxPathLen int) (*x509.Certificate, error) {
 	return generateNamedCACert(caKey, maxPathLen, pkix.Name{
-		CommonName:   "OID4VC Dev Wallet CA",
+		CommonName:   config.WalletName + " CA",
 		Country:      []string{DefaultCertificateCountry},
-		Organization: []string{"EUDI Dev Test CA"},
+		Organization: []string{config.TestCAOrganization},
 	})
 }
 
@@ -279,7 +281,7 @@ type LeafCertOptions struct {
 func GenerateLeafCertWithOptions(caKey *ecdsa.PrivateKey, caCert *x509.Certificate, leafPubKey *ecdsa.PublicKey, opts LeafCertOptions) (*x509.Certificate, error) {
 	commonName := opts.CommonName
 	if commonName == "" {
-		commonName = "OID4VC Dev Wallet Issuer"
+		commonName = config.WalletIssuerName
 	}
 	country := opts.Country
 	if country == "" {
@@ -287,7 +289,7 @@ func GenerateLeafCertWithOptions(caKey *ecdsa.PrivateKey, caCert *x509.Certifica
 	}
 	organization := opts.Organization
 	if organization == "" {
-		organization = "EUDI Dev Test Provider"
+		organization = config.TestProviderName
 	}
 	organizationIdentifier := opts.OrganizationIdentifier
 	if organizationIdentifier == "" {

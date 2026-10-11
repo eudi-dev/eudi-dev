@@ -19,7 +19,10 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jwe"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/netaddr"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
@@ -159,7 +162,7 @@ func haipCredentialFormatViolations(query map[string]any) []string {
 			continue
 		}
 		format := jsonutil.GetString(credential, "format")
-		if format != "mso_mdoc" && format != "dc+sd-jwt" {
+		if format != credtype.FormatMDOC && format != credtype.FormatSDJWT {
 			violations = append(violations, fmt.Sprintf(
 				"HAIP 1.0 §5.3.1/§5.3.2: credential format MUST be 'mso_mdoc' or 'dc+sd-jwt', got %q", format))
 		}
@@ -173,7 +176,7 @@ func haipClientMetadataViolations(metadata map[string]any) []string {
 	if metadata == nil {
 		return nil
 	}
-	if listed := haipContentEncryptionAlgorithms(metadata); !listed["A128GCM"] && !listed["A256GCM"] {
+	if listed := haipContentEncryptionAlgorithms(metadata); !listed[jwe.EncA128GCM] && !listed[jwe.EncA256GCM] {
 		return []string{"HAIP 1.0 §5: client metadata MUST list both 'A128GCM' and 'A256GCM' in encrypted_response_enc_values_supported, and lists neither"}
 	}
 	return nil
@@ -186,7 +189,7 @@ func HAIPAdvisories(params *AuthorizationRequestParams) []string {
 	if params == nil || params.ClientMetadata == nil || isInteractiveAuthorizationResponseMode(params.ResponseMode) {
 		return nil
 	}
-	if listed := haipContentEncryptionAlgorithms(params.ClientMetadata); listed["A128GCM"] != listed["A256GCM"] {
+	if listed := haipContentEncryptionAlgorithms(params.ClientMetadata); listed[jwe.EncA128GCM] != listed[jwe.EncA256GCM] {
 		return []string{"HAIP 1.0 §5: client metadata MUST list both 'A128GCM' and 'A256GCM' in encrypted_response_enc_values_supported"}
 	}
 	return nil
@@ -256,7 +259,7 @@ func ValidateHAIPIssuanceCompliance(offer *oid4vc.CredentialOffer, oauthMeta map
 	// §7 requires every party to support ES256 at a minimum. This wallet signs
 	// DPoP proofs with it.
 	if _, declared := oauthMeta["dpop_signing_alg_values_supported"]; declared &&
-		!metadataListContains(oauthMeta, "dpop_signing_alg_values_supported", "ES256") {
+		!metadataListContains(oauthMeta, "dpop_signing_alg_values_supported", jws.AlgES256) {
 		violations = append(violations, "HAIP 1.0 §7: the authorization server advertises DPoP without ES256")
 	}
 	// §4.4.1 requires the issuer to require client authentication. Advertising

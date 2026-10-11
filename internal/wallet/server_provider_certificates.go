@@ -107,7 +107,7 @@ func (s *Server) handleProviderCRL(w http.ResponseWriter, r *http.Request) {
 	}
 	now := time.Now().UTC().Truncate(time.Second)
 	der, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
-		Number: big.NewInt(now.Unix()), ThisUpdate: now, NextUpdate: now.Add(7 * 24 * time.Hour),
+		Number: big.NewInt(now.Unix()), ThisUpdate: now, NextUpdate: now.Add(crlUpdateInterval),
 	}, cert, key)
 	if err != nil {
 		http.Error(w, "signing CRL: "+err.Error(), http.StatusInternalServerError)

@@ -67,7 +67,7 @@ func EncryptECDHES(payload []byte, recipient *ecdsa.PublicKey, kid, enc, cty str
 		return "", nil, err
 	}
 	header := map[string]any{
-		"alg": "ECDH-ES",
+		"alg": AlgECDHES,
 		"enc": enc,
 		"kid": kid,
 		"epk": epk,
@@ -129,7 +129,7 @@ func sealCompact(header map[string]any, encryptedKey, cek, payload []byte) (stri
 
 	var iv, ciphertext, tag []byte
 	switch enc, _ := header["enc"].(string); enc {
-	case "A128GCM", "A256GCM":
+	case EncA128GCM, EncA256GCM:
 		iv, ciphertext, tag, err = sealAESGCM(cek, payload, []byte(headerB64))
 	case "A128CBC-HS256":
 		iv, ciphertext, tag, err = sealAESCBCHS256(cek, payload, []byte(headerB64))

@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
@@ -192,7 +193,7 @@ func acceptHeader(prefer string) string {
 // format: CWT for an mdoc and JWT for every JWT-based format.
 func FormatForCredential(credentialFormat string) string {
 	switch credentialFormat {
-	case "mso_mdoc", "mdoc":
+	case credtype.FormatMDOC, "mdoc":
 		return FormatCWT
 	}
 	return FormatJWT
@@ -468,7 +469,7 @@ func parseJWTStatusListToken(body []byte, opts CheckOptions) (*statusListToken, 
 	// Status lists accept fewer algorithms than the toolkit's shared set.
 	alg, _ := header["alg"].(string)
 	switch alg {
-	case "ES256", "ES384":
+	case jws.AlgES256, "ES384":
 	default:
 		return nil, fmt.Errorf("the status list token is signed with %q, which is not one of the accepted algorithms ES256 and ES384", alg)
 	}

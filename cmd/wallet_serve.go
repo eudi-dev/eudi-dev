@@ -41,6 +41,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/imprint"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/netaddr"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/news"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/remote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/serverlog"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/storage"
@@ -553,7 +554,7 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	httpsURL := w.IssuerURL
 	issuerViaBaseURL := issuerServedByBaseURL(w.IssuerURL, w.BaseURL)
 
-	cyan.Printf("EUDI Dev Wallet %s\n", Version)
+	cyan.Printf("%s %s\n", config.WalletName, Version)
 	dim.Println("───────────────────────────────────────")
 	fmt.Printf("  Server:      http://localhost:%d\n", opts.Port)
 	if publicHTTPURL != fmt.Sprintf("http://localhost:%d", opts.Port) {
@@ -563,15 +564,15 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 		fmt.Printf("  Issuer:      %s (served via base URL, external TLS)\n", httpsURL)
 		fmt.Printf("  Authorize:   %s/authorize\n", publicHTTPURL)
 		fmt.Printf("  Trusted list:  %s/api/trustlist\n", publicHTTPURL)
-		fmt.Printf("  Trusted lists: %s/api/trustlists\n", publicHTTPURL)
+		fmt.Printf("  Trusted lists: %s%s\n", publicHTTPURL, registrar.TrustListsPath)
 	} else {
 		fmt.Printf("  HTTPS:       %s\n", httpsURL)
 		fmt.Printf("  Authorize:   %s/authorize\n", publicHTTPURL)
 		dim.Printf("               %s/authorize\n", httpsURL)
 		fmt.Printf("  Trusted list:  %s/api/trustlist\n", publicHTTPURL)
 		dim.Printf("               %s/api/trustlist\n", httpsURL)
-		fmt.Printf("  Trusted lists: %s/api/trustlists\n", publicHTTPURL)
-		dim.Printf("               %s/api/trustlists\n", httpsURL)
+		fmt.Printf("  Trusted lists: %s%s\n", publicHTTPURL, registrar.TrustListsPath)
+		dim.Printf("               %s%s\n", httpsURL, registrar.TrustListsPath)
 	}
 	fmt.Printf("  Metadata:    %s/.well-known/jwt-vc-issuer\n", httpsURL)
 	fmt.Printf("  Credentials: %d loaded\n", len(w.GetCredentials()))

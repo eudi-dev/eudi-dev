@@ -14,13 +14,22 @@
 
 package sdjwt
 
+import (
+	"slices"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
+)
+
 // protocolClaims are the registered claims of RFC 7519 §4.1, the claims of
 // SD-JWT VC §2.2.2.3 and the digest members of RFC 9901 §4.1.1 and §4.2.4.1.
-var protocolClaims = map[string]bool{
-	"iss": true, "sub": true, "aud": true, "exp": true, "nbf": true, "iat": true, "jti": true,
-	"cnf": true, "vct": true, "vct#integrity": true, "aka_vcts": true, "status": true,
-	"_sd": true, "_sd_alg": true,
-}
+var protocolClaims = func() map[string]bool {
+	claims := map[string]bool{"_sd": true, "_sd_alg": true}
+	for _, name := range append(slices.Clone(jws.RegisteredClaims), credtype.NeverDisclosedClaims...) {
+		claims[name] = true
+	}
+	return claims
+}()
 
 // IsProtocolClaim reports whether a top-level claim of an SD-JWT VC carries
 // protocol data instead of data about the subject. Claim counts, the claims a

@@ -3,17 +3,17 @@
 set -e
 # Source this file so helpers can read and update the wrapper's global settings.
 
-build_local_oid4vc_dev() {
+build_local_eudi_dev() {
   if ! command -v go >/dev/null 2>&1; then
-    echo "error: Go is required to build the checked-out oid4vc-dev binary" >&2
+    echo "error: Go is required to build the checked-out eudi-dev binary" >&2
     exit 1
   fi
 
-  LOCAL_OID4VC_DEV="$RUN_DIR/oid4vc-dev"
-  echo "Building oid4vc-dev from the current checkout..."
+  LOCAL_EUDI_DEV="$RUN_DIR/eudi-dev"
+  echo "Building eudi-dev from the current checkout..."
   (
     cd "$ROOT_DIR"
-    go build -o "$LOCAL_OID4VC_DEV" .
+    go build -o "$LOCAL_EUDI_DEV" .
   )
 }
 

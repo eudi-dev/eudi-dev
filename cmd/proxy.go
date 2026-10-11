@@ -25,7 +25,6 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -133,7 +132,7 @@ func runProxy(cmd *cobra.Command, args []string) error {
 	cyan := color.New(color.FgCyan, color.Bold)
 	dim := color.New(color.Faint)
 
-	cyan.Fprintf(humanOut(), "EUDI Dev Proxy %s\n", Version)
+	cyan.Fprintf(humanOut(), "%s %s\n", config.ProxyName, Version)
 	_, _ = dim.Fprintln(humanOut(), "───────────────────────────────────────")
 	fmt.Fprintf(humanOut(), "  Target:    %s\n", proxyTarget)
 	fmt.Fprintf(humanOut(), "  Proxy:     http://localhost:%d\n", proxyPort)
@@ -160,9 +159,9 @@ func runProxy(cmd *cobra.Command, args []string) error {
 		dashboardServer = &http.Server{
 			Addr:         fmt.Sprintf(":%d", dashboardPort),
 			Handler:      dashboard.Handler(),
-			ReadTimeout:  30 * time.Second,
-			WriteTimeout: 60 * time.Second,
-			IdleTimeout:  120 * time.Second,
+			ReadTimeout:  config.ServerReadTimeout,
+			WriteTimeout: config.ServerWriteTimeout,
+			IdleTimeout:  config.ServerIdleTimeout,
 		}
 		go func() {
 			if err := dashboardServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -177,9 +176,9 @@ func runProxy(cmd *cobra.Command, args []string) error {
 		BaseContext: func(_ net.Listener) context.Context {
 			return ctx
 		},
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 60 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		ReadTimeout:  config.ServerReadTimeout,
+		WriteTimeout: config.ServerWriteTimeout,
+		IdleTimeout:  config.ServerIdleTimeout,
 	}
 
 	// A subprocess exit leaves the proxy running for inspection.

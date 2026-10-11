@@ -26,6 +26,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 )
@@ -468,7 +469,7 @@ func providedAttestations(values []string) ([]registrar.ProvidedAttestation, err
 		if !ok || typ == "" {
 			return nil, fmt.Errorf("--attestation %q is not format:type, such as dc+sd-jwt:urn:eudi:pid:1", value)
 		}
-		if format != "dc+sd-jwt" && format != "mso_mdoc" {
+		if format != credtype.FormatSDJWT && format != credtype.FormatMDOC {
 			return nil, fmt.Errorf("--attestation %q has format %q, not dc+sd-jwt or mso_mdoc", value, format)
 		}
 		attestations = append(attestations, registrar.ProvidedAttestation{Format: format, Type: typ})
@@ -547,7 +548,7 @@ with --json.`,
 	cmd.Flags().StringVar(&req.ServiceIdentifier, "service-id", "", "Service the certificate is for (default the only service)")
 	cmd.Flags().StringVar(&csrPath, "csr", "", "PEM certificate signing request (file or '-' for stdin, required)")
 	cmd.Flags().StringSliceVar(&req.DNSNames, "dns", nil, "DNS name for the x509_san_dns client identifier (repeatable)")
-	cmd.Flags().StringVar(&req.Validity, "validity", "", "Validity as a Go duration, at most 8760h (default 8760h)")
+	cmd.Flags().StringVar(&req.Validity, "validity", "", fmt.Sprintf("Validity as a Go duration, at most %[1]s (default %[1]s)", registrar.Hours(registrar.MaxAccessCertificateValidity)))
 	_ = cmd.MarkFlagRequired("identifier")
 	_ = cmd.MarkFlagRequired("csr")
 	_ = cmd.MarkFlagFilename("csr", "csr", "pem")
@@ -629,7 +630,7 @@ only provider service. --provider selects the provider service of
 	cmd.Flags().BoolVar(&provider, "provider", false, "Use the attestation provider service instead of an intended use")
 	cmd.Flags().BoolVar(&renew, "new", false, "Issue a new certificate and revoke the current one")
 	cmd.Flags().BoolVar(&jwt, "jwt", false, "Print the bare registration certificate instead of verifier_info or issuer_info")
-	cmd.Flags().StringVar(&req.Validity, "validity", "", "Validity of a new certificate as a Go duration, at most 8760h (default 4320h)")
+	cmd.Flags().StringVar(&req.Validity, "validity", "", fmt.Sprintf("Validity of a new certificate as a Go duration, at most %s (default %s)", registrar.Hours(registrar.MaxRegistrationValidity), registrar.Hours(registrar.DefaultRegistrationValidity)))
 	_ = cmd.MarkFlagRequired("identifier")
 	return cmd
 }

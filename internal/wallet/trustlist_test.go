@@ -39,8 +39,8 @@ func generateEAATrustListJWT(signingKey *ecdsa.PrivateKey, caCert *x509.Certific
 		OperatorName: "EUDI Dev Wallet",
 		Profile: trustListProfile{
 			LoTEType:              eaaTrustListType,
-			IssuanceServiceType:   eaaIssuanceServiceType,
-			RevocationServiceType: eaaRevocationServiceType,
+			IssuanceServiceType:   categoryTrustListProfile(credtemplate.CategoryEAA).IssuanceServiceType,
+			RevocationServiceType: categoryTrustListProfile(credtemplate.CategoryEAA).RevocationServiceType,
 			IssuanceServiceName:   "Issuance Service",
 			RevocationServiceName: "Revocation Service",
 			EntityName:            "EUDI Dev Wallet Issuer",
@@ -193,8 +193,8 @@ func TestGenerateTrustListJWTForWallet_PIDProfileMatchesETSIShape(t *testing.T) 
 	if schemeInfo["LoTEType"] != pidTrustListType {
 		t.Fatalf("expected PID LoTEType %s, got %v", pidTrustListType, schemeInfo["LoTEType"])
 	}
-	if schemeInfo["StatusDeterminationApproach"] != pidStatusDetermination {
-		t.Fatalf("expected PID status determination %s, got %v", pidStatusDetermination, schemeInfo["StatusDeterminationApproach"])
+	if schemeInfo["StatusDeterminationApproach"] != categoryTrustListProfile(credtemplate.CategoryPID).StatusDeterminationApproach {
+		t.Fatalf("expected PID status determination %s, got %v", categoryTrustListProfile(credtemplate.CategoryPID).StatusDeterminationApproach, schemeInfo["StatusDeterminationApproach"])
 	}
 	if schemeInfo["SchemeTerritory"] != "EU" {
 		t.Fatalf("expected EU scheme territory, got %v", schemeInfo["SchemeTerritory"])
@@ -204,8 +204,8 @@ func TestGenerateTrustListJWTForWallet_PIDProfileMatchesETSIShape(t *testing.T) 
 		t.Fatalf("expected one SchemeTypeCommunityRules entry, got %v", schemeInfo["SchemeTypeCommunityRules"])
 	}
 	rule, ok := rules[0].(map[string]any)
-	if !ok || rule["uriValue"] != pidSchemeCommunityRules {
-		t.Fatalf("expected PID scheme rule %s, got %v", pidSchemeCommunityRules, rules)
+	if !ok || rule["uriValue"] != categoryTrustListProfile(credtemplate.CategoryPID).SchemeTypeCommunityRules {
+		t.Fatalf("expected PID scheme rule %s, got %v", categoryTrustListProfile(credtemplate.CategoryPID).SchemeTypeCommunityRules, rules)
 	}
 }
 
@@ -487,7 +487,7 @@ func TestAnEudiDev2ListTypeMovesToTheListOfItsCategory(t *testing.T) {
 		category string
 		want     trustListProfile
 	}{
-		{"", eaaTrustListProfile()},
+		{"", categoryTrustListProfile(credtemplate.CategoryEAA)},
 		{credtemplate.CategoryQEAA, categoryTrustListProfile(credtemplate.CategoryQEAA)},
 	} {
 		spec := legacy
@@ -498,6 +498,21 @@ func TestAnEudiDev2ListTypeMovesToTheListOfItsCategory(t *testing.T) {
 		}
 		if got.TrustListType != tc.want.LoTEType || got.IssuanceServiceType != tc.want.IssuanceServiceType || got.RevocationServiceType != tc.want.RevocationServiceType || got.EntityName != tc.want.EntityName {
 			t.Errorf("category %q: got %+v, want the list of %s", tc.category, got, tc.want.Category)
+		}
+	}
+}
+
+// A spec that names the list type of a category belongs to that category and
+// gets the defaults of its list.
+func TestASpecWithACategoryListTypeGetsThatCategory(t *testing.T) {
+	for _, category := range credtemplate.Categories {
+		want := categoryTrustListProfile(category)
+		got, err := NormalizeIssuedAttestationSpec(IssuedAttestationSpec{Format: "dc+sd-jwt", VCT: "urn:test:1", TrustListType: want.LoTEType}, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Category != category || got.IssuanceServiceType != want.IssuanceServiceType || got.EntityName != want.EntityName {
+			t.Errorf("list type %s: got category %q and %+v, want %s", want.LoTEType, got.Category, got, category)
 		}
 	}
 }

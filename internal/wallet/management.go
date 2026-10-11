@@ -361,6 +361,7 @@ func (m *Management) Config() map[string]any {
 	doc["session_transcript"] = string(w.SessionTranscript)
 	doc["adhoc_display_images"] = w.AdhocDisplayImages
 	doc["credential_count"] = len(w.GetCredentials())
+	doc["form_defaults"] = formDefaults()
 	doc["templates_dir"] = w.Templates.String()
 	doc["wallet_dir"], doc["storage"], doc["seeded_keys"] = "", "", false
 	if m.store != nil {

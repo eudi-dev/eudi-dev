@@ -21,6 +21,7 @@ import (
 
 	"github.com/fxamacker/cbor/v2"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 )
@@ -34,7 +35,7 @@ func issuerSignedMap(t *testing.T) map[any]any {
 	raw, err := mock.GenerateMDOC(mock.MDOCConfig{
 		DocType:   testDocType,
 		Namespace: testDocType,
-		Claims:    mock.MDOCPIDClaims,
+		Claims:    templateClaims("pid-mdoc"),
 		Key:       key,
 	})
 	if err != nil {
@@ -230,4 +231,13 @@ func TestParseDeviceResponseKeepsTheDeviceNameSpaces(t *testing.T) {
 	if string(doc.DeviceSigned.RawNameSpaces) != string(want) {
 		t.Errorf("RawNameSpaces = %x, want %x", doc.DeviceSigned.RawNameSpaces, want)
 	}
+}
+
+// templateClaims returns the claims of a predefined template.
+func templateClaims(name string) map[string]any {
+	t, ok := credtemplate.Predefined(name)
+	if !ok {
+		panic("no predefined template " + name)
+	}
+	return t.Claims
 }

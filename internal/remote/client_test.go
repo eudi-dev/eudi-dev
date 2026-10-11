@@ -522,3 +522,27 @@ func TestClientEscapesEveryIdentifierSegment(t *testing.T) {
 		}
 	}
 }
+
+// The registrar caps its page size, so the client reads every page.
+func TestRegistrarRecordsFollowsTheCursor(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		switch req.URL.Query().Get("cursor") {
+		case "":
+			_, _ = w.Write([]byte(`{"data": [{"tradeName": "a"}, {"tradeName": "b"}], "pagination": {"has_next_page": true, "next_cursor": "2"}}`))
+		case "2":
+			_, _ = w.Write([]byte(`{"data": [{"tradeName": "c"}], "pagination": {"has_next_page": false}}`))
+		default:
+			http.Error(w, "unknown cursor", http.StatusBadRequest)
+		}
+	}))
+	defer srv.Close()
+	var records []struct {
+		TradeName string `json:"tradeName"`
+	}
+	if err := NewClient(srv.URL).RegistrarRecords(&records); err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 3 || records[2].TradeName != "c" {
+		t.Errorf("records %v, want a, b and c", records)
+	}
+}

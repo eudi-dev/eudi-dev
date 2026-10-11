@@ -15,8 +15,9 @@
 package wallet
 
 import (
-	"path"
 	"strings"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/defaults"
 )
 
 func LogoSVG() []byte {
@@ -32,13 +33,9 @@ func LogoSVG() []byte {
 // an image.
 func TemplateImage(ref string) (contentType string, data []byte, ok bool) {
 	ref = strings.TrimSpace(ref)
-	if name, found := strings.CutPrefix(ref, "embedded:"); found {
-		contentType = embeddedImageMIME(name)
-		if !strings.HasPrefix(contentType, "image/") {
-			return "", nil, false
-		}
-		data, err := staticFiles.ReadFile("static/" + path.Base(name))
-		if err != nil {
+	if strings.HasPrefix(ref, defaults.EmbeddedPrefix) {
+		contentType, data, ok = defaults.Resolve(ref)
+		if !ok || !strings.HasPrefix(contentType, "image/") {
 			return "", nil, false
 		}
 		return contentType, data, true

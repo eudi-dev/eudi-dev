@@ -27,6 +27,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -1730,6 +1733,35 @@ func TestTrustListAPI_ParseableByTrustlistParser(t *testing.T) {
 	}
 }
 
+// A PID is signed under a CA of its issuing country, so the PID list names
+// the CA of every PID template's country.
+func TestThePIDListNamesTheCountryOfEveryPIDTemplate(t *testing.T) {
+	srv := newTestServer(t, false)
+	dir := t.TempDir()
+	french := `{"format": "sdjwt", "vct": "urn:eudi:pid:fr:1", "category": "pid", "claims": {"issuing_country": "FR"}}`
+	if err := os.WriteFile(filepath.Join(dir, "french-pid-sdjwt.json"), []byte(french), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	srv.wallet.Templates = credtemplate.FileLocation(dir)
+
+	resp := serverRequest(t, srv, "GET", "/api/trustlist", "")
+	tl, err := trustlist.Parse(resp.Body.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var countries []string
+	for _, cert := range tl.Entities[0].Services[0].Certificates {
+		if parsed, err := x509.ParseCertificate(cert.Raw); err == nil && parsed.IsCA {
+			countries = append(countries, parsed.Subject.Country...)
+		}
+	}
+	for _, want := range []string{"NL", "DE", "IT", "FR"} {
+		if !slices.Contains(countries, want) {
+			t.Errorf("the PID list names CAs of %v, want one of %s", countries, want)
+		}
+	}
+}
+
 func TestTrustListAPI_RemainsCertificateCentric(t *testing.T) {
 	srv := newTestServer(t, false)
 
@@ -2115,14 +2147,14 @@ func TestAnEAATypeIsRegisteredAndListedAsAnEAA(t *testing.T) {
 	}
 	decodeCompactJWTPayload(t, trustListResp.Body.String(), &list)
 	scheme := list.LoTE.ListAndSchemeInformation
-	if scheme["LoTEType"] != eaaTrustListType || scheme["StatusDeterminationApproach"] != eaaStatusDetermination {
+	if scheme["LoTEType"] != eaaTrustListType || scheme["StatusDeterminationApproach"] != categoryTrustListProfile(credtemplate.CategoryEAA).StatusDeterminationApproach {
 		t.Fatalf("scheme %v, want the EAA list type and its status determination approach", scheme)
 	}
 	if len(list.LoTE.TrustedEntitiesList) != 1 || len(list.LoTE.TrustedEntitiesList[0].TrustedEntityServices) != 2 {
 		t.Fatalf("entities %+v, want one entity with two services", list.LoTE.TrustedEntitiesList)
 	}
 	services := list.LoTE.TrustedEntitiesList[0].TrustedEntityServices
-	if services[0].ServiceInformation.ServiceTypeIdentifier != eaaIssuanceServiceType || services[1].ServiceInformation.ServiceTypeIdentifier != eaaRevocationServiceType {
+	if services[0].ServiceInformation.ServiceTypeIdentifier != categoryTrustListProfile(credtemplate.CategoryEAA).IssuanceServiceType || services[1].ServiceInformation.ServiceTypeIdentifier != categoryTrustListProfile(credtemplate.CategoryEAA).RevocationServiceType {
 		t.Fatalf("services %+v, want the EAA issuance and revocation types", services)
 	}
 }
@@ -3036,5 +3068,42 @@ func encryptionClientMetadata(t *testing.T) map[string]any {
 	return map[string]any{
 		"jwks": map[string]any{"keys": []any{testEncJWK(t, &encKey.PublicKey)}},
 		"encrypted_response_enc_values_supported": []any{"A128GCM", "A256GCM"},
+	}
+}
+
+// The catalogue links the list of each category, and the wallet serves it at
+// that path.
+func TestTheWalletServesTheCategoryListsTheCatalogueLinks(t *testing.T) {
+	srv := newTestServer(t, false)
+	for _, category := range credtemplate.Categories {
+		path := registrar.CategoryTrustListURL("", category)
+		if resp := serverRequest(t, srv, "GET", path, ""); resp.Code != http.StatusOK {
+			t.Errorf("GET %s answers %d", path, resp.Code)
+		}
+	}
+}
+
+// The UI forms take their limits and defaults from the server, so they match
+// what the server accepts.
+func TestTheConfigServesTheFormDefaults(t *testing.T) {
+	srv := newTestServer(t, false)
+	var config struct {
+		FormDefaults map[string]any `json:"form_defaults"`
+	}
+	if err := json.Unmarshal(serverRequest(t, srv, "GET", "/api/config", "").Body.Bytes(), &config); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]any{
+		"display_name_max":          float64(maxDisplayNameRunes),
+		"display_description_max":   float64(maxDisplayDescriptionRunes),
+		"display_alt_text_max":      float64(maxDisplayAltTextRunes),
+		"country":                   mock.DefaultCertificateCountry,
+		"registration_validity":     "4320h",
+		"registration_validity_max": "8760h",
+		"access_validity":           "8760h",
+		"access_validity_max":       "8760h",
+	}
+	if !reflect.DeepEqual(config.FormDefaults, want) {
+		t.Errorf("form defaults %v, want %v", config.FormDefaults, want)
 	}
 }

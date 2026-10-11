@@ -21,9 +21,17 @@ import (
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 )
+
+// signedJWTLifetime is the lifetime of the short-lived JWTs the wallet signs:
+// ID tokens, client attestations and their proofs of possession.
+const signedJWTLifetime = 5 * time.Minute
+
+// crlUpdateInterval is the time to the nextUpdate of a CRL the wallet signs.
+const crlUpdateInterval = 7 * 24 * time.Hour
 
 func (w *Wallet) CreateSelfIssuedIDToken(nonce, clientID string) (string, error) {
 	subJWK := mock.PublicKeyJWKMap(&w.HolderKey.PublicKey)
@@ -33,7 +41,7 @@ func (w *Wallet) CreateSelfIssuedIDToken(nonce, clientID string) (string, error)
 	}
 
 	header := map[string]any{
-		"alg": "ES256",
+		"alg": jws.AlgES256,
 		"typ": "JWT",
 		"jwk": subJWK,
 	}
@@ -45,7 +53,7 @@ func (w *Wallet) CreateSelfIssuedIDToken(nonce, clientID string) (string, error)
 		"aud":     clientID,
 		"nonce":   nonce,
 		"iat":     now.Unix(),
-		"exp":     now.Add(5 * time.Minute).Unix(),
+		"exp":     now.Add(signedJWTLifetime).Unix(),
 		"sub_jwk": subJWK,
 	}
 

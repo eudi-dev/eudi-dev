@@ -78,7 +78,7 @@ The [complete certificate examples](test-certificate-examples.md) contain public
 | Authority key identifier (`2.5.29.35`) | Issuer's subject key identifier, non-critical, present on issued certificates |
 | Issuer alternative name (`2.5.29.18`) | URI `https://github.com/dominikschlosser/eudi-dev`, non-critical |
 
-The root's subject and issuer are both `C=NL, O=EUDI Dev Test CA, CN=OID4VC Dev Wallet CA`. It has critical key usage `keyCertSign, cRLSign` (`2.5.29.15`) and critical basic constraints `CA:TRUE, pathlen:1` (`2.5.29.19`).
+The root's subject and issuer are both `C=NL, O=EUDI Dev Test CA, CN=EUDI Dev Wallet CA`. It has critical key usage `keyCertSign, cRLSign` (`2.5.29.15`) and critical basic constraints `CA:TRUE, pathlen:1` (`2.5.29.19`).
 
 The provider intermediates and signing leaves have `C=NL` and organization identifier `NTRNL-NLTEST.00000000` (`2.5.4.97`) in this reference configuration. For credential signers and their provider CAs, the country and identifier follow the credential's `issuing_country`. The trusted list signer uses the supplied country and operator name. Its organization is `EUDI Dev Wallet` in this reference set. The access signer of the demo verifier has organization `EUDI Dev Test Verifier` and identifier `NTRNL-NLTEST.00000001`, so it is registered as its own relying party. An access signer's common name is the trade name of its registration (ETSI TS 119 411-8 V1.1.1 GEN-6.1.1-04, ARF RPRC_06). The other intermediates and leaves use organization `EUDI Dev Test Provider`.
 

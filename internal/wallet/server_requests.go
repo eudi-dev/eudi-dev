@@ -35,10 +35,10 @@ func (s *Server) handleListRequests(w http.ResponseWriter, r *http.Request) {
 
 // Limit each stream write so disconnected readers release their goroutine and
 // subscriptions. Allow enough time for the keepalive interval.
-var streamWriteTimeout = 2 * time.Minute
+var streamWriteTimeout = config.SlowRequestTimeout
 
 // A variable lets tests shorten the keepalive interval.
-var sseKeepaliveInterval = 25 * time.Second
+var sseKeepaliveInterval = config.StreamKeepaliveInterval
 
 func (s *Server) handleRequestStream(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)

@@ -36,6 +36,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/publicpath"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/storage"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/webui"
 )
 
 type Server struct {
@@ -180,18 +181,18 @@ func (s *Server) setupRoutes() {
 	s.routeFunc("POST /api/requests/{id}/approve", s.withFreshStore(s.handleApproveRequest))
 	s.routeFunc("POST /api/requests/{id}/deny", s.withFreshStore(s.handleDenyRequest))
 
-	s.routeFunc("GET /api/trustlist", s.withFreshStore(s.handleTrustList))
-	s.routeFunc("GET /api/trustlists", s.withFreshStore(s.handleTrustListIndex))
+	s.routeFunc("GET "+defaultTrustListPath, s.withFreshStore(s.handleTrustList))
+	s.routeFunc("GET "+registrar.TrustListsPath, s.withFreshStore(s.handleTrustListIndex))
 	s.routeFunc("GET /api/trust", s.withFreshStore(s.handleTrustState))
 	s.routeFunc("POST /api/trust/entities", s.withFreshStore(s.handleAddTrustedEntity))
 	s.routeFunc("DELETE /api/trust/entities/{id}", s.withFreshStore(s.handleRemoveTrustedEntity))
 	s.routeFunc("POST /api/trust/lists", s.withFreshStore(s.handleAddTrustedList))
 	s.routeFunc("DELETE /api/trust/lists", s.withFreshStore(s.handleRemoveTrustedList))
-	s.routeFunc("GET /api/trustlists/{id}", s.withFreshStore(s.handleTrustListByID))
+	s.routeFunc("GET "+registrar.TrustListPath("{id}"), s.withFreshStore(s.handleTrustListByID))
 	s.routeFunc("GET /api/trustlist/history", s.withFreshStore(s.handleTrustListHistory))
 	s.routeFunc("GET /api/trustlist/history/{sequence}", s.withFreshStore(s.handleTrustListHistory))
-	s.routeFunc("GET /api/trustlists/{id}/history", s.withFreshStore(s.handleTrustListHistory))
-	s.routeFunc("GET /api/trustlists/{id}/history/{sequence}", s.withFreshStore(s.handleTrustListHistory))
+	s.routeFunc("GET "+registrar.TrustListPath("{id}")+"/history", s.withFreshStore(s.handleTrustListHistory))
+	s.routeFunc("GET "+registrar.TrustListPath("{id}")+"/history/{sequence}", s.withFreshStore(s.handleTrustListHistory))
 	// On a public demo the demo registrations follow the catalogue.
 	registrarAPI := &registrar.Server{Registrar: func() *registrar.Registrar { return s.wallet.Registrar() }, Mutate: func(change func() bool) {
 		s.saveMutation(change)
@@ -241,8 +242,11 @@ func (s *Server) setupRoutes() {
 			s.routeRoots[entry.Name()] = true
 		}
 	}
+	for _, name := range webui.Names {
+		s.routeRoots[name] = true
+	}
 	index, _ := fs.ReadFile(sub, "index.html")
-	s.route("/", noStaleCache(s.withBrowserSession(publicpath.ServeIndex(index, http.FileServer(http.FS(sub))))))
+	s.route("/", noStaleCache(s.withBrowserSession(publicpath.ServeIndex(index, http.FileServer(http.FS(webui.Overlay(sub)))))))
 }
 
 func (s *Server) route(pattern string, h http.Handler) {
@@ -289,9 +293,9 @@ func (s *Server) ListenAndServe() error {
 	s.httpSrv = &http.Server{
 		Addr:         fmt.Sprintf(":%d", s.port),
 		Handler:      s.Handler(),
-		ReadTimeout:  30 * time.Second,
+		ReadTimeout:  config.ServerReadTimeout,
 		WriteTimeout: config.SlowRequestTimeout,
-		IdleTimeout:  120 * time.Second,
+		IdleTimeout:  config.ServerIdleTimeout,
 	}
 	if err := s.startIssuerTLSServer(); err != nil {
 		return err
@@ -309,9 +313,9 @@ func (s *Server) ListenAndServeBackground() (string, error) {
 	addr := fmt.Sprintf("http://localhost:%d", ln.Addr().(*net.TCPAddr).Port)
 	s.httpSrv = &http.Server{
 		Handler:      s.Handler(),
-		ReadTimeout:  30 * time.Second,
+		ReadTimeout:  config.ServerReadTimeout,
 		WriteTimeout: config.SlowRequestTimeout,
-		IdleTimeout:  120 * time.Second,
+		IdleTimeout:  config.ServerIdleTimeout,
 	}
 	if err := s.startIssuerTLSServer(); err != nil {
 		if closeErr := ln.Close(); closeErr != nil {

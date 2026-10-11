@@ -70,7 +70,7 @@ const OUTER_JWT_WITH_EMBEDDED = makeJWT(
 );
 
 test.describe("Page load", () => {
-  test("shows OID4VC Dev title and empty state", async ({ page }) => {
+  test("shows the decoder title and empty state", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator("h1")).toHaveText("EUDI Dev Decoder");
     await expect(page.locator(".placeholder")).toHaveText(
@@ -422,6 +422,7 @@ test.describe("Section collapsing", () => {
 
 test.describe("Theme toggle", () => {
   test("toggles between light and dark theme", async ({ page }) => {
+    await page.emulateMedia({ colorScheme: "dark" });
     await page.goto("/");
     const html = page.locator("html");
     const btn = page.locator("#theme-btn");

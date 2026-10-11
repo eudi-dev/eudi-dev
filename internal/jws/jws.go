@@ -26,6 +26,12 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 )
 
+// AlgES256 is the JWS algorithm of every signature this tool makes.
+const AlgES256 = "ES256"
+
+// RegisteredClaims are the registered claim names of RFC 7519 §4.1.
+var RegisteredClaims = []string{"iss", "sub", "aud", "exp", "nbf", "iat", "jti"}
+
 // SigningInput returns the base64url header and payload joined by a dot. A JWS
 // signature is computed over these bytes.
 func SigningInput(header map[string]any, payload any) (string, error) {

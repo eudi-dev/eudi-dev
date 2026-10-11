@@ -15,6 +15,7 @@
 package wallet
 
 import (
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/validate"
@@ -29,7 +30,7 @@ const (
 )
 
 func credentialIssuerIdentity(c StoredCredential) map[string]any {
-	if c.Format == "mso_mdoc" {
+	if c.Format == credtype.FormatMDOC {
 		if identity := mdocIssuerCertIdentity(c.Raw); identity != nil {
 			return identity
 		}
@@ -77,7 +78,7 @@ func mdocIssuerCertIdentity(raw string) map[string]any {
 // verifies against the embedded key. That does not mean the issuer is trusted
 // (ADR-0009). It returns nil when the algorithm is unknown.
 func credentialSignatureState(c StoredCredential) map[string]any {
-	if c.Format == "mso_mdoc" {
+	if c.Format == credtype.FormatMDOC {
 		return mdocSignatureState(c.Raw)
 	}
 	return jwtSignatureState(c.Raw)

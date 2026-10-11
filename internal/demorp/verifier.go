@@ -34,11 +34,13 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/httpsec"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jwe"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/validate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/webui"
 )
 
 // The German PID extends the base SD-JWT PID type. It answers a request for
@@ -91,8 +93,11 @@ type requestState struct {
 // prefix stripped.
 func (d *DemoRP) VerifierHandler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /{$}", d.serveStatic("static/verifier.html"))
+	mux.HandleFunc("GET /{$}", d.servePage("static/verifier.html"))
 	mux.HandleFunc("GET /verifier.js", d.serveStatic("static/verifier.js"))
+	for _, name := range webui.Names {
+		mux.HandleFunc("GET /"+name, webui.Handler(name))
+	}
 	mux.HandleFunc("POST /api/requests", d.handleCreateRequest)
 	mux.HandleFunc("GET /api/requests/{key}", d.handleRequestStatus)
 	mux.HandleFunc("GET /request/{id}", d.handleRequestObject)
@@ -116,7 +121,7 @@ func (d *DemoRP) handleRequestObject(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "unknown or expired request"})
 		return
 	}
-	w.Header().Set("Content-Type", "application/oauth-authz-req+jwt")
+	w.Header().Set("Content-Type", format.MediaTypeRequestObject)
 	w.Header().Set("Cache-Control", "no-store")
 	_, _ = w.Write([]byte(jar))
 }
@@ -211,7 +216,7 @@ func (r *requestState) dcqlQuery() map[string]any {
 	credentials := make([]map[string]any, 0, len(r.queries))
 	for _, q := range r.queries {
 		entry := map[string]any{"id": q.id, "format": q.format}
-		if q.format == "mso_mdoc" {
+		if q.format == credtype.FormatMDOC {
 			entry["meta"] = map[string]any{"doctype_value": q.docType}
 		} else {
 			entry["meta"] = map[string]any{"vct_values": []string{q.vct}}
@@ -278,9 +283,9 @@ func normalizePIDFormat(format string) (sdjwt, mdoc bool, err error) {
 	switch strings.TrimSpace(format) {
 	case "", "both":
 		return true, true, nil
-	case "sd-jwt", "sdjwt", "dc+sd-jwt":
+	case "sd-jwt", "sdjwt", credtype.FormatSDJWT:
 		return true, false, nil
-	case "mdoc", "mso_mdoc":
+	case "mdoc", credtype.FormatMDOC:
 		return false, true, nil
 	default:
 		return false, false, fmt.Errorf("format must be sd-jwt, mdoc or both")
@@ -369,11 +374,11 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 		}
 		if wantSDJWT {
 			vct = requested
-			claims = []string{"given_name", "family_name"}
+			claims = wallet.IdentityCheckClaims()
 		}
 		if wantMDOC && !domestic {
 			docType = PIDDocType
-			mdocClaims = []string{"given_name", "family_name"}
+			mdocClaims = wallet.IdentityCheckClaims()
 		}
 		// The combined shape puts the ticket in the SD-JWT PID option.
 		if ticketMode == "combined" && !wantSDJWT {
@@ -398,15 +403,15 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 	var sdjwtID, mdocID, ticketID string
 	if vct != "" {
 		sdjwtID = body.Type
-		req.queries = append(req.queries, credentialQuery{id: sdjwtID, format: "dc+sd-jwt", vct: vct, paths: namePaths("", claims), multiple: body.Multiple})
+		req.queries = append(req.queries, credentialQuery{id: sdjwtID, format: credtype.FormatSDJWT, vct: vct, paths: namePaths("", claims), multiple: body.Multiple})
 	}
 	if docType != "" {
 		mdocID = body.Type + "_mdoc"
-		req.queries = append(req.queries, credentialQuery{id: mdocID, format: "mso_mdoc", docType: docType, paths: namePaths(docType, mdocClaims), multiple: body.Multiple})
+		req.queries = append(req.queries, credentialQuery{id: mdocID, format: credtype.FormatMDOC, docType: docType, paths: namePaths(docType, mdocClaims), multiple: body.Multiple})
 	}
 	if ticketMode != "" {
 		ticketID = "ticket"
-		req.queries = append(req.queries, credentialQuery{id: ticketID, format: "dc+sd-jwt", vct: TicketVCT, paths: namePaths("", d.ticketClaimNames()), multiple: body.Multiple, resultKey: "ticket"})
+		req.queries = append(req.queries, credentialQuery{id: ticketID, format: credtype.FormatSDJWT, vct: TicketVCT, paths: namePaths("", d.ticketClaimNames()), multiple: body.Multiple, resultKey: "ticket"})
 	}
 
 	// The credential set options make one PID format enough.
@@ -581,13 +586,13 @@ func (d *DemoRP) createCustomRequest(w http.ResponseWriter, body createRequestBo
 	for i, c := range body.Credentials {
 		format := strings.TrimSpace(c.Format)
 		switch {
-		case format == "dc+sd-jwt" && strings.TrimSpace(c.VCT) == "":
+		case format == credtype.FormatSDJWT && strings.TrimSpace(c.VCT) == "":
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "a dc+sd-jwt credential needs a vct"})
 			return
-		case format == "mso_mdoc" && strings.TrimSpace(c.DocType) == "":
+		case format == credtype.FormatMDOC && strings.TrimSpace(c.DocType) == "":
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "an mso_mdoc credential needs a doctype"})
 			return
-		case format != "dc+sd-jwt" && format != "mso_mdoc":
+		case format != credtype.FormatSDJWT && format != credtype.FormatMDOC:
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "format must be dc+sd-jwt or mso_mdoc"})
 			return
 		}
@@ -786,22 +791,22 @@ func originOf(raw string) string {
 // The wallet needs a usable JWK with an explicit alg for direct_post.jwt.
 func responseEncryptionMetadata(key *ecdsa.PrivateKey) map[string]any {
 	jwk, _ := keys.PublicJWK(&key.PublicKey)
-	jwk["use"], jwk["alg"], jwk["kid"] = "enc", "ECDH-ES", "demo-verifier-response-enc"
+	jwk["use"], jwk["alg"], jwk["kid"] = "enc", jwe.AlgECDHES, "demo-verifier-response-enc"
 	return map[string]any{
 		"jwks": map[string]any{
 			"keys": []map[string]any{jwk},
 		},
 		// HAIP 1.0 §5: "Verifiers MUST list both A128GCM and A256GCM in
 		// encrypted_response_enc_values_supported in their client metadata."
-		"encrypted_response_enc_values_supported": []string{"A128GCM", "A256GCM"},
+		"encrypted_response_enc_values_supported": []string{jwe.EncA128GCM, jwe.EncA256GCM},
 		"vp_formats_supported": map[string]any{
-			"dc+sd-jwt": map[string]any{
-				"sd-jwt_alg_values": []string{"ES256"},
-				"kb-jwt_alg_values": []string{"ES256"},
+			credtype.FormatSDJWT: map[string]any{
+				"sd-jwt_alg_values": []string{jws.AlgES256},
+				"kb-jwt_alg_values": []string{jws.AlgES256},
 			},
 			// OpenID4VP 1.0 Appendix B.2.2 defines these two members for
 			// mso_mdoc. Their values are COSE algorithm identifiers (-7 is ES256).
-			"mso_mdoc": map[string]any{
+			credtype.FormatMDOC: map[string]any{
 				"issuerauth_alg_values": []int{-7},
 				"deviceauth_alg_values": []int{-7},
 			},
@@ -1049,7 +1054,7 @@ func (d *DemoRP) verifyPresentation(req *requestState, vpToken string) (map[stri
 			}
 			var claims map[string]any
 			var err error
-			if q.format == "mso_mdoc" {
+			if q.format == credtype.FormatMDOC {
 				claims, err = d.verifyMDOCPresentation(req, presentation, q.docType, q.paths, itemLabel, trust, log)
 			} else {
 				claims, err = d.verifySDJWTEntry(req, presentation, q.vct, q.paths, itemLabel, trust, log)

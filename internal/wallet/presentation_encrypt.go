@@ -150,7 +150,7 @@ func walletImplementsKeyAlg(jwk map[string]any) bool {
 	alg, _ := jwk["alg"].(string)
 	switch kty, _ := jwk["kty"].(string); kty {
 	case "EC":
-		return alg == "ECDH-ES"
+		return alg == jwe.AlgECDHES
 	case "RSA":
 		return alg == "RSA-OAEP" || alg == "RSA-OAEP-256"
 	default:
@@ -335,10 +335,10 @@ func responseEncAlgorithm(reqObj *oid4vc.RequestObjectJWT, clientMetadata map[st
 	}
 	offered := stringValues(clientMeta["encrypted_response_enc_values_supported"])
 	if len(offered) == 0 {
-		return "A128GCM", nil
+		return jwe.EncA128GCM, nil
 	}
-	if slices.Contains(offered, "A256GCM") {
-		return "A256GCM", nil
+	if slices.Contains(offered, jwe.EncA256GCM) {
+		return jwe.EncA256GCM, nil
 	}
 	for _, enc := range offered {
 		if _, err := jwe.EncKeyBitLen(enc); err == nil {

@@ -23,6 +23,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/remote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
 )
@@ -205,7 +206,7 @@ Without a list or selection flag, this prints the PID provider list, like /api/t
 			if !ok {
 				return fmt.Errorf("wallet has no matching trusted list")
 			}
-			jwt, err := wallet.GenerateTrustListJWTForWalletGroup(w, w.IssuerURL, group, "/api/trustlists/"+group.ID)
+			jwt, err := wallet.GenerateTrustListJWTForWalletGroup(w, w.IssuerURL, group, registrar.TrustListPath(group.ID))
 			if err != nil {
 				return fmt.Errorf("generating trusted list: %w", err)
 			}

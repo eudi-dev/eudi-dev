@@ -1,0 +1,42 @@
+{
+  "name": "italian-pid-mdoc",
+  "description": "Italian PID (mdoc, EUDI PID doctype plus the Italian namespace)",
+  "format": "mdoc",
+  "doctype": "eu.europa.ec.eudi.pid.1",
+  "namespace": "eu.europa.ec.eudi.pid.1",
+  "category": "pid",
+  "rulebook": "https://italia.github.io/eid-wallet-it-docs/releases/1.4.7/en/credential-data-model-pid.html",
+  "claims": {
+    "birth_date": "1964-12-30",
+    "eu.europa.ec.eudi.pid.it.1:sub": "",
+    "eu.europa.ec.eudi.pid.it.1:verification": {
+      "assurance_level": "https://trust-anchor.example.it/loa/high",
+      "trust_framework": "it_cie"
+    },
+    "expiry_date": "",
+    "family_name": "Rossi",
+    "given_name": "Bianca",
+    "issuing_authority": "Ministero dell'Interno",
+    "issuing_country": "IT",
+    "nationality": [
+      "IT"
+    ],
+    "place_of_birth": {
+      "country": "IT",
+      "locality": "Pino sulla Sponda del Lago Maggiore"
+    },
+    "portrait": "embedded:portraits/italian.jpg"
+  },
+  "unique_claims": [
+    "eu.europa.ec.eudi.pid.it.1:sub"
+  ],
+  "display": {
+    "name": "Italian PID",
+    "description": "A demo Italian PID credential for testing PID verification flows. Its attributes follow the PID data model of the IT-Wallet Technical Specifications 1.4.7, for Bianca Rossi, the identity of the Carta d'identità elettronica specimen. Created by eudi-dev, not a real identity. Card image: specimen of the Italian electronic identity card by the Ministero dell'Interno and the Istituto Poligrafico e Zecca dello Stato, resized, CC BY 4.0. Specification: https://italia.github.io/eid-wallet-it-docs/releases/1.4.7/en/credential-data-model-pid.html",
+    "background_color": "#3d59a1",
+    "text_color": "#ffffff",
+    "logo": "embedded:images/logo-it.svg",
+    "logo_alt_text": "eudi-dev logo on the Italian flag",
+    "background_image": "embedded:images/italian-id-specimen.jpg"
+  }
+}

@@ -23,6 +23,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
 )
@@ -192,7 +193,7 @@ credentials of the type pass the trusted list check. It can't go with
 // catalogClaimPath turns a claim flag into a claim path. An mdoc claim
 // without a namespace is in the doctype's namespace.
 func catalogClaimPath(format, typ, claim string) []any {
-	if format == "mso_mdoc" {
+	if format == credtype.FormatMDOC {
 		if at := strings.LastIndex(claim, ":"); at > 0 {
 			return []any{claim[:at], claim[at+1:]}
 		}

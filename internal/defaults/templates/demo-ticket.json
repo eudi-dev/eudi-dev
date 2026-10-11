@@ -1,0 +1,22 @@
+{
+  "name": "demo-ticket",
+  "description": "Demo Event Ticket (SD-JWT, issued by the demo issuer)",
+  "format": "sdjwt",
+  "vct": "urn:eudi-test:demo-ticket:1",
+  "category": "eaa",
+  "claims": {
+    "event": "EUDI Interop Fest",
+    "family_name": "Mustermann",
+    "given_name": "Erika",
+    "seat": "42A",
+    "tier": "backstage"
+  },
+  "display": {
+    "name": "Demo Event Ticket",
+    "description": "A sample event ticket issued by the demo issuer",
+    "background_color": "#0f766e",
+    "text_color": "#ffffff",
+    "logo": "embedded:images/logo.svg",
+    "logo_alt_text": "eudi-dev logo"
+  }
+}

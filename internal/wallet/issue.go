@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
@@ -204,11 +205,11 @@ func (w *Wallet) IssueCredential(opts IssueOptions) (result *IssueResult, err er
 	spec := opts.Trust
 	switch resolved.Format {
 	case "sdjwt":
-		spec.Format, spec.VCT, spec.DocType = "dc+sd-jwt", resolved.VCT, ""
+		spec.Format, spec.VCT, spec.DocType = credtype.FormatSDJWT, resolved.VCT, ""
 	case "jwt":
-		spec.Format, spec.VCT, spec.DocType = "jwt_vc_json", resolved.VCT, ""
+		spec.Format, spec.VCT, spec.DocType = credtype.FormatJWTVC, resolved.VCT, ""
 	case "mdoc":
-		spec.Format, spec.VCT, spec.DocType = "mso_mdoc", "", resolved.DocType
+		spec.Format, spec.VCT, spec.DocType = credtype.FormatMDOC, "", resolved.DocType
 	}
 	if saved != nil && saved.Category != "" {
 		spec.Category = firstNonEmpty(spec.Category, saved.Category)
@@ -223,6 +224,9 @@ func (w *Wallet) IssueCredential(opts IssueOptions) (result *IssueResult, err er
 		return nil, err
 	}
 
+	if opts.BatchSize > MaxBatchSize {
+		return nil, fmt.Errorf("a batch holds at most %d copies", MaxBatchSize)
+	}
 	if opts.BatchSize >= 2 {
 		if resolved.Format == "jwt" {
 			return nil, fmt.Errorf("batch issuance needs holder binding, which jwt_vc_json does not carry")

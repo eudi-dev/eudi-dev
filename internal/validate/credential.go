@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
@@ -62,9 +63,9 @@ const (
 
 // Credential formats of a Result.
 const (
-	FormatSDJWT = "dc+sd-jwt"
+	FormatSDJWT = credtype.FormatSDJWT
 	FormatJWT   = "jwt"
-	FormatMDOC  = "mso_mdoc"
+	FormatMDOC  = credtype.FormatMDOC
 )
 
 // Options select the checks that run.

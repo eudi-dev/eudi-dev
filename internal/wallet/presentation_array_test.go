@@ -29,7 +29,7 @@ func importNationalitiesPID(t *testing.T, w *Wallet) StoredCredential {
 	raw, err := mock.GenerateSDJWT(mock.SDJWTConfig{
 		Issuer:    "https://issuer.example",
 		VCT:       mock.DefaultPIDVCT,
-		Claims:    mock.SDJWTPIDClaims,
+		Claims:    templateClaims("pid-sdjwt"),
 		Key:       w.IssuerKey,
 		HolderKey: &w.HolderKey.PublicKey,
 	})

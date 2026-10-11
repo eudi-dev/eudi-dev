@@ -4,22 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/svg+xml" href="../favicon.svg?v=2">
-  <title>EUDI Test Demo Verifier</title>
+  <title>{{.VerifierName}}</title>
   <meta name="description" content="Demo verifier of the EUDI Dev Wallet: requests and cryptographically verifies PID and ticket presentations over OpenID4VP.">
+  <link rel="stylesheet" href="tokens.css">
+  <script src="theme.js"></script>
   <style>
-    :root {
-      --bg: #1a1b26; --bg-surface: #24283b; --text: #c0caf5; --text-dim: #8b93b8;
-      --border: #3b4261; --accent: #7aa2f7; --green: #9ece6a; --red: #f7768e; --yellow: #e0af68;
-    }
-    @media (prefers-color-scheme: light) {
-      :root {
-        --bg: #f5f5f5; --bg-surface: #ffffff; --text: #343b58; --text-dim: #6b6f7b;
-        --border: #d0d0d0; --accent: #2569d6; --green: #587539; --red: #c64343; --yellow: #8c6c3e;
-      }
-    }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: "SF Mono", "Cascadia Code", "Fira Code", Menlo, Consolas, monospace;
+      font-family: var(--font-mono);
       background: var(--bg); color: var(--text); min-height: 100vh; padding: 40px 20px;
     }
     .card { max-width: 640px; margin: 0 auto; background: var(--bg-surface);
@@ -49,7 +41,7 @@
     .check { font-size: 11px; line-height: 1.7; }
     .check .ok { color: var(--green); }
     .check .fail { color: var(--red); }
-    .check .warn { color: var(--yellow, #e0af68); }
+    .check .warn { color: var(--yellow); }
     .check .skip { color: var(--text-dim); }
     table { border-collapse: collapse; width: 100%; font-size: 12px; margin-top: 6px; }
     td { border: 1px solid var(--border); padding: 4px 8px; vertical-align: top; }
@@ -120,11 +112,7 @@
       width: 14px;
       height: 14px;
       flex-shrink: 0;
-      color: #de87ad;
-    }
-
-    @media (prefers-color-scheme: light) {
-      .sponsor-info svg { color: #a63367; }
+      color: var(--pink);
     }
   </style>
 </head>
@@ -133,7 +121,7 @@
     <div class="page-header">
       <img src="../logo.svg" alt="" class="page-logo" id="header-logo">
       <div>
-        <h1 id="header-title">EUDI Test Demo Verifier</h1>
+        <h1 id="header-title">{{.VerifierName}}</h1>
         <div class="subtitle" id="header-subtitle" style="margin-bottom:0">A minimal OpenID4VP verifier for demo purposes</div>
       </div>
     </div>
@@ -150,8 +138,8 @@
       <div class="toggle" id="credential-toggle" role="radiogroup" aria-label="Credential to request">
         <button type="button" class="toggle-option selected" id="credential-ticket" data-credential="ticket" role="radio" aria-checked="true">Demo ticket</button>
         <button type="button" class="toggle-option" id="credential-pid" data-credential="pid" role="radio" aria-checked="false">PID</button>
-        <button type="button" class="toggle-option" id="credential-pid-de" data-credential="pid-de" role="radio" aria-checked="false">German PID</button>
-        <button type="button" class="toggle-option" id="credential-pid-ticket" data-credential="pid-ticket" role="radio" aria-checked="false">Demo ticket + PID</button>
+        {{range .NationalPIDs}}<button type="button" class="toggle-option" id="credential-{{.ID}}" data-credential="{{.ID}}" data-vct="{{.VCT}}" role="radio" aria-checked="false">{{.Label}}</button>
+        {{end}}        <button type="button" class="toggle-option" id="credential-pid-ticket" data-credential="pid-ticket" role="radio" aria-checked="false">Demo ticket + PID</button>
         <button type="button" class="toggle-option" id="credential-custom" data-credential="custom" role="radio" aria-checked="false">Custom</button>
       </div>
     </div>

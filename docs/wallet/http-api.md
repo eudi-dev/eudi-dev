@@ -73,7 +73,7 @@ curl -X DELETE http://localhost:8085/api/credentials
 | `trust`           | object  | Trust/registration metadata to persist with the credential type (same fields as the `issue` trust flags, e.g. `entitlements`, `trust_list_type`, `entity_name`) |
 | `display`         | object  | Card appearance: `name`, `description`, `background_color`, `text_color`, `logo`, `logo_alt_text`, `background_image` (the `--display-*` flags). A public demo drops operator-supplied images |
 | `display_template`| string  | Template that supplies the logo and background image of the credential (for a form with the template's claims flattened into `claims`) |
-| `batch`           | int     | Issue this many copies with distinct holder keys. The wallet rotates between them (like `--batch`) |
+| `batch`           | int     | Issue this many copies with distinct holder keys, at most 8. The wallet rotates between them (like `--batch`) |
 | `unbound`         | bool    | Issue a bearer credential without a holder key (like `--unbound`). By default the credential is bound to the wallet. Only a query with `require_cryptographic_holder_binding: false` matches an unbound credential. In strict mode an unbound mdoc matches no query |
 | `signing_key`     | string  | PEM or JWK private key that signs the credential instead of the wallet issuer key. Requires `signing_cert` (like `--key` with `--cert`). Refused on the public demo |
 | `signing_cert`    | string  | PEM certificate chain, leaf first, embedded as the credential's x5c. The leaf must certify `signing_key` and the chain is embedded as given (a chain that includes its self-signed root produces a warning in debug mode and is refused in strict mode). The chain replaces the request's trust profile and registration metadata |
@@ -199,6 +199,7 @@ These endpoints are available on both wallet ports. Anyone with access to the wa
 | `GET` | `/api/catalog/schemas/{id}/{format}` | The schema behind a schema URI |
 | `GET`, `POST` | `/api/catalog/attestations` | List the catalogue with names, types and the `category` of each entry (`GET`) or add an entry (`POST`) |
 | `GET` | `/api/catalog/categories` | The credential categories with their label, entitlement, trust rule and level of security |
+| `GET` | `/api/catalog/schema-options` | The levels of security (`attestationLoS`) and holder bindings (`bindingType`) of a catalogue entry, with their labels |
 | `GET` | `/privacy-policy`, `/support`, `/supervisory-authority`, `/rulebook` | Placeholder pages for the default privacy policy, support, supervisory authority and rulebook URLs |
 
 ### One-shot error override

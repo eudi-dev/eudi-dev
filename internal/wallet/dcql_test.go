@@ -1037,7 +1037,7 @@ func TestEvaluateDCQL_TrustedAuthorities_TrustedIsTheDefault(t *testing.T) {
 
 	untrusted, err := mock.GenerateSDJWT(mock.SDJWTConfig{
 		Issuer: "https://issuer.example", VCT: mock.DefaultPIDVCT,
-		Claims: mock.SDJWTPIDClaims, Key: w.IssuerKey, CertChain: nil, HolderKey: &w.HolderKey.PublicKey,
+		Claims: templateClaims("pid-sdjwt"), Key: w.IssuerKey, CertChain: nil, HolderKey: &w.HolderKey.PublicKey,
 	})
 	if err != nil {
 		t.Fatalf("GenerateSDJWT: %v", err)
@@ -1122,7 +1122,7 @@ func TestEvaluateDCQL_TrustedAuthorities_NoCertChain(t *testing.T) {
 	sdRaw, err := mock.GenerateSDJWT(mock.SDJWTConfig{
 		Issuer:    "https://issuer.example",
 		VCT:       mock.DefaultPIDVCT,
-		Claims:    mock.SDJWTPIDClaims,
+		Claims:    templateClaims("pid-sdjwt"),
 		Key:       w.IssuerKey,
 		CertChain: nil, // no x5c
 		HolderKey: &w.HolderKey.PublicKey,

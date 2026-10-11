@@ -14,7 +14,11 @@
 
 package wallet
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
+)
 
 func ResolveClientMetadata(reqPayload map[string]any, outer map[string]any) map[string]any {
 	if reqPayload != nil {
@@ -47,10 +51,10 @@ func ValidateClientMetadata(clientMeta map[string]any) error {
 // OID4VP 1.0 Appendix B, and whether the array holds COSE algorithm numbers.
 // §11.1: "The Wallet MUST ignore any unrecognized parameters."
 var vpFormatAlgMembers = map[string]map[string]bool{
-	"dc+sd-jwt":   {"sd-jwt_alg_values": false, "kb-jwt_alg_values": false},       // B.3.4
-	"mso_mdoc":    {"issuerauth_alg_values": true, "deviceauth_alg_values": true}, // B.2.2
-	"jwt_vc_json": {"alg_values": false},                                          // B.1.3.1.3
-	"ldp_vc":      {"proof_type_values": false, "cryptosuite_values": false},      // B.1.3.2.3
+	credtype.FormatSDJWT: {"sd-jwt_alg_values": false, "kb-jwt_alg_values": false},       // B.3.4
+	credtype.FormatMDOC:  {"issuerauth_alg_values": true, "deviceauth_alg_values": true}, // B.2.2
+	credtype.FormatJWTVC: {"alg_values": false},                                          // B.1.3.1.3
+	"ldp_vc":             {"proof_type_values": false, "cryptosuite_values": false},      // B.1.3.2.3
 }
 
 func validateVPFormatsSupported(raw any) error {

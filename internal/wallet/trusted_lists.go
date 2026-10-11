@@ -28,11 +28,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/trustlist"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/validate"
 )
@@ -65,7 +67,6 @@ const (
 	// lists (ETSI TS 119 602 V1.1.1 §6.3.13).
 	listOfListsID          = ListOfTrustedListsID
 	listOfTrustedListsType = "https://eudi-test.dev/LoTEType/ListOfTrustedLists"
-	listOperatorName       = "EUDI Dev Wallet"
 )
 
 // ListOfTrustedListsID is the ID of the wallet's list of trusted lists.
@@ -91,7 +92,7 @@ func accessCATrustListProfile() trustListProfile {
 		RevocationServiceType:       accessCARevocationServiceType,
 		IssuanceServiceName:         "Access Certificate Issuance",
 		RevocationServiceName:       "Access Certificate Revocation",
-		EntityName:                  "EUDI Dev Relying Party Access CA",
+		EntityName:                  config.ProductName + " Relying Party Access CA",
 	}
 }
 
@@ -105,7 +106,7 @@ func registrarTrustListProfile() trustListProfile {
 		RevocationServiceType:       registrarRevocationServiceType,
 		IssuanceServiceName:         "Registration Certificate Issuance",
 		RevocationServiceName:       "Registration Certificate Revocation",
-		EntityName:                  "EUDI Dev Registrar",
+		EntityName:                  config.ProductName + " Registrar",
 	}
 }
 
@@ -337,7 +338,7 @@ func (w *Wallet) ExternalTrustedLists() []string {
 
 // ownTrustListURL is where the wallet publishes one of its lists.
 func (w *Wallet) ownTrustListURL(id string) string {
-	return w.RegistrarBase() + "/api/trustlists/" + id
+	return w.RegistrarBase() + registrar.TrustListPath(id)
 }
 
 // The wallet reuses a fetched list for listCacheTTL, because an operator can
@@ -373,7 +374,7 @@ func (w *Wallet) ownTrustListID(rawURL string) (string, bool) {
 	if err != nil || !sameOrigin(u, base) {
 		return "", false
 	}
-	return strings.CutPrefix(u.Path, strings.TrimSuffix(base.Path, "/")+"/api/trustlists/")
+	return strings.CutPrefix(u.Path, strings.TrimSuffix(base.Path, "/")+registrar.TrustListPath(""))
 }
 
 // rawTrustedList builds one of the wallet's own lists in process, because the
@@ -384,7 +385,7 @@ func (w *Wallet) rawTrustedList(rawURL string) (string, error) {
 		if !found {
 			return "", fmt.Errorf("the wallet has no trusted list %q", id)
 		}
-		return GenerateTrustListJWTForWalletGroup(w, w.IssuerURL, group, "/api/trustlists/"+group.ID)
+		return GenerateTrustListJWTForWalletGroup(w, w.IssuerURL, group, registrar.TrustListPath(group.ID))
 	}
 	w.listCacheMu.Lock()
 	cached, ok := w.listCache[rawURL]
@@ -567,7 +568,7 @@ func anchorsOf(lists []trustedList, listType, kind string) []*x509.Certificate {
 // qualifiers of §6.3.13 c).
 func GenerateListOfTrustedLists(w *Wallet, issuer string) (string, error) {
 	issuer = strings.TrimRight(strings.TrimSpace(issuer), "/")
-	key, chain, err := w.TrustListSigningMaterial(listOperatorName, mock.DefaultCertificateCountry)
+	key, chain, err := w.TrustListSigningMaterial(config.WalletName, mock.DefaultCertificateCountry)
 	if err != nil {
 		return "", err
 	}
@@ -582,7 +583,7 @@ func GenerateListOfTrustedLists(w *Wallet, issuer string) (string, error) {
 		}
 		location := tl.URL
 		if id, own := w.ownTrustListID(tl.URL); own && issuer != "" {
-			location = issuer + "/api/trustlists/" + id
+			location = issuer + registrar.TrustListPath(id)
 		}
 		pointers = append(pointers, listPointer(location, tl.List.SchemeInfo, base64.StdEncoding.EncodeToString(signers[0].Raw)))
 	}
@@ -590,7 +591,7 @@ func GenerateListOfTrustedLists(w *Wallet, issuer string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	dir := w.signingStore().trustListDir(firstNonEmpty(issuer, w.RegistrarBase()), "/api/trustlists/"+listOfListsID)
+	dir := w.signingStore().trustListDir(firstNonEmpty(issuer, w.RegistrarBase()), registrar.TrustListPath(listOfListsID))
 	return w.signingStore().sequencedList(dir, chain[0], content, func(sequence int) (string, error) {
 		now := time.Now().UTC().Truncate(time.Second)
 		payload := map[string]any{
@@ -599,10 +600,10 @@ func GenerateListOfTrustedLists(w *Wallet, issuer string) (string, error) {
 					"LoTEVersionIdentifier": 1,
 					"LoTESequenceNumber":    sequence,
 					"LoTEType":              listOfTrustedListsType,
-					"SchemeOperatorName":    []map[string]string{{"lang": "en", "value": listOperatorName}},
+					"SchemeOperatorName":    []map[string]string{{"lang": "en", "value": config.WalletName}},
 					"SchemeTerritory":       "EU",
 					"ListIssueDateTime":     now.Format(time.RFC3339),
-					"NextUpdate":            now.Add(24 * time.Hour).Format(time.RFC3339),
+					"NextUpdate":            now.Add(trustListUpdateInterval).Format(time.RFC3339),
 					"PointersToOtherLoTE":   pointers,
 				},
 				"TrustedEntitiesList": []map[string]any{},
@@ -610,7 +611,7 @@ func GenerateListOfTrustedLists(w *Wallet, issuer string) (string, error) {
 		}
 		digest := sha256.Sum256(chain[0].Raw)
 		header := map[string]any{
-			"alg":      "ES256",
+			"alg":      jws.AlgES256,
 			"typ":      "JWT",
 			"x5c":      []string{base64.StdEncoding.EncodeToString(chain[0].Raw)},
 			"iat":      now.Unix(),

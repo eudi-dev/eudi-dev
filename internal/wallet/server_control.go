@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/news"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 )
@@ -56,7 +57,7 @@ func (s *Server) SetImprint(page []byte) {
 // protectedRelyingParty reports whether visitors of the public demo may not
 // change a registration. They share the demo issuer and verifier.
 func (s *Server) protectedRelyingParty(rp registrar.WalletRelyingParty) bool {
-	return s.demo != nil && (registrar.HasIdentifier(rp, demoIssuerIdentity.Identifier) || registrar.HasIdentifier(rp, demoVerifierIdentity.Identifier))
+	return s.demo != nil && (registrar.HasIdentifier(rp, demoIdentifier(demoIssuer)) || registrar.HasIdentifier(rp, demoIdentifier(demoVerifier)))
 }
 
 // protectedRelyingParties names the registrations the UI shows without
@@ -194,6 +195,22 @@ func (s *Server) handleLastError(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleClearLastError(w http.ResponseWriter, r *http.Request) {
 	s.wallet.ClearLastError(callerOwners(r))
 	writeJSON(w, http.StatusOK, map[string]string{"status": "cleared"})
+}
+
+// formDefaults are the limits and defaults that the UI forms take from the
+// server: the lengths of a credential display, the default country of a
+// registration and the validity of the certificates the registrar issues.
+func formDefaults() map[string]any {
+	return map[string]any{
+		"display_name_max":          maxDisplayNameRunes,
+		"display_description_max":   maxDisplayDescriptionRunes,
+		"display_alt_text_max":      maxDisplayAltTextRunes,
+		"country":                   mock.DefaultCertificateCountry,
+		"registration_validity":     registrar.Hours(registrar.DefaultRegistrationValidity),
+		"registration_validity_max": registrar.Hours(registrar.MaxRegistrationValidity),
+		"access_validity":           registrar.Hours(registrar.MaxAccessCertificateValidity),
+		"access_validity_max":       registrar.Hours(registrar.MaxAccessCertificateValidity),
+	}
 }
 
 func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {

@@ -26,9 +26,10 @@ import (
 	"time"
 )
 
-// maxBatchProofKeys caps the proof keys so an advertised batch_size cannot make
-// requests arbitrarily large. Separate keys support EUDI ARF method C.
-const maxBatchProofKeys = 8
+// MaxBatchSize caps the copies of one batch: the proof keys the wallet sends
+// to an issuer, the copies it issues itself and the copies the demo issuer
+// signs in one request.
+const MaxBatchSize = 8
 
 func advertisedBatchSize(metadata map[string]any) int {
 	batch, ok := metadata["batch_credential_issuance"].(map[string]any)
@@ -48,7 +49,7 @@ func advertisedBatchSize(metadata map[string]any) int {
 // key. RFC 9901 §10.1 requires this for SD-JWT batches. It is recommended for
 // mdoc.
 func issuanceProofKeys(holderKey *ecdsa.PrivateKey, metadata map[string]any) ([]*ecdsa.PrivateKey, error) {
-	return batchProofKeys(holderKey, metadata, maxBatchProofKeys)
+	return batchProofKeys(holderKey, metadata, MaxBatchSize)
 }
 
 // batchProofKeys returns the holder key and fresh keys for up to wanted
@@ -56,7 +57,7 @@ func issuanceProofKeys(holderKey *ecdsa.PrivateKey, metadata map[string]any) ([]
 func batchProofKeys(holderKey *ecdsa.PrivateKey, metadata map[string]any, wanted int) ([]*ecdsa.PrivateKey, error) {
 	keys := []*ecdsa.PrivateKey{holderKey}
 	batchSize := advertisedBatchSize(metadata)
-	count := min(batchSize, wanted, maxBatchProofKeys)
+	count := min(batchSize, wanted, MaxBatchSize)
 	if count < 2 {
 		return keys, nil
 	}

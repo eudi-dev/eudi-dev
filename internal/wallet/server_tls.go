@@ -96,9 +96,9 @@ func (s *Server) startIssuerTLSServer() error {
 
 	s.issuerSrv = &http.Server{
 		Handler:      s.Handler(),
-		ReadTimeout:  30 * time.Second,
+		ReadTimeout:  config.ServerReadTimeout,
 		WriteTimeout: config.SlowRequestTimeout,
-		IdleTimeout:  120 * time.Second,
+		IdleTimeout:  config.ServerIdleTimeout,
 	}
 
 	go func() {

@@ -1,0 +1,53 @@
+{
+  "name": "german-pid-sdjwt",
+  "description": "German PID (SD-JWT, extends the EUDI PID)",
+  "format": "sdjwt",
+  "vct": "urn:eudi:pid:de:1",
+  "category": "pid",
+  "baseline": true,
+  "rulebook": "https://bmi.usercontent.opencode.de/eudi-wallet/eidas-2.0-architekturkonzept/content/features/PID/german-pid-rulebook/",
+  "claims": {
+    "academic_title": "",
+    "address": {
+      "country": "DE",
+      "locality": "KÖLN",
+      "postal_code": "51147",
+      "region": "NW",
+      "street_address": "HEIDESTRAẞE 17"
+    },
+    "age_equal_or_over": {
+      "12": true,
+      "14": true,
+      "16": true,
+      "18": true,
+      "21": true,
+      "65": false
+    },
+    "aka_vcts": [
+      "urn:eudi:pid:1"
+    ],
+    "birth_name": "GABLER",
+    "birthdate": "1964-08-12",
+    "family_name": "MUSTERMANN",
+    "given_name": "ERIKA",
+    "issuing_authority": "DE",
+    "issuing_country": "DE",
+    "nationalities": [
+      "DE"
+    ],
+    "place_of_birth": {
+      "locality": "BERLIN"
+    },
+    "raw_eid_birth_date": "1964-08-12",
+    "source_document_type": "ID"
+  },
+  "display": {
+    "name": "German PID",
+    "description": "A demo German PID credential for testing PID verification flows. It extends the EUDI PID with the national attributes of the German PID Rulebook 1.0.0 (the BMI blueprint), for the sample ERIKA MUSTERMANN identity. Created by eudi-dev, not a real identity. Rulebook: https://bmi.usercontent.opencode.de/eudi-wallet/eidas-2.0-architekturkonzept/content/features/PID/german-pid-rulebook/",
+    "background_color": "#3d59a1",
+    "text_color": "#ffffff",
+    "logo": "embedded:images/logo-de.svg",
+    "logo_alt_text": "eudi-dev logo on the German flag",
+    "background_image": "embedded:images/german-id-specimen.jpg"
+  }
+}

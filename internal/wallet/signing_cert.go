@@ -24,6 +24,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 )
@@ -173,7 +174,7 @@ func (w *Wallet) WalletProviderSigningMaterial() (*ecdsa.PrivateKey, []*x509.Cer
 // demo issuer. The registrar issues it like the access certificate of any
 // relying party.
 func (w *Wallet) AccessSigningMaterial() (*ecdsa.PrivateKey, []*x509.Certificate, error) {
-	return w.demoAccessSigningMaterial("access", demoIssuerIdentity, DemoIssuerName, demoIssuerServiceID)
+	return w.demoAccessSigningMaterial("access", demoIssuer())
 }
 
 // RelyingPartyAccessCA issues the access certificates of registered relying
@@ -323,7 +324,7 @@ func hostSubjectAltNames(host string) (dnsNames []string, ips []net.IP) {
 
 func signingLeafCommonName(profile trustListProfile) string {
 	if profile.LoTEType == "" {
-		return "EUDI Dev Wallet Issuer"
+		return config.WalletIssuerName
 	}
-	return firstNonEmpty(profile.EntityName, "EUDI Dev Wallet Issuer") + " (" + trustListGroupID(profile) + ")"
+	return firstNonEmpty(profile.EntityName, config.WalletIssuerName) + " (" + trustListGroupID(profile) + ")"
 }

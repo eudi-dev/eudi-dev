@@ -1,0 +1,44 @@
+{
+  "name": "pid-mdoc",
+  "description": "EUDI PID (mdoc, EU rulebook sample data)",
+  "format": "mdoc",
+  "doctype": "eu.europa.ec.eudi.pid.1",
+  "namespace": "eu.europa.ec.eudi.pid.1",
+  "category": "pid",
+  "baseline": true,
+  "rulebook": "https://github.com/eu-digital-identity-wallet/eudi-doc-attestation-rulebooks-catalog/blob/main/rulebooks/pid/pid-rulebook.md",
+  "claims": {
+    "birth_date": "1978-02-12",
+    "document_number": "A01234567",
+    "expiry_date": "",
+    "family_name": "'t Hart",
+    "family_name_birth": "'t Hart",
+    "given_name": "Jan Wijnand",
+    "issuance_date": "",
+    "issuing_authority": "Rijksdienst voor Identiteitsgegevens",
+    "issuing_country": "NL",
+    "nationality": [
+      "NL"
+    ],
+    "personal_administrative_number": "123456782",
+    "place_of_birth": {
+      "country": "NL",
+      "locality": "Amsterdam"
+    },
+    "portrait": "embedded:portraits/default.jpg",
+    "resident_city": "Leiden",
+    "resident_country": "NL",
+    "resident_postal_code": "2312 JD",
+    "resident_state": "Zuid-Holland",
+    "resident_street": "Rietveld 1",
+    "sex": 1
+  },
+  "display": {
+    "name": "EUDI PID",
+    "description": "A demo Person Identification Data (PID) credential for testing PID verification flows. Its attributes follow the EUDI PID Rulebook v1.7 (the country-independent EU dataset), populated with the rulebook's own Jan Wijnand sample identity. Created by eudi-dev, not a real identity. Rulebook: https://github.com/eu-digital-identity-wallet/eudi-doc-attestation-rulebooks-catalog/blob/main/rulebooks/pid/pid-rulebook.md",
+    "background_color": "#3d59a1",
+    "text_color": "#ffffff",
+    "logo": "embedded:images/logo.svg",
+    "logo_alt_text": "eudi-dev logo"
+  }
+}

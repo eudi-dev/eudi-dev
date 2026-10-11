@@ -3,8 +3,8 @@ const { test, expect } = require("@playwright/test");
 const { execSync } = require("child_process");
 const http = require("http");
 
-const DOCKER_IMAGE = "oid4vc-dev-e2e";
-const CONTAINER_NAME = "oid4vc-dev-e2e-test";
+const DOCKER_IMAGE = "eudi-dev-e2e";
+const CONTAINER_NAME = "eudi-dev-e2e-test";
 // The parallel wallet and decoder tests use ports 18923 through 18926.
 const HOST_PORT = 18935;
 const WALLET_URL = `http://localhost:${HOST_PORT}`;

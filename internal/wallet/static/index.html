@@ -6,7 +6,9 @@
   <link rel="icon" type="image/svg+xml" href="favicon.svg?v=2">
   <title>EUDI Dev Wallet</title>
   <meta name="description" content="Open source developer test wallet for the EUDI ecosystem: issue, hold and present SD-JWT VC and mdoc credentials over OpenID4VCI and OpenID4VP, and decode them.">
+  <link rel="stylesheet" href="tokens.css">
   <link rel="stylesheet" href="style.css">
+  <script src="theme.js"></script>
 </head>
 <body>
   <header>
@@ -33,7 +35,7 @@
     <div class="header-right">
       <button class="btn" id="auto-accept-toggle" aria-pressed="false" hidden>Auto-accept</button>
       <button class="header-menu-toggle" id="header-menu-toggle" aria-expanded="false" aria-controls="header-links" aria-label="Menu">☰ Menu</button>
-      <button class="btn" id="theme-toggle">Theme</button>
+      <button class="btn" id="theme-toggle" data-theme-toggle>Theme</button>
     </div>
   </header>
 
@@ -234,10 +236,6 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
           <select id="conf-key-attestation-select" class="conf-input" title="Sets key_storage and user_authentication in the key attestation (OpenID4VCI Appendix D.2)">
             <option value="">Match the issuer's requirements</option>
             <option value="none">Leave out</option>
-            <option value="iso_18045_high">High (iso_18045_high)</option>
-            <option value="iso_18045_moderate">Moderate (iso_18045_moderate)</option>
-            <option value="iso_18045_enhanced-basic">Enhanced basic (iso_18045_enhanced-basic)</option>
-            <option value="iso_18045_basic">Basic (iso_18045_basic)</option>
           </select>
         </td></tr>
       </table>
@@ -424,7 +422,7 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
           <input type="text" id="registrar-legal-name" class="form-input" value="Example Verifier B.V.">
 
           <label class="form-label" for="registrar-country" id="registrar-country-label">Country</label>
-          <input type="text" id="registrar-country" class="form-input" value="NL" maxlength="2">
+          <input type="text" id="registrar-country" class="form-input" maxlength="2">
 
           <label class="form-label" for="registrar-support-uri" id="registrar-support-uri-label">Support URL or email</label>
           <input type="text" id="registrar-support-uri" class="form-input" value="https://verifier.example/support" placeholder="https://… or support@example.com">
@@ -459,7 +457,7 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
           </div>
 
           <label class="form-label" for="registrar-registration-validity" id="registrar-registration-validity-label">Registration certificate validity</label>
-          <input type="text" id="registrar-registration-validity" class="form-input" value="4320h" placeholder="Go duration, e.g. 4320h" aria-label="Registration certificate validity">
+          <input type="text" id="registrar-registration-validity" class="form-input" placeholder="Go duration" aria-label="Registration certificate validity">
 
           <div class="registrar-section" id="registrar-access-section">
           <div class="form-section-label" id="registrar-access-section-label">Access certificate</div>
@@ -481,7 +479,7 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
           </div>
 
           <label class="form-label" for="registrar-access-validity" id="registrar-access-validity-label">Certificate validity</label>
-          <input type="text" id="registrar-access-validity" class="form-input" value="8760h" placeholder="Go duration, e.g. 8760h" aria-label="Access certificate validity">
+          <input type="text" id="registrar-access-validity" class="form-input" placeholder="Go duration" aria-label="Access certificate validity">
           </div>
         </div>
         <div class="form-error" id="registrar-error" role="alert"></div>
@@ -573,20 +571,10 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
           <input type="text" id="registrar-catalog-rulebook" class="form-input" placeholder="Leave empty for a placeholder page">
 
           <label class="form-label" for="registrar-catalog-los" id="registrar-catalog-los-label">Level of security</label>
-          <select id="registrar-catalog-los" class="form-input">
-            <option value="iso_18045_basic">Basic</option>
-            <option value="iso_18045_enhanced-basic">Enhanced basic</option>
-            <option value="iso_18045_moderate">Moderate</option>
-            <option value="iso_18045_high">High</option>
-          </select>
+          <select id="registrar-catalog-los" class="form-input"></select>
 
           <label class="form-label" for="registrar-catalog-binding" title="How the attestation is bound to its holder (TS11 bindingType)" id="registrar-catalog-binding-label">Holder binding</label>
-          <select id="registrar-catalog-binding" class="form-input">
-            <option value="key">Wallet key</option>
-            <option value="claim">Another credential</option>
-            <option value="biometric">Biometrics</option>
-            <option value="none">None</option>
-          </select>
+          <select id="registrar-catalog-binding" class="form-input"></select>
 
           <label class="form-label" for="registrar-catalog-trust" title="An ETSI TS 119 602 list of trusted entities (TS11 trustedAuthorities with isLOTE)" id="registrar-catalog-trust-label">Trusted list (LoTE)</label>
           <input type="text" id="registrar-catalog-trust" class="form-input" placeholder="Leave empty for the category's list on this wallet">
@@ -722,10 +710,10 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
           <p class="form-hint" id="issue-template-art-note" hidden>The template's logo and background are kept unless you replace them below.</p>
 
           <label class="form-label" for="issue-display-name" id="issue-display-name-label">Display name</label>
-          <input type="text" id="issue-display-name" class="form-input" maxlength="80" placeholder="e.g. Employee Badge">
+          <input type="text" id="issue-display-name" class="form-input" placeholder="e.g. Employee Badge">
 
           <label class="form-label" for="issue-display-description" id="issue-display-description-label">Description</label>
-          <input type="text" id="issue-display-description" class="form-input" maxlength="500" placeholder="Shown behind the card's About control">
+          <input type="text" id="issue-display-description" class="form-input" placeholder="Shown behind the card's About control">
 
           <label class="form-label" for="issue-bg-color" id="issue-bg-color-label">Background color</label>
           <div class="form-color-row" id="issue-bg-color-row">
@@ -746,7 +734,7 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
           </div>
 
           <label class="form-label issue-image-field" for="issue-logo-alt" id="issue-logo-alt-label">Logo alt text</label>
-          <input type="text" id="issue-logo-alt" class="form-input issue-image-field" maxlength="120" placeholder="Describes the logo for screen readers">
+          <input type="text" id="issue-logo-alt" class="form-input issue-image-field" placeholder="Describes the logo for screen readers">
 
           <label class="form-label issue-image-field" for="issue-bg-image" id="issue-bg-image-label">Background image</label>
           <div class="form-image-row issue-image-field" id="issue-bg-image-row">
@@ -778,20 +766,10 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
             <input type="text" id="issue-catalog-rulebook" class="form-input" placeholder="Leave empty for a placeholder page">
 
             <label class="form-label" for="issue-catalog-los" id="issue-catalog-los-label">Level of security</label>
-            <select id="issue-catalog-los" class="form-input">
-              <option value="iso_18045_basic">Basic</option>
-              <option value="iso_18045_enhanced-basic">Enhanced basic</option>
-              <option value="iso_18045_moderate">Moderate</option>
-              <option value="iso_18045_high">High</option>
-            </select>
+            <select id="issue-catalog-los" class="form-input"></select>
 
             <label class="form-label" for="issue-catalog-binding" title="How the attestation is bound to its holder (TS11 bindingType)" id="issue-catalog-binding-label">Holder binding</label>
-            <select id="issue-catalog-binding" class="form-input">
-              <option value="key">Wallet key</option>
-              <option value="claim">Another credential</option>
-              <option value="biometric">Biometrics</option>
-              <option value="none">None</option>
-            </select>
+            <select id="issue-catalog-binding" class="form-input"></select>
 
             <label class="form-label" for="issue-catalog-trust" title="An ETSI TS 119 602 list of trusted entities (TS11 trustedAuthorities with isLOTE)" id="issue-catalog-trust-label">Trusted list (LoTE)</label>
             <input type="text" id="issue-catalog-trust" class="form-input" placeholder="Leave empty for the category's list on this wallet">

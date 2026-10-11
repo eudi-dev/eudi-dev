@@ -34,6 +34,14 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 )
 
+// JWE algorithm and encryption identifiers of RFC 7518 that the wallet and
+// the demo verifier name.
+const (
+	AlgECDHES  = "ECDH-ES"
+	EncA128GCM = "A128GCM"
+	EncA256GCM = "A256GCM"
+)
+
 type Header struct {
 	Enc string
 	EPK map[string]any
@@ -124,7 +132,7 @@ func DecryptWithCEK(compact string, cek []byte) ([]byte, error) {
 	}
 	// The AAD is the ASCII of the encoded protected header (RFC 7516 §5.1).
 	switch header.Enc {
-	case "A128GCM", "A256GCM":
+	case EncA128GCM, EncA256GCM:
 		return OpenAESGCM(cek, iv, ciphertext, tag, []byte(parts[0]))
 	case "A128CBC-HS256":
 		return openAESCBCHS256(cek, iv, ciphertext, tag, []byte(parts[0]))
@@ -213,9 +221,9 @@ func writeWithLength(h io.Writer, data []byte) {
 
 func EncKeyBitLen(enc string) (int, error) {
 	switch enc {
-	case "A128GCM":
+	case EncA128GCM:
 		return 128, nil
-	case "A256GCM":
+	case EncA256GCM:
 		return 256, nil
 	case "A128CBC-HS256":
 		return 256, nil // 128-bit MAC key plus 128-bit encryption key

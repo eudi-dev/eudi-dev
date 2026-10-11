@@ -249,3 +249,24 @@ func TestARemovedTemplateEntryStaysRemovedAfterARename(t *testing.T) {
 		t.Errorf("the renamed template brought back %q", e.Name)
 	}
 }
+
+// The category table names every category of the templates in their order,
+// and each list type and entitlement leads back to its category.
+func TestCategoryTableWorksBothWays(t *testing.T) {
+	var ids []string
+	for _, c := range Categories() {
+		ids = append(ids, c.ID)
+		if got, ok := CategoryOfListType(c.TrustedList.Type); !ok || got != c.ID {
+			t.Errorf("list type %s gives %q, want %s", c.TrustedList.Type, got, c.ID)
+		}
+		if got, ok := CategoryOfEntitlement(c.Entitlement); !ok || got != c.ID {
+			t.Errorf("entitlement %s gives %q, want %s", c.Entitlement, got, c.ID)
+		}
+		if !slices.Contains(registeredEntitlements, c.Entitlement) || !slices.Contains(OptionValues(AttestationLevels), c.AttestationLoS) {
+			t.Errorf("category %s has an unregistered entitlement or level of security", c.ID)
+		}
+	}
+	if !slices.Equal(ids, credtemplate.Categories) {
+		t.Errorf("categories %v, want %v", ids, credtemplate.Categories)
+	}
+}

@@ -526,7 +526,7 @@ func normalizeIntendedUse(use *IntendedUse, base string, before *WalletRelyingPa
 		return fmt.Errorf("an intended use needs at least one credential")
 	}
 	for _, credential := range use.Credentials {
-		if credential.Format != "dc+sd-jwt" && credential.Format != "mso_mdoc" {
+		if credential.Format != credtype.FormatSDJWT && credential.Format != credtype.FormatMDOC {
 			return fmt.Errorf("credential format %q is not dc+sd-jwt or mso_mdoc", credential.Format)
 		}
 		if len(CredentialTypes(credential.Meta)) == 0 {
@@ -596,7 +596,7 @@ func normalizeEntitlements(service *WalletRelyingPartyService, category func(for
 	for i := range service.ProvidesAttestations {
 		attestation := &service.ProvidesAttestations[i]
 		attestation.Type = strings.TrimSpace(attestation.Type)
-		if attestation.Format != "dc+sd-jwt" && attestation.Format != "mso_mdoc" {
+		if attestation.Format != credtype.FormatSDJWT && attestation.Format != credtype.FormatMDOC {
 			return fmt.Errorf("attestation format %q is not dc+sd-jwt or mso_mdoc", attestation.Format)
 		}
 		if attestation.Type == "" {

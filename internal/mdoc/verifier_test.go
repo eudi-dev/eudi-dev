@@ -25,6 +25,7 @@ import (
 
 	"github.com/veraison/go-cose"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 )
 
@@ -59,7 +60,7 @@ func TestVerify(t *testing.T) {
 			name: "valid signature",
 			cfg: mock.MDOCConfig{
 				DocType: "org.iso.18013.5.1.mDL", Namespace: "org.iso.18013.5.1",
-				Claims: mock.DefaultClaims, Key: key1,
+				Claims: credtemplate.DefaultClaims, Key: key1,
 			},
 			verifyKey:    &key1.PublicKey,
 			wantSigValid: true,
@@ -69,7 +70,7 @@ func TestVerify(t *testing.T) {
 			name: "wrong key",
 			cfg: mock.MDOCConfig{
 				DocType: "org.iso.18013.5.1.mDL", Namespace: "org.iso.18013.5.1",
-				Claims: mock.DefaultClaims, Key: key1,
+				Claims: credtemplate.DefaultClaims, Key: key1,
 			},
 			verifyKey:    &key2.PublicKey,
 			wantSigValid: false,
@@ -79,7 +80,7 @@ func TestVerify(t *testing.T) {
 			name: "expired document",
 			cfg: mock.MDOCConfig{
 				DocType: "org.iso.18013.5.1.mDL", Namespace: "org.iso.18013.5.1",
-				Claims: mock.DefaultClaims, Key: key1,
+				Claims: credtemplate.DefaultClaims, Key: key1,
 				ExpiresIn: -1 * time.Hour,
 			},
 			verifyKey:    &key1.PublicKey,
@@ -90,7 +91,7 @@ func TestVerify(t *testing.T) {
 			name: "validity dates present",
 			cfg: mock.MDOCConfig{
 				DocType: "org.iso.18013.5.1.mDL", Namespace: "org.iso.18013.5.1",
-				Claims: mock.DefaultClaims, Key: key1,
+				Claims: credtemplate.DefaultClaims, Key: key1,
 				ExpiresIn: 30 * 24 * time.Hour,
 			},
 			verifyKey:    &key1.PublicKey,
@@ -142,7 +143,7 @@ func TestVerify_NoValidityInfo(t *testing.T) {
 	key, _ := mock.GenerateKey()
 	doc := generateTestMDoc(t, mock.MDOCConfig{
 		DocType: "org.iso.18013.5.1.mDL", Namespace: "org.iso.18013.5.1",
-		Claims: mock.DefaultClaims, Key: key, OmitValidityInfo: true,
+		Claims: credtemplate.DefaultClaims, Key: key, OmitValidityInfo: true,
 	})
 
 	result := Verify(doc, &key.PublicKey)
@@ -164,7 +165,7 @@ func TestVerify_NoDigestAlgorithm(t *testing.T) {
 	key, _ := mock.GenerateKey()
 	doc := generateTestMDoc(t, mock.MDOCConfig{
 		DocType: "org.iso.18013.5.1.mDL", Namespace: "org.iso.18013.5.1",
-		Claims: mock.DefaultClaims, Key: key, OmitDigestAlgorithm: true,
+		Claims: credtemplate.DefaultClaims, Key: key, OmitDigestAlgorithm: true,
 	})
 
 	result := Verify(doc, &key.PublicKey)

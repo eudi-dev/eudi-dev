@@ -22,6 +22,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"maps"
+	"math"
 	"regexp"
 	"strings"
 	"time"
@@ -58,6 +59,7 @@ var fullDatePattern = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 
 // EU PID Rulebook v1.7 §3.1.2 and ISO/IEC 18013-5:2021 Table 5 define date attributes.
 func mdocClaimValue(namespace, name string, value any) any {
+	value = cborValue(value)
 	if namespace == "org.iso.18013.5.1" && name == "driving_privileges" {
 		if privileges, ok := value.([]any); ok {
 			out := make([]any, len(privileges))
@@ -87,6 +89,37 @@ func mdocClaimValue(namespace, name string, value any) any {
 		case "portrait_capture_date":
 			return mdocDateValue(value, false, true)
 		}
+	}
+	return value
+}
+
+// cborValue encodes claims that come from JSON with their CBOR types. A
+// whole number is an integer, and a base64 data URI is a byte string, such as
+// the ISO 18013-5 portrait.
+func cborValue(value any) any {
+	switch v := value.(type) {
+	case float64:
+		if v == math.Trunc(v) && math.Abs(v) < 1<<53 {
+			return int64(v)
+		}
+	case string:
+		if meta, payload, ok := strings.Cut(v, ","); ok && strings.HasPrefix(meta, "data:") && strings.HasSuffix(meta, ";base64") {
+			if data, err := base64.StdEncoding.DecodeString(payload); err == nil {
+				return data
+			}
+		}
+	case map[string]any:
+		out := make(map[string]any, len(v))
+		for k, item := range v {
+			out[k] = cborValue(item)
+		}
+		return out
+	case []any:
+		out := make([]any, len(v))
+		for i, item := range v {
+			out[i] = cborValue(item)
+		}
+		return out
 	}
 	return value
 }

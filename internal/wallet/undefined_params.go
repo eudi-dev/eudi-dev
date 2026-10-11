@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 )
 
 // definedRequestParameters lists the Authorization Request parameters defined
@@ -47,14 +49,9 @@ var definedRequestParameters = map[string]bool{
 // definedRequestObjectMembers adds the members a signed request object may
 // also carry: the RFC 7519 registered claims used by JAR.
 var definedRequestObjectMembers = func() map[string]bool {
-	merged := map[string]bool{
-		"iss": true,
-		"sub": true,
-		"aud": true,
-		"exp": true,
-		"nbf": true,
-		"iat": true,
-		"jti": true,
+	merged := map[string]bool{}
+	for _, name := range jws.RegisteredClaims {
+		merged[name] = true
 	}
 	for name := range definedRequestParameters {
 		merged[name] = true

@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/statuslist"
 )
@@ -208,7 +209,7 @@ func (w *Wallet) StatusEntryFor(credID string) (StatusEntry, bool) {
 // of an mdoc.
 func CredentialStatusRef(c StoredCredential) *statuslist.StatusRef {
 	switch c.Format {
-	case "mso_mdoc":
+	case credtype.FormatMDOC:
 		doc, err := mdoc.Parse(c.Raw)
 		if err != nil || doc.StatusClaims() == nil {
 			return nil

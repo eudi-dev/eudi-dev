@@ -85,6 +85,7 @@ func (h *Server) Routes() map[string]http.HandlerFunc {
 		"GET " + catalogSchemaPath + "/{id}/{format}":                      h.handleCatalogFormatSchema,
 		"GET /api/catalog/attestations":                                    h.handleCatalogAttestations,
 		"GET /api/catalog/categories":                                      h.handleCatalogCategories,
+		"GET /api/catalog/schema-options":                                  h.handleCatalogSchemaOptions,
 		"POST /api/catalog/attestations":                                   h.handleAddCatalogAttestation,
 	}
 	for path, page := range placeholderPages {
@@ -102,7 +103,7 @@ func writeJSON(w http.ResponseWriter, status int, data any) {
 }
 
 func signRegistrarResponseJWT(signingKey *ecdsa.PrivateKey, signerCerts []*x509.Certificate, payload any) (string, error) {
-	header := map[string]any{"alg": "ES256", "typ": "JWT"}
+	header := map[string]any{"alg": jws.AlgES256, "typ": "JWT"}
 	if x5c := x5cChain(signerCerts); len(x5c) > 0 {
 		header["x5c"] = x5c
 	}
@@ -532,6 +533,12 @@ func (h *Server) handleCatalogAttestations(w http.ResponseWriter, _ *http.Reques
 // entitlements, trust rules and default levels of security.
 func (h *Server) handleCatalogCategories(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, Categories())
+}
+
+// handleCatalogSchemaOptions lists the levels of security and holder bindings
+// a catalogue entry can name, with their labels.
+func (h *Server) handleCatalogSchemaOptions(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"attestationLoS": AttestationLevels, "bindingType": BindingTypes})
 }
 
 // handleAddCatalogAttestation adds an attestation. TS11 v1.0 leaves

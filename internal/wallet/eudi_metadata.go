@@ -26,45 +26,27 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 )
 
+// The list types of the credential categories come from the category table.
+var (
+	pidTrustListType    = registrar.CategoryOf(credtemplate.CategoryPID).TrustedList.Type
+	pubEAATrustListType = registrar.CategoryOf(credtemplate.CategoryPubEAA).TrustedList.Type
+	eaaTrustListType    = registrar.CategoryOf(credtemplate.CategoryEAA).TrustedList.Type
+)
+
 const (
-	// ETSI TS 119 602 V1.1.1 registers no list type for QEAA or other EAA
-	// providers. Annex C.1 has a scheme operator create its own URIs, and
-	// §6.3.3 asks for one type per profile. The URIs name the profile, so
-	// every deployment uses them whatever its base URL.
-	qeaaTrustListType         = "https://eudi-test.dev/LoTEType/QEAAProvidersList"
-	qeaaIssuanceServiceType   = "https://eudi-test.dev/SvcType/QEAA/Issuance"
-	qeaaRevocationServiceType = "https://eudi-test.dev/SvcType/QEAA/Revocation"
-	eaaTrustListType          = "https://eudi-test.dev/LoTEType/EAAProvidersList"
-	eaaIssuanceServiceType    = "https://eudi-test.dev/SvcType/EAA/Issuance"
-	eaaRevocationServiceType  = "https://eudi-test.dev/SvcType/EAA/Revocation"
-	qeaaStatusDetermination   = "https://eudi-test.dev/QEAAProvidersList/StatusDetn"
-	qeaaSchemeCommunityRules  = "https://eudi-test.dev/QEAAProvidersList/schemerules"
-	eaaStatusDetermination    = "https://eudi-test.dev/EAAProvidersList/StatusDetn"
-	eaaSchemeCommunityRules   = "https://eudi-test.dev/EAAProvidersList/schemerules"
 	// eudi-dev 2 wallets store these types for their EAA list.
 	legacyTrustListType       = "http://uri.etsi.org/19602/LoTEType/local"
 	legacyIssuanceServiceType = "http://uri.etsi.org/19602/SvcType/Issuance"
 	legacyRevocationService   = "http://uri.etsi.org/19602/SvcType/Revocation"
-
-	pidTrustListType         = "http://uri.etsi.org/19602/LoTEType/EUPIDProvidersList"
-	pidStatusDetermination   = "http://uri.etsi.org/19602/PIDProvidersList/StatusDetn/EU"
-	pidSchemeCommunityRules  = "http://uri.etsi.org/19602/PIDProviders/schemerules/EU"
-	pidIssuanceServiceType   = "http://uri.etsi.org/19602/SvcType/PID/Issuance"
-	pidRevocationServiceType = "http://uri.etsi.org/19602/SvcType/PID/Revocation"
-
-	// ETSI TS 119 602 V1.1.1 Annex H.
-	pubEAATrustListType         = "http://uri.etsi.org/19602/LoTEType/EUPubEAAProvidersList"
-	pubEAAStatusDetermination   = "http://uri.etsi.org/19602/PubEAAProvidersList/StatusDetn/EU"
-	pubEAASchemeCommunityRules  = "http://uri.etsi.org/19602/PubEAAProvidersList/schemerules/EU"
-	pubEAAIssuanceServiceType   = "http://uri.etsi.org/19602/SvcType/PubEAA/Issuance"
-	pubEAARevocationServiceType = "http://uri.etsi.org/19602/SvcType/PubEAA/Revocation"
 
 	// An issuer that checks a wallet or key attestation looks for a Wallet
 	// Provider list. The wallet publishes one next to its credential lists.
@@ -123,11 +105,11 @@ func (w *Wallet) issuedAttestationSpecs() []IssuedAttestationSpec {
 	for _, cred := range w.Credentials {
 		spec := IssuedAttestationSpec{Format: cred.Format, VCT: cred.VCT, DocType: cred.DocType}
 		switch cred.Format {
-		case "dc+sd-jwt":
+		case credtype.FormatSDJWT:
 			if strings.TrimSpace(spec.VCT) == "" {
 				continue
 			}
-		case "mso_mdoc":
+		case credtype.FormatMDOC:
 			if strings.TrimSpace(spec.DocType) == "" {
 				continue
 			}
@@ -187,21 +169,19 @@ func NormalizeIssuedAttestationSpec(spec IssuedAttestationSpec, category string)
 		if spec.RevocationServiceType == legacyRevocationService {
 			spec.RevocationServiceType = ""
 		}
-		if spec.EntityName == "EUDI Dev Wallet Issuer" {
+		if spec.EntityName == config.WalletIssuerName {
 			spec.EntityName = ""
 		}
 	}
 	if spec.TrustListType == walletProviderTrustListType {
 		return IssuedAttestationSpec{}, fmt.Errorf("the wallet provider list holds wallet and key attestations, not credentials")
 	}
-	switch {
-	case spec.Category != "":
-	case spec.TrustListType == pidTrustListType:
-		spec.Category = credtemplate.CategoryPID
-	case spec.TrustListType == pubEAATrustListType:
-		spec.Category = credtemplate.CategoryPubEAA
-	case spec.TrustListType == "":
-		spec.Category = credtemplate.CategoryEAA
+	if spec.Category == "" {
+		if category, ok := registrar.CategoryOfListType(spec.TrustListType); ok {
+			spec.Category = category
+		} else if spec.TrustListType == "" {
+			spec.Category = credtemplate.CategoryEAA
+		}
 	}
 	if spec.Category != "" {
 		spec = applyCategoryDefaults(spec)
@@ -210,7 +190,7 @@ func NormalizeIssuedAttestationSpec(spec IssuedAttestationSpec, category string)
 		}
 	}
 	if spec.TrustListType != "" {
-		spec.EntityName = firstNonEmpty(spec.EntityName, "EUDI Dev Wallet Issuer")
+		spec.EntityName = firstNonEmpty(spec.EntityName, config.WalletIssuerName)
 		spec.IssuanceServiceName = firstNonEmpty(spec.IssuanceServiceName, "Issuance Service")
 		spec.RevocationServiceName = firstNonEmpty(spec.RevocationServiceName, "Revocation Service")
 	}
@@ -260,67 +240,21 @@ func dedupeStrings(values []string) []string {
 	return out
 }
 
-// categoryTrustListProfile is the trusted list of a credential category. ETSI
-// TS 119 602 V1.1.1 defines list types for PID providers (Annex D) and PuB-EAA
-// providers (Annex H). QEAA providers are on TS 119 612 trusted lists, and
-// other EAA providers have no list type, so both lists have types of their
-// own.
+// categoryTrustListProfile is the trusted list of a credential category. An
+// empty or unknown category is an EAA.
 func categoryTrustListProfile(category string) trustListProfile {
-	switch category {
-	case credtemplate.CategoryPID:
-		return trustListProfile{
-			Category:                    category,
-			LoTEType:                    pidTrustListType,
-			StatusDeterminationApproach: pidStatusDetermination,
-			SchemeTypeCommunityRules:    pidSchemeCommunityRules,
-			SchemeTerritory:             "EU",
-			IssuanceServiceType:         pidIssuanceServiceType,
-			RevocationServiceType:       pidRevocationServiceType,
-			IssuanceServiceName:         "PID Issuance Service",
-			RevocationServiceName:       "PID Revocation Service",
-			EntityName:                  "EUDI Dev Wallet PID Provider",
-		}
-	case credtemplate.CategoryPubEAA:
-		return trustListProfile{
-			Category:                    category,
-			LoTEType:                    pubEAATrustListType,
-			StatusDeterminationApproach: pubEAAStatusDetermination,
-			SchemeTypeCommunityRules:    pubEAASchemeCommunityRules,
-			SchemeTerritory:             "EU",
-			IssuanceServiceType:         pubEAAIssuanceServiceType,
-			RevocationServiceType:       pubEAARevocationServiceType,
-			IssuanceServiceName:         "PuB-EAA Issuance Service",
-			RevocationServiceName:       "PuB-EAA Revocation Service",
-			EntityName:                  "EUDI Dev Wallet PuB-EAA Provider",
-		}
-	case credtemplate.CategoryQEAA:
-		return trustListProfile{
-			Category:                    category,
-			LoTEType:                    qeaaTrustListType,
-			StatusDeterminationApproach: qeaaStatusDetermination,
-			SchemeTypeCommunityRules:    qeaaSchemeCommunityRules,
-			IssuanceServiceType:         qeaaIssuanceServiceType,
-			RevocationServiceType:       qeaaRevocationServiceType,
-			IssuanceServiceName:         "QEAA Issuance Service",
-			RevocationServiceName:       "QEAA Revocation Service",
-			EntityName:                  "EUDI Dev Wallet QEAA Provider",
-		}
-	default:
-		return eaaTrustListProfile()
-	}
-}
-
-func eaaTrustListProfile() trustListProfile {
+	c := registrar.CategoryOf(category)
 	return trustListProfile{
-		Category:                    credtemplate.CategoryEAA,
-		LoTEType:                    eaaTrustListType,
-		StatusDeterminationApproach: eaaStatusDetermination,
-		SchemeTypeCommunityRules:    eaaSchemeCommunityRules,
-		IssuanceServiceType:         eaaIssuanceServiceType,
-		RevocationServiceType:       eaaRevocationServiceType,
-		IssuanceServiceName:         "EAA Issuance Service",
-		RevocationServiceName:       "EAA Revocation Service",
-		EntityName:                  "EUDI Dev Wallet EAA Provider",
+		Category:                    c.ID,
+		LoTEType:                    c.TrustedList.Type,
+		StatusDeterminationApproach: c.TrustedList.StatusDeterminationApproach,
+		SchemeTypeCommunityRules:    c.TrustedList.SchemeTypeCommunityRules,
+		SchemeTerritory:             c.TrustedList.SchemeTerritory,
+		IssuanceServiceType:         c.TrustedList.IssuanceServiceType,
+		RevocationServiceType:       c.TrustedList.RevocationServiceType,
+		IssuanceServiceName:         c.Label + " Issuance Service",
+		RevocationServiceName:       c.Label + " Revocation Service",
+		EntityName:                  config.WalletName + " " + c.Label + " Provider",
 	}
 }
 
@@ -359,37 +293,37 @@ func sanitizeMetadataID(s string) string {
 
 func buildCredentialConfiguration(spec IssuedAttestationSpec) (string, map[string]any, bool) {
 	switch spec.Format {
-	case "dc+sd-jwt":
+	case credtype.FormatSDJWT:
 		if strings.TrimSpace(spec.VCT) == "" {
 			return "", nil, false
 		}
 		id := "sdjwt_" + sanitizeMetadataID(spec.VCT)
 		return id, map[string]any{
-			"format": "dc+sd-jwt",
+			"format": credtype.FormatSDJWT,
 			"scope":  id,
 			"vct":    spec.VCT,
 			"cryptographic_binding_methods_supported": []string{"jwk"},
-			"credential_signing_alg_values_supported": []string{"ES256"},
+			"credential_signing_alg_values_supported": []string{jws.AlgES256},
 			"proof_types_supported": map[string]any{
 				"jwt": map[string]any{
-					"proof_signing_alg_values_supported": []string{"ES256"},
+					"proof_signing_alg_values_supported": []string{jws.AlgES256},
 				},
 			},
 		}, true
-	case "mso_mdoc":
+	case credtype.FormatMDOC:
 		if strings.TrimSpace(spec.DocType) == "" {
 			return "", nil, false
 		}
 		id := "mdoc_" + sanitizeMetadataID(spec.DocType)
 		return id, map[string]any{
-			"format":  "mso_mdoc",
+			"format":  credtype.FormatMDOC,
 			"scope":   id,
 			"doctype": spec.DocType,
 			"cryptographic_binding_methods_supported": []string{"cose_key"},
 			"credential_signing_alg_values_supported": []int{-7},
 			"proof_types_supported": map[string]any{
 				"jwt": map[string]any{
-					"proof_signing_alg_values_supported": []string{"ES256"},
+					"proof_signing_alg_values_supported": []string{jws.AlgES256},
 				},
 			},
 		}, true
@@ -468,7 +402,7 @@ func SignCredentialIssuerMetadata(w *Wallet, issuer string, metadata map[string]
 		payload["exp"] = exp.Unix()
 	}
 	header := map[string]any{
-		"alg": "ES256",
+		"alg": jws.AlgES256,
 		"typ": "openidvci-issuer-metadata+jwt",
 	}
 	if x5c := buildJWSX5C(signerCerts); len(x5c) > 0 {
@@ -485,8 +419,8 @@ func SignRequestObjectJWT(claims map[string]any, signingKey *ecdsa.PrivateKey, s
 		return "", fmt.Errorf("signing key is required")
 	}
 	header := map[string]any{
-		"alg": "ES256",
-		"typ": "oauth-authz-req+jwt",
+		"alg": jws.AlgES256,
+		"typ": format.TypeRequestObject,
 	}
 	if x5c := buildJWSX5C(signerCerts); len(x5c) > 0 {
 		header["x5c"] = x5c

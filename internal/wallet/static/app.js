@@ -1,14 +1,14 @@
 (function() {
   'use strict';
 
-  const themeBtn = document.getElementById('theme-toggle');
-  const saved = localStorage.getItem('wallet-theme');
-  if (saved === 'light') document.documentElement.setAttribute('data-theme', 'light');
-  themeBtn.addEventListener('click', () => {
-    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
-    document.documentElement.setAttribute('data-theme', isLight ? '' : 'light');
-    localStorage.setItem('wallet-theme', isLight ? '' : 'light');
-  });
+  // Credential format identifiers (OpenID4VCI 1.0 Appendix A) and their labels.
+  const FORMATS = { SDJWT: 'dc+sd-jwt', MDOC: 'mso_mdoc', JWTVC: 'jwt_vc_json' };
+  const FORMAT_LABELS = {
+    [FORMATS.SDJWT]: { short: 'SD-JWT', long: 'SD-JWT VC' },
+    [FORMATS.MDOC]: { short: 'mdoc', long: 'mdoc' },
+    [FORMATS.JWTVC]: { short: 'JWT VC', long: 'JWT VC' },
+  };
+  const formatOptions = (formats) => formats.map(f => '<option value="' + f + '">' + FORMAT_LABELS[f].long + '</option>').join('');
 
   // CSS chooses the menu layout. JavaScript only controls whether it is open.
   const menuToggle = document.getElementById('header-menu-toggle');
@@ -335,7 +335,7 @@
   const LOCK_SVG = '<svg class="pill-ico" viewBox="0 0 24 24" width="11" height="11" fill="currentColor" aria-hidden="true"><path d="M12 1a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-1V6a5 5 0 0 0-5-5zm3 8H9V6a3 3 0 0 1 6 0v3z"/></svg>';
 
   function formatLabelFor(cred) {
-    return cred.format === 'dc+sd-jwt' ? 'SD-JWT' : cred.format === 'jwt_vc_json' ? 'JWT VC' : 'mdoc';
+    return (FORMAT_LABELS[cred.format] || FORMAT_LABELS[FORMATS.MDOC]).short;
   }
 
   function credentialCardBody(cred, idPrefix) {
@@ -1002,7 +1002,36 @@
   // api/catalog/categories). A category sets the default level of security.
   let categories = [];
   const categoryOf = (id) => categories.find(c => c.id === id) || categories[categories.length - 1] || {};
-  const categoryLevel = (id) => categoryOf(id).attestationLoS || 'iso_18045_basic';
+  const categoryLevel = (id) => categoryOf(id).attestationLoS || (schemaOptions.attestationLoS[0] || {}).value || '';
+  // The levels of security and holder bindings of a catalogue entry come
+  // from the registrar (GET api/catalog/schema-options).
+  let schemaOptions = { attestationLoS: [], bindingType: [] };
+  const optionLabel = (field, value) => (schemaOptions[field].find(o => o.value === value) || {}).label || value;
+  const defaultBinding = () => (schemaOptions.bindingType[0] || {}).value || '';
+  async function loadSchemaOptions() {
+    schemaOptions = await registrarRequest('GET', 'api/catalog/schema-options');
+    const fill = (id, options, label) => {
+      const select = document.getElementById(id);
+      if (!select) return;
+      const current = select.value || select.dataset.wanted || '';
+      select.querySelectorAll('option[data-schema-option]').forEach(o => o.remove());
+      options.forEach(o => {
+        const option = document.createElement('option');
+        option.value = o.value;
+        option.textContent = label(o);
+        option.dataset.schemaOption = '';
+        select.appendChild(option);
+      });
+      if (current) select.value = current;
+    };
+    ['registrar', 'issue'].forEach(prefix => {
+      fill(prefix + '-catalog-los', schemaOptions.attestationLoS, o => o.label);
+      fill(prefix + '-catalog-binding', schemaOptions.bindingType, o => o.label);
+    });
+    // Appendix D.2 of OpenID4VCI 1.0 uses the same ISO/IEC 18045 values.
+    fill('conf-key-attestation-select', schemaOptions.attestationLoS.slice().reverse(), o => o.label + ' (' + o.value + ')');
+  }
+  loadSchemaOptions().catch(() => { /* The selects keep their fixed options. */ });
   const categoryLabel = (id) => (categories.find(c => c.id === id) || {}).label || id;
   async function loadCategories() {
     categories = await registrarRequest('GET', 'api/catalog/categories');
@@ -1045,8 +1074,8 @@
         field('name').value = '';
         field('category').value = 'eaa';
         field('rulebook').value = '';
-        field('los').value = 'iso_18045_basic';
-        field('binding').value = 'key';
+        field('los').value = categoryLevel('eaa');
+        field('binding').value = defaultBinding();
         field('trust').value = '';
       },
       // validate returns the first problem found in the browser. The server
@@ -2051,7 +2080,7 @@
     consentRequestOpen = false;
     consentOverlay.classList.add('active');
 
-    var html = '<div class="dialog-title" id="error-title" style="color:var(--danger)">Error</div>' +
+    var html = '<div class="dialog-title" id="error-title" style="color:var(--red)">Error</div>' +
       '<div class="dialog-message" id="error-message">' + escHtml(message) + '</div>';
 
     if (detail) {
@@ -2102,7 +2131,7 @@
     consentOverlay.classList.add('active');
 
     var isSuccess = result.status_code && result.status_code < 400 && !result.error;
-    var titleColor = isSuccess ? 'var(--success, #22c55e)' : 'var(--danger)';
+    var titleColor = isSuccess ? 'var(--green)' : 'var(--red)';
     var titleText = isSuccess ? 'Success' : 'Verifier Error';
 
     var html = '<div class="dialog-title" id="result-title" style="color:' + titleColor + '">' + titleText + ' (HTTP ' + (result.status_code || '?') + ')</div>';
@@ -3009,6 +3038,23 @@
   let protectedParties = new Set();
   // Wait for configuration before deciding to open consent automatically. Demo mode uses
   // different ownership rules.
+  // The server owns the limits and defaults of these fields.
+  function applyFormDefaults(defaults) {
+    const limit = (id, max) => { const el = document.getElementById(id); if (el && max) el.maxLength = max; };
+    limit('issue-display-name', defaults.display_name_max);
+    limit('issue-display-description', defaults.display_description_max);
+    limit('issue-logo-alt', defaults.display_alt_text_max);
+    const fill = (id, value, max) => {
+      const el = document.getElementById(id);
+      if (!el || !value) return;
+      if (!el.value) el.value = value;
+      el.placeholder = max ? 'Go duration, at most ' + max : el.placeholder;
+    };
+    fill('registrar-country', defaults.country);
+    fill('registrar-registration-validity', defaults.registration_validity, defaults.registration_validity_max);
+    fill('registrar-access-validity', defaults.access_validity, defaults.access_validity_max);
+  }
+
   async function loadAppConfig() {
     try {
       const resp = await fetch('api/config');
@@ -3035,6 +3081,7 @@
         document.getElementById('tls-row-label').hidden = true;
         document.getElementById('tls-row').hidden = true;
       }
+      applyFormDefaults(config.form_defaults || {});
       demoMode = !!(config.demo && config.demo.enabled);
       protectedParties = new Set(config.protected_relying_parties || []);
       document.getElementById('sponsor-info').hidden = !demoMode;
@@ -3149,7 +3196,7 @@
     if (haip) { haip.checked = eff.haip; haip.disabled = demoMode; }
     if (enc) { enc.checked = eff.encrypted; enc.disabled = demoMode; }
     if (vci) { vci.value = eff.vciVersion; vci.disabled = demoMode; }
-    if (level) { level.value = eff.keyAttestationLevel; level.disabled = demoMode; }
+    if (level) { level.dataset.wanted = eff.keyAttestationLevel; level.value = eff.keyAttestationLevel; level.disabled = demoMode; }
   }
 
   function currentControlValues() {
@@ -3519,7 +3566,7 @@
     // namespace:element.
     return (credential.claims || []).map(c => {
       const path = c.path || [];
-      if (credential.format !== 'mso_mdoc' || path.length !== 2) return path.join('.');
+      if (credential.format !== FORMATS.MDOC || path.length !== 2) return path.join('.');
       return path[0] === type ? path[1] : path[0] + ':' + path[1];
     });
   }
@@ -3997,12 +4044,24 @@
   // Opening the list while an action reloads it starts two loads. Only the
   // latest one renders.
   let registrarLoad = 0;
+  // The registrar caps the page size, so the list follows the cursor.
+  async function registrarRecords() {
+    const data = [];
+    let cursor = '';
+    do {
+      const page = await registrarRequest('GET', 'api/registrar/wrp' + (cursor ? '?cursor=' + encodeURIComponent(cursor) : ''));
+      data.push(...(page.data || []));
+      cursor = (page.pagination && page.pagination.next_cursor) || '';
+    } while (cursor);
+    return { data: data };
+  }
+
   async function loadRegistrarParties() {
     const error = document.getElementById('registrar-parties-error');
     const load = ++registrarLoad;
     try {
       const [records, statuses] = await Promise.all([
-        registrarRequest('GET', 'api/registrar/wrp?limit=500'),
+        registrarRecords(),
         registrarRequest('GET', 'api/registrar/registration-certificates'),
       ]);
       if (load !== registrarLoad) return;
@@ -4189,9 +4248,9 @@
     // what it opens, so nothing of an earlier open carries over.
     document.getElementById('registrar-purpose').value = !registrarTarget ? 'Age check before checkout' : targetIssues ? 'Identity check before issuance' : '';
     registrarCredentials.innerHTML = '';
-    addRegistrarCredential('dc+sd-jwt', 'urn:eudi:pid:1', targetIssues ? 'given_name, family_name' : 'age_equal_or_over.18');
+    addRegistrarCredential(FORMATS.SDJWT, 'urn:eudi:pid:1', targetIssues ? 'given_name, family_name' : 'age_equal_or_over.18');
     registrarAttestations.innerHTML = '';
-    const attestations = registrarEditService ? (registrarEditService.providesAttestations || []) : [{ format: 'dc+sd-jwt', type: 'urn:example:diploma:1' }];
+    const attestations = registrarEditService ? (registrarEditService.providesAttestations || []) : [{ format: FORMATS.SDJWT, type: 'urn:example:diploma:1' }];
     attestations.forEach(a => addRegistrarAttestation(a.format, a.type));
     document.getElementById('registrar-entitlement').value = '';
     const targetHint = document.getElementById('registrar-target-hint');
@@ -4361,7 +4420,7 @@
   const registrarCredentials = document.getElementById('registrar-credentials');
   // The type field suggests catalogue types in the row's format.
   function credentialPlaceholders(row) {
-    const mdoc = row.querySelector('select').value === 'mso_mdoc';
+    const mdoc = row.querySelector('select').value === FORMATS.MDOC;
     const type = row.querySelector('[data-field="type"]');
     type.placeholder = mdoc ? 'doctype, e.g. eu.europa.ec.eudi.pid.1' : 'vct, e.g. urn:eudi:pid:1';
     type.setAttribute('list', mdoc ? 'registrar-types-mdoc' : 'registrar-types-sdjwt');
@@ -4379,7 +4438,7 @@
     row.id = 'registrar-credential-' + n;
     row.innerHTML =
       '<select class="form-input" data-field="format" id="registrar-credential-' + n + '-format" aria-label="Format">' +
-        '<option value="dc+sd-jwt">SD-JWT VC</option><option value="mso_mdoc">mdoc</option></select>' +
+        formatOptions([FORMATS.SDJWT, FORMATS.MDOC]) + '</select>' +
       '<input type="text" class="form-input" data-field="type" id="registrar-credential-' + n + '-type" aria-label="Credential type" autocomplete="off">' +
       '<input type="text" class="form-input" data-field="claims" id="registrar-credential-' + n + '-claims" aria-label="Claims, comma separated">' +
       '<button type="button" class="btn btn-sm" data-field="remove" id="registrar-credential-' + n + '-remove" aria-label="Remove this credential">Remove</button>';
@@ -4394,11 +4453,11 @@
   function firstCredentialTypeField() {
     const field = registrarCredentials.querySelector('[data-field="type"]');
     if (field) return field;
-    addRegistrarCredential('dc+sd-jwt', '', '');
+    addRegistrarCredential(FORMATS.SDJWT, '', '');
     return registrarCredentials.querySelector('[data-field="type"]');
   }
   document.getElementById('registrar-add-credential').addEventListener('click', () => {
-    addRegistrarCredential('dc+sd-jwt', '', '');
+    addRegistrarCredential(FORMATS.SDJWT, '', '');
     registrarCredentials.lastElementChild.querySelector('[data-field="type"]').focus();
   });
 
@@ -4413,7 +4472,7 @@
     row.id = 'registrar-attestation-' + n;
     row.innerHTML =
       '<select class="form-input" data-field="format" id="registrar-attestation-' + n + '-format" aria-label="Format">' +
-        '<option value="dc+sd-jwt">SD-JWT VC</option><option value="mso_mdoc">mdoc</option></select>' +
+        formatOptions([FORMATS.SDJWT, FORMATS.MDOC]) + '</select>' +
       '<input type="text" class="form-input" data-field="type" id="registrar-attestation-' + n + '-type" aria-label="Attestation type" autocomplete="off">' +
       '<button type="button" class="btn btn-sm" data-field="remove" id="registrar-attestation-' + n + '-remove" aria-label="Remove this attestation">Remove</button>';
     row.querySelector('select').value = format;
@@ -4424,7 +4483,7 @@
     registrarAttestations.appendChild(row);
   }
   document.getElementById('registrar-add-attestation').addEventListener('click', () => {
-    addRegistrarAttestation('dc+sd-jwt', '');
+    addRegistrarAttestation(FORMATS.SDJWT, '');
     registrarAttestations.lastElementChild.querySelector('[data-field="type"]').focus();
   });
   function registrarAttestationList() {
@@ -4447,13 +4506,13 @@
       const type = row.querySelector('[data-field="type"]').value.trim();
       if (!type) return;
       const claims = row.querySelector('[data-field="claims"]').value.split(',').map(c => c.trim()).filter(Boolean).map(claim => {
-        if (format !== 'mso_mdoc') return { path: window.eudiParseClaimPath(claim) };
+        if (format !== FORMATS.MDOC) return { path: window.eudiParseClaimPath(claim) };
         const at = claim.lastIndexOf(':');
         return { path: at > 0 ? [claim.slice(0, at), claim.slice(at + 1)] : [type, claim] };
       });
       credentials.push({
         format: format,
-        meta: format === 'mso_mdoc' ? { doctype_value: type } : { vct_values: [type] },
+        meta: format === FORMATS.MDOC ? { doctype_value: type } : { vct_values: [type] },
         claims: claims,
       });
     });
@@ -4554,7 +4613,7 @@
     if (attestations.length === 0) {
       let field = registrarAttestations.querySelector('[data-field="type"]');
       if (!field) {
-        addRegistrarAttestation('dc+sd-jwt', '');
+        addRegistrarAttestation(FORMATS.SDJWT, '');
         field = registrarAttestations.querySelector('[data-field="type"]');
       }
       showRegistrarError('Add at least one attestation.', field);
@@ -4692,7 +4751,7 @@
     if (attestations.length === 0) {
       let field = registrarAttestations.querySelector('[data-field="type"]');
       if (!field) {
-        addRegistrarAttestation('dc+sd-jwt', '');
+        addRegistrarAttestation(FORMATS.SDJWT, '');
         field = registrarAttestations.querySelector('[data-field="type"]');
       }
       showRegistrarError('Add at least one attestation.', field);
@@ -4751,7 +4810,7 @@
   let catalogEntries = [];
   async function loadCatalogEntries() {
     catalogEntries = await registrarRequest('GET', 'api/catalog/attestations');
-    const lists = { 'dc+sd-jwt': 'registrar-types-sdjwt', 'mso_mdoc': 'registrar-types-mdoc' };
+    const lists = { [FORMATS.SDJWT]: 'registrar-types-sdjwt', [FORMATS.MDOC]: 'registrar-types-mdoc' };
     Object.values(lists).forEach(id => { document.getElementById(id).innerHTML = ''; });
     const seen = new Set();
     catalogEntries.forEach(entry => (entry.credentials || []).forEach(c => {
@@ -4768,9 +4827,6 @@
     loadCatalogEntries().catch(() => { /* The fields work without suggestions. */ });
   }
 
-  const LOS_LABELS = { 'iso_18045_high': 'High', 'iso_18045_moderate': 'Moderate', 'iso_18045_enhanced-basic': 'Enhanced basic', 'iso_18045_basic': 'Basic' };
-  // TS11 bindingType: how an attestation is bound to its holder.
-  const BINDING_LABELS = { key: 'Bound to a wallet key', claim: 'Linked to another credential', biometric: 'Bound to biometrics', none: 'Not bound to the holder' };
   const catalogOverlay = document.getElementById('registrar-catalog-overlay');
   const catalogList = document.getElementById('registrar-catalog-list');
   const catalogSearch = document.getElementById('registrar-catalog-search');
@@ -4791,8 +4847,8 @@
     const box = document.getElementById('registrar-catalog-filters');
     const groups = [
       ['category', 'Category', categories.map(c => [c.id, c.label])],
-      ['los', 'Security level', ['iso_18045_basic', 'iso_18045_enhanced-basic', 'iso_18045_moderate', 'iso_18045_high'].map(v => [v, LOS_LABELS[v]])],
-      ['binding', 'Holder binding', Object.entries(BINDING_LABELS)],
+      ['los', 'Security level', schemaOptions.attestationLoS.map(o => [o.value, o.label])],
+      ['binding', 'Holder binding', schemaOptions.bindingType.map(o => [o.value, o.label])],
       ['source', 'Source', [['template', 'From a template'], ['added', 'Added here']]],
     ];
     box.innerHTML = '';
@@ -4854,8 +4910,8 @@
         '</div>' +
         '<div class="cred-pills registrar-pills" id="' + prefix + '-pills">' +
           '<span class="status-badge catalog-badge" id="' + prefix + '-category" title="Credential category. It selects the signer and the trusted list.">Category: ' + escHtml(categoryLabel(entry.category)) + '</span>' +
-          '<span class="status-badge catalog-badge" id="' + prefix + '-los" title="Level of security (TS11 attestationLoS)">Security level: ' + escHtml(LOS_LABELS[schema.attestationLoS] || schema.attestationLoS) + '</span>' +
-          '<span class="status-badge catalog-badge" id="' + prefix + '-binding" title="How the attestation is bound to its holder (TS11 bindingType)">' + escHtml(BINDING_LABELS[schema.bindingType] || schema.bindingType) + '</span>' +
+          '<span class="status-badge catalog-badge" id="' + prefix + '-los" title="Level of security (TS11 attestationLoS)">Security level: ' + escHtml(optionLabel('attestationLoS', schema.attestationLoS)) + '</span>' +
+          '<span class="status-badge catalog-badge" id="' + prefix + '-binding" title="How the attestation is bound to its holder (TS11 bindingType)">' + escHtml(optionLabel('bindingType', schema.bindingType)) + '</span>' +
           (entry.template ? '<span class="status-badge catalog-badge" id="' + prefix + '-template" title="Change the credential template to change this entry.">From a template</span>' : '') +
           '<code class="registrar-party-identifier" id="' + prefix + '-id">' + escHtml(schema.id) + '</code>' +
           '<code class="registrar-party-identifier registrar-catalog-version" id="' + prefix + '-version">v' + escHtml(schema.version) + '</code>' +
@@ -4931,11 +4987,11 @@
     for (let n = 2; taken.has(name.toLowerCase()); n++) name = 'University diploma ' + n;
     document.getElementById('registrar-catalog-name').value = name;
     catalogFormats.innerHTML = '';
-    addCatalogFormat('dc+sd-jwt', 'urn:example:diploma:1', 'degree, graduation_date');
+    addCatalogFormat(FORMATS.SDJWT, 'urn:example:diploma:1', 'degree, graduation_date');
     document.getElementById('registrar-catalog-category').value = 'eaa';
     document.getElementById('registrar-catalog-rulebook').value = '';
-    document.getElementById('registrar-catalog-los').value = 'iso_18045_basic';
-    document.getElementById('registrar-catalog-binding').value = 'key';
+    document.getElementById('registrar-catalog-los').value = categoryLevel('eaa');
+    document.getElementById('registrar-catalog-binding').value = defaultBinding();
     document.getElementById('registrar-catalog-trust').value = '';
   }
   function openCatalogForm() {
@@ -4959,7 +5015,7 @@
     row.id = 'registrar-catalog-format-' + n;
     row.innerHTML =
       '<select class="form-input" data-field="format" id="registrar-catalog-format-' + n + '-format" aria-label="Format">' +
-        '<option value="dc+sd-jwt">SD-JWT VC</option><option value="mso_mdoc">mdoc</option></select>' +
+        formatOptions([FORMATS.SDJWT, FORMATS.MDOC]) + '</select>' +
       '<input type="text" class="form-input" data-field="type" id="registrar-catalog-format-' + n + '-type" aria-label="Type" autocomplete="off">' +
       '<input type="text" class="form-input" data-field="claims" id="registrar-catalog-format-' + n + '-claims" aria-label="Claims, comma separated">' +
       '<button type="button" class="btn btn-sm" data-field="remove" id="registrar-catalog-format-' + n + '-remove" aria-label="Remove this format">Remove</button>';
@@ -4974,7 +5030,7 @@
     catalogFormats.appendChild(row);
   }
   document.getElementById('registrar-catalog-add-format').addEventListener('click', () => {
-    addCatalogFormat('mso_mdoc', '', '');
+    addCatalogFormat(FORMATS.MDOC, '', '');
     catalogFormats.lastElementChild.querySelector('[data-field="type"]').focus();
   });
   document.getElementById('registrar-catalog-add').addEventListener('click', openCatalogForm);
@@ -4993,7 +5049,7 @@
       const type = row.querySelector('[data-field="type"]').value.trim();
       if (!type) return;
       const claims = row.querySelector('[data-field="claims"]').value.split(',').map(c => c.trim()).filter(Boolean).map(claim => {
-        if (format !== 'mso_mdoc') return window.eudiParseClaimPath(claim);
+        if (format !== FORMATS.MDOC) return window.eudiParseClaimPath(claim);
         const at = claim.lastIndexOf(':');
         return at > 0 ? [claim.slice(0, at), claim.slice(at + 1)] : [type, claim];
       });

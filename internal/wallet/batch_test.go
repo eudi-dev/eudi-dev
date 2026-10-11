@@ -16,6 +16,8 @@ package wallet
 
 import (
 	"crypto/ecdsa"
+	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -449,5 +451,22 @@ func TestIssueCredentialFailureLeavesNoPartialBatch(t *testing.T) {
 	}
 	if got := len(w.StatusEntries); got != entriesBefore {
 		t.Errorf("wallet holds %d status entries after the failed request, want %d", got, entriesBefore)
+	}
+}
+
+// One request issues at most MaxBatchSize copies, so a caller can't make the
+// wallet sign without bound.
+func TestIssueAPICapsTheBatch(t *testing.T) {
+	srv := newTestServer(t, false)
+	before := len(srv.wallet.GetCredentials())
+	resp := serverRequest(t, srv, http.MethodPost, "/api/issue", fmt.Sprintf(`{"format": "sdjwt", "batch": %d}`, MaxBatchSize+1))
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("a batch of %d answers %d, want 400", MaxBatchSize+1, resp.Code)
+	}
+	if after := len(srv.wallet.GetCredentials()); after != before {
+		t.Errorf("the wallet holds %d credentials after the refused batch, want %d", after, before)
+	}
+	if resp := serverRequest(t, srv, http.MethodPost, "/api/issue", fmt.Sprintf(`{"format": "sdjwt", "batch": %d}`, MaxBatchSize)); resp.Code != http.StatusCreated {
+		t.Errorf("a batch of %d answers %d: %s", MaxBatchSize, resp.Code, resp.Body.String())
 	}
 }

@@ -175,8 +175,8 @@ func strictPreAuthIssuer(t *testing.T, w *Wallet, requireDPoP, requireClientAtte
 					t.Errorf("key attestation nonce = %v, want test-c-nonce", attPayload["nonce"])
 				}
 				attested, _ := attPayload["attested_keys"].([]any)
-				if len(attested) != maxBatchProofKeys {
-					t.Errorf("key attestation attests %d keys, want the batch of %d", len(attested), maxBatchProofKeys)
+				if len(attested) != MaxBatchSize {
+					t.Errorf("key attestation attests %d keys, want the batch of %d", len(attested), MaxBatchSize)
 				}
 				if first, _ := attested[0].(map[string]any); first["x"] != mock.SigningJWKMap(&w.HolderKey.PublicKey)["x"] {
 					t.Error("the key attestation does not name the holder key first")
@@ -261,8 +261,8 @@ func TestProcessCredentialOffer_PreAuthHonorsIssuerProtections(t *testing.T) {
 				return
 			}
 			creds := w.GetCredentials()
-			if len(creds) != maxBatchProofKeys {
-				t.Fatalf("stored %d copies, want the batch of %d", len(creds), maxBatchProofKeys)
+			if len(creds) != MaxBatchSize {
+				t.Fatalf("stored %d copies, want the batch of %d", len(creds), MaxBatchSize)
 			}
 			for i := range creds {
 				if creds[i].BatchGroup == "" || creds[i].BatchGroup != creds[0].BatchGroup {
@@ -293,8 +293,8 @@ func TestIssuanceProofKeys_KeyAttestationCoversBatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("issuanceProofKeys: %v", err)
 	}
-	if len(keys) != maxBatchProofKeys {
-		t.Fatalf("batch produced %d proof keys, want %d", len(keys), maxBatchProofKeys)
+	if len(keys) != MaxBatchSize {
+		t.Fatalf("batch produced %d proof keys, want %d", len(keys), MaxBatchSize)
 	}
 
 	attestation, err := createKeyAttestation(w, metadata, "attested", "nonce-1", keys)

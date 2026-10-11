@@ -69,7 +69,7 @@ RUNNER_LOG="$RUN_DIR/runner.log"
 WALLET_LOG="$RUN_DIR/wallet.log"
 
 mkdir -p "$RESULTS_DIR" "$WALLET_DIR"
-build_local_oid4vc_dev
+build_local_eudi_dev
 fetch_suite_source
 
 if [ "$CONFORMANCE_MODE" = "local" ]; then
@@ -119,7 +119,7 @@ python3 -m venv "$VENV_DIR"
 echo "Starting wallet with the demo issuer and verifier on $DEMO_BASE_URL"
 (
   cd "$ROOT_DIR"
-  exec "$LOCAL_OID4VC_DEV" wallet serve \
+  exec "$LOCAL_EUDI_DEV" wallet serve \
     --wallet-dir "$WALLET_DIR" \
     --port "$PORT" \
     --base-url "$DEMO_BASE_URL" \

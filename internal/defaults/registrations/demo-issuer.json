@@ -1,0 +1,82 @@
+{
+  "identifier": [
+    {
+      "identifier": "NLTEST.00000000",
+      "type": "http://data.europa.eu/eudi/id/EUID"
+    }
+  ],
+  "legalPerson": {
+    "legalName": [
+      "EUDI Dev Test Provider"
+    ]
+  },
+  "country": "NL",
+  "tradeName": "EUDI Dev Demo Issuer",
+  "services": [
+    {
+      "serviceTradeName": "EUDI Dev Demo Issuer",
+      "serviceIdentifier": "issuance",
+      "srvDescription": [
+        [
+          {
+            "lang": "en",
+            "content": "Demo issuer of the eudi-dev test wallet"
+          }
+        ]
+      ],
+      "intendedUses": [
+        {
+          "intendedUseIdentifier": "identity-check",
+          "purpose": [
+            {
+              "lang": "en",
+              "content": "Checks who you are before a credential is issued"
+            }
+          ],
+          "credentials": [
+            {
+              "format": "dc+sd-jwt",
+              "meta": {
+                "vct_values": [
+                  "urn:eudi:pid:1"
+                ]
+              },
+              "claims": [
+                {
+                  "path": [
+                    "given_name"
+                  ]
+                },
+                {
+                  "path": [
+                    "family_name"
+                  ]
+                }
+              ]
+            },
+            {
+              "format": "mso_mdoc",
+              "meta": {
+                "doctype_value": "eu.europa.ec.eudi.pid.1"
+              },
+              "claims": [
+                {
+                  "path": [
+                    "eu.europa.ec.eudi.pid.1",
+                    "given_name"
+                  ]
+                },
+                {
+                  "path": [
+                    "eu.europa.ec.eudi.pid.1",
+                    "family_name"
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

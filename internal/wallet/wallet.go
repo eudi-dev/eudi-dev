@@ -37,6 +37,7 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
@@ -701,7 +702,7 @@ func (w *Wallet) generateDefaultCredentials(claimOverrides map[string]any, vct s
 	var keptSD, keptMDoc bool
 	if dropExisting {
 		mdocNamespaces := splitClaimsByNamespace(credtemplate.MergeClaims(mdocTpl.Claims, claimOverrides), mdocNamespace)
-		keptSD = w.removeByType("dc+sd-jwt", vct) > 0
+		keptSD = w.removeByType(credtype.FormatSDJWT, vct) > 0
 		keptMDoc = w.removeMDocsByNamespace(mdocDocType, namespaceNames(mdocNamespaces)) > 0
 		if keptSD || keptMDoc {
 			log.Printf("[Wallet] Keeping protected PID credentials: sdjwt=%t mdoc=%t", keptSD, keptMDoc)
@@ -748,7 +749,7 @@ func (w *Wallet) removeMDocsByNamespace(docType string, namespaces []string) int
 	var keptProtected int
 	filtered := w.Credentials[:0]
 	for _, c := range w.Credentials {
-		if c.Format == "mso_mdoc" && c.DocType == docType && namespaceKey(credentialNamespaces(c)) == wanted {
+		if c.Format == credtype.FormatMDOC && c.DocType == docType && namespaceKey(credentialNamespaces(c)) == wanted {
 			if !c.Protected {
 				continue
 			}
@@ -889,25 +890,49 @@ func (w *Wallet) IsProtected(id string) bool {
 	return false
 }
 
-// BaselinePIDTemplates lists the SD-JWT templates of the baseline PIDs. The
-// German PID extends the EUDI PID, so together they show type inheritance.
-var BaselinePIDTemplates = []string{"pid-sdjwt", "german-pid-sdjwt"}
+// baselinePIDTypes lists the types of the pre-defined SD-JWT templates marked
+// baseline, the country-independent PID first. A user template that replaces
+// one of them gives the type.
+func (w *Wallet) baselinePIDTypes() []string {
+	var types []string
+	for _, predefined := range credtemplate.PredefinedTemplates() {
+		if format, _ := credtemplate.NormalizeFormat(predefined.Format); !predefined.Baseline || format != "sdjwt" {
+			continue
+		}
+		t, err := credtemplate.Load(predefined.Name, w.Templates)
+		if err != nil {
+			log.Printf("[Wallet] WARNING: the baseline leaves out the template %s: %v", predefined.Name, err)
+			continue
+		}
+		if !slices.Contains(types, t.VCT) {
+			types = append(types, t.VCT)
+		}
+	}
+	slices.SortStableFunc(types, func(a, b string) int {
+		switch {
+		case a == b:
+			return 0
+		case a == credtype.PIDVCT:
+			return -1
+		case b == credtype.PIDVCT:
+			return 1
+		}
+		return 0
+	})
+	return types
+}
 
 // GenerateProtectedDefaults marks the newly generated defaults as protected.
 func (w *Wallet) GenerateProtectedDefaults() error {
-	// A stored baseline can hold types that BaselinePIDTemplates leaves out.
+	// A stored baseline can hold types that are no longer baseline.
 	w.removeProtected()
 
 	existing := make(map[string]bool)
 	for _, c := range w.GetCredentials() {
 		existing[c.ID] = true
 	}
-	for _, name := range BaselinePIDTemplates {
-		tpl, err := credtemplate.Load(name, w.Templates)
-		if err != nil {
-			return fmt.Errorf("loading %s template: %w", name, err)
-		}
-		if err := w.generateDefaultCredentials(nil, tpl.VCT, false); err != nil {
+	for _, vct := range w.baselinePIDTypes() {
+		if err := w.generateDefaultCredentials(nil, vct, false); err != nil {
 			return err
 		}
 	}

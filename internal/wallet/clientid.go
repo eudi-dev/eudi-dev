@@ -333,7 +333,7 @@ func ValidateRequestObject(clientID string, reqObj *oid4vc.RequestObjectJWT) str
 	if typ == "" {
 		return "OID4VP 1.0 §5: the Request Object is missing the required typ header 'oauth-authz-req+jwt'"
 	}
-	if typ != "oauth-authz-req+jwt" {
+	if typ != format.TypeRequestObject {
 		return fmt.Sprintf("OID4VP 1.0 §5: the Request Object has typ %q, required is 'oauth-authz-req+jwt'", typ)
 	}
 

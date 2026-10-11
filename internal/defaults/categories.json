@@ -1,0 +1,66 @@
+[
+  {
+    "id": "pid",
+    "label": "PID",
+    "description": "PID",
+    "entitlement": "https://uri.etsi.org/19475/Entitlement/PID_Provider",
+    "trustRule": "ARF ISSU_07",
+    "attestationLoS": "iso_18045_high",
+    "trustedList": {
+      "etsiAnnex": "D",
+      "type": "http://uri.etsi.org/19602/LoTEType/EUPIDProvidersList",
+      "statusDeterminationApproach": "http://uri.etsi.org/19602/PIDProvidersList/StatusDetn/EU",
+      "schemeTypeCommunityRules": "http://uri.etsi.org/19602/PIDProviders/schemerules/EU",
+      "schemeTerritory": "EU",
+      "issuanceServiceType": "http://uri.etsi.org/19602/SvcType/PID/Issuance",
+      "revocationServiceType": "http://uri.etsi.org/19602/SvcType/PID/Revocation"
+    }
+  },
+  {
+    "id": "qeaa",
+    "label": "QEAA",
+    "description": "QEAA (qualified)",
+    "entitlement": "https://uri.etsi.org/19475/Entitlement/QEAA_Provider",
+    "trustRule": "ARF ISSU_08",
+    "attestationLoS": "iso_18045_high",
+    "trustedList": {
+      "type": "https://eudi-test.dev/LoTEType/QEAAProvidersList",
+      "statusDeterminationApproach": "https://eudi-test.dev/QEAAProvidersList/StatusDetn",
+      "schemeTypeCommunityRules": "https://eudi-test.dev/QEAAProvidersList/schemerules",
+      "issuanceServiceType": "https://eudi-test.dev/SvcType/QEAA/Issuance",
+      "revocationServiceType": "https://eudi-test.dev/SvcType/QEAA/Revocation"
+    }
+  },
+  {
+    "id": "pub-eaa",
+    "label": "PuB-EAA",
+    "description": "PuB-EAA (public body)",
+    "entitlement": "https://uri.etsi.org/19475/Entitlement/PUB_EAA_Provider",
+    "trustRule": "ARF ISSU_09",
+    "attestationLoS": "iso_18045_high",
+    "trustedList": {
+      "etsiAnnex": "H",
+      "type": "http://uri.etsi.org/19602/LoTEType/EUPubEAAProvidersList",
+      "statusDeterminationApproach": "http://uri.etsi.org/19602/PubEAAProvidersList/StatusDetn/EU",
+      "schemeTypeCommunityRules": "http://uri.etsi.org/19602/PubEAAProvidersList/schemerules/EU",
+      "schemeTerritory": "EU",
+      "issuanceServiceType": "http://uri.etsi.org/19602/SvcType/PubEAA/Issuance",
+      "revocationServiceType": "http://uri.etsi.org/19602/SvcType/PubEAA/Revocation"
+    }
+  },
+  {
+    "id": "eaa",
+    "label": "EAA",
+    "description": "EAA",
+    "entitlement": "https://uri.etsi.org/19475/Entitlement/Non_Q_EAA_Provider",
+    "trustRule": "ARF ISSU_10",
+    "attestationLoS": "iso_18045_basic",
+    "trustedList": {
+      "type": "https://eudi-test.dev/LoTEType/EAAProvidersList",
+      "statusDeterminationApproach": "https://eudi-test.dev/EAAProvidersList/StatusDetn",
+      "schemeTypeCommunityRules": "https://eudi-test.dev/EAAProvidersList/schemerules",
+      "issuanceServiceType": "https://eudi-test.dev/SvcType/EAA/Issuance",
+      "revocationServiceType": "https://eudi-test.dev/SvcType/EAA/Revocation"
+    }
+  }
+]

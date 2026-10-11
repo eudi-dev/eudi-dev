@@ -21,55 +21,88 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"path"
 	"slices"
 	"strings"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/defaults"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 )
 
 // The demo issuer and the demo verifier are registered with the wallet's
-// registrar like any relying party. Each is identified by the
-// organizationIdentifier of its access certificate (ETSI TS 119 475 V1.2.1
-// §5.1.1).
-const (
-	DemoIssuerName             = "EUDI Dev Demo Issuer"
-	demoVerifierName           = "EUDI Dev Demo Verifier"
-	demoIssuerServiceID        = "issuance"
-	demoVerifierServiceID      = "verification"
-	demoVerifierIntendedUseID  = "demo-requests"
-	identityCheckIntendedUseID = "identity-check"
+// registrar like any relying party. Their registrations are TS05 files in the
+// defaults tree with one service each. The wallet adds what depends on its
+// templates. Each party is identified by the organizationIdentifier of its
+// access certificate (ETSI TS 119 475 V1.2.1 §5.1.1).
+var (
+	demoIssuer   = demoRegistrationFile("demo-issuer.json")
+	demoVerifier = demoRegistrationFile("demo-verifier.json")
+
+	// DemoIssuerName and DemoVerifierName are the trade names of the demo
+	// parties.
+	DemoIssuerName   = demoIssuer().TradeName
+	DemoVerifierName = demoVerifier().TradeName
 )
+
+// demoRegistrationFile reads a registration of the defaults tree. Each call
+// of the result returns a fresh copy.
+func demoRegistrationFile(name string) func() registrar.WalletRelyingParty {
+	data, err := defaults.ReadFile(path.Join("registrations", name))
+	if err != nil {
+		panic(fmt.Sprintf("reading the demo registration %s: %v", name, err))
+	}
+	return func() registrar.WalletRelyingParty {
+		var rp registrar.WalletRelyingParty
+		if err := json.Unmarshal(data, &rp); err != nil || len(rp.Identifier) == 0 || len(rp.Services) != 1 || len(rp.Services[0].IntendedUses) != 1 {
+			panic(fmt.Sprintf("the demo registration %s needs an identifier and one service with one intended use: %v", name, err))
+		}
+		return rp
+	}
+}
+
+func demoIdentifier(registration func() registrar.WalletRelyingParty) string {
+	return registration().Identifier[0].Identifier
+}
+
+// IdentityCheckClaims are the PID claims that the demo issuer's identity
+// check asks for, as registered for its intended use.
+func IdentityCheckClaims() []string {
+	var claims []string
+	for _, c := range demoIssuer().Services[0].IntendedUses[0].Credentials {
+		if c.Format != credtype.FormatSDJWT {
+			continue
+		}
+		for _, claim := range c.Claims {
+			if name, ok := claim.Path[0].(string); ok && len(claim.Path) == 1 {
+				claims = append(claims, name)
+			}
+		}
+	}
+	return claims
+}
 
 // DemoVerifierAccessSigningMaterial is the access certificate of the demo
 // verifier. The demo verifier is a relying party of its own, so its
 // certificate identifies a different organization from the demo issuer.
 func (w *Wallet) DemoVerifierAccessSigningMaterial() (*ecdsa.PrivateKey, []*x509.Certificate, error) {
-	return w.demoAccessSigningMaterial("demo-verifier-access", demoVerifierIdentity, demoVerifierName, demoVerifierServiceID)
+	return w.demoAccessSigningMaterial("demo-verifier-access", demoVerifier())
 }
-
-// demoIdentity is the registered identity of a demo relying party.
-type demoIdentity struct {
-	Identifier, LegalName, Country string
-}
-
-var (
-	demoIssuerIdentity   = demoIdentity{Identifier: listedProviderEUID, LegalName: listedProviderName, Country: mock.DefaultCertificateCountry}
-	demoVerifierIdentity = demoIdentity{Identifier: mock.DefaultCertificateCountry + "TEST.00000001", LegalName: "EUDI Dev Test Verifier", Country: mock.DefaultCertificateCountry}
-)
 
 // demoAccessSigningMaterial has the registrar sign the access certificate of
 // a demo relying party, with a key from the signing store. The wallet keeps
 // the certificate until it is about to expire. The DNS name of the issuer URL
 // makes x509_san_dns client identifiers work (OpenID4VP 1.0 §5.9.3).
-func (w *Wallet) demoAccessSigningMaterial(keyName string, identity demoIdentity, tradeName, serviceID string) (*ecdsa.PrivateKey, []*x509.Certificate, error) {
+func (w *Wallet) demoAccessSigningMaterial(keyName string, registration registrar.WalletRelyingParty) (*ecdsa.PrivateKey, []*x509.Certificate, error) {
 	key, err := w.signingStore().key(keyName)
 	if err != nil {
 		return nil, nil, err
 	}
-	rp, err := w.Registrar().NormalizedRelyingParty(w.demoRelyingParty(identity, registrar.WalletRelyingPartyService{ServiceTradeName: tradeName, ServiceIdentifier: serviceID}))
+	service := registration.Services[0]
+	tradeName, serviceID := service.ServiceTradeName, service.ServiceIdentifier
+	registration.Services = []registrar.WalletRelyingPartyService{{ServiceTradeName: tradeName, ServiceIdentifier: serviceID}}
+	rp, err := w.Registrar().NormalizedRelyingParty(registration)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -125,7 +158,7 @@ func (w *Wallet) registerDemoParties(overwrite bool) (bool, error) {
 // DemoIssuerInfo is the issuer_info of the demo issuer (ETSI TS 119 472-3
 // V1.1.1 §4.2.3): its registrar dataset and its registration certificate.
 func (w *Wallet) DemoIssuerInfo() ([]any, error) {
-	result, err := w.demoCertificate(w.demoIssuerRegistration, registrar.RegistrationCertificateRequest{ServiceIdentifier: demoIssuerServiceID})
+	result, err := w.demoCertificate(w.demoIssuerRegistration, registrar.RegistrationCertificateRequest{ServiceIdentifier: demoIssuer().Services[0].ServiceIdentifier})
 	if err != nil || result == nil {
 		return nil, err
 	}
@@ -135,7 +168,7 @@ func (w *Wallet) DemoIssuerInfo() ([]any, error) {
 // DemoVerifierInfo is the verifier_info of the demo verifier (OpenID4VP 1.0
 // §5.1): the registration certificate of its intended use.
 func (w *Wallet) DemoVerifierInfo() ([]any, error) {
-	result, err := w.demoCertificate(w.demoVerifierRegistration, registrar.RegistrationCertificateRequest{IntendedUseIdentifier: demoVerifierIntendedUseID})
+	result, err := w.demoCertificate(w.demoVerifierRegistration, registrar.RegistrationCertificateRequest{IntendedUseIdentifier: demoVerifier().Services[0].IntendedUses[0].IntendedUseIdentifier})
 	if err != nil || result == nil {
 		return nil, err
 	}
@@ -146,7 +179,7 @@ func (w *Wallet) DemoVerifierInfo() ([]any, error) {
 // identity check. The demo issuer asks for a PID before it issues, and this
 // is the registration certificate of that intended use.
 func (w *Wallet) DemoIdentityCheckVerifierInfo() ([]any, error) {
-	result, err := w.demoCertificate(w.demoIssuerRegistration, registrar.RegistrationCertificateRequest{IntendedUseIdentifier: identityCheckIntendedUseID})
+	result, err := w.demoCertificate(w.demoIssuerRegistration, registrar.RegistrationCertificateRequest{IntendedUseIdentifier: demoIssuer().Services[0].IntendedUses[0].IntendedUseIdentifier})
 	if err != nil || result == nil {
 		return nil, err
 	}
@@ -238,9 +271,9 @@ func (w *Wallet) demoIssuerRegistration() (registrar.WalletRelyingParty, error) 
 			category = credtemplate.CategoryEAA
 		}
 		switch format {
-		case "dc+sd-jwt":
+		case credtype.FormatSDJWT:
 			vcts = append(vcts, vct)
-		case "mso_mdoc":
+		case credtype.FormatMDOC:
 			docTypes = append(docTypes, docType)
 		default:
 			return
@@ -254,9 +287,9 @@ func (w *Wallet) demoIssuerRegistration() (registrar.WalletRelyingParty, error) 
 	for _, t := range templates {
 		switch format, _ := credtemplate.NormalizeFormat(t.Format); {
 		case format == "sdjwt" && t.VCT != "":
-			add(t.Category, "dc+sd-jwt", t.VCT, "")
+			add(t.Category, credtype.FormatSDJWT, t.VCT, "")
 		case format == "mdoc" && t.DocType != "":
-			add(t.Category, "mso_mdoc", "", t.DocType)
+			add(t.Category, credtype.FormatMDOC, "", t.DocType)
 		}
 	}
 	for _, spec := range w.issuedAttestationSpecs() {
@@ -264,26 +297,14 @@ func (w *Wallet) demoIssuerRegistration() (registrar.WalletRelyingParty, error) 
 	}
 	var provides []registrar.ProvidedAttestation
 	for _, vct := range sortedUnique(vcts) {
-		provides = append(provides, registrar.ProvidedAttestation{Format: "dc+sd-jwt", Type: vct})
+		provides = append(provides, registrar.ProvidedAttestation{Format: credtype.FormatSDJWT, Type: vct})
 	}
 	for _, docType := range sortedUnique(docTypes) {
-		provides = append(provides, registrar.ProvidedAttestation{Format: "mso_mdoc", Type: docType})
+		provides = append(provides, registrar.ProvidedAttestation{Format: credtype.FormatMDOC, Type: docType})
 	}
-	rp := w.demoRelyingParty(demoIssuerIdentity, registrar.WalletRelyingPartyService{
-		ServiceTradeName:     DemoIssuerName,
-		ServiceIdentifier:    demoIssuerServiceID,
-		SrvDescription:       registrar.ServiceDescription{{{Lang: "en", Content: "Demo issuer of the eudi-dev test wallet"}}},
-		Entitlements:         sortedUnique(entitlements),
-		ProvidesAttestations: provides,
-		IntendedUses: []registrar.IntendedUse{{
-			IntendedUseIdentifier: identityCheckIntendedUseID,
-			Purpose:               []registrar.MultiLangString{{Lang: "en", Content: "Checks who you are before a credential is issued"}},
-			Credentials: []registrar.RegisteredCredential{
-				{Format: "dc+sd-jwt", Meta: map[string]any{"vct_values": []string{credtype.PIDVCT}}, Claims: []registrar.RegisteredClaim{{Path: []any{"given_name"}}, {Path: []any{"family_name"}}}},
-				{Format: "mso_mdoc", Meta: map[string]any{"doctype_value": credtype.PIDDocType}, Claims: []registrar.RegisteredClaim{{Path: []any{credtype.PIDDocType, "given_name"}}, {Path: []any{credtype.PIDDocType, "family_name"}}}},
-			},
-		}},
-	})
+	rp := demoIssuer()
+	rp.Services[0].Entitlements = sortedUnique(entitlements)
+	rp.Services[0].ProvidesAttestations = provides
 	return rp, nil
 }
 
@@ -298,7 +319,7 @@ func (w *Wallet) demoVerifierRegistration() (registrar.WalletRelyingParty, error
 		}
 		for _, c := range entry.Credentials {
 			meta := map[string]any{"vct_values": []string{c.Type}}
-			if c.Format == "mso_mdoc" {
+			if c.Format == credtype.FormatMDOC {
 				meta = map[string]any{"doctype_value": c.Type}
 			}
 			rc := registrar.RegisteredCredential{Format: c.Format, Meta: meta}
@@ -308,27 +329,9 @@ func (w *Wallet) demoVerifierRegistration() (registrar.WalletRelyingParty, error
 			credentials = append(credentials, rc)
 		}
 	}
-	rp := w.demoRelyingParty(demoVerifierIdentity, registrar.WalletRelyingPartyService{
-		ServiceTradeName:  demoVerifierName,
-		ServiceIdentifier: demoVerifierServiceID,
-		SrvDescription:    registrar.ServiceDescription{{{Lang: "en", Content: "Demo verifier of the eudi-dev test wallet"}}},
-		IntendedUses: []registrar.IntendedUse{{
-			IntendedUseIdentifier: demoVerifierIntendedUseID,
-			Purpose:               []registrar.MultiLangString{{Lang: "en", Content: "Shows how a verifier requests and checks credentials"}},
-			Credentials:           credentials,
-		}},
-	})
+	rp := demoVerifier()
+	rp.Services[0].IntendedUses[0].Credentials = credentials
 	return rp, nil
-}
-
-func (w *Wallet) demoRelyingParty(identity demoIdentity, service registrar.WalletRelyingPartyService) registrar.WalletRelyingParty {
-	return registrar.WalletRelyingParty{
-		Identifier:  []registrar.Identifier{{Identifier: identity.Identifier, Type: registrar.EUIDIdentifierType}},
-		LegalPerson: registrar.LegalPerson{LegalName: []string{identity.LegalName}},
-		Country:     identity.Country,
-		TradeName:   service.ServiceTradeName,
-		Services:    []registrar.WalletRelyingPartyService{service},
-	}
 }
 
 func sortedUnique(values []string) []string {

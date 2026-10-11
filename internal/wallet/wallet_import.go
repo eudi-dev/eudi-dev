@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
@@ -234,7 +235,7 @@ func (w *Wallet) parseSDJWTEntry(raw, group, bindingKeyPEM string) (StoredCreden
 
 	cred := StoredCredential{
 		ID:            newCredentialID(),
-		Format:        "dc+sd-jwt",
+		Format:        credtype.FormatSDJWT,
 		Raw:           raw,
 		Claims:        token.ResolvedClaims,
 		Disclosures:   token.Disclosures,
@@ -258,7 +259,7 @@ func (w *Wallet) parsePlainJWTEntry(raw, group, bindingKeyPEM string) (StoredCre
 
 	cred := StoredCredential{
 		ID:            newCredentialID(),
-		Format:        "jwt_vc_json",
+		Format:        credtype.FormatJWTVC,
 		Raw:           raw,
 		Claims:        payload,
 		BatchGroup:    group,
@@ -319,7 +320,7 @@ func (w *Wallet) parseMDocEntry(raw, group, bindingKeyPEM string) (StoredCredent
 
 	cred := StoredCredential{
 		ID:            newCredentialID(),
-		Format:        "mso_mdoc",
+		Format:        credtype.FormatMDOC,
 		Raw:           raw,
 		Claims:        claims,
 		DocType:       doc.DocType,
@@ -352,7 +353,7 @@ func (c *StoredCredential) Rehydrate() error {
 	}
 
 	switch c.Format {
-	case "dc+sd-jwt":
+	case credtype.FormatSDJWT:
 		token, err := sdjwt.ParseLenient(c.Raw)
 		if err != nil {
 			return fmt.Errorf("parsing SD-JWT: %w", err)
@@ -363,7 +364,7 @@ func (c *StoredCredential) Rehydrate() error {
 		}
 		c.issuedAt = jwtIssuedAt(token.Payload)
 
-	case "jwt_vc_json":
+	case credtype.FormatJWTVC:
 		_, payload, _, err := format.ParseJWTParts(c.Raw)
 		if err != nil {
 			return fmt.Errorf("parsing JWT: %w", err)
@@ -373,7 +374,7 @@ func (c *StoredCredential) Rehydrate() error {
 		}
 		c.issuedAt = jwtIssuedAt(payload)
 
-	case "mso_mdoc":
+	case credtype.FormatMDOC:
 		doc, err := mdoc.Parse(c.Raw)
 		if err != nil {
 			return fmt.Errorf("parsing mdoc: %w", err)

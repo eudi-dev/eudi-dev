@@ -87,7 +87,7 @@ func mdocWithChain(t *testing.T, chain ...*x509.Certificate) StoredCredential {
 	raw, err := mock.GenerateMDOC(mock.MDOCConfig{
 		DocType:   "eu.europa.ec.eudi.pid.1",
 		Namespace: "eu.europa.ec.eudi.pid.1",
-		Claims:    mock.MDOCPIDClaims,
+		Claims:    templateClaims("pid-mdoc"),
 		Key:       key,
 		CertChain: chain,
 	})

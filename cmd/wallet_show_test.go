@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
 )
@@ -44,7 +45,7 @@ func setupWalletWithCredential(t *testing.T) (string, string) {
 	}
 	raw, err := mock.GenerateSDJWT(mock.SDJWTConfig{
 		Key:    key,
-		Claims: mock.DefaultClaims,
+		Claims: credtemplate.DefaultClaims,
 	})
 	if err != nil {
 		t.Fatalf("generate sdjwt: %v", err)

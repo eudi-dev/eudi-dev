@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 )
 
@@ -244,5 +245,27 @@ func TestGenerateLeafCert_CountryFollowsOption(t *testing.T) {
 	_, leaf := mustCertPair(t, LeafCertOptions{Country: "DE"})
 	if got := leaf.Subject.Country; len(got) != 1 || got[0] != "DE" {
 		t.Errorf("subject country = %v, want [DE]", got)
+	}
+}
+
+// The test certificates carry the product name.
+func TestTestCertificatesCarryTheProductName(t *testing.T) {
+	key, err := GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ca, err := GenerateCACert(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ca.Subject.CommonName != config.WalletName+" CA" || ca.Subject.Organization[0] != config.TestCAOrganization {
+		t.Errorf("CA subject %v, want %s CA of %s", ca.Subject, config.WalletName, config.TestCAOrganization)
+	}
+	leaf, err := GenerateLeafCertWithOptions(key, ca, &key.PublicKey, LeafCertOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if leaf.Subject.CommonName != config.WalletIssuerName || leaf.Subject.Organization[0] != config.TestProviderName {
+		t.Errorf("leaf subject %v, want %s of %s", leaf.Subject, config.WalletIssuerName, config.TestProviderName)
 	}
 }

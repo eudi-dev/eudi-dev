@@ -30,7 +30,7 @@ import (
 // implements only direct key agreement, so another alg is refused instead of
 // being named in a header the encryption does not follow.
 func EncryptJWEWithContentType(payload []byte, recipientKey *ecdsa.PublicKey, kid string, alg string, enc string, cty string, apu, apv []byte) (string, []byte, error) {
-	if alg != "ECDH-ES" {
+	if alg != jwe.AlgECDHES {
 		return "", nil, fmt.Errorf("unsupported key management alg %q: the wallet encrypts with ECDH-ES", alg)
 	}
 	return jwe.EncryptECDHES(payload, recipientKey, kid, enc, cty, apu, apv)

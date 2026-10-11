@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
@@ -41,17 +42,11 @@ func CheckSDJWTIntegrity(token *sdjwt.Token) Check {
 	return Check{Name: CheckIntegrity, Status: Pass, Detail: fmt.Sprintf("%d/%d disclosure digests verified", n, n)}
 }
 
-// registeredClaims are the claims of draft-ietf-oauth-sd-jwt-vc-19 §2.2.2.3:
-// "The following registered JWT claims, including any of their sub-claims,
-// when used in the SD-JWT component of an SD-JWT VC, MUST NOT be included in
-// Disclosures and therefore MUST NOT be selectively disclosed".
-var registeredClaims = []string{"iss", "nbf", "exp", "cnf", "vct", "vct#integrity", "aka_vcts", "status"}
-
 // disclosedRegisteredClaims names the registered claims that a disclosure
 // provides, or whose signed value holds digests of sub-claims.
 func disclosedRegisteredClaims(token *sdjwt.Token) []string {
 	var findings []string
-	for _, name := range registeredClaims {
+	for _, name := range credtype.NeverDisclosedClaims {
 		signed, isSigned := token.Payload[name]
 		_, resolved := token.ResolvedClaims[name]
 		switch {

@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
 )
@@ -233,7 +234,7 @@ func (d *DemoRP) continueInteractiveAuthorization(w http.ResponseWriter, r *http
 	granted := &authRequestState{
 		authGrant:    session.authGrant,
 		codeIssued:   true,
-		holderClaims: requestedClaims(claims, identityClaims),
+		holderClaims: requestedClaims(claims, wallet.IdentityCheckClaims()),
 		expires:      time.Now().Add(entryTTL),
 	}
 	d.mu.Lock()
@@ -363,10 +364,6 @@ func (d *DemoRP) redirectChallengeToWeb(w http.ResponseWriter, grant authGrant) 
 	})
 }
 
-// identityClaims are the PID claims of the identity check. They become the
-// holder claims of the issued credential.
-var identityClaims = []string{"given_name", "family_name"}
-
 // newInteractivePIDRequest asks for a PID in either format, bound to the
 // Authorization Challenge Endpoint. verifyPresentation accepts only
 // credentials under the issuer CA, so trusted_authorities names that CA and
@@ -379,8 +376,8 @@ func (d *DemoRP) newInteractivePIDRequest() *requestState {
 	return &requestState{
 		id: randToken(),
 		queries: []credentialQuery{
-			{id: "pid", format: "dc+sd-jwt", vct: PIDVCT, paths: namePaths("", identityClaims), trustedAuthorities: authorities},
-			{id: "pid_mdoc", format: "mso_mdoc", docType: PIDDocType, paths: namePaths(PIDDocType, identityClaims), trustedAuthorities: authorities},
+			{id: "pid", format: credtype.FormatSDJWT, vct: PIDVCT, paths: namePaths("", wallet.IdentityCheckClaims()), trustedAuthorities: authorities},
+			{id: "pid_mdoc", format: credtype.FormatMDOC, docType: PIDDocType, paths: namePaths(PIDDocType, wallet.IdentityCheckClaims()), trustedAuthorities: authorities},
 		},
 		// Either format satisfies the request.
 		sets:                []credentialSet{{options: [][]string{{"pid"}, {"pid_mdoc"}}}},

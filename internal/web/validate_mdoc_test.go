@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/validate"
@@ -49,7 +50,7 @@ func pidConfig(t *testing.T) mock.MDOCConfig {
 	return mock.MDOCConfig{
 		DocType:   "eu.europa.ec.eudi.pid.1",
 		Namespace: "eu.europa.ec.eudi.pid.1",
-		Claims:    mock.MDOCPIDClaims,
+		Claims:    templateClaims("pid-mdoc"),
 		Key:       key,
 	}
 }
@@ -210,4 +211,13 @@ func TestSuppliedTrustErrors(t *testing.T) {
 			t.Errorf("trust = %+v, want nothing supplied", trust)
 		}
 	})
+}
+
+// templateClaims returns the claims of a predefined template.
+func templateClaims(name string) map[string]any {
+	t, ok := credtemplate.Predefined(name)
+	if !ok {
+		panic("no predefined template " + name)
+	}
+	return t.Claims
 }

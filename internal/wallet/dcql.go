@@ -86,7 +86,7 @@ func (w *Wallet) EvaluateDCQLWithOptions(query map[string]any) ([]CredentialMatc
 	// too, flagged and after the bound ones.
 	bound := make(map[string]bool, len(credentials))
 	for _, cred := range credentials {
-		bound[cred.ID] = (cred.Format == "dc+sd-jwt" || cred.Format == "mso_mdoc") && credentialHolderBinding(cred.Raw).Bound
+		bound[cred.ID] = (cred.Format == credtype.FormatSDJWT || cred.Format == credtype.FormatMDOC) && credentialHolderBinding(cred.Raw).Bound
 	}
 
 	for _, cq := range credQueries {
@@ -132,7 +132,7 @@ func (w *Wallet) EvaluateDCQLWithOptions(query map[string]any) ([]CredentialMatc
 			case requiresHolderBinding(cqMap):
 				skipped["no holder binding"]++
 				mismatches = append(mismatches, "has no holder binding, which the query requires")
-			case strict && cred.Format == "mso_mdoc":
+			case strict && cred.Format == credtype.FormatMDOC:
 				skipped["no deviceKey"]++
 				mismatches = append(mismatches, "is an mdoc without deviceKey, which strict mode does not present")
 			}
@@ -694,7 +694,7 @@ func matchesMeta(cred StoredCredential, cqMap map[string]any) bool {
 		}
 	}
 
-	if typeValues, ok := meta["type_values"].([]any); ok && cred.Format == "jwt_vc_json" {
+	if typeValues, ok := meta["type_values"].([]any); ok && cred.Format == credtype.FormatJWTVC {
 		return matchesTypeValues(w3cCredentialTypes(cred.Claims), typeValues)
 	}
 
@@ -777,7 +777,7 @@ func metaMismatch(cred StoredCredential, cqMap map[string]any) string {
 		}
 		return fmt.Sprintf("type %s, the query asks for %s", have, strings.Join(want, " or "))
 	}
-	if values, ok := meta["type_values"].([]any); ok && cred.Format == "jwt_vc_json" {
+	if values, ok := meta["type_values"].([]any); ok && cred.Format == credtype.FormatJWTVC {
 		return fmt.Sprintf("type %v, the query asks for one of the type sets %v", w3cCredentialTypes(cred.Claims), values)
 	}
 	docType, ok := meta["doctype_value"].(string)
@@ -946,7 +946,7 @@ func claimSelectorFromPath(cred StoredCredential, path []any) string {
 		return ""
 	}
 
-	if cred.Format == "mso_mdoc" {
+	if cred.Format == credtype.FormatMDOC {
 		return claimKeyFromPath(cred, path)
 	}
 
@@ -959,7 +959,7 @@ func claimSelectorFromPath(cred StoredCredential, path []any) string {
 }
 
 func missingClaimLabel(cred StoredCredential, path []any) string {
-	if cred.Format == "mso_mdoc" && len(path) == 2 {
+	if cred.Format == credtype.FormatMDOC && len(path) == 2 {
 		ns, nsOK := path[0].(string)
 		el, elOK := path[1].(string)
 		if nsOK && elOK {
@@ -1022,7 +1022,7 @@ func claimKeyFromPath(cred StoredCredential, path []any) string {
 		return ""
 	}
 
-	if cred.Format == "mso_mdoc" {
+	if cred.Format == credtype.FormatMDOC {
 		return mdocClaimKeyFromPath(cred, path)
 	}
 
@@ -1070,7 +1070,7 @@ func claimValuesAtPath(cred StoredCredential, path []any) []any {
 		return nil
 	}
 
-	if cred.Format == "mso_mdoc" {
+	if cred.Format == credtype.FormatMDOC {
 		key := mdocClaimKeyFromPath(cred, path)
 		if key == "" {
 			return nil
@@ -1182,7 +1182,7 @@ func filterClaims(cred StoredCredential, selectedKeys []string) map[string]any {
 }
 
 func claimValueBySelector(cred StoredCredential, selector string) (any, bool) {
-	if cred.Format == "mso_mdoc" {
+	if cred.Format == credtype.FormatMDOC {
 		v, ok := cred.Claims[selector]
 		return v, ok
 	}
@@ -1445,13 +1445,13 @@ func checkAuthorityKeyIdentifiers(cred StoredCredential, values []string) bool {
 
 func extractCredentialCertificates(cred StoredCredential) ([]*x509.Certificate, error) {
 	switch cred.Format {
-	case "dc+sd-jwt":
+	case credtype.FormatSDJWT:
 		token, err := sdjwt.ParseLenient(cred.Raw)
 		if err != nil {
 			return nil, err
 		}
 		return validate.X5CCertificates(token.Header)
-	case "mso_mdoc":
+	case credtype.FormatMDOC:
 		doc, err := mdoc.Parse(cred.Raw)
 		if err != nil {
 			return nil, err
@@ -1527,7 +1527,7 @@ func credentialChainKey(cred StoredCredential, anchors []*x509.Certificate) (cry
 	var key crypto.PublicKey
 	var err error
 	switch cred.Format {
-	case "dc+sd-jwt":
+	case credtype.FormatSDJWT:
 		token, parseErr := sdjwt.ParseLenient(cred.Raw)
 		if parseErr != nil {
 			return nil, fmt.Errorf("failed to parse SD-JWT: %w", parseErr)
@@ -1535,7 +1535,7 @@ func credentialChainKey(cred StoredCredential, anchors []*x509.Certificate) (cry
 		if key, err = validate.ExtractAndValidateX5C(token.Header, trustlist.CertInfos(anchors)); err != nil {
 			return nil, fmt.Errorf("x5c chain validation failed: %w", err)
 		}
-	case "mso_mdoc":
+	case credtype.FormatMDOC:
 		doc, parseErr := mdoc.Parse(cred.Raw)
 		if parseErr != nil {
 			return nil, fmt.Errorf("failed to parse mdoc: %w", parseErr)

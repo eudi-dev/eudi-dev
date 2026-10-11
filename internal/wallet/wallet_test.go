@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
@@ -925,8 +926,8 @@ func TestGenerateDefaultCredentials_KeepsProtected(t *testing.T) {
 	}
 
 	before := w.GetCredentials()
-	if len(before) != 2*len(BaselinePIDTemplates) {
-		t.Fatalf("expected %d baseline credentials, got %d", 2*len(BaselinePIDTemplates), len(before))
+	if len(before) != 2*len(predefinedBaselineTypes(t)) {
+		t.Fatalf("expected %d baseline credentials, got %d", 2*len(predefinedBaselineTypes(t)), len(before))
 	}
 	ids := make(map[string]bool)
 	for _, c := range before {
@@ -941,7 +942,7 @@ func TestGenerateDefaultCredentials_KeepsProtected(t *testing.T) {
 	}
 
 	after := w.GetCredentials()
-	if want := 2 * len(BaselinePIDTemplates); len(after) != want {
+	if want := 2 * len(predefinedBaselineTypes(t)); len(after) != want {
 		t.Errorf("expected the %d protected PIDs and no duplicates, got %d", want, len(after))
 	}
 	for _, c := range after {
@@ -1117,8 +1118,8 @@ func TestGenerateProtectedDefaults_RefreshesOwnBaseline(t *testing.T) {
 		t.Fatalf("first GenerateProtectedDefaults: %v", err)
 	}
 	first := w.GetCredentials()
-	if len(first) != 2*len(BaselinePIDTemplates) {
-		t.Fatalf("expected %d baseline credentials, got %d", 2*len(BaselinePIDTemplates), len(first))
+	if len(first) != 2*len(predefinedBaselineTypes(t)) {
+		t.Fatalf("expected %d baseline credentials, got %d", 2*len(predefinedBaselineTypes(t)), len(first))
 	}
 	oldIDs := map[string]bool{}
 	for _, c := range first {
@@ -1130,7 +1131,7 @@ func TestGenerateProtectedDefaults_RefreshesOwnBaseline(t *testing.T) {
 	}
 
 	second := w.GetCredentials()
-	if want := 2 * len(BaselinePIDTemplates); len(second) != want {
+	if want := 2 * len(predefinedBaselineTypes(t)); len(second) != want {
 		t.Fatalf("expected the baseline to stay at %d credentials, got %d", want, len(second))
 	}
 	for _, c := range second {
@@ -1186,7 +1187,7 @@ func TestGenerateProtectedDefaults_KeepsVisitorCredentialOfBaselineType(t *testi
 	if !foundVisitor {
 		t.Error("the visitor's PID was dropped by the baseline refresh")
 	}
-	if want := 2 * len(BaselinePIDTemplates); protectedCount != want {
+	if want := 2 * len(predefinedBaselineTypes(t)); protectedCount != want {
 		t.Errorf("expected %d protected baseline credentials, got %d", want, protectedCount)
 	}
 }
@@ -1225,4 +1226,10 @@ func TestUserClaimCountExcludesProtocolClaims(t *testing.T) {
 	if got := userClaimCount(nil); got != 0 {
 		t.Fatalf("userClaimCount(nil) = %d, want 0", got)
 	}
+}
+
+// predefinedBaselineTypes lists the baseline PIDs of the predefined templates.
+func predefinedBaselineTypes(t *testing.T) []string {
+	t.Helper()
+	return (&Wallet{Templates: credtemplate.FileLocation(t.TempDir())}).baselinePIDTypes()
 }

@@ -27,6 +27,7 @@ import (
 
 	"github.com/fatih/color"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
@@ -77,7 +78,7 @@ func printTokenNotes(token *sdjwt.Token) {
 
 func BuildSDJWTJSON(token *sdjwt.Token) map[string]any {
 	out := map[string]any{
-		"format":         "dc+sd-jwt",
+		"format":         credtype.FormatSDJWT,
 		"header":         token.Header,
 		"payload":        token.Payload,
 		"disclosures":    formatDisclosuresJSON(token, token.Disclosures),
@@ -173,7 +174,7 @@ func PrintJWT(token *sdjwt.Token, opts Options) {
 
 func BuildMDOCJSON(doc *mdoc.Document) map[string]any {
 	out := map[string]any{
-		"format":  "mso_mdoc",
+		"format":  credtype.FormatMDOC,
 		"docType": doc.DocType,
 		"claims":  formatMDOCClaimsJSON(doc),
 	}

@@ -12,7 +12,7 @@ module.exports = defineConfig({
     headless: true,
   },
   webServer: {
-    command: "go build -o /tmp/oid4vc-dev-e2e .. && /tmp/oid4vc-dev-e2e decoder --port 18923",
+    command: "go build -o /tmp/eudi-dev-e2e .. && /tmp/eudi-dev-e2e decoder --port 18923",
     url: "http://localhost:18923",
     reuseExistingServer: true,
     // Allow time for a cold Go build before the server becomes healthy.

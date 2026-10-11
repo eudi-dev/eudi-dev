@@ -1,0 +1,48 @@
+{
+  "name": "german-pid-mdoc",
+  "description": "German PID (mdoc, EUDI PID doctype plus the German namespace)",
+  "format": "mdoc",
+  "doctype": "eu.europa.ec.eudi.pid.1",
+  "namespace": "eu.europa.ec.eudi.pid.1",
+  "category": "pid",
+  "baseline": true,
+  "rulebook": "https://bmi.usercontent.opencode.de/eudi-wallet/eidas-2.0-architekturkonzept/content/features/PID/german-pid-rulebook/",
+  "claims": {
+    "birth_date": "1964-08-12",
+    "eu.europa.ec.eudi.pid.de.1:academic_title": "",
+    "eu.europa.ec.eudi.pid.de.1:age_over_12": true,
+    "eu.europa.ec.eudi.pid.de.1:age_over_14": true,
+    "eu.europa.ec.eudi.pid.de.1:age_over_16": true,
+    "eu.europa.ec.eudi.pid.de.1:age_over_18": true,
+    "eu.europa.ec.eudi.pid.de.1:age_over_21": true,
+    "eu.europa.ec.eudi.pid.de.1:age_over_65": false,
+    "eu.europa.ec.eudi.pid.de.1:birth_name": "GABLER",
+    "eu.europa.ec.eudi.pid.de.1:raw_eid_birth_date": "1964-08-12",
+    "eu.europa.ec.eudi.pid.de.1:source_document_type": "ID",
+    "expiry_date": "",
+    "family_name": "MUSTERMANN",
+    "given_name": "ERIKA",
+    "issuing_authority": "DE",
+    "issuing_country": "DE",
+    "nationality": [
+      "DE"
+    ],
+    "place_of_birth": {
+      "locality": "BERLIN"
+    },
+    "resident_city": "KÖLN",
+    "resident_country": "DE",
+    "resident_postal_code": "51147",
+    "resident_state": "NW",
+    "resident_street": "HEIDESTRAẞE 17"
+  },
+  "display": {
+    "name": "German PID",
+    "description": "A demo German PID credential for testing PID verification flows. It extends the EUDI PID with the national attributes of the German PID Rulebook 1.0.0 (the BMI blueprint), for the sample ERIKA MUSTERMANN identity. Created by eudi-dev, not a real identity. Rulebook: https://bmi.usercontent.opencode.de/eudi-wallet/eidas-2.0-architekturkonzept/content/features/PID/german-pid-rulebook/",
+    "background_color": "#3d59a1",
+    "text_color": "#ffffff",
+    "logo": "embedded:images/logo-de.svg",
+    "logo_alt_text": "eudi-dev logo on the German flag",
+    "background_image": "embedded:images/german-id-specimen.jpg"
+  }
+}

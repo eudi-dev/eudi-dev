@@ -215,7 +215,7 @@ func TestDemoReset(t *testing.T) {
 	}
 
 	creds := srv.wallet.GetCredentials()
-	if want := 2 * len(BaselinePIDTemplates); len(creds) != want {
+	if want := 2 * len(predefinedBaselineTypes(t)); len(creds) != want {
 		t.Fatalf("after reset: %d credentials (before %d), want the %d default PIDs", len(creds), before, want)
 	}
 	for _, c := range creds {
@@ -230,7 +230,7 @@ func TestDemoReset(t *testing.T) {
 	if err := srv.reloadFromStore(); err != nil {
 		t.Fatalf("reload after reset: %v", err)
 	}
-	if got, want := len(srv.wallet.GetCredentials()), 2*len(BaselinePIDTemplates); got != want {
+	if got, want := len(srv.wallet.GetCredentials()), 2*len(predefinedBaselineTypes(t)); got != want {
 		t.Fatalf("after reload: %d credentials, want %d", got, want)
 	}
 }
@@ -319,7 +319,7 @@ func TestProtectedCredentials(t *testing.T) {
 		t.Fatalf("saving baseline: %v", err)
 	}
 	baseline := srv.wallet.GetCredentials()
-	if want := 2 * len(BaselinePIDTemplates); len(baseline) != want {
+	if want := 2 * len(predefinedBaselineTypes(t)); len(baseline) != want {
 		t.Fatalf("expected %d baseline credentials, got %d", want, len(baseline))
 	}
 	for _, c := range baseline {
@@ -372,7 +372,7 @@ func TestProtectedCredentials(t *testing.T) {
 			t.Fatalf("DELETE all = %d", rec.Code)
 		}
 		result := decodeJSON(t, rec)
-		want := 2 * len(BaselinePIDTemplates)
+		want := 2 * len(predefinedBaselineTypes(t))
 		if result["kept_protected"] != float64(want) {
 			t.Errorf("kept_protected = %v, want %d", result["kept_protected"], want)
 		}
@@ -432,7 +432,7 @@ func TestGenerateProtectedDefaults_ReplacesABaselineOfAnyType(t *testing.T) {
 			protectedSDJWT++
 		}
 	}
-	if want := len(BaselinePIDTemplates); protectedSDJWT != want {
+	if want := len(predefinedBaselineTypes(t)); protectedSDJWT != want {
 		t.Errorf("wallet holds %d protected SD-JWT PIDs, want exactly %d", protectedSDJWT, want)
 	}
 }
@@ -739,7 +739,7 @@ func TestDemoProtectsTheDemoRegistrations(t *testing.T) {
 	srv := newDemoTestServer(t)
 	// The protection holds for the registered EUID and for the semantics
 	// identifier the certificates carry.
-	for _, identity := range []string{demoVerifierIdentity.Identifier, "NTRNL-" + demoVerifierIdentity.Identifier} {
+	for _, identity := range []string{demoIdentifier(demoVerifier), "NTRNL-" + demoIdentifier(demoVerifier)} {
 		if w := serverRequest(t, srv, "DELETE", "/api/registrar/wrp/"+identity, ""); w.Code != http.StatusForbidden {
 			t.Errorf("delete %s = %d, want 403", identity, w.Code)
 		}
@@ -792,7 +792,7 @@ func TestALocalWalletKeepsYourChangesToTheDemoRegistrations(t *testing.T) {
 	if err := srv.registerDemoParties(); err != nil {
 		t.Fatal(err)
 	}
-	issuer, ok := srv.wallet.Registrar().RelyingParty(demoIssuerIdentity.Identifier)
+	issuer, ok := srv.wallet.Registrar().RelyingParty(demoIdentifier(demoIssuer))
 	if !ok {
 		t.Fatal("the demo issuer is not registered at startup")
 	}
@@ -804,7 +804,7 @@ func TestALocalWalletKeepsYourChangesToTheDemoRegistrations(t *testing.T) {
 	if w := serverRequest(t, srv, "PUT", "/api/registrar/wrp", string(edited)); w.Code != http.StatusOK {
 		t.Fatalf("update = %d: %s", w.Code, w.Body)
 	}
-	if w := serverRequest(t, srv, "DELETE", "/api/registrar/wrp/"+demoVerifierIdentity.Identifier, ""); w.Code != http.StatusNoContent {
+	if w := serverRequest(t, srv, "DELETE", "/api/registrar/wrp/"+demoIdentifier(demoVerifier), ""); w.Code != http.StatusNoContent {
 		t.Fatalf("delete = %d: %s", w.Code, w.Body)
 	}
 
@@ -818,7 +818,7 @@ func TestALocalWalletKeepsYourChangesToTheDemoRegistrations(t *testing.T) {
 	if info, err := srv.wallet.DemoVerifierInfo(); info != nil || err != nil {
 		t.Errorf("DemoVerifierInfo after the delete = %v, %v, want none", info, err)
 	}
-	issuer, _ = srv.wallet.Registrar().RelyingParty(demoIssuerIdentity.Identifier)
+	issuer, _ = srv.wallet.Registrar().RelyingParty(demoIdentifier(demoIssuer))
 	if issuer.TradeName != "My demo issuer" || providesAttestation(issuer, "urn:example:badge:1") {
 		t.Errorf("demo issuer = %q providing the badge %t, want the edit kept and no new type", issuer.TradeName, providesAttestation(issuer, "urn:example:badge:1"))
 	}
@@ -830,7 +830,7 @@ func TestALocalWalletKeepsYourChangesToTheDemoRegistrations(t *testing.T) {
 	if _, err := srv.wallet.DemoVerifierInfo(); err != nil {
 		t.Errorf("DemoVerifierInfo after a restart: %v", err)
 	}
-	if issuer, _ = srv.wallet.Registrar().RelyingParty(demoIssuerIdentity.Identifier); issuer.TradeName != "My demo issuer" {
+	if issuer, _ = srv.wallet.Registrar().RelyingParty(demoIdentifier(demoIssuer)); issuer.TradeName != "My demo issuer" {
 		t.Errorf("demo issuer after a restart = %q, want the edit kept", issuer.TradeName)
 	}
 }
@@ -843,7 +843,7 @@ func TestTheIssuerMetadataGoesOutWithoutADeletedRegistration(t *testing.T) {
 	if err := srv.registerDemoParties(); err != nil {
 		t.Fatal(err)
 	}
-	if w := serverRequest(t, srv, "DELETE", "/api/registrar/wrp/"+demoIssuerIdentity.Identifier, ""); w.Code != http.StatusNoContent {
+	if w := serverRequest(t, srv, "DELETE", "/api/registrar/wrp/"+demoIdentifier(demoIssuer), ""); w.Code != http.StatusNoContent {
 		t.Fatalf("delete = %d: %s", w.Code, w.Body)
 	}
 	resp := serverRequest(t, srv, "GET", "/.well-known/openid-credential-issuer", "")
@@ -864,7 +864,7 @@ func TestADemoRegistrationMovesToTheWalletsNewURL(t *testing.T) {
 	if _, err := w.RegisterMissingDemoParties(); err != nil {
 		t.Fatal(err)
 	}
-	issuer, _ := w.Registrar().RelyingParty(demoIssuerIdentity.Identifier)
+	issuer, _ := w.Registrar().RelyingParty(demoIdentifier(demoIssuer))
 	issuer.TradeName = "My demo issuer"
 	if _, err := w.Registrar().UpdateRelyingParty(issuer); err != nil {
 		t.Fatal(err)
@@ -873,9 +873,9 @@ func TestADemoRegistrationMovesToTheWalletsNewURL(t *testing.T) {
 	if changed, err := w.RegisterMissingDemoParties(); err != nil || !changed {
 		t.Fatalf("restart on the new URL: changed %v, %v", changed, err)
 	}
-	issuer, _ = w.Registrar().RelyingParty(demoIssuerIdentity.Identifier)
+	issuer, _ = w.Registrar().RelyingParty(demoIdentifier(demoIssuer))
 	raw, _ := json.Marshal(issuer)
-	if strings.Contains(string(raw), "localhost:8086") || issuer.RegistryURI != w.RegistrarBase()+"/api/registrar/wrp/"+demoIssuerIdentity.Identifier {
+	if strings.Contains(string(raw), "localhost:8086") || issuer.RegistryURI != w.RegistrarBase()+"/api/registrar/wrp/"+demoIdentifier(demoIssuer) {
 		t.Errorf("demo issuer after the move = %s, want only the new URL", raw)
 	}
 	if issuer.TradeName != "My demo issuer" {
@@ -890,7 +890,7 @@ func TestTheDemoIssuerOfAPublicDemoFollowsTheTemplates(t *testing.T) {
 	if w := serverRequest(t, srv, "PUT", "/api/templates/visitor-card", `{"format":"sdjwt","vct":"urn:example:visitor:1","claims":{}}`); w.Code != http.StatusOK {
 		t.Fatalf("saving a template = %d: %s", w.Code, w.Body)
 	}
-	issuer, _ := srv.wallet.Registrar().RelyingParty(demoIssuerIdentity.Identifier)
+	issuer, _ := srv.wallet.Registrar().RelyingParty(demoIdentifier(demoIssuer))
 	if !providesAttestation(issuer, "urn:example:visitor:1") {
 		t.Errorf("demo issuer provides %v, want the visitor template", issuer.Services)
 	}

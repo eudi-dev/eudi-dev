@@ -69,7 +69,7 @@ func GenerateJWT(cfg JWTConfig) (string, error) {
 	}
 
 	header := map[string]any{
-		"alg": "ES256",
+		"alg": jws.AlgES256,
 		"typ": "vc+jwt",
 	}
 

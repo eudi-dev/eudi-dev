@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc/scheme"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/output"
@@ -317,19 +318,19 @@ func printCredentialDoc(cred map[string]any, decoded bool) error {
 	}
 	opts := output.Options{JSON: jsonOutput, NoColor: noColor, Verbose: verbose}
 	switch docString(cred, "format") {
-	case "dc+sd-jwt":
+	case credtype.FormatSDJWT:
 		token, err := sdjwt.Parse(raw)
 		if err != nil {
 			return err
 		}
 		output.PrintSDJWT(token, opts)
-	case "mso_mdoc":
+	case credtype.FormatMDOC:
 		doc, err := mdoc.Parse(raw)
 		if err != nil {
 			return err
 		}
 		output.PrintMDOC(doc, opts)
-	case "jwt_vc_json":
+	case credtype.FormatJWTVC:
 		token, err := sdjwt.Parse(raw)
 		if err != nil {
 			return err

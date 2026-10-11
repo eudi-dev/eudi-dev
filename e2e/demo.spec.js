@@ -286,7 +286,7 @@ test.describe("Demo mode consent visibility", () => {
     await expect(page.locator("#consent-overlay")).toHaveClass(/active/);
 
     const dialog = page.locator("#consent-dialog");
-    await expect(dialog).toContainText("EUDI Test Demo Issuer");
+    await expect(dialog).toContainText("EUDI Dev Demo Issuer");
     await expect(page.locator("#offer-issuer-origin")).toContainText(BASE);
     await expect(page.locator("#offer-facts")).toContainText("pre-authorized code");
     await expect(dialog).toContainText("Demo Event Ticket");
@@ -375,7 +375,7 @@ test.describe("Demo mode consent visibility", () => {
     await expect(page.locator("#consent-overlay")).toHaveClass(/active/);
 
     const dialog = page.locator("#consent-dialog");
-    await expect(dialog).toContainText("EUDI Test Demo Issuer");
+    await expect(dialog).toContainText("EUDI Dev Demo Issuer");
     await expect(dialog).toContainText("Demo Event Ticket");
     await expect(dialog.locator(".consent-claim-name", { hasText: "seat" })).toHaveCount(1);
     await page.locator("#consent-deny").click();

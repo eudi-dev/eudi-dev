@@ -15,6 +15,7 @@
 package mock
 
 import (
+	"bytes"
 	"crypto/x509"
 	"encoding/base64"
 	"strings"
@@ -24,6 +25,7 @@ import (
 	"github.com/fxamacker/cbor/v2"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 )
 
@@ -36,7 +38,7 @@ func TestGenerateMDOC_DefaultClaims(t *testing.T) {
 	cfg := MDOCConfig{
 		DocType:   "eu.europa.ec.eudi.pid.1",
 		Namespace: "eu.europa.ec.eudi.pid.1",
-		Claims:    DefaultClaims,
+		Claims:    credtemplate.DefaultClaims,
 		Key:       key,
 	}
 
@@ -63,15 +65,15 @@ func TestGenerateMDOC_DefaultClaims(t *testing.T) {
 		t.Fatal("missing namespace eu.europa.ec.eudi.pid.1")
 	}
 
-	if len(ns) != len(DefaultClaims) {
-		t.Errorf("expected %d claims, got %d", len(DefaultClaims), len(ns))
+	if len(ns) != len(credtemplate.DefaultClaims) {
+		t.Errorf("expected %d claims, got %d", len(credtemplate.DefaultClaims), len(ns))
 	}
 
 	claimNames := make(map[string]bool)
 	for _, item := range ns {
 		claimNames[item.ElementIdentifier] = true
 	}
-	for name := range DefaultClaims {
+	for name := range credtemplate.DefaultClaims {
 		if !claimNames[name] {
 			t.Errorf("missing claim %q", name)
 		}
@@ -93,6 +95,50 @@ func TestGenerateMDOC_DefaultClaims(t *testing.T) {
 	}
 }
 
+// Claims from JSON keep their CBOR types: a whole number is an integer, as
+// the ISO/IEC 5218 sex code needs, and a base64 data URI is a byte string, as
+// the ISO 18013-5 portrait needs.
+func TestGenerateMDOC_JSONClaimsGetTheirCBORTypes(t *testing.T) {
+	key, err := GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := GenerateMDOC(MDOCConfig{
+		DocType:   "org.example.1",
+		Namespace: "org.example.1",
+		Claims: map[string]any{
+			"sex":      float64(1),
+			"height":   1.75,
+			"portrait": "data:image/jpeg;base64,/9j/4A==",
+			"caption":  "data:text/plain,hello",
+		},
+		Key: key,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := mdoc.Parse(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	values := map[string]any{}
+	for _, item := range doc.NameSpaces["org.example.1"] {
+		values[item.ElementIdentifier] = item.ElementValue
+	}
+	if v, ok := values["sex"].(int64); !ok || v != 1 {
+		t.Errorf("sex = %#v, want the integer 1", values["sex"])
+	}
+	if v, ok := values["height"].(float64); !ok || v != 1.75 {
+		t.Errorf("height = %#v, want the float 1.75", values["height"])
+	}
+	if v, ok := values["portrait"].([]byte); !ok || !bytes.Equal(v, []byte{0xff, 0xd8, 0xff, 0xe0}) {
+		t.Errorf("portrait = %#v, want the JPEG bytes", values["portrait"])
+	}
+	if values["caption"] != "data:text/plain,hello" {
+		t.Errorf("caption = %#v, want the text", values["caption"])
+	}
+}
+
 func TestGenerateMDOC_PIDClaims(t *testing.T) {
 	key, err := GenerateKey()
 	if err != nil {
@@ -102,7 +148,7 @@ func TestGenerateMDOC_PIDClaims(t *testing.T) {
 	cfg := MDOCConfig{
 		DocType:   "eu.europa.ec.eudi.pid.1",
 		Namespace: "eu.europa.ec.eudi.pid.1",
-		Claims:    MDOCPIDClaims,
+		Claims:    templateClaims("pid-mdoc"),
 		Key:       key,
 	}
 
@@ -117,8 +163,8 @@ func TestGenerateMDOC_PIDClaims(t *testing.T) {
 	}
 
 	ns := doc.NameSpaces[PIDNamespace]
-	if len(ns) != len(MDOCPIDClaims) {
-		t.Errorf("expected %d claims in %s, got %d", len(MDOCPIDClaims), PIDNamespace, len(ns))
+	if len(ns) != len(templateClaims("pid-mdoc")) {
+		t.Errorf("expected %d claims in %s, got %d", len(templateClaims("pid-mdoc")), PIDNamespace, len(ns))
 	}
 	if len(doc.NameSpaces) != 1 {
 		t.Errorf("expected a single namespace, got %d: %v", len(doc.NameSpaces), doc.NameSpaces)
@@ -227,7 +273,7 @@ func TestGenerateMDOC_ValidityInfo(t *testing.T) {
 	cfg := MDOCConfig{
 		DocType:   "eu.europa.ec.eudi.pid.1",
 		Namespace: "eu.europa.ec.eudi.pid.1",
-		Claims:    DefaultClaims,
+		Claims:    credtemplate.DefaultClaims,
 		Key:       key,
 	}
 
@@ -273,7 +319,7 @@ func TestGenerateMDOC_WrongKeyFailsVerify(t *testing.T) {
 	cfg := MDOCConfig{
 		DocType:   "eu.europa.ec.eudi.pid.1",
 		Namespace: "eu.europa.ec.eudi.pid.1",
-		Claims:    DefaultClaims,
+		Claims:    credtemplate.DefaultClaims,
 		Key:       key1,
 	}
 
@@ -299,7 +345,7 @@ func TestGenerateMDOC_OutputIsBase64URL(t *testing.T) {
 	cfg := MDOCConfig{
 		DocType:   "eu.europa.ec.eudi.pid.1",
 		Namespace: "eu.europa.ec.eudi.pid.1",
-		Claims:    DefaultClaims,
+		Claims:    credtemplate.DefaultClaims,
 		Key:       key,
 	}
 
@@ -321,7 +367,7 @@ func TestGenerateMDOC_IssuerAuthPayloadIsTag24MSO(t *testing.T) {
 	cfg := MDOCConfig{
 		DocType:   "eu.europa.ec.eudi.pid.1",
 		Namespace: "eu.europa.ec.eudi.pid.1",
-		Claims:    DefaultClaims,
+		Claims:    credtemplate.DefaultClaims,
 		Key:       key,
 	}
 
@@ -412,7 +458,7 @@ func TestGenerateMDOC_CustomExpiresIn(t *testing.T) {
 	cfg := MDOCConfig{
 		DocType:   "eu.europa.ec.eudi.pid.1",
 		Namespace: "eu.europa.ec.eudi.pid.1",
-		Claims:    DefaultClaims,
+		Claims:    credtemplate.DefaultClaims,
 		Key:       key,
 		ExpiresIn: 7 * 24 * time.Hour,
 	}
@@ -441,7 +487,7 @@ func TestGenerateMDOC_WithValidFrom(t *testing.T) {
 	cfg := MDOCConfig{
 		DocType:   "eu.europa.ec.eudi.pid.1",
 		Namespace: "eu.europa.ec.eudi.pid.1",
-		Claims:    DefaultClaims,
+		Claims:    credtemplate.DefaultClaims,
 		Key:       key,
 		ValidFrom: &vf,
 	}

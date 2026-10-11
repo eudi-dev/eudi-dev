@@ -26,7 +26,9 @@ import (
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/httpsec"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
 )
@@ -67,12 +69,12 @@ func (d *DemoRP) templateConfigurations() []templateConfiguration {
 			if tpl.VCT == "" {
 				continue
 			}
-			cfg.format, cfg.vct = "dc+sd-jwt", tpl.VCT
+			cfg.format, cfg.vct = credtype.FormatSDJWT, tpl.VCT
 		case "mdoc":
 			if tpl.DocType == "" {
 				continue
 			}
-			cfg.format, cfg.docType = "mso_mdoc", tpl.DocType
+			cfg.format, cfg.docType = credtype.FormatMDOC, tpl.DocType
 		default:
 			continue
 		}
@@ -112,15 +114,15 @@ func (d *DemoRP) credentialConfigurations() map[string]any {
 			"format": cfg.format,
 			"scope":  cfg.id,
 			"proof_types_supported": map[string]any{
-				"jwt": map[string]any{"proof_signing_alg_values_supported": []string{"ES256"}},
+				"jwt": map[string]any{"proof_signing_alg_values_supported": []string{jws.AlgES256}},
 			},
-			"credential_signing_alg_values_supported": []string{"ES256"},
+			"credential_signing_alg_values_supported": []string{jws.AlgES256},
 		}
 		switch cfg.format {
-		case "dc+sd-jwt":
+		case credtype.FormatSDJWT:
 			entry["vct"] = cfg.vct
 			entry["cryptographic_binding_methods_supported"] = []string{"jwk"}
-		case "mso_mdoc":
+		case credtype.FormatMDOC:
 			entry["doctype"] = cfg.docType
 			entry["credential_signing_alg_values_supported"] = []int{-7}
 			entry["cryptographic_binding_methods_supported"] = []string{"cose_key"}
@@ -208,7 +210,7 @@ func templateClaimPaths(cfg templateConfiguration) []map[string]any {
 	paths := make([]map[string]any, 0, len(names))
 	for _, name := range names {
 		path := []string{name}
-		if cfg.format == "mso_mdoc" {
+		if cfg.format == credtype.FormatMDOC {
 			namespace := cfg.template.Namespace
 			if namespace == "" {
 				namespace = cfg.docType
@@ -277,7 +279,7 @@ func (d *DemoRP) signTemplate(cfg templateConfiguration, holderKey *ecdsa.Public
 		return "", fmt.Errorf("building signing certificate chain for %s: %w", cfg.id, err)
 	}
 	switch cfg.format {
-	case "dc+sd-jwt":
+	case credtype.FormatSDJWT:
 		issuedAt := time.Now().Truncate(time.Hour)
 		return mock.GenerateSDJWT(mock.SDJWTConfig{
 			CertificateIssuer: d.wallet.IssuerURL,
@@ -293,7 +295,7 @@ func (d *DemoRP) signTemplate(cfg templateConfiguration, holderKey *ecdsa.Public
 			StatusListURI:     statusURI,
 			StatusListIdx:     statusIdx,
 		})
-	case "mso_mdoc":
+	case credtype.FormatMDOC:
 		return mock.GenerateMDOC(mock.MDOCConfig{
 			CertificateIssuer: d.wallet.IssuerURL,
 			DocType:           cfg.docType,

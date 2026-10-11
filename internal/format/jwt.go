@@ -51,6 +51,21 @@ func ParseJWTParts(raw string) (header, payload map[string]any, sig []byte, err 
 	return header, payload, sig, nil
 }
 
+// JWT typ values that both a producer and a checker in this tool use.
+const (
+	// TypeKeyProof is the jwt key proof of OpenID4VCI 1.0.
+	TypeKeyProof = "openid4vci-proof+jwt"
+	// TypeClientAttestation and TypeClientAttestationPoP are the client
+	// attestation and its proof of possession of
+	// draft-ietf-oauth-attestation-based-client-auth.
+	TypeClientAttestation    = "oauth-client-attestation+jwt"
+	TypeClientAttestationPoP = "oauth-client-attestation-pop+jwt"
+	// TypeRequestObject is the request object of RFC 9101. A request_uri
+	// response carries it as MediaTypeRequestObject.
+	TypeRequestObject      = "oauth-authz-req+jwt"
+	MediaTypeRequestObject = "application/" + TypeRequestObject
+)
+
 // JOSETypeIs reports whether a typ header parameter names the media type
 // want. RFC 7515 §4.1.9: "all media type values, subtype values, and parameter
 // names are case insensitive" and "A recipient using the media type value MUST

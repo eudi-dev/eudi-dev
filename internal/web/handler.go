@@ -19,10 +19,11 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
-	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/httpsec"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/webui"
 )
 
 const maxRequestBody = 1 << 20 // 1MB
@@ -47,9 +48,9 @@ func ListenAndServe(port int, opts MuxOptions) error {
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
 		Handler:      NewMuxWithOptions(opts),
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 60 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		ReadTimeout:  config.ServerReadTimeout,
+		WriteTimeout: config.ServerWriteTimeout,
+		IdleTimeout:  config.ServerIdleTimeout,
 	}
 	return srv.ListenAndServe()
 }
@@ -85,7 +86,7 @@ func NewMuxWithOptions(opts MuxOptions) http.Handler {
 	// Embedded files have no modification time for cache validation. Browsers must
 	// revalidate, so they never mix assets from different releases.
 	sub, _ := fs.Sub(staticFiles, "static")
-	mux.Handle("/", noStaleCache(http.FileServer(http.FS(sub))))
+	mux.Handle("/", noStaleCache(http.FileServer(http.FS(webui.Overlay(sub)))))
 
 	// Decoder links can carry attacker-selected credentials. The guard sits inside the
 	// handler, so mounted routes are checked after their prefix is stripped.

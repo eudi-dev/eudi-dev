@@ -19,15 +19,15 @@ test.beforeAll(async () => {
   // Cold Go builds can exceed the default hook timeout on CI.
   test.setTimeout(120_000);
 
-  execSync("go build -o /tmp/oid4vc-dev-wallet-e2e ..", {
+  execSync("go build -o /tmp/eudi-dev-wallet-e2e ..", {
     cwd: __dirname,
   });
 
   // A fresh directory keeps stored serving URLs from changing the test ports.
   const { spawn } = require("child_process");
-  const walletDir = fs.mkdtempSync(path.join(os.tmpdir(), "oid4vc-dev-wallet-e2e-"));
+  const walletDir = fs.mkdtempSync(path.join(os.tmpdir(), "eudi-dev-wallet-e2e-"));
   walletProcess = spawn(
-    "/tmp/oid4vc-dev-wallet-e2e",
+    "/tmp/eudi-dev-wallet-e2e",
     [
       "wallet",
       "serve",
@@ -247,18 +247,31 @@ test.describe("Wallet Dashboard", () => {
     await expect(meta).toContainText("type");
   });
 
+  // The wallet and the decoder it serves share one stored choice. Without
+  // one they follow the system.
   test("has theme toggle button", async ({ page }) => {
+    await page.emulateMedia({ colorScheme: "dark" });
     await page.goto(WALLET_URL);
+    await expect(page.locator("html")).not.toHaveAttribute("data-theme", "light");
     const themeBtn = page.locator("#theme-toggle");
     await expect(themeBtn).toBeVisible();
 
     await themeBtn.click();
-    const theme = await page
-      .locator("html")
-      .getAttribute("data-theme");
-    expect(theme).toBe("light");
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+    expect(await page.evaluate(() => localStorage.getItem("eudi-dev-theme"))).toBe("light");
 
-    await themeBtn.click();
+    await page.goto(WALLET_URL + "/decoder/");
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+    await page.locator("#theme-btn").click();
+    expect(await page.evaluate(() => localStorage.getItem("eudi-dev-theme"))).toBe("dark");
+  });
+
+  test("follows the system theme without a choice", async ({ page }) => {
+    await page.emulateMedia({ colorScheme: "light" });
+    await page.goto(WALLET_URL);
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+    await page.emulateMedia({ colorScheme: "dark" });
+    await expect(page.locator("html")).not.toHaveAttribute("data-theme", "light");
   });
 
   test("has process input and button", async ({ page }) => {
@@ -556,7 +569,8 @@ test.describe("Credential Issuing via UI", () => {
 
     await page.locator("#issue-template").selectOption("german-pid-sdjwt");
     await expect(page.locator("#issue-vct")).toHaveValue("urn:eudi:pid:de:1");
-    await expect(page.locator("#issue-exp")).toHaveValue("720h");
+    // The template keeps the default expiry, which the placeholder names.
+    await expect(page.locator("#issue-exp")).toHaveValue("");
     await expect(page.locator("#issue-claim-rows .claim-row")).toHaveCount(14);
     const keys = await page
       .locator("#issue-claim-rows .claim-row input[id^=issue-claim-key]")
@@ -2289,9 +2303,10 @@ test.describe("Registrar", () => {
     await expect(page.locator(verifier + "-status")).toHaveText("Active");
   });
 
+  // More parties than one page of GET /wrp holds, so the list follows the cursor.
   test("the relying parties list searches as you type and pages", async ({ page }) => {
     const tag = "Pager" + Date.now();
-    for (let i = 1; i <= 12; i++) {
+    for (let i = 1; i <= 22; i++) {
       await jsonPost(`${WALLET_URL}/api/registrar/wrp`, {
         tradeName: `${tag} Shop ${i}`,
         services: [{ intendedUses: [{
@@ -2306,10 +2321,11 @@ test.describe("Registrar", () => {
     await page.locator("#registrar-parties-link").click();
     await page.locator("#registrar-search").fill(tag);
     await expect(page.locator("#registrar-party-list .registrar-party")).toHaveCount(10);
-    await expect(page.locator("#registrar-page-info")).toHaveText("Page 1 of 2 · 12 relying parties");
+    await expect(page.locator("#registrar-page-info")).toHaveText("Page 1 of 3 · 22 relying parties");
     await expect(page.locator("#registrar-page-prev")).toBeDisabled();
     // The newest registration comes first.
-    await expect(page.locator("#registrar-party-list .registrar-party-name").first()).toHaveText(`${tag} Shop 12`);
+    await expect(page.locator("#registrar-party-list .registrar-party-name").first()).toHaveText(`${tag} Shop 22`);
+    await page.locator("#registrar-page-next").click();
     await page.locator("#registrar-page-next").click();
     await expect(page.locator("#registrar-party-list .registrar-party")).toHaveCount(2);
     await expect(page.locator("#registrar-page-next")).toBeDisabled();

@@ -25,6 +25,7 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
@@ -226,14 +227,11 @@ func entriesLinking(entries []registrar.CatalogAttestation, listURL string) []re
 	return out
 }
 
-// categoryListType is the ETSI TS 119 602 list type of a category, if it has
-// one.
+// categoryListType is the ETSI TS 119 602 list type of a category, if the
+// standard defines one.
 func categoryListType(category string) string {
-	switch category {
-	case credtemplate.CategoryPID:
-		return pidTrustListType
-	case credtemplate.CategoryPubEAA:
-		return pubEAATrustListType
+	if list := registrar.CategoryOf(category).TrustedList; list.ETSIAnnex != "" {
+		return list.Type
 	}
 	return ""
 }
@@ -248,13 +246,13 @@ func validateWithAnchors(cred StoredCredential, anchors []*x509.Certificate) err
 	}
 	var valid bool
 	switch cred.Format {
-	case "dc+sd-jwt":
+	case credtype.FormatSDJWT:
 		token, err := sdjwt.ParseLenient(cred.Raw)
 		if err != nil {
 			return err
 		}
 		valid = sdjwt.Verify(token, key).SignatureValid
-	case "mso_mdoc":
+	case credtype.FormatMDOC:
 		doc, err := mdoc.Parse(cred.Raw)
 		if err != nil {
 			return err
@@ -333,11 +331,11 @@ func receivedCredential(raw string) StoredCredential {
 		if err != nil {
 			return StoredCredential{}
 		}
-		return StoredCredential{Format: "dc+sd-jwt", VCT: stringClaim(token.Payload["vct"]), Raw: raw}
+		return StoredCredential{Format: credtype.FormatSDJWT, VCT: stringClaim(token.Payload["vct"]), Raw: raw}
 	}
 	doc, err := mdoc.Parse(raw)
 	if err != nil {
 		return StoredCredential{}
 	}
-	return StoredCredential{Format: "mso_mdoc", DocType: doc.DocType, Raw: raw}
+	return StoredCredential{Format: credtype.FormatMDOC, DocType: doc.DocType, Raw: raw}
 }

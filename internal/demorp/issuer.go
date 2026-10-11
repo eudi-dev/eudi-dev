@@ -19,6 +19,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"net/http"
 	"net/url"
 	"slices"
@@ -27,10 +28,13 @@ import (
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/httpsec"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/webui"
 )
 
 //go:embed static
@@ -44,7 +48,7 @@ const (
 
 	// demoBatchSize is the batch_size of OpenID4VCI 1.0 §12.2.4.
 	// Each copy is bound to its own proof key, as ARF method C requires.
-	demoBatchSize        = 8
+	demoBatchSize        = wallet.MaxBatchSize
 	demoDefaultBatchSize = 3
 )
 
@@ -124,10 +128,13 @@ type offerSettings struct {
 // stripped.
 func (d *DemoRP) IssuerHandler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /{$}", d.serveStatic("static/issuer.html"))
+	mux.HandleFunc("GET /{$}", d.servePage("static/issuer.html"))
 	// The script is a separate file because the wallet Content-Security-Policy
 	// has no script-src 'unsafe-inline'.
 	mux.HandleFunc("GET /issuer.js", d.serveStatic("static/issuer.js"))
+	for _, name := range webui.Names {
+		mux.HandleFunc("GET /"+name, webui.Handler(name))
+	}
 	mux.HandleFunc("POST /api/offers", d.handleCreateOffer)
 	mux.HandleFunc("GET /offer/{id}", d.handleOfferByReference)
 	mux.HandleFunc("POST /token", d.handleToken)
@@ -164,13 +171,50 @@ func (d *DemoRP) serveStatic(name string) http.HandlerFunc {
 			http.NotFound(w, r)
 			return
 		}
-		contentType := "text/html; charset=utf-8"
-		if strings.HasSuffix(name, ".js") {
-			contentType = "text/javascript; charset=utf-8"
-		}
-		w.Header().Set("Content-Type", contentType)
+		w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-cache")
 		_, _ = w.Write(data)
+	}
+}
+
+// pageData fills the demo pages with the registered names of the demo
+// parties and the national PIDs of the wallet's templates.
+type pageData struct {
+	IssuerName, VerifierName string
+	NationalPIDs             []nationalPID
+}
+
+// nationalPID is a PID type that extends the EUDI PID, as the verifier page
+// offers it.
+type nationalPID struct {
+	ID, VCT, Label string
+}
+
+func (d *DemoRP) nationalPIDs() []nationalPID {
+	var out []nationalPID
+	for _, vct := range credtemplate.PIDTypes(d.wallet.Templates) {
+		region, _, _ := strings.Cut(strings.TrimPrefix(vct, credtype.PIDVCTPrefix), ":")
+		if vct == PIDVCT || region == "" {
+			continue
+		}
+		label := vct
+		if name, _, ok := credtemplate.PIDTemplateNames(vct, d.wallet.Templates); ok {
+			if t, err := credtemplate.Load(name, d.wallet.Templates); err == nil && t.Display != nil && t.Display.Name != "" {
+				label = t.Display.Name
+			}
+		}
+		out = append(out, nationalPID{ID: "pid-" + region, VCT: vct, Label: label})
+	}
+	return out
+}
+
+// servePage renders an HTML page of static/ as a template.
+func (d *DemoRP) servePage(name string) http.HandlerFunc {
+	page := template.Must(template.ParseFS(staticFiles, name))
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-cache")
+		_ = page.Execute(w, pageData{IssuerName: wallet.DemoIssuerName, VerifierName: wallet.DemoVerifierName, NationalPIDs: d.nationalPIDs()})
 	}
 }
 
@@ -201,7 +245,7 @@ func (d *DemoRP) handleIssuerMetadata(w http.ResponseWriter, r *http.Request) {
 		"batch_credential_issuance": map[string]any{"batch_size": demoBatchSize},
 		"display": []map[string]any{
 			{
-				"name":   "EUDI Test Demo Issuer",
+				"name":   wallet.DemoIssuerName,
 				"locale": "en-US",
 				"logo":   map[string]any{"uri": issuer + "/logo.svg", "alt_text": "eudi-dev logo"},
 			},
@@ -458,7 +502,7 @@ type accessTokenError struct {
 // A request without an access token gets both challenges and, as RFC 6750
 // §3.1 asks, no error information.
 func (d *DemoRP) writeAccessTokenError(w http.ResponseWriter, refused *accessTokenError) {
-	algs := `algs="ES256"`
+	algs := `algs="` + jws.AlgES256 + `"`
 	if refused.scheme == "" {
 		w.Header().Set("WWW-Authenticate", `Bearer realm="`+d.issuerID()+`", DPoP `+algs)
 		writeJSON(w, http.StatusUnauthorized, map[string]string{})
@@ -694,10 +738,10 @@ func (d *DemoRP) verifyProofJWT(raw string) (*ecdsa.PublicKey, *proofError) {
 	if err != nil {
 		return nil, invalidProof("parsing proof JWT: %v", err)
 	}
-	if typ, _ := proof.header["typ"].(string); !format.JOSETypeIs(typ, "openid4vci-proof+jwt") {
+	if typ, _ := proof.header["typ"].(string); !format.JOSETypeIs(typ, format.TypeKeyProof) {
 		return nil, invalidProof("proof JWT typ is %q, want openid4vci-proof+jwt", typ)
 	}
-	if alg, _ := proof.header["alg"].(string); alg != "ES256" {
+	if alg, _ := proof.header["alg"].(string); alg != jws.AlgES256 {
 		return nil, invalidProof("proof JWT alg is %q, and this issuer advertises ES256 only", alg)
 	}
 

@@ -20,6 +20,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 )
 
@@ -29,7 +30,7 @@ func legacyTypeCredential(t *testing.T, w *Wallet, typ string) string {
 	t.Helper()
 	raw, err := mock.GenerateSDJWT(mock.SDJWTConfig{
 		Issuer: "https://issuer.example", VCT: mock.DefaultPIDVCT,
-		Claims: mock.SDJWTPIDClaims, Key: w.IssuerKey,
+		Claims: templateClaims("pid-sdjwt"), Key: w.IssuerKey,
 	})
 	if err != nil {
 		t.Fatalf("GenerateSDJWT: %v", err)
@@ -76,4 +77,13 @@ func TestImportSDJWT_LegacyType(t *testing.T) {
 			}
 		})
 	}
+}
+
+// templateClaims returns the claims of a predefined template.
+func templateClaims(name string) map[string]any {
+	t, ok := credtemplate.Predefined(name)
+	if !ok {
+		panic("no predefined template " + name)
+	}
+	return t.Claims
 }

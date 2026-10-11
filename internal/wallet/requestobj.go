@@ -24,8 +24,10 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jwe"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 )
 
@@ -37,11 +39,11 @@ func BuildWalletMetadata(w *Wallet, clientID string) map[string]any {
 		// use JOSE names. The mso_mdoc fields use COSE identifiers, such as -7 for
 		// ECDSA with SHA-256.
 		"vp_formats_supported": map[string]any{
-			"dc+sd-jwt": map[string]any{
-				"sd-jwt_alg_values": []string{"ES256"},
-				"kb-jwt_alg_values": []string{"ES256"},
+			credtype.FormatSDJWT: map[string]any{
+				"sd-jwt_alg_values": []string{jws.AlgES256},
+				"kb-jwt_alg_values": []string{jws.AlgES256},
 			},
-			"mso_mdoc": map[string]any{
+			credtype.FormatMDOC: map[string]any{
 				"issuerauth_alg_values": []int{-7},
 				"deviceauth_alg_values": []int{-7},
 			},
@@ -58,15 +60,15 @@ func BuildWalletMetadata(w *Wallet, clientID string) map[string]any {
 		// OID4VP 1.0 §5.10 advertises response encryption for direct_post.jwt and
 		// dc_api.jwt. ECDH-ES with P-256 is the baseline. HAIP requires both A128GCM
 		// and A256GCM.
-		"authorization_encryption_alg_values_supported": []string{"ECDH-ES"},
-		"authorization_encryption_enc_values_supported": []string{"A128GCM", "A256GCM"},
+		"authorization_encryption_alg_values_supported": []string{jwe.AlgECDHES},
+		"authorization_encryption_enc_values_supported": []string{jwe.EncA128GCM, jwe.EncA256GCM},
 	}
 
 	// OID4VP 1.0 §5.10: "the Wallet MUST NOT include this parameter if the Client
 	// Identifier Prefix precludes signed Request Objects". The redirect_uri prefix
 	// does (§5.9.3).
 	if prefix, _, _ := lookupClientIDPrefix(clientID); !prefix.unsigned {
-		meta["request_object_signing_alg_values_supported"] = []string{"ES256"}
+		meta["request_object_signing_alg_values_supported"] = []string{jws.AlgES256}
 	}
 
 	// The wallet advertises its encryption key even when encrypted Request
@@ -79,13 +81,13 @@ func BuildWalletMetadata(w *Wallet, clientID string) map[string]any {
 		return meta
 	}
 	jwk["use"] = "enc"
-	jwk["alg"] = "ECDH-ES"
+	jwk["alg"] = jwe.AlgECDHES
 	// OID4VP 1.0 §5.10 puts request encryption keys in jwks. The
 	// request_object_encryption_* fields follow OpenID Connect Discovery, with the
 	// wallet acting as the server.
 	meta["jwks"] = map[string]any{"keys": []any{jwk}}
-	meta["request_object_encryption_alg_values_supported"] = []string{"ECDH-ES"}
-	meta["request_object_encryption_enc_values_supported"] = []string{"A128GCM", "A256GCM"}
+	meta["request_object_encryption_alg_values_supported"] = []string{jwe.AlgECDHES}
+	meta["request_object_encryption_enc_values_supported"] = []string{jwe.EncA128GCM, jwe.EncA256GCM}
 	return meta
 }
 
@@ -188,7 +190,7 @@ func fetchRequestURIPOST(w *Wallet, requestURI, clientID string, logFn func(stri
 		return nil, fmt.Errorf("creating POST request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Accept", "application/oauth-authz-req+jwt")
+	req.Header.Set("Accept", format.MediaTypeRequestObject)
 
 	resp, err := w.HTTPClient().Do(req)
 	if err != nil {
@@ -364,7 +366,7 @@ func validateRequestURIResponse(method, contentType string) error {
 	if err != nil {
 		return fmt.Errorf("%s: the request_uri response Content-Type does not parse: %w", cite, err)
 	}
-	if mediaType == "application/oauth-authz-req+jwt" || (method != "post" && mediaType == "application/jwt") {
+	if mediaType == format.MediaTypeRequestObject || (method != "post" && mediaType == "application/jwt") {
 		return nil
 	}
 	return fmt.Errorf("%s: the request_uri response Content-Type must be application/oauth-authz-req+jwt, got %q", cite, contentType)

@@ -31,6 +31,7 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
@@ -236,14 +237,14 @@ func (d *DemoRP) authorizationServerMetadata() map[string]any {
 		// Each credential configuration has its id as scope.
 		"scopes_supported":                                 d.offeredConfigurationIDs(),
 		"code_challenge_methods_supported":                 []string{"S256"},
-		"dpop_signing_alg_values_supported":                []string{"ES256"},
+		"dpop_signing_alg_values_supported":                []string{jws.AlgES256},
 		"token_endpoint_auth_methods_supported":            authMethods,
-		"token_endpoint_auth_signing_alg_values_supported": []string{"ES256"},
+		"token_endpoint_auth_signing_alg_values_supported": []string{jws.AlgES256},
 		// draft-ietf-oauth-attestation-based-client-auth-10 §8 requires these
 		// two from a server that supports the method. They are the only place
 		// a wallet learns the accepted signature algorithms.
-		"client_attestation_signing_alg_values_supported":     []string{"ES256"},
-		"client_attestation_pop_signing_alg_values_supported": []string{"ES256"},
+		"client_attestation_signing_alg_values_supported":     []string{jws.AlgES256},
+		"client_attestation_pop_signing_alg_values_supported": []string{jws.AlgES256},
 		// In optional mode, none means the client may omit the attestation.
 		"client_attestation_pop_methods_supported": popMethods,
 	}
@@ -577,7 +578,7 @@ func (d *DemoRP) verifyDPoPProof(r *http.Request, expectedURL, accessToken strin
 	if typ, _ := proof.header["typ"].(string); !format.JOSETypeIs(typ, "dpop+jwt") {
 		return "", fmt.Errorf("DPoP proof has typ %q, expected dpop+jwt", typ)
 	}
-	if alg, _ := proof.header["alg"].(string); alg != "ES256" {
+	if alg, _ := proof.header["alg"].(string); alg != jws.AlgES256 {
 		return "", fmt.Errorf("DPoP proof alg %q is not among the supported algorithms (ES256)", alg)
 	}
 	// §4.2: the payload "MUST contain at least" jti, htm, htu and iat.
@@ -721,10 +722,10 @@ func (d *DemoRP) authenticateClient(r *http.Request, clientID, jkt string) (clie
 	if err != nil {
 		return clientAuthentication{}, attestationFailed("parsing client attestation: %v", err)
 	}
-	if typ, _ := attestation.header["typ"].(string); !format.JOSETypeIs(typ, "oauth-client-attestation+jwt") {
+	if typ, _ := attestation.header["typ"].(string); !format.JOSETypeIs(typ, format.TypeClientAttestation) {
 		return clientAuthentication{}, attestationFailed("client attestation has typ %q, expected oauth-client-attestation+jwt", typ)
 	}
-	if alg, _ := attestation.header["alg"].(string); alg != "ES256" {
+	if alg, _ := attestation.header["alg"].(string); alg != jws.AlgES256 {
 		return clientAuthentication{}, attestationFailed("client attestation alg %q is not among the supported algorithms (ES256)", alg)
 	}
 	attester, err := d.attestationSigner(attestation.header)
@@ -793,10 +794,10 @@ func (d *DemoRP) authenticateClient(r *http.Request, clientID, jkt string) (clie
 	if err != nil {
 		return clientAuthentication{}, attestationFailed("parsing client attestation PoP: %v", err)
 	}
-	if typ, _ := pop.header["typ"].(string); !format.JOSETypeIs(typ, "oauth-client-attestation-pop+jwt") {
+	if typ, _ := pop.header["typ"].(string); !format.JOSETypeIs(typ, format.TypeClientAttestationPoP) {
 		return clientAuthentication{}, attestationFailed("client attestation PoP has typ %q, expected oauth-client-attestation-pop+jwt", typ)
 	}
-	if alg, _ := pop.header["alg"].(string); alg != "ES256" {
+	if alg, _ := pop.header["alg"].(string); alg != jws.AlgES256 {
 		return clientAuthentication{}, attestationFailed("client attestation PoP alg %q is not among the supported algorithms (ES256)", alg)
 	}
 	if !verifyES256(clientKey, pop.signingInput, pop.signature) {
@@ -902,6 +903,7 @@ type loginPageData struct {
 	ClientID       string
 	Attestation    string
 	AttestationPoP string
+	IssuerName     string
 	// RedirectURI is not rendered. It is added to the form-action of the page
 	// so the post-login redirect is allowed.
 	RedirectURI string
@@ -913,14 +915,12 @@ var loginPageTemplate = template.Must(template.New("login").Parse(`<!DOCTYPE htm
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" type="image/svg+xml" href="../favicon.svg?v=2">
-<title>EUDI Test Demo Issuer</title>
+<title>{{.IssuerName}}</title>
+<link rel="stylesheet" href="tokens.css">
+<script src="theme.js"></script>
 <style>
-:root { --bg:#1a1b26; --bg-surface:#24283b; --text:#c0caf5; --text-dim:#8b93b8; --border:#3b4261; --accent:#7aa2f7; }
-@media (prefers-color-scheme: light) {
-  :root { --bg:#f5f5f5; --bg-surface:#ffffff; --text:#343b58; --text-dim:#6b6f7b; --border:#d0d0d0; --accent:#2569d6; }
-}
 * { margin:0; padding:0; box-sizing:border-box; }
-body { font-family:"SF Mono","Cascadia Code","Fira Code",Menlo,Consolas,monospace; background:var(--bg); color:var(--text); min-height:100vh; padding:40px 20px; }
+body { font-family:var(--font-mono); background:var(--bg); color:var(--text); min-height:100vh; padding:40px 20px; }
 .card { max-width:520px; margin:0 auto; background:var(--bg-surface); border:1px solid var(--border); border-radius:8px; padding:24px; }
 h1 { font-size:16px; color:var(--accent); margin-bottom:10px; }
 p { font-size:12px; line-height:1.6; color:var(--text-dim); margin-bottom:14px; }
@@ -935,7 +935,7 @@ input { font:inherit; font-size:12px; width:100%; padding:8px; background:var(--
 .debug .field span { display:block; font-size:10px; color:var(--text-dim); margin-bottom:2px; }
 .debug .field code { display:block; font-size:11px; color:var(--text); word-break:break-all; max-height:120px; overflow:auto; padding:6px 8px; background:var(--bg); border:1px solid var(--border); border-radius:4px; }
 .debug .empty { font-size:10px; color:var(--text-dim); margin-top:8px; }
-.error { color:#f7768e; font-size:12px; margin-top:12px; }
+.error { color:var(--red); font-size:12px; margin-top:12px; }
 </style>
 </head>
 <body>
@@ -982,6 +982,7 @@ func renderLoginPage(w http.ResponseWriter, data loginPageData) {
 		status = http.StatusUnauthorized
 	}
 	w.WriteHeader(status)
+	data.IssuerName = wallet.DemoIssuerName
 	_ = loginPageTemplate.Execute(w, data)
 }
 

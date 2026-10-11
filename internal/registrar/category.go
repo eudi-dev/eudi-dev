@@ -14,10 +14,15 @@
 
 package registrar
 
-import "github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
+import (
+	"encoding/json"
+	"fmt"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/defaults"
+)
 
 // Category describes a credential category for the wallet, the registrar and
-// the UI.
+// the UI. The categories are data in the defaults tree.
 type Category struct {
 	ID          string `json:"id"`
 	Label       string `json:"label"`
@@ -33,13 +38,40 @@ type Category struct {
 	// test wallet treats QEAAs and PuB-EAAs the same way. The level of other
 	// EAAs depends on their rulebook.
 	AttestationLoS string `json:"attestationLoS"`
+	// TrustedList describes the trusted list of the category's providers.
+	TrustedList CategoryTrustedList `json:"trustedList"`
 }
 
-var categories = []Category{
-	{ID: credtemplate.CategoryPID, Label: "PID", Description: "PID", Entitlement: PIDProviderEntitlement, TrustRule: "ARF ISSU_07", AttestationLoS: "iso_18045_high"},
-	{ID: credtemplate.CategoryQEAA, Label: "QEAA", Description: "QEAA (qualified)", Entitlement: QEAAProviderEntitlement, TrustRule: "ARF ISSU_08", AttestationLoS: "iso_18045_high"},
-	{ID: credtemplate.CategoryPubEAA, Label: "PuB-EAA", Description: "PuB-EAA (public body)", Entitlement: PubEAAProviderEntitlement, TrustRule: "ARF ISSU_09", AttestationLoS: "iso_18045_high"},
-	{ID: credtemplate.CategoryEAA, Label: "EAA", Description: "EAA", Entitlement: NonQEAAProviderEntitlement, TrustRule: "ARF ISSU_10", AttestationLoS: "iso_18045_basic"},
+// CategoryTrustedList holds the scheme and service types of a category's
+// trusted list (ETSI TS 119 602 V1.1.1). The standard defines list types for
+// PID providers (Annex D) and PuB-EAA providers (Annex H). It registers none
+// for QEAA or other EAA providers. Annex C.1 has a scheme operator create its
+// own URIs, and §6.3.3 asks for one type per profile. Those URIs name the
+// profile, so every deployment uses them whatever its base URL.
+type CategoryTrustedList struct {
+	// ETSIAnnex names the annex of ETSI TS 119 602 that defines the list
+	// type. It is empty for a type of this test wallet.
+	ETSIAnnex                   string `json:"etsiAnnex,omitempty"`
+	Type                        string `json:"type"`
+	StatusDeterminationApproach string `json:"statusDeterminationApproach"`
+	SchemeTypeCommunityRules    string `json:"schemeTypeCommunityRules"`
+	SchemeTerritory             string `json:"schemeTerritory,omitempty"`
+	IssuanceServiceType         string `json:"issuanceServiceType"`
+	RevocationServiceType       string `json:"revocationServiceType"`
+}
+
+var categories = loadCategories()
+
+func loadCategories() []Category {
+	data, err := defaults.ReadFile("categories.json")
+	if err != nil {
+		panic(fmt.Sprintf("reading the credential categories: %v", err))
+	}
+	var out []Category
+	if err := json.Unmarshal(data, &out); err != nil {
+		panic(fmt.Sprintf("parsing the credential categories: %v", err))
+	}
+	return out
 }
 
 // Categories lists the credential categories in the order of
@@ -62,6 +94,17 @@ func CategoryOf(id string) Category {
 func CategoryOfEntitlement(entitlement string) (string, bool) {
 	for _, c := range categories {
 		if c.Entitlement == entitlement {
+			return c.ID, true
+		}
+	}
+	return "", false
+}
+
+// CategoryOfListType returns the category whose providers a trusted list of
+// that type lists.
+func CategoryOfListType(listType string) (string, bool) {
+	for _, c := range categories {
+		if c.TrustedList.Type == listType {
 			return c.ID, true
 		}
 	}

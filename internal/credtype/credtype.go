@@ -43,6 +43,21 @@ const (
 	DemoTicketVCT = "urn:eudi-test:demo-ticket:1"
 )
 
+// Credential format identifiers of the OpenID4VCI 1.0 format profiles
+// (Appendix A.1 W3C VCs, A.2 mdocs, A.3 SD-JWT VCs). OpenID4VP 1.0 uses the
+// same identifiers.
+const (
+	FormatSDJWT = "dc+sd-jwt"
+	FormatMDOC  = "mso_mdoc"
+	FormatJWTVC = "jwt_vc_json"
+)
+
+// NeverDisclosedClaims are the claims of draft-ietf-oauth-sd-jwt-vc-19
+// §2.2.2.3: "The following registered JWT claims, including any of their
+// sub-claims, when used in the SD-JWT component of an SD-JWT VC, MUST NOT be
+// included in Disclosures and therefore MUST NOT be selectively disclosed".
+var NeverDisclosedClaims = []string{"iss", "nbf", "exp", "cnf", "vct", "vct#integrity", AkaVCTsClaim, "status"}
+
 // AkaVCTsClaim is the SD-JWT VC claim that lists further types of a credential
 // (draft-ietf-oauth-sd-jwt-vc-19 §2.2.2.2).
 const AkaVCTsClaim = "aka_vcts"

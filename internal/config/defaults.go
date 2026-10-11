@@ -38,6 +38,16 @@ const (
 	// Sign-in and consent take longer than ordinary HTTP requests. This timeout
 	// covers server response writes, remote CLI requests and consent approval waits.
 	SlowRequestTimeout = 2 * time.Minute
+
+	// Timeouts of the HTTP servers. A server that waits for sign-in or
+	// consent writes with SlowRequestTimeout.
+	ServerReadTimeout  = 30 * time.Second
+	ServerWriteTimeout = 60 * time.Second
+	ServerIdleTimeout  = 120 * time.Second
+
+	// StreamKeepaliveInterval is how often an idle event stream sends a
+	// comment line, so proxies keep the connection open.
+	StreamKeepaliveInterval = 20 * time.Second
 )
 
 // ClientHeader identifies the client behind an API call as "<name>/<version>".

@@ -16,6 +16,7 @@ package wallet
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"reflect"
 	"slices"
@@ -210,5 +211,29 @@ func TestAPredefinedOverrideWithAFormatAliasStaysInTheCatalogue(t *testing.T) {
 	entry, ok := w.catalogueEntryFor("dc+sd-jwt", []string{"urn:eudi:pid:1"})
 	if !ok || entry.Name != "EUDI PID" {
 		t.Errorf("entry %+v, want the EUDI PID", entry)
+	}
+}
+
+// The UI renders the levels of security and holder bindings from the
+// registrar, and the registrar accepts each of them.
+func TestTheCatalogueServesItsSchemaOptions(t *testing.T) {
+	srv := newTestServer(t, false)
+	resp := serverRequest(t, srv, "GET", "/api/catalog/schema-options", "")
+	var options map[string][]registrar.SchemaOption
+	if err := json.Unmarshal(resp.Body.Bytes(), &options); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(options["attestationLoS"], registrar.AttestationLevels) || !reflect.DeepEqual(options["bindingType"], registrar.BindingTypes) {
+		t.Fatalf("options %v", options)
+	}
+	for i, level := range registrar.AttestationLevels {
+		entry := diplomaCatalogEntry()
+		entry.Name = fmt.Sprintf("Diploma %d", i)
+		entry.Credentials = []registrar.CatalogCredential{{Format: "dc+sd-jwt", Type: fmt.Sprintf("urn:example:diploma:level:%d", i), Claims: [][]any{{"degree"}}}}
+		entry.Schema.AttestationLoS = level.Value
+		entry.Schema.BindingType = registrar.BindingTypes[i].Value
+		if resp := serverRequest(t, srv, "POST", "/api/catalog/attestations", mustJSON(t, entry)); resp.Code != http.StatusCreated {
+			t.Errorf("an entry with %s and %s answers %d: %s", level.Value, registrar.BindingTypes[i].Value, resp.Code, resp.Body.String())
+		}
 	}
 }

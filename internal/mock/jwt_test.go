@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
 )
 
@@ -32,7 +33,7 @@ func TestGenerateJWT_DefaultClaims(t *testing.T) {
 		Issuer:    "https://issuer.example",
 		VCT:       "urn:eudi:pid:1",
 		ExpiresIn: 24 * time.Hour,
-		Claims:    DefaultClaims,
+		Claims:    credtemplate.DefaultClaims,
 		Key:       key,
 	}
 
@@ -80,7 +81,7 @@ func TestGenerateJWT_DefaultClaims(t *testing.T) {
 		t.Error("JWT payload should not contain _sd_alg")
 	}
 
-	for name, expected := range DefaultClaims {
+	for name, expected := range credtemplate.DefaultClaims {
 		val, ok := token.Payload[name]
 		if !ok {
 			t.Errorf("missing claim %q in payload", name)
@@ -123,7 +124,7 @@ func TestGenerateJWT_WrongKeyFailsVerify(t *testing.T) {
 		Issuer:    "https://issuer.example",
 		VCT:       "urn:eudi:pid:1",
 		ExpiresIn: 24 * time.Hour,
-		Claims:    DefaultClaims,
+		Claims:    credtemplate.DefaultClaims,
 		Key:       key1,
 	}
 

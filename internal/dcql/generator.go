@@ -18,16 +18,17 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
 )
 
 func FromSDJWT(token *sdjwt.Token) *Query {
-	return fromJWTToken(token, "dc+sd-jwt")
+	return fromJWTToken(token, credtype.FormatSDJWT)
 }
 
 func FromJWT(token *sdjwt.Token) *Query {
-	return fromJWTToken(token, "jwt_vc_json")
+	return fromJWTToken(token, credtype.FormatJWTVC)
 }
 
 func fromJWTToken(token *sdjwt.Token, credFormat string) *Query {
@@ -79,7 +80,7 @@ func FromMDOC(doc *mdoc.Document) *Query {
 
 	cq := CredentialQuery{
 		ID:     id,
-		Format: "mso_mdoc",
+		Format: credtype.FormatMDOC,
 		Claims: claims,
 	}
 

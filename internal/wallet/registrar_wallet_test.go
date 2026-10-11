@@ -203,7 +203,7 @@ func TestTheRegistrarAPI(t *testing.T) {
 		if issuer.TradeName != DemoIssuerName || len(issuer.Services) != 1 || len(issuer.Services[0].ProvidesAttestations) == 0 || len(issuer.Services[0].IntendedUses) != 1 {
 			t.Errorf("demo issuer %+v, want one provider service with the identity check", issuer)
 		}
-		if verifier.TradeName != demoVerifierName || len(verifier.Services) != 1 || len(verifier.Services[0].IntendedUses) != 1 || len(verifier.Services[0].ProvidesAttestations) != 0 {
+		if verifier.TradeName != DemoVerifierName || len(verifier.Services) != 1 || len(verifier.Services[0].IntendedUses) != 1 || len(verifier.Services[0].ProvidesAttestations) != 0 {
 			t.Errorf("demo verifier %+v, want one service with one intended use", verifier)
 		}
 		if issuer.Identifier[0].Identifier == verifier.Identifier[0].Identifier {
@@ -368,8 +368,33 @@ func TestTheDemoPartiesHoldEveryCertificateFromTheStart(t *testing.T) {
 		for _, s := range w.Registrar().RegistrationCertificateStatuses(issuer) {
 			uses = append(uses, s.Service+"/"+s.IntendedUse)
 		}
-		if !slices.Contains(uses, demoIssuerServiceID+"/") || !slices.Contains(uses, "/"+identityCheckIntendedUseID) {
+		if !slices.Contains(uses, demoIssuer().Services[0].ServiceIdentifier+"/") || !slices.Contains(uses, "/"+demoIssuer().Services[0].IntendedUses[0].IntendedUseIdentifier) {
 			t.Errorf("certificates %v, want the provider and the identity check", uses)
 		}
+	}
+}
+
+// The demo issuer is the provider on the trusted lists, so its registration
+// names the organization that the default provider certificates carry.
+func TestTheDemoIssuerRegistrationMatchesTheProviderCertificates(t *testing.T) {
+	caKey, _ := mock.GenerateKey()
+	ca, err := mock.GenerateCACert(caKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	leafKey, _ := mock.GenerateKey()
+	leaf, err := mock.GenerateLeafCertWithOptions(caKey, ca, &leafKey.PublicKey, mock.LeafCertOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	issuer := demoIssuer()
+	if got := leaf.Subject.Organization; len(got) != 1 || got[0] != issuer.LegalPerson.LegalName[0] {
+		t.Errorf("certificate organization %v, want %q", got, issuer.LegalPerson.LegalName[0])
+	}
+	if got := leaf.Subject.Country; len(got) != 1 || got[0] != issuer.Country {
+		t.Errorf("certificate country %v, want %q", got, issuer.Country)
+	}
+	if got, want := certificatesOrganizationIdentifier([]string{base64.StdEncoding.EncodeToString(leaf.Raw)}), "NTR"+issuer.Country+"-"+demoIdentifier(demoIssuer); got != want {
+		t.Errorf("certificate organizationIdentifier %q, want %q", got, want)
 	}
 }

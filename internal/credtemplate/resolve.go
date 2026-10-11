@@ -19,14 +19,23 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 )
+
+// DefaultClaims are the claims of a credential issued without a template
+// and without claims: the name and birth date of the EUDI PID Rulebook's
+// sample identity.
+var DefaultClaims = map[string]any{
+	"given_name":  "Jan Wijnand",
+	"family_name": "'t Hart",
+	"birthdate":   "1978-02-12",
+}
 
 // Issuance defaults for a value that neither the request nor the template
 // sets.
 const (
 	DefaultExp     = 720 * time.Hour
-	DefaultDocType = "eu.europa.ec.eudi.pid.1"
+	DefaultDocType = credtype.PIDDocType
 )
 
 // Request is what an issuer asks for on top of a template. A zero field takes
@@ -35,7 +44,7 @@ type Request struct {
 	// Format is "sdjwt", "jwt", "mdoc" or one of their aliases.
 	Format string
 	// Claims override the template's top-level claims. Without a template, nil
-	// claims are mock.DefaultClaims.
+	// claims are DefaultClaims.
 	Claims map[string]any
 	// Omit removes top-level claims from the result.
 	Omit []string
@@ -92,7 +101,7 @@ func Resolve(tpl *Template, req Request) (Resolved, error) {
 	case req.Claims != nil:
 		r.Claims = req.Claims
 	default:
-		r.Claims = mock.DefaultClaims
+		r.Claims = DefaultClaims
 	}
 	r.Claims = OmitClaims(r.Claims, req.Omit)
 
@@ -118,7 +127,7 @@ func Resolve(tpl *Template, req Request) (Resolved, error) {
 	if r.Exp == 0 {
 		r.Exp = DefaultExp
 	}
-	r.VCT = firstNonEmpty(req.VCT, templateField(tpl, func(t *Template) string { return t.VCT }), mock.DefaultPIDVCT)
+	r.VCT = firstNonEmpty(req.VCT, templateField(tpl, func(t *Template) string { return t.VCT }), credtype.PIDVCT)
 	r.DocType = firstNonEmpty(req.DocType, templateField(tpl, func(t *Template) string { return t.DocType }), DefaultDocType)
 	r.Namespace = firstNonEmpty(req.Namespace, templateField(tpl, func(t *Template) string { return t.Namespace }), r.DocType)
 	return r, nil

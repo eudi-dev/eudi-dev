@@ -12,7 +12,6 @@
   const formatBadge = document.getElementById("format-badge");
   const clearBtn = document.getElementById("clear-btn");
   const shareBtn = document.getElementById("share-btn");
-  const themeBtn = document.getElementById("theme-btn");
   const rawView = document.getElementById("raw-view");
   const EMPTY_OUTPUT_HTML = '<div class="placeholder" id="output-placeholder">Paste a credential to see decoded output</div>';
 
@@ -32,14 +31,6 @@
   const DISC_COLORS = 8;
 
   const TIMESTAMP_FIELDS = new Set(["exp", "iat", "nbf", "auth_time", "updated_at"]);
-
-  const savedTheme = localStorage.getItem("eudi-dev-theme");
-  if (savedTheme === "light") document.documentElement.setAttribute("data-theme", "light");
-  themeBtn.addEventListener("click", () => {
-    const isLight = document.documentElement.getAttribute("data-theme") === "light";
-    document.documentElement.setAttribute("data-theme", isLight ? "" : "light");
-    localStorage.setItem("eudi-dev-theme", isLight ? "" : "light");
-  });
 
   clearBtn.addEventListener("click", () => {
     input.value = "";

@@ -42,7 +42,7 @@ const (
 )
 
 func TestOmitClaims_RemovesSpecifiedClaims(t *testing.T) {
-	result := credtemplate.OmitClaims(mock.SDJWTPIDClaims, []string{"place_of_birth", "address", "nationalities"})
+	result := credtemplate.OmitClaims(predefinedClaims("pid-sdjwt"), []string{"place_of_birth", "address", "nationalities"})
 
 	for _, name := range []string{"place_of_birth", "address", "nationalities"} {
 		if _, ok := result[name]; ok {
@@ -56,28 +56,28 @@ func TestOmitClaims_RemovesSpecifiedClaims(t *testing.T) {
 		}
 	}
 
-	expectedCount := len(mock.SDJWTPIDClaims) - 3
+	expectedCount := len(predefinedClaims("pid-sdjwt")) - 3
 	if len(result) != expectedCount {
 		t.Errorf("expected %d claims, got %d", expectedCount, len(result))
 	}
 }
 
 func TestOmitClaims_EmptyOmitReturnsOriginal(t *testing.T) {
-	result := credtemplate.OmitClaims(mock.SDJWTPIDClaims, nil)
-	if len(result) != len(mock.SDJWTPIDClaims) {
-		t.Errorf("expected %d claims, got %d", len(mock.SDJWTPIDClaims), len(result))
+	result := credtemplate.OmitClaims(predefinedClaims("pid-sdjwt"), nil)
+	if len(result) != len(predefinedClaims("pid-sdjwt")) {
+		t.Errorf("expected %d claims, got %d", len(predefinedClaims("pid-sdjwt")), len(result))
 	}
 }
 
 func TestOmitClaims_OmitNonexistentClaimIsNoOp(t *testing.T) {
-	result := credtemplate.OmitClaims(mock.DefaultClaims, []string{"nonexistent_claim"})
-	if len(result) != len(mock.DefaultClaims) {
-		t.Errorf("expected %d claims, got %d", len(mock.DefaultClaims), len(result))
+	result := credtemplate.OmitClaims(credtemplate.DefaultClaims, []string{"nonexistent_claim"})
+	if len(result) != len(credtemplate.DefaultClaims) {
+		t.Errorf("expected %d claims, got %d", len(credtemplate.DefaultClaims), len(result))
 	}
 }
 
 func TestOmitClaims_TrimsWhitespace(t *testing.T) {
-	result := credtemplate.OmitClaims(mock.SDJWTPIDClaims, []string{" place_of_birth ", " address"})
+	result := credtemplate.OmitClaims(predefinedClaims("pid-sdjwt"), []string{" place_of_birth ", " address"})
 
 	if _, ok := result["place_of_birth"]; ok {
 		t.Error("place_of_birth should have been omitted (with whitespace trimming)")
@@ -116,8 +116,8 @@ func TestResolveIssueClaims_DefaultWhenEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveIssueClaimsForFormat: %v", err)
 	}
-	if len(claims) != len(mock.DefaultClaims) {
-		t.Errorf("expected %d default claims, got %d", len(mock.DefaultClaims), len(claims))
+	if len(claims) != len(credtemplate.DefaultClaims) {
+		t.Errorf("expected %d default claims, got %d", len(credtemplate.DefaultClaims), len(claims))
 	}
 }
 
@@ -134,8 +134,8 @@ func TestResolveIssueClaims_PIDWhenFlagged_SDJWT(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveIssueClaimsForFormat: %v", err)
 	}
-	if len(claims) != len(mock.SDJWTPIDClaims) {
-		t.Errorf("expected %d SD-JWT PID claims, got %d", len(mock.SDJWTPIDClaims), len(claims))
+	if len(claims) != len(predefinedClaims("pid-sdjwt")) {
+		t.Errorf("expected %d SD-JWT PID claims, got %d", len(predefinedClaims("pid-sdjwt")), len(claims))
 	}
 	if _, ok := claims["birth_family_name"]; !ok {
 		t.Error("the country-independent PID claim set is missing birth_family_name")
@@ -155,8 +155,8 @@ func TestResolveIssueClaims_PIDWhenFlagged_GermanSDJWT(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveIssueClaimsForFormat: %v", err)
 	}
-	if len(claims) != len(mock.SDJWTGermanPIDClaims) {
-		t.Errorf("expected %d German SD-JWT PID claims, got %d", len(mock.SDJWTGermanPIDClaims), len(claims))
+	if len(claims) != len(predefinedClaims("german-pid-sdjwt")) {
+		t.Errorf("expected %d German SD-JWT PID claims, got %d", len(predefinedClaims("german-pid-sdjwt")), len(claims))
 	}
 	for _, name := range []string{"birth_name", "source_document_type", credtype.AkaVCTsClaim} {
 		if _, ok := claims[name]; !ok {
@@ -178,8 +178,8 @@ func TestResolveIssueClaims_PIDWhenFlagged_MDOC(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveIssueClaimsForFormat: %v", err)
 	}
-	if len(claims) != len(mock.MDOCPIDClaims) {
-		t.Errorf("expected %d mdoc PID claims, got %d", len(mock.MDOCPIDClaims), len(claims))
+	if len(claims) != len(predefinedClaims("pid-mdoc")) {
+		t.Errorf("expected %d mdoc PID claims, got %d", len(predefinedClaims("pid-mdoc")), len(claims))
 	}
 	for name := range claims {
 		if strings.Contains(name, ":") {
@@ -201,8 +201,8 @@ func TestResolveIssueClaims_PIDWhenFlagged_GermanMDOC(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveIssueClaimsForFormat: %v", err)
 	}
-	if len(claims) != len(mock.MDOCGermanPIDClaims) {
-		t.Errorf("expected %d German mdoc PID claims, got %d", len(mock.MDOCGermanPIDClaims), len(claims))
+	if len(claims) != len(predefinedClaims("german-pid-mdoc")) {
+		t.Errorf("expected %d German mdoc PID claims, got %d", len(predefinedClaims("german-pid-mdoc")), len(claims))
 	}
 	if _, ok := claims[germanPIDNamespace+":birth_name"]; !ok {
 		t.Errorf("the German mdoc PID claim set is missing %s:birth_name", germanPIDNamespace)
@@ -223,7 +223,7 @@ func TestResolveIssueClaims_PIDWithOmit(t *testing.T) {
 		t.Fatalf("resolveIssueClaimsForFormat: %v", err)
 	}
 
-	expected := len(mock.SDJWTGermanPIDClaims) - 2
+	expected := len(predefinedClaims("german-pid-sdjwt")) - 2
 	if len(claims) != expected {
 		t.Errorf("expected %d claims, got %d", expected, len(claims))
 	}
@@ -778,7 +778,7 @@ func TestIssueMDOC_InvalidKeyFile(t *testing.T) {
 func TestDefaultClaims_HasExpectedFields(t *testing.T) {
 	required := []string{"given_name", "family_name", "birthdate"}
 	for _, name := range required {
-		if _, ok := mock.DefaultClaims[name]; !ok {
+		if _, ok := credtemplate.DefaultClaims[name]; !ok {
 			t.Errorf("DefaultClaims missing %q", name)
 		}
 	}
@@ -797,7 +797,7 @@ func TestSDJWTPIDClaims_HasExpectedFields(t *testing.T) {
 		"date_of_issuance": true, "date_of_expiry": true,
 		"issuing_authority": true, "issuing_country": true,
 	}
-	assertClaimSet(t, "SDJWTPIDClaims", mock.SDJWTPIDClaims, want)
+	assertClaimSet(t, "SDJWTPIDClaims", predefinedClaims("pid-sdjwt"), want)
 
 	// National additions belong to the German PID only. This includes the age
 	// attributes. EUDI PID Rulebook 1.1 defines none (CIR 2024/2977).
@@ -806,12 +806,12 @@ func TestSDJWTPIDClaims_HasExpectedFields(t *testing.T) {
 		"age_equal_or_over", "age_in_years", "age_birth_year",
 		credtype.AkaVCTsClaim,
 	} {
-		if _, ok := mock.SDJWTPIDClaims[name]; ok {
+		if _, ok := predefinedClaims("pid-sdjwt")[name]; ok {
 			t.Errorf("%q is a German addition and must not be in the country-independent PID", name)
 		}
 	}
 
-	addr, ok := mock.SDJWTPIDClaims["address"].(map[string]any)
+	addr, ok := predefinedClaims("pid-sdjwt")["address"].(map[string]any)
 	if !ok {
 		t.Fatal("address should be a map")
 	}
@@ -822,7 +822,7 @@ func TestSDJWTPIDClaims_HasExpectedFields(t *testing.T) {
 		"locality": true, "region": true, "country": true,
 	})
 
-	pob, ok := mock.SDJWTPIDClaims["place_of_birth"].(map[string]any)
+	pob, ok := predefinedClaims("pid-sdjwt")["place_of_birth"].(map[string]any)
 	if !ok {
 		t.Fatal("place_of_birth should be a map")
 	}
@@ -830,9 +830,9 @@ func TestSDJWTPIDClaims_HasExpectedFields(t *testing.T) {
 		"locality": true, "country": true,
 	})
 
-	nats, ok := mock.SDJWTPIDClaims["nationalities"].([]any)
+	nats, ok := predefinedClaims("pid-sdjwt")["nationalities"].([]any)
 	if !ok || len(nats) != 1 || nats[0] != "NL" {
-		t.Errorf("nationalities should be [\"NL\"], got %v", mock.SDJWTPIDClaims["nationalities"])
+		t.Errorf("nationalities should be [\"NL\"], got %v", predefinedClaims("pid-sdjwt")["nationalities"])
 	}
 }
 
@@ -846,11 +846,11 @@ func TestSDJWTGermanPIDClaims_HasExpectedFields(t *testing.T) {
 		"issuing_authority": true, "issuing_country": true,
 		"source_document_type": true,
 	}
-	assertClaimSet(t, "SDJWTGermanPIDClaims", mock.SDJWTGermanPIDClaims, want)
+	assertClaimSet(t, "SDJWTGermanPIDClaims", predefinedClaims("german-pid-sdjwt"), want)
 
 	// aka_vcts lets the German PID match the base PID type without fetching Type
 	// Metadata.
-	aka := credtype.AkaVCTs(mock.SDJWTGermanPIDClaims)
+	aka := credtype.AkaVCTs(predefinedClaims("german-pid-sdjwt"))
 	if len(aka) != 1 || aka[0] != credtype.PIDVCT {
 		t.Errorf("aka_vcts should be [%q], got %v", credtype.PIDVCT, aka)
 	}
@@ -863,12 +863,12 @@ func TestSDJWTGermanPIDClaims_HasExpectedFields(t *testing.T) {
 		"age_in_years", "age_birth_year", "birth_family_name", "birth_given_name",
 		"administrative_number", "date_of_issuance",
 	} {
-		if _, ok := mock.SDJWTGermanPIDClaims[name]; ok {
+		if _, ok := predefinedClaims("german-pid-sdjwt")[name]; ok {
 			t.Errorf("%q is not part of the German PID and must not be present", name)
 		}
 	}
 
-	addr, ok := mock.SDJWTGermanPIDClaims["address"].(map[string]any)
+	addr, ok := predefinedClaims("german-pid-sdjwt")["address"].(map[string]any)
 	if !ok {
 		t.Fatal("address should be a map")
 	}
@@ -877,7 +877,7 @@ func TestSDJWTGermanPIDClaims_HasExpectedFields(t *testing.T) {
 		"region": true, "country": true,
 	})
 
-	ages, ok := mock.SDJWTGermanPIDClaims["age_equal_or_over"].(map[string]any)
+	ages, ok := predefinedClaims("german-pid-sdjwt")["age_equal_or_over"].(map[string]any)
 	if !ok {
 		t.Fatal("age_equal_or_over should be a map")
 	}
@@ -893,7 +893,7 @@ func TestSDJWTGermanPIDClaims_HasExpectedFields(t *testing.T) {
 		t.Errorf("age_equal_or_over.65 should be false for a 1964 birthdate, got %v", ages["65"])
 	}
 
-	pob, ok := mock.SDJWTGermanPIDClaims["place_of_birth"].(map[string]any)
+	pob, ok := predefinedClaims("german-pid-sdjwt")["place_of_birth"].(map[string]any)
 	if !ok {
 		t.Fatal("place_of_birth should be a map")
 	}
@@ -901,9 +901,9 @@ func TestSDJWTGermanPIDClaims_HasExpectedFields(t *testing.T) {
 		"locality": true,
 	})
 
-	nats, ok := mock.SDJWTGermanPIDClaims["nationalities"].([]any)
+	nats, ok := predefinedClaims("german-pid-sdjwt")["nationalities"].([]any)
 	if !ok || len(nats) != 1 || nats[0] != "DE" {
-		t.Errorf("nationalities should be [\"DE\"], got %v", mock.SDJWTGermanPIDClaims["nationalities"])
+		t.Errorf("nationalities should be [\"DE\"], got %v", predefinedClaims("german-pid-sdjwt")["nationalities"])
 	}
 }
 
@@ -919,15 +919,15 @@ func TestMDOCPIDClaims_HasExpectedFields(t *testing.T) {
 		"issuance_date": true, "expiry_date": true,
 		"issuing_authority": true, "issuing_country": true,
 	}
-	assertClaimSet(t, "MDOCPIDClaims", mock.MDOCPIDClaims, want)
+	assertClaimSet(t, "MDOCPIDClaims", predefinedClaims("pid-mdoc"), want)
 
-	for name := range mock.MDOCPIDClaims {
+	for name := range predefinedClaims("pid-mdoc") {
 		if strings.Contains(name, ":") {
 			t.Errorf("%q sits in another namespace than the PID's own", name)
 		}
 	}
 
-	birthPlace, ok := mock.MDOCPIDClaims["place_of_birth"].(map[string]any)
+	birthPlace, ok := predefinedClaims("pid-mdoc")["place_of_birth"].(map[string]any)
 	if !ok {
 		t.Fatal("place_of_birth should be a map")
 	}
@@ -954,7 +954,7 @@ func TestMDOCGermanPIDClaims_HasExpectedFields(t *testing.T) {
 		de + "age_over_16": true, de + "age_over_18": true,
 		de + "age_over_21": true, de + "age_over_65": true,
 	}
-	assertClaimSet(t, "MDOCGermanPIDClaims", mock.MDOCGermanPIDClaims, want)
+	assertClaimSet(t, "MDOCGermanPIDClaims", predefinedClaims("german-pid-mdoc"), want)
 
 	for _, name := range []string{
 		"sex", "portrait", "email_address", "mobile_phone_number", "document_number",
@@ -965,7 +965,7 @@ func TestMDOCGermanPIDClaims_HasExpectedFields(t *testing.T) {
 		// Only the technical validFrom of the credential is set.
 		"issuance_date",
 	} {
-		if _, ok := mock.MDOCGermanPIDClaims[name]; ok {
+		if _, ok := predefinedClaims("german-pid-mdoc")[name]; ok {
 			t.Errorf("%q is not part of the German PID and must not be present", name)
 		}
 	}
@@ -973,12 +973,12 @@ func TestMDOCGermanPIDClaims_HasExpectedFields(t *testing.T) {
 	// The national elements must stay out of the PID namespace. A verifier
 	// reading the country-independent rulebook would find them there.
 	for _, name := range []string{"birth_name", "academic_title", "also_known_as", "age_over_18"} {
-		if _, ok := mock.MDOCGermanPIDClaims[name]; ok {
+		if _, ok := predefinedClaims("german-pid-mdoc")[name]; ok {
 			t.Errorf("%q must sit in %s, not in the PID namespace", name, germanPIDNamespace)
 		}
 	}
 
-	birthPlace, ok := mock.MDOCGermanPIDClaims["place_of_birth"].(map[string]any)
+	birthPlace, ok := predefinedClaims("german-pid-mdoc")["place_of_birth"].(map[string]any)
 	if !ok {
 		t.Fatal("place_of_birth should be a map")
 	}
@@ -995,13 +995,13 @@ func TestPIDClaims_TypesAreCorrect(t *testing.T) {
 		sdjwt, mdoc       map[string]any
 		sdjwtKey, mdocKey string
 	}{
-		{"family_name", mock.SDJWTPIDClaims, mock.MDOCPIDClaims, "family_name", "family_name"},
-		{"given_name", mock.SDJWTPIDClaims, mock.MDOCPIDClaims, "given_name", "given_name"},
-		{"birthdate", mock.SDJWTPIDClaims, mock.MDOCPIDClaims, "birthdate", "birth_date"},
-		{"expiry", mock.SDJWTPIDClaims, mock.MDOCPIDClaims, "date_of_expiry", "expiry_date"},
-		{"German family_name", mock.SDJWTGermanPIDClaims, mock.MDOCGermanPIDClaims, "family_name", "family_name"},
-		{"German given_name", mock.SDJWTGermanPIDClaims, mock.MDOCGermanPIDClaims, "given_name", "given_name"},
-		{"German birthdate", mock.SDJWTGermanPIDClaims, mock.MDOCGermanPIDClaims, "birthdate", "birth_date"},
+		{"family_name", predefinedClaims("pid-sdjwt"), predefinedClaims("pid-mdoc"), "family_name", "family_name"},
+		{"given_name", predefinedClaims("pid-sdjwt"), predefinedClaims("pid-mdoc"), "given_name", "given_name"},
+		{"birthdate", predefinedClaims("pid-sdjwt"), predefinedClaims("pid-mdoc"), "birthdate", "birth_date"},
+		{"expiry", predefinedClaims("pid-sdjwt"), predefinedClaims("pid-mdoc"), "date_of_expiry", "expiry_date"},
+		{"German family_name", predefinedClaims("german-pid-sdjwt"), predefinedClaims("german-pid-mdoc"), "family_name", "family_name"},
+		{"German given_name", predefinedClaims("german-pid-sdjwt"), predefinedClaims("german-pid-mdoc"), "given_name", "given_name"},
+		{"German birthdate", predefinedClaims("german-pid-sdjwt"), predefinedClaims("german-pid-mdoc"), "birthdate", "birth_date"},
 	}
 	for _, p := range pairs {
 		if p.sdjwt[p.sdjwtKey] != p.mdoc[p.mdocKey] {
@@ -1009,22 +1009,22 @@ func TestPIDClaims_TypesAreCorrect(t *testing.T) {
 		}
 	}
 
-	if mock.SDJWTPIDClaims["family_name"] == mock.SDJWTGermanPIDClaims["family_name"] &&
-		mock.SDJWTPIDClaims["given_name"] == mock.SDJWTGermanPIDClaims["given_name"] {
+	if predefinedClaims("pid-sdjwt")["family_name"] == predefinedClaims("german-pid-sdjwt")["family_name"] &&
+		predefinedClaims("pid-sdjwt")["given_name"] == predefinedClaims("german-pid-sdjwt")["given_name"] {
 		t.Error("the country-independent and the German PID should describe different people")
 	}
-	if v, ok := mock.SDJWTPIDClaims["family_name"].(string); !ok || v != "'t Hart" {
+	if v, ok := predefinedClaims("pid-sdjwt")["family_name"].(string); !ok || v != "'t Hart" {
 		t.Errorf("country-independent family_name should be \"'t Hart\", got %v", v)
 	}
-	if v, ok := mock.SDJWTGermanPIDClaims["family_name"].(string); !ok || !strings.Contains(v, "MUSTERMANN") {
+	if v, ok := predefinedClaims("german-pid-sdjwt")["family_name"].(string); !ok || !strings.Contains(v, "MUSTERMANN") {
 		t.Errorf("German family_name should contain MUSTERMANN, got %v", v)
 	}
 
 	// The expiry is a calendar day with no time component, and the rulebook
 	// puts it five years out.
-	v, ok := mock.MDOCPIDClaims["expiry_date"].(string)
+	v, ok := predefinedClaims("pid-mdoc")["expiry_date"].(string)
 	if !ok {
-		t.Fatalf("expiry_date should be a string, got %T", mock.MDOCPIDClaims["expiry_date"])
+		t.Fatalf("expiry_date should be a string, got %T", predefinedClaims("pid-mdoc")["expiry_date"])
 	}
 	expiry, err := time.Parse(time.DateOnly, v)
 	if err != nil {
@@ -1034,9 +1034,9 @@ func TestPIDClaims_TypesAreCorrect(t *testing.T) {
 		t.Errorf("expiry_date is %d years out, want 5", years)
 	}
 
-	issued, ok := mock.MDOCPIDClaims["issuance_date"].(string)
+	issued, ok := predefinedClaims("pid-mdoc")["issuance_date"].(string)
 	if !ok {
-		t.Fatalf("issuance_date should be a string, got %T", mock.MDOCPIDClaims["issuance_date"])
+		t.Fatalf("issuance_date should be a string, got %T", predefinedClaims("pid-mdoc")["issuance_date"])
 	}
 	if issued != time.Now().UTC().Format(time.DateOnly) {
 		t.Errorf("issuance_date = %q, want today", issued)
@@ -1158,4 +1158,13 @@ func TestIssueToWalletKeepsTheStoredIssuerURL(t *testing.T) {
 	if token.Payload["iss"] != "https://custom.example" {
 		t.Fatalf("iss = %v, want the --iss value", token.Payload["iss"])
 	}
+}
+
+// predefinedClaims returns the claims of a predefined template.
+func predefinedClaims(name string) map[string]any {
+	t, ok := credtemplate.Predefined(name)
+	if !ok {
+		panic("no predefined template " + name)
+	}
+	return t.Claims
 }

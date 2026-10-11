@@ -1,0 +1,42 @@
+{
+  "name": "dutch-pid-sdjwt",
+  "description": "Dutch PID (SD-JWT, NL Wallet working draft)",
+  "format": "sdjwt",
+  "vct": "urn:eudi:pid:nl:1",
+  "category": "pid",
+  "rulebook": "https://github.com/MinBZK/nl-wallet/blob/ea1402d2ad96202617bee6771ac1395c73e96322/scripts/devenv/eudi_pid_nl_1.json",
+  "claims": {
+    "address": {
+      "country": "NL",
+      "house_number": "1",
+      "locality": "Toetsoog",
+      "postal_code": "2596TW",
+      "street_address": "Van Wijngaerdenstraat"
+    },
+    "age_over_18": true,
+    "birthdate": "1965-03-10",
+    "bsn": "999991772",
+    "date_of_expiry": "",
+    "family_name": "De Bruijn",
+    "given_name": "Willeke Liselotte",
+    "issuing_authority": "Rijksdienst voor Identiteitsgegevens",
+    "issuing_country": "NL",
+    "nationalities": [
+      "NL"
+    ],
+    "picture": "embedded:portraits/dutch.jpg",
+    "place_of_birth": {
+      "country": "NL"
+    },
+    "recovery_code": "1234567"
+  },
+  "display": {
+    "name": "Dutch PID",
+    "description": "A demo Dutch PID credential for testing PID verification flows. It follows the working draft of the Dutch PID in the NL Wallet reference implementation, for Willeke Liselotte De Bruijn, the identity of the Dutch identity card specimen, and carries the mandatory EUDI PID attributes. Created by eudi-dev, not a real identity. Card image: specimen of the Dutch identity card by the Rijksdienst voor Identiteitsgegevens, resized, CC BY-SA 4.0. Draft: https://github.com/MinBZK/nl-wallet/blob/ea1402d2ad96202617bee6771ac1395c73e96322/scripts/devenv/eudi_pid_nl_1.json",
+    "background_color": "#3d59a1",
+    "text_color": "#ffffff",
+    "logo": "embedded:images/logo-nl.svg",
+    "logo_alt_text": "eudi-dev logo on the Dutch flag",
+    "background_image": "embedded:images/dutch-id-specimen.jpg"
+  }
+}

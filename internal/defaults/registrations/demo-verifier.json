@@ -1,0 +1,41 @@
+{
+  "identifier": [
+    {
+      "identifier": "NLTEST.00000001",
+      "type": "http://data.europa.eu/eudi/id/EUID"
+    }
+  ],
+  "legalPerson": {
+    "legalName": [
+      "EUDI Dev Test Verifier"
+    ]
+  },
+  "country": "NL",
+  "tradeName": "EUDI Dev Demo Verifier",
+  "services": [
+    {
+      "serviceTradeName": "EUDI Dev Demo Verifier",
+      "serviceIdentifier": "verification",
+      "srvDescription": [
+        [
+          {
+            "lang": "en",
+            "content": "Demo verifier of the eudi-dev test wallet"
+          }
+        ]
+      ],
+      "intendedUses": [
+        {
+          "intendedUseIdentifier": "demo-requests",
+          "purpose": [
+            {
+              "lang": "en",
+              "content": "Shows how a verifier requests and checks credentials"
+            }
+          ],
+          "credentials": []
+        }
+      ]
+    }
+  ]
+}

@@ -27,6 +27,7 @@ import (
 	"fmt"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 )
 
 // CertificatePEMToJWKS converts one or more PEM certificates into a JWKS JSON
@@ -85,7 +86,7 @@ func publicKeyJWKParams(pub any) (map[string]any, string, error) {
 		var crv, alg string
 		switch key.Curve {
 		case elliptic.P256():
-			crv, alg = "P-256", "ES256"
+			crv, alg = "P-256", jws.AlgES256
 		case elliptic.P384():
 			crv, alg = "P-384", "ES384"
 		case elliptic.P521():

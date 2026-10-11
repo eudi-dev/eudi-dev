@@ -31,9 +31,11 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/netaddr"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 )
 
 type dpopNonceState struct {
@@ -668,8 +670,8 @@ func createClientAttestationHeaders(w *Wallet, auth *ClientAuthentication, clien
 	x5c := buildJWSX5C(chain)
 	holderJWK := mock.SigningJWKMap(&w.HolderKey.PublicKey)
 	clientAttestationHeader := map[string]any{
-		"alg": "ES256",
-		"typ": "oauth-client-attestation+jwt",
+		"alg": jws.AlgES256,
+		"typ": format.TypeClientAttestation,
 		"x5c": x5c,
 	}
 	if kid := mock.KeyIDForPublicKey(&signingKey.PublicKey); kid != "" {
@@ -678,7 +680,7 @@ func createClientAttestationHeaders(w *Wallet, auth *ClientAuthentication, clien
 	clientAttestationPayload := map[string]any{
 		"sub": clientID,
 		"iat": time.Now().Unix(),
-		"exp": time.Now().Add(5 * time.Minute).Unix(),
+		"exp": time.Now().Add(signedJWTLifetime).Unix(),
 		"cnf": map[string]any{"jwk": holderJWK},
 		// Draft-07 §5.1 requires iss and defines nbf. Later drafts allow extra
 		// claims (§5.1 rule 1).
@@ -696,8 +698,8 @@ func createClientAttestationHeaders(w *Wallet, auth *ClientAuthentication, clien
 	}
 
 	popHeader := map[string]any{
-		"alg": "ES256",
-		"typ": "oauth-client-attestation-pop+jwt",
+		"alg": jws.AlgES256,
+		"typ": format.TypeClientAttestationPoP,
 		"jwk": holderJWK,
 	}
 	popPayload := map[string]any{
@@ -708,7 +710,7 @@ func createClientAttestationHeaders(w *Wallet, auth *ClientAuthentication, clien
 		// claims (§5.2 rule 1).
 		"iss": clientID,
 		"nbf": time.Now().Unix(),
-		"exp": time.Now().Add(5 * time.Minute).Unix(),
+		"exp": time.Now().Add(signedJWTLifetime).Unix(),
 	}
 	if challenge != "" {
 		popPayload["challenge"] = challenge
@@ -771,7 +773,7 @@ func createKeyAttestation(w *Wallet, metadata map[string]any, configID, cNonce s
 		attestedKeys = append(attestedKeys, mock.SigningJWKMap(&key.PublicKey))
 	}
 	header := map[string]any{
-		"alg": "ES256",
+		"alg": jws.AlgES256,
 		"typ": "key-attestation+jwt",
 		"x5c": buildJWSX5C(chain),
 	}
@@ -781,7 +783,7 @@ func createKeyAttestation(w *Wallet, metadata map[string]any, configID, cNonce s
 	payload := map[string]any{
 		"iat":           time.Now().Unix(),
 		"nbf":           time.Now().Unix(),
-		"exp":           time.Now().Add(5 * time.Minute).Unix(),
+		"exp":           time.Now().Add(signedJWTLifetime).Unix(),
 		"attested_keys": attestedKeys,
 	}
 	claims := w.keyAttestationClaims(requirement)
@@ -803,8 +805,9 @@ func createKeyAttestation(w *Wallet, metadata map[string]any, configID, cNonce s
 // key attestation (OpenID4VCI 1.0 Appendix D.2).
 var keyAttestationClaimNames = []string{"key_storage", "user_authentication"}
 
-// keyAttestationLevelValues are the values of those claims in Appendix D.2.
-var keyAttestationLevelValues = []string{"iso_18045_high", "iso_18045_moderate", "iso_18045_enhanced-basic", "iso_18045_basic"}
+// keyAttestationLevelValues are the values of those claims in Appendix D.2,
+// the ISO/IEC 18045 attack potentials that a catalogue entry also names.
+var keyAttestationLevelValues = registrar.OptionValues(registrar.AttestationLevels)
 
 // ParseKeyAttestationLevel validates the --key-attestation-level setting. Valid
 // values are "" (use what the issuer requires), "none" and the Appendix D.2
@@ -891,7 +894,7 @@ func proofSigningAlgFinding(metadata map[string]any, configID string, requireHAI
 		return ""
 	}
 	for _, alg := range algs {
-		if alg == "ES256" {
+		if alg == jws.AlgES256 {
 			return ""
 		}
 	}
@@ -939,7 +942,7 @@ func randomBase64URL(n int) string {
 
 func createClientAssertionJWT(key *ecdsa.PrivateKey, clientID, audience string) (string, error) {
 	header := map[string]any{
-		"alg": "ES256",
+		"alg": jws.AlgES256,
 		"typ": "JWT",
 		"kid": mock.KeyIDForPublicKey(&key.PublicKey),
 	}
@@ -948,7 +951,7 @@ func createClientAssertionJWT(key *ecdsa.PrivateKey, clientID, audience string) 
 		"sub": clientID,
 		"aud": audience,
 		"iat": time.Now().Unix(),
-		"exp": time.Now().Add(5 * time.Minute).Unix(),
+		"exp": time.Now().Add(signedJWTLifetime).Unix(),
 		"jti": randomBase64URL(18),
 	}
 	return signJWT(header, payload, key)
@@ -957,7 +960,7 @@ func createClientAssertionJWT(key *ecdsa.PrivateKey, clientID, audience string) 
 func createDPoPProofJWT(key *ecdsa.PrivateKey, method, targetURL, nonce, accessToken string) (string, error) {
 	jwk := mock.SigningJWKMap(&key.PublicKey)
 	header := map[string]any{
-		"alg": "ES256",
+		"alg": jws.AlgES256,
 		"typ": "dpop+jwt",
 		"jwk": jwk,
 	}

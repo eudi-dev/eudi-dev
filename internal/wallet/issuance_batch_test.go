@@ -116,8 +116,8 @@ func TestIssuanceProofKeys(t *testing.T) {
 	if err != nil {
 		t.Fatalf("issuanceProofKeys with batch: %v", err)
 	}
-	if len(keys) != maxBatchProofKeys {
-		t.Fatalf("expected %d proof keys, got %d", maxBatchProofKeys, len(keys))
+	if len(keys) != MaxBatchSize {
+		t.Fatalf("expected %d proof keys, got %d", MaxBatchSize, len(keys))
 	}
 	if keys[0] != holder {
 		t.Fatal("holder key must be first")

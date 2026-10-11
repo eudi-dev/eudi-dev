@@ -23,18 +23,19 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/httpsec"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/publicpath"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/web"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/webui"
 )
 
-// streamKeepaliveInterval is how often an idle event stream sends a comment
-// line. Tests shorten it.
-var streamKeepaliveInterval = 20 * time.Second
+// Tests shorten the keepalive interval.
+var streamKeepaliveInterval = config.StreamKeepaliveInterval
 
 // A client that stops reading must release its goroutine and subscription. The
 // timeout leaves room for keepalives to reach active readers.
-var streamWriteTimeout = 2 * time.Minute
+var streamWriteTimeout = config.SlowRequestTimeout
 
 type Dashboard struct {
 	store   *Store
@@ -62,6 +63,9 @@ func (d *Dashboard) SetBaseURL(raw string) error {
 
 func dashboardRoots() map[string]bool {
 	roots := map[string]bool{"api": true, "decode": true}
+	for _, name := range webui.Names {
+		roots[name] = true
+	}
 	if entries, err := fs.ReadDir(staticFiles, "static"); err == nil {
 		for _, entry := range entries {
 			roots[entry.Name()] = true
@@ -82,7 +86,7 @@ func (d *Dashboard) Handler() http.Handler {
 
 	sub, _ := fs.Sub(staticFiles, "static")
 	index, _ := fs.ReadFile(sub, "index.html")
-	mux.Handle("/", publicpath.ServeIndex(index, http.FileServer(http.FS(sub))))
+	mux.Handle("/", publicpath.ServeIndex(index, http.FileServer(http.FS(webui.Overlay(sub)))))
 
 	// The dashboard shows captured traffic, which is untrusted input, so it
 	// sends the security headers.
@@ -98,9 +102,9 @@ func (d *Dashboard) ListenAndServe() error {
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", d.port),
 		Handler:      d.Handler(),
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 60 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		ReadTimeout:  config.ServerReadTimeout,
+		WriteTimeout: config.ServerWriteTimeout,
+		IdleTimeout:  config.ServerIdleTimeout,
 	}
 	return srv.ListenAndServe()
 }

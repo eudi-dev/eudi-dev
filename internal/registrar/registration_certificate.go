@@ -98,10 +98,16 @@ const (
 // errRegistrarSigning marks a failure of the wallet's own signer (HTTP 500).
 var errRegistrarSigning = errors.New("registrar signer")
 
+// The validity of a registration certificate.
 const (
-	defaultRegistrationValidity = 6 * 30 * 24 * time.Hour
-	maxRegistrationValidity     = 365 * 24 * time.Hour
+	DefaultRegistrationValidity = 6 * 30 * 24 * time.Hour
+	MaxRegistrationValidity     = 365 * 24 * time.Hour
 )
+
+// Hours writes a validity as a Go duration in whole hours, such as 4320h.
+func Hours(d time.Duration) string {
+	return fmt.Sprintf("%dh", int64(d/time.Hour))
+}
 
 // IssueRegistrationCertificate signs a registration certificate for a
 // registered intended use, or for a provider service without one, with the
@@ -501,13 +507,13 @@ func firstNonEmpty(values ...string) string {
 // GEN-5.2.4-08).
 func registrationValidity(value string) (time.Duration, error) {
 	if strings.TrimSpace(value) == "" {
-		return defaultRegistrationValidity, nil
+		return DefaultRegistrationValidity, nil
 	}
 	parsed, err := time.ParseDuration(strings.TrimSpace(value))
 	if err != nil || parsed <= 0 {
 		return 0, fmt.Errorf("validity %q is not a positive Go duration", value)
 	}
-	if parsed > maxRegistrationValidity {
+	if parsed > MaxRegistrationValidity {
 		return 0, fmt.Errorf("validity %s exceeds the 12 months of ETSI TS 119 475 GEN-5.2.4-08", value)
 	}
 	return parsed, nil
@@ -521,7 +527,7 @@ const RegistrationCertificateTyp = "rc-wrp+jwt"
 // registered purpose.
 func SignRegistrationCertificateJWT(claims map[string]any, signingKey *ecdsa.PrivateKey, signerCerts []*x509.Certificate) (string, error) {
 	header := map[string]any{
-		"alg": "ES256",
+		"alg": jws.AlgES256,
 		"typ": RegistrationCertificateTyp,
 	}
 	if x5c := x5cChain(signerCerts); len(x5c) > 0 {

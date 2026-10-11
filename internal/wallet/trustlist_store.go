@@ -92,7 +92,7 @@ func (s *signingStore) sequencedList(dir string, ca *x509.Certificate, content [
 		if err != nil {
 			return "", err
 		}
-		updated := storedTrustList{Identity: identity, Sequence: sequence, NextUpdate: time.Now().UTC().Truncate(time.Second).Add(24 * time.Hour), JWT: jwt}
+		updated := storedTrustList{Identity: identity, Sequence: sequence, NextUpdate: time.Now().UTC().Truncate(time.Second).Add(trustListUpdateInterval), JWT: jwt}
 		data, err = json.Marshal(updated) //nolint:gosec // The signed trusted list is public data.
 		if err != nil {
 			return "", err

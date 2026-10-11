@@ -149,17 +149,20 @@ const TICKET_HINTS = {
 
 let pidFormat = "both";
 let credential = "ticket";
+// vct is the national PID type of the selected option.
+let vct = "";
 let ticketMode = "combined";
 
 for (const option of document.querySelectorAll("#credential-toggle .toggle-option")) {
   option.addEventListener("click", () => {
     credential = option.dataset.credential;
+    vct = option.dataset.vct || "";
     for (const other of document.querySelectorAll("#credential-toggle .toggle-option")) {
       const selected = other === option;
       other.classList.toggle("selected", selected);
       other.setAttribute("aria-checked", String(selected));
     }
-    const showsFormat = credential === "pid" || credential === "pid-de" || credential === "pid-ticket";
+    const showsFormat = credential === "pid" || vct !== "" || credential === "pid-ticket";
     document.getElementById("format-row").hidden = !showsFormat;
     document.getElementById("format-hint").hidden = !showsFormat;
     document.getElementById("ticket-row").hidden = credential !== "pid-ticket";
@@ -411,11 +414,11 @@ document.getElementById("create-request").addEventListener("click", async () => 
     request = customRequestBody();
   } else {
     request = { type: credential === "ticket" ? "ticket" : "pid" };
+    if (vct) {
+      request.vct = vct;
+    }
     if (credential !== "ticket") {
       request.format = pidFormat;
-    }
-    if (credential === "pid-de") {
-      request.vct = "urn:eudi:pid:de:1";
     }
     if (credential === "pid-ticket") {
       request.ticket = ticketMode;

@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
@@ -121,7 +122,7 @@ func (w *Wallet) createVPToken(match CredentialMatch, params PresentationParams,
 	w.warnFindings("presentation", "The presentation does not disclose every requested claim as asked", undisclosed)
 
 	switch cred.Format {
-	case "dc+sd-jwt":
+	case credtype.FormatSDJWT:
 		audience := sdJWTAudience(params)
 		token, err := w.createSDJWTPresentation(cred, match.SelectedKeys, params.Nonce, audience, signingKey)
 		if err != nil {
@@ -129,10 +130,10 @@ func (w *Wallet) createVPToken(match CredentialMatch, params PresentationParams,
 		}
 		log.Printf("[VP] SD-JWT presentation created: %d disclosures selected, aud=%s", len(match.SelectedKeys), audience)
 		return VPTokenResult{Token: token}, nil
-	case "jwt_vc_json":
+	case credtype.FormatJWTVC:
 		log.Printf("[VP] Plain JWT presentation (no selective disclosure)")
 		return VPTokenResult{Token: cred.Raw}, nil
-	case "mso_mdoc":
+	case credtype.FormatMDOC:
 		result, err := w.createMDocPresentation(cred, match.SelectedKeys, params, mdocNonce, signingKey)
 		if err != nil {
 			return VPTokenResult{}, err
@@ -153,7 +154,7 @@ func (w *Wallet) createVPToken(match CredentialMatch, params PresentationParams,
 //
 // [ADR-0001]: docs/adr/0001-debug-by-default-validation-with-opt-in-strict-mode.md
 func (w *Wallet) checkPresentableKeyBinding(cred StoredCredential) error {
-	if cred.Format != "dc+sd-jwt" && cred.Format != "mso_mdoc" {
+	if cred.Format != credtype.FormatSDJWT && cred.Format != credtype.FormatMDOC {
 		return nil
 	}
 	if !w.keyBindingNotHeld(&cred) {
@@ -257,8 +258,8 @@ func (w *Wallet) createSDJWTPresentation(cred StoredCredential, selectedKeys []s
 
 func (w *Wallet) createKBJWT(nonce, audience, sdHash string, signingKey *ecdsa.PrivateKey) (string, error) {
 	header := map[string]any{
-		"alg": "ES256",
-		"typ": "kb+jwt",
+		"alg": jws.AlgES256,
+		"typ": sdjwt.TypeKeyBinding,
 	}
 
 	payload := map[string]any{
@@ -300,7 +301,7 @@ func (w *Wallet) CreateVPTokenMap(matches []CredentialMatch, params Presentation
 
 	for _, match := range matches {
 		// The mdoc path logs its own warning for a missing deviceKey.
-		if match.Unbound && match.Format != "mso_mdoc" {
+		if match.Unbound && match.Format != credtype.FormatMDOC {
 			w.addProtocolWarning("presentation", "unbound_credential",
 				fmt.Sprintf("Credential %s has no holder binding, which the query %s requires (OpenID4VP 1.0 §6.1). Debug mode presents it without key binding.", credTypeLabel(match), match.QueryID),
 				map[string]any{"credential_id": match.CredentialID, "query_id": match.QueryID})
@@ -541,7 +542,7 @@ func (w *Wallet) SubmitAuthorizationError(errorCode, errorDescription, state, re
 // elements. Only a trailing null or index selects elements. Arrays with always-visible
 // elements are unaffected.
 func disclosesEmptyArray(cred StoredCredential, path []any) bool {
-	if cred.Format != "dc+sd-jwt" || len(path) == 0 {
+	if cred.Format != credtype.FormatSDJWT || len(path) == 0 {
 		return false
 	}
 	switch path[len(path)-1].(type) {

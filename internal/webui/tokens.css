@@ -1,0 +1,36 @@
+/* The colour tokens of every eudi-dev page. theme.js sets data-theme="light"
+   for the light theme. */
+:root {
+  --bg: #1a1b26;
+  --bg-surface: #24283b;
+  --bg-hover: #2f3350;
+  --text: #c0caf5;
+  --text-dim: #8b93b8;
+  --border: #3b4261;
+  --accent: #7aa2f7;
+  --cyan: #7dcfff;
+  --green: #9ece6a;
+  --yellow: #e0af68;
+  --red: #f7768e;
+  --orange: #ff9e64;
+  --purple: #bb9af7;
+  --pink: #de87ad;
+  --font-mono: "SF Mono", "Cascadia Code", "Fira Code", Menlo, Consolas, monospace;
+}
+
+[data-theme="light"] {
+  --bg: #f5f5f5;
+  --bg-surface: #ffffff;
+  --bg-hover: #e8e8e8;
+  --text: #343b58;
+  --text-dim: #6b6f7b;
+  --border: #d0d0d0;
+  --accent: #2569d6;
+  --cyan: #007197;
+  --green: #587539;
+  --yellow: #8c6c3e;
+  --red: #c64343;
+  --orange: #965027;
+  --purple: #7847bd;
+  --pink: #a63367;
+}

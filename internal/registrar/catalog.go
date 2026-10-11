@@ -29,6 +29,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 )
 
@@ -100,10 +101,42 @@ var (
 	errCatalogFull     = errors.New("the catalogue holds the maximum number of attestations")
 	semanticVersion    = regexp.MustCompile(`^\d+\.\d+(\.\d+)?$`)
 
-	attestationLevels = []string{"iso_18045_high", "iso_18045_moderate", "iso_18045_enhanced-basic", "iso_18045_basic"}
-	bindingTypes      = []string{"claim", "key", "biometric", "none"}
-	frameworkTypes    = []string{"aki", "etsi_tl", "openid_federation"}
+	frameworkTypes = []string{"aki", "etsi_tl", "openid_federation"}
 )
+
+// SchemaOption is one value of a catalogue schema field, with the label the
+// UI shows.
+type SchemaOption struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
+}
+
+// AttestationLevels are the TS11 attestationLoS values, the ISO/IEC 18045
+// attack potentials, from the lowest.
+var AttestationLevels = []SchemaOption{
+	{"iso_18045_basic", "Basic"},
+	{"iso_18045_enhanced-basic", "Enhanced basic"},
+	{"iso_18045_moderate", "Moderate"},
+	{"iso_18045_high", "High"},
+}
+
+// BindingTypes are the TS11 bindingType values: how an attestation is bound
+// to its holder.
+var BindingTypes = []SchemaOption{
+	{"key", "Bound to a wallet key"},
+	{"claim", "Linked to another credential"},
+	{"biometric", "Bound to biometrics"},
+	{"none", "Not bound to the holder"},
+}
+
+// OptionValues lists the values of options.
+func OptionValues(options []SchemaOption) []string {
+	values := make([]string, len(options))
+	for i, o := range options {
+		values[i] = o.Value
+	}
+	return values
+}
 
 // CatalogAttestations lists the template entries first, then the added
 // entries.
@@ -341,7 +374,7 @@ func normalizeCatalogAttestation(entry *CatalogAttestation, base string) error {
 	for i := range entry.Credentials {
 		c := &entry.Credentials[i]
 		c.Type = strings.TrimSpace(c.Type)
-		if c.Format != "dc+sd-jwt" && c.Format != "mso_mdoc" {
+		if c.Format != credtype.FormatSDJWT && c.Format != credtype.FormatMDOC {
 			return fmt.Errorf("format %q is not dc+sd-jwt or mso_mdoc", c.Format)
 		}
 		if formats[c.Format] {
@@ -355,7 +388,7 @@ func normalizeCatalogAttestation(entry *CatalogAttestation, base string) error {
 			return fmt.Errorf("a format may list at most %d claims", maxRegisteredClaims)
 		}
 		c.Claims = slices.DeleteFunc(c.Claims, func(path []any) bool { return len(path) == 0 })
-		if c.Format == "mso_mdoc" && slices.ContainsFunc(c.Claims, func(path []any) bool { return len(path) != 2 }) {
+		if c.Format == credtype.FormatMDOC && slices.ContainsFunc(c.Claims, func(path []any) bool { return len(path) != 2 }) {
 			return fmt.Errorf("an mdoc claim is a namespace and an element identifier")
 		}
 	}
@@ -369,12 +402,12 @@ func normalizeCatalogAttestation(entry *CatalogAttestation, base string) error {
 		return fmt.Errorf("rulebookURI %q is not an http or https URL", s.RulebookURI)
 	}
 	s.AttestationLoS = firstNonEmpty(s.AttestationLoS, CategoryOf(entry.Category).AttestationLoS)
-	if !slices.Contains(attestationLevels, s.AttestationLoS) {
-		return fmt.Errorf("attestationLoS %q is not one of %s", s.AttestationLoS, strings.Join(attestationLevels, ", "))
+	if levels := OptionValues(AttestationLevels); !slices.Contains(levels, s.AttestationLoS) {
+		return fmt.Errorf("attestationLoS %q is not one of %s", s.AttestationLoS, strings.Join(levels, ", "))
 	}
 	s.BindingType = firstNonEmpty(s.BindingType, "key")
-	if !slices.Contains(bindingTypes, s.BindingType) {
-		return fmt.Errorf("bindingType %q is not one of %s", s.BindingType, strings.Join(bindingTypes, ", "))
+	if bindings := OptionValues(BindingTypes); !slices.Contains(bindings, s.BindingType) {
+		return fmt.Errorf("bindingType %q is not one of %s", s.BindingType, strings.Join(bindings, ", "))
 	}
 	if len(s.TrustedAuthorities) > maxRegistrationItems {
 		return fmt.Errorf("an attestation may list at most %d trusted authorities", maxRegistrationItems)
@@ -419,10 +452,18 @@ func completed(entry CatalogAttestation, base string) CatalogAttestation {
 	return entry
 }
 
+// TrustListsPath is where the wallet serves its trusted lists.
+const TrustListsPath = "/api/trustlists"
+
+// TrustListPath is the path of one of the wallet's trusted lists.
+func TrustListPath(id string) string {
+	return TrustListsPath + "/" + id
+}
+
 // CategoryTrustListURL returns the URL of the wallet's trusted list for a
 // credential category.
 func CategoryTrustListURL(base, category string) string {
-	return base + "/api/trustlists/" + category
+	return base + TrustListPath(category)
 }
 
 func catalogSchemaURL(base, id, format string) string {
@@ -440,7 +481,7 @@ func (entry CatalogAttestation) FormatSchema(format string) (map[string]any, boo
 		return nil, false
 	}
 	c := entry.Credentials[i]
-	if format == "dc+sd-jwt" {
+	if format == credtype.FormatSDJWT {
 		claims := make([]map[string]any, 0, len(c.Claims))
 		for _, path := range c.Claims {
 			claims = append(claims, map[string]any{"path": path})
@@ -474,31 +515,26 @@ var templateCatalogNamespace = uuid.NewSHA1(uuid.NameSpaceURL, []byte("https://g
 // templateCatalog lists the attestations of the predefined credential
 // templates, including a user template that replaces one. Other user templates
 // are added only on request and are then added entries. Templates with the
-// same display name are one attestation in two formats. The last URL in a
-// template description is its rulebook or specification. The template's
+// same display name are one attestation in two formats. The template's
 // category sets the entry's category and level of security.
 func (r *Registrar) templateCatalog(base string) []CatalogAttestation {
 	templates, err := credtemplate.List(r.env.TemplateLocation())
 	if err != nil {
 		log.Printf("[Registrar] WARNING: the catalogue leaves out templates it can't read: %v", err)
 	}
-	predefined := map[string]bool{}
-	for _, t := range credtemplate.PredefinedTemplates() {
-		predefined[t.Name] = true
-	}
 	var entries []CatalogAttestation
 	index := map[string]int{}
 	for _, t := range templates {
-		if !predefined[t.Name] {
+		if _, ok := credtemplate.Predefined(t.Name); !ok {
 			continue
 		}
 		credential, ok := templateCatalogCredential(t)
 		if !ok {
 			continue
 		}
-		name, description := t.Name, t.Description
+		name := t.Name
 		if t.Display != nil && t.Display.Name != "" {
-			name, description = t.Display.Name, t.Display.Description
+			name = t.Display.Name
 		}
 		i, ok := index[name]
 		if ok && slices.ContainsFunc(entries[i].Credentials, func(c CatalogCredential) bool { return c.Format == credential.Format }) {
@@ -512,7 +548,7 @@ func (r *Registrar) templateCatalog(base string) []CatalogAttestation {
 				Schema: AttestationSchema{
 					ID:          uuid.NewSHA1(templateCatalogNamespace, []byte(name)).String(),
 					Version:     "1.0.0",
-					RulebookURI: firstNonEmpty(lastURL(description), base+"/rulebook"),
+					RulebookURI: firstNonEmpty(t.Rulebook, base+"/rulebook"),
 					BindingType: "key",
 				},
 			}
@@ -539,7 +575,7 @@ func templateCatalogCredential(t credtemplate.Template) (CatalogCredential, bool
 	t.Format, _ = credtemplate.NormalizeFormat(t.Format)
 	switch {
 	case t.Format == "mdoc" && t.DocType != "":
-		c := CatalogCredential{Format: "mso_mdoc", Type: t.DocType}
+		c := CatalogCredential{Format: credtype.FormatMDOC, Type: t.DocType}
 		for _, key := range slices.Sorted(maps.Keys(t.Claims)) {
 			namespace, element := firstNonEmpty(t.Namespace, t.DocType), key
 			if at := strings.LastIndex(key, ":"); at > 0 {
@@ -549,7 +585,7 @@ func templateCatalogCredential(t credtemplate.Template) (CatalogCredential, bool
 		}
 		return c, true
 	case t.Format == "sdjwt" && t.VCT != "":
-		c := CatalogCredential{Format: "dc+sd-jwt", Type: t.VCT}
+		c := CatalogCredential{Format: credtype.FormatSDJWT, Type: t.VCT}
 		for _, key := range slices.Sorted(maps.Keys(t.Claims)) {
 			c.Claims = append(c.Claims, []any{key})
 			if members, ok := t.Claims[key].(map[string]any); ok {
@@ -561,14 +597,4 @@ func templateCatalogCredential(t credtemplate.Template) (CatalogCredential, bool
 		return c, true
 	}
 	return CatalogCredential{}, false
-}
-
-var urlPattern = regexp.MustCompile(`https?://\S+`)
-
-func lastURL(text string) string {
-	urls := urlPattern.FindAllString(text, -1)
-	if len(urls) == 0 {
-		return ""
-	}
-	return strings.TrimRight(urls[len(urls)-1], ".,)")
 }

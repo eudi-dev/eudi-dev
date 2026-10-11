@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package credtemplate stores reusable claim sets and issuance defaults. Built-in
-// templates cover the EU PID, national PIDs and a demo ticket. A user template
-// replaces the built-in template with the same name.
+// Package credtemplate stores reusable claim sets and issuance defaults. The
+// built-in templates are the template files of the defaults tree. They cover
+// the EU PID, national PIDs and a demo ticket. A user template replaces the
+// built-in template with the same name.
 package credtemplate
 
 import (
@@ -29,12 +30,13 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/defaults"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/storage"
 )
 
@@ -55,7 +57,8 @@ type Template struct {
 	// Exp is a Go duration string (e.g. "720h").
 	Exp string `json:"exp,omitempty"`
 	// Claims is the default claim set. Callers may override individual
-	// top-level claims at issuance time.
+	// top-level claims at issuance time. A string value "embedded:<file>"
+	// becomes a data URI of that file of the defaults tree.
 	Claims map[string]any `json:"claims"`
 	// AlwaysDisclosed lists claims that appear in plain text in an SD-JWT payload.
 	// Nested claims use dotted paths such as "address.country".
@@ -67,9 +70,13 @@ type Template struct {
 	// UniqueClaims lists claims that get a new random value for every
 	// credential, such as the opaque subject of IT-Wallet 1.4.7 §11.1.2.1.
 	UniqueClaims []string `json:"unique_claims,omitempty"`
+	// Rulebook links the rulebook or specification of the credential type.
+	Rulebook string `json:"rulebook,omitempty"`
+	// Baseline marks the PIDs that every wallet holds by default.
+	Baseline bool `json:"baseline,omitempty"`
 	// Display sets the OpenID4VCI §12.2.4 appearance of credentials issued from
-	// this template. Image fields of a built-in template use "embedded:<file>".
-	// A user template uses a data URI or an https URL.
+	// this template. Image fields take "embedded:<file>", a data URI or an
+	// https URL.
 	Display *TemplateDisplay `json:"display,omitempty"`
 	// Predefined marks the built-in templates. Template files can't set it.
 	Predefined bool `json:"predefined,omitempty"`
@@ -142,197 +149,89 @@ func NormalizeFormat(format string) (string, error) {
 	switch strings.TrimSpace(format) {
 	case "":
 		return "", nil
-	case "sdjwt", "sd-jwt", "dc+sd-jwt":
+	case "sdjwt", "sd-jwt", credtype.FormatSDJWT:
 		return "sdjwt", nil
-	case "jwt", "jwt_vc_json":
+	case "jwt", credtype.FormatJWTVC:
 		return "jwt", nil
-	case "mdoc", "mso_mdoc":
+	case "mdoc", credtype.FormatMDOC:
 		return "mdoc", nil
 	default:
 		return "", fmt.Errorf("unsupported template format %q: expected sdjwt, jwt, or mdoc", format)
 	}
 }
 
-// PredefinedTemplates copies claims and recalculates dates for each issuance, so a
-// long-running server issues PIDs with the current date.
+// PredefinedTemplates reads the built-in templates from the defaults tree.
+// Every call returns fresh copies with current dates, so a long-running
+// server issues PIDs with the current date.
 func PredefinedTemplates() []Template {
-	pidDisplay := func(name, description string) *TemplateDisplay {
-		return &TemplateDisplay{
-			Name:            name,
-			Description:     description,
-			BackgroundColor: "#3d59a1",
-			TextColor:       "#ffffff",
-			Logo:            "embedded:logo.svg",
-			LogoAltText:     "eudi-dev logo",
+	entries, err := defaults.ReadDir(predefinedDir)
+	if err != nil {
+		panic(fmt.Sprintf("reading the predefined templates: %v", err))
+	}
+	var templates []Template
+	for _, entry := range entries {
+		if !hasTemplateExtension(entry.Name()) {
+			continue
+		}
+		data, err := defaults.ReadFile(path.Join(predefinedDir, entry.Name()))
+		if err != nil {
+			panic(fmt.Sprintf("reading the predefined template %s: %v", entry.Name(), err))
+		}
+		t, err := parse(data, entry.Name())
+		if err != nil {
+			panic(fmt.Sprintf("predefined template: %v", err))
+		}
+		t.Predefined = true
+		templates = append(templates, *t)
+	}
+	return templates
+}
+
+const predefinedDir = "templates"
+
+// Predefined returns the built-in template with the given name.
+func Predefined(name string) (Template, bool) {
+	for _, t := range PredefinedTemplates() {
+		if t.Name == name {
+			return t, true
 		}
 	}
-	// Descriptions link to their rulebooks so holders can check the claim definitions.
-	// The wallet renders bare URLs as links.
-	eudiPIDDisplay := func() *TemplateDisplay {
-		return pidDisplay("EUDI PID", "A demo Person Identification Data (PID) credential for testing PID verification flows. Its attributes follow the EUDI PID Rulebook v1.7 (the country-independent EU dataset), populated with the rulebook's own Jan Wijnand sample identity. Created by eudi-dev, not a real identity. Rulebook: https://github.com/eu-digital-identity-wallet/eudi-doc-attestation-rulebooks-catalog/blob/main/rulebooks/pid/pid-rulebook.md")
-	}
-	germanDisplay := func() *TemplateDisplay {
-		d := pidDisplay("German PID", "A demo German PID credential for testing PID verification flows. It extends the EUDI PID with the national attributes of the German PID Rulebook 1.0.0 (the BMI blueprint), for the sample ERIKA MUSTERMANN identity. Created by eudi-dev, not a real identity. Rulebook: https://bmi.usercontent.opencode.de/eudi-wallet/eidas-2.0-architekturkonzept/content/features/PID/german-pid-rulebook/")
-		d.BackgroundImage = "embedded:german-id-specimen.jpg"
-		d.Logo, d.LogoAltText = "embedded:logo-de.svg", "eudi-dev logo on the German flag"
-		return d
-	}
-	// The card images are official specimens. Their licences require the
-	// credit in the description.
-	italianDisplay := func() *TemplateDisplay {
-		d := pidDisplay("Italian PID", "A demo Italian PID credential for testing PID verification flows. Its attributes follow the PID data model of the IT-Wallet Technical Specifications 1.4.7, for Bianca Rossi, the identity of the Carta d'identità elettronica specimen. Created by eudi-dev, not a real identity. Card image: specimen of the Italian electronic identity card by the Ministero dell'Interno and the Istituto Poligrafico e Zecca dello Stato, resized, CC BY 4.0. Specification: https://italia.github.io/eid-wallet-it-docs/releases/1.4.7/en/credential-data-model-pid.html")
-		d.BackgroundImage = "embedded:italian-id-specimen.jpg"
-		d.Logo, d.LogoAltText = "embedded:logo-it.svg", "eudi-dev logo on the Italian flag"
-		return d
-	}
-	dutchDisplay := func() *TemplateDisplay {
-		d := pidDisplay("Dutch PID", "A demo Dutch PID credential for testing PID verification flows. It follows the working draft of the Dutch PID in the NL Wallet reference implementation, for Willeke Liselotte De Bruijn, the identity of the Dutch identity card specimen, and carries the mandatory EUDI PID attributes. Created by eudi-dev, not a real identity. Card image: specimen of the Dutch identity card by the Rijksdienst voor Identiteitsgegevens, resized, CC BY-SA 4.0. Draft: https://github.com/MinBZK/nl-wallet/blob/ea1402d2ad96202617bee6771ac1395c73e96322/scripts/devenv/eudi_pid_nl_1.json")
-		d.BackgroundImage = "embedded:dutch-id-specimen.jpg"
-		d.Logo, d.LogoAltText = "embedded:logo-nl.svg", "eudi-dev logo on the Dutch flag"
-		return d
-	}
-	// The Italian PID carries a subject identifier (IT-Wallet 1.4.7 §11.2), which
-	// §11.1.2.1 makes opaque and unique per credential.
-	const italianSubject = "eu.europa.ec.eudi.pid.it.1:sub"
-	italianSDJWTClaims := mock.RefreshPIDDates(deepCopyClaims(mock.SDJWTItalianPIDClaims))
-	italianSDJWTClaims["sub"] = uuid.NewString()
-	italianMDOCClaims := mock.RefreshPIDDates(deepCopyClaims(mock.MDOCItalianPIDClaims))
-	italianMDOCClaims[italianSubject] = uuid.NewString()
-	return []Template{
-		{
-			Name:        "pid-sdjwt",
-			Description: "EUDI PID (SD-JWT, EU rulebook sample data)",
-			Format:      "sdjwt",
-			VCT:         mock.DefaultPIDVCT,
-			Exp:         "720h",
-			Claims:      mock.RefreshPIDDates(deepCopyClaims(mock.SDJWTPIDClaims)),
-			Display:     eudiPIDDisplay(),
-			Category:    CategoryPID,
-			Predefined:  true,
-		},
-		{
-			Name:        "pid-mdoc",
-			Description: "EUDI PID (mdoc, EU rulebook sample data)",
-			Format:      "mdoc",
-			DocType:     mock.PIDNamespace,
-			Namespace:   mock.PIDNamespace,
-			Exp:         "720h",
-			Claims:      mock.RefreshPIDDates(deepCopyClaims(mock.MDOCPIDClaims)),
-			Display:     eudiPIDDisplay(),
-			Category:    CategoryPID,
-			Predefined:  true,
-		},
-		{
-			Name:        "german-pid-sdjwt",
-			Description: "German PID (SD-JWT, extends the EUDI PID)",
-			Format:      "sdjwt",
-			VCT:         "urn:eudi:pid:de:1",
-			Exp:         "720h",
-			Claims:      mock.RefreshPIDDates(deepCopyClaims(mock.SDJWTGermanPIDClaims)),
-			Display:     germanDisplay(),
-			Category:    CategoryPID,
-			Predefined:  true,
-		},
-		{
-			Name:        "german-pid-mdoc",
-			Description: "German PID (mdoc, EUDI PID doctype plus the German namespace)",
-			Format:      "mdoc",
-			DocType:     mock.PIDNamespace,
-			Namespace:   mock.PIDNamespace,
-			Exp:         "720h",
-			Claims:      mock.RefreshPIDDates(deepCopyClaims(mock.MDOCGermanPIDClaims)),
-			Display:     germanDisplay(),
-			Category:    CategoryPID,
-			Predefined:  true,
-		},
-		{
-			Name:            "italian-pid-sdjwt",
-			Description:     "Italian PID (SD-JWT, IT-Wallet 1.4.7)",
-			Format:          "sdjwt",
-			VCT:             "urn:eudi:pid:it:1",
-			Exp:             "720h",
-			Claims:          italianSDJWTClaims,
-			AlwaysDisclosed: append([]string(nil), mock.ItalianPIDAlwaysDisclosed...),
-			UniqueClaims:    []string{"sub"},
-			Display:         italianDisplay(),
-			Category:        CategoryPID,
-			Predefined:      true,
-		},
-		{
-			Name:         "italian-pid-mdoc",
-			Description:  "Italian PID (mdoc, EUDI PID doctype plus the Italian namespace)",
-			Format:       "mdoc",
-			DocType:      mock.PIDNamespace,
-			Namespace:    mock.PIDNamespace,
-			Exp:          "720h",
-			Claims:       italianMDOCClaims,
-			UniqueClaims: []string{italianSubject},
-			Display:      italianDisplay(),
-			Category:     CategoryPID,
-			Predefined:   true,
-		},
-		{
-			Name:        "dutch-pid-sdjwt",
-			Description: "Dutch PID (SD-JWT, NL Wallet working draft)",
-			Format:      "sdjwt",
-			VCT:         "urn:eudi:pid:nl:1",
-			Exp:         "720h",
-			Claims:      mock.RefreshPIDDates(deepCopyClaims(mock.SDJWTDutchPIDClaims)),
-			Display:     dutchDisplay(),
-			Category:    CategoryPID,
-			Predefined:  true,
-		},
-		{
-			Name:        "dutch-pid-mdoc",
-			Description: "Dutch PID (mdoc, EUDI PID doctype plus the Dutch namespace)",
-			Format:      "mdoc",
-			DocType:     mock.PIDNamespace,
-			Namespace:   mock.PIDNamespace,
-			Exp:         "720h",
-			Claims:      mock.RefreshPIDDates(deepCopyClaims(mock.MDOCDutchPIDClaims)),
-			Display:     dutchDisplay(),
-			Category:    CategoryPID,
-			Predefined:  true,
-		},
-		{
-			Name:        "demo-ticket",
-			Description: "Demo Event Ticket (SD-JWT, issued by the demo issuer)",
-			Format:      "sdjwt",
-			VCT:         credtype.DemoTicketVCT,
-			Exp:         "720h",
-			Claims: map[string]any{
-				"event": "EUDI Interop Fest", "tier": "backstage", "seat": "42A",
-				"given_name": "Erika", "family_name": "Mustermann",
-			},
-			Display: &TemplateDisplay{
-				Name:            "Demo Event Ticket",
-				Description:     "A sample event ticket issued by the demo issuer",
-				BackgroundColor: "#0f766e",
-				TextColor:       "#ffffff",
-				Logo:            "embedded:logo.svg",
-				LogoAltText:     "eudi-dev logo",
-			},
-			Category:   CategoryEAA,
-			Predefined: true,
-		},
-	}
+	return Template{}, false
 }
 
 // PIDTemplateNames returns the SD-JWT and mdoc templates in loc for the PID
 // type vct. The SD-JWT template has that type, and the mdoc template issues the
-// PID doctype under the same display name. ok reports whether such templates
-// exist. For any other type callers use the country-independent claim set.
+// PID doctype under the same display name. A pre-defined template wins over a
+// user template of the same type. ok reports whether such templates exist.
+// For any other type it returns the names of the pre-defined templates of the
+// country-independent PID, which a user template may replace.
 func PIDTemplateNames(vct string, loc Location) (sdjwt, mdoc string, ok bool) {
 	if vct == "" {
 		vct = credtype.PIDVCT
 	}
-	templates, err := List(loc)
-	if err != nil {
-		return "pid-sdjwt", "pid-mdoc", false
+	// List returns every readable template with its error.
+	templates, _ := List(loc)
+	slices.SortStableFunc(templates, func(a, b Template) int {
+		switch {
+		case a.Predefined == b.Predefined:
+			return 0
+		case a.Predefined:
+			return -1
+		}
+		return 1
+	})
+	sdjwt, mdoc = pidTemplatePair(vct, templates)
+	baseSDJWT, baseMDOC := pidTemplatePair(credtype.PIDVCT, PredefinedTemplates())
+	if sdjwt == "" {
+		return baseSDJWT, baseMDOC, false
 	}
-	// A pre-defined template wins over a user template of the same type.
-	templates = append(slices.DeleteFunc(slices.Clone(templates), func(t Template) bool { return !t.Predefined }),
-		slices.DeleteFunc(templates, func(t Template) bool { return t.Predefined })...)
+	if mdoc == "" {
+		mdoc = baseMDOC
+	}
+	return sdjwt, mdoc, true
+}
+
+func pidTemplatePair(vct string, templates []Template) (sdjwt, mdoc string) {
 	var display string
 	for _, t := range templates {
 		if format, _ := NormalizeFormat(t.Format); format == "sdjwt" && t.VCT == vct {
@@ -341,14 +240,14 @@ func PIDTemplateNames(vct string, loc Location) (sdjwt, mdoc string, ok bool) {
 		}
 	}
 	if sdjwt == "" {
-		return "pid-sdjwt", "pid-mdoc", false
+		return "", ""
 	}
 	for _, t := range templates {
 		if format, _ := NormalizeFormat(t.Format); format == "mdoc" && t.DocType == credtype.PIDDocType && displayName(t) == display {
-			return sdjwt, t.Name, true
+			return sdjwt, t.Name
 		}
 	}
-	return sdjwt, "pid-mdoc", true
+	return sdjwt, ""
 }
 
 func displayName(t Template) string {
@@ -454,11 +353,8 @@ func Load(nameOrPath string, loc Location) (*Template, error) {
 		}
 	}
 
-	for _, t := range PredefinedTemplates() {
-		if t.Name == nameOrPath {
-			tpl := t
-			return &tpl, nil
-		}
+	if t, ok := Predefined(nameOrPath); ok {
+		return &t, nil
 	}
 
 	return nil, fmt.Errorf("template %q not found (looked in %s and the pre-defined templates, see `templates list`)", nameOrPath, loc)
@@ -513,10 +409,8 @@ func Delete(loc Location, name string) error {
 			return fmt.Errorf("reading template %q: %w", name, err)
 		}
 	}
-	for _, t := range PredefinedTemplates() {
-		if t.Name == name {
-			return fmt.Errorf("template %q is pre-defined and cannot be deleted", name)
-		}
+	if _, ok := Predefined(name); ok {
+		return fmt.Errorf("template %q is pre-defined and cannot be deleted", name)
 	}
 	return fmt.Errorf("template %q %w in %s", name, ErrNotFound, loc)
 }
@@ -572,7 +466,52 @@ func parse(data []byte, file string) (*Template, error) {
 		t.Name = strings.TrimSuffix(base, path.Ext(base))
 	}
 	t.Predefined = false
+	t.Claims = resolveEmbedded(t.Claims).(map[string]any)
+	if t.Category == CategoryPID {
+		fillPIDDates(t.Claims, time.Now())
+	}
 	return &t, nil
+}
+
+// resolveEmbedded turns every "embedded:<file>" string into a data URI of
+// that file. A reference to a missing file stays as it is.
+func resolveEmbedded(value any) any {
+	switch v := value.(type) {
+	case map[string]any:
+		for k, item := range v {
+			v[k] = resolveEmbedded(item)
+		}
+	case []any:
+		for i, item := range v {
+			v[i] = resolveEmbedded(item)
+		}
+	case string:
+		if uri, ok := defaults.DataURI(v); ok {
+			return uri
+		}
+	}
+	return value
+}
+
+// pidDateClaims are the issuance and expiry dates of the PID in SD-JWT VC
+// and mdoc. The expiry follows the German PID rulebook's five year
+// administrative expiry (§10a (2) PAuswG). It is a calendar date, independent
+// of the credential's validity.
+var pidDateClaims = map[string]func(time.Time) time.Time{
+	"date_of_issuance": func(now time.Time) time.Time { return now },
+	"issuance_date":    func(now time.Time) time.Time { return now },
+	"date_of_expiry":   func(now time.Time) time.Time { return now.AddDate(5, 0, 0) },
+	"expiry_date":      func(now time.Time) time.Time { return now.AddDate(5, 0, 0) },
+}
+
+// fillPIDDates sets the empty date claims of a PID, so a long-running server
+// issues current dates.
+func fillPIDDates(claims map[string]any, now time.Time) {
+	for name, date := range pidDateClaims {
+		if value, ok := claims[name]; ok && value == "" {
+			claims[name] = date(now.UTC()).Format(time.DateOnly)
+		}
+	}
 }
 
 func deepCopyClaims(claims map[string]any) map[string]any {

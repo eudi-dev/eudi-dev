@@ -2,7 +2,7 @@
 
 A credential template gives test credentials a name, type (VCT or doc type) and default claims. It can also set an expiry and claims that are always disclosed. The CLI, HTTP API and wallet UI share the same templates.
 
-The binary includes nine predefined templates:
+The binary includes nine predefined templates. They are ordinary template files in [`internal/defaults/templates/`](../internal/defaults/templates/), so each one also shows the format of a user template:
 
 | Name | Format | Contents |
 |------|--------|----------|
@@ -33,13 +33,17 @@ The German mdoc PID uses two namespaces:
 
 Its doctype is `eu.europa.ec.eudi.pid.1`, like every PID. A claim key written as `namespace:element` selects that namespace. Other keys use the template's namespace. Recognized date attributes use ISO 18013-5 CBOR tags: full-date (1004) for a calendar day and tdate (0) for a timestamp. The namespace and attribute name determine the encoding. The German `raw_eid_birth_date` is encoded as a text string.
 
+The predefined PID templates leave their issuance and expiry dates empty. See [dates and unique values](#dates-and-unique-values).
+
 Regenerating a PID replaces the existing mdoc PID with the same doctype and namespaces. So an override of `german-pid-mdoc` needs at least one `eu.europa.ec.eudi.pid.de.1` element to stay distinguishable from `pid-mdoc`.
 
-`issue ... --pid` and `wallet serve --pid` use these templates. They use the `pid-*` pair by default. With `--vct` they use the SD-JWT template of that type and the mdoc template with the PID doctype and the same display name. A user template for another PID type, such as `urn:eudi:pid:fr:1`, works the same way. A type without templates gets the EUDI PID claims under that type. A user template saved under the same name overrides the predefined one everywhere. Deleting the override restores the original.
+`issue ... --pid` and `wallet serve --pid` use these templates. They use the pair of the country-independent PID (`pid-*`) by default. With `--vct` they use the SD-JWT template of that type and the mdoc template with the PID doctype and the same display name. A user template for another PID type, such as `urn:eudi:pid:fr:1`, works the same way. A type without templates gets the EUDI PID claims under that type. A user template saved under the same name overrides the predefined one everywhere. Deleting the override restores the original.
+
+A new wallet holds the PIDs whose predefined templates set `baseline`. These are the EUDI PID and the German PID, which extends it. An override of a baseline template changes the content of that baseline PID.
 
 ## Template files and storage
 
-Predefined templates are compiled into the binary. User templates are JSON documents under the wallet's `templates/` prefix in the selected storage backend. With file storage, the default directory is `~/.eudi-dev/wallet/templates/`, or `<dir>/templates/` with `--wallet-dir <dir>`. Both `.json` and `.template` extensions are recognized. The template name is its `name` field. Without one, it is the file name without its extension.
+Predefined templates are compiled into the binary as template files, together with the images and portraits they reference. User templates are JSON documents under the wallet's `templates/` prefix in the selected storage backend. With file storage, the default directory is `~/.eudi-dev/wallet/templates/`, or `<dir>/templates/` with `--wallet-dir <dir>`. Both `.json` and `.template` extensions are recognized. The template name is its `name` field. Without one, it is the file name without its extension.
 
 `--templates-dir` points the wallet, the issue commands, and the `templates` commands at another directory, for example a folder in your project or a container mount.
 
@@ -77,9 +81,30 @@ All fields except `claims` are optional:
 | `claims` | The default claim set |
 | `always_disclosed` | Claims issued plainly instead of selectively disclosable (see below) |
 | `unique_claims` | Claims that get a new random value in every credential, for example an opaque subject identifier |
+| `rulebook` | URL of the rulebook or specification of the credential type. The [attestation catalogue](#attestation-catalogue) links it |
+| `baseline` | Marks a PID that a new wallet holds. Only predefined templates use it |
 | `category` | `pid`, `qeaa`, `pub-eaa` or `eaa`. Credentials from the template are on the [trusted list](wallet/serve.md#trusted-lists) of this category. Without one, the template's catalogue entry gives the category, else the credentials are EAAs. The predefined PID templates are `pid` and the demo ticket is `eaa` |
 | `display` | Card appearance for credentials issued from the template (`name`, `description`, `background_color`, `text_color`, `logo`, `logo_alt_text`, `background_image`). Image fields take a data URI or an http(s) URL. The predefined PID templates set it |
 | `predefined` | Set on predefined templates in listings and exports. Ignored on import |
+
+## Claim values
+
+Claims are JSON values. For an mdoc, a whole number becomes a CBOR integer, and a base64 `data:` URI becomes a byte string. This is how a template gives an mdoc its `portrait`. An SD-JWT keeps the `data:` URI as text, as the `picture` claim of the EUDI PID does.
+
+A string `embedded:<file>` names a file of the built-in defaults, such as `embedded:portraits/dutch.jpg`. The wallet replaces it with a `data:` URI of that file when it loads the template. Every template can use it. The defaults hold these portraits:
+
+| File | Used by |
+|------|---------|
+| `portraits/default.jpg` | A neutral silhouette for the EUDI PID and the German PID |
+| `portraits/italian.jpg` | The photo of the Italian specimen card |
+| `portraits/dutch.jpg` | The photo of the Dutch specimen card |
+
+## Dates and unique values
+
+A template fills some empty claims when it issues:
+
+- In a template of category `pid`, an empty `date_of_issuance` or `issuance_date` becomes the date of issuance. An empty `date_of_expiry` or `expiry_date` becomes the date five years later. A date that is set stays.
+- A claim listed in `unique_claims` gets a new random value in every credential. The Italian PID lists `sub` with an empty value.
 
 A template reference (`--template`, `--from`) with a path separator or a `.json` or `.template` extension loads that file. Any other value is looked up in the template directory (both extensions), then among the predefined templates.
 
@@ -103,17 +128,17 @@ The two image fields (`logo`, `background_image`) take one of three sources:
 
 - a `data:` URI, embedded directly
 - an `https://` URL, fetched once at issuance
-- `embedded:<file>`, a bundled asset (predefined templates only)
+- `embedded:<file>`, a bundled image such as `embedded:images/logo.svg`. A bare file name means a file under `images/`
 
 A fetched image is stored in the wallet's size-limited cache and is embedded as a `data:` URI on the issued credential.
 
-The predefined PID templates set `display`: `background_color` `#3d59a1`, `text_color` `#ffffff`, and `logo` `embedded:logo.svg`. The national PIDs show the eudi-dev logo on their country's flag instead, and add the country's specimen identity card as `background_image`:
+The predefined PID templates set `display`: `background_color` `#3d59a1`, `text_color` `#ffffff`, and `logo` `embedded:images/logo.svg`. The national PIDs show the eudi-dev logo on their country's flag instead, and add the country's specimen identity card as `background_image`:
 
 | Template | Logo | Image | Source and licence |
 |----------|------|-------|--------------------|
-| `german-pid-*` | `embedded:logo-de.svg` | `embedded:german-id-specimen.jpg` | [Personalausweis specimen (2010 model)](https://commons.wikimedia.org/wiki/File:Mustermann_Deutscher_Personalausweis_(2010)_Vorderseite.jpg), Bundesministerium des Innern, public domain (§ 5 UrhG) |
-| `italian-pid-*` | `embedded:logo-it.svg` | `embedded:italian-id-specimen.jpg` | [Carta d'identità elettronica specimen](https://commons.wikimedia.org/wiki/File:CIE_(fronte).jpg), Ministero dell'Interno and Istituto Poligrafico e Zecca dello Stato, resized, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
-| `dutch-pid-*` | `embedded:logo-nl.svg` | `embedded:dutch-id-specimen.jpg` | [Nederlandse identiteitskaart specimen](https://commons.wikimedia.org/wiki/File:Nederlandse_identiteitskaart_2021-II_(Voorkant).jpg), Rijksdienst voor Identiteitsgegevens, resized, [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) |
+| `german-pid-*` | `embedded:images/logo-de.svg` | `embedded:images/german-id-specimen.jpg` | [Personalausweis specimen (2010 model)](https://commons.wikimedia.org/wiki/File:Mustermann_Deutscher_Personalausweis_(2010)_Vorderseite.jpg), Bundesministerium des Innern, public domain (§ 5 UrhG) |
+| `italian-pid-*` | `embedded:images/logo-it.svg` | `embedded:images/italian-id-specimen.jpg` | [Carta d'identità elettronica specimen](https://commons.wikimedia.org/wiki/File:CIE_(fronte).jpg), Ministero dell'Interno and Istituto Poligrafico e Zecca dello Stato, resized, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+| `dutch-pid-*` | `embedded:images/logo-nl.svg` | `embedded:images/dutch-id-specimen.jpg` | [Nederlandse identiteitskaart specimen](https://commons.wikimedia.org/wiki/File:Nederlandse_identiteitskaart_2021-II_(Voorkant).jpg), Rijksdienst voor Identiteitsgegevens, resized, [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) |
 
 Display values supplied during issuance override individual template fields. Setting only a name keeps the template's images.
 

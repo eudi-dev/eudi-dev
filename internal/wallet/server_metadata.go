@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/publicpath"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/statuslist"
 )
 
@@ -43,7 +44,7 @@ func (s *Server) handleTrustList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// The selected list is the same instance as /api/trustlists/{id}.
-	jwt, err := GenerateTrustListJWTForWalletGroup(s.wallet, s.wallet.IssuerURL, group, "/api/trustlists/"+group.ID)
+	jwt, err := GenerateTrustListJWTForWalletGroup(s.wallet, s.wallet.IssuerURL, group, registrar.TrustListPath(group.ID))
 	if err != nil {
 		http.Error(w, fmt.Sprintf("generating trusted list: %v", err), http.StatusInternalServerError)
 		return
@@ -81,7 +82,7 @@ func (s *Server) handleTrustListByID(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "trusted list not found", http.StatusNotFound)
 		return
 	}
-	jwt, err := GenerateTrustListJWTForWalletGroup(s.wallet, s.wallet.IssuerURL, group, "/api/trustlists/"+group.ID)
+	jwt, err := GenerateTrustListJWTForWalletGroup(s.wallet, s.wallet.IssuerURL, group, registrar.TrustListPath(group.ID))
 	if err != nil {
 		http.Error(w, fmt.Sprintf("generating trusted list: %v", err), http.StatusInternalServerError)
 		return
@@ -96,7 +97,7 @@ func (s *Server) handleTrustListHistory(w http.ResponseWriter, r *http.Request) 
 		http.NotFound(w, r)
 		return
 	}
-	listPath := "/api/trustlists/" + group.ID
+	listPath := registrar.TrustListPath(group.ID)
 	issuer := strings.TrimRight(s.wallet.IssuerURL, "/")
 	if _, err := GenerateTrustListJWTForWalletGroup(s.wallet, issuer, group, listPath); err != nil {
 		http.Error(w, "loading trusted list history: "+err.Error(), http.StatusInternalServerError)
@@ -280,7 +281,7 @@ func (s *Server) handleCRL(w http.ResponseWriter, r *http.Request) {
 	der, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
 		Number:     big.NewInt(now.Unix()),
 		ThisUpdate: now,
-		NextUpdate: now.Add(7 * 24 * time.Hour),
+		NextUpdate: now.Add(crlUpdateInterval),
 	}, caCert, caKey)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("generating certificate revocation list: %v", err), http.StatusInternalServerError)

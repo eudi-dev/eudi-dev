@@ -16,7 +16,11 @@
 // EC TS05) and its catalogue of attestations (EC TS11).
 package registrar
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
+)
 
 // Entitlements of ETSI TS 119 475 V1.2.1 Annex A.2.
 const (
@@ -97,7 +101,7 @@ type ProvidedAttestation struct {
 // certificate, which ETSI TS 119 475 V1.2.1 Table 8 shapes like a DCQL
 // credential query.
 func (a ProvidedAttestation) certificateClaim() map[string]any {
-	if a.Format == "mso_mdoc" {
+	if a.Format == credtype.FormatMDOC {
 		return map[string]any{"format": a.Format, "meta": map[string]any{"doctype_value": a.Type}}
 	}
 	return map[string]any{"format": a.Format, "meta": map[string]any{"vct_values": []string{a.Type}}}

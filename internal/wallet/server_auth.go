@@ -24,6 +24,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
@@ -59,9 +60,9 @@ func authorizationErrorCode(err error) string {
 }
 
 var walletPresentationFormats = map[string]bool{
-	"dc+sd-jwt":   true,
-	"mso_mdoc":    true,
-	"jwt_vc_json": true,
+	credtype.FormatSDJWT: true,
+	credtype.FormatMDOC:  true,
+	credtype.FormatJWTVC: true,
 }
 
 // OpenID4VP 1.0 §8.5 uses vp_formats_not_supported when every query requests an

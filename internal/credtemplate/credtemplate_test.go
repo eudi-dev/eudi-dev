@@ -47,19 +47,49 @@ func TestPredefinedTemplates(t *testing.T) {
 	if sdjwt.Format != "sdjwt" || sdjwt.VCT != mock.DefaultPIDVCT {
 		t.Errorf("unexpected format/vct: %q %q", sdjwt.Format, sdjwt.VCT)
 	}
-	if len(sdjwt.Claims) != len(mock.SDJWTPIDClaims) {
-		t.Errorf("expected %d claims, got %d", len(mock.SDJWTPIDClaims), len(sdjwt.Claims))
+	if !sdjwt.Baseline {
+		t.Error("pid-sdjwt is not a baseline PID")
 	}
 
-	// Mutating pre-defined template claims must not change the mock maps.
+	// Each load gives its own claims.
 	sdjwt.Claims["family_name"] = "CHANGED"
-	addr := sdjwt.Claims["address"].(map[string]any)
-	addr["country"] = "XX"
-	if mock.SDJWTPIDClaims["family_name"] != "'t Hart" {
-		t.Error("built-in template shares top-level claims with mock.SDJWTPIDClaims")
+	sdjwt.Claims["address"].(map[string]any)["country"] = "XX"
+	again, _ := Predefined("pid-sdjwt")
+	if again.Claims["family_name"] != "'t Hart" || again.Claims["address"].(map[string]any)["country"] != "NL" {
+		t.Errorf("a second load shares the changed claims: %v", again.Claims)
 	}
-	if mock.SDJWTPIDClaims["address"].(map[string]any)["country"] != "NL" {
-		t.Error("built-in template shares nested claims with mock.SDJWTPIDClaims")
+}
+
+// Every built-in template file is a valid template with a known category.
+func TestPredefinedTemplateFilesAreValid(t *testing.T) {
+	for _, tpl := range PredefinedTemplates() {
+		if err := CheckCategory(tpl.Category); err != nil || tpl.Category == "" {
+			t.Errorf("%s: category %q: %v", tpl.Name, tpl.Category, err)
+		}
+		for name, value := range tpl.Claims {
+			if s, ok := value.(string); ok && strings.HasPrefix(s, "embedded:") {
+				t.Errorf("%s: claim %s references a missing file %s", tpl.Name, name, s)
+			}
+		}
+	}
+}
+
+// A claim "embedded:<file>" carries the file as a data URI, in a user
+// template too.
+func TestEmbeddedClaimsBecomeDataURIs(t *testing.T) {
+	dir := t.TempDir()
+	content := `{"format": "mdoc", "doctype": "org.example.1", "claims": {"portrait": "embedded:portraits/dutch.jpg", "nested": {"photo": "embedded:portraits/italian.jpg"}}}`
+	if err := os.WriteFile(filepath.Join(dir, "photo.json"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tpl, err := Load("photo", FileLocation(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range []any{tpl.Claims["portrait"], tpl.Claims["nested"].(map[string]any)["photo"]} {
+		if s, _ := value.(string); !strings.HasPrefix(s, "data:image/jpeg;base64,/9j/") {
+			t.Errorf("claim = %.40v, want a JPEG data URI", value)
+		}
 	}
 }
 
@@ -70,9 +100,6 @@ func TestPredefinedGermanPIDTemplates(t *testing.T) {
 	}
 	if sdjwt.VCT != germanPIDVCT {
 		t.Errorf("german-pid-sdjwt vct = %q, want %q", sdjwt.VCT, germanPIDVCT)
-	}
-	if len(sdjwt.Claims) != len(mock.SDJWTGermanPIDClaims) {
-		t.Errorf("expected %d claims, got %d", len(mock.SDJWTGermanPIDClaims), len(sdjwt.Claims))
 	}
 
 	mdoc, err := Load("german-pid-mdoc", FileLocation(t.TempDir()))
@@ -108,12 +135,9 @@ func TestPredefinedItalianPIDTemplates(t *testing.T) {
 			t.Errorf("%s is selectively disclosable", claim)
 		}
 	}
-	second, err := Load("italian-pid-sdjwt", FileLocation(t.TempDir()))
-	if err != nil {
-		t.Fatalf("loading pre-defined template: %v", err)
-	}
-	if first.Claims["sub"] == "" || first.Claims["sub"] == second.Claims["sub"] {
-		t.Errorf("sub %v then %v, want a new identifier for each issuance", first.Claims["sub"], second.Claims["sub"])
+	one, two := first.WithUniqueClaims(first.Claims), first.WithUniqueClaims(first.Claims)
+	if one["sub"] == "" || one["sub"] == two["sub"] {
+		t.Errorf("sub %v then %v, want a new identifier for each issuance", one["sub"], two["sub"])
 	}
 
 	mdoc, err := Load("italian-pid-mdoc", FileLocation(t.TempDir()))
@@ -180,23 +204,32 @@ func TestPIDTemplatesCarryDisplayDescription(t *testing.T) {
 	}
 }
 
-// Template claims are package variables set at startup. Issuance must use the
-// current date.
-func TestPredefinedTemplates_RecomputeDatedClaims(t *testing.T) {
-	stale := "2000-01-01"
-	original := mock.SDJWTPIDClaims["date_of_issuance"]
-	mock.SDJWTPIDClaims["date_of_issuance"] = stale
-	t.Cleanup(func() { mock.SDJWTPIDClaims["date_of_issuance"] = original })
+// An empty date claim of a PID template is the date of issuance, and the
+// expiry five years later. A set date stays.
+func TestPIDTemplatesFillTheirEmptyDates(t *testing.T) {
+	dir := t.TempDir()
+	content := `{"format": "sdjwt", "vct": "urn:eudi:pid:fr:1", "category": "pid", "claims": {"date_of_issuance": "", "date_of_expiry": "2000-01-01"}}`
+	if err := os.WriteFile(filepath.Join(dir, "french.json"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	user, err := Load("french", FileLocation(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	today := time.Now().UTC()
+	if got, want := user.Claims["date_of_issuance"], today.Format(time.DateOnly); got != want {
+		t.Errorf("date_of_issuance = %v, want %v", got, want)
+	}
+	if got := user.Claims["date_of_expiry"]; got != "2000-01-01" {
+		t.Errorf("date_of_expiry = %v, want the date of the template", got)
+	}
 
-	tpl, err := Load("pid-sdjwt", FileLocation(t.TempDir()))
+	tpl, err := Load("pid-mdoc", FileLocation(t.TempDir()))
 	if err != nil {
 		t.Fatalf("loading pre-defined template: %v", err)
 	}
-	if got := tpl.Claims["date_of_issuance"]; got == stale {
-		t.Error("date_of_issuance was carried over from process start instead of recomputed")
-	}
-	if got, want := tpl.Claims["date_of_issuance"], mock.PIDIssuanceDate(); got != want {
-		t.Errorf("date_of_issuance = %v, want %v", got, want)
+	if got, want := tpl.Claims["expiry_date"], today.AddDate(5, 0, 0).Format(time.DateOnly); got != want {
+		t.Errorf("expiry_date = %v, want %v", got, want)
 	}
 	// The German PID carries no issuance date, and refreshing must not invent one.
 	german, err := Load("german-pid-sdjwt", FileLocation(t.TempDir()))

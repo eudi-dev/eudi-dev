@@ -29,11 +29,11 @@ Certificate:
         Serial Number:
             2b:fa:89:f8:38:2e:4b:fe:bf:c7:94:bb:81:4a:d4:f2
         Signature Algorithm: ecdsa-with-SHA256
-        Issuer: C=NL, O=EUDI Dev Test CA, CN=OID4VC Dev Wallet CA
+        Issuer: C=NL, O=EUDI Dev Test CA, CN=EUDI Dev Wallet CA
         Validity
             Not Before: Oct  9 19:52:14 2026 GMT
             Not After : Oct  6 20:52:14 2036 GMT
-        Subject: C=NL, O=EUDI Dev Test CA, CN=OID4VC Dev Wallet CA
+        Subject: C=NL, O=EUDI Dev Test CA, CN=EUDI Dev Wallet CA
         Subject Public Key Info:
             Public Key Algorithm: id-ecPublicKey
                 Public-Key: (256 bit)
@@ -78,7 +78,7 @@ Certificate:
         Serial Number:
             96:67:a7:1c:04:0b:a2:f6:c4:f2:99:65:8c:e2:88:2a
         Signature Algorithm: ecdsa-with-SHA256
-        Issuer: C=NL, O=EUDI Dev Test CA, CN=OID4VC Dev Wallet CA
+        Issuer: C=NL, O=EUDI Dev Test CA, CN=EUDI Dev Wallet CA
         Validity
             Not Before: Oct  9 19:52:14 2026 GMT
             Not After : Oct  8 20:52:14 2031 GMT
@@ -135,7 +135,7 @@ Certificate:
         Serial Number:
             ff:4c:70:0c:f8:73:57:3b:b0:8f:6b:e5:55:37:92:6a
         Signature Algorithm: ecdsa-with-SHA256
-        Issuer: C=NL, O=EUDI Dev Test CA, CN=OID4VC Dev Wallet CA
+        Issuer: C=NL, O=EUDI Dev Test CA, CN=EUDI Dev Wallet CA
         Validity
             Not Before: Oct  9 19:52:14 2026 GMT
             Not After : Oct  8 20:52:14 2031 GMT
@@ -192,7 +192,7 @@ Certificate:
         Serial Number:
             15:db:e4:6b:65:ef:84:7f:5c:2d:30:2b:e4:19:51:23
         Signature Algorithm: ecdsa-with-SHA256
-        Issuer: C=NL, O=EUDI Dev Test CA, CN=OID4VC Dev Wallet CA
+        Issuer: C=NL, O=EUDI Dev Test CA, CN=EUDI Dev Wallet CA
         Validity
             Not Before: Oct  9 19:52:14 2026 GMT
             Not After : Oct  8 20:52:14 2031 GMT
@@ -709,7 +709,7 @@ Certificate:
         Serial Number:
             20:3e:6b:0e:5d:b7:d4:cd:89:d9:01:aa:fb:07:81:b3
         Signature Algorithm: ecdsa-with-SHA256
-        Issuer: C=NL, O=EUDI Dev Test CA, CN=OID4VC Dev Wallet CA
+        Issuer: C=NL, O=EUDI Dev Test CA, CN=EUDI Dev Wallet CA
         Validity
             Not Before: Oct  9 19:52:14 2026 GMT
             Not After : Oct  9 20:52:14 2027 GMT
@@ -762,7 +762,7 @@ Certificate:
         Serial Number:
             4e:50:a5:74:9b:a2:8c:cf:58:4d:b4:71:8b:72:1f:4e
         Signature Algorithm: ecdsa-with-SHA256
-        Issuer: C=NL, O=EUDI Dev Test CA, CN=OID4VC Dev Wallet CA
+        Issuer: C=NL, O=EUDI Dev Test CA, CN=EUDI Dev Wallet CA
         Validity
             Not Before: Oct  9 19:52:14 2026 GMT
             Not After : Oct  9 20:52:14 2027 GMT

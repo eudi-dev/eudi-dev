@@ -28,6 +28,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -116,6 +118,49 @@ func holderJWK(t *testing.T, key *ecdsa.PrivateKey) map[string]any {
 		jwk[k] = v
 	}
 	return jwk
+}
+
+// The demo pages and the issuer metadata show the names the demo parties are
+// registered under.
+func TestDemoPagesShowTheRegisteredNames(t *testing.T) {
+	d, _, _ := newDemoRP(t)
+	for _, tc := range []struct {
+		handler http.Handler
+		name    string
+	}{{d.IssuerHandler(), wallet.DemoIssuerName}, {d.VerifierHandler(), wallet.DemoVerifierName}} {
+		rec := httptest.NewRecorder()
+		tc.handler.ServeHTTP(rec, httptest.NewRequest("GET", "/", nil))
+		if body := rec.Body.String(); rec.Code != http.StatusOK || strings.Count(body, tc.name) != 2 {
+			t.Errorf("page %d shows %q %d times, want it in the title and the heading", rec.Code, tc.name, strings.Count(body, tc.name))
+		}
+	}
+	_, metadata := doJSON(t, d.IssuerHandler(), "GET", "/.well-known/openid-credential-issuer", "", nil)
+	if display, _ := metadata["display"].([]any); len(display) != 1 || display[0].(map[string]any)["name"] != wallet.DemoIssuerName {
+		t.Errorf("metadata display %v, want the name %q", metadata["display"], wallet.DemoIssuerName)
+	}
+}
+
+// The verifier page offers every national PID of the wallet's templates.
+func TestTheVerifierPageOffersEveryNationalPID(t *testing.T) {
+	d, _, _ := newDemoRP(t)
+	dir := t.TempDir()
+	french := `{"format": "sdjwt", "vct": "urn:eudi:pid:fr:1", "category": "pid", "display": {"name": "French PID"}, "claims": {"given_name": "Marianne"}}`
+	if err := os.WriteFile(filepath.Join(dir, "french-pid-sdjwt.json"), []byte(french), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	d.wallet.Templates = credtemplate.FileLocation(dir)
+	rec := httptest.NewRecorder()
+	d.VerifierHandler().ServeHTTP(rec, httptest.NewRequest("GET", "/", nil))
+	for _, want := range []string{
+		`id="credential-pid-de" data-credential="pid-de" data-vct="urn:eudi:pid:de:1"`,
+		`data-vct="urn:eudi:pid:it:1" role="radio" aria-checked="false">Italian PID<`,
+		`data-vct="urn:eudi:pid:nl:1"`,
+		`data-vct="urn:eudi:pid:fr:1" role="radio" aria-checked="false">French PID<`,
+	} {
+		if !strings.Contains(rec.Body.String(), want) {
+			t.Errorf("the verifier page lacks %s", want)
+		}
+	}
 }
 
 func TestIssuerPreAuthFlow(t *testing.T) {
@@ -803,7 +848,7 @@ func TestVerifierAcceptsAnExtendingCredentialType(t *testing.T) {
 		Issuer:    d.issuerID(),
 		VCT:       germanPIDVCT,
 		ExpiresIn: time.Hour,
-		Claims:    mock.SDJWTGermanPIDClaims,
+		Claims:    templateClaims("german-pid-sdjwt"),
 		Key:       d.wallet.IssuerKey,
 		HolderKey: &holderKey.PublicKey,
 		CertChain: chain,
@@ -837,7 +882,7 @@ func TestVerifierDomesticPIDRequestRefusesTheCountryIndependentPID(t *testing.T)
 		Issuer:    d.issuerID(),
 		VCT:       mock.DefaultPIDVCT,
 		ExpiresIn: time.Hour,
-		Claims:    mock.SDJWTPIDClaims,
+		Claims:    templateClaims("pid-sdjwt"),
 		Key:       d.wallet.IssuerKey,
 		HolderKey: &holderKey.PublicKey,
 		CertChain: chain,
@@ -869,7 +914,7 @@ func TestVerifierDomesticPIDRequestAcceptsThatType(t *testing.T) {
 		Issuer:    d.issuerID(),
 		VCT:       germanPIDVCT,
 		ExpiresIn: time.Hour,
-		Claims:    mock.SDJWTGermanPIDClaims,
+		Claims:    templateClaims("german-pid-sdjwt"),
 		Key:       d.wallet.IssuerKey,
 		HolderKey: &holderKey.PublicKey,
 		CertChain: chain,
@@ -936,7 +981,7 @@ func TestVerifierPIDRequestTakesAnyDomesticType(t *testing.T) {
 		Issuer:    d.issuerID(),
 		VCT:       frenchPID,
 		ExpiresIn: time.Hour,
-		Claims:    mock.SDJWTPIDClaims,
+		Claims:    templateClaims("pid-sdjwt"),
 		Key:       d.wallet.IssuerKey,
 		HolderKey: &holderKey.PublicKey,
 		CertChain: chain,
@@ -978,7 +1023,7 @@ func TestVerifierWarnsWhenTheCredentialChainCarriesTheTrustAnchor(t *testing.T) 
 		Issuer:    d.issuerID(),
 		VCT:       mock.DefaultPIDVCT,
 		ExpiresIn: time.Hour,
-		Claims:    mock.SDJWTPIDClaims,
+		Claims:    templateClaims("pid-sdjwt"),
 		Key:       d.wallet.IssuerKey,
 		HolderKey: &holderKey.PublicKey,
 		CertChain: []*x509.Certificate{leaf, caCert, caCert},
@@ -2368,4 +2413,13 @@ func TestVerifierTicketRequestShapes(t *testing.T) {
 			}
 		}
 	})
+}
+
+// templateClaims returns the claims of a predefined template.
+func templateClaims(name string) map[string]any {
+	t, ok := credtemplate.Predefined(name)
+	if !ok {
+		panic("no predefined template " + name)
+	}
+	return t.Claims
 }

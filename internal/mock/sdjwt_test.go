@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
 )
 
@@ -74,7 +75,7 @@ func TestGenerateSDJWT_DefaultClaims(t *testing.T) {
 		Issuer:    "https://issuer.example",
 		VCT:       "urn:eudi:pid:1",
 		ExpiresIn: 24 * time.Hour,
-		Claims:    DefaultClaims,
+		Claims:    credtemplate.DefaultClaims,
 		Key:       key,
 	}
 
@@ -109,11 +110,11 @@ func TestGenerateSDJWT_DefaultClaims(t *testing.T) {
 		t.Errorf("expected vct urn:eudi:pid:1, got %s", vct)
 	}
 
-	if len(token.Disclosures) != len(DefaultClaims) {
-		t.Errorf("expected %d disclosures, got %d", len(DefaultClaims), len(token.Disclosures))
+	if len(token.Disclosures) != len(credtemplate.DefaultClaims) {
+		t.Errorf("expected %d disclosures, got %d", len(credtemplate.DefaultClaims), len(token.Disclosures))
 	}
 
-	for name, expected := range DefaultClaims {
+	for name, expected := range credtemplate.DefaultClaims {
 		val, ok := token.ResolvedClaims[name]
 		if !ok {
 			t.Errorf("missing resolved claim %q", name)
@@ -143,7 +144,7 @@ func TestGenerateSDJWT_GermanPIDCarriesAkaVCTsPlainly(t *testing.T) {
 		Issuer:    "https://issuer.example",
 		VCT:       "urn:eudi:pid:de:1",
 		ExpiresIn: 24 * time.Hour,
-		Claims:    SDJWTGermanPIDClaims,
+		Claims:    templateClaims("german-pid-sdjwt"),
 		Key:       key,
 	})
 	if err != nil {
@@ -178,7 +179,7 @@ func TestGenerateSDJWT_PIDClaims(t *testing.T) {
 		Issuer:    "https://issuer.example",
 		VCT:       "urn:eudi:pid:1",
 		ExpiresIn: 24 * time.Hour,
-		Claims:    SDJWTPIDClaims,
+		Claims:    templateClaims("pid-sdjwt"),
 		Key:       key,
 	}
 
@@ -193,8 +194,8 @@ func TestGenerateSDJWT_PIDClaims(t *testing.T) {
 	}
 
 	// One disclosure per top-level claim, plus one per nested property and array element.
-	expectedTotal := len(SDJWTPIDClaims)
-	for _, value := range SDJWTPIDClaims {
+	expectedTotal := len(templateClaims("pid-sdjwt"))
+	for _, value := range templateClaims("pid-sdjwt") {
 		switch v := value.(type) {
 		case map[string]any:
 			expectedTotal += len(v)
@@ -391,7 +392,7 @@ func TestGenerateSDJWT_WrongKeyFailsVerify(t *testing.T) {
 		Issuer:    "https://issuer.example",
 		VCT:       "urn:eudi:pid:1",
 		ExpiresIn: 24 * time.Hour,
-		Claims:    DefaultClaims,
+		Claims:    credtemplate.DefaultClaims,
 		Key:       key1,
 	}
 
@@ -480,7 +481,7 @@ func TestGenerateSDJWT_UniqueDisclosures(t *testing.T) {
 		Issuer:    "https://issuer.example",
 		VCT:       "test",
 		ExpiresIn: time.Hour,
-		Claims:    SDJWTPIDClaims,
+		Claims:    templateClaims("pid-sdjwt"),
 		Key:       key,
 	}
 
@@ -712,4 +713,13 @@ func TestGenerateSDJWT_AlwaysDisclosedNestedPath(t *testing.T) {
 	if addr["country"] != "DE" || addr["locality"] != "KÖLN" {
 		t.Errorf("resolved address incomplete: %v", addr)
 	}
+}
+
+// templateClaims returns the claims of a predefined template.
+func templateClaims(name string) map[string]any {
+	t, ok := credtemplate.Predefined(name)
+	if !ok {
+		panic("no predefined template " + name)
+	}
+	return t.Claims
 }

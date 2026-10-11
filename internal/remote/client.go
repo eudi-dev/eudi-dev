@@ -26,13 +26,11 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 )
 
 type Client struct {
@@ -247,15 +245,35 @@ func (c *Client) SetRegistrationCertificateStatus(req, out any) error {
 }
 
 // RegistrarRecords reads every record of the wallet's registrar (TS05 v1.5
-// GET /wrp).
+// GET /wrp). It follows the cursor, because the registrar caps the page size.
 func (c *Client) RegistrarRecords(out any) error {
-	var envelope struct {
-		Data json.RawMessage `json:"data"`
+	var records []json.RawMessage
+	query := url.Values{}
+	for {
+		var envelope struct {
+			Data       []json.RawMessage `json:"data"`
+			Pagination struct {
+				NextCursor string `json:"next_cursor"`
+			} `json:"pagination"`
+		}
+		path := apiPath("registrar", "wrp")
+		if len(query) > 0 {
+			path += "?" + query.Encode()
+		}
+		if err := c.do(http.MethodGet, path, nil, &envelope); err != nil {
+			return err
+		}
+		records = append(records, envelope.Data...)
+		if envelope.Pagination.NextCursor == "" {
+			break
+		}
+		query.Set("cursor", envelope.Pagination.NextCursor)
 	}
-	if err := c.do(http.MethodGet, apiPath("registrar", "wrp")+"?limit="+strconv.Itoa(registrar.MaxRelyingParties), nil, &envelope); err != nil {
+	data, err := json.Marshal(records)
+	if err != nil {
 		return err
 	}
-	return json.Unmarshal(envelope.Data, out)
+	return json.Unmarshal(data, out)
 }
 
 // DeleteRelyingParty deletes a registration and revokes its certificates.

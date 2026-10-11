@@ -112,7 +112,7 @@ func GenerateStatusListJWT(bitstring []byte, signingKey *ecdsa.PrivateKey, cfg S
 	}
 
 	header := map[string]any{
-		"alg": "ES256",
+		"alg": jws.AlgES256,
 		"typ": TypJWT,
 	}
 

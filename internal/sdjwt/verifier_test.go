@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 )
 
@@ -54,7 +55,7 @@ func TestVerify(t *testing.T) {
 			name: "valid ES256 signature",
 			cfg: mock.SDJWTConfig{
 				Issuer: "https://issuer.example", VCT: "urn:test:1",
-				ExpiresIn: 24 * time.Hour, Claims: mock.DefaultClaims, Key: key1,
+				ExpiresIn: 24 * time.Hour, Claims: credtemplate.DefaultClaims, Key: key1,
 			},
 			verifyKey:    &key1.PublicKey,
 			wantSigValid: true,
@@ -63,7 +64,7 @@ func TestVerify(t *testing.T) {
 			name: "wrong key",
 			cfg: mock.SDJWTConfig{
 				Issuer: "https://issuer.example", VCT: "urn:test:1",
-				ExpiresIn: 24 * time.Hour, Claims: mock.DefaultClaims, Key: key1,
+				ExpiresIn: 24 * time.Hour, Claims: credtemplate.DefaultClaims, Key: key1,
 			},
 			verifyKey:    &key2.PublicKey,
 			wantSigValid: false,
@@ -72,7 +73,7 @@ func TestVerify(t *testing.T) {
 			name: "expired token",
 			cfg: mock.SDJWTConfig{
 				Issuer: "https://issuer.example", VCT: "urn:test:1",
-				ExpiresIn: -1 * time.Hour, Claims: mock.DefaultClaims, Key: key1,
+				ExpiresIn: -1 * time.Hour, Claims: credtemplate.DefaultClaims, Key: key1,
 			},
 			verifyKey:    &key1.PublicKey,
 			wantSigValid: true,
@@ -83,7 +84,7 @@ func TestVerify(t *testing.T) {
 			cfg: mock.SDJWTConfig{
 				Issuer: "https://issuer.example", VCT: "urn:test:1",
 				ExpiresIn: 24 * time.Hour, NotBefore: &future,
-				Claims: mock.DefaultClaims, Key: key1,
+				Claims: credtemplate.DefaultClaims, Key: key1,
 			},
 			verifyKey:       &key1.PublicKey,
 			wantSigValid:    true,
@@ -93,7 +94,7 @@ func TestVerify(t *testing.T) {
 			name: "unsupported algorithm",
 			cfg: mock.SDJWTConfig{
 				Issuer: "https://issuer.example", VCT: "urn:test:1",
-				ExpiresIn: 24 * time.Hour, Claims: mock.DefaultClaims, Key: key1,
+				ExpiresIn: 24 * time.Hour, Claims: credtemplate.DefaultClaims, Key: key1,
 			},
 			verifyKey:    &key1.PublicKey,
 			modifyToken:  func(tok *Token) { tok.Header["alg"] = "none" },
@@ -104,7 +105,7 @@ func TestVerify(t *testing.T) {
 			name: "time claims present",
 			cfg: mock.SDJWTConfig{
 				Issuer: "https://issuer.example", VCT: "urn:test:1",
-				ExpiresIn: 24 * time.Hour, Claims: mock.DefaultClaims, Key: key1,
+				ExpiresIn: 24 * time.Hour, Claims: credtemplate.DefaultClaims, Key: key1,
 			},
 			verifyKey:    &key1.PublicKey,
 			wantSigValid: true,
