@@ -17,8 +17,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -30,13 +28,7 @@ var (
 	verbose    bool
 )
 
-// binaryName keeps help and completion consistent with the invoked name, including the
-// oid4vc-dev alias.
 func binaryName() string {
-	base := strings.TrimSuffix(filepath.Base(os.Args[0]), ".exe")
-	if strings.HasPrefix(base, "oid4vc-dev") {
-		return "oid4vc-dev"
-	}
 	return "eudi"
 }
 

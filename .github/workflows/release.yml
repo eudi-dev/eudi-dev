@@ -126,10 +126,8 @@ jobs:
           build-args: VERSION=${{ steps.version.outputs.tag }}
           tags: |
             ${{ needs.channels.outputs.latest == 'true' && 'ghcr.io/dominikschlosser/eudi-dev:latest' || '' }}
-            ${{ needs.channels.outputs.latest == 'true' && 'ghcr.io/dominikschlosser/oid4vc-dev:latest' || '' }}
             ${{ needs.channels.outputs.beta == 'true' && 'ghcr.io/dominikschlosser/eudi-dev:beta' || '' }}
             ghcr.io/dominikschlosser/eudi-dev:${{ steps.version.outputs.tag }}
-            ghcr.io/dominikschlosser/oid4vc-dev:${{ steps.version.outputs.tag }}
 
   homebrew:
     # The tap installs the newest stable release only.

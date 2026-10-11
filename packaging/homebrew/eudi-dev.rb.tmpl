@@ -17,8 +17,6 @@ class EudiDev < Formula
   def install
     ldflags = "-s -w -X github.com/dominikschlosser/eudi-dev/v3/cmd.Version=v#{version}"
     system "go", "build", *std_go_args(ldflags: ldflags, output: bin/"eudi")
-    # Legacy command name keeps working for the time being
-    bin.install_symlink "eudi" => "oid4vc-dev"
     generate_completions_from_executable(bin/"eudi", "completion")
   end
 

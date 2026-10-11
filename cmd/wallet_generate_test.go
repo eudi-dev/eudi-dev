@@ -87,7 +87,7 @@ func TestWalletGeneratePID_SetsIssuerURLForSDJWT(t *testing.T) {
 func TestWalletGeneratePID_UsesRegisteredWalletPort(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
-	handlerDir := filepath.Join(tmpDir, ".oid4vc-dev")
+	handlerDir := filepath.Join(tmpDir, ".eudi-dev")
 	if err := os.MkdirAll(handlerDir, 0755); err != nil {
 		t.Fatalf("mkdir handler dir: %v", err)
 	}
@@ -144,7 +144,7 @@ func TestWalletGeneratePID_UsesRegisteredWalletPort(t *testing.T) {
 func TestWalletGeneratePID_PreservesPersistedServingConfig(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
-	t.Setenv("OID4VC_DEV_HOME", tmpDir)
+	t.Setenv("EUDI_DEV_HOME", tmpDir)
 	wDir := filepath.Join(tmpDir, "wallet")
 	if err := os.MkdirAll(wDir, 0755); err != nil {
 		t.Fatalf("mkdir: %v", err)

@@ -60,7 +60,7 @@ func startRemoteTestWallet(t *testing.T) (string, *wallet.Server) {
 
 func resetRemoteTestState(t *testing.T) {
 	t.Helper()
-	t.Setenv("OID4VC_DEV_HOME", t.TempDir())
+	t.Setenv("EUDI_DEV_HOME", t.TempDir())
 	resetTemplateTestState(t)
 	// A remote wallet refuses --wallet-dir.
 	walletDir = ""

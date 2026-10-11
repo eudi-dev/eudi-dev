@@ -253,7 +253,7 @@ var templatesDeleteCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(templatesCmd)
-	templatesCmd.PersistentFlags().StringVar(&walletDir, "wallet-dir", "", "Wallet storage directory holding the templates/ subdirectory (default ~/.eudi-dev/wallet/, or an existing ~/.oid4vc-dev/wallet/)")
+	templatesCmd.PersistentFlags().StringVar(&walletDir, "wallet-dir", "", "Wallet storage directory holding the templates/ subdirectory (default ~/.eudi-dev/wallet/)")
 	templatesCmd.PersistentFlags().StringVar(&templatesDir, "templates-dir", "", "Credential template directory (default <wallet-dir>/templates/)")
 	templatesCmd.PersistentFlags().StringVar(&storageSpec, "storage", "", storageFlagUsage)
 	templatesCmd.PersistentFlags().StringVar(&remoteFlag, "remote", "", "Manage templates on a remote wallet server at this URL (\"local\" forces the local store)")

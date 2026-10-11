@@ -29,7 +29,7 @@ func ScanScreen() (string, error) {
 		return "", fmt.Errorf("--screen is only supported on macOS (use --qr with an image file instead)")
 	}
 
-	tmpDir, err := os.MkdirTemp("", "oid4vc-dev-qr-*")
+	tmpDir, err := os.MkdirTemp("", "eudi-dev-qr-*")
 	if err != nil {
 		return "", fmt.Errorf("creating temp dir: %w", err)
 	}

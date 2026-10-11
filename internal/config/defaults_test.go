@@ -15,7 +15,6 @@
 package config
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 )
@@ -24,32 +23,9 @@ func TestBaseDirResolution(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("EUDI_DEV_HOME", "")
-	t.Setenv("OID4VC_DEV_HOME", "")
 
-	newDir := filepath.Join(home, ".eudi-dev")
-	legacyDir := filepath.Join(home, ".oid4vc-dev")
-
-	if got := BaseDir(); got != newDir {
-		t.Errorf("fresh: expected %s, got %s", newDir, got)
-	}
-
-	if err := os.MkdirAll(legacyDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if got := BaseDir(); got != legacyDir {
-		t.Errorf("legacy only: expected %s, got %s", legacyDir, got)
-	}
-
-	if err := os.MkdirAll(newDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if got := BaseDir(); got != newDir {
-		t.Errorf("both: expected %s, got %s", newDir, got)
-	}
-
-	t.Setenv("OID4VC_DEV_HOME", "/tmp/legacy-home")
-	if got := BaseDir(); got != "/tmp/legacy-home" {
-		t.Errorf("legacy env: expected /tmp/legacy-home, got %s", got)
+	if got, want := BaseDir(), filepath.Join(home, ".eudi-dev"); got != want {
+		t.Errorf("default: expected %s, got %s", want, got)
 	}
 	t.Setenv("EUDI_DEV_HOME", "/tmp/new-home")
 	if got := BaseDir(); got != "/tmp/new-home" {

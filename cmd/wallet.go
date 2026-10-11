@@ -65,7 +65,7 @@ var walletCmd = &cobra.Command{
 }
 
 func init() {
-	walletCmd.PersistentFlags().StringVar(&walletDir, "wallet-dir", "", "Wallet storage directory (default ~/.eudi-dev/wallet/, or an existing ~/.oid4vc-dev/wallet/)")
+	walletCmd.PersistentFlags().StringVar(&walletDir, "wallet-dir", "", "Wallet storage directory (default ~/.eudi-dev/wallet/)")
 	walletCmd.PersistentFlags().StringVar(&remoteFlag, "remote", "", "Manage a remote wallet server at this URL for this invocation (\"local\" forces the local store)")
 	walletCmd.PersistentFlags().StringVar(&templatesDir, "templates-dir", "", "Credential template directory (default <wallet-dir>/templates/)")
 	walletCmd.PersistentFlags().StringVar(&storageSpec, "storage", "", storageFlagUsage)

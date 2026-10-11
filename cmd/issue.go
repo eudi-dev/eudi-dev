@@ -109,7 +109,7 @@ var issueMDOCCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(issueCmd)
-	issueCmd.PersistentFlags().StringVar(&walletDir, "wallet-dir", "", "Wallet storage directory for --wallet, also the template location (default ~/.eudi-dev/wallet/, or an existing ~/.oid4vc-dev/wallet/)")
+	issueCmd.PersistentFlags().StringVar(&walletDir, "wallet-dir", "", "Wallet storage directory for --wallet, also the template location (default ~/.eudi-dev/wallet/)")
 	issueCmd.PersistentFlags().StringVar(&templatesDir, "templates-dir", "", "Credential template directory (default <wallet-dir>/templates/)")
 	issueCmd.PersistentFlags().StringVar(&storageSpec, "storage", "", storageFlagUsage)
 	issueCmd.PersistentFlags().StringVar(&keySeed, "seed", "", seedFlagUsage)

@@ -24,14 +24,14 @@ import (
 // Main runs the tests of a package with a temporary home directory. The
 // default wallet, its templates and the active remote wallet live under the
 // home directory, so tests that reach them must not see the real one.
-// Explicit home overrides are cleared because they would restore it.
+// EUDI_DEV_HOME is cleared because it would restore it.
 func Main(m *testing.M) {
 	dir, err := os.MkdirTemp("", "eudi-dev-tests-")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "creating temporary home directory: %v\n", err)
 		os.Exit(1)
 	}
-	for name, value := range map[string]string{"HOME": dir, "USERPROFILE": dir, "EUDI_DEV_HOME": "", "OID4VC_DEV_HOME": ""} {
+	for name, value := range map[string]string{"HOME": dir, "USERPROFILE": dir, "EUDI_DEV_HOME": ""} {
 		set := func() error { return os.Setenv(name, value) }
 		if value == "" {
 			set = func() error { return os.Unsetenv(name) }

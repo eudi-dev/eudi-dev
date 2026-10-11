@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -341,19 +340,9 @@ func TestDefaultWalletDir(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("EUDI_DEV_HOME", "")
-	t.Setenv("OID4VC_DEV_HOME", "")
 
-	dir := DefaultWalletDir()
-	if !strings.Contains(dir, ".eudi-dev") || !strings.HasSuffix(dir, "wallet") {
-		t.Errorf("expected .eudi-dev wallet dir, got %s", dir)
-	}
-
-	if err := os.MkdirAll(filepath.Join(home, ".oid4vc-dev"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	dir = DefaultWalletDir()
-	if !strings.Contains(dir, ".oid4vc-dev") {
-		t.Errorf("expected legacy .oid4vc-dev fallback, got %s", dir)
+	if got, want := DefaultWalletDir(), filepath.Join(home, ".eudi-dev", "wallet"); got != want {
+		t.Errorf("wallet dir %s, want %s", got, want)
 	}
 }
 

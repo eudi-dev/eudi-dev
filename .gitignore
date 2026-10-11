@@ -3,7 +3,6 @@
 .gocache/
 __pycache__/
 .idea/
-oid4vc-dev
 dist/
 .playwright-mcp/
 e2e/node_modules/

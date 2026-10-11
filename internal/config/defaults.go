@@ -48,28 +48,15 @@ const (
 	OwnerHeader  = "X-Eudi-Owner"
 )
 
-// BaseDir returns the tool's state directory. It checks in order the
-// EUDI_DEV_HOME variable, the OID4VC_DEV_HOME variable, an existing
-// ~/.eudi-dev directory and an existing ~/.oid4vc-dev directory. The fallback
-// is ~/.eudi-dev.
+// BaseDir returns the tool's state directory: EUDI_DEV_HOME when set, else
+// ~/.eudi-dev.
 func BaseDir() string {
 	if custom := os.Getenv("EUDI_DEV_HOME"); custom != "" {
-		return custom
-	}
-	if custom := os.Getenv("OID4VC_DEV_HOME"); custom != "" {
 		return custom
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		home = "."
 	}
-	newDir := filepath.Join(home, ".eudi-dev")
-	legacyDir := filepath.Join(home, ".oid4vc-dev")
-	if _, err := os.Stat(newDir); err == nil {
-		return newDir
-	}
-	if _, err := os.Stat(legacyDir); err == nil {
-		return legacyDir
-	}
-	return newDir
+	return filepath.Join(home, ".eudi-dev")
 }
