@@ -3494,13 +3494,16 @@
   // the identifier from the API response.
 
   // A service provider counts as a verifier even before it has intended uses.
-  function relyingPartyRoles(rp) {
-    const services = rp.services || [];
+  const SERVICE_PROVIDER_ENTITLEMENT = 'https://uri.etsi.org/19475/Entitlement/Service_Provider';
+  function serviceRoles(service) {
     const roles = [];
-    if (services.some(s => (s.intendedUses || []).length > 0 ||
-      (s.entitlements || []).includes('https://uri.etsi.org/19475/Entitlement/Service_Provider'))) roles.push('verifier');
-    if (services.some(s => (s.providesAttestations || []).length > 0)) roles.push('issuer');
+    if ((service.intendedUses || []).length > 0 || (service.entitlements || []).includes(SERVICE_PROVIDER_ENTITLEMENT)) roles.push('verifier');
+    if ((service.providesAttestations || []).length > 0) roles.push('issuer');
     return roles;
+  }
+  function relyingPartyRoles(rp) {
+    const roles = (rp.services || []).flatMap(serviceRoles);
+    return ['verifier', 'issuer'].filter(role => roles.includes(role));
   }
 
   // A provided attestation names its type, and a registered credential names it
@@ -3561,38 +3564,48 @@
     const current = registrarStatuses.filter(s => s.identifier === identifier && matches(s) && !s.superseded && s[field]);
     return current.length > 0 ? current[current.length - 1][field] : undefined;
   }
-  // A superseded certificate was revoked for good, because its intended use
+  // A superseded certificate was revoked for good, and its reason says what
   // changed. Only a new certificate helps then.
-  function intendedUseStatus(identifier, intendedUse) {
-    const entries = registrarStatuses.filter(s => s.identifier === identifier && s.intendedUse === intendedUse);
-    if (entries.length === 0) return 'none';
+  function certificateStatus(entries) {
+    if (entries.length === 0) return { status: 'none' };
     const current = entries.filter(s => !s.superseded);
-    if (current.length === 0) return 'outdated';
-    return current.some(s => !s.revoked) ? 'active' : 'revoked';
+    if (current.length === 0) {
+      const reason = entries[entries.length - 1].reason;
+      return { status: reason === 'expired' ? 'expired' : 'outdated', reason: reason };
+    }
+    if (current.every(s => s.expires && s.expires * 1000 < Date.now())) return { status: 'expired' };
+    return { status: current.some(s => !s.revoked) ? 'active' : 'revoked' };
+  }
+  function intendedUseStatus(identifier, intendedUse) {
+    return certificateStatus(registrarStatuses.filter(s => s.identifier === identifier && s.intendedUse === intendedUse));
   }
   // A provider certificate covers a service and has no intended use (ARF
   // RPRC_13).
   function providerStatus(identifier, serviceIdentifier) {
-    const entries = registrarStatuses.filter(s => s.identifier === identifier && !s.intendedUse && (s.service || '') === serviceIdentifier);
-    if (entries.length === 0) return 'none';
-    const current = entries.filter(s => !s.superseded);
-    if (current.length === 0) return 'outdated';
-    return current.some(s => !s.revoked) ? 'active' : 'revoked';
+    return certificateStatus(registrarStatuses.filter(s => s.identifier === identifier && !s.intendedUse && (s.service || '') === serviceIdentifier));
   }
   const entitlementLabel = (uri) => {
     const category = categories.find(c => c.entitlement === uri);
     return category ? category.label + ' provider' : '';
   };
-  const USE_STATUS_BADGES = {
-    none: ['status-none ico-circle', 'No certificate', 'The registrar has not issued a registration certificate for this intended use.'],
-    active: ['status-active ico-dot', 'Active', 'Not revoked on the registrar\'s status list.'],
-    revoked: ['status-revoked ico-block', 'Revoked', 'Revoked on the registrar\'s status list.'],
-    outdated: ['status-revoked ico-block', 'Revoked', 'The intended use changed, so its certificate was revoked for good. Issue a new one.'],
-  };
-  const PROVIDER_STATUS_BADGES = Object.assign({}, USE_STATUS_BADGES, {
-    none: ['status-none ico-circle', 'No certificate', 'The registrar has not issued a registration certificate for this service.'],
-    outdated: ['status-revoked ico-block', 'Revoked', 'The attestations of this service changed, so its certificate was revoked for good. Issue a new one.'],
-  });
+  // kind is use for a verifier registration certificate and provider for an
+  // issuer one.
+  function statusBadge(kind, { status, reason }) {
+    const subject = kind === 'use' ? 'intended use' : 'service';
+    switch (status) {
+      case 'none': return ['status-none ico-circle', 'No certificate', 'The registrar has not issued a registration certificate for this ' + subject + '.'];
+      case 'active': return ['status-active ico-dot', 'Active', 'Not revoked on the registrar\'s status list.'];
+      case 'revoked': return ['status-revoked ico-block', 'Revoked', 'Revoked on the registrar\'s status list.'];
+      case 'expired': return ['status-revoked ico-block', 'Expired', 'The certificate expired. Issue a new one.'];
+    }
+    const changed = {
+      entitlements: 'The entitlements of this service changed',
+      attestations: 'The attestation types of this service changed',
+    }[reason] || 'The registered details of this ' + subject + ' changed';
+    return ['status-revoked ico-block', 'Revoked', changed + ', so its certificate was revoked for good. Issue a new one.'];
+  }
+  // Revoking or activating applies to a certificate that is still current.
+  const revocable = (status) => status === 'active' || status === 'revoked';
 
   // The list re-renders after an action and replaces the clicked button. The
   // next render focuses the element with its ID, or the dialog title when the
@@ -3655,20 +3668,21 @@
 
   function providerRow(identifier, prefix, service) {
     const servicePrefix = prefix + '-service-' + domID(service.serviceIdentifier || 'default');
-    const status = providerStatus(identifier, service.serviceIdentifier || '');
+    const certStatus = providerStatus(identifier, service.serviceIdentifier || '');
+    const status = certStatus.status;
     const issuerInfo = storedInfo(identifier, s => !s.intendedUse && (s.service || '') === (service.serviceIdentifier || ''), 'issuerInfo');
     const entitlements = (service.entitlements || []).map(entitlementLabel).filter(Boolean);
     const row = document.createElement('div');
     row.className = 'registrar-use';
     row.id = servicePrefix;
     row.dataset.status = status;
-    const [badgeClass, badgeText, badgeTitle] = PROVIDER_STATUS_BADGES[status];
+    const [badgeClass, badgeText, badgeTitle] = statusBadge('provider', certStatus);
     const badge = '<span class="status-badge ' + badgeClass + '" id="' + servicePrefix + '-status" title="' + escHtml(badgeTitle) + '">' + badgeText + '</span>';
     const actions = protectedParties.has(identifier) ? '' : '<span class="registrar-use-actions" id="' + servicePrefix + '-actions">' +
       '<button type="button" class="btn btn-sm" id="' + servicePrefix + '-issue" title="' +
         (status === 'active' ? 'Issues a new certificate and revokes the current one.' : 'Issues a registration certificate for this service and its attestations.') +
         '">' + (status === 'none' ? 'Issue certificate' : 'Issue new certificate') + '</button>' +
-      (status === 'none' || status === 'outdated' ? '' : '<button type="button" class="btn btn-sm" id="' + servicePrefix + '-revoke" title="' +
+      (!revocable(status) ? '' : '<button type="button" class="btn btn-sm" id="' + servicePrefix + '-revoke" title="' +
         (status === 'revoked' ? 'Makes the certificate valid.' : 'Revokes the certificate on the status list.') +
         '">' + (status === 'revoked' ? 'Activate' : 'Revoke') + '</button>') +
       '<button type="button" class="btn btn-sm" id="' + servicePrefix + '-edit">Edit attestation types</button>' +
@@ -3728,8 +3742,9 @@
   // useRow shows one intended use with its certificate and actions.
   function useRow(identifier, prefix, service, use) {
     const usePrefix = prefix + '-use-' + domID(use.intendedUseIdentifier);
-    const status = intendedUseStatus(identifier, use.intendedUseIdentifier);
-    const [badgeClass, badgeText, badgeTitle] = USE_STATUS_BADGES[status];
+    const certStatus = intendedUseStatus(identifier, use.intendedUseIdentifier);
+    const status = certStatus.status;
+    const [badgeClass, badgeText, badgeTitle] = statusBadge('use', certStatus);
     const verifierInfo = storedInfo(identifier, s => s.intendedUse === use.intendedUseIdentifier, 'verifierInfo');
     const row = document.createElement('div');
     row.className = 'registrar-use';
@@ -3744,9 +3759,10 @@
             { none: 'Issues a registration certificate for this purpose and these claims.',
               active: 'Issues a new certificate and revokes the current one.',
               revoked: 'Issues a new certificate. The revoked one stays revoked.',
-              outdated: 'Issues a certificate for the changed purpose and claims.' }[status] +
+              outdated: 'Issues a certificate for the changed purpose and claims.',
+              expired: 'Issues a new certificate for this purpose and these claims.' }[status] +
             '">' + (status === 'none' ? 'Issue certificate' : 'Issue new certificate') + '</button>' +
-          (status === 'none' || status === 'outdated' ? '' : '<button type="button" class="btn btn-sm" id="' + usePrefix + '-revoke" title="' +
+          (!revocable(status) ? '' : '<button type="button" class="btn btn-sm" id="' + usePrefix + '-revoke" title="' +
             (status === 'revoked' ? 'Makes the certificate valid.' : 'Revokes the certificate on the status list.') +
             '">' + (status === 'revoked' ? 'Activate' : 'Revoke') + '</button>') +
           '<button type="button" class="btn btn-danger btn-sm" id="' + usePrefix + '-delete" title="Removes the intended use from the registration and revokes its certificates.">Delete</button>' +
@@ -3911,7 +3927,7 @@
         const entitlements = (service.entitlements || []).map(entitlementLabel).filter(Boolean);
         card.appendChild(certSummary(prefix + '-service-' + domID(service.serviceIdentifier || 'default'), 'Issuer registration certificate',
           entitlements.join(', ') || 'Attestation provider',
-          PROVIDER_STATUS_BADGES[providerStatus(identifier, service.serviceIdentifier || '')],
+          statusBadge('provider', providerStatus(identifier, service.serviceIdentifier || '')),
           { identifier: identifier, service: service.serviceIdentifier || '' }));
       });
       services.forEach(service => {
@@ -3919,7 +3935,7 @@
           const usePrefix = prefix + '-use-' + domID(use.intendedUseIdentifier);
           card.appendChild(certSummary(usePrefix, 'Verifier registration certificate',
             ((use.purpose || [])[0] || {}).content || use.intendedUseIdentifier,
-            USE_STATUS_BADGES[intendedUseStatus(identifier, use.intendedUseIdentifier)],
+            statusBadge('use', intendedUseStatus(identifier, use.intendedUseIdentifier)),
             { identifier: identifier, use: use.intendedUseIdentifier }));
         });
       });
@@ -4195,10 +4211,10 @@
       ? 'Add ' + (addsIssuer ? 'an issuer' : 'a verifier') + ' registration certificate to ' + targetName
       : (registrarMode === 'issuer' ? 'Register an issuer' : 'Register a verifier');
     document.getElementById('registrar-party-section').hidden = !!registrarTarget;
-    document.getElementById('registrar-access-section').hidden = !!registrarTarget;
-    document.getElementById('registrar-access-result').hidden = !!registrarTarget;
+    fillTargetServices(addsIssuer ? 'issuer' : 'verifier');
     document.getElementById('registrar-error').textContent = '';
     document.getElementById('registrar-result').hidden = true;
+    offerReissue([]);
     registrarOverlay.classList.add('active');
     if (addsIssuer) {
       (registrarAttestations.querySelector('[data-field="type"]') || registrarSubmit).focus();
@@ -4206,6 +4222,130 @@
       document.getElementById(registrarTarget ? 'registrar-purpose' : 'registrar-name').focus();
     }
   }
+  // Entitlements belong to a service (TS6 v1.1 row 12). A registration
+  // certificate covers a service or one of its intended uses (ARF RPRC_09,
+  // RPRC_13) and lists the entitlements of the service.
+  // A service that gains the other role gets another entitlement, so the
+  // registrar revokes the certificates of its current role. A new service
+  // keeps them valid but needs its own access certificate.
+  const registrarTargetService = document.getElementById('registrar-target-service');
+  const NEW_SERVICE = 'new';
+  let registrarAddedRole = 'verifier';
+  function serviceLabel(service) {
+    const name = service.serviceTradeName || registrarTarget.tradeName || 'Service';
+    return service.serviceIdentifier ? name + ' (' + service.serviceIdentifier + ')' : name;
+  }
+  function fillTargetServices(role) {
+    registrarAddedRole = role;
+    const adding = !!registrarTarget && !registrarEditService;
+    document.getElementById('registrar-target-section').hidden = !adding;
+    registrarTargetService.innerHTML = '';
+    if (adding) {
+      const services = registrarTarget.services || [];
+      services.forEach((service, i) => registrarTargetService.appendChild(new Option(serviceLabel(service), String(i))));
+      registrarTargetService.appendChild(new Option('A new service', NEW_SERVICE));
+      // A service that has the role already keeps its entitlements. Otherwise
+      // the first service is the one its access certificate names.
+      const same = services.findIndex(service => serviceRoles(service).includes(role));
+      registrarTargetService.value = services.length === 0 ? NEW_SERVICE : String(Math.max(0, same));
+    }
+    document.getElementById('registrar-new-service-id').value = '';
+    updateTargetService();
+  }
+  // revokedByTarget lists the certificates that the added role revokes, as
+  // registration certificate requests that issue them again.
+  function revokedByTarget() {
+    const service = targetService();
+    if (!service || serviceRoles(service).includes(registrarAddedRole)) return [];
+    const identifier = registrarTarget.identifier[0].identifier;
+    const serviceIdentifier = service.serviceIdentifier || '';
+    const current = (matches) => registrarStatuses.some(s => s.identifier === identifier && !s.superseded && matches(s));
+    if (registrarAddedRole === 'verifier') {
+      return current(s => !s.intendedUse && (s.service || '') === serviceIdentifier)
+        ? [{ identifier: identifier, serviceIdentifier: serviceIdentifier }] : [];
+    }
+    return (service.intendedUses || []).filter(use => current(s => s.intendedUse === use.intendedUseIdentifier))
+      .map(use => ({ identifier: identifier, serviceIdentifier: serviceIdentifier, intendedUseIdentifier: use.intendedUseIdentifier }));
+  }
+  function targetService() {
+    if (!registrarTarget || registrarEditService || registrarTargetService.value === NEW_SERVICE) return null;
+    return (registrarTarget.services || [])[Number(registrarTargetService.value)] || null;
+  }
+  function updateTargetService() {
+    const adding = !!registrarTarget && !registrarEditService;
+    const newService = adding && registrarTargetService.value === NEW_SERVICE;
+    document.getElementById('registrar-new-service-section').hidden = !newService;
+    document.getElementById('registrar-access-section').hidden = !!registrarTarget && !newService;
+    document.getElementById('registrar-access-result').hidden = !!registrarTarget && !newService;
+    const notice = document.getElementById('registrar-revocation-notice');
+    const revoked = adding ? revokedByTarget() : [];
+    const service = targetService();
+    if (newService) {
+      notice.textContent = 'The new service gets its own access certificate. The certificates of the other services stay valid.';
+    } else if (revoked.length > 0 && registrarAddedRole === 'verifier') {
+      notice.textContent = 'The service ' + serviceLabel(service) + ' gets the Service_Provider entitlement. ' +
+        'Its issuer registration certificate lists the entitlements, so the registrar revokes it. ' +
+        'You can issue a new one right after, or add the intended use to a new service.';
+    } else if (revoked.length > 0) {
+      notice.textContent = 'The service ' + serviceLabel(service) + ' gets a provider entitlement. ' +
+        'The verifier registration certificates of its intended uses list the entitlements, so the registrar revokes ' +
+        (revoked.length === 1 ? 'the certificate of 1 intended use. You can issue a new one right after' : 'the certificates of ' + revoked.length + ' intended uses. You can issue new ones right after') +
+        ', or add the attestation types to a new service.';
+    }
+    notice.hidden = !newService && revoked.length === 0;
+  }
+  registrarTargetService.addEventListener('change', updateTargetService);
+
+  // After the registrar revoked the certificates of the other role, one click
+  // issues them again for the changed service.
+  let registrarReissue = [];
+  function offerReissue(revoked) {
+    registrarReissue = revoked;
+    const block = document.getElementById('registrar-reissue-block');
+    block.hidden = revoked.length === 0;
+    if (revoked.length === 0) return;
+    const provider = !revoked[0].intendedUseIdentifier;
+    document.getElementById('registrar-reissue-hint').textContent = provider
+      ? 'The registrar revoked the issuer registration certificate of the service.'
+      : 'The registrar revoked ' + (revoked.length === 1 ? 'the verifier registration certificate' : revoked.length + ' verifier registration certificates') + ' of the service.';
+    const button = document.getElementById('registrar-reissue');
+    button.disabled = false;
+    button.textContent = provider ? 'Issue a new issuer registration certificate'
+      : revoked.length === 1 ? 'Issue a new verifier registration certificate' : 'Issue new verifier registration certificates';
+  }
+  document.getElementById('registrar-reissue').addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      for (const request of registrarReissue) {
+        await registrarRequest('POST', 'api/registrar/registration-certificates',
+          Object.assign({ validity: registrarValue('registrar-registration-validity') }, request));
+      }
+      button.textContent = '\u2713 Issued';
+      document.getElementById('registrar-reissue-hint').textContent = 'The relying party list shows the new certificates.';
+    } catch (e) {
+      button.disabled = false;
+      showRegistrarError(e.message);
+    }
+  });
+
+  // The access part of an enrolment for a new service. A key created in the
+  // browser is shown with the chain, because it exists nowhere else.
+  async function newServiceAccess(serviceIdentifier) {
+    let key = '';
+    let csr = registrarValue('registrar-csr');
+    if (!csr) ({ key, csr } = await window.eudiCreateKeyAndCSR());
+    const access = { serviceIdentifier: serviceIdentifier, csr: csr, validity: registrarValue('registrar-access-validity') };
+    if (registrarAddedRole === 'verifier') access.dnsNames = registrarValue('registrar-dns').split(',').map(n => n.trim()).filter(Boolean);
+    return { key, access };
+  }
+  function showNewServiceAccess(key, access) {
+    document.getElementById('registrar-client-ids').innerHTML = (access.clientIds || []).map((id, i) =>
+      '<li><code id="registrar-client-id-' + i + '">' + escHtml(id) + '</code></li>').join('');
+    document.getElementById('registrar-pem-label').textContent = key ? 'Signing key and access certificate chain' : 'Access certificate chain';
+    document.getElementById('registrar-pem').value = key + access.chain;
+  }
+
   document.getElementById('registrar-close').addEventListener('click', () => {
     registrarOverlay.classList.remove('active');
     if (registrarFromList) {
@@ -4480,6 +4620,31 @@
     };
   }
 
+  // registrationTarget copies the registration with the service that gets
+  // the addition: the edited service, the chosen one, or a new one. added is
+  // true for a new service.
+  function registrationTarget() {
+    const identifier = registrarTarget.identifier[0].identifier;
+    const updated = JSON.parse(JSON.stringify(registrarTarget));
+    updated.services = updated.services || [];
+    if (registrarEditService) {
+      const index = updated.services.findIndex(s => (s.serviceIdentifier || '') === (registrarEditService.serviceIdentifier || ''));
+      return { identifier, updated, service: updated.services[Math.max(0, index)], added: false };
+    }
+    if (registrarTargetService.value !== NEW_SERVICE) {
+      return { identifier, updated, service: updated.services[Number(registrarTargetService.value)], added: false };
+    }
+    const field = document.getElementById('registrar-new-service-id');
+    const serviceIdentifier = field.value.trim();
+    if (!serviceIdentifier && updated.services.length > 0) {
+      showRegistrarError('The new service needs an identifier.', field);
+      return null;
+    }
+    const service = { serviceTradeName: registrarTarget.tradeName, serviceIdentifier: serviceIdentifier };
+    updated.services.push(service);
+    return { identifier, updated, service, added: true };
+  }
+
   // Each registration certificate covers one intended use, so a new certificate
   // needs a new intended use.
   async function addIntendedUse(submit) {
@@ -4492,19 +4657,23 @@
       showRegistrarError('Add at least one credential.', firstCredentialTypeField());
       return;
     }
-    const identifier = registrarTarget.identifier[0].identifier;
-    const updated = JSON.parse(JSON.stringify(registrarTarget));
-    updated.services = updated.services && updated.services.length > 0 ? updated.services : [{}];
-    updated.services[0].intendedUses = (updated.services[0].intendedUses || []).concat([use]);
+    const target = registrationTarget();
+    if (!target) return;
+    target.service.intendedUses = (target.service.intendedUses || []).concat([use]);
+    const revoked = revokedByTarget();
     submit.disabled = true;
     try {
-      const { relyingParty: saved, registration } = await registrarRequest('PUT', 'api/registrar/enrolments', {
-        relyingParty: updated,
-        registration: { validity: registrarValue('registrar-registration-validity') },
+      const { key, access } = target.added ? await newServiceAccess(target.service.serviceIdentifier) : {};
+      const { relyingParty: saved, access: issued, registration } = await registrarRequest('PUT', 'api/registrar/enrolments', {
+        relyingParty: target.updated,
+        access: access,
+        registration: { serviceIdentifier: target.service.serviceIdentifier || '', validity: registrarValue('registrar-registration-validity') },
       });
       registrarTarget = saved;
-      document.getElementById('registrar-result-identifier').textContent = identifier;
+      document.getElementById('registrar-result-identifier').textContent = target.identifier;
+      if (issued) showNewServiceAccess(key, issued);
       document.getElementById('registrar-verifier-info').value = registration.verifierInfo;
+      offerReissue(revoked);
       showRegistrationResult();
     } catch (e) {
       showRegistrarError(e.message);
@@ -4529,28 +4698,29 @@
       showRegistrarError('Add at least one attestation.', field);
       return;
     }
-    const identifier = registrarTarget.identifier[0].identifier;
-    const updated = JSON.parse(JSON.stringify(registrarTarget));
-    updated.services = updated.services && updated.services.length > 0 ? updated.services : [{}];
+    const target = registrationTarget();
+    if (!target) return;
+    const { identifier, updated, service } = target;
     const entitlement = document.getElementById('registrar-entitlement').value;
-    const index = registrarEditService
-      ? Math.max(0, updated.services.findIndex(s => (s.serviceIdentifier || '') === (registrarEditService.serviceIdentifier || '')))
-      : 0;
-    const service = updated.services[index];
     service.providesAttestations = attestations;
     // Without provider entitlements the registrar derives them from the
     // categories of the types, so changed types get matching entitlements.
     if (registrarEditService) service.entitlements = withoutProviderEntitlements(service.entitlements);
     if (entitlement) service.entitlements = (service.entitlements || []).concat([entitlement]);
+    const revoked = revokedByTarget();
     submit.disabled = true;
     try {
-      const { relyingParty: saved, registration } = await registrarRequest('PUT', 'api/registrar/enrolments', {
+      const { key, access } = target.added ? await newServiceAccess(service.serviceIdentifier) : {};
+      const { relyingParty: saved, access: issued, registration } = await registrarRequest('PUT', 'api/registrar/enrolments', {
         relyingParty: updated,
+        access: access,
         registration: { provider: true, serviceIdentifier: service.serviceIdentifier || '', validity: registrarValue('registrar-registration-validity') },
       });
       registrarTarget = saved;
       document.getElementById('registrar-result-identifier').textContent = identifier;
+      if (issued) showNewServiceAccess(key, issued);
       document.getElementById('registrar-issuer-info').value = registration.issuerInfo;
+      offerReissue(revoked);
       showRegistrationResult();
     } catch (e) {
       showRegistrarError(e.message);

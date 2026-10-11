@@ -383,7 +383,7 @@ func writeRegistrarError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, errRelyingPartyNotFound):
 		status = http.StatusNotFound
-	case errors.Is(err, errRelyingPartyExists), errors.Is(err, errRegistrarFull), errors.Is(err, errRegistrationStatusFull), errors.Is(err, errPartyCertificatesFull), errors.Is(err, errRegistrationChanged):
+	case errors.Is(err, errRelyingPartyExists), errors.Is(err, errRegistrarFull), errors.Is(err, errPartyCertificatesFull), errors.Is(err, errRegistrationChanged):
 		status = http.StatusConflict
 	case errors.Is(err, errRegistrarSigning):
 		status = http.StatusInternalServerError

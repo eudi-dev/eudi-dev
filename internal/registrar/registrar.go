@@ -224,8 +224,11 @@ func (r *Registrar) UpdateRelyingParty(rp WalletRelyingParty) (WalletRelyingPart
 	// changes that content or drops the intended use, its certificates are
 	// revoked for good.
 	before := r.state.RelyingParties[i]
-	r.supersedeRegistrationsLocked(func(s RegistrationStatus) bool {
-		return s.Identifier == stored.Identifier && !sameCertificateContent(before, rp, statusKey(s))
+	r.supersedeRegistrationsLocked(func(s RegistrationStatus) string {
+		if s.Identifier != stored.Identifier {
+			return ""
+		}
+		return supersedeReason(before, rp, statusKey(s))
 	})
 	r.state.RelyingParties[i] = rp
 	return cloneRelyingParty(rp)
@@ -283,7 +286,12 @@ func (r *Registrar) DeleteRelyingParty(identifier string) error {
 		return fmt.Errorf("%w: %s", errRelyingPartyNotFound, identifier)
 	}
 	deleted := r.state.RelyingParties[i].Identifier[0].Identifier
-	r.supersedeRegistrationsLocked(func(s RegistrationStatus) bool { return s.Identifier == deleted })
+	r.supersedeRegistrationsLocked(func(s RegistrationStatus) string {
+		if s.Identifier == deleted {
+			return supersededDeleted
+		}
+		return ""
+	})
 	r.state.RelyingParties = slices.Delete(r.state.RelyingParties, i, i+1)
 	return nil
 }
@@ -625,6 +633,46 @@ func sameCertificateContent(before, after WalletRelyingParty, key certificateKey
 	beforeService, beforeUse, _ := findIntendedUse(before, "", key.intendedUse)
 	return reflect.DeepEqual(registrationContent(before, beforeService, beforeUse), registrationContent(after, afterService, afterUse)) &&
 		reflect.DeepEqual(beforeUse.Credentials, afterUse.Credentials)
+}
+
+// supersedeReason names what an update changed in the certificate for key, or
+// returns "" when the certificate content stays the same. A certificate lists
+// the entitlements of its service (TS6 v1.1 row 12), so a service that gains
+// the other role changes the certificates of both roles.
+func supersedeReason(before, after WalletRelyingParty, key certificateKey) string {
+	if sameCertificateContent(before, after, key) {
+		return ""
+	}
+	var beforeService, afterService WalletRelyingPartyService
+	if key.intendedUse == "" {
+		service, ok := serviceByIdentifier(after, key.service)
+		if !ok || !isAttestationProvider(service) {
+			return supersededRemoved
+		}
+		afterService = service
+		beforeService, _ = serviceByIdentifier(before, key.service)
+	} else {
+		service, _, ok := findIntendedUse(after, "", key.intendedUse)
+		if !ok {
+			return supersededRemoved
+		}
+		afterService = service
+		beforeService, _, _ = findIntendedUse(before, "", key.intendedUse)
+	}
+	switch {
+	case !sameStrings(beforeService.Entitlements, afterService.Entitlements):
+		return supersededEntitlements
+	case key.intendedUse == "" && !reflect.DeepEqual(beforeService.ProvidesAttestations, afterService.ProvidesAttestations):
+		return supersededAttestations
+	}
+	return supersededContent
+}
+
+func sameStrings(a, b []string) bool {
+	a, b = slices.Clone(a), slices.Clone(b)
+	slices.Sort(a)
+	slices.Sort(b)
+	return slices.Equal(a, b)
 }
 
 // serviceByIdentifier finds the service with exactly this identifier. The only

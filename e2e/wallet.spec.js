@@ -2572,6 +2572,101 @@ test.describe("Registrar", () => {
     expect(stored.services[0].entitlements).toContain("https://uri.etsi.org/19475/Entitlement/Service_Provider");
   });
 
+  // Entitlements belong to a service (TS6 v1.1 row 12). A registration
+  // certificate covers a service or one of its intended uses (ARF RPRC_09,
+  // RPRC_13) and lists the entitlements of the service.
+  async function registerIssuerWithCertificate(name) {
+    const { body } = await jsonPost(`${WALLET_URL}/api/registrar/wrp`, {
+      tradeName: name,
+      services: [{ serviceIdentifier: "diplomas", providesAttestations: [{ format: "dc+sd-jwt", type: "urn:example:diploma:1" }] }],
+    });
+    const identifier = body.identifier[0].identifier;
+    await jsonPost(`${WALLET_URL}/api/registrar/registration-certificates`, { identifier, serviceIdentifier: "diplomas" });
+    return { identifier, card: "#registrar-party-" + domID(identifier) };
+  }
+  async function openAddUse(page, card) {
+    await page.goto(WALLET_URL);
+    await page.locator("#registrar-menu-toggle").click();
+    await page.locator("#registrar-parties-link").click();
+    await page.locator(card + "-add-use").click();
+  }
+
+  test("an intended use on an issuer service says it revokes the issuer certificate and issues a new one", async ({ page }) => {
+    const { card } = await registerIssuerWithCertificate("Reissuing University");
+    await openAddUse(page, card);
+    await expect(page.locator("#registrar-target-service")).toHaveValue("0");
+    await expect(page.locator("#registrar-revocation-notice")).toContainText("Its issuer registration certificate lists the entitlements, so the registrar revokes it");
+    await page.locator("#registrar-submit").click();
+    await expect(page.locator("#registrar-submit")).toHaveText("✓ Added");
+    await expect(page.locator("#registrar-reissue")).toHaveText("Issue a new issuer registration certificate");
+    await page.locator("#registrar-reissue").click();
+    await expect(page.locator("#registrar-reissue")).toHaveText("✓ Issued");
+
+    await page.locator("#registrar-close").click();
+    await expect(page.locator(card + "-service-diplomas-summary-status")).toHaveText("Active");
+  });
+
+  test("a revoked certificate says that the entitlements of its service changed", async ({ page }) => {
+    const { card } = await registerIssuerWithCertificate("Changing University");
+    await openAddUse(page, card);
+    await page.locator("#registrar-submit").click();
+    await expect(page.locator("#registrar-submit")).toHaveText("✓ Added");
+    await page.locator("#registrar-close").click();
+    await expect(page.locator(card + "-service-diplomas-summary-status")).toHaveText("Revoked");
+    await expect(page.locator(card + "-service-diplomas-summary-status")).toHaveAttribute("title", /entitlements of this service changed/);
+  });
+
+  test("an intended use on a new service keeps the issuer certificate valid", async ({ page }) => {
+    const { identifier, card } = await registerIssuerWithCertificate("Separate University");
+    await openAddUse(page, card);
+    await page.locator("#registrar-target-service").selectOption("new");
+    await expect(page.locator("#registrar-revocation-notice")).toContainText("own access certificate");
+    await expect(page.locator("#registrar-csr")).toBeVisible();
+    await page.locator("#registrar-new-service-id").fill("checks");
+    await page.locator("#registrar-submit").click();
+    await expect(page.locator("#registrar-submit")).toHaveText("✓ Added");
+    await expect(page.locator("#registrar-pem")).toHaveValue(/BEGIN CERTIFICATE/);
+    await expect(page.locator("#registrar-reissue-block")).toBeHidden();
+
+    await page.locator("#registrar-close").click();
+    await expect(page.locator(card + "-service-diplomas-summary-status")).toHaveText("Active");
+    const signed = await (await fetch(`${WALLET_URL}/api/registrar/wrp/${identifier}`)).text();
+    const stored = JSON.parse(Buffer.from(signed.split(".")[1], "base64url").toString()).data;
+    expect(stored.services.map((s) => s.serviceIdentifier)).toEqual(["diplomas", "checks"]);
+  });
+
+  test("attestation types on a verifier service say they revoke its verifier certificates", async ({ page }) => {
+    const { body } = await jsonPost(`${WALLET_URL}/api/registrar/wrp`, {
+      tradeName: "Turning Shop",
+      services: [{ intendedUses: [{
+        purpose: [{ lang: "en", content: "Ticket check" }],
+        credentials: [{ format: "dc+sd-jwt", meta: { vct_values: ["urn:eudi:pid:1"] }, claims: [{ path: ["given_name"] }] }],
+      }] }],
+    });
+    const identifier = body.identifier[0].identifier;
+    const useID = body.services[0].intendedUses[0].intendedUseIdentifier;
+    await jsonPost(`${WALLET_URL}/api/registrar/registration-certificates`, { identifier, intendedUseIdentifier: useID });
+    const card = "#registrar-party-" + domID(identifier);
+
+    await page.goto(WALLET_URL);
+    await page.locator("#registrar-menu-toggle").click();
+    await page.locator("#registrar-parties-link").click();
+    await page.locator(card + "-add-issuer").click();
+    await expect(page.locator("#registrar-revocation-notice")).toContainText("revokes the certificate of 1 intended use");
+    await page.locator("#registrar-attestation-1-type").fill("urn:example:ticket:7");
+    await page.locator("#registrar-submit").click();
+    await expect(page.locator("#registrar-submit")).toHaveText("✓ Added");
+    await page.locator("#registrar-reissue").click();
+    await expect(page.locator("#registrar-reissue")).toHaveText("✓ Issued");
+    await page.locator("#registrar-close").click();
+    await expect(page.locator(card + "-use-" + domID(useID) + "-summary-status")).toHaveText("Active");
+  });
+
+  test("the support field takes an email address", async ({ page }) => {
+    await openRegisterDialog(page, "#registrar-parties-register");
+    await expect(page.locator("#registrar-support-uri-label")).toHaveText("Support URL or email");
+  });
+
   test("outside the demo the predefined catalogue entries can be deleted", async ({ page }) => {
     await page.goto(WALLET_URL);
     await page.locator("#registrar-menu-toggle").click();

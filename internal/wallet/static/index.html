@@ -402,6 +402,16 @@ eudi wallet registrar issuers add --name "Example University" --attestation dc+s
       <p class="dialog-hint" id="registrar-target-hint" hidden></p>
       <form id="registrar-form">
         <div class="form-grid">
+          <div class="registrar-section" id="registrar-target-section" hidden>
+          <label class="form-label" for="registrar-target-service" id="registrar-target-service-label">Service</label>
+          <select id="registrar-target-service" class="form-input"></select>
+          <div class="registrar-section" id="registrar-new-service-section" hidden>
+          <label class="form-label" for="registrar-new-service-id" id="registrar-new-service-id-label">Service identifier</label>
+          <input type="text" id="registrar-new-service-id" class="form-input" placeholder="e.g. checkout">
+          </div>
+          <p class="dialog-hint registrar-notice" id="registrar-revocation-notice" role="status" hidden></p>
+          </div>
+
           <div class="registrar-section" id="registrar-party-section">
           <div class="form-section-label" id="registrar-party-section-label">Relying party</div>
           <label class="form-label" for="registrar-name" id="registrar-name-label">Name</label>
@@ -416,8 +426,8 @@ eudi wallet registrar issuers add --name "Example University" --attestation dc+s
           <label class="form-label" for="registrar-country" id="registrar-country-label">Country</label>
           <input type="text" id="registrar-country" class="form-input" value="NL" maxlength="2">
 
-          <label class="form-label" for="registrar-support-uri" id="registrar-support-uri-label">Support URL</label>
-          <input type="text" id="registrar-support-uri" class="form-input" value="https://verifier.example/support">
+          <label class="form-label" for="registrar-support-uri" id="registrar-support-uri-label">Support URL or email</label>
+          <input type="text" id="registrar-support-uri" class="form-input" value="https://verifier.example/support" placeholder="https://… or support@example.com">
 
           <label class="form-label" for="registrar-service-id" id="registrar-service-id-label">Service</label>
           <input type="text" id="registrar-service-id" class="form-input" value="checkout">
@@ -511,6 +521,10 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
           </div>
           <textarea id="registrar-issuer-info" class="form-input form-textarea" readonly></textarea>
           <p class="dialog-hint" id="registrar-issuer-info-hint">Put this array in your Credential Issuer Metadata as <code>issuer_info</code>, and sign the metadata with the key of the access certificate.</p>
+          </div>
+          <div id="registrar-reissue-block" hidden>
+          <p class="dialog-hint" id="registrar-reissue-hint"></p>
+          <button type="button" class="btn btn-sm" id="registrar-reissue"></button>
           </div>
         </div>
 

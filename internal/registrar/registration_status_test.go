@@ -20,21 +20,27 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 	"time"
 )
 
-func TestExpiredStatusEntriesAreFreed(t *testing.T) {
+// ETSI TS 119 475 V1.2.1 GEN-6.2.6.1-05: "The value of idx shall be unique
+// for each WRPRC issued by the same issuer".
+func TestAnExpiredCertificateKeepsItsIndex(t *testing.T) {
 	w := generateTestWallet(t)
 	rp := registerTestRelyingParty(t, w)
-	id := rp.Identifier[0].Identifier
 	use := rp.Services[0].IntendedUses[0].IntendedUseIdentifier
-	w.RegistrationStatuses = []RegistrationStatus{{Index: 5, Identifier: "NTRNL-1", Expires: time.Now().Add(-time.Hour).Unix()}}
-	if _, err := w.allocateRegistrationStatus(rp, certificateKey{intendedUse: use}, time.Now().Add(time.Hour)); err != nil {
+	w.RegistrationStatuses = []RegistrationStatus{{Index: 5, Identifier: "NTRNL-1", Expires: time.Now().Add(-time.Hour).Unix(), Certificate: "expired"}}
+	index, err := w.allocateRegistrationStatus(rp, certificateKey{intendedUse: use}, time.Now().Add(time.Hour))
+	if err != nil {
 		t.Fatal(err)
 	}
-	if len(w.RegistrationStatuses) != 1 || w.RegistrationStatuses[0].Identifier != id {
-		t.Errorf("statuses %+v, want only the new entry", w.RegistrationStatuses)
+	if index == 5 || len(w.RegistrationStatuses) != 2 {
+		t.Fatalf("index %d, statuses %+v, want the expired entry kept and a new index", index, w.RegistrationStatuses)
+	}
+	if expired := w.RegistrationStatuses[0]; expired.Index != 5 || !expired.Superseded || expired.Reason != supersededExpired || expired.Certificate != "" {
+		t.Errorf("expired entry %+v, want it kept for good without its certificate", expired)
 	}
 }
 
@@ -196,9 +202,10 @@ func TestTheRegistrarCapsTheCertificatesOfARelyingParty(t *testing.T) {
 }
 
 // A replaced certificate and those of a deleted relying party keep their
-// entries until they expire, but they don't count against the cap of a relying
-// party. The whole list is capped.
-func TestReplacedCertificatesKeepTheirEntriesOutsideThePartyCap(t *testing.T) {
+// entries, but they don't count against the cap of a relying party. Token
+// Status List §13.4: "The Status List Issuer may increase the size of a Status
+// List if it requires indices for additional Referenced Tokens."
+func TestReplacedCertificatesGrowTheListOutsideThePartyCap(t *testing.T) {
 	reg := generateTestWallet(t)
 	rp := registerTestRelyingParty(t, reg)
 	identifier := rp.Identifier[0].Identifier
@@ -210,12 +217,12 @@ func TestReplacedCertificatesKeepTheirEntriesOutsideThePartyCap(t *testing.T) {
 		t.Errorf("%d entries, want the replaced ones kept", len(reg.State.RegistrationStatuses))
 	}
 
-	for i := len(reg.State.RegistrationStatuses); i < maxRegistrationStatuses; i++ {
+	for i := len(reg.State.RegistrationStatuses); i < minRegistrationStatusListSize/2; i++ {
 		reg.State.RegistrationStatuses = append(reg.State.RegistrationStatuses, RegistrationStatus{Index: i + 1, Identifier: "NLTEST.DELETED", Revoked: true, Superseded: true, Expires: time.Now().Add(time.Hour).Unix()})
 	}
-	request := RegistrationCertificateRequest{Identifier: identifier, IntendedUseIdentifier: rp.Services[0].IntendedUses[0].IntendedUseIdentifier}
-	if _, err := reg.IssueRegistrationCertificate(request); !errors.Is(err, errRegistrationStatusFull) {
-		t.Errorf("error %v, want the full status list", err)
+	issueTestRegistrationCertificate(t, reg, rp)
+	if got, want := len(reg.RegistrationStatusList())*8, 2*minRegistrationStatusListSize; got != want {
+		t.Errorf("status list of %d entries, want it doubled to %d", got, want)
 	}
 }
 
@@ -243,5 +250,51 @@ func TestTheStatusListShowsTheVerifierInfoOfAStoredCertificate(t *testing.T) {
 	}
 	if listed[0].VerifierInfo != issued.VerifierInfo {
 		t.Errorf("verifierInfo = %s, want %s", listed[0].VerifierInfo, issued.VerifierInfo)
+	}
+}
+
+// A superseded certificate names what changed. A certificate lists the
+// entitlements of its service (TS6 v1.1 row 12), so a service that gains the
+// other role supersedes the certificates of the role it had.
+func TestASupersededCertificateNamesWhatChanged(t *testing.T) {
+	reg := generateTestWallet(t)
+	verifier := registerTestRelyingParty(t, reg)
+	issueTestRegistrationCertificate(t, reg, verifier)
+	issueTestRegistrationCertificate(t, reg, verifier)
+
+	issuer, err := reg.RegisterRelyingParty(WalletRelyingParty{
+		TradeName: "Example University",
+		Services:  []WalletRelyingPartyService{{ServiceIdentifier: "diplomas", ProvidesAttestations: []ProvidedAttestation{{Format: "dc+sd-jwt", Type: "urn:example:diploma:1"}}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	issueProvider := func() {
+		t.Helper()
+		if _, err := reg.IssueRegistrationCertificate(RegistrationCertificateRequest{Identifier: issuer.Identifier[0].Identifier, ServiceIdentifier: "diplomas"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	update := func(change func(rp *WalletRelyingParty)) {
+		t.Helper()
+		current, _ := reg.RelyingParty(issuer.Identifier[0].Identifier)
+		change(&current)
+		if _, err := reg.UpdateRelyingParty(current); err != nil {
+			t.Fatal(err)
+		}
+	}
+	issueProvider()
+	update(func(rp *WalletRelyingParty) {
+		rp.Services[0].ProvidesAttestations = append(rp.Services[0].ProvidesAttestations, ProvidedAttestation{Format: "dc+sd-jwt", Type: "urn:example:diploma:2"})
+	})
+	issueProvider()
+	update(func(rp *WalletRelyingParty) { rp.Services[0].IntendedUses = verifier.Services[0].IntendedUses[:1] })
+
+	var reasons []string
+	for _, s := range reg.RegistrationStatuses {
+		reasons = append(reasons, s.Reason)
+	}
+	if want := []string{supersededReplaced, "", supersededAttestations, supersededEntitlements}; !slices.Equal(reasons, want) {
+		t.Errorf("reasons %q, want %q", reasons, want)
 	}
 }

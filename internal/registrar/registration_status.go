@@ -25,29 +25,20 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/statuslist"
 )
 
-const (
-	RegistrationStatusListPath = "/api/registrar/status-list"
-	// With 2^17 one-bit entries, random indices rarely collide, even after a
-	// restart with memory storage has lost track of the used ones. The list
-	// compresses to a few hundred bytes.
-	registrationStatusListSize = 1 << 17
-)
+const RegistrationStatusListPath = "/api/registrar/status-list"
+
+// minRegistrationStatusListSize keeps random indices from colliding, even after
+// a restart with memory storage has lost track of the used ones. The list
+// compresses to a few hundred bytes.
+const minRegistrationStatusListSize = 1 << 17
 
 // maxCertificatesPerRelyingParty bounds the certificates of one relying party
-// that the registrar has not replaced. With MaxRelyingParties parties they
-// fill at most half of maxRegistrationStatuses.
+// that the registrar has not replaced.
 const maxCertificatesPerRelyingParty = 100
 
-// maxRegistrationStatuses bounds the entries of the status list. A replaced
-// certificate keeps its entry until it expires, because each certificate has
-// its own index (ETSI TS 119 475 V1.2.1 GEN-6.2.6.1-05). The rest of the list
-// stays free, so a random index is found in a few tries.
-const maxRegistrationStatuses = registrationStatusListSize * 3 / 4
-
 var (
-	errRegistrationStatusFull = errors.New("the registrar's status list is full. Entries free up when certificates expire")
-	errPartyCertificatesFull  = fmt.Errorf("the relying party holds %d registration certificates, the most the registrar issues to one relying party. A certificate frees up when it expires, or when a new one replaces it", maxCertificatesPerRelyingParty)
-	errRegistrationChanged    = errors.New("the registration changed while the certificate was being issued. Try again")
+	errPartyCertificatesFull = fmt.Errorf("the relying party holds %d registration certificates, the most the registrar issues to one relying party. A certificate frees up when it expires, or when a new one replaces it", maxCertificatesPerRelyingParty)
+	errRegistrationChanged   = errors.New("the registration changed while the certificate was being issued. Try again")
 )
 
 // RegistrationStatus is the status list entry of one registration certificate
@@ -60,12 +51,14 @@ type RegistrationStatus struct {
 	IntendedUse string `json:"intendedUse"`
 	Service     string `json:"service,omitempty"`
 	Revoked     bool   `json:"revoked,omitempty"`
-	// Superseded marks a certificate whose relying party was deleted or whose
-	// registered content was changed or removed. Its content is out of date, so
-	// it stays revoked.
+	// Superseded marks a certificate that expired, or whose relying party was
+	// deleted or whose registered content was changed or removed. Its content
+	// is out of date, so it stays revoked.
 	Superseded bool `json:"superseded,omitempty"`
-	// Expires is when the certificate expires (Unix time). An expired
-	// certificate needs no status, so its entry is freed.
+	// Reason says why the certificate was superseded: replaced, expired,
+	// deleted, removed, entitlements, attestations or content.
+	Reason string `json:"reason,omitempty"`
+	// Expires is when the certificate expires (Unix time).
 	Expires int64 `json:"expires,omitempty"`
 	// Certificate is the signed registration certificate. A superseded entry
 	// drops it, so a relying party that keeps issuing certificates doesn't grow
@@ -100,6 +93,26 @@ func statusKey(s RegistrationStatus) certificateKey {
 	return certificateKey{service: s.Service}
 }
 
+// registrationStatusListSize is the size of the status list with adding more
+// entries in it. An index belongs to one certificate for good, even after
+// it expires (ETSI TS 119 475 V1.2.1 GEN-6.2.6.1-05: "The value of idx shall
+// be unique for each WRPRC issued by the same issuer"). The list doubles
+// whenever it is half full, so a random index is found in a few tries. Token
+// Status List §13.4: "The Status List Issuer may increase the size of a
+// Status List if it requires indices for additional Referenced Tokens."
+func registrationStatusListSize(statuses []RegistrationStatus, adding int) int {
+	size := minRegistrationStatusListSize
+	for size < 2*(len(statuses)+adding) {
+		size *= 2
+	}
+	for _, s := range statuses {
+		for s.Index >= size {
+			size *= 2
+		}
+	}
+	return size
+}
+
 // allocateRegistrationStatus reserves a status list entry for a new
 // certificate. rp is the registration as it was read before signing. If it
 // changed or was deleted since, the certificate would be out of date, so this
@@ -116,10 +129,12 @@ func (r *Registrar) allocateRegistrationStatus(rp WalletRelyingParty, key certif
 		return 0, errRegistrationChanged
 	}
 	now := time.Now().Unix()
-	r.state.RegistrationStatuses = slices.DeleteFunc(r.state.RegistrationStatuses, func(s RegistrationStatus) bool { return s.Expires > 0 && s.Expires < now })
-	if len(r.state.RegistrationStatuses) >= maxRegistrationStatuses {
-		return 0, errRegistrationStatusFull
-	}
+	r.supersedeRegistrationsLocked(func(s RegistrationStatus) string {
+		if s.Expires > 0 && s.Expires < now {
+			return supersededExpired
+		}
+		return ""
+	})
 	held := 0
 	for _, s := range r.state.RegistrationStatuses {
 		if s.Identifier == identifier && !s.Superseded {
@@ -129,8 +144,9 @@ func (r *Registrar) allocateRegistrationStatus(rp WalletRelyingParty, key certif
 	if held >= maxCertificatesPerRelyingParty {
 		return 0, errPartyCertificatesFull
 	}
+	size := registrationStatusListSize(r.state.RegistrationStatuses, 1)
 	for {
-		n, err := rand.Int(rand.Reader, big.NewInt(registrationStatusListSize-1))
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(size-1)))
 		if err != nil {
 			return 0, err
 		}
@@ -156,8 +172,8 @@ func (r *Registrar) replaceRegistrationStatus(identifier string, key certificate
 	}
 	for i := range newest {
 		s := &r.state.RegistrationStatuses[i]
-		if s.Identifier == identifier && key.matches(*s) {
-			s.Revoked, s.Superseded, s.Certificate = true, true, ""
+		if s.Identifier == identifier && key.matches(*s) && !s.Superseded {
+			s.Revoked, s.Superseded, s.Reason, s.Certificate = true, true, supersededReplaced, ""
 		}
 	}
 }
@@ -168,14 +184,27 @@ func (r *Registrar) releaseRegistrationStatus(index int) {
 	r.state.RegistrationStatuses = slices.DeleteFunc(r.state.RegistrationStatuses, func(s RegistrationStatus) bool { return s.Index == index })
 }
 
-// supersedeRegistrationsLocked permanently revokes every certificate that
-// match accepts. The caller holds r.mu.
-func (r *Registrar) supersedeRegistrationsLocked(match func(RegistrationStatus) bool) {
+// Reasons a certificate was superseded.
+const (
+	supersededReplaced     = "replaced"
+	supersededExpired      = "expired"
+	supersededDeleted      = "deleted"
+	supersededRemoved      = "removed"
+	supersededEntitlements = "entitlements"
+	supersededAttestations = "attestations"
+	supersededContent      = "content"
+)
+
+// supersedeRegistrationsLocked permanently revokes every current certificate
+// that reasonFor gives a reason. The caller holds r.mu.
+func (r *Registrar) supersedeRegistrationsLocked(reasonFor func(RegistrationStatus) string) {
 	for i := range r.state.RegistrationStatuses {
-		if match(r.state.RegistrationStatuses[i]) {
-			r.state.RegistrationStatuses[i].Revoked = true
-			r.state.RegistrationStatuses[i].Superseded = true
-			r.state.RegistrationStatuses[i].Certificate = ""
+		s := &r.state.RegistrationStatuses[i]
+		if s.Superseded {
+			continue
+		}
+		if reason := reasonFor(*s); reason != "" {
+			s.Revoked, s.Superseded, s.Reason, s.Certificate = true, true, reason, ""
 		}
 	}
 }
@@ -251,9 +280,10 @@ func (r *Registrar) RegistrationCertificateViews(identifier string) []Registrati
 func (r *Registrar) RegistrationStatusList() []byte {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	bitstring := make([]byte, registrationStatusListSize/8)
+	size := registrationStatusListSize(r.state.RegistrationStatuses, 0)
+	bitstring := make([]byte, size/8)
 	for _, s := range r.state.RegistrationStatuses {
-		if s.Revoked && s.Index > 0 && s.Index < registrationStatusListSize {
+		if s.Revoked && s.Index > 0 && s.Index < size {
 			bitstring[s.Index/8] |= 1 << (s.Index % 8)
 		}
 	}
