@@ -87,7 +87,8 @@ type Server struct {
 	defaultConformance ConformanceSettings
 }
 
-// NewServer calls onSave after operations that change credentials.
+// NewServer calls onSave after operations that change the wallet. Without
+// onSave the server saves to the store that SetStore sets.
 func NewServer(w *Wallet, port int, onSave func()) *Server {
 	processBuildID()
 	s := &Server{
@@ -498,21 +499,44 @@ func (s *Server) Handle(pattern string, h http.Handler) {
 	s.route(pattern, h)
 }
 
+// triggerSave runs inside a mutation that already holds storeSyncMu, such as
+// the log sink.
 func (s *Server) triggerSave() {
-	if s.onSave != nil {
-		s.onSave()
-	}
+	s.saveLocked()
 	s.wallet.NotifyStateChanged()
 }
 
-// Hold storeSyncMu across the mutation and save. Otherwise a concurrent reload could
-// discard the unsaved change. A false result skips saving. Client I/O runs outside
-// this lock so slow readers cannot block reloading.
+// saveLocked persists the wallet. The caller holds storeSyncMu.
+func (s *Server) saveLocked() {
+	if s.onSave != nil {
+		s.onSave()
+		return
+	}
+	if store := s.store.Load(); store != nil {
+		if err := store.Save(s.wallet); err != nil {
+			s.log("  ERROR: saving the wallet: %v", err)
+		}
+	}
+}
+
+// saveMutation holds storeSyncMu across the mutation and the save, so a
+// concurrent reload can't discard the unsaved change. A false result skips
+// saving. Client I/O runs outside this lock so slow readers cannot block
+// reloading.
 func (s *Server) saveMutation(mutate func() bool) {
+	s.saveMutationThen(mutate, nil)
+}
+
+// saveMutationThen also runs saved after a successful save, still under the
+// lock.
+func (s *Server) saveMutationThen(mutate func() bool, saved func()) {
 	s.storeSyncMu.Lock()
 	changed := mutate()
-	if changed && s.onSave != nil {
-		s.onSave()
+	if changed {
+		s.saveLocked()
+		if saved != nil {
+			saved()
+		}
 	}
 	s.storeSyncMu.Unlock()
 	if changed {
@@ -534,26 +558,6 @@ func (s *Server) saveIssuance(result *IssuanceResult) {
 		}
 		return true
 	})
-}
-
-// saveCredential restores the credential while holding the reload lock and
-// saves it. A renewed credential starts with status 0, so newStatus registers
-// its status entry again, which a reload may have removed or reverted.
-func (s *Server) saveCredential(cred *StoredCredential, newStatus bool) {
-	if cred == nil {
-		s.triggerSave()
-		return
-	}
-	s.storeSyncMu.Lock()
-	s.wallet.PutCredential(*cred)
-	if ref := CredentialStatusRef(*cred); newStatus && ref != nil && ref.URI == strings.TrimSpace(s.wallet.StatusListURL()) {
-		s.wallet.RegisterStatusEntry(cred.ID, ref.Idx)
-	}
-	if s.onSave != nil {
-		s.onSave()
-	}
-	s.storeSyncMu.Unlock()
-	s.wallet.NotifyStateChanged()
 }
 
 func writeJSON(w http.ResponseWriter, status int, data any) {

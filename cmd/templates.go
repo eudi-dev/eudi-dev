@@ -159,7 +159,7 @@ var templatesSaveCmd = &cobra.Command{
 			tpl.AlwaysDisclosed = templateAlwaysDisclosed
 		}
 		if flags.Changed("claims") {
-			claims, err := parseTemplateClaims(templateClaims)
+			claims, err := parseClaimsArg(templateClaims)
 			if err != nil {
 				return err
 			}
@@ -309,22 +309,4 @@ func resolveTemplates() (credtemplate.Location, error) {
 		return credtemplate.Location{}, err
 	}
 	return store.Templates(), nil
-}
-
-func parseTemplateClaims(arg string) (map[string]any, error) {
-	var data []byte
-	if strings.HasPrefix(arg, "@") {
-		var err error
-		data, err = os.ReadFile(arg[1:])
-		if err != nil {
-			return nil, fmt.Errorf("reading claims file: %w", err)
-		}
-	} else {
-		data = []byte(arg)
-	}
-	var claims map[string]any
-	if err := json.Unmarshal(data, &claims); err != nil {
-		return nil, fmt.Errorf("parsing claims JSON: %w", err)
-	}
-	return claims, nil
 }

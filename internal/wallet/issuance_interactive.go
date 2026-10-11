@@ -324,7 +324,7 @@ func (w *Wallet) runAuthViaWebInteraction(response map[string]any, setup authori
 			"request_uri":            requestURI,
 		})
 
-	values, err := runAuthorizationCodeRequest(w, setup.authorizationEndpoint, setup.clientID, requestURI, nil, setup.redirectURI, setup.state, setup.issuer, setup.owner, setup.issRequired)
+	values, err := runAuthorizationCodeRequest(w, setup.authorizationEndpoint, setup.clientID, requestURI, nil, setup.redirectURI, setup.state, setup.issuer, AuthorizationPrompt{Owner: setup.owner, Flow: setup.flow}, setup.issRequired)
 	if err != nil {
 		return nil, err
 	}
@@ -359,7 +359,7 @@ func (w *Wallet) runPresentationInteraction(endpoint string, response map[string
 
 	outcome := w.evaluatePresentationRequest(authReq, presentationEntry{
 		action: "issuance", subject: "The issuer's openid4vp_request", owner: setup.owner,
-		interactive: !w.AutoAccept && !setup.presentationConsented,
+		interactive: !w.AutoAcceptSetting() && !setup.presentationConsented,
 	})
 	params := authReq.presentationParams()
 	switch {
@@ -502,7 +502,7 @@ func derivedOrigin(rawURL string) string {
 // presentation the issuer requires for issuance. Consent to receive a
 // credential does not cover disclosing one, so this is a separate prompt.
 func (w *Wallet) awaitInteractivePresentationConsent(endpoint string, authReq *AuthorizationRequestParams, outcome presentationOutcome, consented bool, owner string) ([]CredentialMatch, bool, error) {
-	if w.AutoAccept || consented {
+	if w.AutoAcceptSetting() || consented {
 		return outcome.matches, true, nil
 	}
 

@@ -92,9 +92,6 @@ type Wallet struct {
 	TrustListCAPEM []byte
 	// ConfiguredTrustedListURLs are the external lists from --trusted-list.
 	ConfiguredTrustedListURLs []string
-	// Sends the wallet attestation even without advertised support. Disabled by
-	// default because reusing an attestation can link activity across issuers.
-	ForceClientAttestation bool
 	// Keeps HTTPS image URLs so the browser fetches them on demand. HTTP images,
 	// data URIs and template images are still stored. By default every image is
 	// fetched through the restricted HTTP client and stored.
@@ -105,6 +102,9 @@ type Wallet struct {
 	VCIRedirectURI     string `json:"-"`
 	// Callback URLs use this origin when BaseURL is unset.
 	ServingOrigin string `json:"-"`
+	// storedURLs holds the base and issuer URL that a save writes while
+	// OverrideURLs is in effect.
+	storedURLs *[2]string
 	// The zero value uses the default template directory.
 	Templates credtemplate.Location `json:"-"`
 	mu        sync.RWMutex
@@ -113,6 +113,7 @@ type Wallet struct {
 	demoRegistrationMu sync.Mutex
 	// capacity bounds what a shared wallet stores. Zero means no bound.
 	capacity Capacity
+	visitors VisitorRules
 	// saveMutation runs a change, such as a registrar change or a batch use
 	// count, and saves it. A server sets it to its saveMutation, which takes
 	// the store lock. Never call it while holding that lock.
@@ -163,7 +164,7 @@ type WalletRuntime struct {
 	errSubID          int64
 	stateSubscribers  map[int64]chan struct{}
 	stateSubID        int64
-	authSubscribers   map[int64]chan AuthorizationPrompt
+	authSubscribers   map[int64]authSubscriber
 	authSubID         int64
 	lastErrors        map[string]*storedError
 	authCodeCallbacks map[string]chan url.Values
@@ -175,7 +176,7 @@ func newWalletRuntime() *WalletRuntime {
 		subscribers:       make(map[int64]chan *ConsentRequest),
 		errSubscribers:    make(map[int64]chan WalletError),
 		stateSubscribers:  make(map[int64]chan struct{}),
-		authSubscribers:   make(map[int64]chan AuthorizationPrompt),
+		authSubscribers:   make(map[int64]authSubscriber),
 		authCodeCallbacks: make(map[string]chan url.Values),
 		lastErrors:        make(map[string]*storedError),
 	}
@@ -284,6 +285,10 @@ type ConformanceSettings struct {
 	// Read runtime changes through KeyAttestationLevelSetting. See
 	// ParseKeyAttestationLevel for supported claims about key storage.
 	KeyAttestationLevel string
+	// ForceClientAttestation sends the wallet attestation even without
+	// advertised support. Disabled by default because reusing an attestation
+	// can link activity across issuers.
+	ForceClientAttestation bool
 	// tlsVerify overrides TLS verification. Nil follows the validation mode.
 	tlsVerify *bool
 }
@@ -546,14 +551,7 @@ const severityWarning = "warning"
 
 // New creates a CA and signing leaf to provide an x5c chain for testing.
 func New(holderKey, issuerKey *ecdsa.PrivateKey, autoAccept bool) *Wallet {
-	w := &Wallet{
-		HolderKey:           holderKey,
-		IssuerKey:           issuerKey,
-		AutoAccept:          autoAccept,
-		ConformanceSettings: ConformanceSettings{ValidationMode: ValidationModeDebug, VCIVersion: VCIVersion10},
-		runtime:             newWalletRuntime(),
-	}
-
+	w := newWallet(holderKey, issuerKey, autoAccept)
 	caKey, err := mock.GenerateKey()
 	if err != nil {
 		log.Printf("[Wallet] Warning: failed to generate CA key: %v", err)
@@ -572,6 +570,17 @@ func New(holderKey, issuerKey *ecdsa.PrivateKey, autoAccept bool) *Wallet {
 	}
 
 	return w
+}
+
+// newWallet leaves the CA to the caller, such as the store that loads it.
+func newWallet(holderKey, issuerKey *ecdsa.PrivateKey, autoAccept bool) *Wallet {
+	return &Wallet{
+		HolderKey:           holderKey,
+		IssuerKey:           issuerKey,
+		AutoAccept:          autoAccept,
+		ConformanceSettings: ConformanceSettings{ValidationMode: ValidationModeDebug, VCIVersion: VCIVersion10},
+		runtime:             newWalletRuntime(),
+	}
 }
 
 // SetCertificateAuthority replaces the CA and certificate chain. The issuer key
@@ -599,21 +608,55 @@ func (w *Wallet) setCertificateAuthority(caKey *ecdsa.PrivateKey, caCert *x509.C
 	return nil
 }
 
+// certificateAuthority returns the CA key and the signing chain, leaf first.
+// A reload and a renewal replace both.
+func (w *Wallet) certificateAuthority() (*ecdsa.PrivateKey, []*x509.Certificate) {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	return w.CAKey, slices.Clone(w.CertChain)
+}
+
+// hasCertificateAuthority reports whether the wallet holds a CA key and a
+// signing chain under it.
+func (w *Wallet) hasCertificateAuthority() bool {
+	if w == nil {
+		return false
+	}
+	caKey, chain := w.certificateAuthority()
+	return caKey != nil && len(chain) >= 2
+}
+
+// caCertificate is the last certificate of the signing chain, or nil.
+func caCertificate(chain []*x509.Certificate) *x509.Certificate {
+	if len(chain) < 2 {
+		return nil
+	}
+	return chain[len(chain)-1]
+}
+
 // RefreshSigningCertificate issues a new leaf. It keeps the CA and issuer key so
 // published trust material stays valid.
 func (w *Wallet) RefreshSigningCertificate() error {
-	if w == nil || w.CAKey == nil || len(w.CertChain) < 2 {
+	if w == nil {
 		return nil
 	}
-	return w.setCertificateAuthority(w.CAKey, w.CertChain[len(w.CertChain)-1], true)
+	caKey, chain := w.certificateAuthority()
+	if caKey == nil || len(chain) < 2 {
+		return nil
+	}
+	return w.setCertificateAuthority(caKey, caCertificate(chain), true)
 }
 
 // SigningCertificateExpiry returns the zero time when no chain exists.
 func (w *Wallet) SigningCertificateExpiry() time.Time {
-	if w == nil || len(w.CertChain) == 0 || w.CertChain[0] == nil {
+	if w == nil {
 		return time.Time{}
 	}
-	return w.CertChain[0].NotAfter
+	_, chain := w.certificateAuthority()
+	if len(chain) == 0 || chain[0] == nil {
+		return time.Time{}
+	}
+	return chain[0].NotAfter
 }
 
 // A long running wallet renews its signing certificate this long before expiry.
@@ -904,6 +947,9 @@ func (w *Wallet) EnsureIssuedAttestation(spec IssuedAttestationSpec) (bool, erro
 			return true, nil
 		}
 	}
+	if limit := w.capacity.IssuedAttestations; limit > 0 && len(w.IssuedAttestations) >= limit {
+		return false, visitorLimit("the public demo issues at most %d credential types between resets", limit)
+	}
 	w.IssuedAttestations = append(w.IssuedAttestations, normalized)
 	w.IssuedAttestations = dedupeIssuedAttestations(w.IssuedAttestations)
 	return true, nil
@@ -917,12 +963,29 @@ func (w *Wallet) GetCredentials() []StoredCredential {
 	return out
 }
 
+// SetConformance replaces the conformance settings. The TLS override stays,
+// because the outbound HTTP settings set it.
+func (w *Wallet) SetConformance(c ConformanceSettings) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	c.tlsVerify = w.tlsVerify
+	w.ConformanceSettings = c
+}
+
 // Conformance returns the current settings. A flow reads them once, so a
 // change in the middle of the flow doesn't mix two settings.
 func (w *Wallet) Conformance() ConformanceSettings {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 	return w.ConformanceSettings
+}
+
+// AutoAcceptSetting takes the lock because PUT /api/config/auto-accept
+// changes the setting at runtime.
+func (w *Wallet) AutoAcceptSetting() bool {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	return w.AutoAccept
 }
 
 // Mode takes the lock because the mode can change at runtime.
@@ -1409,6 +1472,7 @@ func (w *Wallet) RestoreCredential(cred StoredCredential) {
 			return
 		}
 	}
+	w.makeCredentialRoomLocked()
 	w.Credentials = append(w.Credentials, cred)
 }
 
@@ -1430,15 +1494,148 @@ func (w *Wallet) PutCredential(cred StoredCredential) {
 // means no bound. Credentials and deferred issuances make room by dropping
 // the oldest entry, so a flood doesn't lock out other visitors. Added
 // providers and lists are refused when full, because each one changes what
-// every check trusts.
+// every check trusts. Issued credential types and visitor templates are
+// refused when full, because the wallet publishes them to every visitor.
 type Capacity struct {
-	Credentials, Deferred, TrustedEntities, TrustedLists int
+	Credentials, Deferred, TrustedEntities, TrustedLists, IssuedAttestations, Templates int
 }
 
 func (w *Wallet) SetCapacity(c Capacity) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.capacity = c
+}
+
+// OverrideURLs serves this process under other base and issuer URLs. A save
+// keeps the stored URLs, which belong to the wallet server (ADR-0019). A
+// one-shot command uses it for the server it runs itself.
+func (w *Wallet) OverrideURLs(baseURL, issuerURL string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.storedURLs == nil {
+		w.storedURLs = &[2]string{w.BaseURL, w.IssuerURL}
+	}
+	w.BaseURL, w.IssuerURL = baseURL, issuerURL
+}
+
+// savedURLsLocked returns the base and issuer URL a save writes. The caller
+// holds w.mu.
+func (w *Wallet) savedURLsLocked() (baseURL, issuerURL string) {
+	if w.storedURLs != nil {
+		return w.storedURLs[0], w.storedURLs[1]
+	}
+	return w.BaseURL, w.IssuerURL
+}
+
+// SaveChange applies change and saves the wallet when change reports that
+// it changed something. A server saves under its reload lock, so a
+// concurrent reload can't drop the change. Never call it from a change
+// that a server already saves.
+func (w *Wallet) SaveChange(change func() bool) {
+	w.saveChange(change)
+}
+
+// VisitorRules restrict what visitors of a shared wallet can store. Every
+// visitor sees what the others store.
+type VisitorRules struct {
+	// VisitorTemplates marks every template saved through the wallet as a
+	// visitor template. Visitors can change only those. The operator's
+	// templates, the built-in ones included, stay fixed.
+	VisitorTemplates bool
+	// BundledImagesOnly keeps only the images bundled with the wallet,
+	// because visitors can't upload images.
+	BundledImagesOnly bool
+}
+
+func (w *Wallet) SetVisitorRules(r VisitorRules) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.visitors = r
+}
+
+func (w *Wallet) visitorRules() VisitorRules {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	return w.visitors
+}
+
+// TemplateFixed reports whether visitors can't change the template.
+func (w *Wallet) TemplateFixed(tpl credtemplate.Template) bool {
+	return w.visitorRules().VisitorTemplates && !tpl.Visitor
+}
+
+// templateNameFixed reports whether a stored or built-in template of that
+// name is fixed.
+func (w *Wallet) templateNameFixed(name string) bool {
+	if !w.visitorRules().VisitorTemplates {
+		return false
+	}
+	tpl, err := credtemplate.Load(strings.TrimSpace(name), w.Templates)
+	return err == nil && w.TemplateFixed(*tpl)
+}
+
+// VisitorLimitError is a change that the capacity or the visitor rules of a
+// shared wallet refuse.
+type VisitorLimitError struct{ reason string }
+
+func (e *VisitorLimitError) Error() string { return e.reason }
+
+func visitorLimit(format string, args ...any) error {
+	return &VisitorLimitError{reason: fmt.Sprintf(format, args...)}
+}
+
+// checkDisplayImages refuses images a visitor chose that are not bundled
+// with the wallet, so the visitor learns why the image is missing.
+func (w *Wallet) checkDisplayImages(refs ...string) error {
+	for _, ref := range refs {
+		if !w.keepsTemplateImage(ref) {
+			return visitorLimit("the public demo doesn't accept your own images. Remove the logo and background image or keep the ones of a predefined template")
+		}
+	}
+	return nil
+}
+
+// checkTemplateSave applies the visitor rules and the template capacity to a
+// template about to be saved.
+func (w *Wallet) checkTemplateSave(tpl credtemplate.Template) error {
+	name := strings.TrimSpace(tpl.Name)
+	if w.templateNameFixed(name) {
+		return visitorLimit("%q is a predefined template, and the public demo can't change it. Save your version under another name", name)
+	}
+	if d := tpl.Display; d != nil {
+		if err := w.checkDisplayImages(d.Logo, d.BackgroundImage); err != nil {
+			return err
+		}
+	}
+	w.mu.RLock()
+	limit := w.capacity.Templates
+	w.mu.RUnlock()
+	if limit <= 0 {
+		return nil
+	}
+	templates, err := credtemplate.List(w.Templates)
+	if err != nil {
+		return err
+	}
+	own := 0
+	for _, existing := range templates {
+		if existing.Visitor && existing.Name != name {
+			own++
+		}
+	}
+	if own >= limit {
+		return visitorLimit("the public demo holds at most %d templates. Delete one first", limit)
+	}
+	return nil
+}
+
+// DeleteTemplate removes a stored template. Deleting an override restores the
+// bundled template.
+func (w *Wallet) DeleteTemplate(name string) error {
+	if w.templateNameFixed(name) {
+		return visitorLimit("%q is a predefined template, and the public demo can't delete it", name)
+	}
+	return credtemplate.Delete(w.Templates, name)
 }
 
 // makeCredentialRoomLocked removes the oldest credentials that aren't

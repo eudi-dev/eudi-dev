@@ -21,7 +21,6 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
 )
 
 func walletGeneratePIDCmd() *cobra.Command {
@@ -69,46 +68,30 @@ func walletGeneratePIDCmd() *cobra.Command {
 				w.IssuerKey = issuerKey
 			}
 
-			// Reuse persisted serving URLs unless the user overrides them. Otherwise
-			// credentials could embed URLs that the wallet server does not serve.
-			walletPort := defaultWalletCommandPort()
+			// Reuse the stored serving URLs unless the user overrides them.
+			// Otherwise credentials could embed URLs that the wallet server
+			// does not serve. An override holds for this run only.
 			explicitURLs := cmd.Flags().Changed("base-url") || cmd.Flags().Changed("docker")
-			effectiveBaseURL := ""
-			if statusList {
-				if explicitURLs {
-					if baseURL == "" {
-						if docker {
-							baseURL = fmt.Sprintf("http://host.docker.internal:%d", walletPort)
-						} else {
-							baseURL = fmt.Sprintf("http://localhost:%d", walletPort)
-						}
-					}
-					w.BaseURL = baseURL
-				} else if w.BaseURL == "" {
-					w.BaseURL = fmt.Sprintf("http://localhost:%d", walletPort)
-				}
-				effectiveBaseURL = w.BaseURL
+			chosenBaseURL := w.BaseURL
+			if explicitURLs {
+				chosenBaseURL = baseURL
 			}
-			if port := walletPortFromBaseURL(effectiveBaseURL); port > 0 {
+			walletPort := defaultWalletCommandPort()
+			if port := walletPortFromBaseURL(chosenBaseURL); port > 0 {
 				walletPort = port
 			}
-			if explicitURLs {
-				issuerURL, err := deriveWalletIssuerURL(walletPort, effectiveBaseURL, docker)
-				if err != nil {
-					return err
-				}
-				w.IssuerURL = issuerURL
-			} else if w.IssuerURL == "" {
-				if effectiveBaseURL != "" {
-					issuerURL, err := deriveWalletIssuerURL(walletPort, effectiveBaseURL, false)
-					if err != nil {
-						return err
-					}
-					w.IssuerURL = issuerURL
-				} else {
-					w.IssuerURL = wallet.LocalIssuerURL(walletPort+1, false)
-				}
+			origin, err := walletOrigin(walletPort, chosenBaseURL, docker)
+			if err != nil {
+				return err
 			}
+			base, issuer := w.BaseURL, w.IssuerURL
+			if statusList && (explicitURLs || base == "") {
+				base = origin.Base
+			}
+			if explicitURLs || issuer == "" {
+				issuer = origin.Issuer
+			}
+			w.OverrideURLs(base, issuer)
 
 			overrides, err := parseClaimsOverrides(claimsFlag)
 			if err != nil {

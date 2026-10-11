@@ -15,6 +15,7 @@
 package wallet
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -155,6 +156,11 @@ func TestIssueCredentialAPIDisplay(t *testing.T) {
 	}
 	if ct := img.Header().Get("Content-Type"); ct != "image/png" {
 		t.Errorf("Content-Type = %q, want image/png", ct)
+	}
+	// The issuer chose the image, and an SVG opened on its own could run
+	// scripts on the wallet's origin.
+	if csp := img.Header().Get("Content-Security-Policy"); !strings.Contains(csp, "sandbox") || img.Header().Get("X-Content-Type-Options") != "nosniff" {
+		t.Errorf("display image served without the image sandbox: CSP %q", csp)
 	}
 	etag := img.Header().Get("ETag")
 	// A reused credential ID can carry a new image, so the browser revalidates.
@@ -356,4 +362,50 @@ func TestCertificateExportAPIWithoutStore(t *testing.T) {
 	if resp.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected 503 without store, got %d", resp.Code)
 	}
+}
+
+// --adhoc-display-images keeps an issuer's https image URL, so the wallet's
+// pages have to load images from the issuer.
+func TestAdhocDisplayImagesLetPagesLoadIssuerImages(t *testing.T) {
+	srv := newTestServer(t, true)
+	srv.wallet.AdhocDisplayImages = true
+	resp := serverRequest(t, srv, http.MethodGet, "/api/version", "")
+	if csp := resp.Header().Get("Content-Security-Policy"); !strings.Contains(csp, "img-src 'self' data: https:;") {
+		t.Fatalf("CSP = %s", csp)
+	}
+}
+
+// GET /api/config reads settings that PUT requests change at runtime. Run
+// with -race.
+func TestConfigReadsRuntimeSettingsUnderTheLock(t *testing.T) {
+	srv := newTestServer(t, true)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for range 20 {
+			serverRequest(t, srv, http.MethodPut, "/api/config/preferred-format", `{"format":"mso_mdoc"}`)
+			serverRequest(t, srv, http.MethodPut, "/api/config/auto-accept", `{"enabled":true}`)
+		}
+	}()
+	for range 20 {
+		serverRequest(t, srv, http.MethodGet, "/api/config", "")
+	}
+	<-done
+}
+
+// The flows read auto-accept while PUT /api/config/auto-accept changes it.
+// Run with -race.
+func TestFlowsReadAutoAcceptUnderTheLock(t *testing.T) {
+	srv := newTestServer(t, true)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := range 20 {
+			serverRequest(t, srv, http.MethodPut, "/api/config/auto-accept", fmt.Sprintf(`{"enabled":%t}`, i%2 == 0))
+		}
+	}()
+	for range 20 {
+		srv.autoAccepts(&AuthorizationRequestParams{})
+	}
+	<-done
 }

@@ -50,7 +50,7 @@ var httpClient HTTPClient = defaultHTTPClient
 
 func doIssuanceRequest(req *http.Request, clients ...*http.Client) (*http.Response, error) {
 	if httpClient == defaultHTTPClient {
-		return format.HTTPClientForURL(req.URL.String(), clients...).Do(req)
+		return format.HTTPClient(clients...).Do(req)
 	}
 	return httpClient.Do(req)
 }
@@ -121,6 +121,9 @@ type OfferOptions struct {
 	// Owner identifies the browser that started this issuance. A presentation
 	// requested by the issuer during the flow goes to the same browser.
 	Owner string
+	// Flow tags the sign-in prompt of this issuance, so the caller that
+	// started it picks up its own prompt.
+	Flow string
 	// ResolvedOffer is the offer that the caller already resolved from the same
 	// URI, for example for a consent dialog. The flow uses it only when reading
 	// the URI again fails.
@@ -622,7 +625,7 @@ func verifySignedIssuerMetadata(token *sdjwt.Token, issuer string) error {
 	if token == nil {
 		return fmt.Errorf("signed issuer metadata token is nil")
 	}
-	if typ, _ := token.Header["typ"].(string); typ != signedIssuerMetadataTyp {
+	if typ, _ := token.Header["typ"].(string); !format.JOSETypeIs(typ, signedIssuerMetadataTyp) {
 		return fmt.Errorf("signed issuer metadata has typ %q, want %q", typ, signedIssuerMetadataTyp)
 	}
 	alg, _ := token.Header["alg"].(string)

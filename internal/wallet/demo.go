@@ -90,37 +90,38 @@ func ParseDailySchedule(value string) (*DailySchedule, error) {
 }
 
 type demoState struct {
-	opts DemoOptions
-	// fixedTemplates holds the operator's templates (those present at startup).
-	// Visitors can't change them, and a reset keeps them.
-	fixedTemplates map[string]bool
-	mu             sync.Mutex
-	nextReset      time.Time
-	stop           chan struct{}
-	stopOnce       sync.Once
+	opts      DemoOptions
+	mu        sync.Mutex
+	nextReset time.Time
+	stop      chan struct{}
+	stopOnce  sync.Once
 }
 
 // Visitors share the demo wallet, so it holds at most this many entries
 // between resets. Every check reads the added providers and lists.
 const (
-	maxDemoCredentials     = 500
-	maxDemoDeferred        = 100
-	maxDemoTrustedEntities = 20
-	maxDemoTrustedLists    = 5
+	maxDemoCredentials        = 500
+	maxDemoDeferred           = 100
+	maxDemoTrustedEntities    = 20
+	maxDemoTrustedLists       = 5
+	maxDemoIssuedAttestations = 100
+	maxDemoTemplates          = 50
 )
 
-// SetDemo turns on the public demo profile. The templates present now are
-// the operator's and stay fixed, so a template it can't read stops it.
+// SetDemo turns on the public demo profile. Templates that visitors save are
+// visitor templates. The operator's templates stay fixed, and a reset keeps
+// them.
 func (s *Server) SetDemo(opts DemoOptions) error {
-	templates, err := credtemplate.List(s.wallet.Templates)
-	if err != nil {
-		return fmt.Errorf("reading the operator's templates: %w", err)
-	}
-	s.demo = &demoState{opts: opts, fixedTemplates: map[string]bool{}}
-	s.wallet.SetCapacity(Capacity{Credentials: maxDemoCredentials, Deferred: maxDemoDeferred, TrustedEntities: maxDemoTrustedEntities, TrustedLists: maxDemoTrustedLists})
-	for _, t := range templates {
-		s.demo.fixedTemplates[t.Name] = true
-	}
+	s.demo = &demoState{opts: opts}
+	s.wallet.SetCapacity(Capacity{
+		Credentials:        maxDemoCredentials,
+		Deferred:           maxDemoDeferred,
+		TrustedEntities:    maxDemoTrustedEntities,
+		TrustedLists:       maxDemoTrustedLists,
+		IssuedAttestations: maxDemoIssuedAttestations,
+		Templates:          maxDemoTemplates,
+	})
+	s.wallet.SetVisitorRules(VisitorRules{VisitorTemplates: true, BundledImagesOnly: true})
 	return nil
 }
 
@@ -132,10 +133,14 @@ func (s *Server) DemoEnabled() bool {
 const maxRequestBodyBytes = 1 << 20
 
 func (s *Server) Handler() http.Handler {
-	inner := httpsec.Headers(s.guardAPI(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	secure := httpsec.Headers
+	if s.wallet.AdhocDisplayImages {
+		secure = httpsec.HeadersWithRemoteImages
+	}
+	inner := secure(s.guardAPI(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if s.demo != nil && demoBlockedRoute(r) {
 			writeJSON(w, http.StatusForbidden, map[string]string{
-				"error": "endpoint disabled in public demo mode",
+				"error": "the public demo disables this endpoint",
 			})
 			return
 		}
@@ -248,18 +253,39 @@ func (s *Server) startDemoReset() {
 }
 
 func (s *Server) stopDemoReset() {
-	if s.demo == nil || s.demo.stop == nil {
+	if s.demo == nil {
 		return
 	}
-	s.demo.stopOnce.Do(func() { close(s.demo.stop) })
+	s.demo.mu.Lock()
+	stop := s.demo.stop
+	s.demo.mu.Unlock()
+	if stop != nil {
+		s.demo.stopOnce.Do(func() { close(stop) })
+	}
 }
 
 // demoReset holds storeSyncMu through the reset, so requests on this server see
 // either the complete old baseline or the new one.
 func (s *Server) demoReset() error {
-	s.storeSyncMu.Lock()
-	defer s.storeSyncMu.Unlock()
+	var err error
+	s.saveMutationThen(func() bool {
+		err = s.restoreBaselineLocked()
+		return err == nil
+	}, func() {
+		// The reset leaves the assets issued since the last reset unreferenced.
+		// They are pruned once the fresh baseline is saved.
+		if store := s.store.Load(); store != nil {
+			store.PruneUnreferencedAssets()
+		}
+	})
+	if err != nil {
+		return err
+	}
+	s.log("  Demo reset: baseline restored")
+	return nil
+}
 
+func (s *Server) restoreBaselineLocked() error {
 	// The reset clears the whole log, so an entity backend loads it first.
 	if err := s.reloadLocked(true); err != nil {
 		return err
@@ -280,21 +306,8 @@ func (s *Server) demoReset() error {
 	if err := baseline(); err != nil {
 		return err
 	}
-	if _, err := s.wallet.EnsureDemoRegistrations(); err != nil {
-		return err
-	}
-	if store := s.store.Load(); store != nil {
-		if err := store.Save(s.wallet); err != nil {
-			return err
-		}
-		// The reset leaves the assets issued since the last reset unreferenced.
-		// They are pruned once the fresh baseline is saved.
-		store.PruneUnreferencedAssets()
-	}
-	// startDemoReset schedules the next reset. A daily schedule has a zero
-	// ResetInterval, so only the scheduler knows the next time.
-	s.log("  Demo reset: baseline restored")
-	return nil
+	_, err := s.wallet.EnsureDemoRegistrations()
+	return err
 }
 
 func (s *Server) demoConfig() map[string]any {
@@ -317,62 +330,13 @@ func (s *Server) demoConfig() map[string]any {
 	return cfg
 }
 
-const maxDemoTemplates = 50
-
-// checkDemoTemplate applies the demo limits to a template saved by a visitor.
-// Visitors share the operator's templates, so they can't replace them. A
-// template image can only be the art of a built-in template, because visitors
-// can't upload images.
-func (s *Server) checkDemoTemplate(t credtemplate.Template) error {
-	if s.demo == nil {
-		return nil
-	}
-	name := strings.TrimSpace(t.Name)
-	if s.demo.fixedTemplates[name] {
-		return fmt.Errorf("%q is a predefined template, and the public demo can't change it. Save your version under another name", name)
-	}
-	if d := t.Display; d != nil && (!demoAllowsImage(d.Logo) || !demoAllowsImage(d.BackgroundImage)) {
-		return fmt.Errorf("the public demo doesn't accept template images. Remove the logo and background image or keep the ones of a predefined template")
-	}
-	templates, err := credtemplate.List(s.wallet.Templates)
-	if err != nil {
-		return err
-	}
-	var own int
-	for _, existing := range templates {
-		if !s.demo.fixedTemplates[existing.Name] && existing.Name != name {
-			own++
-		}
-	}
-	if own >= maxDemoTemplates {
-		return fmt.Errorf("the public demo holds at most %d templates. Delete one first", maxDemoTemplates)
-	}
-	return nil
-}
-
-// demoAllowsImage reports whether a visitor may use the image. Visitors can't
-// upload images, so only the art of the bundled templates is allowed.
-func demoAllowsImage(ref string) bool {
-	ref = strings.TrimSpace(ref)
-	return ref == "" || strings.HasPrefix(ref, "embedded:")
-}
-
-// checkDemoTemplateDelete keeps visitors from deleting the operator's
-// templates.
-func (s *Server) checkDemoTemplateDelete(name string) error {
-	if s.demo != nil && s.demo.fixedTemplates[strings.TrimSpace(name)] {
-		return fmt.Errorf("%q is a predefined template, and the public demo can't delete it", name)
-	}
-	return nil
-}
-
 func (s *Server) deleteVisitorTemplates() error {
 	templates, err := credtemplate.List(s.wallet.Templates)
 	if err != nil {
 		return err
 	}
 	for _, t := range templates {
-		if s.demo.fixedTemplates[t.Name] {
+		if !t.Visitor {
 			continue
 		}
 		if err := credtemplate.Delete(s.wallet.Templates, t.Name); err != nil {

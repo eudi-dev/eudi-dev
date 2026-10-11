@@ -1338,19 +1338,7 @@ func TestConsentFlow_ApproveAndDeny(t *testing.T) {
 		resultCh <- w
 	}()
 
-	var reqID string
-	for i := 0; i < 100; i++ {
-		time.Sleep(10 * time.Millisecond)
-		pending := srv.wallet.GetPendingRequests()
-		if len(pending) > 0 {
-			reqID = pending[0].ID
-			break
-		}
-	}
-
-	if reqID == "" {
-		t.Fatal("no pending consent request found")
-	}
+	reqID := waitForPendingRequest(t, srv.wallet).ID
 
 	approveReq := httptest.NewRequest("POST", "/api/requests/"+reqID+"/approve",
 		strings.NewReader(`{"selected_claims":{}}`))
@@ -1418,19 +1406,7 @@ func TestConsentFlow_Deny(t *testing.T) {
 		resultCh <- w
 	}()
 
-	var reqID string
-	for i := 0; i < 100; i++ {
-		time.Sleep(10 * time.Millisecond)
-		pending := srv.wallet.GetPendingRequests()
-		if len(pending) > 0 {
-			reqID = pending[0].ID
-			break
-		}
-	}
-
-	if reqID == "" {
-		t.Fatal("no pending consent request found")
-	}
+	reqID := waitForPendingRequest(t, srv.wallet).ID
 
 	denyReq := httptest.NewRequest("POST", "/api/requests/"+reqID+"/deny", nil)
 	denyRec := httptest.NewRecorder()
@@ -1598,18 +1574,7 @@ func TestConsentFlow_Deny_DirectPostJWT_SubmitsEncryptedErrorWithState(t *testin
 		resultCh <- w
 	}()
 
-	var reqID string
-	for i := 0; i < 100; i++ {
-		time.Sleep(10 * time.Millisecond)
-		pending := srv.wallet.GetPendingRequests()
-		if len(pending) > 0 {
-			reqID = pending[0].ID
-			break
-		}
-	}
-	if reqID == "" {
-		t.Fatal("no pending consent request found")
-	}
+	reqID := waitForPendingRequest(t, srv.wallet).ID
 
 	denyReq := httptest.NewRequest("POST", "/api/requests/"+reqID+"/deny", nil)
 	denyRec := httptest.NewRecorder()
@@ -2355,19 +2320,7 @@ func TestOnConsentRequest_CalledOnInteractiveFlow(t *testing.T) {
 		resultCh <- w
 	}()
 
-	var reqID string
-	for i := 0; i < 100; i++ {
-		time.Sleep(10 * time.Millisecond)
-		pending := srv.wallet.GetPendingRequests()
-		if len(pending) > 0 {
-			reqID = pending[0].ID
-			break
-		}
-	}
-
-	if reqID == "" {
-		t.Fatal("no pending consent request found")
-	}
+	reqID := waitForPendingRequest(t, srv.wallet).ID
 
 	callbackMu.Lock()
 	called, gotReqID := callbackCalled, callbackReqID
@@ -2466,17 +2419,7 @@ func TestOnUIRequest_CalledOnInteractiveOfferImport(t *testing.T) {
 		done <- serverRequest(t, srv, http.MethodPost, "/api/offers", string(body))
 	}()
 
-	var reqID string
-	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
-		pending := srv.wallet.GetPendingRequests()
-		if len(pending) > 0 {
-			reqID = pending[0].ID
-			break
-		}
-	}
-	if reqID == "" {
-		t.Fatal("no pending issuance consent request found")
-	}
+	reqID := waitForPendingRequest(t, srv.wallet).ID
 	callbackMu.Lock()
 	called := callbackCalled
 	callbackMu.Unlock()
@@ -2530,17 +2473,7 @@ func TestOnUIRequest_InteractiveOfferImportFetchesOfferForDialogAndAfterApproval
 		done <- serverRequest(t, srv, http.MethodPost, "/api/offers", string(body))
 	}()
 
-	var reqID string
-	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
-		pending := srv.wallet.GetPendingRequests()
-		if len(pending) > 0 {
-			reqID = pending[0].ID
-			break
-		}
-	}
-	if reqID == "" {
-		t.Fatal("no pending issuance consent request found")
-	}
+	reqID := waitForPendingRequest(t, srv.wallet).ID
 	select {
 	case <-offerFetched:
 	case <-time.After(time.Second):

@@ -84,12 +84,11 @@ func completeCredentialIDs(cmd *cobra.Command, args []string, toComplete string)
 		return completions, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	// Loading a missing wallet creates it. Completion must not do that.
-	store, err := openStore()
-	if err != nil {
+	if !localWalletExists() {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
-	if exists, err := store.Exists(); err != nil || !exists {
+	store, err := openStore()
+	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 	w, err := store.LoadOrCreate()
@@ -106,8 +105,10 @@ func completeDeferredIDs(cmd *cobra.Command, args []string, toComplete string) (
 	if len(args) > 0 {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
-	svc, err := managedWallet()
-	if err != nil {
+	var svc walletService = &localWallet{load: loadWallet}
+	if c := completionClient(); c != nil {
+		svc = &remoteWallet{c: c}
+	} else if !localWalletExists() {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 	pending, err := svc.DeferredIssuances()
@@ -164,4 +165,15 @@ func staticCompletion(values ...string) func(*cobra.Command, []string, string) (
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		return values, cobra.ShellCompDirectiveNoFileComp
 	}
+}
+
+// localWalletExists reports whether the local store holds a wallet. Loading
+// a missing wallet creates it, and completion must not do that.
+func localWalletExists() bool {
+	store, err := openStore()
+	if err != nil {
+		return false
+	}
+	exists, err := store.Exists()
+	return err == nil && exists
 }

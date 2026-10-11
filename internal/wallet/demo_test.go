@@ -108,6 +108,8 @@ func TestDemoVisitorTemplates(t *testing.T) {
 		{"DELETE", "/api/templates/operator-card", "", http.StatusForbidden},
 		{"POST", "/api/issue", `{"format":"sdjwt","save_as_template":"issued-card"}`, http.StatusCreated},
 		{"POST", "/api/issue", `{"format":"sdjwt","save_as_template":"german-pid-sdjwt"}`, http.StatusForbidden},
+		{"POST", "/api/issue", `{"format":"sdjwt","display":{"logo":"data:image/png;base64,AAAA"}}`, http.StatusForbidden},
+		{"POST", "/api/issue", `{"format":"sdjwt","display":{"logo":"embedded:logo.svg"}}`, http.StatusCreated},
 	} {
 		if w := serverRequest(t, srv, tt.method, tt.path, tt.body); w.Code != tt.want {
 			t.Errorf("%s %s %s = %d, want %d: %s", tt.method, tt.path, tt.body, w.Code, tt.want, w.Body.String())
@@ -687,7 +689,7 @@ func TestDemoResetRestoresTheStartupCredentials(t *testing.T) {
 	if w := serverRequest(t, srv, "DELETE", "/api/credentials/open-pid", ""); w.Code != http.StatusNoContent && w.Code != http.StatusOK {
 		t.Fatalf("deleting the unprotected entry = %d %s", w.Code, w.Body.String())
 	}
-	if _, ok := srv.wallet.credentialByExactID("open-pid"); ok {
+	if _, ok := srv.wallet.GetCredential("open-pid"); ok {
 		t.Fatal("open-pid survived its deletion")
 	}
 
@@ -699,7 +701,7 @@ func TestDemoResetRestoresTheStartupCredentials(t *testing.T) {
 		t.Fatalf("after reset: %d credentials, want the 2 startup credentials and no default PIDs", len(creds))
 	}
 	for id, protected := range map[string]bool{"shared-pid": true, "open-pid": false} {
-		c, ok := srv.wallet.credentialByExactID(id)
+		c, ok := srv.wallet.GetCredential(id)
 		if !ok || c.Protected != protected {
 			t.Errorf("%s after reset: found %v, protected %v, want protected %v", id, ok, c.Protected, protected)
 		}
@@ -709,7 +711,7 @@ func TestDemoResetRestoresTheStartupCredentials(t *testing.T) {
 func TestDemoCapsVisitorTemplates(t *testing.T) {
 	srv := newDemoTestServer(t)
 	for i := range maxDemoTemplates {
-		if _, err := credtemplate.Save(srv.wallet.Templates, credtemplate.Template{Name: fmt.Sprintf("visitor-%d", i), Format: "sdjwt", Claims: map[string]any{}}); err != nil {
+		if _, err := credtemplate.Save(srv.wallet.Templates, credtemplate.Template{Name: fmt.Sprintf("visitor-%d", i), Format: "sdjwt", Claims: map[string]any{}, Visitor: true}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -980,4 +982,93 @@ func TestARenewalKeepsItsCredentialInAFullWallet(t *testing.T) {
 	if len(after) != len(creds) || after[0].ID != oldest.ID {
 		t.Errorf("credentials after the renewal: %d, first %s, want %d with %s first", len(after), after[0].ID, len(creds), oldest.ID)
 	}
+}
+
+// A template keeps its origin in storage. A restart does not turn a visitor
+// template into one of the operator's.
+func TestDemoVisitorTemplateStaysAVisitorTemplateAcrossRestarts(t *testing.T) {
+	templates := credtemplate.FileLocation(t.TempDir())
+	if _, err := credtemplate.Save(templates, credtemplate.Template{Name: "operator-card", Format: "sdjwt", Claims: map[string]any{}}); err != nil {
+		t.Fatal(err)
+	}
+	start := func() *Server {
+		srv := newTestServer(t, true)
+		srv.wallet.Templates = templates
+		if err := srv.SetDemo(DemoOptions{ResetInterval: time.Hour}); err != nil {
+			t.Fatal(err)
+		}
+		return srv
+	}
+	first := start()
+	if w := serverRequest(t, first, "PUT", "/api/templates/test", `{"format":"sdjwt","vct":"urn:example:visitor:1","claims":{}}`); w.Code != http.StatusOK {
+		t.Fatalf("saving a visitor template = %d: %s", w.Code, w.Body.String())
+	}
+
+	restarted := start()
+	list := serverRequest(t, restarted, "GET", "/api/templates", "")
+	var listed []credtemplate.Template
+	if err := json.Unmarshal(list.Body.Bytes(), &listed); err != nil {
+		t.Fatal(err)
+	}
+	for _, tpl := range listed {
+		if tpl.Name == "test" && tpl.Predefined {
+			t.Fatal("after a restart the visitor template shows as predefined")
+		}
+	}
+	if w := serverRequest(t, restarted, "PUT", "/api/templates/test", `{"format":"sdjwt","vct":"urn:example:visitor:2","claims":{}}`); w.Code != http.StatusOK {
+		t.Fatalf("changing the visitor template after a restart = %d: %s", w.Code, w.Body.String())
+	}
+	if err := restarted.demoReset(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := credtemplate.Load("test", templates); err == nil {
+		t.Fatal("the reset kept the visitor template")
+	}
+	if _, err := credtemplate.Load("operator-card", templates); err != nil {
+		t.Fatalf("the reset deleted the operator's template: %v", err)
+	}
+
+	if w := serverRequest(t, restarted, "PUT", "/api/templates/other", `{"format":"sdjwt","claims":{}}`); w.Code != http.StatusOK {
+		t.Fatal(w.Body.String())
+	}
+	if w := serverRequest(t, start(), "DELETE", "/api/templates/other", ""); w.Code != http.StatusOK {
+		t.Fatalf("deleting a visitor template after a restart = %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// Open wallet pages reload on a state event. A reset replaces every visitor's
+// credentials, so the pages have to hear about it.
+func TestDemoResetNotifiesOpenPages(t *testing.T) {
+	srv := newDemoTestServer(t)
+	srv.SetStore(NewWalletStore(t.TempDir()))
+	state, unsubscribe := srv.wallet.SubscribeState()
+	defer unsubscribe()
+	if err := srv.demoReset(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-state:
+	default:
+		t.Fatal("the reset sent no state event")
+	}
+}
+
+// A reload replaces the CA and the signing chain under the wallet lock while
+// requests and renewals read them. Run with -race.
+func TestCAReadsDoNotRaceWithAReload(t *testing.T) {
+	srv := newTestServer(t, true)
+	reloaded := generateTestWallet(t)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for range 50 {
+			srv.applyPersistedWalletState(reloaded)
+		}
+	}()
+	for range 50 {
+		_ = srv.wallet.SigningCertificateExpiry()
+		_ = serverRequest(t, srv, "GET", "/api/trustlist", "")
+		srv.renewIssuerTLSCertificateIfNeeded(time.Now())
+	}
+	<-done
 }

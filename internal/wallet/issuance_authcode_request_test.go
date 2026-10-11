@@ -22,6 +22,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 // redirectAuthCodeIssuer is an issuer without PAR or DPoP. Its authorization
@@ -225,5 +226,14 @@ func TestAuthorizationServerIssuerMismatch(t *testing.T) {
 	strict.ValidationMode = ValidationModeStrict
 	if err := (&redirectAuthCodeIssuer{configuration: configuration, asIssuer: "https://other.example"}).run(t, strict); err == nil || !strings.Contains(err.Error(), "https://other.example") {
 		t.Errorf("strict mode error = %v, want the issuer mismatch refused", err)
+	}
+}
+
+// An issuer's error body can be any text, so the excerpt keeps whole UTF-8
+// characters.
+func TestTruncateBodyKeepsWholeCharacters(t *testing.T) {
+	got := truncateBody(strings.Repeat("é", 300))
+	if !utf8.ValidString(got) || got != strings.Repeat("é", 200)+"..." {
+		t.Errorf("truncateBody = %q, want 200 é and ...", got)
 	}
 }

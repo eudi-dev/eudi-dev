@@ -37,7 +37,7 @@ func TestGenerateSDJWT_SigningTimeIsIndependentOfIssuanceTime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	leaf, err := GenerateLeafCert(caKey, ca, &key.PublicKey)
+	leaf, err := GenerateLeafCertWithOptions(caKey, ca, &key.PublicKey, LeafCertOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -568,9 +568,9 @@ func TestGenerateSDJWT_WithCertChainOmitsSelfSignedTrustAnchor(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GenerateCACert: %v", err)
 	}
-	leafCert, err := GenerateLeafCert(caKey, caCert, &key.PublicKey)
+	leafCert, err := GenerateLeafCertWithOptions(caKey, caCert, &key.PublicKey, LeafCertOptions{})
 	if err != nil {
-		t.Fatalf("GenerateLeafCert: %v", err)
+		t.Fatalf("GenerateLeafCertWithOptions: %v", err)
 	}
 
 	result, err := GenerateSDJWT(SDJWTConfig{

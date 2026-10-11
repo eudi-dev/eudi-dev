@@ -140,7 +140,7 @@ func TestDebugModeAsksWhenNothingMatches(t *testing.T) {
 		close(done)
 	}()
 
-	pending := waitForPendingRequest(t, srv)
+	pending := waitForPendingRequest(t, srv.wallet)
 	var pick string
 	for _, c := range pending.CredentialOptions.Queries[0].NonMatching {
 		if c.Format == "dc+sd-jwt" {
@@ -228,7 +228,7 @@ func TestStrictModeRefusesANonMatchingPickFromAnEarlierDialog(t *testing.T) {
 		serverRequest(t, srv, "POST", "/api/presentations", string(body))
 		close(done)
 	}()
-	pending := waitForPendingRequest(t, srv)
+	pending := waitForPendingRequest(t, srv.wallet)
 	pick := pending.CredentialOptions.Queries[0].NonMatching[0].CredentialID
 
 	srv.wallet.mu.Lock()

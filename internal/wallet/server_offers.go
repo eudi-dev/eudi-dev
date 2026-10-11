@@ -92,9 +92,13 @@ func (s *Server) lookupPendingOffer(id string) *pendingOffer {
 // issuance. The caller opens the URL in their browser.
 func (s *Server) runOffer(uri string, logDetails map[string]any, opts OfferOptions) (*IssuanceResult, *pendingOffer, error) {
 	// A subscriber lets the flow return the sign-in URL when interaction is
-	// required.
-	authCh, unsubscribe := s.wallet.SubscribeAuthorization()
+	// required. Other flows run at the same time, so it takes only the prompt
+	// of this one.
 	p := &pendingOffer{ID: newConsentID(), CreatedAt: time.Now()}
+	opts.Flow = p.ID
+	authCh, unsubscribe := s.wallet.SubscribeAuthorization(func(prompt AuthorizationPrompt) bool {
+		return prompt.Flow == p.ID
+	})
 	done := make(chan struct{})
 
 	go func() {
@@ -258,7 +262,7 @@ func (s *Server) processOfferURI(w http.ResponseWriter, uri string, opts OfferOp
 	addStringDetail(offerDetails, "credential_configuration_id", opts.ConfigurationID)
 	s.wallet.AddLogDetails("issuance", "Received credential offer", true, offerDetails)
 
-	if !s.wallet.AutoAccept && !apiInitiated {
+	if !s.wallet.AutoAcceptSetting() && !apiInitiated {
 		consentReq, issuerDisplay, err := s.wallet.prepareIssuanceConsentRequest(uri, opts.Owner)
 		if err != nil {
 			s.log("  ERROR: %v", err)
@@ -371,7 +375,7 @@ func (s *Server) awaitOfferConsent(w http.ResponseWriter, consentReq *ConsentReq
 func (s *Server) processOfferDirectly(w http.ResponseWriter, uri string, opts OfferOptions, browserRedirect bool) {
 	result, pending, err := s.runOffer(uri, nil, opts)
 	if err != nil {
-		if !s.wallet.AutoAccept {
+		if !s.wallet.AutoAcceptSetting() {
 			s.triggerUIRequest("")
 		}
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})

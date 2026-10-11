@@ -35,7 +35,7 @@ func privateFetchError(t *testing.T) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://10.255.255.1:9/", nil)
-	resp, err := format.HTTPClientForURL("").Do(req)
+	resp, err := format.HTTPClient().Do(req)
 	if err == nil {
 		resp.Body.Close()
 	}
@@ -55,7 +55,7 @@ func policyCommand(t *testing.T, args ...string) (*cobra.Command, *bool) {
 	t.Cleanup(func() { format.SetFetchPolicy(nil) })
 	cmd := &cobra.Command{}
 	var allow bool
-	addAllowPrivateNetworksFlag(cmd, &allow)
+	addAllowPrivateNetworksFlag(cmd, &allow, "")
 	if err := cmd.ParseFlags(args); err != nil {
 		t.Fatal(err)
 	}

@@ -55,3 +55,36 @@ func TestHeaders(t *testing.T) {
 		}
 	}
 }
+
+// --adhoc-display-images keeps an issuer's https image URL, which the card
+// then loads from the issuer.
+func TestHeadersWithRemoteImagesLoadsHTTPSImages(t *testing.T) {
+	resp := httptest.NewRecorder()
+	HeadersWithRemoteImages(http.NotFoundHandler()).ServeHTTP(resp, httptest.NewRequest("GET", "/", nil))
+	if csp := resp.Header().Get("Content-Security-Policy"); !strings.Contains(csp, "img-src 'self' data: https:;") || !strings.Contains(csp, "script-src 'self';") {
+		t.Fatalf("CSP = %s", csp)
+	}
+}
+
+// An SVG opened on its own must not run scripts on the wallet's origin.
+func TestServeImageSandboxesTheImage(t *testing.T) {
+	resp := httptest.NewRecorder()
+	ServeImage(resp, httptest.NewRequest("GET", "/logo", nil), "image/svg+xml", []byte("<svg/>"))
+	if csp := resp.Header().Get("Content-Security-Policy"); !strings.Contains(csp, "sandbox") || !strings.Contains(csp, "default-src 'none'") {
+		t.Errorf("CSP = %q", csp)
+	}
+	if got := resp.Header().Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Errorf("X-Content-Type-Options = %q", got)
+	}
+	if resp.Header().Get("Content-Type") != "image/svg+xml" || resp.Body.String() != "<svg/>" {
+		t.Errorf("served %q as %q", resp.Body.String(), resp.Header().Get("Content-Type"))
+	}
+
+	again := httptest.NewRequest("GET", "/logo", nil)
+	again.Header.Set("If-None-Match", resp.Header().Get("ETag"))
+	revalidated := httptest.NewRecorder()
+	ServeImage(revalidated, again, "image/svg+xml", []byte("<svg/>"))
+	if revalidated.Code != http.StatusNotModified {
+		t.Errorf("revalidation answered %d, want 304", revalidated.Code)
+	}
+}

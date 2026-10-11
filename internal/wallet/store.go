@@ -385,7 +385,7 @@ func (s *WalletStore) LoadOrCreate() (*Wallet, error) {
 		return nil, err
 	}
 
-	w := New(holderKey, issuerKey, false)
+	w := newWallet(holderKey, issuerKey, false)
 	w.signers = &signingStore{backend: s.backend, prefix: s.prefix, seed: s.seed}
 	w.runtime = s.runtime()
 	w.Templates = s.Templates()
@@ -447,7 +447,8 @@ func (s *WalletStore) Save(w *Wallet) error {
 		return err
 	}
 	w.mu.RLock()
-	wj := walletJSON{PersistedState: w.PersistedState.clone(), BaseURL: w.BaseURL, IssuerURL: w.IssuerURL}
+	wj := walletJSON{PersistedState: w.PersistedState.clone()}
+	wj.BaseURL, wj.IssuerURL = w.savedURLsLocked()
 	w.mu.RUnlock()
 	wj.Credentials = creds
 	wj.IssuedAttestations = dedupeIssuedAttestations(wj.IssuedAttestations)
@@ -681,10 +682,6 @@ func (s *WalletStore) LoadOrCreateIssuerTLSLeafCertificatePEM(serverName string)
 	return firstCertificatePEM(certPEM)
 }
 
-func (s *WalletStore) LoadOrCreateIssuerTLSCertificatePEMForURL(issuerURL string) ([]byte, error) {
-	return s.LoadOrCreateIssuerTLSCertificatePEM(parseIssuerHost(issuerURL))
-}
-
 func (s *WalletStore) LoadOrCreateIssuerTLSLeafCertificatePEMForURL(issuerURL string) ([]byte, error) {
 	return s.LoadOrCreateIssuerTLSLeafCertificatePEM(parseIssuerHost(issuerURL))
 }
@@ -700,14 +697,18 @@ func (s *WalletStore) loadIssuerTLSCertificatePEM(serverName string) ([]byte, []
 
 	certPEM, certErr := s.backend.Read(s.tlsCertPEM())
 	keyPEM, keyErr := s.backend.Read(s.tlsKeyPEM())
-	if errors.Is(certErr, fs.ErrNotExist) && errors.Is(keyErr, fs.ErrNotExist) {
+	legacy := errors.Is(certErr, fs.ErrNotExist) && errors.Is(keyErr, fs.ErrNotExist)
+	if legacy {
 		certPEM, certErr = s.backend.Read(s.legacyTLSCertPEM())
 		keyPEM, keyErr = s.backend.Read(s.legacyTLSKeyPEM())
 	}
 	if certErr == nil && keyErr == nil {
 		if cert, err := tls.X509KeyPair(certPEM, keyPEM); err == nil && issuerTLSCertificateMatches(cert, serverName, caCert) {
-			if err := s.saveIssuerTLSPEM(certPEM, keyPEM); err != nil {
-				return nil, nil, err
+			// A pair under the legacy names moves to the current ones.
+			if legacy {
+				if err := s.saveIssuerTLSPEM(certPEM, keyPEM); err != nil {
+					return nil, nil, err
+				}
 			}
 			return certPEM, keyPEM, nil
 		}

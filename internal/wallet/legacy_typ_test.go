@@ -25,7 +25,7 @@ import (
 
 // Replace typ with the legacy value to test import parsing. This invalidates the
 // signature, which import does not check.
-func legacyTypeCredential(t *testing.T, w *Wallet) string {
+func legacyTypeCredential(t *testing.T, w *Wallet, typ string) string {
 	t.Helper()
 	raw, err := mock.GenerateSDJWT(mock.SDJWTConfig{
 		Issuer: "https://issuer.example", VCT: mock.DefaultPIDVCT,
@@ -44,7 +44,7 @@ func legacyTypeCredential(t *testing.T, w *Wallet) string {
 	if err := json.Unmarshal(hdr, &h); err != nil {
 		t.Fatalf("parsing header: %v", err)
 	}
-	h["typ"] = "vc+sd-jwt"
+	h["typ"] = typ
 	nh, err := json.Marshal(h)
 	if err != nil {
 		t.Fatalf("encoding header: %v", err)
@@ -60,16 +60,20 @@ func TestImportSDJWT_LegacyType(t *testing.T) {
 	t.Run("debug keeps it", func(t *testing.T) {
 		w := generateTestWallet(t)
 		w.ValidationMode = ValidationModeDebug
-		if _, err := w.parseSDJWTEntry(legacyTypeCredential(t, w), "", ""); err != nil {
+		if _, err := w.parseSDJWTEntry(legacyTypeCredential(t, w, "vc+sd-jwt"), "", ""); err != nil {
 			t.Fatalf("debug import refused the credential: %v", err)
 		}
 	})
 
-	t.Run("strict refuses it", func(t *testing.T) {
-		w := generateTestWallet(t)
-		w.ValidationMode = ValidationModeStrict
-		if _, err := w.parseSDJWTEntry(legacyTypeCredential(t, w), "", ""); err == nil {
-			t.Fatal("strict import accepted a credential on the earlier typ")
-		}
-	})
+	// RFC 7515 §4.1.9: typ values are case insensitive and "application/" is
+	// implied when the value has no '/'.
+	for _, typ := range []string{"vc+sd-jwt", "VC+SD-JWT", "application/vc+sd-jwt"} {
+		t.Run("strict refuses "+typ, func(t *testing.T) {
+			w := generateTestWallet(t)
+			w.ValidationMode = ValidationModeStrict
+			if _, err := w.parseSDJWTEntry(legacyTypeCredential(t, w, typ), "", ""); err == nil {
+				t.Fatal("strict import accepted a credential on the earlier typ")
+			}
+		})
+	}
 }

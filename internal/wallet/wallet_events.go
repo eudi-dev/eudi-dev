@@ -111,19 +111,6 @@ func marshalConsentRequestFor(r *ConsentRequest, owners []string) map[string]any
 	return doc
 }
 
-func (w *Wallet) GetPendingRequests() []*ConsentRequest {
-	rt := w.runtimeState()
-	rt.mu.RLock()
-	defer rt.mu.RUnlock()
-	var out []*ConsentRequest
-	for _, r := range rt.requests {
-		if r.Status == "pending" {
-			out = append(out, r)
-		}
-	}
-	return out
-}
-
 // AttachedUIs counts event streams that can show consent without opening another tab.
 func (w *Wallet) AttachedUIs() int {
 	rt := w.runtimeState()
@@ -178,16 +165,16 @@ func (w *Wallet) SubscribeErrors() (<-chan WalletError, func()) {
 	}
 }
 
-// SubscribeAuthorization delivers issuer sign-in URLs between authorization and token
-// exchange. Hosted wallets deliver the URL to the existing browser tab. Local wallets can
-// open it directly.
-func (w *Wallet) SubscribeAuthorization() (<-chan AuthorizationPrompt, func()) {
+// SubscribeAuthorization delivers the issuer sign-in prompts that accept
+// takes, between authorization and token exchange. Hosted wallets deliver the
+// URL to the existing browser tab. Local wallets can open it directly.
+func (w *Wallet) SubscribeAuthorization(accept func(AuthorizationPrompt) bool) (<-chan AuthorizationPrompt, func()) {
 	ch := make(chan AuthorizationPrompt, 4)
 	rt := w.runtimeState()
 	rt.mu.Lock()
 	rt.authSubID++
 	id := rt.authSubID
-	rt.authSubscribers[id] = ch
+	rt.authSubscribers[id] = authSubscriber{ch: ch, accept: accept}
 	rt.mu.Unlock()
 
 	return ch, func() {
@@ -204,14 +191,16 @@ func (w *Wallet) SubscribeAuthorization() (<-chan AuthorizationPrompt, func()) {
 	}
 }
 
-// NotifyAuthorization reports whether a UI received the URL so local wallets can open a
-// browser if needed.
+// NotifyAuthorization reports whether a subscriber that takes the prompt
+// received it: the caller of its flow or the browser that owns it.
 func (w *Wallet) NotifyAuthorization(prompt AuthorizationPrompt) bool {
 	rt := w.runtimeState()
 	rt.mu.Lock()
 	subs := make([]chan AuthorizationPrompt, 0, len(rt.authSubscribers))
-	for _, ch := range rt.authSubscribers {
-		subs = append(subs, ch)
+	for _, sub := range rt.authSubscribers {
+		if sub.accept(prompt) {
+			subs = append(subs, sub.ch)
+		}
 	}
 	rt.mu.Unlock()
 
@@ -343,10 +332,17 @@ func (w *Wallet) NotifyStateChanged() {
 }
 
 // AuthorizationPrompt uses Owner to identify the browser handling issuance. Empty means
-// the initiating client supplied no browser ID.
+// the initiating client supplied no browser ID. Flow names the issuance the
+// prompt belongs to.
 type AuthorizationPrompt struct {
 	URL   string
 	Owner string
+	Flow  string
+}
+
+type authSubscriber struct {
+	ch     chan AuthorizationPrompt
+	accept func(AuthorizationPrompt) bool
 }
 
 // Prune unread errors because callers select the map keys.

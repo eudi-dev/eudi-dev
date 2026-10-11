@@ -51,7 +51,7 @@ func newIssuerChain(t *testing.T) issuerChain {
 	if err != nil {
 		t.Fatal(err)
 	}
-	leaf, err := mock.GenerateLeafCert(caKey, ca, &issuerKey.PublicKey)
+	leaf, err := mock.GenerateLeafCertWithOptions(caKey, ca, &issuerKey.PublicKey, mock.LeafCertOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

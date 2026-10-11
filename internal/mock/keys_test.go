@@ -100,54 +100,6 @@ func TestPublicKeyJWK_RoundTripParse(t *testing.T) {
 	}
 }
 
-func TestPrivateKeyJWK_ValidJSON(t *testing.T) {
-	key, err := GenerateKey()
-	if err != nil {
-		t.Fatalf("GenerateKey: %v", err)
-	}
-
-	jwkStr := PrivateKeyJWK(key)
-
-	var jwk map[string]string
-	if err := json.Unmarshal([]byte(jwkStr), &jwk); err != nil {
-		t.Fatalf("PrivateKeyJWK returned invalid JSON: %v", err)
-	}
-
-	if jwk["kty"] != "EC" {
-		t.Errorf("expected kty EC, got %s", jwk["kty"])
-	}
-	if jwk["crv"] != "P-256" {
-		t.Errorf("expected crv P-256, got %s", jwk["crv"])
-	}
-	if jwk["x"] == "" {
-		t.Error("missing x coordinate")
-	}
-	if jwk["y"] == "" {
-		t.Error("missing y coordinate")
-	}
-	if jwk["d"] == "" {
-		t.Error("private JWK should contain d parameter")
-	}
-}
-
-func TestPrivateKeyJWK_RoundTripParse(t *testing.T) {
-	key, err := GenerateKey()
-	if err != nil {
-		t.Fatalf("GenerateKey: %v", err)
-	}
-
-	jwkStr := PrivateKeyJWK(key)
-
-	parsed, err := keys.ParsePrivateKey([]byte(jwkStr))
-	if err != nil {
-		t.Fatalf("ParsePrivateKey from JWK: %v", err)
-	}
-
-	if parsed == nil {
-		t.Fatal("parsed key is nil")
-	}
-}
-
 func mustCertPair(t *testing.T, opts LeafCertOptions) (*x509.Certificate, *x509.Certificate) {
 	t.Helper()
 	caKey, err := GenerateKey()

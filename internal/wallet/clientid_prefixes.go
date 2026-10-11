@@ -44,9 +44,7 @@ type clientIDPrefix struct {
 
 var clientIDPrefixes = map[string]clientIDPrefix{
 	"x509_san_dns": {
-		verify: func(clientID string, reqObj *oid4vc.RequestObjectJWT, responseURI, requestOrigin string) string {
-			return verifyX509SAN(clientID, "x509_san_dns:", "dns", reqObj, responseURI, requestOrigin)
-		},
+		verify: verifyX509SANDNS,
 		signed: true, x5c: true, advertised: true,
 	},
 	"x509_hash": {

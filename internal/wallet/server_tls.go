@@ -56,11 +56,8 @@ func (s *Server) renewIssuerTLSCertificateIfNeeded(now time.Time) {
 	if err != nil || now.Add(signingCertificateRenewBefore).Before(leaf.NotAfter) {
 		return
 	}
-	var caCert *x509.Certificate
-	if len(s.wallet.CertChain) > 1 {
-		caCert = s.wallet.CertChain[len(s.wallet.CertChain)-1]
-	}
-	renewed, err := generateIssuerTLSCertificate(parseIssuerHost(s.wallet.IssuerURL), s.wallet.CAKey, caCert)
+	caKey, chain := s.wallet.certificateAuthority()
+	renewed, err := generateIssuerTLSCertificate(parseIssuerHost(s.wallet.IssuerURL), caKey, caCertificate(chain))
 	if err != nil {
 		s.log("  ERROR: re-issuing the HTTPS certificate: %v", err)
 		return
@@ -84,11 +81,8 @@ func (s *Server) startIssuerTLSServer() error {
 	}
 
 	if s.currentIssuerTLSCertificate() == nil {
-		var caCert *x509.Certificate
-		if len(s.wallet.CertChain) > 1 {
-			caCert = s.wallet.CertChain[len(s.wallet.CertChain)-1]
-		}
-		cert, err := generateIssuerTLSCertificate(parseIssuerHost(s.wallet.IssuerURL), s.wallet.CAKey, caCert)
+		caKey, chain := s.wallet.certificateAuthority()
+		cert, err := generateIssuerTLSCertificate(parseIssuerHost(s.wallet.IssuerURL), caKey, caCertificate(chain))
 		if err != nil {
 			return fmt.Errorf("generating issuer TLS certificate: %w", err)
 		}

@@ -15,12 +15,16 @@
 package format
 
 import (
+	"crypto/x509"
+	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -152,7 +156,7 @@ func TestHTTPClientForURLHostDockerInternalFallback(t *testing.T) {
 	// host.docker.internal does not resolve on most hosts. The client must
 	// fall back to localhost, which serves the same endpoint.
 	url := "http://host.docker.internal:" + port + "/"
-	client := HTTPClientForURL(url)
+	client := HTTPClient()
 	resp, err := client.Get(url)
 	if err != nil {
 		t.Fatalf("expected localhost fallback to succeed: %v", err)
@@ -223,6 +227,46 @@ func TestFetchURLDoesNotRetryAnHTTPError(t *testing.T) {
 	}
 	if n := calls.Load(); n != 1 {
 		t.Errorf("server was called %d times, want 1", n)
+	}
+}
+
+type failingTransport struct {
+	calls atomic.Int32
+	err   error
+}
+
+func (f *failingTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	f.calls.Add(1)
+	return nil, f.err
+}
+
+// A failed name lookup, a refused certificate or a blocked address fails the
+// same way on every try, so the fetch reports it at once.
+func TestFetchURLRetriesOnlyUnansweredRequests(t *testing.T) {
+	previous := fetchRetryDelay
+	fetchRetryDelay = time.Millisecond
+	t.Cleanup(func() { fetchRetryDelay = previous })
+
+	for _, tc := range []struct {
+		name  string
+		err   error
+		calls int32
+	}{
+		{"unknown host", &net.DNSError{Err: "no such host", Name: "nowhere.invalid", IsNotFound: true}, 1},
+		{"certificate", x509.UnknownAuthorityError{}, 1},
+		{"blocked address", errors.New("dial blocked: 10.0.0.1 is a private address"), 1},
+		{"timeout", &net.DNSError{Err: "i/o timeout", IsTimeout: true}, fetchAttempts},
+		{"connection reset", syscall.ECONNRESET, fetchAttempts},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			transport := &failingTransport{err: tc.err}
+			if _, err := FetchURL("https://issuer.example/x", &http.Client{Transport: transport}); err == nil {
+				t.Fatal("expected an error")
+			}
+			if n := transport.calls.Load(); n != tc.calls {
+				t.Errorf("tried %d times, want %d", n, tc.calls)
+			}
+		})
 	}
 }
 

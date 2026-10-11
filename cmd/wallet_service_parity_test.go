@@ -140,9 +140,18 @@ func TestConfigDocumentsMatchAcrossBackends(t *testing.T) {
 	for _, k := range keysOf(remoteCfg) {
 		inRemote[k] = true
 	}
+	inLocal := make(map[string]bool, len(localCfg))
 	for _, k := range keysOf(localCfg) {
+		inLocal[k] = true
 		if !inRemote[k] {
 			t.Errorf("config document: the local backend reports %q and a remote wallet does not", k)
+		}
+	}
+	// Only a running server knows these.
+	serverOnly := map[string]bool{"port": true, "build_id": true, "version": true, "imprint": true, "protected_relying_parties": true, "news_id": true, "tls_listener": true, "pid": true}
+	for k := range inRemote {
+		if !inLocal[k] && !serverOnly[k] {
+			t.Errorf("config document: a remote wallet reports %q and the local backend does not", k)
 		}
 	}
 }

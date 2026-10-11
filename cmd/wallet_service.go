@@ -89,7 +89,13 @@ func managedWalletWithLoader(load func() (*wallet.Wallet, *wallet.WalletStore, e
 	}
 	if c != nil {
 		if walletCmd.PersistentFlags().Changed("mode") {
-			return nil, checkRemoteConformanceFlags([]string{"--mode"})
+			mode, err := wallet.ParseValidationMode(walletValidationMode)
+			if err != nil {
+				return nil, err
+			}
+			if err := checkRemoteSettings(c, []string{"--mode"}, walletConformance{settings: wallet.ConformanceSettings{ValidationMode: mode}}); err != nil {
+				return nil, err
+			}
 		}
 		return &remoteWallet{c: c}, nil
 	}
@@ -306,92 +312,66 @@ type localWallet struct {
 func (l *localWallet) URL() string { return "" }
 
 // management loads the wallet and runs the operations that the HTTP API runs.
-func (l *localWallet) management() (*wallet.Management, *wallet.Wallet, *wallet.WalletStore, error) {
+func (l *localWallet) management() (*wallet.Management, error) {
 	w, store, err := l.load()
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
-	return wallet.NewManagement(w, func() error {
-		if err := store.Save(w); err != nil {
-			return fmt.Errorf("saving wallet: %w", err)
-		}
-		return nil
-	}), w, store, nil
+	return wallet.NewManagement(w, store), nil
+}
+
+// with runs read on the loaded wallet's management.
+func with[T any](l *localWallet, read func(*wallet.Management) (T, error)) (T, error) {
+	m, err := l.management()
+	if err != nil {
+		var zero T
+		return zero, err
+	}
+	return read(m)
 }
 
 func (l *localWallet) Credentials() ([]map[string]any, error) {
-	m, _, _, err := l.management()
-	if err != nil {
-		return nil, err
-	}
-	listing, _ := m.CredentialListing(0, 0)
-	return listing, nil
+	return with(l, func(m *wallet.Management) ([]map[string]any, error) {
+		listing, _ := m.CredentialListing(0, 0)
+		return listing, nil
+	})
 }
 
 func (l *localWallet) RefreshCredential(id string) (map[string]any, error) {
-	w, store, err := l.load()
-	if err != nil {
-		return nil, err
-	}
-	renewed, err := w.RefreshCredential(id)
-	if err != nil {
-		return nil, err
-	}
-	if err := store.Save(w); err != nil {
-		return nil, fmt.Errorf("saving the renewed credential: %w", err)
-	}
-	return wallet.CredentialSummary(*renewed), nil
+	return with(l, func(m *wallet.Management) (map[string]any, error) {
+		renewed, err := m.RefreshCredential(id)
+		if err != nil {
+			return nil, err
+		}
+		return wallet.CredentialSummary(*renewed), nil
+	})
 }
 
-// DeferredIssuances reads the pending records straight out of the store. A
-// local wallet has no poller, so these only move when a wallet server runs.
+// DeferredIssuances reads the pending records out of the store. A local
+// wallet has no poller, so these only move when a wallet server runs.
 func (l *localWallet) DeferredIssuances() ([]map[string]any, error) {
-	w, _, err := l.load()
-	if err != nil {
-		return nil, err
-	}
-	pending := w.DeferredIssuanceList()
-	out := make([]map[string]any, 0, len(pending))
-	for _, p := range pending {
-		out = append(out, wallet.DeferredIssuanceSummary(p))
-	}
-	return out, nil
+	return with(l, func(m *wallet.Management) ([]map[string]any, error) { return m.DeferredIssuances(), nil })
 }
 
 func (l *localWallet) Credential(id string) (map[string]any, error) {
-	m, _, _, err := l.management()
-	if err != nil {
-		return nil, err
-	}
-	return m.Credential(id)
+	return with(l, func(m *wallet.Management) (map[string]any, error) { return m.Credential(id) })
 }
 
 func (l *localWallet) ImportCredential(raw string) (map[string]any, error) {
-	m, _, _, err := l.management()
-	if err != nil {
-		return nil, err
-	}
-	return m.ImportCredential(raw)
+	return with(l, func(m *wallet.Management) (map[string]any, error) { return m.ImportCredential(raw) })
 }
 
 func (l *localWallet) RemoveCredential(id string) error {
-	m, _, _, err := l.management()
-	if err != nil {
-		return err
-	}
-	return m.RemoveCredential(id)
+	_, err := with(l, func(m *wallet.Management) (struct{}, error) { return struct{}{}, m.RemoveCredential(id) })
+	return err
 }
 
 func (l *localWallet) RemoveAllCredentials() (wallet.RemovedCredentials, error) {
-	m, _, _, err := l.management()
-	if err != nil {
-		return wallet.RemovedCredentials{}, err
-	}
-	return m.RemoveAllCredentials()
+	return with(l, func(m *wallet.Management) (wallet.RemovedCredentials, error) { return m.RemoveAllCredentials() })
 }
 
 func (l *localWallet) Issue(req map[string]any) (map[string]any, error) {
-	m, w, store, err := l.management()
+	w, store, err := l.load()
 	if err != nil {
 		return nil, err
 	}
@@ -403,7 +383,7 @@ func (l *localWallet) Issue(req map[string]any) (map[string]any, error) {
 	if err := json.Unmarshal(data, &apiReq); err != nil {
 		return nil, fmt.Errorf("building issue request: %w", err)
 	}
-	summary, err := m.Issue(apiReq)
+	summary, err := wallet.NewManagement(w, store).Issue(apiReq)
 	if err != nil {
 		return nil, err
 	}
@@ -412,230 +392,111 @@ func (l *localWallet) Issue(req map[string]any) (map[string]any, error) {
 }
 
 func (l *localWallet) Logs() ([]wallet.LogEntry, error) {
-	w, _, err := l.load()
-	if err != nil {
-		return nil, err
-	}
-	return w.GetLog(), nil
+	return with(l, func(m *wallet.Management) ([]wallet.LogEntry, error) { return m.Log(), nil })
 }
 
 func (l *localWallet) ClearLogs() error {
-	_, store, err := l.load()
-	if err != nil {
-		return err
-	}
-	return store.ClearLog()
+	_, err := with(l, func(m *wallet.Management) (struct{}, error) { return struct{}{}, m.ClearLog() })
+	return err
 }
 
 func (l *localWallet) Templates() ([]credtemplate.Template, error) {
-	loc, err := resolveTemplates()
-	if err != nil {
-		return nil, err
-	}
-	return credtemplate.List(loc)
+	return with(l, func(m *wallet.Management) ([]credtemplate.Template, error) { return m.Templates() })
 }
 
 func (l *localWallet) Template(name string) (*credtemplate.Template, error) {
-	loc, err := resolveTemplates()
-	if err != nil {
-		return nil, err
-	}
-	return credtemplate.Load(name, loc)
+	return with(l, func(m *wallet.Management) (*credtemplate.Template, error) { return m.Template(name) })
 }
 
 func (l *localWallet) SaveTemplate(tpl credtemplate.Template) (string, error) {
-	loc, err := resolveTemplates()
-	if err != nil {
-		return "", err
-	}
-	return credtemplate.Save(loc, tpl)
+	return with(l, func(m *wallet.Management) (string, error) { return m.SaveTemplate(tpl, nil) })
 }
 
 func (l *localWallet) DeleteTemplate(name string) error {
-	loc, err := resolveTemplates()
-	if err != nil {
-		return err
-	}
-	return credtemplate.Delete(loc, name)
+	_, err := with(l, func(m *wallet.Management) (struct{}, error) { return struct{}{}, m.DeleteTemplate(name) })
+	return err
 }
 
 func (l *localWallet) RegisterRelyingParty(rp registrar.WalletRelyingParty) (registrar.WalletRelyingParty, error) {
-	w, store, err := l.load()
-	if err != nil {
-		return registrar.WalletRelyingParty{}, err
-	}
-	stored, err := w.Registrar().RegisterRelyingParty(rp)
-	if err != nil {
-		return registrar.WalletRelyingParty{}, err
-	}
-	if err := store.Save(w); err != nil {
-		return registrar.WalletRelyingParty{}, fmt.Errorf("saving wallet: %w", err)
-	}
-	return stored, nil
-}
-
-func (l *localWallet) DeleteRelyingParty(identifier string) error {
-	w, store, err := l.load()
-	if err != nil {
-		return err
-	}
-	if err := w.Registrar().DeleteRelyingParty(identifier); err != nil {
-		return err
-	}
-	if err := store.Save(w); err != nil {
-		return fmt.Errorf("saving wallet: %w", err)
-	}
-	return nil
-}
-
-func (l *localWallet) CatalogAttestations() ([]registrar.CatalogAttestation, error) {
-	w, _, err := l.load()
-	if err != nil {
-		return nil, err
-	}
-	return w.Registrar().CatalogAttestations(), nil
-}
-
-func (l *localWallet) AddCatalogAttestation(entry registrar.CatalogAttestation) (registrar.CatalogAttestation, error) {
-	w, store, err := l.load()
-	if err != nil {
-		return registrar.CatalogAttestation{}, err
-	}
-	stored, err := w.Registrar().AddCatalogAttestation(entry)
-	if err != nil {
-		return registrar.CatalogAttestation{}, err
-	}
-	if err := store.Save(w); err != nil {
-		return registrar.CatalogAttestation{}, fmt.Errorf("saving wallet: %w", err)
-	}
-	return stored, nil
-}
-
-func (l *localWallet) DeleteCatalogAttestation(id string) error {
-	w, store, err := l.load()
-	if err != nil {
-		return err
-	}
-	if err := w.Registrar().DeleteCatalogAttestation(id); err != nil {
-		return err
-	}
-	if err := store.Save(w); err != nil {
-		return fmt.Errorf("saving wallet: %w", err)
-	}
-	return nil
-}
-
-func (l *localWallet) TrustState() (wallet.TrustedListState, error) {
-	w, _, err := l.load()
-	if err != nil {
-		return wallet.TrustedListState{}, err
-	}
-	return w.TrustState(), nil
-}
-
-func (l *localWallet) AddTrustedEntity(list, name, certificatesPEM string) (wallet.TrustedEntity, error) {
-	var entity wallet.TrustedEntity
-	err := l.change(func(w *wallet.Wallet) (err error) {
-		entity, err = w.AddTrustedEntity(list, name, certificatesPEM)
-		return err
-	})
-	return entity, err
-}
-
-func (l *localWallet) RemoveTrustedEntity(id string) error {
-	return l.change(func(w *wallet.Wallet) error { return w.RemoveTrustedEntity(id) })
-}
-
-func (l *localWallet) AddTrustedList(url string) (wallet.TrustedListLink, error) {
-	var link wallet.TrustedListLink
-	err := l.change(func(w *wallet.Wallet) error {
-		var err error
-		link, err = w.AddTrustedList(url)
-		return err
-	})
-	return link, err
-}
-
-func (l *localWallet) RemoveTrustedList(url string) error {
-	return l.change(func(w *wallet.Wallet) error { return w.RemoveTrustedList(url) })
-}
-
-// change applies a change to the local wallet and saves it.
-func (l *localWallet) change(apply func(*wallet.Wallet) error) error {
-	w, store, err := l.load()
-	if err != nil {
-		return err
-	}
-	if err := apply(w); err != nil {
-		return err
-	}
-	if err := store.Save(w); err != nil {
-		return fmt.Errorf("saving wallet: %w", err)
-	}
-	return nil
+	return with(l, func(m *wallet.Management) (registrar.WalletRelyingParty, error) { return m.RegisterRelyingParty(rp) })
 }
 
 func (l *localWallet) Enrol(e registrar.Enrolment, update bool) (*registrar.EnrolmentResult, error) {
-	var result *registrar.EnrolmentResult
-	err := l.change(func(w *wallet.Wallet) (err error) {
-		result, err = w.Registrar().Enrol(e, update)
-		return err
-	})
-	return result, err
+	return with(l, func(m *wallet.Management) (*registrar.EnrolmentResult, error) { return m.Enrol(e, update) })
 }
 
-func (l *localWallet) RegistrationCertificateViews(identifier string) ([]registrar.RegistrationStatusView, error) {
-	w, _, err := l.load()
-	if err != nil {
-		return nil, err
-	}
-	return w.Registrar().RegistrationCertificateViews(identifier), nil
+func (l *localWallet) DeleteRelyingParty(identifier string) error {
+	_, err := with(l, func(m *wallet.Management) (struct{}, error) { return struct{}{}, m.DeleteRelyingParty(identifier) })
+	return err
 }
 
 func (l *localWallet) RegistrarRecords() ([]registrar.WalletRelyingParty, error) {
-	w, _, err := l.load()
-	if err != nil {
-		return nil, err
-	}
-	return w.Registrar().RegisteredRelyingParties(), nil
+	return with(l, func(m *wallet.Management) ([]registrar.WalletRelyingParty, error) { return m.RegistrarRecords(), nil })
 }
 
-func (l *localWallet) AccessCertificate(req registrar.AccessCertificateRequest) (*registrar.AccessCertificateResult, error) {
-	w, _, err := l.load()
-	if err != nil {
-		return nil, err
-	}
-	return w.Registrar().IssueAccessCertificate(req)
-}
-
-func (l *localWallet) RegistrationCertificate(req registrar.RegistrationCertificateRequest) (*registrar.RegistrationCertificateResult, error) {
-	w, store, err := l.load()
-	if err != nil {
-		return nil, err
-	}
-	result, err := w.Registrar().IssueRegistrationCertificate(req)
-	if err != nil {
-		return nil, err
-	}
-	if err := store.Save(w); err != nil {
-		return nil, fmt.Errorf("saving wallet: %w", err)
-	}
-	return result, nil
+func (l *localWallet) RegistrationCertificateViews(identifier string) ([]registrar.RegistrationStatusView, error) {
+	return with(l, func(m *wallet.Management) ([]registrar.RegistrationStatusView, error) {
+		return m.RegistrationCertificateViews(identifier), nil
+	})
 }
 
 func (l *localWallet) SetRegistrationCertificatesRevoked(identifier string, scope registrar.RegistrationScope, revoked bool) (int, error) {
-	w, store, err := l.load()
-	if err != nil {
-		return 0, err
-	}
-	changed, err := w.Registrar().SetRegistrationCertificatesRevoked(identifier, scope, revoked)
-	if err != nil {
-		return 0, err
-	}
-	if err := store.Save(w); err != nil {
-		return 0, fmt.Errorf("saving wallet: %w", err)
-	}
-	return changed, nil
+	return with(l, func(m *wallet.Management) (int, error) {
+		return m.SetRegistrationCertificatesRevoked(identifier, scope, revoked)
+	})
+}
+
+func (l *localWallet) CatalogAttestations() ([]registrar.CatalogAttestation, error) {
+	return with(l, func(m *wallet.Management) ([]registrar.CatalogAttestation, error) {
+		return m.CatalogAttestations(), nil
+	})
+}
+
+func (l *localWallet) AddCatalogAttestation(entry registrar.CatalogAttestation) (registrar.CatalogAttestation, error) {
+	return with(l, func(m *wallet.Management) (registrar.CatalogAttestation, error) {
+		return m.AddCatalogAttestation(entry)
+	})
+}
+
+func (l *localWallet) DeleteCatalogAttestation(id string) error {
+	_, err := with(l, func(m *wallet.Management) (struct{}, error) { return struct{}{}, m.DeleteCatalogAttestation(id) })
+	return err
+}
+
+func (l *localWallet) AccessCertificate(req registrar.AccessCertificateRequest) (*registrar.AccessCertificateResult, error) {
+	return with(l, func(m *wallet.Management) (*registrar.AccessCertificateResult, error) {
+		return m.AccessCertificate(req)
+	})
+}
+
+func (l *localWallet) RegistrationCertificate(req registrar.RegistrationCertificateRequest) (*registrar.RegistrationCertificateResult, error) {
+	return with(l, func(m *wallet.Management) (*registrar.RegistrationCertificateResult, error) {
+		return m.RegistrationCertificate(req)
+	})
+}
+
+func (l *localWallet) TrustState() (wallet.TrustedListState, error) {
+	return with(l, func(m *wallet.Management) (wallet.TrustedListState, error) { return m.TrustState(), nil })
+}
+
+func (l *localWallet) AddTrustedEntity(list, name, certificatesPEM string) (wallet.TrustedEntity, error) {
+	return with(l, func(m *wallet.Management) (wallet.TrustedEntity, error) {
+		return m.AddTrustedEntity(list, name, certificatesPEM)
+	})
+}
+
+func (l *localWallet) RemoveTrustedEntity(id string) error {
+	_, err := with(l, func(m *wallet.Management) (struct{}, error) { return struct{}{}, m.RemoveTrustedEntity(id) })
+	return err
+}
+
+func (l *localWallet) AddTrustedList(url string) (wallet.TrustedListLink, error) {
+	return with(l, func(m *wallet.Management) (wallet.TrustedListLink, error) { return m.AddTrustedList(url) })
+}
+
+func (l *localWallet) RemoveTrustedList(url string) error {
+	_, err := with(l, func(m *wallet.Management) (struct{}, error) { return struct{}{}, m.RemoveTrustedList(url) })
+	return err
 }
 
 func (l *localWallet) Certificate(kind, certFormat string, opts walletCertOptions) ([]byte, error) {
@@ -652,11 +513,11 @@ func (l *localWallet) Certificate(kind, certFormat string, opts walletCertOption
 			return nil, fmt.Errorf("loading wallet CA certificate: %w", err)
 		}
 	case "tls":
-		issuerURL, err := deriveWalletIssuerURL(opts.port, opts.baseURL, opts.docker)
+		origin, err := walletOrigin(opts.port, opts.baseURL, opts.docker)
 		if err != nil {
 			return nil, err
 		}
-		certPEM, err = store.LoadOrCreateIssuerTLSLeafCertificatePEMForURL(issuerURL)
+		certPEM, err = store.LoadOrCreateIssuerTLSLeafCertificatePEMForURL(origin.Issuer)
 		if err != nil {
 			return nil, fmt.Errorf("loading wallet TLS certificate: %w", err)
 		}
@@ -670,31 +531,9 @@ func (l *localWallet) Certificate(kind, certFormat string, opts walletCertOption
 }
 
 func (l *localWallet) Config() (map[string]any, error) {
-	w, store, err := l.load()
-	if err != nil {
-		return nil, err
-	}
-	// Use the same configuration fields as GET /api/config so local and remote wallet
-	// info agree.
-	return map[string]any{
-		"remote_url":                "",
-		"wallet_dir":                store.Dir,
-		"storage":                   store.Backend().Kind(),
-		"seeded_keys":               store.Seeded(),
-		"templates_dir":             w.Templates.String(),
-		"base_url":                  w.BaseURL,
-		"issuer_url":                w.IssuerURL,
-		"status_list_url":           w.StatusListURL(),
-		"preferred_format":          w.PreferredFormat,
-		"key_attestation_level":     w.KeyAttestationLevelSetting(),
-		"validation_mode":           string(w.ValidationMode),
-		"vci_version":               string(w.VCIFeatureVersion()),
-		"auto_accept":               w.AutoAccept,
-		"session_transcript":        string(w.SessionTranscript),
-		"require_haip":              w.RequireHAIP,
-		"require_haip_issuance":     w.RequireHAIP,
-		"require_arf":               w.RequireARF,
-		"require_encrypted_request": w.RequireEncryptedRequest,
-		"credential_count":          len(w.GetCredentials()),
-	}, nil
+	return with(l, func(m *wallet.Management) (map[string]any, error) {
+		cfg := m.Config()
+		cfg["remote_url"] = ""
+		return cfg, nil
+	})
 }

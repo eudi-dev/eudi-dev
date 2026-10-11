@@ -207,7 +207,7 @@ func fetchStatusListToken(uri, accept string, clients ...*http.Client) ([]byte, 
 	}
 	req.Header.Set("Accept", accept)
 
-	resp, err := format.HTTPClientForURL(uri, clients...).Do(req)
+	resp, err := format.HTTPClient(clients...).Do(req)
 	if err != nil {
 		return nil, "", fmt.Errorf("fetching status list: %w", err)
 	}

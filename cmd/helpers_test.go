@@ -259,18 +259,6 @@ func TestWalletPortFromBaseURL(t *testing.T) {
 	}
 }
 
-// A running wallet applies its own conformance settings to every step of a
-// flow, so it refuses these flags. The error says how to change its settings.
-func TestARunningWalletRefusesConformanceFlags(t *testing.T) {
-	if err := checkRemoteConformanceFlags(nil); err != nil {
-		t.Fatal(err)
-	}
-	err := checkRemoteConformanceFlags([]string{"--mode", "--haip"})
-	if err == nil || !strings.Contains(err.Error(), "--mode, --haip") || !strings.Contains(err.Error(), "PUT /api/config/conformance") {
-		t.Fatalf("got %v", err)
-	}
-}
-
 func TestResolvePresentationPortUsesFreePairWhenDefaultBusy(t *testing.T) {
 	busy, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

@@ -198,8 +198,19 @@ func TestWalletGeneratePID_PreservesPersistedServingConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if w.BaseURL != "http://localhost:7085" || w.IssuerURL != "https://localhost:7086" {
-		t.Fatalf("explicit base url not applied: base %q issuer %q", w.BaseURL, w.IssuerURL)
+	// The URLs of the run go into the credentials. The stored URLs belong to
+	// wallet serve (ADR-0019).
+	if w.BaseURL != "http://localhost:9085" || w.IssuerURL != "https://localhost:9086" {
+		t.Fatalf("a one-shot run stored its URLs: base %q issuer %q", w.BaseURL, w.IssuerURL)
+	}
+	issuers := map[any]bool{}
+	for _, c := range w.GetCredentials() {
+		if token, err := sdjwt.Parse(c.Raw); err == nil {
+			issuers[token.Payload["iss"]] = true
+		}
+	}
+	if !issuers["https://localhost:7086"] {
+		t.Fatalf("no credential carries the explicit issuer URL: %v", issuers)
 	}
 }
 

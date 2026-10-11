@@ -163,7 +163,7 @@ func foreignWalletProvider(t *testing.T) walletProvider {
 	if err != nil {
 		t.Fatalf("generating attester signing key: %v", err)
 	}
-	leaf, err := mock.GenerateLeafCert(caKey, caCert, &signingKey.PublicKey)
+	leaf, err := mock.GenerateLeafCertWithOptions(caKey, caCert, &signingKey.PublicKey, mock.LeafCertOptions{})
 	if err != nil {
 		t.Fatalf("generating attester leaf certificate: %v", err)
 	}
@@ -209,7 +209,7 @@ func dpopProof(t *testing.T, key *ecdsa.PrivateKey, method, htu string) string {
 // with an access token.
 func dpopProofForToken(t *testing.T, key *ecdsa.PrivateKey, method, htu, accessToken string) string {
 	t.Helper()
-	payload := map[string]any{"htm": method, "htu": htu, "iat": time.Now().Unix(), "jti": "dpop-" + htu}
+	payload := map[string]any{"htm": method, "htu": htu, "iat": time.Now().Unix(), "jti": randToken()}
 	if accessToken != "" {
 		sum := sha256.Sum256([]byte(accessToken))
 		payload["ath"] = format.EncodeBase64URL(sum[:])
@@ -952,5 +952,56 @@ func TestTwoClientsRedeemTheSameIssuerState(t *testing.T) {
 		if status, tokenDoc := doJSON(t, h, "POST", "/token", token.Encode(), clientAuth); status != http.StatusOK {
 			t.Fatalf("%s: token request: %d %v", clientID, status, tokenDoc)
 		}
+	}
+}
+
+// RFC 7515 §4.1.9: typ values are case insensitive and "application/" is
+// implied when the value has no '/'.
+func TestTypedJWTsAcceptEquivalentTypValues(t *testing.T) {
+	for name, spell := range map[string]func(string) string{
+		"upper case":          strings.ToUpper,
+		"application/ prefix": func(typ string) string { return "application/" + typ },
+	} {
+		t.Run(name, func(t *testing.T) {
+			d, _, _ := newDemoRP(t)
+			if _, err := d.verifyProofJWT(proofJWTWith(t, d, proofOptions{nonce: issuedNonce(t, d), typ: spell("openid4vci-proof+jwt")})); err != nil {
+				t.Errorf("key proof: %s", err.description)
+			}
+
+			clientKey, err := mock.GenerateKey()
+			if err != nil {
+				t.Fatal(err)
+			}
+			provider := foreignWalletProvider(t)
+			attestation := signES256(t, provider.key,
+				map[string]any{"alg": "ES256", "typ": spell("oauth-client-attestation+jwt"), "x5c": []any{base64.StdEncoding.EncodeToString(provider.leaf.Raw)}},
+				map[string]any{"sub": "wallet", "iat": time.Now().Unix(), "exp": time.Now().Add(5 * time.Minute).Unix(), "cnf": map[string]any{"jwk": holderJWK(t, clientKey)}},
+			)
+			pop := signES256(t, clientKey,
+				map[string]any{"alg": "ES256", "typ": spell("oauth-client-attestation-pop+jwt")},
+				map[string]any{"aud": demoIssuerID, "iat": time.Now().Unix(), "jti": "pop-typ"},
+			)
+			dpop := signES256(t, clientKey,
+				map[string]any{"alg": "ES256", "typ": spell("dpop+jwt"), "jwk": holderJWK(t, clientKey)},
+				map[string]any{"htm": "POST", "htu": demoIssuerID + "/par", "iat": time.Now().Unix(), "jti": "dpop-typ"},
+			)
+			form := url.Values{
+				"client_id":             {"wallet"},
+				"response_type":         {"code"},
+				"code_challenge_method": {"S256"},
+				"code_challenge":        {"abc"},
+				"redirect_uri":          {"http://wallet.example/cb"},
+			}
+			req := httptest.NewRequest(http.MethodPost, "/par", strings.NewReader(form.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			req.Header.Set("DPoP", dpop)
+			req.Header.Set("OAuth-Client-Attestation", attestation)
+			req.Header.Set("OAuth-Client-Attestation-PoP", pop)
+			rec := httptest.NewRecorder()
+			d.IssuerHandler().ServeHTTP(rec, req)
+			if rec.Code != http.StatusCreated {
+				t.Errorf("PAR with DPoP and client attestation: status = %d (%s)", rec.Code, rec.Body.String())
+			}
+		})
 	}
 }

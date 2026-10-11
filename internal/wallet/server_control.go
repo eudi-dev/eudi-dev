@@ -161,17 +161,11 @@ func (s *Server) handleLog(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, log)
 }
 
-// The entity backend's clear marker also removes entries appended by other servers.
 func (s *Server) handleClearLog(w http.ResponseWriter, r *http.Request) {
-	if store := s.store.Load(); store != nil && store.entityMode() {
-		if err := store.writeLogCleanMarker(time.Now()); err != nil {
-			s.log("  ERROR: clearing the stored log: %v", err)
-		}
+	if err := s.management().ClearLog(); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
 	}
-	s.saveMutation(func() bool {
-		s.wallet.ClearLog()
-		return true
-	})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -203,55 +197,23 @@ func (s *Server) handleClearLastError(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
-	walletDir, storageKind, seeded := "", "", false
-	if store := s.currentStore(); store != nil {
-		walletDir = store.Dir
-		storageKind = store.Backend().Kind()
-		seeded = store.Seeded()
-	}
-	templatesDir := s.wallet.Templates.String()
-	conformance := s.wallet.Conformance()
-	mode, requireHAIP, requireEncrypted := conformance.ValidationMode, conformance.RequireHAIP, conformance.RequireEncryptedRequest
-	config := map[string]any{
-		"port":                      s.port,
-		"build_id":                  processBuildID(),
-		"storage":                   storageKind,
-		"seeded_keys":               seeded,
-		"version":                   s.version,
-		"imprint":                   len(s.imprintHTML) > 0,
-		"protected_relying_parties": s.protectedRelyingParties(),
-		"news_id":                   s.newsID(),
-		"base_url":                  s.wallet.BaseURL,
-		"issuer_url":                s.wallet.IssuerURL,
-		"status_list_url":           s.wallet.StatusListURL(),
-		"preferred_format":          s.wallet.PreferredFormat,
-		"key_attestation_level":     s.wallet.KeyAttestationLevelSetting(),
-		"tls_verify":                s.wallet.TLSVerification(),
-		"tls_verify_override":       s.wallet.TLSVerificationOverride(),
-		"validation_mode":           string(mode),
-		"vci_version":               string(s.wallet.VCIFeatureVersion()),
-		"auto_accept":               s.wallet.AutoAccept,
-		"session_transcript":        string(s.wallet.SessionTranscript),
-		"require_haip":              requireHAIP,
-		"require_arf":               s.wallet.ARFChecks(),
-		// Report issuance and presentation settings separately even though they use
-		// the same flag.
-		"require_haip_issuance":     requireHAIP,
-		"require_encrypted_request": requireEncrypted,
-		"force_client_attestation":  s.wallet.ForceClientAttestation,
-		"adhoc_display_images":      s.wallet.AdhocDisplayImages,
-		"credential_count":          len(s.wallet.GetCredentials()),
-		// False when an external TLS terminator serves the issuer URL. In that case
-		// the built-in listener and its certificate are unused.
-		"tls_listener": s.issuerPort > 0,
-	}
+	config := s.management().Config()
+	config["port"] = s.port
+	config["build_id"] = processBuildID()
+	config["version"] = s.version
+	config["imprint"] = len(s.imprintHTML) > 0
+	config["protected_relying_parties"] = s.protectedRelyingParties()
+	config["news_id"] = s.newsID()
+	// False when an external TLS terminator serves the issuer URL. In that case
+	// the built-in listener and its certificate are unused.
+	config["tls_listener"] = s.issuerPort > 0
 	if demo := s.demoConfig(); demo != nil {
 		config["demo"] = demo
+		// Demo visitors do not need the host's filesystem paths.
+		delete(config, "wallet_dir")
+		delete(config, "templates_dir")
 	} else {
-		// Demo visitors do not need the host's filesystem paths or process ID.
 		config["pid"] = os.Getpid()
-		config["wallet_dir"] = walletDir
-		config["templates_dir"] = templatesDir
 	}
 	writeJSON(w, http.StatusOK, config)
 }
@@ -400,23 +362,5 @@ func (s *Server) handleResetConformance(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) writeConformanceConfig(w http.ResponseWriter) {
-	// The lock is already held. Calling a locking accessor here would deadlock because
-	// RWMutex is not reentrant.
-	s.wallet.mu.RLock()
-	vciVersion := s.wallet.VCIVersion
-	if vciVersion == "" {
-		vciVersion = VCIVersion10
-	}
-	resp := map[string]any{
-		"tls_verify":                s.wallet.tlsVerificationLocked(),
-		"tls_verify_override":       s.wallet.tlsVerify,
-		"validation_mode":           string(s.wallet.ValidationMode),
-		"require_haip":              s.wallet.RequireHAIP,
-		"require_arf":               s.wallet.RequireARF,
-		"require_encrypted_request": s.wallet.RequireEncryptedRequest,
-		"vci_version":               string(vciVersion),
-		"key_attestation_level":     s.wallet.KeyAttestationLevel,
-	}
-	s.wallet.mu.RUnlock()
-	writeJSON(w, http.StatusOK, resp)
+	writeJSON(w, http.StatusOK, s.wallet.conformanceDocument())
 }

@@ -1,0 +1,279 @@
+// Copyright 2026 Dominik Schlosser
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package cmd
+
+import (
+	"encoding/base64"
+	"fmt"
+	"slices"
+	"strings"
+
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/remote"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
+)
+
+const (
+	haipFlagUsage                = "Enforce HAIP 1.0 on presentations (x509_hash, direct_post.jwt, DCQL, JAR, ES256) and on credential offers (https issuer, and authorization code offers also need PAR, PKCE S256, DPoP, client auth)"
+	arfFlagUsage                 = "Check the access and registration certificates of verifiers and issuers against the ARF, including over-asking and revocation. With --mode strict the wallet refuses the request or the offer on any finding"
+	relyingPartyCAFlagUsage      = "PEM file with CA certificates for relying party access and registration certificates. The wallet puts them on its access-ca and registrar lists (repeatable)"
+	trustListCAFlagUsage         = "PEM file with CA certificates of trusted list operators. With --arf the wallet also accepts trusted lists signed under these CAs (repeatable)"
+	trustedListFlagUsage         = "URL of an external list of trusted entities (ETSI TS 119 602) for the wallet's list of trusted lists. With --arf its providers anchor the checks of their list type (repeatable)"
+	keyAttestationLevelFlagUsage = "What the key attestation claims as key_storage and user_authentication (OpenID4VCI Appendix D.2): whatever the issuer requires (default), 'none', or one of iso_18045_high, iso_18045_moderate, iso_18045_enhanced-basic, iso_18045_basic for both. The wallet holds its keys in files and can prove none of them"
+)
+
+// conformanceFlags are the flags that set what a wallet checks. The wallet
+// --mode belongs to them too.
+type conformanceFlags struct {
+	cmd *cobra.Command
+	// mode replaces the wallet --mode when set, such as by the demo profile.
+	mode                string
+	haip                bool
+	arf                 bool
+	encrypted           bool
+	clientAttestation   bool
+	vciVersion          string
+	keyAttestationLevel string
+	relyingPartyCAs     []string
+	trustListCAs        []string
+	trustedLists        []string
+}
+
+// addConformanceFlags registers the conformance flags of wallet serve,
+// accept and scan.
+func addConformanceFlags(cmd *cobra.Command) *conformanceFlags {
+	f := &conformanceFlags{cmd: cmd}
+	flags := cmd.Flags()
+	flags.BoolVar(&f.haip, "haip", false, haipFlagUsage)
+	flags.BoolVar(&f.arf, "arf", false, arfFlagUsage)
+	flags.StringArrayVar(&f.relyingPartyCAs, "relying-party-ca", nil, relyingPartyCAFlagUsage)
+	flags.StringArrayVar(&f.trustListCAs, "trusted-list-ca", nil, trustListCAFlagUsage)
+	flags.StringArrayVar(&f.trustedLists, "trusted-list", nil, trustedListFlagUsage)
+	flags.StringVar(&f.keyAttestationLevel, "key-attestation-level", "", keyAttestationLevelFlagUsage)
+	flags.BoolVar(&f.encrypted, "require-encrypted-request", false, "Reject a Verifier's Request Object that is not encrypted (the wallet always sends an encryption key in wallet_metadata, so this only requires the Verifier to use it)")
+	flags.BoolVar(&f.clientAttestation, "client-attestation", false, "Send the wallet attestation on OID4VCI token requests even when the issuer does not advertise attest_jwt_client_auth (advertising it is only a SHOULD)")
+	flags.StringVar(&f.vciVersion, "vci-version", string(wallet.VCIVersion10), "OpenID4VCI feature level the wallet uses as a client: '1.0' (the published version, the default) or '1.1' (also uses what the 1.1 draft adds, where an issuer offers it)")
+	return f
+}
+
+// changed names the conformance flags set on the command line.
+func (f *conformanceFlags) changed() []string {
+	var set []string
+	if walletCmd.PersistentFlags().Changed("mode") {
+		set = append(set, "--mode")
+	}
+	f.cmd.Flags().Visit(func(flag *pflag.Flag) {
+		if slices.Contains(conformanceFlagNames, flag.Name) {
+			set = append(set, "--"+flag.Name)
+		}
+	})
+	return set
+}
+
+var conformanceFlagNames = []string{"haip", "arf", "relying-party-ca", "trusted-list-ca", "trusted-list", "key-attestation-level", "require-encrypted-request", "client-attestation", "vci-version"}
+
+// walletConformance is what the conformance flags set: the settings every
+// flow applies, and the trust inputs of the ARF checks.
+type walletConformance struct {
+	settings          wallet.ConformanceSettings
+	relyingPartyCAPEM []byte
+	trustListCAPEM    []byte
+	trustedLists      []string
+}
+
+func (f *conformanceFlags) resolve() (walletConformance, error) {
+	rawMode := walletValidationMode
+	if f.mode != "" {
+		rawMode = f.mode
+	}
+	mode, err := wallet.ParseValidationMode(rawMode)
+	if err != nil {
+		return walletConformance{}, err
+	}
+	vciVersion, err := wallet.ParseVCIVersion(f.vciVersion)
+	if err != nil {
+		return walletConformance{}, fmt.Errorf("--vci-version: %w", err)
+	}
+	level, err := wallet.ParseKeyAttestationLevel(f.keyAttestationLevel)
+	if err != nil {
+		return walletConformance{}, fmt.Errorf("--key-attestation-level: %w", err)
+	}
+	for _, list := range f.trustedLists {
+		if !format.IsWebURL(list) {
+			return walletConformance{}, fmt.Errorf("--trusted-list %q is not an http or https URL", list)
+		}
+	}
+	c := walletConformance{
+		settings: wallet.ConformanceSettings{
+			ValidationMode:          mode,
+			RequireHAIP:             f.haip,
+			RequireARF:              f.arf,
+			RequireEncryptedRequest: f.encrypted,
+			VCIVersion:              vciVersion,
+			KeyAttestationLevel:     level,
+			ForceClientAttestation:  f.clientAttestation,
+		},
+		trustedLists: f.trustedLists,
+	}
+	if c.relyingPartyCAPEM, err = loadPEMCertificates("relying-party-ca", f.relyingPartyCAs); err != nil {
+		return walletConformance{}, err
+	}
+	if c.trustListCAPEM, err = loadPEMCertificates("trusted-list-ca", f.trustListCAs); err != nil {
+		return walletConformance{}, err
+	}
+	return c, nil
+}
+
+func (c walletConformance) apply(w *wallet.Wallet) {
+	w.SetConformance(c.settings)
+	w.RelyingPartyCAPEM = c.relyingPartyCAPEM
+	w.TrustListCAPEM = c.trustListCAPEM
+	w.ConfiguredTrustedListURLs = c.trustedLists
+}
+
+// checkRemoteSettings refuses the flags that would change a running wallet.
+// A flag with the wallet's own value changes nothing.
+func checkRemoteSettings(c *remote.Client, set []string, want walletConformance) error {
+	outbound := changedOutboundFlags()
+	if len(set) == 0 && len(outbound) == 0 {
+		return nil
+	}
+	cfg, err := c.ServerConfig()
+	if err != nil {
+		return fmt.Errorf("reading the running wallet's settings: %w", err)
+	}
+	var trust wallet.TrustedListState
+	if slices.ContainsFunc(set, func(flag string) bool {
+		return flag == "--relying-party-ca" || flag == "--trusted-list-ca" || flag == "--trusted-list"
+	}) {
+		if err := c.TrustState(&trust); err != nil {
+			return fmt.Errorf("reading the running wallet's trusted lists: %w", err)
+		}
+	}
+	var differ []string
+	for _, flag := range append(set, outbound...) {
+		if difference := settingDifference(flag, want, cfg, trust); difference != "" {
+			differ = append(differ, difference)
+		}
+	}
+	if len(differ) == 0 {
+		return nil
+	}
+	return fmt.Errorf("%s. A running wallet applies its settings to every step of a flow, so a command can't change them. Change them on 'wallet serve' or through PUT /api/config/conformance, and add CAs and lists with '%s wallet trust'",
+		strings.Join(differ, ", "), binaryName())
+}
+
+// settingDifference describes how the running wallet differs from flag. It
+// is empty when the wallet already has the flag's value.
+func settingDifference(flag string, want walletConformance, cfg map[string]any, trust wallet.TrustedListState) string {
+	s := want.settings
+	onOff := func(key string, wanted bool) string {
+		if have, ok := cfg[key].(bool); ok && have == wanted {
+			return ""
+		}
+		if _, ok := cfg[key]; !ok {
+			return "the running wallet does not report " + flag
+		}
+		if cfg[key] == true {
+			return flag + " is set on the running wallet"
+		}
+		return flag + " is off on the running wallet"
+	}
+	value := func(key, wanted string) string {
+		have, _ := cfg[key].(string)
+		if have == wanted {
+			return ""
+		}
+		if have == "" {
+			have = "unset"
+		}
+		return fmt.Sprintf("%s is %s on the running wallet", flag, have)
+	}
+	switch flag {
+	case "--mode":
+		return value("validation_mode", string(s.ValidationMode))
+	case "--haip":
+		return onOff("require_haip", s.RequireHAIP)
+	case "--arf":
+		return onOff("require_arf", s.RequireARF)
+	case "--require-encrypted-request":
+		return onOff("require_encrypted_request", s.RequireEncryptedRequest)
+	case "--client-attestation":
+		return onOff("force_client_attestation", s.ForceClientAttestation)
+	case "--vci-version":
+		return value("vci_version", string(s.VCIVersion))
+	case "--key-attestation-level":
+		return value("key_attestation_level", s.KeyAttestationLevel)
+	case "--tls-verify":
+		return onOff("tls_verify", walletTLSVerify)
+	case "--relying-party-ca":
+		trusted := slices.Clone(trust.RelyingPartyCAs)
+		for _, entity := range trust.Entities {
+			trusted = append(trusted, entity.Certificates...)
+		}
+		if missing := certificatesMissing(want.relyingPartyCAPEM, trusted); missing > 0 {
+			return fmt.Sprintf("%s names %d CA certificates the running wallet does not trust", flag, missing)
+		}
+	case "--trusted-list-ca":
+		if missing := certificatesMissing(want.trustListCAPEM, trust.TrustedListCAs); missing > 0 {
+			return fmt.Sprintf("%s names %d CA certificates the running wallet does not trust", flag, missing)
+		}
+	case "--trusted-list":
+		for _, url := range want.trustedLists {
+			if !slices.ContainsFunc(trust.Lists, func(l wallet.TrustedListLink) bool { return l.URL == url }) {
+				return fmt.Sprintf("%s %s is not on the running wallet's list of trusted lists", flag, url)
+			}
+		}
+	case "--tls-ca":
+		// The running wallet does not report its CA bundle or its proxy, so
+		// the CLI can't tell whether these match.
+		return flag + " can't change the TLS settings of the running wallet"
+	default:
+		return flag + " can't change the proxy settings of the running wallet"
+	}
+	return ""
+}
+
+// certificatesMissing counts the certificates of bundle that trusted, a list
+// of base64 DER certificates, lacks.
+func certificatesMissing(bundle []byte, trusted []string) int {
+	certs, err := keys.ParseCertificatesPEM(bundle)
+	if err != nil {
+		return 0
+	}
+	missing := 0
+	for _, cert := range certs {
+		if !slices.Contains(trusted, base64.StdEncoding.EncodeToString(cert.Raw)) {
+			missing++
+		}
+	}
+	return missing
+}
+
+// changedOutboundFlags names the wallet's outbound HTTP flags set on the
+// command line.
+func changedOutboundFlags() []string {
+	var set []string
+	for _, name := range []string{"tls-verify", "tls-ca", "http-proxy", "https-proxy", "no-proxy"} {
+		if walletCmd.PersistentFlags().Changed(name) {
+			set = append(set, "--"+name)
+		}
+	}
+	return set
+}

@@ -28,6 +28,7 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/httpsec"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
 )
@@ -693,7 +694,7 @@ func (d *DemoRP) verifyProofJWT(raw string) (*ecdsa.PublicKey, *proofError) {
 	if err != nil {
 		return nil, invalidProof("parsing proof JWT: %v", err)
 	}
-	if typ, _ := proof.header["typ"].(string); typ != "openid4vci-proof+jwt" {
+	if typ, _ := proof.header["typ"].(string); !format.JOSETypeIs(typ, "openid4vci-proof+jwt") {
 		return nil, invalidProof("proof JWT typ is %q, want openid4vci-proof+jwt", typ)
 	}
 	if alg, _ := proof.header["alg"].(string); alg != "ES256" {

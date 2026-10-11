@@ -196,7 +196,7 @@ func (w *Wallet) IssueCredential(opts IssueOptions) (result *IssueResult, err er
 		return nil, fmt.Errorf("adding to the catalogue needs a template name")
 	}
 
-	statusURI, statusIdx, registerStatus, err := w.resolveIssueStatus(opts.StatusListURI, opts.StatusListIdx)
+	statusURI, statusIdx, registerStatus, err := w.resolveIssueStatus(opts.StatusListURI, opts.StatusListIdx, opts.BatchSize >= 2)
 	if err != nil {
 		return nil, err
 	}
@@ -234,15 +234,6 @@ func (w *Wallet) IssueCredential(opts IssueOptions) (result *IssueResult, err er
 	display, err := w.issueDisplay(tpl, opts)
 	if err != nil {
 		return nil, err
-	}
-
-	// A shared status index would link two presentations of a batch. So every
-	// copy, the first included, takes its index from the counter. With no URI
-	// and no index the first copy already has one from the counter.
-	if opts.BatchSize >= 2 && registerStatus && (opts.StatusListIdx != nil || opts.StatusListURI != nil) {
-		if statusIdx, err = w.NextStatusIndex(); err != nil {
-			return nil, err
-		}
 	}
 
 	var issued []string
@@ -458,6 +449,10 @@ func (w *Wallet) discardCredentials(ids []string) {
 // The entry is added first, because the catalogue can refuse it and a stored
 // template is hard to take back when it replaced another one.
 func (w *Wallet) SaveTemplate(tpl credtemplate.Template, entry *registrar.CatalogAttestation) (string, error) {
+	if err := w.checkTemplateSave(tpl); err != nil {
+		return "", err
+	}
+	tpl.Visitor = w.visitorRules().VisitorTemplates
 	var added registrar.CatalogAttestation
 	if entry != nil {
 		var err error
@@ -511,35 +506,34 @@ func (w *Wallet) resolveIssueTemplate(opts IssueOptions) (tpl *credtemplate.Temp
 // explicit URI wins. It registers on the wallet's list only when it is that
 // list. An index alone needs the wallet's list. With neither, the wallet's
 // list is used when configured.
-func (w *Wallet) resolveIssueStatus(uri *string, idx *int) (string, int, bool, error) {
+func (w *Wallet) resolveIssueStatus(uri *string, idx *int, batch bool) (string, int, bool, error) {
+	own := strings.TrimSpace(w.StatusListURL())
+	statusURI := own
 	switch {
 	case uri != nil:
-		statusURI := strings.TrimSpace(*uri)
+		statusURI = strings.TrimSpace(*uri)
 		if statusURI == "" {
 			return "", 0, false, nil
 		}
-		statusIdx := 0
-		if idx != nil {
-			statusIdx = *idx
+		if statusURI != own {
+			statusIdx := 0
+			if idx != nil {
+				statusIdx = *idx
+			}
+			return statusURI, statusIdx, false, nil
 		}
-		return statusURI, statusIdx, statusURI == w.StatusListURL(), nil
 	case idx != nil:
-		statusURI := strings.TrimSpace(w.StatusListURL())
-		if statusURI == "" {
+		if own == "" {
 			return "", 0, false, fmt.Errorf("wallet status list is not configured")
 		}
-		return statusURI, *idx, true, nil
-	default:
-		statusURI := strings.TrimSpace(w.StatusListURL())
-		if statusURI == "" {
-			return "", 0, false, nil
-		}
-		idx, err := w.NextStatusIndex()
-		if err != nil {
-			return "", 0, false, err
-		}
-		return statusURI, idx, true, nil
+	case own == "":
+		return "", 0, false, nil
 	}
+	statusIdx, err := w.ownStatusIndex(idx, batch)
+	if err != nil {
+		return "", 0, false, err
+	}
+	return statusURI, statusIdx, true, nil
 }
 
 func splitClaimsByNamespace(claims map[string]any, defaultNamespace string) map[string]map[string]any {

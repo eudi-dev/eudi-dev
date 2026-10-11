@@ -108,7 +108,7 @@ func TestSubmitDirectPost_Success(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	result, err := SubmitDirectPost(ts.URL, "state123", map[string][]string{"pid": {"token1"}}, "")
+	result, err := SubmitDirectPostObject(ts.URL, buildPlainAuthorizationResponse(map[string][]string{"pid": {"token1"}}, "", "state123"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -136,7 +136,7 @@ func TestSubmitDirectPost_WithIDToken(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	result, err := SubmitDirectPost(ts.URL, "s1", map[string][]string{"pid": {"tok"}}, "eyJ.test.token")
+	result, err := SubmitDirectPostObject(ts.URL, buildPlainAuthorizationResponse(map[string][]string{"pid": {"tok"}}, "eyJ.test.token", "s1"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -153,7 +153,7 @@ func TestSubmitDirectPost_LocationHeader(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	result, err := SubmitDirectPost(ts.URL, "state1", map[string][]string{"pid": {"tok"}}, "")
+	result, err := SubmitDirectPostObject(ts.URL, buildPlainAuthorizationResponse(map[string][]string{"pid": {"tok"}}, "", "state1"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -177,7 +177,7 @@ func TestSubmitDirectPost_NoVPToken(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	result, err := SubmitDirectPost(ts.URL, "onlystate", nil, "")
+	result, err := SubmitDirectPostObject(ts.URL, buildPlainAuthorizationResponse(nil, "", "onlystate"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -208,7 +208,7 @@ func TestSubmitDirectPostError_Success(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	result, err := SubmitDirectPostError(ts.URL, "state123", "access_denied", "testing")
+	result, err := SubmitDirectPostObject(ts.URL, buildPlainAuthorizationErrorResponse("access_denied", "testing", "state123"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -280,7 +280,7 @@ func TestSubmitDirectPost_RejectsRelativeRedirectURI(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	_, err := SubmitDirectPost(ts.URL, "state123", map[string][]string{"pid": {"token1"}}, "")
+	_, err := SubmitDirectPostObject(ts.URL, buildPlainAuthorizationResponse(map[string][]string{"pid": {"token1"}}, "", "state123"))
 	if err == nil {
 		t.Fatal("expected error for relative redirect_uri")
 	}
@@ -304,7 +304,7 @@ func TestSubmitDirectPost_RejectsScriptRedirectURI(t *testing.T) {
 			}))
 			defer ts.Close()
 
-			_, err := SubmitDirectPost(ts.URL, "state123", map[string][]string{"pid": {"token1"}}, "")
+			_, err := SubmitDirectPostObject(ts.URL, buildPlainAuthorizationResponse(map[string][]string{"pid": {"token1"}}, "", "state123"))
 			if err == nil {
 				t.Fatalf("a %q redirect_uri was accepted", redirect)
 			}
@@ -322,7 +322,7 @@ func TestSubmitDirectPost_RejectsScriptLocationHeader(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	if _, err := SubmitDirectPost(ts.URL, "state123", map[string][]string{"pid": {"token1"}}, ""); err == nil {
+	if _, err := SubmitDirectPostObject(ts.URL, buildPlainAuthorizationResponse(map[string][]string{"pid": {"token1"}}, "", "state123")); err == nil {
 		t.Fatal("a javascript: Location header was accepted")
 	}
 }
@@ -413,7 +413,7 @@ func TestSubmitDirectPost_ReportsUndefinedResponseMembers(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	result, err := SubmitDirectPost(ts.URL, "state123", map[string][]string{"pid": {"token1"}}, "")
+	result, err := SubmitDirectPostObject(ts.URL, buildPlainAuthorizationResponse(map[string][]string{"pid": {"token1"}}, "", "state123"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

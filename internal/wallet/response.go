@@ -51,7 +51,7 @@ func SubmitDirectPostObject(responseURI string, payload map[string]any, clients 
 	if err != nil {
 		return nil, err
 	}
-	resp, err := format.HTTPClientForURL(responseURI, clients...).PostForm(responseURI, form)
+	resp, err := format.HTTPClient(clients...).PostForm(responseURI, form)
 	if err != nil {
 		return nil, fmt.Errorf("posting to response_uri: %w", err)
 	}
@@ -71,14 +71,6 @@ func SubmitDirectPostObject(responseURI string, payload map[string]any, clients 
 	}
 
 	return result, nil
-}
-
-func SubmitDirectPost(responseURI, state string, vpToken any, idToken string) (*DirectPostResult, error) {
-	return SubmitDirectPostObject(responseURI, buildPlainAuthorizationResponse(vpToken, idToken, state))
-}
-
-func SubmitDirectPostError(responseURI, state, errorCode, errorDescription string) (*DirectPostResult, error) {
-	return SubmitDirectPostObject(responseURI, buildPlainAuthorizationErrorResponse(errorCode, errorDescription, state))
 }
 
 type DirectPostResult struct {
@@ -114,7 +106,7 @@ func SubmitDirectPostJWT(responseURI string, responseJWT string, cek []byte, cli
 		log.Printf("[VP] JWE content encryption key for proxy debugging: %s", cekB64)
 	}
 
-	resp, err := format.HTTPClientForURL(responseURI, clients...).Do(req) //nolint:gosec // G704: the response_uri of OID4VP 1.0 §8.2
+	resp, err := format.HTTPClient(clients...).Do(req) //nolint:gosec // G704: the response_uri of OID4VP 1.0 §8.2
 	if err != nil {
 		return nil, fmt.Errorf("posting to response_uri: %w", err)
 	}

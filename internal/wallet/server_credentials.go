@@ -15,8 +15,6 @@
 package wallet
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,6 +22,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/httpsec"
 )
 
 // An asset: reference loads an image from storage. Newly issued credentials can still
@@ -62,17 +62,7 @@ func (s *Server) handleCredentialDisplayImage(w http.ResponseWriter, r *http.Req
 		http.NotFound(w, r)
 		return
 	}
-	sum := sha256.Sum256(data)
-	etag := `"` + hex.EncodeToString(sum[:16]) + `"`
-	w.Header().Set("ETag", etag)
-	w.Header().Set("Cache-Control", "no-cache")
-	if r.Header.Get("If-None-Match") == etag {
-		w.WriteHeader(http.StatusNotModified)
-		return
-	}
-	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
-	_, _ = w.Write(data)
+	httpsec.ServeImage(w, r, contentType, data)
 }
 
 // Returns an array. X-Total-Count gives the total before applying limit and offset.

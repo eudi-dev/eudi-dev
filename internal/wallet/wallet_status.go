@@ -15,6 +15,9 @@
 package wallet
 
 import (
+	"fmt"
+	"slices"
+
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/statuslist"
 )
@@ -133,6 +136,48 @@ func (w *Wallet) NextStatusIndex() (int, error) {
 	idx := w.StatusListCounter
 	w.StatusListCounter++
 	return idx, nil
+}
+
+// ownStatusIndex picks the index of a new credential on the wallet's own
+// status list. The wallet assigns the indices. A request can only take an
+// assigned index that no other credential holds, because a status change
+// applies to every credential on the index. Batch copies each take a fresh
+// index, because a shared index would link their presentations.
+func (w *Wallet) ownStatusIndex(requested *int, batch bool) (int, error) {
+	if requested == nil || batch {
+		return w.NextStatusIndex()
+	}
+	if err := w.statusIndexFree(*requested, ""); err != nil {
+		return 0, err
+	}
+	return *requested, nil
+}
+
+// statusIndexFree reports why credID cannot hold idx on the wallet's own
+// status list. Copies of one batch may share an index. The list covers only
+// the indices the wallet assigned.
+func (w *Wallet) statusIndexFree(idx int, credID string) error {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	if idx < 0 || idx >= w.StatusListCounter {
+		return fmt.Errorf("status index %d is not one the wallet assigned. Leave the index out and the wallet assigns one", idx)
+	}
+	group := ""
+	for _, c := range w.Credentials {
+		if c.ID == credID {
+			group = c.BatchGroup
+		}
+	}
+	for id, entry := range w.StatusEntries {
+		if entry.Index != idx || id == credID {
+			continue
+		}
+		if group != "" && slices.ContainsFunc(w.Credentials, func(c StoredCredential) bool { return c.ID == id && c.BatchGroup == group }) {
+			continue
+		}
+		return fmt.Errorf("status index %d belongs to another credential", idx)
+	}
+	return nil
 }
 
 // Reject negative indices because imported credentials supply them.

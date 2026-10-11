@@ -89,16 +89,11 @@ func (w *Wallet) RefreshCredential(id string) (*StoredCredential, error) {
 }
 
 func (s *Server) RefreshCredential(id string) (*StoredCredential, error) {
-	renewed, err := s.wallet.RefreshCredential(id)
+	renewed, err := s.management().RefreshCredential(id)
 	if err != nil {
-		// A failed renewal can still have rotated the refresh token.
-		if cred, ok := s.wallet.GetCredential(id); ok {
-			s.saveCredential(&cred, false)
-		}
 		return nil, err
 	}
 	s.log("  Renewed:       %s credential %s", renewed.Format, renewed.ID)
-	s.saveCredential(renewed, true)
 	return renewed, nil
 }
 

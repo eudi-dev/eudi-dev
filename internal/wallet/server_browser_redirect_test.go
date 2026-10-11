@@ -137,7 +137,7 @@ func TestAuthorize_InteractiveBrowserRedirectsToWalletUIThenSubmits(t *testing.T
 		t.Fatalf("unexpected Location: %q", got)
 	}
 
-	pending := srv.wallet.GetPendingRequests()
+	pending := pendingRequests(srv.wallet)
 	if len(pending) != 1 {
 		t.Fatalf("expected one pending consent request, got %d", len(pending))
 	}
@@ -177,7 +177,7 @@ func TestCredentialOfferEndpoint_InteractiveBrowserRedirectsToWalletUIThenImport
 		t.Fatalf("credential must not be imported before consent, before=%d after=%d", before, after)
 	}
 
-	pending := srv.wallet.GetPendingRequests()
+	pending := pendingRequests(srv.wallet)
 	if len(pending) != 1 {
 		t.Fatalf("expected one pending consent request, got %d", len(pending))
 	}

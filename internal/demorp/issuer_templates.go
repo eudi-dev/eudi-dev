@@ -16,8 +16,6 @@ package demorp
 
 import (
 	"crypto/ecdsa"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"log"
 	"net/http"
@@ -28,6 +26,7 @@ import (
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/httpsec"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
 )
@@ -195,20 +194,7 @@ func (d *DemoRP) handleTemplateImage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	sum := sha256.Sum256(data)
-	etag := `"` + hex.EncodeToString(sum[:16]) + `"`
-	w.Header().Set("ETag", etag)
-	w.Header().Set("Cache-Control", "no-cache")
-	if r.Header.Get("If-None-Match") == etag {
-		w.WriteHeader(http.StatusNotModified)
-		return
-	}
-	w.Header().Set("Content-Type", contentType)
-	// Anyone can upload a template image, and an SVG opened on its own could
-	// run scripts on the wallet's origin.
-	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox")
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	_, _ = w.Write(data)
+	httpsec.ServeImage(w, r, contentType, data)
 }
 
 // templateClaimPaths lists the top-level claims of the template. For an mdoc
@@ -260,28 +246,35 @@ func (d *DemoRP) signTemplate(cfg templateConfiguration, holderKey *ecdsa.Public
 	if err != nil {
 		return "", fmt.Errorf("building attestation spec for %s: %w", cfg.id, err)
 	}
-	changed, err := d.wallet.EnsureIssuedAttestation(spec)
+	statusURI := ""
+	if granted.withStatus {
+		if statusURI = d.statusListURI(); statusURI == "" {
+			return "", fmt.Errorf("this wallet has no status list URL")
+		}
+	}
+	// The wallet saves the attestation type and the status index before
+	// another request reloads its state.
+	statusIdx := 0
+	d.wallet.SaveChange(func() bool {
+		var changed bool
+		if changed, err = d.wallet.EnsureIssuedAttestation(spec); err != nil {
+			err = fmt.Errorf("registering the attestation type of %s: %w", cfg.id, err)
+			return false
+		}
+		if granted.withStatus {
+			if statusIdx, err = d.wallet.NextStatusIndex(); err != nil {
+				return false
+			}
+			changed = true
+		}
+		return changed
+	})
 	if err != nil {
-		return "", fmt.Errorf("registering the attestation type of %s: %w", cfg.id, err)
+		return "", err
 	}
 	signingKey, chain, err := d.wallet.SigningMaterialForIssuedCredential(spec, claims)
 	if err != nil {
 		return "", fmt.Errorf("building signing certificate chain for %s: %w", cfg.id, err)
-	}
-	statusURI, statusIdx := "", 0
-	if granted.withStatus {
-		statusURI = d.statusListURI()
-		if statusURI == "" {
-			return "", fmt.Errorf("this wallet has no status list URL")
-		}
-		statusIdx, err = d.wallet.NextStatusIndex()
-		if err != nil {
-			return "", err
-		}
-		changed = true
-	}
-	if changed {
-		d.saveWallet()
 	}
 	switch cfg.format {
 	case "dc+sd-jwt":

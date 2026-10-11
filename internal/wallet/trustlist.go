@@ -72,7 +72,7 @@ type TrustListIndexEntry struct {
 }
 
 func GenerateTrustListJWTForWallet(w *Wallet, issuer string) (string, error) {
-	if w == nil || w.CAKey == nil || len(w.CertChain) < 2 {
+	if !w.hasCertificateAuthority() {
 		return "", fmt.Errorf("wallet has no CA certificate chain")
 	}
 	group := DefaultTrustListGroupForWallet(w)
@@ -80,7 +80,7 @@ func GenerateTrustListJWTForWallet(w *Wallet, issuer string) (string, error) {
 }
 
 func GenerateTrustListJWTForWalletGroup(w *Wallet, issuer string, group TrustListGroup, path string) (string, error) {
-	if w == nil || w.CAKey == nil || len(w.CertChain) < 2 {
+	if !w.hasCertificateAuthority() {
 		return "", fmt.Errorf("wallet has no CA certificate chain")
 	}
 	if path == "" {

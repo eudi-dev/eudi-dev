@@ -43,12 +43,15 @@ eudi wallet accept 'openid-credential-offer://...' --tx-code 123456
 | `--session-transcript`  | `oid4vp` | mdoc session transcript mode: `oid4vp` or `iso`  |
 | `--tx-code`             | None     | Transaction code for OID4VCI pre-authorized code flow |
 | `--docker`              | `false`  | Serve the trust and status lists under `host.docker.internal` for verifiers in a container |
-| `--key-attestation-level` | Issuer requirements | Test claims for key storage and user authentication: issuer requirements (default), `none`, or a level such as `iso_18045_high`. A running wallet uses its own setting. See [key attestation claims](serve.md#key-attestation-claims) |
+| `--key-attestation-level` | Issuer requirements | Test claims for key storage and user authentication: issuer requirements (default), `none`, or a level such as `iso_18045_high`. See [key attestation claims](serve.md#key-attestation-claims) |
 | `--haip`                | `false`  | Check incoming presentations and credential offers against HAIP 1.0. `--mode` sets how violations are handled: strict refuses the flow, debug reports them and continues |
 | `--arf`                 | `false`  | Check the access and registration certificates of verifiers and issuers against the ARF (see [ARF checks](#arf-checks) and [issuers](issuing.md#arf-checks)). With `--mode strict` the wallet refuses the request or the offer on any finding |
 | `--relying-party-ca`    | None     | PEM file with CA certificates that issue relying party access and registration certificates. The wallet puts them on its `access-ca` and `registrar` lists (repeatable) |
 | `--trusted-list-ca`       | None     | PEM file with CA certificates of trusted list operators. With `--arf` the wallet also accepts trusted lists signed under these CAs (repeatable) |
 | `--trusted-list`        | None     | URL of an external list of trusted entities (ETSI TS 119 602) for the wallet's list of trusted lists (repeatable). See [trusted lists](serve.md#trusted-lists) |
+| `--require-encrypted-request` | `false` | Reject a request object that the verifier did not encrypt |
+| `--client-attestation`  | `false`  | Send the wallet attestation on OID4VCI token requests even when the issuer does not advertise `attest_jwt_client_auth` |
+| `--vci-version`         | `1.0`    | OpenID4VCI feature level as a client: `1.0` or `1.1` |
 
 Pre-authorized code offers work directly with `wallet accept`. Authorization code offers require a running `wallet serve` instance. The client ID defaults to the wallet origin and the redirect URI to its `/callback` endpoint. Override them with `--vci-client-id` and `--vci-redirect-uri`. The wallet uses PAR and DPoP when advertised by the issuer.
 
@@ -56,7 +59,7 @@ For sign-in, `wallet accept` prints the authorization URL. It opens the URL only
 
 Strict mode verifies HTTPS certificates. Debug mode skips verification by default. For local flows, `--tls-verify=true|false` overrides either default and `--tls-ca dev-ca.pem` adds trusted CA certificates. See [HTTPS certificate verification](serve.md#https-certificate-verification).
 
-When `accept` or `scan` forwards a flow to a running wallet, that wallet uses its own settings for every step of the flow. Passing `--mode`, `--haip`, `--arf`, `--key-attestation-level`, the CA flags, `--trusted-list`, TLS or proxy flags in this case returns an error. Set them on `wallet serve`, change them in its Conformance panel, or put CAs and lists on its trusted lists with [`wallet trust`](serve.md#trusted-lists).
+When `accept` or `scan` forwards a flow to a running wallet, that wallet uses its own settings for every step of the flow. A conformance flag with the running wallet's own value changes nothing. A CA or list the wallet already trusts changes nothing either. A flag that differs returns an error that names the wallet's value. The TLS CA and proxy flags always return an error, because the wallet doesn't report them. Set the settings on `wallet serve`, change them in its Conformance panel, or put CAs and lists on its trusted lists with [`wallet trust`](serve.md#trusted-lists).
 
 ## `wallet scan`
 

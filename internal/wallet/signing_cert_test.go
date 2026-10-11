@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"encoding/asn1"
+	"fmt"
 	"sync"
 	"testing"
 
@@ -149,4 +150,35 @@ func TestSigningCertificatesSurviveReload(t *testing.T) {
 		})
 	}
 	wg.Wait()
+}
+
+type readAllCounter struct {
+	storage.Store
+	readAll int
+}
+
+func (c *readAllCounter) ReadAll(prefix string) (map[string]storage.Blob, error) {
+	c.readAll++
+	return c.Store.ReadAll(prefix)
+}
+
+// The history of a trusted list only grows. Serving the current list and a
+// stored signing certificate reads one blob each, not the whole directory.
+func TestSigningStoreReadsOnlyTheCurrentBlob(t *testing.T) {
+	w := generateTestWallet(t)
+	backend := &readAllCounter{Store: storage.NewMemory()}
+	s := &signingStore{backend: backend}
+	ca := w.CertChain[len(w.CertChain)-1]
+	sign := func(sequence int) (string, error) { return fmt.Sprintf("list-%d", sequence), nil }
+	for range 3 {
+		if _, err := s.sequencedList("trustlists/x", ca, []byte("content"), sign); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.certificate(w.CAKey, ca, &w.IssuerKey.PublicKey, mock.LeafCertOptions{}, false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if backend.readAll != 0 {
+		t.Fatalf("the store read whole directories %d times", backend.readAll)
+	}
 }

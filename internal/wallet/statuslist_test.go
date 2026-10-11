@@ -454,6 +454,8 @@ func TestGenerateSDJWT_WithoutStatusList(t *testing.T) {
 func TestImportAdoptsOwnStatusListEntry(t *testing.T) {
 	w := generateTestWallet(t)
 	w.BaseURL = "http://localhost:8085"
+	// The wallet assigned index 7 when it issued the credential.
+	w.StatusListCounter = 8
 
 	for _, tc := range []struct {
 		name  string

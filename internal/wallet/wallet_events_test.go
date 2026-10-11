@@ -153,19 +153,6 @@ func TestWallet_CreateAndGetRequest(t *testing.T) {
 	}
 }
 
-func TestWallet_GetPendingRequests(t *testing.T) {
-	w := generateTestWallet(t)
-
-	w.CreateConsentRequest(&ConsentRequest{ID: "r1", Status: "pending"})
-	w.CreateConsentRequest(&ConsentRequest{ID: "r2", Status: "pending"})
-	w.CreateConsentRequest(&ConsentRequest{ID: "r3", Status: "approved"})
-
-	pending := w.GetPendingRequests()
-	if len(pending) != 2 {
-		t.Fatalf("expected 2 pending, got %d", len(pending))
-	}
-}
-
 func TestWallet_ResolveRequest(t *testing.T) {
 	w := generateTestWallet(t)
 
@@ -218,7 +205,8 @@ func TestWallet_Subscribe_Unsubscribe(t *testing.T) {
 	w.CreateConsentRequest(&ConsentRequest{ID: "after-unsub", Status: "pending"})
 
 	select {
-	case <-ch:
+	case got := <-ch:
+		t.Fatalf("received request %s after unsubscribing", got.ID)
 	default:
 	}
 }
@@ -232,7 +220,8 @@ func TestWallet_SubscribeErrors_Unsubscribe(t *testing.T) {
 	w.NotifyError(WalletError{Message: "after unsub"})
 
 	select {
-	case <-ch:
+	case got := <-ch:
+		t.Fatalf("received error %q after unsubscribing", got.Message)
 	default:
 	}
 }
@@ -335,4 +324,35 @@ func TestStateSubscription(t *testing.T) {
 	}
 	w.NotifyStateChanged()
 	w.NotifyStateChanged()
+}
+
+func pendingRequests(w *Wallet) []*ConsentRequest {
+	rt := w.runtimeState()
+	rt.mu.RLock()
+	defer rt.mu.RUnlock()
+	var out []*ConsentRequest
+	for _, r := range rt.requests {
+		if r.Status == "pending" {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// waitForPendingRequest waits until a flow running in another goroutine asks
+// for consent and returns that one request.
+func waitForPendingRequest(t *testing.T, w *Wallet) *ConsentRequest {
+	t.Helper()
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
+		switch pending := pendingRequests(w); len(pending) {
+		case 0:
+			continue
+		case 1:
+			return pending[0]
+		default:
+			t.Fatalf("%d pending consent requests, want one", len(pending))
+		}
+	}
+	t.Fatal("no pending consent request")
+	return nil
 }

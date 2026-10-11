@@ -98,7 +98,12 @@ func TestWalletTLSFlags(t *testing.T) {
 
 func TestRemoteWalletTLSFlagsAreNotIgnored(t *testing.T) {
 	var calls atomic.Int32
-	remoteServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls.Add(1); _, _ = io.WriteString(w, `{}`) }))
+	remoteServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/config" {
+			calls.Add(1)
+		}
+		_, _ = io.WriteString(w, `{}`)
+	}))
 	defer remoteServer.Close()
 	flag := walletCmd.PersistentFlags().Lookup("tls-verify")
 	originalVerify, originalChanged, originalRemote := walletTLSVerify, flag.Changed, remoteFlag
@@ -111,7 +116,7 @@ func TestRemoteWalletTLSFlagsAreNotIgnored(t *testing.T) {
 		t.Fatal(err)
 	}
 	err := acceptOID4URI("openid-credential-offer://?credential_offer_uri=https://issuer.example/offer", dispatchOID4Opts{})
-	if err == nil || !strings.Contains(err.Error(), "running wallet uses its own TLS settings") {
+	if err == nil || !strings.Contains(err.Error(), "the running wallet does not report --tls-verify") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if calls.Load() != 0 {

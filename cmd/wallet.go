@@ -34,6 +34,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/netaddr"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/output"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/remote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/storage"
@@ -53,7 +54,6 @@ var walletHTTPProxy string
 var walletHTTPSProxy string
 var walletNoProxy string
 
-// noOpen stops the CLI from opening a browser. It prints the URL instead.
 var noOpen bool
 
 var walletCmd = &cobra.Command{
@@ -102,7 +102,6 @@ func init() {
 	walletCmd.AddCommand(walletUseCmd())
 	walletCmd.AddCommand(walletKillCmd())
 
-	// Deprecated aliases (hidden from help)
 	walletCmd.AddCommand(walletInstancesCmd())
 	presentAlias := &cobra.Command{
 		Use:        "present <uri>",
@@ -196,15 +195,6 @@ func applyValidationMode(w *wallet.Wallet, raw string) error {
 	return nil
 }
 
-func applyVCIVersion(w *wallet.Wallet, raw string) error {
-	version, err := wallet.ParseVCIVersion(raw)
-	if err != nil {
-		return err
-	}
-	w.VCIVersion = version
-	return nil
-}
-
 // After direct issuance, embedded issuer and status list URLs work only once a server
 // runs for this wallet directory.
 func warnIssuedEndpointsOffline(store *wallet.WalletStore, w *wallet.Wallet) {
@@ -217,17 +207,35 @@ func warnIssuedEndpointsOffline(store *wallet.WalletStore, w *wallet.Wallet) {
 	fmt.Fprintf(os.Stderr, "Note: the embedded issuer and status list URLs point at %s. They resolve once `%s wallet serve` runs.\n", w.IssuerURL, binaryName())
 }
 
-func deriveWalletIssuerURL(port int, baseURL string, docker bool) (string, error) {
-	if baseURL != "" {
-		// An https base URL means a TLS terminator already serves the wallet
-		// on that origin. Issuer metadata, status list and trusted list are
-		// served there too.
-		if u, err := url.Parse(strings.TrimSpace(baseURL)); err == nil && strings.EqualFold(u.Scheme, "https") {
-			return strings.TrimRight(strings.TrimSpace(baseURL), "/"), nil
+// walletURLs are the public URLs of a wallet server.
+type walletURLs struct {
+	Base   string
+	Issuer string
+}
+
+// walletOrigin derives the URLs of a wallet server on port. baseURL is its
+// --base-url. Without one, docker picks the Docker host name over localhost.
+// The issuer URL is the HTTPS origin on the next port.
+func walletOrigin(port int, baseURL string, docker bool) (walletURLs, error) {
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if baseURL == "" {
+		host := "localhost"
+		if docker {
+			host = netaddr.DockerHost
 		}
-		return wallet.IssuerURLFromBaseURL(baseURL, port+1)
+		return walletURLs{Base: fmt.Sprintf("http://%s:%d", host, port), Issuer: wallet.LocalIssuerURL(port+1, docker)}, nil
 	}
-	return wallet.LocalIssuerURL(port+1, docker), nil
+	// An https base URL means a TLS terminator already serves the wallet on
+	// that origin. Issuer metadata, status list and trusted list are served
+	// there too.
+	if u, err := url.Parse(baseURL); err == nil && strings.EqualFold(u.Scheme, "https") {
+		return walletURLs{Base: baseURL, Issuer: baseURL}, nil
+	}
+	issuer, err := wallet.IssuerURLFromBaseURL(baseURL, port+1)
+	if err != nil {
+		return walletURLs{}, err
+	}
+	return walletURLs{Base: baseURL, Issuer: issuer}, nil
 }
 
 // An external TLS terminator can serve both the base and issuer URLs on one origin.
@@ -536,13 +544,11 @@ Use --url to print only the list URL of a running wallet server.`,
 			if urlOnly {
 				path := remote.TrustListPath(id, vct, docType)
 				var trustListURL string
-				switch {
-				case client != nil:
+				if client != nil {
 					trustListURL = client.BaseURL + path
-				case docker:
-					trustListURL = fmt.Sprintf("http://host.docker.internal:%d%s", port, path)
-				default:
-					trustListURL = fmt.Sprintf("http://localhost:%d%s", port, path)
+				} else {
+					origin, _ := walletOrigin(port, "", docker)
+					trustListURL = origin.Base + path
 				}
 				printResult(map[string]string{"url": trustListURL}, func() { fmt.Println(trustListURL) })
 				return nil
@@ -921,46 +927,6 @@ func applyWalletOutbound(w *wallet.Wallet) error {
 	}
 	if err := w.ConfigureOutbound(wallet.OutboundConfig{TLSVerify: verify, TLSCAPEM: caPEM, Proxy: proxy}); err != nil {
 		return fmt.Errorf("configuring outbound HTTP: %w", err)
-	}
-	return nil
-}
-
-// conformanceFlagNames are flags of accept and scan. A running wallet keeps
-// its own values for them.
-var conformanceFlagNames = []string{"haip", "arf", "relying-party-ca", "trusted-list-ca", "trusted-list", "key-attestation-level"}
-
-// changedConformanceFlags lists the conformance flags set on the command
-// line, including the persistent wallet --mode.
-func changedConformanceFlags(cmd *cobra.Command) []string {
-	var changed []string
-	if walletCmd.PersistentFlags().Changed("mode") {
-		changed = append(changed, "--mode")
-	}
-	for _, name := range conformanceFlagNames {
-		if cmd.Flags().Changed(name) {
-			changed = append(changed, "--"+name)
-		}
-	}
-	return changed
-}
-
-// checkRemoteConformanceFlags refuses conformance flags for a running or
-// remote wallet. It applies its own settings to every step of a flow, such as
-// a deferred credential it collects later.
-func checkRemoteConformanceFlags(flags []string) error {
-	if len(flags) == 0 {
-		return nil
-	}
-	return fmt.Errorf("a running wallet keeps its own settings, so %s can't change them. Change --mode, --haip, --arf and --key-attestation-level on 'wallet serve' or through PUT /api/config/conformance. Add CAs, list CAs and lists with 'eudi wallet trust'", strings.Join(flags, ", "))
-}
-
-func checkRemoteOutboundFlags() error {
-	flags := walletCmd.PersistentFlags()
-	if flags.Changed("tls-verify") || flags.Changed("tls-ca") {
-		return fmt.Errorf("a running wallet uses its own TLS settings; configure --tls-verify and --tls-ca on 'wallet serve', or set tls_verify through PUT /api/config/conformance")
-	}
-	if flags.Changed("http-proxy") || flags.Changed("https-proxy") || flags.Changed("no-proxy") {
-		return fmt.Errorf("a running wallet uses its own proxy settings; configure --http-proxy, --https-proxy and --no-proxy on 'wallet serve'")
 	}
 	return nil
 }

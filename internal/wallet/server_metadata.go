@@ -33,7 +33,7 @@ import (
 )
 
 func (s *Server) handleTrustList(w http.ResponseWriter, r *http.Request) {
-	if len(s.wallet.CertChain) < 2 {
+	if _, chain := s.wallet.certificateAuthority(); len(chain) < 2 {
 		http.Error(w, "wallet has no CA certificate chain", http.StatusInternalServerError)
 		return
 	}
@@ -62,7 +62,7 @@ func (s *Server) handleTrustListIndex(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleTrustListByID(w http.ResponseWriter, r *http.Request) {
-	if len(s.wallet.CertChain) < 2 {
+	if _, chain := s.wallet.certificateAuthority(); len(chain) < 2 {
 		http.Error(w, "wallet has no CA certificate chain", http.StatusInternalServerError)
 		return
 	}
@@ -177,7 +177,7 @@ func (s *Server) handleOpenIDCredentialIssuerMetadata(w http.ResponseWriter, r *
 		writeJSON(w, http.StatusOK, metadata)
 		return
 	}
-	if len(s.wallet.CertChain) == 0 {
+	if _, chain := s.wallet.certificateAuthority(); len(chain) == 0 {
 		http.Error(w, "wallet has no issuer certificate chain", http.StatusInternalServerError)
 		return
 	}
@@ -270,10 +270,7 @@ func (s *Server) handleStatusList(w http.ResponseWriter, r *http.Request) {
 // wallet does not revoke certificates, so it signs an empty list. Credential
 // revocation uses the status list.
 func (s *Server) handleCRL(w http.ResponseWriter, r *http.Request) {
-	s.wallet.mu.RLock()
-	caKey := s.wallet.CAKey
-	chain := append([]*x509.Certificate(nil), s.wallet.CertChain...)
-	s.wallet.mu.RUnlock()
+	caKey, chain := s.wallet.certificateAuthority()
 	if caKey == nil || len(chain) == 0 {
 		http.Error(w, "wallet has no CA certificate", http.StatusInternalServerError)
 		return

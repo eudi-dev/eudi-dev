@@ -536,7 +536,7 @@ func TestValidateHAIPFindings(t *testing.T) {
 		return token
 	}
 
-	leaf, err := mock.GenerateLeafCert(caKey, caCert, &issuerKey.PublicKey)
+	leaf, err := mock.GenerateLeafCertWithOptions(caKey, caCert, &issuerKey.PublicKey, mock.LeafCertOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -599,7 +599,7 @@ func TestValidateHAIPFindingsInJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	leaf, err := mock.GenerateLeafCert(caKey, caCert, &issuerKey.PublicKey)
+	leaf, err := mock.GenerateLeafCertWithOptions(caKey, caCert, &issuerKey.PublicKey, mock.LeafCertOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

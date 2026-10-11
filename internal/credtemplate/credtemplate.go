@@ -73,6 +73,9 @@ type Template struct {
 	Display *TemplateDisplay `json:"display,omitempty"`
 	// Predefined marks the built-in templates. Template files can't set it.
 	Predefined bool `json:"predefined,omitempty"`
+	// Visitor marks a template that a visitor of a public demo saved. The
+	// operator's templates are the others.
+	Visitor bool `json:"visitor,omitempty"`
 }
 
 type TemplateDisplay struct {
@@ -490,6 +493,9 @@ func Save(loc Location, t Template) (string, error) {
 	return loc.Store.Locate(key), nil
 }
 
+// ErrNotFound reports a template name with no saved or predefined template.
+var ErrNotFound = errors.New("not found")
+
 // Delete removes a user template from loc (the default directory for the
 // zero Location). Pre-defined templates cannot be deleted.
 func Delete(loc Location, name string) error {
@@ -512,7 +518,7 @@ func Delete(loc Location, name string) error {
 			return fmt.Errorf("template %q is pre-defined and cannot be deleted", name)
 		}
 	}
-	return fmt.Errorf("template %q not found in %s", name, loc)
+	return fmt.Errorf("template %q %w in %s", name, ErrNotFound, loc)
 }
 
 func hasTemplateExtension(name string) bool {

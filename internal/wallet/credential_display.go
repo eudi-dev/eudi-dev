@@ -16,6 +16,7 @@ package wallet
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
 	"image"
@@ -28,6 +29,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
 	"golang.org/x/image/draw"
 
@@ -336,6 +338,33 @@ func (w *Wallet) templateDisplay(td *credtemplate.TemplateDisplay) *CredentialDi
 	return d
 }
 
+// bundledImageDigests identifies the images bundled with the wallet. The demo
+// issuer serves the art of its templates from them.
+var bundledImageDigests = sync.OnceValue(func() map[[sha256.Size]byte]bool {
+	digests := map[[sha256.Size]byte]bool{}
+	entries, _ := staticFiles.ReadDir("static")
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasPrefix(embeddedImageMIME(entry.Name()), "image/") {
+			continue
+		}
+		if data, err := staticFiles.ReadFile("static/" + entry.Name()); err == nil {
+			digests[sha256.Sum256(data)] = true
+		}
+	}
+	return digests
+})
+
+// keepsTemplateImage reports whether a template image passes the visitor
+// rules: bundled art, named or as a data URI.
+func (w *Wallet) keepsTemplateImage(ref string) bool {
+	ref = strings.TrimSpace(ref)
+	if ref == "" || !w.visitorRules().BundledImagesOnly {
+		return true
+	}
+	_, data, ok := TemplateImage(ref)
+	return ok && bundledImageDigests()[sha256.Sum256(data)]
+}
+
 // templateImage uses only the base name of an embedded image, so a template
 // cannot read outside static/.
 func (w *Wallet) templateImage(ref, field string) string {
@@ -418,7 +447,7 @@ func (w *Wallet) cacheDisplayImage(uri, field string) string {
 		}
 		return w.encodeDisplayImage(body, mediaType, field, uri)
 	}
-	if w.AdhocDisplayImages && strings.HasPrefix(uri, "https://") {
+	if w.AdhocDisplayImages && !w.visitorRules().BundledImagesOnly && strings.HasPrefix(uri, "https://") {
 		// Browsers block http images on https pages, so only https URLs stay.
 		// Each card view then reaches the issuer, so this mode is opt-in.
 		return uri
@@ -479,6 +508,10 @@ func (w *Wallet) fetchAndEmbedDisplayImage(uri, field string) string {
 // shrinks them to card size otherwise. Dimensions are checked first because
 // a small file can declare huge dimensions.
 func (w *Wallet) encodeDisplayImage(body []byte, mediaType, field, uri string) string {
+	if w.visitorRules().BundledImagesOnly && !bundledImageDigests()[sha256.Sum256(body)] {
+		w.rejectDisplayImage(field, uri, "the public demo shows only the art bundled with the wallet")
+		return ""
+	}
 	if mediaType == "image/svg+xml" {
 		return w.keepVectorImage(body, field, uri)
 	}

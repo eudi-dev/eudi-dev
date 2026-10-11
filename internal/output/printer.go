@@ -912,7 +912,7 @@ func PrintTrustList(tl *trustlist.TrustList, opts Options) {
 		return
 	}
 
-	fmt.Println("ETSI TS 119 602 Trust List")
+	fmt.Println("ETSI TS 119 602 trusted list")
 	fmt.Println("──────────────────────────────────────────────────")
 
 	if tl.SchemeInfo != nil {

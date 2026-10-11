@@ -28,7 +28,6 @@ import (
 // HAIP or ARF. The validation mode decides whether findings stop the flow or
 // become warnings.
 func ValidateAuthorizationRequest(settings ConformanceSettings, params *AuthorizationRequestParams) ([]string, error) {
-	mode, requireHAIP, requireARF := settings.ValidationMode, settings.RequireHAIP, settings.RequireARF
 	if err := validateAuthorizationRequestSyntax(params); err != nil {
 		return nil, fmt.Errorf("authorization request validation failed: %w", err)
 	}
@@ -61,7 +60,7 @@ func ValidateAuthorizationRequest(settings ConformanceSettings, params *Authoriz
 		requestOrigin = params.RequestOrigin
 		reqObj = params.RequestObject
 	}
-	return validatePresentationRequestCore(mode, requireHAIP, requireARF, clientID, reqObj, responseURI, requestOrigin, params, reqPayload)
+	return validatePresentationRequestCore(settings, clientID, reqObj, responseURI, requestOrigin, params, reqPayload)
 }
 
 // ARFRefusal is a strict refusal on ARF findings alone. The relying party
@@ -76,7 +75,8 @@ func (e *ARFRefusal) Error() string {
 	return "authorization request validation failed: " + strings.Join(e.Findings, ", ")
 }
 
-func validatePresentationRequestCore(mode ValidationMode, requireHAIP, requireARF bool, clientID string, reqObj *oid4vc.RequestObjectJWT, responseURI string, requestOrigin string, params *AuthorizationRequestParams, payload map[string]any) ([]string, error) {
+func validatePresentationRequestCore(settings ConformanceSettings, clientID string, reqObj *oid4vc.RequestObjectJWT, responseURI string, requestOrigin string, params *AuthorizationRequestParams, payload map[string]any) ([]string, error) {
+	mode := settings.ValidationMode
 	var findings []string
 
 	if finding := VerifyClientID(clientID, reqObj, responseURI, requestOrigin); finding != "" {
@@ -90,12 +90,12 @@ func validatePresentationRequestCore(mode ValidationMode, requireHAIP, requireAR
 	}
 	findings = append(findings, authorizationFindings(params, payload)...)
 	var advisories []string
-	if requireHAIP {
+	if settings.RequireHAIP {
 		findings = append(findings, ValidateHAIPCompliance(params, reqObj)...)
 		advisories = HAIPAdvisories(params)
 	}
 	var arfFindings []string
-	if requireARF {
+	if settings.RequireARF {
 		arfFindings = ARFFindings(params)
 	}
 

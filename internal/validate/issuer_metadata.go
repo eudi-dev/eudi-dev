@@ -254,7 +254,7 @@ func fetchIssuerMetadataDocument(metadataURL string, clients ...*http.Client) (m
 	}
 	// Some issuers reject requests without an Accept header.
 	req.Header.Set("Accept", "application/json")
-	resp, err := format.HTTPClientForURL(metadataURL, clients...).Do(req)
+	resp, err := format.HTTPClient(clients...).Do(req)
 	if err != nil {
 		return nil, err
 	}

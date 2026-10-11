@@ -267,7 +267,7 @@ func (s *Server) logPresentationOutcome(authReq *AuthorizationRequestParams, out
 // autoAccepts reports whether the request goes without a consent dialog. An
 // API submission provides the caller's consent.
 func (s *Server) autoAccepts(authReq *AuthorizationRequestParams) bool {
-	return s.wallet.AutoAccept || authReq.AutoAccept || authReq.Source == "api"
+	return s.wallet.AutoAcceptSetting() || authReq.AutoAccept || authReq.Source == "api"
 }
 
 // awaitPresentationConsent asks the user and delivers the answer. The

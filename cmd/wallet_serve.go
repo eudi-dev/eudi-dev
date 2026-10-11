@@ -17,13 +17,18 @@ package cmd
 import (
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"slices"
+	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/fatih/color"
@@ -45,54 +50,39 @@ import (
 )
 
 type walletServeOptions struct {
-	Port                    int
-	AllowPrivateNetworks    bool
-	AutoAccept              bool
-	CredFiles               []string
-	CredentialsFile         string
-	PID                     bool
-	KeyPath                 string
-	IssuerKey               string
-	SessionTranscript       string
-	Register                bool
-	NoRegister              bool
-	StatusList              bool
-	BaseURL                 string
-	Docker                  bool
-	PreferredFormat         string
-	KeyAttestationLevel     string
-	RequireEncryptedRequest bool
-	HAIP                    bool
-	ARF                     bool
-	RelyingPartyCAs         []string
-	TrustListCAs            []string
-	TrustedLists            []string
-	VCIVersion              string
-	ClientAttestation       bool
-	AdhocDisplayImages      bool
-	DemoIssuerClientAuth    string
-	VCIClientID             string
-	VCIRedirectURI          string
-	Demo                    bool
-	DemoReset               string
-	ImprintFile             string
-	NewsFile                string
-	Detached                bool
-	ServeTLS                bool
-	DemoVerifierIssuerCAs   []string
+	Port                  int
+	AllowPrivateNetworks  bool
+	AutoAccept            bool
+	CredFiles             []string
+	CredentialsFile       string
+	PID                   bool
+	KeyPath               string
+	IssuerKey             string
+	SessionTranscript     string
+	Register              bool
+	NoRegister            bool
+	StatusList            bool
+	BaseURL               string
+	Docker                bool
+	PreferredFormat       string
+	Conformance           *conformanceFlags
+	AdhocDisplayImages    bool
+	DemoIssuerClientAuth  string
+	VCIClientID           string
+	VCIRedirectURI        string
+	Demo                  bool
+	DemoReset             string
+	ImprintFile           string
+	NewsFile              string
+	Detached              bool
+	ServeTLS              bool
+	DemoVerifierIssuerCAs []string
 	// DemoVerifierTrustAnchors holds the deprecated alias of
 	// DemoVerifierIssuerCAs. Each flag needs its own slice, because a string
 	// array flag replaces its slice on first use.
 	DemoVerifierTrustAnchors []string
 	LogFormat                string
 }
-
-const (
-	arfFlagUsage            = "Check the access and registration certificates of verifiers and issuers against the ARF, including over-asking and revocation. With --mode strict the wallet refuses the request or the offer on any finding"
-	relyingPartyCAFlagUsage = "PEM file with CA certificates for relying party access and registration certificates. The wallet puts them on its access-ca and registrar lists (repeatable)"
-	trustListCAFlagUsage    = "PEM file with CA certificates of trusted list operators. With --arf the wallet also accepts trusted lists signed under these CAs (repeatable)"
-	trustedListFlagUsage    = "URL of an external list of trusted entities (ETSI TS 119 602) for the wallet's list of trusted lists. With --arf its providers anchor the checks of their list type (repeatable)"
-)
 
 // demoVerifierIssuerCAFiles lists the files of both issuer CA flags.
 func (o *walletServeOptions) demoVerifierIssuerCAFiles() []string {
@@ -145,22 +135,14 @@ so the wallet automatically receives incoming protocol requests.`,
 	cmd.Flags().BoolVar(&opts.StatusList, "status-list", false, "Embed status list references in generated credentials")
 	cmd.Flags().StringVar(&opts.BaseURL, "base-url", "", "Public URL of the wallet's HTTP endpoints, optionally with a path prefix such as https://example.com/eudi (its host is also reused for HTTPS wallet endpoints)")
 	cmd.Flags().BoolVar(&opts.Docker, "docker", false, "Use host.docker.internal instead of localhost for both HTTP and HTTPS wallet endpoint URLs")
+	opts.Conformance = addConformanceFlags(cmd)
 	cmd.Flags().StringVar(&opts.PreferredFormat, "preferred-format", "", "Preferred credential format when multiple match: 'dc+sd-jwt', 'mso_mdoc', or 'jwt_vc_json'")
-	cmd.Flags().StringVar(&opts.KeyAttestationLevel, "key-attestation-level", "", "What the key attestation claims as key_storage and user_authentication (OpenID4VCI Appendix D.2): whatever the issuer requires (default), 'none', or one of iso_18045_high, iso_18045_moderate, iso_18045_enhanced-basic, iso_18045_basic for both. The wallet holds its keys in files and can prove none of them")
-	cmd.Flags().BoolVar(&opts.RequireEncryptedRequest, "require-encrypted-request", false, "Reject a Verifier's Request Object that is not encrypted (the wallet always sends an encryption key in wallet_metadata, so this only requires the Verifier to use it)")
-	cmd.Flags().BoolVar(&opts.ClientAttestation, "client-attestation", false, "Send the wallet attestation on OID4VCI token requests even when the issuer does not advertise attest_jwt_client_auth (advertising it is only a SHOULD)")
-	cmd.Flags().BoolVar(&opts.ARF, "arf", false, arfFlagUsage)
-	cmd.Flags().StringArrayVar(&opts.RelyingPartyCAs, "relying-party-ca", nil, relyingPartyCAFlagUsage)
-	cmd.Flags().StringArrayVar(&opts.TrustListCAs, "trusted-list-ca", nil, trustListCAFlagUsage)
-	cmd.Flags().StringArrayVar(&opts.TrustedLists, "trusted-list", nil, trustedListFlagUsage)
-	cmd.Flags().BoolVar(&opts.HAIP, "haip", false, "Enforce HAIP 1.0 on presentations (x509_hash, direct_post.jwt, DCQL, JAR, ES256) and on credential offers (https issuer, and authorization code offers also need PAR, PKCE S256, DPoP, client auth)")
 	cmd.Flags().BoolVar(&opts.AdhocDisplayImages, "adhoc-display-images", false, "Keep an issuer's https display image URL and let the card fetch it on demand instead of fetching once and storing the image (nothing is stored but the issuer sees each render, while a data URI, template art, and http URLs are still embedded)")
-	cmd.Flags().StringVar(&opts.VCIVersion, "vci-version", string(wallet.VCIVersion10), "OpenID4VCI feature level the wallet uses as a client: '1.0' (the published version, the default) or '1.1' (also uses what the 1.1 draft adds, where an issuer offers it)")
 	cmd.Flags().StringVar(&opts.DemoIssuerClientAuth, "demo-issuer-client-auth", string(demorp.ClientAuthRequired), "What the demo issuer's authorization server demands at its PAR and token endpoints: 'required' (HAIP 1.0 §4.4.1, the default) or 'optional' (also serves wallets that send no wallet attestation, for testing against them)")
 	cmd.Flags().StringVar(&opts.VCIClientID, "vci-client-id", "", "Client ID the wallet should use for OID4VCI authorization-code flows")
 	cmd.Flags().StringVar(&opts.VCIRedirectURI, "vci-redirect-uri", "", "Redirect URI the wallet should use for OID4VCI authorization-code flows")
 	cmd.Flags().BoolVar(&opts.Demo, "demo", false, "Public demo profile: implies --pid, --mode debug, --haip, --arf and --vci-version 1.1 (all overridable), disables process/filesystem endpoints, blocks fetches to loopback and private networks")
-	addAllowPrivateNetworksFlag(cmd, &opts.AllowPrivateNetworks)
+	addAllowPrivateNetworksFlag(cmd, &opts.AllowPrivateNetworks, "--demo refuses the flag and ignores $"+allowPrivateNetworksEnv+". ")
 	cmd.Flags().StringVar(&opts.DemoReset, "demo-reset", "1h", "When to restore the clean demo baseline: an interval (24h), a daily wall-clock time (00:00), or one with a timezone (\"00:00 Europe/Berlin\"). 0 disables. Requires --demo")
 	cmd.Flags().StringVar(&opts.ImprintFile, "imprint-file", "", "HTML snippet with the site operator's legal notice, served at /imprint (required for public EU hosting)")
 	cmd.Flags().StringVar(&opts.NewsFile, "news-file", "", "HTML snippet with news for visitors of a public demo, shown once in a popup and again from the footer link. Requires --demo")
@@ -219,23 +201,28 @@ func loadVerifierTrustAnchors(paths []string) ([]*x509.Certificate, error) {
 	return anchors, nil
 }
 
-// Apply demo defaults only where the user has not supplied an explicit flag.
-func applyDemoProfileDefaults(cmd *cobra.Command, opts *walletServeOptions, w *wallet.Wallet) {
-	if !cmd.Flags().Changed("pid") {
-		opts.PID = true
+// serveConformance resolves the conformance flags of wallet serve. The demo
+// profile changes the defaults of the flags not set on the command line.
+func serveConformance(cmd *cobra.Command, opts *walletServeOptions) (walletConformance, error) {
+	if opts.Demo {
+		f := opts.Conformance
+		if !cmd.Flags().Changed("pid") {
+			opts.PID = true
+		}
+		if !cmd.Flags().Changed("mode") {
+			f.mode = string(wallet.ValidationModeDebug)
+		}
+		if !cmd.Flags().Changed("haip") {
+			f.haip = true
+		}
+		if !cmd.Flags().Changed("arf") {
+			f.arf = true
+		}
+		if !cmd.Flags().Changed("vci-version") {
+			f.vciVersion = string(wallet.VCIVersion11)
+		}
 	}
-	if !cmd.Flags().Changed("mode") {
-		w.ValidationMode = wallet.ValidationModeDebug
-	}
-	if !cmd.Flags().Changed("haip") {
-		opts.HAIP = true
-	}
-	if !cmd.Flags().Changed("arf") {
-		opts.ARF = true
-	}
-	if !cmd.Flags().Changed("vci-version") {
-		opts.VCIVersion = string(wallet.VCIVersion11)
-	}
+	return opts.Conformance.resolve()
 }
 
 // servingConfigWarnings flags persisted serving config that cannot work in
@@ -247,7 +234,7 @@ func servingConfigWarnings(w *wallet.Wallet, port int, docker bool) []string {
 
 	if !docker && !runningInDocker() {
 		for _, u := range []string{w.BaseURL, w.IssuerURL} {
-			if strings.Contains(u, "host.docker.internal") {
+			if host, _, err := net.SplitHostPort(urlHostPort(u)); err == nil && strings.EqualFold(host, netaddr.DockerHost) {
 				warnings = append(warnings,
 					fmt.Sprintf("%s uses a Docker hostname but this server does not run in Docker (start with --base-url or --docker to change it)", u))
 				break
@@ -255,27 +242,31 @@ func servingConfigWarnings(w *wallet.Wallet, port int, docker bool) []string {
 		}
 	}
 
-	served := map[string]bool{
-		fmt.Sprintf("localhost:%d", port):            true,
-		fmt.Sprintf("127.0.0.1:%d", port):            true,
-		fmt.Sprintf("host.docker.internal:%d", port): true,
-	}
+	served := map[string]bool{}
+	// A local port answers under every local host name, [::1] included.
+	localPorts := map[string]bool{strconv.Itoa(port): true}
 	for _, u := range []string{w.BaseURL, w.IssuerURL} {
-		if hp := urlHostPort(u); hp != "" {
-			served[hp] = true
+		hp := urlHostPort(u)
+		served[hp] = hp != ""
+		if host, p, err := net.SplitHostPort(hp); err == nil && netaddr.IsLocal(host) {
+			localPorts[p] = true
 		}
+	}
+	servedHere := func(hostport string) bool {
+		host, p, err := net.SplitHostPort(hostport)
+		return served[hostport] || (err == nil && localPorts[p] && netaddr.IsLocal(host))
 	}
 
 	var stale []string
 	for _, c := range w.GetCredentials() {
 		mismatch := false
 		if ref := wallet.CredentialStatusRef(c); ref != nil {
-			if hp := urlHostPort(ref.URI); hp != "" && isLocalTestHostPort(hp) && !served[hp] {
+			if hp := urlHostPort(ref.URI); hp != "" && isLocalTestHostPort(hp) && !servedHere(hp) {
 				mismatch = true
 			}
 		}
 		if iss, ok := c.Claims["iss"].(string); ok {
-			if hp := urlHostPort(iss); hp != "" && isLocalTestHostPort(hp) && !served[hp] {
+			if hp := urlHostPort(iss); hp != "" && isLocalTestHostPort(hp) && !servedHere(hp) {
 				mismatch = true
 			}
 		}
@@ -308,6 +299,19 @@ func isLocalTestHostPort(hostport string) bool {
 	return netaddr.IsLocal(host)
 }
 
+// serveBaseURL picks the base URL of wallet serve: --base-url, or else the
+// one a previous run stored (ADR-0019). --docker alone moves a derived origin
+// to the Docker host name.
+func serveBaseURL(stored, flag string, flagSet, dockerSet bool) string {
+	switch {
+	case flagSet:
+		return strings.TrimSpace(flag)
+	case dockerSet:
+		return ""
+	}
+	return strings.TrimSpace(stored)
+}
+
 func runningInDocker() bool {
 	_, err := os.Stat("/.dockerenv")
 	return err == nil
@@ -315,42 +319,27 @@ func runningInDocker() bool {
 
 func serializeWalletServeArgs(cmd *cobra.Command) ([]string, error) {
 	args := []string{}
-	var err error
 	// The flag set holds the persistent flags of the parents too. The seed
 	// is a secret and travels in the environment.
-	appendFlag := func(flags *pflag.FlagSet, flag *pflag.Flag) {
-		if err != nil {
-			return
-		}
+	cmd.Flags().Visit(func(flag *pflag.Flag) {
 		switch flag.Name {
 		case "register", "no-register", "detached", "seed":
 			return
 		}
-		switch flag.Value.Type() {
-		case "bool":
+		if values, ok := flag.Value.(pflag.SliceValue); ok {
+			for _, value := range values.GetSlice() {
+				args = append(args, "--"+flag.Name, value)
+			}
+			return
+		}
+		if flag.Value.Type() == "bool" {
 			// Use --name=value to preserve explicit false values such as --haip=false
 			// when starting the child.
 			args = append(args, "--"+flag.Name+"="+flag.Value.String())
-		case "stringSlice", "stringArray":
-			values, getErr := flags.GetStringSlice(flag.Name)
-			if getErr != nil {
-				err = getErr
-				return
-			}
-			for _, value := range values {
-				args = append(args, "--"+flag.Name, value)
-			}
-		default:
-			args = append(args, "--"+flag.Name, flag.Value.String())
+			return
 		}
-	}
-
-	cmd.Flags().Visit(func(flag *pflag.Flag) {
-		appendFlag(cmd.Flags(), flag)
+		args = append(args, "--"+flag.Name, flag.Value.String())
 	})
-	if err != nil {
-		return nil, err
-	}
 	return args, nil
 }
 
@@ -392,7 +381,6 @@ func demoResetDescription(opts wallet.DemoOptions) string {
 }
 
 func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
-	// The detached process has no stdin.
 	if opts.Detached && opts.CredentialsFile == "-" {
 		return fmt.Errorf("a detached server has no stdin, so it can't read --credentials -")
 	}
@@ -434,13 +422,6 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	if templatesDir != "" {
 		w.Templates = credtemplate.FileLocation(templatesDir)
 	}
-	if err := applyValidationMode(w, walletValidationMode); err != nil {
-		return err
-	}
-	if err := applyWalletOutbound(w); err != nil {
-		return err
-	}
-
 	if opts.KeyPath != "" {
 		holderKey, err := loadWalletECKey(opts.KeyPath, "holder")
 		if err != nil {
@@ -466,8 +447,13 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	if err != nil {
 		return fmt.Errorf("invalid --demo-reset %q: %w", opts.DemoReset, err)
 	}
-	if opts.Demo {
-		applyDemoProfileDefaults(cmd, opts, w)
+	conformance, err := serveConformance(cmd, opts)
+	if err != nil {
+		return err
+	}
+	conformance.apply(w)
+	if err := applyWalletOutbound(w); err != nil {
+		return err
 	}
 
 	if opts.AutoAccept {
@@ -478,35 +464,16 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 		return err
 	}
 
-	if err := applyVCIVersion(w, opts.VCIVersion); err != nil {
-		return fmt.Errorf("--vci-version: %w", err)
-	}
-
 	if opts.PreferredFormat != "" {
 		w.PreferredFormat = opts.PreferredFormat
 	}
-	if w.KeyAttestationLevel, err = wallet.ParseKeyAttestationLevel(opts.KeyAttestationLevel); err != nil {
-		return fmt.Errorf("--key-attestation-level: %w", err)
-	}
-
 	// Always hold a request object encryption key so wallet_metadata can offer
 	// it. --require-encrypted-request decides whether the Verifier must use it.
 	if err := w.EnsureRequestEncryptionKey(); err != nil {
 		return err
 	}
-	w.RequireEncryptedRequest = opts.RequireEncryptedRequest
-
-	if opts.HAIP {
-		w.RequireHAIP = true
-	}
-	if err := applyARFOptions(w, opts.ARF, opts.RelyingPartyCAs, opts.TrustListCAs, opts.TrustedLists); err != nil {
-		return err
-	}
 	if opts.AdhocDisplayImages {
 		w.AdhocDisplayImages = true
-	}
-	if opts.ClientAttestation {
-		w.ForceClientAttestation = true
 	}
 	if opts.VCIClientID != "" {
 		w.VCIClientID = opts.VCIClientID
@@ -515,50 +482,27 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 		w.VCIRedirectURI = opts.VCIRedirectURI
 	}
 
-	if cmd.Flags().Changed("base-url") {
-		w.BaseURL = opts.BaseURL
-	} else if opts.StatusList && strings.TrimSpace(w.BaseURL) == "" {
-		if opts.BaseURL == "" {
-			if opts.Docker {
-				opts.BaseURL = fmt.Sprintf("http://host.docker.internal:%d", opts.Port)
-			} else {
-				opts.BaseURL = fmt.Sprintf("http://localhost:%d", opts.Port)
-			}
-		}
-		w.BaseURL = opts.BaseURL
+	baseURL := serveBaseURL(w.BaseURL, opts.BaseURL, cmd.Flags().Changed("base-url"), cmd.Flags().Changed("docker"))
+	origin, err := walletOrigin(opts.Port, baseURL, opts.Docker)
+	if err != nil {
+		return err
 	}
-
-	if cmd.Flags().Changed("base-url") || cmd.Flags().Changed("docker") || strings.TrimSpace(w.IssuerURL) == "" {
-		issuerBaseURL := opts.BaseURL
-		if issuerBaseURL == "" && cmd.Flags().Changed("base-url") {
-			issuerBaseURL = w.BaseURL
-		}
-		w.IssuerURL, err = deriveWalletIssuerURL(opts.Port, issuerBaseURL, opts.Docker)
-		if err != nil {
-			return err
-		}
+	w.BaseURL = baseURL
+	if baseURL == "" && opts.StatusList {
+		w.BaseURL = origin.Base
 	}
+	w.IssuerURL = origin.Issuer
 
 	// Default the client ID and callback URI to this wallet's origin so authorization
 	// code offers work without extra flags. Both are required before PAR, where the
 	// wallet first sends its attestation.
-	{
-		base := strings.TrimRight(strings.TrimSpace(w.BaseURL), "/")
-		if base == "" {
-			if opts.Docker {
-				base = fmt.Sprintf("http://host.docker.internal:%d", opts.Port)
-			} else {
-				base = fmt.Sprintf("http://localhost:%d", opts.Port)
-			}
-		}
-		if w.VCIClientID == "" {
-			w.VCIClientID = base
-		}
-		if w.VCIRedirectURI == "" {
-			w.VCIRedirectURI = base + "/callback"
-		}
-		w.ServingOrigin = base
+	if w.VCIClientID == "" {
+		w.VCIClientID = origin.Base
 	}
+	if w.VCIRedirectURI == "" {
+		w.VCIRedirectURI = origin.Base + "/callback"
+	}
+	w.ServingOrigin = origin.Base
 
 	// The serving URLs are resolved, so the policy can exempt them.
 	operatorURLs := append([]string{w.BaseURL, w.IssuerURL, fmt.Sprintf("http://localhost:%d", opts.Port)}, w.ConfiguredTrustedListURLs...)
@@ -617,12 +561,7 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	cyan := color.New(color.FgCyan, color.Bold)
 	dim := color.New(color.Faint)
 	yellow := color.New(color.FgYellow)
-	publicHTTPURL := fmt.Sprintf("http://localhost:%d", opts.Port)
-	if opts.BaseURL != "" {
-		publicHTTPURL = opts.BaseURL
-	} else if opts.Docker {
-		publicHTTPURL = fmt.Sprintf("http://host.docker.internal:%d", opts.Port)
-	}
+	publicHTTPURL := origin.Base
 	httpsURL := w.IssuerURL
 	issuerViaBaseURL := issuerServedByBaseURL(w.IssuerURL, w.BaseURL)
 
@@ -635,15 +574,15 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	if issuerViaBaseURL {
 		fmt.Printf("  Issuer:      %s (served via base URL, external TLS)\n", httpsURL)
 		fmt.Printf("  Authorize:   %s/authorize\n", publicHTTPURL)
-		fmt.Printf("  Trust List:  %s/api/trustlist\n", publicHTTPURL)
-		fmt.Printf("  Trust Lists: %s/api/trustlists\n", publicHTTPURL)
+		fmt.Printf("  Trusted list:  %s/api/trustlist\n", publicHTTPURL)
+		fmt.Printf("  Trusted lists: %s/api/trustlists\n", publicHTTPURL)
 	} else {
 		fmt.Printf("  HTTPS:       %s\n", httpsURL)
 		fmt.Printf("  Authorize:   %s/authorize\n", publicHTTPURL)
 		dim.Printf("               %s/authorize\n", httpsURL)
-		fmt.Printf("  Trust List:  %s/api/trustlist\n", publicHTTPURL)
+		fmt.Printf("  Trusted list:  %s/api/trustlist\n", publicHTTPURL)
 		dim.Printf("               %s/api/trustlist\n", httpsURL)
-		fmt.Printf("  Trust Lists: %s/api/trustlists\n", publicHTTPURL)
+		fmt.Printf("  Trusted lists: %s/api/trustlists\n", publicHTTPURL)
 		dim.Printf("               %s/api/trustlists\n", httpsURL)
 	}
 	fmt.Printf("  Metadata:    %s/.well-known/jwt-vc-issuer\n", httpsURL)
@@ -728,11 +667,7 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 		}
 	}
 
-	srv := wallet.NewServer(w, opts.Port, func() {
-		if err := store.Save(w); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: saving wallet: %v\n", err)
-		}
-	})
+	srv := wallet.NewServer(w, opts.Port, nil)
 	srv.SetStore(store)
 	srv.SetVersion(Version)
 	srv.SetImprint(imprintHTML)
@@ -771,12 +706,6 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	})
 	demoRP.SetClientAuthMode(clientAuthMode)
 	demoRP.SetVerifierTrustAnchors(verifierTrustAnchors)
-	// Persist the reserved status index before another request reloads wallet state.
-	demoRP.SetOnWalletChange(func() {
-		if err := store.Save(w); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: saving wallet: %v\n", err)
-		}
-	})
 	srv.Mount("/issuer", demoRP.IssuerHandler())
 	srv.Mount("/verifier", demoRP.VerifierHandler())
 	// OID4VCI inserts the well-known segment before the issuer path,
@@ -855,5 +784,25 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 		os.Exit(0)
 	}
 
-	return srv.ListenAndServe()
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(signals)
+	return serveUntilSignal(srv, signals)
+}
+
+// serveUntilSignal stops the server on a signal, so the deferred cleanup of
+// wallet serve removes its instance file.
+func serveUntilSignal(srv interface {
+	ListenAndServe() error
+	Shutdown()
+}, signals <-chan os.Signal) error {
+	go func() {
+		if _, ok := <-signals; ok {
+			srv.Shutdown()
+		}
+	}()
+	if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+	return nil
 }

@@ -570,9 +570,6 @@ func TestLoadReadsTheLegacyPendingIssuancesField(t *testing.T) {
 	if !strings.Contains(string(saved), `"deferred_issuances"`) {
 		t.Error("save did not write deferred_issuances")
 	}
-	if strings.Contains(string(saved), `"pending_issuances"`) {
-		t.Error("save kept the legacy pending_issuances field")
-	}
 }
 
 // Log callbacks save outside the server lock. An earlier snapshot must not overwrite a

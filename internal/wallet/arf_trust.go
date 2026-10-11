@@ -75,9 +75,11 @@ func (w *Wallet) PrepareARFChecks(params *AuthorizationRequestParams) {
 		return
 	}
 	params.StatusClient = w.RegistrationStatusClient()
-	params.RelyingPartyCAs = w.RelyingPartyCAs()
-	params.RegistrarCAs = w.RegistrarCAs()
-	params.RegistrationStatusCAs = w.RegistrationStatusCAs()
+	// The three anchor sets come from the same lists, which are read once.
+	lists := w.trustedLists()
+	params.RelyingPartyCAs = anchorsOf(lists, accessCAListType, trustlist.IssuanceServices)
+	params.RegistrarCAs = anchorsOf(lists, registrarListType, trustlist.IssuanceServices)
+	params.RegistrationStatusCAs = anchorsOf(lists, registrarListType, trustlist.RevocationServices)
 }
 
 // RelyingPartyCAs are the anchors --arf trusts for access certificates: the

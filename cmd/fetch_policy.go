@@ -30,9 +30,11 @@ const (
 	allowPrivateNetworksEnv  = "EUDI_DEV_ALLOW_PRIVATE_NETWORKS"
 )
 
-func addAllowPrivateNetworksFlag(cmd *cobra.Command, target *bool) {
+// addAllowPrivateNetworksFlag registers the flag. note adds what the
+// command does differently.
+func addAllowPrivateNetworksFlag(cmd *cobra.Command, target *bool, note string) {
 	cmd.Flags().BoolVar(target, allowPrivateNetworksFlag, false,
-		"Let outbound requests reach private networks (RFC 1918, link local, CGNAT, unique local), for issuers and verifiers on a LAN, in Docker or in a cluster. Loopback is always reachable. --demo ignores it (default $"+allowPrivateNetworksEnv+")")
+		"Let outbound requests reach private networks (RFC 1918, link local, CGNAT, unique local), for issuers and verifiers on a LAN, in Docker or in a cluster. Loopback is always reachable. "+note+"(default $"+allowPrivateNetworksEnv+")")
 }
 
 // installFetchPolicy limits where a server connects. Visitors hand a server

@@ -41,18 +41,10 @@ type dispatchOID4Opts struct {
 	autoAccept        bool
 	sessionTranscript string
 	txCode            string
-	haip              bool
-	arf               bool
-	relyingPartyCAs   []string
-	trustListCAs      []string
-	trustedLists      []string
-	mode              string
-	// keyAttestationLevel is what a key attestation claims (see
-	// Wallet.KeyAttestationLevel).
-	keyAttestationLevel string
-	// conformanceFlags are the conformance flags set on the command line. A
-	// running wallet refuses them, because it applies its own settings to
-	// every step of a flow.
+	// conformance is what the conformance flags set. conformanceFlags names
+	// the flags set on the command line. A running wallet refuses the ones
+	// that differ from its own settings.
+	conformance      walletConformance
 	conformanceFlags []string
 	// docker serves the presentation trust and status lists under
 	// host.docker.internal. A verifier in a container can reach them there, and
@@ -72,19 +64,10 @@ func dispatchURI(uri string, opts dispatchOID4Opts) error {
 		if err != nil {
 			return err
 		}
-		if err := applyValidationMode(w, opts.mode); err != nil {
-			return err
-		}
+		opts.conformance.apply(w)
 		if opts.autoAccept {
 			w.AutoAccept = true
 		}
-		if opts.haip {
-			w.RequireHAIP = true
-		}
-		if err := applyARFOptions(w, opts.arf, opts.relyingPartyCAs, opts.trustListCAs, opts.trustedLists); err != nil {
-			return err
-		}
-		w.KeyAttestationLevel = opts.keyAttestationLevel
 		if err := applySessionTranscriptMode(w, opts.sessionTranscript); err != nil {
 			return err
 		}
@@ -123,7 +106,7 @@ func runPresent(w *wallet.Wallet, store *wallet.WalletStore, uri string, port in
 
 	dim := color.New(color.Faint)
 	_, _ = dim.Fprintln(humanOut(), "───────────────────────────────────────")
-	fmt.Fprintf(humanOut(), "  Trust List:  %s/api/trustlist\n", addr)
+	fmt.Fprintf(humanOut(), "  Trusted list: %s/api/trustlist\n", addr)
 	dim.Fprintf(humanOut(), "               http://host.docker.internal:%d/api/trustlist\n", port)
 
 	c := remote.NewClient(addr)
@@ -164,8 +147,8 @@ func printPresentationResult(result map[string]any, browserWaiting bool) {
 }
 
 func setLocalPresentationIssuerURL(w *wallet.Wallet, port int, docker bool) {
-	port = effectivePresentationPort(port)
-	w.IssuerURL = wallet.LocalIssuerURL(port+1, docker)
+	origin, _ := walletOrigin(effectivePresentationPort(port), "", docker)
+	w.OverrideURLs(w.BaseURL, origin.Issuer)
 }
 
 func resolvePresentationPort(port int, autoAccept bool, portExplicit bool) (int, error) {
@@ -301,16 +284,7 @@ func processCredentialOffer(uri string, opts dispatchOID4Opts) error {
 	if err != nil {
 		return err
 	}
-	w.KeyAttestationLevel = opts.keyAttestationLevel
-	if err := applyValidationMode(w, opts.mode); err != nil {
-		return err
-	}
-	if opts.haip {
-		w.RequireHAIP = true
-	}
-	if err := applyARFOptions(w, opts.arf, opts.relyingPartyCAs, opts.trustListCAs, opts.trustedLists); err != nil {
-		return err
-	}
+	opts.conformance.apply(w)
 
 	result, err := w.ProcessCredentialOfferWithOptions(uri, wallet.OfferOptions{TxCode: opts.txCode, ResolvedOffer: opts.resolvedOffer})
 	if err != nil {
@@ -367,26 +341,6 @@ func followVerifierRedirect(redirectURI string, browserWaiting bool) {
 // 1.0 §13.3, steps 7 to 10). A second navigation can fail.
 func navigatesHere(browserWaiting bool) bool {
 	return !noOpen && !browserWaiting
-}
-
-// applyARFOptions applies --arf, the PEM files of --relying-party-ca and
-// --trusted-list-ca, and the --trusted-list URLs.
-func applyARFOptions(w *wallet.Wallet, arf bool, relyingPartyCAs, trustListCAs, trustedLists []string) error {
-	if arf {
-		w.RequireARF = true
-	}
-	for _, list := range trustedLists {
-		if !format.IsWebURL(list) {
-			return fmt.Errorf("--trusted-list %q is not an http or https URL", list)
-		}
-	}
-	w.ConfiguredTrustedListURLs = trustedLists
-	var err error
-	if w.RelyingPartyCAPEM, err = loadPEMCertificates("relying-party-ca", relyingPartyCAs); err != nil {
-		return err
-	}
-	w.TrustListCAPEM, err = loadPEMCertificates("trusted-list-ca", trustListCAs)
-	return err
 }
 
 // loadPEMCertificates reads the PEM files of a CA flag into one bundle.

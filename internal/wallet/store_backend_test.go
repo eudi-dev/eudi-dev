@@ -16,8 +16,10 @@ package wallet
 
 import (
 	"crypto/ecdsa"
+	"io/fs"
 	"net/http"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -193,5 +195,105 @@ func TestWalletStore_AutoSeedAppliesToMemoryOnly(t *testing.T) {
 	t.Setenv(SeedEnvVar, "auto")
 	if !NewWalletStoreOn(filepath.Join(t.TempDir(), "wallet"), storage.NewMemory()).Seeded() {
 		t.Fatal("the environment's auto did not seed a memory store")
+	}
+}
+
+// A one-shot command serves under URLs of its own run. The stored URLs
+// belong to wallet serve, so a save keeps them (ADR-0019).
+func TestOverrideURLsHoldForOneRun(t *testing.T) {
+	for name, store := range map[string]*WalletStore{
+		"file":   NewWalletStore(t.TempDir()),
+		"memory": NewWalletStoreOn(filepath.Join(t.TempDir(), "wallet"), storage.NewMemory()),
+	} {
+		t.Run(name, func(t *testing.T) {
+			w, err := store.LoadOrCreate()
+			if err != nil {
+				t.Fatal(err)
+			}
+			w.BaseURL, w.IssuerURL = "https://wallet.example", "https://wallet.example"
+			if err := store.Save(w); err != nil {
+				t.Fatal(err)
+			}
+			w.OverrideURLs("http://localhost:9000", "https://localhost:9001")
+			if w.StatusListURL() != "https://localhost:9001/api/statuslist" {
+				t.Fatalf("the run does not use its own URLs: %s", w.StatusListURL())
+			}
+			if err := store.Save(w); err != nil {
+				t.Fatal(err)
+			}
+			reloaded, err := NewWalletStoreOn(store.Dir, store.Backend()).LoadOrCreate()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if reloaded.BaseURL != "https://wallet.example" || reloaded.IssuerURL != "https://wallet.example" {
+				t.Fatalf("the run stored its URLs: %q %q", reloaded.BaseURL, reloaded.IssuerURL)
+			}
+		})
+	}
+}
+
+type writeCounter struct {
+	storage.Store
+	writes int
+}
+
+func (c *writeCounter) Write(key string, data []byte, perm fs.FileMode) (storage.Stamp, error) {
+	c.writes++
+	return c.Store.Write(key, data, perm)
+}
+
+func (c *writeCounter) WriteIf(key string, data []byte, perm fs.FileMode, expected string) (storage.Stamp, error) {
+	c.writes++
+	return c.Store.WriteIf(key, data, perm, expected)
+}
+
+// GET /api/certificates/tls reads the stored certificate. Reading it writes
+// nothing.
+func TestReadingTheTLSCertificateWritesNothing(t *testing.T) {
+	backend := &writeCounter{Store: storage.NewMemory()}
+	store := NewWalletStoreOn(filepath.Join(t.TempDir(), "wallet"), backend)
+	if _, err := store.LoadOrCreateIssuerTLSLeafCertificatePEMForURL("https://localhost:8086"); err != nil {
+		t.Fatal(err)
+	}
+	backend.writes = 0
+	if _, err := store.LoadOrCreateIssuerTLSLeafCertificatePEMForURL("https://localhost:8086"); err != nil {
+		t.Fatal(err)
+	}
+	if backend.writes != 0 {
+		t.Fatalf("reading the stored certificate wrote %d times", backend.writes)
+	}
+}
+
+type readCounter struct {
+	storage.Store
+	reads atomic.Int64
+}
+
+func (c *readCounter) Read(key string) ([]byte, error) {
+	c.reads.Add(1)
+	return c.Store.Read(key)
+}
+
+// --arf takes the anchors of access certificates, registration certificates
+// and their status lists from the same trusted lists. A request reads the
+// lists once.
+func TestPrepareARFChecksReadsTheTrustedListsOnce(t *testing.T) {
+	backend := &readCounter{Store: storage.NewMemory()}
+	w, err := NewWalletStoreOn(filepath.Join(t.TempDir(), "wallet"), backend).LoadOrCreate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.IssuerURL = "https://wallet.example"
+	w.RequireARF = true
+	w.trustedLists()
+	backend.reads.Store(0)
+	w.trustedLists()
+	once := backend.reads.Load()
+
+	backend.reads.Store(0)
+	w.PrepareARFChecks(&AuthorizationRequestParams{})
+	// A second pass over the lists would double the count.
+	if reads := backend.reads.Load(); reads >= 2*once {
+		t.Fatalf("preparing the checks read %d blobs, one pass over the lists reads %d", reads, once)
 	}
 }

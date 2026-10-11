@@ -33,12 +33,13 @@ import (
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/netaddr"
 )
 
 func LocalIssuerURL(port int, docker bool) string {
 	host := "localhost"
 	if docker {
-		host = "host.docker.internal"
+		host = netaddr.DockerHost
 	}
 	return fmt.Sprintf("https://%s:%d", host, port)
 }

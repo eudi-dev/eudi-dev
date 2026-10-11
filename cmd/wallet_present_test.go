@@ -73,8 +73,7 @@ func TestOneShotAcceptAppliesHAIPToPresentations(t *testing.T) {
 				port:         port,
 				portExplicit: true,
 				autoAccept:   true,
-				haip:         tc.haip,
-				mode:         walletValidationMode,
+				conformance:  walletConformance{settings: wallet.ConformanceSettings{ValidationMode: wallet.ValidationMode(walletValidationMode), RequireHAIP: tc.haip}},
 			})
 			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 				t.Fatalf("err = %v, want it to mention %q", err, tc.wantErr)
@@ -100,7 +99,7 @@ func TestPresentationStaysWithItsWalletDirectory(t *testing.T) {
 	uri := `openid4vp://?client_id=redirect_uri:https://verifier.example/cb&response_type=vp_token&response_mode=direct_post&nonce=n-0` +
 		`&response_uri=https://verifier.example/cb&dcql_query=` +
 		url.QueryEscape(`{"credentials":[{"id":"pid","format":"dc+sd-jwt","meta":{"vct_values":["urn:test:unheld"]}}]}`)
-	err := acceptOID4URI(uri, dispatchOID4Opts{autoAccept: true, mode: walletValidationMode})
+	err := acceptOID4URI(uri, dispatchOID4Opts{autoAccept: true, conformance: walletConformance{settings: wallet.ConformanceSettings{ValidationMode: wallet.ValidationMode(walletValidationMode)}}})
 	if err == nil || !strings.Contains(err.Error(), "no matching credentials") {
 		t.Fatalf("err = %v, want the local wallet to find no match", err)
 	}
@@ -132,7 +131,7 @@ func TestOneShotPresentationTellsTheVerifierAboutNoMatch(t *testing.T) {
 	port := listener.Addr().(*net.TCPAddr).Port
 	_ = listener.Close()
 
-	err = acceptOID4URI(uri, dispatchOID4Opts{port: port, portExplicit: true, autoAccept: true, mode: string(wallet.ValidationModeDebug)})
+	err = acceptOID4URI(uri, dispatchOID4Opts{port: port, portExplicit: true, autoAccept: true, conformance: walletConformance{settings: wallet.ConformanceSettings{ValidationMode: wallet.ValidationModeDebug}}})
 	if err == nil || !strings.Contains(err.Error(), "no matching credentials") {
 		t.Fatalf("err = %v, want no match", err)
 	}
@@ -209,7 +208,7 @@ func TestOneShotAcceptAppliesHAIPToOffers(t *testing.T) {
 			}
 			uri := "openid-credential-offer://?credential_offer=" + url.QueryEscape(string(offer))
 
-			err = acceptOID4URI(uri, dispatchOID4Opts{haip: tc.haip, mode: walletValidationMode})
+			err = acceptOID4URI(uri, dispatchOID4Opts{conformance: walletConformance{settings: wallet.ConformanceSettings{ValidationMode: wallet.ValidationMode(walletValidationMode), RequireHAIP: tc.haip}}})
 			if err == nil {
 				t.Fatal("the offer was accepted, want the token or HAIP error")
 			}
@@ -281,7 +280,7 @@ func TestOneShotPresentationPrintsOnlyTheResultAsJSON(t *testing.T) {
 			port:         port,
 			portExplicit: true,
 			autoAccept:   true,
-			mode:         string(wallet.ValidationModeDebug),
+			conformance:  walletConformance{settings: wallet.ConformanceSettings{ValidationMode: wallet.ValidationModeDebug}},
 		})
 	})
 	if runErr != nil {
@@ -380,7 +379,7 @@ func TestOneShotPresentationSendsTheARFRefusalToTheVerifier(t *testing.T) {
 	_ = listener.Close()
 
 	err = acceptOID4URI("openid4vp://authorize?"+url.Values{"client_id": {clientID}, "request": {request}}.Encode(), dispatchOID4Opts{
-		port: port, portExplicit: true, autoAccept: true, arf: true, mode: walletValidationMode,
+		port: port, portExplicit: true, autoAccept: true, conformance: walletConformance{settings: wallet.ConformanceSettings{ValidationMode: wallet.ValidationMode(walletValidationMode), RequireARF: true}},
 	})
 	if err == nil || !strings.Contains(err.Error(), "RPRC_21") {
 		t.Fatalf("err = %v, want the RPRC_21 refusal", err)

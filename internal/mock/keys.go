@@ -230,10 +230,6 @@ func generateNamedCACert(caKey *ecdsa.PrivateKey, maxPathLen int, subject pkix.N
 	return x509.ParseCertificate(der)
 }
 
-func GenerateLeafCert(caKey *ecdsa.PrivateKey, caCert *x509.Certificate, leafPubKey *ecdsa.PublicKey) (*x509.Certificate, error) {
-	return GenerateLeafCertWithOptions(caKey, caCert, leafPubKey, LeafCertOptions{})
-}
-
 type certificatePolicy struct {
 	ID         asn1.ObjectIdentifier
 	Qualifiers []policyQualifier
@@ -251,7 +247,8 @@ type LeafCertOptions struct {
 	Role                  CertificateRole
 	IssuingCertificateURL []string
 	CertificateAuthority  bool
-	// EU 2026/1731, EAA-6.2.10.1-08 permits status signing without an EKU.
+	// CIR (EU) 2026/1731 Annex IV, EAA-6.2.10.1-08: the Token Status List
+	// extended key usage "may be used" for the status list signing certificate.
 	StatusListSigner bool
 	// Country becomes the subject countryName. ISO/IEC 18013-5 Table B.3
 	// requires it to equal the signed credential's issuing_country element.
@@ -415,24 +412,6 @@ func WithoutSelfSignedTrustAnchor(chain []*x509.Certificate) []*x509.Certificate
 		return out[:len(out)-1]
 	}
 	return out
-}
-
-func PrivateKeyJWK(key *ecdsa.PrivateKey) string {
-	jwk, err := keys.PublicJWK(&key.PublicKey)
-	if err != nil {
-		return fmt.Sprintf(`{"error": %q}`, err)
-	}
-	dBytes, err := key.Bytes()
-	if err != nil {
-		return fmt.Sprintf(`{"error": %q}`, err)
-	}
-	jwk["d"] = format.EncodeBase64URL(dBytes)
-
-	b, err := json.MarshalIndent(jwk, "", "  ")
-	if err != nil {
-		return fmt.Sprintf(`{"error": %q}`, err)
-	}
-	return string(b)
 }
 
 // Seed keeps generated keys stable across restarts with memory storage. An empty seed

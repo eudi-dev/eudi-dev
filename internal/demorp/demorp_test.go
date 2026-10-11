@@ -473,7 +473,7 @@ func TestVerifierTrustAnchors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generating foreign issuer key: %v", err)
 	}
-	leaf, err := mock.GenerateLeafCert(foreignCAKey, foreignCA, &issuerKey.PublicKey)
+	leaf, err := mock.GenerateLeafCertWithOptions(foreignCAKey, foreignCA, &issuerKey.PublicKey, mock.LeafCertOptions{})
 	if err != nil {
 		t.Fatalf("generating foreign issuer leaf: %v", err)
 	}
@@ -968,7 +968,7 @@ func TestVerifierWarnsWhenTheCredentialChainCarriesTheTrustAnchor(t *testing.T) 
 	// The credential chains to the wallet root, which the demo verifier
 	// trusts as a configured issuer CA here.
 	d.SetVerifierTrustAnchors([]*x509.Certificate{caCert})
-	leaf, err := mock.GenerateLeafCert(d.wallet.CAKey, caCert, &d.wallet.IssuerKey.PublicKey)
+	leaf, err := mock.GenerateLeafCertWithOptions(d.wallet.CAKey, caCert, &d.wallet.IssuerKey.PublicKey, mock.LeafCertOptions{})
 	if err != nil {
 		t.Fatalf("generating a leaf: %v", err)
 	}
@@ -1737,7 +1737,7 @@ func TestIssuerPersistsItsWalletChanges(t *testing.T) {
 	d, w, holderKey := newDemoRP(t)
 	w.BaseURL = "http://demo.example"
 	saves := 0
-	d.SetOnWalletChange(func() { saves++ })
+	wallet.NewServer(w, 0, func() { saves++ })
 
 	for range 2 {
 		if _, err := d.signGranted(&holderKey.PublicKey, ticketGrant{configID: ticketConfigurationID}); err != nil {

@@ -60,7 +60,8 @@ func (s *fileStore) Read(key string) ([]byte, error) {
 
 // Write creates a missing directory with 0755 for a world-readable blob and
 // 0700 otherwise. The file is written beside the target and renamed into
-// place, so a concurrent reader or a crash never sees a partial file.
+// place, so a concurrent reader never sees a partial file. The sync before
+// the rename keeps a crash from leaving an empty file under the key.
 func (s *fileStore) Write(key string, data []byte, perm fs.FileMode) (Stamp, error) {
 	lock, err := s.writeLock()
 	if err != nil {
@@ -103,6 +104,10 @@ func (s *fileStore) write(key string, data []byte, perm fs.FileMode) (Stamp, err
 	}
 	defer os.Remove(tmp.Name())
 	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return Stamp{}, fmt.Errorf("writing %s: %w", target, err)
+	}
+	if err := tmp.Sync(); err != nil {
 		tmp.Close()
 		return Stamp{}, fmt.Errorf("writing %s: %w", target, err)
 	}
@@ -240,6 +245,9 @@ func (s *fileStore) walk(prefix string, visit func(key string, data []byte) erro
 			return nil
 		}
 		data, err := fs.ReadFile(rootFS, p)
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
 		if err != nil {
 			return err
 		}

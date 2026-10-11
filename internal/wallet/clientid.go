@@ -21,6 +21,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
@@ -148,28 +149,19 @@ func VerifyClientID(clientID string, reqObj *oid4vc.RequestObjectJWT, responseUR
 	return ""
 }
 
-// verifyX509SAN checks that the leaf certificate SAN contains the expected DNS
-// name. Outside the DC API it also checks that the FQDN of the response
+// verifyX509SANDNS checks that the leaf certificate SAN contains the expected
+// DNS name. Outside the DC API it also checks that the FQDN of the response
 // destination matches the client_id (OID4VP 1.0 §5.9.3).
-func verifyX509SAN(clientID, prefix, scheme string, reqObj *oid4vc.RequestObjectJWT, responseURI, requestOrigin string) string {
-	expected := strings.TrimPrefix(clientID, prefix)
+func verifyX509SANDNS(clientID string, reqObj *oid4vc.RequestObjectJWT, responseURI, requestOrigin string) string {
+	expected := strings.TrimPrefix(clientID, "x509_san_dns:")
 
 	cert, warning := extractLeafCert(reqObj)
 	if warning != "" {
 		return warning
 	}
 
-	if scheme == "dns" {
-		matched := false
-		for _, name := range cert.DNSNames {
-			if name == expected {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			return fmt.Sprintf("OID4VP 1.0 §5.9.3: client_id expects DNS SAN %q but the leaf certificate has DNSNames=%v", expected, cert.DNSNames)
-		}
+	if !slices.Contains(cert.DNSNames, expected) {
+		return fmt.Sprintf("OID4VP 1.0 §5.9.3: client_id expects DNS SAN %q but the leaf certificate has DNSNames=%v", expected, cert.DNSNames)
 	}
 
 	// §5.9.3: the FQDN of the response destination MUST match the client_id

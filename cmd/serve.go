@@ -42,7 +42,7 @@ var serveCmd = &cobra.Command{
 func init() {
 	serveCmd.Flags().IntVar(&port, "port", config.DefaultServePort, "Port to listen on")
 	serveCmd.Flags().StringVar(&serveImprintFile, "imprint-file", "", "HTML snippet with the site operator's legal notice, served at /imprint (required for public EU hosting)")
-	addAllowPrivateNetworksFlag(serveCmd, &serveAllowPrivateNetworks)
+	addAllowPrivateNetworksFlag(serveCmd, &serveAllowPrivateNetworks, "")
 	rootCmd.AddCommand(serveCmd)
 }
 

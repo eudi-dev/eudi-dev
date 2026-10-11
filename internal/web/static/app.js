@@ -1403,24 +1403,6 @@
     return major === 4 || major === 5 || major === 6;
   }
 
-  var JSON_TOKEN_RE = /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g;
-
-  function syntaxHighlight(json) {
-    if (!json) return "";
-    json = escapeHtml(json);
-    return json.replace(JSON_TOKEN_RE, (match) => {
-      let cls = "json-number";
-      if (/^"/.test(match)) {
-        cls = /:$/.test(match) ? "json-key" : "json-string";
-      } else if (/true|false/.test(match)) {
-        cls = "json-bool";
-      } else if (/null/.test(match)) {
-        cls = "json-null";
-      }
-      return '<span class="' + cls + '">' + match + "</span>";
-    });
-  }
-
   function renderJSON(obj, id) {
     return renderJSONBlock(obj, null, id);
   }

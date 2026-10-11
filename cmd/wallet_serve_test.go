@@ -109,7 +109,7 @@ func TestServingConfigWarningsIgnoreForeignIssuers(t *testing.T) {
 	}
 }
 
-func TestDeriveWalletIssuerURL(t *testing.T) {
+func TestWalletOriginIssuerURL(t *testing.T) {
 	tests := []struct {
 		name    string
 		port    int
@@ -127,12 +127,12 @@ func TestDeriveWalletIssuerURL(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := deriveWalletIssuerURL(tt.port, tt.baseURL, tt.docker)
+			got, err := walletOrigin(tt.port, tt.baseURL, tt.docker)
 			if err != nil {
-				t.Fatalf("deriveWalletIssuerURL: %v", err)
+				t.Fatalf("walletOrigin: %v", err)
 			}
-			if got != tt.want {
-				t.Fatalf("deriveWalletIssuerURL = %q, want %q", got, tt.want)
+			if got.Issuer != tt.want {
+				t.Fatalf("issuer URL = %q, want %q", got.Issuer, tt.want)
 			}
 		})
 	}
@@ -249,5 +249,45 @@ func TestTheDeprecatedTrustAnchorFlagAddsIssuerCAs(t *testing.T) {
 	}
 	if got := opts.demoVerifierIssuerCAFiles(); !slices.Equal(got, []string{"a.pem", "b.pem"}) {
 		t.Errorf("issuer CA files %v, want both", got)
+	}
+}
+
+// The local ports answer under every local host name. A credential that
+// names [::1] reaches the same server as one that names localhost.
+func TestServingConfigWarningsAcceptEveryLocalHostName(t *testing.T) {
+	w := newServingTestWallet(t)
+	w.BaseURL = "http://[::1]:8085"
+	w.IssuerURL = "https://[::1]:8086"
+	if err := w.GenerateDefaultCredentials(nil, ""); err != nil {
+		t.Fatal(err)
+	}
+	w.BaseURL = "http://localhost:8085"
+	w.IssuerURL = "https://127.0.0.1:8086"
+	if warns := servingConfigWarnings(w, 8085, false); len(warns) != 0 {
+		t.Fatalf("credentials on [::1] were flagged: %v", warns)
+	}
+}
+
+// wallet serve keeps the base URL a previous run stored unless a flag
+// replaces it (ADR-0019).
+func TestServeBaseURLKeepsTheStoredBaseURL(t *testing.T) {
+	for _, tc := range []struct {
+		name               string
+		stored, flag       string
+		flagSet, dockerSet bool
+		want               string
+	}{
+		{"stored", "https://wallet.example", "", false, false, "https://wallet.example"},
+		{"flag", "https://wallet.example", "https://other.example", true, false, "https://other.example"},
+		{"docker", "http://localhost:8085", "", false, true, ""},
+		{"none", "", "", false, false, ""},
+	} {
+		if got := serveBaseURL(tc.stored, tc.flag, tc.flagSet, tc.dockerSet); got != tc.want {
+			t.Errorf("%s: base URL %q, want %q", tc.name, got, tc.want)
+		}
+	}
+	origin, err := walletOrigin(8085, serveBaseURL("https://wallet.example", "", false, false), false)
+	if err != nil || origin.Base != "https://wallet.example" || origin.Issuer != "https://wallet.example" {
+		t.Fatalf("origin from the stored base URL: %+v %v", origin, err)
 	}
 }

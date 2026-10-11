@@ -186,13 +186,12 @@ func (s *signingStore) cachedCertificate(identity []byte, ca *x509.Certificate, 
 	digest.Write(identity)
 	key := path.Join(s.prefix, "certificates", fmt.Sprintf("%x.pem", digest.Sum(nil)))
 	for range 5 {
-		blobs, err := s.backend.ReadAll(path.Dir(key))
+		data, version, exists, err := readVersioned(s.backend, key)
 		if err != nil {
 			return nil, fmt.Errorf("reading signing certificate: %w", err)
 		}
-		blob, exists := blobs[key]
 		if exists {
-			block, _ := pem.Decode(blob.Data)
+			block, _ := pem.Decode(data)
 			if block == nil || block.Type != "CERTIFICATE" {
 				return nil, fmt.Errorf("invalid signing certificate at %s", key)
 			}
@@ -211,8 +210,8 @@ func (s *signingStore) cachedCertificate(identity []byte, ca *x509.Certificate, 
 		if err != nil {
 			return nil, err
 		}
-		data := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw})
-		if _, err := s.backend.WriteIf(key, data, 0644, blob.Stamp.Version); err != nil {
+		data = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw})
+		if _, err := s.backend.WriteIf(key, data, 0644, version); err != nil {
 			if errors.Is(err, storage.ErrConflict) {
 				renew = false
 				continue
@@ -222,6 +221,27 @@ func (s *signingStore) cachedCertificate(identity []byte, ca *x509.Certificate, 
 		return s.retainCertificate(cert)
 	}
 	return nil, fmt.Errorf("storing the signing certificate failed after repeated conflicts")
+}
+
+// readVersioned reads one blob and the version a WriteIf expects. The
+// version is read first, so a write in between fails the WriteIf and the
+// caller tries again.
+func readVersioned(backend storage.Store, key string) (data []byte, version string, exists bool, err error) {
+	stamp, err := backend.Stat(key)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, "", false, nil
+	}
+	if err != nil {
+		return nil, "", false, err
+	}
+	data, err = backend.Read(key)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, "", false, nil
+	}
+	if err != nil {
+		return nil, "", false, err
+	}
+	return data, stamp.Version, true, nil
 }
 
 func (s *signingStore) retainCertificate(cert *x509.Certificate) (*x509.Certificate, error) {

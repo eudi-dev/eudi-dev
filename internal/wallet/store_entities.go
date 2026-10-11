@@ -656,7 +656,9 @@ func (s *WalletStore) currentEntities(w *Wallet, snapshot stateSnapshot) (map[st
 			return nil, nil, nil, err
 		}
 	}
-	if err := put(s.settingsKey(), walletSettings{BaseURL: w.BaseURL, IssuerURL: w.IssuerURL}); err != nil {
+	settings := walletSettings{}
+	settings.BaseURL, settings.IssuerURL = w.savedURLsLocked()
+	if err := put(s.settingsKey(), settings); err != nil {
 		return nil, nil, nil, err
 	}
 	// Only the allocator advances the counter. An ordinary save must not overwrite it

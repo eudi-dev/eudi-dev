@@ -866,3 +866,32 @@ func TestParseIssuerMetadataResponse_RequiresIatAndRejectsExpiredMetadata(t *tes
 // refuseMetadataProblem refuses issuer metadata with a §12.2.3 problem, as
 // strict mode does.
 func refuseMetadataProblem(problem string) error { return errors.New(problem) }
+
+// RFC 7515 §4.1.9: typ values are case insensitive and "application/" is
+// implied when the value has no '/'.
+func TestParseIssuerMetadataResponse_SignedMetadataTypIsAMediaType(t *testing.T) {
+	w := generateTestWallet(t)
+	w.IssuerURL = "https://issuer.example:8443"
+	if err := w.GenerateDefaultCredentials(nil, ""); err != nil {
+		t.Fatalf("generating credentials: %v", err)
+	}
+	trustSignedIssuerMetadataFrom(t, w)
+	chain, err := w.DefaultSigningCertChain()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, typ := range []string{strings.ToUpper(signedIssuerMetadataTyp), "application/" + signedIssuerMetadataTyp} {
+		raw, err := signJSONWebSignature(map[string]any{
+			"credential_issuer":   w.IssuerURL,
+			"credential_endpoint": w.IssuerURL + "/credential",
+			"sub":                 w.IssuerURL,
+			"iat":                 time.Now().Unix(),
+		}, w.IssuerKey, map[string]any{"alg": "ES256", "typ": typ, "x5c": buildJWSX5C(chain)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := parseIssuerMetadataDocument([]byte(raw), "application/jwt", w.IssuerURL, refuseMetadataProblem); err != nil {
+			t.Errorf("typ %s: %v", typ, err)
+		}
+	}
+}

@@ -72,7 +72,11 @@ func walletLogsCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return followWalletLogs(cmd.Context(), out, store, len(entries), walletLogPrintOptions{Verbose: verbose})
+			var last *wallet.LogEntry
+			if len(entries) > 0 {
+				last = &entries[len(entries)-1]
+			}
+			return followWalletLogs(cmd.Context(), out, store, last, walletLogPrintOptions{Verbose: verbose})
 		},
 	}
 	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "Follow wallet logs and print new entries as they are persisted")
@@ -330,7 +334,7 @@ func oneLine(value string) string {
 	return strings.Join(strings.Fields(value), " ")
 }
 
-func followWalletLogs(ctx context.Context, out io.Writer, store *wallet.WalletStore, seen int, opts walletLogPrintOptions) error {
+func followWalletLogs(ctx context.Context, out io.Writer, store *wallet.WalletStore, last *wallet.LogEntry, opts walletLogPrintOptions) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -347,15 +351,33 @@ func followWalletLogs(ctx context.Context, out io.Writer, store *wallet.WalletSt
 				return fmt.Errorf("loading wallet: %w", err)
 			}
 			entries := w.GetLog()
-			if seen > len(entries) {
-				seen = 0
-			}
-			if seen < len(entries) {
-				if err := printWalletLogs(out, entries[seen:], opts); err != nil {
+			if fresh := logEntriesAfter(entries, last); len(fresh) > 0 {
+				if err := printWalletLogs(out, fresh, opts); err != nil {
 					return err
 				}
-				seen = len(entries)
+				last = &fresh[len(fresh)-1]
 			}
 		}
 	}
+}
+
+// logEntriesAfter returns the entries after last. The wallet drops its oldest
+// entries and can clear the log, so the length of the log can't tell what is
+// new.
+func logEntriesAfter(entries []wallet.LogEntry, last *wallet.LogEntry) []wallet.LogEntry {
+	if last == nil {
+		return entries
+	}
+	for i := len(entries) - 1; i >= 0; i-- {
+		e := entries[i]
+		if e.Time.Equal(last.Time) && e.Action == last.Action && e.Detail == last.Detail {
+			return entries[i+1:]
+		}
+	}
+	for i, e := range entries {
+		if e.Time.After(last.Time) {
+			return entries[i:]
+		}
+	}
+	return nil
 }

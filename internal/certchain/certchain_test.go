@@ -36,7 +36,7 @@ func testChain(t *testing.T) (leaf, ca *x509.Certificate) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	leaf, err = mock.GenerateLeafCert(caKey, ca, &leafKey.PublicKey)
+	leaf, err = mock.GenerateLeafCertWithOptions(caKey, ca, &leafKey.PublicKey, mock.LeafCertOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

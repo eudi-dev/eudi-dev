@@ -137,7 +137,7 @@ func TestCredential_SuppliedTrustWithoutAnchorsFailsTheSignature(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	leaf, err := mock.GenerateLeafCert(key, caCert, &key.PublicKey)
+	leaf, err := mock.GenerateLeafCertWithOptions(key, caCert, &key.PublicKey, mock.LeafCertOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

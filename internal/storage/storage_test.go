@@ -550,3 +550,28 @@ func TestPostgresLabelDropsCredentials(t *testing.T) {
 		t.Fatalf("label = %s", got)
 	}
 }
+
+// Another process can delete a blob while a reader lists the directory.
+func TestFile_WalkSkipsABlobDeletedDuringTheWalk(t *testing.T) {
+	dir := t.TempDir()
+	s := NewFile(dir).(*fileStore)
+	for _, key := range []string{"w/a", "w/b", "w/c"} {
+		if _, err := s.Write(key, []byte(key), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var seen []string
+	err := s.walk("w", func(key string, _ []byte) error {
+		seen = append(seen, key)
+		if key == "w/a" {
+			return os.Remove(filepath.Join(dir, "w", "b"))
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk: %v", err)
+	}
+	if !reflect.DeepEqual(seen, []string{"w/a", "w/c"}) {
+		t.Fatalf("walk visited %v, want [w/a w/c]", seen)
+	}
+}

@@ -127,6 +127,7 @@ func (w *Wallet) processAuthorizationCodeOffer(offer *oid4vc.CredentialOffer, se
 
 		presentationConsented: opts.PresentationConsented,
 		owner:                 opts.Owner,
+		flow:                  opts.Flow,
 	}
 	issuance := authorizationCodeIssuance{
 		session:      session,
@@ -187,7 +188,7 @@ func (w *Wallet) processAuthorizationCodeOffer(offer *oid4vc.CredentialOffer, se
 		"redirect_uri": redirectURI,
 		"state":        state,
 	}, &LogPayload{Label: "Request URL", Body: authURL})
-	callbackValues, err := runAuthorizationCodeRequest(w, authorizationEndpoint, clientID, requestURI, parForm, redirectURI, state, oauthIssuer(oauthMeta, ""), opts.Owner, issAdvertised(oauthMeta))
+	callbackValues, err := runAuthorizationCodeRequest(w, authorizationEndpoint, clientID, requestURI, parForm, redirectURI, state, oauthIssuer(oauthMeta, ""), AuthorizationPrompt{Owner: opts.Owner, Flow: opts.Flow}, issAdvertised(oauthMeta))
 	authorizationResponseDetails := map[string]any{
 		"direction": "inbound",
 		"endpoint":  "authorization",
@@ -237,6 +238,7 @@ type authorizationCodeSetup struct {
 	presentationConsented bool
 	// owner identifies the browser the issuance belongs to.
 	owner string
+	flow  string
 }
 
 // authorizationCodeIssuance holds what the token request needs, whichever
@@ -657,9 +659,6 @@ func (a *clientAuthenticator) formBody(contentType string, body []byte) ([]byte,
 // draft (the draft-07 shape). Every draft allows extra claims in these JWTs
 // (§5.1 and §5.2 rule 1), so one shape verifies under all of them.
 func createClientAttestationHeaders(w *Wallet, auth *ClientAuthentication, clientID, challenge string) (map[string]string, error) {
-	if w == nil || w.IssuerKey == nil || len(w.CertChain) == 0 {
-		return nil, fmt.Errorf("wallet issuer signing material is not configured")
-	}
 
 	signingKey, chain, err := w.WalletProviderSigningMaterial()
 	if err != nil {
@@ -758,9 +757,6 @@ func createKeyAttestation(w *Wallet, metadata map[string]any, configID, cNonce s
 	requirement, required := credentialKeyAttestationRequirement(metadata, configID)
 	if !required {
 		return "", nil
-	}
-	if w == nil || w.IssuerKey == nil || len(w.CertChain) == 0 {
-		return "", fmt.Errorf("wallet issuer signing material is not configured")
 	}
 	signingKey, chain, err := w.WalletProviderSigningMaterial()
 	if err != nil {
@@ -1681,7 +1677,7 @@ func derefString(v *string) string {
 // runAuthorizationCodeRequest uses the authorization URL exactly once, because
 // RFC 9126 §4 allows one use of a request_uri. A browser opens it when the
 // callback reaches this wallet. Otherwise the wallet calls the endpoint itself.
-func runAuthorizationCodeRequest(w *Wallet, endpoint, clientID, requestURI string, params url.Values, redirectURI, expectedState, expectedIssuer, owner string, issRequired bool) (url.Values, error) {
+func runAuthorizationCodeRequest(w *Wallet, endpoint, clientID, requestURI string, params url.Values, redirectURI, expectedState, expectedIssuer string, route AuthorizationPrompt, issRequired bool) (url.Values, error) {
 	authURL, err := authorizationRequestURL(endpoint, clientID, requestURI, params)
 	if err != nil {
 		return nil, err
@@ -1693,7 +1689,8 @@ func runAuthorizationCodeRequest(w *Wallet, endpoint, clientID, requestURI strin
 
 		// The user's browser opens the URL. A browser opened on a hosted wallet
 		// server would not reach the user.
-		if !w.NotifyAuthorization(AuthorizationPrompt{URL: authURL, Owner: owner}) {
+		route.URL = authURL
+		if !w.NotifyAuthorization(route) {
 			return nil, fmt.Errorf("this offer needs an interactive sign-in at %s, and nothing is attached to this wallet that can open it", authURL)
 		}
 		select {
@@ -1800,7 +1797,7 @@ func callAuthorizationEndpoint(authURL string, clients ...*http.Client) (string,
 		return "", "", fmt.Errorf("creating authorization request: %w", err)
 	}
 
-	baseClient := format.HTTPClientForURL(req.URL.String(), clients...)
+	baseClient := format.HTTPClient(clients...)
 	if httpClient != defaultHTTPClient {
 		if overridden, ok := httpClient.(*http.Client); ok && overridden != nil {
 			baseClient = overridden
@@ -1873,11 +1870,7 @@ func sameLoopbackHost(a, b string) bool {
 }
 
 func truncateBody(body string) string {
-	body = strings.TrimSpace(body)
-	if len(body) <= 200 {
-		return body
-	}
-	return body[:200] + "..."
+	return format.Truncate(strings.TrimSpace(body), 200)
 }
 
 func tokenGrantRenewal(tokenResp map[string]any) (refreshToken string, expiresIn int) {

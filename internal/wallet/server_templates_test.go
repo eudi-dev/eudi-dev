@@ -69,6 +69,10 @@ func TestTemplatesCRUD(t *testing.T) {
 	if resp.Code != http.StatusNotFound {
 		t.Fatalf("expected 404 after delete, got %d", resp.Code)
 	}
+	resp = serverRequest(t, srv, http.MethodDelete, "/api/templates/employee-card", "")
+	if resp.Code != http.StatusNotFound {
+		t.Fatalf("deleting it again: expected 404, got %d: %s", resp.Code, resp.Body.String())
+	}
 
 	resp = serverRequest(t, srv, http.MethodDelete, "/api/templates/german-pid-sdjwt", "")
 	if resp.Code != http.StatusBadRequest {

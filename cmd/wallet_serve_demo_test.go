@@ -103,9 +103,8 @@ func TestServeRejectsAnUnknownVCIVersion(t *testing.T) {
 	if err := cmd.ParseFlags([]string{"--port", "0", "--vci-version", "1.2"}); err != nil {
 		t.Fatalf("parsing flags: %v", err)
 	}
-	w := newTestServeWallet(t)
-	if err := applyVCIVersion(w, opts.VCIVersion); err == nil {
-		t.Fatal("applyVCIVersion accepted an unknown version")
+	if _, err := serveConformance(cmd, opts); err == nil {
+		t.Fatal("the serve flags accepted an unknown version")
 	}
 }
 
@@ -126,19 +125,12 @@ func resolveServeProfileWithOptions(t *testing.T, args []string) (*wallet.Wallet
 		t.Fatalf("parsing %v: %v", args, err)
 	}
 
+	conformance, err := serveConformance(cmd, opts)
+	if err != nil {
+		t.Fatalf("resolving the serve flags: %v", err)
+	}
 	w := newTestServeWallet(t)
-	if err := applyValidationMode(w, walletValidationMode); err != nil {
-		t.Fatalf("applying validation mode: %v", err)
-	}
-	if opts.Demo {
-		applyDemoProfileDefaults(cmd, opts, w)
-	}
-	if err := applyVCIVersion(w, opts.VCIVersion); err != nil {
-		t.Fatalf("applying vci version: %v", err)
-	}
-	if opts.HAIP {
-		w.RequireHAIP = true
-	}
+	conformance.apply(w)
 	return w, opts
 }
 

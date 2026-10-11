@@ -416,9 +416,10 @@ func loadWalletForIssue(cmd *cobra.Command) (*wallet.Wallet, *wallet.WalletStore
 	}
 
 	if cmd.Flags().Changed("iss") {
-		w.IssuerURL = strings.TrimRight(strings.TrimSpace(issueIssuer), "/")
+		w.OverrideURLs(w.BaseURL, strings.TrimRight(strings.TrimSpace(issueIssuer), "/"))
 	} else if strings.TrimSpace(w.IssuerURL) == "" || (registeredWalletListenerPort() > 0 && isLocalhostIssuerURL(w.IssuerURL)) {
-		w.IssuerURL = wallet.LocalIssuerURL(defaultWalletCommandPort()+1, false)
+		origin, _ := walletOrigin(defaultWalletCommandPort(), "", false)
+		w.OverrideURLs(w.BaseURL, origin.Issuer)
 	}
 
 	return w, store, nil
@@ -483,7 +484,7 @@ func printIssuedCredential(raw, id string) {
 // and no --claims, --vct selects the built-in PID template, which serves only
 // as a claim set, so `issue jwt --pid` uses the SD-JWT PID claims.
 func resolveStandaloneIssue(cmd *cobra.Command, format string) (credtemplate.Resolved, error) {
-	overrides, err := issueClaimOverrides()
+	overrides, err := parseClaimsArg(issueClaims)
 	if err != nil {
 		return credtemplate.Resolved{}, err
 	}
@@ -529,15 +530,16 @@ func resolveStandaloneIssue(cmd *cobra.Command, format string) (credtemplate.Res
 	return credtemplate.Resolve(tpl, req)
 }
 
-// issueClaimOverrides reads --claims, a JSON object or @file.
-func issueClaimOverrides() (map[string]any, error) {
-	if issueClaims == "" {
+// parseClaimsArg reads a --claims value, a JSON object or @file. An empty
+// value is no claims.
+func parseClaimsArg(arg string) (map[string]any, error) {
+	if arg == "" {
 		return nil, nil
 	}
-	data := []byte(issueClaims)
-	if strings.HasPrefix(issueClaims, "@") {
+	data := []byte(arg)
+	if strings.HasPrefix(arg, "@") {
 		var err error
-		if data, err = os.ReadFile(issueClaims[1:]); err != nil {
+		if data, err = os.ReadFile(arg[1:]); err != nil {
 			return nil, fmt.Errorf("reading claims file: %w", err)
 		}
 	}
@@ -552,13 +554,16 @@ func saveIssueTemplate(resolved credtemplate.Resolved) error {
 	if issueSaveTemplate == "" {
 		return nil
 	}
-	loc, err := resolveTemplates()
+	svc, err := managedWallet()
 	if err != nil {
 		return err
 	}
-	path, err := credtemplate.Save(loc, resolved.Template(issueSaveTemplate))
+	path, err := svc.SaveTemplate(resolved.Template(issueSaveTemplate))
 	if err != nil {
 		return fmt.Errorf("saving template: %w", err)
+	}
+	if path == "" {
+		path = svc.URL()
 	}
 	fmt.Fprintf(os.Stderr, "Saved template %q to %s\n", issueSaveTemplate, path)
 	return nil
@@ -585,7 +590,7 @@ func issueAPIRequestFromFlags(cmd *cobra.Command, format string) (map[string]any
 	if issuePID {
 		req["pid"] = true
 	}
-	claims, err := issueClaimOverrides()
+	claims, err := parseClaimsArg(issueClaims)
 	if err != nil {
 		return nil, err
 	}

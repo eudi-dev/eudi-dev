@@ -60,8 +60,6 @@ func (s *Server) handleRequestStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
-	// Only the wallet UI should read these consent events. A wildcard CORS header
-	// would let other sites subscribe to the requested claims.
 	flusher.Flush()
 
 	owners := callerOwners(r)
@@ -72,7 +70,10 @@ func (s *Server) handleRequestStream(w http.ResponseWriter, r *http.Request) {
 	defer errUnsub()
 	stateCh, stateUnsub := s.wallet.SubscribeState()
 	defer stateUnsub()
-	authCh, authUnsub := s.wallet.SubscribeAuthorization()
+	// Only the browser that owns the issuance navigates to the sign-in URL.
+	authCh, authUnsub := s.wallet.SubscribeAuthorization(func(prompt AuthorizationPrompt) bool {
+		return ownedBy(owners, prompt.Owner)
+	})
 	defer authUnsub()
 
 	// Keepalives prevent proxies from dropping idle streams and causing repeated
@@ -123,11 +124,6 @@ func (s *Server) handleRequestStream(w http.ResponseWriter, r *http.Request) {
 			}
 			flusher.Flush()
 		case prompt := <-authCh:
-			// Only the browser that owns the issuance should navigate to the sign-in
-			// URL.
-			if !ownedBy(owners, prompt.Owner) {
-				continue
-			}
 			// The issuer redirects to /callback after sign-in, resuming the existing
 			// flow.
 			data, err := json.Marshal(map[string]string{"url": prompt.URL})

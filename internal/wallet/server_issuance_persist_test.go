@@ -95,6 +95,8 @@ func TestSaveIssuedCredential_KeepsTheAdoptedStatusEntry(t *testing.T) {
 	srv := newTestServer(t, true)
 	srv.onSave = func() {}
 	srv.wallet.BaseURL = "https://wallet.example"
+	// The wallet assigned index 22 when it issued the ticket.
+	srv.wallet.StatusListCounter = 23
 
 	issued := StoredCredential{
 		ID:     "ticket-with-own-status",
@@ -116,7 +118,7 @@ func TestSaveIssuedCredential_KeepsTheAdoptedStatusEntry(t *testing.T) {
 		t.Fatal("precondition failed: the import should have adopted the status entry")
 	}
 
-	srv.applyPersistedWalletState(&Wallet{PersistedState: PersistedState{Credentials: []StoredCredential{}}})
+	srv.applyPersistedWalletState(&Wallet{PersistedState: PersistedState{Credentials: []StoredCredential{}, StatusListCounter: 23}})
 	if _, ok := srv.wallet.StatusEntryFor(issued.ID); ok {
 		t.Fatal("precondition failed: the reload should have wiped the status entry")
 	}
@@ -182,7 +184,9 @@ func TestSaveRenewedCredential_SurvivesConcurrentStoreReload(t *testing.T) {
 	srv.wallet.PutCredential(renewed)
 	srv.applyPersistedWalletState(&Wallet{PersistedState: PersistedState{Credentials: []StoredCredential{stale}}})
 
-	srv.saveCredential(&renewed, true)
+	if err := srv.management().saveRenewed(renewed); err != nil {
+		t.Fatal(err)
+	}
 
 	got, ok := srv.wallet.GetCredential(renewed.ID)
 	if !ok {

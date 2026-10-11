@@ -238,3 +238,29 @@ func TestUIsUseRelativePaths(t *testing.T) {
 		}
 	}
 }
+
+type headerCounter struct {
+	*httptest.ResponseRecorder
+	headers int
+}
+
+func (c *headerCounter) WriteHeader(code int) {
+	c.headers++
+	c.ResponseRecorder.WriteHeader(code)
+}
+
+// An event stream writes and flushes many times. net/http logs every
+// WriteHeader after the first one as superfluous.
+func TestWrapWritesTheHeaderOnce(t *testing.T) {
+	counter := &headerCounter{ResponseRecorder: httptest.NewRecorder()}
+	handler := Wrap(Options{BaseURL: "https://mydomain.de/p"}, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		for range 3 {
+			_, _ = w.Write([]byte("data: x\n\n"))
+			_ = http.NewResponseController(w).Flush()
+		}
+	}))
+	handler.ServeHTTP(counter, newRequest("/p/stream", "mydomain.de", nil))
+	if counter.headers != 1 {
+		t.Fatalf("WriteHeader reached the response %d times, want 1", counter.headers)
+	}
+}

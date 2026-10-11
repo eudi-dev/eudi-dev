@@ -17,8 +17,8 @@ package jwe
 import (
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/ecdh"
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/rsa"
@@ -30,6 +30,7 @@ import (
 	"hash"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 )
 
 // EncryptECDHES encrypts payload to the recipient's P-256 key as a compact JWE
@@ -43,32 +44,33 @@ func EncryptECDHES(payload []byte, recipient *ecdsa.PublicKey, kid, enc, cty str
 		return "", nil, err
 	}
 
-	ephemeral, err := ecdh.P256().GenerateKey(rand.Reader)
+	ephemeral, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return "", nil, fmt.Errorf("generating ephemeral key: %w", err)
+	}
+	ephemeralECDH, err := ephemeral.ECDH()
+	if err != nil {
+		return "", nil, fmt.Errorf("converting ephemeral key to ECDH: %w", err)
 	}
 	recipientECDH, err := recipient.ECDH()
 	if err != nil {
 		return "", nil, fmt.Errorf("converting recipient key to ECDH: %w", err)
 	}
-	z, err := ephemeral.ECDH(recipientECDH)
+	z, err := ephemeralECDH.ECDH(recipientECDH)
 	if err != nil {
 		return "", nil, fmt.Errorf("ECDH key agreement: %w", err)
 	}
 	cek := ConcatKDF(z, enc, apu, apv, keyBitLen)
 
-	raw := ephemeral.PublicKey().Bytes() // 0x04 || x || y
-	coordLen := (len(raw) - 1) / 2
+	epk, err := keys.PublicJWK(&ephemeral.PublicKey)
+	if err != nil {
+		return "", nil, err
+	}
 	header := map[string]any{
 		"alg": "ECDH-ES",
 		"enc": enc,
 		"kid": kid,
-		"epk": map[string]any{
-			"kty": "EC",
-			"crv": "P-256",
-			"x":   format.EncodeBase64URL(raw[1 : 1+coordLen]),
-			"y":   format.EncodeBase64URL(raw[1+coordLen:]),
-		},
+		"epk": epk,
 	}
 	if apu != nil {
 		header["apu"] = format.EncodeBase64URL(apu)

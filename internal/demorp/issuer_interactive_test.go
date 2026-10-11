@@ -135,7 +135,7 @@ func TestOfferCanAskForTheBrowserSignInInstead(t *testing.T) {
 		t.Fatalf("unexpected offer response: %v", offer)
 	}
 
-	authCh, unsubscribe := w.SubscribeAuthorization()
+	authCh, unsubscribe := w.SubscribeAuthorization(func(wallet.AuthorizationPrompt) bool { return true })
 	defer unsubscribe()
 	done := make(chan error, 1)
 	go func() {
@@ -562,7 +562,7 @@ func TestInteractiveRequestPinsTheIssuerCA(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generating a holder key: %v", err)
 	}
-	leaf, err := mock.GenerateLeafCert(d.wallet.CAKey, caCert, &holderKey.PublicKey)
+	leaf, err := mock.GenerateLeafCertWithOptions(d.wallet.CAKey, caCert, &holderKey.PublicKey, mock.LeafCertOptions{})
 	if err != nil {
 		t.Fatalf("generating a leaf: %v", err)
 	}

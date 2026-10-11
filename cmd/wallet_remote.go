@@ -58,7 +58,7 @@ func remoteClientIfConfigured() (*remote.Client, error) {
 		if err := refuseLocalStateFlags(url, ""); err != nil {
 			return nil, err
 		}
-		return remoteFlowClient(url), nil
+		return remote.NewClient(url), nil
 	}
 	if forcedLocal() {
 		return nil, nil
@@ -77,7 +77,7 @@ func remoteClientIfConfigured() (*remote.Client, error) {
 		if notice := incompatibilityNotice(inst.URL, inst.Version); notice != "" {
 			fmt.Fprintln(os.Stderr, notice)
 		}
-		return remoteFlowClient(inst.URL), nil
+		return remote.NewClient(inst.URL), nil
 	}
 	return nil, nil
 }
@@ -115,13 +115,6 @@ func refuseLocalStateFlags(target, selector string) error {
 		return nil
 	}
 	return fmt.Errorf("the wallet at %s keeps its own store, so it can't use %s. Add --remote local to use the local store", target, strings.Join(set, ", "))
-}
-
-// remoteFlowClient builds a client for a remote wallet. A remote wallet's
-// conformance settings are its own and cannot be changed from here, so the
-// client carries no override.
-func remoteFlowClient(url string) *remote.Client {
-	return remote.NewClient(url)
 }
 
 func walletUseCmd() *cobra.Command {
@@ -513,6 +506,13 @@ func stopInstance(inst remote.DiscoveredInstance) error {
 	}
 	if inst.PID <= 0 {
 		return fmt.Errorf("shutdown request failed and no pid is known")
+	}
+	// The process may have exited and its pid gone to another program. Only
+	// a wallet that still answers under its pid gets the signal.
+	version, err := client.Version()
+	if pid, ok := version["pid"].(float64); err != nil || (ok && int(pid) != inst.PID) {
+		remote.UnregisterInstance(inst.PID)
+		return fmt.Errorf("the wallet does not answer at %s, so pid %d may belong to another program. Its stale entry is removed", inst.URL, inst.PID)
 	}
 	proc, err := os.FindProcess(inst.PID)
 	if err != nil {

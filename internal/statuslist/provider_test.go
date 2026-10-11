@@ -186,7 +186,7 @@ func TestGenerateStatusListJWT_WithCertChain(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	leafCert, err := mock.GenerateLeafCert(caKey, caCert, &key.PublicKey)
+	leafCert, err := mock.GenerateLeafCertWithOptions(caKey, caCert, &key.PublicKey, mock.LeafCertOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -251,7 +251,7 @@ func TestGenerateStatusListJWTExcludesTrustAnchorFromX5C(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generating leaf key: %v", err)
 	}
-	leafCert, err := mock.GenerateLeafCert(caKey, caCert, &leafKey.PublicKey)
+	leafCert, err := mock.GenerateLeafCertWithOptions(caKey, caCert, &leafKey.PublicKey, mock.LeafCertOptions{})
 	if err != nil {
 		t.Fatalf("generating leaf cert: %v", err)
 	}
@@ -319,7 +319,7 @@ func TestGenerateStatusListJWTEmbedsSigningKeyMatchingX5C(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generating leaf key: %v", err)
 	}
-	leafCert, err := mock.GenerateLeafCert(caKey, caCert, &leafKey.PublicKey)
+	leafCert, err := mock.GenerateLeafCertWithOptions(caKey, caCert, &leafKey.PublicKey, mock.LeafCertOptions{})
 	if err != nil {
 		t.Fatalf("generating leaf cert: %v", err)
 	}

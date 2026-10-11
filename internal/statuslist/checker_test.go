@@ -44,9 +44,9 @@ func testChain(t *testing.T) (*ecdsa.PrivateKey, *x509.Certificate, *x509.Certif
 	if err != nil {
 		t.Fatalf("GenerateCACert: %v", err)
 	}
-	leafCert, err := mock.GenerateLeafCert(caKey, caCert, &issuerKey.PublicKey)
+	leafCert, err := mock.GenerateLeafCertWithOptions(caKey, caCert, &issuerKey.PublicKey, mock.LeafCertOptions{})
 	if err != nil {
-		t.Fatalf("GenerateLeafCert: %v", err)
+		t.Fatalf("GenerateLeafCertWithOptions: %v", err)
 	}
 	return issuerKey, leafCert, caCert
 }

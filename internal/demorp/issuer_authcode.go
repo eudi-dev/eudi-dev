@@ -202,10 +202,10 @@ type authRequestState struct {
 	// debug panel.
 	clientAttestation    string
 	clientAttestationPoP string
-	// code is the authorization code issued from the request. Issuing it
-	// spends the request_uri.
-	code     string
-	codeUsed bool
+	// codeIssued reports that the request yielded its authorization code,
+	// which spends the request_uri.
+	codeIssued bool
+	codeUsed   bool
 	// holderClaims name the holder of the code: the account's names after
 	// the sign-in, or the requested claims of a presented credential.
 	holderClaims map[string]any
@@ -410,12 +410,12 @@ func (d *DemoRP) redirectWithCode(w http.ResponseWriter, r *http.Request, reques
 	// concurrently and two sign-ins may race for the request.
 	code := randToken()
 	d.mu.Lock()
-	if request.code != "" {
+	if request.codeIssued {
 		d.mu.Unlock()
 		writeAuthorizeError(w, errRequestURIUsed.Error())
 		return
 	}
-	request.code = code
+	request.codeIssued = true
 	request.holderClaims = holderClaims
 	makeRoom(d.codes, func(r *authRequestState) time.Time { return r.expires })
 	d.codes[code] = request
@@ -516,7 +516,7 @@ func (d *DemoRP) lookupAuthRequest(requestURI string) (*authRequestState, error)
 		delete(d.authRequests, requestURI)
 		return nil, fmt.Errorf("unknown or expired request_uri")
 	}
-	if request.code != "" {
+	if request.codeIssued {
 		return nil, errRequestURIUsed
 	}
 	return request, nil
@@ -574,7 +574,7 @@ func (d *DemoRP) verifyDPoPProof(r *http.Request, expectedURL, accessToken strin
 	if err != nil {
 		return "", fmt.Errorf("parsing DPoP proof: %w", err)
 	}
-	if typ, _ := proof.header["typ"].(string); typ != "dpop+jwt" {
+	if typ, _ := proof.header["typ"].(string); !format.JOSETypeIs(typ, "dpop+jwt") {
 		return "", fmt.Errorf("DPoP proof has typ %q, expected dpop+jwt", typ)
 	}
 	if alg, _ := proof.header["alg"].(string); alg != "ES256" {
@@ -612,7 +612,31 @@ func (d *DemoRP) verifyDPoPProof(r *http.Request, expectedURL, accessToken strin
 			return "", fmt.Errorf("DPoP ath does not match the access token")
 		}
 	}
+	if !d.firstUseOfDPoPProof(expectedURL, proof.payload) {
+		return "", fmt.Errorf("DPoP proof jti was already used at %s", expectedURL)
+	}
 	return mock.KeyIDForPublicKey(key), nil
+}
+
+// firstUseOfDPoPProof records the jti of an accepted proof for its target
+// URI. RFC 9449 §11.1: "servers can store the jti value of each DPoP proof
+// for the time window in which the respective DPoP proof JWT would be
+// accepted". §4.3 suggests storing "only a hash thereof" against memory
+// exhaustion.
+func (d *DemoRP) firstUseOfDPoPProof(targetURI string, payload map[string]any) bool {
+	jti, _ := payload["jti"].(string)
+	iat, _ := payload["iat"].(float64)
+	sum := sha256.Sum256([]byte(targetURI + " " + jti))
+	seen := string(sum[:])
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if expires, ok := d.dpopJTIs[seen]; ok && time.Now().Before(expires) {
+		return false
+	}
+	makeRoom(d.dpopJTIs, func(e time.Time) time.Time { return e })
+	d.dpopJTIs[seen] = time.Unix(int64(iat), 0).Add(freshnessWindow)
+	return true
 }
 
 // clientAuthentication records how a client authenticated and who attested it.
@@ -697,7 +721,7 @@ func (d *DemoRP) authenticateClient(r *http.Request, clientID, jkt string) (clie
 	if err != nil {
 		return clientAuthentication{}, attestationFailed("parsing client attestation: %v", err)
 	}
-	if typ, _ := attestation.header["typ"].(string); typ != "oauth-client-attestation+jwt" {
+	if typ, _ := attestation.header["typ"].(string); !format.JOSETypeIs(typ, "oauth-client-attestation+jwt") {
 		return clientAuthentication{}, attestationFailed("client attestation has typ %q, expected oauth-client-attestation+jwt", typ)
 	}
 	if alg, _ := attestation.header["alg"].(string); alg != "ES256" {
@@ -769,7 +793,7 @@ func (d *DemoRP) authenticateClient(r *http.Request, clientID, jkt string) (clie
 	if err != nil {
 		return clientAuthentication{}, attestationFailed("parsing client attestation PoP: %v", err)
 	}
-	if typ, _ := pop.header["typ"].(string); typ != "oauth-client-attestation-pop+jwt" {
+	if typ, _ := pop.header["typ"].(string); !format.JOSETypeIs(typ, "oauth-client-attestation-pop+jwt") {
 		return clientAuthentication{}, attestationFailed("client attestation PoP has typ %q, expected oauth-client-attestation-pop+jwt", typ)
 	}
 	if alg, _ := pop.header["alg"].(string); alg != "ES256" {

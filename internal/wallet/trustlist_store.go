@@ -70,21 +70,21 @@ func (s *signingStore) sequencedList(dir string, ca *x509.Certificate, content [
 	identity := fmt.Sprintf("%x", hash.Sum(nil))
 	at := path.Join(dir, "current.json")
 	for range 5 {
-		blobs, err := s.backend.ReadAll(dir)
+		data, version, exists, err := readVersioned(s.backend, at)
 		if err != nil {
 			return "", err
 		}
-		blob, exists := blobs[at]
 		var current storedTrustList
 		if exists {
-			if err := json.Unmarshal(blob.Data, &current); err != nil {
+			if err := json.Unmarshal(data, &current); err != nil {
 				return "", fmt.Errorf("reading persisted trusted list: %w", err)
-			}
-			if err := s.archiveTrustList(dir, current); err != nil {
-				return "", err
 			}
 			if current.Identity == identity && time.Now().Before(current.NextUpdate) {
 				return current.JWT, nil
+			}
+			// The history keeps every list the wallet published.
+			if err := s.archiveTrustList(dir, current); err != nil {
+				return "", err
 			}
 		}
 		sequence := current.Sequence + 1
@@ -93,11 +93,11 @@ func (s *signingStore) sequencedList(dir string, ca *x509.Certificate, content [
 			return "", err
 		}
 		updated := storedTrustList{Identity: identity, Sequence: sequence, NextUpdate: time.Now().UTC().Truncate(time.Second).Add(24 * time.Hour), JWT: jwt}
-		data, err := json.Marshal(updated) //nolint:gosec // The signed trusted list is public data.
+		data, err = json.Marshal(updated) //nolint:gosec // The signed trusted list is public data.
 		if err != nil {
 			return "", err
 		}
-		if _, err := s.backend.WriteIf(at, data, 0644, blob.Stamp.Version); err != nil {
+		if _, err := s.backend.WriteIf(at, data, 0644, version); err != nil {
 			if errors.Is(err, storage.ErrConflict) {
 				continue
 			}

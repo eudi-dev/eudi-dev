@@ -60,9 +60,6 @@ func limitBodies(next http.Handler) http.Handler {
 type DemoRP struct {
 	wallet  *wallet.Wallet
 	baseURL func() string
-	// onWalletChange persists the wallet after the issuer changes it, for
-	// example when it reserves a status list index.
-	onWalletChange func()
 	// clientAuth is the client authentication the demo authorization server
 	// requires from a wallet. The zero value is ClientAuthRequired.
 	clientAuth ClientAuthMode
@@ -85,6 +82,9 @@ type DemoRP struct {
 	// nonces keeps Nonce Endpoint challenges until they expire. A wallet can
 	// use one nonce for a whole batch of proofs.
 	nonces map[string]time.Time
+	// dpopJTIs holds a hash of the target URI and jti of each accepted DPoP
+	// proof until its iat leaves the freshness window.
+	dpopJTIs map[string]time.Time
 	// deferred holds accepted issuances that are not delivered yet, keyed by
 	// the transaction id. The wallet polls with that id.
 	deferred map[string]*deferredTicket
@@ -103,14 +103,9 @@ func New(w *wallet.Wallet, baseURL func() string) *DemoRP {
 		codes:        make(map[string]*authRequestState),
 		interactive:  make(map[string]*interactiveSession),
 		nonces:       make(map[string]time.Time),
+		dpopJTIs:     make(map[string]time.Time),
 		deferred:     make(map[string]*deferredTicket),
 	}
-}
-
-// SetOnWalletChange registers the callback that persists the wallet after the
-// demo issuer changed it. Call before serving.
-func (d *DemoRP) SetOnWalletChange(fn func()) {
-	d.onWalletChange = fn
 }
 
 // SetClientAuthMode sets the client authentication the demo authorization
@@ -125,12 +120,6 @@ func (d *DemoRP) SetClientAuthMode(mode ClientAuthMode) {
 // before serving.
 func (d *DemoRP) SetVerifierTrustAnchors(anchors []*x509.Certificate) {
 	d.verifierTrustAnchors = anchors
-}
-
-func (d *DemoRP) saveWallet() {
-	if d.onWalletChange != nil {
-		d.onWalletChange()
-	}
 }
 
 func randToken() string {
@@ -177,6 +166,11 @@ func (d *DemoRP) pruneLocked() {
 	for nonce, expires := range d.nonces {
 		if now.After(expires) {
 			delete(d.nonces, nonce)
+		}
+	}
+	for seen, expires := range d.dpopJTIs {
+		if now.After(expires) {
+			delete(d.dpopJTIs, seen)
 		}
 	}
 	for id, session := range d.interactive {

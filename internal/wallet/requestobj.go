@@ -26,16 +26,8 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jwe"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 )
-
-// The wallet advertises its encryption key even when encrypted Request Objects are
-// optional.
-func encryptionKeyCoords(w *Wallet) (x, y []byte, err error) {
-	if w.RequestEncryptionKey == nil {
-		return nil, nil, nil
-	}
-	return format.ECPublicCoords(&w.RequestEncryptionKey.PublicKey)
-}
 
 // BuildWalletMetadata advertises signing algorithms only when the client identifier prefix
 // permits signed requests (OID4VP 1.0 §5.10).
@@ -77,26 +69,23 @@ func BuildWalletMetadata(w *Wallet, clientID string) map[string]any {
 		meta["request_object_signing_alg_values_supported"] = []string{"ES256"}
 	}
 
-	if x, y, err := encryptionKeyCoords(w); err == nil && x != nil {
-		meta["jwks"] = map[string]any{
-			"keys": []any{
-				map[string]any{
-					"kty": "EC",
-					"crv": "P-256",
-					"x":   format.EncodeBase64URL(x),
-					"y":   format.EncodeBase64URL(y),
-					"use": "enc",
-					"alg": "ECDH-ES",
-				},
-			},
-		}
-		// OID4VP 1.0 §5.10 puts request encryption keys in jwks. The
-		// request_object_encryption_* fields follow OpenID Connect Discovery, with the
-		// wallet acting as the server.
-		meta["request_object_encryption_alg_values_supported"] = []string{"ECDH-ES"}
-		meta["request_object_encryption_enc_values_supported"] = []string{"A128GCM", "A256GCM"}
+	// The wallet advertises its encryption key even when encrypted Request
+	// Objects are optional.
+	if w.RequestEncryptionKey == nil {
+		return meta
 	}
-
+	jwk, err := keys.PublicJWK(&w.RequestEncryptionKey.PublicKey)
+	if err != nil {
+		return meta
+	}
+	jwk["use"] = "enc"
+	jwk["alg"] = "ECDH-ES"
+	// OID4VP 1.0 §5.10 puts request encryption keys in jwks. The
+	// request_object_encryption_* fields follow OpenID Connect Discovery, with the
+	// wallet acting as the server.
+	meta["jwks"] = map[string]any{"keys": []any{jwk}}
+	meta["request_object_encryption_alg_values_supported"] = []string{"ECDH-ES"}
+	meta["request_object_encryption_enc_values_supported"] = []string{"A128GCM", "A256GCM"}
 	return meta
 }
 

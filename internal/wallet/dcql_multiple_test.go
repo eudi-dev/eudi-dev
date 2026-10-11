@@ -290,16 +290,7 @@ func presentMultiple(t *testing.T, body string) (int, map[string][]string) {
 		srv.mux.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/authorize?"+params.Encode(), nil))
 	}()
 
-	var reqID string
-	for i := 0; i < 200 && reqID == ""; i++ {
-		time.Sleep(10 * time.Millisecond)
-		if pending := w.GetPendingRequests(); len(pending) > 0 {
-			reqID = pending[0].ID
-		}
-	}
-	if reqID == "" {
-		t.Fatal("no pending consent request")
-	}
+	reqID := waitForPendingRequest(t, w).ID
 	pending, _ := w.GetRequest(reqID)
 	ids := make([]string, 0, 2)
 	for _, c := range pending.CredentialOptions.Queries[0].Candidates {

@@ -24,6 +24,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/statuslist"
 )
@@ -307,14 +308,16 @@ func issuerInfoShapeFindings(entries []map[string]any) []string {
 	var findings []string
 	var dataset map[string]any
 	for _, entry := range entries {
-		format, _ := entry["format"].(string)
-		if format == "registrar_dataset" {
+		entryFormat, _ := entry["format"].(string)
+		if entryFormat == "registrar_dataset" {
 			dataset, _ = entry["data"].(map[string]any)
 			continue
 		}
 		data, _ := entry["data"].(string)
-		if header, _, err := decodeCompactJWT(data); err == nil && header["typ"] == registrar.RegistrationCertificateTyp && format != "registration_cert" {
-			findings = append(findings, fmt.Sprintf("%s05: the issuer_info element with the registration certificate has the format %q, not registration_cert", rule, format))
+		if header, _, err := decodeCompactJWT(data); err == nil && entryFormat != "registration_cert" {
+			if typ, _ := header["typ"].(string); format.JOSETypeIs(typ, registrar.RegistrationCertificateTyp) {
+				findings = append(findings, fmt.Sprintf("%s05: the issuer_info element with the registration certificate has the format %q, not registration_cert", rule, entryFormat))
+			}
 		}
 	}
 	if len(entries) == 0 {

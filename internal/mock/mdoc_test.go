@@ -574,9 +574,9 @@ func TestGenerateMDOC_X5ChainOmitsTheRoot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GenerateKey: %v", err)
 	}
-	leaf, err := GenerateLeafCert(caKey, caCert, &issuerKey.PublicKey)
+	leaf, err := GenerateLeafCertWithOptions(caKey, caCert, &issuerKey.PublicKey, LeafCertOptions{})
 	if err != nil {
-		t.Fatalf("GenerateLeafCert: %v", err)
+		t.Fatalf("GenerateLeafCertWithOptions: %v", err)
 	}
 
 	raw, err := GenerateMDOC(MDOCConfig{

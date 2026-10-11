@@ -43,7 +43,7 @@ func TestSelfSignedCertificate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generating leaf key: %v", err)
 	}
-	caSignedLeaf, err := mock.GenerateLeafCert(caKey, caCert, &leafKey.PublicKey)
+	caSignedLeaf, err := mock.GenerateLeafCertWithOptions(caKey, caCert, &leafKey.PublicKey, mock.LeafCertOptions{})
 	if err != nil {
 		t.Fatalf("generating CA-signed leaf: %v", err)
 	}

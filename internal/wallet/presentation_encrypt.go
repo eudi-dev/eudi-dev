@@ -247,11 +247,6 @@ func joinFindings(findings ...string) string {
 	return out
 }
 
-func HasEncryptionKey(reqObj *oid4vc.RequestObjectJWT) bool {
-	_, err := extractEncryptionKey(ValidationModeDebug, reqObj, nil)
-	return err == nil
-}
-
 // The payload must include the top level members required by OID4VP 1.0 for success or
 // error responses.
 func (w *Wallet) encryptDirectPostJWTPayload(payload map[string]any, mdocNonce string, params PresentationParams) (string, []byte, error) {

@@ -34,10 +34,6 @@ const (
 	TypeKeyBinding = "kb+jwt"
 )
 
-func AcceptedVCTypes() []string {
-	return []string{TypeSDJWTVC, TypeSDJWTVCLegacy}
-}
-
 // IsAcceptedVCType reports whether typ is an SD-JWT VC type.
 func IsAcceptedVCType(typ string) bool {
 	return format.JOSETypeIs(typ, TypeSDJWTVC) || format.JOSETypeIs(typ, TypeSDJWTVCLegacy)

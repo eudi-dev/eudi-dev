@@ -16,31 +16,31 @@ package remote
 
 import "testing"
 
-func TestParseVersion(t *testing.T) {
+func TestReleaseMajor(t *testing.T) {
 	cases := []struct {
 		raw   string
-		want  Version
+		want  int
 		valid bool
 	}{
-		{"1.19.0", Version{1, 19, 0}, true},
-		{"v1.19.0", Version{1, 19, 0}, true},
-		{" 1.19.0 ", Version{1, 19, 0}, true},
-		{"1.19", Version{1, 19, 0}, true},
-		{"1.19.0-rc.1", Version{1, 19, 0}, true},
-		{"1.19.0+build.7", Version{1, 19, 0}, true},
-		{"dev", Version{}, false},
-		{"", Version{}, false},
-		{"1", Version{}, false},
-		{"1.x.0", Version{}, false},
+		{"1.19.0", 1, true},
+		{"v1.19.0", 1, true},
+		{" 1.19.0 ", 1, true},
+		{"1.19", 1, true},
+		{"1.19.0-rc.1", 1, true},
+		{"1.19.0+build.7", 1, true},
+		{"dev", 0, false},
+		{"", 0, false},
+		{"1", 0, false},
+		{"1.x.0", 0, false},
 	}
 	for _, tc := range cases {
-		got, ok := ParseVersion(tc.raw)
+		got, ok := releaseMajor(tc.raw)
 		if ok != tc.valid {
-			t.Errorf("ParseVersion(%q) valid = %v, want %v", tc.raw, ok, tc.valid)
+			t.Errorf("releaseMajor(%q) valid = %v, want %v", tc.raw, ok, tc.valid)
 			continue
 		}
 		if ok && got != tc.want {
-			t.Errorf("ParseVersion(%q) = %+v, want %+v", tc.raw, got, tc.want)
+			t.Errorf("releaseMajor(%q) = %d, want %d", tc.raw, got, tc.want)
 		}
 	}
 }

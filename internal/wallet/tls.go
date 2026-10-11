@@ -64,7 +64,7 @@ func (w *Wallet) ConfigureOutbound(cfg OutboundConfig) error {
 
 func (w *Wallet) HTTPClient() *http.Client {
 	if w == nil {
-		return format.HTTPClientForURL("")
+		return format.HTTPClient()
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()

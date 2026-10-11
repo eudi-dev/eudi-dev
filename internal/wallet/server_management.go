@@ -129,7 +129,7 @@ func (s *Server) handleDeleteAllCredentials(w http.ResponseWriter, r *http.Reque
 // management persists each change under the reload lock, so a concurrent reload
 // cannot drop it.
 func (s *Server) management() *Management {
-	return &Management{wallet: s.wallet, commit: func(change func() error) error {
+	return &Management{wallet: s.wallet, store: s.store.Load(), commit: func(change func() error) error {
 		var err error
 		s.saveMutation(func() bool {
 			err = change()
@@ -254,32 +254,29 @@ func (s *Server) handleIssueCredential(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if name := strings.TrimSpace(req.SaveAsTemplate); name != "" {
-		if err := s.checkDemoTemplate(credtemplate.Template{Name: name}); err != nil {
-			writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
-			return
-		}
-	}
-
 	if s.demo != nil && (strings.TrimSpace(req.SigningKey) != "" || strings.TrimSpace(req.SigningCert) != "") {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "overriding the signing key is disabled in public demo mode"})
-		return
-	}
-
-	if s.demo != nil && req.Display != nil && (!demoAllowsImage(req.Display.Logo) || !demoAllowsImage(req.Display.BackgroundImage)) {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "the public demo only accepts the logo and background image of a predefined template"})
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "the public demo can't override the signing key"})
 		return
 	}
 
 	summary, err := s.management().Issue(req)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		writeJSON(w, visitorLimitStatus(err, http.StatusBadRequest), map[string]string{"error": err.Error()})
 		return
 	}
 	if req.SaveAsTemplate != "" {
 		s.templatesChanged()
 	}
 	writeJSON(w, http.StatusCreated, withPublicImagePaths(r, summary))
+}
+
+// visitorLimitStatus answers 403 for a change the shared wallet refuses.
+func visitorLimitStatus(err error, otherwise int) int {
+	var limit *VisitorLimitError
+	if errors.As(err, &limit) {
+		return http.StatusForbidden
+	}
+	return otherwise
 }
 
 func credentialTypeLabel(summary map[string]any) string {

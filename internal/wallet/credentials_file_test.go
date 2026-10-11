@@ -114,14 +114,14 @@ credentials:
 		t.Fatalf("AddFileCredentials: %v", err)
 	}
 
-	alice, ok := w.credentialByExactID("employee-alice")
+	alice, ok := w.GetCredential("employee-alice")
 	if !ok {
 		t.Fatal("no credential with ID employee-alice")
 	}
 	if alice.VCT != "urn:example:employee" || alice.Claims["employee_id"] != "E-2" || alice.Claims["department"] != "IT" {
 		t.Errorf("employee-alice has vct %q and claims %v, want the template merged with the override", alice.VCT, alice.Claims)
 	}
-	if mdocPID, ok := w.credentialByExactID("pid-mdoc"); !ok || mdocPID.Format != "mso_mdoc" {
+	if mdocPID, ok := w.GetCredential("pid-mdoc"); !ok || mdocPID.Format != "mso_mdoc" {
 		t.Errorf("pid-mdoc %+v, want an mdoc PID", mdocPID)
 	}
 }
@@ -172,11 +172,11 @@ func TestAddFileCredentialsImportsFinishedCredentialsUnderTheirIDs(t *testing.T)
 		}
 	}
 
-	foreign, ok := w.credentialByExactID("foreign-pid")
+	foreign, ok := w.GetCredential("foreign-pid")
 	if !ok || foreign.Raw != issued.Raw {
 		t.Fatalf("foreign-pid %+v, want the finished credential", foreign)
 	}
-	if _, ok := w.credentialByExactID("own-pid"); !ok {
+	if _, ok := w.GetCredential("own-pid"); !ok {
 		t.Fatal("no credential with ID own-pid")
 	}
 	if got := len(w.GetCredentials()); got != 2 {
@@ -262,10 +262,10 @@ func TestFileCredentialsReplaceTheirProtectedCopies(t *testing.T) {
 	if got := len(w.GetCredentials()); got != 2 {
 		t.Fatalf("%d credentials after two starts, want 2", got)
 	}
-	if c, _ := w.credentialByExactID("kept"); !c.Protected {
+	if c, _ := w.GetCredential("kept"); !c.Protected {
 		t.Error("kept is not protected, want the default")
 	}
-	if c, _ := w.credentialByExactID("open"); c.Protected {
+	if c, _ := w.GetCredential("open"); c.Protected {
 		t.Error("open is protected, want its own setting")
 	}
 }
@@ -288,7 +288,7 @@ func TestAFailedEntryKeepsTheCopyOfAnEarlierStart(t *testing.T) {
 	if err := w.AddFileCredentials(broken, false); err == nil {
 		t.Fatal("an unknown template was accepted")
 	}
-	if _, ok := w.credentialByExactID("jan"); !ok {
+	if _, ok := w.GetCredential("jan"); !ok {
 		t.Error("the earlier copy is gone")
 	}
 }

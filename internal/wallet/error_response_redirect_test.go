@@ -21,7 +21,6 @@ import (
 	"net/url"
 	"strings"
 	"testing"
-	"time"
 )
 
 // OpenID4VP 1.0 §8.2: "If the Response URI has successfully processed the
@@ -31,19 +30,6 @@ import (
 
 const verifierContinueURI = "https://verifier.example/continue?error=access_denied"
 
-func waitForPendingRequest(t *testing.T, srv *Server) *ConsentRequest {
-	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		if pending := srv.wallet.GetPendingRequests(); len(pending) == 1 {
-			return pending[0]
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatal("no pending consent request")
-	return nil
-}
-
 func TestDenyFollowsTheVerifierRedirect(t *testing.T) {
 	srv := newTestServer(t, false)
 	verifier := newRedirectingVerifier(t, verifierContinueURI)
@@ -52,7 +38,7 @@ func TestDenyFollowsTheVerifierRedirect(t *testing.T) {
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("expected 303, got %d: %s", rec.Code, rec.Body.String())
 	}
-	pending := waitForPendingRequest(t, srv)
+	pending := waitForPendingRequest(t, srv.wallet)
 
 	denyRec := browserAnswer(t, srv, rec, "/api/requests/"+pending.ID+"/deny", "")
 	if denyRec.Code != http.StatusOK {
@@ -85,7 +71,7 @@ func TestDenyOfAPastedRequestReturnsTheVerifierRedirect(t *testing.T) {
 	done := make(chan *httptest.ResponseRecorder, 1)
 	go func() { done <- serverRequest(t, srv, "POST", "/api/presentations", string(body)) }()
 
-	pending := waitForPendingRequest(t, srv)
+	pending := waitForPendingRequest(t, srv.wallet)
 	denyRec := serverRequest(t, srv, "POST", "/api/requests/"+pending.ID+"/deny", "")
 	if got := decodeJSON(t, denyRec)["redirect_uri"]; got != verifierContinueURI {
 		t.Fatalf("deny response redirect_uri %v, want %s", got, verifierContinueURI)
@@ -173,7 +159,7 @@ func TestDenyWithoutAVerifierRedirectStaysInTheWallet(t *testing.T) {
 	verifier := newCaptureVerifier(t)
 
 	rec := browserGet(t, srv, presentationAuthorizePath(t, verifier.URL))
-	pending := waitForPendingRequest(t, srv)
+	pending := waitForPendingRequest(t, srv.wallet)
 
 	denyRec := browserAnswer(t, srv, rec, "/api/requests/"+pending.ID+"/deny", "")
 	if denyRec.Code != http.StatusOK {

@@ -255,3 +255,30 @@ func TestTheDemoIssuerRegistersAnUncategorizedTemplateAsAnEAA(t *testing.T) {
 		t.Errorf("provides %v with entitlements %v, want the badge as an EAA", service.ProvidesAttestations, service.Entitlements)
 	}
 }
+
+// RFC 7515 §4.1.9: typ values are case insensitive and "application/" is
+// implied when the value has no '/'.
+func TestRegistrationCertificateTypMatchesAsAMediaType(t *testing.T) {
+	w := generateTestWallet(t)
+	if err := w.GenerateDefaultCredentials(nil, ""); err != nil {
+		t.Fatal(err)
+	}
+	chain, err := w.DefaultSigningCertChain()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, typ := range []string{strings.ToUpper(registrar.RegistrationCertificateTyp), "application/" + registrar.RegistrationCertificateTyp} {
+		t.Run(typ, func(t *testing.T) {
+			raw, err := signJSONWebSignature(map[string]any{"sub": "https://issuer.example"}, w.IssuerKey, map[string]any{"alg": "ES256", "typ": typ, "x5c": buildJWSX5C(chain)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if registrations, problems := verifyRegistrationEntries([]map[string]any{{"format": "registration_cert", "data": raw}}); len(registrations) != 1 || len(problems) != 0 {
+				t.Errorf("registrations %d, problems %v, want the certificate", len(registrations), problems)
+			}
+			if got := issuerInfoShapeFindings([]map[string]any{{"format": "jwt", "data": raw}}); !containsSubstring(got, "4.2.3-05") {
+				t.Errorf("findings %v, want 4.2.3-05 for the certificate in a jwt element", got)
+			}
+		})
+	}
+}

@@ -232,7 +232,7 @@ func (d *DemoRP) continueInteractiveAuthorization(w http.ResponseWriter, r *http
 	code := randToken()
 	granted := &authRequestState{
 		authGrant:    session.authGrant,
-		code:         code,
+		codeIssued:   true,
 		holderClaims: requestedClaims(claims, identityClaims),
 		expires:      time.Now().Add(entryTTL),
 	}

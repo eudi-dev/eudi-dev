@@ -19,6 +19,7 @@ package wallet
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -29,17 +30,10 @@ import (
 
 // Include claims so clients can populate issuance forms without another request.
 func (s *Server) handleListTemplates(w http.ResponseWriter, r *http.Request) {
-	templates, err := credtemplate.List(s.wallet.Templates)
+	templates, err := s.management().Templates()
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
-	}
-	// On the public demo, the operator's templates (those present at startup)
-	// are fixed like the built-in ones.
-	if s.demo != nil {
-		for i := range templates {
-			templates[i].Predefined = templates[i].Predefined || s.demo.fixedTemplates[templates[i].Name]
-		}
 	}
 	writeJSON(w, http.StatusOK, templates)
 }
@@ -53,7 +47,7 @@ func (s *Server) handleGetTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tpl, err := credtemplate.Load(name, s.wallet.Templates)
+	tpl, err := s.management().Template(name)
 	if err != nil {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
 		return
@@ -81,31 +75,16 @@ func (s *Server) handlePutTemplate(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("invalid template name %q", tpl.Name)})
 		return
 	}
-	if err := s.checkDemoTemplate(tpl); err != nil {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
-		return
-	}
-	var entry *registrar.CatalogAttestation
-	if req.Catalog != nil {
-		checked, err := s.wallet.Registrar().TemplateCatalogEntry(tpl, *req.Catalog)
-		if err != nil {
-			registrar.WriteCatalogError(w, err)
+	if _, err := s.management().SaveTemplate(tpl, req.Catalog); err != nil {
+		if status := visitorLimitStatus(err, 0); status != 0 {
+			writeJSON(w, status, map[string]string{"error": err.Error()})
 			return
 		}
-		tpl.Category = checked.Category
-		entry = &checked
-	}
-	var err error
-	s.saveMutation(func() bool {
-		_, err = s.wallet.SaveTemplate(tpl, entry)
-		return err == nil
-	})
-	if err != nil {
 		registrar.WriteCatalogError(w, err)
 		return
 	}
 	s.templatesChanged()
-	saved, err := credtemplate.Load(tpl.Name, s.wallet.Templates)
+	saved, err := s.management().Template(tpl.Name)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -120,15 +99,12 @@ func (s *Server) handleDeleteTemplate(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("invalid template name %q", r.PathValue("name"))})
 		return
 	}
-	if err := s.checkDemoTemplateDelete(r.PathValue("name")); err != nil {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
-		return
-	}
-	if err := credtemplate.Delete(s.wallet.Templates, r.PathValue("name")); err != nil {
+	if err := s.management().DeleteTemplate(r.PathValue("name")); err != nil {
 		status := http.StatusBadRequest
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, credtemplate.ErrNotFound) {
 			status = http.StatusNotFound
 		}
+		status = visitorLimitStatus(err, status)
 		writeJSON(w, status, map[string]string{"error": err.Error()})
 		return
 	}

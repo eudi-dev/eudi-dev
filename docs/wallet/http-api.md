@@ -75,7 +75,7 @@ curl -X DELETE http://localhost:8085/api/credentials
 | `display_template`| string  | Template that supplies the logo and background image of the credential (for a form with the template's claims flattened into `claims`) |
 | `batch`           | int     | Issue this many copies with distinct holder keys. The wallet rotates between them (like `--batch`) |
 | `unbound`         | bool    | Issue a bearer credential without a holder key (like `--unbound`). By default the credential is bound to the wallet. Only a query with `require_cryptographic_holder_binding: false` matches an unbound credential. In strict mode an unbound mdoc matches no query |
-| `signing_key`     | string  | PEM or JWK private key that signs the credential instead of the wallet issuer key. Requires `signing_cert` (like `--key` with `--cert`). Refused in public demo mode |
+| `signing_key`     | string  | PEM or JWK private key that signs the credential instead of the wallet issuer key. Requires `signing_cert` (like `--key` with `--cert`). Refused on the public demo |
 | `signing_cert`    | string  | PEM certificate chain, leaf first, embedded as the credential's x5c. The leaf must certify `signing_key` and the chain is embedded as given (a chain that includes its self-signed root produces a warning in debug mode and is refused in strict mode). The chain replaces the request's trust profile and registration metadata |
 
 The response is `201` with the stored credential (`id`, `format`, `claims`, `raw`, `status_list_idx` when the credential was registered on the wallet's status list, and `template_path` when `save_as_template` was used).
@@ -274,7 +274,7 @@ curl -X PUT http://localhost:8085/api/config/preferred-format \
 | `PUT`  | `/api/config/preferred-format` | `{"format": "mso_mdoc"}`   | Prefer mdoc when multiple match   |
 | `PUT`  | `/api/config/preferred-format` | `{"format": "jwt_vc_json"}` | Prefer JWT VC when multiple match |
 | `PUT`  | `/api/config/preferred-format` | `{"format": ""}`            | Clear preference (default)        |
-| `PUT`  | `/api/config/auto-accept`      | `{"enabled": true}`         | Approve every presentation and offer without a consent prompt, until the process restarts. `false` restores the consent prompt. Refused in demo mode |
+| `PUT`  | `/api/config/auto-accept`      | `{"enabled": true}`         | Approve every presentation and offer without a consent prompt, until the process restarts. `false` restores the consent prompt. Refused on the public demo |
 
 The preference can also be set at startup via `--preferred-format`:
 
@@ -503,7 +503,7 @@ Use `--remote local` to bypass routing and access storage directly. While a serv
 
 A running or remote wallet keeps its own store. A command that manages it refuses `--storage`, `--templates-dir` and `--seed`. A remote target from `--remote` or `wallet use` also refuses `--wallet-dir`. Add `--remote local` to use the local store with these flags.
 
-A routed command uses the settings of the running wallet for every step of a flow, including a credential collected later. So it refuses `--mode`, `--haip`, `--arf`, `--key-attestation-level`, `--relying-party-ca`, `--trusted-list-ca` and `--trusted-list`. Set the mode, HAIP, ARF and key attestation level on `wallet serve` or with `PUT /api/config/conformance`. Put CAs and lists on the wallet's trusted lists with `wallet trust`. `wallet trust add-ca --list trusted-list-ca` adds the CA of a list operator.
+A routed command uses the settings of the running wallet for every step of a flow, including a credential collected later. So it refuses a conformance flag whose value differs from the running wallet's, such as `--mode strict` on a wallet in debug mode. A flag with the wallet's own value passes. So does a `--relying-party-ca`, `--trusted-list-ca` or `--trusted-list` the wallet already trusts. Set the mode, HAIP, ARF and key attestation level on `wallet serve` or with `PUT /api/config/conformance`. Put CAs and lists on the wallet's trusted lists with `wallet trust`. `wallet trust add-ca --list trusted-list-ca` adds the CA of a list operator.
 
 `wallet info` compares a running instance's configuration with the wallet file and warns when they differ (the file changed after the server started). Restarting `wallet serve` reloads the file.
 

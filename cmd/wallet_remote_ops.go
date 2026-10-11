@@ -14,9 +14,6 @@
 
 package cmd
 
-// Local and remote management return the same API documents and use these shared
-// output helpers. Remote flow handling also lives here.
-
 import (
 	"encoding/json"
 	"fmt"
@@ -209,10 +206,15 @@ func credStatusLabel(cred map[string]any) string {
 	if status, ok := cred["status"].(map[string]any); ok {
 		value, hasValue := docNumber(status, "status")
 		switch {
+		case hasValue && value == 0:
+			parts = append(parts, "active")
 		case hasValue && value == 1:
 			parts = append(parts, "revoked")
+		case hasValue && value == 2:
+			// draft-ietf-oauth-status-list §7.1 names 0x02 SUSPENDED.
+			parts = append(parts, "suspended")
 		case hasValue:
-			parts = append(parts, "active")
+			parts = append(parts, fmt.Sprintf("status %d", int(value)))
 		case status["uri"] != nil:
 			parts = append(parts, "external")
 		}

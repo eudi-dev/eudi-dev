@@ -16,6 +16,7 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,6 +26,8 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/trustlist"
@@ -631,8 +634,21 @@ func TestIssueSDJWT_WithKeyFile(t *testing.T) {
 	}
 
 	tmpDir := t.TempDir()
+	jwk, err := keys.PublicJWK(&key.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := key.Bytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	jwk["d"] = format.EncodeBase64URL(d)
+	jwkJSON, err := json.Marshal(jwk)
+	if err != nil {
+		t.Fatal(err)
+	}
 	keyFile := filepath.Join(tmpDir, "key.jwk")
-	if err := os.WriteFile(keyFile, []byte(mock.PrivateKeyJWK(key)), 0600); err != nil {
+	if err := os.WriteFile(keyFile, jwkJSON, 0600); err != nil {
 		t.Fatalf("writing key file: %v", err)
 	}
 
@@ -1047,7 +1063,7 @@ func assertClaimSet(t *testing.T, label string, claims map[string]any, want map[
 // resolveIssueClaimsForFormat resolves the claims of the --claims, --omit and
 // --pid flags against tpl.
 func resolveIssueClaimsForFormat(format string, tpl *credtemplate.Template) (map[string]any, error) {
-	overrides, err := issueClaimOverrides()
+	overrides, err := parseClaimsArg(issueClaims)
 	if err != nil {
 		return nil, err
 	}
@@ -1083,5 +1099,63 @@ func TestIssueSDJWT_TemplateUniqueClaims(t *testing.T) {
 	first, second := issueOnce(), issueOnce()
 	if first == "fixed" || first == second {
 		t.Errorf("subject_id = %v then %v, want a fresh value per credential", first, second)
+	}
+}
+
+// --iss names the issuer of one credential. The stored issuer URL belongs to
+// wallet serve (ADR-0019).
+func TestIssueToWalletKeepsTheStoredIssuerURL(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	wDir := filepath.Join(tmpDir, "wallet")
+	if err := os.MkdirAll(wDir, 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	buf := new(bytes.Buffer)
+	rootCmd.SetOut(buf)
+
+	issueClaims = ""
+	issueKeyPath = ""
+	issueIssuer = "https://issuer.example"
+	issueVCT = "urn:test:employee:1"
+	issueExpires = "24h"
+	issueNBF = ""
+	issuePID = false
+	issueOmit = nil
+	issueToWallet = false
+	issueStatusListURI = ""
+	issueStatusListIdx = 0
+	issueCategory = ""
+	issueEntitlements = nil
+	issueTrustListType = ""
+	issueStatusDetermination = ""
+	issueSchemeCommunityRule = ""
+	issueSchemeTerritory = ""
+	issueTrustEntityName = ""
+	issueIssuanceServiceType = ""
+	issueRevocationServiceType = ""
+	issueIssuanceServiceName = ""
+	issueRevocationServiceName = ""
+	walletDir = ""
+
+	issueTemplate = ""
+	rootCmd.SetArgs([]string{"issue", "--wallet-dir", wDir, "sdjwt", "--wallet", "--iss", "https://custom.example", "--vct", "urn:test:employee:1"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("issue sdjwt --wallet --iss: %v", err)
+	}
+	w, err := wallet.NewWalletStore(wDir).LoadOrCreate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w.IssuerURL != "" {
+		t.Fatalf("issue stored the issuer URL %q", w.IssuerURL)
+	}
+	token, err := sdjwt.Parse(w.GetCredentials()[0].Raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if token.Payload["iss"] != "https://custom.example" {
+		t.Fatalf("iss = %v, want the --iss value", token.Payload["iss"])
 	}
 }

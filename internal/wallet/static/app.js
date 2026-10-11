@@ -96,7 +96,6 @@
 
   let credentials = [];
   const openDescriptions = new Set();
-  let pendingRequests = [];
   // Paginate on the server because shared wallets can hold many credentials.
   const CREDENTIALS_PER_PAGE = 10;
   let credentialPage = 0;

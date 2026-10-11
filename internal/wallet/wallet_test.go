@@ -441,7 +441,7 @@ func TestSubscribe(t *testing.T) {
 	}
 }
 
-func TestGetPendingRequests(t *testing.T) {
+func TestPendingRequestDocsListOnlyPendingRequests(t *testing.T) {
 	w := generateTestWallet(t)
 
 	req1 := &ConsentRequest{
@@ -460,12 +460,9 @@ func TestGetPendingRequests(t *testing.T) {
 	w.CreateConsentRequest(req1)
 	w.CreateConsentRequest(req2)
 
-	pending := w.GetPendingRequests()
-	if len(pending) != 1 {
-		t.Fatalf("expected 1 pending request, got %d", len(pending))
-	}
-	if pending[0].ID != "req-1" {
-		t.Errorf("expected req-1, got %s", pending[0].ID)
+	pending := w.PendingRequestDocsFor(nil, "")
+	if len(pending) != 1 || pending[0]["id"] != "req-1" {
+		t.Fatalf("pending requests %v, want req-1 only", pending)
 	}
 }
 
@@ -843,29 +840,34 @@ func TestMarshalConsentRequest_IssuanceNoClientAuth(t *testing.T) {
 	}
 }
 
-func TestHasEncryptionKey_NoRequestObject(t *testing.T) {
-	if HasEncryptionKey(nil) {
+func hasEncryptionKey(reqObj *oid4vc.RequestObjectJWT) bool {
+	_, err := extractEncryptionKey(ValidationModeDebug, reqObj, nil)
+	return err == nil
+}
+
+func TestExtractEncryptionKey_NoRequestObject(t *testing.T) {
+	if hasEncryptionKey(nil) {
 		t.Error("expected false for nil request object")
 	}
 }
 
-func TestHasEncryptionKey_NoPayload(t *testing.T) {
+func TestExtractEncryptionKey_NoPayload(t *testing.T) {
 	reqObj := &oid4vc.RequestObjectJWT{}
-	if HasEncryptionKey(reqObj) {
+	if hasEncryptionKey(reqObj) {
 		t.Error("expected false for nil payload")
 	}
 }
 
-func TestHasEncryptionKey_NoClientMetadata(t *testing.T) {
+func TestExtractEncryptionKey_NoClientMetadata(t *testing.T) {
 	reqObj := &oid4vc.RequestObjectJWT{
 		Payload: map[string]any{},
 	}
-	if HasEncryptionKey(reqObj) {
+	if hasEncryptionKey(reqObj) {
 		t.Error("expected false for missing client_metadata")
 	}
 }
 
-func TestHasEncryptionKey_WithKeyInClientMetadata(t *testing.T) {
+func TestExtractEncryptionKey_WithKeyInClientMetadata(t *testing.T) {
 	key, _ := mock.GenerateKey()
 	jwkJSON := mock.PublicKeyJWK(&key.PublicKey)
 
@@ -884,12 +886,12 @@ func TestHasEncryptionKey_WithKeyInClientMetadata(t *testing.T) {
 			},
 		},
 	}
-	if !HasEncryptionKey(reqObj) {
+	if !hasEncryptionKey(reqObj) {
 		t.Error("expected true for valid encryption key in client_metadata")
 	}
 }
 
-func TestHasEncryptionKey_TopLevelJWKSNotUsed(t *testing.T) {
+func TestExtractEncryptionKey_TopLevelJWKSNotUsed(t *testing.T) {
 	key, _ := mock.GenerateKey()
 	jwkJSON := mock.PublicKeyJWK(&key.PublicKey)
 
@@ -909,7 +911,7 @@ func TestHasEncryptionKey_TopLevelJWKSNotUsed(t *testing.T) {
 			},
 		},
 	}
-	if HasEncryptionKey(reqObj) {
+	if hasEncryptionKey(reqObj) {
 		t.Error("expected false, wallet should only accept JWK in client_metadata.jwks per OID4VP 1.0")
 	}
 }

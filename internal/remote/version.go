@@ -19,44 +19,27 @@ import (
 	"strings"
 )
 
-// Version is a release version reduced to what a compatibility check needs.
-// Pre-release and build metadata are dropped, so the CLI treats 1.19.0-rc.1
-// like 1.19.0.
-type Version struct {
-	Major int
-	Minor int
-	Patch int
-}
-
-// ParseVersion reads a semantic version from /api/version or the CLI build. It
-// reports false without a numeric major and minor, such as for the "dev" build
-// or an empty version.
-func ParseVersion(raw string) (Version, bool) {
+// releaseMajor reads the major release of a semantic version from
+// /api/version or the CLI build. Pre-release and build metadata are dropped,
+// so 1.19.0-rc.1 counts as 1.19.0. It reports false without a numeric major
+// and minor, such as for the "dev" build or an empty version.
+func releaseMajor(raw string) (int, bool) {
 	raw = strings.TrimSpace(raw)
 	raw = strings.TrimPrefix(raw, "v")
 	if i := strings.IndexAny(raw, "-+"); i >= 0 {
 		raw = raw[:i]
 	}
-	if raw == "" {
-		return Version{}, false
-	}
 	parts := strings.Split(raw, ".")
 	if len(parts) < 2 {
-		return Version{}, false
+		return 0, false
 	}
-	numbers := make([]int, 3)
-	for i := 0; i < len(parts) && i < 3; i++ {
-		n, err := strconv.Atoi(parts[i])
-		if err != nil || n < 0 {
-			return Version{}, false
+	for _, part := range parts[:min(len(parts), 3)] {
+		if n, err := strconv.Atoi(part); err != nil || n < 0 {
+			return 0, false
 		}
-		numbers[i] = n
 	}
-	return Version{Major: numbers[0], Minor: numbers[1], Patch: numbers[2]}, true
-}
-
-func (v Version) String() string {
-	return strconv.Itoa(v.Major) + "." + strconv.Itoa(v.Minor) + "." + strconv.Itoa(v.Patch)
+	major, _ := strconv.Atoi(parts[0])
+	return major, true
 }
 
 type Compatibility int
@@ -72,12 +55,12 @@ const (
 // CheckCompatibility compares the CLI's release with an instance's release.
 // Under semantic versioning the same major release is compatible.
 func CheckCompatibility(cli, instance string) Compatibility {
-	cliVersion, cliOK := ParseVersion(cli)
-	instanceVersion, instanceOK := ParseVersion(instance)
+	cliMajor, cliOK := releaseMajor(cli)
+	instanceMajor, instanceOK := releaseMajor(instance)
 	if !cliOK || !instanceOK {
 		return CompatibilityUnknown
 	}
-	if cliVersion.Major != instanceVersion.Major {
+	if cliMajor != instanceMajor {
 		return Incompatible
 	}
 	return Compatible

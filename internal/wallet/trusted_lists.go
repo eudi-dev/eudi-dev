@@ -548,8 +548,12 @@ func readAll(n int, read func(i int)) {
 // listAnchors returns the certificates of all services of one kind on the
 // readable lists of a list type.
 func (w *Wallet) listAnchors(listType, kind string) []*x509.Certificate {
+	return anchorsOf(w.trustedLists(), listType, kind)
+}
+
+func anchorsOf(lists []trustedList, listType, kind string) []*x509.Certificate {
 	var anchors []*x509.Certificate
-	for _, tl := range w.trustedLists() {
+	for _, tl := range lists {
 		if tl.Err == nil && tl.List.SchemeInfo.LoTEType == listType {
 			anchors = append(anchors, tl.anchors(kind)...)
 		}

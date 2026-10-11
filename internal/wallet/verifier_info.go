@@ -51,7 +51,7 @@ func verifyRegistrationEntries(entries []map[string]any) (registrations []verifi
 		if err != nil {
 			continue
 		}
-		if typ, _ := header["typ"].(string); typ != registrar.RegistrationCertificateTyp {
+		if typ, _ := header["typ"].(string); !format.JOSETypeIs(typ, registrar.RegistrationCertificateTyp) {
 			continue
 		}
 		chain, err := validate.X5CCertificates(header)

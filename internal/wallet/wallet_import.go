@@ -148,6 +148,7 @@ func (w *Wallet) parseDetectedFormat(raw, group, bindingKeyPEM string) (StoredCr
 
 // Adopt imported status entries that reference this wallet's own list. The demo issuer
 // uses this list, and the wallet needs local entries to revoke those credentials.
+// An import cannot take over the index of another credential.
 func (w *Wallet) adoptOwnStatusEntry(cred *StoredCredential) {
 	if w == nil || cred == nil {
 		return
@@ -157,6 +158,9 @@ func (w *Wallet) adoptOwnStatusEntry(cred *StoredCredential) {
 		return
 	}
 	if _, exists := w.StatusEntryFor(cred.ID); exists {
+		return
+	}
+	if w.statusIndexFree(ref.Idx, cred.ID) != nil {
 		return
 	}
 	w.registerStatusEntry(cred.ID, ref.Idx)
@@ -196,7 +200,7 @@ func (w *Wallet) parseCredentialSDJWT(raw string) (*sdjwt.Token, error) {
 	// draft-ietf-oauth-sd-jwt-vc-19 §2.2.1 requires the typ dc+sd-jwt. The
 	// earlier vc+sd-jwt value still decodes but is a deviation.
 	var vcType []string
-	if typ, _ := token.Header["typ"].(string); typ == sdjwt.TypeSDJWTVCLegacy {
+	if typ, _ := token.Header["typ"].(string); format.JOSETypeIs(typ, sdjwt.TypeSDJWTVCLegacy) {
 		vcType = append(vcType, fmt.Sprintf("the typ header is %s, draft-ietf-oauth-sd-jwt-vc-19 §2.2.1 requires %s", sdjwt.TypeSDJWTVCLegacy, sdjwt.TypeSDJWTVC))
 	}
 	if err := w.reportCredentialDeviations("RFC 9901", token.Deviations); err != nil {

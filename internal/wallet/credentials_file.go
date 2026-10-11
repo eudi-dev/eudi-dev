@@ -240,17 +240,6 @@ func (w *Wallet) setProtected(id string, protected bool) {
 	}
 }
 
-func (w *Wallet) credentialByExactID(id string) (StoredCredential, bool) {
-	w.mu.RLock()
-	defer w.mu.RUnlock()
-	for _, c := range w.Credentials {
-		if c.ID == id {
-			return c, true
-		}
-	}
-	return StoredCredential{}, false
-}
-
 // keepClaimStrings keeps dates and mapping keys as strings. YAML reads a
 // birthdate as a timestamp and the age_equal_or_over keys as numbers, but
 // the claims need the text as written.

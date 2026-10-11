@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -25,6 +26,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/netaddr"
@@ -83,9 +85,9 @@ func newLocalPolicyTransport() *http.Transport {
 	return transport
 }
 
-// HTTPClientForURL uses the supplied client's TLS policy, or the shared developer
-// client. Transport selection runs for each request, including redirects.
-func HTTPClientForURL(rawURL string, clients ...*http.Client) *http.Client {
+// HTTPClient returns the supplied client, or the shared developer client.
+// Transport selection runs for each request, including redirects.
+func HTTPClient(clients ...*http.Client) *http.Client {
 	if len(clients) > 0 && clients[0] != nil {
 		return clients[0]
 	}
@@ -212,6 +214,22 @@ const fetchAttempts = 3
 
 var fetchRetryDelay = 500 * time.Millisecond
 
+// unanswered reports whether a request failed because the server did not
+// answer in time or dropped the connection. A failed name lookup, a refused
+// certificate or a blocked address fails the same way on the next try.
+func unanswered(err error) bool {
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
+		return dnsErr.IsTimeout || dnsErr.IsTemporary
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return true
+	}
+	return errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) ||
+		errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.ECONNREFUSED)
+}
+
 func FetchURL(url string, clients ...*http.Client) (string, error) {
 	var resp *http.Response
 	for attempt := 1; ; attempt++ {
@@ -223,11 +241,11 @@ func FetchURL(url string, clients ...*http.Client) (string, error) {
 		req.Header.Set("Accept", "*/*")
 
 		var doErr error
-		resp, doErr = HTTPClientForURL(url, clients...).Do(req)
+		resp, doErr = HTTPClient(clients...).Do(req)
 		if doErr == nil {
 			break
 		}
-		if attempt >= fetchAttempts {
+		if attempt >= fetchAttempts || !unanswered(doErr) {
 			return "", fmt.Errorf("fetching %s: %w", url, doErr)
 		}
 		time.Sleep(fetchRetryDelay)

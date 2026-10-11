@@ -826,3 +826,54 @@ func TestRefreshCredentialRenewsTheWholeBatch(t *testing.T) {
 		}
 	}
 }
+
+// The issuer retires a rotated refresh token. A renewal that fails after the
+// token request keeps the new token in storage, on the CLI as on a server.
+func TestLocalRenewalSavesARotatedRefreshTokenAfterAFailure(t *testing.T) {
+	store := NewWalletStore(t.TempDir())
+	w, err := store.LoadOrCreate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var serverURL string
+	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rw.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/.well-known/openid-credential-issuer"):
+			_ = json.NewEncoder(rw).Encode(renewalIssuerMetadata(serverURL))
+		case strings.HasSuffix(r.URL.Path, "/token"):
+			_ = json.NewEncoder(rw).Encode(map[string]any{
+				"access_token": "fresh", "token_type": "Bearer",
+				"refresh_token": "refresh-2", "expires_in": 300,
+			})
+		default:
+			rw.WriteHeader(http.StatusInternalServerError)
+		}
+	}))
+	defer srv.Close()
+	serverURL = srv.URL
+	oldClient := httpClient
+	httpClient = srv.Client()
+	defer func() { httpClient = oldClient }()
+
+	imported, err := w.ImportCredential(generateTestCredential(t, w))
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.rememberRenewal(imported.ID, CredentialRenewal{RefreshToken: "refresh-1", Issuer: srv.URL, TokenEndpoint: srv.URL + "/token", CredentialEndpoint: srv.URL + "/credential", ConfigurationID: "cfg"})
+	if err := store.Save(w); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := NewManagement(w, store).RefreshCredential(imported.ID); err == nil {
+		t.Fatal("the renewal succeeded against a failing credential endpoint")
+	}
+	reloaded, err := store.LoadOrCreate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cred, ok := reloaded.GetCredential(imported.ID)
+	if !ok || cred.Renewal == nil || cred.Renewal.RefreshToken != "refresh-2" {
+		t.Fatalf("stored renewal after the failure: %+v", cred.Renewal)
+	}
+}

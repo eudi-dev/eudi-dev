@@ -15,11 +15,13 @@
 package wallet
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"slices"
-	"strings"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 )
 
 // TrustedListState is the answer to GET /api/trust: the providers added to the
@@ -31,6 +33,10 @@ type TrustedListState struct {
 	Lists       []TrustedListLink `json:"lists"`
 	// ListsURL is the wallet's list of trusted lists.
 	ListsURL string `json:"lists_url"`
+	// RelyingPartyCAs and TrustedListCAs are the base64 DER certificates of
+	// --relying-party-ca and --trusted-list-ca.
+	RelyingPartyCAs []string `json:"relying_party_cas,omitempty"`
+	TrustedListCAs  []string `json:"trusted_list_cas,omitempty"`
 }
 
 // TrustedListLink is an external list. Configured comes from --trusted-list
@@ -47,8 +53,15 @@ type TrustedListLink struct {
 func (w *Wallet) TrustState() TrustedListState {
 	w.mu.RLock()
 	configured := slices.Clone(w.ConfiguredTrustedListURLs)
+	relyingPartyCAs, trustedListCAs := w.RelyingPartyCAPEM, w.TrustListCAPEM
 	w.mu.RUnlock()
-	state := TrustedListState{Entities: w.ListTrustedEntities(), EntityLists: TrustedEntityLists(), ListsURL: w.ownTrustListURL(listOfListsID)}
+	state := TrustedListState{
+		Entities:        w.ListTrustedEntities(),
+		EntityLists:     TrustedEntityLists(),
+		ListsURL:        w.ownTrustListURL(listOfListsID),
+		RelyingPartyCAs: base64Certificates(relyingPartyCAs),
+		TrustedListCAs:  base64Certificates(trustedListCAs),
+	}
 	if state.Entities == nil {
 		state.Entities = []TrustedEntity{}
 	}
@@ -67,8 +80,20 @@ func (w *Wallet) TrustState() TrustedListState {
 	return state
 }
 
+func base64Certificates(bundle []byte) []string {
+	certs, err := keys.ParseCertificatesPEM(bundle)
+	if err != nil {
+		return nil
+	}
+	out := make([]string, len(certs))
+	for i, cert := range certs {
+		out[i] = base64.StdEncoding.EncodeToString(cert.Raw)
+	}
+	return out
+}
+
 func (s *Server) handleTrustState(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, s.wallet.TrustState())
+	writeJSON(w, http.StatusOK, s.management().TrustState())
 }
 
 func (s *Server) handleAddTrustedEntity(w http.ResponseWriter, r *http.Request) {
@@ -81,15 +106,7 @@ func (s *Server) handleAddTrustedEntity(w http.ResponseWriter, r *http.Request) 
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON body"})
 		return
 	}
-	entity, err := NewTrustedEntity(body.List, body.Name, body.Certificates)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-		return
-	}
-	s.saveMutation(func() bool {
-		err = s.wallet.storeTrustedEntity(entity)
-		return err == nil
-	})
+	entity, err := s.management().AddTrustedEntity(body.List, body.Name, body.Certificates)
 	if err != nil {
 		writeTrustResult(w, err)
 		return
@@ -98,12 +115,7 @@ func (s *Server) handleAddTrustedEntity(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) handleRemoveTrustedEntity(w http.ResponseWriter, r *http.Request) {
-	var err error
-	s.saveMutation(func() bool {
-		err = s.wallet.RemoveTrustedEntity(r.PathValue("id"))
-		return err == nil
-	})
-	writeTrustResult(w, err)
+	writeTrustResult(w, s.management().RemoveTrustedEntity(r.PathValue("id")))
 }
 
 func (s *Server) handleAddTrustedList(w http.ResponseWriter, r *http.Request) {
@@ -114,21 +126,7 @@ func (s *Server) handleAddTrustedList(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON body"})
 		return
 	}
-	// A full wallet refuses before it fetches the list. The wallet reads the
-	// list before it takes the store lock.
-	if err := s.wallet.trustedListRoom(body.URL); err != nil {
-		writeTrustResult(w, err)
-		return
-	}
-	added, err := s.wallet.CheckTrustedList(body.URL)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-		return
-	}
-	s.saveMutation(func() bool {
-		err = s.wallet.storeTrustedList(added.URL)
-		return err == nil
-	})
+	added, err := s.management().AddTrustedList(body.URL)
 	if err != nil {
 		writeTrustResult(w, err)
 		return
@@ -137,12 +135,7 @@ func (s *Server) handleAddTrustedList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleRemoveTrustedList(w http.ResponseWriter, r *http.Request) {
-	var err error
-	s.saveMutation(func() bool {
-		err = s.wallet.RemoveTrustedList(strings.TrimSpace(r.URL.Query().Get("url")))
-		return err == nil
-	})
-	writeTrustResult(w, err)
+	writeTrustResult(w, s.management().RemoveTrustedList(r.URL.Query().Get("url")))
 }
 
 func writeTrustResult(w http.ResponseWriter, err error) {

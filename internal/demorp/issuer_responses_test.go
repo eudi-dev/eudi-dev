@@ -304,6 +304,38 @@ func TestDPoPProofChecks(t *testing.T) {
 	}
 }
 
+// RFC 9449 §11.1: "HTTP requests to the same URI for which the jti value has
+// been seen before would be declined."
+func TestADPoPProofIsAcceptedOncePerTargetURI(t *testing.T) {
+	d, _, _ := newDemoRP(t)
+	key, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	send := func(htu string, proof string) map[string]string {
+		req := httptest.NewRequest(http.MethodPost, "/", nil)
+		req.Header.Set("DPoP", proof)
+		_, errResp := d.dpopKey(req, htu)
+		return errResp
+	}
+	proofFor := func(htu string) string {
+		return signES256(t, key,
+			map[string]any{"alg": "ES256", "typ": "dpop+jwt", "jwk": holderJWK(t, key)},
+			map[string]any{"htm": "POST", "htu": htu, "iat": time.Now().Unix(), "jti": "one-jti"},
+		)
+	}
+	token, par := demoIssuerID+"/token", demoIssuerID+"/par"
+	if errResp := send(token, proofFor(token)); errResp != nil {
+		t.Fatalf("first use: %v", errResp)
+	}
+	if errResp := send(token, proofFor(token)); errResp == nil || !strings.Contains(errResp["error_description"], "jti") {
+		t.Errorf("replayed jti at the same URI: %v, want it refused naming jti", errResp)
+	}
+	if errResp := send(par, proofFor(par)); errResp != nil {
+		t.Errorf("same jti at another URI: %v", errResp)
+	}
+}
+
 // RFC 6749 §5.1: the token response carries "Cache-Control" "no-store" and
 // "Pragma" "no-cache".
 func TestTheTokenResponseIsNotCached(t *testing.T) {
