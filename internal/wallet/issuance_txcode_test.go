@@ -193,7 +193,7 @@ func TestDescribeCredentialOfferEmbedsTheIssuerLogo(t *testing.T) {
 	httpClient = srv.Client()
 	defer func() { httpClient = oldClient }()
 
-	details := generateTestWallet(t).describeCredentialOffer(&oid4vc.CredentialOffer{CredentialIssuer: srv.URL})
+	details, _ := generateTestWallet(t).describeCredentialOffer(&oid4vc.CredentialOffer{CredentialIssuer: srv.URL})
 	if details.IssuerName != "Test Issuer" {
 		t.Errorf("issuer name = %q, want Test Issuer", details.IssuerName)
 	}
@@ -205,7 +205,7 @@ func TestDescribeCredentialOfferEmbedsTheIssuerLogo(t *testing.T) {
 	// embedded because it shows once at consent and is never stored.
 	adhoc := generateTestWallet(t)
 	adhoc.AdhocDisplayImages = true
-	adhocDetails := adhoc.describeCredentialOffer(&oid4vc.CredentialOffer{CredentialIssuer: srv.URL})
+	adhocDetails, _ := adhoc.describeCredentialOffer(&oid4vc.CredentialOffer{CredentialIssuer: srv.URL})
 	if !strings.HasPrefix(adhocDetails.IssuerLogo, "data:image/") {
 		t.Errorf("issuer logo not embedded under adhoc mode, got %.30q", adhocDetails.IssuerLogo)
 	}
@@ -246,7 +246,7 @@ func TestDescribeCredentialOffer_TxCodeShape(t *testing.T) {
 				CredentialIssuer: "https://issuer.invalid",
 				Grants:           oid4vc.OfferGrants{PreAuthorizedCode: "code", TxCode: tc.txCode},
 			}
-			details := generateTestWallet(t).describeCredentialOffer(offer)
+			details, _ := generateTestWallet(t).describeCredentialOffer(offer)
 			if !details.TxCode {
 				t.Fatal("expected tx_code to be reported as required")
 			}

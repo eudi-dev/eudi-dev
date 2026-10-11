@@ -16,8 +16,6 @@ package wallet
 
 import (
 	"fmt"
-	"slices"
-	"strings"
 	"time"
 )
 
@@ -45,7 +43,10 @@ func (w *Wallet) RefreshCredential(id string) (*StoredCredential, error) {
 	// wallet keeps the new one even when a later step fails.
 	if grant != nil && grant.refreshToken != "" {
 		renewal.RefreshToken = grant.refreshToken
-		w.rememberRenewal(cred.ID, renewal)
+		w.saveChange(func() bool {
+			w.rememberRenewal(cred.ID, renewal)
+			return true
+		})
 	}
 	if err != nil {
 		return nil, fmt.Errorf("renewing the access token: %w", err)
@@ -95,44 +96,6 @@ func (s *Server) RefreshCredential(id string) (*StoredCredential, error) {
 	}
 	s.log("  Renewed:       %s credential %s", renewed.Format, renewed.ID)
 	return renewed, nil
-}
-
-// ReplaceCredential puts a renewed credential in place of the one with id.
-// The renewal replaces the credential's content. The wallet's bookkeeping of
-// it (protection, display, batch, use count) stays, and so does its place.
-func (w *Wallet) ReplaceCredential(id, raw string, renewal *CredentialRenewal) (*StoredCredential, error) {
-	fresh, err := w.parseDetectedFormat(strings.TrimSpace(raw), "", "")
-	if err != nil {
-		return nil, fmt.Errorf("parsing the renewed credential: %w", err)
-	}
-
-	w.mu.Lock()
-	i := slices.IndexFunc(w.Credentials, func(c StoredCredential) bool { return c.ID == id })
-	if i < 0 {
-		w.mu.Unlock()
-		return nil, fmt.Errorf("credential %s not found", id)
-	}
-	old := w.Credentials[i]
-	fresh.ID = id
-	fresh.Protected = old.Protected
-	fresh.Renewal = renewal
-	fresh.Display = old.Display
-	// Batch membership stays, so listing, presentation, deletion and
-	// revocation still see one credential. The renewal is bound to the
-	// wallet holder key, so no per-copy key carries over.
-	fresh.BatchGroup = old.BatchGroup
-	fresh.Uses = old.Uses
-	fresh.LastPresentedAt = old.LastPresentedAt
-	w.Credentials[i] = fresh
-	renewed := w.Credentials[i]
-	w.mu.Unlock()
-
-	// The renewed credential's entry on the wallet's own list replaces the
-	// old one.
-	if ref := w.ownStatusRef(renewed); ref != nil {
-		w.registerStatusEntry(id, ref.Idx)
-	}
-	return &renewed, nil
 }
 
 // renewalCheckInterval has to be shorter than renewalMargin, so a credential

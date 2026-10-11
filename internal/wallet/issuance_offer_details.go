@@ -23,12 +23,14 @@ import (
 )
 
 // describeCredentialOffer shows the offer's own details even when issuer
-// metadata cannot be fetched.
-func (w *Wallet) describeCredentialOffer(offer *oid4vc.CredentialOffer) *consent.OfferDetails {
+// metadata cannot be fetched. refusal holds the ARF findings when every
+// offered configuration has some. The user picks one configuration, so an
+// offer with one acceptable configuration is still shown.
+func (w *Wallet) describeCredentialOffer(offer *oid4vc.CredentialOffer) (details *consent.OfferDetails, refusal []string) {
 	if offer == nil {
-		return nil
+		return nil, nil
 	}
-	details := &consent.OfferDetails{
+	details = &consent.OfferDetails{
 		Issuer: offer.CredentialIssuer,
 		Grant:  describeOfferGrant(offer.Grants),
 	}
@@ -53,13 +55,19 @@ func (w *Wallet) describeCredentialOffer(offer *oid4vc.CredentialOffer) *consent
 		details.IssuerName, details.IssuerLogo = issuerDisplay(metadata)
 		details.IssuerLogo = w.embedDisplayImage(details.IssuerLogo, "issuer_logo")
 		details.ARFFindings = w.issuerARFCheck(metadata, signerChain, offer.CredentialConfigurationIDs)
+		refusal = details.ARFFindings
+		for _, id := range offer.CredentialConfigurationIDs {
+			if len(w.issuerARFCheck(metadata, signerChain, []string{id})) == 0 {
+				refusal = nil
+			}
+		}
 		details.Findings = append(append(freshness, details.ARFFindings...), w.catalogueFindings(metadata, offer.CredentialConfigurationIDs)...)
 	}
 
 	for _, id := range offer.CredentialConfigurationIDs {
 		details.Credentials = append(details.Credentials, w.describeConfiguration(metadata, id))
 	}
-	return details
+	return details, refusal
 }
 
 func describeOfferGrant(grants oid4vc.OfferGrants) string {

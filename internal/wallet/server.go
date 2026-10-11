@@ -25,6 +25,7 @@ import (
 	"maps"
 	"net"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -57,12 +58,17 @@ type Server struct {
 	// routeRoots holds the first path segment of every route and static file.
 	// CheckBasePath tests --base-url against it.
 	routeRoots map[string]bool
-	// The store is read without storeSyncMu because the log sink runs inside
-	// mutations that already hold it.
+	// The log sink reads the store without storeSyncMu, because it also runs
+	// inside mutations that hold it.
 	store       atomic.Pointer[WalletStore]
 	storeSyncMu sync.Mutex
 	// Skips reparsing an unchanged wallet file. Guarded by storeSyncMu.
 	lastWalletStamp storage.Stamp
+	// unsavedLog holds the entries the file backend has not saved yet. A
+	// reload before the save drops them from the wallet, and the save puts
+	// them back.
+	unsavedLog      []LogEntry
+	unsavedLogMu    sync.Mutex
 	staleClientOnce sync.Once
 	demo            *demoState
 	renewalBackoff  map[string]time.Time
@@ -108,7 +114,16 @@ func NewServer(w *Wallet, port int, onSave func()) *Server {
 			w.Consents().NotifyStateChanged()
 			return
 		}
-		s.triggerSave()
+		s.unsavedLogMu.Lock()
+		s.unsavedLog = append(s.unsavedLog, entry)
+		// The log keeps the newest entries, so older unsaved ones are gone
+		// anyway.
+		if len(s.unsavedLog) > maxLogEntries {
+			s.unsavedLog = slices.Clone(s.unsavedLog[len(s.unsavedLog)-maxLogEntries:])
+		}
+		s.unsavedLogMu.Unlock()
+		s.flushLog()
+		w.Consents().NotifyStateChanged()
 	})
 	if p := parseIssuerPort(w.IssuerURL); p > 0 {
 		s.issuerPort = p
@@ -345,7 +360,7 @@ func (s *Server) SetLogger(fn func(format string, args ...any)) {
 // SetStore enables reloads at request boundaries to pick up changes from other commands.
 func (s *Server) SetStore(store *WalletStore) {
 	s.storeSyncMu.Lock()
-	defer s.storeSyncMu.Unlock()
+	defer s.unlockStore()
 	s.store.Store(store)
 }
 
@@ -375,7 +390,7 @@ func (s *Server) reloading(withLog bool, handler http.HandlerFunc) http.HandlerF
 	return func(w http.ResponseWriter, r *http.Request) {
 		s.storeSyncMu.Lock()
 		err := s.reloadLocked(withLog)
-		s.storeSyncMu.Unlock()
+		s.unlockStore()
 		if err != nil {
 			s.log("  ERROR: reloading wallet store: %v", err)
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "reloading wallet store: " + err.Error()})
@@ -387,7 +402,7 @@ func (s *Server) reloading(withLog bool, handler http.HandlerFunc) http.HandlerF
 
 func (s *Server) reloadFromStore() error {
 	s.storeSyncMu.Lock()
-	defer s.storeSyncMu.Unlock()
+	defer s.unlockStore()
 	return s.reloadLocked(false)
 }
 
@@ -504,22 +519,51 @@ func (s *Server) Handle(pattern string, h http.Handler) {
 	s.route(pattern, h)
 }
 
-// triggerSave runs inside a mutation that already holds storeSyncMu, such as
-// the log sink.
-func (s *Server) triggerSave() {
-	s.saveLocked()
-	s.wallet.Consents().NotifyStateChanged()
+// unlockStore releases storeSyncMu and saves the log entries logged while it
+// was held.
+func (s *Server) unlockStore() {
+	s.storeSyncMu.Unlock()
+	s.flushLog()
+}
+
+// flushLog saves the unsaved log entries when storeSyncMu is free. A holder
+// of the lock flushes when it lets go, so no entry waits for the next save.
+func (s *Server) flushLog() {
+	for s.hasUnsavedLog() && s.storeSyncMu.TryLock() {
+		s.saveLocked()
+		s.storeSyncMu.Unlock()
+	}
+}
+
+func (s *Server) hasUnsavedLog() bool {
+	s.unsavedLogMu.Lock()
+	defer s.unsavedLogMu.Unlock()
+	return len(s.unsavedLog) > 0
 }
 
 // saveLocked persists the wallet. The caller holds storeSyncMu.
 func (s *Server) saveLocked() {
+	s.unsavedLogMu.Lock()
+	unsaved := s.unsavedLog
+	s.unsavedLog = nil
+	s.unsavedLogMu.Unlock()
+	s.wallet.restoreLogEntries(unsaved)
 	if s.onSave != nil {
 		s.onSave()
 		return
 	}
-	if store := s.store.Load(); store != nil {
-		if err := store.Save(s.wallet); err != nil {
-			s.log("  ERROR: saving the wallet: %v", err)
+	store := s.store.Load()
+	if store == nil {
+		return
+	}
+	if err := store.Save(s.wallet); err != nil {
+		s.log("  ERROR: saving the wallet: %v", err)
+		return
+	}
+	// The next reload skips the file this save wrote.
+	if !store.entityMode() {
+		if stamp, err := store.WalletStamp(); err == nil {
+			s.lastWalletStamp = stamp
 		}
 	}
 }
@@ -543,26 +587,10 @@ func (s *Server) saveMutationThen(mutate func() bool, saved func()) {
 			saved()
 		}
 	}
-	s.storeSyncMu.Unlock()
+	s.unlockStore()
 	if changed {
 		s.wallet.Consents().NotifyStateChanged()
 	}
-}
-
-// A concurrent reload may have dropped the newly issued credential. Restore and
-// save it while holding the reload lock.
-func (s *Server) saveIssuance(result *IssuanceResult) {
-	s.saveMutation(func() bool {
-		if result != nil && result.Imported != nil {
-			if _, ok := s.wallet.GetCredential(result.Imported.ID); !ok {
-				s.wallet.RestoreCredential(*result.Imported)
-			}
-			// A reload may also have removed the credential's local status
-			// entry. Adoption is idempotent.
-			s.wallet.adoptOwnStatusEntry(result.Imported)
-		}
-		return true
-	})
 }
 
 func writeJSON(w http.ResponseWriter, status int, data any) {

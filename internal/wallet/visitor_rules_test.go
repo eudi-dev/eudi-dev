@@ -92,11 +92,11 @@ func TestIssuedAttestationTypesStopAtCapacity(t *testing.T) {
 
 // A credential put back after a concurrent reload counts against the
 // capacity like any other.
-func TestRestoreCredentialMakesRoom(t *testing.T) {
+func TestPutCredentialMakesRoom(t *testing.T) {
 	w := generateTestWallet(t)
 	w.SetCapacity(Capacity{Credentials: 2})
 	for _, id := range []string{"a", "b", "c"} {
-		w.RestoreCredential(StoredCredential{ID: id, Format: "dc+sd-jwt"})
+		w.PutCredential(StoredCredential{ID: id, Format: "dc+sd-jwt"})
 	}
 	if n := len(w.GetCredentials()); n != 2 {
 		t.Fatalf("the wallet holds %d credentials, want 2", n)

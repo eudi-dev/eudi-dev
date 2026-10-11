@@ -15,6 +15,8 @@
 package wallet
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -150,21 +152,25 @@ func (s *interactiveIssuer) handleChallenge(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// §5.3.1 of the first-party-apps specification lets the server send a new
-	// auth_session with every response.
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(http.StatusForbidden)
 	response := map[string]any{
 		"error":                     errorInsufficientAuthorization,
 		"interaction_type_required": s.interaction,
-		"auth_session":              fmt.Sprintf("session-%d", s.challengeRounds),
 	}
 	if s.openid4vpRequest != nil {
 		response["openid4vp_request"] = s.openid4vpRequest
 	}
-	if s.interaction == interactionTypeAuthViaWeb {
+	switch s.interaction {
+	case interactionTypeAuthViaWeb:
+		// §6.2.1.2: "the Authorization Server MUST omit auth_session
+		// parameter in the response."
 		response["request_uri"] = "urn:ietf:params:oauth:request_uri:test-1"
 		response["expires_in"] = 60
+	default:
+		// §6.2.1: "The value returned MUST be distinct for each authorization
+		// challenge response."
+		response["auth_session"] = fmt.Sprintf("session-%d", s.challengeRounds)
 	}
 	_ = json.NewEncoder(rw).Encode(response)
 }
@@ -475,6 +481,19 @@ func TestInteractiveAuthorizationRefusesAnotherResponseMode(t *testing.T) {
 	}
 }
 
+// The presentation interaction of §6.2.1.1 answers with a presentation. A
+// request for an id_token alone is refused.
+func TestInteractiveAuthorizationRefusesARequestWithoutAVPToken(t *testing.T) {
+	w := newInteractiveWallet(t)
+	issuer := newInteractiveIssuer(t, w)
+	issuer.openid4vpRequest["response_type"] = "id_token"
+
+	_, err := w.ProcessCredentialOffer(interactiveOfferURI(issuer.url))
+	if err == nil || !strings.Contains(err.Error(), "vp_token") {
+		t.Fatalf("error = %v, want the request without a vp_token refused", err)
+	}
+}
+
 // §6.2.1.1: "If expected_origins is present, it MUST contain only the derived
 // Origin of the Authorization Challenge Endpoint." §6.2.1.5 makes this the
 // wallet's defence against one authorization server forwarding another's
@@ -708,6 +727,12 @@ func TestInteractiveAuthorizationAuthViaWebContinuesWithAuthSession(t *testing.T
 	}
 	if got := issuer.intermediateForm.Get("auth_session"); got != "web-session" {
 		t.Errorf("intermediate request auth_session = %q, want the one the redirect carried", got)
+	}
+	// §6.2.1.2: the server enforces the code_verifier in the intermediate
+	// request that follows the auth_via_web interaction (RFC 7636 §4.6).
+	digest := sha256.Sum256([]byte(issuer.intermediateForm.Get("code_verifier")))
+	if got := base64.RawURLEncoding.EncodeToString(digest[:]); got != issuer.initialForm.Get("code_challenge") {
+		t.Errorf("intermediate request code_verifier does not match the code_challenge of the initial request")
 	}
 	// This code came from the challenge endpoint, so the token request omits
 	// the redirect URI (first-party-apps §6).

@@ -95,8 +95,8 @@ type sortedBatch struct {
 }
 
 type batchCopy struct {
-	raw           string
-	bindingKeyPEM string
+	raw    string
+	parsed StoredCredential
 }
 
 // sortBatch picks the primary credential of a response and the batch copies
@@ -163,11 +163,12 @@ func (w *Wallet) sortBatch(credResp map[string]any, keys []*ecdsa.PrivateKey, re
 		if err != nil {
 			return sortedBatch{}, fmt.Errorf("encoding the binding key of credential %d: %w", c.position, err)
 		}
-		if _, err := w.parseDetectedFormat(strings.TrimSpace(c.raw), "", pem); err != nil {
+		parsed, err := w.parseDetectedFormat(strings.TrimSpace(c.raw), "", pem)
+		if err != nil {
 			deviations = append(deviations, fmt.Sprintf("credential %d of the response cannot be read: %v", c.position, err))
 			continue
 		}
-		batch.copies = append(batch.copies, batchCopy{raw: c.raw, bindingKeyPEM: pem})
+		batch.copies = append(batch.copies, batchCopy{raw: c.raw, parsed: parsed})
 	}
 
 	for _, deviation := range deviations {
@@ -206,63 +207,84 @@ func primaryBindingKeyPEM(raw string, keys []*ecdsa.PrivateKey) string {
 	return ""
 }
 
-// storeBatchCopies stores batch copies under one group with the primary,
-// each with its own binding key, for EUDI ARF method C (Annex 2 Topic 10,
-// ISSU_51-54).
-//
-// A presentation clone keeps only the primary copy. The credential sink has
-// already forwarded it to the real wallet without the batch group, so copies
-// stored there would be disconnected from it.
-func (w *Wallet) storeBatchCopies(primary *StoredCredential, copies []batchCopy, display *oid4vc.CredentialDisplay) ([]*StoredCredential, error) {
-	stored := []*StoredCredential{primary}
-	if len(copies) == 0 {
-		return stored, nil
+// storeIssuedBatch stores a received credential with its batch copies under
+// one group, each copy with its own binding key, for EUDI ARF method C (Annex
+// 2 Topic 10, ISSU_51-54). The caller holds the store lock.
+func (w *Wallet) storeIssuedBatch(primary StoredCredential, copies []batchCopy, display *oid4vc.CredentialDisplay, renewal CredentialRenewal) []StoredCredential {
+	if len(copies) > 0 {
+		primary.BatchGroup = newCredentialID()
 	}
-	if w.credentialSink != nil {
-		log.Printf("[VCI] Batch issued during a presentation is kept as its primary copy only")
-		return stored, nil
+	if renewal.renewable() {
+		primary.Renewal = &renewal
 	}
-	group := newCredentialID()
-	w.setBatchFields(primary.ID, group, primary.BindingKeyPEM)
-	primary.BatchGroup = group
-
+	primary.Display = display
+	stored := []StoredCredential{primary}
 	for _, c := range copies {
-		copyCred, err := w.importBatchCopy(c.raw, group, c.bindingKeyPEM)
-		if err != nil {
-			return stored, fmt.Errorf("storing a batch copy: %w", err)
-		}
-		w.rememberDisplay(copyCred, display)
+		copyCred := c.parsed
+		copyCred.BatchGroup = primary.BatchGroup
+		copyCred.Display = display
 		stored = append(stored, copyCred)
-	}
-	log.Printf("[VCI] Stored a batch of %d copies (group %s) for one-time-use presentation", len(stored), group)
-	return stored, nil
-}
-
-// replaceBatchCopies puts copies in place of the other copies of the renewed
-// primary's batch. A renewal that returns fewer copies drops the rest, since
-// they keep the old validity.
-func (w *Wallet) replaceBatchCopies(primary *StoredCredential, copies []batchCopy) ([]*StoredCredential, error) {
-	if primary.BatchGroup == "" {
-		return w.storeBatchCopies(primary, copies, primary.Display)
 	}
 	w.mu.Lock()
-	w.Credentials = slices.DeleteFunc(w.Credentials, func(c StoredCredential) bool {
-		if c.BatchGroup != primary.BatchGroup || c.ID == primary.ID {
-			return false
-		}
-		delete(w.StatusEntries, c.ID)
-		return true
-	})
+	for _, c := range stored {
+		w.makeCredentialRoomLocked()
+		w.Credentials = append(w.Credentials, c)
+	}
+	w.mu.Unlock()
+	for i := range stored {
+		w.adoptOwnStatusEntry(&stored[i])
+	}
+	if len(copies) > 0 {
+		log.Printf("[VCI] Stored a batch of %d copies (group %s) for one-time-use presentation", len(stored), primary.BatchGroup)
+	}
+	return stored
+}
+
+// storeRenewedBatch puts a renewed credential in place of the one with id
+// and its copies in place of the other copies of that batch. The wallet's
+// bookkeeping of the credential (protection, display, batch, use count) and
+// its place stay. A renewal that returns fewer copies drops the rest, since
+// they keep the old validity. The caller holds the store lock.
+func (w *Wallet) storeRenewedBatch(id string, fresh StoredCredential, copies []batchCopy, renewal CredentialRenewal) ([]StoredCredential, error) {
+	w.mu.Lock()
+	i := slices.IndexFunc(w.Credentials, func(c StoredCredential) bool { return c.ID == id })
+	if i < 0 {
+		w.mu.Unlock()
+		return nil, fmt.Errorf("credential %s not found", id)
+	}
+	old := w.Credentials[i]
+	fresh.ID = id
+	fresh.Protected = old.Protected
+	fresh.Renewal = &renewal
+	fresh.Display = old.Display
+	fresh.BatchGroup = old.BatchGroup
+	fresh.Uses = old.Uses
+	fresh.LastPresentedAt = old.LastPresentedAt
+	if fresh.BatchGroup == "" && len(copies) > 0 {
+		fresh.BatchGroup = newCredentialID()
+	}
+	w.Credentials[i] = fresh
+	if old.BatchGroup != "" {
+		w.deleteCredentialsLocked(func(c StoredCredential) bool { return c.BatchGroup == old.BatchGroup && c.ID != id })
+	}
+	stored := []StoredCredential{fresh}
+	for _, c := range copies {
+		copyCred := c.parsed
+		copyCred.BatchGroup = fresh.BatchGroup
+		copyCred.Display = fresh.Display
+		w.makeCredentialRoomLocked()
+		w.Credentials = append(w.Credentials, copyCred)
+		stored = append(stored, copyCred)
+	}
 	w.mu.Unlock()
 
-	stored := []*StoredCredential{primary}
-	for _, c := range copies {
-		copyCred, err := w.importBatchCopy(c.raw, primary.BatchGroup, c.bindingKeyPEM)
-		if err != nil {
-			return stored, fmt.Errorf("storing a renewed batch copy: %w", err)
-		}
-		w.rememberDisplay(copyCred, primary.Display)
-		stored = append(stored, copyCred)
+	// The renewed credential's entry on the wallet's own list replaces the
+	// old one and starts valid.
+	if ref := w.ownStatusRef(fresh); ref != nil {
+		w.registerStatusEntry(id, ref.Idx)
+	}
+	for i := 1; i < len(stored); i++ {
+		w.adoptOwnStatusEntry(&stored[i])
 	}
 	return stored, nil
 }

@@ -261,8 +261,8 @@ func (w *Wallet) IssueCredential(opts IssueOptions) (result *IssueResult, err er
 	}
 
 	var holderPub *ecdsa.PublicKey
-	if !opts.Unbound && w.HolderKey != nil {
-		holderPub = &w.HolderKey.PublicKey
+	if holderKey := w.HolderKeyPair(); !opts.Unbound && holderKey != nil {
+		holderPub = &holderKey.PublicKey
 	}
 	raw, err := signer.sign(holderPub, statusIdx)
 	if err != nil {
@@ -509,10 +509,7 @@ func (w *Wallet) discardCredentials(ids []string) {
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	w.Credentials = slices.DeleteFunc(w.Credentials, func(c StoredCredential) bool { return slices.Contains(ids, c.ID) })
-	for _, id := range ids {
-		delete(w.StatusEntries, id)
-	}
+	w.deleteCredentialsLocked(func(c StoredCredential) bool { return slices.Contains(ids, c.ID) })
 }
 
 // SaveTemplate stores a template and, if entry is set, its catalogue entry.

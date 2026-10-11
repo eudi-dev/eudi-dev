@@ -573,7 +573,7 @@ func TestLoadReadsTheLegacyPendingIssuancesField(t *testing.T) {
 	}
 }
 
-// Log callbacks save outside the server lock. An earlier snapshot must not overwrite a
+// Log entries arrive outside the server lock. An earlier snapshot must not overwrite a
 // later import.
 func TestStoreSavesDoNotLoseConcurrentWrites(t *testing.T) {
 	store := NewWalletStore(t.TempDir())
@@ -617,8 +617,10 @@ func TestStoreSavesDoNotLoseConcurrentWrites(t *testing.T) {
 
 	for i := 0; i < 40; i++ {
 		cred := StoredCredential{ID: fmt.Sprintf("cred-%02d", i), Format: "dc+sd-jwt", Raw: "a.b.c"}
-		w.PutCredential(cred)
-		srv.saveIssuance(&IssuanceResult{CredentialID: cred.ID, Imported: &cred})
+		srv.saveMutation(func() bool {
+			w.PutCredential(cred)
+			return true
+		})
 	}
 	close(stop)
 	wg.Wait()
@@ -677,5 +679,80 @@ func TestStoreDisplayAssetReportsAStorageOutage(t *testing.T) {
 	store.backend = statFailingBackend{backend}
 	if _, _, err := store.storeDisplayAsset(tinyPNGDataURI); err == nil {
 		t.Fatal("storeDisplayAsset succeeded while the backend failed")
+	}
+}
+
+// On the file backend a flow logs outside the store lock while other
+// requests reload. Every entry reaches the file.
+func TestFileBackendKeepsLogEntriesAcrossConcurrentReloads(t *testing.T) {
+	dir := t.TempDir()
+	store := NewWalletStore(dir)
+	w, err := store.LoadOrCreate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := NewServer(w, 0, nil)
+	srv.SetStore(store)
+
+	const entries = 200
+	stop := make(chan struct{})
+	reloaded := make(chan struct{})
+	go func() {
+		defer close(reloaded)
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				if err := srv.reloadFromStore(); err != nil {
+					t.Error(err)
+					return
+				}
+			}
+		}
+	}()
+	for i := range entries {
+		w.AddLog("test", fmt.Sprintf("entry %03d", i), true)
+	}
+	close(stop)
+	<-reloaded
+
+	saved, err := NewWalletStore(dir).LoadOrCreate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := 0
+	for _, entry := range saved.GetLog() {
+		if entry.Action == "test" {
+			found++
+		}
+	}
+	if found != entries {
+		t.Errorf("the file holds %d of %d log entries", found, entries)
+	}
+}
+
+// The server's own save does not make the next request parse the file again.
+func TestFileBackendSkipsReloadingItsOwnSave(t *testing.T) {
+	store := NewWalletStore(t.TempDir())
+	w, err := store.LoadOrCreate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := NewServer(w, 0, nil)
+	srv.SetStore(store)
+	srv.saveMutation(func() bool {
+		w.AddLog("test", "saved by the server", true)
+		return true
+	})
+	stamp, err := store.WalletStamp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv.storeSyncMu.Lock()
+	current := srv.lastWalletStamp
+	srv.storeSyncMu.Unlock()
+	if current != stamp {
+		t.Error("the server reparses the file it saved itself")
 	}
 }

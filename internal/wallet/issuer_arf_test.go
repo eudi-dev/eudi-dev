@@ -18,6 +18,9 @@ import (
 	"crypto/ecdsa"
 	"crypto/x509"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -364,5 +367,73 @@ func TestStrictARFRefusesAnOfferBeforeTheConsentDialog(t *testing.T) {
 
 	if _, _, err := w.prepareIssuanceConsentRequest(offerURI, ""); err == nil || !strings.Contains(err.Error(), "RPRC_22a") {
 		t.Errorf("err %v, want the refusal before the dialog", err)
+	}
+}
+
+// The wallet checks the issuer for the configuration it requests. A second
+// configuration of the offer that the issuer is not registered for does not
+// stop the issuance of the first, in strict mode either.
+func TestStrictARFChecksTheChosenConfigurationOnly(t *testing.T) {
+	w := generateTestWallet(t)
+	rp := registerTestIssuer(t, w, registrar.NonQEAAProviderEntitlement)
+	key, chain := issueTestAccessCertificate(t, w, rp.Identifier[0].Identifier)
+	var info []any
+	if err := json.Unmarshal([]byte(issueTestIssuerInfo(t, w, rp).IssuerInfo), &info); err != nil {
+		t.Fatal(err)
+	}
+	credential := generateTestCredential(t, w)
+	var serverURL string
+	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/.well-known/openid-credential-issuer"):
+			raw, err := signJSONWebSignature(map[string]any{
+				"iss":                 serverURL,
+				"sub":                 serverURL,
+				"iat":                 time.Now().Unix(),
+				"credential_issuer":   serverURL,
+				"credential_endpoint": serverURL + "/credential",
+				"token_endpoint":      serverURL + "/token",
+				"issuer_info":         info,
+				"credential_configurations_supported": map[string]any{
+					"diploma": map[string]any{"format": "dc+sd-jwt", "vct": testDiplomaVCT},
+					"other":   map[string]any{"format": "dc+sd-jwt", "vct": "urn:example:unregistered:1"},
+				},
+			}, key, map[string]any{"alg": "ES256", "typ": signedIssuerMetadataTyp, "x5c": certchain.X5C(chain)})
+			if err != nil {
+				t.Error(err)
+			}
+			rw.Header().Set("Content-Type", "application/jwt")
+			_, _ = rw.Write([]byte(raw))
+		case strings.HasSuffix(r.URL.Path, "/token"):
+			writeTestJSON(rw, map[string]any{"access_token": "at", "token_type": "Bearer", "c_nonce": "n"})
+		case strings.HasSuffix(r.URL.Path, "/credential"):
+			writeTestJSON(rw, map[string]any{"credentials": []any{map[string]any{"credential": credential}}})
+		default:
+			rw.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+	serverURL = srv.URL
+	oldClient := httpClient
+	httpClient = srv.Client()
+	defer func() { httpClient = oldClient }()
+
+	offer, _ := json.Marshal(map[string]any{
+		"credential_issuer":            serverURL,
+		"credential_configuration_ids": []string{"diploma", "other"},
+		"grants":                       map[string]any{preAuthorizedCodeGrant: map[string]any{"pre-authorized_code": "code"}},
+	})
+	offerURI := "openid-credential-offer://?credential_offer=" + url.QueryEscape(string(offer))
+	w.RequireARF = true
+	w.ValidationMode = ValidationModeStrict
+	if _, _, err := w.prepareIssuanceConsentRequest(offerURI, ""); err != nil {
+		t.Errorf("the consent dialog refused an offer with a registered configuration: %v", err)
+	}
+	result, err := w.ProcessCredentialOfferWithOptions(offerURI, OfferOptions{ConfigurationID: "diploma"})
+	if err != nil {
+		t.Fatalf("issuance of the registered configuration: %v", err)
+	}
+	if result.CredentialID == "" {
+		t.Error("no credential was stored")
 	}
 }

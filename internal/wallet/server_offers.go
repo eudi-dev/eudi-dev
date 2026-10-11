@@ -91,7 +91,7 @@ func (s *Server) lookupPendingOffer(id string) *pendingOffer {
 // When sign-in is required, return a pending offer with the authorization URL and
 // continue the flow in the background. The issuer's redirect to /callback resumes
 // issuance. The caller opens the URL in their browser.
-func (s *Server) runOffer(uri string, logDetails map[string]any, opts OfferOptions) (*IssuanceResult, *pendingOffer, error) {
+func (s *Server) runOffer(uri string, opts OfferOptions) (*IssuanceResult, *pendingOffer, error) {
 	// A subscriber lets the flow return the sign-in URL when interaction is
 	// required. Other flows run at the same time, so it takes only the prompt
 	// of this one.
@@ -105,7 +105,7 @@ func (s *Server) runOffer(uri string, logDetails map[string]any, opts OfferOptio
 	go func() {
 		defer unsubscribe()
 		result, err := s.wallet.ProcessCredentialOfferWithOptions(uri, opts)
-		s.applyOfferOutcome(uri, opts.Owner, result, err, logDetails)
+		s.applyOfferOutcome(opts.Owner, result, err)
 		p.complete(result, err)
 		close(done)
 	}()
@@ -127,11 +127,11 @@ func (s *Server) runOffer(uri string, logDetails map[string]any, opts OfferOptio
 	}
 }
 
-// Record the outcome in the flow's goroutine even if the caller has stopped waiting.
-func (s *Server) applyOfferOutcome(uri, owner string, result *IssuanceResult, err error, logDetails map[string]any) {
+// applyOfferOutcome reports the outcome on the console and to the UI, even if
+// the caller has stopped waiting. The flow writes the activity log.
+func (s *Server) applyOfferOutcome(owner string, result *IssuanceResult, err error) {
 	if err != nil {
 		s.log("  ERROR: %v", err)
-		s.wallet.AddLog("issuance", fmt.Sprintf("Failed: %v", err), false)
 		s.wallet.Consents().NotifyError(consent.Error{
 			Owner:   owner,
 			Message: "Credential issuance failed",
@@ -142,7 +142,6 @@ func (s *Server) applyOfferOutcome(uri, owner string, result *IssuanceResult, er
 
 	if result.Pending {
 		s.log("  Deferred:      %s will be collected every %s", result.Issuer, result.RetryInterval)
-		s.saveIssuance(result)
 		return
 	}
 
@@ -150,19 +149,6 @@ func (s *Server) applyOfferOutcome(uri, owner string, result *IssuanceResult, er
 	if result.VerificationDetail != "" {
 		s.log("  Verification:  %s [%s]", result.VerificationDetail, result.VerificationStatus)
 	}
-	details := map[string]any{
-		"offer_uri":           uri,
-		"credential_id":       result.CredentialID,
-		"format":              result.Format,
-		"issuer":              result.Issuer,
-		"verification_status": result.VerificationStatus,
-		"verification_detail": result.VerificationDetail,
-	}
-	for k, v := range logDetails {
-		details[k] = v
-	}
-	s.wallet.AddLogDetails("issuance", fmt.Sprintf("Received %s credential from %s", result.Format, result.Issuer), true, details)
-	s.saveIssuance(result)
 }
 
 // Redirect browser navigations to the issuer. API callers receive the sign-in URL and
@@ -256,18 +242,12 @@ func (s *Server) handleOfferAPI(w http.ResponseWriter, r *http.Request) {
 // consent and run without a dialog.
 func (s *Server) processOfferURI(w http.ResponseWriter, uri string, opts OfferOptions, browserRedirect, apiInitiated bool) {
 	s.log("Received credential offer")
-	uriDisplay := format.Truncate(uri, 120)
-	s.log("  URI: %s", uriDisplay)
-	offerDetails := map[string]any{"offer_uri": uri}
-	addStringDetail(offerDetails, "tx_code", opts.TxCode)
-	addStringDetail(offerDetails, "credential_configuration_id", opts.ConfigurationID)
-	s.wallet.AddLogDetails("issuance", "Received credential offer", true, offerDetails)
+	s.log("  URI: %s", format.Truncate(uri, 120))
 
 	if !s.wallet.AutoAcceptSetting() && !apiInitiated {
 		consentReq, issuerDisplay, err := s.wallet.prepareIssuanceConsentRequest(uri, opts.Owner)
 		if err != nil {
 			s.log("  ERROR: %v", err)
-			s.wallet.AddLog("issuance", fmt.Sprintf("Failed: %v", err), false)
 			s.wallet.Consents().NotifyError(consent.Error{
 				Owner:   opts.Owner,
 				Message: "The wallet refused the credential offer",
@@ -330,9 +310,7 @@ func (s *Server) awaitOfferConsent(w http.ResponseWriter, consentReq *consent.Re
 		opts.Owner = approvingOwner(consentReq.Owner, answer.Owner)
 		// Show consent for any presentation requested by the issuer during this
 		// interactive flow.
-		result, pending, err := s.runOffer(consentReq.OfferURI, map[string]any{
-			"credential_requested": requestedConfigurations(consentReq.OfferConfigs, opts.ConfigurationID),
-		}, opts)
+		result, pending, err := s.runOffer(consentReq.OfferURI, opts)
 		if err != nil {
 			consentReq.SubmissionCh <- consent.SubmissionResult{Error: err.Error(), StatusCode: http.StatusBadRequest}
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
@@ -372,7 +350,7 @@ func (s *Server) awaitOfferConsent(w http.ResponseWriter, consentReq *consent.Re
 }
 
 func (s *Server) processOfferDirectly(w http.ResponseWriter, uri string, opts OfferOptions, browserRedirect bool) {
-	result, pending, err := s.runOffer(uri, nil, opts)
+	result, pending, err := s.runOffer(uri, opts)
 	if err != nil {
 		if !s.wallet.AutoAcceptSetting() {
 			s.triggerUIRequest("")
@@ -402,19 +380,17 @@ func (s *Server) processOfferDirectly(w http.ResponseWriter, uri string, opts Of
 	}
 }
 
-// requestedConfigurations is the configuration the issuance requests, as the
-// activity log shows it. Without a choice it is the first offered one.
-func requestedConfigurations(offered []string, chosen string) []string {
-	if chosen != "" {
-		return []string{chosen}
-	}
-	if len(offered) > 0 {
-		return offered[:1]
-	}
-	return nil
-}
-
-func (w *Wallet) prepareIssuanceConsentRequest(raw, owner string) (*consent.Request, string, error) {
+// prepareIssuanceConsentRequest also writes the activity log entry of an offer
+// the wallet refuses before the dialog.
+func (w *Wallet) prepareIssuanceConsentRequest(raw, owner string) (_ *consent.Request, _ string, err error) {
+	defer func() {
+		if err != nil {
+			w.addProtocolLog("issuance", "issuance_failed", fmt.Sprintf("The wallet refused the credential offer: %v", err), false, map[string]any{
+				"offer_uri": raw,
+				"error":     err.Error(),
+			})
+		}
+	}()
 	trimmed := strings.TrimSpace(raw)
 	req := consent.NewRequest(consent.TypeIssuance, owner)
 	req.OfferURI = trimmed
@@ -444,11 +420,12 @@ func (w *Wallet) prepareIssuanceConsentRequest(raw, owner string) (*consent.Requ
 	}
 	req.ClientID = offer.CredentialIssuer
 	req.OfferConfigs = append([]string(nil), offer.CredentialConfigurationIDs...)
-	req.OfferDetails = w.describeCredentialOffer(offer)
+	var refusal []string
+	req.OfferDetails, refusal = w.describeCredentialOffer(offer)
 	// Strict mode refuses an issuer that fails the ARF checks before the user
 	// is asked, as it refuses a verifier (RPRC_22a, ISSU_24a).
-	if len(req.OfferDetails.ARFFindings) > 0 && w.Mode() == ValidationModeStrict {
-		return nil, "", w.reportARFIssuanceFindings(offer.CredentialIssuer, req.OfferDetails.ARFFindings)
+	if len(refusal) > 0 && w.Mode() == ValidationModeStrict {
+		return nil, "", w.reportARFIssuanceFindings(offer.CredentialIssuer, refusal)
 	}
 	req.Findings = req.OfferDetails.Findings
 	// Keep the resolved offer for approval because the issuer may allow it to be

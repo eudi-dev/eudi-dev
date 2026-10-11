@@ -19,7 +19,6 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/netaddr"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
@@ -76,16 +75,33 @@ func ValidateHAIPIssuanceCompliance(offer *oid4vc.CredentialOffer, oauthMeta map
 		!metadataListContains(oauthMeta, "code_challenge_methods_supported", "S256") {
 		violations = append(violations, "HAIP 1.0 §4: the authorization server advertises PKCE without S256")
 	}
-	// §7 requires every party to support ES256 at a minimum. This wallet signs
-	// DPoP proofs with it.
-	if _, declared := oauthMeta["dpop_signing_alg_values_supported"]; declared &&
-		!metadataListContains(oauthMeta, "dpop_signing_alg_values_supported", jws.AlgES256) {
-		violations = append(violations, "HAIP 1.0 §7: the authorization server advertises DPoP without ES256")
-	}
 	// §4.4.1 requires the issuer to require client authentication. Advertising
 	// it is only a SHOULD (§10.1 of the attestation draft), so the wallet learns
 	// it by authenticating.
 
+	return violations
+}
+
+// haipIssuerMetadataViolations checks the issuer metadata for the requested
+// configuration against HAIP 1.0 §4.1. Both grants use the same metadata.
+func haipIssuerMetadataViolations(metadata map[string]any, configID string) []string {
+	var violations []string
+	configs, _ := metadata["credential_configurations_supported"].(map[string]any)
+	config, _ := configs[configID].(map[string]any)
+	// §4.1: "The Credential Issuer metadata MUST include a scope for every
+	// Credential Configuration it supports."
+	if scope, _ := config["scope"].(string); scope == "" {
+		violations = append(violations, fmt.Sprintf("HAIP 1.0 §4.1: credential configuration %q has no scope, which the issuer metadata must include for every credential configuration", configID))
+	}
+	// §4.1: "If the Issuer supports Credential Configurations that require key
+	// binding, as indicated by the presence of
+	// cryptographic_binding_methods_supported, the nonce_endpoint MUST be
+	// present in the Credential Issuer Metadata."
+	if _, binds := config["cryptographic_binding_methods_supported"]; binds {
+		if endpoint, _ := metadata["nonce_endpoint"].(string); endpoint == "" {
+			violations = append(violations, fmt.Sprintf("HAIP 1.0 §4.1: credential configuration %q requires key binding, and the issuer metadata has no nonce_endpoint", configID))
+		}
+	}
 	return violations
 }
 

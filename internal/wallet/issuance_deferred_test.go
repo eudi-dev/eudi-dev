@@ -59,6 +59,7 @@ func deferringIssuer(t *testing.T, w *Wallet, pendingRounds int, intervalSeconds
 			})
 
 		case r.Method == "POST" && strings.HasSuffix(r.URL.Path, "/credential"):
+			rw.WriteHeader(http.StatusAccepted)
 			json.NewEncoder(rw).Encode(map[string]any{
 				"transaction_id": "test-transaction",
 				"interval":       intervalSeconds,
@@ -216,6 +217,63 @@ func TestDeferredIssuancePending(t *testing.T) {
 
 // A deferred transaction returns at once, so consent and CLI callers do not
 // wait through the issuer's interval.
+// §8.3: a deferring Credential Response "MUST also use the HTTP status code
+// 202", and interval is "REQUIRED if transaction_id is present". Strict mode
+// refuses an answer that breaks either. Debug mode records the deferral.
+func TestDeferringCredentialResponseFollowsSection83(t *testing.T) {
+	for _, mode := range []ValidationMode{ValidationModeDebug, ValidationModeStrict} {
+		t.Run(string(mode), func(t *testing.T) {
+			w := generateTestWallet(t)
+			w.ValidationMode = mode
+			var serverURL string
+			srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				switch {
+				case strings.HasSuffix(r.URL.Path, "/.well-known/openid-credential-issuer"):
+					writeTestJSON(rw, map[string]any{
+						"credential_issuer":            serverURL,
+						"credential_endpoint":          serverURL + "/credential",
+						"deferred_credential_endpoint": serverURL + "/deferred",
+						"token_endpoint":               serverURL + "/token",
+						"credential_configurations_supported": map[string]any{
+							"test-config": map[string]any{"format": "dc+sd-jwt", "vct": "urn:test:credential"},
+						},
+					})
+				case strings.HasSuffix(r.URL.Path, "/token"):
+					writeTestJSON(rw, map[string]any{"access_token": "t", "token_type": "Bearer"})
+				case strings.HasSuffix(r.URL.Path, "/credential"):
+					writeTestJSON(rw, map[string]any{"transaction_id": "test-transaction"})
+				default:
+					rw.WriteHeader(http.StatusNotFound)
+				}
+			}))
+			defer srv.Close()
+			serverURL = srv.URL
+			oldClient := httpClient
+			httpClient = srv.Client()
+			defer func() { httpClient = oldClient }()
+
+			offer, _ := json.Marshal(map[string]any{
+				"credential_issuer":            serverURL,
+				"credential_configuration_ids": []string{"test-config"},
+				"grants":                       map[string]any{preAuthorizedCodeGrant: map[string]any{"pre-authorized_code": "c"}},
+			})
+			result, err := w.ProcessCredentialOffer("openid-credential-offer://?credential_offer=" + url.QueryEscape(string(offer)))
+			if mode == ValidationModeStrict {
+				if err == nil || !strings.Contains(err.Error(), "§8.3") {
+					t.Errorf("err %v, want the §8.3 refusal", err)
+				}
+				return
+			}
+			if err != nil || !result.Pending {
+				t.Fatalf("debug result %+v, %v, want the deferral recorded", result, err)
+			}
+			if !hasWarningContaining(w, "§8.3") {
+				t.Error("debug mode did not report the deviation")
+			}
+		})
+	}
+}
+
 func TestProcessCredentialOffer_DeferredIsRecordedNotWaitedOut(t *testing.T) {
 	w := generateTestWallet(t)
 	// The offer flow leaves polling to the background collector.

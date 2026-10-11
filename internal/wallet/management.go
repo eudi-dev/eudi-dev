@@ -152,34 +152,20 @@ func (m *Management) Issue(req IssueAPIRequest) (map[string]any, error) {
 	return summary, err
 }
 
-// RefreshCredential renews a credential with its refresh token. A failed
-// renewal can still have rotated the refresh token, so the wallet saves the
-// credential either way.
+// RefreshCredential renews a credential with its refresh token. The wallet
+// stores the renewal and a rotated refresh token under the store lock. The
+// commit persists them for the local CLI, which has no server to save them.
+// A failed renewal can still have rotated the refresh token, so the commit
+// runs either way.
 func (m *Management) RefreshCredential(id string) (*StoredCredential, error) {
 	renewed, err := m.wallet.RefreshCredential(id)
+	if commitErr := m.commit(func() error { return nil }); err == nil {
+		err = commitErr
+	}
 	if err != nil {
-		if cred, ok := m.wallet.GetCredential(id); ok {
-			_ = m.commit(func() error {
-				m.wallet.PutCredential(cred)
-				return nil
-			})
-		}
 		return nil, err
 	}
-	return renewed, m.saveRenewed(*renewed)
-}
-
-// saveRenewed puts the renewed credential back, because a concurrent reload
-// may have reverted it. A renewed credential starts with status 0. Its entry
-// is registered again, because a reload may have removed or reverted it.
-func (m *Management) saveRenewed(renewed StoredCredential) error {
-	return m.commit(func() error {
-		m.wallet.PutCredential(renewed)
-		if ref := m.wallet.ownStatusRef(renewed); ref != nil {
-			m.wallet.RegisterStatusEntry(renewed.ID, ref.Idx)
-		}
-		return nil
-	})
+	return renewed, nil
 }
 
 // DeferredIssuances omits the access token, a bearer secret only the wallet

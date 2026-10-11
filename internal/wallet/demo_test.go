@@ -530,7 +530,7 @@ func TestRenewIssuerTLSCertificateIfNeeded(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generateIssuerTLSCertificate: %v", err)
 	}
-	s.setIssuerTLSCertificate(cert)
+	s.SetIssuerTLSCertificate(cert)
 	leaf, err := x509.ParseCertificate(s.currentIssuerTLSCertificate().Certificate[0])
 	if err != nil {
 		t.Fatalf("parsing the leaf: %v", err)
@@ -977,9 +977,7 @@ func TestARenewalKeepsItsCredentialInAFullWallet(t *testing.T) {
 	}
 	w.SetCapacity(Capacity{Credentials: len(creds)})
 	oldest := creds[0]
-	if _, err := w.ReplaceCredential(oldest.ID, oldest.Raw, nil); err != nil {
-		t.Fatal(err)
-	}
+	renewTestCredential(t, w, oldest.ID, []*ecdsa.PrivateKey{w.HolderKey}, oldest.Raw)
 	after := w.GetCredentials()
 	if len(after) != len(creds) || after[0].ID != oldest.ID {
 		t.Errorf("credentials after the renewal: %d, first %s, want %d with %s first", len(after), after[0].ID, len(creds), oldest.ID)

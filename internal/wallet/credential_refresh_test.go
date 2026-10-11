@@ -807,25 +807,15 @@ func TestRefreshCredentialRenewsTheWholeBatch(t *testing.T) {
 	httpClient = srv.Client()
 	defer func() { httpClient = oldClient }()
 
-	primary, err := w.ImportCredential(sdJWTBoundTo(t, w, &w.HolderKey.PublicKey))
-	if err != nil {
-		t.Fatal(err)
-	}
-	old := map[string]bool{primary.Raw: true}
-	copyKeys := []*ecdsa.PrivateKey{testKey(t), testKey(t)}
-	copies := make([]batchCopy, 0, len(copyKeys))
-	for _, key := range copyKeys {
-		pem, err := encodeECPrivateKeyPEM(key)
-		if err != nil {
-			t.Fatal(err)
-		}
+	keys := []*ecdsa.PrivateKey{w.HolderKey, testKey(t), testKey(t)}
+	old := map[string]bool{}
+	var entries []any
+	for _, key := range keys {
 		raw := sdJWTBoundTo(t, w, &key.PublicKey)
 		old[raw] = true
-		copies = append(copies, batchCopy{raw: raw, bindingKeyPEM: pem})
+		entries = append(entries, map[string]any{"credential": raw})
 	}
-	if _, err := w.storeBatchCopies(primary, copies, nil); err != nil {
-		t.Fatal(err)
-	}
+	primary := storeTestResponse(t, w, keys, map[string]any{"credentials": entries})
 	w.rememberRenewal(primary.ID, CredentialRenewal{RefreshToken: "refresh-1",
 		Issuer: srv.URL, TokenEndpoint: srv.URL + "/token",
 		CredentialEndpoint: srv.URL + "/credential", ConfigurationID: "cfg",

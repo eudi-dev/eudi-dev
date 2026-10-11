@@ -15,12 +15,12 @@
 package wallet
 
 import (
-	"crypto/ecdsa"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
+	"slices"
 	"strings"
 	"time"
 
@@ -31,6 +31,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/statuslist"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/validate"
 )
 
 // Commands accept unambiguous prefixes of these IDs. Generation panics only if system
@@ -46,12 +47,6 @@ func newCredentialID() string {
 // ImportCredential returns a copy that survives changes to the wallet's credential slice.
 func (w *Wallet) ImportCredential(raw string) (*StoredCredential, error) {
 	return w.importCredential(raw, "", "")
-}
-
-// Record the binding key during import so the credential can be presented. Clones
-// forward both the credential and key to the original wallet.
-func (w *Wallet) importPrimaryCredential(raw string, keys []*ecdsa.PrivateKey) (*StoredCredential, error) {
-	return w.importCredential(raw, "", primaryBindingKeyPEM(raw, keys))
 }
 
 // Set batch fields before checking holder binding so a copy with its own key is
@@ -202,10 +197,21 @@ func (w *Wallet) parseCredentialSDJWT(raw string) (*sdjwt.Token, error) {
 	// draft-ietf-oauth-sd-jwt-vc-19 §2.2.1 requires the typ dc+sd-jwt. The
 	// earlier vc+sd-jwt value still decodes but is a deviation.
 	var vcType []string
-	if typ, _ := token.Header["typ"].(string); format.JOSETypeIs(typ, sdjwt.TypeSDJWTVCLegacy) {
-		vcType = append(vcType, fmt.Sprintf("the typ header is %s, draft-ietf-oauth-sd-jwt-vc-19 §2.2.1 requires %s", sdjwt.TypeSDJWTVCLegacy, sdjwt.TypeSDJWTVC))
+	if check := validate.CheckSDJWTType(token); check.Status == validate.Fail {
+		vcType = append(vcType, check.Detail)
 	}
-	if err := w.reportCredentialDeviations("RFC 9901", token.Deviations); err != nil {
+	// §2.2.2.3 makes vct REQUIRED.
+	if vct, _ := token.Payload["vct"].(string); vct == "" {
+		vcType = append(vcType, "the credential has no vct claim, which draft-ietf-oauth-sd-jwt-vc-19 §2.2.2.3 makes REQUIRED")
+	}
+	vcType = append(vcType, validate.DisclosedRegisteredClaims(token)...)
+	deviations := token.Deviations
+	// RFC 9901 §7.2: "The Issuer provides the Holder with an SD-JWT, not an
+	// SD-JWT+KB. If the Holder receives an SD-JWT+KB, it MUST be rejected."
+	if token.KeyBindingJWT != nil {
+		deviations = append(slices.Clone(deviations), "the credential carries a Key Binding JWT, and RFC 9901 §7.2 has the Holder reject an SD-JWT+KB from an Issuer")
+	}
+	if err := w.reportCredentialDeviations("RFC 9901", deviations); err != nil {
 		return nil, err
 	}
 	if err := w.reportCredentialDeviations("draft-ietf-oauth-sd-jwt-vc-19", vcType); err != nil {
@@ -398,7 +404,7 @@ func (c *StoredCredential) Rehydrate() error {
 
 // Store renewal context only when the issuer supplies a refresh token.
 func (w *Wallet) rememberRenewal(credentialID string, renewal CredentialRenewal) {
-	if w == nil || renewal.RefreshToken == "" || renewal.CredentialEndpoint == "" || renewal.TokenEndpoint == "" {
+	if w == nil || !renewal.renewable() {
 		return
 	}
 

@@ -17,6 +17,7 @@ package wallet
 import (
 	"fmt"
 	"net/http"
+	"slices"
 	"testing"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
@@ -50,7 +51,7 @@ func TestIssueRefusesTheStatusIndexOfAnotherCredential(t *testing.T) {
 // other index would report success and change nothing.
 func TestIssueRefusesAStatusIndexTheWalletDidNotAssign(t *testing.T) {
 	srv := newTestServerWithStatusList(t)
-	beyond := srv.wallet.StatusListCounter + 5
+	beyond := srv.wallet.statusIndexFor(srv.wallet.StatusListCounter + 5)
 
 	resp := serverRequest(t, srv, http.MethodPost, "/api/issue",
 		fmt.Sprintf(`{"format":"sdjwt","vct":"urn:test:status","claims":{"a":"b"},"status_list_idx":%d}`, beyond))
@@ -62,7 +63,7 @@ func TestIssueRefusesAStatusIndexTheWalletDidNotAssign(t *testing.T) {
 // Naming the wallet's own list without an index takes a fresh index.
 func TestIssueOnTheOwnStatusListAssignsAFreshIndex(t *testing.T) {
 	srv := newTestServerWithStatusList(t)
-	next := srv.wallet.StatusListCounter
+	next := srv.wallet.statusIndexFor(srv.wallet.StatusListCounter)
 	uri := srv.wallet.StatusListURL()
 
 	summary, err := srv.management().Issue(IssueAPIRequest{Format: "sdjwt", VCT: "urn:test:status", Claims: map[string]any{"a": "b"}, StatusListURI: &uri})
@@ -100,5 +101,43 @@ func TestImportDoesNotTakeOverTheStatusIndexOfAnotherCredential(t *testing.T) {
 	}
 	if entry, ok := srv.wallet.StatusEntryFor(ownerID); !ok || entry.Index != taken {
 		t.Fatalf("the owner's status entry changed: %+v %v", entry, ok)
+	}
+}
+
+// HAIP 1.0 §6.1: "Each Credential MUST have its own unique, unpredictable
+// status list index". Each wallet keys its own order, and the list stays at
+// most twice as long as the indices it assigned.
+func TestStatusIndicesAreUniqueAndUnpredictable(t *testing.T) {
+	const count = 300
+	sequences := make([][]int, 2)
+	for i := range sequences {
+		w := generateTestWallet(t)
+		seen := map[int]bool{}
+		for range count {
+			idx, err := w.NextStatusIndex()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if seen[idx] {
+				t.Fatalf("index %d was assigned twice", idx)
+			}
+			if idx < 0 || idx >= statusListSize(w.StatusListCounter) {
+				t.Fatalf("index %d lies outside the list of %d entries", idx, statusListSize(w.StatusListCounter))
+			}
+			if err := w.statusIndexFree(idx, ""); err != nil {
+				t.Fatalf("the assigned index %d reads as unassigned: %v", idx, err)
+			}
+			seen[idx] = true
+			sequences[i] = append(sequences[i], idx)
+		}
+		if size := statusListSize(w.StatusListCounter); size > 2*count {
+			t.Errorf("the list has %d entries for %d indices", size, count)
+		}
+	}
+	if slices.Equal(sequences[0], sequences[1]) {
+		t.Error("two wallets assign their indices in the same order")
+	}
+	if slices.IsSorted(sequences[0]) {
+		t.Error("the indices follow the order of assignment")
 	}
 }

@@ -27,6 +27,8 @@ import (
 )
 
 func (s *Server) SetIssuerTLSCertificate(cert tls.Certificate) {
+	s.tlsMu.Lock()
+	defer s.tlsMu.Unlock()
 	s.issuerTLSCert = &cert
 }
 
@@ -34,12 +36,6 @@ func (s *Server) SetIssuerTLSCertificate(cert tls.Certificate) {
 // terminates it. Otherwise NewServer derives the port from IssuerURL.
 func (s *Server) SetIssuerListenPort(port int) {
 	s.issuerPort = port
-}
-
-func (s *Server) setIssuerTLSCertificate(cert tls.Certificate) {
-	s.tlsMu.Lock()
-	defer s.tlsMu.Unlock()
-	s.issuerTLSCert = &cert
 }
 
 func (s *Server) currentIssuerTLSCertificate() *tls.Certificate {
@@ -63,7 +59,7 @@ func (s *Server) renewIssuerTLSCertificateIfNeeded(now time.Time) {
 		s.log("  ERROR: re-issuing the HTTPS certificate: %v", err)
 		return
 	}
-	s.setIssuerTLSCertificate(renewed)
+	s.SetIssuerTLSCertificate(renewed)
 	s.log("  Renewed:       HTTPS certificate")
 }
 
@@ -87,7 +83,7 @@ func (s *Server) startIssuerTLSServer() error {
 		if err != nil {
 			return fmt.Errorf("generating issuer TLS certificate: %w", err)
 		}
-		s.setIssuerTLSCertificate(cert)
+		s.SetIssuerTLSCertificate(cert)
 	}
 
 	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", s.issuerPort))

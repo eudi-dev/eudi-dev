@@ -133,13 +133,6 @@ func (w *Wallet) obtainInteractiveAuthorizationCode(endpoint string, setup autho
 			return "", false, err
 		}
 
-		// §5.3.1 of the first-party-apps specification: "Every response
-		// defined by this specification may include a new auth_session value.
-		// Clients MUST NOT assume that auth_session values are static."
-		if session := jsonutil.GetString(response, "auth_session"); session != "" {
-			authSession = session
-		}
-
 		code, err := w.authorizationChallengeCode(response)
 		if err != nil {
 			return "", false, err
@@ -155,11 +148,15 @@ func (w *Wallet) obtainInteractiveAuthorizationCode(endpoint string, setup autho
 		if errorCode != errorInsufficientAuthorization {
 			return "", false, authorizationChallengeError(response)
 		}
-		// §6.2.1.1 makes auth_session REQUIRED for a presentation. Without it
-		// the next request starts a new conversation. §6.2.1.2 omits it for
-		// auth_via_web, whose request_uri links the sign-in.
-		if authSession == "" && jsonutil.GetString(response, "interaction_type_required") != interactionTypeAuthViaWeb {
-			return "", false, fmt.Errorf("authorization server asked for an interaction without an auth_session (OpenID4VCI 1.1 §6.2.1)")
+		// §6.2.1: "The Wallet MUST ignore the auth_session key when processing
+		// Interaction Required Responses for interaction types that do not
+		// specify a requirement to include the auth_session key." Only the
+		// presentation interaction requires it (§6.2.1.1).
+		if jsonutil.GetString(response, "interaction_type_required") == interactionTypePresentation {
+			authSession = jsonutil.GetString(response, "auth_session")
+			if authSession == "" {
+				return "", false, fmt.Errorf("authorization server asked for a presentation without an auth_session (OpenID4VCI 1.1 §6.2.1.1)")
+			}
 		}
 
 		outcome, err := w.runAuthorizationInteraction(endpoint, response, setup)
@@ -171,13 +168,17 @@ func (w *Wallet) obtainInteractiveAuthorizationCode(endpoint string, setup autho
 		if outcome.code != "" {
 			return outcome.code, true, nil
 		}
-		if outcome.authSession != "" {
-			authSession = outcome.authSession
-		}
-
 		next := outcome.form
 		if next == nil {
 			next = url.Values{}
+		}
+		if outcome.authSession != "" {
+			authSession = outcome.authSession
+			// §6.2.1.2: the Authorization Server "MUST enforce the correct
+			// usage of the code_verifier in the intermediate request that
+			// follows the completion of the urn:openid:dcp:ia:auth_via_web
+			// interaction". The initial request carried the code_challenge.
+			next.Set("code_verifier", setup.codeVerifier)
 		}
 		next.Set("auth_session", authSession)
 		if setup.clientID != "" {
@@ -479,6 +480,12 @@ func (w *Wallet) parseInteractiveAuthorizationRequest(request map[string]any, en
 	params.Source = "interactive_authorization"
 	params.RequestOrigin = derivedOrigin(endpoint)
 	params.InteractiveAuthorizationEndpoint = endpoint
+
+	// §6.2.1.1 answers the interaction with a presentation, so the request
+	// has to ask for a vp_token.
+	if params.ResponseType != "" && !oid4vp.ResponseTypeContains(params.ResponseType, "vp_token") {
+		return nil, fmt.Errorf("openid4vp_request has response_type %q and asks for no vp_token, which the presentation interaction of OpenID4VCI 1.1 §6.2.1.1 sends", params.ResponseType)
+	}
 
 	// §6.2.1.1: "The response_mode MUST be either ia_post for unencrypted
 	// responses or ia_post.jwt for encrypted responses."

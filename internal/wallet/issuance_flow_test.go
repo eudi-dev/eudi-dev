@@ -484,6 +484,11 @@ func TestCreateCredentialProofHeader_KeyAttestation(t *testing.T) {
 	if keyAttestationHeader["typ"] != "key-attestation+jwt" {
 		t.Fatalf("expected key attestation typ, got %v", keyAttestationHeader["typ"])
 	}
+	// Appendix D.1 with F.1: kid "MUST NOT be present if jwk or x5c is
+	// present".
+	if _, hasKID := keyAttestationHeader["kid"]; hasKID || keyAttestationHeader["x5c"] == nil {
+		t.Errorf("key attestation header %v, want x5c alone to name the signing key", keyAttestationHeader)
+	}
 	if keyAttestationPayload["nonce"] != "nonce-123" {
 		t.Fatalf("expected nonce nonce-123, got %v", keyAttestationPayload["nonce"])
 	}
@@ -1187,9 +1192,19 @@ func TestProcessCredentialOffer_StrictRejectsAuthorizationServerIssuerMismatchBe
 	}
 }
 
+// RFC 9207 makes iss REQUIRED when the authorization server advertises
+// authorization_response_iss_parameter_supported. HAIP 1.0 §4 applies FAPI 2.0,
+// whose authorization server "shall return an iss parameter in the
+// authorization response" (§5.3.2.2), advertised or not.
 func TestProcessCredentialOffer_StrictRejectsMissingAuthorizationResponseIssuerBeforeToken(t *testing.T) {
+	t.Run("advertised", func(t *testing.T) { refuseMissingAuthorizationResponseIssuer(t, false) })
+	t.Run("HAIP", func(t *testing.T) { refuseMissingAuthorizationResponseIssuer(t, true) })
+}
+
+func refuseMissingAuthorizationResponseIssuer(t *testing.T, haip bool) {
 	w := generateTestWallet(t)
 	w.ValidationMode = ValidationModeStrict
+	w.RequireHAIP = haip
 	w.VCIClientID = "wallet-client"
 	w.VCIRedirectURI = "https://wallet.example/callback"
 
@@ -1222,7 +1237,7 @@ func TestProcessCredentialOffer_StrictRejectsMissingAuthorizationResponseIssuerB
 				"token_endpoint":                                 serverURL + "/token",
 				"token_endpoint_auth_methods_supported":          []string{"private_key_jwt"},
 				"dpop_signing_alg_values_supported":              []string{"ES256"},
-				"authorization_response_iss_parameter_supported": true,
+				"authorization_response_iss_parameter_supported": !haip,
 			})
 		case r.Method == http.MethodPost && r.URL.Path == "/par":
 			body, _ := io.ReadAll(r.Body)

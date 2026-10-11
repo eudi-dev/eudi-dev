@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
@@ -246,7 +247,9 @@ type credentialDelivery struct {
 	// replaceID names the credential a renewal replaces. Without it the
 	// credential is stored as a new one.
 	replaceID string
-	access    resourceAccess
+	// deferredID names the deferred issuance the credential completes.
+	deferredID string
+	access     resourceAccess
 	// logSummary opens the activity log line, as in "Imported credential".
 	logSummary string
 	logDetails map[string]any
@@ -254,7 +257,8 @@ type credentialDelivery struct {
 }
 
 // storeIssuedCredential returns the stored primary credential and its raw
-// form.
+// form. The credentials are stored and saved in one change under the store
+// lock, so a reload during the network calls of the flow keeps them.
 func (w *Wallet) storeIssuedCredential(credResp map[string]any, d credentialDelivery) (*StoredCredential, string, error) {
 	issuer := d.renewal.Issuer
 	received, err := w.checkReceivedCredentials(credResp, issuer)
@@ -266,41 +270,39 @@ func (w *Wallet) storeIssuedCredential(credResp map[string]any, d credentialDeli
 	if err != nil {
 		return nil, "", err
 	}
-	primary, err := w.keepIssuedCredential(batch.primary, d)
+	primary, err := w.parseDetectedFormat(strings.TrimSpace(batch.primary), "", primaryBindingKeyPEM(batch.primary, d.proofKeys))
+	if err != nil {
+		return nil, "", fmt.Errorf("importing received credential: %w", err)
+	}
+
+	var stored []StoredCredential
+	w.saveChange(func() bool {
+		if d.replaceID == "" {
+			stored = w.storeIssuedBatch(primary, batch.copies, d.display, d.renewal)
+		} else if stored, err = w.storeRenewedBatch(d.replaceID, primary, batch.copies, d.renewal); err != nil {
+			return false
+		}
+		if d.deferredID != "" {
+			w.RemoveDeferredIssuance(d.deferredID)
+		}
+		details := credentialImportLogDetails(&stored[0], batch.primary)
+		for key, value := range d.logDetails {
+			details[key] = value
+		}
+		details["issuer"] = issuer
+		w.addProtocolLog("issuance", "credential_imported", fmt.Sprintf("%s %s from %s", d.logSummary, stored[0].ID, issuer), true, details, credentialImportLogPayload(stored))
+		return true
+	})
 	if err != nil {
 		return nil, "", err
 	}
-	details := credentialImportLogDetails(primary, batch.primary)
-	var stored []*StoredCredential
-	if d.replaceID == "" {
-		stored, err = w.storeBatchCopies(primary, batch.copies, d.display)
-	} else {
-		stored, err = w.replaceBatchCopies(primary, batch.copies)
+	for i := range stored {
+		w.noteUnheldKeyBinding(&stored[i])
+		w.noteDIDIssuerKey(&stored[i])
 	}
-	if err != nil {
-		return nil, "", err
-	}
-	for key, value := range d.logDetails {
-		details[key] = value
-	}
-	details["issuer"] = issuer
-	w.addProtocolLog("issuance", "credential_imported", fmt.Sprintf("%s %s from %s", d.logSummary, primary.ID, issuer), true, details, credentialImportLogPayload(stored))
 
 	w.notifyCredentialAccepted(d.metadata, credResp, d.access.accessToken, d.access.authScheme, d.access.dpopKey, d.access.nonce)
-	return primary, batch.primary, nil
-}
-
-func (w *Wallet) keepIssuedCredential(raw string, d credentialDelivery) (*StoredCredential, error) {
-	if d.replaceID != "" {
-		return w.ReplaceCredential(d.replaceID, raw, &d.renewal)
-	}
-	imported, err := w.importPrimaryCredential(raw, d.proofKeys)
-	if err != nil {
-		return nil, fmt.Errorf("importing received credential: %w", err)
-	}
-	w.rememberRenewal(imported.ID, d.renewal)
-	w.rememberDisplay(imported, d.display)
-	return imported, nil
+	return &stored[0], batch.primary, nil
 }
 
 // issuanceSession is what the token and credential requests of one offer
@@ -370,6 +372,7 @@ func (w *Wallet) issueWithToken(s issuanceSession, tokenForm url.Values) (*Issua
 			nonce:       &s.nonces.resource,
 		},
 		logSummary: "Imported credential",
+		logDetails: map[string]any{"credential_requested": renewal.ConfigurationID},
 		report:     s.report,
 	})
 	if err != nil {
@@ -385,6 +388,5 @@ func (w *Wallet) issueWithToken(s issuanceSession, tokenForm url.Values) (*Issua
 		Issuer:             renewal.Issuer,
 		VerificationStatus: verificationStatus,
 		VerificationDetail: verificationDetail,
-		Imported:           imported,
 	}, nil
 }

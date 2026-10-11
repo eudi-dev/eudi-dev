@@ -19,8 +19,8 @@ import "testing"
 // An ID prefix resolves only when it matches exactly one credential.
 func TestGetCredential_ResolvesByPrefix(t *testing.T) {
 	w := generateTestWallet(t)
-	w.RestoreCredential(StoredCredential{ID: "abcd1234ef567890", VCT: "urn:example:one"})
-	w.RestoreCredential(StoredCredential{ID: "ffee0011deadbeef", VCT: "urn:example:two"})
+	w.PutCredential(StoredCredential{ID: "abcd1234ef567890", VCT: "urn:example:one"})
+	w.PutCredential(StoredCredential{ID: "ffee0011deadbeef", VCT: "urn:example:two"})
 
 	if c, ok := w.GetCredential("abcd1234ef567890"); !ok || c.VCT != "urn:example:one" {
 		t.Fatalf("full id did not resolve: %v %+v", ok, c)
@@ -38,8 +38,8 @@ func TestGetCredential_ResolvesByPrefix(t *testing.T) {
 
 func TestGetCredential_AmbiguousPrefixResolvesNothing(t *testing.T) {
 	w := generateTestWallet(t)
-	w.RestoreCredential(StoredCredential{ID: "aaaa1111", VCT: "urn:example:one"})
-	w.RestoreCredential(StoredCredential{ID: "aaaa2222", VCT: "urn:example:two"})
+	w.PutCredential(StoredCredential{ID: "aaaa1111", VCT: "urn:example:one"})
+	w.PutCredential(StoredCredential{ID: "aaaa2222", VCT: "urn:example:two"})
 
 	if _, ok := w.GetCredential("aaaa"); ok {
 		t.Error("an ambiguous prefix resolved a credential")
@@ -51,7 +51,7 @@ func TestGetCredential_AmbiguousPrefixResolvesNothing(t *testing.T) {
 
 func TestRemoveCredential_ResolvesByPrefix(t *testing.T) {
 	w := generateTestWallet(t)
-	w.RestoreCredential(StoredCredential{ID: "1234abcd5678ef90", VCT: "urn:example:one"})
+	w.PutCredential(StoredCredential{ID: "1234abcd5678ef90", VCT: "urn:example:one"})
 
 	if !w.RemoveCredential("1234abcd") {
 		t.Fatal("an unambiguous prefix did not remove the credential")

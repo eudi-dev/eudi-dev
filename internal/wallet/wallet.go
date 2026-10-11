@@ -319,8 +319,11 @@ type ClientAuthentication struct {
 }
 
 func (c StoredCredential) CanRenew() bool {
-	return c.Renewal != nil && c.Renewal.RefreshToken != "" &&
-		c.Renewal.TokenEndpoint != "" && c.Renewal.CredentialEndpoint != ""
+	return c.Renewal != nil && c.Renewal.renewable()
+}
+
+func (r CredentialRenewal) renewable() bool {
+	return r.RefreshToken != "" && r.TokenEndpoint != "" && r.CredentialEndpoint != ""
 }
 
 type LogEntry struct {
@@ -596,15 +599,21 @@ func (w *Wallet) removeProtected() {
 func (w *Wallet) ClearCredentials() int {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	kept := make([]StoredCredential, 0, len(w.Credentials))
-	for _, c := range w.Credentials {
-		if c.Protected {
-			kept = append(kept, c)
+	return w.deleteCredentialsLocked(func(c StoredCredential) bool { return !c.Protected })
+}
+
+// deleteCredentialsLocked removes the credentials drop selects together with
+// their entries on the wallet's own status list. The caller holds w.mu.
+func (w *Wallet) deleteCredentialsLocked(drop func(StoredCredential) bool) int {
+	before := len(w.Credentials)
+	w.Credentials = slices.DeleteFunc(w.Credentials, func(c StoredCredential) bool {
+		if !drop(c) {
+			return false
 		}
-	}
-	removed := len(w.Credentials) - len(kept)
-	w.Credentials = kept
-	return removed
+		delete(w.StatusEntries, c.ID)
+		return true
+	})
+	return before - len(w.Credentials)
 }
 
 // RemoveCredential refuses to remove a protected credential.
@@ -631,17 +640,9 @@ func (w *Wallet) RemoveCredential(id string) bool {
 			}
 		}
 	}
-	kept := w.Credentials[:0]
-	removed := false
-	for _, c := range w.Credentials {
-		if c.ID == full || (group != "" && c.BatchGroup == group) {
-			removed = true
-			continue
-		}
-		kept = append(kept, c)
-	}
-	w.Credentials = kept
-	return removed
+	return w.deleteCredentialsLocked(func(c StoredCredential) bool {
+		return c.ID == full || (group != "" && c.BatchGroup == group)
+	}) > 0
 }
 
 // renameCredential moves a credential and its status entry to a new ID. It runs
@@ -968,6 +969,36 @@ const (
 	maxLogEntryBytes = 64 << 10
 )
 
+// restoreLogEntries adds the entries the log lacks, in time order.
+func (w *Wallet) restoreLogEntries(entries []LogEntry) {
+	if len(entries) == 0 {
+		return
+	}
+	type key struct {
+		at             int64
+		action, detail string
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	present := make(map[key]bool, len(w.Log))
+	for _, l := range w.Log {
+		present[key{l.Time.UnixNano(), l.Action, l.Detail}] = true
+	}
+	restored := false
+	for _, e := range entries {
+		if !present[key{e.Time.UnixNano(), e.Action, e.Detail}] {
+			w.Log = append(w.Log, e)
+			restored = true
+		}
+	}
+	if restored {
+		slices.SortStableFunc(w.Log, func(a, b LogEntry) int { return a.Time.Compare(b.Time) })
+		if len(w.Log) > maxLogEntries {
+			w.Log = slices.Clone(w.Log[len(w.Log)-maxLogEntries:])
+		}
+	}
+}
+
 func (w *Wallet) appendLogEntry(entry LogEntry) {
 	entry = boundedLogEntry(entry)
 	w.mu.Lock()
@@ -1219,20 +1250,6 @@ func (w *Wallet) BatchGroupSize(group string) int {
 	return n
 }
 
-// RestoreCredential puts back an import that a concurrent reload dropped. It keeps
-// an existing copy with the same ID.
-func (w *Wallet) RestoreCredential(cred StoredCredential) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	for _, existing := range w.Credentials {
-		if existing.ID == cred.ID {
-			return
-		}
-	}
-	w.makeCredentialRoomLocked()
-	w.Credentials = append(w.Credentials, cred)
-}
-
 // PutCredential replaces a credential with the same ID.
 func (w *Wallet) PutCredential(cred StoredCredential) {
 	w.mu.Lock()
@@ -1398,6 +1415,7 @@ func (w *Wallet) makeCredentialRoomLocked() {
 		if i < 0 {
 			return
 		}
-		w.Credentials = slices.Delete(w.Credentials, i, i+1)
+		oldest := w.Credentials[i].ID
+		w.deleteCredentialsLocked(func(c StoredCredential) bool { return c.ID == oldest })
 	}
 }

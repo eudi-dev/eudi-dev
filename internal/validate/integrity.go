@@ -31,7 +31,7 @@ import (
 // (step 5). It adds the SD-JWT VC rule that registered claims stay in the
 // Issuer-signed JWT.
 func CheckSDJWTIntegrity(token *sdjwt.Token) Check {
-	findings := append(append([]string{}, token.Deviations...), disclosedRegisteredClaims(token)...)
+	findings := append(append([]string{}, token.Deviations...), DisclosedRegisteredClaims(token)...)
 	if len(findings) > 0 {
 		return Check{Name: CheckIntegrity, Status: Fail, Detail: strings.Join(findings, ". ")}
 	}
@@ -42,9 +42,9 @@ func CheckSDJWTIntegrity(token *sdjwt.Token) Check {
 	return Check{Name: CheckIntegrity, Status: Pass, Detail: fmt.Sprintf("%d/%d disclosure digests verified", n, n)}
 }
 
-// disclosedRegisteredClaims names the registered claims that a disclosure
+// DisclosedRegisteredClaims names the registered claims that a disclosure
 // provides, or whose signed value holds digests of sub-claims.
-func disclosedRegisteredClaims(token *sdjwt.Token) []string {
+func DisclosedRegisteredClaims(token *sdjwt.Token) []string {
 	var findings []string
 	for _, name := range credtype.NeverDisclosedClaims {
 		signed, isSigned := token.Payload[name]

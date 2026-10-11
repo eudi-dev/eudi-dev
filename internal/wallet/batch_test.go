@@ -55,20 +55,35 @@ func storeTestBatch(t *testing.T, w *Wallet, keys []*ecdsa.PrivateKey) {
 			holderRaw = raw
 		}
 	}
-	batch, err := w.sortBatch(map[string]any{"credentials": credEntries}, keys, ignoreFindings)
-	if err != nil {
-		t.Fatalf("sorting the batch: %v", err)
-	}
-	if batch.primary != holderRaw {
+	primary := storeTestResponse(t, w, keys, map[string]any{"credentials": credEntries})
+	if primary.Raw != holderRaw {
 		t.Fatal("the holder copy is not the primary")
 	}
-	primary, err := w.importPrimaryCredential(batch.primary, keys)
+}
+
+// storeTestResponse stores a credential response as an issuance does and
+// returns the primary credential.
+func storeTestResponse(t *testing.T, w *Wallet, keys []*ecdsa.PrivateKey, credResp map[string]any) *StoredCredential {
+	t.Helper()
+	primary, _, err := w.storeIssuedCredential(credResp, credentialDelivery{proofKeys: keys, report: ignoreFindings})
 	if err != nil {
-		t.Fatalf("importing the holder copy: %v", err)
+		t.Fatalf("storing the credential response: %v", err)
 	}
-	if _, err := w.storeBatchCopies(primary, batch.copies, nil); err != nil {
-		t.Fatalf("storing the batch copies: %v", err)
+	return primary
+}
+
+// renewTestCredential stores a credential response as the renewal of id.
+func renewTestCredential(t *testing.T, w *Wallet, id string, keys []*ecdsa.PrivateKey, raws ...string) *StoredCredential {
+	t.Helper()
+	entries := make([]any, 0, len(raws))
+	for _, raw := range raws {
+		entries = append(entries, map[string]any{"credential": raw})
 	}
+	renewed, _, err := w.storeIssuedCredential(map[string]any{"credentials": entries}, credentialDelivery{proofKeys: keys, replaceID: id, report: ignoreFindings})
+	if err != nil {
+		t.Fatalf("renewing %s: %v", id, err)
+	}
+	return renewed
 }
 
 func batchTestQuery() map[string]any {
@@ -303,10 +318,21 @@ func TestRenewalKeepsBatchMembership(t *testing.T) {
 	if err != nil {
 		t.Fatalf("signing the renewed copy: %v", err)
 	}
-	renewed, err := w.ReplaceCredential(rep.ID, freshRaw, nil)
-	if err != nil {
-		t.Fatalf("renewing: %v", err)
+	freshCopies := []string{freshRaw}
+	for _, k := range keys[1:] {
+		raw, err := mock.GenerateSDJWT(mock.SDJWTConfig{
+			Issuer:    "https://issuer.example",
+			VCT:       testBatchVCT,
+			Claims:    map[string]any{"family_name": "Doe", "given_name": "Jane"},
+			Key:       issuerKey,
+			HolderKey: &k.PublicKey,
+		})
+		if err != nil {
+			t.Fatalf("signing a renewed copy: %v", err)
+		}
+		freshCopies = append(freshCopies, raw)
 	}
+	renewed := renewTestCredential(t, w, rep.ID, keys, freshCopies...)
 	if renewed.BatchGroup != group {
 		t.Fatalf("renewal dropped the batch group: got %q, want %q", renewed.BatchGroup, group)
 	}
@@ -470,5 +496,31 @@ func TestIssueAPICapsTheBatch(t *testing.T) {
 	}
 	if resp := serverRequest(t, srv, http.MethodPost, "/api/issue", fmt.Sprintf(`{"format": "sdjwt", "batch": %d}`, MaxBatchSize)); resp.Code != http.StatusCreated {
 		t.Errorf("a batch of %d answers %d: %s", MaxBatchSize, resp.Code, resp.Body.String())
+	}
+}
+
+// A renewal sends a proof per key, and the issuer may bind the renewed
+// credential to any of them (OID4VCI 1.0 §8.3). The credential keeps the key
+// it is bound to, so its presentations stay signed with that key.
+func TestRenewalKeepsTheBindingKeyOfTheRenewedCredential(t *testing.T) {
+	w := generateTestWallet(t)
+	cred, err := w.ImportCredential(sdJWTBoundTo(t, w, &w.HolderKey.PublicKey))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ephemeral := testKey(t)
+	keys := []*ecdsa.PrivateKey{w.HolderKey, ephemeral}
+	renewTestCredential(t, w, cred.ID, keys, sdJWTBoundTo(t, w, &ephemeral.PublicKey))
+
+	stored, _ := w.GetCredential(cred.ID)
+	signer, err := w.batchSigningKey(stored)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !signer.PublicKey.Equal(&ephemeral.PublicKey) {
+		t.Error("the renewed credential signs its key binding with a key it is not bound to")
+	}
+	if w.keyBindingNotHeld(&stored) {
+		t.Error("the renewed credential reads as bound to a key the wallet does not hold")
 	}
 }

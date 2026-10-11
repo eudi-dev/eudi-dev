@@ -310,10 +310,7 @@ func TestImportStaysQuietForABatchPrimaryBoundToAProofKey(t *testing.T) {
 				t.Fatalf("generating an ephemeral proof key: %v", err)
 			}
 			keys := []*ecdsa.PrivateKey{w.HolderKey, ephemeral}
-			imported, err := w.importPrimaryCredential(tc.raw(t, w, &ephemeral.PublicKey), keys)
-			if err != nil {
-				t.Fatalf("importing: %v", err)
-			}
+			imported := storeTestResponse(t, w, keys, map[string]any{"credentials": []any{map[string]any{"credential": tc.raw(t, w, &ephemeral.PublicKey)}}})
 			if entry := findLogEntry(w.GetLog(), keyBindingEvent); entry != nil {
 				t.Fatalf("the batch primary was falsely reported as unpresentable: %s", entry.Detail)
 			}

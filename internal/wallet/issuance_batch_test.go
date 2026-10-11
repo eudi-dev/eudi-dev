@@ -273,13 +273,7 @@ func TestSingleCredentialBoundToEphemeralKeyIsPresentable(t *testing.T) {
 	ephemeral := testKey(t)
 	keys := []*ecdsa.PrivateKey{w.HolderKey, testKey(t), ephemeral}
 	cred := fakeSDJWT(t, &ephemeral.PublicKey)
-	imported, err := w.importPrimaryCredential(cred, keys)
-	if err != nil {
-		t.Fatalf("importing: %v", err)
-	}
-	if _, err := w.storeBatchCopies(imported, nil, nil); err != nil {
-		t.Fatalf("storing: %v", err)
-	}
+	imported := storeTestResponse(t, w, keys, map[string]any{"credentials": []any{map[string]any{"credential": cred}}})
 
 	stored, ok := w.GetCredential(imported.ID)
 	if !ok {
@@ -348,17 +342,7 @@ func TestPartialBatchNoneHolderBoundIsStoredAndPresentable(t *testing.T) {
 		map[string]any{"credential": fakeSDJWT(t, &eph1.PublicKey)},
 		map[string]any{"credential": fakeSDJWT(t, &eph2.PublicKey)},
 	}}
-	sorted, err := w.sortBatch(resp, keys, ignoreFindings)
-	if err != nil {
-		t.Fatalf("sortBatch: %v", err)
-	}
-	imported, err := w.importPrimaryCredential(sorted.primary, keys)
-	if err != nil {
-		t.Fatalf("importing the primary: %v", err)
-	}
-	if _, err := w.storeBatchCopies(imported, sorted.copies, nil); err != nil {
-		t.Fatalf("storing the copies: %v", err)
-	}
+	storeTestResponse(t, w, keys, resp)
 
 	var batch []StoredCredential
 	for _, c := range w.GetCredentials() {

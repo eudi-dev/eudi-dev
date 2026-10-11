@@ -640,6 +640,42 @@ func TestDeferredPendingResponseWithout202(t *testing.T) {
 	}
 }
 
+// §9.2: "The value of transaction_id MUST be same as the value of
+// transaction_id in the Deferred Credential Request."
+func TestDeferredPendingResponseKeepsTheTransactionID(t *testing.T) {
+	for _, mode := range []ValidationMode{ValidationModeDebug, ValidationModeStrict} {
+		t.Run(string(mode), func(t *testing.T) {
+			w := generateTestWallet(t)
+			w.ValidationMode = mode
+			srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				if serveIssuerMetadata(rw, r) {
+					return
+				}
+				rw.WriteHeader(http.StatusAccepted)
+				json.NewEncoder(rw).Encode(map[string]any{"transaction_id": "another-transaction", "interval": 5})
+			}))
+			defer srv.Close()
+			oldClient := httpClient
+			httpClient = srv.Client()
+			defer func() { httpClient = oldClient }()
+
+			server := NewServer(w, 0, func() {})
+			pending := pendingFor(t, w, srv.URL, 1)
+			w.AddDeferredIssuance(pending)
+			attempt := server.attemptDeferredCollection(*pending)
+			if mode == ValidationModeStrict {
+				if !attempt.Abandoned {
+					t.Errorf("strict attempt = %+v, want collection stopped", attempt)
+				}
+				return
+			}
+			if !attempt.Pending || !hasWarningContaining(w, "transaction_id") {
+				t.Errorf("debug attempt = %+v, want still pending with the deviation reported", attempt)
+			}
+		})
+	}
+}
+
 // An expired access token is refreshed before collecting a deferred credential.
 func TestDeferredCollectionRefreshesAnExpiredToken(t *testing.T) {
 	w := generateTestWallet(t)

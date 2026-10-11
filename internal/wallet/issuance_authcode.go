@@ -127,7 +127,7 @@ func (w *Wallet) processAuthorizationCodeOffer(offer *oid4vc.CredentialOffer, se
 		nonces:                nonces,
 		authorizationEndpoint: authorizationEndpoint,
 		issuer:                oauthIssuer(oauthMeta, ""),
-		issRequired:           issAdvertised(oauthMeta),
+		issRequired:           w.issRequired(oauthMeta),
 
 		presentationConsented: opts.PresentationConsented,
 		owner:                 opts.Owner,
@@ -192,7 +192,7 @@ func (w *Wallet) processAuthorizationCodeOffer(offer *oid4vc.CredentialOffer, se
 		"redirect_uri": redirectURI,
 		"state":        state,
 	}, &LogPayload{Label: "Request URL", Body: authURL})
-	callbackValues, err := runAuthorizationCodeRequest(w, authorizationEndpoint, clientID, requestURI, parForm, redirectURI, state, oauthIssuer(oauthMeta, ""), consent.AuthorizationPrompt{Owner: opts.Owner, Flow: opts.Flow}, issAdvertised(oauthMeta))
+	callbackValues, err := runAuthorizationCodeRequest(w, authorizationEndpoint, clientID, requestURI, parForm, redirectURI, state, oauthIssuer(oauthMeta, ""), consent.AuthorizationPrompt{Owner: opts.Owner, Flow: opts.Flow}, w.issRequired(oauthMeta))
 	authorizationResponseDetails := map[string]any{
 		"direction": "inbound",
 		"endpoint":  "authorization",
@@ -233,10 +233,7 @@ type authorizationCodeSetup struct {
 	// issuer.
 	authorizationEndpoint string
 	issuer                string
-	// issRequired is set when the authorization server advertises
-	// authorization_response_iss_parameter_supported. RFC 9207 then makes iss
-	// REQUIRED in the response.
-	issRequired bool
+	issRequired           bool
 	// presentationConsented is set when the caller already consented to a
 	// presentation the issuer asks for.
 	presentationConsented bool
@@ -349,19 +346,20 @@ func supportsDPoP(oauthMeta map[string]any) bool {
 // authorizationCredentialRequest returns the authorization request parameter
 // that names the credential. OID4VCI 1.0 §12.2.4: "If scope is absent, the
 // only way to request the Credential is using authorization_details" (§5.1.1).
-// HAIP 1.0 §4.1: "The Credential Issuer metadata MUST include a scope for every
-// Credential Configuration it supports."
 func (w *Wallet) authorizationCredentialRequest(metadata map[string]any, configID string) (url.Values, error) {
 	if scope := resolveCredentialScope(metadata, configID); scope != "" {
 		return url.Values{"scope": {scope}}, nil
 	}
-	if w.HAIPChecks() {
-		detail := fmt.Sprintf("credential configuration %q has no scope, which HAIP 1.0 §4.1 requires for every credential configuration", configID)
-		if err := w.reportDeviation(deviation{action: "issuance", event: "haip_violation", detail: detail, details: map[string]any{"credential_configuration_id": configID}}); err != nil {
-			return nil, err
+	detail := map[string]any{"type": "openid_credential", "credential_configuration_id": configID}
+	// §5.1.1: "If the Credential Issuer metadata contains an
+	// authorization_servers parameter, the authorization detail's locations
+	// common data field MUST be set to the Credential Issuer Identifier value."
+	if _, ok := metadata["authorization_servers"]; ok {
+		if issuer, _ := metadata["credential_issuer"].(string); issuer != "" {
+			detail["locations"] = []string{issuer}
 		}
 	}
-	details, err := json.Marshal([]map[string]any{{"type": "openid_credential", "credential_configuration_id": configID}})
+	details, err := json.Marshal([]map[string]any{detail})
 	if err != nil {
 		return nil, err
 	}
@@ -394,12 +392,14 @@ func oauthIssuer(oauthMeta map[string]any, fallback string) string {
 	return fallback
 }
 
-// issAdvertised reports whether the authorization server advertises
-// authorization_response_iss_parameter_supported. RFC 9207 then makes iss
-// REQUIRED in the authorization response.
-func issAdvertised(oauthMeta map[string]any) bool {
+// issRequired reports whether the authorization response must carry iss. RFC
+// 9207 requires it when the authorization server advertises
+// authorization_response_iss_parameter_supported. HAIP 1.0 §4 applies FAPI
+// 2.0, whose authorization server "shall return an iss parameter in the
+// authorization response according to [RFC9207]" (§5.3.2.2).
+func (w *Wallet) issRequired(oauthMeta map[string]any) bool {
 	supported, _ := oauthMeta["authorization_response_iss_parameter_supported"].(bool)
-	return supported
+	return supported || w.HAIPChecks()
 }
 
 // attestsClient reports whether to authenticate with the wallet attestation.
@@ -670,7 +670,8 @@ func createClientAttestationHeaders(w *Wallet, auth *ClientAuthentication, clien
 	}
 
 	x5c := certchain.X5C(chain)
-	holderJWK := mock.SigningJWKMap(&w.HolderKey.PublicKey)
+	holderKey := w.HolderKeyPair()
+	holderJWK := mock.SigningJWKMap(&holderKey.PublicKey)
 	clientAttestationHeader := map[string]any{
 		"alg": jws.AlgES256,
 		"typ": format.TypeClientAttestation,
@@ -717,7 +718,7 @@ func createClientAttestationHeaders(w *Wallet, auth *ClientAuthentication, clien
 	if challenge != "" {
 		popPayload["challenge"] = challenge
 	}
-	clientAttestationPoP, err := signJWT(popHeader, popPayload, w.HolderKey)
+	clientAttestationPoP, err := signJWT(popHeader, popPayload, holderKey)
 	if err != nil {
 		return nil, err
 	}
@@ -768,19 +769,18 @@ func createKeyAttestation(w *Wallet, metadata map[string]any, configID, cNonce s
 	}
 
 	if len(proofKeys) == 0 {
-		proofKeys = []*ecdsa.PrivateKey{w.HolderKey}
+		proofKeys = []*ecdsa.PrivateKey{w.HolderKeyPair()}
 	}
 	attestedKeys := make([]any, 0, len(proofKeys))
 	for _, key := range proofKeys {
 		attestedKeys = append(attestedKeys, mock.SigningJWKMap(&key.PublicKey))
 	}
+	// Appendix D.1 takes the key header parameters from Appendix F.1, where
+	// kid "MUST NOT be present if jwk or x5c is present".
 	header := map[string]any{
 		"alg": jws.AlgES256,
 		"typ": "key-attestation+jwt",
 		"x5c": certchain.X5C(chain),
-	}
-	if kid := mock.KeyIDForPublicKey(&signingKey.PublicKey); kid != "" {
-		header["kid"] = kid
 	}
 	payload := map[string]any{
 		"iat":           time.Now().Unix(),
@@ -1176,8 +1176,8 @@ func (w *Wallet) requestCredentialWithDPoP(a credentialRequestAttempt, proofs cr
 	if err != nil {
 		return nil, err
 	}
-	respBody, _, reqErr := doDPoPRequest("POST", a.endpoint, contentType, credentialAccept(a.responseEncryption), body, a.authScheme, a.accessToken, a.dpopKey, a.nonce, nil, w.HTTPClient())
-	out, encrypted, parseErr := parseCredentialResponseBody(respBody, w.HolderKey, responsePayload)
+	respBody, statusCode, reqErr := doDPoPRequest("POST", a.endpoint, contentType, credentialAccept(a.responseEncryption), body, a.authScheme, a.accessToken, a.dpopKey, a.nonce, nil, w.HTTPClient())
+	out, encrypted, parseErr := parseCredentialResponseBody(respBody, w.HolderKeyPair(), responsePayload)
 	if parseErr == nil {
 		// The caller acts on the code of a Credential Error Response
 		// (§8.3.1.2), so it is returned in place of the HTTP error.
@@ -1194,6 +1194,11 @@ func (w *Wallet) requestCredentialWithDPoP(a credentialRequestAttempt, proofs cr
 	}
 	if err := w.checkResponseEncryption(a.responseEncryption, encrypted, out, a.endpoint); err != nil {
 		return nil, err
+	}
+	if pending, _ := deferredIssuancePending(out); pending {
+		if err := w.checkDeferral(out, statusCode, a.endpoint, ""); err != nil {
+			return nil, err
+		}
 	}
 	return out, nil
 }
@@ -1293,7 +1298,7 @@ func (w *Wallet) deferredCredentialAttempt(mode ValidationMode, metadata map[str
 		return nil, finalDeferredError{err}
 	}
 	if pending, interval := deferredIssuancePending(out); pending {
-		if err := w.checkDeferredPendingResponse(out, statusCode, endpoint); err != nil {
+		if err := w.checkDeferral(out, statusCode, endpoint, transactionID); err != nil {
 			return nil, finalDeferredError{err}
 		}
 		return nil, stillPendingError{transactionID: transactionID, interval: interval}
@@ -1301,10 +1306,14 @@ func (w *Wallet) deferredCredentialAttempt(mode ValidationMode, metadata map[str
 	return out, nil
 }
 
-// checkDeferredPendingResponse applies §9.2 to an answer that defers again:
-// "the Deferred Credential Response MUST use the interval and transaction_id
-// parameters [...] and it MUST respond with the HTTP status code 202".
-func (w *Wallet) checkDeferredPendingResponse(out map[string]any, statusCode int, endpoint string) error {
+// checkDeferral checks an answer that defers the credential. requested is the
+// transaction_id of a Deferred Credential Request and empty for the first
+// answer. §8.3: "the Credential Issuer MUST also use the HTTP status code 202
+// for the response", and interval is "REQUIRED if transaction_id is
+// present". §9.2 applies the same to an answer that defers again and adds
+// "The value of transaction_id MUST be same as the value of transaction_id in
+// the Deferred Credential Request."
+func (w *Wallet) checkDeferral(out map[string]any, statusCode int, endpoint, requested string) error {
 	var problems []string
 	if statusCode != http.StatusAccepted {
 		problems = append(problems, fmt.Sprintf("answered with HTTP %d instead of 202", statusCode))
@@ -1312,10 +1321,17 @@ func (w *Wallet) checkDeferredPendingResponse(out map[string]any, statusCode int
 	if _, ok := out["interval"]; !ok {
 		problems = append(problems, "left out interval")
 	}
+	section := "§8.3"
+	if requested != "" {
+		section = "§9.2"
+		if got, _ := out["transaction_id"].(string); got != requested {
+			problems = append(problems, fmt.Sprintf("returned the transaction_id %q for the request's %q", got, requested))
+		}
+	}
 	if len(problems) == 0 {
 		return nil
 	}
-	detail := fmt.Sprintf("%s deferred the credential again but %s (OID4VCI 1.0 §9.2)", endpoint, strings.Join(problems, " and "))
+	detail := fmt.Sprintf("%s deferred the credential but %s (OID4VCI 1.0 %s)", endpoint, strings.Join(problems, " and "), section)
 	return w.reportDeviation(deviation{
 		action: "issuance", event: "deferred_response_deviation", detail: detail,
 		details: map[string]any{"endpoint": endpoint, "status_code": statusCode},
@@ -1759,7 +1775,7 @@ func (w *Wallet) validateAuthorizationCodeResponse(values url.Values, expectedSt
 	issuer := values.Get("iss")
 	switch {
 	case issuer == "" && issRequired:
-		return w.reportServerDeviation("the authorization response omitted iss, which RFC 9207 requires when the authorization server advertises authorization_response_iss_parameter_supported")
+		return w.reportServerDeviation("the authorization response omitted iss, which RFC 9207 requires when the authorization server advertises authorization_response_iss_parameter_supported, and FAPI 2.0 §5.3.2.2 requires under HAIP 1.0 §4")
 	case issuer != "" && expectedIssuer != "" && !sameIdentifier(issuer, expectedIssuer):
 		return w.reportServerDeviation(fmt.Sprintf("the authorization response iss %q does not match the expected issuer %q", issuer, expectedIssuer))
 	}

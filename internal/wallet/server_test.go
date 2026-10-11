@@ -3172,3 +3172,43 @@ func TestTheConfigServesTheFormDefaults(t *testing.T) {
 		t.Errorf("form defaults %v, want %v", config.FormDefaults, want)
 	}
 }
+
+// ADR-0012: the issuance flow writes the activity log, whichever entry point
+// runs it. Each step of an offer shows once.
+func TestOfferEndpointLogsEachStepOnce(t *testing.T) {
+	srv := newTestServer(t, true)
+	issuer, offerURI := setupMockIssuer(t, srv.wallet, mockIssuerOpts{})
+	defer issuer.Close()
+
+	body, _ := json.Marshal(map[string]any{"uri": offerURI, "credential_configuration_id": "test-config"})
+	resp := serverRequest(t, srv, http.MethodPost, "/api/offers", string(body))
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+	var result IssuanceResult
+	if err := json.Unmarshal(resp.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	failed := serverRequest(t, srv, http.MethodPost, "/api/offers", `{"uri":"openid-credential-offer://?credential_offer_uri=http://127.0.0.1:1/gone"}`)
+	if failed.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for an unreadable offer, got %d", failed.Code)
+	}
+
+	var received, imported, failures int
+	for _, entry := range srv.wallet.GetLog() {
+		switch {
+		case strings.HasPrefix(entry.Detail, "Received credential offer"):
+			received++
+		case entry.Details["credential_id"] == result.CredentialID:
+			imported++
+			if entry.Details["credential_requested"] != "test-config" {
+				t.Errorf("the import entry names the requested configuration %v, want test-config", entry.Details["credential_requested"])
+			}
+		case !entry.Success && (entry.Details["event"] == "issuance_failed" || strings.HasPrefix(entry.Detail, "Failed")):
+			failures++
+		}
+	}
+	if received != 1 || imported != 1 || failures != 1 {
+		t.Errorf("log shows the offer %d times, the import %d times and the failure %d times, want each once", received, imported, failures)
+	}
+}

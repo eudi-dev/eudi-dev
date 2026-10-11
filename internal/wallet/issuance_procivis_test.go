@@ -46,6 +46,7 @@ func setupNoneAuthIssuer(t *testing.T, w *Wallet, gotAttestation *bool) (*httpte
 					"test-config": map[string]any{
 						"format": "dc+sd-jwt",
 						"vct":    "urn:test:credential",
+						"scope":  "test-config",
 					},
 				},
 			})

@@ -15,7 +15,11 @@
 package wallet
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/binary"
 	"fmt"
+	"math/bits"
 	"slices"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
@@ -97,7 +101,7 @@ func (w *Wallet) BuildStatusList() (int, []byte) {
 		bits = 8
 	}
 
-	entries := w.StatusListCounter
+	entries := statusListSize(w.StatusListCounter)
 	numBytes := (entries*bits + 7) / 8
 	// The 16-byte minimum is a wallet choice. The specification sets no minimum, but a
 	// list with only one entry would identify the credential being checked.
@@ -124,8 +128,27 @@ func (w *Wallet) BuildStatusList() (int, []byte) {
 	return bits, bitstring
 }
 
-// NextStatusIndex uses the shared backend counter when there is one.
+// NextStatusIndex allocates an index on the wallet's own status list. HAIP
+// 1.0 §6.1: "Each Credential MUST have its own unique, unpredictable status
+// list index". The wallet counts allocations, with the shared backend counter
+// when there is one, and maps each count to an index with a keyed
+// permutation. Distinct counts give distinct indices, also across servers on
+// one database.
 func (w *Wallet) NextStatusIndex() (int, error) {
+	for {
+		n, err := w.nextStatusAllocation()
+		if err != nil {
+			return 0, err
+		}
+		idx := w.statusIndexFor(n)
+		// An entry assigned in counting order can hold the index already.
+		if !w.statusIndexHeld(idx) {
+			return idx, nil
+		}
+	}
+}
+
+func (w *Wallet) nextStatusAllocation() (int, error) {
 	w.mu.RLock()
 	allocate := w.allocateStatusIndex
 	w.mu.RUnlock()
@@ -134,9 +157,106 @@ func (w *Wallet) NextStatusIndex() (int, error) {
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	idx := w.StatusListCounter
+	n := w.StatusListCounter
 	w.StatusListCounter++
-	return idx, nil
+	return n, nil
+}
+
+func (w *Wallet) statusIndexHeld(idx int) bool {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	for _, entry := range w.StatusEntries {
+		if entry.Index == idx {
+			return true
+		}
+	}
+	return false
+}
+
+// minStatusListBits sizes the smallest list at 128 entries, the 16 bytes
+// BuildStatusList writes at least.
+const minStatusListBits = 7
+
+// statusRange returns the power of two range that holds allocation or index
+// n: its start and its width in bits. The permutation keeps every index in
+// the range of its allocation, so the list grows with the allocations.
+func statusRange(n int) (start, width int) {
+	if n < 1<<minStatusListBits {
+		return 0, minStatusListBits
+	}
+	width = bits.Len(uint(n)) - 1
+	return 1 << width, width
+}
+
+// statusListSize is the number of entries that covers the first count
+// allocations.
+func statusListSize(count int) int {
+	if count <= 1<<minStatusListBits {
+		return 1 << minStatusListBits
+	}
+	start, width := statusRange(count - 1)
+	return start + 1<<width
+}
+
+func (w *Wallet) statusIndexFor(n int) int {
+	start, width := statusRange(n)
+	return start + int(w.statusIndexKey().permute(width, uint64(n-start), false))
+}
+
+// statusAllocation is the allocation that statusIndexFor maps to idx.
+func (w *Wallet) statusAllocation(idx int) int {
+	start, width := statusRange(idx)
+	return start + int(w.statusIndexKey().permute(width, uint64(idx-start), true))
+}
+
+// statusIndexKey keys the permutation with a secret every server of the
+// wallet shares. Without the issuer key the order stays unique.
+func (w *Wallet) statusIndexKey() statusPermutation {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	mac := hmac.New(sha256.New, []byte("eudi-dev status list index"))
+	if w.IssuerKey != nil {
+		if secret, err := w.IssuerKey.Bytes(); err == nil {
+			mac.Write(secret)
+		}
+	}
+	return mac.Sum(nil)
+}
+
+// statusPermutation is a Feistel network with cycle walking over the
+// numbers of a given bit width.
+type statusPermutation []byte
+
+const statusPermutationRounds = 4
+
+func (k statusPermutation) permute(width int, x uint64, inverse bool) uint64 {
+	half := uint((width + 1) / 2)
+	mask := uint64(1)<<half - 1
+	for {
+		l, r := x>>half, x&mask
+		if inverse {
+			for round := statusPermutationRounds - 1; round >= 0; round-- {
+				l, r = r^k.round(width, round, l)&mask, l
+			}
+		} else {
+			for round := range statusPermutationRounds {
+				l, r = r, l^k.round(width, round, r)&mask
+			}
+		}
+		x = l<<half | r
+		if x < 1<<uint(width) {
+			return x
+		}
+	}
+}
+
+func (k statusPermutation) round(width, round int, half uint64) uint64 {
+	mac := hmac.New(sha256.New, k)
+	var input [10]byte
+	input[0], input[1] = byte(width), byte(round)
+	binary.BigEndian.PutUint64(input[2:], half)
+	mac.Write(input[:])
+	return binary.BigEndian.Uint64(mac.Sum(nil))
 }
 
 // ownStatusIndex picks the index of a new credential on the wallet's own
@@ -158,9 +278,13 @@ func (w *Wallet) ownStatusIndex(requested *int, batch bool) (int, error) {
 // status list. Copies of one batch may share an index. The list covers only
 // the indices the wallet assigned.
 func (w *Wallet) statusIndexFree(idx int, credID string) error {
+	allocation := -1
+	if idx >= 0 {
+		allocation = w.statusAllocation(idx)
+	}
 	w.mu.RLock()
 	defer w.mu.RUnlock()
-	if idx < 0 || idx >= w.StatusListCounter {
+	if allocation < 0 || allocation >= w.StatusListCounter {
 		return fmt.Errorf("status index %d is not one the wallet assigned. Leave the index out and the wallet assigns one", idx)
 	}
 	group := ""

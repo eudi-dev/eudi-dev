@@ -158,8 +158,8 @@ func TestGenerateDefaultCredentials_WithStatusList(t *testing.T) {
 	if sl["uri"] != "https://localhost:8086/api/statuslist" {
 		t.Errorf("expected status list URI, got %v", sl["uri"])
 	}
-	if sl["idx"] != float64(0) {
-		t.Errorf("expected idx=0, got %v", sl["idx"])
+	if want := float64(w.statusIndexFor(0)); sl["idx"] != want {
+		t.Errorf("expected idx=%v, got %v", want, sl["idx"])
 	}
 
 	for credID, entry := range w.StatusEntries {
@@ -454,8 +454,9 @@ func TestGenerateSDJWT_WithoutStatusList(t *testing.T) {
 func TestImportAdoptsOwnStatusListEntry(t *testing.T) {
 	w := generateTestWallet(t)
 	w.BaseURL = "http://localhost:8085"
-	// The wallet assigned index 7 when it issued the credential.
+	// The wallet assigned its eighth index when it issued the credential.
 	w.StatusListCounter = 8
+	assigned := w.statusIndexFor(7)
 
 	for _, tc := range []struct {
 		name  string
@@ -463,8 +464,8 @@ func TestImportAdoptsOwnStatusListEntry(t *testing.T) {
 		want  bool
 		index int
 	}{
-		{"own status list", "http://localhost:8085/api/statuslist", true, 7},
-		{"someone else's status list", "https://issuer.example/statuslist", false, 7},
+		{"own status list", "http://localhost:8085/api/statuslist", true, assigned},
+		{"someone else's status list", "https://issuer.example/statuslist", false, assigned},
 		{"no status list", "", false, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -574,5 +575,39 @@ func TestSetCredentialStatusRejectsAnOutOfRangeValueClearly(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "0 to 255") {
 		t.Errorf("body = %s, want it to name the permitted range", rec.Body.String())
+	}
+}
+
+// A credential leaves the wallet with its entry on the wallet's own status
+// list, whether the user deletes it or a full wallet makes room.
+func TestRemovedCredentialsLeaveTheirStatusEntries(t *testing.T) {
+	w := generateTestWallet(t)
+	w.BaseURL = "https://wallet.example"
+	issue := func() string {
+		t.Helper()
+		result, err := w.IssueCredential(IssueOptions{Format: "sdjwt", VCT: "urn:test:status", Claims: map[string]any{"a": "b"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := w.StatusEntryFor(result.Credential.ID); !ok {
+			t.Fatal("the issued credential has no status entry")
+		}
+		return result.Credential.ID
+	}
+
+	deleted := issue()
+	w.RemoveCredential(deleted)
+	if _, ok := w.StatusEntryFor(deleted); ok {
+		t.Error("the deleted credential kept its status entry")
+	}
+
+	w.SetCapacity(Capacity{Credentials: 1})
+	evicted := issue()
+	issue()
+	if _, ok := w.GetCredential(evicted); ok {
+		t.Fatal("the full wallet kept the oldest credential")
+	}
+	if _, ok := w.StatusEntryFor(evicted); ok {
+		t.Error("the credential dropped to make room kept its status entry")
 	}
 }

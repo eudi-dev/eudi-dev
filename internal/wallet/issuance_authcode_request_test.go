@@ -123,26 +123,25 @@ func TestAuthCodeWithoutScopeRequestsAuthorizationDetails(t *testing.T) {
 	}
 }
 
-// HAIP 1.0 §4.1 requires a scope for every credential configuration.
-func TestAuthCodeWithoutScopeUnderHAIP(t *testing.T) {
-	metadata := map[string]any{"credential_configurations_supported": map[string]any{"test-config": map[string]any{}}}
-
-	strict := generateTestWallet(t)
-	strict.RequireHAIP = true
-	strict.ValidationMode = ValidationModeStrict
-	if _, err := strict.authorizationCredentialRequest(metadata, "test-config"); err == nil {
-		t.Error("strict HAIP accepted a credential configuration without scope")
+// OID4VCI 1.0 §5.1.1: with authorization_servers in the metadata, "the
+// authorization detail's locations common data field MUST be set to the
+// Credential Issuer Identifier value."
+func TestAuthorizationDetailsNameTheIssuerOfASeparateAuthorizationServer(t *testing.T) {
+	metadata := map[string]any{
+		"credential_issuer":                   "https://issuer.example",
+		"authorization_servers":               []any{"https://as.example"},
+		"credential_configurations_supported": map[string]any{"test-config": map[string]any{}},
 	}
-
-	debug := generateTestWallet(t)
-	debug.RequireHAIP = true
-	debug.ValidationMode = ValidationModeDebug
-	request, err := debug.authorizationCredentialRequest(metadata, "test-config")
-	if err != nil || !request.Has("authorization_details") {
-		t.Fatalf("debug HAIP = %v, %v, want authorization_details", request, err)
+	request, err := generateTestWallet(t).authorizationCredentialRequest(metadata, "test-config")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !hasWarningContaining(debug, "HAIP 1.0 §4.1") {
-		t.Error("debug HAIP did not report the missing scope")
+	var details []map[string]any
+	if err := json.Unmarshal([]byte(request.Get("authorization_details")), &details); err != nil {
+		t.Fatal(err)
+	}
+	if locations, _ := details[0]["locations"].([]any); len(locations) != 1 || locations[0] != "https://issuer.example" {
+		t.Errorf("locations = %v, want the credential issuer identifier", details[0]["locations"])
 	}
 }
 

@@ -282,17 +282,14 @@ func (s *Server) attemptDeferredCollection(pending DeferredIssuance) DeferredAtt
 			nonce:       &nonce,
 		},
 		logSummary: "Collected deferred credential",
+		deferredID: pending.ID,
 		logDetails: map[string]any{"transaction_id": pending.TransactionID, "deferred": true},
 		report:     ignoreFindings,
 	})
 	if err != nil {
 		return s.abandonDeferred(pending, err.Error())
 	}
-	s.wallet.RemoveDeferredIssuance(pending.ID)
 	s.log("  Collected:     deferred %s credential from %s", imported.Format, pending.Issuer)
-
-	s.saveIssuance(&IssuanceResult{Imported: imported})
-	s.wallet.Consents().NotifyStateChanged()
 	return DeferredAttempt{Collected: true, Credential: imported}
 }
 

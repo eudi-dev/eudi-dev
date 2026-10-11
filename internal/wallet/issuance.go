@@ -106,10 +106,6 @@ type IssuanceResult struct {
 	// Findings are the checks that failed in debug mode, as for a
 	// presentation.
 	Findings []string `json:"findings,omitempty"`
-	// The server restores this credential if a concurrent reload drops it before
-	// the save. A browser sign-in is slow enough for UI polling to trigger such a
-	// reload.
-	Imported *StoredCredential `json:"-"`
 }
 
 type OfferOptions struct {
@@ -241,6 +237,10 @@ func (w *Wallet) ProcessCredentialOfferWithOptions(offerURI string, opts OfferOp
 func (w *Wallet) processCredentialOffer(offerURI string, opts OfferOptions) (_ *IssuanceResult, err error) {
 	offer, err := w.resolveOffer(offerURI, opts.ResolvedOffer)
 	if err != nil {
+		w.addProtocolLog("issuance", "issuance_failed", fmt.Sprintf("The credential offer could not be read: %v", err), false, map[string]any{
+			"offer_uri": offerURI,
+			"error":     err.Error(),
+		})
 		return nil, err
 	}
 	w.addProtocolLog("issuance", "credential_offer", fmt.Sprintf("Received credential offer from %s", offer.CredentialIssuer), true, map[string]any{
@@ -267,7 +267,7 @@ func (w *Wallet) processCredentialOffer(offerURI string, opts OfferOptions) (_ *
 	if err != nil {
 		return nil, err
 	}
-	metadata, err := w.loadIssuerMetadata(offer.CredentialIssuer, offer.CredentialConfigurationIDs, opts.addFindings)
+	metadata, err := w.loadIssuerMetadata(offer.CredentialIssuer, []string{configID}, opts.addFindings)
 	if err != nil {
 		return nil, err
 	}
@@ -303,7 +303,8 @@ func (w *Wallet) processCredentialOffer(offerURI string, opts OfferOptions) (_ *
 
 	// Strict mode rejects HAIP findings. Debug mode logs them and continues.
 	if w.HAIPChecks() {
-		if violations := ValidateHAIPIssuanceCompliance(offer, oauthMeta); len(violations) > 0 {
+		violations := append(ValidateHAIPIssuanceCompliance(offer, oauthMeta), haipIssuerMetadataViolations(metadata, configID)...)
+		if len(violations) > 0 {
 			if err := w.reportHAIPViolations("Credential offer", offer.CredentialIssuer, violations); err != nil {
 				return nil, err
 			}
@@ -324,16 +325,21 @@ func (w *Wallet) processCredentialOffer(offerURI string, opts OfferOptions) (_ *
 		report: opts.addFindings,
 	}
 
+	// A pre-authorized flow can take its token endpoint from the issuer
+	// metadata, so only the authorization code flow needs the server's own
+	// document. A document that is there is checked for both grants.
+	authServerErr := oauthErr
+	if authServerErr == nil {
+		authServerErr = validateAuthorizationServerIssuer(authServer, oauthMeta)
+	} else if offer.Grants.PreAuthorizedCode != "" {
+		authServerErr = nil
+	}
+	if authServerErr != nil {
+		if err := w.reportServerDeviation(fmt.Sprintf("authorization server metadata of %s: %v", authServer, authServerErr)); err != nil {
+			return nil, err
+		}
+	}
 	if offer.Grants.PreAuthorizedCode == "" {
-		authServerErr := oauthErr
-		if authServerErr == nil {
-			authServerErr = validateAuthorizationServerIssuer(authServer, oauthMeta)
-		}
-		if authServerErr != nil {
-			if err := w.reportServerDeviation(fmt.Sprintf("authorization server metadata of %s: %v", authServer, authServerErr)); err != nil {
-				return nil, err
-			}
-		}
 		return w.processAuthorizationCodeOffer(offer, session, oauthMeta, opts)
 	}
 

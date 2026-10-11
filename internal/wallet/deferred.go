@@ -226,14 +226,17 @@ func (w *Wallet) UpdateDeferredIssuance(id string, apply func(*DeferredIssuance)
 // recordDeferredIssuance hands a deferred response to background collection
 // and reports the issuance as successful.
 func (w *Wallet) recordDeferredIssuance(pending *DeferredIssuance) *IssuanceResult {
-	w.AddDeferredIssuance(pending)
-	w.addProtocolLog("issuance", "issuance_deferred",
-		fmt.Sprintf("Issuer deferred the credential, collecting it every %s", pending.Interval()), true, map[string]any{
-			"issuer":         pending.Issuer,
-			"transaction_id": pending.TransactionID,
-			"interval":       pending.Interval().String(),
-			"next_attempt":   pending.NextAttemptAt,
-		})
+	w.saveChange(func() bool {
+		w.AddDeferredIssuance(pending)
+		w.addProtocolLog("issuance", "issuance_deferred",
+			fmt.Sprintf("Issuer deferred the credential, collecting it every %s", pending.Interval()), true, map[string]any{
+				"issuer":         pending.Issuer,
+				"transaction_id": pending.TransactionID,
+				"interval":       pending.Interval().String(),
+				"next_attempt":   pending.NextAttemptAt,
+			})
+		return true
+	})
 	return &IssuanceResult{
 		Pending:       true,
 		TransactionID: pending.TransactionID,

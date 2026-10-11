@@ -15,8 +15,15 @@
 package wallet
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/storage"
 )
 
 // A reload must wait until a mutation has been saved. Otherwise it could replace the
@@ -55,154 +62,182 @@ func TestSaveMutationFencesOutAReload(t *testing.T) {
 	<-reloadDone
 }
 
-// Issuance can overlap with request-triggered reloads. Saving must restore a
-// credential if a reload discarded it after import.
-func TestSaveIssuedCredential_SurvivesConcurrentStoreReload(t *testing.T) {
-	srv := newTestServer(t, true)
-
-	saved := 0
-	srv.onSave = func() { saved++ }
-
-	issued := StoredCredential{
-		ID:     "issued-during-a-long-flow",
-		Format: "dc+sd-jwt",
-		VCT:    "urn:test:ticket:1",
-		Raw:    "header.payload.signature",
-		Claims: map[string]any{"given_name": "Alice"},
-	}
-	srv.wallet.RestoreCredential(issued)
-
-	// Simulate a reload before the imported credential has been saved.
-	persisted := &Wallet{PersistedState: PersistedState{Credentials: []StoredCredential{}}}
-	srv.applyPersistedWalletState(persisted)
-	if _, ok := srv.wallet.GetCredential(issued.ID); ok {
-		t.Fatal("precondition failed: the reload should have dropped the credential")
-	}
-
-	srv.saveIssuance(&IssuanceResult{CredentialID: issued.ID, Imported: &issued})
-
-	if _, ok := srv.wallet.GetCredential(issued.ID); !ok {
-		t.Fatal("the issued credential was lost: issuance reported success and stored nothing")
-	}
-	if saved != 1 {
-		t.Fatalf("expected exactly one save, got %d", saved)
-	}
-}
-
-// Import adopts status entries for credentials on this wallet's status list. A reload
-// must preserve the adopted entry so the credential can still be revoked.
-func TestSaveIssuedCredential_KeepsTheAdoptedStatusEntry(t *testing.T) {
-	srv := newTestServer(t, true)
-	srv.onSave = func() {}
-	srv.wallet.BaseURL = "https://wallet.example"
-	// The wallet assigned index 22 when it issued the ticket.
-	srv.wallet.StatusListCounter = 23
-
-	issued := StoredCredential{
-		ID:     "ticket-with-own-status",
-		Format: "dc+sd-jwt",
-		VCT:    "urn:test:ticket:1",
-		Raw:    "header.payload.signature",
-		Claims: map[string]any{
-			"status": map[string]any{
-				"status_list": map[string]any{
-					"uri": srv.wallet.StatusListURL(),
-					"idx": 22,
+// batchIssuer issues a batch bound to the proof keys of each credential
+// request. Its notification endpoint runs onNotify, which is called after
+// the wallet stored a credential response.
+func batchIssuer(t *testing.T, w *Wallet, onNotify func()) (*httptest.Server, string) {
+	t.Helper()
+	var serverURL string
+	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rw.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/.well-known/openid-credential-issuer"):
+			_ = json.NewEncoder(rw).Encode(map[string]any{
+				"credential_issuer":         serverURL,
+				"credential_endpoint":       serverURL + "/credential",
+				"token_endpoint":            serverURL + "/token",
+				"nonce_endpoint":            serverURL + "/nonce",
+				"notification_endpoint":     serverURL + "/notification",
+				"batch_credential_issuance": map[string]any{"batch_size": 3},
+				"credential_configurations_supported": map[string]any{
+					"cfg": map[string]any{"format": "dc+sd-jwt", "vct": "TestBoundCred"},
 				},
-			},
+			})
+		case strings.HasSuffix(r.URL.Path, "/token"):
+			_ = json.NewEncoder(rw).Encode(map[string]any{"access_token": "at", "token_type": "Bearer", "refresh_token": "rt"})
+		case strings.HasSuffix(r.URL.Path, "/nonce"):
+			_ = json.NewEncoder(rw).Encode(map[string]any{"c_nonce": "n"})
+		case strings.HasSuffix(r.URL.Path, "/credential"):
+			var body map[string]any
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			proofs, _ := body["proofs"].(map[string]any)
+			jwts, _ := proofs["jwt"].([]any)
+			credentials := make([]any, 0, len(jwts))
+			for _, proof := range jwts {
+				jwk, _ := decodeJWTPart(t, proof.(string), 0)["jwk"].(map[string]any)
+				pub, _, err := ecdsaPublicKeyFromJWK(ValidationModeDebug, jwk["x"].(string), jwk["y"].(string))
+				if err != nil {
+					t.Errorf("proof key: %v", err)
+					return
+				}
+				credentials = append(credentials, map[string]any{"credential": sdJWTBoundTo(t, w, pub)})
+			}
+			_ = json.NewEncoder(rw).Encode(map[string]any{"credentials": credentials, "notification_id": "note"})
+		case strings.HasSuffix(r.URL.Path, "/notification"):
+			onNotify()
+			rw.WriteHeader(http.StatusNoContent)
+		default:
+			rw.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	serverURL = srv.URL
+	offer, _ := json.Marshal(map[string]any{
+		"credential_issuer":            serverURL,
+		"credential_configuration_ids": []string{"cfg"},
+		"grants": map[string]any{
+			preAuthorizedCodeGrant: map[string]any{"pre-authorized_code": "code"},
 		},
-	}
-	srv.wallet.RestoreCredential(issued)
-	srv.wallet.adoptOwnStatusEntry(&issued)
-	if _, ok := srv.wallet.StatusEntryFor(issued.ID); !ok {
-		t.Fatal("precondition failed: the import should have adopted the status entry")
-	}
-
-	srv.applyPersistedWalletState(&Wallet{PersistedState: PersistedState{Credentials: []StoredCredential{}, StatusListCounter: 23}})
-	if _, ok := srv.wallet.StatusEntryFor(issued.ID); ok {
-		t.Fatal("precondition failed: the reload should have wiped the status entry")
-	}
-
-	srv.saveIssuance(&IssuanceResult{CredentialID: issued.ID, Imported: &issued})
-
-	entry, ok := srv.wallet.StatusEntryFor(issued.ID)
-	if !ok {
-		t.Fatal("the adopted status entry was lost: the credential shows as externally governed")
-	}
-	if entry.Index != 22 {
-		t.Fatalf("status entry index = %d, want the credential's own idx 22", entry.Index)
-	}
+	})
+	return srv, "openid-credential-offer://?credential_offer=" + url.QueryEscape(string(offer))
 }
 
-func TestSaveIssuedCredential_DoesNotDuplicate(t *testing.T) {
-	srv := newTestServer(t, true)
-	srv.onSave = func() {}
-
-	issued := StoredCredential{ID: "kept", Format: "dc+sd-jwt", VCT: "urn:test:ticket:1"}
-	srv.wallet.RestoreCredential(issued)
-	before := len(srv.wallet.GetCredentials())
-
-	srv.saveIssuance(&IssuanceResult{CredentialID: issued.ID, Imported: &issued})
-
-	if got := len(srv.wallet.GetCredentials()); got != before {
-		t.Fatalf("credential count changed from %d to %d", before, got)
-	}
-}
-
-// A reload between renewal and saving can restore the old credential and refresh
-// token. Saving must recover the renewed credential and its rotated token.
-func TestSaveRenewedCredential_SurvivesConcurrentStoreReload(t *testing.T) {
-	srv := newTestServer(t, true)
-	saved := 0
-	srv.onSave = func() { saved++ }
-	srv.wallet.BaseURL = "https://wallet.example"
-
-	stale := StoredCredential{
-		ID:     "renewed-mid-reload",
-		Format: "dc+sd-jwt",
-		VCT:    "urn:test:ticket:1",
-		Raw:    "old.payload.signature",
-	}
-	srv.wallet.RestoreCredential(stale)
-
-	renewed := stale
-	renewed.Raw = "new.payload.signature"
-	renewed.Claims = map[string]any{
-		"status": map[string]any{
-			"status_list": map[string]any{
-				"uri": srv.wallet.StatusListURL(),
-				"idx": 7,
-			},
-		},
-	}
-	renewed.Renewal = &CredentialRenewal{
-		RefreshToken:       "rotated-token",
-		TokenEndpoint:      "https://issuer.example/token",
-		CredentialEndpoint: "https://issuer.example/credential",
-	}
-
-	srv.wallet.PutCredential(renewed)
-	srv.applyPersistedWalletState(&Wallet{PersistedState: PersistedState{Credentials: []StoredCredential{stale}}})
-
-	if err := srv.management().saveRenewed(renewed); err != nil {
+// storedBatch reads the batch of id from the store as a fresh process would.
+func storedBatch(t *testing.T, store *WalletStore, id string) []StoredCredential {
+	t.Helper()
+	w, err := store.LoadOrCreate()
+	if err != nil {
 		t.Fatal(err)
 	}
-
-	got, ok := srv.wallet.GetCredential(renewed.ID)
+	cred, ok := w.GetCredential(id)
 	if !ok {
-		t.Fatal("the renewed credential is gone")
+		t.Fatalf("credential %s is not stored", id)
 	}
-	if got.Raw != "new.payload.signature" {
-		t.Error("the reload reverted the renewal to the stale copy")
+	var batch []StoredCredential
+	for _, c := range w.GetCredentials() {
+		if c.BatchGroup == cred.BatchGroup {
+			batch = append(batch, c)
+		}
 	}
-	if got.Renewal == nil || got.Renewal.RefreshToken != "rotated-token" {
-		t.Error("the rotated refresh token was lost")
+	return batch
+}
+
+// Two servers share one database. Another visitor stores a credential while
+// this server waits for the issuer, and this server then reloads. A batch
+// issuance and a renewal keep every copy they received.
+func TestIssuanceAndRenewalSurviveAReloadFromAnotherServer(t *testing.T) {
+	dir, backend := t.TempDir(), storage.NewMemory()
+	open := func() *Server {
+		store := NewWalletStoreOn(dir, backend)
+		w, err := store.LoadOrCreate()
+		if err != nil {
+			t.Fatal(err)
+		}
+		srv := NewServer(w, 0, nil)
+		srv.SetStore(store)
+		return srv
 	}
-	entry, ok := srv.wallet.StatusEntryFor(renewed.ID)
-	if !ok || entry.Index != 7 {
-		t.Errorf("status entry = %+v (present %v), want the renewed credential's idx 7", entry, ok)
+	srv, other := open(), open()
+	issuer, offer := batchIssuer(t, srv.wallet, func() {
+		if err := other.reloadFromStore(); err != nil {
+			t.Error(err)
+		}
+		other.saveMutation(func() bool {
+			other.wallet.PutCredential(StoredCredential{ID: newCredentialID(), Format: "dc+sd-jwt", Raw: generateTestCredential(t, other.wallet)})
+			return true
+		})
+		if err := srv.reloadFromStore(); err != nil {
+			t.Error(err)
+		}
+	})
+	oldClient := httpClient
+	httpClient = issuer.Client()
+	defer func() { httpClient = oldClient }()
+
+	result, _, err := srv.runOffer(offer, OfferOptions{})
+	if err != nil {
+		t.Fatalf("issuance: %v", err)
 	}
-	if saved != 1 {
-		t.Fatalf("expected exactly one save, got %d", saved)
+	issued := storedBatch(t, NewWalletStoreOn(dir, backend), result.CredentialID)
+	if len(issued) != 3 {
+		t.Fatalf("the store holds %d copies of the batch, want 3", len(issued))
+	}
+
+	if _, err := srv.RefreshCredential(result.CredentialID); err != nil {
+		t.Fatalf("renewal: %v", err)
+	}
+	renewed := storedBatch(t, NewWalletStoreOn(dir, backend), result.CredentialID)
+	if len(renewed) != 3 {
+		t.Fatalf("the store holds %d copies of the renewed batch, want 3", len(renewed))
+	}
+	old := map[string]bool{}
+	for _, c := range issued {
+		old[c.Raw] = true
+	}
+	for _, c := range renewed {
+		if old[c.Raw] {
+			t.Errorf("copy %s holds the credential from before the renewal", c.ID)
+		}
+	}
+}
+
+// A reload replaces the holder key under the wallet lock while flows read
+// it. Run with -race.
+func TestHolderKeyReadsHoldTheWalletLock(t *testing.T) {
+	w := generateTestWallet(t)
+	metadata := map[string]any{"credential_configurations_supported": map[string]any{"cfg": map[string]any{
+		"proof_types_supported": map[string]any{"jwt": map[string]any{
+			"key_attestations_required": map[string]any{"key_storage": []any{"iso_18045_high"}},
+		}},
+	}}}
+	key := w.HolderKeyPair()
+	stop, done := make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				w.mu.Lock()
+				w.HolderKey = key
+				w.mu.Unlock()
+			}
+		}
+	}()
+	defer func() {
+		close(stop)
+		<-done
+	}()
+	for range 20 {
+		if _, err := createClientAttestationHeaders(w, &ClientAuthentication{}, "client", ""); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := createKeyAttestation(w, metadata, "cfg", "n", nil); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := w.IssueCredential(IssueOptions{Format: "sdjwt", VCT: "urn:test:race", Claims: map[string]any{"a": "b"}}); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

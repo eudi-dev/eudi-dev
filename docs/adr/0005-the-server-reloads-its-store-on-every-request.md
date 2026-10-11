@@ -6,6 +6,4 @@ A running wallet must pick up changes made by CLI commands or another server. `w
 
 The file backend reloads `wallet.json` when its content hash changes. Modification times are too coarse on some filesystems to tell two writes apart. Memory and Postgres use section revisions and row versions to refresh changed state. Log views load the activity log on demand. See [ADR-0016](0016-state-goes-through-one-storage-layer.md) for the storage layout.
 
-A reload during a flow can replace unsaved state. For example, the UI can poll while the user signs in at an issuer. `saveIssuedCredential` restores a credential dropped by a concurrent reload and saves it under the reload lock.
-
-A flow that keeps wallet state across network calls or user interaction must account for a reload before saving.
+A reload during a flow replaces state that is not saved yet. For example, the UI polls while the user signs in at an issuer, and another server on the same database saves. A flow therefore changes the wallet state only in one step under the reload lock. `Wallet.saveChange` runs the change and the save together. The network calls of the flow run before that step. Issuance stores a credential with all its batch copies this way, and so does a renewal.

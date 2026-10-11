@@ -240,7 +240,7 @@ type importedCredentialLogItem struct {
 	Raw string `json:"credential"`
 }
 
-func credentialImportLogPayload(credentials []*StoredCredential) *LogPayload {
+func credentialImportLogPayload(credentials []StoredCredential) *LogPayload {
 	if len(credentials) == 0 {
 		return nil
 	}

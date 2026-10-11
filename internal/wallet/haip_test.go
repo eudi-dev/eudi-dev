@@ -15,6 +15,10 @@
 package wallet
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -108,13 +112,6 @@ func TestValidateHAIPIssuanceCompliance(t *testing.T) {
 			wantSub: "advertises PKCE without S256",
 		},
 		{
-			name: "DPoP advertised with no algorithm this wallet can use",
-			mutate: func(_ *oid4vc.CredentialOffer, m map[string]any) {
-				m["dpop_signing_alg_values_supported"] = []any{"HS256"}
-			},
-			wantSub: "advertises DPoP without ES256",
-		},
-		{
 			name: "unreadable authorization server metadata",
 			mutate: func(_ *oid4vc.CredentialOffer, m map[string]any) {
 				for k := range m {
@@ -149,6 +146,73 @@ func TestValidateHAIPIssuanceCompliance(t *testing.T) {
 			}
 			if !found {
 				t.Errorf("violations %v do not mention %q", violations, tc.wantSub)
+			}
+		})
+	}
+}
+
+// HAIP 1.0 §7 lists what ES256 must validate: wallet attestations, key
+// attestations and jwt proofs. DPoP proofs are not on the list, so an
+// authorization server may offer DPoP with other algorithms.
+func TestHAIPIssuanceLeavesTheDPoPAlgorithmsOpen(t *testing.T) {
+	offer, meta := haipCompliantIssuance()
+	meta["dpop_signing_alg_values_supported"] = []any{"ES384"}
+	if violations := ValidateHAIPIssuanceCompliance(offer, meta); len(violations) != 0 {
+		t.Errorf("violations %v for DPoP with ES384", violations)
+	}
+}
+
+// HAIP 1.0 §4.1 applies to the issuer metadata whichever grant the offer
+// carries: a scope for every credential configuration, and a nonce_endpoint
+// when a configuration requires key binding.
+func TestHAIPChecksTheIssuerMetadataForBothGrants(t *testing.T) {
+	config := map[string]any{"format": "dc+sd-jwt", "vct": "urn:test:credential", "cryptographic_binding_methods_supported": []any{"jwk"}}
+	metadata := map[string]any{"credential_configurations_supported": map[string]any{"cfg": config}}
+	got := strings.Join(haipIssuerMetadataViolations(metadata, "cfg"), "\n")
+	for _, want := range []string{"has no scope", "no nonce_endpoint"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("violations %q, want %q", got, want)
+		}
+	}
+
+	for name, grants := range map[string]map[string]any{
+		"pre-authorized code": {preAuthorizedCodeGrant: map[string]any{"pre-authorized_code": "code"}},
+		"authorization code":  {"authorization_code": map[string]any{"issuer_state": "state"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			w := generateTestWallet(t)
+			w.RequireHAIP = true
+			w.ValidationMode = ValidationModeStrict
+			var serverURL string
+			srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				switch {
+				case strings.HasSuffix(r.URL.Path, "/.well-known/openid-credential-issuer"):
+					writeTestJSON(rw, map[string]any{
+						"credential_issuer":                   serverURL,
+						"credential_endpoint":                 serverURL + "/credential",
+						"credential_configurations_supported": map[string]any{"cfg": config},
+					})
+				case strings.HasSuffix(r.URL.Path, "/.well-known/oauth-authorization-server"):
+					writeTestJSON(rw, map[string]any{
+						"issuer":                                serverURL,
+						"token_endpoint":                        serverURL + "/token",
+						"authorization_endpoint":                serverURL + "/authorize",
+						"pushed_authorization_request_endpoint": serverURL + "/par",
+					})
+				default:
+					rw.WriteHeader(http.StatusNotFound)
+				}
+			}))
+			defer srv.Close()
+			serverURL = srv.URL
+			oldClient := httpClient
+			httpClient = srv.Client()
+			defer func() { httpClient = oldClient }()
+
+			offer, _ := json.Marshal(map[string]any{"credential_issuer": serverURL, "credential_configuration_ids": []string{"cfg"}, "grants": grants})
+			_, err := w.ProcessCredentialOffer("openid-credential-offer://?credential_offer=" + url.QueryEscape(string(offer)))
+			if err == nil || !strings.Contains(err.Error(), "HAIP 1.0 §4.1") {
+				t.Errorf("err %v, want the HAIP 1.0 §4.1 refusal", err)
 			}
 		})
 	}
