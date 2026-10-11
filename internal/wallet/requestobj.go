@@ -275,7 +275,7 @@ func (w *Wallet) checkWalletNonce(requestObject, sent string) error {
 	if present && returned == sent {
 		return nil
 	}
-	detail := fmt.Sprintf("OID4VP 1.0 §5.10.1: the request object does not contain the wallet_nonce %s the wallet sent", sent)
+	detail := fmt.Sprintf("OID4VP 1.0 §5.10.1: the request object does not contain the wallet_nonce %s sent by the wallet", sent)
 	if present {
 		detail = fmt.Sprintf("OID4VP 1.0 §5.10.1: wallet_nonce mismatch in request object: expected %s, got %s", sent, returned)
 	}

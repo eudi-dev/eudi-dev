@@ -734,7 +734,7 @@ func displayImageMIME(path string, data []byte) string {
 }
 
 func addIssueTrustMetadataFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&issueCategory, "category", "", "With --wallet: credential category (it selects the signer and the trusted list): pid, qeaa, pub-eaa or eaa (default the category of the template or the catalogue entry, else eaa). unlisted puts the credential on no list")
+	cmd.Flags().StringVar(&issueCategory, "category", "", "With --wallet: credential category (it selects the signer and the trusted list): pid, qeaa, pub-eaa or eaa (default the category of the template or the catalogue entry, else eaa). unlisted keeps it off every list")
 	cmd.Flags().StringSliceVar(&issueEntitlements, "entitlement", nil, "With --wallet: registrar entitlement URI to persist with the issued credential (repeatable)")
 	cmd.Flags().StringVar(&issueTrustListType, "trusted-list-type", "", "With --wallet: trusted list LoTE type to persist with the issued credential")
 	cmd.Flags().StringVar(&issueStatusDetermination, "status-determination-approach", "", "With --wallet: trusted list status determination approach URI to persist with the issued credential")

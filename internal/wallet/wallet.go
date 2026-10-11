@@ -748,7 +748,7 @@ func (w *Wallet) IsProtected(id string) bool {
 	return false
 }
 
-// baselinePIDTypes lists the types of the pre-defined SD-JWT templates marked
+// baselinePIDTypes lists the types of the predefined SD-JWT templates marked
 // baseline, the country-independent PID first. A user template that replaces
 // one of them gives the type.
 func (w *Wallet) baselinePIDTypes() []string {

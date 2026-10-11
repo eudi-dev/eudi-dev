@@ -64,7 +64,7 @@ func validateHAIPCompliance(params *Request, reqObj *oid4vc.RequestObjectJWT) []
 				"HAIP 1.0 §5: a signed request MUST use the 'x509_hash:' Client Identifier Prefix, got %q", params.ClientID))
 		}
 		if reqObj == nil || reqObj.Header == nil {
-			violations = append(violations, "HAIP 1.0 §5.1: signed Request Object (JAR) MUST be used")
+			violations = append(violations, "HAIP 1.0 §5.1: a signed request object MUST be used")
 		}
 		// §5.1: "Signed Authorization Requests MUST be used by utilizing
 		// JWT-Secured Authorization Request (JAR) [RFC9101] with the

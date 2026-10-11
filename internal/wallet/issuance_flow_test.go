@@ -617,7 +617,7 @@ func TestProcessCredentialOffer_NonceEndpointOnlyGET(t *testing.T) {
 
 	warned, logged := false, false
 	for _, entry := range w.GetLog() {
-		if strings.Contains(entry.Detail, "GET as a workaround") {
+		if strings.Contains(entry.Detail, "Debug mode uses GET") {
 			warned = true
 		}
 		if strings.Contains(entry.Detail, "Nonce response") {
@@ -894,7 +894,7 @@ func TestRunAuthorizationCodeRequest_NobodyTookTheURL(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected the issuance to end when nothing can open the authorization URL")
 	}
-	if !strings.Contains(err.Error(), "nothing is attached to this wallet that can open it") {
+	if !strings.Contains(err.Error(), "no wallet UI is open to show it") {
 		t.Errorf("error = %v, want it to name what is missing", err)
 	}
 	if got := authorizeCalls.Load(); got != 0 {
@@ -2017,12 +2017,12 @@ func TestReadNotificationRefusal(t *testing.T) {
 		wantCode string
 		wantSays string
 	}{
-		{"defined 400", 400, `{"error":"invalid_notification_id"}`, "invalid_notification_id", "§11.3 (invalid_notification_id)"},
+		{"defined 400", 400, `{"error":"invalid_notification_id"}`, "invalid_notification_id", "Notification Error Response (§11.3, invalid_notification_id)"},
 		{"rfc 6750 code with a 400", 400, `{"error":"invalid_request"}`, "invalid_request", "RFC 6750 §3.1"},
 		{"nothing answered", 0, ``, "", "unreachable"},
-		{"read failed on a success", 204, ``, "", "took it"},
-		{"other code", 400, `{"error":"session_not_found"}`, "session_not_found", "names session_not_found instead"},
-		{"400 with no code", 400, `not json`, "", "carries no error at all"},
+		{"read failed on a success", 204, ``, "", "The issuer accepted it"},
+		{"other code", 400, `{"error":"session_not_found"}`, "session_not_found", "This response has session_not_found"},
+		{"400 with no code", 400, `not json`, "", "This response has none"},
 		{"bad token", 401, ``, "", "RFC 6750"},
 		{"undefined status", 404, `{"message":"Could not find any entity of type \"Session\""}`, "", "defines no response with status 404"},
 	} {

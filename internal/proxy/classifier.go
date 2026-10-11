@@ -902,7 +902,7 @@ func uniqueStrings(values []string) []string {
 }
 
 // extractCredentials returns the raw credentials of the entry for the dashboard's
-// "View in Decoder" links. It returns parallel slices of values and labels.
+// "Open in decoder" links. It returns parallel slices of values and labels.
 func extractCredentials(e *TrafficEntry) ([]string, []string) {
 	var creds []string
 	var labels []string

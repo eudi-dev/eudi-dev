@@ -14,7 +14,7 @@ go build ./...
 go test ./...
 ```
 
-## Running Tests
+## Running tests
 
 ```bash
 # All tests
@@ -41,7 +41,7 @@ EUDI_DEV_STORAGE='postgres://postgres:pg@localhost:5432/eudi?sslmode=disable' go
 
 Each test uses its own wallet directory. Rows from earlier runs stay in the database. Use a fresh database when old rows could affect a measurement.
 
-### E2E Tests
+### E2E tests
 
 E2E tests use Playwright. Its `webServer` builds the binary and starts `decoder`. The tests run against that live server:
 
@@ -56,7 +56,7 @@ npx playwright test
 
 The Docker specs (`docker.spec.js`) need a running Docker daemon. Skip them with `--grep-invert docker`. The suite's wallet also reads `EUDI_DEV_STORAGE`. CI runs the suite once per backend.
 
-## Code Style
+## Code style
 
 - Run `go vet ./...` before committing
 - CI runs `golangci-lint` (errcheck, errorlint, gosec, govet, staticcheck, unused, plus gofmt and goimports as formatters)
@@ -64,18 +64,18 @@ The Docker specs (`docker.spec.js`) need a running Docker daemon. Skip them with
 - Use `internal/jsonutil` for type assertions on `map[string]any`
 - Defaults (ports, timeouts) go in `internal/config/defaults.go`
 
-## Test Patterns
+## Test patterns
 
 - Use `t.Helper()` in test helper functions
 - Use `mock.GenerateKey()`, `mock.GenerateSDJWT()`, `mock.GenerateMDOC()` for test fixtures
 - Table-driven tests with `t.Run()` for multiple cases
 - Test files are in the same package as the tested code (`foo_test.go`)
 
-## Project Structure
+## Project structure
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for package layout and data flow.
 
-## Pull Requests
+## Pull requests
 
 1. Create a feature branch from `main`
 2. Ensure `go build ./...`, `go vet ./...`, and `go test ./...` pass

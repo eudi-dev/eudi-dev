@@ -131,10 +131,10 @@ func authorizationFindings(params *Request, payload map[string]any) []string {
 	// Invalid format, meta or query ID fields violate §6.1. This is a request
 	// error.
 	findings = append(findings, dcql.QueryFindings(params.DCQLQuery)...)
-	// §5.1: "Wallets that do not support this parameter MUST reject requests
-	// that contain it."
+	// §5: "Wallets that do not support this parameter MUST reject requests
+	// that contain it." §8.4 repeats it.
 	if hasTransactionData(params, payload) {
-		findings = append(findings, "OID4VP 1.0 §5.1: transaction_data is not supported by this wallet")
+		findings = append(findings, "OID4VP 1.0 §5: transaction_data is not supported by this wallet")
 	}
 	if finding := expectedOriginsFinding(params, payload); finding != "" {
 		findings = append(findings, finding)

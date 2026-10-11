@@ -34,12 +34,12 @@ const (
 func TestPredefinedTemplates(t *testing.T) {
 	predefined := PredefinedTemplates()
 	if len(predefined) != 9 {
-		t.Fatalf("expected 9 pre-defined templates, got %d", len(predefined))
+		t.Fatalf("expected 9 predefined templates, got %d", len(predefined))
 	}
 
 	sdjwt, err := Load("pid-sdjwt", FileLocation(t.TempDir()))
 	if err != nil {
-		t.Fatalf("loading pre-defined template: %v", err)
+		t.Fatalf("loading predefined template: %v", err)
 	}
 	if !sdjwt.Predefined {
 		t.Error("expected Predefined=true")
@@ -96,7 +96,7 @@ func TestEmbeddedClaimsBecomeDataURIs(t *testing.T) {
 func TestPredefinedGermanPIDTemplates(t *testing.T) {
 	sdjwt, err := Load("german-pid-sdjwt", FileLocation(t.TempDir()))
 	if err != nil {
-		t.Fatalf("loading pre-defined template: %v", err)
+		t.Fatalf("loading predefined template: %v", err)
 	}
 	if sdjwt.VCT != germanPIDVCT {
 		t.Errorf("german-pid-sdjwt vct = %q, want %q", sdjwt.VCT, germanPIDVCT)
@@ -104,7 +104,7 @@ func TestPredefinedGermanPIDTemplates(t *testing.T) {
 
 	mdoc, err := Load("german-pid-mdoc", FileLocation(t.TempDir()))
 	if err != nil {
-		t.Fatalf("loading pre-defined template: %v", err)
+		t.Fatalf("loading predefined template: %v", err)
 	}
 	// ISO/IEC 18013-5 has no inheritance between document types, so the
 	// German PID shares the doctype and differs by its second namespace.
@@ -116,13 +116,14 @@ func TestPredefinedGermanPIDTemplates(t *testing.T) {
 	}
 }
 
-// IT-Wallet 1.4.7 §11.2: the PID has no address and keeps the issuer claims out of
-// the selective disclosures. §11.1.2.1 makes its sub opaque and unique per
+// IT-Wallet 1.4.7 §11.2.1 lists the user attributes of the PID (no address)
+// and the metadata attributes REQUIRED for a PID, which stay out of the
+// selective disclosures. §11.1.2.1 makes its sub opaque and unique per
 // credential.
 func TestPredefinedItalianPIDTemplates(t *testing.T) {
 	first, err := Load("italian-pid-sdjwt", FileLocation(t.TempDir()))
 	if err != nil {
-		t.Fatalf("loading pre-defined template: %v", err)
+		t.Fatalf("loading predefined template: %v", err)
 	}
 	if first.VCT != "urn:eudi:pid:it:1" {
 		t.Errorf("vct = %q, want %q", first.VCT, "urn:eudi:pid:it:1")
@@ -142,7 +143,7 @@ func TestPredefinedItalianPIDTemplates(t *testing.T) {
 
 	mdoc, err := Load("italian-pid-mdoc", FileLocation(t.TempDir()))
 	if err != nil {
-		t.Fatalf("loading pre-defined template: %v", err)
+		t.Fatalf("loading predefined template: %v", err)
 	}
 	if mdoc.DocType != mock.PIDNamespace {
 		t.Errorf("italian-pid-mdoc doctype = %q, want %q", mdoc.DocType, mock.PIDNamespace)
@@ -157,7 +158,7 @@ func TestPredefinedItalianPIDTemplates(t *testing.T) {
 func TestPredefinedDutchPIDTemplates(t *testing.T) {
 	sdjwt, err := Load("dutch-pid-sdjwt", FileLocation(t.TempDir()))
 	if err != nil {
-		t.Fatalf("loading pre-defined template: %v", err)
+		t.Fatalf("loading predefined template: %v", err)
 	}
 	if sdjwt.VCT != "urn:eudi:pid:nl:1" || sdjwt.Claims["bsn"] != "999991772" {
 		t.Errorf("dutch-pid-sdjwt has vct %q and bsn %v, want %q and the sample BSN", sdjwt.VCT, sdjwt.Claims["bsn"], "urn:eudi:pid:nl:1")
@@ -167,7 +168,7 @@ func TestPredefinedDutchPIDTemplates(t *testing.T) {
 	// domestic namespace.
 	mdoc, err := Load("dutch-pid-mdoc", FileLocation(t.TempDir()))
 	if err != nil {
-		t.Fatalf("loading pre-defined template: %v", err)
+		t.Fatalf("loading predefined template: %v", err)
 	}
 	if mdoc.DocType != mock.PIDNamespace {
 		t.Errorf("dutch-pid-mdoc doctype = %q, want %q", mdoc.DocType, mock.PIDNamespace)
@@ -226,7 +227,7 @@ func TestPIDTemplatesFillTheirEmptyDates(t *testing.T) {
 
 	tpl, err := Load("pid-mdoc", FileLocation(t.TempDir()))
 	if err != nil {
-		t.Fatalf("loading pre-defined template: %v", err)
+		t.Fatalf("loading predefined template: %v", err)
 	}
 	if got, want := tpl.Claims["expiry_date"], today.AddDate(5, 0, 0).Format(time.DateOnly); got != want {
 		t.Errorf("expiry_date = %v, want %v", got, want)
@@ -234,7 +235,7 @@ func TestPIDTemplatesFillTheirEmptyDates(t *testing.T) {
 	// The German PID carries no issuance date, and refreshing must not invent one.
 	german, err := Load("german-pid-sdjwt", FileLocation(t.TempDir()))
 	if err != nil {
-		t.Fatalf("loading pre-defined template: %v", err)
+		t.Fatalf("loading predefined template: %v", err)
 	}
 	if _, ok := german.Claims["date_of_issuance"]; ok {
 		t.Error("the German PID gained an issuance date its rulebook does not define")
@@ -367,7 +368,7 @@ func TestListUserOverridesPredefined(t *testing.T) {
 		t.Fatal("german-pid-sdjwt missing from list")
 	}
 	if found.Predefined || found.VCT != "urn:custom" {
-		t.Errorf("user template did not override the pre-defined one: %+v", found)
+		t.Errorf("user template did not override the predefined one: %+v", found)
 	}
 }
 
@@ -400,7 +401,7 @@ func TestSaveAndDelete(t *testing.T) {
 		t.Fatal(err)
 	}
 	if loaded.Predefined {
-		t.Error("saved template must not be marked pre-defined")
+		t.Error("saved template must not be marked predefined")
 	}
 	if loaded.VCT != tpl.VCT || len(loaded.AlwaysDisclosed) != 1 {
 		t.Errorf("round trip mismatch: %+v", loaded)
@@ -413,7 +414,7 @@ func TestSaveAndDelete(t *testing.T) {
 		t.Error("template file still exists after delete")
 	}
 	if err := Delete(FileLocation(dir), "german-pid-sdjwt"); err == nil {
-		t.Error("deleting a pre-defined template must fail")
+		t.Error("deleting a predefined template must fail")
 	}
 	if err := Delete(FileLocation(dir), "test-cred"); err == nil {
 		t.Error("deleting a missing template must fail")

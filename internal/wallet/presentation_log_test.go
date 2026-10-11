@@ -49,6 +49,7 @@ func TestSpecCitedSummaryNamesEveryCitedSpecification(t *testing.T) {
 		"ARF RPRC_19: the request has no registration certificate",
 		"RFC 9101 §4: the request_uri response Content-Type must be application/oauth-authz-req+jwt",
 		"ETSI TS 119 475 V1.2.1 GEN-5.2.4-08: x",
+		"ETSI TS 119 475 V1.2.1 Table 7: the certificate has no status",
 		"HAIP 1.0: y",
 		"OID4VP 1.0 Appendix A.2: expected_origins must include the caller origin",
 		"Request Object x5c chain is not internally consistent: x509: bad",

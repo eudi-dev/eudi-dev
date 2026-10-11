@@ -45,7 +45,7 @@ Three top-level commands also work on the active wallet and take the same wallet
 ## Quick start
 
 ```bash
-# Issue PID credentials from the pre-defined templates and list them
+# Issue PID credentials from the predefined templates and list them
 eudi issue sdjwt --wallet --template pid-sdjwt
 eudi issue mdoc --wallet --template pid-mdoc
 eudi wallet list
@@ -109,7 +109,7 @@ The wallet derives these relationships from two sources:
 
 Inheritance describes the credential type only. Signature and trusted list checks decide whether the issuer is authorized (§7.7: "Verifiers and Holders MUST NOT assume that any issuer who issues a credential extending a known type is authorized to do so").
 
-In mdoc every PID has the doctype `eu.europa.ec.eudi.pid.1` (PID_05). National elements are in a domestic namespace. Its name is the doctype with the country or region code appended (`eu.europa.ec.eudi.pid.de.1`, PID_06). A `doctype_value` request therefore matches every PID. A claim query selects a national element by its namespace: `"path": ["eu.europa.ec.eudi.pid.de.1", "birth_name"]`.
+In mdoc every PID has the doctype `eu.europa.ec.eudi.pid.1` (PID_04). National elements are in a domestic namespace. Its name is the doctype with the country or region code appended (`eu.europa.ec.eudi.pid.de.1`, PID_06). A `doctype_value` request therefore matches every PID. A claim query selects a national element by its namespace: `"path": ["eu.europa.ec.eudi.pid.de.1", "birth_name"]`.
 
 ## Storage
 

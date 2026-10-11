@@ -23,7 +23,8 @@
     p { font-size: 12px; line-height: 1.6; color: var(--text-dim); margin-bottom: 12px; }
     .btn { font: inherit; font-size: 12px; padding: 8px 16px; border: 1px solid var(--border);
       border-radius: 4px; background: var(--bg); color: var(--text); cursor: pointer; margin-right: 8px; }
-    .btn.primary { border-color: var(--accent); color: var(--accent); }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn.primary:hover { opacity: 0.9; }
     .result { margin-top: 16px; display: none; }
     .label { font-size: 11px; color: var(--text-dim); margin: 10px 0 4px; }
     pre { font: inherit; font-size: 11px; background: var(--bg); border: 1px solid var(--border);
@@ -130,7 +131,7 @@
         <div class="subtitle" id="header-subtitle" style="margin-bottom:0">A minimal OpenID4VP verifier for demo purposes</div>
       </div>
     </div>
-    <p id="intro">Requests a presentation over OpenID4VP as HAIP 1.0 asks and verifies the response.</p>
+    <p id="intro">Requests a presentation over OpenID4VP 1.0 with HAIP 1.0 and checks the response.</p>
     <div class="format-row" id="credential-row">
       <span class="format-label" id="credential-label">Credential</span>
       <div class="toggle" id="credential-toggle" role="radiogroup" aria-label="Credential to request">
@@ -208,11 +209,11 @@
       <div class="label" id="claims-label" hidden>Verified claims</div>
       <table id="claims" hidden></table>
       <div class="label" id="presentation-label" hidden>Received presentation</div>
-      <pre id="presentation-box" hidden><a href="#" id="presentation-link" target="_blank" rel="noopener">Open in the decoder</a></pre>
+      <pre id="presentation-box" hidden><a href="#" id="presentation-link" target="_blank" rel="noopener">Open in decoder</a></pre>
     </div>
     <div class="links">
-      <a href="../" id="wallet-ui-link">Wallet UI</a>
-      <a href="../issuer/" id="issuer-link">Demo Issuer</a>
+      <a href="../" id="wallet-ui-link">Wallet</a>
+      <a href="../issuer/" id="issuer-link">Demo issuer</a>
       <a href="../decoder/" id="decoder-link">Decoder</a>
       <a href="../imprint" id="imprint-link" hidden>Imprint</a>
     </div>

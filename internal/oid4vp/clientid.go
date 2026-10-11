@@ -189,8 +189,7 @@ func unverifiedSignatureFinding(clientID string) string {
 		// verifyClientID reports the prefix.
 		return ""
 	default:
-		// §5.9.2 treats a client_id without a known prefix as pre-registered.
-		return fmt.Sprintf("Request Object signature was not verified: client_id %q carries no Client Identifier Prefix this wallet knows, so its key would have been pre-registered with this wallet, and nothing is", clientID)
+		return fmt.Sprintf("Request Object signature was not verified: client_id %q has no known Client Identifier Prefix. OpenID4VP 1.0 §5.9.2 treats it as pre-registered, and this wallet has no pre-registered clients", clientID)
 	}
 }
 
@@ -215,7 +214,9 @@ func verifyX509SANDNS(clientID string, reqObj *oid4vc.RequestObjectJWT, response
 		return warning
 	}
 
-	if !slices.Contains(cert.DNSNames, expected) {
+	// RFC 5280 §4.2.1.6: "no significance is attached to the case" of a
+	// domain name.
+	if !slices.ContainsFunc(cert.DNSNames, func(name string) bool { return strings.EqualFold(name, expected) }) {
 		return fmt.Sprintf("OID4VP 1.0 §5.9.3: client_id expects DNS SAN %q but the leaf certificate has DNSNames=%v", expected, cert.DNSNames)
 	}
 
@@ -256,7 +257,7 @@ func verifyRedirectURI(clientID string, reqObj *oid4vc.RequestObjectJWT, respons
 	expected := strings.TrimPrefix(clientID, "redirect_uri:")
 
 	if reqObj != nil && reqObj.Header != nil && jsonutil.GetString(reqObj.Header, "alg") != "none" {
-		return "OID4VP 1.0 §5.9.3: the redirect_uri: prefix MUST NOT be used with a signed request object"
+		return "OID4VP 1.0 §5.9.3: a request under the redirect_uri: prefix cannot be signed, but this request object is signed"
 	}
 
 	if responseURI != "" && expected != responseURI {

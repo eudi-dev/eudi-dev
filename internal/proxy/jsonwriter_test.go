@@ -33,7 +33,7 @@ func TestJSONWriterWritesNDJSON(t *testing.T) {
 		URL:        "http://example.com/authorize?client_id=test&response_type=vp_token",
 		StatusCode: 200,
 		Class:      ClassVPAuthRequest,
-		ClassLabel: "VP Auth Request",
+		ClassLabel: "VP auth request",
 		DurationMS: 42,
 	}
 
@@ -51,8 +51,8 @@ func TestJSONWriterWritesNDJSON(t *testing.T) {
 	if parsed["method"] != "GET" {
 		t.Errorf("expected method GET, got %v", parsed["method"])
 	}
-	if parsed["classLabel"] != "VP Auth Request" {
-		t.Errorf("expected classLabel VP Auth Request, got %v", parsed["classLabel"])
+	if parsed["classLabel"] != "VP auth request" {
+		t.Errorf("expected classLabel VP auth request, got %v", parsed["classLabel"])
 	}
 }
 
@@ -107,7 +107,7 @@ func TestJSONWriterMultipleEntries(t *testing.T) {
 			URL:        "http://example.com/response",
 			StatusCode: 200,
 			Class:      ClassVPAuthResponse,
-			ClassLabel: "VP Auth Response",
+			ClassLabel: "VP auth response",
 		})
 	}
 

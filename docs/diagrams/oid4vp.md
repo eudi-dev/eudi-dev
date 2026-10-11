@@ -1,13 +1,13 @@
-# OID4VP Flows
+# OID4VP flows
 
 This page shows the OID4VP presentation flows implemented by the `eudi-dev` wallet.
 
-## Flow Map
+## Flow map
 
 ```mermaid
 sequenceDiagram
     actor Browser
-    participant RP as RP page / verifier
+    participant RP as Verifier
     participant Wallet as eudi-dev
 
     RP-->>Browser: Presentation request
@@ -31,7 +31,7 @@ sequenceDiagram
     end
 ```
 
-## Common Request Fields
+## Common request fields
 
 | Field / setting | Why it matters in `eudi-dev` |
 |-----------------|--------------------------------|
@@ -46,12 +46,12 @@ sequenceDiagram
 | `request` or `request_uri` | A request object sent directly or by reference. |
 | `client_metadata` | Controls format negotiation. Mandatory for encrypted response modes, because `client_metadata.jwks` carries the verifier encryption key. |
 
-## URI-Based Presentation Flow
+## URI-based presentation flow
 
 ```mermaid
 sequenceDiagram
     actor Browser
-    participant RP as RP page / verifier
+    participant RP as Verifier
     participant Wallet as eudi-dev
 
     RP-->>Browser: Authorization request URI or link
@@ -74,7 +74,7 @@ sequenceDiagram
     end
 ```
 
-### Relevant Parameters
+### Relevant parameters
 
 | Field / setting | Used how |
 |-----------------|----------|
@@ -88,7 +88,7 @@ sequenceDiagram
 | `--preferred-format ...` | `dc+sd-jwt`, `mso_mdoc`, or `jwt_vc_json`. Prefers that format when more than one stored credential satisfies the same query. |
 | `--session-transcript ...` | `oid4vp` or `iso`. Selects how the mdoc session transcript is built. |
 
-## `request_uri_method=post` and Encrypted Request Objects
+## `request_uri_method=post` and encrypted request objects
 
 ```mermaid
 sequenceDiagram
@@ -107,7 +107,7 @@ sequenceDiagram
     Wallet->>Wallet: Check wallet_nonce if the verifier echoed it back
 ```
 
-### Relevant Parameters
+### Relevant parameters
 
 | Field / setting | Used how |
 |-----------------|----------|
@@ -118,12 +118,12 @@ sequenceDiagram
 | `--require-encrypted-request` | Rejects a POSTed `request_uri` response that is not a compact JWE. The encryption JWK is sent either way. |
 | Request object `Content-Type` | The wallet expects `application/oauth-authz-req+jwt` on the POST response. |
 
-## Browser API Flow
+## Browser API flow
 
 ```mermaid
 sequenceDiagram
     actor Browser
-    participant RP as Browser / relying party page
+    participant RP as Verifier page in the browser
     participant Wallet as eudi-dev
 
     Browser->>RP: Trigger digital credentials request
@@ -138,7 +138,7 @@ sequenceDiagram
     end
 ```
 
-### Relevant Parameters
+### Relevant parameters
 
 | Field / setting | Used how |
 |-----------------|----------|
@@ -149,7 +149,7 @@ sequenceDiagram
 | `response_mode=dc_api.jwt` | Wallet encrypts the response and returns a `response` JWT in the Browser API envelope. |
 | Unsigned Browser API request | Carries no `client_id` (OpenID4VP Appendix A.2). The verifier is identified by the origin reported by the platform. Any `client_id` or `expected_origins` in the request data is discarded. |
 
-## Client Identifier Prefixes and Policy Switches
+## Client identifier prefixes and policy switches
 
 | Item | Behavior in `eudi-dev` |
 |------|---------------------------|
@@ -161,5 +161,5 @@ sequenceDiagram
 | No prefix (no `:` in the value) | Treated as a pre-registered client (OpenID4VP §5.9.2). The wallet registers no clients, so a signed request object under it is reported as not verified. |
 | `origin:` | Refused. §5.9.3 reserves it and forbids a wallet to accept it in a request. |
 | `openid_federation:` | Refused. Trust chain resolution is outside the supported EUDI stack (ADR-0013). |
-| `--haip` | Requires HAIP 1.0 from the counterparty: `response_type=vp_token`, encrypted response modes, the `x509_hash` prefix with a verified request signature and certificate rules, JAR through `request_uri`, DCQL, the `mso_mdoc` and `dc+sd-jwt` formats, `A128GCM` plus `A256GCM` in the verifier's client metadata, and ES256. The wallet mode decides what happens on a violation. `strict` refuses the request. `debug` reports it and continues. |
+| `--haip` | Requires HAIP 1.0 from the counterparty: `response_type=vp_token`, encrypted response modes, the `x509_hash` prefix with a verified request signature and certificate rules, a signed request object through `request_uri`, DCQL and a P-256 response encryption key. A verifier that lists only one of `A128GCM` and `A256GCM` gets a warning. The wallet mode decides what happens on a violation. `strict` refuses the request. `debug` reports it and continues. |
 | Wallet mode `debug` vs `strict` | Both collect request findings. `debug` reports them, keeps partially matching DCQL credentials and continues. `strict` refuses the request on the same findings. |

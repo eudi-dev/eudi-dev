@@ -59,7 +59,7 @@ func TestStoreFlowsMapBounded(t *testing.T) {
 			Method:     "GET",
 			URL:        fmt.Sprintf("http://example.com/authorize?client_id=test&response_type=vp_token&state=state-%d", i),
 			Class:      ClassVPAuthRequest,
-			ClassLabel: "VP Auth Request",
+			ClassLabel: "VP auth request",
 		}
 		Classify(e)
 		s.Add(e)
@@ -77,7 +77,7 @@ func TestStoreFlowCorrelation(t *testing.T) {
 		Method:     "GET",
 		URL:        "http://example.com/authorize?client_id=test&response_type=vp_token&state=state123",
 		Class:      ClassVPAuthRequest,
-		ClassLabel: "VP Auth Request",
+		ClassLabel: "VP auth request",
 	}
 	Classify(e1)
 	s.Add(e1)
@@ -91,7 +91,7 @@ func TestStoreFlowCorrelation(t *testing.T) {
 		URL:         "http://example.com/response",
 		RequestBody: "state=state123&vp_token=eyJ...",
 		Class:       ClassVPAuthResponse,
-		ClassLabel:  "VP Auth Response",
+		ClassLabel:  "VP auth response",
 	}
 	Classify(e2)
 	s.Add(e2)
@@ -147,7 +147,7 @@ func TestStoreFlowCorrelationVCITokenToCredentialByAccessToken(t *testing.T) {
 		URL:         "http://issuer.example/token",
 		RequestBody: "grant_type=authorization_code&code=issued-code",
 		Class:       ClassVCITokenRequest,
-		ClassLabel:  "VCI Token Request",
+		ClassLabel:  "VCI token request",
 		Decoded: map[string]any{
 			"code": "issued-code",
 			"response": map[string]any{
@@ -168,7 +168,7 @@ func TestStoreFlowCorrelationVCITokenToCredentialByAccessToken(t *testing.T) {
 		URL:            "http://issuer.example/credential",
 		RequestHeaders: http.Header{"Authorization": {"DPoP token-123"}},
 		Class:          ClassVCICredentialRequest,
-		ClassLabel:     "VCI Credential Request",
+		ClassLabel:     "VCI credential request",
 		Decoded: map[string]any{
 			"request": map[string]any{
 				"credential_identifier": "membership-credential_0000",
@@ -192,7 +192,7 @@ func TestStoreFlowCorrelationVPRequestURIToAuthResponse(t *testing.T) {
 		Method:     "GET",
 		URL:        "http://wallet.example/authorize?client_id=verifier&response_type=vp_token&request_uri=https%3A%2F%2Fverifier.example%2Frequest%2F123",
 		Class:      ClassVPAuthRequest,
-		ClassLabel: "VP Auth Request",
+		ClassLabel: "VP auth request",
 	}
 	Classify(authRequest)
 	s.Add(authRequest)
@@ -202,7 +202,7 @@ func TestStoreFlowCorrelationVPRequestURIToAuthResponse(t *testing.T) {
 		URL:          "https://verifier.example/request/123",
 		ResponseBody: "header.payload.sig",
 		Class:        ClassVPRequestObject,
-		ClassLabel:   "VP Request Object",
+		ClassLabel:   "VP request object",
 		Decoded: map[string]any{
 			"payload": map[string]any{
 				"state": "req-123",
@@ -216,7 +216,7 @@ func TestStoreFlowCorrelationVPRequestURIToAuthResponse(t *testing.T) {
 		URL:         "https://verifier.example/response",
 		RequestBody: "state=req-123&vp_token=eyJ...",
 		Class:       ClassVPAuthResponse,
-		ClassLabel:  "VP Auth Response",
+		ClassLabel:  "VP auth response",
 	}
 	Classify(authResponse)
 	s.Add(authResponse)

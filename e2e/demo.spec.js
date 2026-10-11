@@ -562,7 +562,7 @@ test.describe("Demo mode consent visibility", () => {
     // unowned request, so the starter's request never reached this tab.
     const unowned = await createVerificationRequest();
     submitAsSchemeHandler("/api/presentations", unowned.schemeURI);
-    await expect(bystander.locator("#pending-text")).toHaveText("A request is waiting that no browser claimed.");
+    await expect(bystander.locator("#pending-text")).toHaveText("An unowned request is waiting for consent.");
     await expect(bystander.locator("#consent-overlay")).not.toHaveClass(/active/);
     await clearPending();
 
@@ -1409,7 +1409,7 @@ test.describe("Demo mode hardening", () => {
     await page.locator("#registrar-parties-link").click();
     await page.locator("#registrar-search").fill("EUDI Dev Demo Verifier");
     const card = "#registrar-party-NLTEST_00000001";
-    await expect(page.locator(card + "-protected")).toHaveText("Pre-registered");
+    await expect(page.locator(card + "-protected")).toHaveText("Protected");
     await expect(page.locator(card + "-delete")).toHaveCount(0);
     await expect(page.locator(card + "-add-use")).toHaveCount(0);
     await expect(page.locator(card + ' [id$="-summary-delete"]')).toHaveCount(0);
@@ -1431,7 +1431,7 @@ test.describe("Demo mode hardening", () => {
     await page.goto(BASE + "/decoder/");
     const walletLink = page.locator("#wallet-link");
     await expect(walletLink).toBeVisible();
-    await expect(walletLink).toHaveText("Demo wallet");
+    await expect(walletLink).toHaveText("Wallet");
     await walletLink.click();
     await expect(page.locator("#decoder-link")).toBeVisible();
   });

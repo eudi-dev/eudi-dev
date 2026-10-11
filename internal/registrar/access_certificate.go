@@ -191,8 +191,8 @@ func accessCertificateDNSNames(dnsNames []string) ([]string, error) {
 }
 
 // csrPublicKey returns the P-256 key of a CSR after checking that its signature
-// proves possession of the private key. HAIP 1.0 requires ES256 for request
-// objects.
+// proves possession of the private key. HAIP 1.0 §7 has every wallet support
+// ES256 for signed presentation requests.
 func csrPublicKey(pemData string) (*ecdsa.PublicKey, error) {
 	block, _ := pem.Decode([]byte(strings.TrimSpace(pemData)))
 	if block == nil || block.Type != "CERTIFICATE REQUEST" {

@@ -42,18 +42,18 @@ const (
 //nolint:gosec // G101: these are traffic-class display labels, not credentials.
 var classLabels = map[TrafficClass]string{
 	ClassUnknown:              "Unknown",
-	ClassVPAuthRequest:        "VP Auth Request",
-	ClassVPRequestObject:      "VP Request Object",
-	ClassVPAuthResponse:       "VP Auth Response",
-	ClassVCICredentialOffer:   "VCI Credential Offer",
-	ClassVCIMetadata:          "VCI Metadata",
-	ClassVCITokenRequest:      "VCI Token Request",
-	ClassVCINonceRequest:      "VCI Nonce Request",
-	ClassVCICredentialRequest: "VCI Credential Request",
-	ClassOIDCMetadata:         "OIDC Metadata",
-	ClassOIDCAuthRequest:      "OIDC Auth Request",
-	ClassOIDCTokenRequest:     "OIDC Token Request",
-	ClassOIDCCallback:         "OIDC Callback",
+	ClassVPAuthRequest:        "VP auth request",
+	ClassVPRequestObject:      "VP request object",
+	ClassVPAuthResponse:       "VP auth response",
+	ClassVCICredentialOffer:   "VCI credential offer",
+	ClassVCIMetadata:          "VCI metadata",
+	ClassVCITokenRequest:      "VCI token request",
+	ClassVCINonceRequest:      "VCI nonce request",
+	ClassVCICredentialRequest: "VCI credential request",
+	ClassOIDCMetadata:         "OIDC metadata",
+	ClassOIDCAuthRequest:      "OIDC auth request",
+	ClassOIDCTokenRequest:     "OIDC token request",
+	ClassOIDCCallback:         "OIDC callback",
 }
 
 func (c TrafficClass) Label() string {

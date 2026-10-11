@@ -50,7 +50,7 @@ A wallet with `--arf` then checks the issuer before it requests a credential (se
 
 A provider that also requests attributes, for example to authenticate the user during issuance, registers intended uses in the same service (ARF RPRC_05 note, TS05 v1.5 §2.4.1). The registrar then adds the `Service_Provider` entitlement to that service.
 
-Entitlements belong to a service. The ARF registers the data of TS6 (Reg_01a), and TS6 v1.1 records the entitlements per service. A registration certificate covers one service, or one intended use of a service (ARF RPRC_09 and RPRC_13). It lists the entitlements of that service. ETSI TS 119 475 V1.2.1 Table 7 still takes them from the relying party, and the registrar follows the ARF. Adding the other role to a service changes its entitlements. The registrar then revokes the certificates of that service, and those of other services stay valid. Issue new ones afterwards, or register both roles at once.
+Entitlements belong to a service. The ARF registers the data of TS6 (Reg_01a), and TS6 v1.2.2 records the entitlements per service. A registration certificate covers one service, or one intended use of a service (ARF RPRC_09 and RPRC_13). It lists the entitlements of that service. ETSI TS 119 475 V1.2.1 Table 7 still takes them from the relying party, and the registrar follows the ARF. Adding the other role to a service changes its entitlements. The registrar then revokes the certificates of that service, and those of other services stay valid. Issue new ones afterwards, or register both roles at once.
 
 ## Revocation
 
@@ -58,7 +58,7 @@ Every registration certificate has a `status` claim that points to an entry in t
 
 `registrar revoke` or the status endpoint revokes a certificate. `registrar activate` or the same endpoint makes it valid again.
 
-An intended use or an issuer service has one valid certificate at a time. The registrar also revokes certificates itself, and you can't activate these again:
+An intended use or an issuer service has one valid certificate at a time. When the registrar revokes a certificate itself, you can't activate it again. It does so:
 
 - when you issue a new certificate for the same intended use or service
 - when an update changes a field in the certificate (name, legal name, country, purpose, privacy policy, support URL, supervisory authority, credentials and claims, entitlements or attestation types)
@@ -191,7 +191,7 @@ The demo issuer and the demo verifier are registered like any other relying part
 - **EUDI Dev Demo Issuer** is an issuer. It is registered for the credential types of its templates and of the issued-attestation registry, except unlisted ones. The [category](serve.md#credential-categories) of a type comes from the template or the catalogue entry, else it is an EAA. Its entitlements are those of the categories, such as `PID_Provider` for the PIDs and `Non_Q_EAA_Provider` for the demo ticket. It also has the intended use `identity-check`, which asks for `given_name` and `family_name` of the EUDI PID in both formats. The demo issuer sends that registration certificate when it asks for your PID during [interactive authorization](issuing.md#interactive-authorization). Because of this intended use it also has the `Service_Provider` entitlement (ARF RPRC_05 note).
 - **EUDI Dev Demo Verifier** is a verifier with one intended use, `demo-requests`. It registers the claims of every predefined template, so the demo requests ask only for registered claims.
 
-Their names, identifiers, descriptions and intended uses are TS05 relying party files in [`internal/defaults/registrations/`](../../internal/defaults/registrations/). The wallet adds the parts that depend on its templates: the types the issuer provides, its entitlements and the credentials of the verifier's intended use. The demo pages show the names of these files, and the identity check asks for the claims its intended use registers.
+Their names, identifiers, descriptions and intended uses are TS05 relying party files in [`internal/defaults/registrations/`](../../internal/defaults/registrations/). The wallet adds the parts that depend on its templates: the types the issuer provides, its entitlements and the credentials of the verifier's intended use. The demo pages show the names of these files, and the identity check asks for the claims registered for its intended use.
 
 The wallet registers both at startup if they are missing. After that a local wallet leaves them alone, also when the templates change. You can change or delete them like any other registration. Without its registration the demo issuer publishes no `issuer_info` and the demo verifier sends no `verifier_info`. A restart on another port or base URL moves both registrations to the new URL.
 
@@ -305,7 +305,7 @@ eudi catalog rm 3f1c3b0d-71ad-496b-9f94-68198503e761
 
 With `--to`, both add the other role to a registered relying party instead. `verifiers add --to` adds an intended use, and `issuers add --to` adds attestation types. On an issuer, the new types join its others, and the new certificate revokes the current one. It stays one registration with both roles. The command issues the new registration certificate and prints its `verifier_info` or `issuer_info` value. The other role changes the entitlements of the service, so the registrar revokes the certificates of the first role. `registration-cert` then issues new ones.
 
-`access-cert` prints the PEM certificate and writes the client identifiers to stderr: `x509_hash` for the certificate and `x509_san_dns` for each `--dns` name (OpenID4VP 1.0 §5.9.3). The name becomes the common name (ETSI TS 119 411-8 GEN-6.1.1-04, ARF RPRC_06). The key must be P-256, because HAIP 1.0 requires ES256 for request objects.
+`access-cert` prints the PEM certificate and writes the client identifiers to stderr: `x509_hash` for the certificate and `x509_san_dns` for each `--dns` name (OpenID4VP 1.0 §5.9.3). The trade name of the service becomes the common name (ETSI TS 119 411-8 GEN-6.1.1-04, ARF Reg_31). The key must be P-256, because HAIP 1.0 §7 has every wallet support ES256 for signed presentation requests.
 
 `registration-cert` prints the current certificate in a `verifier_info` value for an intended use, or in an `issuer_info` value for an issuer service. If there is none, or it has expired, the registrar issues one. `--new` issues a new certificate and revokes the current one. Without `--intended-use` it uses the only intended use, or the only issuer service. A relying party with both needs `--intended-use`, or `--service-id` with `--provider`. `--jwt` prints the bare certificate instead. `--json` prints the value and the bare certificate.
 

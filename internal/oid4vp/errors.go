@@ -14,8 +14,8 @@
 
 package oid4vp
 
-// OpenID4VP 1.0 §8.5 uses invalid_request and access_denied from OAuth 2.0. Appendix
-// E.3 registers the additional error codes.
+// OpenID4VP 1.0 §8.5 defines these error codes. invalid_request and
+// access_denied come from OAuth 2.0.
 const (
 	ErrorInvalidRequest          = "invalid_request"
 	ErrorAccessDenied            = "access_denied"

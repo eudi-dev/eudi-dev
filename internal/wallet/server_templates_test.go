@@ -39,7 +39,7 @@ func TestTemplatesListIncludesPredefined(t *testing.T) {
 		names[tpl["name"].(string)] = true
 	}
 	if !names["german-pid-sdjwt"] || !names["german-pid-mdoc"] {
-		t.Errorf("pre-defined templates missing from list: %v", names)
+		t.Errorf("predefined templates missing from list: %v", names)
 	}
 }
 
@@ -76,7 +76,7 @@ func TestTemplatesCRUD(t *testing.T) {
 
 	resp = serverRequest(t, srv, http.MethodDelete, "/api/templates/german-pid-sdjwt", "")
 	if resp.Code != http.StatusBadRequest {
-		t.Fatalf("deleting a pre-defined template: expected 400, got %d", resp.Code)
+		t.Fatalf("deleting a predefined template: expected 400, got %d", resp.Code)
 	}
 }
 

@@ -55,7 +55,7 @@ type partyFlags struct {
 }
 
 func (f *partyFlags) add(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&f.rp.TradeName, "name", "", "Trade name (required)")
+	cmd.Flags().StringVar(&f.rp.TradeName, "name", "", "Trade name (required without --to)")
 	cmd.Flags().StringVar(&f.identifier, "identifier", "", "Identifier: an EUID, or the organizationIdentifier of a certificate such as LEIXG-529900T8BM49AURSDO55 (default: an assigned EUID)")
 	cmd.Flags().StringVar(&f.legalName, "legal-name", "", "Legal name (default --name)")
 	cmd.Flags().StringVar(&f.rp.Country, "country", "", "Country code (default the identifier's country)")

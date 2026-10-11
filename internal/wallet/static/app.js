@@ -184,7 +184,7 @@
       list.querySelectorAll('.deferred-check').forEach(btn => {
         btn.addEventListener('click', async () => {
           btn.disabled = true;
-          btn.textContent = 'Checking...';
+          btn.textContent = 'Checking…';
           try {
             const resp = await fetch('api/deferred/' + encodeURIComponent(btn.dataset.id) + '/collect', { method: 'POST' });
             const result = await resp.json();
@@ -665,7 +665,7 @@
 
   async function checkCredentialStatus(id) {
     const badge = document.getElementById('status-' + id);
-    if (badge) badge.textContent = 'Checking...';
+    if (badge) badge.textContent = 'Checking…';
     try {
       const resp = await fetch('api/credentials/' + id + '/status');
       const result = await resp.json();
@@ -705,7 +705,7 @@
     if (!uri) return;
 
     processBtn.disabled = true;
-    processBtn.textContent = 'Processing...';
+    processBtn.textContent = 'Processing…';
 
     try {
       const isVCI = uri.includes('credential_offer') ||
@@ -916,7 +916,7 @@
     templates.forEach(t => {
       const opt = document.createElement('option');
       opt.value = t.name;
-      opt.textContent = t.name + (t.predefined ? ' (pre-defined)' : '');
+      opt.textContent = t.name + (t.predefined ? ' (predefined)' : '');
       issueTemplateSelect.appendChild(opt);
     });
     issueTemplateSelect.value = current || '';
@@ -1331,7 +1331,7 @@
     if (issueDisplayTemplate) body.display_template = issueDisplayTemplate;
 
     issueSubmit.disabled = true;
-    issueSubmit.textContent = 'Issuing...';
+    issueSubmit.textContent = 'Issuing…';
     try {
       const resp = await fetch('api/issue', {
         method: 'POST',
@@ -1540,7 +1540,7 @@
       const meta = document.createElement('span');
       meta.className = 'template-row-meta';
       meta.id = row.id + '-meta';
-      meta.textContent = (tpl.format || 'any') + (tpl.predefined ? ' · pre-defined' : '');
+      meta.textContent = (tpl.format || 'any') + (tpl.predefined ? ' · predefined' : '');
       row.appendChild(meta);
 
       const editBtn = document.createElement('button');
@@ -1924,8 +1924,8 @@
     // browser's requests.
     const claimed = pending.some((req) => req.mine);
     document.getElementById('pending-text').textContent = pending.length === 1
-      ? (claimed ? 'A request is waiting for consent.' : 'A request is waiting that no browser claimed.')
-      : pending.length + (claimed ? ' requests are waiting for consent.' : ' requests are waiting that no browser claimed.');
+      ? (claimed ? 'A request is waiting for consent.' : 'An unowned request is waiting for consent.')
+      : pending.length + (claimed ? ' requests are waiting for consent.' : ' unowned requests are waiting for consent.');
     banner.hidden = false;
   }
 
@@ -2898,7 +2898,7 @@
       submitting = true;
       consentSubmitting = true;
       approveBtn.disabled = true;
-      approveBtn.textContent = 'Submitting...';
+      approveBtn.textContent = 'Submitting…';
       expectError();
       denyBtn.disabled = true;
 
@@ -3981,7 +3981,7 @@
           relyingPartyRoles(rp).map(role =>
             '<span class="status-badge status-role-' + role + '" id="' + prefix + '-role-' + role + '">' +
             (role === 'verifier' ? 'Verifier' : 'Issuer') + '</span>').join('') +
-          (locked ? '<span class="status-badge status-none" id="' + prefix + '-protected" title="Visitors of the public demo share this registration and can\'t change it.">' + LOCK_SVG + 'Pre-registered</span>' : '') +
+          (locked ? '<span class="status-badge status-none" id="' + prefix + '-protected" title="Visitors of the public demo share this registration and can\'t change it.">' + LOCK_SVG + 'Protected</span>' : '') +
           '<code class="registrar-party-identifier" id="' + prefix + '-identifier">' + escHtml(identifier) + '</code>' +
         '</div>';
       // Both roles belong to one registration (CIR (EU) 2025/848 Annex I).
@@ -4295,7 +4295,7 @@
       document.getElementById(registrarTarget ? 'registrar-purpose' : 'registrar-name').focus();
     }
   }
-  // Entitlements belong to a service (TS6 v1.1 row 12). A registration
+  // Entitlements belong to a service (TS6 v1.2.2 row 12). A registration
   // certificate covers a service or one of its intended uses (ARF RPRC_09,
   // RPRC_13) and lists the entitlements of the service.
   // A service that gains the other role gets another entitlement, so the
@@ -4858,7 +4858,7 @@
     const box = document.getElementById('registrar-catalog-filters');
     const groups = [
       ['category', 'Category', categories.map(c => [c.id, c.label])],
-      ['los', 'Security level', schemaOptions.attestationLoS.map(o => [o.value, o.label])],
+      ['los', 'Level of security', schemaOptions.attestationLoS.map(o => [o.value, o.label])],
       ['binding', 'Holder binding', schemaOptions.bindingType.map(o => [o.value, o.label])],
       ['source', 'Source', [['template', 'From a template'], ['added', 'Added here']]],
     ];
@@ -4921,7 +4921,7 @@
         '</div>' +
         '<div class="cred-pills registrar-pills" id="' + prefix + '-pills">' +
           '<span class="status-badge catalog-badge" id="' + prefix + '-category" title="Selects the signer and the trusted list">Category: ' + escHtml(categoryLabel(entry.category)) + '</span>' +
-          '<span class="status-badge catalog-badge" id="' + prefix + '-los" title="Level of security (TS11 attestationLoS)">Security level: ' + escHtml(optionLabel('attestationLoS', schema.attestationLoS)) + '</span>' +
+          '<span class="status-badge catalog-badge" id="' + prefix + '-los" title="Level of security (TS11 attestationLoS)">Level of security: ' + escHtml(optionLabel('attestationLoS', schema.attestationLoS)) + '</span>' +
           '<span class="status-badge catalog-badge" id="' + prefix + '-binding" title="How the attestation is bound to its holder (TS11 bindingType)">' + escHtml(optionLabel('bindingType', schema.bindingType)) + '</span>' +
           (entry.template ? '<span class="status-badge catalog-badge" id="' + prefix + '-template" title="Change the credential template to change this entry.">From a template</span>' : '') +
           '<code class="registrar-party-identifier" id="' + prefix + '-id">' + escHtml(schema.id) + '</code>' +

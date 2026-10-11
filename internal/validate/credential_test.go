@@ -341,13 +341,14 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
-// HAIP 1.0 §6.1: "The status claim, if present, MUST contain status_list".
-// Another status format is a warning and is not fetched.
+// A status other than a Token Status List is a warning and is not fetched.
+// The HAIP 1.0 §6.1 finding belongs to the HAIP check.
 func TestAStatusOtherThanAStatusListIsAWarning(t *testing.T) {
 	jwt := unsignedJWT(t, map[string]any{"status": map[string]any{"type": "StatusList2021Entry"}})
 	got := mustFind(t, validated(t, jwt, Trust{}, Options{Status: true}), CheckStatus)
-	if got.Status != Warning || !strings.Contains(got.Detail, "StatusList2021Entry") {
-		t.Errorf("status = %+v, want a warning naming the format", got)
+	want := `the status claim uses "StatusList2021Entry", not a Token Status List (status.status_list). This status is not checked.`
+	if got.Status != Warning || got.Detail != want {
+		t.Errorf("status = %+v, want a warning %q", got, want)
 	}
 }
 

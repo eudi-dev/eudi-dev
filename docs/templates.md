@@ -39,7 +39,7 @@ Regenerating a PID replaces the existing mdoc PID with the same doctype and name
 
 `issue ... --pid` and `wallet serve --pid` use these templates. They use the pair of the country-independent PID (`pid-*`) by default. With `--vct` they use the SD-JWT template of that type and the mdoc template with the PID doctype and the same display name. A user template for another PID type, such as `urn:eudi:pid:fr:1`, works the same way. A type without templates gets the EUDI PID claims under that type. A user template saved under the same name overrides the predefined one everywhere. Deleting the override restores the original.
 
-A new wallet holds the PIDs whose predefined templates set `baseline`. These are the EUDI PID and the German PID, which extends it. An override of a baseline template changes the content of that baseline PID.
+With `--demo` the wallet holds the PIDs whose predefined templates set `baseline`. These are the EUDI PID and the German PID, which extends it. `--pid` alone issues the EUDI PID. An override of a baseline template changes the content of that baseline PID.
 
 ## Template files and storage
 
@@ -82,7 +82,7 @@ All fields except `claims` are optional:
 | `always_disclosed` | Claims issued plainly instead of selectively disclosable (see below) |
 | `unique_claims` | Claims that get a new random value in every credential, for example an opaque subject identifier |
 | `rulebook` | URL of the rulebook or specification of the credential type. The [attestation catalogue](#attestation-catalogue) links it |
-| `baseline` | Marks a PID that a new wallet holds. Only predefined templates use it |
+| `baseline` | Marks a PID that the demo profile holds. Only predefined templates use it |
 | `category` | `pid`, `qeaa`, `pub-eaa` or `eaa`. Credentials from the template are on the [trusted list](wallet/serve.md#trusted-lists) of this category. Without one, the template's catalogue entry gives the category, else the credentials are EAAs. The predefined PID templates are `pid` and the demo ticket is `eaa` |
 | `display` | Card appearance for credentials issued from the template (`name`, `description`, `background_color`, `text_color`, `logo`, `logo_alt_text`, `background_image`). Image fields take a data URI or an http(s) URL. The predefined PID templates set it |
 | `predefined` | Set on predefined templates in listings and exports. Ignored on import |
@@ -163,7 +163,7 @@ The CLI accepts `--display-name`, `--display-description`, `--background-color`,
 
 ## Always disclosed claims
 
-Every SD-JWT claim is selectively disclosable by default. The registered claims that SD-JWT VC §2.2.2.3 excludes from selective disclosure (`iss`, `nbf`, `exp`, `cnf`, `vct`, `vct#integrity`, `aka_vcts`, `status` and `iat`) are always embedded plainly. Claims listed in `always_disclosed` are embedded plainly too, so they cannot be withheld during presentation.
+Every SD-JWT claim is selectively disclosable by default. The registered claims that SD-JWT VC §2.2.2.3 excludes from selective disclosure (`iss`, `nbf`, `exp`, `cnf`, `vct`, `vct#integrity`, `aka_vcts` and `status`) are always embedded plainly. The wallet sets `iat` itself and embeds it plainly too. Claims listed in `always_disclosed` are embedded plainly too, so they cannot be withheld during presentation.
 
 Entries are top level claims (`issuing_country`) or nested subclaims as dotted paths (`address.country`). A top level entry embeds the whole claim value plainly. A dotted entry keeps the parent selectively disclosable but embeds that subclaim plainly inside the parent's disclosure. Entries that match no claim are ignored.
 

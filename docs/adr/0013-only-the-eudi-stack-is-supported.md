@@ -14,7 +14,7 @@ If the toolkit ignored an unsupported mechanism, a request could look verified. 
 
 A key identified by a DID is reported as unresolved: in the credential import warning, in the HAIP findings, in the skipped-signature note of `validate`, and in the failure of a status list check (`keys.DIDReference`). An issuer key is resolved through the `x5c` chain (required by HAIP 1.0 §6.1.1) or through the issuer metadata defined by SD-JWT VC. `did:key` carries its key in the identifier and would be easy to decode. It is left out on purpose.
 
-The Status List Token check accepts ES256 and ES384 only (`internal/statuslist/checker.go`).
+The Status List Token check accepts ES256 and ES384 for a JWT, and ES256, ESP256 and ES384 for a CWT (`internal/statuslist`).
 
 ## Deviations are still processed
 

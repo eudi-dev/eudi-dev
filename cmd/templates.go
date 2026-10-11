@@ -79,7 +79,7 @@ var templatesListCmd = &cobra.Command{
 			}
 			source := "user"
 			if t.Predefined {
-				source = "pre-defined"
+				source = "predefined"
 			}
 			format := t.Format
 			if format == "" {
@@ -115,7 +115,7 @@ var templatesSaveCmd = &cobra.Command{
 	Short:             "Create or update a user credential template",
 	ValidArgsFunction: completeTemplateNames,
 	Long: "Create or update a user credential template from flags. Use --from to copy an existing template " +
-		"as the starting point (e.g. to customize a pre-defined one). Other flags override the copied values.",
+		"as the starting point (e.g. to customize a predefined one). Other flags override the copied values.",
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		svc, err := managedWallet()

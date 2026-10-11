@@ -101,10 +101,10 @@ func TestTemplatesSaveFromPredefined(t *testing.T) {
 		t.Errorf("expected overridden vct, got %q", tpl.VCT)
 	}
 	if len(tpl.Claims) == 0 || tpl.Claims["family_name"] != "MUSTERMANN" {
-		t.Errorf("expected claims copied from pre-defined template, got %d claims", len(tpl.Claims))
+		t.Errorf("expected claims copied from predefined template, got %d claims", len(tpl.Claims))
 	}
 	if tpl.Predefined {
-		t.Error("copied template must not be marked pre-defined")
+		t.Error("copied template must not be marked predefined")
 	}
 }
 

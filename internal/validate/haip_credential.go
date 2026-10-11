@@ -48,7 +48,7 @@ func HAIPCredentialFindings(header, payload map[string]any) []string {
 	iss, _ := payload["iss"].(string)
 	if did := keys.DIDReference(kid, iss); did != "" {
 		findings = append(findings, fmt.Sprintf(
-			"HAIP 1.0 §6.1.1: the credential names its issuer key by the DID %s, where the issuer's signing certificate and its trust chain travel in the x5c header instead", did))
+			"HAIP 1.0 §6.1.1: the credential names its issuer key by the DID %s. The profile requires the issuer's signing certificate and its trust chain in the x5c header", did))
 	}
 	// HAIP 1.0 §6.1: "The status claim, if present, MUST contain status_list as
 	// defined in [I-D.ietf-oauth-status-list]." The status claim is always in the
@@ -76,7 +76,7 @@ func HAIPCredentialFindings(header, payload map[string]any) []string {
 // counterpart for an mdoc.
 func HAIPCredentialChain(chain []*x509.Certificate) []string {
 	if len(chain) == 0 {
-		return []string{"HAIP 1.0 §6.1.1: the credential carries no x5c header, which must hold the issuer's signing certificate and its trust chain"}
+		return []string{"HAIP 1.0 §6.1.1: the credential has no x5c header. The profile requires the issuer's signing certificate and its trust chain there"}
 	}
 
 	var violations []string
@@ -88,7 +88,7 @@ func HAIPCredentialChain(chain []*x509.Certificate) []string {
 	for i, cert := range chain[1:] {
 		if SelfSignedCertificate(cert) {
 			violations = append(violations, fmt.Sprintf(
-				"HAIP 1.0 §6.1.1: the credential's x5c header carries a self-signed certificate at position %d (subject %q), where the certificate of the trust anchor MUST NOT be included",
+				"HAIP 1.0 §6.1.1: the credential's x5c header carries a self-signed certificate at position %d (subject %q). The trust anchor certificate MUST NOT be included",
 				i+2, cert.Subject.String()))
 			break
 		}

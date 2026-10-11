@@ -31,7 +31,7 @@ import (
 func trustCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "trust",
-		Short: "Show the wallet's trusted lists and put your providers and lists on them",
+		Short: "Show the wallet's trusted lists and add your own CAs and lists",
 		Long: `With --arf the wallet checks credentials, access certificates and registration
 certificates against lists of trusted entities (ETSI TS 119 602). It signs a
 list per credential category (pid, qeaa, pub-eaa, eaa), one for wallet
@@ -44,8 +44,8 @@ show prints one of these lists. ca-cert prints the wallet CA that signs them.
 add-ca puts the CA of your own issuer or registrar on one of the wallet's lists.
 add-list puts an external list on the list of trusted lists. Its signer has to
 chain to the wallet CA or to a CA from wallet serve --trusted-list-ca. A list
-that a list of trusted lists points to needs the certificate of its pointer
-instead.
+reached through a list of trusted lists is checked against the signer
+certificate in its pointer.
 
 Without a subcommand, or with list, it lists the wallet's lists and what you
 added.`,
@@ -138,8 +138,8 @@ func trustShowCmd() *cobra.Command {
 The output can be piped to a file or used directly with --trusted-list in the validate command.
 
 The list is one of pid, qeaa, pub-eaa, eaa, wallet-provider, access-ca,
-registrar or the tl- ID of a custom list. lists prints the list of trusted
-lists. trust list shows them all.
+registrar or the tl- ID of a custom list. Use lists for the list of trusted
+lists. 'trust list' shows every list.
 Without a list or selection flag, this prints the PID provider list, like /api/trustlist.
 --vct or --doctype selects the list covering that credential type.
 --url prints only the list URL of a running wallet server.`,

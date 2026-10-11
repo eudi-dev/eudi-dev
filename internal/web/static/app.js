@@ -647,7 +647,7 @@
     html += '<details class="verify-details" id="output-verify"><summary id="output-verify-summary">' + verifyLabel + " with a key or trusted list</summary>";
     html += '<div class="verify-inline" id="output-verify-form">';
     html += '<label class="verify-label" id="output-verify-key-label">Public Key (PEM or JWK)</label>';
-    html += '<textarea class="verify-input verify-inline-key" id="output-verify-key" rows="3" placeholder="Paste PEM or JWK..." spellcheck="false"></textarea>';
+    html += '<textarea class="verify-input verify-inline-key" id="output-verify-key" rows="3" placeholder="Paste PEM or JWK…" spellcheck="false"></textarea>';
     html += '<label class="verify-label" id="output-verify-trusted-list-label">Trusted list URL</label>';
     html += '<input class="verify-input verify-inline-tl" id="output-verify-trusted-list" type="text" placeholder="https://...">';
     html += '<button class="btn verify-btn verify-inline-btn" id="output-verify-btn">' + verifyLabel + "</button>";
@@ -666,7 +666,7 @@
         return;
       }
       verifyInlineBtn.disabled = true;
-      verifyInlineBtn.textContent = "Verifying...";
+      verifyInlineBtn.textContent = "Verifying…";
       verifySignature(keyText, tlUrl);
     });
 
@@ -797,7 +797,7 @@
         });
       }
       const resolved = reserveSection("output-resolved-claims");
-      appendSection("Resolved Claims", renderResolvedClaims(data.resolvedClaims, disclosedNames, resolved), data.resolvedClaims, undefined, resolved);
+      appendSection("Resolved claims", renderResolvedClaims(data.resolvedClaims, disclosedNames, resolved), data.resolvedClaims, undefined, resolved);
     }
 
     if (data.keyBindingJWT) {
@@ -920,7 +920,7 @@
     } else {
       info.appendChild(renderKV("Container", "IssuerSigned", infoBase + "-container"));
     }
-    appendSection("Document Info", info, { docType: data.docType }, undefined, infoBase);
+    appendSection("Document info", info, { docType: data.docType }, undefined, infoBase);
 
     if (data.issuerSignedItems) {
       Object.keys(data.issuerSignedItems).sort().forEach((ns) => {
@@ -1553,7 +1553,7 @@
       }
       if (meta.wallet) {
         const walletLink = document.getElementById("wallet-link");
-        walletLink.textContent = meta.demo ? "Demo wallet" : "Wallet";
+        walletLink.textContent = "Wallet";
         walletLink.hidden = false;
       }
       document.getElementById("sponsor-info").hidden = !meta.demo;

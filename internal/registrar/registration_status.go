@@ -37,7 +37,7 @@ const minRegistrationStatusListSize = 1 << 17
 const maxCertificatesPerRelyingParty = 100
 
 var (
-	errPartyCertificatesFull = fmt.Errorf("the relying party holds %d registration certificates, the most the registrar issues to one relying party. A certificate frees up when it expires, or when a new one replaces it", maxCertificatesPerRelyingParty)
+	errPartyCertificatesFull = fmt.Errorf("the relying party already holds %d registration certificates. The registrar issues at most that many to one relying party. A certificate frees up when it expires or is replaced", maxCertificatesPerRelyingParty)
 	errRegistrationChanged   = errors.New("the registration changed while the certificate was being issued. Try again")
 )
 

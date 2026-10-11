@@ -16,7 +16,7 @@ The server exposes:
 - Trusted list endpoint (`/api/trustlist`), which serves the PID list or the list for a `vct` or `doctype`. Use this URL as `--trusted-list` when validating PID credentials issued by the wallet
 - Trusted list index endpoint (`/api/trustlists`) with one JWT endpoint per list
 - HTTPS wallet endpoints on the wallet's effective issuer URL, including `/.well-known/jwt-vc-issuer`, `/.well-known/openid-credential-issuer`, `/api/trustlist`, `/api/trustlists`, `/api/statuslist`, and `/api/registrar/wrp`
-- A management API mirroring the wallet CLI (list, show, import, and remove credentials, issue credentials, generate PIDs, export certificates). It has no authentication (see [HTTP API](http-api.md))
+- A management API mirroring the wallet CLI (list, show, import, remove and issue credentials, export certificates). It has no authentication (see [HTTP API](http-api.md))
 
 For `credential_offer_uri`, the wallet fetches the offer for the dialog and again on approval (OpenID4VCI 1.0 §4.1.3). If the issuer serves the offer only once, issuance uses the copy shown in the dialog and logs the failed second fetch. If the first fetch fails, the dialog shows the issuer from the URI and approval retries the fetch.
 
@@ -229,7 +229,7 @@ Each list is served at `/api/trustlists/{id}`:
 `eudi trust list` shows these lists for the selected local or remote wallet:
 
 ```
-ID               DEFAULT  CATEGORY                    PATH
+LIST             DEFAULT  CATEGORY                    PATH
 pid              yes      Credential providers        /api/trustlists/pid
 qeaa                      Credential providers        /api/trustlists/qeaa
 pub-eaa                   Credential providers        /api/trustlists/pub-eaa
@@ -237,6 +237,8 @@ eaa                       Credential providers        /api/trustlists/eaa
 wallet-provider           Wallet providers            /api/trustlists/wallet-provider
 access-ca                 Relying party certificates  /api/trustlists/access-ca
 registrar                 Relying party certificates  /api/trustlists/registrar
+
+List of trusted lists: https://localhost:8086/api/trustlists/lists
 ```
 
 With `--json` it prints the `/api/trust` body with the `/api/trustlists` entries under `trust_lists`.
@@ -311,7 +313,7 @@ eudi wallet serve -d                   # run in the background (stop with `eudi 
 | Flag                    | Default  | Description                                      |
 |-------------------------|----------|--------------------------------------------------|
 | `--port`                | `8085`   | Server port                                      |
-| `--auto-accept`         | `false`  | Auto-approve everything. Without it, only interactive channels (web invocation URLs, scheme dispatches, browser DC-API) show the consent dialog. API submissions (`POST /api/offers`, `/api/presentations`) always auto-accept because the API call counts as consent (opt in per request with `"interactive": true`) |
+| `--auto-accept`         | `false`  | Approve presentations and credential offers without asking. Without it, only interactive channels (web invocation URLs, scheme dispatches, browser DC-API) show the consent dialog. API submissions (`POST /api/offers`, `/api/presentations`) always auto-accept because the API call counts as consent (opt in per request with `"interactive": true`) |
 | `--credential`          | None     | Import credential from file (repeatable)         |
 | `--credentials`         | None     | Credentials to add on every start, from a YAML or JSON file, a directory of such files, or stdin (`-`). See [startup credentials](#startup-credentials) |
 | `--pid`                 | `false`  | Generate default EUDI PID credentials on start   |
@@ -347,7 +349,7 @@ eudi wallet serve -d                   # run in the background (stop with `eudi 
 | `--require-encrypted-request` | `false` | Refuse an unencrypted Request Object. The wallet always sends an encryption key in `wallet_metadata`, so this requires the Verifier to use it |
 | `--demo`                | `false`  | Public demo profile: implies `--pid`, `--mode debug`, `--haip`, `--arf` and `--vci-version 1.1` (all overridable), disables process and filesystem endpoints, blocks fetches to loopback and private networks. Browser flows keep the consent dialog, API flows auto-accept (see [public demo hosting](../public-demo.md)) |
 | `--demo-issuer-client-auth` | `required` | Client authentication required by the authorization server of the built-in demo issuer at its PAR and token endpoints: `required` (HAIP 1.0 §4.4.1) or `optional`, which also accepts wallets that send no wallet attestation (see [public demo hosting](../public-demo.md)) |
-| `--demo-verifier-issuer-ca` | None | PEM file with extra issuer CA certificates for the demo verifier. The demo verifier always accepts the wallet's own CA. The flag is repeatable. Use it for credentials issued outside this wallet, such as in an OIDF conformance suite run |
+| `--demo-verifier-issuer-ca` | None | PEM file with extra issuer CA certificates for the demo verifier, in addition to the providers on the wallet's trusted lists. The flag is repeatable. Use it for credentials issued outside this wallet, such as in an OIDF conformance suite run |
 | `--serve-tls`           | `false`  | Serve an https `--base-url` locally with the wallet's own TLS certificate instead of expecting an external TLS terminator. Requires an https base URL with an explicit port. The wallet also keeps listening on the HTTP port |
 | `--demo-reset`          | `1h`     | Schedule for restoring the demo baseline: an interval (`24h`), a daily wall-clock time (`00:00`), or one with a timezone (`"00:00 Europe/Berlin"`). `0` disables. Requires `--demo` |
 | `--imprint-file`        | None     | HTML snippet with the operator's legal notice, served at `/imprint` |

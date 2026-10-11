@@ -663,7 +663,7 @@ func sameCertificateContent(before, after WalletRelyingParty, key certificateKey
 
 // supersedeReason names what an update changed in the certificate for key, or
 // returns "" when the certificate content stays the same. A certificate lists
-// the entitlements of its service (TS6 v1.1 row 12), so a service that gains
+// the entitlements of its service (TS6 v1.2.2 row 12), so a service that gains
 // the other role changes the certificates of both roles.
 func supersedeReason(before, after WalletRelyingParty, key certificateKey) string {
 	if sameCertificateContent(before, after, key) {

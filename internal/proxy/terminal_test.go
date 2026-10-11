@@ -87,7 +87,7 @@ func TestPrintEntryIncludesDecodeHints(t *testing.T) {
 		URL:              "http://example.com/response",
 		StatusCode:       200,
 		Class:            ClassVPAuthResponse,
-		ClassLabel:       "VP Auth Response",
+		ClassLabel:       "VP auth response",
 		Credentials:      []string{"eyJhbGciOiJFUzI1NiJ9.test.sig"},
 		CredentialLabels: []string{"vp_token"},
 	}
@@ -141,7 +141,7 @@ func TestPrintEntryWithDashboardPortRendersDecodeLinkPerCredential(t *testing.T)
 		URL:              "http://example.com/response",
 		StatusCode:       200,
 		Class:            ClassVPAuthResponse,
-		ClassLabel:       "VP Auth Response",
+		ClassLabel:       "VP auth response",
 		Credentials:      []string{"cred-a", "cred-b"},
 		CredentialLabels: []string{"vp_token.pid[0]", "vp_token.mdl[0]"},
 	}
@@ -177,7 +177,7 @@ func TestPrintEntryGroupsRequestResponseAndDecodeSections(t *testing.T) {
 		StatusCode: 200,
 		FlowID:     "flow-7",
 		Class:      ClassVCITokenRequest,
-		ClassLabel: "VCI Token Request",
+		ClassLabel: "VCI token request",
 		RequestHeaders: http.Header{
 			"Content-Type": {"application/x-www-form-urlencoded"},
 		},
@@ -207,7 +207,7 @@ func TestPrintEntryGroupsRequestResponseAndDecodeSections(t *testing.T) {
 	if strings.Contains(output, "http://issuer.example/oauth/token?...") {
 		t.Fatalf("expected URL not to be truncated, got %q", output)
 	}
-	if !strings.Contains(output, "[flow-7 / VCI Token Request]") {
+	if !strings.Contains(output, "[flow-7 / VCI token request]") {
 		t.Fatalf("expected flow and class in entry header, got %q", output)
 	}
 
@@ -254,7 +254,7 @@ func TestPrintEntryShowsPostHeadersAndBodyButFiltersInternalHeaders(t *testing.T
 		URL:        "http://issuer.example/credential",
 		StatusCode: 200,
 		Class:      ClassVCICredentialRequest,
-		ClassLabel: "VCI Credential Request",
+		ClassLabel: "VCI credential request",
 		RequestHeaders: http.Header{
 			"Authorization":   {"DPoP token-123"},
 			"Content-Type":    {"application/json"},
@@ -288,7 +288,7 @@ func TestTerminalWriterLogsEntriesWithoutFlowSummary(t *testing.T) {
 		RequestBody: "grant_type=authorization_code&code=issued-code",
 		StatusCode:  200,
 		Class:       ClassVCITokenRequest,
-		ClassLabel:  "VCI Token Request",
+		ClassLabel:  "VCI token request",
 		FlowID:      "flow-7",
 		Decoded: map[string]any{
 			"grant_type": "authorization_code",
@@ -303,7 +303,7 @@ func TestTerminalWriterLogsEntriesWithoutFlowSummary(t *testing.T) {
 		URL:        "http://issuer.example/credential",
 		StatusCode: 200,
 		Class:      ClassVCICredentialRequest,
-		ClassLabel: "VCI Credential Request",
+		ClassLabel: "VCI credential request",
 		FlowID:     "flow-7",
 		Decoded: map[string]any{
 			"request": map[string]any{
@@ -342,7 +342,7 @@ func TestPrintEntryShowsRedirectLocationAsResponseHeader(t *testing.T) {
 		},
 		StatusCode: 302,
 		Class:      ClassOIDCCallback,
-		ClassLabel: "OIDC Callback",
+		ClassLabel: "OIDC callback",
 		FlowID:     "flow-redirect",
 	}
 
@@ -357,7 +357,7 @@ func TestPrintEntryShowsRedirectLocationAsResponseHeader(t *testing.T) {
 	if !strings.Contains(output, "Location: https://wallet.example/callback?code=abc&state=s1") {
 		t.Fatalf("expected redirect Location in response headers, got %q", output)
 	}
-	if !strings.Contains(output, "[flow-redirect / OIDC Callback]") {
+	if !strings.Contains(output, "[flow-redirect / OIDC callback]") {
 		t.Fatalf("expected flow and class in redirect header, got %q", output)
 	}
 	if strings.Contains(output, "  request:\n") || strings.Contains(output, "  response:\n") {

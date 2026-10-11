@@ -66,6 +66,10 @@ Signs the access certificates from the wallet's registrar, including those of th
 **Registrar CA**:
 Signs the registrar's signing certificate, which signs registration certificates and their status list. It is a root of its own. The wallet's `registrar` list names it.
 
+**Visitor**:
+A person who uses a shared wallet, such as the public demo, through its web UI. Visitors share the whole wallet state. A **visitor template** is a template saved by a visitor. Visitors can change only visitor templates, and a demo reset deletes them. The operator's templates (those present at startup) stay fixed. The **visitor rules** (`VisitorRules`) set what visitors can store.
+_Avoid_: Guest, anonymous user
+
 **Instance**:
 A running wallet server registered on this machine. The CLI uses the registration to find and control it. Several instances can serve the same wallet state.
 
@@ -97,14 +101,14 @@ An issuance the issuer accepted but did not complete immediately. The wallet col
 _Avoid_: Pending issuance
 
 **Renewal**:
-Replacing a credential with a fresh copy from its issuer before it expires, keeping the same credential id. It differs from a **refresh token** (the OAuth grant a renewal may use) and from **certificate refresh** (re-issuing the wallet's own signing leaf certificate). The CLI verb is `refresh`.
+Replacing a credential with a fresh copy from its issuer before it expires, keeping the same credential id. It differs from a **refresh token** (the OAuth grant a renewal may use) and from **certificate refresh** (re-issuing the wallet's own signing leaf certificate). The operation is `RenewCredential` in code, and the CLI verb is `refresh`.
 _Avoid_: Refresh (for the credential operation)
 
 ### Trust and status
 
 **Trusted list**:
-A signed list that names providers and their certificates. ETSI TS 119 602 calls it a **list of trusted entities** (LoTE). A wallet or verifier checks that a certificate chains to a certificate on the list for that kind of certificate. This wallet publishes one list per credential category ([ADR-0022](docs/adr/0022-one-trusted-list-per-credential-category.md)) and the lists `wallet-provider`, `access-ca` and `registrar`. It takes every trust anchor from trusted lists ([ADR-0023](docs/adr/0023-trust-anchors-come-from-trusted-lists.md)). A trusted list operator signs a list.
-_Avoid_: Trust list, trust profile
+A signed list that names providers and their certificates. ETSI TS 119 602 calls it a **list of trusted entities** (LoTE). A wallet or verifier checks that a certificate chains to a certificate on the list for that kind of certificate. This wallet publishes one list per credential category ([ADR-0022](docs/adr/0022-one-trusted-list-per-credential-category.md)) and the lists `wallet-provider`, `access-ca` and `registrar`. It takes every trust anchor from trusted lists ([ADR-0023](docs/adr/0023-trust-anchors-come-from-trusted-lists.md)). A trusted list operator signs a list. Go identifiers use the short form `TrustList`.
+_Avoid_: Trust list (in prose), trust profile
 
 **List of trusted lists**:
 A trusted list that points to other trusted lists, each with the certificate of its signer (ETSI TS 119 602 §6.3.13). The wallet publishes one that points to its own lists and to the added external lists. It follows the pointers of an external list of trusted lists one level deep.

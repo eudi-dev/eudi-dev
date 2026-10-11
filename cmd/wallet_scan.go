@@ -163,8 +163,8 @@ request boundaries, so later presentation requests see the new credential.`,
 	}
 
 	cmd.Flags().IntVar(&port, "port", config.DefaultWalletPort, "Server port for OID4VP (serves trusted list and consent UI)")
-	cmd.Flags().BoolVar(&autoAccept, "auto-accept", false, "Auto-approve OID4VP presentations")
-	cmd.Flags().BoolVar(&docker, "docker", false, "Serve the trust and status lists under host.docker.internal so a verifier in a container reaches them")
+	cmd.Flags().BoolVar(&autoAccept, "auto-accept", false, "Approve presentations without asking")
+	cmd.Flags().BoolVar(&docker, "docker", false, "Serve the trusted lists and the status list under host.docker.internal for verifiers in a container")
 	cmd.Flags().StringVar(&sessionTranscript, "session-transcript", "oid4vp", "mdoc session transcript mode: 'oid4vp' (OID4VP 1.0, default) or 'iso' (ISO 18013-7)")
 	cmd.Flags().StringVar(&txCode, "tx-code", "", "Transaction code for OID4VCI pre-authorized code flow")
 	conformanceFlags = addConformanceFlags(cmd)
@@ -244,8 +244,8 @@ func walletScanCmd() *cobra.Command {
 
 	cmd.Flags().IntVar(&port, "port", config.DefaultWalletPort, "Server port (serves trusted list and consent UI)")
 	cmd.Flags().BoolVar(&screen, "screen", false, "Interactive screen capture (macOS)")
-	cmd.Flags().BoolVar(&autoAccept, "auto-accept", false, "Auto-approve presentations")
-	cmd.Flags().BoolVar(&docker, "docker", false, "Serve the trust and status lists under host.docker.internal so a verifier in a container reaches them")
+	cmd.Flags().BoolVar(&autoAccept, "auto-accept", false, "Approve presentations without asking")
+	cmd.Flags().BoolVar(&docker, "docker", false, "Serve the trusted lists and the status list under host.docker.internal for verifiers in a container")
 	cmd.Flags().StringVar(&sessionTranscript, "session-transcript", "oid4vp", "mdoc session transcript mode: 'oid4vp' (OID4VP 1.0, default) or 'iso' (ISO 18013-7)")
 	cmd.Flags().StringVar(&txCode, "tx-code", "", "Transaction code for OID4VCI pre-authorized code flow")
 	conformanceFlags = addConformanceFlags(cmd)

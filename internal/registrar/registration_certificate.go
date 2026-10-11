@@ -174,8 +174,8 @@ func (r *Registrar) CurrentRegistrationCertificate(req RegistrationCertificateRe
 }
 
 // CertificateRequests names every registration certificate of a relying
-// party: one per attestation provider service and one per intended use (ARF
-// RPRC_13).
+// party: one per attestation provider service (ARF RPRC_13) and one per
+// intended use (ARF RPRC_09).
 func CertificateRequests(rp WalletRelyingParty) []RegistrationCertificateRequest {
 	id := rp.Identifier[0].Identifier
 	var reqs []RegistrationCertificateRequest
@@ -208,7 +208,7 @@ func (r *Registrar) certificateSubject(req RegistrationCertificateRequest) (Wall
 }
 
 // certificateResult wraps a verifier's certificate in verifier_info and a
-// provider's certificate in issuer_info (ARF RPRC_13 and RPRC_15).
+// provider's certificate in issuer_info (ARF RPRC_22).
 func certificateResult(rp WalletRelyingParty, key certificateKey, signed string) (*RegistrationCertificateResult, error) {
 	if key.intendedUse != "" {
 		service, use, _ := findIntendedUse(rp, "", key.intendedUse)
@@ -303,7 +303,7 @@ func IssuerInfoValue(dataset RegistrarDataset, registrationCertificate string) (
 }
 
 // verifierRegistrarDataset is the registrar_dataset entry of verifier_info
-// (ETSI TS 119 472-2 V1.2.1 §6.3.2.2) for an intended use.
+// (ETSI TS 119 472-2 V1.3.1 §6.3.2.2) for an intended use.
 func verifierRegistrarDataset(rp WalletRelyingParty, service WalletRelyingPartyService, use IntendedUse) VerifierRegistrarDataset {
 	return VerifierRegistrarDataset{
 		Identifier:            rp.Identifier,
@@ -346,7 +346,7 @@ func registrationContent(rp WalletRelyingParty, service WalletRelyingPartyServic
 		Country:           rp.Country,
 		Description:       service.SrvDescription,
 		// ARF Reg_01a registers the data of EC TS6, which keeps the
-		// entitlements per service (TS6 v1.1 row 12, TS05 v1.5 §2.4.1). ETSI
+		// entitlements per service (TS6 v1.2.2 row 12, TS05 v1.5 §2.4.1). ETSI
 		// TS 119 475 V1.2.1 Annex B.2.1 keeps them per relying party.
 		Entitlements:          service.Entitlements,
 		RegistryURI:           rp.RegistryURI,
@@ -544,7 +544,7 @@ func registrationValidity(value string) (time.Duration, error) {
 }
 
 // RegistrationCertificateTyp is the JWT typ of a registration certificate
-// (ETSI TS 119 475 V1.2.1 §5.2.1).
+// (ETSI TS 119 475 V1.2.1 §5.2.2, Table 5).
 const RegistrationCertificateTyp = "rc-wrp+jwt"
 
 // SignRegistrationCertificateJWT includes the leaf in x5c so wallets can verify the

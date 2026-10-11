@@ -74,7 +74,7 @@ var clientIDPrefixes = map[string]clientIDPrefix{
 		},
 		signed: true,
 		unverified: func(did string) string {
-			return fmt.Sprintf("Request Object signature was not verified: decentralized_identifier: resolves its key through the DID %s, which this wallet does not resolve", did)
+			return fmt.Sprintf("Request Object signature was not verified: the key of decentralized_identifier: comes from the DID %s, and this wallet does not resolve DIDs", did)
 		},
 	},
 	// §5.9.3 defers to OpenID Federation for this prefix. This wallet does not
@@ -84,7 +84,7 @@ var clientIDPrefixes = map[string]clientIDPrefix{
 			return "openid_federation: client_id is not supported by this wallet"
 		},
 		unverified: func(string) string {
-			return "Request Object signature was not verified: openid_federation: resolves its key through an OpenID Federation trust chain, which this wallet does not resolve"
+			return "Request Object signature was not verified: the key of openid_federation: comes from an OpenID Federation trust chain, and this wallet does not resolve those"
 		},
 	},
 	// §5.9.3: "The Wallet MUST NOT accept this Client Identifier Prefix in

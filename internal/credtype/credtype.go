@@ -15,7 +15,7 @@
 // Package credtype lists the known EUDI credential types and models the
 // inheritance between them.
 //
-// ARF v3.0.0 Annex 2, PID_14 says the vct "SHALL be urn:eudi:pid:1 for the
+// ARF Annex 2 PID_14 says the vct "SHALL be urn:eudi:pid:1 for the
 // type defined in this document or a domestic type that extends it". A
 // national PID therefore answers a request for the general PID type.
 //
@@ -64,7 +64,7 @@ const AkaVCTsClaim = "aka_vcts"
 
 const PIDVCTPrefix = "urn:eudi:pid:"
 
-// Extends applies ARF v3.0.0 Annex 2 PID_14 to domestic PID types. A numeric segment
+// Extends applies ARF Annex 2 PID_14 to domestic PID types. A numeric segment
 // after urn:eudi:pid: identifies a base PID version. Other segments identify a country
 // or region. Types outside this namespace declare inheritance through aka_vcts.
 func Extends(vct string) (string, bool) {

@@ -103,7 +103,7 @@ type IssueOptions struct {
 	SigningKey       *ecdsa.PrivateKey
 	SigningCertChain []*x509.Certificate
 	// Unbound issues the credential without a holder key. An SD-JWT VC then
-	// has no cnf, which SD-JWT VC §3.2.2.2 makes optional. An mdoc has no MSO
+	// has no cnf, which SD-JWT VC §2.2.2.3 makes optional. An mdoc has no MSO
 	// deviceKey, which ISO 18013-5 §9.1.2.4 makes mandatory. That malformed
 	// mdoc tests verifier rejection.
 	Unbound bool
@@ -377,7 +377,7 @@ func (w *Wallet) newCredentialSigner(resolved credtemplate.Resolved, spec provid
 	}
 	issuer = strings.TrimRight(strings.TrimSpace(jsonutil.FirstNonEmpty(issuer, w.IssuerURL)), "/")
 	if issuer == "" {
-		issuer = "https://issuer.example"
+		issuer = mock.DefaultIssuer
 	}
 	return &credentialSigner{resolved: resolved, issuer: issuer, certIss: w.IssuerURL, statusURI: statusURI, key: key, chain: chain}, nil
 }

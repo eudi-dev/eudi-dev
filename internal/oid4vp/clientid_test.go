@@ -96,6 +96,7 @@ func TestVerifyClientID_X509SanDNS(t *testing.T) {
 	}{
 		{"no prefix", "https://verifier.example", reqObjWithX5C(certB64), true},
 		{"dns match", "x509_san_dns:example.com", reqObjWithX5C(certB64), true},
+		{"dns match in another case", "x509_san_dns:Example.COM", reqObjWithX5C(certB64), true},
 		{"dns mismatch", "x509_san_dns:wrong.example", reqObjWithX5C(certB64), false},
 		{"nil request object", "x509_san_dns:example.com", nil, false},
 		{"no x5c header", "x509_san_dns:example.com", &oid4vc.RequestObjectJWT{Header: map[string]any{}}, false},

@@ -75,7 +75,7 @@ func proxyDashboardWith(t *testing.T, entries ...*proxy.TrafficEntry) *httptest.
 func TestProxyLogsPrintsWhatTheProxyRecorded(t *testing.T) {
 	srv := proxyDashboardWith(t,
 		&proxy.TrafficEntry{Method: "POST", URL: "http://issuer.example/token", StatusCode: 200, ClassLabel: "VCI Token"},
-		&proxy.TrafficEntry{Method: "GET", URL: "http://verifier.example/request", StatusCode: 404, ClassLabel: "VP Request Object"},
+		&proxy.TrafficEntry{Method: "GET", URL: "http://verifier.example/request", StatusCode: 404, ClassLabel: "VP request object"},
 	)
 
 	output := runProxyLogs(t, srv.URL)

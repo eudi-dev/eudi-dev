@@ -80,7 +80,7 @@ func (w *Wallet) createVPToken(match consent.Match, params *oid4vp.Request, mdoc
 		undisclosed = append(undisclosed, fmt.Sprintf("The request selects the array %s but none of its selectively disclosable elements, so it is disclosed as an empty array. The verifier selects the elements by ending the path with null (all) or an index (OpenID4VP 1.0 §7.1).", claim))
 	}
 	for _, claim := range match.MissingClaims {
-		undisclosed = append(undisclosed, fmt.Sprintf("The request asks for %s, which the selected credential does not provide (a claim it does not carry, or an array index out of range), so it is not disclosed.", claim))
+		undisclosed = append(undisclosed, fmt.Sprintf("The request asks for %s. The selected credential does not provide it (a missing claim, or an array index out of range), so it is not disclosed.", claim))
 	}
 	w.warnFindings("presentation", "The presentation does not disclose every requested claim as asked", undisclosed)
 
@@ -124,7 +124,7 @@ func (w *Wallet) checkPresentableKeyBinding(cred StoredCredential) error {
 		return nil
 	}
 	detail := fmt.Sprintf(
-		"Credential %s is bound to a holder key this wallet does not hold, so the key binding signature of this presentation comes from the wrong key and the verifier refuses it.",
+		"Credential %s is bound to a holder key that is not in this wallet. The key binding signature of this presentation comes from the wrong key, and the verifier refuses it.",
 		credentialLabel(cred))
 	details := map[string]any{
 		"credential_id": cred.ID,
@@ -263,7 +263,7 @@ func (w *Wallet) createVPTokenMap(matches []consent.Match, params *oid4vp.Reques
 		// The mdoc path logs its own warning for a missing deviceKey.
 		if match.Unbound && match.Format != credtype.FormatMDOC {
 			w.addProtocolWarning("presentation", "unbound_credential",
-				fmt.Sprintf("Credential %s has no holder binding, which the query %s requires (OpenID4VP 1.0 §6.1). Debug mode presents it without key binding.", credTypeLabel(match), match.QueryID),
+				fmt.Sprintf("Credential %s has no holder binding. Query %s requires one (OpenID4VP 1.0 §6.1). Debug mode presents it without key binding.", credTypeLabel(match), match.QueryID),
 				map[string]any{"credential_id": match.CredentialID, "query_id": match.QueryID})
 		}
 		tokenResult, err := w.createVPToken(match, params, mdocNonce)

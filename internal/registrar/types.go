@@ -118,7 +118,7 @@ type RegistrarDataset struct {
 }
 
 // VerifierRegistrarDataset is the registrar_dataset element of verifier_info.
-// ETSI TS 119 472-2 V1.2.1 §6.3.2.2 RO-06 to RO-11 require these members.
+// ETSI TS 119 472-2 V1.3.1 §6.3.2.2 RO-06 to RO-11 require these members.
 type VerifierRegistrarDataset struct {
 	Identifier            []Identifier      `json:"identifier"`
 	SrvDescription        []MultiLangString `json:"srvDescription"`

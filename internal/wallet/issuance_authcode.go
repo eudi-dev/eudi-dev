@@ -851,7 +851,7 @@ func requiredKeyAttestationClaims(requirement map[string]any) map[string]any {
 
 func (w *Wallet) noteKeyAttestationClaims(claims, requirement map[string]any) {
 	if len(claims) > 0 {
-		w.AddWarning("issuance", "The key attestation claims key storage levels this wallet's file-held keys cannot back (a test setting, see --key-attestation-level)", claims)
+		w.AddWarning("issuance", "The key attestation claims key storage levels that the wallet's software keys can't back (a test setting, see --key-attestation-level)", claims)
 	} else if required := requiredKeyAttestationClaims(requirement); len(required) > 0 {
 		w.AddWarning("issuance", "The key attestation omits levels the issuer requires (--key-attestation-level none)", required)
 	}
@@ -900,7 +900,7 @@ func proofSigningAlgFinding(metadata map[string]any, configID string, requireHAI
 			return ""
 		}
 	}
-	finding := fmt.Sprintf("OID4VCI 1.0 Appendix F: the %s proof type lists proof_signing_alg_values_supported %v without ES256, the algorithm this wallet signs with", proofType, algs)
+	finding := fmt.Sprintf("OID4VCI 1.0 Appendix F: the %s proof type lists proof_signing_alg_values_supported %v without ES256. This wallet signs its proofs with ES256", proofType, algs)
 	if requireHAIP {
 		finding += " (HAIP 1.0 §7: issuers MUST support ES256 for key proofs and key attestations)"
 	}
@@ -1432,7 +1432,7 @@ func (w *Wallet) notifyCredentialAccepted(metadata, credResp map[string]any, acc
 			details["error_code"] = code
 		}
 		w.addProtocolWarning("issuance", "notification_failed",
-			"The issuer did not accept the notification for this credential, which is stored either way. "+reading,
+			"The issuer did not accept the notification for this credential. The credential is stored anyway. "+reading,
 			details)
 		return
 	}
@@ -1457,23 +1457,23 @@ func readNotificationRefusal(status int, body []byte) (string, string) {
 
 	switch {
 	case status < 100:
-		return "Nothing was answered, so this is the endpoint being unreachable rather than the issuer refusing.", code
+		return "There was no answer, so the endpoint is unreachable.", code
 	case status >= 200 && status < 300:
-		return "The status says the issuer took it (§11.2 makes any 2xx a success), so what failed is reading the response.", code
+		return "The issuer accepted it (§11.2 makes any 2xx a success). Reading the response failed.", code
 	case status == http.StatusUnauthorized || status == http.StatusForbidden:
-		return "That is the Authorization Error Response §11.3 points at (RFC 6750 §3): the endpoint did not accept the access token this issuance was granted.", code
+		return "This is an Authorization Error Response (§11.3, RFC 6750 §3). The endpoint did not accept the access token of this issuance.", code
 	// RFC 6750 §3.1 gives invalid_request a 400, so this 400 is an
 	// Authorization Error Response.
 	case status == http.StatusBadRequest && code == "invalid_request":
-		return "That is the Authorization Error Response §11.3 points at (RFC 6750 §3.1 gives invalid_request a 400).", code
+		return "This is an Authorization Error Response (§11.3, and RFC 6750 §3.1 gives invalid_request a 400).", code
 	case status == http.StatusBadRequest && (code == "invalid_notification_id" || code == "invalid_notification_request"):
-		return "That is a Notification Error Response of §11.3 (" + code + ").", code
+		return "This is a Notification Error Response (§11.3, " + code + ").", code
 	case status == http.StatusBadRequest && code != "":
-		return "§11.3 lists invalid_notification_id and invalid_notification_request for a 400, and this names " + code + " instead.", code
+		return "§11.3 lists invalid_notification_id and invalid_notification_request for a 400. This response has " + code + ".", code
 	case status == http.StatusBadRequest:
-		return "§11.3 requires a 400 to carry a JSON error, whose value SHOULD be invalid_notification_id or invalid_notification_request. This one carries no error at all.", code
+		return "§11.3 requires a 400 to carry a JSON error (invalid_notification_id or invalid_notification_request). This response has none.", code
 	default:
-		return fmt.Sprintf("§11.3 defines no response with status %d for this endpoint: an invalid access token is answered per RFC 6750 §3, an invalid notification_id with 400.", status), code
+		return fmt.Sprintf("§11.3 defines no response with status %d for this endpoint. An invalid access token gets an RFC 6750 §3 error, and an invalid notification_id gets a 400.", status), code
 	}
 }
 
@@ -1519,7 +1519,7 @@ func (w *Wallet) fetchNonce(metadata map[string]any, nonce *string) string {
 	reason := nonceFailureReason(status, err)
 	if cNonce == "" && status == http.StatusMethodNotAllowed && w.Mode() == ValidationModeDebug {
 		if getNonce, getStatus, getErr := nonceRequest(w.HTTPClient(), "GET", ep, nonce, noncePayload); getNonce != "" {
-			w.AddWarning("issuance", fmt.Sprintf("The nonce endpoint %s answered the HTTP POST that OID4VCI 1.0 §7.1 requires with 405 and serves a c_nonce only over GET. Debug mode uses GET as a workaround.", ep), nil)
+			w.AddWarning("issuance", fmt.Sprintf("The nonce endpoint %s answers a POST with 405 and serves a c_nonce only over GET. OID4VCI 1.0 §7.1 requires POST. Debug mode uses GET.", ep), nil)
 			cNonce, reason = getNonce, ""
 		} else {
 			reason = nonceFailureReason(getStatus, getErr)
@@ -1712,7 +1712,7 @@ func runAuthorizationCodeRequest(w *Wallet, endpoint, clientID, requestURI strin
 		// server would not reach the user.
 		route.URL = authURL
 		if !w.Consents().NotifyAuthorization(route) {
-			return nil, fmt.Errorf("this offer needs an interactive sign-in at %s, and nothing is attached to this wallet that can open it", authURL)
+			return nil, fmt.Errorf("this offer needs an interactive sign-in at %s, but no wallet UI is open to show it", authURL)
 		}
 		select {
 		case values := <-callbackCh:

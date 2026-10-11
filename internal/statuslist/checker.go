@@ -343,12 +343,12 @@ type keyCandidates struct {
 
 // resolveKeys picks the verification keys for a Status List Token.
 // Sections 5.1 and 5.2 say "Relying Parties MUST reject JWTs with an invalid
-// signature", so verification runs even without a trust list. A trust anchor
+// signature", so verification runs even without a trusted list. A trust anchor
 // only decides whether the key is trusted, and that is reported separately.
 func resolveKeys(certs []*x509.Certificate, embedded []crypto.PublicKey, named string, opts CheckOptions) (*keyCandidates, error) {
 	if len(opts.TrustListCerts) > 0 {
 		if len(certs) == 0 {
-			return nil, fmt.Errorf("the status list token carries no certificate chain to validate against the trust list")
+			return nil, fmt.Errorf("the status list token carries no certificate chain to validate against the trusted list")
 		}
 		leaf, err := verifyChain(certs, opts.TrustListCerts)
 		if err != nil {
@@ -383,7 +383,7 @@ func resolveKeys(certs []*x509.Certificate, embedded []crypto.PublicKey, named s
 		return &keyCandidates{
 			keys:    []crypto.PublicKey{certs[0].PublicKey},
 			info:    "signed by " + certs[0].Subject.CommonName,
-			warning: "the status list token's certificate chain was not validated against a trust list",
+			warning: "the status list token's certificate chain was not validated against a trusted list",
 		}, nil
 	}
 
@@ -391,17 +391,17 @@ func resolveKeys(certs []*x509.Certificate, embedded []crypto.PublicKey, named s
 		return &keyCandidates{
 			keys:    embedded,
 			info:    "signed by the key in its own header",
-			warning: "the status list token was verified with the key it carries itself, which proves nothing about who issued it",
+			warning: "the status list token was verified with its own embedded key. That proves nothing about its issuer",
 		}, nil
 	}
 
 	// Section 11.3 leaves key resolution to the ecosystem. The EUDI ecosystem
 	// resolves a Status Issuer through x5c. A DID kid gets its own error.
 	if did := keys.DIDReference(named); did != "" {
-		return nil, fmt.Errorf("the status list token names its key by the DID %s, which nothing here resolves: section 11.3 leaves key resolution to the ecosystem, and this one identifies a Status Issuer by the certificate chain in the token's x5c header", did)
+		return nil, fmt.Errorf("the status list token names its key by the DID %s. This tool does not resolve DIDs. Section 11.3 leaves key resolution to the ecosystem, and the EUDI ecosystem identifies a Status Issuer by the certificate chain in the x5c header", did)
 	}
 
-	return nil, fmt.Errorf("no key to verify the status list token with: it carries no certificate chain and no public key, and no trust list or key was supplied")
+	return nil, fmt.Errorf("no key to verify the status list token with: it carries no certificate chain and no public key, and no trusted list or key was supplied")
 }
 
 // verifyChain checks the token's chain against the trust anchors. An anchor

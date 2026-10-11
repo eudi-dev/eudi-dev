@@ -17,7 +17,7 @@ Checked on 1 October 2026 against [ARF v3.0.0](https://github.com/eu-digital-ide
 | QCStatements | ETSI EN 319 412-5 V2.5.1, June 2025 | [Specification](https://www.etsi.org/deliver/etsi_en/319400_319499/31941205/02.05.01_60/en_31941205v020501p.pdf) |
 | Access certificate policy | ETSI TS 119 411-8 V1.1.1, October 2025 | [Specification](https://www.etsi.org/deliver/etsi_ts/119400_119499/11941108/01.01.01_60/ts_11941108v010101p.pdf) |
 | EUDI issuance profile | ETSI TS 119 472-3 V1.1.1, March 2026 | [Specification](https://www.etsi.org/deliver/etsi_ts/119400_119499/11947203/01.01.01_60/ts_11947203v010101p.pdf) |
-| EUDI presentation profile | ETSI TS 119 472-2 V1.2.1, March 2026 | [Specification](https://www.etsi.org/deliver/etsi_ts/119400_119499/11947202/01.02.01_60/ts_11947202v010201p.pdf) |
+| EUDI presentation profile | ETSI TS 119 472-2 V1.3.1, July 2026 | [Specification](https://www.etsi.org/deliver/etsi_ts/119400_119499/11947202/01.03.01_60/ts_11947202v010301p.pdf) |
 | Attestation structure | ETSI TS 119 472-1 V1.2.1, February 2026 | [Specification](https://www.etsi.org/deliver/etsi_ts/119400_119499/11947201/01.02.01_60/ts_11947201v010201p.pdf) |
 | Registration information | ETSI TS 119 475 V1.2.1, March 2026 | [Specification](https://www.etsi.org/deliver/etsi_ts/119400_119499/119475/01.02.01_60/ts_119475v010201p.pdf) |
 | Trusted entity lists | ETSI TS 119 602 V1.1.1, November 2025 | [Specification](https://www.etsi.org/deliver/etsi_TS/119600_119699/119602/01.01.01_60/ts_119602v010101p.pdf) |
@@ -80,7 +80,7 @@ The [complete certificate examples](test-certificate-examples.md) contain public
 
 The root's subject and issuer are both `C=NL, O=EUDI Dev Test CA, CN=EUDI Dev Wallet CA`. It has critical key usage `keyCertSign, cRLSign` (`2.5.29.15`) and critical basic constraints `CA:TRUE, pathlen:1` (`2.5.29.19`).
 
-The provider intermediates and signing leaves have `C=NL` and organization identifier `NTRNL-NLTEST.00000000` (`2.5.4.97`) in this reference configuration. For credential signers and their provider CAs, the country and identifier follow the credential's `issuing_country`. The trusted list signer uses the supplied country and operator name. Its organization is `EUDI Dev Wallet` in this reference set. The access signer of the demo verifier has organization `EUDI Dev Test Verifier` and identifier `NTRNL-NLTEST.00000001`, so it is registered as its own relying party. An access signer's common name is the trade name of its registration (ETSI TS 119 411-8 V1.1.1 GEN-6.1.1-04, ARF RPRC_06). The other intermediates and leaves use organization `EUDI Dev Test Provider`.
+The provider intermediates and signing leaves have `C=NL` and organization identifier `NTRNL-NLTEST.00000000` (`2.5.4.97`) in this reference configuration. For credential signers and their provider CAs, the country and identifier follow the credential's `issuing_country`. The trusted list signer uses the supplied country and operator name. Its organization is `EUDI Dev Wallet` in this reference set. The access signer of the demo verifier has organization `EUDI Dev Test Verifier` and identifier `NTRNL-NLTEST.00000001`, so it is registered as its own relying party. An access signer's common name is the trade name of its service (ETSI TS 119 411-8 V1.1.1 GEN-6.1.1-04, ARF Reg_31). The other intermediates and leaves use organization `EUDI Dev Test Provider`.
 
 ### Subjects and issuers
 

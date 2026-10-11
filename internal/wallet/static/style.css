@@ -2321,6 +2321,8 @@ label.dialog-hint {
 .registrar-use-credentials a {
   color: var(--accent);
   text-decoration: none;
+  white-space: nowrap;
+  word-break: normal;
 }
 
 .registrar-catalog-links a:hover,
@@ -2518,6 +2520,11 @@ label.dialog-hint {
   color: var(--accent);
   text-decoration: none;
 }
+/* A long name wraps inside its own box, so the copy button stays on the row. */
+.trust-links .trust-list-name {
+  flex: 1 1 0;
+  min-width: 0;
+}
 .trust-links a:hover {
   text-decoration: underline;
 }
@@ -2553,6 +2560,10 @@ label.dialog-hint {
   }
   .trust-items dt {
     margin-top: 6px;
+  }
+  /* Each filter label takes its own row above the chips. */
+  .catalog-filter-label {
+    flex-basis: 100%;
   }
   /* Candidate rows share the width with the actions column, so the status pills
      need the room the thumbnail takes. */

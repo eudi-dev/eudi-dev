@@ -128,8 +128,8 @@ func TestThePagesShowTheProductNames(t *testing.T) {
 // server, in the defaults and in the docs. The copies stay the same.
 func TestTheLogoCopiesMatch(t *testing.T) {
 	for _, copies := range [][]string{
-		{"../defaults/images/logo.svg", "../wallet/static/logo.svg", "../web/static/logo.svg", "../../docs/assets/logo-mark.svg", "../../examples/public-demo/news/logo-mark.svg"},
-		{"../../docs/assets/logo.svg", "../wallet/static/favicon.svg", "../web/static/favicon.svg"},
+		{"../defaults/images/logo.svg", "../wallet/static/logo.svg", "../web/static/logo.svg", "../proxy/static/logo.svg", "../../docs/assets/logo-mark.svg", "../../examples/public-demo/news/logo-mark.svg"},
+		{"../../docs/assets/logo.svg", "../wallet/static/favicon.svg", "../web/static/favicon.svg", "../proxy/static/favicon.svg"},
 	} {
 		want, err := os.ReadFile(filepath.FromSlash(copies[0]))
 		if err != nil {

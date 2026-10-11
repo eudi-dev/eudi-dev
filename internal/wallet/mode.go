@@ -78,10 +78,10 @@ func citedSpecification(finding string) string {
 	return strings.Join(spec, " ")
 }
 
-// isSectionReference matches §5.2, Appendix, Annex and rule identifiers such
-// as RPRC_19 or GEN-5.2.4-08.
+// isSectionReference matches §5.2, Appendix, Annex, Table and rule
+// identifiers such as RPRC_19 or GEN-5.2.4-08.
 func isSectionReference(word string) bool {
-	if strings.HasPrefix(word, "§") || word == "Appendix" || word == "Annex" {
+	if strings.HasPrefix(word, "§") || word == "Appendix" || word == "Annex" || word == "Table" {
 		return true
 	}
 	letters := strings.IndexFunc(word, func(r rune) bool { return r < 'A' || r > 'Z' })

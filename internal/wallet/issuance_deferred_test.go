@@ -115,7 +115,6 @@ func deferringIssuer(t *testing.T, w *Wallet, pendingRounds int, intervalSeconds
 
 func TestProcessCredentialOffer_DeferredWithoutEndpoint(t *testing.T) {
 	w := generateTestWallet(t)
-	credRaw := generateTestCredential(t, w)
 	var serverURL string
 
 	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -141,7 +140,6 @@ func TestProcessCredentialOffer_DeferredWithoutEndpoint(t *testing.T) {
 	}))
 	defer srv.Close()
 	serverURL = srv.URL
-	_ = credRaw
 
 	offer := map[string]any{
 		"credential_issuer":            serverURL,

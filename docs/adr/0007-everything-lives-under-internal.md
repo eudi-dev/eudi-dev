@@ -12,4 +12,4 @@ The format packages may become public libraries, starting with `sdjwt` and `mdoc
 
 ## Consequences
 
-Publishing a package requires reviewing its API for external callers. Some interfaces reflect this tool's debugging needs: `VerifyClientID` and related wallet functions return warning strings so debug mode can report a finding and continue. Those choices may not suit a library consumer.
+Publishing a package requires reviewing its API for external callers. Some interfaces reflect this tool's debugging needs: the client identifier checks in `internal/oid4vp` return warning strings so debug mode can report a finding and continue. Those choices may not suit a library consumer.

@@ -127,7 +127,7 @@ func Evaluate(query map[string]any, credentials []Credential, opts Options) ([]c
 				unbound = true
 			case requiresHolderBinding(cqMap):
 				skipped["no holder binding"]++
-				mismatches = append(mismatches, "has no holder binding, which the query requires")
+				mismatches = append(mismatches, "has no holder binding, and the query requires one")
 			case strict && cred.Format == credtype.FormatMDOC:
 				skipped["no deviceKey"]++
 				mismatches = append(mismatches, "is an mdoc without deviceKey, which strict mode does not present")
@@ -188,7 +188,7 @@ func Evaluate(query map[string]any, credentials []Credential, opts Options) ([]c
 			}
 
 			if unbound {
-				log.Printf("[DCQL] Warning: query=%s: credential %s (%s) has no holder binding, which the query requires (OpenID4VP 1.0 §6.1), offered in debug mode",
+				log.Printf("[DCQL] Warning: query=%s: credential %s (%s) has no holder binding, and the query requires one (OpenID4VP 1.0 §6.1). Offered in debug mode",
 					queryID, typeLabel, cred.Format)
 			}
 			matched++

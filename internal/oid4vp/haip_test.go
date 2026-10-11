@@ -413,14 +413,14 @@ func TestValidateHAIPCompliance(t *testing.T) {
 			// Over the redirect flow a missing Request Object is a violation.
 			// Over the Digital Credentials API it is a valid unsigned request
 			// (see the next case).
-			name: "missing request object (JAR) on the redirect flow",
+			name: "missing signed request object on the redirect flow",
 			modifyParams: func(p *Request) {
 				p.ResponseMode = "direct_post.jwt"
 				p.RequestOrigin = ""
 			},
 			useNilReqObj:   true,
 			wantViolations: 1,
-			wantContain:    "JAR",
+			wantContain:    "signed request object MUST be used",
 		},
 		{
 			name:           "missing DCQL query",

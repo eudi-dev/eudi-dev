@@ -22,6 +22,7 @@ examples/      Keycloak and web-wallet integration examples
 | `credtemplate` | Credential templates, predefined and user-supplied |
 | `credtype` | The EUDI credential type identifiers and which type extends which |
 | `dcql` | DCQL query parsing, evaluation, generation |
+| `defaults` | Built-in data in the operator's file formats: predefined templates and their images, credential categories, the demo registrations |
 | `demorp` | Demo issuer and verifier hosted by the wallet |
 | `format` | Format detection, base64url, and the outbound fetch policy (ADR-0004) |
 | `httpsec` | Browser security headers and the cross-origin guard (ADR-0002) |
@@ -32,11 +33,13 @@ examples/      Keycloak and web-wallet integration examples
 | `keys` | PEM and JWK key loading and conversion |
 | `lote` | Lists of trusted entities (ETSI TS 119 602): parsing, signing and the certificates of their services |
 | `mdoc` | mdoc parsing (CBOR) and COSE_Sign1 verification |
-| `mock` | Test credential generators |
+| `mock` | Credential, key and certificate generation (SD-JWT, mdoc, JWT, CAs and leaf certificates) for the wallet's issuers and CAs |
+| `netaddr` | Which hosts are local to the machine running eudi-dev |
+| `news` | The operator's news for visitors of a public demo |
 | `oid4vc` | OID4VP and OID4VCI request and offer parsing |
 | `oid4vp` | The wallet side of OpenID4VP 1.0: request checks (client identifier, client metadata, verifier_info, HAIP), browser API requests and response delivery |
 | `output` | Terminal output formatting |
-| `provider` | The wallet's provider keys and certificates: the trusted list profile of each credential category, the signing key and CA of each profile, the access and registrar CAs, and the sequenced lists they sign |
+| `provider` | The wallet's provider keys and certificates: the trusted list of each credential category, the signing key and CA of each list, the access and registrar CAs, and the sequenced lists they sign |
 | `proxy` | Reverse proxy, traffic classifier, dashboard |
 | `publicpath` | The path prefix of the base URL behind a reverse proxy (ADR-0019) |
 | `qr` | QR scanning from file or screen |
@@ -47,18 +50,20 @@ examples/      Keycloak and web-wallet integration examples
 | `serverlog` | Console output as JSON log records |
 | `statuslist` | Token Status List encoding and decoding, in JWT and CWT form |
 | `storage` | Blob storage backed by files, memory or Postgres (ADR-0016) |
+| `testenv` | Test isolation from the developer's eudi-dev home |
 | `trustedlists` | The wallet's set of trusted lists (ADR-0022, ADR-0023): its own list per credential category, the providers and lists users add, the external lists it reads and the anchors they give |
 | `urlhandler` | Registration of the wallet as the operating system handler for OID4VP and OID4VCI URL schemes |
 | `validate` | The credential checks shared by `validate` and the web decoder: type, validity, digests, signature, catalogue trust, revocation and HAIP |
 | `validity` | Time claims against the current time, with one clock skew rule |
 | `wallet` | Wallet state (persisted through `storage`), HTTP server, presentation and issuance flows, the issuer role and the ARF checks of issuers and credentials |
 | `web` | Decoder and validator web UI |
+| `webui` | Files every page shares: colour tokens and the theme script |
 
 ## Flows
 
 **Decode and validate.** The tool accepts a file, URL, stdin or QR scan. It detects the format and parses the input. It then displays the result or checks its signature, validity period and revocation status.
 
-**Presentation (OID4VP).** The wallet receives an authorization request through a URI, HTTP endpoint or browser API. It fetches and decrypts a request object when needed. Parameters in the request object override the outer parameters.
+**Presentation (OID4VP).** The wallet receives an authorization request through a URI, HTTP endpoint or browser API. It fetches and decrypts a request object when needed. With a request object, the wallet uses only the parameters inside it (RFC 9101 §6.3).
 
 The wallet checks the client identifier, signature and required parameters. Debug mode reports findings and continues. Strict mode stops on findings. `--haip` adds the profile checks. DCQL selects the matching credentials. A credential also matches when its type extends the requested type.
 
@@ -99,6 +104,10 @@ The wallet proves possession of its holder key, receives the credential and impo
 | [0021](docs/adr/0021-arf-checks-are-a-separate-profile.md) | ARF checks are a separate profile |
 | [0022](docs/adr/0022-one-trusted-list-per-credential-category.md) | One trusted list per credential category |
 | [0023](docs/adr/0023-trust-anchors-come-from-trusted-lists.md) | Trust anchors come from trusted lists |
+| [0024](docs/adr/0024-every-server-limits-outbound-addresses.md) | Every server limits outbound addresses |
+| [0025](docs/adr/0025-the-current-specification-is-definitive.md) | The current specification is definitive |
+| [0026](docs/adr/0026-built-in-defaults-are-data-in-operator-formats.md) | Built-in defaults are data in operator formats |
+| [0027](docs/adr/0027-the-cli-groups-commands-by-role.md) | The CLI groups commands by role |
 
 ## Related
 

@@ -201,9 +201,9 @@ func Predefined(name string) (Template, bool) {
 
 // PIDTemplateNames returns the SD-JWT and mdoc templates in loc for the PID
 // type vct. The SD-JWT template has that type, and the mdoc template issues the
-// PID doctype under the same display name. A pre-defined template wins over a
+// PID doctype under the same display name. A predefined template wins over a
 // user template of the same type. ok reports whether such templates exist.
-// For any other type it returns the names of the pre-defined templates of the
+// For any other type it returns the names of the predefined templates of the
 // country-independent PID, which a user template may replace.
 func PIDTemplateNames(vct string, loc Location) (sdjwt, mdoc string, ok bool) {
 	if vct == "" {
@@ -288,7 +288,7 @@ func (t *Template) WithUniqueClaims(claims map[string]any) map[string]any {
 	return fresh
 }
 
-// List returns all templates: pre-defined templates plus user templates from
+// List returns all templates: predefined templates plus user templates from
 // loc (the default directory for the zero Location). A user template with the
 // same name as a built-in replaces it. The result is sorted by name.
 // List returns the predefined templates and every readable stored template.
@@ -334,7 +334,7 @@ func List(loc Location) ([]Template, error) {
 
 // Load resolves a template by name or file path. Names are looked up in loc
 // (the default directory for the zero Location) first, then in the
-// pre-defined templates. Anything containing a path separator or a template
+// predefined templates. Anything containing a path separator or a template
 // extension is loaded as a file path.
 func Load(nameOrPath string, loc Location) (*Template, error) {
 	if strings.TrimSpace(nameOrPath) == "" {
@@ -357,7 +357,7 @@ func Load(nameOrPath string, loc Location) (*Template, error) {
 		return &t, nil
 	}
 
-	return nil, fmt.Errorf("template %q not found (looked in %s and the pre-defined templates, see `templates list`)", nameOrPath, loc)
+	return nil, fmt.Errorf("template %q not found (looked in %s and the predefined templates, see `templates list`)", nameOrPath, loc)
 }
 
 func Save(loc Location, t Template) (string, error) {
@@ -393,7 +393,7 @@ func Save(loc Location, t Template) (string, error) {
 var ErrNotFound = errors.New("not found")
 
 // Delete removes a user template from loc (the default directory for the
-// zero Location). Pre-defined templates cannot be deleted.
+// zero Location). Predefined templates cannot be deleted.
 func Delete(loc Location, name string) error {
 	loc = loc.orDefault()
 	if name != filepath.Base(name) {
@@ -410,7 +410,7 @@ func Delete(loc Location, name string) error {
 		}
 	}
 	if _, ok := Predefined(name); ok {
-		return fmt.Errorf("template %q is pre-defined and cannot be deleted", name)
+		return fmt.Errorf("template %q is predefined and cannot be deleted", name)
 	}
 	return fmt.Errorf("template %q %w in %s", name, ErrNotFound, loc)
 }

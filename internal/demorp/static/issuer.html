@@ -23,8 +23,10 @@
     p { font-size: 12px; line-height: 1.6; color: var(--text-dim); margin-bottom: 12px; }
     .btn { font: inherit; font-size: 12px; padding: 8px 16px; border: 1px solid var(--border);
       border-radius: 4px; background: var(--bg); color: var(--text); cursor: pointer; }
-    .btn.primary { border-color: var(--accent); color: var(--accent); }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn.primary:hover { opacity: 0.9; }
     .result { margin-top: 16px; display: none; }
+    .result-hint { margin-top: 12px; }
     .label { font-size: 11px; color: var(--text-dim); margin: 10px 0 4px; }
     pre { font: inherit; font-size: 11px; background: var(--bg); border: 1px solid var(--border);
       border-radius: 4px; padding: 8px; overflow-x: auto; user-select: all; white-space: pre-wrap; word-break: break-all; }
@@ -161,12 +163,12 @@
       <pre><a href="#" id="scheme-uri">…</a></pre>
       <div class="label" id="offer-uri-label">Offer URI (by reference)</div>
       <pre id="offer-uri">…</pre>
-      <p id="result-hint">After importing, present it at the <a href="../verifier/" id="result-verifier-link">demo verifier</a>.</p>
+      <p id="result-hint" class="result-hint">After the wallet accepts the offer, present the ticket at the <a href="../verifier/" id="result-verifier-link">demo verifier</a>.</p>
     </div>
     <div class="error" id="error" hidden></div>
     <div class="links">
-      <a href="../" id="wallet-ui-link">Wallet UI</a>
-      <a href="../verifier/" id="verifier-link">Demo Verifier</a>
+      <a href="../" id="wallet-ui-link">Wallet</a>
+      <a href="../verifier/" id="verifier-link">Demo verifier</a>
       <a href="../decoder/" id="decoder-link">Decoder</a>
       <a href="../imprint" id="imprint-link" hidden>Imprint</a>
     </div>

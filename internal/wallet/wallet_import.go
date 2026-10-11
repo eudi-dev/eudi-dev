@@ -101,7 +101,7 @@ func (w *Wallet) noteDIDIssuerKey(cred *StoredCredential) {
 	}
 	addStringDetail(details, "vct", cred.VCT)
 	detail := fmt.Sprintf(
-		"Credential %s names its issuer key by the DID %s. Nothing here resolves a DID (HAIP 1.0 §6.1.1 has the issuer's signing certificate travel in the x5c header), so this credential is kept with its issuer signature unverified, and a status list token signed the same way cannot be checked either.",
+		"Credential %s names its issuer key by the DID %s. This wallet does not resolve DIDs (HAIP 1.0 §6.1.1 puts the issuer's signing certificate in the x5c header). The wallet keeps the credential with an unverified issuer signature. A status list token signed this way can't be checked either.",
 		credentialLabel(*cred), did)
 	w.addProtocolWarning("wallet", "credential_issuer_key_is_a_did", detail, details)
 	log.Printf("[Wallet] WARNING: %s", detail)

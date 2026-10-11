@@ -119,7 +119,7 @@ func (v run) trustCheck(c catalogueState, r *Result) Check {
 		check.Status = Fail
 		check.Detail = strings.Join(anchoring.Findings, " ")
 	default:
-		check.Detail = strings.Join(append([]string{"No readable trusted list in the catalogue. An EAA needs anchors only when the wallet has them (ARF ISSU_10)"}, anchoring.Warnings...), ". ")
+		check.Detail = strings.Join(append([]string{"The catalogue entry has no readable trusted list. ARF ISSU_10 asks to check an EAA only with access to its provider's trust anchors"}, anchoring.Warnings...), ". ")
 	}
 	return check
 }
@@ -203,7 +203,7 @@ func noKeyDetail(token *sdjwt.Token) string {
 	kid, _ := token.Header["kid"].(string)
 	iss, _ := token.Payload["iss"].(string)
 	if did := keys.DIDReference(kid, iss); did != "" {
-		return fmt.Sprintf("The issuer key is named by the DID %s, which this tool does not resolve", did)
+		return fmt.Sprintf("The issuer key is named by the DID %s. This tool does not resolve DIDs", did)
 	}
 	return "No key provided"
 }
@@ -288,11 +288,7 @@ func (v run) mdocSignature(doc *mdoc.Document, c catalogueState, r *Result) Chec
 // credential.
 func (v run) status(claims map[string]any, prefer string, c catalogueState, r *Result) []Check {
 	if nonStandard := NonStatusListFormat(claims); nonStandard != "" {
-		detail := nonStandard + ". This status is not checked."
-		if prefer == statuslist.FormatJWT {
-			detail = nonStandard + ". HAIP 1.0 §6.1 asks for status_list, so this status is not checked."
-		}
-		return []Check{{Name: CheckStatus, Status: Warning, Detail: detail}}
+		return []Check{{Name: CheckStatus, Status: Warning, Detail: nonStandard + ". This status is not checked."}}
 	}
 	ref := statuslist.ExtractStatusRef(claims)
 	switch {

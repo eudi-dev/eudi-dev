@@ -162,7 +162,7 @@ func (w *Wallet) noteUnheldKeyBinding(cred *StoredCredential) {
 		details["binding_key"] = mock.KeyIDForPublicKey(binding.Key)
 	}
 	detail := fmt.Sprintf(
-		"Credential %s is bound to a holder key this wallet does not hold. It can be shown and decoded, but a presentation of it would carry a key binding signature from the wrong key, which a verifier rejects.",
+		"Credential %s is bound to a holder key that is not in this wallet. It can be shown and decoded. A presentation would carry a key binding signature from the wrong key, and a verifier rejects that.",
 		credentialLabel(*cred))
 	w.addProtocolWarning("wallet", "credential_key_binding_not_held", detail, details)
 	log.Printf("[Wallet] WARNING: %s", detail)

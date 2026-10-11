@@ -36,7 +36,7 @@ func OverAskingFindings(cert map[string]any, dcql map[string]any) []string {
 	}
 	var findings []string
 	overAsk := func(what string) {
-		findings = append(findings, fmt.Sprintf("ARF RPRC_21: the request asks for %s, which the registration certificate does not register (over-asking)", what))
+		findings = append(findings, fmt.Sprintf("ARF RPRC_21: the request asks for %s. The registration certificate does not register it (over-asking)", what))
 	}
 	for _, cq := range jsonutil.Maps(dcql["credentials"]) {
 		format, _ := cq["format"].(string)

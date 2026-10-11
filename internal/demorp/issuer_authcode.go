@@ -636,7 +636,7 @@ func jwkThumbprint(key *ecdsa.PublicKey) (string, error) {
 // firstUseOfDPoPProof records the jti of an accepted proof for its target
 // URI. RFC 9449 §11.1: "servers can store the jti value of each DPoP proof
 // for the time window in which the respective DPoP proof JWT would be
-// accepted". §4.3 suggests storing "only a hash thereof" against memory
+// accepted". It suggests storing "only a hash thereof" against memory
 // exhaustion.
 // A full cache refuses new proofs. Forgetting a live jti would let its proof
 // be replayed.

@@ -675,7 +675,7 @@ func customClientID(scheme string, chain []*x509.Certificate, responseURI, preRe
 }
 
 // deliverUnsignedRequest sends a redirect_uri or pre-registered request as
-// plain query parameters (OpenID4VP 1.0 §5.10). The response is encrypted to
+// plain query parameters (OpenID4VP 1.0 §5). The response is encrypted to
 // the key in client_metadata.
 func (d *DemoRP) deliverUnsignedRequest(w http.ResponseWriter, req *requestState, responseURI, base string) {
 	dcqlJSON, err := json.Marshal(req.dcqlQuery())

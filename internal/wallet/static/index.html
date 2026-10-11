@@ -61,7 +61,7 @@
     <div>
       <div class="section-title" id="actions-title">Actions</div>
       <div class="actions-bar">
-        <input type="text" id="offer-input" aria-label="Offer or request URI" placeholder="Paste OID4VCI offer URI or OID4VP request URI...">
+        <input type="text" id="offer-input" aria-label="Offer or request URI" placeholder="Paste OID4VCI offer URI or OID4VP request URI…">
         <button class="btn btn-primary" id="process-btn">Process</button>
         <button class="btn" id="import-btn">Import credential</button>
         <button class="btn" id="issue-btn">Issue credential</button>
@@ -272,7 +272,7 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
               <a id="ca-cert-pem-link" href="api/certificates/ca">PEM</a>
               <a id="ca-cert-jwks-link" href="api/certificates/ca?format=jwks">JWKS</a>
             </span>
-            <span class="trust-item-hint" id="ca-row-hint">Trust this CA. Attestations include only the signing certificate, which can change.</span>
+            <span class="trust-item-hint" id="ca-row-hint">Trust this CA. Credentials and wallet attestations carry only their signing certificates, and those can change.</span>
           </dd>
 
           <dt id="signing-row-label">Signing key</dt>
@@ -332,7 +332,7 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
         </div>
         <div class="form-error" id="trust-provider-error" role="alert"></div>
         <div class="consent-buttons">
-          <button type="button" class="btn" id="trust-provider-cancel">Close</button>
+          <button type="button" class="btn" id="trust-provider-cancel">Cancel</button>
           <button type="submit" class="btn btn-primary" id="trust-entity-add">Add CA</button>
         </div>
       </form>
@@ -350,7 +350,7 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
         </div>
         <div class="form-error" id="trust-external-error" role="alert"></div>
         <div class="consent-buttons">
-          <button type="button" class="btn" id="trust-external-cancel">Close</button>
+          <button type="button" class="btn" id="trust-external-cancel">Cancel</button>
           <button type="submit" class="btn btn-primary" id="trust-list-add">Add list</button>
         </div>
       </form>
@@ -538,7 +538,7 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
   <div class="consent-overlay" id="registrar-catalog-overlay">
     <div class="consent-dialog registrar-dialog" role="dialog" aria-modal="true" aria-labelledby="registrar-catalog-title" id="registrar-catalog-dialog">
       <div class="consent-title" id="registrar-catalog-title" tabindex="-1">Attestation catalogue</div>
-      <p class="dialog-hint" id="registrar-catalog-hint">Attestation types with their schemas, rulebook and trusted list.</p>
+      <p class="dialog-hint" id="registrar-catalog-hint">Each entry describes an attestation type: its formats and schemas, its rulebook and the trusted list of its issuers.</p>
       <p class="dialog-hint registrar-notice" id="registrar-catalog-notice" role="status" hidden></p>
       <input type="search" id="registrar-catalog-search" class="form-input registrar-search" placeholder="Search attestations" aria-label="Search attestations" autocomplete="off">
       <div class="catalog-filters" id="registrar-catalog-filters" role="group" aria-label="Filter attestations"></div>
@@ -585,7 +585,7 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
         </div>
         <div class="form-error" id="registrar-catalog-form-error" role="alert"></div>
         <div class="consent-buttons">
-          <button type="button" class="btn" id="registrar-catalog-cancel">Close</button>
+          <button type="button" class="btn" id="registrar-catalog-cancel">Cancel</button>
           <button type="submit" class="btn btn-primary" id="registrar-catalog-save">Add to catalogue</button>
         </div>
       </form>

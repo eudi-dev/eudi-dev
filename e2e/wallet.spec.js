@@ -2723,7 +2723,7 @@ test.describe("Registrar", () => {
     await page.locator("#registrar-catalog-save").click();
     await expect(page.locator("#registrar-catalog-overlay")).toBeVisible();
     const card = page.locator(".registrar-party", { hasText: "Library card" });
-    await expect(card.locator("[id$='-los']")).toHaveText("Security level: Moderate");
+    await expect(card.locator("[id$='-los']")).toHaveText("Level of security: Moderate");
     await expect(card.locator("[id$='-category']")).toHaveText("Category: EAA");
     await expect(card.locator("[id$='-trust']")).toHaveAttribute("href", /\/api\/trustlists\/eaa$/);
 

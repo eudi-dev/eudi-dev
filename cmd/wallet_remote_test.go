@@ -508,7 +508,7 @@ func TestCompletionFunctions(t *testing.T) {
 	}
 	joined := strings.Join(names, "\n")
 	if !strings.Contains(joined, "german-pid-sdjwt") || !strings.Contains(joined, "german-pid-mdoc") {
-		t.Errorf("expected pre-defined templates in completion, got %v", names)
+		t.Errorf("expected predefined templates in completion, got %v", names)
 	}
 
 	// Credential completion never creates a wallet as a side effect.

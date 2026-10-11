@@ -171,7 +171,7 @@ func (w *Wallet) keepApprovedOffer(offerURI string, approved *oid4vc.CredentialO
 		return nil, fmt.Errorf("parsing credential offer: %w", cause)
 	}
 	w.addProtocolWarning("issuance", "credential_offer_reread_failed",
-		"The credential_offer_uri could not be read a second time, continuing with the offer this issuance was approved for",
+		"The credential_offer_uri could not be read a second time. Issuance continues with the approved offer",
 		map[string]any{
 			"issuer":    approved.CredentialIssuer,
 			"offer_uri": offerURI,
@@ -346,7 +346,7 @@ func (w *Wallet) processCredentialOffer(offerURI string, opts OfferOptions) (_ *
 		if h := offer.Grants.TxCodeHint(); h != "" {
 			hint = " (" + h + ")"
 		}
-		return nil, fmt.Errorf("this offer requires a transaction code, which the issuer delivers separately: supply it as tx_code on the call, or --tx-code on the command line%s", hint)
+		return nil, fmt.Errorf("this offer requires a transaction code. The issuer delivers it separately. Supply it as tx_code on the call, or --tx-code on the command line%s", hint)
 	}
 	// OID4VCI 1.0 §6.1: "the client_id parameter is only needed when a form of
 	// Client Authentication that relies on this parameter is used."
@@ -742,7 +742,7 @@ func selectAuthorizationServer(metadata map[string]any, offer *oid4vc.Credential
 			return hint, nil
 		}
 	}
-	return "", fmt.Errorf("credential offer names authorization server %q, which the issuer metadata of %s does not list", hint, issuer)
+	return "", fmt.Errorf("credential offer names authorization server %q. The issuer metadata of %s does not list it", hint, issuer)
 }
 
 // grantTypesSupported reports false when the metadata has no
@@ -772,7 +772,7 @@ func (w *Wallet) checkAuthorizationServerGrant(authServer string, oauthMeta map[
 	if !stated || slices.Contains(supported, grantType) {
 		return nil
 	}
-	detail := fmt.Sprintf("Authorization server %s does not support %s, which this issuance uses. Its metadata supports %s.",
+	detail := fmt.Sprintf("Authorization server %s does not support %s. This issuance needs it. Its metadata supports %s.",
 		authServer, grantType, strings.Join(supported, ", "))
 	details := map[string]any{
 		"authorization_server":  authServer,
@@ -816,8 +816,8 @@ func (w *Wallet) fallbackAuthorizationServer(metadata map[string]any, authServer
 			continue
 		}
 		w.addProtocolWarning("issuance", "authorization_server_fallback",
-			fmt.Sprintf("Continuing with authorization server %s, which lists %s in its grant_types_supported, instead of %s.",
-				candidate, grantType, authServer),
+			fmt.Sprintf("Continuing with authorization server %s instead of %s. It lists %s in its grant_types_supported.",
+				candidate, authServer, grantType),
 			map[string]any{
 				"authorization_server": candidate,
 				"replaced_server":      authServer,
@@ -1018,7 +1018,7 @@ func (w *Wallet) reportAuthorizedConfiguration(issuer, offered, authorized strin
 	if authorized == "" {
 		return
 	}
-	detail := fmt.Sprintf("the token response from %s authorizes credential configuration %q, not the offered %q. The credential request names the identifier it returned", issuer, authorized, offered)
+	detail := fmt.Sprintf("the token response from %s authorizes credential configuration %q, not the offered %q. The credential request uses the returned identifier", issuer, authorized, offered)
 	log.Printf("[VCI] WARNING: %s", detail)
 	w.addProtocolWarning("issuance", "token_authorizes_other_configuration", detail, map[string]any{
 		"offered_configuration":    offered,
@@ -1230,10 +1230,10 @@ func (w *Wallet) issuanceChallenge(metadata, tokenResp map[string]any, issuer st
 		return cNonce, nil
 	}
 	// An advertised nonce endpoint that returns no challenge deviates from
-	// §7.1. Strict mode refuses. Debug mode warns and sends the proof without a
+	// §7.2. Strict mode refuses. Debug mode warns and sends the proof without a
 	// c_nonce, so the issuer's rejection shows the result.
 	if ep, _ := metadata["nonce_endpoint"].(string); ep != "" {
-		return "", w.reportServerDeviation(fmt.Sprintf("the nonce endpoint %s that %s advertises returned no c_nonce (OID4VCI 1.0 §7.1)", ep, issuer))
+		return "", w.reportServerDeviation(fmt.Sprintf("the nonce endpoint %s of %s returned no c_nonce (OID4VCI 1.0 §7.2)", ep, issuer))
 	}
 	cNonce, _ := tokenResp["c_nonce"].(string)
 	if cNonce == "" {

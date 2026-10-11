@@ -1,8 +1,8 @@
-# OID4VCI Flows
+# OID4VCI flows
 
 This page shows the OID4VCI flows implemented by the `eudi-dev` wallet for a received credential offer.
 
-## Flow Map
+## Flow map
 
 ```mermaid
 sequenceDiagram
@@ -28,7 +28,7 @@ sequenceDiagram
     Wallet->>Wallet: Import credential
 ```
 
-## Common Inputs
+## Common inputs
 
 | Field / setting | Why it matters in `eudi-dev` |
 |-----------------|--------------------------------|
@@ -39,7 +39,7 @@ sequenceDiagram
 | `authorization_details[].credential_identifiers` | When present in the token response, the wallet sends `credential_identifier` at the credential endpoint instead of `credential_configuration_id`. |
 | Issuer metadata `credential_response_encryption` support | When advertised, the wallet requests encrypted credential responses and decrypts compact JWE responses. |
 
-## Pre-authorized Code Flow
+## Pre-authorized code flow
 
 ```mermaid
 sequenceDiagram
@@ -72,7 +72,7 @@ sequenceDiagram
     end
 ```
 
-### Relevant Parameters
+### Relevant parameters
 
 | Field / setting | Used how |
 |-----------------|----------|
@@ -83,7 +83,7 @@ sequenceDiagram
 | `proofs` | One proof type, chosen from the configuration's `proof_types_supported`. Either `jwt` proofs (one per batch key, or a single holder-key proof carrying the key attestation when one is required) or the key attestation itself as the `attestation` proof (Appendix F.1 and F.3). |
 | `credential_identifier` vs `credential_configuration_id` | The wallet uses `credential_identifier` when the token response includes it. Otherwise the wallet uses the chosen `credential_configuration_id`. |
 
-## Authorization Code Flow
+## Authorization code flow
 
 ```mermaid
 sequenceDiagram
@@ -117,7 +117,7 @@ sequenceDiagram
     end
 ```
 
-### Relevant Parameters
+### Relevant parameters
 
 | Field / setting | Used how |
 |-----------------|----------|
@@ -156,7 +156,7 @@ sequenceDiagram
     Wallet->>AS: POST token request<br/>grant_type=authorization_code + code + PKCE
 ```
 
-### Relevant Parameters
+### Relevant parameters
 
 | Field / setting | Used how |
 |-----------------|----------|

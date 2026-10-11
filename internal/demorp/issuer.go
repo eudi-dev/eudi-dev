@@ -410,8 +410,8 @@ func (d *DemoRP) handleToken(w http.ResponseWriter, r *http.Request) {
 }
 
 // redeemOfferLocked finds the offer whose grant key matches and consumes it.
-// A grant is redeemed once (RFC 6749 §4.1.2), and an empty key matches no
-// offer. Callers hold d.mu.
+// A pre-authorized code is "short lived and single use" (OpenID4VCI 1.0
+// §4.1.1), and an empty key matches no offer. Callers hold d.mu.
 func (d *DemoRP) redeemOfferLocked(key string, grantKey func(*offerState) string) *offerState {
 	offer := d.offerLocked(key, grantKey)
 	if offer == nil || offer.redeemed {

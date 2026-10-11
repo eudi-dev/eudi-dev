@@ -245,7 +245,7 @@ Add `family_name` to the DCQL query, sign again and send it. In debug mode the w
 {
   "status": "submitted",
   "findings": [
-    "ARF RPRC_21: the request asks for family_name of urn:eudi:pid:1, which the registration certificate does not register (over-asking)"
+    "ARF RPRC_21: the request asks for family_name of urn:eudi:pid:1. The registration certificate does not register it (over-asking)"
   ]
 }
 ```
@@ -256,7 +256,7 @@ In strict mode (`wallet --mode strict serve` or `PUT /api/config/conformance` wi
 {
   "status": "refused",
   "error": "access_denied",
-  "error_description": "The request does not meet the ARF registration rules: ARF RPRC_21: the request asks for family_name of urn:eudi:pid:1, which the registration certificate does not register (over-asking)",
+  "error_description": "The request does not meet the ARF registration rules: ARF RPRC_21: the request asks for family_name of urn:eudi:pid:1. The registration certificate does not register it (over-asking)",
   "redirect_uri": "https://shop.example/done"
 }
 ```

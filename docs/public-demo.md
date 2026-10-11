@@ -94,7 +94,7 @@ To include a ticket, set `ticket` in the same request:
 
 All four baseline credentials are protected. The UI, the API and the CLI refuse to delete or revoke them. Visitor credentials can be deleted. Removing baseline protection requires direct access to `wallet.json`.
 
-All visitors share credentials, registered relying parties, trusted lists and the activity log. Anyone can issue credentials, delete unprotected credentials, register, revoke and delete relying parties, and read the log. Anyone can also put providers and external lists on the wallet's [trusted lists](wallet/serve.md#trusted-lists). These entries then anchor the `--arf` checks for every visitor. The demo holds at most 20 added providers and 5 added lists. It keeps the newest 500 credentials and 100 deferred issuances, besides the protected PIDs. Errors of a flow that no browser started are not shown. Use test data only.
+All visitors share credentials, registered relying parties, trusted lists and the activity log. Anyone can issue credentials, delete unprotected credentials, register, revoke and delete relying parties, and read the log. Anyone can also put providers and external lists on the wallet's [trusted lists](wallet/serve.md#trusted-lists). These entries then anchor the `--arf` checks for every visitor. The demo holds at most 20 added providers and 5 added lists. It keeps the newest 500 credentials and 100 deferred issuances, besides the protected PIDs. Errors of unowned flows are not shown. Use test data only.
 
 ## Rate limits
 

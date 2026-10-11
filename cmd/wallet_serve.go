@@ -98,12 +98,13 @@ func walletServeCmdWithOptions() (*cobra.Command, *walletServeOptions) {
 		Long: `Start a persistent wallet server with a web UI for managing credentials and handling OID4VP/OID4VCI flows.
 
 Capabilities:
-  - Web UI for credential management, issuing, and consent
+  - Web UI for credentials, consent, the registrar and the trusted lists
   - OID4VP authorization endpoint (/authorize)
-  - Trusted list endpoint for the PID list or a credential type (/api/trustlist)
-  - Trusted list index endpoint (/api/trustlists)
-  - Request logging with timestamps
-  - Browser-based consent UI for incoming requests
+  - OID4VCI credential offer endpoint (/credential-offer)
+  - Trusted list endpoints (/api/trustlist and /api/trustlists)
+  - Demo issuer (/issuer/) and demo verifier (/verifier/)
+  - Decoder (/decoder/)
+  - Activity log
 
 Use --register to also register OS URL scheme handlers (openid4vp://, eudi-openid4vp://, haip-vp://, openid-credential-offer://, haip-vci://, eu-eaa-offer://)
 so the wallet automatically receives incoming protocol requests.`,
@@ -116,7 +117,7 @@ so the wallet automatically receives incoming protocol requests.`,
 	}
 
 	cmd.Flags().IntVar(&opts.Port, "port", config.DefaultWalletPort, "Wallet server port")
-	cmd.Flags().BoolVar(&opts.AutoAccept, "auto-accept", false, "Headless mode: auto-accept presentations and credential offers")
+	cmd.Flags().BoolVar(&opts.AutoAccept, "auto-accept", false, "Approve presentations and credential offers without asking")
 	cmd.Flags().StringSliceVar(&opts.CredFiles, "credential", nil, "Import credential from file (repeatable)")
 	cmd.Flags().StringVar(&opts.CredentialsFile, "credentials", "", "Credentials to issue or import on every start and after a demo reset: a YAML or JSON file, a directory of such files, or '-' for stdin")
 	cmd.Flags().BoolVar(&opts.PID, "pid", false, "Auto-generate default EUDI PID credentials (SD-JWT + mdoc)")
@@ -140,7 +141,7 @@ so the wallet automatically receives incoming protocol requests.`,
 	cmd.Flags().StringVar(&opts.ImprintFile, "imprint-file", "", "HTML snippet with the site operator's legal notice, served at /imprint (required for public EU hosting)")
 	cmd.Flags().StringVar(&opts.NewsFile, "news-file", "", "HTML snippet with news for visitors of a public demo, shown once in a popup and again from the footer link. Requires --demo")
 	cmd.Flags().BoolVar(&opts.ServeTLS, "serve-tls", false, "Serve an https --base-url locally with the wallet's own TLS certificate instead of expecting an external TLS terminator in front (the HTTP port stays bound as well)")
-	cmd.Flags().StringArrayVar(&opts.DemoVerifierIssuerCAs, "demo-verifier-issuer-ca", nil, "PEM file with extra issuer CA certificates for the demo verifier, in addition to the wallet's own CA (repeatable). Use it for credentials issued outside this wallet, such as in an OIDF conformance suite run")
+	cmd.Flags().StringArrayVar(&opts.DemoVerifierIssuerCAs, "demo-verifier-issuer-ca", nil, "PEM file with extra issuer CA certificates for the demo verifier, in addition to the providers on the wallet's trusted lists (repeatable). Use it for credentials issued outside this wallet, such as in an OIDF conformance suite run")
 	cmd.Flags().StringVar(&opts.LogFormat, "log-format", os.Getenv(serverlog.EnvVar), "Console output format: 'text' (the default) or 'json' (one JSON record per line on stdout, for log collectors) (default $"+serverlog.EnvVar+")")
 	cmd.Flags().BoolVarP(&opts.Detached, "detached", "d", false, "Run the server as a background process and return once it responds. Output goes to <wallet-dir>/serve.log")
 	return cmd, &opts
@@ -596,7 +597,7 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 		fmt.Printf("  Encrypted:   request object encryption required\n")
 	}
 	if w.RequireHAIP {
-		fmt.Printf("  HAIP:        enforced (presentations: x509_hash, direct_post.jwt, DCQL, JAR, ES256)\n")
+		fmt.Printf("  HAIP:        enforced (presentations: x509_hash, direct_post.jwt, DCQL, signed request object, P-256 response encryption)\n")
 		fmt.Printf("               enforced (issuance needs an https issuer, authorization code offers also PAR, PKCE S256, DPoP and client auth)\n")
 	}
 	if w.RequireARF {

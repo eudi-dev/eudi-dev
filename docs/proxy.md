@@ -27,18 +27,18 @@ The proxy checks the rules from top to bottom. The first match sets the badge.
 
 | Badge                  | Detected when |
 |------------------------|---------------|
-| VCI Metadata           | Path contains `.well-known/openid-credential-issuer` |
-| OIDC Metadata          | Path contains `.well-known/openid-configuration` |
-| VCI Credential Offer   | `credential_offer` or `credential_offer_uri` in query |
-| VP Auth Request        | `client_id` and a `response_type` with `vp_token` in query. An `id_token` response type counts with an OID4VP parameter such as `request_uri`, `response_uri` or `dcql_query` |
-| OIDC Auth Request      | `client_id`, `redirect_uri` and a `response_type` with `code`, `token` or `id_token` in query, plus the `openid` scope or a `form_post` response mode |
-| OIDC Callback          | GET with `code` or `error` in query, or a POST body with `code` or `error` and no `grant_type` |
-| VP Request Object      | GET whose response body is a JWT, or a POST body with `wallet_metadata` or `wallet_nonce` (`request_uri_method=post`) |
-| VCI Nonce Request      | POST to a path ending in `/nonce` whose response contains `c_nonce` |
-| VP Auth Response       | POST body contains `vp_token`, `presentation_submission`, `id_token` or `response` (JARM) |
-| OIDC Token Request     | POST to `/protocol/openid-connect/token`, a response with `id_token`, or an `authorization_code` grant with `redirect_uri` |
-| VCI Token Request      | POST to a path ending in `/token` |
-| VCI Credential Request | POST to a path ending in `/credential` or `/credentials` |
+| VCI metadata           | Path contains `.well-known/openid-credential-issuer` |
+| OIDC metadata          | Path contains `.well-known/openid-configuration` |
+| VCI credential offer   | `credential_offer` or `credential_offer_uri` in query |
+| VP auth request        | `client_id` and a `response_type` with `vp_token` in query. An `id_token` response type counts with an OID4VP parameter such as `request_uri`, `response_uri` or `dcql_query` |
+| OIDC auth request      | `client_id`, `redirect_uri` and a `response_type` with `code`, `token` or `id_token` in query, plus the `openid` scope or a `form_post` response mode |
+| OIDC callback          | GET with `code` or `error` in query, or a POST body with `code` or `error` and no `grant_type` |
+| VP request object      | GET whose response body is a JWT, or a POST body with `wallet_metadata` or `wallet_nonce` (`request_uri_method=post`) |
+| VCI nonce request      | POST to a path ending in `/nonce` whose response contains `c_nonce` |
+| VP auth response       | POST body contains `vp_token`, `presentation_submission`, `id_token` or `response` (JARM) |
+| OIDC token request     | POST to `/protocol/openid-connect/token`, a response with `id_token`, or an `authorization_code` grant with `redirect_uri` |
+| VCI token request      | POST to a path ending in `/token` |
+| VCI credential request | POST to a path ending in `/credential` or `/credentials` |
 
 When no rule matches, a request to an endpoint that earlier traffic advertised gets the badge of that endpoint. Metadata, authorization requests and request objects advertise endpoints.
 
@@ -97,17 +97,17 @@ A proxy started without `--all-traffic` records only OID4VP/VCI requests, so `lo
 ## Example output
 
 ```
-━━━ [14:32:05] GET /authorize?client_id=...  ← 200 (45ms)  [VP Auth Request]
+━━━ [14:32:05] GET /authorize?client_id=...  ← 200 (45ms)  [VP auth request]
     ┌ client_id: did:web:verifier.example
     ┌ response_mode: direct_post.jwt
     ┌ nonce: abc123
     ┌ dcql_query: { "credentials": [...] }
 
-━━━ [14:32:05] GET /request/abc123  ← 200 (12ms)  [VP Request Object]
+━━━ [14:32:05] GET /request/abc123  ← 200 (12ms)  [VP request object]
     ┌ header: {"alg":"ES256","typ":"oauth-authz-req+jwt"}
     ┌ payload: { ... }
 
-━━━ [14:32:06] POST /response  ← 200 (89ms)  [VP Auth Response]
+━━━ [14:32:06] POST /response  ← 200 (89ms)  [VP auth response]
     ┌ response_type: JWE (decrypted via debug key)
     ┌ encryption_alg: ECDH-ES
     ┌ response_payload: {"vp_token":{...},"state":"abc123"}
@@ -142,8 +142,7 @@ Without a key the proxy shows the JWE header fields only (`alg`, `enc`, `kid`, `
 
 ## Debugging tips
 
-- The wallet logs credentials and encryption keys to stdout for local debugging:
-  - `[VP] JWE content encryption key for proxy debugging: <base64url CEK>`
-  - `[VP] SD-JWT presentation created: ...`
+- The wallet logs the content encryption key of each encrypted response to stdout:
+  `[VP] JWE content encryption key for proxy debugging: <base64url CEK>`
 - Output of a service launched with `--` appears with a `[service]` prefix.
 - Pipe `--json` output to `jq`: `eudi proxy --target ... --json | jq '.credentials'`

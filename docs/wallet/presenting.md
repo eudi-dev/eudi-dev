@@ -35,7 +35,7 @@ eudi wallet accept 'openid-credential-offer://...' --tx-code 123456
 | Flag                    | Default  | Description                                      |
 |-------------------------|----------|--------------------------------------------------|
 | `--port`                | `8085`   | Server port for OID4VP                           |
-| `--auto-accept`         | `false`  | Auto-approve OID4VP presentations                |
+| `--auto-accept`         | `false`  | Approve presentations without asking             |
 | `--tls-verify` | mode default | Verify all outbound HTTPS certificates (`true` in strict mode, `false` in debug mode) |
 | `--tls-ca` | None | Add PEM CA certificates to the system TLS trust store |
 | `--http-proxy`, `--https-proxy`, `--no-proxy` | Environment | Forward proxy settings. See [outbound proxy](serve.md#outbound-proxy) |
@@ -72,7 +72,7 @@ Scans a QR code from an image file or screen capture and detects the content:
 ```bash
 eudi wallet scan qr-image.png
 eudi wallet scan --screen              # macOS interactive screen capture
-eudi wallet scan --screen --auto-accept # auto-approve if it's a presentation
+eudi wallet scan --screen --auto-accept # approves a presentation without asking
 ```
 
 `wallet scan` reads the QR code, then runs the same flow as `wallet accept`. If a remote target is configured or a wallet server runs for the same wallet directory, it sends the request to that wallet and opens its consent UI. Otherwise it handles the request locally. See [automatic routing](http-api.md#automatic-routing-single-writer).
@@ -141,7 +141,7 @@ PKCE and DPoP metadata is checked when present. A server advertising PKCE withou
 
 For pre-authorized offers, only the HTTPS transport rule applies to this part of validation. HAIP §4 requires support for authorization code issuance but scopes PAR to use of the authorization endpoint.
 
-§5 of the profile allows only `x509_hash` for signed requests. The wallet therefore refuses `x509_san_dns`, although OpenID4VP defines it.
+§5 of the profile requires the `x509_hash` prefix for signed requests. With `--haip` an `x509_san_dns` client identifier is a finding.
 
 An unsigned request arrives over the Digital Credentials API without a Request Object. Appendix A.2 of OpenID4VP says such a request carries no `client_id`, and a wallet ignores one that is present. The origin reported by the platform identifies the caller.
 
@@ -175,7 +175,7 @@ How strict mode refuses depends on the verifier. When only ARF findings remain a
 
 The [registrar API walkthrough](registrar-api.md) shows both outcomes with real requests.
 
-Consent shows purposes and privacy policies only from registration certificates that belong to the access certificate that signed the request object. A request without a request object shows none.
+A request object is signed with an access certificate. Consent shows purposes and privacy policies only from registration certificates bound to that access certificate. A request without a request object shows none.
 
 The wallet takes its trust anchors from [trusted lists](serve.md#trusted-lists) only. An access certificate must chain to a CA on an access certificate provider list (`access-ca`, ETSI TS 119 602 V1.1.1 Annex F). The wallet's own list names the relying party access CA of its [registrar](registrar.md). The demo issuer and the demo verifier get their access certificates from that CA too. A registration certificate and its status list must chain to a CA on a registration certificate provider list (`registrar`, Annex G). The wallet's own list names the registrar CA. The relying party access CA signs any visitor's CSR, so it is not on the `registrar` list.
 

@@ -1,6 +1,6 @@
 # Trust anchors come from trusted lists
 
-The ARF has the wallet accept a trust anchor because a trusted list operator signed the list containing that anchor (PPNot_05, TLPub_05, TLPub_07). The ARF keeps separate lists for PID providers, wallet providers, access certificate providers, registration certificate providers and PuB-EAA providers (RPACANot_05, RPACANot_05a). ETSI TS 119 602 V1.1.1 defines these lists in Annexes D to H. A test wallet also needs a way to trust the issuers and registrars of a test setup without code changes.
+The ARF has the wallet accept a trust anchor because a trusted list operator signed the list containing that anchor (PPNot_05, TLPub_05, TLPub_07). The ARF keeps separate lists for PID providers, wallet providers, access certificate providers, registration certificate providers and PuB-EAA providers. RPACANot_05 and RPACANot_05a set up the lists of access certificate providers and registration certificate providers. ETSI TS 119 602 V1.1.1 defines these lists in Annexes D to H. A test wallet also needs a way to trust the issuers and registrars of a test setup without code changes.
 
 ## Decision
 

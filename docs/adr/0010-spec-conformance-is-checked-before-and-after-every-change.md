@@ -14,7 +14,7 @@ Specifications change. A profile can defer a rule to another document, and a lat
 
 ## Before
 
-Locate the exact section in the current document and confirm its requirement level. A check may only be fatal where the specification says MUST. Where a profile defers, read what it defers to, at the version the profile references. Record the version in the change.
+Locate the exact section in the current document and confirm its requirement level. A check may only be fatal where the specification says MUST. Where a profile defers, read the current version of what it defers to ([ADR-0025](0025-the-current-specification-is-definitive.md)). A draft that the profile pins is the exception ([ADR-0014](0014-pinned-draft-versions-stay-supported-alongside-the-latest.md)). Record the version in the change.
 
 ## After
 

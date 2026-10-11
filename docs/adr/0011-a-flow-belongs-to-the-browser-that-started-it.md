@@ -28,6 +28,6 @@ When the wallet redirects a browser, the URL includes the request id. A call wit
 
 Set the owner when creating an event and keep it immutable. Event streams can then read it without taking the registry lock.
 
-The owner is never sent to a client. `ConsentRequest` is marshalled field by field, so a new field there must not expose the owner.
+The owner is never sent to a client. `consent.Request` is marshalled field by field (`marshal` in `internal/consent/request.go`), so a new field there must not expose the owner.
 
 Use the same owner routing for local and shared wallets.

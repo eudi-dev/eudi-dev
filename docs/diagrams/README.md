@@ -1,4 +1,4 @@
-# Flow Diagrams
+# Flow diagrams
 
 These Mermaid diagrams show how `eudi-dev` interacts with issuers and verifiers. Each page also lists the request parameters and wallet flags that affect the flow.
 
@@ -6,10 +6,10 @@ These Mermaid diagrams show how `eudi-dev` interacts with issuers and verifiers.
 
 | Page | Scope |
 |------|-------|
-| [OID4VP Flows](./oid4vp.md) | Presentation request variants, response modes, Browser API, and request-object handling |
-| [OID4VCI Flows](./oid4vci.md) | Credential offer variants, grant flows, and the credential request branches |
+| [OID4VP flows](./oid4vp.md) | Presentation request variants, response modes, Browser API, and request-object handling |
+| [OID4VCI flows](./oid4vci.md) | Credential offer variants, grant flows, and the credential request branches |
 
-## Whole Interaction
+## Whole interaction
 
 ```mermaid
 sequenceDiagram
@@ -17,7 +17,7 @@ sequenceDiagram
     participant Issuer
     participant AS as Authorization Server
     participant Wallet as eudi-dev
-    participant RP as RP page / verifier
+    participant RP as Verifier
 
     Issuer-->>Browser: credential_offer or credential_offer_uri
     Browser->>Wallet: eu-eaa-offer://, openid-credential-offer:// or haip-vci://
@@ -30,7 +30,7 @@ sequenceDiagram
     Wallet-->>RP: presentation response
 ```
 
-## Supported Flow Map
+## Supported flow map
 
 ```mermaid
 sequenceDiagram
@@ -38,7 +38,7 @@ sequenceDiagram
     participant Wallet as eudi-dev
     participant Issuer
     participant AS as Authorization Server
-    participant RP as RP page / verifier
+    participant RP as Verifier
 
     Note over Browser,AS: OID4VCI branch
     Browser->>Wallet: receive and open credential offer
@@ -72,8 +72,8 @@ sequenceDiagram
     end
 ```
 
-## Reading Guide
+## Reading guide
 
-- [OID4VCI Flows](./oid4vci.md) shows how credentials get into the wallet.
-- [OID4VP Flows](./oid4vp.md) shows how the wallet selects and returns stored credentials.
+- [OID4VCI flows](./oid4vci.md) shows how credentials get into the wallet.
+- [OID4VP flows](./oid4vp.md) shows how the wallet selects and returns stored credentials.
 - The parameter tables on each page list the request fields and wallet flags that change behavior.

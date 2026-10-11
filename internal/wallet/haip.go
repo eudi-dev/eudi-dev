@@ -76,8 +76,8 @@ func ValidateHAIPIssuanceCompliance(offer *oid4vc.CredentialOffer, oauthMeta map
 		violations = append(violations, "HAIP 1.0 §4: the authorization server advertises PKCE without S256")
 	}
 	// §4.4.1 requires the issuer to require client authentication. Advertising
-	// it is only a SHOULD (§10.1 of the attestation draft), so the wallet learns
-	// it by authenticating.
+	// it is only a SHOULD (draft-ietf-oauth-attestation-based-client-auth-07
+	// §10.1, -08 §9, -10 §8), so the wallet learns it by authenticating.
 
 	return violations
 }

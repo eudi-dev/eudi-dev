@@ -162,11 +162,11 @@
     for (var i = 0; i < credentials.length; i++) {
       var label;
       if (credentialLabels && credentialLabels[i]) {
-        label = "View " + credentialLabels[i] + " in Decoder";
+        label = "Open " + credentialLabels[i] + " in decoder";
       } else if (credentials.length === 1) {
-        label = "View in Decoder";
+        label = "Open in decoder";
       } else {
-        label = "View Credential " + (i + 1) + " in Decoder";
+        label = "Open credential " + (i + 1) + " in decoder";
       }
       var href = "decode/#credential=" + encodeURIComponent(credentials[i]);
       html += '<a class="btn credential-link" id="' + id + '-' + i + '" href="' + escapeHtml(href) + '" target="_blank">' + escapeHtml(label) + '</a>';
@@ -198,13 +198,13 @@
         '<span class="entry-badge ' + badgeClass(entry.classLabel) + '" id="' + id + '-badge">' + escapeHtml(entry.classLabel) + '</span>' +
       '</div>' +
       '<div class="entry-details" id="' + id + '-details">' +
-        '<div class="detail-actions" id="' + id + '-actions"><button class="btn btn-copy-curl" id="' + id + '-copy-curl">Copy cURL</button></div>' +
+        '<div class="detail-actions" id="' + id + '-actions"><button class="btn btn-copy-curl" id="' + id + '-copy-curl">Copy as curl</button></div>' +
         renderCredentialLinks(entry.credentials, entry.credentialLabels, id + "-credentials") +
         (entry.decoded ? '<div class="detail-section" id="' + id + '-decoded"><h3 id="' + id + '-decoded-title">Decoded</h3>' + renderDecoded(entry.decoded, id + "-decoded") + '</div>' : '') +
-        detailSection(id + "-request-headers", "Request Headers", renderHeaders(entry.requestHeaders)) +
-        (entry.requestBody ? detailSection(id + "-request-body", "Request Body", escapeHtml(entry.requestBody)) : '') +
-        detailSection(id + "-response-headers", "Response Headers", renderHeaders(entry.responseHeaders)) +
-        (entry.responseBody ? detailSection(id + "-response-body", "Response Body", escapeHtml(entry.responseBody)) : '') +
+        detailSection(id + "-request-headers", "Request headers", renderHeaders(entry.requestHeaders)) +
+        (entry.requestBody ? detailSection(id + "-request-body", "Request body", escapeHtml(entry.requestBody)) : '') +
+        detailSection(id + "-response-headers", "Response headers", renderHeaders(entry.responseHeaders)) +
+        (entry.responseBody ? detailSection(id + "-response-body", "Response body", escapeHtml(entry.responseBody)) : '') +
       '</div>';
 
     if (expandedEntries.has(entry.id)) el.classList.add("expanded");
@@ -219,7 +219,7 @@
       navigator.clipboard.writeText(curl).then(function () {
         var btn = e.target;
         btn.textContent = "Copied!";
-        setTimeout(function () { btn.textContent = "Copy cURL"; }, 1500);
+        setTimeout(function () { btn.textContent = "Copy as curl"; }, 1500);
       });
     });
 
@@ -300,8 +300,8 @@
   function updateFlowHeader(group, flowEntries) {
     var flowType = "Flow";
     for (var j = 0; j < flowEntries.length; j++) {
-      if (flowEntries[j].classLabel.startsWith("VP")) { flowType = "VP Flow"; break; }
-      if (flowEntries[j].classLabel.startsWith("VCI")) { flowType = "VCI Flow"; break; }
+      if (flowEntries[j].classLabel.startsWith("VP")) { flowType = "VP flow"; break; }
+      if (flowEntries[j].classLabel.startsWith("VCI")) { flowType = "VCI flow"; break; }
     }
     var firstTime = formatTime(flowEntries[0].timestamp);
     var lastTime = formatTime(flowEntries[flowEntries.length - 1].timestamp);

@@ -24,6 +24,19 @@ header {
   flex-shrink: 0;
 }
 
+/* The logo's aspect ratio is 46:51. A square box adds padding. */
+.header-logo {
+  width: 26px;
+  height: 29px;
+  flex-shrink: 0;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 header h1 {
   font-size: 14px;
   font-weight: 600;
@@ -315,6 +328,10 @@ header h1 {
 
 /* Header controls and entry rows wrap on narrow screens. The URL gets its own line. */
 @media (max-width: 768px) {
+  .decoded-fields {
+    grid-template-columns: 1fr;
+  }
+
   header {
     flex-wrap: wrap;
     gap: 8px 12px;

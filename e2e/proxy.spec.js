@@ -60,14 +60,14 @@ test.afterAll(async () => {
   if (target) await new Promise((resolve) => target.close(resolve));
 });
 
-test("Copy cURL quotes what the target controls", async ({ page, context }) => {
+test("Copy as curl quotes what the target controls", async ({ page, context }) => {
   const marker = path.join(work, "pwned");
   const injection = `'$(touch${"${IFS}"}${marker})'`;
   await proxied("GET", `/authorize?client_id=x&response_type=vp_token&state=${injection}`, { "X-Note": `a ${injection} b` });
 
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto(DASHBOARD);
-  const entry = page.locator(".entry").filter({ hasText: "VP Auth Request" }).first();
+  const entry = page.locator(".entry").filter({ hasText: "VP auth request" }).first();
   await entry.locator(".entry-header").click();
   await entry.locator(".btn-copy-curl").click();
   await expect(entry.locator(".btn-copy-curl")).toHaveText("Copied!");
@@ -94,7 +94,7 @@ test("the dashboard carries the EUDI Dev name and exports eudi-dev.har", async (
 });
 
 test("an entry that arrives twice is shown once", async ({ page }) => {
-  const entry = { id: 7, timestamp: new Date().toISOString(), method: "GET", url: "http://x/twice", statusCode: 200, classLabel: "VP Auth Request", durationMs: 1 };
+  const entry = { id: 7, timestamp: new Date().toISOString(), method: "GET", url: "http://x/twice", statusCode: 200, classLabel: "VP auth request", durationMs: 1 };
   await page.route("**/api/entries", (route) => route.fulfill({ contentType: "application/json", body: "[]" }));
   // Every reconnect of the stream delivers the same entry again.
   await page.route("**/api/stream", (route) =>
@@ -109,7 +109,7 @@ test("an entry that arrives twice is shown once", async ({ page }) => {
 
 test("a new entry joins its flow and leaves the open entry open", async ({ page }) => {
   const entry = (id, label) => ({ id, flowId: "flow-1", timestamp: new Date().toISOString(), method: "GET", url: `http://x/${id}`, statusCode: 200, classLabel: label, durationMs: 1 });
-  const stream = [entry(21, "VP Auth Request"), entry(22, "VP Request Object")];
+  const stream = [entry(21, "VP auth request"), entry(22, "VP request object")];
   let connections = 0;
   await page.addInitScript(() => localStorage.setItem("proxy-timeline", "true"));
   await page.route("**/api/entries", (route) => route.fulfill({ contentType: "application/json", body: "[]" }));
@@ -150,9 +150,9 @@ for (const width of [375, 1280]) {
       await page.setViewportSize({ width, height: 800 });
       await page.emulateMedia({ colorScheme: scheme });
       await page.goto(DASHBOARD);
-      const row = page.locator(".entry").filter({ hasText: "VCI Token Request" }).first();
+      const row = page.locator(".entry").filter({ hasText: "VCI token request" }).first();
       const badge = row.locator(".entry-badge");
-      await expect(badge).toHaveText("VCI Token Request");
+      await expect(badge).toHaveText("VCI token request");
 
       const fits = await badge.evaluate((el) => el.scrollWidth <= el.clientWidth && el.getBoundingClientRect().right <= window.innerWidth);
       expect(fits).toBe(true);

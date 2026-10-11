@@ -363,7 +363,7 @@ func TestKeyAttestationClaims(t *testing.T) {
 	if got, _ := payload["key_storage"].([]any); len(got) != 1 || got[0] != "iso_18045_high" || payload["user_authentication"] != nil {
 		t.Errorf("default: key_storage = %v, user_authentication = %v, want the required key_storage only", payload["key_storage"], payload["user_authentication"])
 	}
-	if !hasWarningContaining(w, "cannot back") {
+	if !hasWarningContaining(w, "can't back") {
 		t.Error("default: want the claim marked in the activity log")
 	}
 
@@ -381,7 +381,7 @@ func TestKeyAttestationClaims(t *testing.T) {
 			t.Errorf("level: %s = %v, want [iso_18045_moderate]", claim, payload[claim])
 		}
 	}
-	if !hasWarningContaining(w, "cannot back") {
+	if !hasWarningContaining(w, "can't back") {
 		t.Error("level: want the claim marked in the activity log")
 	}
 

@@ -127,7 +127,7 @@ func ruleNames(offered []offeredAttestation, pick func(issuerRules) string) stri
 }
 
 // issuerARFFindings checks how an issuer authenticates before the wallet
-// requests a credential (ARF v3.0.0 §6.6.2.2 and §6.6.2.3).
+// requests a credential (ARF §6.6.2.2 and §6.6.2.3).
 //
 // The access certificate signs the Credential Issuer Metadata (ISSU_22,
 // ISSU_32, ETSI TS 119 472-3 V1.1.1 §4.2.2). The registration certificate is
@@ -261,9 +261,11 @@ func issuerInfoShapeFindings(entries []map[string]any) []string {
 	const rule = "ETSI TS 119 472-3 V1.1.1 ISS-MDATA-REG_CERT-4.2.3-"
 	var findings []string
 	var dataset map[string]any
+	hasDataset := false
 	for _, entry := range entries {
 		entryFormat, _ := entry["format"].(string)
 		if entryFormat == "registrar_dataset" {
+			hasDataset = true
 			dataset, _ = entry["data"].(map[string]any)
 			continue
 		}
@@ -277,8 +279,11 @@ func issuerInfoShapeFindings(entries []map[string]any) []string {
 	if len(entries) == 0 {
 		return findings
 	}
-	if len(dataset) == 0 {
+	if !hasDataset {
 		return append(findings, rule+"07: issuer_info has no registrar_dataset element with the provider's registration information")
+	}
+	if len(dataset) == 0 {
+		return append(findings, rule+"09: the data of the registrar_dataset element is not a non-empty JSON object")
 	}
 	for i, member := range []string{"identifier", "srvDescription", "registryURI", "providesAttestations"} {
 		if value, ok := dataset[member]; !ok || value == nil || value == "" || isEmptyList(value) {
