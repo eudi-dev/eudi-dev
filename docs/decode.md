@@ -23,8 +23,8 @@ eudi decode request.jwt
 cat offer.json | eudi decode
 
 # ETSI trusted lists
-eudi decode trust-list.jwt
-eudi decode -f trustlist https://example.com/trust-list.jwt
+eudi decode trusted-list.jwt
+eudi decode -f trusted-list https://example.com/trusted-list.jwt
 ```
 
 ## Auto-detection order
@@ -50,7 +50,7 @@ eudi decode -f vp request.jwt
 
 Accepted values: `sdjwt` (or `sd-jwt`), `jwt`, `mdoc` (or `mso_mdoc`), `vci` (or `oid4vci`), `vp` (or `oid4vp`), `trusted-list` (or `trust`).
 
-## QR Code Scanning
+## QR code scanning
 
 ```bash
 eudi decode --qr screenshot.png

@@ -1,4 +1,4 @@
-# Credential Templates
+# Credential templates
 
 A credential template gives test credentials a name, type (VCT or doc type) and default claims. It can also set an expiry and claims that are always disclosed. The CLI, HTTP API and wallet UI share the same templates.
 
@@ -10,10 +10,10 @@ The binary includes nine predefined templates. They are ordinary template files 
 | `pid-mdoc` | mdoc | EUDI PID (ISO 18013-5 elements, `eu.europa.ec.eudi.pid.1`) |
 | `german-pid-sdjwt` | sdjwt | German PID (`urn:eudi:pid:de:1`), which extends the EUDI PID |
 | `german-pid-mdoc` | mdoc | German PID (ISO 18013-5 elements, `eu.europa.ec.eudi.pid.1` plus `eu.europa.ec.eudi.pid.de.1`) |
-| `italian-pid-sdjwt` | sdjwt | Italian PID (`urn:eudi:pid:it:1`), which extends the EUDI PID (new in 3.0.0) |
-| `italian-pid-mdoc` | mdoc | Italian PID (`eu.europa.ec.eudi.pid.1` plus `eu.europa.ec.eudi.pid.it.1`) (new in 3.0.0) |
-| `dutch-pid-sdjwt` | sdjwt | Dutch PID (`urn:eudi:pid:nl:1`), which extends the EUDI PID (new in 3.0.0) |
-| `dutch-pid-mdoc` | mdoc | Dutch PID (`eu.europa.ec.eudi.pid.1` plus `eu.europa.ec.eudi.pid.nl.1`) (new in 3.0.0) |
+| `italian-pid-sdjwt` | sdjwt | Italian PID (`urn:eudi:pid:it:1`), which extends the EUDI PID |
+| `italian-pid-mdoc` | mdoc | Italian PID (`eu.europa.ec.eudi.pid.1` plus `eu.europa.ec.eudi.pid.it.1`) |
+| `dutch-pid-sdjwt` | sdjwt | Dutch PID (`urn:eudi:pid:nl:1`), which extends the EUDI PID |
+| `dutch-pid-mdoc` | mdoc | Dutch PID (`eu.europa.ec.eudi.pid.1` plus `eu.europa.ec.eudi.pid.nl.1`) |
 | `demo-ticket` | sdjwt | The demo issuer's event ticket (`urn:eudi-test:demo-ticket:1`) |
 
 The `pid-*` templates follow the attribute tables of the [EUDI PID Rulebook v1.7](https://github.com/eu-digital-identity-wallet/eudi-doc-attestation-rulebooks-catalog/blob/6d8f7f8422e5bf6c48186005b6835c078f762a67/rulebooks/pid/pid-rulebook.md) and use its example identity Jan Wijnand ('t Hart). The `german-pid-*` templates follow the [German PID Rulebook 1.0.0 consultation draft](https://bmi.usercontent.opencode.de/eudi-wallet/eidas-2.0-architekturkonzept/content/features/PID/german-pid-rulebook/) and use the ERIKA MUSTERMANN specimen identity. The display description of each predefined PID links to its rulebook.
@@ -228,11 +228,9 @@ The wallet server exposes the same template store:
 | `PUT /api/templates/{name}` | Create or replace a user template (body is a full template document, so this is also the import endpoint) |
 | `DELETE /api/templates/{name}` | Delete a user template (deleting an override of a predefined template restores the predefined version) |
 
-`POST /api/issue` accepts `template`, `always_disclosed`, and `save_as_template` fields. See the [wallet HTTP API](wallet/http-api.md#issuing-credentials).
+`POST /api/issue` accepts `template`, `always_disclosed`, and `save_as_template` fields. See the [wallet HTTP API](wallet/http-api.md#credential-issuance).
 
 ## Attestation catalogue
-
-*(new in 3.0.0)*
 
 The predefined templates are always in the [attestation catalogue](wallet/registrar.md#attestation-catalogue). User templates are added only on request. To add one, send a `catalog` object next to the template document in `PUT /api/templates/{name}`, or next to `save_as_template` in `POST /api/issue`:
 

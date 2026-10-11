@@ -746,9 +746,28 @@ header h1 {
   margin-bottom: 12px;
 }
 
+label.dialog-hint {
+  display: block;
+}
+
+.import-textarea {
+  height: 120px;
+  padding: 8px;
+}
+
+.conf-hint {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.conf-hint:empty {
+  display: none;
+}
+
 .form-grid {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 8px 12px;
   align-items: center;
 }
@@ -2508,6 +2527,26 @@ header h1 {
   line-height: 1.45;
 }
 @media (max-width: 480px) {
+  /* The title takes its own row, the status and actions share the next. */
+  .registrar-cert-line {
+    grid-template-columns: auto minmax(0, 1fr);
+    row-gap: 6px;
+  }
+  .registrar-cert-line .registrar-cert-title {
+    grid-column: 1 / -1;
+  }
+  .registrar-cert-actions {
+    justify-self: end;
+  }
+  /* Labels go above their inputs, so the inputs keep the full width. */
+  .form-grid {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 4px;
+  }
+  .form-grid .form-label {
+    white-space: normal;
+    margin-top: 6px;
+  }
   .trust-items {
     grid-template-columns: 1fr;
     gap: 2px;

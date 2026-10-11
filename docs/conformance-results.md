@@ -1,6 +1,6 @@
-# Current OIDF Wallet Conformance Results
+# OIDF wallet conformance results
 
-Reproduce these runs with [Running OIDF Wallet Conformance](./conformance-run.md).
+Reproduce these runs with the [wallet conformance runner](./conformance-run.md).
 
 ## Run of 2026-10-10 (3.0.0-beta.3)
 
@@ -197,7 +197,7 @@ No new conformance regression was found. The baseline failures remain unresolved
 
 Local evidence is summarized in `/tmp/eudi-activity-conformance-verification.json`. Wallet exports are under `/tmp/eudi-activity-wallet-file-final`, `/tmp/eudi-activity-wallet-memory`, `/tmp/eudi-activity-wallet-postgres`, and their `-remaining*` continuation directories. Focused reruns are in `wallet-<backend>-rerun*` directories under the same `/tmp/eudi-activity-` prefix. Baseline comparisons are in `/tmp/eudi-activity-wallet-mdoc-baseline*` and `/tmp/eudi-activity-demo-baseline`. Demo exports combine `/tmp/eudi-activity-demo-file` and `/tmp/eudi-activity-demo-final-haip`. Each run directory contains `runner.log` and exported ZIP archives in `results/`.
 
-## Demo Issuer and Verifier (2026-08-31)
+## Demo issuer and verifier (2026-08-31)
 
 The demo issuer and demo verifier are tested with the suite acting as the wallet. Use [the demo runbook](./conformance-run-demorp.md) to reproduce. Suite `release-v5.2.4` (revision `ab35a8d`), 9 plans (4 issuer, 5 verifier), 101 modules: **61 `PASSED`, 36 `REVIEW`, 4 `WARNING`, 0 `FAILED`, 0 `SKIPPED`**, 7645 condition successes against 0 condition failures.
 
@@ -341,7 +341,7 @@ Release-v5.2.2 reworked `alternate-happy-flow` to put a decoy origin into an uns
 
 The 1 condition failure occurs in a module that still finished `PASSED`: a suite pause made the monitor retry an offer submission, the wallet ran the flow twice, and `ValidateAuthorizationCode` compared the code of one flow against the other. This is the same retry artifact as the 2026-08-08 `issuer_state` failure.
 
-## New release-v5.2.1 Coverage
+## release-v5.2.1 coverage
 
 Release-v5.2.1 added two wallet test modules. Both pass:
 
@@ -352,7 +352,7 @@ Release-v5.2.1 added two wallet test modules. Both pass:
 
 Release-v5.2.1 also enforces RFC 8414 §3.1 on the wallet's OAuth authorization server metadata request: the wallet strips the issuer's terminating `/` before inserting `/.well-known/oauth-authorization-server`, and preserves the Credential Issuer Identifier path verbatim for `/.well-known/openid-credential-issuer` per OID4VCI 1.0 §12.2.2.
 
-## Result Classification
+## Result classification
 
 - `PASSED` is a pass.
 - The local harness accepts `REVIEW` when the runner summary shows `FINISHED`, `REVIEW`, and `0 FAILURE`. These modules are negative tests where the wallet rejects the request and the harness uploads the required screenshot placeholder.
@@ -379,14 +379,14 @@ Condition counts are from the 2026-08-09 run on suite release-v5.2.2. The screen
 | 13 | VCI HAIP | SD-JWT | 3978 success / 0 failure. Batch issuance passes in immediate, deferred, and encrypted variants. | [PNG](./conformance-results/2026-07-30/plan-11-vci-haip-sdjwt.png) |
 | 14 | VCI HAIP | mdoc | 4244 success / 1 failure. Batch issuance `SKIPPED` in all three variants in this run (the `jwt.keyattest` configuration, see below). The 1 failure is the retried-submission artifact described above. The module finished `PASSED`. | [PNG](./conformance-results/2026-07-30/plan-12-vci-haip-mdoc.png) |
 
-## Passing VCI Coverage
+## Passing VCI coverage
 
 - VCI Final SD-JWT and mdoc issuer-initiated authorization code flows pass, including the batch credential issuance module in both formats.
 - VCI Final SD-JWT and mdoc pre-authorized code flows pass, including the notification endpoint and batch issuance.
 - VCI HAIP SD-JWT and mdoc pass for plain immediate issuance, deferred issuance, encrypted credential request variants, FAPI happy-path modules, and FAPI negative authorization-response modules, plus batch issuance in both formats.
 - Strict mode rejects issuer mismatch in authorization server metadata, invalid authorization-response `iss`, removed authorization-response `iss`, invalid `state`, and missing `state`.
 
-## Debug Mode Reference Run
+## Debug mode reference run
 
 The documented matrix above runs the wallet in `strict` mode. A full reference run with `OIDF_WALLET_MODE=debug` (2026-07-31, same suite baseline, run directory `/tmp/oidf-wallet-conformance-local-debug`) shows which coverage depends on strict mode:
 
@@ -397,7 +397,7 @@ The documented matrix above runs the wallet in `strict` mode. A full reference r
 
 Debug mode is for troubleshooting verifier and issuer integrations. Only strict-mode runs count as conformance results.
 
-## VP Module Selection
+## VP module selection
 
 The wrapper passes explicit module lists for the alpha Final VP plans, so each result page shows only the modules that apply to its variant.
 
@@ -416,7 +416,7 @@ Current `no-claims-in-dcql-query` status:
 - VP HAIP SD-JWT `no-claims-in-dcql-query` passes for plans 9 and 11.
 - VP HAIP mdoc `no-claims-in-dcql-query` passes for plans 10 and 12.
 
-## Visual Evidence
+## Visual evidence
 
 Local OIDF `plan-detail.html` pages from the documented runs.
 
@@ -504,7 +504,7 @@ Local OIDF `plan-detail.html` pages from the documented runs.
 
 </details>
 
-## Result Inspection
+## Result inspection
 
 Use this query to summarize important runner lines from a run:
 
@@ -516,7 +516,7 @@ rg -n \
 
 Use the printed `plan-detail.html?plan=...` URLs from `runner.log` to inspect module details in the local suite UI.
 
-## Update Rules
+## Update rules
 
 When the wallet or suite baseline changes:
 

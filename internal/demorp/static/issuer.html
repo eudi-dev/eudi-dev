@@ -103,23 +103,14 @@
         <div class="subtitle" id="header-subtitle" style="margin-bottom:0">A minimal OpenID4VCI issuer for demo purposes</div>
       </div>
     </div>
-    <p id="intro">
-      This issuer hands out a signed <strong>Demo Event Ticket</strong> (SD-JWT VC)
-      over OpenID4VCI, and any credential template this wallet knows. Create an
-      offer and open it in the wallet on this host, or copy the offer URI into any
-      wallet that can reach this server.
-    </p>
+    <p id="intro">Offers the Demo Event Ticket and the credential templates of this wallet over OpenID4VCI.</p>
     <div class="grant-row" id="credential-row">
       <label class="grant-label" id="credential-label" for="credential-select">Credential</label>
       <select id="credential-select" aria-label="Credential configuration to offer">
         <option value="" selected>Demo Event Ticket</option>
       </select>
     </div>
-    <p class="grant-hint" id="credential-hint">
-      The demo ticket, or a credential issued from one of this wallet's templates
-      (the built-in EUDI and German PID among them), signed under the trust profile
-      its type belongs to.
-    </p>
+    <p class="grant-hint" id="credential-hint">Signed with the key of the credential's category.</p>
     <div class="grant-row" id="grant-row">
       <span class="grant-label" id="grant-label">Grant</span>
       <div class="toggle" id="grant-toggle" role="radiogroup" aria-label="Grant type">
@@ -127,9 +118,7 @@
         <button type="button" class="toggle-option" id="grant-authorization-code" data-grant="authorization_code" role="radio" aria-checked="false">Authorization code</button>
       </div>
     </div>
-    <p class="grant-hint" id="grant-hint">
-      The offer carries the code, so the wallet redeems it without any sign-in.
-    </p>
+    <p class="grant-hint" id="grant-hint">The offer carries the code. No sign-in.</p>
     <div class="grant-row" id="authorization-row" hidden>
       <span class="grant-label" id="authorization-label">Authorization</span>
       <div class="toggle" id="authorization-toggle" role="radiogroup" aria-label="How the user authorizes the issuance">
@@ -137,9 +126,7 @@
         <button type="button" class="toggle-option" id="authorization-presentation" data-authorization="presentation" role="radio" aria-checked="false">Presentation during issuance</button>
       </div>
     </div>
-    <p class="grant-hint" id="authorization-hint" hidden>
-      You sign in here (alice / alice) while the wallet redeems the offer.
-    </p>
+    <p class="grant-hint" id="authorization-hint" hidden>Sign in here as alice (password alice).</p>
     <div class="grant-row" id="status-row" hidden>
       <span class="grant-label" id="status-label">Status list</span>
       <div class="toggle" id="status-toggle" role="radiogroup" aria-label="Status list reference">
@@ -147,9 +134,7 @@
         <button type="button" class="toggle-option" id="status-with" data-status="true" role="radio" aria-checked="false">With</button>
       </div>
     </div>
-    <p class="grant-hint" id="status-hint" hidden>
-      The ticket carries no status reference, so nothing can revoke it.
-    </p>
+    <p class="grant-hint" id="status-hint" hidden>No status reference. The ticket can't be revoked.</p>
     <div class="grant-row" id="deferred-row">
       <span class="grant-label" id="deferred-label">Issuance</span>
       <div class="toggle" id="deferred-toggle" role="radiogroup" aria-label="Deferred issuance">
@@ -157,9 +142,7 @@
         <button type="button" class="toggle-option" id="deferred-deferred" data-deferred="true" role="radio" aria-checked="false">Deferred</button>
       </div>
     </div>
-    <p class="grant-hint" id="deferred-hint">
-      The credential is issued at once.
-    </p>
+    <p class="grant-hint" id="deferred-hint">Issued at once.</p>
     <div class="grant-row" id="batch-row">
       <span class="grant-label" id="batch-label">Copies</span>
       <div class="toggle" id="batch-toggle" role="radiogroup" aria-label="Batch size">
@@ -169,9 +152,7 @@
         <button type="button" class="toggle-option" id="batch-5" data-batch="5" role="radio" aria-checked="false">5</button>
       </div>
     </div>
-    <p class="grant-hint" id="batch-hint">
-      The wallet receives a single credential.
-    </p>
+    <p class="grant-hint" id="batch-hint">One credential.</p>
     <button class="btn primary" id="create-btn">Create offer</button>
     <div class="result" id="result">
       <div class="label" id="wallet-link-label">Open in the wallet on this host</div>

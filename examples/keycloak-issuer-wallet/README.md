@@ -1,4 +1,4 @@
-# Keycloak Issuer + eudi-dev Wallet
+# Keycloak issuer + eudi-dev wallet
 
 This example runs a local OpenID4VCI issuance flow from Keycloak into `eudi-dev`.
 
@@ -9,7 +9,7 @@ This example runs a local OpenID4VCI issuance flow from Keycloak into `eudi-dev`
 3. `./scripts/create-offer.sh` logs in as `alice`, calls Keycloak's `create-credential-offer` endpoint, resolves the generated offer once, and emits an inline `openid-credential-offer://?credential_offer=...` URI.
 4. `eudi wallet accept` resolves the offer URI, fetches issuer metadata and authorization details from Keycloak, creates proof-of-possession material, and stores the returned SD-JWT VC in the local wallet directory.
 
-## Flow Diagram
+## Flow diagram
 
 ```mermaid
 sequenceDiagram
@@ -39,7 +39,7 @@ sequenceDiagram
 - `scripts/create-offer.sh`: creates a fresh pre-authorized offer URI
 - `scripts/redeem-offer.sh`: creates an offer and passes it into `eudi-dev`
 
-## Quick Start
+## Quick start
 
 ```bash
 cd examples/keycloak-issuer-wallet
@@ -61,6 +61,15 @@ Manual flow:
 OFFER_URI=$(./scripts/create-offer.sh)
 eudi wallet accept "$OFFER_URI"
 ```
+
+Public Keycloak through ngrok:
+
+```bash
+./start.sh --public                      # ngrok picks the hostname
+./start.sh --public --domain kc.example.ngrok.app
+```
+
+`--public` publishes Keycloak through an ngrok tunnel and uses its https URL as the Keycloak base URL. It needs the [ngrok CLI](https://ngrok.com/download). `--domain` sets a reserved ngrok hostname (`KEYCLOAK_NGROK_DOMAIN` or `NGROK_DOMAIN` work too). A sandbox certificate (`EXAMPLES_SANDBOX_PEM`, `SANDBOX_PEM` or `SANDBOX_DIR`) overrides the hostname with its subject alternative name.
 
 ## Parameters
 
@@ -104,7 +113,7 @@ This example uses the OpenID4VCI by-value `credential_offer` form.
 - The example resolves the offer once and passes the inline JSON to the wallet.
 - The demo realm also omits `vc.credential_identifier`, so wallets that request credentials by `credential_configuration_id` work. With that attribute set, Keycloak 26.7.2 requires a `credential_identifier` field on the credential request.
 
-## Useful Overrides
+## Useful overrides
 
 ```bash
 KEYCLOAK_BASE_URL=http://localhost:8080

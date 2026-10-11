@@ -1,13 +1,14 @@
-# Spec Compliance
+# Spec compliance
 
 This page lists which specifications of the EUDI Architecture and Reference Framework the wallet supports. The wallet reports unsupported mechanisms when it encounters them ([ADR-0013](adr/0013-only-the-eudi-stack-is-supported.md)).
 
 The [EUDI version table and test certificate profiles](test-certificates.md) list the versions, checked on 1 October 2026.
 
-Two settings control validation:
+Three settings control validation:
 
 - `--mode strict` rejects validation violations. `--mode debug` reports them and continues where the flow can proceed. Advisory findings are warnings in both modes. Each finding cites the specification and rule.
 - `--haip` enables the HAIP 1.0 profile checks listed below.
+- `--arf` enables the ARF checks of access certificates, registration certificates and received credentials (see [ARF checks](wallet/presenting.md#arf-checks)).
 
 `--vci-version 1.0` (default) uses the published OpenID4VCI version. `1.1` adds draft features when the issuer advertises them. See [OpenID4VCI feature level](wallet/issuing.md#openid4vci-feature-level).
 
@@ -48,7 +49,7 @@ Two settings control validation:
 | Request object `typ` header | Enforced in strict mode | Debug mode logs a warning and continues |
 | `trusted_authorities` (`etsi_tl`, `aki`) | Implemented | Filters credentials by checking the issuer certificate chain against ETSI trusted lists or by matching Authority Key Identifier values |
 | `transaction_data` | Enforced in strict mode | §5 requires a wallet that does not support the parameter to reject a request carrying it. Strict mode rejects it. Debug mode logs a warning and continues |
-| `verifier_info` | Implemented | The wallet shows the purpose from a wallet-relying-party registration certificate (typ `rc-wrp+jwt` per ETSI TS 119 475, format `registration_cert` per ETSI TS 119 472-2) (§5.1). The certificate's signature is checked against its own x5c leaf. Only certificates that belong to the access certificate of the signed request count. An unsigned request shows no purpose. The consent dialog also links the registered privacy policy (ARF RPA_10). Other attestation formats are ignored. `--arf` checks the certificate against the ARF (see [ARF checks](wallet/presenting.md#arf-checks)) |
+| `verifier_info` | Implemented | The wallet shows the purpose from a wallet-relying-party registration certificate (typ `rc-wrp+jwt` per ETSI TS 119 475, format `registration_cert` per ETSI TS 119 472-2) (§5.1). The certificate's signature is checked against its own x5c leaf. Only certificates that belong to the access certificate that signed the request object count. A request without a request object shows no purpose. The consent dialog also links the registered privacy policy (ARF RPA_10). Other attestation formats are ignored. `--arf` checks the certificate against the ARF (see [ARF checks](wallet/presenting.md#arf-checks)) |
 | ARF relying party checks (`--arf`) | Enforced in strict mode | Checks the access certificate (RPA_03, RPA_04) and the registration certificate (RPRC_02a, RPRC_17, RPRC_17a). The request must carry exactly one registration certificate (RPRC_19). The wallet checks the registrar's status list for a revocation. The list must chain to a trusted registrar (RPACANot_03b). The wallet also checks whether the request asks for more than was registered (RPRC_21). Strict mode refuses a request with a finding. If only ARF findings remain and a trusted access certificate signed the request, the wallet sends the verifier `access_denied` (§8.5), also over the Digital Credentials API and from `wallet accept`. Debug mode warns and returns the findings in the API response. Without `--arf` the wallet does not check them. See [ARF checks](wallet/presenting.md#arf-checks) |
 | ARF issuer checks (`--arf`) | Enforced in strict mode | Before it requests a credential, the wallet checks the issuer. The metadata must be signed with an access certificate (ISSU_22, ISSU_32) from a trusted access certificate authority (ISSU_24, ISSU_34). `issuer_info` (ETSI TS 119 472-3 V1.1.1 §4.2.3) must carry a registration certificate from a trusted registrar (ISSU_23c, ISSU_33a). That certificate must be valid and not revoked (RPRC_22a). It must name the access certificate's provider (RPRC_22b), have the provider entitlement for the offered type (ISSU_24a, ISSU_34a) and list that type (RPRC_23, ISSU_24b, ISSU_34b). Strict mode refuses the offer before the consent dialog. Debug mode warns and returns the findings in the issuance result. A received credential must chain to the trusted list of its catalogue entry, or for a PID or a PuB-EAA to a list of its type on the list of trusted lists (ISSU_07 to ISSU_10). A PID, QEAA or PuB-EAA entry must link a readable trusted list. ISSU_10 applies only when the wallet has anchors. A fetched trusted list must be signed by the wallet CA or a `--trusted-list-ca` CA (PPNot_05, TLPub_05, TLPub_07). If this check fails, strict mode doesn't store the credential (ISSU_11b). An offered type outside the catalogue only gets a warning. See [issuing](wallet/issuing.md#arf-checks) |
 | Relying party registrar | Implemented | The wallet registers verifiers and issuers in the TS05 v1.5 data model and serves the TS05 registry API. It issues access certificates (ETSI TS 119 411-8) for CSRs and registration certificates (ETSI TS 119 475) per intended use (RPRC_09) or per issuer service (RPRC_13). The registrar returns a verifier's certificate in a `verifier_info` value with the registrar dataset (ETSI TS 119 472-2 V1.2.1 §6.3.2.2), and an issuer's certificate in an `issuer_info` value (ETSI TS 119 472-3 V1.1.1 §4.2.3). See [registrar](wallet/registrar.md) |
@@ -168,7 +169,7 @@ Selective disclosure is RFC 9901. The credential profile on top of it is `draft-
 | Session transcript (ISO 18013-7 mode) | Implemented | `--session-transcript iso` |
 | DeviceSigned generation | Implemented | Wallet generates DeviceAuth in DeviceResponse |
 
-## ETSI TS 119 602 Trusted Entity Lists
+## ETSI TS 119 602 lists of trusted entities
 
 | Feature | Status | Notes |
 |---------|--------|-------|

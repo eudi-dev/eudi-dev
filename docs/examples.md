@@ -6,7 +6,7 @@ Each scenario includes pinned versions, compose files, setup scripts and flow di
 
 ## Scenarios
 
-### Keycloak Issuer + eudi-dev Wallet
+### Keycloak issuer + eudi-dev wallet
 
 Folder: [`examples/keycloak-issuer-wallet`](../examples/keycloak-issuer-wallet/README.md)
 
@@ -19,7 +19,7 @@ It includes:
 - a helper to create a pre-authorized credential offer
 - a wallet redemption helper
 
-### Keycloak Verifier + keycloak-extension-oid4vp
+### Keycloak verifier + keycloak-extension-oid4vp
 
 Folder: [`examples/keycloak-verifier-oid4vp`](../examples/keycloak-verifier-oid4vp/README.md)
 
@@ -33,7 +33,7 @@ It includes:
 - a headless same-device login test
 - a browser-driven command-line flow that works with a registered `eudi-dev` wallet
 
-### Keycloak Issuer + Verifier Demo App
+### Keycloak issuer + verifier demo app
 
 Folder: [`examples/keycloak-issuer-verifier-app`](../examples/keycloak-issuer-verifier-app/README.md)
 
@@ -48,7 +48,7 @@ It includes:
 - HAIP verifier settings using `haip-vp://`, `direct_post.jwt`, and `x509_hash`
 - a headless smoke test that runs the first (password plus offer) and second (passwordless) login
 
-### Keycloak + Web Wallet (Web URLs Instead of Custom Schemes)
+### Keycloak + web wallet (web URLs instead of custom schemes)
 
 Folder: [`examples/keycloak-web-wallet`](../examples/keycloak-web-wallet/README.md)
 
@@ -64,7 +64,7 @@ It includes:
 - headless demos that call `GET /credential-offer` and `GET /authorize`
 - automatic export of the wallet CA into Keycloak's truststore for the status list revocation check
 
-### Keycloak + Public Demo Wallet
+### Keycloak + public demo wallet
 
 Folder: [`examples/keycloak-web-wallet-public`](../examples/keycloak-web-wallet-public/README.md)
 
@@ -76,7 +76,7 @@ It includes:
 - an ngrok tunnel in front of the local Keycloak, since the public wallet fetches the request object and calls the token endpoint server side (or set `KEYCLOAK_PUBLIC_URL` to your own public URL)
 - the same admin-API step pointing the verifier's `walletScheme` / `trustListUrl` at the public wallet
 
-### Load Test Target
+### Load test target
 
 Folder: [`examples/load-test`](../examples/load-test/README.md)
 

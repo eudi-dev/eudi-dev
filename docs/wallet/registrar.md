@@ -1,7 +1,5 @@
 # Registrar
 
-*(new in 3.0.0)*
-
 The wallet includes a relying party registrar. Each member state runs a registrar like this one (ARF Topic 27). You register a verifier or an issuer with it and get two certificates:
 
 - An **access certificate** (ETSI TS 119 411-8 V1.1.1). You send a certificate signing request and keep the private key. A verifier signs its request objects with that key and puts the certificate in `x5c`. An issuer signs its Credential Issuer Metadata with it (ARF ISSU_22 and ISSU_32).
@@ -71,7 +69,7 @@ If you request a certificate while someone updates the same registration, the re
 
 Each certificate gets its own random entry. The entry stays taken after the certificate expires, because ETSI TS 119 475 V1.2.1 GEN-6.2.6.1-05 gives every certificate of an issuer a unique index. When half the list is taken, the list doubles in size. With memory storage the entries are lost on restart, and a demo reset clears them. After a restart or a reset, a revoked certificate is valid again. Rarely, a new certificate then gets the same entry as an old one, and revoking it revokes the old one too.
 
-## In the web UI
+## Web UI
 
 ![Relying parties](../assets/registrar-parties.png)
 
@@ -89,7 +87,7 @@ Deleting a registration certificate removes what it certifies from the registrat
 
 ![Register a verifier](../assets/registrar-register.png)
 
-**Register a verifier** and **Register an issuer** issue both certificates in one step. If you leave the CSR empty, the browser creates the key and the CSR, and the key never leaves the browser.
+**Register verifier** and **Register issuer** issue both certificates in one step. If you leave the CSR empty, the browser creates the key and the CSR, and the key never leaves the browser.
 
 For SD-JWT claims, separate path segments with dots (`address.locality`). For mdoc, write the element name if it is in the doctype's namespace, or put another namespace in front with a colon (`eu.europa.ec.eudi.pid.de.1:birth_name`).
 
@@ -107,7 +105,7 @@ Every element has an ID for automated tests:
 | Attestation catalogue | `registrar-catalog-search`, the filter rows `registrar-catalog-filter-category`, `-los`, `-binding` and `-source` with buttons such as `registrar-catalog-filter-category-pid` (`aria-pressed` when selected), `registrar-catalog-filter-clear`, `registrar-catalog-list`, `registrar-catalog-close`, `registrar-catalog-add`. An entry is `registrar-catalog-entry-<id>` with `-name`, `-template`, `-category`, `-los`, `-binding`, `-id`, `-version`, `-formats`, `-schema-<n>`, `-rulebook`, `-trust` and `-delete`. **Add attestation** opens `registrar-catalog-add-overlay` with `registrar-catalog-name`, format rows `registrar-catalog-format-<n>-format`, `-type`, `-claims` and `-remove`, `registrar-catalog-add-format`, `registrar-catalog-category`, `registrar-catalog-rulebook`, `registrar-catalog-los`, `registrar-catalog-binding`, `registrar-catalog-trust`, `registrar-catalog-form-error`, `registrar-catalog-cancel` and `registrar-catalog-save` |
 | Consent findings | In debug mode a collapsed `consent-findings` lists the findings about the verifier or the issuer. `consent-findings-summary` counts them, and `consent-findings-list` has one `consent-finding-<n>` each |
 
-## Fields and where they go
+## Field mapping
 
 | Field | Access certificate | Registration certificate |
 |-------|--------------------|--------------------------|
@@ -136,7 +134,7 @@ The access certificate has the policy `0.4.0.194118.1.2` (ETSI TS 119 411-8 §5.
 
 ## Wallet checks
 
-The consent dialog shows the registered purpose and a link to the privacy policy (ARF RPA_10). API clients find them in `purposes` and `privacy_policies` of a pending request. The wallet shows them even without `--arf`. The registration certificate must have a valid signature, and it must belong to the access certificate of the signed request. For an unsigned request the dialog shows neither.
+The consent dialog shows the registered purpose and a link to the privacy policy (ARF RPA_10). API clients find them in `purposes` and `privacy_policies` of a pending request. The wallet shows them even without `--arf`. The registration certificate must have a valid signature, and it must belong to the access certificate that signed the request object. For a request without a request object the dialog shows neither.
 
 With `--arf` the wallet checks the access and registration certificates of every verifier and issuer. It doesn't matter which registrar issued them (see [ARF checks for verifiers](presenting.md#arf-checks) and [for issuers](issuing.md#arf-checks)). It takes the anchors from two [trusted lists](serve.md#trusted-lists):
 
@@ -153,7 +151,7 @@ The wallet does not check these:
 - **Access certificate revocation.** The registrar does not revoke access certificates. A deleted relying party keeps a valid access certificate until it expires.
 - **The register.** The wallet does not look up `registry_uri`. A verifier sends exactly one registration certificate with its request, so no external request is needed to check it (ARF RPRC_19). An issuer publishes its certificate in its metadata (RPRC_22). For a request with no registration certificate or with several, the consent dialog warns that the registered information could not be checked (RPRC_17).
 
-## Use an external registrar
+## External registrar
 
 The wallet can check verifiers and issuers that another registrar registered. It needs that registrar's CAs, and it gets them the way a real wallet does. The TS05 registry API has no endpoint for them. A Member State notifies its access certificate authorities and its registrars to the Commission, which publishes them on lists of trusted entities (ETSI TS 119 602). The access certificate authorities are on a list of type `EUWRPACProvidersList` (Annex F), and the registrars on a list of type `EUWRPRCProvidersList` (Annex G). Each list also names the revocation service that signs the status lists (ARF RPACANot_03b, RPACANot_04, RPACANot_05 and RPACANot_05a). A certificate names its own status list, so status lists need no setup.
 
@@ -185,7 +183,7 @@ eudi trust add-ca --list access-ca --ca other-access-ca.pem        # on a runnin
 eudi trust add-ca --list registrar --ca other-registrar-ca.pem
 ```
 
-## The demo issuer and verifier
+## Demo issuer and verifier
 
 ![Demo verifier identity](../assets/verifier-identity.png)
 

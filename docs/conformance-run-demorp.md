@@ -1,10 +1,10 @@
-# Running OIDF Conformance Against the Demo Issuer and Verifier
+# OIDF conformance runs for the demo issuer and verifier
 
 Test the demo issuer at `/issuer` and verifier at `/verifier` with the official OIDF plans. The suite acts as the wallet. To test `eudi-dev` as the wallet instead, use the [wallet runbook](./conformance-run.md).
 
 Only the wallet goes through certification. These issuer and verifier plans run locally (or on the hosted demo service) as quality checks. The wrapper refuses to run them on the production certification service.
 
-## Test Plans
+## Test plans
 
 The wrapper starts one wallet server and drives these plans through the official `run-test-plan.py`:
 
@@ -52,7 +52,7 @@ ONLY_SCENARIOS=vp-verifier-final-sdjwt,vci-issuer-preauth \
 
 The `--rerun` selector passes through to the official runner exactly as in the wallet runbook.
 
-## HTTPS Setup
+## HTTPS setup
 
 The verifier plans require the `request_uri` and the `response_uri` to be https, and the HAIP issuer metadata checks require an https credential issuer. The wrapper starts the wallet with an https base URL and `--serve-tls`, so the wallet serves that origin itself over TLS with its own certificate (the suite skips certificate verification on outbound calls).
 
@@ -60,7 +60,7 @@ The suite presents credentials signed under its own CAs to the demo verifier (th
 
 The generated configs also pass trust anchors to the suite. The issuer configs set the wallet CA as `credential.trust_anchor_pem`, so the suite validates the demo ticket's certificate chain. The verifier configs set the relying party access CA as `client.request_object_trust_anchor_pem`, because the demo verifier signs its request objects with an access certificate from that CA.
 
-## Environment Overrides
+## Environment overrides
 
 The [wallet runbook's suite and server overrides](conformance-run.md#environment-overrides) also apply here. On a loaded machine, set `OIDF_REQUEST_TIMEOUT=60`. Leave `OIDF_KEEP_SUITE_DB` unset for repeated runs, because old results slow the suite and can stall modules.
 
@@ -71,6 +71,6 @@ This wrapper also accepts:
 
 `CONFORMANCE_MODE=hosted` needs a publicly reachable `OIDF_DEMO_BASE_URL` (a tunnel with its own TLS terminator), because the hosted suite fetches the demo endpoints itself. Local mode is the supported setup.
 
-## Result Artifacts
+## Result artifacts
 
 The wrapper prints the run directory and leaves the same artifacts as the wallet wrapper (`wallet.log`, `runner.log`, `results/` with the exported archives and the generated configs). The runner log also contains the `[verdicts]` block with the demo verifier's outcome per verifier module.

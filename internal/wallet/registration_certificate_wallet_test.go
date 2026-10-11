@@ -115,3 +115,13 @@ func TestTheConsentDialogLinksThePrivacyPolicy(t *testing.T) {
 		t.Errorf("purposes %v, privacy policies %v, want the registered purpose and policy", purposes, policies)
 	}
 }
+
+// The consent dialog names the relying party of the bound registration
+// certificate instead of the client identifier.
+func TestTheConsentDialogNamesTheRegisteredRelyingParty(t *testing.T) {
+	w := generateTestWallet(t)
+	key, chain, verifierInfo := registeredVerifier(t, w)
+	if got := oid4vp.RegisteredName(signedARFRequest(t, w, key, chain, verifierInfo)); got != "Example Shop" {
+		t.Errorf("registered name = %q, want Example Shop", got)
+	}
+}

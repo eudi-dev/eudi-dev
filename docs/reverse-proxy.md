@@ -1,4 +1,4 @@
-# Behind a reverse proxy
+# Reverse proxy setup
 
 The wallet can run behind a reverse proxy in two ways:
 

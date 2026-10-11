@@ -61,10 +61,10 @@
     <div>
       <div class="section-title" id="actions-title">Actions</div>
       <div class="actions-bar">
-        <input type="text" id="offer-input" placeholder="Paste OID4VCI offer URI or OID4VP request URI...">
+        <input type="text" id="offer-input" aria-label="Offer or request URI" placeholder="Paste OID4VCI offer URI or OID4VP request URI...">
         <button class="btn btn-primary" id="process-btn">Process</button>
-        <button class="btn" id="import-btn">Import Credential</button>
-        <button class="btn" id="issue-btn">Issue Credential</button>
+        <button class="btn" id="import-btn">Import credential</button>
+        <button class="btn" id="issue-btn">Issue credential</button>
       </div>
       <div class="actions-hint" id="actions-hint">
         No offer at hand? <a href="issuer/" id="actions-hint-issuer-link">Get one from the demo issuer</a>
@@ -189,7 +189,7 @@
         <pre class="howto-commands" id="howto-registrar-cli-commands">eudi registrar verifiers add --name "Example Shop" --purpose "Age check" --dcql query.json
 eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:urn:example:diploma:1</pre>
       </div>
-      <p class="dialog-hint" id="howto-registrar-forms-hint">The Registrar section of this page does the same with forms. The <a data-doc="docs/wallet/registrar-api.md" target="_blank" rel="noopener" id="howto-registrar-docs-link">registrar walkthrough</a> shows every request with curl and its response.</p>
+      <p class="dialog-hint" id="howto-registrar-forms-hint"><a data-doc="docs/wallet/registrar-api.md" target="_blank" rel="noopener" id="howto-registrar-docs-link">Registrar walkthrough</a></p>
       </div>
       <div class="consent-buttons">
         <button class="btn" id="howto-close">Close</button>
@@ -200,20 +200,22 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
   <div class="consent-overlay" id="conformance-overlay">
     <div class="consent-dialog" id="conformance-dialog">
       <div class="consent-title" id="conformance-title">Conformance</div>
-      <p class="dialog-hint" id="conf-intro">Debug mode logs failed checks as warnings and continues. Strict mode refuses the request, the offer or the credential. Strict mode verifies HTTPS certificates and debug mode does not. The HTTPS setting below can change that.</p>
+      <p class="dialog-hint" id="conf-intro" hidden>Fixed settings on the public demo.</p>
       <table class="conformance-table" id="conformance-table">
         <tr><td id="conf-mode-name">Validation mode</td><td>
-          <select id="conf-mode-select" class="conf-input">
-            <option value="strict">Strict (refuse)</option>
-            <option value="debug">Debug (warn and continue)</option>
+          <select id="conf-mode-select" class="conf-input" aria-labelledby="conf-mode-name" aria-describedby="conf-mode-hint">
+            <option value="strict">Strict</option>
+            <option value="debug">Debug</option>
           </select>
+          <div class="conf-hint" id="conf-mode-hint"></div>
         </td></tr>
         <tr><td id="conf-tls-name">HTTPS certificates</td><td>
-          <select id="conf-tls-select" class="conf-input" title="Verifies the TLS certificates of issuers and verifiers">
+          <select id="conf-tls-select" class="conf-input" title="TLS certificates of issuers and verifiers" aria-labelledby="conf-tls-name" aria-describedby="conf-tls-hint">
             <option value="auto">Depends on the mode</option>
             <option value="true">Always verify</option>
             <option value="false">Never verify</option>
           </select>
+          <div class="conf-hint" id="conf-tls-hint"></div>
         </td></tr>
         <tr><td id="conf-haip-name">HAIP 1.0</td><td>
           <label class="conf-toggle" title="--haip" id="conf-haip-label"><input type="checkbox" id="conf-haip-input"> Check presentations and issuance</label>
@@ -225,7 +227,7 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
           <label class="conf-toggle" id="conf-encrypted-label" title="The wallet always sends an encryption key in wallet_metadata. This makes the verifier use it (--require-encrypted-request)"><input type="checkbox" id="conf-encrypted-input"> Refuse unencrypted request objects</label>
         </td></tr>
         <tr><td id="conf-vci-version-name">OpenID4VCI version</td><td>
-          <select id="conf-vci-version-select" class="conf-input">
+          <select id="conf-vci-version-select" class="conf-input" aria-labelledby="conf-vci-version-name">
             <option value="1.0">1.0</option>
             <option value="1.1">1.1 draft (where the issuer supports it)</option>
           </select>
@@ -233,7 +235,7 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
         <tr><td id="conf-transcript-name">mdoc session transcript</td><td id="conf-transcript" title="Set at startup with --session-transcript">—</td></tr>
         <tr><td id="conf-format-name">Preferred format</td><td id="conf-format" title="Used when credentials in several formats match. Set at startup or with PUT /api/config/preferred-format">—</td></tr>
         <tr><td id="conf-key-attestation-name">Key attestation level</td><td>
-          <select id="conf-key-attestation-select" class="conf-input" title="Sets key_storage and user_authentication in the key attestation (OpenID4VCI Appendix D.2)">
+          <select id="conf-key-attestation-select" class="conf-input" aria-labelledby="conf-key-attestation-name" title="Sets key_storage and user_authentication in the key attestation (OpenID4VCI Appendix D.2)">
             <option value="">Match the issuer's requirements</option>
             <option value="none">Leave out</option>
           </select>
@@ -249,11 +251,10 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
   <div class="consent-overlay" id="trust-overlay">
     <div class="consent-dialog" role="dialog" aria-modal="true" aria-labelledby="trust-title" id="trust-dialog">
       <div class="consent-title" id="trust-title" tabindex="-1">Trust &amp; certificates</div>
-      <p class="dialog-hint" id="trust-hint">The wallet signs a trusted list (ETSI TS 119 602) for each kind of provider. With --arf it checks credentials, access certificates and registration certificates against these lists and the lists you add.</p>
 
       <div class="trust-section" id="trust-lists-section">
         <div class="trust-section-title" id="trust-lists-title">Trusted lists</div>
-        <p class="trust-section-hint" id="trust-lists-hint">Lists of trusted entities, signed under the wallet CA. The <a id="trust-lists-of-lists-link" href="api/trustlists/lists">list of trusted lists</a> points to all of them.</p>
+        <p class="trust-section-hint" id="trust-lists-hint">Trusted lists this wallet signs (ETSI TS 119 602). The <a id="trust-lists-of-lists-link" href="api/trustlists/lists">list of trusted lists</a> points to all of them.</p>
         <div class="cert-links" id="trust-list-links"></div>
         <div class="registrar-add-row" id="trust-add-row">
           <button type="button" class="btn btn-sm" id="trust-add-provider">+ Add provider CA</button>
@@ -319,7 +320,7 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
   <div class="consent-overlay" id="trust-provider-overlay">
     <div class="consent-dialog" role="dialog" aria-modal="true" aria-labelledby="trust-provider-title" id="trust-provider-dialog">
       <div class="consent-title" id="trust-provider-title" tabindex="-1">Add a provider CA</div>
-      <p class="dialog-hint" id="trust-provider-hint">The wallet puts the CA on one of its trusted lists. Use it for your own issuer or registrar. For an external list, add the CA of its operator on <code>trusted-list-ca</code>.</p>
+      <p class="dialog-hint" id="trust-provider-hint">Added to the chosen trusted list.</p>
       <form id="trust-provider-form">
         <div class="form-grid">
           <label class="form-label" for="trust-entity-list" id="trust-entity-list-label">List</label>
@@ -341,7 +342,7 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
   <div class="consent-overlay" id="trust-external-overlay">
     <div class="consent-dialog" role="dialog" aria-modal="true" aria-labelledby="trust-external-title" id="trust-external-dialog">
       <div class="consent-title" id="trust-external-title" tabindex="-1">Add an external list</div>
-      <p class="dialog-hint" id="trust-external-hint">The wallet uses the list if its signer chains to the wallet CA or to a CA on <code>trusted-list-ca</code>.</p>
+      <p class="dialog-hint" id="trust-external-hint">Signer must chain to the wallet CA or <code>trusted-list-ca</code>.</p>
       <form id="trust-external-form">
         <div class="form-grid">
           <label class="form-label" for="trust-list-url" id="trust-list-url-label">URL</label>
@@ -388,8 +389,8 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
       <div class="form-error" id="registrar-parties-error" role="alert"></div>
       <div class="consent-buttons">
         <button type="button" class="btn" id="registrar-parties-close">Close</button>
-        <button type="button" class="btn btn-primary" id="registrar-parties-register">Register a verifier</button>
-        <button type="button" class="btn btn-primary" id="registrar-parties-register-issuer">Register an issuer</button>
+        <button type="button" class="btn btn-primary" id="registrar-parties-register">Register verifier</button>
+        <button type="button" class="btn btn-primary" id="registrar-parties-register-issuer">Register issuer</button>
       </div>
     </div>
   </div>
@@ -440,7 +441,7 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
 
           <span class="form-label registrar-credentials-label" id="registrar-attestations-label">Attestation types</span>
           <div class="registrar-credentials" id="registrar-attestations" role="group" aria-labelledby="registrar-attestations-label"></div>
-          <button type="button" class="btn btn-sm registrar-add" id="registrar-add-attestation">+ Add attestation type</button>
+          <button type="button" class="btn btn-sm registrar-add" id="registrar-add-attestation">+ Add attestation</button>
           </div>
 
           <div class="registrar-section" id="registrar-use-section">
@@ -537,7 +538,8 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
   <div class="consent-overlay" id="registrar-catalog-overlay">
     <div class="consent-dialog registrar-dialog" role="dialog" aria-modal="true" aria-labelledby="registrar-catalog-title" id="registrar-catalog-dialog">
       <div class="consent-title" id="registrar-catalog-title" tabindex="-1">Attestation catalogue</div>
-      <p class="dialog-hint" id="registrar-catalog-hint">Each entry describes an attestation type: its formats and schemas, its rulebook and the trusted list of its issuers. When you register a verifier or an issuer, the type fields suggest these entries.</p>
+      <p class="dialog-hint" id="registrar-catalog-hint">Attestation types with their schemas, rulebook and trusted list.</p>
+      <p class="dialog-hint registrar-notice" id="registrar-catalog-notice" role="status" hidden></p>
       <input type="search" id="registrar-catalog-search" class="form-input registrar-search" placeholder="Search attestations" aria-label="Search attestations" autocomplete="off">
       <div class="catalog-filters" id="registrar-catalog-filters" role="group" aria-label="Filter attestations"></div>
       <div class="registrar-party-list" id="registrar-catalog-list"></div>
@@ -554,7 +556,6 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
   <div class="consent-overlay" id="registrar-catalog-add-overlay">
     <div class="consent-dialog registrar-dialog" role="dialog" aria-modal="true" aria-labelledby="registrar-catalog-add-title" id="registrar-catalog-add-dialog">
       <div class="consent-title" id="registrar-catalog-add-title" tabindex="-1">Add an attestation</div>
-      <p class="dialog-hint" id="registrar-catalog-add-hint">The catalogue assigns the id and serves a schema for each format.</p>
       <form id="registrar-catalog-form">
         <div class="form-grid">
           <label class="form-label" for="registrar-catalog-name" id="registrar-catalog-name-label">Name</label>
@@ -578,8 +579,9 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
 
           <label class="form-label" for="registrar-catalog-trust" title="An ETSI TS 119 602 list of trusted entities (TS11 trustedAuthorities with isLOTE)" id="registrar-catalog-trust-label">Trusted list (LoTE)</label>
           <input type="text" id="registrar-catalog-trust" class="form-input" placeholder="Leave empty for the category's list on this wallet">
-          <label class="form-label" for="registrar-catalog-issuer-ca" title="The wallet puts this CA on the trusted list of the category, so credentials of your issuer pass the check of --arf" id="registrar-catalog-issuer-ca-label">Issuer CA (PEM, optional)</label>
-          <textarea id="registrar-catalog-issuer-ca" class="form-input form-textarea" placeholder="CA of your issuer"></textarea>
+          <label class="form-label form-label-top" for="registrar-catalog-issuer-ca" id="registrar-catalog-issuer-ca-label">Trust this issuer's CA (optional)</label>
+          <textarea id="registrar-catalog-issuer-ca" class="form-input form-textarea" placeholder="-----BEGIN CERTIFICATE-----" aria-describedby="registrar-catalog-issuer-ca-hint"></textarea>
+          <p class="form-hint" id="registrar-catalog-issuer-ca-hint"></p>
         </div>
         <div class="form-error" id="registrar-catalog-form-error" role="alert"></div>
         <div class="consent-buttons">
@@ -620,9 +622,9 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
 
   <div class="consent-overlay" id="import-overlay">
     <div class="consent-dialog" id="import-dialog">
-      <div class="consent-title" id="import-title">Import Credential</div>
-      <p id="import-hint" style="font-size:12px;color:var(--text-dim);margin-bottom:12px;">Paste an SD-JWT VC, JWT VC or mdoc credential.</p>
-      <textarea id="import-textarea" style="width:100%;height:120px;font-family:var(--font-mono);font-size:11px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:8px;resize:vertical;"></textarea>
+      <div class="consent-title" id="import-title">Import credential</div>
+      <label class="dialog-hint" for="import-textarea" id="import-hint">SD-JWT VC, JWT VC or mdoc</label>
+      <textarea id="import-textarea" class="form-input form-textarea import-textarea"></textarea>
       <div class="consent-buttons">
         <button class="btn" id="import-cancel">Cancel</button>
         <button class="btn btn-primary" id="import-submit">Import</button>
@@ -632,8 +634,8 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
 
   <div class="consent-overlay" id="issue-overlay">
     <div class="consent-dialog" id="issue-dialog">
-      <div class="consent-title" id="issue-title">Issue Credential</div>
-      <p class="dialog-hint" id="issue-hint">Signs with the key of the credential's category unless you paste one, and stores the credential. Only the format is required. A template fills in the fields. You can still edit them.</p>
+      <div class="consent-title" id="issue-title">Issue credential</div>
+      <p class="dialog-hint" id="issue-hint">Only the format is required.</p>
       <form id="issue-form">
         <div class="template-editor-head" id="template-editor-head" hidden>
           <div class="form-grid">
@@ -686,8 +688,8 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
               <option value="none">No status list</option>
               <option value="custom">Custom URI</option>
             </select>
-            <input type="text" id="issue-status-list-uri" class="form-input" placeholder="Status list URI" hidden>
-            <input type="number" id="issue-status-list-idx" class="form-input" placeholder="Index (default 0)" hidden>
+            <input type="text" id="issue-status-list-uri" class="form-input" aria-label="Status list URI" placeholder="Status list URI" hidden>
+            <input type="number" id="issue-status-list-idx" class="form-input" aria-label="Status list index" placeholder="Index (default 0)" hidden>
           </div>
 
           <label class="form-label" for="issue-exp" id="issue-exp-label">Expires in</label>
@@ -697,7 +699,7 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
           <input type="text" id="issue-nbf" class="form-input issue-only" placeholder="RFC3339 or relative duration, e.g. -1h">
 
           <label class="form-label issue-only" for="issue-batch" data-formats="sdjwt mdoc" id="issue-batch-label">Copies</label>
-          <input type="number" id="issue-batch" class="form-input issue-only" data-formats="sdjwt mdoc" min="1" placeholder="1 (a batch of N presents an unused copy each time)">
+          <input type="number" id="issue-batch" class="form-input issue-only" data-formats="sdjwt mdoc" min="1" placeholder="1" title="Each presentation uses an unused copy">
 
           <label class="form-label issue-only" for="issue-binding" data-formats="sdjwt mdoc" id="issue-binding-label">Holder binding</label>
           <select id="issue-binding" class="form-input issue-only" data-formats="sdjwt mdoc">
@@ -706,8 +708,6 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
           </select>
 
           <div class="form-section-label" id="issue-display-section-label">Display (optional)</div>
-
-          <p class="form-hint" id="issue-template-art-note" hidden>The template's logo and background are kept unless you replace them below.</p>
 
           <label class="form-label" for="issue-display-name" id="issue-display-name-label">Display name</label>
           <input type="text" id="issue-display-name" class="form-input" placeholder="e.g. Employee Badge">
@@ -786,8 +786,7 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
 
   <div class="consent-overlay" id="templates-overlay">
     <div class="consent-dialog" id="templates-dialog">
-      <div class="consent-title" id="templates-title">Credential Templates</div>
-      <p class="dialog-hint" id="templates-hint">Templates are reusable claim sets for issuing credentials. Saving an existing name replaces that template.</p>
+      <div class="consent-title" id="templates-title">Credential templates</div>
       <div id="templates-list" class="templates-list"></div>
       <div class="form-error" id="template-error"></div>
       <div class="consent-buttons">

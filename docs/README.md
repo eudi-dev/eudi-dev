@@ -2,36 +2,38 @@
 
 Guides for using eudi-dev as a wallet, issuer, verifier and CA.
 
-## Getting started
+## First steps
 
 - [Examples](examples.md): end-to-end recipes that issue, present, and validate credentials
 
-## The wallet
+## Wallet
 
 - [Wallet](wallet.md): overview, subcommands, quick start, storage, and credential type inheritance
-- [Serving the wallet](wallet/serve.md): `wallet serve`, endpoints, trusted lists and `trust`, certificate export, and every serve flag
-- [Presenting from the wallet](wallet/presenting.md): `wallet accept`, `wallet scan`, invoking by URL, HAIP enforcement
-- [Issuing into the wallet](wallet/issuing.md): sign-in, deferred issuance, renewing, VCI feature level, wallet attestation, interactive authorization
+- [Wallet server](wallet/serve.md): `wallet serve`, endpoints, trusted lists and `trust`, certificate export, and every serve flag
+- [Presentation from the wallet](wallet/presenting.md): `wallet accept`, `wallet scan`, invoking by URL, HAIP enforcement
+- [Issuance into the wallet](wallet/issuing.md): sign-in, deferred issuance, renewing, VCI feature level, wallet attestation, interactive authorization
 - [Wallet HTTP API](wallet/http-api.md): the full REST API and remote control
-- [Registrar](wallet/registrar.md) (new in 3.0.0): register verifiers and issuers, issue their certificates, keep a catalogue of attestations, and see what the wallet checks
-- [Registrar API walkthrough](wallet/registrar-api.md) (new in 3.0.0): register a verifier and an issuer with curl and use their certificates against the wallet
+- [Registrar](wallet/registrar.md): register verifiers and issuers, issue their certificates, keep a catalogue of attestations, and see what the wallet checks
+- [Registrar API walkthrough](wallet/registrar-api.md): register a verifier and an issuer with curl and use their certificates against the wallet
 
-## Issuing credentials
+## Issuance
 
 - [Issue](issue.md): the `issue` command, flags, and round-trip examples
 - [Credential templates](templates.md): named claim sets, card appearance (display), and the `templates` commands
 
-## Presenting and validating
+## Presentation and validation
 
 - [Validate](validate.md): verify a presentation or a credential from the CLI
 - [Decode](decode.md): inspect credentials, requests, offers and trusted lists
+- [Decoder](decoder.md): the web UI for decoding and validating credentials
+- [DCQL](dcql.md): generate a DCQL query from a credential
 
-## Deploying
+## Deployment
 
 - [Docker](docker.md): run the wallet, issuer, and verifier in containers
 - [Helm chart](https://github.com/dominikschlosser/eudi-dev-helm): deploy the wallet on Kubernetes
 - [Public demo hosting](public-demo.md): the hardened `--demo` profile for an internet-facing instance
-- [Behind a reverse proxy](reverse-proxy.md): serve the wallet on its own host or under a path prefix, with Istio and nginx examples
+- [Reverse proxy setup](reverse-proxy.md): serve the wallet on its own host or under a path prefix, with Istio and nginx examples
 - [Debug proxy](proxy.md): record and decode OID4VP/OID4VCI traffic
 
 ## Conformance

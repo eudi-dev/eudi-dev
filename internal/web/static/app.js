@@ -529,6 +529,61 @@
     }
   }
 
+  const CHECK_NAMES = {
+    type: "Type",
+    expiry: "Expiry",
+    integrity: "Integrity",
+    "trusted list": "Trusted list",
+    signature: "Signature",
+    trust: "Trust",
+    status: "Status",
+    "status list signature": "Status list signature",
+    haip: "HAIP",
+    structure: "Structure",
+  };
+
+  function checkName(name) {
+    return CHECK_NAMES[name] || name.charAt(0).toUpperCase() + name.slice(1);
+  }
+
+  // A passing type check names the typ value, which keeps its case.
+  function checkDetail(c) {
+    const detail = c.detail || "";
+    if (c.name === "type" && c.status === "pass") return detail;
+    return detail.charAt(0).toUpperCase() + detail.slice(1);
+  }
+
+  function plural(n, one, many) {
+    return n + " " + (n === 1 ? one : many);
+  }
+
+  // The trust check and the status list signature check usually name the
+  // same trusted list. Each list appears once, on the first check naming it.
+  function checkItems(checks) {
+    const shown = new Set();
+    return checks.map((c) => {
+      const item = { check: c.name, name: checkName(c.name), detail: checkDetail(c) };
+      const anchor = c.status === "pass" ? c.anchor : null;
+      if (!anchor) return item;
+      if (c.name === "trust") item.detail = "";
+      else item.detail = item.detail.replace(/^Valid, s/, "S");
+      if (anchor.list_url && !shown.has(anchor.list_url)) {
+        shown.add(anchor.list_url);
+        item.anchor = anchor;
+      }
+      return item;
+    });
+  }
+
+  function anchorHtml(anchor, id, ownLine) {
+    const url = String(anchor.list_url);
+    const name = url.replace(/\/+$/, "").split("/").pop() || url;
+    const list = /^https?:\/\//i.test(url)
+      ? '<a href="' + escapeHtml(url) + '" title="' + escapeHtml(url) + '" target="_blank" rel="noopener" id="' + id + '-link">' + escapeHtml(name) + " ↗</a>"
+      : escapeHtml(name);
+    return '<span class="vg-anchor' + (ownLine ? " vg-anchor-line" : "") + '" id="' + id + '">' + (anchor.entry ? escapeHtml(anchor.entry) + ", trusted list " : "Trusted list ") + list + "</span>";
+  }
+
   function renderValidationBanner(checks, deviations, opts) {
     const banner = document.createElement("div");
     banner.className = "validity-banner";
@@ -540,46 +595,52 @@
     const isPending = (c) => awaiting && c.needsNetwork === true;
     const pending = checks.filter(isPending);
 
-    const valid = [];
-    const cantCheck = [];
-    const violations = [];
-    checks.forEach((c) => {
-      if (isPending(c)) return;
-      const item = { name: c.name, detail: c.detail };
-      if (c.status === "pass") valid.push(item);
-      else if (c.status === "fail") violations.push(item);
-      else cantCheck.push(item);
+    const passed = [];
+    const warnings = [];
+    const notChecked = [];
+    const failed = [];
+    const settled = checks.filter((c) => !isPending(c));
+    checkItems(settled).forEach((item, i) => {
+      const status = settled[i].status;
+      if (status === "pass") passed.push(item);
+      else if (status === "fail") failed.push(item);
+      else if (status === "warning") warnings.push(item);
+      else notChecked.push(item);
     });
-    deviations.forEach((d) => violations.push({ name: "structure", detail: d }));
+    deviations.forEach((d) => failed.push({ check: "structure", name: checkName("structure"), detail: d }));
 
     const sig = checks.find((c) => c.name === "signature");
     const sigValid = sig && sig.status === "pass";
 
-    let icon, label, cls, summary;
+    let icon, label, cls;
+    const notes = [];
     if (pending.length > 0) {
       icon = "\u22ef"; label = "Checking"; cls = "checking";
-      summary = pending.map((c) => c.name).join(", ");
-    } else if (violations.length > 0) {
-      icon = "\u2717"; label = "Invalid"; cls = "expired";
-      summary = violations.length === 1 ? "1 violation" : violations.length + " violations";
-    } else if (sigValid) {
-      icon = "\u2713"; label = "Valid"; cls = "valid";
-      summary = cantCheck.length > 0 ? cantCheck.length + " not checked" : "signature verified";
+      notes.push(pending.map((c) => checkName(c.name).toLowerCase()).join(", "));
     } else {
-      icon = "\u26a0"; label = "Unverified"; cls = "unverified";
-      summary = "signature not verified";
+      if (failed.length > 0) {
+        icon = "\u2717"; label = "Invalid"; cls = "expired";
+        notes.push(plural(failed.length, "check failed", "checks failed"));
+      } else if (sigValid) {
+        icon = "\u2713"; label = "Valid"; cls = "valid";
+      } else {
+        icon = "\u26a0"; label = "Unverified"; cls = "unverified";
+      }
+      if (warnings.length > 0) notes.push(plural(warnings.length, "warning", "warnings"));
+      if (notChecked.length > 0) notes.push(notChecked.length + " not checked");
     }
     banner.classList.add(cls);
 
     let html = '<div class="verification-head" id="output-validation-head">';
     html += '<span class="verification-verdict" id="output-validation-verdict">' + icon + " " + label + "</span>";
-    if (summary) html += '<span class="validity-detail" id="output-validation-summary">' + escapeHtml(summary) + "</span>";
+    if (notes.length) html += '<span class="validity-detail" id="output-validation-summary">' + escapeHtml(notes.join(", ")) + "</span>";
     html += "</div>";
 
     html += '<div class="verification-groups" id="output-validation-groups">';
-    html += verificationGroup("Violations", "vg-violations", "\u2717", violations, "output-validation-violations");
-    html += verificationGroup("Cannot be checked", "vg-cant", "\u2014", cantCheck, "output-validation-not-checked");
-    html += verificationGroup("Valid", "vg-valid", "\u2713", valid, "output-validation-valid");
+    html += verificationGroup("Failed", "vg-violations", "\u2717", failed, "output-validation-violations");
+    html += verificationGroup("Warnings", "vg-warnings", "!", warnings, "output-validation-warnings");
+    html += verificationGroup("Not checked", "vg-cant", "\u2014", notChecked, "output-validation-not-checked");
+    html += verificationGroup("Passed", "vg-valid", "\u2713", passed, "output-validation-valid");
     html += "</div>";
 
     const verifyLabel = sigValid ? "Re-verify signature" : "Verify signature";
@@ -617,9 +678,12 @@
     let h = '<div class="verification-group ' + cls + '" id="' + id + '"><div class="vg-title" id="' + id + '-title">' + title + "</div>";
     items.forEach((it, i) => {
       const itemId = id + "-" + i;
-      h += '<div class="vg-item" id="' + itemId + '"><span class="vg-icon" id="' + itemId + '-icon">' + icon + "</span>";
+      h += '<div class="vg-item" id="' + itemId + '" data-check="' + escapeHtml(it.check) + '"><span class="vg-icon" id="' + itemId + '-icon">' + icon + "</span>";
       h += '<span class="vg-name" id="' + itemId + '-name">' + escapeHtml(it.name) + "</span>";
-      if (it.detail) h += '<span class="vg-detail" id="' + itemId + '-detail">' + escapeHtml(it.detail) + "</span>";
+      // Every item fills the three grid columns, also without a detail.
+      h += '<span class="vg-detail" id="' + itemId + '-detail">' + escapeHtml(it.detail);
+      if (it.anchor) h += anchorHtml(it.anchor, itemId + "-anchor", !!it.detail);
+      h += "</span>";
       h += "</div>";
     });
     return h + "</div>";
@@ -702,9 +766,7 @@
       });
       disc.insertBefore(
         renderNote(
-          "One entry per selectively disclosable claim. The credential signs a digest of each. " +
-          "Recomputing it from the salt and value is what ties the claim to the signature, and " +
-          "withholding a disclosure withholds the claim without breaking it.",
+          "Each disclosure matches a digest that the issuer signed.",
           discBase + "-note"),
         disc.firstChild);
       appendSection("Disclosures (" + data.disclosures.length + ")", disc, data.disclosures, "disclosures", discBase);
@@ -825,17 +887,17 @@
 
   const MDOC_NOTES = {
     structure:
-      "An mdoc is CBOR, not text. issuerSigned holds what the issuer signed (the elements and the COSE_Sign1 over them). deviceSigned holds what the holder signed when presenting.",
+      "issuerSigned is signed by the issuer. deviceSigned is signed by the holder when presenting.",
     issuerAuth:
-      "A COSE_Sign1, the CBOR counterpart of a JWT: protected header, unprotected header, payload and signature. The payload is the Mobile Security Object.",
+      "COSE_Sign1 over the Mobile Security Object.",
     mso:
-      "What the issuer actually signed. It carries a digest per element rather than the values, which is what lets a holder disclose some elements and withhold the rest.",
+      "Digests of the elements, signed by the issuer.",
     items:
-      "One entry per disclosed element. The issuer signed a digest of each. Recomputing it from the value and its salt is what proves the value was not changed.",
+      "Each element matches a digest in the Mobile Security Object.",
     deviceKey:
-      "The key the credential is bound to. The holder proves possession of it when presenting, which is the same role cnf plays in an SD-JWT.",
+      "Holder key (cnf in an SD-JWT).",
     deviceAuth:
-      "The holder's own signature over this presentation, covering the session transcript of the request it answers. A bare credential has none.",
+      "Holder signature over the session transcript. A bare credential has none.",
   };
 
   function renderNote(text, id) {
@@ -944,7 +1006,7 @@
       if (data.deviceAuthType) deviceAuth.appendChild(renderKV("Type", data.deviceAuthType, authBase + "-type"));
       deviceAuth.appendChild(createSubSection("COSE", renderJSONBlock(data.deviceAuth, null, authBase + "-cose-json"), authBase + "-cose"));
     } else {
-      deviceAuth.appendChild(renderKV("Present", "no (this is a credential, not a presentation)", authBase + "-present"));
+      deviceAuth.appendChild(renderKV("Present", "No (a credential, not a presentation)", authBase + "-present"));
     }
     appendSection("deviceSigned.deviceAuth", deviceAuth, data.deviceAuth || {}, undefined, authBase);
   }

@@ -14,25 +14,25 @@ For interaction diagrams of the implemented OID4VP and OID4VCI flows, see [docs/
 
 ## Subcommands
 
-| Subcommand     | Purpose                                                         |
-|----------------|-----------------------------------------------------------------|
-| `serve`        | Start wallet HTTP server with web UI, OID4VP endpoints, and optional URL scheme handling |
-| `list`         | List stored credentials                                         |
-| `show`         | Show a stored credential by ID (raw or decoded)                 |
-| `import`       | Import a credential from file, stdin, or raw string (SD-JWT, JWT VC, mdoc) |
-| `remove`       | Remove a credential by ID                                       |
-| `accept`       | Accept an OID4VP presentation request or OID4VCI credential offer (auto-detects) |
-| `scan`         | Scan a QR code and auto-dispatch to accept/import               |
-| `refresh`      | Ask a credential's issuer for a fresh copy over the refresh token grant |
-| `deferred`     | Manage pending deferred credentials (`check`, `abandon`) |
-| `logs`         | Show persisted wallet OID4VP/OID4VCI interaction logs      |
-| `tls-cert`     | Print or export the HTTPS wallet certificate used by HTTPS wallet endpoints |
-| `ps`           | List running wallet instances                                   |
-| `use`          | Switch management to a remote instance (`use <url>`) or back to local (`use local`) |
-| `kill`         | Stop a running wallet instance (`kill <pid|port|url>`, `kill --all`) |
-| `info`         | Show the configuration of the managed wallet (local or remote)  |
-| `register`     | Register OS URL scheme handlers on macOS. No-op elsewhere       |
-| `unregister`   | Remove OS URL scheme handlers on macOS. No-op elsewhere         |
+| Subcommand   | Purpose |
+|--------------|---------|
+| `serve`      | Start the wallet server with its web UI |
+| `list`       | List stored credentials |
+| `show`       | Show a stored credential by ID (raw or decoded) |
+| `import`     | Import an SD-JWT, JWT VC or mdoc credential from a file, stdin or a raw string |
+| `remove`     | Remove a credential by its ID |
+| `accept`     | Accept an OID4VP presentation request or OID4VCI credential offer (auto-detected) |
+| `scan`       | Scan a QR code and accept or import its content |
+| `refresh`    | Ask a credential's issuer for a fresh copy over the refresh token grant |
+| `deferred`   | List deferred credentials (`check`, `abandon`) |
+| `logs`       | Show the activity log (`clean` removes old entries) |
+| `tls-cert`   | Print or export the wallet HTTPS leaf certificate |
+| `ps`         | List running wallet instances |
+| `use`        | Switch management to a remote instance (`use <url>`) or back to local (`use local`) |
+| `kill`       | Stop a running wallet instance by pid, port or URL (`kill --all` stops all) |
+| `info`       | Show the configuration of the managed wallet (local or remote) |
+| `register`   | Register the OS URL scheme handlers on macOS (a no-op elsewhere) |
+| `unregister` | Remove the OS URL scheme handlers on macOS (a no-op elsewhere) |
 
 Three top-level commands also work on the active wallet and take the same wallet flags:
 
@@ -131,6 +131,7 @@ All wallet state is stored in `~/.eudi-dev/wallet/` by default:
     ├── wallet-tls-cert.pem # HTTPS certificate for wallet endpoints on port+1
     ├── wallet-tls-key.pem  # HTTPS private key for wallet endpoints on port+1
     ├── signing-keys/       # Keys for provider, access, registrar, status and list signatures
+    ├── authorities/        # Self-signed relying party access CA and registrar CA
     ├── certificates/       # Current signing certificates and provider CAs
     ├── certificate-der/    # Published certificates retained by fingerprint
     ├── trustlists/         # Current signed trusted lists and their history
@@ -191,7 +192,7 @@ eudi wallet logs --json       # JSON array of log entries
 | `-v, --verbose` | `false` | Global flag. Expand structured log details        |
 | `--json`   | `false` | Global flag. Output the persisted log entries as JSON. Cannot be combined with `--follow` |
 
-## Serving the wallet
+## Wallet server
 
 `wallet serve` runs the web UI, protocol endpoints, trusted lists and management API. It loads credentials from the selected storage backend and asks for consent on interactive requests. On macOS it can also register URL scheme handlers. The [activity log API](wallet/http-api.md#activity-log) describes the JSON format of the activity view.
 
@@ -200,9 +201,9 @@ eudi wallet serve                      # web UI on http://localhost:8085
 eudi wallet serve --auto-accept --pid  # headless, with default PIDs, for tests
 ```
 
-See [serving the wallet](wallet/serve.md) for the endpoints, trusted lists, certificate export, URL scheme registration, runtime conformance settings, and every `wallet serve` flag.
+See [wallet server](wallet/serve.md) for the endpoints, trusted lists, certificate export, URL scheme registration, runtime conformance settings, and every `wallet serve` flag.
 
-## Presenting from the wallet
+## Presentation
 
 `wallet accept` answers an OID4VP presentation request or starts issuance for a credential offer. `wallet scan` does the same from a QR code. The wallet's `/authorize` and `/credential-offer` URLs run the same flows without a custom scheme.
 
@@ -211,9 +212,9 @@ eudi wallet accept 'openid4vp://authorize?...'   # evaluate DCQL, consent, submi
 eudi wallet scan --screen                        # scan a QR and dispatch
 ```
 
-See [presenting from the wallet](wallet/presenting.md) for the `wallet accept` and `wallet scan` flags, invoking the wallet by URL, HAIP 1.0 and ARF checks.
+See [presentation from the wallet](wallet/presenting.md) for the `wallet accept` and `wallet scan` flags, invoking the wallet by URL, HAIP 1.0 and ARF checks.
 
-## Issuing into the wallet
+## Issuance
 
 `wallet accept` accepts a credential offer. The UI, a scanned QR code and the `/credential-offer` URL do the same. The wallet handles sign-in at the issuer, deferred issuance, renewal, and interactive authorization (presentation during issuance).
 
@@ -223,7 +224,7 @@ eudi wallet deferred                                 # what is still being colle
 eudi wallet refresh <credential-id>                  # ask for a fresh copy
 ```
 
-See [issuing into the wallet](wallet/issuing.md) for sign-in, renewal, deferred issuance, wallet attestation, the OpenID4VCI feature level (`--vci-version`), and interactive authorization.
+See [issuance into the wallet](wallet/issuing.md) for sign-in, renewal, deferred issuance, wallet attestation, the OpenID4VCI feature level (`--vci-version`), and interactive authorization.
 
 ## HTTP API
 
@@ -238,7 +239,7 @@ See [the wallet HTTP API](wallet/http-api.md) for every endpoint and for remote 
 
 ## Shared flags
 
-All wallet subcommands accept `--wallet-dir` to override the storage directory, `--templates-dir` to override the credential template directory (see [templates](templates.md)) and `--storage` to choose the storage backend. These flags shape the local store, so a command that manages a running or remote wallet refuses them (see [automatic routing](wallet/http-api.md#automatic-routing-single-writer)):
+All wallet subcommands accept `--wallet-dir` to override the storage directory, `--templates-dir` to override the credential template directory (see [templates](templates.md)), `--storage` to choose the storage backend and `--seed` to derive the generated keys (see [seeded keys](#seeded-keys)). These flags shape the local store, so a command that manages a running or remote wallet refuses them (see [automatic routing](wallet/http-api.md#automatic-routing-single-writer)):
 
 ```bash
 eudi wallet list --wallet-dir /tmp/test-wallet

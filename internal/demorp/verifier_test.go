@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -84,6 +85,19 @@ func TestOnlyTheTransactionIDAndTheResponseCodeReadTheResult(t *testing.T) {
 	}
 	if code, doc := doJSON(t, h, "GET", "/api/requests/"+responseCode, "", nil); code != http.StatusOK || doc["status"] != "verified" {
 		t.Errorf("reading the result with the response_code: %d %v, want 200 verified", code, doc)
+	}
+}
+
+// The wallet redirects to a fresh page. The result names the page's choice,
+// so the page shows the controls of the request it answers.
+func TestTheResultNamesThePagesChoice(t *testing.T) {
+	d, _, _ := newDemoRP(t)
+	id, _ := startVerificationWith(t, d.VerifierHandler(), `{"type":"pid","format":"sd-jwt","vct":"urn:eudi:pid:de:1","multiple":true}`)
+
+	_, doc := requestStatus(t, d, id)
+	want := map[string]any{"type": "pid", "format": "sd-jwt", "vct": "urn:eudi:pid:de:1", "multiple": true}
+	if got, _ := doc["request"].(map[string]any); !reflect.DeepEqual(got, want) {
+		t.Errorf("request = %v, want %v", doc["request"], want)
 	}
 }
 

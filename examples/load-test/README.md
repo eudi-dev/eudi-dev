@@ -12,7 +12,7 @@ Two wallet servers share Postgres behind nginx. Both use the same keys, CA, cred
 
 The wallets advertise `http://localhost:8080` as their base URL and `https://localhost:8086` as their issuer URL, so the status list, issuer metadata and trusted list URLs embedded in credentials point at the ingress.
 
-## Run
+## Startup
 
 ```bash
 cd examples/load-test
@@ -23,7 +23,7 @@ docker compose logs ingress | grep upstream=
 
 The ingress log shows `upstream=` alternating between the two server addresses. `storage` is `postgres` and `credential_count` is the same on each. `WALLET_TAG=2.4.0 docker compose up -d` pins a release. `docker compose build` builds the image from the working tree. `INGRESS_PORT=18080 docker compose up -d` moves the HTTP host port (the base URL follows it).
 
-## Drive it
+## Traffic
 
 Send load to the [wallet HTTP API](../../docs/wallet/http-api.md). A presentation, an import and an issuance are each one request:
 
@@ -48,7 +48,7 @@ eudi wallet logs
 
 A browser session stays on one server (the ingress hashes the `eudi_session` cookie), so the wallet UI at `http://localhost:8080` works as usual once it has been opened. A flow that starts with a verifier's or issuer's redirect in a fresh browser lands on either server, so open the UI first.
 
-## Check correctness under load
+## Correctness under load
 
 The Go load generator runs issuance, presentation and listing concurrently. It checks that every issued credential appears once, status indices are unique, presentation callbacks arrive and both servers report the same count.
 
@@ -74,7 +74,7 @@ A listing started after successful issuance must include the credential. A missi
 
 Add a `wallet-3` service using the existing compose anchor and include it in both nginx upstreams. Servers reload changed sections and save changed rows. Updates to different entities are preserved. Updates to the same entity can overwrite each other. Each browser flow must stay on one server. See [the storage design](../../docs/adr/0018-postgres-stores-wallet-entities-as-keyed-blobs.md).
 
-## Clean up
+## Cleanup
 
 ```bash
 docker compose down -v

@@ -198,7 +198,7 @@ test.describe("Demo mode conformance panel", () => {
     await expect(page.locator("#conf-arf-input")).toBeDisabled();
     await expect(page.locator("#conf-encrypted-input")).toBeDisabled();
     await expect(page.locator("#conf-reset")).toBeHidden();
-    await expect(page.locator("#conf-intro")).toContainText("The public demo runs with fixed settings");
+    await expect(page.locator("#conf-intro")).toHaveText("Fixed settings on the public demo.");
 
     expect(await page.evaluate(() => document.cookie)).not.toContain("eudi_conformance");
     const status = await page.evaluate(async () => {
@@ -391,7 +391,7 @@ test.describe("Demo mode consent visibility", () => {
     await page.goto(`${BASE}/?focus=overview`);
     await page.locator("#pending-review").click();
     await expect(page.locator("#consent-overlay")).toHaveClass(/active/);
-    await expect(page.locator("#consent-dialog")).toContainText("Credential Offer");
+    await expect(page.locator("#consent-dialog")).toContainText("Credential offer");
   });
 
   test("the tab the scheme handler opened takes the consent directly", async ({
@@ -640,7 +640,7 @@ test.describe("Demo issuer authorization choice", () => {
     await driver.waitForSelector("#consent-overlay.active", { timeout: 15_000 });
     await driver.locator("#consent-approve").click();
 
-    await expect(driver.locator("#consent-dialog")).toContainText(/Presentation Request/i, {
+    await expect(driver.locator("#consent-dialog")).toContainText(/Presentation request/i, {
       timeout: 15_000,
     });
 
@@ -729,6 +729,22 @@ test.describe("Verifier request types", () => {
     await expect(page.locator("#status")).toHaveText(/verified/i, { timeout: 15000 });
     await expect(page.locator("#claims")).toContainText("urn:eudi:pid:de:1");
   });
+
+  test("the redirect shows the requested credential and folds the passed checks", async ({ page }) => {
+    await page.goto(`${BASE}/verifier/`);
+    await createVerifierRequest(page, "pid-de");
+    await expect(page.locator("#status")).toHaveText(/Waiting/);
+    const uri = await page.locator("#scheme-uri").textContent();
+    const answered = await postJSON("/api/presentations", { uri });
+    expect(answered.body.redirect_uri).toContain("response_code=");
+
+    await page.goto(answered.body.redirect_uri);
+    await expect(page.locator("#status")).toHaveText(/^✓ Presentation verified, \d+ checks passed/, { timeout: 15000 });
+    await expect(page.locator("#credential-pid-de")).toHaveAttribute("aria-checked", "true");
+    await expect(page.locator("#format-row")).toBeVisible();
+    await expect(page.locator("#checks-passed")).not.toHaveAttribute("open", "");
+    await expect(page.locator("#checks-passed .check-item").first()).toBeHidden();
+  });
 });
 
 test.describe("Protected baseline credentials", () => {
@@ -748,7 +764,7 @@ test.describe("Protected baseline credentials", () => {
     await expect(first.locator(".status-protected")).toHaveText("Protected");
     await expect(first.locator(".status-protected")).toHaveAttribute(
       "title",
-      /cannot be deleted or revoked/
+      /Can't be deleted or revoked/
     );
     await expect(first.locator("[data-delete]")).toHaveCount(0);
     await expect(first.locator("[data-revoke]")).toHaveCount(0);
@@ -1002,7 +1018,7 @@ test.describe("Consent credential selection", () => {
     const result = await verifierResult(req.id);
     expect(result.status).toBe("verified");
     expect((result.claims || {}).ticket).toBeFalsy();
-    expect(result.checks.map((c) => c.name)).toContain("ticket: not presented, which the request allows");
+    expect(result.checks.map((c) => c.name)).toContain("ticket: not presented (optional)");
   });
 
   test("the ticket travels next to the PID and verifies", async ({ page }) => {
@@ -1271,7 +1287,7 @@ test.describe("Conformance", () => {
     await expect(page.locator("#conf-arf-input")).toBeChecked();
     await expect(page.locator("#conf-encrypted-input")).not.toBeChecked();
     await expect(page.locator("#conf-transcript")).toHaveText("OpenID4VP");
-    await expect(page.locator("#conf-intro")).toContainText("Debug mode");
+    await expect(page.locator("#conf-mode-hint")).toHaveText("Warn and continue");
 
     await page.locator("#conformance-close").click();
     await expect(page.locator("#conformance-overlay")).not.toHaveClass(/active/);
@@ -1546,7 +1562,7 @@ test.describe("Demo verifier identity", () => {
     await expect(page.locator("#identity-registered")).toBeDisabled();
     await expect(page.locator("#identity-own")).toBeDisabled();
     await expect(page.locator("#identity-unregistered")).toHaveAttribute("aria-checked", "true");
-    await expect(page.locator("#identity-hint")).toContainText("the request is unsigned");
+    await expect(page.locator("#identity-hint")).toHaveText("Needs a signed request object (x509_hash or x509_san_dns).");
 
     // A signed request again uses the registration the user chose.
     await page.locator('#scheme-toggle [data-scheme="x509_hash"]').click();

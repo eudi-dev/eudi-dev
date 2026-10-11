@@ -1,8 +1,8 @@
 [← Wallet](../wallet.md)
 
-# Presenting from the wallet
+# Presentation from the wallet
 
-The wallet answers an OID4VP presentation request from the CLI (`wallet accept`), from a scanned QR (`wallet scan`), or at its own `/authorize` URL. `wallet accept` also handles credential offers (see [issuing into the wallet](issuing.md)).
+The wallet answers an OID4VP presentation request from the CLI (`wallet accept`), from a scanned QR (`wallet scan`), or at its own `/authorize` URL. `wallet accept` also handles credential offers (see [issuance into the wallet](issuing.md)).
 
 ## `wallet accept <uri>`
 
@@ -81,7 +81,7 @@ The wallet handling the flow fetches the offer and prompts for a transaction cod
 
 `wallet scan` uses the persistent `wallet --mode` setting and accepts the same `--auto-accept`, `--tx-code`, `--haip`, `--arf`, `--relying-party-ca`, `--trusted-list-ca` and `--trusted-list` flags as `accept`.
 
-## Invoking the wallet by URL
+## Wallet invocation by URL
 
 Both wallet flows also run at the wallet's own URL, wherever a verifier or issuer would use a custom-scheme link. Custom schemes are registered on macOS only.
 
@@ -113,9 +113,9 @@ Other callers, including curl and test harnesses, receive the same JSON response
 
 In interactive mode (no `--auto-accept`) the two caller types also behave differently before consent. A browser navigation redirects to the wallet UI for consent and then to the verifier's `redirect_uri`. An API call blocks until the request is approved or denied, in the UI or via `POST /api/requests/{id}/approve` or `/deny`. Both responses carry the verifier's `redirect_uri` when it returned one.
 
-## HAIP 1.0 Enforcement
+## HAIP 1.0 enforcement
 
-`--haip` on `wallet serve` or `wallet accept` checks incoming requests and offers against [HAIP 1.0 Final](https://openid.net/specs/openid4vc-high-assurance-interoperability-profile-1_0-final.html). `--demo` turns it on by default (see [hosting a public demo](../public-demo.md)).
+`--haip` on `wallet serve` or `wallet accept` checks incoming requests and offers against [HAIP 1.0 Final](https://openid.net/specs/openid4vc-high-assurance-interoperability-profile-1_0-final.html). `--demo` turns it on by default (see [public demo](../public-demo.md)).
 
 `--haip` adds the profile checks below. Strict mode rejects violations. Debug mode reports them and continues where possible. Advisory findings remain warnings in either mode.
 
@@ -123,7 +123,7 @@ For **presentations** (OID4VP `direct_post.jwt` and Browser API `dc_api.jwt`) th
 
 - `response_type` must be `vp_token` (§5)
 - `response_mode` must be `direct_post.jwt` (§5.1) or `dc_api.jwt` (§5.2)
-- A signed request must use the `x509_hash:` Client Identifier Prefix (§5), and its Request Object signature must verify against a certificate whose SHA-256 is the prefix value
+- A request object must use the `x509_hash:` Client Identifier Prefix (§5), and its Request Object signature must verify against a certificate whose SHA-256 is the prefix value
 - The certificate signing the request must not be self-signed, and the trust anchor must not be included in the `x5c` header (§5)
 - A request sent by redirect must carry a signed request object (JAR) delivered through `request_uri` (§5.1). An unsigned request is accepted only over the Digital Credentials API, where §5.2 requires wallet support for it
 - The query must use DCQL (§5), and every credential it asks for must be `mso_mdoc` (§5.3.1) or `dc+sd-jwt` (§5.3.2)
@@ -158,8 +158,6 @@ Every request to a given wallet uses the same validation mode, HAIP, ARF and enc
 
 ## ARF checks
 
-*(new in 3.0.0)*
-
 `--arf` on `wallet serve`, `wallet accept` or `wallet scan` checks the relying party's access and registration certificates in a presentation request against the ARF. It checks issuers too (see [issuing](issuing.md#arf-checks)). `--demo` turns it on by default. The Conformance panel and `PUT /api/config/conformance` (`arf`) switch it at runtime.
 
 The wallet checks that:
@@ -177,7 +175,7 @@ How strict mode refuses depends on the verifier. When only ARF findings remain a
 
 The [registrar API walkthrough](registrar-api.md) shows both outcomes with real requests.
 
-Consent shows purposes and privacy policies only from registration certificates that belong to the access certificate of the signed request. An unsigned request shows none.
+Consent shows purposes and privacy policies only from registration certificates that belong to the access certificate that signed the request object. A request without a request object shows none.
 
 The wallet takes its trust anchors from [trusted lists](serve.md#trusted-lists) only. An access certificate must chain to a CA on an access certificate provider list (`access-ca`, ETSI TS 119 602 V1.1.1 Annex F). The wallet's own list names the relying party access CA of its [registrar](registrar.md). The demo issuer and the demo verifier get their access certificates from that CA too. A registration certificate and its status list must chain to a CA on a registration certificate provider list (`registrar`, Annex G). The wallet's own list names the registrar CA. The relying party access CA signs any visitor's CSR, so it is not on the `registrar` list.
 

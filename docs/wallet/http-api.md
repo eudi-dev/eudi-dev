@@ -4,11 +4,11 @@
 
 A running `wallet serve` instance exposes this API. [Remote CLI commands](#remote-control) use it too.
 
-## HTTP API
+## Endpoints
 
 > **No authentication.** Anyone who can reach the port can control the wallet and read its credentials. Use it for local development and isolated test networks with test data. Public deployments should use [`--demo`](../public-demo.md), which disables administrative operations, restricts outbound connections and resets state periodically. The remaining data and endpoints are public.
 
-> **Path prefix.** If `--base-url` includes a path prefix, such as `https://example.com/some/context`, prepend it to every path on this page (`/some/context/api/credentials`). Links in responses, such as credential image URLs, already include it. See [behind a reverse proxy](../reverse-proxy.md).
+> **Path prefix.** If `--base-url` includes a path prefix, such as `https://example.com/some/context`, prepend it to every path on this page (`/some/context/api/credentials`). Links in responses, such as credential image URLs, already include it. See [reverse proxy setup](../reverse-proxy.md).
 
 > **Browser origin checks.** Cross-origin API requests (by their `Origin` header) receive `403`. The Digital Credentials API endpoint is the exception because verifier pages call it from their own origins. CLI tools normally send no `Origin` header. The wallet accepts its own origin and the configured `--base-url`.
 
@@ -26,7 +26,7 @@ To approve or deny a request through `POST /api/requests/{id}/approve` or `/deny
 
 `GET /api/credentials` accepts optional `limit` and `offset` query parameters and reports the total number of stored credentials in the `X-Total-Count` response header. Without parameters it returns every credential. An offset past the end returns an empty array.
 
-Protected baseline credentials cannot be deleted or revoked through the API. Individual operations return `403`. Deleting all credentials preserves protected entries and reports `kept_protected`. Demo mode marks its generated PIDs as protected. Changing the flag requires direct access to stored state, such as editing `wallet.json` on the file backend.
+Protected baseline credentials cannot be deleted or revoked through the API. Individual operations return `403`. Deleting all credentials preserves protected entries and reports `kept_protected`. The public demo marks its generated PIDs as protected. Changing the flag requires direct access to stored state, such as editing `wallet.json` on the file backend.
 
 ### Credential management
 
@@ -48,7 +48,7 @@ curl -X DELETE http://localhost:8085/api/credentials/<id>
 curl -X DELETE http://localhost:8085/api/credentials
 ```
 
-### Issuing credentials
+### Credential issuance
 
 `POST /api/issue` issues a credential with the wallet's issuer key and certificate chain and imports it into the wallet. It is the HTTP equivalent of `issue sdjwt|jwt|mdoc --wallet`. All fields except `format` are optional:
 
@@ -71,12 +71,12 @@ curl -X DELETE http://localhost:8085/api/credentials
 | `status_list_idx` | int     | Status list index (default is the next free index on the wallet's status list)               |
 | `category`        | string  | Credential category: `pid`, `qeaa`, `pub-eaa`, `eaa` or `unlisted`. Empty (default) takes the category of the template or the catalogue entry, else `eaa` |
 | `trust`           | object  | Trust/registration metadata to persist with the credential type (same fields as the `issue` trust flags, e.g. `entitlements`, `trust_list_type`, `entity_name`) |
-| `display`         | object  | Card appearance: `name`, `description`, `background_color`, `text_color`, `logo`, `logo_alt_text`, `background_image` (the `--display-*` flags). A public demo drops operator-supplied images |
+| `display`         | object  | Card appearance: `name`, `description`, `background_color`, `text_color`, `logo`, `logo_alt_text`, `background_image` (the `--display-*` flags). The public demo answers `403` to an image that is not bundled with the wallet |
 | `display_template`| string  | Template that supplies the logo and background image of the credential (for a form with the template's claims flattened into `claims`) |
 | `batch`           | int     | Issue this many copies with distinct holder keys, at most 8. The wallet rotates between them (like `--batch`) |
 | `unbound`         | bool    | Issue a bearer credential without a holder key (like `--unbound`). By default the credential is bound to the wallet. Only a query with `require_cryptographic_holder_binding: false` matches an unbound credential. In strict mode an unbound mdoc matches no query |
 | `signing_key`     | string  | PEM or JWK private key that signs the credential instead of the wallet issuer key. Requires `signing_cert` (like `--key` with `--cert`). Refused on the public demo |
-| `signing_cert`    | string  | PEM certificate chain, leaf first, embedded as the credential's x5c. The leaf must certify `signing_key` and the chain is embedded as given (a chain that includes its self-signed root produces a warning in debug mode and is refused in strict mode). The chain replaces the request's trust profile and registration metadata |
+| `signing_cert`    | string  | PEM certificate chain, leaf first, embedded in the credential (`x5c` or `x5chain`). The leaf must certify `signing_key` and the chain is embedded as given (a chain that includes its self-signed root produces a warning in debug mode and is refused in strict mode). The key and chain replace the signer of the credential category |
 
 The response is `201` with the stored credential (`id`, `format`, `claims`, `raw`, `status_list_idx` when the credential was registered on the wallet's status list, and `template_path` when `save_as_template` was used).
 
@@ -166,13 +166,11 @@ These endpoints are available on both wallet ports.
 | `POST` | `/api/trust/lists` | Put an external list on the list of trusted lists: `url` |
 | `DELETE` | `/api/trust/lists?url=<url>` | Take an external list off |
 
-Issuer metadata is JSON by default. An `Accept` header that ranks `application/jwt` above `application/json` selects metadata signed with the access certificate key. Its `issuer_info` holds the registrar dataset and the registration certificate of the [demo issuer](registrar.md#the-demo-issuer-and-verifier). If you revoke that certificate in the registrar, the next metadata carries a new one.
+Issuer metadata is JSON by default. An `Accept` header that ranks `application/jwt` above `application/json` selects metadata signed with the access certificate key. Its `issuer_info` holds the registrar dataset and the registration certificate of the [demo issuer](registrar.md#demo-issuer-and-verifier). If you revoke that certificate in the registrar, the next metadata carries a new one.
 
 Trusted lists contain service certificates and provider CAs. A separate list operator key signs them. History preserves each published JWT. Changed content or an expired instance advances the sequence number. See [trusted lists](serve.md#trusted-lists) for the list IDs, added providers and lists, and discovery.
 
 ### Registrar
-
-*(new in 3.0.0)*
 
 These endpoints are available on both wallet ports. Anyone with access to the wallet can register, change and delete relying parties, as with credentials. All `GET` endpoints under `/api/registrar/wrp` and `PUT /api/registrar/wrp` answer with a JWT signed by the registrar (`application/jwt`). Its payload has `iss`, `iat` and `data`. Send `Accept: application/json` without `application/jwt` to get the payload unsigned. See [registrar](registrar.md#registrar-api). The [registrar API walkthrough](registrar-api.md) registers a verifier and an issuer with curl and uses their certificates.
 
@@ -379,7 +377,7 @@ Each activity log entry has a timestamp, category (`presentation`, `issuance`, `
 | Method   | Path       | Description                                     | CLI equivalent |
 |----------|------------|--------------------------------------------------|----------------|
 | `GET`    | `/api/log` | The persisted activity log, newest last          | `wallet logs`  |
-| `DELETE` | `/api/log` | Clear the log (`204`). Demo mode returns `403` | None           |
+| `DELETE` | `/api/log` | Clear the log (`204`). The public demo returns `403` | None           |
 
 ```bash
 curl http://localhost:8085/api/log
@@ -515,9 +513,11 @@ Discovery includes local instances and the active remote target. A responding re
 
 `GET /api/config` reports the instance version, build, serving URLs, wallet settings and credential count. It identifies the [storage backend](../wallet.md#storage-backends) and whether generated keys use a [seed](../wallet.md#seeded-keys).
 
-The response includes `port`, `build_id`, `version`, `storage`, `seeded_keys`, `base_url`, `issuer_url`, `status_list_url`, `preferred_format`, `key_attestation_level`, `tls_verify`, `tls_verify_override`, `validation_mode`, `vci_version`, `auto_accept`, `session_transcript`, `require_haip`, `require_haip_issuance`, `require_arf`, `require_encrypted_request`, `force_client_attestation`, `adhoc_display_images`, `tls_listener`, `imprint` and `credential_count`.
+The response includes `port`, `build_id`, `version`, `storage`, `seeded_keys`, `base_url`, `issuer_url`, `status_list_url`, `preferred_format`, `key_attestation_level`, `tls_verify`, `tls_verify_override`, `validation_mode`, `vci_version`, `auto_accept`, `session_transcript`, `require_haip`, `require_haip_issuance`, `require_arf`, `require_encrypted_request`, `force_client_attestation`, `adhoc_display_images`, `tls_listener`, `imprint`, `credential_count`, `form_defaults`, `protected_relying_parties` and `news_id`.
 
-Local instances also report `pid`, `wallet_dir` and `templates_dir`. Demo mode hides those fields and adds a `demo` object. `POST /api/shutdown` sends its response before stopping the instance.
+`form_defaults` holds the limits and defaults of the UI forms. `protected_relying_parties` lists the identifiers of the registrations that visitors can't change (the demo issuer and verifier on the public demo, empty otherwise). `news_id` identifies the current news of the public demo (empty without `--news-file`).
+
+Local instances also report `pid`, `wallet_dir` and `templates_dir`. The public demo hides those fields and adds a `demo` object. `POST /api/shutdown` sends its response before stopping the instance.
 
 `PUT /api/config/conformance` takes `mode`, `tls_verify`, `haip`, `arf`, `encrypted`, `vci_version` and `key_attestation_level`. It accepts these values for `tls_verify`:
 

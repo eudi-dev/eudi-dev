@@ -162,9 +162,9 @@
             '</div>' +
             '<div class="deferred-meta deferred-status" id="' + prefix + '-progress">' +
               '<span class="deferred-spinner" aria-hidden="true"></span>' +
-              'The issuer asked the wallet to check back every ' + escHtml(p.interval || '') +
-              (when ? '. Next attempt at ' + escHtml(when) : '') +
-              (p.attempts ? ' (' + escHtml(p.attempts) + ' so far)' : '') +
+              'Checks every ' + escHtml(p.interval || '') +
+              (when ? '. Next at ' + escHtml(when) : '') +
+              (p.attempts ? ' (' + escHtml(p.attempts) + ' attempts)' : '') +
             '</div>' +
             (p.issuer ? '<div class="deferred-meta" id="' + prefix + '-issuer">' + escHtml(p.issuer) + '</div>' : '') +
             (p.last_error ? '<div class="deferred-meta deferred-error" id="' + prefix + '-error">' + escHtml(p.last_error) + '</div>' : '') +
@@ -355,8 +355,7 @@
     // Protected credentials cannot be deleted or revoked, so hide those actions.
     const protectedBadge = isProtected
       ? '<span class="status-badge status-protected" id="' + idPrefix + 'protected-' + domID(cred.id) + '"' +
-        ' title="Part of this wallet\'s baseline. It cannot be deleted or revoked' +
-        ' through the UI or the API, only by editing the wallet file.">' + LOCK_SVG + 'Protected</span>'
+        ' title="Baseline credential. Can\'t be deleted or revoked.">' + LOCK_SVG + 'Protected</span>'
       : '';
 
     const st = cred.status;
@@ -364,12 +363,12 @@
     if (st && st.managed) {
       const revoked = st.status === 1;
       dataset.status = revoked ? 'revoked' : 'active';
-      statusBadge = '<span class="status-badge ' + (revoked ? 'status-revoked ico-block' : 'status-active ico-dot') + '" id="' + idPrefix + 'status-' + domID(cred.id) + '" title="' + (revoked ? 'The issuer has revoked this credential on its status list' : 'Not revoked on the issuer\'s status list') + ' (' + escHtml(st.uri || '') + ' idx ' + st.idx + ').">' + (revoked ? 'Revoked' : 'Active') + '</span>';
+      statusBadge = '<span class="status-badge ' + (revoked ? 'status-revoked ico-block' : 'status-active ico-dot') + '" id="' + idPrefix + 'status-' + domID(cred.id) + '" title="' + (revoked ? 'Revoked' : 'Not revoked') + ' (' + escHtml(st.uri || '') + ', index ' + st.idx + ')">' + (revoked ? 'Revoked' : 'Active') + '</span>';
     } else if (st && st.uri) {
       dataset.status = 'external';
-      statusBadge = '<span class="status-badge status-external ico-half" id="' + idPrefix + 'status-' + domID(cred.id) + '" title="Revocation is tracked on a status list this wallet does not manage, so its state is not read here (' + escHtml(st.uri) + ' idx ' + st.idx + ').">External list</span>';
+      statusBadge = '<span class="status-badge status-external ico-half" id="' + idPrefix + 'status-' + domID(cred.id) + '" title="External status list, not checked (' + escHtml(st.uri) + ', index ' + st.idx + ')">External list</span>';
     } else {
-      statusBadge = '<span class="status-badge status-none ico-circle" id="' + idPrefix + 'status-' + domID(cred.id) + '" title="This credential carries no status list, so revocation cannot be checked.">No status</span>';
+      statusBadge = '<span class="status-badge status-none ico-circle" id="' + idPrefix + 'status-' + domID(cred.id) + '" title="No status list. Can\'t be revoked.">No status</span>';
     }
 
     const expiry = validityInfo(cred.valid_from, cred.expires_at);
@@ -387,12 +386,11 @@
     if (sig && sig.algorithm) {
       if (sig.self_consistent) {
         signatureBadge = '<span class="status-badge status-active ico-check" id="' + idPrefix + 'signature-' + domID(cred.id) +
-          '" title="The signature verifies against the key material the credential carries (its x5c certificate or embedded jwk, ' + escHtml(sig.algorithm) +
-          '). It is not checked against any trust anchor, so it proves the credential is intact, not who the issuer is.">Self-consistent</span>';
+          '" title="Verified with the credential\'s own x5c or jwk (' + escHtml(sig.algorithm) + '). Issuer not checked.">Self-consistent</span>';
       } else {
         const kind = cred.issuer && cred.issuer.kind ? ' · ' + escHtml(cred.issuer.kind.toUpperCase()) : '';
         signatureBadge = '<span class="status-badge status-revoked ico-x" id="' + idPrefix + 'signature-' + domID(cred.id) +
-          '" title="The credential carries no key material this wallet can verify the signature against offline, so its integrity is unchecked here.">not verified' + kind + '</span>';
+          '" title="No key to verify the signature offline.">Not verified' + kind + '</span>';
       }
     }
 
@@ -402,15 +400,15 @@
     if (binding === 'this_wallet') {
       dataset.keyBinding = 'this-wallet';
       keyBindingBadge = '<span class="status-badge status-active ico-check" id="' + idPrefix + 'key-binding-' + domID(cred.id) +
-        '" title="Bound to a holder key this wallet holds, so it can be presented.">Bound to this wallet</span>';
+        '" title="This wallet holds the holder key.">Bound to this wallet</span>';
     } else if (binding === 'other_key') {
       dataset.keyBinding = 'not-held';
       keyBindingBadge = '<span class="status-badge status-unheld-key ico-warn" id="' + idPrefix + 'key-binding-' + domID(cred.id) +
-        '" title="Bound to a holder key this wallet does not hold. Presenting it fails the verifier\'s key binding check.">Bound to another key</span>';
+        '" title="This wallet doesn\'t hold the holder key. Key binding fails.">Bound to another key</span>';
     } else if (binding === 'none') {
       dataset.keyBinding = 'none';
       keyBindingBadge = '<span class="status-badge status-none" id="' + idPrefix + 'key-binding-' + domID(cred.id) +
-        '" title="The credential names no holder key.">No key binding</span>';
+        '" title="No holder key in the credential.">No key binding</span>';
     }
 
     const display = cred.display || {};
@@ -535,7 +533,7 @@
       // it.
       const hasDesc = !!(cred.display && cred.display.description);
       const aboutBtn = hasDesc
-        ? '<button class="btn btn-sm about-btn" id="about-' + domID(cred.id) + '" data-about="' + escHtml(cred.id) + '" aria-expanded="false" aria-label="Show description">' +
+        ? '<button class="btn btn-sm about-btn" id="about-' + domID(cred.id) + '" data-about="' + escHtml(cred.id) + '" aria-expanded="false">' +
             descIcon('ic-info', '<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/>') +
             '<span id="about-' + domID(cred.id) + '-label">About</span>' +
             descIcon('ic-chev', '<path d="M6 9l6 6 6-6"/>') +
@@ -544,7 +542,7 @@
       const actionsHtml = '<div class="credential-actions">' +
           aboutBtn +
           revokeBtn +
-          '<button class="btn btn-sm" id="show-' + domID(cred.id) + '" data-show="' + escHtml(cred.id) + '">Show</button>' +
+          '<button class="btn btn-sm" id="show-' + domID(cred.id) + '" data-show="' + escHtml(cred.id) + '">Open in decoder</button>' +
           (isProtected ? '' : '<button class="btn btn-danger btn-sm" id="delete-' + domID(cred.id) + '" data-delete="' + escHtml(cred.id) + '">Delete</button>') +
         '</div>';
       // The flipped card hides the About button, so phones need a Back control inside the
@@ -552,7 +550,7 @@
       const descPane = hasDesc
         ? '<div class="cred-desc" id="' + card.id + '-desc"><div class="cred-desc-in">' +
             '<div class="cred-desc-head"><span class="cred-desc-label" id="' + card.id + '-desc-label">Description</span>' +
-              '<button class="cred-desc-back" id="' + card.id + '-desc-back" data-desc-close="' + escHtml(cred.id) + '" aria-label="Back to card">' +
+              '<button class="cred-desc-back" id="' + card.id + '-desc-back" data-desc-close="' + escHtml(cred.id) + '">' +
                 descIcon('', '<path d="M15 18l-6-6 6-6"/>') + '<span id="' + card.id + '-desc-back-label">Back</span></button></div>' +
             '<div class="cred-desc-body" id="' + card.id + '-desc-body">' + linkifyText(cred.display.description, card.id + '-desc-body') + '</div>' +
           '</div></div>'
@@ -881,6 +879,19 @@
     issueForm.querySelector('label[for="issue-always-disclosed"]').hidden = !show;
   }
 
+  // Saving under the name of another template replaces it.
+  async function confirmTemplateName(name, current) {
+    if (name === current) return true;
+    let templates = [];
+    try {
+      templates = await loadTemplates(true);
+    } catch (e) {
+      return true;
+    }
+    if (!templates.some((tpl) => tpl.name === name)) return true;
+    return window.confirm('Replace the template "' + name + '"?');
+  }
+
   async function loadTemplates(force) {
     if (templatesCache && !force) return templatesCache;
     const resp = await fetch('api/templates');
@@ -951,8 +962,6 @@
     document.getElementById('issue-logo').value = '';
     document.getElementById('issue-logo-alt').value = '';
     document.getElementById('issue-bg-image').value = '';
-    const note = document.getElementById('issue-template-art-note');
-    if (note) note.hidden = !(display.logo || display.background_image);
   }
 
   function updateClaimsMode() {
@@ -1283,6 +1292,7 @@
       if (always.length > 0) body.always_disclosed = always;
     }
     const saveTemplate = document.getElementById('issue-save-template').value.trim();
+    if (saveTemplate && !(await confirmTemplateName(saveTemplate))) return;
     if (saveTemplate) body.save_as_template = saveTemplate;
     const catalogProblem = issueCatalog.validate(saveTemplate);
     if (catalogProblem) {
@@ -1364,10 +1374,8 @@
     issueForm.classList.toggle('template-mode', on);
     syncIssueCatalog();
     templateEditorHead.hidden = !on;
-    document.getElementById('issue-title').textContent = on ? (editor.source ? 'Edit template' : 'New template') : 'Issue Credential';
-    document.getElementById('issue-hint').textContent = on
-      ? "A template holds the type, claims and card appearance of a credential. Switch to JSON for the other template fields."
-      : "Signs with the key of the credential's category unless you paste one, and stores the credential. Only the format is required. A template fills in the fields. You can still edit them.";
+    document.getElementById('issue-title').textContent = on ? (editor.source ? 'Edit template' : 'New template') : 'Issue credential';
+    document.getElementById('issue-hint').textContent = on ? 'JSON shows every template field.' : 'Only the format is required.';
     issueSubmit.textContent = on ? 'Save template' : 'Issue';
     document.getElementById('template-editor-mode-builder').checked = true;
     templateEditorJSON.hidden = true;
@@ -1482,6 +1490,7 @@
         return;
       }
     }
+    if (!(await confirmTemplateName(name, templateEditor && templateEditor.source ? templateEditor.source.name : null))) return;
     issueSubmit.disabled = true;
     try {
       const resp = await fetch('api/templates/' + encodeURIComponent(name), {
@@ -2395,7 +2404,7 @@
       return '<div class="consent-claim-set" id="consent-claim-set-row-' + domID(qid) + '">' +
         '<label class="consent-purpose-label" id="consent-claim-set-' + domID(qid) + '-label" for="consent-claim-set-' + domID(qid) + '">Claim set for ' + escHtml(qid) + '</label>' +
         '<select class="form-input" id="consent-claim-set-' + domID(qid) + '" data-query="' + escHtml(qid) + '">' + optionsHtml + '</select>' +
-        '<div class="consent-claim-set-hint" id="consent-claim-set-hint-' + domID(qid) + '">By default the wallet sends the first matching claim set. Debug mode lets you pick another.</div>' +
+        '<div class="consent-claim-set-hint" id="consent-claim-set-hint-' + domID(qid) + '">The first matching claim set is the default.</div>' +
       '</div>';
     }
     function isAutoSelection() {
@@ -2442,13 +2451,13 @@
           logoHtml = '<img class="who-logo" id="consent-who-logo" src="' + escHtml(d.issuer_logo) + '" alt="' + escHtml((name || 'Issuer') + ' logo') + '">';
         }
       } else {
-        name = req.client_name || '';
+        name = req.registered_name || req.client_name || '';
         cid = req.client_id || '';
         const auth = req.client_auth;
         if (auth) {
           chip = auth.signed
             ? '<span class="who-chip who-ok" id="consent-who-auth" title="Signature matches the supplied key. Signer trust is unchecked.">✓ Signed</span>'
-            : '<span class="who-chip who-bad" id="consent-who-auth" title="' + escHtml(auth.detail || 'Unsigned request. The sender cannot be authenticated. Anyone can send requests to a shared demo.') + '">✗ Not authenticated</span>';
+            : '<span class="who-chip who-bad" id="consent-who-auth" title="' + escHtml(auth.detail || 'Unsigned request. The sender is not authenticated.') + '">✗ Not authenticated</span>';
         }
       }
       const idLine = '<span class="mono" id="consent-who-id">' + escHtml(cid) + '</span>';
@@ -2477,7 +2486,7 @@
     }
 
     function headerHtml() {
-      let html = '<div class="consent-title" id="consent-title">' + (isIssuance ? 'Credential Offer' : 'Presentation Request') + '</div>' +
+      let html = '<div class="consent-title" id="consent-title">' + (isIssuance ? 'Credential offer' : 'Presentation request') + '</div>' +
         whoBlock() + findingsBlock();
 
       // Verifier purposes come from registration certificates in verifier_info (OpenID4VP
@@ -2571,17 +2580,14 @@
     // before consent.
     function untrustedAuthorityNote(mc, id) {
       if (!mc || !mc.untrusted_authority) return '';
-      return '<div class="consent-untrusted" role="note" id="' + domID(id) + '">⚠ Could not match this issuer to the verifier\'s trusted authorities. ' +
-        'This credential is allowed ' +
-        'because debug mode ignores that restriction.</div>';
+      return '<div class="consent-untrusted" role="note" id="' + domID(id) + '">⚠ Issuer not in the verifier\'s trusted authorities. Allowed in debug mode.</div>';
     }
 
     // Debug mode offers a credential without holder binding to a query that
     // requires it (OpenID4VP 1.0 §6.1).
     function unboundNote(mc) {
       if (!mc || !mc.unbound) return '';
-      return '<div class="consent-untrusted" role="note" id="consent-unbound-' + domID(mc.credential_id) + '">⚠ This credential has no holder binding, which the query requires. ' +
-        'Debug mode sends it anyway.</div>';
+      return '<div class="consent-untrusted" role="note" id="consent-unbound-' + domID(mc.credential_id) + '">⚠ No holder binding, but the query requires one. Sent anyway in debug mode.</div>';
     }
 
 
@@ -2617,7 +2623,7 @@
             // Open decoding in another tab to preserve pending consent.
             '<a class="btn btn-sm candidate-decode" id="consent-decode-' + domID(qid) + '-' + c.credential_id + '"' +
               ' href="decoder/?id=' + encodeURIComponent(c.credential_id) + '" target="_blank" rel="noopener"' +
-              ' title="Open in decoder">Show</a>' +
+              '>Open in decoder</a>' +
           '</div>' +
         '</div>' + untrustedAuthorityNote(c, rowID + '-untrusted') + unboundNote(c) +
         mismatchNote(c, 'consent-mismatch-' + qid + '-' + c.credential_id) + '</div>';
@@ -3036,7 +3042,7 @@
   // protectedParties are the registrations visitors of the public demo can't
   // change.
   let protectedParties = new Set();
-  // Wait for configuration before deciding to open consent automatically. Demo mode uses
+  // Wait for configuration before deciding to open consent automatically. The public demo uses
   // different ownership rules.
   // The server owns the limits and defaults of these fields.
   function applyFormDefaults(defaults) {
@@ -3111,7 +3117,7 @@
           ? 'state resets ' + schedule
           : 'state is shared and never reset automatically';
         note.hidden = false;
-        // Demo mode accepts images from templates and issuer metadata, but rejects visitor
+        // The public demo accepts images from templates and issuer metadata, but rejects visitor
         // image fields.
         document.querySelectorAll('.issue-image-field').forEach((el) => { el.hidden = true; });
         document.querySelectorAll('.issue-signing-field').forEach((el) => { el.hidden = true; });
@@ -3165,7 +3171,7 @@
     }
   }
 
-  // Conformance settings apply to the wallet process. Demo mode displays them without
+  // Conformance settings apply to the wallet process. The public demo displays them without
   // allowing changes.
   let conformanceDefaults = { validation_mode: 'debug', require_haip: true, require_arf: false, require_encrypted_request: false, vci_version: '1.0', key_attestation_level: '' };
 
@@ -3197,6 +3203,20 @@
     if (enc) { enc.checked = eff.encrypted; enc.disabled = demoMode; }
     if (vci) { vci.value = eff.vciVersion; vci.disabled = demoMode; }
     if (level) { level.dataset.wanted = eff.keyAttestationLevel; level.value = eff.keyAttestationLevel; level.disabled = demoMode; }
+    renderConformanceHints();
+  }
+
+  const CONFORMANCE_HINTS = {
+    'conf-mode': { strict: 'Refuse', debug: 'Warn and continue' },
+    'conf-tls': { auto: 'Verify in strict mode only', true: '', false: '' },
+  };
+
+  function renderConformanceHints() {
+    for (const [id, hints] of Object.entries(CONFORMANCE_HINTS)) {
+      const select = document.getElementById(id + '-select');
+      const hint = document.getElementById(id + '-hint');
+      if (select && hint) hint.textContent = hints[select.value] || '';
+    }
   }
 
   function currentControlValues() {
@@ -3231,6 +3251,7 @@
   }
 
   function onConformanceChange() {
+    renderConformanceHints();
     if (demoMode) return;
     setServerConformance(currentControlValues());
   }
@@ -3257,10 +3278,7 @@
     set('conf-format', config.preferred_format || 'None',
       config.preferred_format ? 'neutral' : 'off');
     const intro = document.getElementById('conf-intro');
-    if (intro) {
-      const base = 'Debug mode logs failed checks as warnings and continues. Strict mode refuses the request, the offer or the credential. Strict mode verifies HTTPS certificates and debug mode does not. The HTTPS setting below can change that.';
-      intro.textContent = demoMode ? base + ' The public demo runs with fixed settings.' : base;
-    }
+    if (intro) intro.hidden = !demoMode;
     const reset = document.getElementById('conf-reset');
     if (reset) reset.hidden = demoMode;
   }
@@ -3640,16 +3658,16 @@
   function statusBadge(kind, { status, reason }) {
     const subject = kind === 'use' ? 'intended use' : 'service';
     switch (status) {
-      case 'none': return ['status-none ico-circle', 'No certificate', 'The registrar has not issued a registration certificate for this ' + subject + '.'];
-      case 'active': return ['status-active ico-dot', 'Active', 'Not revoked on the registrar\'s status list.'];
+      case 'none': return ['status-none ico-circle', 'No certificate', 'No registration certificate for this ' + subject + '.'];
+      case 'active': return ['status-active ico-dot', 'Active', 'Not revoked.'];
       case 'revoked': return ['status-revoked ico-block', 'Revoked', 'Revoked on the registrar\'s status list.'];
-      case 'expired': return ['status-revoked ico-block', 'Expired', 'The certificate expired. Issue a new one.'];
+      case 'expired': return ['status-revoked ico-block', 'Expired', 'Expired. Issue a new one.'];
     }
     const changed = {
-      entitlements: 'The entitlements of this service changed',
-      attestations: 'The attestation types of this service changed',
-    }[reason] || 'The registered details of this ' + subject + ' changed';
-    return ['status-revoked ico-block', 'Revoked', changed + ', so its certificate was revoked for good. Issue a new one.'];
+      entitlements: 'Entitlements changed',
+      attestations: 'Attestation types changed',
+    }[reason] || 'Registered details changed';
+    return ['status-revoked ico-block', 'Revoked', changed + '. Revoked for good. Issue a new one.'];
   }
   // Revoking or activating applies to a certificate that is still current.
   const revocable = (status) => status === 'active' || status === 'revoked';
@@ -3727,7 +3745,7 @@
     const badge = '<span class="status-badge ' + badgeClass + '" id="' + servicePrefix + '-status" title="' + escHtml(badgeTitle) + '">' + badgeText + '</span>';
     const actions = protectedParties.has(identifier) ? '' : '<span class="registrar-use-actions" id="' + servicePrefix + '-actions">' +
       '<button type="button" class="btn btn-sm" id="' + servicePrefix + '-issue" title="' +
-        (status === 'active' ? 'Issues a new certificate and revokes the current one.' : 'Issues a registration certificate for this service and its attestations.') +
+        (status === 'active' ? 'Issues a new certificate and revokes the old one.' : 'Issues a registration certificate.') +
         '">' + (status === 'none' ? 'Issue certificate' : 'Issue new certificate') + '</button>' +
       (!revocable(status) ? '' : '<button type="button" class="btn btn-sm" id="' + servicePrefix + '-revoke" title="' +
         (status === 'revoked' ? 'Makes the certificate valid.' : 'Revokes the certificate on the status list.') +
@@ -3736,7 +3754,7 @@
       '<button type="button" class="btn btn-danger btn-sm" id="' + servicePrefix + '-delete" title="Removes it from the registration and revokes it.">Delete</button>' +
     '</span>';
     row.innerHTML =
-      '<div class="registrar-use-kind" id="' + servicePrefix + '-kind" title="Lists the attestation types this issuer may issue (ETSI TS 119 475). The issuer publishes it in issuer_info.">Issuer registration certificate</div>' +
+      '<div class="registrar-use-kind" id="' + servicePrefix + '-kind" title="Attestation types this issuer may issue (ETSI TS 119 475). Published in issuer_info.">Issuer registration certificate</div>' +
       '<div class="registrar-use-head" id="' + servicePrefix + '-head">' +
         '<span class="registrar-use-purpose" id="' + servicePrefix + '-entitlement">' + escHtml(entitlements.join(', ') || 'Attestation provider') + '</span>' +
         actions +
@@ -3798,16 +3816,16 @@
     row.id = usePrefix;
     row.dataset.status = status;
     row.innerHTML =
-      '<div class="registrar-use-kind" id="' + usePrefix + '-kind" title="Lists the credentials and claims this party may request for one purpose (ETSI TS 119 475). It is sent in verifier_info.">Verifier registration certificate</div>' +
+      '<div class="registrar-use-kind" id="' + usePrefix + '-kind" title="Credentials and claims for one purpose (ETSI TS 119 475). Sent in verifier_info.">Verifier registration certificate</div>' +
       '<div class="registrar-use-head" id="' + usePrefix + '-head">' +
         '<span class="registrar-use-purpose" id="' + usePrefix + '-purpose">' + escHtml(((use.purpose || [])[0] || {}).content || use.intendedUseIdentifier) + '</span>' +
         (protectedParties.has(identifier) ? '' : '<span class="registrar-use-actions" id="' + usePrefix + '-actions">' +
           '<button type="button" class="btn btn-sm" id="' + usePrefix + '-issue" title="' +
-            { none: 'Issues a registration certificate for this purpose and these claims.',
-              active: 'Issues a new certificate and revokes the current one.',
-              revoked: 'Issues a new certificate. The revoked one stays revoked.',
-              outdated: 'Issues a certificate for the changed purpose and claims.',
-              expired: 'Issues a new certificate for this purpose and these claims.' }[status] +
+            { none: 'Issues a registration certificate.',
+              active: 'Issues a new certificate and revokes the old one.',
+              revoked: 'Issues a new certificate.',
+              outdated: 'Issues a certificate for the changed details.',
+              expired: 'Issues a new certificate.' }[status] +
             '">' + (status === 'none' ? 'Issue certificate' : 'Issue new certificate') + '</button>' +
           (!revocable(status) ? '' : '<button type="button" class="btn btn-sm" id="' + usePrefix + '-revoke" title="' +
             (status === 'revoked' ? 'Makes the certificate valid.' : 'Revokes the certificate on the status list.') +
@@ -4003,10 +4021,10 @@
         addRow.appendChild(button);
       };
       addButton('-add-use', '+ Add verifier registration certificate',
-        'Registers another purpose with the credentials and claims it may request, and issues its certificate for verifier_info.', 'verifier');
+        'Registers another purpose and issues its certificate.', 'verifier');
       if (!services.some(service => (service.providesAttestations || []).length > 0)) {
         addButton('-add-issuer', '+ Add issuer registration certificate',
-          'Registers the attestation types this party may issue, and issues its certificate for issuer_info.', 'issuer');
+          'Registers the attestation types this party may issue.', 'issuer');
       }
       if (!locked) card.appendChild(addRow);
       const remove = card.querySelector('#' + prefix + '-delete');
@@ -4021,7 +4039,7 @@
     const empty = document.getElementById('registrar-party-empty');
     empty.textContent = query
       ? 'No relying party matches "' + registrarSearch.value.trim() + '".'
-      : { all: 'No relying parties registered yet.', verifier: 'No verifiers registered yet. Register a verifier to add one.', issuer: 'No issuers registered yet. Register an issuer to add one.' }[filter];
+      : { all: 'No relying parties yet.', verifier: 'No verifiers yet.', issuer: 'No issuers yet.' }[filter];
     empty.hidden = shown.length > 0;
 
     document.getElementById('registrar-pager').hidden = pages < 2;
@@ -4256,14 +4274,12 @@
     const targetHint = document.getElementById('registrar-target-hint');
     targetHint.hidden = !registrarTarget;
     targetHint.textContent = registrarEditService
-      ? 'The registrar issues a new issuer registration certificate for the changed types and revokes the current one.'
+      ? 'Issues a new certificate and revokes the old one.'
       : addsIssuer
-      ? 'With an issuer registration certificate, ' + targetName + ' can issue the attestation types below. ' +
-        targetName + ' publishes the certificate in issuer_info in its signed issuer metadata.'
+      ? 'Lists the attestation types below. Publish it in issuer_info of the signed issuer metadata.'
       : targetIssues
-      ? 'With a verifier registration certificate, ' + targetName + ' can request credentials from a wallet, for example a PID before it issues. ' +
-        targetName + ' sends the certificate in verifier_info and signs the request with its access certificate.'
-      : 'The registrar issues a verifier registration certificate for another purpose. Send it in verifier_info with the requests for this purpose.';
+      ? 'Lets the issuer request credentials, such as a PID before it issues. Send it in verifier_info.'
+      : 'Registers another purpose. Send its certificate in verifier_info.';
     document.getElementById('registrar-title').textContent = registrarEditService
       ? 'Edit the attestation types of ' + targetName
       : registrarTarget
@@ -4340,16 +4356,13 @@
     const revoked = adding ? revokedByTarget() : [];
     const service = targetService();
     if (newService) {
-      notice.textContent = 'The new service gets its own access certificate. The certificates of the other services stay valid.';
+      notice.textContent = 'The new service gets its own access certificate.';
     } else if (revoked.length > 0 && registrarAddedRole === 'verifier') {
       notice.textContent = 'The service ' + serviceLabel(service) + ' gets the Service_Provider entitlement. ' +
-        'Its issuer registration certificate lists the entitlements, so the registrar revokes it. ' +
-        'You can issue a new one right after, or add the intended use to a new service.';
+        'The registrar revokes its issuer registration certificate.';
     } else if (revoked.length > 0) {
       notice.textContent = 'The service ' + serviceLabel(service) + ' gets a provider entitlement. ' +
-        'The verifier registration certificates of its intended uses list the entitlements, so the registrar revokes ' +
-        (revoked.length === 1 ? 'the certificate of 1 intended use. You can issue a new one right after' : 'the certificates of ' + revoked.length + ' intended uses. You can issue new ones right after') +
-        ', or add the attestation types to a new service.';
+        'The registrar revokes ' + (revoked.length === 1 ? 'the certificate of 1 intended use.' : 'the certificates of ' + revoked.length + ' intended uses.');
     }
     notice.hidden = !newService && revoked.length === 0;
   }
@@ -4365,8 +4378,8 @@
     if (revoked.length === 0) return;
     const provider = !revoked[0].intendedUseIdentifier;
     document.getElementById('registrar-reissue-hint').textContent = provider
-      ? 'The registrar revoked the issuer registration certificate of the service.'
-      : 'The registrar revoked ' + (revoked.length === 1 ? 'the verifier registration certificate' : revoked.length + ' verifier registration certificates') + ' of the service.';
+      ? 'Issuer registration certificate revoked.'
+      : (revoked.length === 1 ? 'Verifier registration certificate revoked.' : revoked.length + ' verifier registration certificates revoked.');
     const button = document.getElementById('registrar-reissue');
     button.disabled = false;
     button.textContent = provider ? 'Issue a new issuer registration certificate'
@@ -4381,7 +4394,7 @@
           Object.assign({ validity: registrarValue('registrar-registration-validity') }, request));
       }
       button.textContent = '\u2713 Issued';
-      document.getElementById('registrar-reissue-hint').textContent = 'The relying party list shows the new certificates.';
+      document.getElementById('registrar-reissue-hint').textContent = 'New certificates issued.';
     } catch (e) {
       button.disabled = false;
       showRegistrarError(e.message);
@@ -4909,7 +4922,7 @@
           (entry.template && demoMode ? '' : '<span class="registrar-party-actions"><button type="button" class="btn btn-danger btn-sm" id="' + prefix + '-delete">Delete</button></span>') +
         '</div>' +
         '<div class="cred-pills registrar-pills" id="' + prefix + '-pills">' +
-          '<span class="status-badge catalog-badge" id="' + prefix + '-category" title="Credential category. It selects the signer and the trusted list.">Category: ' + escHtml(categoryLabel(entry.category)) + '</span>' +
+          '<span class="status-badge catalog-badge" id="' + prefix + '-category" title="Selects the signer and the trusted list">Category: ' + escHtml(categoryLabel(entry.category)) + '</span>' +
           '<span class="status-badge catalog-badge" id="' + prefix + '-los" title="Level of security (TS11 attestationLoS)">Security level: ' + escHtml(optionLabel('attestationLoS', schema.attestationLoS)) + '</span>' +
           '<span class="status-badge catalog-badge" id="' + prefix + '-binding" title="How the attestation is bound to its holder (TS11 bindingType)">' + escHtml(optionLabel('bindingType', schema.bindingType)) + '</span>' +
           (entry.template ? '<span class="status-badge catalog-badge" id="' + prefix + '-template" title="Change the credential template to change this entry.">From a template</span>' : '') +
@@ -4978,6 +4991,12 @@
 
   const catalogForm = document.getElementById('registrar-catalog-form');
   linkCategoryLevel('registrar');
+  function renderIssuerCAHint() {
+    const category = categoryLabel(document.getElementById('registrar-catalog-category').value);
+    document.getElementById('registrar-catalog-issuer-ca-hint').textContent =
+      'Added as a provider on the ' + category + ' trusted list, so credentials of this issuer pass the trusted list check.';
+  }
+  document.getElementById('registrar-catalog-category').addEventListener('change', renderIssuerCAHint);
   const catalogAddOverlay = document.getElementById('registrar-catalog-add-overlay');
   // The dialog opens with an example filled in. Names are unique, so the
   // example name gets a number when the catalogue already has it.
@@ -4993,9 +5012,11 @@
     document.getElementById('registrar-catalog-los').value = categoryLevel('eaa');
     document.getElementById('registrar-catalog-binding').value = defaultBinding();
     document.getElementById('registrar-catalog-trust').value = '';
+    renderIssuerCAHint();
   }
   function openCatalogForm() {
     resetCatalogForm();
+    document.getElementById('registrar-catalog-notice').hidden = true;
     document.getElementById('registrar-catalog-form-error').textContent = '';
     catalogForm.querySelectorAll('[aria-invalid]').forEach(field => field.removeAttribute('aria-invalid'));
     catalogOverlay.classList.remove('active');
@@ -5065,9 +5086,13 @@
         schema: catalogSchema('registrar'),
       });
       const issuerCA = document.getElementById('registrar-catalog-issuer-ca');
+      const notice = document.getElementById('registrar-catalog-notice');
+      notice.hidden = true;
       if (issuerCA.value.trim()) {
         await registrarRequest('POST', 'api/trust/entities', { list: added.category, name: added.name + ' issuer', certificates: issuerCA.value });
         issuerCA.value = '';
+        notice.textContent = 'Issuer CA added to the ' + categoryLabel(added.category) + ' trusted list. Remove it under Trust & certificates.';
+        notice.hidden = false;
       }
       closeCatalogForm();
       await loadCatalogEntries();

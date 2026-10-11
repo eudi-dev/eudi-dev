@@ -1392,7 +1392,7 @@ test.describe("A credential bound to a key the wallet does not hold", () => {
     });
     await expect(card.locator(".status-unheld-key")).toHaveAttribute(
       "title",
-      /does not hold/
+      /doesn.t hold the holder key/
     );
 
     const own = page.locator(".credential-card[data-format='mdoc']").first();
@@ -2472,7 +2472,7 @@ test.describe("Registrar", () => {
     await expect(page.locator(card + "-add-issuer")).toHaveText("+ Add issuer registration certificate");
     await page.locator(card + "-add-issuer").click();
     await expect(page.locator("#registrar-title")).toHaveText("Add an issuer registration certificate to Ticket Shop");
-    await expect(page.locator("#registrar-target-hint")).toContainText("can issue the attestation types below");
+    await expect(page.locator("#registrar-target-hint")).toContainText("Lists the attestation types below");
     await expect(page.locator("#registrar-purpose")).toBeHidden();
     await expect(page.locator("#registrar-name")).toBeHidden();
     await page.locator("#registrar-attestation-1-type").fill("urn:example:ticket:1");
@@ -2567,7 +2567,7 @@ test.describe("Registrar", () => {
     await expect(page.locator(card + "-add-use")).toHaveText("+ Add verifier registration certificate");
     await page.locator(card + "-add-use").click();
     await expect(page.locator("#registrar-title")).toHaveText("Add a verifier registration certificate to Checking University");
-    await expect(page.locator("#registrar-target-hint")).toContainText("request credentials from a wallet");
+    await expect(page.locator("#registrar-target-hint")).toContainText("Lets the issuer request credentials");
     await expect(page.locator("#registrar-purpose")).toHaveValue("Identity check before issuance");
     await expect(page.locator("#registrar-credentials [data-field=\"claims\"]").first()).toHaveValue("given_name, family_name");
     await page.locator("#registrar-purpose").fill("Checks who you are before a diploma is issued");
@@ -2611,7 +2611,7 @@ test.describe("Registrar", () => {
     const { card } = await registerIssuerWithCertificate("Reissuing University");
     await openAddUse(page, card);
     await expect(page.locator("#registrar-target-service")).toHaveValue("0");
-    await expect(page.locator("#registrar-revocation-notice")).toContainText("Its issuer registration certificate lists the entitlements, so the registrar revokes it");
+    await expect(page.locator("#registrar-revocation-notice")).toContainText("The registrar revokes its issuer registration certificate");
     await page.locator("#registrar-submit").click();
     await expect(page.locator("#registrar-submit")).toHaveText("✓ Added");
     await expect(page.locator("#registrar-reissue")).toHaveText("Issue a new issuer registration certificate");
@@ -2629,7 +2629,7 @@ test.describe("Registrar", () => {
     await expect(page.locator("#registrar-submit")).toHaveText("✓ Added");
     await page.locator("#registrar-close").click();
     await expect(page.locator(card + "-service-diplomas-summary-status")).toHaveText("Revoked");
-    await expect(page.locator(card + "-service-diplomas-summary-status")).toHaveAttribute("title", /entitlements of this service changed/);
+    await expect(page.locator(card + "-service-diplomas-summary-status")).toHaveAttribute("title", /Entitlements changed/);
   });
 
   test("an intended use on a new service keeps the issuer certificate valid", async ({ page }) => {
@@ -2735,6 +2735,10 @@ test.describe("Registrar", () => {
     await page.locator("#registrar-catalog-add").click();
     await expect(page.locator("#registrar-catalog-add-overlay")).toBeVisible();
     await expect(page.locator("#registrar-catalog-overlay")).toBeHidden();
+    await expect(page.locator("#registrar-catalog-issuer-ca-hint")).toContainText("provider on the EAA trusted list");
+    await page.locator("#registrar-catalog-category").selectOption("pid");
+    await expect(page.locator("#registrar-catalog-issuer-ca-hint")).toContainText("provider on the PID trusted list");
+    await page.locator("#registrar-catalog-category").selectOption("eaa");
     await page.locator("#registrar-catalog-name").fill("Library card");
     await page.locator("#registrar-catalog-format-1-type").fill("urn:example:library:1");
     await page.locator("#registrar-catalog-format-1-claims").fill("member_id, address.locality");

@@ -118,7 +118,7 @@ func runDecode(cmd *cobra.Command, args []string) error {
 	if decodeFormat != "" {
 		f, ok := formatAliases[strings.ToLower(decodeFormat)]
 		if !ok {
-			return fmt.Errorf("unknown format %q (valid: sdjwt, jwt, mdoc, vci, vp, trustlist)", decodeFormat)
+			return fmt.Errorf("unknown format %q (valid: sdjwt, jwt, mdoc, vci, vp, trusted-list)", decodeFormat)
 		}
 		detected = f
 	} else {

@@ -165,7 +165,7 @@ func walletScanCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "scan [image-file]",
-		Short: "Scan a QR code and auto-detect the flow (accept/import)",
+		Short: "Scan a QR code and accept or import its content",
 		Long: "Reads a QR code from an image file, or with --screen from an interactive screen capture, " +
 			"and dispatches its content like `wallet accept`: a presentation request or credential offer runs " +
 			"that flow, a raw credential is imported.",

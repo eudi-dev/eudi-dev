@@ -79,7 +79,7 @@ func listCatalog(cmd *cobra.Command, args []string) error {
 
 func catalogAddCmd() *cobra.Command {
 	var (
-		entry                    registrar.CatalogAttestation
+		name, category           string
 		types, claims            []string
 		los, trustedList         string
 		bindingType, rulebookURI string
@@ -107,6 +107,7 @@ credentials of the type pass the trusted list check. It can't go with
   eudi catalog add --name "University diploma" --type mso_mdoc:org.example.diploma.1 --los moderate --trusted-list https://example.com/lote`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			entry := registrar.CatalogAttestation{Name: name, Category: category}
 			for _, value := range types {
 				format, typ, ok := strings.Cut(value, ":")
 				if !ok || strings.TrimSpace(typ) == "" {
@@ -172,10 +173,10 @@ credentials of the type pass the trusted list check. It can't go with
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&entry.Name, "name", "", "Name of the attestation type (required)")
+	cmd.Flags().StringVar(&name, "name", "", "Name of the attestation type (required)")
 	cmd.Flags().StringArrayVar(&types, "type", nil, "Format and type, such as dc+sd-jwt:urn:example:diploma:1 or mso_mdoc:org.example.diploma.1 (repeatable, required)")
 	cmd.Flags().StringArrayVar(&claims, "claim", nil, "Format and claim, such as dc+sd-jwt:address.locality or mso_mdoc:degree (repeatable)")
-	cmd.Flags().StringVar(&entry.Category, "category", "eaa", "Credential category: pid, qeaa, pub-eaa or eaa")
+	cmd.Flags().StringVar(&category, "category", "eaa", "Credential category: pid, qeaa, pub-eaa or eaa")
 	cmd.Flags().StringVar(&los, "los", "", "Level of security: basic, enhanced-basic, moderate or high (default high, and basic for eaa)")
 	cmd.Flags().StringVar(&bindingType, "binding", "", "How the attestation is bound to its holder: key (a key in the wallet), claim (linked to another credential, such as a PID), biometric or none (default key)")
 	cmd.Flags().StringVar(&rulebookURI, "rulebook", "", "URL of the rulebook (default a placeholder page on the wallet)")

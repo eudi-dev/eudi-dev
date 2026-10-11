@@ -1,4 +1,4 @@
-# Keycloak Issuer + Verifier Demo App
+# Keycloak issuer + verifier demo app
 
 This example runs Keycloak as an OpenID4VP verifier that signs users in with their wallet, and issues them a credential during that login. It uses the `keycloak-extension-oid4vp` subject-binding model.
 
@@ -8,7 +8,7 @@ Later logins present both credentials. Keycloak reads the account subject from t
 
 The example starts Keycloak (26.7.2), a local `eudi wallet serve --docker` wallet holding the PID, and a Go relying party. Everything runs locally over HTTP.
 
-## The Flow
+## Flow
 
 ```mermaid
 sequenceDiagram
@@ -57,7 +57,7 @@ The static realm import (`realm/wallet-app-demo-realm.json`) carries the whole c
 
 The realm import cannot contain a CA-issued key, so `bootstrap.sh` adds a CA-issued RS256 realm signing key at runtime. Keycloak refuses to issue an SD-JWT credential signed with a self-signed certificate. `docker-compose.yml` trusts the wallet CA so Keycloak can reach the wallet status list over HTTPS.
 
-## Quick Start
+## Quick start
 
 ```bash
 cd examples/keycloak-issuer-verifier-app

@@ -1,4 +1,4 @@
-# Keycloak Verifier + `keycloak-extension-oid4vp`
+# Keycloak verifier + `keycloak-extension-oid4vp`
 
 This example runs a local same-device OpenID4VP login against Keycloak using `eudi-dev` as the wallet.
 
@@ -10,7 +10,7 @@ This example runs a local same-device OpenID4VP login against Keycloak using `eu
 4. `./scripts/bootstrap.sh` waits for the imported realm and prints the endpoints.
 5. `./scripts/login.py` starts the OIDC browser login, extracts the `openid4vp://` request, passes it to `eudi wallet accept --auto-accept --docker --port 8085`, follows the broker flow, and exchanges the returned code for tokens.
 
-## Flow Diagram
+## Flow diagram
 
 ```mermaid
 sequenceDiagram
@@ -44,7 +44,7 @@ sequenceDiagram
 - `scripts/login.py`: runs the same-device flow end to end and exchanges the returned code
 - `scripts/test-oidc-flow.sh`: starts a browser-driven flow for a system-registered `eudi-dev` wallet
 
-## Quick Start
+## Quick start
 
 ```bash
 cd examples/keycloak-verifier-oid4vp
@@ -70,6 +70,15 @@ Setup only:
 ```bash
 ./start.sh --setup-only
 ```
+
+Public Keycloak through ngrok:
+
+```bash
+./start.sh --public                      # ngrok picks the hostname
+./start.sh --public --domain kc.example.ngrok.app
+```
+
+`--public` publishes Keycloak through an ngrok tunnel and uses its https URL as the Keycloak base URL. It needs the [ngrok CLI](https://ngrok.com/download). `--domain` sets a reserved ngrok hostname (`KEYCLOAK_NGROK_DOMAIN` or `NGROK_DOMAIN` work too). A sandbox certificate (`EXAMPLES_SANDBOX_PEM`, `SANDBOX_PEM` or `SANDBOX_DIR`) overrides the hostname with its subject alternative name.
 
 ## Parameters
 
@@ -131,7 +140,7 @@ A separate provider holds the trust material. `trustMaterialIdps` references it:
 | Trusted list endpoint on host | `http://localhost:8085/api/trustlist` |
 | Trusted list endpoint from Docker | `http://host.docker.internal:8085/api/trustlist` |
 
-## Useful Overrides
+## Useful overrides
 
 ```bash
 KEYCLOAK_BASE_URL=http://localhost:8080

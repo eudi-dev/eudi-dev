@@ -42,6 +42,8 @@ Flags shared by all three subcommands:
 | `--wallet-dir` | `~/.eudi-dev/wallet/` | Wallet storage directory used by `--wallet` |
 | `--templates-dir` | `<wallet-dir>/templates/` | Credential template directory used by `--template` and `--save-template` |
 | `--remote` | None | With `--wallet`: issue on the remote wallet server at this URL (`local` forces the local store) |
+| `--storage` | `$EUDI_DEV_STORAGE` | With `--wallet`: storage backend (`file`, `memory`, `auto` or a `postgres://` URL, see [storage backends](wallet.md#storage-backends)) |
+| `--seed` | `$EUDI_DEV_SEED` | With `--wallet`: derive the generated keys from this string (see [seeded keys](wallet.md#seeded-keys)) |
 
 ### `issue sdjwt`
 
@@ -117,7 +119,7 @@ Without `--claims`, a minimal PID-like claim set is used (given_name, family_nam
 
 Every SD-JWT claim is selectively disclosable by default. `--always-disclosed` (or the template's `always_disclosed` list) embeds the named claims plainly in the signed payload, so they cannot be withheld during presentation. Nested subclaims use dotted paths (`address.country`). `_sd`, `_sd_alg` and `...` are reserved by RFC 9901 and rejected as claim names. See [always disclosed claims](templates.md#always-disclosed-claims) for the registered claims that are always plain and for the mdoc and jwt behavior.
 
-## Wallet Registration Metadata
+## Wallet registration metadata
 
 With `--wallet`, the issuer key and certificate depend on the supplied flags:
 

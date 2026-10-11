@@ -420,8 +420,9 @@ main {
 
 .verification-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 8px;
+  gap: 0 8px;
 }
 
 .verification-verdict {
@@ -439,10 +440,17 @@ main {
   gap: 6px;
 }
 
+/* One grid per group, so the names of its checks share a column. */
 .verification-group {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  display: grid;
+  grid-template-columns: 14px max-content minmax(0, 1fr);
+  gap: 2px 8px;
+  align-items: baseline;
+  line-height: 1.4;
+}
+
+.verification-group .vg-title {
+  grid-column: 1 / -1;
 }
 
 .vg-title {
@@ -454,10 +462,7 @@ main {
 }
 
 .vg-item {
-  display: flex;
-  gap: 8px;
-  align-items: baseline;
-  line-height: 1.4;
+  display: contents;
 }
 
 .vg-icon {
@@ -468,16 +473,25 @@ main {
 }
 
 .vg-name {
-  flex-shrink: 0;
-  min-width: 72px;
   font-weight: 600;
 }
 
 .vg-detail {
+  min-width: 0;
+  overflow-wrap: anywhere;
   color: var(--text-dim);
 }
 
+.vg-anchor-line {
+  display: block;
+}
+
+.vg-anchor a {
+  color: var(--accent);
+}
+
 .vg-violations .vg-icon { color: var(--red); }
+.vg-warnings .vg-icon { color: var(--yellow); }
 .vg-cant .vg-icon { color: var(--text-dim); }
 .vg-valid .vg-icon { color: var(--green); }
 
@@ -818,6 +832,18 @@ main {
 .verify-btn:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+@media (max-width: 480px) {
+  .verification-group {
+    grid-template-columns: 14px minmax(0, 1fr);
+    row-gap: 0;
+  }
+
+  .vg-detail {
+    grid-column: 2;
+    margin-bottom: 2px;
+  }
 }
 
 @media (max-width: 768px) {

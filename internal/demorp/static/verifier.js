@@ -20,28 +20,66 @@ function idPart(s) {
   return String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "x";
 }
 
+function sentence(s) {
+  s = String(s || "");
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+// Check names are plain words or start with a protocol name such as vp_token.
+// Only plain words take a capital letter.
+function checkName(name) {
+  const label = name.lastIndexOf(": ");
+  const prefix = label >= 0 ? name.slice(0, label + 2) : "";
+  const rest = name.slice(prefix.length);
+  if (rest === "haip") return prefix + "HAIP";
+  return prefix + (/^[a-z]+(\s|$)/.test(rest) ? sentence(rest) : rest);
+}
+
+function checkItem(c, i) {
+  // A protocol check can pass while reporting a profile warning.
+  let kind = c.ok ? "ok" : "fail";
+  let detail = c.error || c.detail || "";
+  if (c.ok && c.warning) {
+    kind = "warn";
+    detail = c.warning;
+  } else if (c.ok && c.skipped) {
+    kind = "skip";
+    detail = c.skipped;
+  }
+  // A passing type check names the typ value, which keeps its case.
+  if (!(kind === "ok" && /(^|: )type$/.test(c.name))) detail = sentence(detail);
+  return { id: "checks-" + i, kind, name: checkName(c.name), detail };
+}
+
+const CHECK_ICONS = { ok: "✓", fail: "✗", warn: "!", skip: "–" };
+
+function checkHTML(it) {
+  const detail = it.detail ? `<span class="check-detail" id="${it.id}-detail">: ${esc(it.detail)}</span>` : "";
+  return `<div class="check-item ${it.kind}" id="${it.id}"><span class="check-icon">${CHECK_ICONS[it.kind]}</span><span class="check-text"><span id="${it.id}-name">${esc(it.name)}</span>${detail}</span></div>`;
+}
+
 function renderResult(doc) {
   const box = document.getElementById("result-box");
   box.style.display = "block";
+  const items = (doc.checks || []).map(checkItem);
+  const passed = items.filter((it) => it.kind === "ok");
+  const warnings = items.filter((it) => it.kind === "warn");
   const status = document.getElementById("status");
   status.className = "status " + doc.status;
-  status.textContent =
-    doc.status === "verified" ? "✓ Presentation verified" :
-    doc.status === "failed" ? "✗ Verification failed" + (doc.error ? ": " + doc.error : "") :
-    doc.status === "expired" ? "Request expired, create a new one" :
-    "Waiting for the wallet…";
+  if (doc.status === "verified") {
+    let text = "✓ Presentation verified, " + passed.length + (passed.length === 1 ? " check passed" : " checks passed");
+    if (warnings.length) text += ", " + warnings.length + (warnings.length === 1 ? " warning" : " warnings");
+    status.textContent = text;
+  } else if (doc.status === "failed") {
+    status.innerHTML = "✗ Verification failed" + (doc.error ? `<div class="check-detail" id="status-error">${esc(sentence(doc.error))}</div>` : "");
+  } else {
+    status.textContent = doc.status === "expired" ? "Request expired, create a new one" : "Waiting for the wallet…";
+  }
   const checks = document.getElementById("checks");
-  checks.innerHTML = (doc.checks || []).map((c, i) => {
-    // A protocol check can pass while reporting a profile warning.
-    if (c.ok && c.warning) {
-      return `<div class="warn" id="checks-${i}">! ${esc(c.name)}: ${esc(c.warning)}</div>`;
-    }
-    if (c.ok && c.skipped) {
-      return `<div class="skip" id="checks-${i}">– ${esc(c.name)}: ${esc(c.skipped)}</div>`;
-    }
-    const detail = c.error || c.detail;
-    return `<div class="${c.ok ? "ok" : "fail"}" id="checks-${i}">${c.ok ? "✓" : "✗"} ${esc(c.name)}${detail ? ": " + esc(detail) : ""}</div>`;
-  }).join("");
+  const shown = items.filter((it) => it.kind !== "ok").map(checkHTML).join("");
+  checks.innerHTML = shown + (passed.length
+    ? `<details id="checks-passed"><summary id="checks-passed-summary">${passed.length === 1 ? "1 check passed" : passed.length + " checks passed"}</summary>${passed.map(checkHTML).join("")}</details>`
+    : "");
   const claims = document.getElementById("claims");
   const label = document.getElementById("claims-label");
   if (doc.status === "verified" && doc.claims) {
@@ -109,6 +147,7 @@ async function poll(id) {
     }
     const doc = await resp.json();
     if (id !== pollID) return;
+    restoreSelection(doc.request);
     renderResult(doc);
     if (doc.status === "pending") {
       schedulePoll(id);
@@ -136,15 +175,15 @@ document.addEventListener("visibilitychange", () => {
 
 // Only PID requests offer a format choice. The demo ticket is SD-JWT only.
 const FORMAT_HINTS = {
-  both: "The request asks for either format and the wallet answers with the one it holds.",
-  "sd-jwt": "The request asks for the SD-JWT VC PID only. A wallet holding only the mdoc cannot answer it.",
-  mdoc: "The request asks for the mdoc PID only. A wallet holding only the SD-JWT VC cannot answer it.",
+  both: "The wallet answers with the format it holds.",
+  "sd-jwt": "Only an SD-JWT VC PID answers.",
+  mdoc: "Only an mdoc PID answers.",
 };
 
 // Both shapes use DCQL credential_sets (OpenID4VP 1.0 §6.2).
 const TICKET_HINTS = {
-  combined: "One option asks for the SD-JWT PID and the ticket together, the others for a PID alone.",
-  optional: "A required set asks for a PID. A second set asks for the ticket, and the wallet may skip it.",
+  combined: "One option asks for the SD-JWT PID with the ticket. The others ask for a PID alone.",
+  optional: "The PID is required. The ticket is an optional second credential set.",
 };
 
 let pidFormat = "both";
@@ -175,10 +214,10 @@ for (const option of document.querySelectorAll("#credential-toggle .toggle-optio
 
 // The X.509 prefixes require a signed request object (OpenID4VP 1.0 §5.9).
 const SCHEME_HINTS = {
-  x509_hash: "The request object is signed and delivered behind request_uri.",
-  x509_san_dns: "The request object is signed. The client id names a DNS SAN of the signing certificate, which must also match the response host.",
-  redirect_uri: "The request is unsigned plain parameters. The client id binds to the response endpoint.",
-  "pre-registered": "The request is unsigned plain parameters under a bare client id the wallet has no key for, so the wallet reports the signature as unverified.",
+  x509_hash: "Signed request object behind request_uri.",
+  x509_san_dns: "Signed request object. The client id is a DNS name of the certificate and must match the response host.",
+  redirect_uri: "Unsigned request. The client id is the response endpoint.",
+  "pre-registered": "Unsigned request with a bare client id. The wallet reports the signature as unverified.",
 };
 
 let clientIDScheme = "x509_hash";
@@ -267,7 +306,8 @@ function addCredential(seed) {
   multiple.className = "multiple-input";
   multiple.id = cred.id + "-multiple";
   multiple.checked = !!seed?.multiple;
-  multipleLabel.append(multiple, " multiple");
+  multipleLabel.title = "DCQL multiple (OpenID4VP 1.0 §6.1)";
+  multipleLabel.append(multiple, " Several");
   head.append(toggle, typeInput, multipleLabel, removeCred);
 
   const claimsLabel = document.createElement("div");
@@ -342,10 +382,10 @@ for (const option of document.querySelectorAll("#format-toggle .toggle-option"))
 }
 
 const IDENTITY_HINTS = {
-  registered: "The demo verifier is registered with the wallet's registrar for the credentials of the wallet's templates. The request is signed with its access certificate and carries its registration certificate. If the request asks for anything else, a wallet with ARF checks reports RPRC_21.",
-  unregistered: "The request is signed with the demo verifier's access certificate but has no registration certificate. A wallet with ARF checks reports RPRC_19.",
-  own: "The request is signed with your key and access certificate.",
-  unsigned: "With this client identifier prefix the request is unsigned, so it can't show who the verifier is. The registration certificate and own certificates need x509_hash or x509_san_dns.",
+  registered: "Signed with the demo verifier's access certificate and sent with its registration certificate.",
+  unregistered: "No registration certificate. A wallet with ARF checks reports RPRC_19.",
+  own: "Signed with your key and access certificate.",
+  unsigned: "Needs a signed request object (x509_hash or x509_san_dns).",
 };
 let identity = "registered";
 // chosenIdentity is the user's choice. An unsigned request shows
@@ -371,7 +411,7 @@ for (const option of document.querySelectorAll("#identity-toggle .toggle-option"
 }
 selectIdentity(identity);
 
-// verifier_info needs a signed request (OpenID4VP 1.0 §5.1), so the custom
+// verifier_info needs a signed request object (OpenID4VP 1.0 §5.1), so the custom
 // redirect_uri and pre-registered schemes send no registration certificate.
 function unsignedRequest() {
   return credential === "custom" && (clientIDScheme === "redirect_uri" || clientIDScheme === "pre-registered");
@@ -381,7 +421,7 @@ function updateIdentityAvailability() {
   for (const name of ["registered", "own"]) {
     const option = document.getElementById("identity-" + name);
     option.disabled = unsigned;
-    option.title = unsigned ? "Needs a signed request (x509_hash or x509_san_dns)" : "";
+    option.title = unsigned ? "Needs a signed request object (x509_hash or x509_san_dns)" : "";
   }
   selectIdentity(unsigned ? "unregistered" : chosenIdentity);
 }
@@ -455,6 +495,23 @@ document.getElementById("create-request").addEventListener("click", async () => 
 // The wallet redirects here with the response_code that reads the result
 // (OpenID4VP 1.0 §8.2).
 const responseCode = new URLSearchParams(location.search).get("response_code");
+
+// The redirect opens a fresh page. The controls show the request it answers.
+let selectionRestored = !responseCode;
+function restoreSelection(request) {
+  if (selectionRestored || !request) return;
+  selectionRestored = true;
+  let option = "ticket";
+  if (request.type === "custom") option = "custom";
+  else if (request.type === "pid" && request.ticket) option = "pid-ticket";
+  else if (request.type === "pid") option = "pid";
+  const national = request.vct && document.querySelector(`#credential-toggle [data-vct="${CSS.escape(request.vct)}"]`);
+  const button = national || document.querySelector(`#credential-toggle [data-credential="${option}"]`);
+  if (button) button.click();
+  if (request.format) document.querySelector(`#format-toggle [data-format="${CSS.escape(request.format)}"]`)?.click();
+  if (request.ticket) document.querySelector(`#ticket-toggle [data-ticket="${CSS.escape(request.ticket)}"]`)?.click();
+  document.getElementById("request-multiple").checked = !!request.multiple;
+}
 if (responseCode) startPolling(responseCode);
 
 fetch("../api/config")

@@ -1,5 +1,5 @@
 # Public demo deployment: Caddy terminates TLS for the public domain and
-# proxies to the wallet, which runs in demo mode (see docs/public-demo.md).
+# proxies to the wallet, which runs as a public demo (see docs/public-demo.md).
 #
 # 1. Point your domain's DNS at this host.
 # 2. Replace eudi-test.dev in this file and in Caddyfile with your domain.

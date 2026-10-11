@@ -83,6 +83,10 @@ type requestState struct {
 	requestObject string
 	encKey        *ecdsa.PrivateKey
 
+	// selection is the page's choice that created the request. The page
+	// restores it after the wallet redirects there.
+	selection requestSelection
+
 	status string // pending | verified | failed
 	err    string
 	claims map[string]any
@@ -173,6 +177,23 @@ func (d *DemoRP) ticketClaimNames() []string {
 		return nil
 	}
 	return slices.Sorted(maps.Keys(cfg.template.Claims))
+}
+
+// requestSelection is the part of a createRequestBody that the page's
+// controls set.
+type requestSelection struct {
+	Type     string `json:"type"`
+	Format   string `json:"format,omitempty"`
+	VCT      string `json:"vct,omitempty"`
+	Ticket   string `json:"ticket,omitempty"`
+	Multiple bool   `json:"multiple,omitempty"`
+}
+
+func (b createRequestBody) selection() requestSelection {
+	if b.Type == "custom" {
+		return requestSelection{Type: b.Type}
+	}
+	return requestSelection{Type: b.Type, Format: b.Format, VCT: b.VCT, Ticket: b.Ticket, Multiple: b.Multiple}
 }
 
 type customCredentialTO struct {
@@ -399,6 +420,7 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 		nonce:         randToken(),
 		status:        "pending",
 		expires:       time.Now().Add(entryTTL),
+		selection:     body.selection(),
 	}
 	// Only the requested formats get a query, so a response in another format
 	// is not accepted.
@@ -573,6 +595,7 @@ func (d *DemoRP) createCustomRequest(w http.ResponseWriter, body createRequestBo
 		status:        "pending",
 		expires:       time.Now().Add(entryTTL),
 		encKey:        encKey,
+		selection:     body.selection(),
 	}
 	responseURI := base + "/verifier/response/" + req.id
 	req.clientID, err = customClientID(scheme, chain, responseURI, body.ClientID)
@@ -831,9 +854,10 @@ func (d *DemoRP) handleRequestStatus(w http.ResponseWriter, r *http.Request) {
 			status = "expired"
 		}
 		doc = map[string]any{
-			"status": status,
-			"claims": req.claims,
-			"checks": req.checks,
+			"status":  status,
+			"claims":  req.claims,
+			"checks":  req.checks,
+			"request": req.selection,
 		}
 		// The decoder input keeps key binding and device authentication.
 		if req.presentation != "" {
@@ -1028,7 +1052,7 @@ func (d *DemoRP) verifyPresentation(req *requestState, vpToken string) (map[stri
 	for _, q := range req.queries {
 		presentations := tokenDoc[q.id]
 		if len(presentations) == 0 {
-			_ = log.record(q.label()+": not presented, which the request allows", nil)
+			_ = log.record(q.label()+": not presented (optional)", nil)
 			continue
 		}
 		if !recorded {

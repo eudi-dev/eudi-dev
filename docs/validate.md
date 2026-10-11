@@ -5,7 +5,7 @@ Check a credential's signature, expiry and revocation status.
 ```bash
 # Full validation with signature verification
 eudi validate --key issuer-key.pem credential.txt
-eudi validate --trusted-list trust-list.jwt credential.txt
+eudi validate --trusted-list trusted-list.jwt credential.txt
 eudi validate --key key.pem --allow-expired credential.txt
 eudi validate --haip credential.txt
 
@@ -80,8 +80,6 @@ Without a key or a trusted list, `validate` and the web decoder use the trusted 
 A trusted list past its `NextUpdate` is expired (ETSI TS 119 602 V1.1.1 §6.3.15). `validate` rejects it, and the decoder fails the signature check. Entries that cannot be read are left out and reported in the `trusted list` check.
 
 ## Catalogue trust
-
-*(new in 3.0.0)*
 
 When the wallet's attestation catalogue has an entry for the credential type, `validate` and the web decoder also check whether one of the entry's trusted lists anchors the credential. The check reads the lists linked in the entry. For a PID or a PuB-EAA it also reads the lists of that type from the wallet's list of trusted lists, like the wallet does on issuance. `validate` adds the result as `trust` to `--json`. The result doesn't change the exit code. A type without a catalogue entry gets no trust check.
 

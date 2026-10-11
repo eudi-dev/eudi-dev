@@ -28,7 +28,7 @@ import (
 func walletDeferredCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "deferred",
-		Short: "Credentials an issuer deferred and the wallet is still collecting",
+		Short: "List the credentials an issuer deferred",
 		Long: `Lists the credentials an issuer accepted but was not ready to hand over.
 
 A deferred credential comes with a transaction id and an interval to come back

@@ -92,7 +92,8 @@ var templatesListCmd = &cobra.Command{
 
 var templatesShowCmd = &cobra.Command{
 	Use:               "show <name>",
-	Short:             "Print a credential template as JSON (shareable, importable with `templates import`)",
+	Short:             "Print a credential template as JSON",
+	Long:              "Prints a credential template as JSON. `templates import` reads this output.",
 	Args:              cobra.ExactArgs(1),
 	ValidArgsFunction: completeTemplateNames,
 	RunE: func(cmd *cobra.Command, args []string) error {

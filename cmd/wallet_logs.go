@@ -42,7 +42,7 @@ func walletLogsCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "logs",
-		Short: "Show wallet interaction logs",
+		Short: "Show the wallet activity log",
 		Long:  "Show persisted interactions received by the wallet and sent from the wallet. By default each log entry is printed on one line.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {

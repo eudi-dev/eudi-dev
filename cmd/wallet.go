@@ -77,7 +77,7 @@ func newWalletFlags() *pflag.FlagSet {
 	flags.StringVar(&templatesDir, "templates-dir", "", "Credential template directory (default <wallet-dir>/templates/)")
 	flags.StringVar(&storageSpec, "storage", "", storageFlagUsage)
 	flags.StringVar(&keySeed, "seed", "", seedFlagUsage)
-	flags.StringVar(&walletValidationMode, "mode", string(wallet.ValidationModeDebug), "Wallet validation mode: 'debug' (default) or 'strict'")
+	flags.StringVar(&walletValidationMode, "mode", string(wallet.ValidationModeDebug), "Wallet validation mode: debug or strict")
 	flags.BoolVar(&walletTLSVerify, "tls-verify", false, "Verify certificates for every outbound HTTPS request (default: true in strict mode, false in debug mode)")
 	flags.StringVar(&walletTLSCA, "tls-ca", "", "PEM CA bundle added to system trust for outbound HTTPS")
 	flags.StringVar(&walletHTTPProxy, "http-proxy", "", "Forward proxy URL for outbound http:// requests (default $HTTP_PROXY)")
@@ -335,7 +335,7 @@ func walletRemoveCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:               "remove <id>",
-		Short:             "Remove credential by ID",
+		Short:             "Remove a credential by its ID",
 		ValidArgsFunction: completeCredentialIDs,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if all {
@@ -378,7 +378,7 @@ func walletRemoveCmd() *cobra.Command {
 func walletRegisterCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "register [wallet-serve-flags...]",
-		Short: "Register OS URL scheme handlers",
+		Short: "Register the OS URL scheme handlers (macOS, a no-op elsewhere)",
 		Long: `Registers this wallet as the OS handler for the OID4VP/OID4VCI URL schemes (macOS, a no-op elsewhere). The provided arguments are stored and replayed as 'wallet serve ...' when a clicked link needs to auto-start the wallet listener.
 
 Supported schemes: openid4vp://, eudi-openid4vp://, haip-vp://,
@@ -531,7 +531,7 @@ func walletTLSCertCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "tls-cert",
-		Short: "Print or export the wallet TLS leaf certificate used by HTTPS wallet endpoints",
+		Short: "Print or export the wallet HTTPS leaf certificate",
 		Long: `Loads or creates the HTTPS leaf certificate used by the wallet's HTTPS endpoints.
 Use this to inspect or export the exact server certificate presented by the wallet.
 Use 'trust ca-cert' for the one trust root shared by every wallet under the same base directory.

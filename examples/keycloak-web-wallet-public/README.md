@@ -1,4 +1,4 @@
-# Keycloak + Public Demo Wallet (eudi-test.dev)
+# Keycloak + public demo wallet (eudi-test.dev)
 
 This example connects local Keycloak issuer and verifier services to the shared wallet at <https://eudi-test.dev>. It reuses the realms, extension, demo UI and scripts from [`keycloak-web-wallet`](../keycloak-web-wallet/README.md).
 
@@ -11,7 +11,7 @@ The public wallet fetches request objects and calls token endpoints from its ser
 
 On ngrok's free plan, click through the browser warning page on the first visit. The wallet's server-to-server requests are unaffected. A paid plan removes the warning. See [ngrok's free-plan limits](https://ngrok.com/docs/pricing-limits/free-plan-limits#removing-the-interstitial-page).
 
-## Quick Start
+## Quick start
 
 ```bash
 cd examples/keycloak-web-wallet-public
@@ -25,7 +25,7 @@ Then open the demo UI at <http://localhost:9090>:
 
 Stop everything with `docker compose down` and `kill $(cat .ngrok.pid)`.
 
-## Differences to the Local Example
+## Differences from the local example
 
 - **Shared data.** All visitors can see and delete the credentials you issue. Periodic resets remove them. Use test data only.
 - **Browser consent.** Approve in the browser that started the flow. The `eudi_session` cookie routes the dialog to that browser. Credentials and activity logs remain shared.

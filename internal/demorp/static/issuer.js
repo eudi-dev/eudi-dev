@@ -28,48 +28,31 @@ async function createOffer(grant, status, authorization, deferred, batch, creden
 }
 
 const GRANT_HINTS = {
-  "": "The offer carries the code, so the wallet redeems it without any sign-in.",
-  authorization_code:
-    "The wallet uses PAR, PKCE, DPoP and a wallet attestation on the way. " +
-    "This issuer is its own authorization server.",
+  "": "The offer carries the code. No sign-in.",
+  authorization_code: "The wallet uses PAR, PKCE, DPoP and a wallet attestation.",
 };
 
 const AUTHORIZATION_HINTS = {
-  browser: "You sign in here (alice / alice) while the wallet redeems the offer.",
-  presentation:
-    "The issuer asks the wallet for a PID before it issues, and verifies that " +
-    "presentation itself, so no browser is involved (OpenID4VCI 1.1 interactive " +
-    "authorization). The request names this issuer's CA as a trusted_authorities " +
-    "aki, so the wallet only offers a PID that chains to it. A wallet that does " +
-    "not support interactive authorization is sent to the sign-in instead.",
+  browser: "Sign in here as alice (password alice).",
+  presentation: "The wallet presents a PID before the issuer issues (OpenID4VCI 1.1 interactive authorization).",
 };
 
 // Credentials need a status reference before the wallet can revoke them.
 const STATUS_HINTS = {
-  "": "The ticket carries no status reference, so nothing can revoke it.",
-  true:
-    "The ticket references this wallet's status list. Revoke it in the wallet " +
-    "UI and the demo verifier rejects the next presentation.",
+  "": "No status reference. The ticket can't be revoked.",
+  true: "On this wallet's status list. Revoke it in the wallet to test the demo verifier.",
 };
 
 const DEFERRED_HINTS = {
-  "": "The credential is issued at once.",
-  true:
-    "The issuer returns a transaction id and hands the credential over at its " +
-    "deferred credential endpoint once it is ready (OpenID4VCI 1.0 §9). The " +
-    "wallet shows it awaiting issuance and collects it a few seconds later.",
+  "": "Issued at once.",
+  true: "Issued a few seconds later at the deferred credential endpoint (OpenID4VCI 1.0 §9).",
 };
 
 function batchHint(n) {
-  return (
-    "The issuer signs " + n + " credentials, each on its own key (OpenID4VCI " +
-    "1.0 §8.3), so the wallet holds a batch of " + n + " and presents an unused " +
-    "one each time a verifier asks (EUDI ARF method C). The wallet shows the " +
-    "batch as one stacked card."
-  );
+  return n + " copies, each on its own key (OpenID4VCI 1.0 §8.3). Each presentation uses an unused copy.";
 }
 const BATCH_HINTS = {
-  "": "The wallet receives a single credential.",
+  "": "One credential.",
   2: batchHint(2),
   3: batchHint(3),
   5: batchHint(5),

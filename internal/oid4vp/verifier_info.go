@@ -42,12 +42,27 @@ func requestVerifierInfo(authReq *Request) map[string]any {
 // requires the wallet to "validate the signature and ensure binding" of
 // information it uses from verifier_info.
 func ConsentRegistration(authReq *Request) (purposes, privacyPolicies []string) {
+	return regcert.Purposes(boundRegistrations(authReq))
+}
+
+// RegisteredName returns the relying party name of the bound registration
+// certificates, or "" without one.
+func RegisteredName(authReq *Request) string {
+	for _, claims := range boundRegistrations(authReq) {
+		if name := jsonutil.Text(claims["name"]); name != "" {
+			return name
+		}
+	}
+	return ""
+}
+
+func boundRegistrations(authReq *Request) []map[string]any {
 	if authReq == nil {
-		return nil, nil
+		return nil
 	}
 	accessChain := requestAccessChain(authReq)
 	if len(accessChain) == 0 {
-		return nil, nil
+		return nil
 	}
 	registrations, _ := regcert.Verify(regcert.InfoEntries(requestVerifierInfo(authReq), "verifier_info"))
 	var bound []map[string]any
@@ -56,7 +71,7 @@ func ConsentRegistration(authReq *Request) (purposes, privacyPolicies []string) 
 			bound = append(bound, r.Claims)
 		}
 	}
-	return regcert.Purposes(bound)
+	return bound
 }
 
 // ARFFindings checks the relying party authentication of a request against

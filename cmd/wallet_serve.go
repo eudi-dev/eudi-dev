@@ -93,7 +93,7 @@ func walletServeCmdWithOptions() (*cobra.Command, *walletServeOptions) {
 
 	cmd := &cobra.Command{
 		Use:   "serve",
-		Short: "Start wallet HTTP server with web UI, OID4VP endpoints, and optional URL scheme handling",
+		Short: "Start the wallet server with its web UI",
 		Long: `Start a persistent wallet server with a web UI for managing credentials and handling OID4VP/OID4VCI flows.
 
 Capabilities:

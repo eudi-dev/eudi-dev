@@ -64,6 +64,8 @@ func runJSONInto(t *testing.T, doc any, args ...string) {
 		resetFlags(rootCmd)
 		walletDir = walletDirBefore
 	})
+	// A test that runs a command without this helper leaves its flag values.
+	resetFlags(rootCmd)
 	var runErr error
 	out := captureStdout(t, func() {
 		// Other tests point cobra's output at a buffer.

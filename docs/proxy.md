@@ -62,7 +62,7 @@ By default only OID4VP/VCI traffic is shown. Other requests (favicon, health che
 | `--port`         | `9090`  | Proxy listen port                        |
 | `--dashboard`    | `9091`  | Dashboard listen port                    |
 | `--no-dashboard` | `false` | Disable web dashboard                    |
-| `--dashboard-base-url` | None | Public dashboard URL when a reverse proxy serves it under a path prefix, such as `https://example.com/eudi-proxy` (see [behind a reverse proxy](reverse-proxy.md#proxy-dashboard)) |
+| `--dashboard-base-url` | None | Public dashboard URL when a reverse proxy serves it under a path prefix, such as `https://example.com/eudi-proxy` (see [reverse proxy setup](reverse-proxy.md#proxy-dashboard)) |
 | `--all-traffic`  | `false` | Show all traffic                          |
 | `--json`         | `false` | NDJSON output to stdout (global flag)    |
 | `-- <command>`   | None    | Launch target as subprocess, scan stdout |
@@ -75,7 +75,7 @@ By default only OID4VP/VCI traffic is shown. Other requests (favicon, health che
 | `-f, --follow`   | `false` | Keep printing as the proxy records traffic         |
 | `--json`         | `false` | Print the recorded traffic as JSON (global flag)   |
 
-## Reading a running proxy
+## Traffic of a running proxy
 
 Use `eudi proxy logs` to read traffic from a proxy running in a container, in the background or on another machine:
 

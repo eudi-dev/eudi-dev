@@ -1,4 +1,4 @@
-# Keycloak + Web Wallet (Web URLs Instead of Custom Schemes)
+# Keycloak + web wallet (web URLs instead of custom schemes)
 
 Run a Keycloak issuer, a Keycloak verifier (`keycloak-extension-oid4vp`) and the `eudi-dev` web wallet in one Docker compose project. Issuance and presentation use the wallet's localhost web endpoints. Verification starts through a normal OIDC browser login.
 
@@ -10,9 +10,9 @@ The wallet registers custom URL schemes with the OS only on macOS. In containers
 | `openid-credential-offer://?<params>` | `http://localhost:9085/credential-offer?<params>` |
 | `haip-vci://?<params>` or `eu-eaa-offer://?<params>` | `http://localhost:9085/credential-offer?<params>` |
 
-When a browser navigates to those URLs, the wallet acts like a same-device wallet app. It presents (or imports) and then redirects the browser to the verifier's `redirect_uri` or to the wallet UI. See [Invoking the wallet by URL](../../docs/wallet/presenting.md#invoking-the-wallet-by-url).
+When a browser navigates to those URLs, the wallet acts like a same-device wallet app. It presents (or imports) and then redirects the browser to the verifier's `redirect_uri` or to the wallet UI. See [Invoking the wallet by URL](../../docs/wallet/presenting.md#wallet-invocation-by-url).
 
-## Quick Start
+## Quick start
 
 ```bash
 cd examples/keycloak-web-wallet
@@ -106,7 +106,7 @@ sequenceDiagram
     APP-->>B: logged in as 123456782
 ```
 
-## Trust Material
+## Trust material
 
 - The wallet's PID credentials chain to the shared wallet CA. The verifier validates them against the wallet's trusted list at `http://localhost:9085/api/trustlist`.
 - The credentials embed a status list at the wallet's HTTPS issuer endpoint (`https://localhost:9086/api/statuslist`). `start.sh` exports the wallet CA (`wallet-ca-cert.pem`) into Keycloak's TLS truststore so the extension's revocation check can fetch it. The wallet state lives in a named volume so the CA stays stable across restarts.

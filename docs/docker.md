@@ -1,4 +1,4 @@
-# Docker Verifier Testing Guide
+# Docker image for verifier tests
 
 The Docker image runs an EUDI wallet for automated integration tests of OID4VP verifiers.
 
@@ -33,7 +33,7 @@ docker run -d --name eudi-demo -p 8085:8085 -p 8086:8086 \
 
 The demo persists its state in files on the volume and generates its own keys, so its CA stays private and stable across restarts.
 
-`--demo` starts with four PID credentials, HAIP checks in debug mode and OpenID4VCI 1.1 support. It disables administrative operations and resets the wallet hourly. Change the schedule with `--demo-reset`.
+`--demo` turns on `--pid` (four PID credentials), `--mode debug`, `--haip`, `--arf` and `--vci-version 1.1`. It disables administrative operations and resets the wallet hourly. Change the schedule with `--demo-reset`.
 
 Open the wallet at `http://localhost:8085`, the issuer at `/issuer/`, the verifier at `/verifier/` or the decoder at `/decoder/`. HTTPS issuer endpoints use port 8086 and a self-signed certificate.
 
@@ -107,7 +107,7 @@ Set `-e EUDI_DEV_LOG_FORMAT=json` to write one JSON record per line for a log co
 
 The [HTTP API reference](wallet/http-api.md) also lists certificate retrieval, provider CRLs and trusted list history endpoints. See [test certificates](test-certificates.md) for the EUDI profiles and known testing limits.
 
-## Typical verifier integration test flow
+## Verifier integration test flow
 
 1. Start the wallet container
 2. Your verifier builds an OID4VP authorization request with a DCQL query for PID attributes

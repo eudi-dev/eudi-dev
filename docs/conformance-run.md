@@ -1,4 +1,4 @@
-# Running OIDF Wallet Conformance
+# OIDF wallet conformance runs
 
 This runbook runs the current OIDF Final and HAIP wallet plans against the local `eudi-dev` testing wallet. Status and result matrix: [Current conformance results](./conformance-results.md). The reverse direction (the suite acting as the wallet against the demo issuer and verifier) has [its own runbook](./conformance-run-demorp.md).
 
@@ -15,7 +15,7 @@ You need:
 
 The documented suite baseline is `release-v5.3.1`. Use a newer release only when updating the baseline and the [results](./conformance-results.md).
 
-## Start the Local Suite
+## Local suite
 
 Build the suite from the baseline checkout:
 
@@ -62,7 +62,7 @@ For the current baseline, the server returns:
 {"tag":"release-v5.3.1","version":"5.3.1","revision":"440eec8"}
 ```
 
-## Run the Wallet Matrix
+## Wallet matrix
 
 From this repository:
 
@@ -88,7 +88,7 @@ OIDF_RUN_DIR=/tmp/oidf-wallet-conformance-local-strict \
 
 Compare failures with the latest [conformance results](./conformance-results.md) before treating them as regressions. The baseline lists the known wallet and suite failures and the expected exit status.
 
-## Rerun Selected Plans or Modules
+## Reruns of selected plans or modules
 
 Pass the official `run-test-plan.py` selector through the wrapper:
 
@@ -107,7 +107,7 @@ The selector syntax is the official runner syntax:
 
 The harness still generates all configs, so plan numbering stays the same. It then runs only the requested plans or modules.
 
-## Result Artifacts
+## Result artifacts
 
 The wrapper prints the run directory and leaves these artifacts:
 
@@ -135,7 +135,7 @@ Strict wallets verify HTTPS certificates by default. The local suite's self-sign
 
 Set `OIDF_TLS_VERIFY=true|false` to override this default. Use `OIDF_TLS_CA=/path/to/dev-ca.pem` to add trusted CA certificates. For verification to pass, the suite certificate must also have a SAN matching its hostname.
 
-## Environment Overrides
+## Environment overrides
 
 - `CONFORMANCE_MODE`: `local` (default) or `hosted` for the OIDF hosted service
 - `CONFORMANCE_SERVER`: local conformance suite base URL. Defaults to `https://localhost:8443/`
@@ -163,7 +163,7 @@ Set `OIDF_TLS_VERIFY=true|false` to override this default. Use `OIDF_TLS_CA=/pat
 - `EUDI_REMOTE_TIMEOUT`: how long the wallet waits for a counterparty, as a Go duration (`45s`, `2m`). The wrapper sets `120s` because the suite can take tens of seconds to answer under load (the wallet's own default is `15s`). An unparseable value is ignored
 - `OIDF_KEEP_SUITE_DB`: set to `1` to keep the local suite database after a run. By default the wrapper drops it, since a database holding many runs slows the server enough to stall a run
 
-## Hosted Mode
+## Hosted mode
 
 Hosted mode creates private plans on the OIDF service.
 
@@ -173,7 +173,7 @@ The default hosted target is the demo service. Certification runs go to the prod
 
 On the production service the wrapper runs only the certifiable HAIP plans, complete and unfiltered. The alpha Final plans run against the local suite or the hosted demo service.
 
-### Against the strict conformance host
+### Strict conformance host
 
 The hosted strict wallet at `https://strict.eudi-test.dev` is the certification target. Deploy it with `./deploy.sh strict <tag>` from [`examples/public-demo/`](../examples/public-demo/). Its public proxy allows GET and HEAD, including authorization requests. The harness uses an SSH tunnel for management API operations:
 
@@ -191,7 +191,7 @@ OIDF_REQUEST_TIMEOUT=60 \
 
 The wrapper starts no wallet of its own. It drives the tunneled instance over its API, including the per-module conformance switch. `OIDF_VCI_ALIAS` must match the redirect URI of the deployed wallet (the compose file sets `oid4vc-dev-vci-strict`). It fetches the wallet CA from the wallet's `/api/certificates/ca`. Deploy the release under certification before the run.
 
-### Against a local wallet through a tunnel
+### Local wallet through a tunnel
 
 For a local wallet, start a tunnel that terminates TLS in front of the wallet port and pass it as `OIDF_WALLET_BASE_URL`. The wallet then serves its issuer metadata and status list on that origin:
 

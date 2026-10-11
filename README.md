@@ -17,7 +17,7 @@
 [![SD-JWT VC](https://img.shields.io/badge/SD--JWT%20VC-draft--19-blue)](docs/spec-compliance.md#sd-jwt-selective-disclosure-jwt)
 [![mdoc](https://img.shields.io/badge/mdoc-ISO%2018013--5-blue)](docs/spec-compliance.md#mdoc--iso-18013-5)
 [![Token Status List](https://img.shields.io/badge/Token%20Status%20List-draft--21-blue)](docs/spec-compliance.md#token-status-list-draft-ietf-oauth-status-list)
-[![ETSI](https://img.shields.io/badge/ETSI-TS%20119%20602-blue)](docs/spec-compliance.md#etsi-ts-119-602-trusted-entity-lists)
+[![ETSI](https://img.shields.io/badge/ETSI-TS%20119%20602-blue)](docs/spec-compliance.md#etsi-ts-119-602-lists-of-trusted-entities)
 
 # Test Wallet and Dev Tools for the EUDI Ecosystem
 
@@ -37,7 +37,7 @@ A wallet for testing EUDI issuers and verifiers, in the browser, on the command 
 
 **PIDs and credential templates.** The EUDI PID and the German, Italian and Dutch PIDs are built in as SD-JWT VC and mdoc, with sample identities. The Italian and Dutch PIDs are new in 3.0.0. Templates define your own credentials, and `--credentials` (new in 3.0.0) loads them on every start. → [Templates](docs/templates.md), [startup credentials](docs/wallet/serve.md#startup-credentials)
 
-**A demo issuer and verifier.** The wallet also serves an issuer and a verifier. Both pass the OIDF conformance plans for issuers and verifiers. → [Serving the wallet](docs/wallet/serve.md), [demo conformance](docs/conformance-run-demorp.md)
+**A demo issuer and verifier.** The wallet also serves an issuer and a verifier. Both pass the OIDF conformance plans for issuers and verifiers. → [Wallet server](docs/wallet/serve.md), [demo conformance](docs/conformance-run-demorp.md)
 
 **Developer tools.** Decode credentials, requests, offers and trusted lists, validate signatures and status, scan QR codes, generate DCQL queries, and watch live wallet traffic through a proxy. → [Decode](docs/decode.md), [validate](docs/validate.md), [issue](docs/issue.md), [proxy](docs/proxy.md)
 
@@ -109,9 +109,9 @@ eudi [--json] [--no-color] [-v] <command> [flags] [input]
 | `templates` | Manage credential templates | [templates](docs/templates.md) |
 | `decode` | Inspect credentials, OpenID4VCI and OpenID4VP requests, and trusted lists | [decode](docs/decode.md) |
 | `validate` | Verify signatures, expiry and revocation status | [validate](docs/validate.md) |
-| `dcql` | Generate a DCQL query from a credential | |
+| `dcql` | Generate a DCQL query from a credential | [dcql](docs/dcql.md) |
 | `proxy` | Debug proxy for wallet traffic with a live dashboard | [proxy](docs/proxy.md) |
-| `decoder` | Decoder web UI | |
+| `decoder` | Decoder web UI | [decoder](docs/decoder.md) |
 | `completion` | Shell completion (`eudi completion install`) | |
 
 Input is a file path, a URL, a raw credential string or stdin. `--json` prints one JSON document on stdout for scripts, and messages go to stderr ([ADR 0020](docs/adr/0020-cli-output-can-be-automated.md)). `-v` adds detail such as x5c chains, device keys and digest IDs.
@@ -130,7 +130,7 @@ Input is a file path, a URL, a raw credential string or stdin. `--json` prints o
 
 [Spec compliance](docs/spec-compliance.md) lists what is implemented for each specification, and the [flow diagrams](docs/diagrams/README.md) show the issuer and verifier interactions.
 
-## Compared to other EUDI tooling
+## Comparison with other EUDI tooling
 
 | Tool | What it tests | Runs locally | Scriptable |
 |---|---|---|---|

@@ -1,4 +1,4 @@
-# Hosting a Public Demo
+# Public demo
 
 Run a shared public wallet with the `--demo` profile, as at `https://eudi-test.dev`. Visitors can issue, present, decode and delete test credentials, and register and delete relying parties. Process controls and host filesystem endpoints are disabled. See [`examples/public-demo/`](../examples/public-demo/) for a deployment example.
 
@@ -10,7 +10,7 @@ eudi wallet serve --demo --base-url https://eudi-test.dev \
   --status-list --imprint-file imprint.html
 ```
 
-`--demo` starts with PID credentials, debug mode, HAIP checks and OpenID4VCI 1.1 support. Explicit flags override these defaults. For example, `--demo --vci-version 1.0` selects OpenID4VCI 1.0.
+`--demo` turns on `--pid`, `--mode debug`, `--haip`, `--arf` and `--vci-version 1.1`. Explicit flags override them. For example, `--demo --vci-version 1.0` selects OpenID4VCI 1.0.
 
 ### Baseline and consent
 
@@ -20,7 +20,7 @@ Browser flows ask for consent. API submissions provide consent directly. Each co
 
 ### Administrative operations
 
-Demo mode returns `403` for shutdown, error injection, log clearing and changes to format, consent or conformance settings. Visitors can save templates. They can't change or delete the predefined templates or the operator's templates (those present at startup). They also can't change the demo issuer and demo verifier registrations, request certificates for them, or delete the catalogue entries of the predefined templates. Visitor templates can't have their own images, and the issue endpoint rejects images from visitors. The bundled templates keep their images. A demo keeps at most 50 visitor templates, and a reset deletes them. Configuration responses omit host paths and the process ID.
+The public demo returns `403` for shutdown, error injection, log clearing and changes to format, consent or conformance settings. Visitors can save templates. They can't change or delete the predefined templates or the operator's templates (those present at startup). They also can't change the demo issuer and demo verifier registrations, request certificates for them, or delete the catalogue entries of the predefined templates. The template and issue endpoints answer `403` to a visitor's own images. Only the images bundled with the wallet are accepted. An image in issuer metadata that is not bundled is left off the card. A demo keeps at most 50 visitor templates, and a reset deletes them. Configuration responses omit host paths and the process ID.
 
 ### Outbound connections
 
@@ -30,7 +30,7 @@ A wallet without `--demo` also allows loopback, and `--allow-private-networks` l
 
 ### Validation
 
-Demo mode checks OpenID4VP and issuance against HAIP 1.0 and runs the [ARF checks](wallet/presenting.md#arf-checks). In debug mode, violations appear as warnings in the activity log and the flow continues.
+The public demo checks OpenID4VP and issuance against HAIP 1.0 and runs the [ARF checks](wallet/presenting.md#arf-checks). In debug mode, violations appear as warnings in the activity log and the flow continues.
 
 Presentation checks cover request delivery, client identification, response encryption, credential formats and algorithms. Unsigned Digital Credentials API requests use the platform origin to identify the caller. Issuance checks cover the grant, PAR, PKCE, DPoP and client authentication. See [specification support](spec-compliance.md) for individual requirements.
 
@@ -54,6 +54,12 @@ Every response includes these headers:
 | `X-Content-Type-Options` | `nosniff` |
 | `X-Frame-Options` | `DENY` |
 | `Referrer-Policy` | `no-referrer` |
+
+## Cookies and browser storage
+
+The demo uses the `eudi_session` cookie to associate consent requests with a browser. It is an opaque session value with `HttpOnly`, `SameSite=Lax` and, for HTTPS connections, `Secure`. The activity log remains shared.
+
+Pages opened by the CLI or URL handler keep the supplied browser ID in `sessionStorage`. Theme preferences, dismissed banner state and the news a visitor has seen use `localStorage`. They store only UI state. There is no third-party tracking. Describe this storage in the deployment's privacy notice.
 
 ## robots.txt and security.txt
 
@@ -88,7 +94,7 @@ To include a ticket, set `ticket` in the same request:
 
 All four baseline credentials are protected. The UI, the API and the CLI refuse to delete or revoke them. Visitor credentials can be deleted. Removing baseline protection requires direct access to `wallet.json`.
 
-All visitors share credentials, registered relying parties, trusted lists and the activity log. Anyone can issue credentials, delete unprotected credentials, register, revoke and delete relying parties, and read the log. Anyone can also put providers and external lists on the wallet's [trusted lists](wallet/serve.md#trusted-lists). These entries then anchor the `--arf` checks for every visitor. The demo holds at most 20 added providers and 5 added lists. It keeps the newest 500 credentials and 100 pending issuances, besides the protected PIDs. Errors of a flow that no browser started are not shown. Use test data only.
+All visitors share credentials, registered relying parties, trusted lists and the activity log. Anyone can issue credentials, delete unprotected credentials, register, revoke and delete relying parties, and read the log. Anyone can also put providers and external lists on the wallet's [trusted lists](wallet/serve.md#trusted-lists). These entries then anchor the `--arf` checks for every visitor. The demo holds at most 20 added providers and 5 added lists. It keeps the newest 500 credentials and 100 deferred issuances, besides the protected PIDs. Errors of a flow that no browser started are not shown. Use test data only.
 
 ## Rate limits
 
@@ -122,7 +128,7 @@ The HAIP authorization code flow needs a client ID and redirect URI. Both defaul
 
 If the issuer requires client registration, register those two values. Use different values if the issuer has already registered another client ID or redirect URI. Pre-authorized code offers work without either flag (an attestation is still sent where the issuer's metadata asks for one).
 
-## The demo issuer as an authorization server
+## Demo issuer as an authorization server
 
 The demo issuer is also its own authorization server. Its metadata at `/.well-known/oauth-authorization-server/issuer` advertises PAR, PKCE S256, DPoP and ABCA draft-10 methods `attest_jwt_client_auth` and `attest_jwt_client_auth_dpop`. Its endpoints are `/issuer/par`, `/issuer/authorize` and `/issuer/token`.
 
@@ -155,7 +161,7 @@ The demo issuer trusts the providers on the wallet provider lists of the wallet'
 
 The ticket records the result in `wallet_attestation`: `trusted` for a chain to a trusted wallet provider, `untrusted` for another signer, or `none` when authentication was optional and omitted.
 
-## Verifying the wallet attestation
+## Wallet attestation verification
 
 The wallet authenticates PAR and token requests with a wallet attestation. With a separate possession proof, it sends both headers below. When the server advertises combined DPoP proof, the DPoP header replaces the separate attestation PoP header.
 
@@ -192,11 +198,7 @@ An image next to the snippet, such as `<img src="overview.png">`, is embedded in
 
 The example stack mounts the `news` folder, and `./deploy.sh push` copies it to the host. The overview image is rendered from `3.0.0-beta.source.html`.
 
-The demo uses the `eudi_session` cookie to associate consent requests with a browser. It is an opaque session value with `HttpOnly`, `SameSite=Lax` and, for HTTPS connections, `Secure`. The activity log remains shared.
-
-Pages opened by the CLI or URL handler keep the supplied browser ID in `sessionStorage`. Theme preferences, dismissed banner state and the news a visitor has seen use `localStorage`. They store only UI state. There is no third-party tracking. Describe this storage in the deployment's privacy notice.
-
-## Deploying and updating
+## Deployment and updates
 
 [`examples/public-demo/deploy.sh`](../examples/public-demo/deploy.sh) manages a host over ssh. Point `DEMO_HOST` at any ssh destination (a `~/.ssh/config` alias, `user@host`, or a bare host), optionally with `DEMO_DIR` and `DEMO_URL`. Put them in the environment or in a `deploy.env` next to the script (gitignored).
 
@@ -295,7 +297,7 @@ Visitor counts are approximate because addresses are masked. Everyone sharing an
 - Leave `HTTP_PROXY` and `HTTPS_PROXY` unset in the container and do not pass `--http-proxy` or `--https-proxy`. With an outbound proxy, the connection-time address checks see only the proxy's address.
 - Requests to the demo's own public URL, such as a pasted offer, resolve through public DNS. This works on cloud hosts that support hairpin NAT. A compose network alias for the public hostname would resolve to a private address and be blocked.
 
-## Pointing the CLI at the demo
+## CLI access to the demo
 
 ```bash
 eudi wallet use https://eudi-test.dev

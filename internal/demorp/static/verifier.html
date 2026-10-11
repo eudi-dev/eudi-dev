@@ -33,16 +33,21 @@
     .links a { margin-right: 12px; }
     .disclaimer { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);
       font-size: 10px; line-height: 1.5; color: var(--text-dim); }
-    .status { font-size: 13px; font-weight: 600; margin: 12px 0 6px; }
+    .status { font-size: 13px; font-weight: 600; margin: 12px 0 6px; overflow-wrap: anywhere; }
     .status.verified { color: var(--green); }
     .status.failed { color: var(--red); }
     .status.pending { color: var(--yellow); }
     .status.expired { color: var(--text-dim); }
     .check { font-size: 11px; line-height: 1.7; }
-    .check .ok { color: var(--green); }
-    .check .fail { color: var(--red); }
-    .check .warn { color: var(--yellow); }
-    .check .skip { color: var(--text-dim); }
+    .check-item { display: flex; gap: 6px; align-items: baseline; }
+    .check-icon { width: 12px; flex-shrink: 0; text-align: center; font-weight: 700; }
+    .check-text { min-width: 0; overflow-wrap: anywhere; }
+    .check-detail { color: var(--text-dim); }
+    .check .ok .check-icon { color: var(--green); }
+    .check .fail .check-icon { color: var(--red); }
+    .check .warn .check-icon { color: var(--yellow); }
+    .check .skip .check-icon { color: var(--text-dim); }
+    .check summary { cursor: pointer; color: var(--text-dim); width: fit-content; }
     table { border-collapse: collapse; width: 100%; font-size: 12px; margin-top: 6px; }
     td { border: 1px solid var(--border); padding: 4px 8px; vertical-align: top; }
     td:first-child { color: var(--text-dim); white-space: nowrap; }
@@ -125,14 +130,7 @@
         <div class="subtitle" id="header-subtitle" style="margin-bottom:0">A minimal OpenID4VP verifier for demo purposes</div>
       </div>
     </div>
-    <p id="intro">
-      This verifier asks for a presentation over OpenID4VP, following HAIP 1.0: a
-      signed request object behind <code>request_uri</code>, an
-      <code>x509_hash</code> client id, <code>dcql_query</code> and
-      <code>direct_post.jwt</code> with an encrypted response. It then checks the
-      response: issuer signature, revocation, key binding, <code>sd_hash</code>,
-      nonce and audience.
-    </p>
+    <p id="intro">Requests a presentation over OpenID4VP as HAIP 1.0 asks and verifies the response.</p>
     <div class="format-row" id="credential-row">
       <span class="format-label" id="credential-label">Credential</span>
       <div class="toggle" id="credential-toggle" role="radiogroup" aria-label="Credential to request">
@@ -151,9 +149,7 @@
         <button type="button" class="toggle-option" id="format-mdoc" data-format="mdoc" role="radio" aria-checked="false">mdoc</button>
       </div>
     </div>
-    <p class="format-hint" id="format-hint" hidden>
-      The request asks for either format and the wallet answers with the one it holds.
-    </p>
+    <p class="format-hint" id="format-hint" hidden>The wallet answers with the format it holds.</p>
     <div class="format-row" id="ticket-row" hidden>
       <span class="format-label" id="ticket-label">Ticket</span>
       <div class="toggle" id="ticket-toggle" role="radiogroup" aria-label="How the request asks for the ticket">
@@ -163,16 +159,10 @@
     </div>
     <p class="format-hint" id="ticket-hint" hidden></p>
     <div class="format-row" id="multiple-row">
-      <label class="multiple-option" id="request-multiple-label"><input type="checkbox" id="request-multiple"> multiple (the wallet may send several credentials per query)</label>
+      <label class="multiple-option" id="request-multiple-label" title="DCQL multiple (OpenID4VP 1.0 §6.1)"><input type="checkbox" id="request-multiple"> Several credentials per query</label>
     </div>
     <div id="custom-panel" hidden>
-      <p class="format-hint" id="custom-hint">
-        Build a DCQL query by hand. Each path selects a claim. A path onto an
-        array of selectively disclosable elements (such as
-        <code>nationalities</code>) discloses an empty array, so end it with
-        <code>[*]</code> for all elements or <code>[n]</code> for one. Nest with
-        dots (<code>address.locality</code>).
-      </p>
+      <p class="format-hint" id="custom-hint">Each path selects a claim. Nest with dots (<code>address.locality</code>). End an array path with <code>[*]</code> for all elements or <code>[n]</code> for one.</p>
       <div class="format-row" id="scheme-row">
         <span class="format-label" id="scheme-label">Client ID scheme</span>
         <div class="toggle" id="scheme-toggle" role="radiogroup" aria-label="Client identifier scheme">
@@ -182,9 +172,7 @@
           <button type="button" class="toggle-option" id="scheme-pre-registered" data-scheme="pre-registered" role="radio" aria-checked="false">pre-registered</button>
         </div>
       </div>
-      <p class="format-hint" id="scheme-hint">
-        The request object is signed and delivered behind <code>request_uri</code>.
-      </p>
+      <p class="format-hint" id="scheme-hint">Signed request object behind request_uri.</p>
       <div class="format-row" id="client-id-row" hidden>
         <span class="format-label" id="client-id-label">Client ID</span>
         <input type="text" id="client-id-input" class="type-input" placeholder="eudi-dev-demo-verifier">

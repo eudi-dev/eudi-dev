@@ -1,7 +1,5 @@
 # Registrar API walkthrough
 
-*(new in 3.0.0)*
-
 This walkthrough registers a verifier and an issuer with the wallet's [registrar](registrar.md) over the HTTP API. Then it sends requests and offers signed with these certificates to a wallet running with `--arf`. The requests use `curl`, `jq` and `openssl`. The responses come from a wallet started like this:
 
 ```bash
@@ -10,7 +8,7 @@ eudi wallet serve --pid --arf --auto-accept
 
 The wallet API is on port 8085 and its issuer endpoints are on port 8086. Long values such as certificates and JWTs are shortened with `...`. Identifiers, dates and status list entries differ on your wallet.
 
-## Sign with openssl
+## Signing helpers
 
 A verifier signs its request objects and an issuer its metadata, both with ES256. Any JOSE library works. The shell functions below use only `openssl`:
 
@@ -33,7 +31,7 @@ x5c() { awk '/BEGIN/ {c=""} !/-----/ {c=c $0} /END/ {printf "%s\"%s\"", (n++ ? "
 
 ## A verifier
 
-### 1. Register
+### 1. Registration
 
 The registration follows the TS05 data model. The intended use lists which credentials and claims the verifier may request. Here it is the birth date from the EUDI PID.
 
@@ -101,7 +99,7 @@ The registrar answers `201` with the stored registration. It assigned the identi
 }
 ```
 
-### 2. Get the access certificate
+### 2. Access certificate
 
 Create a P-256 key and a certificate signing request. You keep the private key.
 
@@ -127,7 +125,7 @@ jq -r .certificate access.json > verifier.pem
 }
 ```
 
-The chain holds the access certificate and the relying party access CA. That CA is the trust anchor, which a signed request must not carry in `x5c` (HAIP 1.0 §5). So the request uses `certificate` alone. The certificate carries the registered identity:
+The chain holds the access certificate and the relying party access CA. That CA is the trust anchor, and a request object must not carry it in `x5c` (HAIP 1.0 §5). So the request uses `certificate` alone. The certificate carries the registered identity:
 
 ```text
 subject=C=NL, O=Example Shop B.V., OU=checkout, CN=Example Shop, organizationIdentifier=NTRNL-NLTEST.79AA013C47925C7B
@@ -138,7 +136,7 @@ X509v3 Certificate Policies: Policy: 0.4.0.194118.1.2
 
 `clientIds` has the client identifiers: `x509_hash` for the certificate and `x509_san_dns` for each DNS name (OpenID4VP 1.0 §5.9.3).
 
-### 3. Get the registration certificate
+### 3. Registration certificate
 
 ```bash
 curl -s -X POST localhost:8085/api/registrar/registration-certificates -H 'Content-Type: application/json' \
@@ -200,7 +198,7 @@ The payload of the certificate (ETSI TS 119 475 V1.2.1, typ `rc-wrp+jwt`) looks 
 }
 ```
 
-### 4. Send a request to the wallet
+### 4. Request to the wallet
 
 Sign a request object with the verifier key. Put the access certificate in `x5c` and the registration certificate in `verifier_info`. The `response_uri` is your verifier's endpoint.
 
@@ -239,7 +237,7 @@ The access certificate chains to the relying party access CA, which is on the wa
 }
 ```
 
-### 5. Ask for more than you registered
+### 5. Request beyond the registration
 
 Add `family_name` to the DCQL query, sign again and send it. In debug mode the wallet still presents. The response has the same fields as above and adds `findings`:
 
@@ -271,7 +269,7 @@ error=access_denied&error_description=The+request+does+not+meet+the+ARF+registra
 
 ## An issuer
 
-### 1. Register
+### 1. Registration
 
 An issuer lists its attestation types. Without an entitlement, the registrar takes the entitlement of each type's category from the catalogue. `urn:example:diploma:1` has no catalogue entry, so it is an EAA and the issuer gets `Non_Q_EAA_Provider`.
 
@@ -302,7 +300,7 @@ The service in the answer:
 }
 ```
 
-### 2. Get the certificates
+### 2. Certificates
 
 The access certificate request works as for a verifier. The registration certificate request names the service instead of an intended use:
 
@@ -346,7 +344,7 @@ The certificate has `entitlements` and `provides_attestations` instead of an int
 }
 ```
 
-### 3. Sign the issuer metadata
+### 3. Signed issuer metadata
 
 Put `issuer_info` at the top level of the Credential Issuer Metadata. Sign the metadata with the issuer key and the access certificate in `x5c` (OpenID4VCI 1.0 §12.2.3, ETSI TS 119 472-3 §4.2.2). The trust anchor stays out of `x5c` (HAIP 1.0 §4.1). The signed metadata needs `sub`, the Credential Issuer Identifier, and `iat`.
 
@@ -366,7 +364,7 @@ sign_es256 issuer.key '{"alg":"ES256","typ":"openidvci-issuer-metadata+jwt","x5c
 
 Serve `metadata.jwt` at `/.well-known/openid-credential-issuer` with the content type `application/jwt` when the request's `Accept` header includes `application/jwt`. With `--arf` the wallet sends this header.
 
-### 4. Offer a credential
+### 4. Credential offer
 
 Send the wallet an offer:
 
@@ -393,7 +391,7 @@ In strict mode the wallet refuses the offer before it requests a token:
 }
 ```
 
-### 5. Ask for a PID before you issue
+### 5. PID request before issuance
 
 An issuer that checks your identity before issuance also acts as a verifier. CIR (EU) 2025/848 Annex I keeps all entitlements and intended uses of a party in one registration, so add an intended use to the service from step 1 (TS05 v1.5 §2.4.1). `PUT /wrp` replaces the whole record, so send the stored record back with the new intended use.
 
@@ -434,7 +432,7 @@ curl -s -X POST localhost:8085/api/registrar/registration-certificates -H 'Conte
 
 The CLI adds the intended use and issues its certificate in one step: `eudi registrar verifiers add --to $ID --purpose "Checks who you are before a diploma is issued" --dcql pid.json` prints the `verifier_info` value. `eudi registrar registration-cert --identifier $ID --provider` then prints the new `issuer_info`.
 
-The answer has `verifierInfo` like a verifier's. Sign the request as in [step 4 of the verifier](#4-send-a-request-to-the-wallet), with the issuer's key and access certificate:
+The answer has `verifierInfo` like a verifier's. Sign the request as in [step 4 of the verifier](#4-request-to-the-wallet), with the issuer's key and access certificate:
 
 ```bash
 CLIENT_ID=$(jq -r '.clientIds[0]' issuer-access.json)

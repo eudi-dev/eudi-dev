@@ -71,6 +71,9 @@ type Request struct {
 	ClientAuthDetail string `json:"-"`
 	// The unverified name from client_metadata.client_name. Empty if absent.
 	ClientName string `json:"-"`
+	// RegisteredName is the relying party name of the registration
+	// certificate bound to the request's access certificate.
+	RegisteredName string `json:"-"`
 }
 
 type Match struct {
@@ -218,6 +221,9 @@ func Marshal(r *Request) map[string]any {
 	}
 	if r.ClientName != "" {
 		m["client_name"] = r.ClientName
+	}
+	if r.RegisteredName != "" {
+		m["registered_name"] = r.RegisteredName
 	}
 	return m
 }

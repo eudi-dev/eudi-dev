@@ -1,6 +1,6 @@
 [← Wallet](../wallet.md)
 
-# Issuing into the wallet
+# Issuance into the wallet
 
 The wallet accepts a credential offer with [`wallet accept`](presenting.md#wallet-accept-uri), from the wallet UI, from a scanned QR, or at its `/credential-offer` URL.
 
@@ -24,7 +24,7 @@ After sign-in, the issuer redirects to `/callback` and the wallet resumes issuan
 
 The callback is matched by `state` alone. The sign-in can happen in any browser with access to the wallet's redirect URI. `eudi wallet accept` uses this. It opens the URL locally, prints it for a headless shell, and polls the offer until it completes.
 
-## Renewing a credential
+## Credential renewal
 
 If an issuer returns a refresh token, the wallet can request a new copy of the credential later. It stores the endpoints, configuration ID and refresh token with the credential.
 
@@ -75,8 +75,6 @@ eudi wallet deferred abandon <id>    # stop collecting it
 Deferred issuances are saved in the selected storage backend. With file or Postgres storage, collection resumes after a restart. A record is removed when collection succeeds, the issuer returns a final error, the user abandons it, or 24 hours pass. A local `wallet accept` command reports the deferral. Run `wallet serve` to collect the credential.
 
 ## ARF checks
-
-*(new in 3.0.0)*
 
 The offer flow applies `--mode`, `--haip` and `--arf` like a presentation, whether the offer comes from `wallet accept`, `wallet scan` or an offer URL. For a pre-authorized code offer, `--haip` checks the HTTPS transport. PAR, PKCE, DPoP and client authentication apply to offers that use the authorization endpoint.
 
@@ -155,7 +153,7 @@ eudi wallet serve --vci-version 1.1
 
 Every 1.1 feature is negotiated through issuer metadata. Against an issuer that advertises none of them, 1.1 behaves like 1.0.
 
-Like the other conformance settings, the level can be changed at runtime on a local wallet (see [changing the conformance settings](serve.md#changing-the-conformance-settings)). `GET /api/config` reports it as `vci_version`.
+Like the other conformance settings, the level can be changed at runtime on a local wallet (see [changing the conformance settings](serve.md#conformance-settings-at-runtime)). `GET /api/config` reports it as `vci_version`.
 
 Features enabled by 1.1:
 
@@ -200,7 +198,7 @@ The wallet rejects a request for an interaction it did not advertise.
 
 The built-in demo issuer uses both. An offer set to "Presentation during issuance" runs the presentation interaction. An offer set to "Browser sign-in" requests the `auth_via_web` interaction from a wallet that advertises it, and falls back to `redirect_to_web` (first-party-apps Section 5.2.2.1.1) for other wallets.
 
-#### Trying it against the built-in demo issuer
+#### Demo issuer example
 
 The built-in demo issuer implements the issuer side, so the exchange runs against a single `wallet serve`. It asks for a PID, verifies the presentation, and issues a ticket for that PID's holder.
 

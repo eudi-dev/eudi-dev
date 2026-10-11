@@ -161,7 +161,7 @@ func init() {
 	issueMDOCCmd.Flags().StringVar(&issueTemplate, "template", "", "Credential template name or file, listed by 'templates list' (--claims overrides individual claims)")
 	issueMDOCCmd.Flags().StringVar(&issueSaveTemplate, "save-template", "", "Save the issued claims and settings as a credential template with this name")
 	issueMDOCCmd.Flags().StringVar(&issueKeyPath, "key", "", "Private key file (PEM or JWK). Ephemeral P-256 if omitted")
-	issueMDOCCmd.Flags().StringVar(&issueCertPath, "cert", "", "Certificate chain file (PEM, leaf first) embedded as x5c. Requires --key")
+	issueMDOCCmd.Flags().StringVar(&issueCertPath, "cert", "", "Certificate chain file (PEM, leaf first) embedded as x5chain. Requires --key")
 	issueMDOCCmd.Flags().StringVar(&issueDocType, "doc-type", credtemplate.DefaultDocType, "Document type")
 	issueMDOCCmd.Flags().StringVar(&issueNamespace, "namespace", credtemplate.DefaultDocType, "Namespace")
 	issueMDOCCmd.Flags().StringVar(&issueExpires, "exp", credtemplate.DefaultExp.String(), "Expiration duration (e.g. 720h, 24h)")

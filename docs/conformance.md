@@ -6,22 +6,22 @@ The runs test only the selected plans, variants and test conditions. Certificate
 
 Related docs:
 
-- [How to run the wallet conformance suite](./conformance-run.md)
-- [How to run the demo issuer and verifier plans](./conformance-run-demorp.md)
+- [Wallet conformance runs](./conformance-run.md)
+- [Demo issuer and verifier runs](./conformance-run-demorp.md)
 - [Current conformance results](./conformance-results.md)
 
-## Current State
+## Current state
 
 The harness targets a local OpenID Foundation conformance suite server by default. The documented baseline is `release-v5.3.1`. When the server exposes `/api/server`, the wrapper checks that its tag matches the runner/templates tag and fails early on a mismatch.
 
 Current local status:
 
-- The latest full wallet run has 530 `PASSED`, 178 `REVIEW`, 26 `WARNING` and 2 `FAILED` modules. The two failures are open suite bugs in multisigned presentations. The warnings are the IACA path length advisory.
-- The latest demo issuer and verifier run has 61 `PASSED`, 36 `REVIEW` and 4 `WARNING` modules. The warnings concern metadata unknown to the suite's schemas. All 36 verifier decisions match expectations.
+- The latest full wallet run has 744 modules: 530 `PASSED`, 188 `REVIEW`, 26 `WARNING` and 0 `FAILED`. The warnings are the IACA path length advisory.
+- The latest demo issuer and verifier run has 111 modules: 67 `PASSED`, 36 `REVIEW`, 8 `WARNING` and 0 `FAILED`. The warnings concern metadata unknown to the suite's schemas. All 36 verifier decisions match expectations.
 - Negative modules can end in `REVIEW` after the expected refusal. The local harness accepts that result only when there are no failing conditions.
 - Alpha Final plans use explicit VP module lists. Certifiable HAIP plans run complete and unfiltered.
 
-## Covered Plans
+## Covered plans
 
 The wrapper runs the current Final wallet plans plus the current HAIP wallet plans:
 
@@ -32,7 +32,7 @@ The wrapper runs the current Final wallet plans plus the current HAIP wallet pla
 
 Only the two HAIP plans are part of the OIDF certification program. The suite publishes the plain Final wallet plans as alpha tests. On the production certification service, the wrapper runs only the HAIP plans, complete and unfiltered. Local and demo-service runs cover the whole matrix.
 
-## Default Matrix
+## Default matrix
 
 The default run covers every plan variant combination supported by the wallet.
 
@@ -52,7 +52,7 @@ The matrix omits the `pre_registered` and `decentralized_identifier` prefixes, `
 
 The matrix is fixed in the wrapper. Use the official runner `--rerun` selector for targeted reruns of an already generated matrix, or `ONLY_SCENARIOS` (a comma separated list of slug substrings) to generate and run a subset.
 
-## Harness Behavior
+## Harness behavior
 
 [`scripts/oidf-wallet-conformance.sh`](../scripts/oidf-wallet-conformance.sh):
 
@@ -90,7 +90,7 @@ The wallet runs a conformance test with its normal keys:
 - its wallet provider signing key and certificate chain for client attestation and key attestation
 - its shared wallet CA as the trust anchor
 
-## Gaps in the Suite
+## Suite gaps
 
 The suite issues an authorization code without a user sign-in, so these plans skip the browser sign-in step. Playwright tests that step against the demo issuer. Its login page accepts each pushed `request_uri` only once (RFC 9126 §4).
 

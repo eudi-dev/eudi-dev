@@ -140,6 +140,8 @@ test.describe("JWT decoding", () => {
     const banner = page.locator(".validity-banner");
     await expect(banner).toContainText("Invalid", { timeout: 3000 });
     await expect(banner).toHaveClass(/expired/);
+    await expect(page.locator("#output-validation-summary")).toHaveText("1 check failed, 3 not checked");
+    await expect(page.locator('[data-check="expiry"] .vg-detail')).toHaveText(/^Expired /);
   });
 
   test("clicking an embedded JWT navigates to it and browser back restores the parent", async ({
@@ -306,10 +308,7 @@ test.describe("Verification panel", () => {
     await expect(checks).toHaveCount(4);
 
     const names = await page.locator(".vg-name").allTextContents();
-    expect(names).toContain("expiry");
-    expect(names).toContain("integrity");
-    expect(names).toContain("signature");
-    expect(names).toContain("status");
+    expect(names).toEqual(expect.arrayContaining(["Expiry", "Integrity", "Signature", "Status"]));
   });
 
   test("verify form opens with key input and button", async ({ page }) => {
@@ -343,7 +342,7 @@ test.describe("Verification panel", () => {
     const count = await items.count();
     const details = {};
     for (let i = 0; i < count; i++) {
-      const name = await items.nth(i).locator(".vg-name").textContent();
+      const name = await items.nth(i).getAttribute("data-check");
       const detail = await items.nth(i).locator(".vg-detail").textContent();
       details[name] = detail;
     }
@@ -353,14 +352,63 @@ test.describe("Verification panel", () => {
     expect(details["signature"]).toBe("No key provided");
   });
 
-  test("SD-JWT shows integrity under Valid", async ({ page }) => {
+  test("SD-JWT shows integrity under Passed", async ({ page }) => {
     await page.goto("/");
     await page.locator("#input").fill(TEST_SDJWT);
     await expect(page.locator(".validity-banner")).toBeVisible({
       timeout: 3000,
     });
 
-    await expect(page.locator(".vg-valid")).toContainText("integrity");
+    await expect(page.locator(".vg-valid .vg-title")).toHaveText("Passed");
+    await expect(page.locator(".vg-valid")).toContainText("Integrity");
+  });
+
+  test("names the trusted list once and groups warnings apart", async ({ page }) => {
+    const listURL = "https://wallet.example/api/trustlists/pid";
+    const anchor = (service) => ({ entry: "German PID", list_url: listURL, service });
+    await page.route("**/api/validate", async (route) => {
+      const response = await route.fetch();
+      const data = await response.json();
+      data.validation = {
+        checks: [
+          { name: "signature", status: "pass", detail: "Valid, ES256" },
+          { name: "trust", status: "pass", detail: "German PID, trusted list pid", anchor: anchor("issuance") },
+          { name: "status list signature", status: "pass", detail: "Valid, signed by Status Signer", anchor: anchor("revocation") },
+          { name: "haip", status: "warning", detail: "The credential has no x5c header" },
+        ],
+      };
+      await route.fulfill({ response, json: data });
+    });
+
+    await page.goto("/");
+    await page.locator("#input").fill(TEST_SDJWT);
+
+    await expect(page.locator("#output-validation-verdict")).toHaveText("\u2713 Valid");
+    await expect(page.locator("#output-validation-summary")).toHaveText("1 warning");
+    const warning = page.locator("#output-validation-warnings .vg-item");
+    await expect(warning.locator(".vg-icon")).toHaveText("!");
+    await expect(warning.locator(".vg-name")).toHaveText("HAIP");
+
+    const links = page.locator(".vg-anchor a");
+    await expect(links).toHaveCount(1);
+    await expect(links).toHaveText("pid \u2197");
+    await expect(links).toHaveAttribute("title", listURL);
+    await expect(page.locator('[data-check="trust"] .vg-detail')).toHaveText("German PID, trusted list pid \u2197");
+    await expect(page.locator('[data-check="status list signature"] .vg-detail')).toHaveText("Signed by Status Signer");
+  });
+
+  test("puts the check name above its detail on a phone", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 800 });
+    await page.goto("/");
+    await page.locator("#input").fill(TEST_JWT);
+    const item = page.locator('[data-check="status"]');
+    await expect(item.locator(".vg-name")).toBeVisible({ timeout: 3000 });
+
+    const name = await item.locator(".vg-name").boundingBox();
+    const detail = await item.locator(".vg-detail").boundingBox();
+    expect(detail.y).toBeGreaterThan(name.y + name.height - 1);
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBe(0);
   });
 });
 
@@ -628,7 +676,7 @@ test.describe("Decoding does not wait on the issuer", () => {
 
     releaseOnlinePass();
     await expect(banner).not.toHaveClass(/checking/, { timeout: 10000 });
-    await expect(banner).toContainText("status");
+    await expect(banner).toContainText("Status");
 
     expect(offlinePasses).toBe(1);
     expect(onlinePasses).toBe(1);
