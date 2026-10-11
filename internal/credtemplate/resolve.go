@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
 )
 
 // DefaultClaims are the claims of a credential issued without a template
@@ -77,7 +78,7 @@ type Resolved struct {
 
 // Resolve applies req to tpl. tpl may be nil.
 func Resolve(tpl *Template, req Request) (Resolved, error) {
-	format, err := NormalizeFormat(firstNonEmpty(req.Format, templateField(tpl, func(t *Template) string { return t.Format })))
+	format, err := NormalizeFormat(jsonutil.FirstNonEmpty(req.Format, templateField(tpl, func(t *Template) string { return t.Format })))
 	if err != nil {
 		return Resolved{}, err
 	}
@@ -127,9 +128,9 @@ func Resolve(tpl *Template, req Request) (Resolved, error) {
 	if r.Exp == 0 {
 		r.Exp = DefaultExp
 	}
-	r.VCT = firstNonEmpty(req.VCT, templateField(tpl, func(t *Template) string { return t.VCT }), credtype.PIDVCT)
-	r.DocType = firstNonEmpty(req.DocType, templateField(tpl, func(t *Template) string { return t.DocType }), DefaultDocType)
-	r.Namespace = firstNonEmpty(req.Namespace, templateField(tpl, func(t *Template) string { return t.Namespace }), r.DocType)
+	r.VCT = jsonutil.FirstNonEmpty(req.VCT, templateField(tpl, func(t *Template) string { return t.VCT }), credtype.PIDVCT)
+	r.DocType = jsonutil.FirstNonEmpty(req.DocType, templateField(tpl, func(t *Template) string { return t.DocType }), DefaultDocType)
+	r.Namespace = jsonutil.FirstNonEmpty(req.Namespace, templateField(tpl, func(t *Template) string { return t.Namespace }), r.DocType)
 	return r, nil
 }
 
@@ -206,13 +207,4 @@ func templateField(tpl *Template, field func(*Template) string) string {
 		return ""
 	}
 	return strings.TrimSpace(field(tpl))
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, v := range values {
-		if v = strings.TrimSpace(v); v != "" {
-			return v
-		}
-	}
-	return ""
 }

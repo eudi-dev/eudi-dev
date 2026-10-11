@@ -19,10 +19,10 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
-	"strings"
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 )
 
@@ -197,7 +197,7 @@ func trustedEntityInformation(opts Options, entity Entity) map[string]any {
 	if identifier := certificatesOrganizationIdentifier(append(entity.Issuance, entity.Revocation...)); identifier != "" {
 		tradeName = append(tradeName, map[string]string{"lang": "en", "value": identifier})
 	}
-	contact := firstNonEmpty(opts.Issuer, projectURL)
+	contact := jsonutil.FirstNonEmpty(opts.Issuer, projectURL)
 	electronic := []map[string]string{
 		{"lang": "en", "uriValue": contact},
 		{"lang": "en", "uriValue": "mailto:provider@example.invalid"},
@@ -286,15 +286,6 @@ func certificatesOrganizationIdentifier(certificates []string) string {
 		}
 		if identifier := certchain.OrganizationIdentifier(cert); identifier != "" {
 			return identifier
-		}
-	}
-	return ""
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, v := range values {
-		if v = strings.TrimSpace(v); v != "" {
-			return v
 		}
 	}
 	return ""

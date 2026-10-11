@@ -42,6 +42,22 @@ const (
 	germanPIDNamespace = "eu.europa.ec.eudi.pid.de.1"
 )
 
+// A bare credential has no wallet to store a display, a batch or trust
+// metadata, so issue without --wallet refuses those flags.
+func TestStandaloneIssueRefusesWalletOnlyFlags(t *testing.T) {
+	for _, name := range issueWalletOnlyFlags {
+		if issueSDJWTCmd.Flags().Lookup(name) == nil && issueCmd.PersistentFlags().Lookup(name) == nil {
+			t.Errorf("--%s is no issue flag", name)
+		}
+	}
+	resetTemplateTestState(t)
+	t.Cleanup(func() { resetFlags(rootCmd) })
+	rootCmd.SetArgs([]string{"issue", "sdjwt", "--display-name", "Diploma", "--batch", "3"})
+	if err := rootCmd.Execute(); err == nil || !strings.Contains(err.Error(), "--batch, --display-name apply only with --wallet") {
+		t.Fatalf("standalone issue: %v, want a refusal", err)
+	}
+}
+
 func TestOmitClaims_RemovesSpecifiedClaims(t *testing.T) {
 	result := credtemplate.OmitClaims(predefinedClaims("pid-sdjwt"), []string{"place_of_birth", "address", "nationalities"})
 

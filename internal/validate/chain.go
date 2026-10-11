@@ -90,17 +90,6 @@ func ExtractAndValidateMDOCX5Chain(doc *mdoc.Document, tlCerts []lote.CertInfo) 
 	return ValidateCertChain(certs, tlCerts)
 }
 
-// ExtractMDOCX5ChainLeafKey returns the public key of the first x5chain
-// certificate without validating the chain. It serves offline signature checks
-// without trust anchors. Returns nil, nil if no x5chain is present.
-func ExtractMDOCX5ChainLeafKey(doc *mdoc.Document) (crypto.PublicKey, error) {
-	certs, err := parseMDOCX5ChainCerts(doc)
-	if err != nil || len(certs) == 0 {
-		return nil, err
-	}
-	return certs[0].PublicKey, nil
-}
-
 // ExtractMDOCX5ChainCertificates returns the certificates in the x5chain
 // header (label 33) of an mdoc.
 func ExtractMDOCX5ChainCertificates(doc *mdoc.Document) ([]*x509.Certificate, error) {

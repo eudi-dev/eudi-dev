@@ -18,11 +18,31 @@ package urlhandler
 
 import (
 	"encoding/json"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
 	"testing"
 )
+
+// Without a home directory the bundle path would be relative. Unregister
+// refuses and leaves the working directory alone.
+func TestUnregisterRefusesWithoutAHomeDirectory(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv("HOME", "")
+	t.Setenv("EUDI_DEV_HOME", t.TempDir())
+	bundle := filepath.Join(dir, "Applications", appBundleName)
+	if err := os.MkdirAll(bundle, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Unregister(); err == nil {
+		t.Fatal("Unregister succeeded without a home directory")
+	}
+	if _, err := os.Stat(bundle); err != nil {
+		t.Fatalf("the bundle in the working directory: %v", err)
+	}
+}
 
 // The commands build a plist in which every scheme sits once under the URL
 // type of its protocol.

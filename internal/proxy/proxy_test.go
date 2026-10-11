@@ -21,6 +21,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -115,6 +116,40 @@ func TestServerSetsForwardedPublicHost(t *testing.T) {
 
 	if resp.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, want %d", resp.Code, http.StatusNoContent)
+	}
+}
+
+// failingBody returns part of a body and then an error, like a client that
+// disconnects mid upload.
+type failingBody struct{ sent bool }
+
+func (b *failingBody) Read(p []byte) (int, error) {
+	if b.sent {
+		return 0, io.ErrUnexpectedEOF
+	}
+	b.sent = true
+	return copy(p, "vp_token=abc"), nil
+}
+
+func (b *failingBody) Close() error { return nil }
+
+// The target receives a request only with its whole body.
+func TestServerDoesNotForwardAnIncompleteRequestBody(t *testing.T) {
+	var forwarded atomic.Bool
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		forwarded.Store(true)
+	}))
+	defer backend.Close()
+	targetURL, _ := url.Parse(backend.URL)
+	srv := NewServer(Config{TargetURL: targetURL, AllTraffic: true}, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "http://localhost:9090/response", nil)
+	req.Body = &failingBody{}
+	resp := httptest.NewRecorder()
+	srv.ServeHTTP(resp, req)
+
+	if forwarded.Load() || resp.Code != http.StatusBadRequest {
+		t.Fatalf("forwarded %v with status %d, want a 400 without forwarding", forwarded.Load(), resp.Code)
 	}
 }
 

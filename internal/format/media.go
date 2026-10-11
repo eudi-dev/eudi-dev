@@ -12,15 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build linux
+package format
 
-package urlhandler
+import (
+	"path"
+	"strings"
+)
 
-func Register(opts Options) (Registration, error) {
-	_ = opts
-	return Registration{}, nil
+var imageMediaTypes = map[string]string{
+	".svg":  "image/svg+xml",
+	".png":  "image/png",
+	".jpg":  "image/jpeg",
+	".jpeg": "image/jpeg",
+	".gif":  "image/gif",
+	".webp": "image/webp",
 }
 
-func Unregister() (Unregistration, error) {
-	return Unregistration{}, nil
+// ImageMediaType returns the media type of an image file by its extension.
+// It reports false for a name that is no image the wallet shows.
+func ImageMediaType(name string) (string, bool) {
+	mediaType, ok := imageMediaTypes[strings.ToLower(path.Ext(name))]
+	return mediaType, ok
 }

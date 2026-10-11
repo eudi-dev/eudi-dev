@@ -15,6 +15,9 @@
   let clearedThroughID = 0;
   let showAll = false;
   let timelineView = localStorage.getItem("proxy-timeline") === "true";
+  // A full render keeps what the user opened and closed.
+  const expandedEntries = new Set();
+  const collapsedFlows = new Set();
 
   showAllCheckbox.checked = localStorage.getItem("proxy-show-all") === "true";
   showAll = showAllCheckbox.checked;
@@ -204,8 +207,10 @@
         (entry.responseBody ? detailSection(id + "-response-body", "Response Body", escapeHtml(entry.responseBody)) : '') +
       '</div>';
 
+    if (expandedEntries.has(entry.id)) el.classList.add("expanded");
     el.querySelector(".entry-header").addEventListener("click", function () {
-      el.classList.toggle("expanded");
+      if (el.classList.toggle("expanded")) expandedEntries.add(entry.id);
+      else expandedEntries.delete(entry.id);
     });
 
     el.querySelector(".btn-copy-curl").addEventListener("click", function (e) {
@@ -245,49 +250,7 @@
     standalone.reverse();
 
     for (var f = 0; f < flowOrder.length; f++) {
-      var flowId = flowOrder[f];
-      var flowEntries = flowGroups[flowId];
-      var group = document.createElement("div");
-      group.className = "flow-group";
-      var groupId = idPart(flowId);
-      group.id = groupId;
-
-      var flowType = "Flow";
-      for (var j = 0; j < flowEntries.length; j++) {
-        if (flowEntries[j].classLabel.startsWith("VP")) { flowType = "VP Flow"; break; }
-        if (flowEntries[j].classLabel.startsWith("VCI")) { flowType = "VCI Flow"; break; }
-      }
-
-      var firstTime = formatTime(flowEntries[0].timestamp);
-      var lastTime = formatTime(flowEntries[flowEntries.length - 1].timestamp);
-      var timeRange = firstTime === lastTime ? firstTime : firstTime + " – " + lastTime;
-
-      var header = document.createElement("div");
-      header.className = "flow-header";
-      header.id = groupId + "-header";
-      header.innerHTML =
-        '<span class="flow-type" id="' + groupId + '-type">' + escapeHtml(flowType) + '</span>' +
-        '<span class="flow-time" id="' + groupId + '-time">' + escapeHtml(timeRange) + '</span>' +
-        '<span class="flow-count" id="' + groupId + '-count">' + flowEntries.length + ' requests</span>' +
-        '<span class="flow-toggle" id="' + groupId + '-toggle">▼</span>';
-
-      var entriesContainer = document.createElement("div");
-      entriesContainer.className = "flow-entries";
-      entriesContainer.id = groupId + "-entries";
-      for (var k = 0; k < flowEntries.length; k++) {
-        entriesContainer.appendChild(renderEntry(flowEntries[k]));
-      }
-
-      header.addEventListener("click", function () {
-        var g = this.parentElement;
-        g.classList.toggle("collapsed");
-        var toggle = this.querySelector(".flow-toggle");
-        toggle.textContent = g.classList.contains("collapsed") ? "▶" : "▼";
-      });
-
-      group.appendChild(header);
-      group.appendChild(entriesContainer);
-      frag.appendChild(group);
+      frag.appendChild(renderFlowGroup(flowOrder[f], flowGroups[flowOrder[f]]));
     }
 
     for (var s = 0; s < standalone.length; s++) {
@@ -295,6 +258,74 @@
     }
 
     return frag;
+  }
+
+  function renderFlowGroup(flowId, flowEntries) {
+    var group = document.createElement("div");
+    group.className = "flow-group";
+    var groupId = idPart(flowId);
+    group.id = groupId;
+    group.dataset.flowId = flowId;
+    if (collapsedFlows.has(flowId)) group.classList.add("collapsed");
+
+    var header = document.createElement("div");
+    header.className = "flow-header";
+    header.id = groupId + "-header";
+    header.innerHTML =
+      '<span class="flow-type" id="' + groupId + '-type"></span>' +
+      '<span class="flow-time" id="' + groupId + '-time"></span>' +
+      '<span class="flow-count" id="' + groupId + '-count"></span>' +
+      '<span class="flow-toggle" id="' + groupId + '-toggle"></span>';
+
+    var entriesContainer = document.createElement("div");
+    entriesContainer.className = "flow-entries";
+    entriesContainer.id = groupId + "-entries";
+    for (var k = 0; k < flowEntries.length; k++) {
+      entriesContainer.appendChild(renderEntry(flowEntries[k]));
+    }
+
+    header.addEventListener("click", function () {
+      var collapsed = group.classList.toggle("collapsed");
+      if (collapsed) collapsedFlows.add(flowId);
+      else collapsedFlows.delete(flowId);
+      group.querySelector(".flow-toggle").textContent = collapsed ? "▶" : "▼";
+    });
+
+    group.appendChild(header);
+    group.appendChild(entriesContainer);
+    updateFlowHeader(group, flowEntries);
+    return group;
+  }
+
+  function updateFlowHeader(group, flowEntries) {
+    var flowType = "Flow";
+    for (var j = 0; j < flowEntries.length; j++) {
+      if (flowEntries[j].classLabel.startsWith("VP")) { flowType = "VP Flow"; break; }
+      if (flowEntries[j].classLabel.startsWith("VCI")) { flowType = "VCI Flow"; break; }
+    }
+    var firstTime = formatTime(flowEntries[0].timestamp);
+    var lastTime = formatTime(flowEntries[flowEntries.length - 1].timestamp);
+    group.querySelector(".flow-type").textContent = flowType;
+    group.querySelector(".flow-time").textContent = firstTime === lastTime ? firstTime : firstTime + " – " + lastTime;
+    group.querySelector(".flow-count").textContent = flowEntries.length + " requests";
+    group.querySelector(".flow-toggle").textContent = group.classList.contains("collapsed") ? "▶" : "▼";
+  }
+
+  // The timeline lists flow groups newest first, then the entries without a
+  // flow, newest first. A new entry joins its group or starts one at the top.
+  function addToTimeline(entry) {
+    if (!entry.flowId) {
+      entriesEl.insertBefore(renderEntry(entry), entriesEl.querySelector(":scope > .entry"));
+      return;
+    }
+    var flowEntries = entries.filter(function (e) { return e.flowId === entry.flowId && isVisible(e); });
+    var group = entriesEl.querySelector('.flow-group[data-flow-id="' + CSS.escape(entry.flowId) + '"]');
+    if (!group) {
+      entriesEl.insertBefore(renderFlowGroup(entry.flowId, flowEntries), entriesEl.firstChild);
+      return;
+    }
+    group.querySelector(".flow-entries").appendChild(renderEntry(entry));
+    updateFlowHeader(group, flowEntries);
   }
 
   function renderEntries() {
@@ -327,14 +358,13 @@
     }
     if (!isVisible(entry)) return;
 
-    if (timelineView) {
-      renderEntries();
-      return;
-    }
-
     if (emptyEl.style.display !== "none") {
       emptyEl.style.display = "none";
       entriesEl.innerHTML = "";
+    }
+    if (timelineView) {
+      addToTimeline(entry);
+      return;
     }
     entriesEl.insertBefore(renderEntry(entry), entriesEl.firstChild);
   }

@@ -103,6 +103,8 @@ func (s *memoryStore) Stat(key string) (Stamp, error) {
 	return blob.stamp(), nil
 }
 
+func (s *memoryStore) Exists(key string) (bool, error) { return existsByStat(s.Stat, key) }
+
 func (s *memoryStore) List(prefix string) ([]string, error) {
 	prefix, err := cleanPrefix(prefix)
 	if err != nil {

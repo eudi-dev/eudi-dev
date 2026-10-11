@@ -32,14 +32,15 @@ const appBundleName = "EUDI-Dev-Wallet.app"
 // for the same URL schemes.
 const legacyAppBundleName = "OID4VC-Dev-Wallet.app"
 
-func appBundlePath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, "Applications", appBundleName)
-}
-
-func legacyAppBundlePath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, "Applications", legacyAppBundleName)
+// bundlePaths returns the app bundle and the old one in ~/Applications.
+// Without a home directory the paths would be relative to the working
+// directory, and Unregister would remove whatever sits there.
+func bundlePaths() (current, legacy string, err error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", "", fmt.Errorf("finding the Applications directory: %w", err)
+	}
+	return filepath.Join(home, "Applications", appBundleName), filepath.Join(home, "Applications", legacyAppBundleName), nil
 }
 
 func removeBundle(path string) error {
@@ -52,8 +53,6 @@ func removeBundle(path string) error {
 }
 
 func handlerScriptPath() string {
-	home, _ := os.UserHomeDir()
-	_ = home
 	return filepath.Join(config.BaseDir(), "url-handler.sh")
 }
 
@@ -67,6 +66,10 @@ func Register(opts Options) (Registration, error) {
 	// Keep a package manager's stable symlink such as /opt/homebrew/bin/eudi.
 	// A `brew upgrade` deletes the versioned file it points at.
 	binaryPath = stableBinaryPath(binaryPath)
+	bundlePath, legacyPath, err := bundlePaths()
+	if err != nil {
+		return Registration{}, err
+	}
 
 	handlerPath := handlerScriptPath()
 	if err := os.MkdirAll(filepath.Dir(handlerPath), 0755); err != nil {
@@ -80,15 +83,14 @@ func Register(opts Options) (Registration, error) {
 	}
 
 	// osacompile requires the output bundle to be absent.
-	bundlePath := appBundlePath()
 	os.RemoveAll(bundlePath)
-	if err := removeBundle(legacyAppBundlePath()); err != nil {
+	if err := removeBundle(legacyPath); err != nil {
 		return Registration{}, fmt.Errorf("removing the previous %s: %w", legacyAppBundleName, err)
 	}
 	if err := os.MkdirAll(filepath.Dir(bundlePath), 0755); err != nil {
 		return Registration{}, fmt.Errorf("creating Applications directory: %w", err)
 	}
-	if err := compileHandlerBundle(handlerPath, bundlePath, binaryPath, opts); err != nil {
+	if err := compileHandlerBundle(handlerPath, bundlePath); err != nil {
 		return Registration{}, err
 	}
 	return Registration{
@@ -102,7 +104,7 @@ func Register(opts Options) (Registration, error) {
 	}, nil
 }
 
-func compileHandlerBundle(handlerPath, bundlePath, binaryPath string, opts Options) error {
+func compileHandlerBundle(handlerPath, bundlePath string) error {
 	appleScript := fmt.Sprintf(`on open location theURL
 	do shell script quoted form of "%s" & " " & quoted form of theURL & " >> /tmp/eudi-dev-wallet.log 2>&1 &"
 end open location
@@ -154,14 +156,17 @@ end open location
 }
 
 func Unregister() (Unregistration, error) {
-	bundlePath := appBundlePath()
+	bundlePath, legacyPath, err := bundlePaths()
+	if err != nil {
+		return Unregistration{}, err
+	}
 	_, statErr := os.Stat(bundlePath)
 	installed := statErr == nil
 
 	if err := removeBundle(bundlePath); err != nil {
 		return Unregistration{}, fmt.Errorf("removing app bundle: %w", err)
 	}
-	if err := removeBundle(legacyAppBundlePath()); err != nil {
+	if err := removeBundle(legacyPath); err != nil {
 		return Unregistration{}, fmt.Errorf("removing the previous %s: %w", legacyAppBundleName, err)
 	}
 

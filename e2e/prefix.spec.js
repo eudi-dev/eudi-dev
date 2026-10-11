@@ -5,6 +5,7 @@
 // host root. Any other path belongs to another app on the shared host, so a test fails
 // when the browser requests one.
 const { test, expect } = require("@playwright/test");
+const { waitForServer } = require("./helpers");
 const { execSync, spawn } = require("child_process");
 const fs = require("fs");
 const http = require("http");
@@ -80,20 +81,6 @@ function startIngress(cert, key) {
   return new Promise((resolve) => ingress.listen(PUBLIC_PORT, resolve));
 }
 
-async function waitFor(url, timeoutMs) {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    try {
-      const res = await fetch(url);
-      if (res.status < 500) return;
-    } catch {
-      // not up yet
-    }
-    await new Promise((r) => setTimeout(r, 200));
-  }
-  throw new Error(`${url} did not start within ${timeoutMs}ms`);
-}
-
 function run(binary, args, logName) {
   const resultsDir = path.join(__dirname, "test-results");
   fs.mkdirSync(resultsDir, { recursive: true });
@@ -135,8 +122,8 @@ test.beforeAll(async () => {
     ],
     "prefix-proxy.log"
   );
-  await waitFor(`http://localhost:${WALLET_PORT}/api/version`, 30_000);
-  await waitFor(`http://localhost:${DASHBOARD_PORT}/api/entries`, 30_000);
+  await waitForServer(`http://localhost:${WALLET_PORT}/api/version`, 30_000);
+  await waitForServer(`http://localhost:${DASHBOARD_PORT}/api/entries`, 30_000);
 });
 
 test.afterAll(async () => {

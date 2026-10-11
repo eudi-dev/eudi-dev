@@ -31,6 +31,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
 )
 
 // AttestationSchema is the SchemaMeta of the catalogue of attestations (EC
@@ -248,7 +249,7 @@ func TemplateCatalogAttestation(t credtemplate.Template, entry CatalogAttestatio
 	}
 	entry = cloneCatalogAttestation(entry)
 	entry.Credentials = []CatalogCredential{credential}
-	entry.Category = firstNonEmpty(entry.Category, t.Category, credtemplate.CategoryEAA)
+	entry.Category = jsonutil.FirstNonEmpty(entry.Category, t.Category, credtemplate.CategoryEAA)
 	if strings.TrimSpace(entry.Name) == "" {
 		entry.Name = t.Name
 		if t.Display != nil && t.Display.Name != "" {
@@ -360,7 +361,7 @@ func normalizeCatalogAttestation(entry *CatalogAttestation, base string) error {
 	if entry.Name == "" {
 		return fmt.Errorf("an attestation needs a name")
 	}
-	entry.Category = firstNonEmpty(entry.Category, credtemplate.CategoryEAA)
+	entry.Category = jsonutil.FirstNonEmpty(entry.Category, credtemplate.CategoryEAA)
 	if err := credtemplate.CheckCategory(entry.Category); err != nil {
 		return err
 	}
@@ -393,19 +394,19 @@ func normalizeCatalogAttestation(entry *CatalogAttestation, base string) error {
 		}
 	}
 	s := &entry.Schema
-	s.Version = firstNonEmpty(s.Version, "1.0.0")
+	s.Version = jsonutil.FirstNonEmpty(s.Version, "1.0.0")
 	if !semanticVersion.MatchString(s.Version) {
 		return fmt.Errorf("version %q does not follow semantic versioning (TS11 v1.0 §4.5.1)", s.Version)
 	}
-	s.RulebookURI = firstNonEmpty(s.RulebookURI, base+"/rulebook")
+	s.RulebookURI = jsonutil.FirstNonEmpty(s.RulebookURI, base+"/rulebook")
 	if !format.IsWebURL(s.RulebookURI) {
 		return fmt.Errorf("rulebookURI %q is not an http or https URL", s.RulebookURI)
 	}
-	s.AttestationLoS = firstNonEmpty(s.AttestationLoS, CategoryOf(entry.Category).AttestationLoS)
+	s.AttestationLoS = jsonutil.FirstNonEmpty(s.AttestationLoS, CategoryOf(entry.Category).AttestationLoS)
 	if levels := OptionValues(AttestationLevels); !slices.Contains(levels, s.AttestationLoS) {
 		return fmt.Errorf("attestationLoS %q is not one of %s", s.AttestationLoS, strings.Join(levels, ", "))
 	}
-	s.BindingType = firstNonEmpty(s.BindingType, "key")
+	s.BindingType = jsonutil.FirstNonEmpty(s.BindingType, "key")
 	if bindings := OptionValues(BindingTypes); !slices.Contains(bindings, s.BindingType) {
 		return fmt.Errorf("bindingType %q is not one of %s", s.BindingType, strings.Join(bindings, ", "))
 	}
@@ -435,7 +436,7 @@ func normalizeCatalogAttestation(entry *CatalogAttestation, base string) error {
 // completed fills in the formats with their schema URIs on the wallet. An
 // entry without trusted authorities gets the trusted list of its category.
 func completed(entry CatalogAttestation, base string) CatalogAttestation {
-	entry.Category = firstNonEmpty(entry.Category, credtemplate.CategoryEAA)
+	entry.Category = jsonutil.FirstNonEmpty(entry.Category, credtemplate.CategoryEAA)
 	if len(entry.Schema.TrustedAuthorities) == 0 {
 		isLOTE := true
 		entry.Schema.TrustedAuthorities = []TrustAuthority{{FrameworkType: "etsi_tl", Value: CategoryTrustListURL(base, entry.Category), IsLOTE: &isLOTE}}
@@ -543,12 +544,12 @@ func (r *Registrar) templateCatalog(base string) []CatalogAttestation {
 		if !ok {
 			entry := CatalogAttestation{
 				Name:     name,
-				Category: firstNonEmpty(t.Category, credtemplate.CategoryEAA),
+				Category: jsonutil.FirstNonEmpty(t.Category, credtemplate.CategoryEAA),
 				Template: true,
 				Schema: AttestationSchema{
 					ID:          uuid.NewSHA1(templateCatalogNamespace, []byte(name)).String(),
 					Version:     "1.0.0",
-					RulebookURI: firstNonEmpty(t.Rulebook, base+"/rulebook"),
+					RulebookURI: jsonutil.FirstNonEmpty(t.Rulebook, base+"/rulebook"),
 					BindingType: "key",
 				},
 			}
@@ -577,7 +578,7 @@ func templateCatalogCredential(t credtemplate.Template) (CatalogCredential, bool
 	case t.Format == "mdoc" && t.DocType != "":
 		c := CatalogCredential{Format: credtype.FormatMDOC, Type: t.DocType}
 		for _, key := range slices.Sorted(maps.Keys(t.Claims)) {
-			namespace, element := firstNonEmpty(t.Namespace, t.DocType), key
+			namespace, element := jsonutil.FirstNonEmpty(t.Namespace, t.DocType), key
 			if at := strings.LastIndex(key, ":"); at > 0 {
 				namespace, element = key[:at], key[at+1:]
 			}

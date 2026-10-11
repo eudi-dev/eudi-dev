@@ -59,8 +59,6 @@ func (c *StatefulClassifier) Classify(entry *TrafficEntry) {
 
 	entry.Class = class
 	entry.ClassLabel = entry.Class.Label()
-	// Decoding runs outside the classifier lock because issuer metadata fetches can be
-	// slow. The endpoint map stays under the lock.
 	entry.Decoded = decodeEntry(entry)
 	entry.Credentials, entry.CredentialLabels = extractCredentials(entry)
 

@@ -21,11 +21,6 @@ func GetString(m map[string]any, key string) string {
 	return v
 }
 
-func GetStringOK(m map[string]any, key string) (string, bool) {
-	v, ok := m[key].(string)
-	return v, ok
-}
-
 func GetMap(m map[string]any, key string) map[string]any {
 	v, _ := m[key].(map[string]any)
 	return v

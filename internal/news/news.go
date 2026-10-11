@@ -24,19 +24,12 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 )
 
 // maxImageSize keeps an inlined image from bloating every news response.
 const maxImageSize = 2 << 20
-
-var imageTypes = map[string]string{
-	".png":  "image/png",
-	".jpg":  "image/jpeg",
-	".jpeg": "image/jpeg",
-	".gif":  "image/gif",
-	".webp": "image/webp",
-	".svg":  "image/svg+xml",
-}
 
 // The wallet's img-src policy allows only its own origin and data URLs, so
 // an image next to the snippet is inlined.
@@ -77,7 +70,7 @@ func inlineImages(snippet, dir string) (string, error) {
 	var failure error
 	out := imageSource.ReplaceAllStringFunc(snippet, func(attr string) string {
 		name := imageSource.FindStringSubmatch(attr)[1]
-		mediaType, ok := imageTypes[strings.ToLower(filepath.Ext(name))]
+		mediaType, ok := format.ImageMediaType(name)
 		if !ok || failure != nil {
 			return attr
 		}

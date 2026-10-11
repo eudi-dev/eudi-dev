@@ -63,6 +63,26 @@ func TestRunningWalletRefusesOnlyDifferingModeOnTheRemoteRoute(t *testing.T) {
 	}
 }
 
+// The outbound HTTP flags follow the same rule as --mode on every managed
+// command.
+func TestRunningWalletRefusesOnlyDifferingTLSVerify(t *testing.T) {
+	resetRemoteTestState(t)
+	url, _ := startRemoteTestWallet(t)
+	flag := walletCmd.PersistentFlags().Lookup("tls-verify")
+	t.Cleanup(func() { _ = flag.Value.Set(flag.DefValue); flag.Changed = false })
+	run := func(value string) error {
+		flag.Changed = false
+		rootCmd.SetArgs([]string{"wallet", "list", "--remote", url, "--tls-verify=" + value})
+		return rootCmd.Execute()
+	}
+	if err := run("false"); err != nil {
+		t.Fatalf("the wallet's own --tls-verify was refused: %v", err)
+	}
+	if err := run("true"); err == nil || !strings.Contains(err.Error(), "--tls-verify is off on the running wallet") {
+		t.Fatalf("a differing --tls-verify: %v", err)
+	}
+}
+
 func TestRunningWalletRefusesOnlyDifferingModeOnTheLocalServerRoute(t *testing.T) {
 	resetRemoteTestState(t)
 	useLocalTestWallet(t)

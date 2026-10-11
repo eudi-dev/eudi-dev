@@ -29,6 +29,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 )
 
@@ -395,16 +396,16 @@ func RegistrationCertificateClaimsFor(base string, req RegistrationCertificateCo
 	}
 	claims := map[string]any{
 		"sub":          identifier,
-		"sub_ln":       firstNonEmpty(legalName, name),
+		"sub_ln":       jsonutil.FirstNonEmpty(legalName, name),
 		"name":         name,
-		"country":      firstNonEmpty(country, "EU"),
-		"registry_uri": firstNonEmpty(req.RegistryURI, base+"/api/registrar/wrp"),
+		"country":      jsonutil.FirstNonEmpty(country, "EU"),
+		"registry_uri": jsonutil.FirstNonEmpty(req.RegistryURI, base+"/api/registrar/wrp"),
 		// TS05 v1.5 §2.4.1 and the example of ETSI TS 119 475 V1.2.1 Annex C
 		// nest the descriptions in an array of arrays.
 		"srv_description":       []any{multiLangClaim(req.Description, name)},
 		"entitlements":          entitlementsOrDefault(req.Entitlements),
-		"privacy_policy":        firstNonEmpty(req.PrivacyPolicy, base+"/privacy-policy"),
-		"support_uri":           firstNonEmpty(req.SupportURI, base+"/support"),
+		"privacy_policy":        jsonutil.FirstNonEmpty(req.PrivacyPolicy, base+"/privacy-policy"),
+		"support_uri":           jsonutil.FirstNonEmpty(req.SupportURI, base+"/support"),
 		"supervisory_authority": supervisoryAuthorityClaim(req.SupervisoryAuthority),
 		// ETSI TS 119 475 V1.2.1 GEN-6.2.6.1-03 asks for a unique identifier
 		// of the certificate, which a JWT carries as jti (RFC 7519 §4.1.7).
@@ -415,7 +416,7 @@ func RegistrationCertificateClaimsFor(base string, req RegistrationCertificateCo
 		// status (GEN-6.2.6.1-04).
 		"policy_id":          []string{registrationCertificatePolicy},
 		"certificate_policy": registrationCertificatePolicyURI,
-		"status":             registrationStatusClaim(firstNonEmpty(req.StatusListURI, base+RegistrationStatusListPath), req.StatusIndex),
+		"status":             registrationStatusClaim(jsonutil.FirstNonEmpty(req.StatusListURI, base+RegistrationStatusListPath), req.StatusIndex),
 	}
 	if dcqlCredentials != nil {
 		claims["credentials"] = RegisteredCredentials(dcqlCredentials)
@@ -444,7 +445,7 @@ func multiLangClaim(values []MultiLangString, fallback string) []map[string]any 
 	out := make([]map[string]any, 0, len(values))
 	for _, v := range values {
 		if strings.TrimSpace(v.Content) != "" {
-			out = append(out, map[string]any{"lang": firstNonEmpty(v.Lang, "en"), "value": v.Content})
+			out = append(out, map[string]any{"lang": jsonutil.FirstNonEmpty(v.Lang, "en"), "value": v.Content})
 		}
 	}
 	if len(out) == 0 && fallback != "" {
@@ -492,15 +493,6 @@ func AccessCertificateSubject(cert *x509.Certificate) (identifier, legalName, co
 		country = cert.Subject.Country[0]
 	}
 	return identifier, legalName, country
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, v := range values {
-		if strings.TrimSpace(v) != "" {
-			return strings.TrimSpace(v)
-		}
-	}
-	return ""
 }
 
 // registrationValidity parses a validity, at most 12 months (ETSI TS 119 475

@@ -59,8 +59,9 @@ func Validate(input string, opts ValidateOpts) (map[string]any, error) {
 	return decoded, nil
 }
 
-// Decode decodes a credential and validates it without a wallet. It leaves
-// the status list unread.
+// Decode decodes a credential and validates it offline without a wallet. The
+// proxy calls it while it holds a response, so it reads nothing over the
+// network.
 func Decode(input string) (map[string]any, error) {
-	return Validate(input, ValidateOpts{})
+	return Validate(input, ValidateOpts{Offline: true})
 }

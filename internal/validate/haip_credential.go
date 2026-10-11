@@ -57,7 +57,10 @@ func HAIPCredentialFindings(header, payload map[string]any) []string {
 		findings = append(findings, fmt.Sprintf("HAIP 1.0 §6.1: %s", nonStandard))
 	}
 
-	chain, _ := X5CCertificates(header)
+	chain, err := X5CCertificates(header)
+	if err != nil {
+		return append(findings, fmt.Sprintf("HAIP 1.0 §6.1.1: the x5c header does not hold readable certificates: %v", err))
+	}
 	return append(findings, HAIPCredentialChain(chain)...)
 }
 

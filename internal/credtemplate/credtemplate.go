@@ -401,12 +401,12 @@ func Delete(loc Location, name string) error {
 	}
 	for _, ext := range templateExtensions {
 		key := loc.key(name + ext)
-		_, err := loc.Store.Stat(key)
-		if err == nil {
-			return loc.Store.Delete(key)
-		}
-		if !errors.Is(err, fs.ErrNotExist) {
+		exists, err := loc.Store.Exists(key)
+		if err != nil {
 			return fmt.Errorf("reading template %q: %w", name, err)
+		}
+		if exists {
+			return loc.Store.Delete(key)
 		}
 	}
 	if _, ok := Predefined(name); ok {

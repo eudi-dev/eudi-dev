@@ -15,7 +15,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -26,6 +25,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/output"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/remote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/storage"
 )
@@ -291,12 +291,7 @@ func runInstancesList() error {
 				Active:             managed != "" && managed == strings.TrimRight(inst.URL, "/"),
 			}
 		}
-		data, err := json.MarshalIndent(listed, "", "  ")
-		if err != nil {
-			return err
-		}
-		fmt.Println(string(data))
-		return nil
+		return output.WriteJSON(os.Stdout, listed)
 	}
 
 	if len(instances) == 0 {
@@ -558,11 +553,9 @@ func walletInfoCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			data, err := json.MarshalIndent(cfg, "", "  ")
-			if err != nil {
+			if err := output.WriteJSON(os.Stdout, cfg); err != nil {
 				return err
 			}
-			fmt.Println(string(data))
 			if svc.URL() != "" {
 				warnServingConfigDivergence(cfg)
 			}

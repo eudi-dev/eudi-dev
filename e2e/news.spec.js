@@ -1,6 +1,7 @@
 // @ts-check
 // A public demo shows the operator's news once per version of the file.
 const { test, expect } = require("@playwright/test");
+const { waitForServer } = require("./helpers");
 const { execSync, spawn } = require("child_process");
 const fs = require("fs");
 const os = require("os");
@@ -22,16 +23,7 @@ test.beforeAll(async () => {
       "--wallet-dir", path.join(work, "wallet"), "--base-url", BASE, "--news-file", newsFile],
     { stdio: "ignore" }
   );
-  const start = Date.now();
-  while (Date.now() - start < 30_000) {
-    try {
-      if ((await fetch(`${BASE}/api/version`)).ok) return;
-    } catch (e) {
-      // The server is still starting.
-    }
-    await new Promise((r) => setTimeout(r, 200));
-  }
-  throw new Error("wallet did not start");
+  await waitForServer(`${BASE}/api/version`, 30_000);
 });
 
 test.afterAll(() => {

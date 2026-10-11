@@ -91,14 +91,18 @@ func managedWalletWithLoader(load func() (*wallet.Wallet, *wallet.WalletStore, e
 		return nil, err
 	}
 	if c != nil {
+		var set []string
+		var want walletConformance
 		if walletFlags.Changed("mode") {
 			mode, err := wallet.ParseValidationMode(walletValidationMode)
 			if err != nil {
 				return nil, err
 			}
-			if err := checkRemoteSettings(c, []string{"--mode"}, walletConformance{settings: wallet.ConformanceSettings{ValidationMode: mode}}); err != nil {
-				return nil, err
-			}
+			set = []string{"--mode"}
+			want.settings.ValidationMode = mode
+		}
+		if err := checkRemoteSettings(c, set, want); err != nil {
+			return nil, err
 		}
 		return &remoteWallet{c: c}, nil
 	}
@@ -156,7 +160,7 @@ func (r *remoteWallet) Templates() ([]credtemplate.Template, error) {
 	}
 	templates := make([]credtemplate.Template, 0, len(docs))
 	for _, doc := range docs {
-		tpl, err := decodeTemplateDoc(doc)
+		tpl, err := decodeDoc[credtemplate.Template](doc)
 		if err != nil {
 			return nil, err
 		}
@@ -170,7 +174,7 @@ func (r *remoteWallet) Template(name string) (*credtemplate.Template, error) {
 	if err != nil {
 		return nil, err
 	}
-	return decodeTemplateDoc(doc)
+	return decodeDoc[credtemplate.Template](doc)
 }
 
 func (r *remoteWallet) SaveTemplate(tpl credtemplate.Template) (string, error) {
@@ -298,16 +302,17 @@ func (r *remoteWallet) Config() (map[string]any, error) {
 	return cfg, nil
 }
 
-func decodeTemplateDoc(doc map[string]any) (*credtemplate.Template, error) {
+// decodeDoc decodes a JSON document of a remote wallet into T.
+func decodeDoc[T any](doc map[string]any) (*T, error) {
 	data, err := json.Marshal(doc)
 	if err != nil {
 		return nil, err
 	}
-	var tpl credtemplate.Template
-	if err := json.Unmarshal(data, &tpl); err != nil {
-		return nil, fmt.Errorf("decoding remote template: %w", err)
+	var out T
+	if err := json.Unmarshal(data, &out); err != nil {
+		return nil, fmt.Errorf("decoding the remote wallet's %T: %w", out, err)
 	}
-	return &tpl, nil
+	return &out, nil
 }
 
 type localWallet struct {

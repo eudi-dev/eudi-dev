@@ -152,6 +152,25 @@ func TestWalletLogsJSON(t *testing.T) {
 	}
 }
 
+// Every command prints a URL with & as it is, in JSON and in the verbose
+// details.
+func TestWalletLogsKeepAmpersands(t *testing.T) {
+	entries := []wallet.LogEntry{{
+		Action:  "presentation",
+		Detail:  "https://verifier.example/cb?a=1&b=2",
+		Details: map[string]any{"request": map[string]any{"uris": []any{"https://verifier.example/cb?a=1&b=2"}}},
+	}}
+	for _, opts := range []walletLogPrintOptions{{JSON: true}, {Verbose: true}} {
+		var buf bytes.Buffer
+		if err := printWalletLogs(&buf, entries, opts); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(buf.String(), `\u0026`) || !strings.Contains(buf.String(), "a=1&b=2") {
+			t.Errorf("output with %+v:\n%s", opts, buf.String())
+		}
+	}
+}
+
 func TestActivityPayloadDoesNotChangeCLIOutput(t *testing.T) {
 	entry := wallet.LogEntry{Time: time.Date(2026, 10, 1, 10, 0, 0, 0, time.UTC), Action: "presentation", Detail: "Sending presentation", Success: true, Details: map[string]any{"vp_token": "token"}}
 	for _, opts := range []walletLogPrintOptions{{}, {Verbose: true}, {JSON: true}} {

@@ -160,7 +160,7 @@ func issuerARFFindings(a issuerAuthentication) []string {
 	var provided []regcert.Credential
 	for _, r := range registrations {
 		cert := r.Claims
-		name := firstNonEmpty(jsonutil.Text(cert["name"]), jsonutil.Text(cert["sub"]), "the issuer")
+		name := jsonutil.FirstNonEmpty(jsonutil.Text(cert["name"]), jsonutil.Text(cert["sub"]), "the issuer")
 		findings = append(findings, regcert.ProviderContentFindings(cert)...)
 		if len(a.signerChain) > 0 {
 			findings = append(findings, regcert.BindingFindings(cert, a.signerChain[0], "ARF RPRC_22b")...)

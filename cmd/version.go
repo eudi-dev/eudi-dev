@@ -31,6 +31,7 @@ var Version = "dev"
 
 var versionCmd = &cobra.Command{
 	Use:   "version",
+	Args:  cobra.NoArgs,
 	Short: "Print the version",
 	Run: func(cmd *cobra.Command, args []string) {
 		printResult(map[string]string{"name": binaryName(), "version": Version}, func() {

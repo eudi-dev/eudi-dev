@@ -76,6 +76,6 @@ func runDecoder(cmd *cobra.Command, args []string) error {
 		opts.ImprintHTML = page
 	}
 
-	fmt.Printf("Starting EUDI Dev Web UI at http://localhost:%d\n", port)
+	fmt.Printf("Starting %s at http://localhost:%d\n", config.DecoderName, port)
 	return web.ListenAndServe(port, opts)
 }

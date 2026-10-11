@@ -101,7 +101,7 @@ func ARFFindings(authReq *Request) []string {
 	}
 	for _, r := range registrations {
 		cert := r.Claims
-		name := firstNonEmpty(jsonutil.Text(cert["name"]), jsonutil.Text(cert["sub"]), "the relying party")
+		name := jsonutil.FirstNonEmpty(jsonutil.Text(cert["name"]), jsonutil.Text(cert["sub"]), "the relying party")
 		findings = append(findings, regcert.ContentFindings(cert)...)
 		if len(accessChain) > 0 {
 			findings = append(findings, regcert.BindingFindings(cert, accessChain[0], "ARF RPRC_17a")...)
@@ -143,13 +143,4 @@ func requestAccessChain(authReq *Request) []*x509.Certificate {
 		return nil
 	}
 	return chain
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, v := range values {
-		if v = strings.TrimSpace(v); v != "" {
-			return v
-		}
-	}
-	return ""
 }

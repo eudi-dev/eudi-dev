@@ -125,7 +125,7 @@ func runDecode(cmd *cobra.Command, args []string) error {
 		detected = format.Detect(raw)
 	}
 
-	if detected != format.FormatOID4VCI && detected != format.FormatOID4VP && isHTTPURL(raw) {
+	if detected != format.FormatOID4VCI && detected != format.FormatOID4VP && format.IsWebURL(raw) {
 		raw, err = format.FetchURL(raw)
 		if err != nil {
 			return err
@@ -181,11 +181,6 @@ func decodeTrustList(raw string, opts output.Options) error {
 	}
 	output.PrintTrustList(tl, opts)
 	return nil
-}
-
-func isHTTPURL(s string) bool {
-	lower := strings.ToLower(s)
-	return strings.HasPrefix(lower, "https://") || strings.HasPrefix(lower, "http://")
 }
 
 // decodeCredential runs the decoder's validation, so text and JSON report the

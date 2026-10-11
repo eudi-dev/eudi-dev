@@ -695,14 +695,21 @@ test.describe("Decoding does not wait on the issuer", () => {
     });
 
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.clock.install();
     await page.goto("/");
     await page.evaluate((text) => navigator.clipboard.writeText(text), sdjwt);
     await page.locator("#input").click();
     await page.keyboard.press("ControlOrMeta+V");
 
-    await expect(page.locator("#format-badge")).toHaveText("SD-JWT", { timeout: 3000 });
     // A paste emits a paste and an input event. It must trigger one decode.
-    await page.waitForTimeout(1500);
+    // Moving the clock past both decode delays starts every decode they
+    // schedule.
+    await page.clock.runFor(1000);
+    await expect(page.locator("#format-badge")).toHaveText("SD-JWT", { timeout: 3000 });
+    await expect.poll(() => onlinePasses).toBe(1);
+    // The route sees the page's requests in order. Once this offline request
+    // has passed it, so has every decode the paste started.
+    await page.evaluate(() => fetch("api/validate", { method: "POST", body: JSON.stringify({ input: "", offline: true }) }));
     expect(onlinePasses).toBe(1);
   });
 });

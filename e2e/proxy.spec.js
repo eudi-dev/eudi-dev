@@ -1,6 +1,7 @@
 // @ts-check
 // Runs the debugging proxy in front of a small target server and checks the dashboard.
 const { test, expect } = require("@playwright/test");
+const { waitForServer } = require("./helpers");
 const { execFileSync, execSync, spawn } = require("child_process");
 const fs = require("fs");
 const http = require("http");
@@ -27,20 +28,6 @@ function proxied(method, pathAndQuery, headers, body) {
   });
 }
 
-async function waitFor(url, timeoutMs) {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    try {
-      const res = await fetch(url);
-      if (res.status < 500) return;
-    } catch {
-      // not up yet
-    }
-    await new Promise((r) => setTimeout(r, 200));
-  }
-  throw new Error(`${url} did not start within ${timeoutMs}ms`);
-}
-
 test.describe.configure({ mode: "serial" });
 
 test.beforeAll(async () => {
@@ -65,7 +52,7 @@ test.beforeAll(async () => {
       { stdio: ["ignore", log, log], env: { ...process.env, EUDI_DEV_HOME: path.join(work, "home") } }
     )
   );
-  await waitFor(`${DASHBOARD}api/entries`, 30_000);
+  await waitForServer(`${DASHBOARD}api/entries`, 30_000);
 });
 
 test.afterAll(async () => {
@@ -118,6 +105,27 @@ test("an entry that arrives twice is shown once", async ({ page }) => {
   await page.waitForResponse("**/api/stream");
   await page.waitForResponse("**/api/stream");
   await expect(page.locator(".entry")).toHaveCount(1);
+});
+
+test("a new entry joins its flow and leaves the open entry open", async ({ page }) => {
+  const entry = (id, label) => ({ id, flowId: "flow-1", timestamp: new Date().toISOString(), method: "GET", url: `http://x/${id}`, statusCode: 200, classLabel: label, durationMs: 1 });
+  const stream = [entry(21, "VP Auth Request"), entry(22, "VP Request Object")];
+  let connections = 0;
+  await page.addInitScript(() => localStorage.setItem("proxy-timeline", "true"));
+  await page.route("**/api/entries", (route) => route.fulfill({ contentType: "application/json", body: "[]" }));
+  // The stream delivers one more entry on every reconnect.
+  await page.route("**/api/stream", (route) => {
+    const data = stream.slice(0, ++connections).map((e) => `data: ${JSON.stringify(e)}\n\n`).join("");
+    return route.fulfill({ contentType: "text/event-stream", body: data });
+  });
+  await page.goto(DASHBOARD);
+  const first = page.locator("#entry-21");
+  await first.locator(".entry-header").click();
+  await expect(first).toHaveClass(/expanded/);
+
+  await expect(page.locator(".flow-group .entry")).toHaveCount(2);
+  await expect(page.locator(".flow-count")).toHaveText("2 requests");
+  await expect(first).toHaveClass(/expanded/);
 });
 
 test.describe("theme", () => {

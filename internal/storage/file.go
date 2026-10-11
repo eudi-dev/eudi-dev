@@ -170,6 +170,21 @@ func (s *fileStore) Stat(key string) (Stamp, error) {
 	return contentStamp(data), nil
 }
 
+func (s *fileStore) Exists(key string) (bool, error) {
+	key, err := cleanKey(key)
+	if err != nil {
+		return false, err
+	}
+	info, err := os.Stat(s.path(key))
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return !info.IsDir(), nil
+}
+
 func (s *fileStore) List(prefix string) ([]string, error) {
 	prefix, err := cleanPrefix(prefix)
 	if err != nil {

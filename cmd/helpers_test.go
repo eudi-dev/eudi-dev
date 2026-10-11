@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
@@ -279,28 +280,6 @@ func TestResolvePresentationPortUsesFreePairWhenDefaultBusy(t *testing.T) {
 	_ = httpsCheck.Close()
 }
 
-func TestIsHTTPURL(t *testing.T) {
-	tests := []struct {
-		input string
-		want  bool
-	}{
-		{"https://example.com", true},
-		{"http://example.com", true},
-		{"HTTP://EXAMPLE.COM", true},
-		{"HTTPS://EXAMPLE.COM", true},
-		{"openid4vp://authorize", false},
-		{"eyJhbGci...", false},
-		{"", false},
-	}
-
-	for _, tt := range tests {
-		got := isHTTPURL(tt.input)
-		if got != tt.want {
-			t.Errorf("isHTTPURL(%q) = %v, want %v", tt.input, got, tt.want)
-		}
-	}
-}
-
 func TestWalletRegisterOptions(t *testing.T) {
 	args := []string{
 		"--port", "9123",
@@ -341,29 +320,23 @@ func TestWalletRegisterOptions_Defaults(t *testing.T) {
 	}
 }
 
-// The URL handler must pass the registration flags to the server it starts.
-func TestWalletRegisterInheritedServeArgs(t *testing.T) {
-	parent := &cobra.Command{Use: "wallet"}
-	parent.PersistentFlags().String("wallet-dir", "", "")
-	parent.PersistentFlags().String("mode", "debug", "")
-	parent.PersistentFlags().String("storage", "", "")
-	parent.PersistentFlags().Bool("tls-verify", true, "")
-	parent.PersistentFlags().String("tls-ca", "", "")
-	var got []string
-	parent.AddCommand(&cobra.Command{Use: "register", Run: func(cmd *cobra.Command, _ []string) {
-		got = walletRegisterInheritedServeArgs(cmd)
-	}})
-	parent.SetArgs([]string{"register", "--wallet-dir", "/tmp/isolated-wallet", "--mode", "strict", "--storage", "memory", "--tls-verify=false", "--tls-ca", "/tmp/ca.pem"})
-	if err := parent.Execute(); err != nil {
+// wallet register replays its wallet serve flags to the server a link starts.
+// The root flags apply to register itself.
+func TestWalletRegisterOptionsAppliesRootFlags(t *testing.T) {
+	t.Cleanup(func() {
+		jsonOutput, noColor, verbose = false, false, false
+		rootCmd.PersistentFlags().VisitAll(func(f *pflag.Flag) { f.Changed = false })
+	})
+	opts, err := walletRegisterOptions([]string{"--json", "--wallet-dir", "/tmp/isolated-wallet", "--no-color", "-v", "--tls-verify=false"})
+	if err != nil {
 		t.Fatal(err)
 	}
-	for _, pair := range [][2]string{{"--wallet-dir", "/tmp/isolated-wallet"}, {"--mode", "strict"}, {"--storage", "memory"}, {"--tls-ca", "/tmp/ca.pem"}} {
-		if !argPairPresent(got, pair[0], pair[1]) {
-			t.Fatalf("walletRegisterInheritedServeArgs() = %#v, missing %s", got, pair[0])
-		}
+	want := []string{"--wallet-dir", "/tmp/isolated-wallet", "--tls-verify=false"}
+	if !slices.Equal(opts.ServeArgs, want) {
+		t.Fatalf("ServeArgs = %#v, want %#v", opts.ServeArgs, want)
 	}
-	if !slices.Contains(got, "--tls-verify=false") {
-		t.Fatalf("explicit false TLS override lost: %#v", got)
+	if !jsonOutput || !noColor || !verbose {
+		t.Fatalf("json %v, no-color %v, verbose %v, want all set", jsonOutput, noColor, verbose)
 	}
 }
 
@@ -448,15 +421,6 @@ func TestSerializeWalletServeArgs_ExplicitBoolFalsePreserved(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Fatalf("serializeWalletServeArgs() = %#v, want %#v", got, want)
 	}
-}
-
-func argPairPresent(args []string, flag string, value string) bool {
-	for i := 0; i < len(args)-1; i++ {
-		if args[i] == flag && args[i+1] == value {
-			return true
-		}
-	}
-	return false
 }
 
 // Every command that talks to a running wallet refuses --mode, not only accept

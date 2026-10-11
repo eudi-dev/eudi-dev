@@ -30,6 +30,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/output"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/remote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
 )
 
 func docString(m map[string]any, key string) string {
@@ -118,12 +119,7 @@ func printCredentialList(creds []map[string]any, deferred []map[string]any) erro
 
 func printDeferredDoc(entry map[string]any) error {
 	if jsonOutput {
-		data, err := json.MarshalIndent(entry, "", "  ")
-		if err != nil {
-			return err
-		}
-		fmt.Println(string(data))
-		return nil
+		return output.WriteJSON(os.Stdout, entry)
 	}
 	fmt.Println("Status:         deferred (the issuer has not handed it over yet)")
 	fmt.Printf("Issuer:         %s\n", docString(entry, "issuer"))
@@ -361,8 +357,20 @@ func remoteAccept(c *remote.Client, uri, txCode, sessionTranscript string, inter
 			return err
 		}
 	}
-	output.PrintJSON(result)
-	return remoteFlowError(result)
+	if !isVCI {
+		printPresentationResult(result, interactive)
+		return remoteFlowError(result)
+	}
+	if err := remoteFlowError(result); err != nil {
+		output.PrintJSON(result)
+		return err
+	}
+	issued, err := decodeDoc[wallet.IssuanceResult](result)
+	if err != nil {
+		return err
+	}
+	printIssuanceResult(issued, c.BaseURL)
+	return nil
 }
 
 // enlistBrowser opens the wallet UI for a flow that waits for consent. The

@@ -29,6 +29,7 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/storage"
@@ -85,10 +86,10 @@ func SignTrustList(signingKey *ecdsa.PrivateKey, caCert *x509.Certificate, opts 
 		opts.Profile.SchemeTerritory = mock.DefaultCertificateCountry
 	}
 	eaa := CategoryProfile(credtemplate.CategoryEAA)
-	opts.Profile.StatusDeterminationApproach = firstNonEmpty(opts.Profile.StatusDeterminationApproach, eaa.StatusDeterminationApproach)
-	opts.Profile.SchemeTypeCommunityRules = firstNonEmpty(opts.Profile.SchemeTypeCommunityRules, eaa.SchemeTypeCommunityRules)
-	opts.Path = firstNonEmpty(opts.Path, DefaultTrustListPath)
-	opts.Country = firstNonEmpty(opts.Country, mock.DefaultCertificateCountry)
+	opts.Profile.StatusDeterminationApproach = jsonutil.FirstNonEmpty(opts.Profile.StatusDeterminationApproach, eaa.StatusDeterminationApproach)
+	opts.Profile.SchemeTypeCommunityRules = jsonutil.FirstNonEmpty(opts.Profile.SchemeTypeCommunityRules, eaa.SchemeTypeCommunityRules)
+	opts.Path = jsonutil.FirstNonEmpty(opts.Path, DefaultTrustListPath)
+	opts.Country = jsonutil.FirstNonEmpty(opts.Country, mock.DefaultCertificateCountry)
 	return lote.Sign(signingKey, caCert, opts)
 }
 

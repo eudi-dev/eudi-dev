@@ -24,6 +24,8 @@ import (
 	"io/fs"
 	"path"
 	"strings"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 )
 
 //go:embed templates images portraits categories.json registrations
@@ -71,18 +73,10 @@ func DataURI(ref string) (string, bool) {
 
 // ContentType is the media type of a file name's extension.
 func ContentType(name string) string {
-	switch strings.ToLower(path.Ext(name)) {
-	case ".svg":
-		return "image/svg+xml"
-	case ".png":
-		return "image/png"
-	case ".jpg", ".jpeg":
-		return "image/jpeg"
-	case ".gif":
-		return "image/gif"
-	case ".webp":
-		return "image/webp"
-	case ".json":
+	if mediaType, ok := format.ImageMediaType(name); ok {
+		return mediaType
+	}
+	if strings.EqualFold(path.Ext(name), ".json") {
 		return "application/json"
 	}
 	return "application/octet-stream"

@@ -128,10 +128,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var reqBody string
 	if r.Body != nil {
 		bodyBytes, err := io.ReadAll(r.Body)
-		if err == nil {
-			reqBody = string(bodyBytes)
-			r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+		if err != nil {
+			log.Printf("proxy: reading the request body of %q %q: %v", r.Method, r.URL.Path, err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
 		}
+		reqBody = string(bodyBytes)
+		r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 	}
 
 	// The debug JWE key header is meant for the proxy, so the target never
@@ -223,11 +226,7 @@ func (s *Server) modifyResponse(resp *http.Response) error {
 		DebugJWK:        debugJWK,
 	}
 
-	if s.classify != nil {
-		s.classify.Classify(entry)
-	} else {
-		Classify(entry)
-	}
+	s.classify.Classify(entry)
 	if !shouldEmitEntry(entry, s.config.AllTraffic) {
 		return nil
 	}

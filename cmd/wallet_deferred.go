@@ -15,8 +15,8 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -49,12 +49,7 @@ which is where the collecting happens.`,
 				return err
 			}
 			if jsonOutput {
-				data, err := json.MarshalIndent(pending, "", "  ")
-				if err != nil {
-					return err
-				}
-				fmt.Println(string(data))
-				return nil
+				return output.WriteJSON(os.Stdout, pending)
 			}
 			if len(pending) == 0 {
 				fmt.Println("No deferred credentials.")
@@ -167,9 +162,7 @@ after which the wallet gives up on its own.`,
 				return err
 			}
 			if jsonOutput {
-				data, _ := json.MarshalIndent(result, "", "  ")
-				fmt.Println(string(data))
-				return nil
+				return output.WriteJSON(os.Stdout, result)
 			}
 			fmt.Printf("Stopped collecting the credential from %v (transaction %v)\n",
 				result["issuer"], result["transaction_id"])

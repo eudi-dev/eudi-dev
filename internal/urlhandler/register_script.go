@@ -48,7 +48,7 @@ func SetScriptVersion(v string) {
 // registration.
 func handlerScriptSource(binaryPath string, opts Options) string {
 	handler := strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(`#!/bin/bash
-BINARY="{{BINARY_PATH}}"
+BINARY={{BINARY_PATH}}
 URI="$1"
 LISTENER="http://localhost:{{PORT}}"
 PORT="{{PORT}}"
@@ -130,10 +130,23 @@ ensure_listener() {
   return 1
 }
 
+# json_string prints $1 as a JSON string. RFC 8259 §7 requires escaping the
+# quotation mark, the reverse solidus and the control characters. A URI holds
+# no control characters (RFC 3986 §2), so the function drops any others.
+json_string() {
+  local s=$1
+  s=${s//\\/\\\\}
+  s=${s//\"/\\\"}
+  s=${s//$'\t'/\\t}
+  s=${s//$'\n'/\\n}
+  s=${s//$'\r'/\\r}
+  printf '"%s"' "$(printf '%s' "$s" | LC_ALL=C tr -d '\000-\037')"
+}
+
 submit_offer() {
   curl -sf -X POST "$LISTENER/api/offers" \
     -H "Content-Type: application/json" -H "$CLIENT_HEADER" -H "$OWNER_HEADER" \
-    -d "{\"uri\":\"$URI\",\"interactive\":$INTERACTIVE}" >/dev/null
+    -d "{\"uri\":$(json_string "$URI"),\"interactive\":$INTERACTIVE}" >/dev/null
 }
 
 # A remote wallet triggers its browser hook inside its own environment (for
@@ -153,7 +166,7 @@ open_remote_ui() {
 submit_presentation() {
   curl -sf -X POST "$LISTENER/api/presentations" \
     -H "Content-Type: application/json" -H "$CLIENT_HEADER" -H "$OWNER_HEADER" \
-    -d "{\"uri\":\"$URI\",\"interactive\":$INTERACTIVE}" >/dev/null
+    -d "{\"uri\":$(json_string "$URI"),\"interactive\":$INTERACTIVE}" >/dev/null
 }
 
 accept_cli() {
@@ -196,7 +209,7 @@ case "$URI" in
     accept_cli presentation
     ;;
 esac
-`, "{{BINARY_PATH}}", binaryPath), "{{PORT}}", fmt.Sprintf("%d", opts.ListenerPort)), "{{AUTO_ACCEPT}}", fmt.Sprintf("%t", opts.AutoAccept))
+`, "{{BINARY_PATH}}", shellQuote(binaryPath)), "{{PORT}}", fmt.Sprintf("%d", opts.ListenerPort)), "{{AUTO_ACCEPT}}", fmt.Sprintf("%t", opts.AutoAccept))
 	handler = strings.ReplaceAll(handler, "{{SERVE_ARGS}}", joinShellArgs(opts.ServeArgs))
 	handler = strings.ReplaceAll(handler, "{{OFFER_PATTERNS}}", offerPatterns())
 	handler = strings.ReplaceAll(handler, "{{VERSION}}", handlerScriptVersion)

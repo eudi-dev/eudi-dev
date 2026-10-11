@@ -90,7 +90,8 @@ func (c *Client) doWithTimeout(timeout time.Duration, method, path string, body 
 	}
 	// The registrar API signs its answers unless the client asks for JSON.
 	req.Header.Set("Accept", "application/json")
-	// The server uses the client version to stay compatible with older CLIs.
+	// The server tells a named client from an outdated URL handler, which
+	// sends no name.
 	req.Header.Set(config.ClientHeader, "eudi-cli/"+version)
 	if c.owner != "" {
 		req.Header.Set(config.OwnerHeader, c.owner)

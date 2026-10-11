@@ -67,7 +67,7 @@ func proxyDashboardWith(t *testing.T, entries ...*proxy.TrafficEntry) *httptest.
 	for _, entry := range entries {
 		store.Add(entry)
 	}
-	srv := httptest.NewServer(proxy.NewDashboard(store, 0).Handler())
+	srv := httptest.NewServer(proxy.NewDashboard(store).Handler())
 	t.Cleanup(srv.Close)
 	return srv
 }
@@ -255,7 +255,7 @@ func waitUntil(t *testing.T, what string, cond func() bool) {
 func TestProxyLogsFollowsWithoutRepeatingWhatItAlreadyPrinted(t *testing.T) {
 	store := proxy.NewStore(50)
 	store.Add(&proxy.TrafficEntry{Method: "GET", URL: "http://target/recorded", StatusCode: 200})
-	srv := httptest.NewServer(proxy.NewDashboard(store, 0).Handler())
+	srv := httptest.NewServer(proxy.NewDashboard(store).Handler())
 	t.Cleanup(srv.Close)
 
 	run := startFollow(t, srv.URL, time.Second)
@@ -296,7 +296,7 @@ func TestProxyLogsFollowSurvivesARestartedProxy(t *testing.T) {
 				return store
 			}
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				proxy.NewDashboard(current(), 0).Handler().ServeHTTP(w, r)
+				proxy.NewDashboard(current()).Handler().ServeHTTP(w, r)
 			}))
 			t.Cleanup(srv.Close)
 

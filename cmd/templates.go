@@ -52,6 +52,7 @@ var templatesCmd = &cobra.Command{
 
 var templatesListCmd = &cobra.Command{
 	Use:   "list",
+	Args:  cobra.NoArgs,
 	Short: "List available credential templates",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		svc, err := managedWallet()
@@ -105,12 +106,7 @@ var templatesShowCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		data, err := json.MarshalIndent(tpl, "", "  ")
-		if err != nil {
-			return err
-		}
-		fmt.Println(string(data))
-		return nil
+		return output.WriteJSON(os.Stdout, tpl)
 	},
 }
 

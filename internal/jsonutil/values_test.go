@@ -19,6 +19,15 @@ import (
 	"testing"
 )
 
+func TestFirstNonEmptySkipsBlankValues(t *testing.T) {
+	if got := FirstNonEmpty("", "  ", " b ", "c"); got != "b" {
+		t.Errorf("FirstNonEmpty = %q, want b", got)
+	}
+	if got := FirstNonEmpty(" "); got != "" {
+		t.Errorf("FirstNonEmpty of blanks = %q", got)
+	}
+}
+
 func TestValueAccessors(t *testing.T) {
 	if got := Text("  name "); got != "name" {
 		t.Errorf("Text = %q", got)

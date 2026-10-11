@@ -25,6 +25,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -494,31 +495,22 @@ func TestDecodeEntryVCICredentialRequest(t *testing.T) {
 	}
 }
 
-func TestDecodeEntryVCICredentialRequest_IncludesValidation(t *testing.T) {
+// The proxy holds the response while it classifies, so it validates the
+// credential offline. A check that needs the issuer's metadata reports that.
+func TestDecodeEntryVCICredentialRequest_ValidatesOffline(t *testing.T) {
+	var fetches atomic.Int32
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fetches.Add(1)
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
 	key, err := mock.GenerateKey()
 	if err != nil {
 		t.Fatalf("GenerateKey: %v", err)
 	}
-
-	var issuer string
-	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/.well-known/jwt-vc-issuer" {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"issuer": issuer,
-			"jwks": map[string]any{
-				"keys": []any{mock.SigningJWKMap(&key.PublicKey)},
-			},
-		})
-	}))
-	defer srv.Close()
-	issuer = srv.URL
-
 	cred, err := mock.GenerateSDJWT(mock.SDJWTConfig{
-		Issuer:    issuer,
+		Issuer:    srv.URL,
 		VCT:       "urn:test",
 		ExpiresIn: time.Hour,
 		Claims:    map[string]any{"given_name": "Erika"},
@@ -541,23 +533,18 @@ func TestDecodeEntryVCICredentialRequest_IncludesValidation(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected credential_decoded map, got %T", e.Decoded["credential_decoded"])
 	}
-	validation, ok := decoded["validation"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected validation map, got %T", decoded["validation"])
-	}
-	checks, ok := validation["checks"].([]web.CheckResult)
-	if !ok {
-		t.Fatalf("expected validation checks, got %T", validation["checks"])
-	}
-	found := false
-	for _, check := range checks {
-		if check.Name == "signature" && check.Status == "pass" {
-			found = true
-			break
+	checks, _ := decoded["validation"].(map[string]any)["checks"].([]web.CheckResult)
+	var signature *web.CheckResult
+	for i := range checks {
+		if checks[i].Name == "signature" {
+			signature = &checks[i]
 		}
 	}
-	if !found {
-		t.Fatalf("expected passing signature check, got %v", checks)
+	if signature == nil || !signature.NeedsNetwork {
+		t.Fatalf("signature check %+v, want one that needs the network", signature)
+	}
+	if n := fetches.Load(); n != 0 {
+		t.Fatalf("the issuer got %d requests, want none", n)
 	}
 }
 

@@ -15,8 +15,8 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -126,12 +126,7 @@ func printWalletLogs(w io.Writer, entries []wallet.LogEntry, opts walletLogPrint
 		if entries == nil {
 			entries = []wallet.LogEntry{}
 		}
-		data, err := json.MarshalIndent(entries, "", "  ")
-		if err != nil {
-			return fmt.Errorf("marshaling wallet logs: %w", err)
-		}
-		_, err = fmt.Fprintln(w, string(data))
-		return err
+		return output.WriteJSON(w, entries)
 	}
 	for _, entry := range entries {
 		printWalletLogEntry(w, entry, opts.Verbose)
@@ -177,11 +172,11 @@ func walletLogValueString(value any, prefix string) string {
 	case string:
 		return typed
 	default:
-		data, err := json.MarshalIndent(value, prefix, "  ")
-		if err != nil {
+		var data bytes.Buffer
+		if err := output.WriteJSON(&data, value); err != nil {
 			return fmt.Sprintf("%v", value)
 		}
-		return string(data)
+		return strings.ReplaceAll(strings.TrimSuffix(data.String(), "\n"), "\n", "\n"+prefix)
 	}
 }
 

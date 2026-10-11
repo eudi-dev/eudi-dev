@@ -15,9 +15,57 @@
 package cmd
 
 import (
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"reflect"
+	"strings"
+	"sync"
 	"testing"
 )
+
+// catalog add --issuer-ca adds the entry and its CA together. When the CA
+// can't go on the list, the entry is taken out again.
+func TestCatalogAddRemovesTheEntryWhenTheIssuerCAFails(t *testing.T) {
+	resetRemoteTestState(t)
+	var mu sync.Mutex
+	var deleted []string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/catalog/attestations":
+			fmt.Fprint(w, `{"name":"Diploma","category":"eaa","schema":{"id":"s1"}}`)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/trust/entities":
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprint(w, `{"error":"storage unavailable"}`)
+		case r.Method == http.MethodDelete:
+			deleted = append(deleted, r.URL.Path)
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer ts.Close()
+	ca := filepath.Join(t.TempDir(), "ca.pem")
+	if err := os.WriteFile(ca, testCAPEM(t), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { resetFlags(rootCmd) })
+
+	rootCmd.SetArgs([]string{"catalog", "add", "--name", "Diploma", "--type", "dc+sd-jwt:urn:example:diploma:1", "--issuer-ca", ca, "--remote", ts.URL})
+	if err := rootCmd.Execute(); err == nil || !strings.Contains(err.Error(), "storage unavailable") {
+		t.Fatalf("catalog add: %v, want the CA failure", err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if !reflect.DeepEqual(deleted, []string{"/api/catalog/schemas/s1"}) {
+		t.Fatalf("deleted %v, want the added entry", deleted)
+	}
+}
 
 func TestTheCatalogCommandAddsAndDeletes(t *testing.T) {
 	resetRemoteTestState(t)

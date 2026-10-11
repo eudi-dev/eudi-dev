@@ -30,6 +30,7 @@ import (
 	"sync"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
@@ -141,7 +142,7 @@ func NewEntity(list, name, certificatesPEM string) (Entity, error) {
 	if err != nil {
 		return Entity{}, fmt.Errorf("the certificates: %w", err)
 	}
-	entity := Entity{List: list, Name: firstNonEmpty(name, certs[0].Subject.CommonName, "Trusted provider")}
+	entity := Entity{List: list, Name: jsonutil.FirstNonEmpty(name, certs[0].Subject.CommonName, "Trusted provider")}
 	digest := sha256.New()
 	digest.Write([]byte(list))
 	for _, cert := range certs {
@@ -217,7 +218,7 @@ func (t *Set) listEntities(listID string) []lote.Entity {
 		if err == nil {
 			for _, cert := range configured {
 				encoded := base64.StdEncoding.EncodeToString(cert.Raw)
-				out = append(out, lote.Entity{Name: firstNonEmpty(cert.Subject.CommonName, "Relying party CA"), Issuance: []string{encoded}, Revocation: []string{encoded}})
+				out = append(out, lote.Entity{Name: jsonutil.FirstNonEmpty(cert.Subject.CommonName, "Relying party CA"), Issuance: []string{encoded}, Revocation: []string{encoded}})
 			}
 		}
 	}
@@ -251,13 +252,4 @@ func (t *Set) ListCAs() ([]*x509.Certificate, error) {
 		cas = append(cas, certs...)
 	}
 	return cas, nil
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, v := range values {
-		if v = strings.TrimSpace(v); v != "" {
-			return v
-		}
-	}
-	return ""
 }

@@ -230,7 +230,7 @@ func TestOneShotIssuancePrintsOnlyTheResultAsJSON(t *testing.T) {
 		{CredentialID: "c1", Format: "dc+sd-jwt", Issuer: "https://issuer.example", VerificationDetail: "signature valid"},
 		{Issuer: "https://issuer.example", Pending: true, TransactionID: "tx", RetryInterval: "5s"},
 	} {
-		out := captureStdout(t, func() { printIssuanceResult(result) })
+		out := captureStdout(t, func() { printIssuanceResult(result, "") })
 		var doc wallet.IssuanceResult
 		if err := json.Unmarshal([]byte(out), &doc); err != nil {
 			t.Fatalf("stdout is not one JSON document: %v\n%s", err, out)

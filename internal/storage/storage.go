@@ -48,6 +48,9 @@ type Store interface {
 	// Stat returns the blob's stamp. A missing key returns an error that
 	// satisfies errors.Is(err, fs.ErrNotExist).
 	Stat(key string) (Stamp, error)
+	// Exists reports whether a blob is at key. Unlike Stat it reads no
+	// content.
+	Exists(key string) (bool, error)
 	// List returns the names of the blobs directly under prefix, sorted. A
 	// missing prefix lists nothing.
 	List(prefix string) ([]string, error)
@@ -156,6 +159,7 @@ func (f failingStore) Write(string, []byte, fs.FileMode) (Stamp, error) {
 }
 func (f failingStore) Delete(string) error                     { return f.err }
 func (f failingStore) Stat(string) (Stamp, error)              { return Stamp{}, f.err }
+func (f failingStore) Exists(string) (bool, error)             { return false, f.err }
 func (f failingStore) List(string) ([]string, error)           { return nil, f.err }
 func (f failingStore) ReadAll(string) (map[string]Blob, error) { return nil, f.err }
 func (f failingStore) Stamps(string) (map[string]Stamp, error) { return nil, f.err }
@@ -164,6 +168,15 @@ func (f failingStore) WriteIf(string, []byte, fs.FileMode, string) (Stamp, error
 }
 func (f failingStore) Locate(string) string { return f.err.Error() }
 func (f failingStore) Kind() string         { return "" }
+
+// existsByStat answers Exists for a backend whose Stat reads no content.
+func existsByStat(stat func(string) (Stamp, error), key string) (bool, error) {
+	_, err := stat(key)
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+	return err == nil, err
+}
 
 func isPostgresSpec(spec string) bool {
 	return strings.HasPrefix(spec, "postgres://") || strings.HasPrefix(spec, "postgresql://")

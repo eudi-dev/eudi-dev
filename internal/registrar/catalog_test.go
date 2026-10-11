@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 )
 
@@ -196,7 +197,7 @@ func TestTheCategoryNamesTheTrustedList(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := firstNonEmpty(category, "eaa")
+		want := jsonutil.FirstNonEmpty(category, "eaa")
 		s := added.Schema
 		if added.Category != want || s.AttestationLoS != level || len(s.TrustedAuthorities) != 1 || s.TrustedAuthorities[0].Value != "https://wallet.example/api/trustlists/"+want {
 			t.Errorf("category %q: %s with %s and %+v", category, added.Category, s.AttestationLoS, s.TrustedAuthorities)

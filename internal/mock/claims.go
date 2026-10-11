@@ -23,4 +23,7 @@ const (
 	// PIDNamespace is the mdoc namespace of the country-independent EUDI PID.
 	// Every PID uses it as its doctype too.
 	PIDNamespace = credtype.PIDNamespace
+	// DefaultIssuer names the issuer of a test credential or status list
+	// that has no issuer URL of its own.
+	DefaultIssuer = "https://issuer.example"
 )

@@ -509,6 +509,7 @@ func accessCertCmd() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "access-cert",
+		Args:  cobra.NoArgs,
 		Short: "Issue an access certificate for a CSR of a registered relying party",
 		Long: `Signs an access certificate (ETSI TS 119 411-8) for the key of a certificate
 signing request. The relying party keeps its private key. The public key comes
@@ -560,6 +561,7 @@ func registrationCertCmd() *cobra.Command {
 	var provider, renew, jwt bool
 	cmd := &cobra.Command{
 		Use:   "registration-cert",
+		Args:  cobra.NoArgs,
 		Short: "Print the registration certificate of an intended use or an issuer service",
 		Long: `Prints the current registration certificate (ETSI TS 119 475, typ rc-wrp+jwt).
 If there is none, or it has expired, the registrar issues one. --new issues a

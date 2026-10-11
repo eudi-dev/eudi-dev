@@ -246,8 +246,8 @@ func (s *WalletStore) storeDisplayAsset(uri string) (ref string, converted bool,
 	sum := sha256.Sum256(data)
 	name := hex.EncodeToString(sum[:]) + "." + assetExtension(contentType)
 	key := s.assetKey(name)
-	_, err = s.backend.Stat(key)
-	if errors.Is(err, fs.ErrNotExist) {
+	exists, err := s.backend.Exists(key)
+	if err == nil && !exists {
 		_, err = s.backend.Write(key, data, 0o600)
 	}
 	if err != nil {

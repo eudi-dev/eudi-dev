@@ -28,6 +28,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
@@ -215,9 +216,9 @@ func (w *Wallet) IssueCredential(opts IssueOptions) (result *IssueResult, err er
 		spec.Format, spec.VCT, spec.DocType = credtype.FormatMDOC, "", resolved.DocType
 	}
 	if saved != nil && saved.Category != "" {
-		spec.Category = firstNonEmpty(spec.Category, saved.Category)
+		spec.Category = jsonutil.FirstNonEmpty(spec.Category, saved.Category)
 	}
-	spec.Category = firstNonEmpty(spec.Category, w.CredentialCategory(tpl, spec))
+	spec.Category = jsonutil.FirstNonEmpty(spec.Category, w.CredentialCategory(tpl, spec))
 	spec, err = provider.NormalizeIssuedAttestationSpec(spec, opts.Category)
 	if err != nil {
 		return nil, err
@@ -484,7 +485,7 @@ func (w *Wallet) CredentialCategory(tpl *credtemplate.Template, spec provider.Is
 	if tpl != nil && tpl.Category != "" {
 		return tpl.Category
 	}
-	if entry, ok := w.catalogueEntryFor(spec.Format, []string{firstNonEmpty(spec.VCT, spec.DocType)}); ok {
+	if entry, ok := w.catalogueEntryFor(spec.Format, []string{jsonutil.FirstNonEmpty(spec.VCT, spec.DocType)}); ok {
 		return entry.Category
 	}
 	return ""

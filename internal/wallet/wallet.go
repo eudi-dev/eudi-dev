@@ -36,6 +36,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
@@ -479,9 +480,9 @@ func (w *Wallet) generateDefaultCredentials(claimOverrides map[string]any, vct s
 	if err != nil {
 		return fmt.Errorf("loading %s template: %w", mdocName, err)
 	}
-	vct = firstNonEmpty(vct, sdTpl.VCT, mock.DefaultPIDVCT)
-	mdocDocType := firstNonEmpty(mdocTpl.DocType, mock.PIDNamespace)
-	mdocNamespace := firstNonEmpty(mdocTpl.Namespace, mdocDocType)
+	vct = jsonutil.FirstNonEmpty(vct, sdTpl.VCT, mock.DefaultPIDVCT)
+	mdocDocType := jsonutil.FirstNonEmpty(mdocTpl.DocType, mock.PIDNamespace)
+	mdocNamespace := jsonutil.FirstNonEmpty(mdocTpl.Namespace, mdocDocType)
 	log.Printf("[Wallet] Generating default PID credentials: vct=%s overrides=%d", vct, len(claimOverrides))
 
 	// A protected default stays and is not generated again.

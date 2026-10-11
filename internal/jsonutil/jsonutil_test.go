@@ -37,20 +37,6 @@ func TestGetString(t *testing.T) {
 	}
 }
 
-func TestGetStringOK(t *testing.T) {
-	m := map[string]any{"name": "alice", "age": 30}
-
-	if v, ok := GetStringOK(m, "name"); !ok || v != "alice" {
-		t.Errorf("GetStringOK(name) = (%q, %v), want (alice, true)", v, ok)
-	}
-	if _, ok := GetStringOK(m, "age"); ok {
-		t.Error("GetStringOK(age) should return false for non-string")
-	}
-	if _, ok := GetStringOK(m, "missing"); ok {
-		t.Error("GetStringOK(missing) should return false")
-	}
-}
-
 func TestGetMap(t *testing.T) {
 	inner := map[string]any{"x": 1}
 	m := map[string]any{"nested": inner, "flat": "hello"}

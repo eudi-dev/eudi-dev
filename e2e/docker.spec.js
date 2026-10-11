@@ -1,5 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
+const { waitForServer } = require("./helpers");
 const { execSync } = require("child_process");
 const http = require("http");
 
@@ -38,29 +39,6 @@ test.afterAll(async () => {
     execSync(`docker rm -f ${CONTAINER_NAME}`, { stdio: "pipe" });
   } catch {}
 });
-
-async function waitForServer(url, timeoutMs) {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    try {
-      await new Promise((resolve, reject) => {
-        const req = http.get(url, (res) => {
-          res.resume();
-          resolve(res);
-        });
-        req.on("error", reject);
-        req.setTimeout(500, () => {
-          req.destroy();
-          reject(new Error("timeout"));
-        });
-      });
-      return;
-    } catch {
-      await new Promise((r) => setTimeout(r, 300));
-    }
-  }
-  throw new Error(`Server at ${url} did not start within ${timeoutMs}ms`);
-}
 
 function httpGet(url) {
   return new Promise((resolve, reject) => {

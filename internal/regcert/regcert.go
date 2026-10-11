@@ -83,7 +83,7 @@ func StatusFindings(cert map[string]any, client *http.Client, statusCAs []*x509.
 	if ref == nil {
 		return nil
 	}
-	name := firstNonEmpty(jsonutil.Text(cert["name"]), jsonutil.Text(cert["sub"]), "the relying party")
+	name := jsonutil.FirstNonEmpty(jsonutil.Text(cert["name"]), jsonutil.Text(cert["sub"]), "the relying party")
 	anchors := make([]statuslist.TrustCert, 0, len(statusCAs))
 	for _, ca := range statusCAs {
 		anchors = append(anchors, statuslist.TrustCert{Raw: ca.Raw})
@@ -263,13 +263,4 @@ func ProviderContentFindings(cert map[string]any) []string {
 		miss("status (its entry in the registrar's status list), so the wallet cannot check revocation", "ETSI TS 119 475 V1.2.1 Table 7")
 	}
 	return append(findings, validityFindings(cert, "ARF RPRC_22a")...)
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, v := range values {
-		if v = strings.TrimSpace(v); v != "" {
-			return v
-		}
-	}
-	return ""
 }

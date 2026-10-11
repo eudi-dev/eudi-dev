@@ -492,7 +492,9 @@ Use `--remote local` to bypass routing and access storage directly. While a serv
 
 A running or remote wallet keeps its own store. A command that manages it refuses `--storage`, `--templates-dir` and `--seed`. A remote target from `--remote` or `wallet use` also refuses `--wallet-dir`. Add `--remote local` to use the local store with these flags.
 
-A routed command uses the settings of the running wallet for every step of a flow, including a credential collected later. So it refuses a conformance flag whose value differs from the running wallet's, such as `--mode strict` on a wallet in debug mode. A flag with the wallet's own value passes. So does a `--relying-party-ca`, `--trusted-list-ca` or `--trusted-list` the wallet already trusts. Set the mode, HAIP, ARF and key attestation level on `wallet serve` or with `PUT /api/config/conformance`. Put CAs and lists on the wallet's trusted lists with `trust`. `trust add-ca --list trusted-list-ca` adds the CA of a list operator.
+A routed command uses the settings of the running wallet for every step of a flow, including a credential collected later. So it refuses a conformance flag whose value differs from the running wallet's, such as `--mode strict` on a wallet in debug mode. A flag with the wallet's own value passes. So does a `--relying-party-ca`, `--trusted-list-ca` or `--trusted-list` the wallet already trusts. Set the mode, HAIP, ARF and key attestation level on `wallet serve` or with `PUT /api/config/conformance`. Put CAs and lists on the wallet's trusted lists with `trust`. `trust add-ca --list trusted-list-ca` adds the CA of a list operator. The outbound flags `--tls-verify`, `--tls-ca` and the proxy flags follow the same rule on every routed command.
+
+The running wallet answers on its own address and signs with its own issuer. So `wallet accept` and `wallet scan` refuse `--port` and `--docker`, and `issue --wallet` refuses `--iss` and a `--key` without `--cert`.
 
 `wallet info` compares a running instance's configuration with the wallet file and warns when they differ (the file changed after the server started). Restarting `wallet serve` reloads the file.
 
@@ -517,7 +519,7 @@ The response includes `port`, `build_id`, `version`, `storage`, `seeded_keys`, `
 
 `form_defaults` holds the limits and defaults of the UI forms. `protected_relying_parties` lists the identifiers of the registrations that visitors can't change (the demo issuer and verifier on the public demo, empty otherwise). `news_id` identifies the current news of the public demo (empty without `--news-file`).
 
-Local instances also report `pid`, `wallet_dir` and `templates_dir`. The public demo hides those fields and adds a `demo` object. `POST /api/shutdown` sends its response before stopping the instance.
+Local instances also report `pid`, `wallet_dir` and `templates_dir`. The public demo hides those fields and adds a `demo` object. `POST /api/shutdown` sends its response before stopping the instance. Requests in flight finish first, like on Ctrl-C.
 
 `PUT /api/config/conformance` takes `mode`, `tls_verify`, `haip`, `arf`, `encrypted`, `vci_version` and `key_attestation_level`. It accepts these values for `tls_verify`:
 

@@ -23,6 +23,17 @@ func Text(v any) string {
 	return strings.TrimSpace(s)
 }
 
+// FirstNonEmpty returns the first value that is not blank, without
+// surrounding space.
+func FirstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v = strings.TrimSpace(v); v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
 // List returns an array value. It also takes []string, because in-memory
 // records hold []string until a JSON round trip.
 func List(v any) []any {

@@ -292,33 +292,6 @@ func TestExtractX5CLeafKey_WorksWithoutTrustList(t *testing.T) {
 	}
 }
 
-func TestExtractMDOCX5ChainLeafKey_WorksWithoutTrustList(t *testing.T) {
-	caCert, _, caDER := generateCACert(t)
-
-	doc := &mdoc.Document{
-		IssuerAuth: &mdoc.IssuerAuth{
-			UnprotectedHeader: map[any]any{
-				int64(33): caDER,
-			},
-		},
-	}
-	key, err := ExtractMDOCX5ChainLeafKey(doc)
-	if err != nil {
-		t.Fatalf("ExtractMDOCX5ChainLeafKey() error: %v", err)
-	}
-	leafPub, ok := key.(*ecdsa.PublicKey)
-	if !ok {
-		t.Fatalf("expected *ecdsa.PublicKey, got %T", key)
-	}
-	if !leafPub.Equal(caCert.PublicKey) {
-		t.Error("expected the embedded certificate's key")
-	}
-
-	if key, err := ExtractMDOCX5ChainLeafKey(&mdoc.Document{}); err != nil || key != nil {
-		t.Errorf("expected nil, nil without x5chain, got %v, %v", key, err)
-	}
-}
-
 func TestExtractAndValidateMDOCX5Chain_NilIssuerAuth(t *testing.T) {
 	doc := &mdoc.Document{}
 	key, err := ExtractAndValidateMDOCX5Chain(doc, []lote.CertInfo{{Raw: []byte("x")}})

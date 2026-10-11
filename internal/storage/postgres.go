@@ -176,6 +176,8 @@ func (s *postgresStore) Stat(key string) (Stamp, error) {
 	return postgresStamp(version, size), nil
 }
 
+func (s *postgresStore) Exists(key string) (bool, error) { return existsByStat(s.Stat, key) }
+
 func (s *postgresStore) List(prefix string) ([]string, error) {
 	prefix, err := cleanPrefix(prefix)
 	if err != nil {

@@ -244,6 +244,7 @@ func configureIssuerTLSCertificate(srv *wallet.Server, store *wallet.WalletStore
 func walletListCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
+		Args:  cobra.NoArgs,
 		Short: "List stored credentials",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			svc, err := managedWallet()
@@ -394,7 +395,6 @@ openid-credential-offer://, haip-vci:// and eu-eaa-offer://.`,
 			if err != nil {
 				return err
 			}
-			opts.ServeArgs = append(walletRegisterInheritedServeArgs(cmd), opts.ServeArgs...)
 			reg, err := urlhandler.Register(opts)
 			if err != nil {
 				return err
@@ -406,20 +406,14 @@ openid-credential-offer://, haip-vci:// and eu-eaa-offer://.`,
 	return cmd
 }
 
-func walletRegisterInheritedServeArgs(cmd *cobra.Command) []string {
-	args := []string{}
-	cmd.Flags().Visit(func(flag *pflag.Flag) {
-		switch flag.Name {
-		case "tls-verify":
-			args = append(args, "--tls-verify="+flag.Value.String())
-		case "wallet-dir", "mode", "storage", "tls-ca", "http-proxy", "https-proxy", "no-proxy":
-			args = append(args, "--"+flag.Name, flag.Value.String())
-		}
-	})
-	return args
-}
-
+// walletRegisterOptions reads the arguments of wallet register. The command
+// parses no flags so that it can replay every wallet serve flag. It applies
+// the root flags itself and keeps them out of the replayed arguments.
 func walletRegisterOptions(args []string) (urlhandler.Options, error) {
+	args, err := applyRootFlags(args)
+	if err != nil {
+		return urlhandler.Options{}, err
+	}
 	port := config.DefaultWalletPort
 	autoAccept := false
 
@@ -434,13 +428,45 @@ func walletRegisterOptions(args []string) (urlhandler.Options, error) {
 	return urlhandler.Options{
 		ListenerPort: port,
 		AutoAccept:   autoAccept,
-		ServeArgs:    append([]string(nil), args...),
+		ServeArgs:    args,
 	}, nil
+}
+
+// applyRootFlags sets the root command's flags found in args and returns the
+// other arguments.
+func applyRootFlags(args []string) ([]string, error) {
+	root := rootCmd.PersistentFlags()
+	rest := []string{}
+	for i, arg := range args {
+		if arg == "--" {
+			return append(rest, args[i:]...), nil
+		}
+		var flag *pflag.Flag
+		name, value, hasValue := strings.Cut(strings.TrimPrefix(arg, "--"), "=")
+		switch {
+		case strings.HasPrefix(arg, "--"):
+			flag = root.Lookup(name)
+		case len(arg) == 2 && arg[0] == '-':
+			flag = root.ShorthandLookup(arg[1:])
+		}
+		if flag == nil {
+			rest = append(rest, arg)
+			continue
+		}
+		if !hasValue {
+			value = "true"
+		}
+		if err := root.Set(flag.Name, value); err != nil {
+			return nil, fmt.Errorf("invalid %s: %w", arg, err)
+		}
+	}
+	return rest, nil
 }
 
 func walletUnregisterCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "unregister",
+		Args:  cobra.NoArgs,
 		Short: "Remove the OS URL scheme handlers (macOS, a no-op elsewhere)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			unreg, err := urlhandler.Unregister()
@@ -531,6 +557,7 @@ func walletTLSCertCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "tls-cert",
+		Args:  cobra.NoArgs,
 		Short: "Print or export the wallet HTTPS leaf certificate",
 		Long: `Loads or creates the HTTPS leaf certificate used by the wallet's HTTPS endpoints.
 Use this to inspect or export the exact server certificate presented by the wallet.
@@ -675,12 +702,7 @@ server renews on its own shortly before expiry. This asks now.`,
 				return err
 			}
 			if jsonOutput {
-				data, err := json.MarshalIndent(renewed, "", "  ")
-				if err != nil {
-					return err
-				}
-				fmt.Println(string(data))
-				return nil
+				return output.WriteJSON(os.Stdout, renewed)
 			}
 			fmt.Printf("Renewed %s (%s)\n", docString(renewed, "id"), docCredLabel(renewed))
 			if expiry := docString(renewed, "expires_at"); expiry != "" {

@@ -58,7 +58,7 @@ func TestDashboardClientEntries(t *testing.T) {
 	store := NewStore(10)
 	store.Add(&TrafficEntry{Method: "GET", URL: "http://target/one"})
 	store.Add(&TrafficEntry{Method: "POST", URL: "http://target/two"})
-	srv := httptest.NewServer(NewDashboard(store, 0).Handler())
+	srv := httptest.NewServer(NewDashboard(store).Handler())
 	defer srv.Close()
 
 	client, err := NewDashboardClient(srv.URL)
@@ -94,7 +94,7 @@ func TestDashboardClientReportsAnUnreachableProxy(t *testing.T) {
 // recorded traffic afterwards misses no entry.
 func TestDashboardClientStreamSubscribesBeforeItReturns(t *testing.T) {
 	store := NewStore(10)
-	srv := httptest.NewServer(NewDashboard(store, 0).Handler())
+	srv := httptest.NewServer(NewDashboard(store).Handler())
 	defer srv.Close()
 
 	client, err := NewDashboardClient(srv.URL)
@@ -151,7 +151,7 @@ func TestDashboardStreamSendsKeepalives(t *testing.T) {
 	streamKeepaliveInterval = 10 * time.Millisecond
 	defer func() { streamKeepaliveInterval = original }()
 
-	srv := httptest.NewServer(NewDashboard(NewStore(10), 0).Handler())
+	srv := httptest.NewServer(NewDashboard(NewStore(10)).Handler())
 	defer srv.Close()
 
 	req, _ := http.NewRequest(http.MethodGet, srv.URL+"/api/stream", nil)

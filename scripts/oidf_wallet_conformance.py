@@ -280,7 +280,7 @@ def vci_authorization_request_type(kind: str, grant: str) -> str:
 
     A pre-authorized flow has no authorization request, so the suite fills in the
     requested credential itself. Under "simple" it injects the scope eudi.pid.1
-    (VCIInjectRequestScopePreAuthorizedCodeFlow, still in release-v5.3.1), which maps to
+    (VCIInjectRequestScopePreAuthorizedCodeFlow in release-v5.3.1), which maps to
     the SD-JWT PID, so an mdoc offer gets an SD-JWT token response. Under "rar" it
     injects the offered credential_configuration_id."""
     if kind == "mdoc" and grant == "pre_authorization_code":
@@ -550,6 +550,29 @@ def public_jwk(jwk: dict) -> dict:
     return {key: value for key, value in jwk.items() if key not in {"d", "p", "q", "dp", "dq", "qi", "oth", "k"}}
 
 
+def signs_for_provider_role(jwk: dict, role: str) -> bool:
+    """Tell whether the JWK's certificate was issued by the wallet's provider CA of role.
+
+    The certificate's caIssuers URL (RFC 5280 §4.2.2.1) names that CA as
+    /api/certificates/providers/<role>/<country>.der."""
+    from cryptography import x509
+    from cryptography.x509.oid import AuthorityInformationAccessOID
+
+    x5c = jwk.get("x5c") or []
+    if not x5c:
+        return False
+    cert = x509.load_der_x509_certificate(base64.b64decode(x5c[0]))
+    try:
+        aia = cert.extensions.get_extension_for_class(x509.AuthorityInformationAccess).value
+    except x509.ExtensionNotFound:
+        return False
+    return any(
+        desc.access_method == AuthorityInformationAccessOID.CA_ISSUERS
+        and f"/api/certificates/providers/{role}/" in urllib.parse.urlparse(desc.access_location.value).path
+        for desc in aia
+    )
+
+
 def fetch_wallet_materials(wallet_url: str, wallet_issuer_url: str, wallet_ca_cert: Path) -> WalletMaterials:
     credentials = wallet_request(wallet_url, "GET", "/api/credentials")
     holder_jwk = None
@@ -577,7 +600,7 @@ def fetch_wallet_materials(wallet_url: str, wallet_issuer_url: str, wallet_ca_ce
     keys = [key for key in issuer_meta.get("jwks", {}).get("keys", []) if isinstance(key, dict)]
     # The wallet signs each credential category with its own key. The PID
     # provider's key is the one the configs name.
-    pid_keys = [key for key in keys if b"PID Provider" in base64.b64decode((key.get("x5c") or [""])[0])]
+    pid_keys = [key for key in keys if signs_for_provider_role(key, "pid")]
     if len(pid_keys) != 1:
         raise RuntimeError(f"wallet issuer metadata did not expose exactly one PID provider JWK: {keys!r}")
 
@@ -859,8 +882,7 @@ def vp_modules_for_scenario(scenario: PlanScenario) -> tuple[str, ...] | None:
         modules.remove(VP_FINAL_MODULE_IGNORES_UNUSABLE_ENCRYPTION_KEY)
     if response_mode in {"direct_post", "dc_api"}:
         # The alternate module unconditionally replaces the encrypted-response
-        # setup, which is absent for the unencrypted response modes. Still
-        # present in release-v5.3.1.
+        # setup, which is absent for the unencrypted response modes.
         modules.remove(VP_FINAL_MODULE_ALTERNATE_HAPPY_FLOW)
     if client_id_prefix != "redirect_uri" and response_mode not in {"dc_api", "dc_api.jwt"}:
         modules.remove(VP_FINAL_MODULE_RESPONSE_URI_NOT_CLIENT_ID)

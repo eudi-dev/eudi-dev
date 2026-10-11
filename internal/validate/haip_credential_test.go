@@ -99,6 +99,15 @@ func TestHAIPCredentialFindings_StatusList(t *testing.T) {
 	}
 }
 
+// An x5c header whose certificates do not parse is a finding of its own. It
+// reads differently from a missing x5c.
+func TestHAIPCredentialFindings_UnreadableX5C(t *testing.T) {
+	findings := HAIPCredentialFindings(map[string]any{"x5c": []any{"bm90IGEgY2VydGlmaWNhdGU"}}, map[string]any{})
+	if !containsSubstr(findings, "does not hold readable certificates") {
+		t.Fatalf("findings %v, want one for the unreadable x5c", findings)
+	}
+}
+
 func containsSubstr(findings []string, sub string) bool {
 	for _, f := range findings {
 		if strings.Contains(f, sub) {

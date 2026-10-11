@@ -27,6 +27,7 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 )
@@ -358,5 +359,5 @@ func signingLeafCommonName(profile lote.Profile) string {
 	if profile.LoTEType == "" {
 		return config.WalletIssuerName
 	}
-	return firstNonEmpty(profile.EntityName, config.WalletIssuerName) + " (" + ListID(profile) + ")"
+	return jsonutil.FirstNonEmpty(profile.EntityName, config.WalletIssuerName) + " (" + ListID(profile) + ")"
 }

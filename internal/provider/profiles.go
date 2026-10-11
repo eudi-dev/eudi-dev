@@ -26,6 +26,7 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 )
@@ -128,9 +129,9 @@ func NormalizeIssuedAttestationSpec(spec IssuedAttestationSpec, category string)
 		}
 	}
 	if spec.TrustListType != "" {
-		spec.EntityName = firstNonEmpty(spec.EntityName, config.WalletIssuerName)
-		spec.IssuanceServiceName = firstNonEmpty(spec.IssuanceServiceName, "Issuance Service")
-		spec.RevocationServiceName = firstNonEmpty(spec.RevocationServiceName, "Revocation Service")
+		spec.EntityName = jsonutil.FirstNonEmpty(spec.EntityName, config.WalletIssuerName)
+		spec.IssuanceServiceName = jsonutil.FirstNonEmpty(spec.IssuanceServiceName, "Issuance Service")
+		spec.RevocationServiceName = jsonutil.FirstNonEmpty(spec.RevocationServiceName, "Revocation Service")
 	}
 	return spec, nil
 }
@@ -202,15 +203,15 @@ func CategoryProfile(category string) lote.Profile {
 // the list of its category.
 func ApplyCategoryDefaults(spec IssuedAttestationSpec) IssuedAttestationSpec {
 	p := CategoryProfile(spec.Category)
-	spec.TrustListType = firstNonEmpty(spec.TrustListType, p.LoTEType)
-	spec.StatusDeterminationApproach = firstNonEmpty(spec.StatusDeterminationApproach, p.StatusDeterminationApproach)
-	spec.SchemeTypeCommunityRules = firstNonEmpty(spec.SchemeTypeCommunityRules, p.SchemeTypeCommunityRules)
-	spec.SchemeTerritory = firstNonEmpty(spec.SchemeTerritory, p.SchemeTerritory)
-	spec.EntityName = firstNonEmpty(spec.EntityName, p.EntityName)
-	spec.IssuanceServiceType = firstNonEmpty(spec.IssuanceServiceType, p.IssuanceServiceType)
-	spec.RevocationServiceType = firstNonEmpty(spec.RevocationServiceType, p.RevocationServiceType)
-	spec.IssuanceServiceName = firstNonEmpty(spec.IssuanceServiceName, p.IssuanceServiceName)
-	spec.RevocationServiceName = firstNonEmpty(spec.RevocationServiceName, p.RevocationServiceName)
+	spec.TrustListType = jsonutil.FirstNonEmpty(spec.TrustListType, p.LoTEType)
+	spec.StatusDeterminationApproach = jsonutil.FirstNonEmpty(spec.StatusDeterminationApproach, p.StatusDeterminationApproach)
+	spec.SchemeTypeCommunityRules = jsonutil.FirstNonEmpty(spec.SchemeTypeCommunityRules, p.SchemeTypeCommunityRules)
+	spec.SchemeTerritory = jsonutil.FirstNonEmpty(spec.SchemeTerritory, p.SchemeTerritory)
+	spec.EntityName = jsonutil.FirstNonEmpty(spec.EntityName, p.EntityName)
+	spec.IssuanceServiceType = jsonutil.FirstNonEmpty(spec.IssuanceServiceType, p.IssuanceServiceType)
+	spec.RevocationServiceType = jsonutil.FirstNonEmpty(spec.RevocationServiceType, p.RevocationServiceType)
+	spec.IssuanceServiceName = jsonutil.FirstNonEmpty(spec.IssuanceServiceName, p.IssuanceServiceName)
+	spec.RevocationServiceName = jsonutil.FirstNonEmpty(spec.RevocationServiceName, p.RevocationServiceName)
 	return spec
 }
 
@@ -334,13 +335,4 @@ func ListID(profile lote.Profile) string {
 	}
 	hash := sha256.Sum256([]byte(profileKey(profile)))
 	return "tl-" + hex.EncodeToString(hash[:4])
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, v := range values {
-		if v = strings.TrimSpace(v); v != "" {
-			return v
-		}
-	}
-	return ""
 }

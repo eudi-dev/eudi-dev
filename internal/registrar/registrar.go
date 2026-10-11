@@ -34,6 +34,7 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 )
 
@@ -130,8 +131,8 @@ func normalizeSupervisoryAuthority(a *SupervisoryAuthority, country, base string
 		a.Email = []string{testSupervisoryAuthorityEmail}
 		a.FormURI = []string{base + "/supervisory-authority"}
 	}
-	a.Name = firstNonEmpty(a.Name, "Test Supervisory Authority")
-	a.Country = strings.ToUpper(firstNonEmpty(a.Country, country))
+	a.Name = jsonutil.FirstNonEmpty(a.Name, "Test Supervisory Authority")
+	a.Country = strings.ToUpper(jsonutil.FirstNonEmpty(a.Country, country))
 	if !countryCodePattern.MatchString(a.Country) {
 		return fmt.Errorf("supervisory authority country %q is not a two-letter country code", a.Country)
 	}
@@ -390,7 +391,7 @@ func normalizeRelyingParty(rp *WalletRelyingParty, base string, before *WalletRe
 		return fmt.Errorf("country %q is not a two-letter country code", rp.Country)
 	}
 	if len(rp.Identifier) == 0 || strings.TrimSpace(rp.Identifier[0].Identifier) == "" {
-		rp.Identifier = []Identifier{{Identifier: NewEUID(firstNonEmpty(rp.Country, mock.DefaultCertificateCountry)), Type: EUIDIdentifierType}}
+		rp.Identifier = []Identifier{{Identifier: NewEUID(jsonutil.FirstNonEmpty(rp.Country, mock.DefaultCertificateCountry)), Type: EUIDIdentifierType}}
 	}
 	for i, id := range rp.Identifier {
 		id.Identifier, id.Type = strings.TrimSpace(id.Identifier), strings.TrimSpace(id.Type)
@@ -441,8 +442,8 @@ func normalizeRelyingParty(rp *WalletRelyingParty, base string, before *WalletRe
 			return fmt.Errorf("service identifier %q is registered twice", service.ServiceIdentifier)
 		}
 		services[service.ServiceIdentifier] = true
-		service.ServiceTradeName = firstNonEmpty(service.ServiceTradeName, rp.TradeName)
-		service.SupportURI = firstNonEmpty(service.SupportURI, base+"/support")
+		service.ServiceTradeName = jsonutil.FirstNonEmpty(service.ServiceTradeName, rp.TradeName)
+		service.SupportURI = jsonutil.FirstNonEmpty(service.SupportURI, base+"/support")
 		if address, err := mail.ParseAddress(service.SupportURI); err == nil && address.Address == service.SupportURI {
 			service.SupportURI = "mailto:" + service.SupportURI
 		}
@@ -550,7 +551,7 @@ func normalizeIntendedUse(use *IntendedUse, base string, before *WalletRelyingPa
 		use.PrivacyPolicy = []Policy{{PolicyURI: base + "/privacy-policy"}}
 	}
 	for i := range use.PrivacyPolicy {
-		use.PrivacyPolicy[i].Type = firstNonEmpty(use.PrivacyPolicy[i].Type, privacyPolicyType)
+		use.PrivacyPolicy[i].Type = jsonutil.FirstNonEmpty(use.PrivacyPolicy[i].Type, privacyPolicyType)
 	}
 	return nil
 }

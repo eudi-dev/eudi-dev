@@ -16,7 +16,6 @@ package cmd
 
 import (
 	"crypto/x509"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"log"
@@ -39,6 +38,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/demorp"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/imprint"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/netaddr"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/news"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
@@ -93,6 +93,7 @@ func walletServeCmdWithOptions() (*cobra.Command, *walletServeOptions) {
 
 	cmd := &cobra.Command{
 		Use:   "serve",
+		Args:  cobra.NoArgs,
 		Short: "Start the wallet server with its web UI",
 		Long: `Start a persistent wallet server with a web UI for managing credentials and handling OID4VP/OID4VCI flows.
 
@@ -166,27 +167,11 @@ func loadVerifierTrustAnchors(paths []string) ([]*x509.Certificate, error) {
 		if err != nil {
 			return nil, err
 		}
-		found := 0
-		rest := data
-		for {
-			var block *pem.Block
-			block, rest = pem.Decode(rest)
-			if block == nil {
-				break
-			}
-			if block.Type != "CERTIFICATE" {
-				continue
-			}
-			cert, err := x509.ParseCertificate(block.Bytes)
-			if err != nil {
-				return nil, fmt.Errorf("%s: %w", path, err)
-			}
-			anchors = append(anchors, cert)
-			found++
+		certs, err := keys.ParseCertificatesPEM(data)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", path, err)
 		}
-		if found == 0 {
-			return nil, fmt.Errorf("%s holds no PEM certificate", path)
-		}
+		anchors = append(anchors, certs...)
 	}
 	return anchors, nil
 }
@@ -769,14 +754,17 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 		fmt.Fprintf(os.Stderr, "warning: registering wallet instance: %v\n", err)
 	}
 	defer remote.UnregisterInstance(processID)
-	srv.ShutdownFunc = func() {
-		remote.UnregisterInstance(processID)
-		os.Exit(0)
-	}
 
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 	defer signal.Stop(signals)
+	return serveWallet(srv, signals)
+}
+
+// serveWallet serves until a signal or POST /api/shutdown. Both stop the
+// server gracefully and return, so the deferred cleanup of wallet serve runs.
+func serveWallet(srv *wallet.Server, signals <-chan os.Signal) error {
+	srv.ShutdownFunc = srv.Shutdown
 	return serveUntilSignal(srv, signals)
 }
 

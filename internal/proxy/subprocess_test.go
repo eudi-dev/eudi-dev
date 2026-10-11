@@ -38,15 +38,26 @@ func runSubprocess(t *testing.T, script string) string {
 	if err != nil {
 		t.Fatal(err)
 	}
+	waited := make(chan error, 1)
+	go func() { waited <- sub.Wait() }()
 	select {
-	case <-sub.Done():
+	case err := <-waited:
+		if err != nil {
+			t.Fatal(err)
+		}
 	case <-time.After(10 * time.Second):
 		t.Fatal("the subprocess did not finish")
 	}
-	if err := sub.Wait(); err != nil {
-		t.Fatal(err)
-	}
 	return out.String()
+}
+
+// A grandchild that outlives the service keeps its output open. Wait still
+// returns soon after the service exits, so Ctrl-C stops the proxy.
+func TestSubprocessWaitReturnsWhileAGrandchildHoldsTheOutput(t *testing.T) {
+	out := runSubprocess(t, `sleep 15 & echo started`)
+	if !strings.Contains(out, "started\n") {
+		t.Errorf("the output misses the service's line: %q", out)
+	}
 }
 
 func TestSubprocessForwardsEveryLineBeforeItReportsTheExit(t *testing.T) {

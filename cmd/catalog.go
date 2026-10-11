@@ -129,7 +129,7 @@ credentials of the type pass the trusted list check. It can't go with
 				entry.Credentials[i].Claims = append(entry.Credentials[i].Claims, catalogClaimPath(format, entry.Credentials[i].Type, claim))
 			}
 			if los != "" {
-				entry.Schema.AttestationLoS = "iso_18045_" + los
+				entry.Schema.AttestationLoS = attestationLoSPrefix + los
 			}
 			entry.Schema.BindingType = bindingType
 			entry.Schema.RulebookURI = rulebookURI
@@ -161,6 +161,10 @@ credentials of the type pass the trusted list check. It can't go with
 			}
 			if caPEM != nil {
 				if _, err := svc.AddTrustedEntity(added.Category, added.Name+" issuer", string(caPEM)); err != nil {
+					// The entry stays only together with its CA.
+					if rmErr := svc.DeleteCatalogAttestation(added.Schema.ID); rmErr != nil {
+						return fmt.Errorf("putting --issuer-ca on the %s list: %w (removing the added entry %s: %w)", added.Category, err, added.Schema.ID, rmErr)
+					}
 					return fmt.Errorf("putting --issuer-ca on the %s list: %w", added.Category, err)
 				}
 			}
@@ -173,23 +177,32 @@ credentials of the type pass the trusted list check. It can't go with
 			return nil
 		},
 	}
+	var levels []string
+	for _, value := range registrar.OptionValues(registrar.AttestationLevels) {
+		levels = append(levels, strings.TrimPrefix(value, attestationLoSPrefix))
+	}
+	bindings := registrar.OptionValues(registrar.BindingTypes)
 	cmd.Flags().StringVar(&name, "name", "", "Name of the attestation type (required)")
 	cmd.Flags().StringArrayVar(&types, "type", nil, "Format and type, such as dc+sd-jwt:urn:example:diploma:1 or mso_mdoc:org.example.diploma.1 (repeatable, required)")
 	cmd.Flags().StringArrayVar(&claims, "claim", nil, "Format and claim, such as dc+sd-jwt:address.locality or mso_mdoc:degree (repeatable)")
 	cmd.Flags().StringVar(&category, "category", "eaa", "Credential category: pid, qeaa, pub-eaa or eaa")
-	cmd.Flags().StringVar(&los, "los", "", "Level of security: basic, enhanced-basic, moderate or high (default high, and basic for eaa)")
-	cmd.Flags().StringVar(&bindingType, "binding", "", "How the attestation is bound to its holder: key (a key in the wallet), claim (linked to another credential, such as a PID), biometric or none (default key)")
+	cmd.Flags().StringVar(&los, "los", "", "Level of security: "+strings.Join(levels, ", ")+" (default high, and basic for eaa)")
+	cmd.Flags().StringVar(&bindingType, "binding", "", "How the attestation is bound to its holder: "+strings.Join(bindings, ", ")+" (default key)")
 	cmd.Flags().StringVar(&rulebookURI, "rulebook", "", "URL of the rulebook (default a placeholder page on the wallet)")
 	cmd.Flags().StringVar(&trustedList, "trusted-list", "", "URL of the trusted list of its issuers (ETSI TS 119 602, default the category's list on the wallet)")
 	cmd.Flags().StringVar(&issuerCA, "issuer-ca", "", "PEM file with the CA of your issuer. The wallet puts it on the trusted list of the category")
 	_ = cmd.MarkFlagFilename("issuer-ca", "pem")
 	_ = cmd.RegisterFlagCompletionFunc("category", staticCompletion(credtemplate.Categories...))
-	_ = cmd.RegisterFlagCompletionFunc("los", staticCompletion("basic", "enhanced-basic", "moderate", "high"))
-	_ = cmd.RegisterFlagCompletionFunc("binding", staticCompletion("key", "claim", "biometric", "none"))
+	_ = cmd.RegisterFlagCompletionFunc("los", staticCompletion(levels...))
+	_ = cmd.RegisterFlagCompletionFunc("binding", staticCompletion(bindings...))
 	_ = cmd.MarkFlagRequired("name")
 	_ = cmd.MarkFlagRequired("type")
 	return cmd
 }
+
+// attestationLoSPrefix starts every TS11 attestationLoS value. --los takes
+// the rest.
+const attestationLoSPrefix = "iso_18045_"
 
 // catalogClaimPath turns a claim flag into a claim path. An mdoc claim
 // without a namespace is in the doctype's namespace.

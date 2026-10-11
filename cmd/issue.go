@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -30,6 +29,7 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
@@ -90,6 +90,7 @@ var issueSDJWTCmd = &cobra.Command{
 	Short: "Generate a test SD-JWT credential",
 	Long: "Generate a signed SD-JWT credential with selectively disclosable claims. " +
 		"By default it prints a bare credential signed with an ephemeral P-256 key. --wallet issues into the managed wallet instead.",
+	Args: cobra.NoArgs,
 	RunE: runIssueSDJWT,
 }
 
@@ -98,6 +99,7 @@ var issueJWTCmd = &cobra.Command{
 	Short: "Generate a test JWT VC credential",
 	Long: "Generate a signed JWT VC credential with claims directly in the payload (no selective disclosure). " +
 		"By default it prints a bare credential signed with an ephemeral P-256 key. --wallet issues into the managed wallet instead.",
+	Args: cobra.NoArgs,
 	RunE: runIssueJWT,
 }
 
@@ -106,6 +108,7 @@ var issueMDOCCmd = &cobra.Command{
 	Short: "Generate a test mdoc credential",
 	Long: "Generate a signed mdoc (IssuerSigned) credential. " +
 		"By default it prints a bare credential signed with an ephemeral P-256 key. --wallet issues into the managed wallet instead.",
+	Args: cobra.NoArgs,
 	RunE: runIssueMDOC,
 }
 
@@ -126,7 +129,7 @@ func init() {
 	issueSDJWTCmd.Flags().StringVar(&issueSaveTemplate, "save-template", "", "Save the issued claims and settings as a credential template with this name")
 	issueSDJWTCmd.Flags().StringVar(&issueKeyPath, "key", "", "Private key file (PEM or JWK). Ephemeral P-256 if omitted")
 	issueSDJWTCmd.Flags().StringVar(&issueCertPath, "cert", "", "Certificate chain file (PEM, leaf first) embedded as x5c. Requires --key")
-	issueSDJWTCmd.Flags().StringVar(&issueIssuer, "iss", "https://issuer.example", "Issuer URL")
+	issueSDJWTCmd.Flags().StringVar(&issueIssuer, "iss", mock.DefaultIssuer, "Issuer URL")
 	issueSDJWTCmd.Flags().StringVar(&issueVCT, "vct", mock.DefaultPIDVCT, "Verifiable Credential Type")
 	issueSDJWTCmd.Flags().StringVar(&issueExpires, "exp", credtemplate.DefaultExp.String(), "Expiration duration (e.g. 720h, 24h)")
 	issueSDJWTCmd.Flags().StringVar(&issueNBF, "nbf", "", "Not-before time (RFC3339 e.g. 2025-01-15T00:00:00Z, or duration e.g. -1h)")
@@ -145,7 +148,7 @@ func init() {
 	issueJWTCmd.Flags().StringVar(&issueSaveTemplate, "save-template", "", "Save the issued claims and settings as a credential template with this name")
 	issueJWTCmd.Flags().StringVar(&issueKeyPath, "key", "", "Private key file (PEM or JWK). Ephemeral P-256 if omitted")
 	issueJWTCmd.Flags().StringVar(&issueCertPath, "cert", "", "Certificate chain file (PEM, leaf first) embedded as x5c. Requires --key")
-	issueJWTCmd.Flags().StringVar(&issueIssuer, "iss", "https://issuer.example", "Issuer URL")
+	issueJWTCmd.Flags().StringVar(&issueIssuer, "iss", mock.DefaultIssuer, "Issuer URL")
 	issueJWTCmd.Flags().StringVar(&issueVCT, "vct", mock.DefaultPIDVCT, "Verifiable Credential Type")
 	issueJWTCmd.Flags().StringVar(&issueExpires, "exp", credtemplate.DefaultExp.String(), "Expiration duration (e.g. 720h, 24h)")
 	issueJWTCmd.Flags().StringVar(&issueNBF, "nbf", "", "Not-before time (RFC3339 e.g. 2025-01-15T00:00:00Z, or duration e.g. -1h)")
@@ -185,9 +188,34 @@ func init() {
 	_ = issueCmd.MarkPersistentFlagDirname("templates-dir")
 }
 
+// issueWalletOnlyFlags shape what the managed wallet stores or how it
+// signs. A bare credential has no use for them.
+var issueWalletOnlyFlags = []string{
+	"remote", "seed", "batch", "unbound", "category", "entitlement",
+	"trusted-list-type", "status-determination-approach", "scheme-community-rule", "scheme-territory",
+	"trusted-entity-name", "issuance-service-type", "revocation-service-type", "issuance-service-name", "revocation-service-name",
+	"display-name", "display-description", "background-color", "text-color", "logo", "logo-alt", "background-image",
+}
+
+func refuseWalletOnlyFlags(cmd *cobra.Command) error {
+	var set []string
+	for _, name := range issueWalletOnlyFlags {
+		if flag := cmd.Flags().Lookup(name); flag != nil && flag.Changed {
+			set = append(set, "--"+name)
+		}
+	}
+	if len(set) == 0 {
+		return nil
+	}
+	return fmt.Errorf("%s apply only with --wallet", strings.Join(set, ", "))
+}
+
 func runIssueSDJWT(cmd *cobra.Command, args []string) error {
 	if issueToWallet {
 		return runIssueSDJWTToWallet(cmd)
+	}
+	if err := refuseWalletOnlyFlags(cmd); err != nil {
+		return err
 	}
 
 	key, err := loadOrGenerateIssueKey()
@@ -238,6 +266,9 @@ func runIssueJWT(cmd *cobra.Command, args []string) error {
 	if issueToWallet {
 		return runIssueJWTToWallet(cmd)
 	}
+	if err := refuseWalletOnlyFlags(cmd); err != nil {
+		return err
+	}
 
 	key, err := loadOrGenerateIssueKey()
 	if err != nil {
@@ -284,6 +315,9 @@ func runIssueJWT(cmd *cobra.Command, args []string) error {
 func runIssueMDOC(cmd *cobra.Command, args []string) error {
 	if issueToWallet {
 		return runIssueMDOCToWallet(cmd)
+	}
+	if err := refuseWalletOnlyFlags(cmd); err != nil {
+		return err
 	}
 
 	key, err := loadOrGenerateIssueKey()
@@ -450,6 +484,11 @@ func runIssueToWallet(cmd *cobra.Command, format string) error {
 	if err != nil {
 		return err
 	}
+	if _, ok := svc.(*remoteWallet); ok {
+		if err := refuseLocalIssuerFlags(cmd, svc.URL()); err != nil {
+			return err
+		}
+	}
 	result, err := svc.Issue(req)
 	if err != nil {
 		return err
@@ -469,6 +508,23 @@ func runIssueToWallet(cmd *cobra.Command, format string) error {
 	}
 	fmt.Fprintf(os.Stderr, "Imported %s credential (%s) into wallet\n", docString(result, "format"), label)
 	return nil
+}
+
+// refuseLocalIssuerFlags reports the flags a wallet server can't apply. The
+// server signs with its own issuer URL and key. Only a key sent with its
+// --cert chain overrides them.
+func refuseLocalIssuerFlags(cmd *cobra.Command, target string) error {
+	var set []string
+	if cmd.Flags().Changed("iss") {
+		set = append(set, "--iss")
+	}
+	if issueKeyPath != "" && issueCertPath == "" {
+		set = append(set, "--key without --cert")
+	}
+	if len(set) == 0 {
+		return nil
+	}
+	return fmt.Errorf("the wallet at %s issues with its own issuer URL and key, so it can't use %s. Pass --key with --cert to sign with your own key, or add --remote local to use the local store", target, strings.Join(set, ", "))
 }
 
 // printIssuedCredential prints the bare credential. With --json it prints
@@ -708,17 +764,8 @@ func displayImageArg(value string) (string, error) {
 }
 
 func displayImageMIME(path string, data []byte) string {
-	switch strings.ToLower(filepath.Ext(path)) {
-	case ".svg":
-		return "image/svg+xml"
-	case ".png":
-		return "image/png"
-	case ".jpg", ".jpeg":
-		return "image/jpeg"
-	case ".gif":
-		return "image/gif"
-	case ".webp":
-		return "image/webp"
+	if mediaType, ok := format.ImageMediaType(path); ok {
+		return mediaType
 	}
 	return http.DetectContentType(data)
 }

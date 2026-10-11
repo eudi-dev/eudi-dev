@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -85,5 +86,37 @@ func TestAcceptOID4URIRoutesToRemote(t *testing.T) {
 				t.Errorf("remote received uri %q, want %q", gotURI, tt.uri)
 			}
 		})
+	}
+}
+
+// A running wallet reports its flow like the local one: text without --json.
+// It answers on its own address, so the local listener flags are refused.
+func TestRemoteAcceptPrintsTextAndRefusesListenerFlags(t *testing.T) {
+	resetRemoteTestState(t)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/api/offers" {
+			fmt.Fprint(w, `{"credential_id":"c1","format":"dc+sd-jwt","issuer":"https://issuer.example"}`)
+			return
+		}
+		fmt.Fprint(w, `{"status":"submitted","response":{"status_code":200}}`)
+	}))
+	defer ts.Close()
+	remoteFlag = ts.URL
+
+	vp := "openid4vp://?client_id=x509_hash:abc&request_uri=https://verifier.example/req"
+	vci := "openid-credential-offer://?credential_offer=%7B%22credential_issuer%22%3A%22https%3A%2F%2Fissuer.example%22%7D"
+	for uri, want := range map[string]string{vp: "submitted: HTTP 200", vci: "Received dc+sd-jwt credential from https://issuer.example (ID: c1)"} {
+		var err error
+		out := captureStdout(t, func() { err = acceptOID4URI(uri, dispatchOID4Opts{autoAccept: true}) })
+		if err != nil || !strings.Contains(out, want) {
+			t.Errorf("remote accept printed %q, %v, want %q", out, err, want)
+		}
+	}
+
+	for _, opts := range []dispatchOID4Opts{{autoAccept: true, port: 9999, portExplicit: true}, {autoAccept: true, docker: true}} {
+		if err := acceptOID4URI(vp, opts); err == nil || !strings.Contains(err.Error(), "--remote local") {
+			t.Errorf("remote accept with --port %v, --docker %v: %v, want a refusal", opts.portExplicit, opts.docker, err)
+		}
 	}
 }

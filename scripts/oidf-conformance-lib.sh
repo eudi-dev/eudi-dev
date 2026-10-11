@@ -113,12 +113,13 @@ EOF
   cat >&2 <<EOF
 error: local OIDF conformance-suite is not reachable at ${CONFORMANCE_SERVER%/}
 
-Start the latest local suite first. The server has to run on the host and
-advertise localhost, not the upstream localhost.emobix.co.uk, so the wallet
-trusts its request_uri over TLS (see docs/conformance-run.md):
+Start the local suite at the release the runner uses (${SUITE_TAG:-unknown}) first.
+The server has to run on the host and advertise localhost, not the upstream
+localhost.emobix.co.uk, so the wallet trusts its request_uri over TLS (see
+docs/conformance-run.md):
   cd ../conformance-suite
   git fetch --tags
-  git checkout release-v5.3.1
+  git checkout ${SUITE_TAG:-<release tag>}
   mvn clean package   # with JDK 21
   docker compose -f docker-compose-dev-mac-nodocker.yml up --detach
   java -jar target/fapi-test-suite.jar --fintechlabs.devmode=true --fintechlabs.base_url=https://localhost:8443 --fintechlabs.base_mtls_url=https://localhost:8444 --spring.mongodb.uri=mongodb://127.0.0.1:27017/test_suite

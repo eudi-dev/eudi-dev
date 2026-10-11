@@ -1,5 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
+const { waitForServer } = require("./helpers");
 const { execSync } = require("child_process");
 const crypto = require("crypto");
 const http = require("http");
@@ -50,29 +51,6 @@ test.afterAll(async () => {
     walletProcess.kill("SIGTERM");
   }
 });
-
-async function waitForServer(url, timeoutMs) {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    try {
-      await new Promise((resolve, reject) => {
-        const req = http.get(url, (res) => {
-          res.resume();
-          resolve(res);
-        });
-        req.on("error", reject);
-        req.setTimeout(500, () => {
-          req.destroy();
-          reject(new Error("timeout"));
-        });
-      });
-      return;
-    } catch {
-      await new Promise((r) => setTimeout(r, 200));
-    }
-  }
-  throw new Error(`Server at ${url} did not start within ${timeoutMs}ms`);
-}
 
 async function jsonPost(url, body) {
   return new Promise((resolve, reject) => {
@@ -1187,8 +1165,8 @@ test.describe("Stored XSS", () => {
     expect(attrs).not.toContain("onmouseover");
 
     const box = await badge.boundingBox();
+    // The browser runs a mouseover handler while it dispatches the move.
     if (box) await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-    await page.waitForTimeout(200);
     expect(await page.evaluate(() => window.__XSS_FIRED)).toBeUndefined();
   });
 
@@ -1403,7 +1381,6 @@ test.describe("A credential bound to a key the wallet does not hold", () => {
     });
   });
 });
-
 
 function activityJWT(subject) {
   return [JSON.stringify({ alg: "none", typ: "JWT" }), JSON.stringify({ sub: subject })]

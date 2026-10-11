@@ -424,6 +424,43 @@ func TestFile_WriteIfRefusesAVersionFromTheSameTimestampTick(t *testing.T) {
 }
 
 // A blob that exists but cannot be read is an error, never a missing key.
+func TestStore_ExistsReportsABlob(t *testing.T) {
+	for kind, store := range backends(t) {
+		t.Run(kind, func(t *testing.T) {
+			key := scope(t) + "/assets/image.png"
+			defer store.Delete(key)
+			if ok, err := store.Exists(key); ok || err != nil {
+				t.Fatalf("Exists of a missing key = %v, %v", ok, err)
+			}
+			if _, err := store.Write(key, []byte("png"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if ok, err := store.Exists(key); !ok || err != nil {
+				t.Fatalf("Exists of a written key = %v, %v", ok, err)
+			}
+		})
+	}
+}
+
+// An existence check on the file backend reads the file's metadata only, so
+// it answers for a blob it may not read.
+func TestFile_ExistsReadsNoContent(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads files regardless of their mode")
+	}
+	root := t.TempDir()
+	store := NewFile(root)
+	if _, err := store.Write("assets/image.png", []byte("png"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(filepath.Join(root, "assets", "image.png"), 0); err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := store.Exists("assets/image.png"); !ok || err != nil {
+		t.Fatalf("Exists of an unreadable blob = %v, %v", ok, err)
+	}
+}
+
 func TestStat_ReportsErrorsOtherThanAMissingKey(t *testing.T) {
 	failing := failingStore{err: errors.New("database unreachable")}
 	if _, err := failing.Stat("wallet/wallet.json"); err == nil || errors.Is(err, fs.ErrNotExist) {

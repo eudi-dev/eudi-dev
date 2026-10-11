@@ -38,7 +38,7 @@ func TestHandleHAR(t *testing.T) {
 		DurationMS:      10,
 	})
 
-	d := NewDashboard(store, 0)
+	d := NewDashboard(store)
 
 	req := httptest.NewRequest("GET", "/api/har", nil)
 	w := httptest.NewRecorder()
@@ -75,7 +75,7 @@ func TestHandleHAR(t *testing.T) {
 
 func TestHandleHAREmpty(t *testing.T) {
 	store := NewStore(100)
-	d := NewDashboard(store, 0)
+	d := NewDashboard(store)
 
 	req := httptest.NewRequest("GET", "/api/har", nil)
 	w := httptest.NewRecorder()
@@ -98,7 +98,7 @@ func TestHandleEntries(t *testing.T) {
 		StatusCode: 200,
 	})
 
-	d := NewDashboard(store, 0)
+	d := NewDashboard(store)
 
 	req := httptest.NewRequest("GET", "/api/entries", nil)
 	w := httptest.NewRecorder()
@@ -120,7 +120,7 @@ func TestHandleEntries(t *testing.T) {
 
 func TestHandleEntriesEmpty(t *testing.T) {
 	store := NewStore(100)
-	d := NewDashboard(store, 0)
+	d := NewDashboard(store)
 
 	req := httptest.NewRequest("GET", "/api/entries", nil)
 	w := httptest.NewRecorder()
@@ -139,7 +139,7 @@ func TestHandleEntriesMultiple(t *testing.T) {
 		store.Add(&TrafficEntry{Method: "GET", URL: "http://example.com/", StatusCode: 200})
 	}
 
-	d := NewDashboard(store, 0)
+	d := NewDashboard(store)
 	req := httptest.NewRequest("GET", "/api/entries", nil)
 	w := httptest.NewRecorder()
 	d.handleEntries(w, req)
@@ -153,7 +153,7 @@ func TestHandleEntriesMultiple(t *testing.T) {
 
 func TestHandleStream(t *testing.T) {
 	store := NewStore(100)
-	d := NewDashboard(store, 0)
+	d := NewDashboard(store)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/stream", d.handleStream)
@@ -204,7 +204,7 @@ func TestHandleStream(t *testing.T) {
 // Captured traffic carries tokens, so a page on another origin must not read
 // the stream.
 func TestHandleStreamIsReadableOnlyFromTheDashboardOrigin(t *testing.T) {
-	srv := httptest.NewServer(NewDashboard(NewStore(10), 0).Handler())
+	srv := httptest.NewServer(NewDashboard(NewStore(10)).Handler())
 	defer srv.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -237,7 +237,7 @@ func TestHandleHARExportsTheRecordedTraffic(t *testing.T) {
 	})
 
 	w := httptest.NewRecorder()
-	NewDashboard(store, 0).handleHAR(w, httptest.NewRequest("GET", "/api/har", nil))
+	NewDashboard(store).handleHAR(w, httptest.NewRequest("GET", "/api/har", nil))
 
 	if got := w.Header().Get("Content-Disposition"); got != `attachment; filename="eudi-dev.har"` {
 		t.Errorf("Content-Disposition %q", got)
@@ -280,7 +280,7 @@ func TestDashboardBelowPathPrefix(t *testing.T) {
 		{name: "forwarded prefix", headers: map[string]string{"X-Forwarded-Prefix": "/eudi-proxy"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			d := NewDashboard(store, 0)
+			d := NewDashboard(store)
 			if err := d.SetBaseURL(tc.baseURL); err != nil {
 				t.Fatal(err)
 			}
@@ -309,7 +309,7 @@ func TestDashboardBelowPathPrefix(t *testing.T) {
 }
 
 func TestDashboardAtRootUnchanged(t *testing.T) {
-	h := NewDashboard(NewStore(10), 0).Handler()
+	h := NewDashboard(NewStore(10)).Handler()
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest("GET", "/", nil))
 	if rec.Code != http.StatusOK || strings.Contains(rec.Body.String(), "<base") {
@@ -319,7 +319,7 @@ func TestDashboardAtRootUnchanged(t *testing.T) {
 
 func TestDashboardRejectsBasePathOnItsRoutes(t *testing.T) {
 	for _, path := range []string{"/api", "/decode/x", "/app.js"} {
-		if err := NewDashboard(NewStore(10), 0).SetBaseURL("https://mydomain.de" + path); err == nil {
+		if err := NewDashboard(NewStore(10)).SetBaseURL("https://mydomain.de" + path); err == nil {
 			t.Errorf("base path %s accepted", path)
 		}
 	}

@@ -283,19 +283,23 @@ func processCredentialOffer(uri string, opts dispatchOID4Opts) error {
 		return fmt.Errorf("saving wallet: %w", err)
 	}
 
-	printIssuanceResult(result)
+	printIssuanceResult(result, "")
 	return nil
 }
 
-// printIssuanceResult reports a one-shot issuance. With --json, stdout carries
-// only the result (ADR 0020).
-func printIssuanceResult(result *wallet.IssuanceResult) {
+// printIssuanceResult reports an issuance. server is the URL of the running
+// wallet that issued it, or empty for a one-shot issuance. With --json,
+// stdout carries only the result (ADR 0020).
+func printIssuanceResult(result *wallet.IssuanceResult, server string) {
 	if result.Pending {
-		// Without a wallet server nothing collects a deferred credential
-		// later, so say so.
 		fmt.Fprintf(humanOut(), "Issuer %s deferred the credential (transaction %s, retry every %s)\n",
 			result.Issuer, result.TransactionID, result.RetryInterval)
-		fmt.Fprintln(humanOut(), "Run 'eudi wallet serve' and accept the offer there to have the wallet collect it in the background.")
+		// Only a wallet server collects a deferred credential later.
+		if server != "" {
+			fmt.Fprintf(humanOut(), "The wallet at %s collects it in the background.\n", server)
+		} else {
+			fmt.Fprintln(humanOut(), "Run 'eudi wallet serve' and accept the offer there to have the wallet collect it in the background.")
+		}
 	} else {
 		fmt.Fprintf(humanOut(), "Received %s credential from %s (ID: %s)\n", result.Format, result.Issuer, result.CredentialID)
 		if result.VerificationDetail != "" {

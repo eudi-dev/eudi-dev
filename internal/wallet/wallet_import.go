@@ -26,6 +26,7 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
@@ -345,7 +346,7 @@ func (w *Wallet) ImportCredentialFromFile(path string) error {
 // Rehydrate rebuilds parsed fields from Raw because they are not serialized.
 func (c *StoredCredential) Rehydrate() error {
 	if r := c.Renewal; r != nil && r.ClientAuth != nil && r.ClientAuth.LegacyClientID != "" {
-		r.ClientID = firstNonEmpty(r.ClientID, r.ClientAuth.LegacyClientID)
+		r.ClientID = jsonutil.FirstNonEmpty(r.ClientID, r.ClientAuth.LegacyClientID)
 		r.ClientAuth.LegacyClientID = ""
 	}
 	if c.Raw == "" {

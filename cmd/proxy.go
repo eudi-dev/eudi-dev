@@ -44,6 +44,7 @@ var (
 
 var proxyCmd = &cobra.Command{
 	Use:   "proxy [-- command args...]",
+	Args:  cobra.ArbitraryArgs,
 	Short: "Start a debugging reverse proxy for OID4VP/VCI flows",
 	Long: `Starts a reverse proxy that intercepts, classifies, and decodes OID4VP/VCI
 traffic between a wallet and a verifier/issuer. Point your wallet at the proxy
@@ -110,7 +111,7 @@ func runProxy(cmd *cobra.Command, args []string) error {
 
 	var dashboard *proxy.Dashboard
 	if !noDashboard {
-		dashboard = proxy.NewDashboard(srv.Store(), dashboardPort)
+		dashboard = proxy.NewDashboard(srv.Store())
 		if err := dashboard.SetBaseURL(dashboardBaseURL); err != nil {
 			return fmt.Errorf("--dashboard-base-url: %w", err)
 		}

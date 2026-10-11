@@ -82,7 +82,7 @@ type Server struct {
 	imprintHTML []byte
 	news        *news.News
 	// ShutdownFunc runs after POST /api/shutdown has responded. The serve command
-	// sets it to deregister the instance and exit. When nil the process exits
+	// sets it to stop the server gracefully. When nil the process exits
 	// directly.
 	ShutdownFunc func()
 	// DELETE /api/config/conformance restores these startup settings. Demo mode

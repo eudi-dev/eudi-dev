@@ -15,6 +15,7 @@
 package cmd
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
@@ -27,6 +28,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/remote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
 )
@@ -77,6 +79,53 @@ func TestServeUntilSignalStopsOnASignal(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("the server kept running after the signal")
+	}
+}
+
+// Cobra accepts stray arguments for a command without an Args rule, so every
+// runnable command states which arguments it takes.
+func TestEveryCommandDeclaresItsArguments(t *testing.T) {
+	var walk func(c *cobra.Command)
+	walk = func(c *cobra.Command) {
+		if c.Runnable() && c.Args == nil && !c.DisableFlagParsing && c.Name() != "help" {
+			t.Errorf("%s has no Args rule", c.CommandPath())
+		}
+		for _, sub := range c.Commands() {
+			walk(sub)
+		}
+	}
+	walk(rootCmd)
+}
+
+// POST /api/shutdown stops the server like a signal, so wallet serve returns
+// and its deferred cleanup runs.
+func TestServeWalletReturnsAfterAPIShutdown(t *testing.T) {
+	port, err := findFreePresentationPortPair(23000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	holderKey, _ := mock.GenerateKey()
+	issuerKey, _ := mock.GenerateKey()
+	srv := wallet.NewServer(wallet.New(holderKey, issuerKey, false), port, nil)
+	done := make(chan error, 1)
+	go func() { done <- serveWallet(srv, make(chan os.Signal)) }()
+	c := remote.NewClient(fmt.Sprintf("http://localhost:%d", port))
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if err := c.Shutdown(); err == nil {
+			break
+		} else if time.Now().After(deadline) {
+			t.Fatalf("shutdown request: %v", err)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("serveWallet: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the server kept running after POST /api/shutdown")
 	}
 }
 

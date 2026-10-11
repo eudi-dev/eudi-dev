@@ -109,12 +109,17 @@ func ResolveJWTIssuerMetadataKeys(token *sdjwt.Token, tlCerts []lote.CertInfo, c
 		return keys, "issuer metadata (x5c chain verified)", nil
 	}
 
+	var parseErr error
 	for _, jwk := range jwks {
 		key, err := jwkPublicKey(jwk)
 		if err != nil {
-			return nil, "", err
+			parseErr = err
+			continue
 		}
 		keys = append(keys, key)
+	}
+	if len(keys) == 0 && parseErr != nil {
+		return nil, "", parseErr
 	}
 	return keys, "issuer metadata", nil
 }

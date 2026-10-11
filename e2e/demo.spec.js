@@ -2,8 +2,8 @@
 // Demo requests belong to the browser that started them. A request without an owner
 // stays available through the Review bar.
 const { test, expect } = require("@playwright/test");
+const { waitForServer } = require("./helpers");
 const { execSync, spawn } = require("child_process");
-const http = require("http");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -50,29 +50,6 @@ test.afterAll(() => {
   if (walletProcess) walletProcess.kill("SIGTERM");
 });
 
-async function waitForServer(url, timeoutMs) {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    try {
-      await new Promise((resolve, reject) => {
-        const req = http.get(url, (res) => {
-          res.resume();
-          resolve(res);
-        });
-        req.on("error", reject);
-        req.setTimeout(500, () => {
-          req.destroy();
-          reject(new Error("timeout"));
-        });
-      });
-      return;
-    } catch {
-      await new Promise((r) => setTimeout(r, 200));
-    }
-  }
-  throw new Error(`Server at ${url} did not start within ${timeoutMs}ms`);
-}
-
 async function postJSON(pathname, body) {
   const res = await fetch(BASE + pathname, {
     method: "POST",
@@ -80,6 +57,11 @@ async function postJSON(pathname, body) {
     body: JSON.stringify(body),
   });
   return { status: res.status, body: await res.json().catch(() => ({})) };
+}
+
+async function verifierResult(id) {
+  const res = await fetch(`${BASE}/verifier/api/requests/${id}`);
+  return await res.json();
 }
 
 async function createVerifierRequest(page, credential) {
@@ -338,8 +320,15 @@ test.describe("Demo mode consent visibility", () => {
     const uri = "openid-credential-offer://?credential_offer=" + encodeURIComponent(JSON.stringify(offerDoc));
 
     // Dialogs are recorded from first paint. A retrying assertion could miss a brief stale
-    // error.
+    // error. The page reads a stale error with a fetch, so the test waits until every
+    // fetch of the page has finished.
     await page.addInitScript(() => {
+      window.__fetches = 0;
+      const original = window.fetch;
+      window.fetch = (...args) => {
+        window.__fetches++;
+        return original(...args).finally(() => setTimeout(() => window.__fetches--, 0));
+      };
       window.__dialogs = [];
       document.addEventListener("DOMContentLoaded", () => {
         const dialog = document.getElementById("consent-dialog");
@@ -358,7 +347,7 @@ test.describe("Demo mode consent visibility", () => {
 
     await expect(page.locator("#consent-overlay")).toHaveClass(/active/);
     await expect(page.locator("#consent-dialog")).toContainText("Demo Event Ticket");
-    await page.waitForTimeout(1000);
+    await page.waitForFunction(() => window.__fetches === 0);
 
     const shown = await page.evaluate(() => window.__dialogs);
     expect(shown.join(" | ")).not.toMatch(/Error/);
@@ -465,9 +454,17 @@ test.describe("Demo mode consent visibility", () => {
 
     const second = await createVerificationRequest();
     submitAsSchemeHandler("/api/presentations", second.schemeURI, "someone-else");
-    await page.waitForTimeout(1000);
+    await waitForPending(1, "someone-else");
+    // The stream delivers events in order. The tab's own third request shows
+    // after the tab has seen the other owner's request.
+    const third = await createVerificationRequest();
+    submitAsSchemeHandler("/api/presentations", third.schemeURI, owner);
+    await expect(page.locator("#consent-overlay")).toHaveClass(/active/);
+    await page.locator("#consent-deny").click();
     await expect(page.locator("#consent-overlay")).not.toHaveClass(/active/);
     await expect(page.locator("#pending-banner")).toBeHidden();
+    expect((await listPending("someone-else")).length, "the other owner's request stays pending").toBe(1);
+    await clearPending("someone-else");
   });
 
   test("a request pushed off screen by a second one is offered in the banner", async ({
@@ -880,11 +877,6 @@ test.describe("Consent credential selection", () => {
     return (await verifierResult(id)).status;
   }
 
-  async function verifierResult(id) {
-    const res = await fetch(`${BASE}/verifier/api/requests/${id}`);
-    return await res.json();
-  }
-
   test("the main screen shows the auto-selection and announces the alternatives", async ({ page }) => {
     await openConsent(page);
 
@@ -1201,13 +1193,39 @@ test.describe("Multi-tab dialogs", () => {
   });
 });
 
+// The page's clock is installed, so a test moves time forward instead of
+// sleeping.
 test.describe("Verifier polling", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.clock.install();
+  });
+
   function countPolls(page) {
-    const state = { n: 0 };
+    const open = new Set();
+    const state = {
+      n: 0,
+      get open() {
+        return open.size;
+      },
+    };
     page.on("request", (req) => {
-      if (req.url().includes("/verifier/api/requests/")) state.n++;
+      if (!req.url().includes("/verifier/api/requests/")) return;
+      state.n++;
+      open.add(req);
     });
+    const done = (req) => open.delete(req);
+    page.on("requestfinished", done);
+    page.on("requestfailed", done);
     return state;
+  }
+
+  // advance moves the clock in steps and lets each poll finish, so the page
+  // schedules the next poll from its answer as it does in real time.
+  async function advance(page, polls, ms) {
+    for (let elapsed = 0; elapsed < ms; elapsed += 250) {
+      await page.clock.runFor(250);
+      await expect.poll(() => polls.open).toBe(0);
+    }
   }
 
   test("an unknown or expired request stops the polling", async ({ page }) => {
@@ -1215,7 +1233,7 @@ test.describe("Verifier polling", () => {
     await expect(page.locator("#status")).toHaveText(/expired/, { timeout: 10_000 });
 
     const polls = countPolls(page);
-    await page.waitForTimeout(4000);
+    await advance(page, polls, 20_000);
     expect(polls.n, "no further polls after the request is gone").toBe(0);
   });
 
@@ -1231,7 +1249,7 @@ test.describe("Verifier polling", () => {
     });
 
     const polls = countPolls(page);
-    await page.waitForTimeout(8000);
+    await advance(page, polls, 20_000);
     expect(polls.n, "a hidden tab must not keep polling").toBe(0);
   });
 
@@ -1259,8 +1277,10 @@ test.describe("Verifier polling", () => {
     page.on("request", (req) => {
       if (req.url().endsWith("/verifier/api/requests/" + firstID)) stalePolls.push(req.url());
     });
+    const firstAnswered = page.waitForResponse((resp) => resp.url().endsWith("/verifier/api/requests/" + firstID));
     releaseFirst();
-    await page.waitForTimeout(5000);
+    await firstAnswered;
+    await advance(page, countPolls(page), 20_000);
     expect(stalePolls, "the older request must not be polled again").toEqual([]);
   });
 
@@ -1270,7 +1290,7 @@ test.describe("Verifier polling", () => {
     await createVerifierRequest(page, "pid");
     await expect(page.locator("#status")).toHaveText(/Waiting/);
 
-    await page.waitForTimeout(10_000);
+    await advance(page, polls, 10_000);
     expect(polls.n, `polls in 10s: ${polls.n}`).toBeLessThanOrEqual(5);
     expect(polls.n, "but it must still be polling").toBeGreaterThan(0);
   });
@@ -1410,11 +1430,6 @@ test.describe("Custom verifier request builder", () => {
     test.setTimeout(180_000);
     await clearPending();
   });
-
-  async function verifierResult(id) {
-    const res = await fetch(`${BASE}/verifier/api/requests/${id}`);
-    return await res.json();
-  }
 
   async function buildCustom(page, nationalitiesPath, { multiple = false } = {}) {
     await page.goto(`${BASE}/verifier/`);

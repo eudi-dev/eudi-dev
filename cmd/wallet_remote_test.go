@@ -212,6 +212,26 @@ func resetIssueFlagChanges(t *testing.T) {
 	remoteFlag = ""
 }
 
+// A wallet server signs with its own issuer URL and key. The remote route
+// refuses --iss and a --key without its --cert chain.
+func TestRemoteIssueRefusesLocalIssuerFlags(t *testing.T) {
+	resetRemoteTestState(t)
+	url, _ := startRemoteTestWallet(t)
+	t.Cleanup(func() { issueIssuer = issueSDJWTCmd.Flags().Lookup("iss").DefValue; issueKeyPath = "" })
+	keyPath := filepath.Join(t.TempDir(), "issuer.pem")
+	for _, args := range [][]string{{"--iss", "https://other.example"}, {"--key", keyPath}} {
+		resetIssueFlagChanges(t)
+		rootCmd.SetArgs(append([]string{"issue", "sdjwt", "--wallet", "--template", "german-pid-sdjwt", "--remote", url}, args...))
+		if err := rootCmd.Execute(); err == nil || !strings.Contains(err.Error(), args[0]) {
+			t.Fatalf("remote issue with %s: %v, want a refusal naming the flag", args[0], err)
+		}
+	}
+	creds, err := remote.NewClient(url).Credentials()
+	if err != nil || len(creds) != 0 {
+		t.Fatalf("remote credentials %v, %v, want none", creds, err)
+	}
+}
+
 func TestRemoteTemplatesViaCLI(t *testing.T) {
 	resetRemoteTestState(t)
 	url, _ := startRemoteTestWallet(t)

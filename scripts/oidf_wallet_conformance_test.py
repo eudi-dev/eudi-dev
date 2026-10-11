@@ -271,6 +271,40 @@ class CredentialChainTests(unittest.TestCase):
             self.assertEqual(oidf.credential_chain_der({'format': 'mso_mdoc', 'raw': encoded}), expected)
 
 
+class ProviderRoleTests(unittest.TestCase):
+    """The PID key is the one whose certificate the PID provider CA issued."""
+
+    def jwk(self, ca_issuers):
+        import base64
+        import datetime
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import ec
+        from cryptography.x509.oid import AuthorityInformationAccessOID, NameOID
+
+        key = ec.generate_private_key(ec.SECP256R1())
+        name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, 'signer')])
+        now = datetime.datetime.now(datetime.timezone.utc)
+        builder = (x509.CertificateBuilder()
+                   .subject_name(name).issuer_name(name)
+                   .public_key(key.public_key())
+                   .serial_number(x509.random_serial_number())
+                   .not_valid_before(now - datetime.timedelta(days=1))
+                   .not_valid_after(now + datetime.timedelta(days=30)))
+        if ca_issuers:
+            builder = builder.add_extension(x509.AuthorityInformationAccess([
+                x509.AccessDescription(AuthorityInformationAccessOID.CA_ISSUERS, x509.UniformResourceIdentifier(ca_issuers))
+            ]), critical=False)
+        der = builder.sign(key, hashes.SHA256()).public_bytes(serialization.Encoding.DER)
+        return {'kty': 'EC', 'x5c': [base64.b64encode(der).decode()]}
+
+    def test_matches_the_role_of_the_issuing_ca(self):
+        self.assertTrue(oidf.signs_for_provider_role(self.jwk('https://w.example/api/certificates/providers/pid/DE.der'), 'pid'))
+        self.assertFalse(oidf.signs_for_provider_role(self.jwk('https://w.example/api/certificates/providers/eaa/NL.der'), 'pid'))
+        self.assertFalse(oidf.signs_for_provider_role(self.jwk(None), 'pid'))
+        self.assertFalse(oidf.signs_for_provider_role({'kty': 'EC'}, 'pid'))
+
+
 class WalletActivityExportTests(unittest.TestCase):
     def test_exports_activity_payloads_and_clears_the_log(self):
         entries = [{

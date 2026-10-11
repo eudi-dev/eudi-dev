@@ -44,27 +44,31 @@ def request(method: str, path: str):
         return e.code, None
 
 
-deleted = 0
-kept = []
+PAGE = 100
+plans = []
 while True:
-    status, page = request("GET", "/api/plan?draw=1&start=0&length=100")
+    status, page = request("GET", f"/api/plan?draw=1&start={len(plans)}&length={PAGE}")
     if status != 200 or page is None:
         raise SystemExit(f"error: listing plans failed with HTTP {status}")
-    plans = [p for p in page.get("data", []) if p.get("_id") not in kept]
-    if not plans:
+    data = page.get("data", [])
+    plans.extend(data)
+    if len(data) < PAGE:
         break
-    for plan in plans:
-        plan_id = plan["_id"]
-        name = plan.get("planName", "?")
-        status, _ = request("DELETE", f"/api/plan/{plan_id}")
-        if status == 204:
-            deleted += 1
-            print(f"deleted {plan_id} ({name})")
-        elif status == 405:
-            kept.append(plan_id)
-            print(f"kept {plan_id} ({name}): the plan is published and immutable")
-        else:
-            raise SystemExit(f"error: deleting plan {plan_id} failed with HTTP {status}")
 
-print(f"{deleted} plan(s) deleted, {len(kept)} kept on {base}")
+# The listing is read whole first because every deletion shifts the pages.
+deleted = kept = 0
+for plan in plans:
+    plan_id = plan["_id"]
+    name = plan.get("planName", "?")
+    status, _ = request("DELETE", f"/api/plan/{plan_id}")
+    if status == 204:
+        deleted += 1
+        print(f"deleted {plan_id} ({name})")
+    elif status == 405:
+        kept += 1
+        print(f"kept {plan_id} ({name}): the plan is published and immutable")
+    else:
+        raise SystemExit(f"error: deleting plan {plan_id} failed with HTTP {status}")
+
+print(f"{deleted} plan(s) deleted, {kept} kept on {base}")
 PY

@@ -55,7 +55,7 @@ type StatusListConfig struct {
 
 func (c StatusListConfig) issuer() string {
 	if c.Issuer == "" {
-		return "https://issuer.example"
+		return mock.DefaultIssuer
 	}
 	return c.Issuer
 }

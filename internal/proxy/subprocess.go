@@ -16,11 +16,13 @@ package proxy
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"sync"
+	"time"
 
 	"github.com/fatih/color"
 )
@@ -51,14 +53,14 @@ func StartSubprocess(args []string, scanner *OutputScanner, out io.Writer) (*Sub
 	cmd.Env = os.Environ()
 	setProcAttr(cmd)
 
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, fmt.Errorf("stdout pipe: %w", err)
-	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, fmt.Errorf("stderr pipe: %w", err)
-	}
+	// The streams go through pipes the proxy owns, so cmd.Wait honours
+	// WaitDelay. A grandchild that left the process group may keep the
+	// service's output open after the service exits.
+	stdout, stdoutW := io.Pipe()
+	stderr, stderrW := io.Pipe()
+	cmd.Stdout = stdoutW
+	cmd.Stderr = stderrW
+	cmd.WaitDelay = outputWaitDelay
 
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("starting %s: %w", args[0], err)
@@ -79,15 +81,23 @@ func StartSubprocess(args []string, scanner *OutputScanner, out io.Writer) (*Sub
 	go func() { defer reading.Done(); sub.scanStream(stderr) }()
 
 	go func() {
-		// exec.Cmd.Wait closes the pipes, so it runs after both are read to
-		// the end.
+		err := cmd.Wait()
+		if errors.Is(err, exec.ErrWaitDelay) {
+			err = nil
+		}
+		_ = stdoutW.Close()
+		_ = stderrW.Close()
 		reading.Wait()
-		sub.err = cmd.Wait()
+		sub.err = err
 		close(sub.done)
 	}()
 
 	return sub, nil
 }
+
+// outputWaitDelay bounds how long the proxy reads the output of an exited
+// service.
+const outputWaitDelay = 2 * time.Second
 
 // maxLineLength bounds the memory for one output line. A longer line is
 // forwarded in pieces of this length.
@@ -128,10 +138,4 @@ func scanLinesUpTo(max int) bufio.SplitFunc {
 func (s *Subprocess) Wait() error {
 	<-s.done
 	return s.err
-}
-
-// Done returns a channel that is closed when the process exits. Read the exit
-// error with Wait afterwards.
-func (s *Subprocess) Done() <-chan struct{} {
-	return s.done
 }

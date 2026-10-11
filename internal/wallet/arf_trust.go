@@ -25,6 +25,7 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
@@ -87,7 +88,7 @@ func (w *Wallet) PrepareARFChecks(params *oid4vp.Request) {
 // RegistrarBase is the base URL of the registrar's default contact URLs and
 // registry URIs.
 func (w *Wallet) RegistrarBase() string {
-	return firstNonEmpty(strings.TrimRight(w.IssuerURL, "/"), strings.TrimRight(w.BaseURL, "/"), "https://issuer.example")
+	return jsonutil.FirstNonEmpty(strings.TrimRight(w.IssuerURL, "/"), strings.TrimRight(w.BaseURL, "/"), "https://issuer.example")
 }
 
 // Registrar is the wallet's registrar. It works on the registrar state stored
@@ -107,15 +108,6 @@ func (e registrarEnv) RelyingPartyAccessCA() (*ecdsa.PrivateKey, *x509.Certifica
 	return e.w.Signer().RelyingPartyAccessCA()
 }
 func (e registrarEnv) TemplateLocation() credtemplate.Location { return e.w.Templates }
-
-func firstNonEmpty(values ...string) string {
-	for _, v := range values {
-		if v = strings.TrimSpace(v); v != "" {
-			return v
-		}
-	}
-	return ""
-}
 
 // TrustedLists is the wallet's set of trusted lists. It works on the
 // additions stored in the wallet.

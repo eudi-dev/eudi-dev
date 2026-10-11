@@ -12,12 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build !darwin && !linux
+//go:build !darwin
 
 package urlhandler
 
-func Register(opts Options) (Registration, error) {
-	_ = opts
+func Register(Options) (Registration, error) {
 	return Registration{}, nil
 }
 

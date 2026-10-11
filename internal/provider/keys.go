@@ -270,8 +270,8 @@ func readVersioned(backend storage.Store, key string) (data []byte, version stri
 func (s *Keys) retainCertificate(cert *x509.Certificate) (*x509.Certificate, error) {
 	digest := sha256.Sum256(cert.Raw)
 	key := s.retainedCertificateKey(fmt.Sprintf("%x", digest))
-	_, err := s.backend.Stat(key)
-	if errors.Is(err, fs.ErrNotExist) {
+	exists, err := s.backend.Exists(key)
+	if err == nil && !exists {
 		if _, err = s.backend.WriteIf(key, cert.Raw, 0644, ""); errors.Is(err, storage.ErrConflict) {
 			err = nil
 		}

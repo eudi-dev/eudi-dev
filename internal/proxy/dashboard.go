@@ -39,12 +39,11 @@ var streamWriteTimeout = config.SlowRequestTimeout
 
 type Dashboard struct {
 	store   *Store
-	port    int
 	baseURL string
 }
 
-func NewDashboard(store *Store, port int) *Dashboard {
-	return &Dashboard{store: store, port: port}
+func NewDashboard(store *Store) *Dashboard {
+	return &Dashboard{store: store}
 }
 
 // SetBaseURL sets the dashboard's public URL behind a reverse proxy, such as
@@ -96,17 +95,6 @@ func (d *Dashboard) Handler() http.Handler {
 			log.Printf("Warning: a dashboard request came in with %s, but --dashboard-base-url is %s", observed, d.baseURL)
 		},
 	}, httpsec.Headers(mux))
-}
-
-func (d *Dashboard) ListenAndServe() error {
-	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%d", d.port),
-		Handler:      d.Handler(),
-		ReadTimeout:  config.ServerReadTimeout,
-		WriteTimeout: config.ServerWriteTimeout,
-		IdleTimeout:  config.ServerIdleTimeout,
-	}
-	return srv.ListenAndServe()
 }
 
 func (d *Dashboard) handleEntries(w http.ResponseWriter, r *http.Request) {

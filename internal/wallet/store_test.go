@@ -266,8 +266,8 @@ func TestWalletStore_ClearLog_PreventsOldInMemoryLogsFromResurrecting(t *testing
 		t.Fatalf("ClearLog: %v", err)
 	}
 
-	time.Sleep(time.Millisecond)
-	w.AddLog("issuance", "new credential", true)
+	// The entry is newer than the clear, however coarse the clock.
+	w.appendLogEntry(LogEntry{Time: store.loadLogCleanMarker().Add(time.Second), Action: "issuance", Detail: "new credential", Success: true})
 	if err := store.Save(w); err != nil {
 		t.Fatalf("Save after clean: %v", err)
 	}
@@ -634,13 +634,18 @@ func TestStoreSavesDoNotLoseConcurrentWrites(t *testing.T) {
 	}
 }
 
-// statFailingBackend reports an outage on Stat while reads and writes work.
+// statFailingBackend reports an outage on Stat and Exists while reads and
+// writes work.
 type statFailingBackend struct {
 	storage.Store
 }
 
 func (statFailingBackend) Stat(string) (storage.Stamp, error) {
 	return storage.Stamp{}, errors.New("database unreachable")
+}
+
+func (statFailingBackend) Exists(string) (bool, error) {
+	return false, errors.New("database unreachable")
 }
 
 // A storage outage must not look like a missing counter. Allocating would

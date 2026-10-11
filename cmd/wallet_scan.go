@@ -82,6 +82,9 @@ func acceptOID4URI(uri string, opts dispatchOID4Opts) error {
 		if err := checkRemoteSettings(c, opts.conformanceFlags, opts.conformance); err != nil {
 			return err
 		}
+		if err := refuseLocalListenerFlags(c.BaseURL, opts); err != nil {
+			return err
+		}
 		// The selected wallet fetches the offer and collects the transaction code.
 		// Some offers can be fetched only once.
 		transcript := opts.sessionTranscript
@@ -98,6 +101,22 @@ func acceptOID4URI(uri string, opts dispatchOID4Opts) error {
 	defer w.HTTPClient().CloseIdleConnections()
 	opts.txCode, opts.resolvedOffer = resolveTxCode(uri, opts.txCode, w.HTTPClient())
 	return dispatchURI(uri, opts)
+}
+
+// refuseLocalListenerFlags reports the flags of the local presentation
+// listener. A running wallet answers on its own address.
+func refuseLocalListenerFlags(target string, opts dispatchOID4Opts) error {
+	var set []string
+	if opts.portExplicit {
+		set = append(set, "--port")
+	}
+	if opts.docker {
+		set = append(set, "--docker")
+	}
+	if len(set) == 0 {
+		return nil
+	}
+	return fmt.Errorf("the wallet at %s answers on its own address, so it can't use %s. Add --remote local to answer from a local listener", target, strings.Join(set, ", "))
 }
 
 func walletAcceptCmd() *cobra.Command {

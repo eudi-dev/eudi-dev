@@ -15,9 +15,14 @@
 package urlhandler
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -72,7 +77,7 @@ func TestHandlerScriptSource(t *testing.T) {
 	if !strings.Contains(script, `LISTENER="http://localhost:8085"`) {
 		t.Error("the listener port must be rendered into the script")
 	}
-	if !strings.Contains(script, `BINARY="/usr/local/bin/eudi"`) {
+	if !strings.Contains(script, `BINARY='/usr/local/bin/eudi'`) {
 		t.Error("the binary path must be rendered into the script")
 	}
 
@@ -99,6 +104,43 @@ func TestHandlerScriptSourceAutoAccept(t *testing.T) {
 	}
 	if !strings.Contains(script, `AUTO_ACCEPT="true"`) {
 		t.Error("the auto-accept mode must be rendered into the script")
+	}
+}
+
+// The handler submits the clicked URI as one JSON string, whatever it
+// contains, and a binary path with shell syntax stays one word.
+func TestHandlerScriptSubmitsTheURIAsAJSONString(t *testing.T) {
+	bodies := make(chan map[string]any, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("the submitted body is not JSON: %v", err)
+		}
+		bodies <- body
+	}))
+	defer srv.Close()
+	port, _ := strconv.Atoi(srv.URL[strings.LastIndex(srv.URL, ":")+1:])
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "handler.sh")
+	binary := filepath.Join(dir, "it's $(touch pwned)", "eudi")
+	script := handlerScriptSource(binary, Options{ListenerPort: port, AutoAccept: true})
+	if err := os.WriteFile(path, []byte(script), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	uri := `openid4vp://?a=","x":"b\c` + "\t"
+	cmd := exec.Command("bash", path, uri)
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("the handler failed: %v\n%s", err, out)
+	}
+	body := <-bodies
+	want := map[string]any{"uri": uri, "interactive": false}
+	if !reflect.DeepEqual(body, want) {
+		t.Errorf("submitted %v, want %v", body, want)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "pwned")); err == nil {
+		t.Error("the binary path ran as a command")
 	}
 }
 

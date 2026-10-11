@@ -31,6 +31,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
@@ -422,7 +423,7 @@ func (t *Set) ListOfLists(issuer string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return signer.Keys().SequencedList(firstNonEmpty(issuer, t.env.RegistrarBase()), registrar.TrustListPath(ListOfListsID), chain[0], content, func(sequence int) (string, error) {
+	return signer.Keys().SequencedList(jsonutil.FirstNonEmpty(issuer, t.env.RegistrarBase()), registrar.TrustListPath(ListOfListsID), chain[0], content, func(sequence int) (string, error) {
 		now := time.Now().UTC().Truncate(time.Second)
 		return lote.SignList(key, chain[0], now, map[string]any{
 			"ListAndSchemeInformation": map[string]any{
