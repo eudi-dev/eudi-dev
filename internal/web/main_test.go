@@ -15,21 +15,9 @@
 package web
 
 import (
-	"fmt"
-	"os"
 	"testing"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/testenv"
 )
 
-// The decoder reads the default wallet when it has no store. Tests get a
-// temporary config directory instead of the real one.
-func TestMain(m *testing.M) {
-	dir, err := os.MkdirTemp("", "eudi-web-tests-")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "creating temporary config directory: %v\n", err)
-		os.Exit(1)
-	}
-	os.Setenv("EUDI_DEV_HOME", dir)
-	code := m.Run()
-	os.RemoveAll(dir)
-	os.Exit(code)
-}
+func TestMain(m *testing.M) { testenv.Main(m) }

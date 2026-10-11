@@ -239,6 +239,10 @@ func TestAStrictWalletRefusesACredentialOutsideItsTrustedList(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	// The demo issuer registers the new type, so only the trusted list fails.
+	if _, err := w.EnsureDemoRegistrations(); err != nil {
+		t.Fatal(err)
+	}
 
 	before := len(w.GetCredentials())
 	created := postJSONTo(t, ts.URL+"/issuer/api/offers?credential=badge", "")

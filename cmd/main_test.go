@@ -15,28 +15,9 @@
 package cmd
 
 import (
-	"fmt"
-	"os"
 	"testing"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/testenv"
 )
 
-// TestMain uses a temporary config directory so tests cannot control the developer's
-// active remote wallet.
-func TestMain(m *testing.M) {
-	dir, err := os.MkdirTemp("", "eudi-cmd-tests-")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "creating temporary config directory: %v\n", err)
-		os.Exit(1)
-	}
-	// Tests that change HOME must still get an isolated config directory. Clear
-	// explicit overrides so they cannot restore the real directory.
-	os.Setenv("HOME", dir)
-	os.Setenv("USERPROFILE", dir)
-	os.Unsetenv("EUDI_DEV_HOME")
-	os.Unsetenv("OID4VC_DEV_HOME")
-
-	code := m.Run()
-
-	os.RemoveAll(dir)
-	os.Exit(code)
-}
+func TestMain(m *testing.M) { testenv.Main(m) }
