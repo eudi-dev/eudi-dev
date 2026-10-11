@@ -250,7 +250,7 @@ Add `family_name` to the DCQL query, sign again and send it. In debug mode the w
 }
 ```
 
-In strict mode (`wallet --mode strict serve` or `PUT /api/config/conformance` with `{"mode": "strict"}`) the wallet refuses. The verifier authenticated with a trusted access certificate, so the wallet sends the verifier an `access_denied` error:
+In strict mode (`wallet --mode strict serve` or `PUT /api/config/conformance` with `{"validation_mode": "strict"}`) the wallet refuses. The verifier authenticated with a trusted access certificate, so the wallet sends the verifier an `access_denied` error:
 
 ```json
 {

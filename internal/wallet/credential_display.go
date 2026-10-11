@@ -445,7 +445,7 @@ func (w *Wallet) fetchAndEmbedDisplayImage(uri, field string) string {
 		w.rejectDisplayImage(field, uri, err.Error())
 		return ""
 	}
-	resp, err := doIssuanceRequest(req, w.HTTPClient())
+	resp, err := w.HTTPClient().Do(req)
 	if err != nil {
 		w.rejectDisplayImage(field, uri, err.Error())
 		return ""

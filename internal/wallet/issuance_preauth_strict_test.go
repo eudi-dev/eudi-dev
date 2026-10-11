@@ -241,10 +241,6 @@ func TestProcessCredentialOffer_PreAuthHonorsIssuerProtections(t *testing.T) {
 			srv, offerURI := strictPreAuthIssuer(t, w, tc.requireDPoP, tc.requireClientAttest, tc.requireKeyAttest, tc.proofTypes)
 			defer srv.Close()
 
-			oldClient := httpClient
-			httpClient = srv.Client()
-			defer func() { httpClient = oldClient }()
-
 			result, err := w.ProcessCredentialOffer(offerURI)
 			if err != nil {
 				t.Fatalf("ProcessCredentialOffer: %v", err)

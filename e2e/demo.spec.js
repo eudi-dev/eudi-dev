@@ -187,7 +187,7 @@ test.describe("Demo mode conformance panel", () => {
       const r = await fetch("/api/config/conformance", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "strict" }),
+        body: JSON.stringify({ validation_mode: "strict" }),
       });
       return r.status;
     });
@@ -662,7 +662,9 @@ test.describe("Demo issuer authorization choice", () => {
       authorization: "browser",
     });
 
-    // The auth_via_web interaction returns a sign-in URL (OpenID4VCI 1.1 §6.2.1.2).
+    // This wallet serves http, and auth_via_web needs an https redirect URI
+    // (OpenID4VCI 1.1 §6.2.1.2). The issuer sends it to the browser with
+    // redirect_to_web, which returns a sign-in URL too.
     const redeemed = await postJSON("/api/offers", { uri });
     expect(redeemed.status, JSON.stringify(redeemed.body)).toBe(202);
     expect(redeemed.body.status).toBe("authorization_required");
@@ -670,7 +672,7 @@ test.describe("Demo issuer authorization choice", () => {
 
     const log = await (await fetch(`${BASE}/api/log`)).json();
     const events = log.map((entry) => (entry.details || {}).event);
-    expect(events).toContain("interactive_authorization_auth_via_web");
+    expect(events).toContain("interactive_authorization_redirect_to_web");
   });
 
   // The pushed request_uri can be used once (RFC 9126 §4). Fetching it before browser
@@ -1337,7 +1339,7 @@ test.describe("Demo mode hardening", () => {
       ["POST", "/api/shutdown", null],
       ["POST", "/api/next-error", { error: "access_denied" }],
       ["PUT", "/api/config/preferred-format", { preferred_format: "dc+sd-jwt" }],
-      ["PUT", "/api/config/conformance", { mode: "debug" }],
+      ["PUT", "/api/config/conformance", { validation_mode: "debug" }],
       ["DELETE", "/api/config/conformance", null],
       ["POST", "/api/issue", { format: "sdjwt", vct: "urn:eudi:pid:1", status_list_uri: "", display: { background_image: "data:image/png;base64,iVBORw0KGgo=" } }],
       ["POST", "/api/issue", { format: "sdjwt", vct: "urn:eudi:pid:1", status_list_uri: "", display: { logo: "data:image/png;base64,iVBORw0KGgo=" } }],

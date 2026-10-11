@@ -155,6 +155,12 @@ func (c *Client) ServerConfig() (map[string]any, error) {
 	return out, err
 }
 
+// Conformance decodes the conformance settings that GET /api/config reports
+// into out.
+func (c *Client) Conformance(out any) error {
+	return c.do(http.MethodGet, apiPath("config"), nil, out)
+}
+
 func (c *Client) Credentials() ([]map[string]any, error) {
 	var out []map[string]any
 	err := c.do(http.MethodGet, apiPath("credentials"), nil, &out)
@@ -173,7 +179,7 @@ func (c *Client) ImportCredential(raw string) (map[string]any, error) {
 	return out, err
 }
 
-func (c *Client) RefreshCredential(id string) (map[string]any, error) {
+func (c *Client) RenewCredential(id string) (map[string]any, error) {
 	var out map[string]any
 	err := c.doWithTimeout(config.SlowRequestTimeout, http.MethodPost, apiPath("credentials", id, "refresh"), nil, &out)
 	return out, err
@@ -191,7 +197,7 @@ func (c *Client) RemoveAllCredentials(out any) error {
 
 // Issue issues a credential with the remote wallet's issuer key. The request
 // map uses the POST /api/issue field names.
-func (c *Client) Issue(req map[string]any) (map[string]any, error) {
+func (c *Client) Issue(req any) (map[string]any, error) {
 	var out map[string]any
 	err := c.do(http.MethodPost, apiPath("issue"), req, &out)
 	return out, err

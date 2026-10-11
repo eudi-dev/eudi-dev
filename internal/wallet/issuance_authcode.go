@@ -729,7 +729,7 @@ func createClientAttestationHeaders(w *Wallet, auth *ClientAuthentication, clien
 	}, nil
 }
 
-func fetchAttestationChallenge(endpoint string, clients ...*http.Client) (string, error) {
+func fetchAttestationChallenge(endpoint string, client *http.Client) (string, error) {
 	if endpoint == "" {
 		return "", nil
 	}
@@ -738,7 +738,7 @@ func fetchAttestationChallenge(endpoint string, clients ...*http.Client) (string
 		return "", fmt.Errorf("creating challenge request: %w", err)
 	}
 	req.Header.Set("Accept", "application/json")
-	resp, err := doIssuanceRequest(req, clients...)
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("challenge request: %w", err)
 	}
@@ -1481,13 +1481,13 @@ func notificationRequestBody(notificationID string) map[string]any {
 	return map[string]any{"notification_id": notificationID, "event": "credential_accepted"}
 }
 
-func sendNotificationWithDPoP(endpoint, accessToken, authScheme, notificationID string, dpopKey *ecdsa.PrivateKey, nonce *string, clients ...*http.Client) (int, []byte, error) {
+func sendNotificationWithDPoP(endpoint, accessToken, authScheme, notificationID string, dpopKey *ecdsa.PrivateKey, nonce *string, client *http.Client) (int, []byte, error) {
 	body, err := json.Marshal(notificationRequestBody(notificationID))
 	if err != nil {
 		return 0, nil, fmt.Errorf("marshaling notification request: %w", err)
 	}
 	// §11.2 requires a 2xx and only RECOMMENDS 204, so any 2xx is a success.
-	respBody, statusCode, err := doDPoPRequest("POST", endpoint, "application/json", "", body, authScheme, accessToken, dpopKey, nonce, nil, clients...)
+	respBody, statusCode, err := doDPoPRequest("POST", endpoint, "application/json", "", body, authScheme, accessToken, dpopKey, nonce, nil, client)
 	if err != nil {
 		return statusCode, respBody, err
 	}
@@ -1582,7 +1582,7 @@ func credentialAccept(credentialResponseEncryption map[string]any) string {
 // doDPoPRequest retries once for a DPoP nonce challenge and once for an
 // attestation challenge (RFC 9449 §8, ABCA §6.2 and §7.4). One retry does not
 // use up the other.
-func doDPoPRequest(method, target, contentType, accept string, body []byte, authScheme, token string, key *ecdsa.PrivateKey, nonce *string, authenticator *clientAuthenticator, clients ...*http.Client) ([]byte, int, error) {
+func doDPoPRequest(method, target, contentType, accept string, body []byte, authScheme, token string, key *ecdsa.PrivateKey, nonce *string, authenticator *clientAuthenticator, client *http.Client) ([]byte, int, error) {
 	if accept == "" {
 		accept = "application/json, application/jwt"
 	}
@@ -1634,7 +1634,7 @@ func doDPoPRequest(method, target, contentType, accept string, body []byte, auth
 			req.Header.Set("DPoP", dpopJWT)
 		}
 
-		resp, err := doIssuanceRequest(req, clients...)
+		resp, err := client.Do(req)
 		if err != nil {
 			return nil, 0, fmt.Errorf("request: %w", err)
 		}
@@ -1812,18 +1812,12 @@ func authorizationRequestURL(endpoint, clientID, requestURI string, params url.V
 	return parsed.String(), nil
 }
 
-func callAuthorizationEndpoint(authURL string, clients ...*http.Client) (string, string, error) {
+func callAuthorizationEndpoint(authURL string, baseClient *http.Client) (string, string, error) {
 	req, err := http.NewRequest("GET", authURL, nil)
 	if err != nil {
 		return "", "", fmt.Errorf("creating authorization request: %w", err)
 	}
 
-	baseClient := format.HTTPClient(clients...)
-	if httpClient != defaultHTTPClient {
-		if overridden, ok := httpClient.(*http.Client); ok && overridden != nil {
-			baseClient = overridden
-		}
-	}
 	client := *baseClient
 	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse

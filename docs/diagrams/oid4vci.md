@@ -162,6 +162,6 @@ sequenceDiagram
 |-----------------|----------|
 | `eudi wallet serve --vci-version 1.1` | Selects the feature level. At `1.0` the redirect flow runs. |
 | OAuth metadata `authorization_challenge_endpoint` | Publishing it switches an offer to this flow. |
-| `interaction_types_supported` | The wallet always advertises `urn:openid:dcp:ia:openid4vp_presentation`, and `urn:openid:dcp:ia:auth_via_web` only when a redirect URI is configured and the metadata includes an `authorization_endpoint`. |
+| `interaction_types_supported` | The wallet always advertises `urn:openid:dcp:ia:openid4vp_presentation`, and `urn:openid:dcp:ia:auth_via_web` only when an https redirect URI is configured and the metadata includes an `authorization_endpoint`. |
 | `openid4vp_request` | The OpenID4VP request answered by the presentation interaction, with response mode `ia_post` or `ia_post.jwt`. |
 | `auth_session` | Carries the authorization state across challenge requests and the browser redirect. |

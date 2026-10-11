@@ -38,10 +38,10 @@ type walletService interface {
 	// over yet. They are not in the store, so they are listed separately.
 	DeferredIssuances() ([]map[string]any, error)
 	ImportCredential(raw string) (map[string]any, error)
-	RefreshCredential(id string) (map[string]any, error)
+	RenewCredential(id string) (map[string]any, error)
 	RemoveCredential(id string) error
 	RemoveAllCredentials() (wallet.RemovedCredentials, error)
-	Issue(req map[string]any) (map[string]any, error)
+	Issue(req wallet.IssueAPIRequest) (map[string]any, error)
 	Logs() ([]wallet.LogEntry, error)
 	ClearLogs() error
 	Templates() ([]credtemplate.Template, error)
@@ -125,8 +125,8 @@ func (r *remoteWallet) ImportCredential(raw string) (map[string]any, error) {
 	return r.c.ImportCredential(raw)
 }
 
-func (r *remoteWallet) RefreshCredential(id string) (map[string]any, error) {
-	return r.c.RefreshCredential(id)
+func (r *remoteWallet) RenewCredential(id string) (map[string]any, error) {
+	return r.c.RenewCredential(id)
 }
 
 func (r *remoteWallet) RemoveCredential(id string) error { return r.c.RemoveCredential(id) }
@@ -137,7 +137,9 @@ func (r *remoteWallet) RemoveAllCredentials() (wallet.RemovedCredentials, error)
 	return out, err
 }
 
-func (r *remoteWallet) Issue(req map[string]any) (map[string]any, error) { return r.c.Issue(req) }
+func (r *remoteWallet) Issue(req wallet.IssueAPIRequest) (map[string]any, error) {
+	return r.c.Issue(req)
+}
 
 func (r *remoteWallet) Logs() ([]wallet.LogEntry, error) {
 	data, err := r.c.Log()
@@ -347,9 +349,9 @@ func (l *localWallet) Credentials() ([]map[string]any, error) {
 	})
 }
 
-func (l *localWallet) RefreshCredential(id string) (map[string]any, error) {
+func (l *localWallet) RenewCredential(id string) (map[string]any, error) {
 	return with(l, func(m *wallet.Management) (map[string]any, error) {
-		renewed, err := m.RefreshCredential(id)
+		renewed, err := m.RenewCredential(id)
 		if err != nil {
 			return nil, err
 		}
@@ -380,20 +382,12 @@ func (l *localWallet) RemoveAllCredentials() (wallet.RemovedCredentials, error) 
 	return with(l, func(m *wallet.Management) (wallet.RemovedCredentials, error) { return m.RemoveAllCredentials() })
 }
 
-func (l *localWallet) Issue(req map[string]any) (map[string]any, error) {
+func (l *localWallet) Issue(req wallet.IssueAPIRequest) (map[string]any, error) {
 	w, store, err := l.load()
 	if err != nil {
 		return nil, err
 	}
-	data, err := json.Marshal(req)
-	if err != nil {
-		return nil, err
-	}
-	var apiReq wallet.IssueAPIRequest
-	if err := json.Unmarshal(data, &apiReq); err != nil {
-		return nil, fmt.Errorf("building issue request: %w", err)
-	}
-	summary, err := wallet.NewManagement(w, store).Issue(apiReq)
+	summary, err := wallet.NewManagement(w, store).Issue(req)
 	if err != nil {
 		return nil, err
 	}
@@ -427,61 +421,75 @@ func (l *localWallet) DeleteTemplate(name string) error {
 	return err
 }
 
+// registrarOp runs op on the local wallet's registrar and saves the change.
+func registrarOp[T any](l *localWallet, op func(*registrar.Registrar) (T, error)) (T, error) {
+	return with(l, func(m *wallet.Management) (T, error) {
+		var out T
+		err := m.Registrar(func(r *registrar.Registrar) (err error) {
+			out, err = op(r)
+			return err
+		})
+		return out, err
+	})
+}
+
 func (l *localWallet) RegisterRelyingParty(rp registrar.WalletRelyingParty) (registrar.WalletRelyingParty, error) {
-	return with(l, func(m *wallet.Management) (registrar.WalletRelyingParty, error) { return m.RegisterRelyingParty(rp) })
+	return registrarOp(l, func(r *registrar.Registrar) (registrar.WalletRelyingParty, error) { return r.RegisterRelyingParty(rp) })
 }
 
 func (l *localWallet) Enrol(e registrar.Enrolment, update bool) (*registrar.EnrolmentResult, error) {
-	return with(l, func(m *wallet.Management) (*registrar.EnrolmentResult, error) { return m.Enrol(e, update) })
+	return registrarOp(l, func(r *registrar.Registrar) (*registrar.EnrolmentResult, error) { return r.Enrol(e, update) })
 }
 
 func (l *localWallet) DeleteRelyingParty(identifier string) error {
-	_, err := with(l, func(m *wallet.Management) (struct{}, error) { return struct{}{}, m.DeleteRelyingParty(identifier) })
+	_, err := registrarOp(l, func(r *registrar.Registrar) (struct{}, error) { return struct{}{}, r.DeleteRelyingParty(identifier) })
 	return err
 }
 
 func (l *localWallet) RegistrarRecords() ([]registrar.WalletRelyingParty, error) {
-	return with(l, func(m *wallet.Management) ([]registrar.WalletRelyingParty, error) { return m.RegistrarRecords(), nil })
+	return registrarOp(l, func(r *registrar.Registrar) ([]registrar.WalletRelyingParty, error) {
+		return r.RegisteredRelyingParties(), nil
+	})
 }
 
 func (l *localWallet) RegistrationCertificateViews(identifier string) ([]registrar.RegistrationStatusView, error) {
-	return with(l, func(m *wallet.Management) ([]registrar.RegistrationStatusView, error) {
-		return m.RegistrationCertificateViews(identifier), nil
+	return registrarOp(l, func(r *registrar.Registrar) ([]registrar.RegistrationStatusView, error) {
+		return r.RegistrationCertificateViews(identifier), nil
 	})
 }
 
 func (l *localWallet) SetRegistrationCertificatesRevoked(identifier string, scope registrar.RegistrationScope, revoked bool) (int, error) {
-	return with(l, func(m *wallet.Management) (int, error) {
-		return m.SetRegistrationCertificatesRevoked(identifier, scope, revoked)
+	return registrarOp(l, func(r *registrar.Registrar) (int, error) {
+		return r.SetRegistrationCertificatesRevoked(identifier, scope, revoked)
 	})
 }
 
 func (l *localWallet) CatalogAttestations() ([]registrar.CatalogAttestation, error) {
-	return with(l, func(m *wallet.Management) ([]registrar.CatalogAttestation, error) {
-		return m.CatalogAttestations(), nil
+	return registrarOp(l, func(r *registrar.Registrar) ([]registrar.CatalogAttestation, error) {
+		return r.CatalogAttestations(), nil
 	})
 }
 
 func (l *localWallet) AddCatalogAttestation(entry registrar.CatalogAttestation) (registrar.CatalogAttestation, error) {
-	return with(l, func(m *wallet.Management) (registrar.CatalogAttestation, error) {
-		return m.AddCatalogAttestation(entry)
+	return registrarOp(l, func(r *registrar.Registrar) (registrar.CatalogAttestation, error) {
+		return r.AddCatalogAttestation(entry)
 	})
 }
 
 func (l *localWallet) DeleteCatalogAttestation(id string) error {
-	_, err := with(l, func(m *wallet.Management) (struct{}, error) { return struct{}{}, m.DeleteCatalogAttestation(id) })
+	_, err := registrarOp(l, func(r *registrar.Registrar) (struct{}, error) { return struct{}{}, r.DeleteCatalogAttestation(id) })
 	return err
 }
 
 func (l *localWallet) AccessCertificate(req registrar.AccessCertificateRequest) (*registrar.AccessCertificateResult, error) {
-	return with(l, func(m *wallet.Management) (*registrar.AccessCertificateResult, error) {
-		return m.AccessCertificate(req)
+	return registrarOp(l, func(r *registrar.Registrar) (*registrar.AccessCertificateResult, error) {
+		return r.IssueAccessCertificate(req)
 	})
 }
 
 func (l *localWallet) RegistrationCertificate(req registrar.RegistrationCertificateRequest) (*registrar.RegistrationCertificateResult, error) {
-	return with(l, func(m *wallet.Management) (*registrar.RegistrationCertificateResult, error) {
-		return m.RegistrationCertificate(req)
+	return registrarOp(l, func(r *registrar.Registrar) (*registrar.RegistrationCertificateResult, error) {
+		return r.IssueRegistrationCertificate(req)
 	})
 }
 

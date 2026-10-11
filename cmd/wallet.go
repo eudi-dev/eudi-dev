@@ -175,12 +175,7 @@ func loadWallet() (*wallet.Wallet, *wallet.WalletStore, error) {
 }
 
 func applyValidationMode(w *wallet.Wallet, raw string) error {
-	mode, err := wallet.ParseValidationMode(raw)
-	if err != nil {
-		return err
-	}
-	w.ValidationMode = mode
-	return nil
+	return w.UpdateConformance(wallet.ConformancePatch{ValidationMode: &raw})
 }
 
 // After direct issuance, embedded issuer and status list URLs work only once a server
@@ -697,7 +692,7 @@ server renews on its own shortly before expiry. This asks now.`,
 			if err != nil {
 				return err
 			}
-			renewed, err := svc.RefreshCredential(args[0])
+			renewed, err := svc.RenewCredential(args[0])
 			if err != nil {
 				return err
 			}

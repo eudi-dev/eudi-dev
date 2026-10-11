@@ -93,10 +93,6 @@ func TestDeferredIssuanceSurvivesAProfileOverride(t *testing.T) {
 	issuer, offerURI, _ := deferringIssuer(t, w, 1, 1)
 	defer issuer.Close()
 
-	oldClient := httpClient
-	httpClient = issuer.Client()
-	defer func() { httpClient = oldClient }()
-
 	server := NewServer(w, 0, nil)
 	body, err := json.Marshal(map[string]any{"uri": offerURI, "mode": "debug", "haip": false})
 	if err != nil {

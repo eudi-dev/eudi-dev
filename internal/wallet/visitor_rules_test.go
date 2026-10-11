@@ -22,7 +22,10 @@ import (
 	"image/png"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 )
@@ -118,14 +121,63 @@ func TestIssueFetchesDisplayImagesOutsideTheReloadLock(t *testing.T) {
 		_, _ = w.Write(tinyPNG)
 	}))
 	defer images.Close()
-	oldClient := httpClient
-	httpClient = images.Client()
-	defer func() { httpClient = oldClient }()
 
 	if _, err := srv.management().Issue(IssueAPIRequest{Format: "sdjwt", VCT: "urn:test:art", Claims: map[string]any{"a": "b"}, Display: &IssueDisplay{Logo: images.URL + "/logo.png"}}); err != nil {
 		t.Fatal(err)
 	}
 	if lockedDuringFetch {
 		t.Fatal("the image was fetched while the server held its reload lock")
+	}
+}
+
+// A shared wallet signs with its own keys only. The rule holds for every
+// caller of Management, not only the HTTP API.
+func TestVisitorRulesRefuseASigningKeyOverride(t *testing.T) {
+	w := generateTestWallet(t)
+	w.SetVisitorRules(VisitorRules{OwnSigningKeys: true})
+	_, err := NewManagement(w, NewWalletStore(t.TempDir())).Issue(IssueAPIRequest{Format: "sdjwt", SigningKey: "key", SigningCert: "cert"})
+	var limit *VisitorLimitError
+	if !errors.As(err, &limit) {
+		t.Fatalf("err %v, want a visitor limit", err)
+	}
+}
+
+// The capacity bounds the registrar of a shared wallet.
+func TestCapacityBoundsTheRegistrar(t *testing.T) {
+	w := generateTestWallet(t)
+	w.SetCapacity(Capacity{RelyingParties: 1})
+	registerTestIssuer(t, w, registrar.NonQEAAProviderEntitlement)
+	_, err := w.Registrar().RegisterRelyingParty(registrar.WalletRelyingParty{
+		TradeName: "Second University",
+		Services: []registrar.WalletRelyingPartyService{{
+			ServiceIdentifier:    "diplomas",
+			Entitlements:         []string{registrar.NonQEAAProviderEntitlement},
+			ProvidesAttestations: []registrar.ProvidedAttestation{{Format: "dc+sd-jwt", Type: testDiplomaVCT}},
+		}},
+	})
+	if err == nil {
+		t.Error("a full registrar accepted another relying party")
+	}
+}
+
+// Management changes the status of a credential and logs it, for the HTTP
+// API and the local CLI alike.
+func TestManagementSetsTheCredentialStatus(t *testing.T) {
+	w := generateTestWallet(t)
+	w.BaseURL = "https://wallet.example"
+	result, err := w.IssueCredential(IssueOptions{Format: "sdjwt", VCT: "urn:test:status", Claims: map[string]any{"a": "b"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := NewManagement(w, NewWalletStore(t.TempDir()))
+	entry, err := m.SetCredentialStatus(result.Credential.ID, 1)
+	if err != nil || entry.Status != 1 {
+		t.Fatalf("SetCredentialStatus = %+v, %v, want status 1", entry, err)
+	}
+	if _, err := m.SetCredentialStatus(result.Credential.ID, 256); !errors.Is(err, ErrInvalidStatus) {
+		t.Errorf("status 256: %v, want ErrInvalidStatus", err)
+	}
+	if !strings.HasPrefix(w.GetLog()[len(w.GetLog())-1].Detail, "Revoked credential") {
+		t.Error("the revocation is not in the activity log")
 	}
 }

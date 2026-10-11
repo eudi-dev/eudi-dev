@@ -37,7 +37,6 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
@@ -62,7 +61,7 @@ type Wallet struct {
 	PersistedState
 	AutoAccept        bool
 	SessionTranscript oid4vp.SessionTranscriptMode // "oid4vp" (default) or "iso"
-	PreferredFormat   string                       // "" (no preference), "dc+sd-jwt", or "mso_mdoc"
+	PreferredFormat   string                       // "" (no preference), "dc+sd-jwt", "mso_mdoc" or "jwt_vc_json"
 	// The wallet advertises this key even when RequireEncryptedRequest is false.
 	RequestEncryptionKey *ecdsa.PrivateKey
 	ConformanceSettings  `json:"-"`
@@ -110,12 +109,8 @@ type Wallet struct {
 	// wallet's local StatusListCounter.
 	allocateStatusIndex func(*Wallet) (int, error)
 	logSink             func(LogEntry)
-	// Forwards imports from a clone to the original wallet.
-	credentialSink func(StoredCredential)
-	// Forwards batch use from a clone so the original wallet advances its rotation.
-	batchPresentedSink func(id string)
-	runtime            *consent.Runtime
-	signers            *provider.Keys
+	runtime             *consent.Runtime
+	signers             *provider.Keys
 	// Marks batch use counts for saving so rotation survives restart.
 	batchDirty bool
 }
@@ -197,39 +192,119 @@ func (p PersistedState) clone() PersistedState {
 	c := p
 	c.Credentials = slices.Clone(p.Credentials)
 	c.IssuedAttestations = slices.Clone(p.IssuedAttestations)
-	c.RelyingParties = slices.Clone(p.RelyingParties)
-	c.RegistrationStatuses = slices.Clone(p.RegistrationStatuses)
-	c.Catalog = slices.Clone(p.Catalog)
-	c.TrustedEntities = slices.Clone(p.TrustedEntities)
-	c.AddedTrustedLists = slices.Clone(p.AddedTrustedLists)
+	c.State = p.State.Clone()
+	c.Additions = p.Additions.Clone()
 	c.Log = slices.Clone(p.Log)
 	c.DeferredIssuances = slices.Clone(p.DeferredIssuances)
 	c.StatusEntries = maps.Clone(p.StatusEntries)
 	return c
 }
 
-// ConformanceSettings are the switches a test run changes at runtime. A
-// server restores its startup values on DELETE /api/config/conformance.
+// ConformanceSettings are the switches a test run changes at runtime. GET
+// /api/config reports them under these names, PUT /api/config/conformance
+// changes them with a ConformancePatch, and a server restores its startup
+// values on DELETE /api/config/conformance.
 type ConformanceSettings struct {
-	ValidationMode ValidationMode
-	RequireHAIP    bool
+	ValidationMode ValidationMode `json:"validation_mode"`
+	RequireHAIP    bool           `json:"require_haip"`
 	// RequireARF turns on the ARF checks of verifiers, issuers and received
 	// credentials (--arf).
-	RequireARF bool
+	RequireARF bool `json:"require_arf"`
 	// RequireEncryptedRequest rejects unencrypted request_uri responses.
-	RequireEncryptedRequest bool
+	RequireEncryptedRequest bool `json:"require_encrypted_request"`
 	// Defaults to 1.0. Version 1.1 enables supported draft features when the
 	// issuer advertises them.
-	VCIVersion VCIVersion
+	VCIVersion VCIVersion `json:"vci_version"`
 	// Read runtime changes through KeyAttestationLevelSetting. See
 	// ParseKeyAttestationLevel for supported claims about key storage.
-	KeyAttestationLevel string
+	KeyAttestationLevel string `json:"key_attestation_level"`
 	// ForceClientAttestation sends the wallet attestation even without
 	// advertised support. Disabled by default because reusing an attestation
 	// can link activity across issuers.
-	ForceClientAttestation bool
-	// tlsVerify overrides TLS verification. Nil follows the validation mode.
-	tlsVerify *bool
+	ForceClientAttestation bool `json:"force_client_attestation"`
+	// TLSVerify overrides TLS verification. Nil follows the validation mode.
+	TLSVerify *bool `json:"tls_verify_override"`
+}
+
+// ConformanceDocument is the conformance part of GET /api/config.
+type ConformanceDocument struct {
+	ConformanceSettings
+	// TLSVerification is the TLS verification in effect.
+	TLSVerification bool `json:"tls_verify"`
+}
+
+// ConformancePatch changes the settings it names. Its names are those of
+// ConformanceSettings. TLSVerify set to null returns to the default of the
+// validation mode.
+type ConformancePatch struct {
+	ValidationMode          *string      `json:"validation_mode,omitempty"`
+	RequireHAIP             *bool        `json:"require_haip,omitempty"`
+	RequireARF              *bool        `json:"require_arf,omitempty"`
+	RequireEncryptedRequest *bool        `json:"require_encrypted_request,omitempty"`
+	VCIVersion              *string      `json:"vci_version,omitempty"`
+	KeyAttestationLevel     *string      `json:"key_attestation_level,omitempty"`
+	ForceClientAttestation  *bool        `json:"force_client_attestation,omitempty"`
+	TLSVerify               NullableBool `json:"tls_verify_override"`
+}
+
+// NullableBool tells an absent member from null. Set reports that the member
+// was present. Value is nil for null.
+type NullableBool struct {
+	Set   bool
+	Value *bool
+}
+
+func (n *NullableBool) UnmarshalJSON(data []byte) error {
+	n.Set = true
+	return json.Unmarshal(data, &n.Value)
+}
+
+func (n NullableBool) MarshalJSON() ([]byte, error) {
+	return json.Marshal(n.Value)
+}
+
+// UpdateConformance applies a patch. It changes nothing when a value is
+// invalid.
+func (w *Wallet) UpdateConformance(p ConformancePatch) error {
+	w.mu.RLock()
+	next := w.ConformanceSettings
+	w.mu.RUnlock()
+	var err error
+	if p.ValidationMode != nil {
+		if next.ValidationMode, err = ParseValidationMode(*p.ValidationMode); err != nil {
+			return err
+		}
+	}
+	if p.VCIVersion != nil {
+		if next.VCIVersion, err = ParseVCIVersion(*p.VCIVersion); err != nil {
+			return err
+		}
+	}
+	if p.KeyAttestationLevel != nil {
+		if next.KeyAttestationLevel, err = ParseKeyAttestationLevel(*p.KeyAttestationLevel); err != nil {
+			return err
+		}
+	}
+	for _, field := range []struct {
+		value  *bool
+		target *bool
+	}{
+		{p.RequireHAIP, &next.RequireHAIP},
+		{p.RequireARF, &next.RequireARF},
+		{p.RequireEncryptedRequest, &next.RequireEncryptedRequest},
+		{p.ForceClientAttestation, &next.ForceClientAttestation},
+	} {
+		if field.value != nil {
+			*field.target = *field.value
+		}
+	}
+	if p.TLSVerify.Set {
+		next.TLSVerify = p.TLSVerify.Value
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.ConformanceSettings = next
+	return nil
 }
 
 // checks are the checks the settings apply to a presentation request.
@@ -776,8 +851,46 @@ func (w *Wallet) GetCredentials() []StoredCredential {
 func (w *Wallet) SetConformance(c ConformanceSettings) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	c.tlsVerify = w.tlsVerify
+	c.TLSVerify = w.TLSVerify
 	w.ConformanceSettings = c
+}
+
+// restoreConformance replaces every setting, the TLS override included.
+func (w *Wallet) restoreConformance(c ConformanceSettings) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.ConformanceSettings = c
+}
+
+// ConformanceDocument reports the settings every flow applies.
+func (w *Wallet) ConformanceDocument() ConformanceDocument {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	doc := ConformanceDocument{ConformanceSettings: w.ConformanceSettings, TLSVerification: w.tlsVerificationLocked()}
+	if doc.VCIVersion == "" {
+		doc.VCIVersion = VCIVersion10
+	}
+	return doc
+}
+
+// SetPreferredFormat sets the format a presentation prefers when several
+// match. The empty string means no preference.
+func (w *Wallet) SetPreferredFormat(format string) error {
+	switch format {
+	case "", credtype.FormatSDJWT, credtype.FormatMDOC, credtype.FormatJWTVC:
+	default:
+		return fmt.Errorf("unknown credential format %q, want %s, %s or %s", format, credtype.FormatSDJWT, credtype.FormatMDOC, credtype.FormatJWTVC)
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.PreferredFormat = format
+	return nil
+}
+
+func (w *Wallet) SetAutoAccept(enabled bool) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.AutoAccept = enabled
 }
 
 // Conformance returns the current settings. A flow reads them once, so a
@@ -1076,18 +1189,6 @@ func (w *Wallet) GetLog() []LogEntry {
 	return out
 }
 
-func LoadKeyFromFile(path string) (*ecdsa.PrivateKey, error) {
-	privKey, err := keys.LoadPrivateKey(path)
-	if err != nil {
-		return nil, err
-	}
-	ecKey, ok := privKey.(*ecdsa.PrivateKey)
-	if !ok {
-		return nil, fmt.Errorf("key must be an EC private key (P-256)")
-	}
-	return ecKey, nil
-}
-
 func credentialLabel(c StoredCredential) string {
 	if c.VCT != "" {
 		return c.VCT
@@ -1159,10 +1260,6 @@ func CredentialSummary(c StoredCredential) map[string]any {
 	return summary
 }
 
-func (w *Wallet) CredentialsJSON() ([]byte, error) {
-	return w.CredentialsJSONWindow(0, 0)
-}
-
 // ListedCredentials lists each batch once.
 func (w *Wallet) ListedCredentials() []StoredCredential {
 	creds := w.GetCredentials()
@@ -1194,12 +1291,6 @@ func batchRepresentative(creds []StoredCredential, member StoredCredential) Stor
 		}
 	}
 	return member
-}
-
-// CredentialsJSONWindow returns all remaining credentials when limit is zero. An
-// offset past the end returns an empty array.
-func (w *Wallet) CredentialsJSONWindow(offset, limit int) ([]byte, error) {
-	return json.Marshal(w.listedSummaries(offset, limit))
 }
 
 // CredentialsListingWindow omits raw credentials and claims to keep UI refreshes
@@ -1272,6 +1363,9 @@ func (w *Wallet) PutCredential(cred StoredCredential) {
 // providers and lists.
 type Capacity struct {
 	Credentials, Deferred, IssuedAttestations, Templates int
+	// RelyingParties bounds the registrar. A full registrar refuses a new
+	// registration.
+	RelyingParties int
 }
 
 func (w *Wallet) SetCapacity(c Capacity) {
@@ -1311,6 +1405,9 @@ type VisitorRules struct {
 	// BundledImagesOnly keeps only the images bundled with the wallet,
 	// because visitors can't upload images.
 	BundledImagesOnly bool
+	// OwnSigningKeys refuses a signing key override, so every credential the
+	// wallet issues names one of its own providers.
+	OwnSigningKeys bool
 }
 
 func (w *Wallet) SetVisitorRules(r VisitorRules) {

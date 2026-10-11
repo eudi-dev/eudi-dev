@@ -268,11 +268,11 @@ func (s *Server) processOfferURI(w http.ResponseWriter, uri string, opts OfferOp
 		if browserRedirect {
 			// Redirect browser navigations to the wallet UI immediately. Import in the
 			// background after consent.
-			go s.awaitOfferConsent(noopResponseWriter{}, consentReq, issuerDisplay, false, opts)
+			go s.awaitOfferConsent(noopResponseWriter{}, consentReq, issuerDisplay, opts)
 			redirectBrowser(w, "/?request="+consentReq.ID)
 			return
 		}
-		s.awaitOfferConsent(w, consentReq, issuerDisplay, false, opts)
+		s.awaitOfferConsent(w, consentReq, issuerDisplay, opts)
 		return
 	}
 
@@ -281,7 +281,7 @@ func (s *Server) processOfferURI(w http.ResponseWriter, uri string, opts OfferOp
 }
 
 // The submission channel also delivers the outcome to the approve API.
-func (s *Server) awaitOfferConsent(w http.ResponseWriter, consentReq *consent.Request, issuerDisplay string, browserRedirect bool, opts OfferOptions) {
+func (s *Server) awaitOfferConsent(w http.ResponseWriter, consentReq *consent.Request, issuerDisplay string, opts OfferOptions) {
 	handle := func(answer consent.Result) {
 		if !answer.Approved {
 			s.log("  Consent:       denied")
@@ -321,7 +321,7 @@ func (s *Server) awaitOfferConsent(w http.ResponseWriter, consentReq *consent.Re
 			// The UI already received the sign-in URL through the event stream and is
 			// navigating to it.
 			consentReq.SubmissionCh <- consent.SubmissionResult{StatusCode: http.StatusAccepted}
-			s.writeAuthorizationRequired(w, pending, browserRedirect)
+			writeJSON(w, http.StatusAccepted, pending.authorizationRequiredBody())
 			return
 		}
 
@@ -332,11 +332,7 @@ func (s *Server) awaitOfferConsent(w http.ResponseWriter, consentReq *consent.Re
 		}
 
 		consentReq.SubmissionCh <- consent.SubmissionResult{StatusCode: http.StatusOK}
-		if browserRedirect {
-			redirectBrowser(w, "")
-		} else {
-			writeJSON(w, http.StatusOK, result)
-		}
+		writeJSON(w, http.StatusOK, result)
 	}
 
 	// Wait first for offer consent, then for any presentation the issuer requests.

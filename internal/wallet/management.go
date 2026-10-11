@@ -15,6 +15,7 @@
 package wallet
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -28,6 +29,11 @@ import (
 var (
 	ErrCredentialNotFound  = errors.New("credential not found")
 	ErrCredentialProtected = errors.New("credential is protected and can only be removed through the wallet file")
+	ErrStatusProtected     = errors.New("credential is protected and its status can only be changed through the wallet file")
+	ErrNoStatusEntry       = errors.New("credential has no status entry")
+	// ErrInvalidStatus follows draft-ietf-oauth-status-list §7, which limits
+	// status values to 0 through 255.
+	ErrInvalidStatus = errors.New("a status type takes a value from 0 to 255")
 )
 
 // Management runs the management operations of the HTTP API and the local
@@ -103,6 +109,37 @@ func (m *Management) RemoveCredential(id string) error {
 	})
 }
 
+// SetCredentialStatus changes the status of a credential on the wallet's own
+// status list, and of every copy of its batch.
+func (m *Management) SetCredentialStatus(id string, status int) (StatusEntry, error) {
+	if cred, ok := m.wallet.GetCredential(id); ok {
+		id = cred.ID
+	}
+	if m.wallet.IsProtected(id) {
+		return StatusEntry{}, ErrStatusProtected
+	}
+	if status < 0 || status > 255 {
+		return StatusEntry{}, fmt.Errorf("%w, not %d", ErrInvalidStatus, status)
+	}
+	var entry StatusEntry
+	err := m.commit(func() error {
+		var ok bool
+		if entry, ok = m.wallet.SetCredentialStatus(id, status); !ok {
+			return ErrNoStatusEntry
+		}
+		verb := fmt.Sprintf("Set status %d on", status)
+		switch status {
+		case 0:
+			verb = "Activated"
+		case 1:
+			verb = "Revoked"
+		}
+		m.wallet.AddLog("management", fmt.Sprintf("%s credential %s", verb, id), true)
+		return nil
+	})
+	return entry, err
+}
+
 // RemovedCredentials reports a removal of every deletable credential.
 type RemovedCredentials struct {
 	Deleted       int `json:"deleted"`
@@ -125,6 +162,9 @@ func (m *Management) RemoveAllCredentials() (RemovedCredentials, error) {
 }
 
 func (m *Management) Issue(req IssueAPIRequest) (map[string]any, error) {
+	if m.wallet.visitorRules().OwnSigningKeys && (strings.TrimSpace(req.SigningKey) != "" || strings.TrimSpace(req.SigningCert) != "") {
+		return nil, visitorLimit("the public demo can't override the signing key")
+	}
 	opts, err := req.Options()
 	if err != nil {
 		return nil, err
@@ -152,13 +192,13 @@ func (m *Management) Issue(req IssueAPIRequest) (map[string]any, error) {
 	return summary, err
 }
 
-// RefreshCredential renews a credential with its refresh token. The wallet
+// RenewCredential renews a credential with its refresh token. The wallet
 // stores the renewal and a rotated refresh token under the store lock. The
 // commit persists them for the local CLI, which has no server to save them.
 // A failed renewal can still have rotated the refresh token, so the commit
 // runs either way.
-func (m *Management) RefreshCredential(id string) (*StoredCredential, error) {
-	renewed, err := m.wallet.RefreshCredential(id)
+func (m *Management) RenewCredential(id string) (*StoredCredential, error) {
+	renewed, err := m.wallet.RenewCredential(id)
 	if commitErr := m.commit(func() error { return nil }); err == nil {
 		err = commitErr
 	}
@@ -267,79 +307,21 @@ func (m *Management) RemoveTrustedList(url string) error {
 	return m.commit(func() error { return m.wallet.TrustedLists().RemoveList(strings.TrimSpace(url)) })
 }
 
-// The registrar operations below serve the local CLI. A server runs the
-// same registrar methods through registrar.Server and saves them with its
-// Mutate hook.
-
-func (m *Management) RegisterRelyingParty(rp registrar.WalletRelyingParty) (stored registrar.WalletRelyingParty, err error) {
-	err = m.commit(func() (err error) {
-		stored, err = m.wallet.Registrar().RegisterRelyingParty(rp)
-		return err
-	})
-	return stored, err
-}
-
-func (m *Management) Enrol(e registrar.Enrolment, update bool) (result *registrar.EnrolmentResult, err error) {
-	err = m.commit(func() (err error) {
-		result, err = m.wallet.Registrar().Enrol(e, update)
-		return err
-	})
-	return result, err
-}
-
-func (m *Management) DeleteRelyingParty(identifier string) error {
-	return m.commit(func() error { return m.wallet.Registrar().DeleteRelyingParty(identifier) })
-}
-
-func (m *Management) RegistrarRecords() []registrar.WalletRelyingParty {
-	return m.wallet.Registrar().RegisteredRelyingParties()
-}
-
-func (m *Management) RegistrationCertificateViews(identifier string) []registrar.RegistrationStatusView {
-	return m.wallet.Registrar().RegistrationCertificateViews(identifier)
-}
-
-func (m *Management) SetRegistrationCertificatesRevoked(identifier string, scope registrar.RegistrationScope, revoked bool) (changed int, err error) {
-	err = m.commit(func() (err error) {
-		changed, err = m.wallet.Registrar().SetRegistrationCertificatesRevoked(identifier, scope, revoked)
-		return err
-	})
-	return changed, err
-}
-
-func (m *Management) CatalogAttestations() []registrar.CatalogAttestation {
-	return m.wallet.Registrar().CatalogAttestations()
-}
-
-func (m *Management) AddCatalogAttestation(entry registrar.CatalogAttestation) (stored registrar.CatalogAttestation, err error) {
-	err = m.commit(func() (err error) {
-		stored, err = m.wallet.Registrar().AddCatalogAttestation(entry)
-		return err
-	})
-	return stored, err
-}
-
-func (m *Management) DeleteCatalogAttestation(id string) error {
-	return m.commit(func() error { return m.wallet.Registrar().DeleteCatalogAttestation(id) })
-}
-
-func (m *Management) AccessCertificate(req registrar.AccessCertificateRequest) (*registrar.AccessCertificateResult, error) {
-	return m.wallet.Registrar().IssueAccessCertificate(req)
-}
-
-func (m *Management) RegistrationCertificate(req registrar.RegistrationCertificateRequest) (result *registrar.RegistrationCertificateResult, err error) {
-	err = m.commit(func() (err error) {
-		result, err = m.wallet.Registrar().IssueRegistrationCertificate(req)
-		return err
-	})
-	return result, err
+// Registrar runs a registrar operation for the local CLI and persists its
+// change. A server runs the same registrar methods through registrar.Server
+// and saves them with its Mutate hook.
+func (m *Management) Registrar(op func(*registrar.Registrar) error) error {
+	return m.commit(func() error { return op(m.wallet.Registrar()) })
 }
 
 // Config is the document of GET /api/config. A server adds what only it
 // knows, such as its port.
 func (m *Management) Config() map[string]any {
 	w := m.wallet
-	doc := w.conformanceDocument()
+	doc := map[string]any{}
+	if data, err := json.Marshal(w.ConformanceDocument()); err == nil {
+		_ = json.Unmarshal(data, &doc)
+	}
 	doc["base_url"] = w.BaseURL
 	doc["issuer_url"] = w.IssuerURL
 	doc["status_list_url"] = w.StatusListURL()
@@ -357,34 +339,4 @@ func (m *Management) Config() map[string]any {
 		doc["seeded_keys"] = m.store.Seeded()
 	}
 	return doc
-}
-
-// conformanceDocument reports the settings every flow applies. GET
-// /api/config and the conformance endpoints share it.
-func (w *Wallet) conformanceDocument() map[string]any {
-	w.mu.RLock()
-	defer w.mu.RUnlock()
-	c := w.ConformanceSettings
-	vciVersion := c.VCIVersion
-	if vciVersion == "" {
-		vciVersion = VCIVersion10
-	}
-	var override any
-	if c.tlsVerify != nil {
-		override = *c.tlsVerify
-	}
-	return map[string]any{
-		"tls_verify":          w.tlsVerificationLocked(),
-		"tls_verify_override": override,
-		"validation_mode":     string(c.ValidationMode),
-		"require_haip":        c.RequireHAIP,
-		// Issuance and presentation use the same flag, and each has its
-		// own field.
-		"require_haip_issuance":     c.RequireHAIP,
-		"require_arf":               c.RequireARF,
-		"require_encrypted_request": c.RequireEncryptedRequest,
-		"vci_version":               string(vciVersion),
-		"key_attestation_level":     c.KeyAttestationLevel,
-		"force_client_attestation":  w.ForceClientAttestation,
-	}
 }

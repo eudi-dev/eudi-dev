@@ -205,9 +205,6 @@ func TestHAIPChecksTheIssuerMetadataForBothGrants(t *testing.T) {
 			}))
 			defer srv.Close()
 			serverURL = srv.URL
-			oldClient := httpClient
-			httpClient = srv.Client()
-			defer func() { httpClient = oldClient }()
 
 			offer, _ := json.Marshal(map[string]any{"credential_issuer": serverURL, "credential_configuration_ids": []string{"cfg"}, "grants": grants})
 			_, err := w.ProcessCredentialOffer("openid-credential-offer://?credential_offer=" + url.QueryEscape(string(offer)))

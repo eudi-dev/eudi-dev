@@ -91,10 +91,6 @@ func (c *redirectAuthCodeIssuer) run(t *testing.T, w *Wallet) error {
 	t.Cleanup(srv.Close)
 	serverURL = srv.URL
 
-	oldClient := httpClient
-	httpClient = srv.Client()
-	t.Cleanup(func() { httpClient = oldClient })
-
 	offerJSON, _ := json.Marshal(map[string]any{
 		"credential_issuer":            serverURL,
 		"credential_configuration_ids": []string{"test-config"},

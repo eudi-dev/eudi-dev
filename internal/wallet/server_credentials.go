@@ -142,14 +142,6 @@ func (s *Server) handleDeleteCredential(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) handleSetCredentialStatus(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-
-	// Resolve the prefix first so the protection check and status update use the same
-	// credential ID.
-	if cred, ok := s.wallet.GetCredential(id); ok {
-		id = cred.ID
-	}
-
 	var body struct {
 		Status int `json:"status"`
 	}
@@ -157,47 +149,23 @@ func (s *Server) handleSetCredentialStatus(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "invalid JSON body", http.StatusBadRequest)
 		return
 	}
-
-	if s.wallet.IsProtected(id) {
-		writeJSON(w, http.StatusForbidden, map[string]string{
-			"error": "credential is protected and its status can only be changed through the wallet file",
-		})
-		return
+	entry, err := s.management().SetCredentialStatus(r.PathValue("id"), body.Status)
+	switch {
+	case errors.Is(err, ErrStatusProtected):
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+	case errors.Is(err, ErrInvalidStatus):
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+	case errors.Is(err, ErrNoStatusEntry):
+		http.Error(w, err.Error(), http.StatusNotFound)
+	case err != nil:
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	default:
+		writeJSON(w, http.StatusOK, entry)
 	}
-	// draft-ietf-oauth-status-list §7 limits status values to 0 through 255. Report an
-	// invalid value separately from an unknown credential.
-	if body.Status < 0 || body.Status > 255 {
-		writeJSON(w, http.StatusBadRequest, map[string]string{
-			"error": fmt.Sprintf("status %d is outside the range 0 to 255 that a status type may take", body.Status),
-		})
-		return
-	}
-	var entry StatusEntry
-	var ok bool
-	s.saveMutation(func() bool {
-		entry, ok = s.wallet.SetCredentialStatus(id, body.Status)
-		if !ok {
-			return false
-		}
-		verb := fmt.Sprintf("Set status %d on", body.Status)
-		switch body.Status {
-		case 0:
-			verb = "Activated"
-		case 1:
-			verb = "Revoked"
-		}
-		s.wallet.AddLog("management", fmt.Sprintf("%s credential %s", verb, id), true)
-		return true
-	})
-	if !ok {
-		http.Error(w, "credential has no status entry", http.StatusNotFound)
-		return
-	}
-	writeJSON(w, http.StatusOK, entry)
 }
 
-func (s *Server) handleRefreshCredential(w http.ResponseWriter, r *http.Request) {
-	renewed, err := s.RefreshCredential(r.PathValue("id"))
+func (s *Server) handleRenewCredential(w http.ResponseWriter, r *http.Request) {
+	renewed, err := s.RenewCredential(r.PathValue("id"))
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return

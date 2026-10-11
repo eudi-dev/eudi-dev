@@ -164,10 +164,6 @@ func newRedirectFlowIssuer(t *testing.T, w *Wallet, withChallengeEndpoint bool) 
 	t.Cleanup(server.Close)
 	issuer.url = server.URL
 
-	oldClient := httpClient
-	httpClient = server.Client()
-	t.Cleanup(func() { httpClient = oldClient })
-
 	return issuer
 }
 

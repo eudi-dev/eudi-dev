@@ -158,7 +158,7 @@ Every request to a given wallet uses the same validation mode, HAIP, ARF and enc
 
 ## ARF checks
 
-`--arf` on `wallet serve`, `wallet accept` or `wallet scan` checks the relying party's access and registration certificates in a presentation request against the ARF. It checks issuers too (see [issuing](issuing.md#arf-checks)). `--demo` turns it on by default. The Conformance panel and `PUT /api/config/conformance` (`arf`) switch it at runtime.
+`--arf` on `wallet serve`, `wallet accept` or `wallet scan` checks the relying party's access and registration certificates in a presentation request against the ARF. It checks issuers too (see [issuing](issuing.md#arf-checks)). `--demo` turns it on by default. The Conformance panel and `PUT /api/config/conformance` (`require_arf`) switch it at runtime.
 
 The wallet checks that:
 

@@ -158,7 +158,7 @@ func TestIssuanceAndRenewalSurviveAReloadFromAnotherServer(t *testing.T) {
 		return srv
 	}
 	srv, other := open(), open()
-	issuer, offer := batchIssuer(t, srv.wallet, func() {
+	_, offer := batchIssuer(t, srv.wallet, func() {
 		if err := other.reloadFromStore(); err != nil {
 			t.Error(err)
 		}
@@ -170,9 +170,6 @@ func TestIssuanceAndRenewalSurviveAReloadFromAnotherServer(t *testing.T) {
 			t.Error(err)
 		}
 	})
-	oldClient := httpClient
-	httpClient = issuer.Client()
-	defer func() { httpClient = oldClient }()
 
 	result, _, err := srv.runOffer(offer, OfferOptions{})
 	if err != nil {
@@ -183,7 +180,7 @@ func TestIssuanceAndRenewalSurviveAReloadFromAnotherServer(t *testing.T) {
 		t.Fatalf("the store holds %d copies of the batch, want 3", len(issued))
 	}
 
-	if _, err := srv.RefreshCredential(result.CredentialID); err != nil {
+	if _, err := srv.RenewCredential(result.CredentialID); err != nil {
 		t.Fatalf("renewal: %v", err)
 	}
 	renewed := storedBatch(t, NewWalletStoreOn(dir, backend), result.CredentialID)

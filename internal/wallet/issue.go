@@ -396,7 +396,7 @@ func (w *Wallet) issueSigner(opts IssueOptions, resolved credtemplate.Resolved, 
 	}
 	issuer := strings.TrimRight(strings.TrimSpace(w.IssuerURL), "/")
 	if issuer == "" {
-		issuer = "https://issuer.example"
+		issuer = mock.DefaultIssuer
 	}
 	return &credentialSigner{
 		resolved: resolved, issuer: issuer, certIss: w.IssuerURL, notBefore: opts.NotBefore,

@@ -254,11 +254,6 @@ func (s *Server) handleIssueCredential(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if s.demo != nil && (strings.TrimSpace(req.SigningKey) != "" || strings.TrimSpace(req.SigningCert) != "") {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "the public demo can't override the signing key"})
-		return
-	}
-
 	summary, err := s.management().Issue(req)
 	if err != nil {
 		writeJSON(w, visitorLimitStatus(err, http.StatusBadRequest), map[string]string{"error": err.Error()})

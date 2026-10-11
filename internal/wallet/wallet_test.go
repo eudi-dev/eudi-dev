@@ -500,18 +500,6 @@ func TestCredentialSummary(t *testing.T) {
 	}
 }
 
-func TestCredentialsJSON(t *testing.T) {
-	w := generateTestWalletWithPID(t)
-
-	data, err := w.CredentialsJSON()
-	if err != nil {
-		t.Fatalf("CredentialsJSON error: %v", err)
-	}
-	if len(data) == 0 {
-		t.Fatal("expected non-empty JSON")
-	}
-}
-
 func TestSubscribeErrors(t *testing.T) {
 	w := generateTestWallet(t)
 

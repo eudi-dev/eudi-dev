@@ -26,8 +26,10 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/regcert"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/trustedlists"
 )
 
 // issuerAuthentication is what the wallet knows about an issuer before it
@@ -200,13 +202,16 @@ func (w *Wallet) issuerARFCheck(metadata map[string]any, signerChain []*x509.Cer
 	if !w.ARFChecks() {
 		return nil
 	}
+	// One read of the trusted lists gives every anchor set, so the checks
+	// see one state of the lists.
+	lists := w.TrustedLists().Lists()
 	return issuerARFFindings(issuerAuthentication{
 		metadata:       metadata,
 		signerChain:    signerChain,
 		configurations: configurations,
-		accessCAs:      w.TrustedLists().RelyingPartyCAs(),
-		registrarCAs:   w.TrustedLists().RegistrarCAs(),
-		statusCAs:      w.TrustedLists().RegistrationStatusCAs(),
+		accessCAs:      trustedlists.AnchorsOf(lists, lote.AccessCertProvidersListType, lote.IssuanceServices),
+		registrarCAs:   trustedlists.AnchorsOf(lists, lote.RegistrationCertProvidersListType, lote.IssuanceServices),
+		statusCAs:      trustedlists.AnchorsOf(lists, lote.RegistrationCertProvidersListType, lote.RevocationServices),
 		statusClient:   w.RegistrationStatusClient(),
 		category:       w.offeredCategory,
 	})

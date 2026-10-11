@@ -269,7 +269,7 @@ func parityCases() []parityCase {
 			}
 			return keysOf(imported)
 		}},
-		{method: "RefreshCredential", skip: "renewing needs a live issuer to exchange a refresh token with. internal/wallet covers the operation against a stub"},
+		{method: "RenewCredential", skip: "renewing needs a live issuer to exchange a refresh token with. internal/wallet covers the operation against a stub"},
 		{method: "RemoveCredential", observe: func(t *testing.T, s walletService) any {
 			id := importedCredential(t, s)
 			before, err := s.Credentials()
@@ -298,9 +298,9 @@ func parityCases() []parityCase {
 			return []int{removed.Deleted, removed.KeptProtected, len(left)}
 		}},
 		{method: "Issue", observe: func(t *testing.T, s walletService) any {
-			doc, err := s.Issue(map[string]any{
-				"format": "sdjwt", "vct": "urn:test:parity:1",
-				"claims": map[string]any{"given_name": "Alice"}, "wallet": true,
+			doc, err := s.Issue(wallet.IssueAPIRequest{
+				Format: "sdjwt", VCT: "urn:test:parity:1",
+				Claims: map[string]any{"given_name": "Alice"},
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -636,7 +636,7 @@ func TestManagementLogsTheSameEntriesOnBothBackends(t *testing.T) {
 		if err := s.RemoveCredential(id); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := s.Issue(map[string]any{"format": "sdjwt", "vct": "urn:test:parity:1", "claims": map[string]any{"given_name": "Alice"}}); err != nil {
+		if _, err := s.Issue(wallet.IssueAPIRequest{Format: "sdjwt", VCT: "urn:test:parity:1", Claims: map[string]any{"given_name": "Alice"}}); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := s.RemoveAllCredentials(); err != nil {

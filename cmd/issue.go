@@ -494,7 +494,7 @@ func runIssueToWallet(cmd *cobra.Command, format string) error {
 	if err != nil {
 		return err
 	}
-	if _, requested := req["signing_key"]; requested {
+	if req.SigningKey != "" {
 		if applied, _ := result["signing_override"].(bool); !applied {
 			return fmt.Errorf("the wallet server ignored the signing override and issued with its own issuer key (it runs a release without --key/--cert support). Update it, or remove the imported credential and retry with --remote local")
 		}
@@ -630,108 +630,70 @@ func saveIssueTemplate(resolved credtemplate.Resolved) error {
 
 // issueAPIRequestFromFlags builds the shared POST /api/issue request. Templates resolve
 // on the managed wallet, so send only the name and explicit overrides.
-func issueAPIRequestFromFlags(cmd *cobra.Command, format string) (map[string]any, error) {
-	req := map[string]any{"format": format}
+func issueAPIRequestFromFlags(cmd *cobra.Command, format string) (wallet.IssueAPIRequest, error) {
+	req := wallet.IssueAPIRequest{Format: format}
 	keyData, certData, err := readSigningOverrideFiles()
 	if err != nil {
-		return nil, err
+		return req, err
 	}
 	if certData != "" {
 		if _, _, err := wallet.ParseSigningOverride(keyData, certData); err != nil {
-			return nil, err
+			return req, err
 		}
-		req["signing_key"] = keyData
-		req["signing_cert"] = certData
+		req.SigningKey, req.SigningCert = keyData, certData
 	}
-	if issueTemplate != "" {
-		req["template"] = issueTemplate
+	if req.Claims, err = parseClaimsArg(issueClaims); err != nil {
+		return req, err
 	}
-	if issuePID {
-		req["pid"] = true
-	}
-	claims, err := parseClaimsArg(issueClaims)
-	if err != nil {
-		return nil, err
-	}
-	if claims != nil {
-		req["claims"] = claims
-	}
-	if len(issueOmit) > 0 {
-		req["omit"] = issueOmit
-	}
-	if len(issueAlwaysDisclosed) > 0 {
-		req["always_disclosed"] = issueAlwaysDisclosed
-	}
-	if issueSaveTemplate != "" {
-		req["save_as_template"] = issueSaveTemplate
-	}
+	req.Template = issueTemplate
+	req.PID = issuePID
+	req.Omit = issueOmit
+	req.AlwaysDisclosed = issueAlwaysDisclosed
+	req.SaveAsTemplate = issueSaveTemplate
 	flags := cmd.Flags()
 	if flags.Changed("vct") {
-		req["vct"] = issueVCT
+		req.VCT = issueVCT
 	}
 	if flags.Lookup("doc-type") != nil && flags.Changed("doc-type") {
-		req["doctype"] = issueDocType
+		req.DocType = issueDocType
 	}
 	if flags.Lookup("namespace") != nil && flags.Changed("namespace") {
-		req["namespace"] = issueNamespace
+		req.Namespace = issueNamespace
 	}
 	if flags.Changed("exp") {
-		req["exp"] = issueExpires
+		req.Exp = issueExpires
 	}
-	if issueNBF != "" {
-		req["nbf"] = issueNBF
-	}
+	req.NBF = issueNBF
 	if flags.Changed("batch") {
-		req["batch"] = issueBatchSize
+		req.Batch = issueBatchSize
 	}
-	if issueUnbound {
-		req["unbound"] = true
-	}
+	req.Unbound = issueUnbound
 	if flags.Changed("status-list-uri") {
-		req["status_list_uri"] = issueStatusListURI
+		req.StatusListURI = &issueStatusListURI
 	}
 	if flags.Changed("status-list-idx") {
-		req["status_list_idx"] = issueStatusListIdx
+		req.StatusListIdx = &issueStatusListIdx
 	}
-	if issueCategory != "" {
-		req["category"] = issueCategory
-	}
+	req.Category = issueCategory
 	// The server fills in Format, VCT, DocType and the list fields of the
 	// category, so an empty trust object works like an omitted one.
-	req["trust"] = issueTrustSpecFromFlags()
+	req.Trust = issueTrustSpecFromFlags()
 
-	display := map[string]any{}
-	if issueDisplayName != "" {
-		display["name"] = issueDisplayName
+	display := wallet.IssueDisplay{
+		Name:            issueDisplayName,
+		Description:     issueDisplayDescription,
+		BackgroundColor: issueBackgroundColor,
+		TextColor:       issueTextColor,
+		LogoAltText:     issueLogoAlt,
 	}
-	if issueDisplayDescription != "" {
-		display["description"] = issueDisplayDescription
+	if display.Logo, err = displayImageArg(issueLogo); err != nil {
+		return req, err
 	}
-	if issueBackgroundColor != "" {
-		display["background_color"] = issueBackgroundColor
+	if display.BackgroundImage, err = displayImageArg(issueBackgroundImage); err != nil {
+		return req, err
 	}
-	if issueTextColor != "" {
-		display["text_color"] = issueTextColor
-	}
-	logo, err := displayImageArg(issueLogo)
-	if err != nil {
-		return nil, err
-	}
-	if logo != "" {
-		display["logo"] = logo
-	}
-	if issueLogoAlt != "" {
-		display["logo_alt_text"] = issueLogoAlt
-	}
-	bg, err := displayImageArg(issueBackgroundImage)
-	if err != nil {
-		return nil, err
-	}
-	if bg != "" {
-		display["background_image"] = bg
-	}
-	if len(display) > 0 {
-		req["display"] = display
+	if display != (wallet.IssueDisplay{}) {
+		req.Display = &display
 	}
 	return req, nil
 }

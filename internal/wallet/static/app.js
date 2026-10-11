@@ -3226,11 +3226,11 @@
     const vci = document.getElementById('conf-vci-version-select');
     const level = document.getElementById('conf-key-attestation-select');
     return {
-      mode: mode ? mode.value : undefined,
-      tls_verify: !tls || tls.value === 'auto' ? null : tls.value === 'true',
-      haip: haip ? haip.checked : undefined,
-      arf: arf ? arf.checked : undefined,
-      encrypted: enc ? enc.checked : undefined,
+      validation_mode: mode ? mode.value : undefined,
+      tls_verify_override: !tls || tls.value === 'auto' ? null : tls.value === 'true',
+      require_haip: haip ? haip.checked : undefined,
+      require_arf: arf ? arf.checked : undefined,
+      require_encrypted_request: enc ? enc.checked : undefined,
       vci_version: vci ? vci.value : undefined,
       key_attestation_level: level ? level.value : undefined,
     };

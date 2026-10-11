@@ -106,6 +106,7 @@ const (
 	maxDemoTrustedLists       = 5
 	maxDemoIssuedAttestations = 100
 	maxDemoTemplates          = 50
+	maxDemoRelyingParties     = 500
 )
 
 // SetDemo turns on the public demo profile. Templates that visitors save are
@@ -118,18 +119,15 @@ func (s *Server) SetDemo(opts DemoOptions) error {
 		Deferred:           maxDemoDeferred,
 		IssuedAttestations: maxDemoIssuedAttestations,
 		Templates:          maxDemoTemplates,
+		RelyingParties:     maxDemoRelyingParties,
 	})
 	// Added providers and lists are refused when full, because each one
 	// changes what every check trusts.
 	s.wallet.mu.Lock()
 	s.wallet.TrustSettings.MaxEntities, s.wallet.TrustSettings.MaxLists = maxDemoTrustedEntities, maxDemoTrustedLists
 	s.wallet.mu.Unlock()
-	s.wallet.SetVisitorRules(VisitorRules{VisitorTemplates: true, BundledImagesOnly: true})
+	s.wallet.SetVisitorRules(VisitorRules{VisitorTemplates: true, BundledImagesOnly: true, OwnSigningKeys: true})
 	return nil
-}
-
-func (s *Server) DemoEnabled() bool {
-	return s.demo != nil
 }
 
 // maxRequestBodyBytes limits request bodies on every server to bound memory use.

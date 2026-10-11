@@ -25,9 +25,11 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -845,4 +847,36 @@ func firstCertificatePEM(data []byte) ([]byte, error) {
 		return nil, fmt.Errorf("no PEM CERTIFICATE block found")
 	}
 	return pem.EncodeToMemory(&pem.Block{Type: block.Type, Bytes: block.Bytes}), nil
+}
+
+// adoptReloaded takes the keys, the stored state and the snapshot of a wallet
+// loaded from store. The deferred issuances stay, because the poller and the
+// issuance flow manage them in memory and a reload could erase a new deferral
+// before it is saved.
+func (w *Wallet) adoptReloaded(reloaded *Wallet, store *WalletStore) {
+	if reloaded == nil {
+		return
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.HolderKey = reloaded.HolderKey
+	w.IssuerKey = reloaded.IssuerKey
+	w.CAKey = reloaded.CAKey
+	w.signers = reloaded.signers
+	w.CertChain = slices.Clone(reloaded.CertChain)
+	deferred := w.DeferredIssuances
+	w.PersistedState = reloaded.PersistedState.clone()
+	w.DeferredIssuances = deferred
+	if reloaded.persisted != nil && store != nil {
+		w.persisted = make(stateSnapshot, len(reloaded.persisted))
+		for key, blob := range reloaded.persisted {
+			if store.sectionOf(key) != deferredSection {
+				w.persisted[key] = blob
+			}
+		}
+		w.revisions = maps.Clone(reloaded.revisions)
+		w.savedCredentials = maps.Clone(reloaded.savedCredentials)
+		w.entitySeqs = maps.Clone(reloaded.entitySeqs)
+	}
+	w.allocateStatusIndex = reloaded.allocateStatusIndex
 }

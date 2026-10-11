@@ -64,9 +64,6 @@ func TestPreAuthorizedFlowChecksTheAuthorizationServerIssuer(t *testing.T) {
 	}))
 	defer srv.Close()
 	serverURL = srv.URL
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	offer, _ := json.Marshal(map[string]any{
 		"credential_issuer":            serverURL,

@@ -1768,7 +1768,7 @@ test.describe("Verifier redirect after an error response", () => {
   // Debug mode asks the user instead (see the non-matching tests below), so the
   // refusal goes out in strict mode.
   test("a request nothing matches continues at the verifier", async ({ page, request }) => {
-    await request.put(`${WALLET_URL}/api/config/conformance`, { data: { mode: "strict", haip: false } });
+    await request.put(`${WALLET_URL}/api/config/conformance`, { data: { validation_mode: "strict", require_haip: false } });
     try {
       page.on("dialog", (dialog) => dialog.dismiss());
       await page.goto(WALLET_URL);
@@ -1979,7 +1979,7 @@ test.describe("ARF checks", () => {
     const res = await fetch(`${WALLET_URL}/api/config/conformance`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ arf: true }),
+      body: JSON.stringify({ require_arf: true }),
     });
     expect(res.status).toBe(200);
     // The issuer serves unsigned metadata without issuer_info.

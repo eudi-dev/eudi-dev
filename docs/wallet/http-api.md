@@ -265,7 +265,7 @@ curl -X PUT http://localhost:8085/api/config/preferred-format \
 | `PUT`  | `/api/config/preferred-format` | `{"format": ""}`            | Clear preference (default)        |
 | `PUT`  | `/api/config/auto-accept`      | `{"enabled": true}`         | Approve every presentation and offer without a consent prompt, until the process restarts. `false` restores the consent prompt. Refused on the public demo |
 
-The preference can also be set at startup via `--preferred-format`:
+The wallet refuses any other format. The preference can also be set at startup via `--preferred-format`:
 
 ```bash
 eudi wallet serve --auto-accept --pid --preferred-format dc+sd-jwt
@@ -515,13 +515,13 @@ Discovery includes local instances and the active remote target. A responding re
 
 `GET /api/config` reports the instance version, build, serving URLs, wallet settings and credential count. It identifies the [storage backend](../wallet.md#storage-backends) and whether generated keys use a [seed](../wallet.md#seeded-keys).
 
-The response includes `port`, `build_id`, `version`, `storage`, `seeded_keys`, `base_url`, `issuer_url`, `status_list_url`, `preferred_format`, `key_attestation_level`, `tls_verify`, `tls_verify_override`, `validation_mode`, `vci_version`, `auto_accept`, `session_transcript`, `require_haip`, `require_haip_issuance`, `require_arf`, `require_encrypted_request`, `force_client_attestation`, `adhoc_display_images`, `tls_listener`, `imprint`, `credential_count`, `form_defaults`, `protected_relying_parties` and `news_id`.
+The response includes `port`, `build_id`, `version`, `storage`, `seeded_keys`, `base_url`, `issuer_url`, `status_list_url`, `preferred_format`, `key_attestation_level`, `tls_verify`, `tls_verify_override`, `validation_mode`, `vci_version`, `auto_accept`, `session_transcript`, `require_haip`, `require_arf`, `require_encrypted_request`, `force_client_attestation`, `adhoc_display_images`, `tls_listener`, `imprint`, `credential_count`, `form_defaults`, `protected_relying_parties` and `news_id`.
 
 `form_defaults` holds the limits and defaults of the UI forms. `protected_relying_parties` lists the identifiers of the registrations that visitors can't change (the demo issuer and verifier on the public demo, empty otherwise). `news_id` identifies the current news of the public demo (empty without `--news-file`).
 
 Local instances also report `pid`, `wallet_dir` and `templates_dir`. The public demo hides those fields and adds a `demo` object. `POST /api/shutdown` sends its response before stopping the instance. Requests in flight finish first, like on Ctrl-C.
 
-`PUT /api/config/conformance` takes `mode`, `tls_verify`, `haip`, `arf`, `encrypted`, `vci_version` and `key_attestation_level`. It accepts these values for `tls_verify`:
+`PUT /api/config/conformance` changes the settings it names. It takes the names that `GET /api/config` reports: `validation_mode`, `require_haip`, `require_arf`, `require_encrypted_request`, `vci_version`, `key_attestation_level`, `force_client_attestation` and `tls_verify_override`. It refuses any other name. It accepts these values for `tls_verify_override`:
 
 | Value | HTTPS certificate verification |
 |---|---|

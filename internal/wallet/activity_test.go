@@ -217,7 +217,7 @@ func TestActivityMetadataCaptureKeepsStreamingDecodeSemantics(t *testing.T) {
 	}))
 	defer issuer.Close()
 	payload := &LogPayload{Label: "Response"}
-	metadata, err := fetchOAuthMetadata(nil, issuer.URL, payload)
+	metadata, err := fetchOAuthMetadata(issuer.Client(), issuer.URL, payload)
 	if err != nil {
 		t.Fatalf("a complete JSON value must still decode: %v", err)
 	}

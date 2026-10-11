@@ -19,9 +19,9 @@ import (
 	"time"
 )
 
-// RefreshCredential renews a credential with its refresh token. The renewed
+// RenewCredential renews a credential with its refresh token. The renewed
 // credential keeps the ID, so queries, UI selections and logs still match.
-func (w *Wallet) RefreshCredential(id string) (*StoredCredential, error) {
+func (w *Wallet) RenewCredential(id string) (*StoredCredential, error) {
 	cred, ok := w.GetCredential(id)
 	if !ok {
 		return nil, fmt.Errorf("credential %s not found", id)
@@ -89,8 +89,8 @@ func (w *Wallet) RefreshCredential(id string) (*StoredCredential, error) {
 	return renewed, nil
 }
 
-func (s *Server) RefreshCredential(id string) (*StoredCredential, error) {
-	renewed, err := s.management().RefreshCredential(id)
+func (s *Server) RenewCredential(id string) (*StoredCredential, error) {
+	renewed, err := s.management().RenewCredential(id)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +115,7 @@ func (s *Server) renewExpiringCredentials(now time.Time) error {
 		if !s.renewalDue(cred.ID, now) {
 			continue
 		}
-		if _, err := s.RefreshCredential(cred.ID); err != nil {
+		if _, err := s.RenewCredential(cred.ID); err != nil {
 			s.noteRenewalFailure(cred.ID, now)
 			s.log("  ERROR: renewing credential %s: %v", cred.ID, err)
 		}

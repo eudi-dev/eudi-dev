@@ -391,11 +391,7 @@ func TestFetchAttestationChallenge_AttestationChallengeField(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
-
-	challenge, err := fetchAttestationChallenge(srv.URL)
+	challenge, err := fetchAttestationChallenge(srv.URL, srv.Client())
 	if err != nil {
 		t.Fatalf("fetchAttestationChallenge: %v", err)
 	}
@@ -433,13 +429,9 @@ func TestDoDPoPRequest_RegeneratesAttestationHeadersOnRetry(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
-
 	nonce := ""
 	authenticator := w.clientAuthenticatorFor(&ClientAuthentication{Method: ClientAuthAttestation, Audience: srv.URL}, "wallet-client")
-	_, _, err := doDPoPRequest(http.MethodPost, srv.URL, "application/json", "", []byte(`{}`), "", "", w.HolderKey, &nonce, authenticator)
+	_, _, err := doDPoPRequest(http.MethodPost, srv.URL, "application/json", "", []byte(`{}`), "", "", w.HolderKey, &nonce, authenticator, srv.Client())
 	if err != nil {
 		t.Fatalf("doDPoPRequest: %v", err)
 	}
@@ -529,10 +521,6 @@ func TestProcessCredentialOffer_HappyPath(t *testing.T) {
 	})
 	defer srv.Close()
 
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
-
 	result, err := w.ProcessCredentialOffer(offerURI)
 	if err != nil {
 		t.Fatalf("ProcessCredentialOffer: %v", err)
@@ -580,10 +568,6 @@ func TestProcessCredentialOffer_MissingAccessToken(t *testing.T) {
 	srv, offerURI := setupMockIssuer(t, w, mockIssuerOpts{omitAccessToken: true})
 	defer srv.Close()
 
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
-
 	_, err := w.ProcessCredentialOffer(offerURI)
 	if err == nil || !strings.Contains(err.Error(), "access_token") {
 		t.Fatalf("error = %v, want it to name the missing access_token", err)
@@ -598,10 +582,6 @@ func TestProcessCredentialOffer_NonceFallback(t *testing.T) {
 		nonceEndpoint: true,
 	})
 	defer srv.Close()
-
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	result, err := w.ProcessCredentialOffer(offerURI)
 	if err != nil {
@@ -626,10 +606,6 @@ func TestProcessCredentialOffer_NonceEndpointOnlyGET(t *testing.T) {
 
 	srv, offerURI := setupMockIssuer(t, w, mockIssuerOpts{nonceEndpoint: true, nonceOnlyGET: true})
 	defer srv.Close()
-
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	result, err := w.ProcessCredentialOffer(offerURI)
 	if err != nil {
@@ -665,10 +641,6 @@ func TestProcessCredentialOffer_NonceEndpointOnlyGETStrictRefuses(t *testing.T) 
 	srv, offerURI := setupMockIssuer(t, w, mockIssuerOpts{nonceEndpoint: true, nonceOnlyGET: true})
 	defer srv.Close()
 
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
-
 	_, err := w.ProcessCredentialOffer(offerURI)
 	if err == nil || !strings.Contains(err.Error(), "nonce endpoint") {
 		t.Fatalf("error = %v, want strict to refuse naming the nonce endpoint", err)
@@ -692,10 +664,6 @@ func TestProcessCredentialOffer_CredentialsArray(t *testing.T) {
 		},
 	})
 	defer srv.Close()
-
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	result, err := w.ProcessCredentialOffer(offerURI)
 	if err != nil {
@@ -745,10 +713,6 @@ func TestProcessCredentialOffer_AuthCodeRequiresClientConfiguration(t *testing.T
 	}))
 	defer srv.Close()
 	serverURL = srv.URL
-
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	offer := map[string]any{
 		"credential_issuer":            serverURL,
@@ -864,10 +828,6 @@ func TestProcessCredentialOffer_AuthCodeBrowserFallback(t *testing.T) {
 	defer issuer.Close()
 	serverURL = issuer.URL
 
-	oldClient := httpClient
-	httpClient = issuer.Client()
-	defer func() { httpClient = oldClient }()
-
 	// The test plays the browser and visits the authorization URL from the
 	// event stream.
 	authCh, unsubscribe := w.Consents().SubscribeAuthorization(func(consent.AuthorizationPrompt) bool { return true })
@@ -928,10 +888,6 @@ func TestRunAuthorizationCodeRequest_NobodyTookTheURL(t *testing.T) {
 		http.Redirect(rw, r, redirectURI+"?code=issued-code&state="+url.QueryEscape(state), http.StatusFound)
 	}))
 	defer authServer.Close()
-
-	oldClient := httpClient
-	httpClient = authServer.Client()
-	defer func() { httpClient = oldClient }()
 
 	_, err := runAuthorizationCodeRequest(w, authServer.URL+"/authorize", "wallet-client",
 		"urn:ietf:params:oauth:request_uri:example", nil, redirectURI, state, "", consent.AuthorizationPrompt{}, false)
@@ -1024,10 +980,6 @@ func TestProcessCredentialOffer_AuthCodeDirectRedirect(t *testing.T) {
 	}))
 	defer issuer.Close()
 	serverURL = issuer.URL
-
-	oldClient := httpClient
-	httpClient = issuer.Client()
-	defer func() { httpClient = oldClient }()
 
 	authCh, unsubscribe := w.Consents().SubscribeAuthorization(func(consent.AuthorizationPrompt) bool { return true })
 	defer unsubscribe()
@@ -1167,10 +1119,6 @@ func TestProcessCredentialOffer_StrictRejectsAuthorizationServerIssuerMismatchBe
 	defer issuer.Close()
 	serverURL = issuer.URL
 
-	oldClient := httpClient
-	httpClient = issuer.Client()
-	defer func() { httpClient = oldClient }()
-
 	offer := map[string]any{
 		"credential_issuer":            serverURL,
 		"credential_configuration_ids": []string{"test-config"},
@@ -1260,10 +1208,6 @@ func refuseMissingAuthorizationResponseIssuer(t *testing.T, haip bool) {
 	defer issuer.Close()
 	serverURL = issuer.URL
 
-	oldClient := httpClient
-	httpClient = issuer.Client()
-	defer func() { httpClient = oldClient }()
-
 	offer := map[string]any{
 		"credential_issuer":            serverURL,
 		"credential_configuration_ids": []string{"test-config"},
@@ -1340,10 +1284,6 @@ func TestProcessCredentialOffer_TxCodeSentInTokenRequest(t *testing.T) {
 		origHandler.ServeHTTP(rw, r)
 	})
 
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
-
 	offer := map[string]any{
 		"credential_issuer":            srvURL,
 		"credential_configuration_ids": []string{"test-config"},
@@ -1387,10 +1327,6 @@ func TestProcessCredentialOffer_NoTxCodeWhenNotSet(t *testing.T) {
 		origHandler.ServeHTTP(rw, r)
 	})
 
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
-
 	_, err := w.ProcessCredentialOffer(offerURI)
 	if err != nil {
 		t.Fatalf("ProcessCredentialOffer: %v", err)
@@ -1414,10 +1350,6 @@ func TestProcessCredentialOffer_RejectsAnArrayOfRawCredentialStrings(t *testing.
 	})
 	defer srv.Close()
 
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
-
 	if _, err := w.ProcessCredentialOffer(offerURI); err == nil {
 		t.Fatal("a credentials array of bare strings was accepted")
 	}
@@ -1433,10 +1365,6 @@ func TestProcessCredentialOffer_RejectsATopLevelCredentialString(t *testing.T) {
 		credentialResponse: map[string]any{"credential": credRaw},
 	})
 	defer srv.Close()
-
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	if _, err := w.ProcessCredentialOffer(offerURI); err == nil {
 		t.Fatal("a top-level credential string was accepted")
@@ -1486,10 +1414,6 @@ func TestProcessCredentialOffer_VerifiesViaIssuerMetadata(t *testing.T) {
 	})
 	defer srv.Close()
 
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
-
 	result, err := w.ProcessCredentialOffer(offerURI)
 	if err != nil {
 		t.Fatalf("ProcessCredentialOffer: %v", err)
@@ -1523,10 +1447,6 @@ func TestProcessCredentialOffer_UsesCredentialIdentifierFromAuthorizationDetails
 		},
 	})
 	defer srv.Close()
-
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	if _, err := w.ProcessCredentialOffer(offerURI); err != nil {
 		t.Fatalf("ProcessCredentialOffer: %v", err)
@@ -1562,9 +1482,6 @@ func TestProcessCredentialOffer_PicksTheIdentifierOfTheOfferedConfiguration(t *t
 		},
 	})
 	defer srv.Close()
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	if _, err := w.ProcessCredentialOffer(offerURI); err != nil {
 		t.Fatalf("ProcessCredentialOffer: %v", err)
@@ -1586,9 +1503,6 @@ func TestProcessCredentialOffer_WarnsWhenTheTokenAuthorizesAnotherConfiguration(
 		},
 	})
 	defer srv.Close()
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	_, _ = w.ProcessCredentialOffer(offerURI)
 	warnings := authorizedOtherWarnings(w)
@@ -1762,10 +1676,6 @@ func TestProcessCredentialOffer_RetriesOnInvalidNonce(t *testing.T) {
 	})
 	defer srv.Close()
 
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
-
 	result, err := w.ProcessCredentialOffer(offerURI)
 	if err != nil {
 		t.Fatalf("ProcessCredentialOffer: %v", err)
@@ -1802,10 +1712,6 @@ func TestProcessCredentialOffer_NonceRequestIsUnauthenticated(t *testing.T) {
 	})
 	defer srv.Close()
 
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
-
 	if _, err := w.ProcessCredentialOffer(offerURI); err != nil {
 		t.Fatalf("ProcessCredentialOffer: %v", err)
 	}
@@ -1834,10 +1740,6 @@ func TestProcessCredentialOffer_MetadataAcceptHeader(t *testing.T) {
 		},
 	})
 	defer srv.Close()
-
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	if _, err := w.ProcessCredentialOffer(offerURI); err != nil {
 		t.Fatalf("ProcessCredentialOffer: %v", err)
@@ -1872,10 +1774,6 @@ func TestProcessCredentialOffer_MissingTokenTypeByValidationMode(t *testing.T) {
 
 			srv, offerURI := setupMockIssuer(t, w, mockIssuerOpts{omitTokenType: true})
 			defer srv.Close()
-
-			oldClient := httpClient
-			httpClient = srv.Client()
-			defer func() { httpClient = oldClient }()
 
 			_, err := w.ProcessCredentialOffer(offerURI)
 			if tc.wantErr {
@@ -1922,10 +1820,6 @@ func TestProcessCredentialOffer_TokenResponseCNonceByValidationMode(t *testing.T
 				},
 			})
 			defer srv.Close()
-
-			oldClient := httpClient
-			httpClient = srv.Client()
-			defer func() { httpClient = oldClient }()
 
 			if _, err := w.ProcessCredentialOffer(offerURI); err != nil {
 				t.Fatalf("ProcessCredentialOffer: %v", err)
@@ -2016,10 +1910,6 @@ func TestProcessCredentialOffer_AuthCodeWithoutPARorDPoP(t *testing.T) {
 	defer issuer.Close()
 	serverURL = issuer.URL
 
-	oldClient := httpClient
-	httpClient = issuer.Client()
-	defer func() { httpClient = oldClient }()
-
 	offer := map[string]any{
 		"credential_issuer":            serverURL,
 		"credential_configuration_ids": []string{"test-config"},
@@ -2100,10 +1990,6 @@ func TestProcessCredentialOffer_KeepsCredentialWhenNotificationIsRefused(t *test
 		},
 	})
 	defer srv.Close()
-
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	result, err := w.ProcessCredentialOffer(offerURI)
 	if err != nil {
@@ -2192,10 +2078,6 @@ func TestNotificationRequestIsShapedAsSpecified(t *testing.T) {
 		},
 	})
 	defer srv.Close()
-
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	if _, err := w.ProcessCredentialOffer(offerURI); err != nil {
 		t.Fatalf("ProcessCredentialOffer: %v", err)

@@ -103,10 +103,6 @@ func TestApproveRequest_CarriesTxCodeIntoIssuance(t *testing.T) {
 	srv, offerURI := txCodeIssuer(t, w, "1234")
 	defer srv.Close()
 
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
-
 	server := NewServer(w, 0, nil)
 
 	for _, tc := range []struct {
@@ -142,7 +138,7 @@ func TestApproveRequest_CarriesTxCodeIntoIssuance(t *testing.T) {
 			done := make(chan struct{})
 			go func() {
 				defer close(done)
-				server.awaitOfferConsent(noopResponseWriter{}, consentReq, "test issuer", false, OfferOptions{})
+				server.awaitOfferConsent(noopResponseWriter{}, consentReq, "test issuer", OfferOptions{})
 			}()
 
 			consentReq.ResultCh <- consent.Result{Approved: true, TxCode: tc.code}
@@ -188,10 +184,6 @@ func TestDescribeCredentialOfferEmbedsTheIssuerLogo(t *testing.T) {
 	}))
 	defer srv.Close()
 	serverURL = srv.URL
-
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	details, _ := generateTestWallet(t).describeCredentialOffer(&oid4vc.CredentialOffer{CredentialIssuer: srv.URL})
 	if details.IssuerName != "Test Issuer" {
@@ -276,10 +268,6 @@ func TestOfferNeedingATxCodeIsRefusedBeforeTheCodeIsSpent(t *testing.T) {
 	srv, offerURI := txCodeIssuer(t, w, "1234")
 	defer srv.Close()
 
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
-
 	_, err := w.ProcessCredentialOfferWithOptions(offerURI, OfferOptions{})
 	if err == nil {
 		t.Fatal("expected the issuance to say what it is missing")
@@ -301,10 +289,6 @@ func TestEmptyTxCodeObjectRequiresACode(t *testing.T) {
 	w := generateTestWallet(t)
 	srv, offerURI := txCodeIssuerWithObject(t, w, "1234", map[string]any{})
 	defer srv.Close()
-
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	_, err := w.ProcessCredentialOfferWithOptions(offerURI, OfferOptions{})
 	if err == nil || !strings.Contains(err.Error(), "requires a transaction code") {

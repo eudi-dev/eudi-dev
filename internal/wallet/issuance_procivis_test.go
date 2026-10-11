@@ -141,10 +141,6 @@ func TestProcessCredentialOffer_HAIPAgainstNoneAuthIssuer(t *testing.T) {
 		srv, offerURI := setupNoneAuthIssuer(t, w, &sentAttestation)
 		t.Cleanup(srv.Close)
 
-		oldClient := httpClient
-		httpClient = srv.Client()
-		t.Cleanup(func() { httpClient = oldClient })
-
 		result, err := w.ProcessCredentialOffer(offerURI)
 		return result, &sentAttestation, w, err
 	}

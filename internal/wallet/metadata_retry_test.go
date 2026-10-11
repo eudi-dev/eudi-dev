@@ -41,7 +41,7 @@ func TestMetadataFetchRetriesATransientFailure(t *testing.T) {
 
 	resp, err := fetchMetadataDocument(func() (*http.Request, error) {
 		return http.NewRequest("GET", srv.URL, nil)
-	})
+	}, srv.Client())
 	if err != nil {
 		t.Fatalf("fetchMetadataDocument: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestMetadataFetchDoesNotRetryANotFound(t *testing.T) {
 
 	resp, err := fetchMetadataDocument(func() (*http.Request, error) {
 		return http.NewRequest("GET", srv.URL, nil)
-	})
+	}, srv.Client())
 	if err != nil {
 		t.Fatalf("fetchMetadataDocument: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestMetadataFetchGivesUpAfterTheAttempts(t *testing.T) {
 
 	if _, err := fetchMetadataDocument(func() (*http.Request, error) {
 		return http.NewRequest("GET", srv.URL, nil)
-	}); err == nil {
+	}, srv.Client()); err == nil {
 		t.Fatal("expected an error once the attempts were used up")
 	}
 	if got := calls.Load(); got != int32(metadataFetchAttempts) {

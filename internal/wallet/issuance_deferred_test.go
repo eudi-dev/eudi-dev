@@ -155,10 +155,6 @@ func TestProcessCredentialOffer_DeferredWithoutEndpoint(t *testing.T) {
 	offerJSON, _ := json.Marshal(offer)
 	offerURI := "openid-credential-offer://?credential_offer=" + url.QueryEscape(string(offerJSON))
 
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
-
 	_, err := w.ProcessCredentialOffer(offerURI)
 	if err == nil || !strings.Contains(err.Error(), "deferred_credential_endpoint") {
 		t.Fatalf("error = %v, want it to name the missing deferred_credential_endpoint", err)
@@ -248,9 +244,6 @@ func TestDeferringCredentialResponseFollowsSection83(t *testing.T) {
 			}))
 			defer srv.Close()
 			serverURL = srv.URL
-			oldClient := httpClient
-			httpClient = srv.Client()
-			defer func() { httpClient = oldClient }()
 
 			offer, _ := json.Marshal(map[string]any{
 				"credential_issuer":            serverURL,
@@ -279,10 +272,6 @@ func TestProcessCredentialOffer_DeferredIsRecordedNotWaitedOut(t *testing.T) {
 	// The offer flow leaves polling to the background collector.
 	srv, offerURI, polls := deferringIssuer(t, w, 1000, 3600)
 	defer srv.Close()
-
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	started := time.Now()
 	result, err := w.ProcessCredentialOffer(offerURI)
@@ -371,10 +360,6 @@ func TestProcessCredentialOffer_DeferredWithBatchAdvertised(t *testing.T) {
 	offerJSON, _ := json.Marshal(offer)
 	offerURI := "openid-credential-offer://?credential_offer=" + url.QueryEscape(string(offerJSON))
 
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
-
 	result, err := w.ProcessCredentialOffer(offerURI)
 	if err != nil {
 		t.Fatalf("ProcessCredentialOffer: %v", err)
@@ -425,10 +410,6 @@ func TestProcessCredentialOffer_FailureIsLogged(t *testing.T) {
 	}
 	offerJSON, _ := json.Marshal(offer)
 	offerURI := "openid-credential-offer://?credential_offer=" + url.QueryEscape(string(offerJSON))
-
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	if _, err := w.ProcessCredentialOffer(offerURI); err == nil {
 		t.Fatal("expected the offer to fail")
@@ -543,10 +524,6 @@ func TestDeferredCredentialRequestIsEncryptedWhenTheIssuerRequiresIt(t *testing.
 	defer srv.Close()
 	serverURL = srv.URL
 
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
-
 	server := NewServer(w, 0, func() {})
 	pending := pendingFor(t, w, srv.URL+"/deferred", 1)
 	w.AddDeferredIssuance(pending)
@@ -629,10 +606,6 @@ func TestDeferredCollectionRecoversAMissingDisplay(t *testing.T) {
 	}))
 	defer srv.Close()
 	serverURL = srv.URL
-
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	server := NewServer(w, 0, func() {})
 	pending := pendingFor(t, w, srv.URL+"/deferred", 1)

@@ -340,9 +340,6 @@ func TestDebugARFReturnsTheIssuanceFindingsInTheResult(t *testing.T) {
 	w.RequireARF = true
 	srv, offerURI := setupMockIssuer(t, w, mockIssuerOpts{})
 	defer srv.Close()
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	result, err := w.ProcessCredentialOffer(offerURI)
 	if err != nil {
@@ -361,9 +358,6 @@ func TestStrictARFRefusesAnOfferBeforeTheConsentDialog(t *testing.T) {
 	w.ValidationMode = ValidationModeStrict
 	srv, offerURI := setupMockIssuer(t, w, mockIssuerOpts{})
 	defer srv.Close()
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	if _, _, err := w.prepareIssuanceConsentRequest(offerURI, ""); err == nil || !strings.Contains(err.Error(), "RPRC_22a") {
 		t.Errorf("err %v, want the refusal before the dialog", err)
@@ -414,9 +408,6 @@ func TestStrictARFChecksTheChosenConfigurationOnly(t *testing.T) {
 	}))
 	defer srv.Close()
 	serverURL = srv.URL
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	offer, _ := json.Marshal(map[string]any{
 		"credential_issuer":            serverURL,

@@ -182,7 +182,7 @@ func (w *Wallet) renewExpiring(matches []consent.Match) {
 		if !ok || !cred.CanRenew() || !CredentialNeedsRenewal(cred, now) {
 			continue
 		}
-		if _, err := manage.RefreshCredential(cred.ID); err != nil {
+		if _, err := manage.RenewCredential(cred.ID); err != nil {
 			log.Printf("[VP] renewing %s before presenting it failed, sending the credential as it is: %v", cred.ID, err)
 			continue
 		}

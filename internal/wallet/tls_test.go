@@ -155,13 +155,13 @@ func TestTLSConformanceSettingsApplyToExistingClientsAndClones(t *testing.T) {
 		reject   bool
 		override *bool
 	}{
-		{body: `{"mode":"strict"}`, reject: true},
-		{body: `{"tls_verify":false}`, override: tlsBool(false)},
-		{body: `{"mode":"debug"}`, override: tlsBool(false)},
-		{body: `{"tls_verify":true}`, reject: true, override: tlsBool(true)},
-		{body: `{"mode":"strict"}`, reject: true, override: tlsBool(true)},
-		{body: `{"tls_verify":null}`, reject: true},
-		{body: `{"mode":"debug"}`},
+		{body: `{"validation_mode":"strict"}`, reject: true},
+		{body: `{"tls_verify_override":false}`, override: tlsBool(false)},
+		{body: `{"validation_mode":"debug"}`, override: tlsBool(false)},
+		{body: `{"tls_verify_override":true}`, reject: true, override: tlsBool(true)},
+		{body: `{"validation_mode":"strict"}`, reject: true, override: tlsBool(true)},
+		{body: `{"tls_verify_override":null}`, reject: true},
+		{body: `{"validation_mode":"debug"}`},
 	} {
 		t.Run(tc.body, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPut, "/api/config/conformance", strings.NewReader(tc.body))
@@ -198,7 +198,7 @@ func TestTLSConformanceSettingsApplyToExistingClientsAndClones(t *testing.T) {
 			}
 		})
 	}
-	req := httptest.NewRequest(http.MethodPut, "/api/config/conformance", strings.NewReader(`{"mode":"strict","tls_verify":"false"}`))
+	req := httptest.NewRequest(http.MethodPut, "/api/config/conformance", strings.NewReader(`{"validation_mode":"strict","tls_verify_override":"false"}`))
 	rec := httptest.NewRecorder()
 	srv.mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadRequest || w.Mode() != ValidationModeDebug {
@@ -218,7 +218,7 @@ func TestTLSResetPreservesExplicitStartupOverride(t *testing.T) {
 		method, body string
 		want         bool
 	}{
-		{http.MethodPut, `{"tls_verify":true}`, true},
+		{http.MethodPut, `{"tls_verify_override":true}`, true},
 		{http.MethodDelete, "", false},
 	} {
 		req := httptest.NewRequest(tc.method, "/api/config/conformance", strings.NewReader(tc.body))

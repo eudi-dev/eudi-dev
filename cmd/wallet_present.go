@@ -66,7 +66,7 @@ func dispatchURI(uri string, opts dispatchOID4Opts) error {
 		}
 		opts.conformance.apply(w)
 		if opts.autoAccept {
-			w.AutoAccept = true
+			w.SetAutoAccept(true)
 		}
 		if err := applySessionTranscriptMode(w, opts.sessionTranscript); err != nil {
 			return err

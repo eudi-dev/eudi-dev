@@ -102,7 +102,7 @@ func TestRemoteWalletTLSFlagsAreNotIgnored(t *testing.T) {
 		if r.URL.Path != "/api/config" {
 			calls.Add(1)
 		}
-		_, _ = io.WriteString(w, `{}`)
+		_, _ = io.WriteString(w, `{"tls_verify":true}`)
 	}))
 	defer remoteServer.Close()
 	flag := walletCmd.PersistentFlags().Lookup("tls-verify")
@@ -116,7 +116,7 @@ func TestRemoteWalletTLSFlagsAreNotIgnored(t *testing.T) {
 		t.Fatal(err)
 	}
 	err := acceptOID4URI("openid-credential-offer://?credential_offer_uri=https://issuer.example/offer", dispatchOID4Opts{})
-	if err == nil || !strings.Contains(err.Error(), "the running wallet does not report --tls-verify") {
+	if err == nil || !strings.Contains(err.Error(), "--tls-verify is set on the running wallet") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if calls.Load() != 0 {

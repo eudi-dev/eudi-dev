@@ -175,10 +175,6 @@ func TestForceClientAttestation_ReachesSilentIssuer(t *testing.T) {
 			srv, offerURI, attested := silentAttestationIssuer(t, w)
 			defer srv.Close()
 
-			oldClient := httpClient
-			httpClient = srv.Client()
-			defer func() { httpClient = oldClient }()
-
 			_, err := w.ProcessCredentialOffer(offerURI)
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
@@ -212,10 +208,6 @@ func TestHAIPDebugAttestsSilentIssuer(t *testing.T) {
 
 	srv, offerURI, attested := silentAttestationIssuer(t, w)
 	defer srv.Close()
-
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	result, err := w.ProcessCredentialOffer(offerURI)
 	if err != nil {

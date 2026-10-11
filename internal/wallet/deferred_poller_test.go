@@ -153,10 +153,6 @@ func TestDeferredPoller_CollectsWhenReady(t *testing.T) {
 	srv, polls := deferredCollectionIssuer(t, credRaw, 1, 1)
 	defer srv.Close()
 
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
-
 	saves := 0
 	server := NewServer(w, 0, func() { saves++ })
 	pending := pendingFor(t, w, srv.URL, 1)
@@ -235,10 +231,6 @@ func TestDeferredPoller_NotifiesAfterCollecting(t *testing.T) {
 	defer srv.Close()
 	issuerURL = srv.URL
 
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
-
 	server := NewServer(w, 0, func() {})
 	pending := pendingFor(t, w, srv.URL+"/deferred", 1)
 	pending.Issuer = issuerURL
@@ -283,10 +275,6 @@ func TestDeferredPoller_GivesUpOnFatalAnswers(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			oldClient := httpClient
-			httpClient = srv.Client()
-			defer func() { httpClient = oldClient }()
-
 			server := NewServer(w, 0, func() {})
 			pending := pendingFor(t, w, srv.URL, 1)
 			pending.NextAttemptAt = time.Now().Add(-time.Second)
@@ -309,10 +297,6 @@ func TestDeferredPoller_DropsExpiredRecords(t *testing.T) {
 		rw.WriteHeader(http.StatusOK)
 	}))
 	defer srv.Close()
-
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	server := NewServer(w, 0, func() {})
 	pending := pendingFor(t, w, srv.URL, 1)
@@ -401,10 +385,6 @@ func TestCollectDeferredNow(t *testing.T) {
 	srv, polls := deferredCollectionIssuer(t, credRaw, 1, 30)
 	defer srv.Close()
 
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
-
 	server := NewServer(w, 0, func() {})
 	pending := pendingFor(t, w, srv.URL, 30)
 	pending.NextAttemptAt = time.Now().Add(30 * time.Second)
@@ -456,10 +436,6 @@ func TestAbandonDeferredNow(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
-
 	saves := 0
 	server := NewServer(w, 0, func() { saves++ })
 	pending := pendingFor(t, w, srv.URL, 10)
@@ -495,10 +471,6 @@ func TestDeferredPollerRunsFromTheServer(t *testing.T) {
 	credRaw := generateTestCredential(t, w)
 	srv, polls := deferredCollectionIssuer(t, credRaw, 0, 1)
 	defer srv.Close()
-
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	server := NewServer(w, 0, nil)
 	pending := pendingFor(t, w, srv.URL, 1)
@@ -579,9 +551,6 @@ func TestDeferredCollectionFromAStaleCopyDoesNotCollectTwice(t *testing.T) {
 	credRaw := generateTestCredential(t, w)
 	srv, polls := deferredCollectionIssuer(t, credRaw, 0, 1)
 	defer srv.Close()
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	server := NewServer(w, 0, func() {})
 	pending := pendingFor(t, w, srv.URL, 1)
@@ -616,9 +585,6 @@ func TestDeferredPendingResponseWithout202(t *testing.T) {
 				json.NewEncoder(rw).Encode(map[string]any{"transaction_id": "test-transaction"})
 			}))
 			defer srv.Close()
-			oldClient := httpClient
-			httpClient = srv.Client()
-			defer func() { httpClient = oldClient }()
 
 			server := NewServer(w, 0, func() {})
 			pending := pendingFor(t, w, srv.URL, 1)
@@ -655,9 +621,6 @@ func TestDeferredPendingResponseKeepsTheTransactionID(t *testing.T) {
 				json.NewEncoder(rw).Encode(map[string]any{"transaction_id": "another-transaction", "interval": 5})
 			}))
 			defer srv.Close()
-			oldClient := httpClient
-			httpClient = srv.Client()
-			defer func() { httpClient = oldClient }()
 
 			server := NewServer(w, 0, func() {})
 			pending := pendingFor(t, w, srv.URL, 1)
@@ -714,10 +677,6 @@ func TestDeferredCollectionRefreshesAnExpiredToken(t *testing.T) {
 	}))
 	defer srv.Close()
 	srvURL = srv.URL
-
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	server := NewServer(w, 0, nil)
 	pending := pendingFor(t, w, srvURL+"/deferred", 1)
@@ -865,9 +824,6 @@ func TestDeferredCollectionWaitsForUsableMetadata(t *testing.T) {
 				rw.WriteHeader(http.StatusAccepted)
 			}))
 			defer srv.Close()
-			oldClient := httpClient
-			httpClient = srv.Client()
-			defer func() { httpClient = oldClient }()
 
 			server := NewServer(w, 0, nil)
 			pending := pendingFor(t, w, srv.URL+"/deferred", 1)

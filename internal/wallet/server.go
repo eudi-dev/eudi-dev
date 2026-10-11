@@ -17,12 +17,10 @@ package wallet
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
-	"maps"
 	"net"
 	"net/http"
 	"slices"
@@ -156,7 +154,7 @@ func (s *Server) setupRoutes() {
 
 	s.routeFunc("POST /api/offers", s.withFreshStore(s.handleOfferAPI))
 	s.routeFunc("GET /api/offers/{id}", s.handleOfferStatus)
-	s.routeFunc("POST /api/credentials/{id}/refresh", s.withFreshStore(s.handleRefreshCredential))
+	s.routeFunc("POST /api/credentials/{id}/refresh", s.withFreshStore(s.handleRenewCredential))
 	s.routeFunc("GET /callback", s.withFreshStore(s.handleAuthorizationCodeCallback))
 
 	// The URL handler checks this endpoint to detect outdated servers.
@@ -400,12 +398,6 @@ func (s *Server) reloading(withLog bool, handler http.HandlerFunc) http.HandlerF
 	}
 }
 
-func (s *Server) reloadFromStore() error {
-	s.storeSyncMu.Lock()
-	defer s.unlockStore()
-	return s.reloadLocked(false)
-}
-
 // Caller must hold storeSyncMu. Entity backends load changed sections and load the
 // activity log only when withLog is true.
 func (s *Server) reloadLocked(withLog bool) error {
@@ -456,37 +448,7 @@ func (s *Server) reloadLocked(withLog bool) error {
 }
 
 func (s *Server) applyPersistedWalletState(reloaded *Wallet) {
-	if reloaded == nil {
-		return
-	}
-
-	s.wallet.mu.Lock()
-	defer s.wallet.mu.Unlock()
-
-	s.wallet.HolderKey = reloaded.HolderKey
-	s.wallet.IssuerKey = reloaded.IssuerKey
-	s.wallet.CAKey = reloaded.CAKey
-	s.wallet.signers = reloaded.signers
-	s.wallet.CertChain = append([]*x509.Certificate(nil), reloaded.CertChain...)
-	// The poller and issuance flow manage deferred issuances in memory. Reloading them
-	// here could erase a new deferral before it has been saved.
-	deferred := s.wallet.DeferredIssuances
-	s.wallet.PersistedState = reloaded.PersistedState.clone()
-	s.wallet.DeferredIssuances = deferred
-	// Copy the snapshot with the loaded state. Keep deferred rows in the existing
-	// snapshot because the server manages them in memory.
-	if store := s.store.Load(); reloaded.persisted != nil && store != nil {
-		s.wallet.persisted = make(stateSnapshot, len(reloaded.persisted))
-		for key, blob := range reloaded.persisted {
-			if store.sectionOf(key) != deferredSection {
-				s.wallet.persisted[key] = blob
-			}
-		}
-		s.wallet.revisions = maps.Clone(reloaded.revisions)
-		s.wallet.savedCredentials = maps.Clone(reloaded.savedCredentials)
-		s.wallet.entitySeqs = maps.Clone(reloaded.entitySeqs)
-	}
-	s.wallet.allocateStatusIndex = reloaded.allocateStatusIndex
+	s.wallet.adoptReloaded(reloaded, s.store.Load())
 }
 
 // Shutdown lets running requests finish for a moment, so the response to the

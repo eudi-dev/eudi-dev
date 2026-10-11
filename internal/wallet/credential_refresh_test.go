@@ -43,7 +43,7 @@ func renewalIssuerMetadata(issuer string) map[string]any {
 
 // A renewal keeps the credential ID. Its proof uses a fresh challenge from
 // the Nonce Endpoint (OpenID4VCI §8.2).
-func TestRefreshCredentialKeepsTheIdentity(t *testing.T) {
+func TestRenewCredentialKeepsTheIdentity(t *testing.T) {
 	w := generateTestWallet(t)
 	original := generateTestCredential(t, w)
 	renewed := generateTestCredential(t, w)
@@ -102,10 +102,6 @@ func TestRefreshCredentialKeepsTheIdentity(t *testing.T) {
 	defer srv.Close()
 	serverURL = srv.URL
 
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
-
 	imported, err := w.ImportCredential(original)
 	if err != nil {
 		t.Fatal(err)
@@ -118,9 +114,9 @@ func TestRefreshCredentialKeepsTheIdentity(t *testing.T) {
 
 	server := NewServer(w, 0, nil)
 	before := len(w.GetCredentials())
-	result, err := server.RefreshCredential(id)
+	result, err := server.RenewCredential(id)
 	if err != nil {
-		t.Fatalf("RefreshCredential: %v", err)
+		t.Fatalf("RenewCredential: %v", err)
 	}
 
 	if result.ID != id {
@@ -148,14 +144,14 @@ func TestRefreshCredentialKeepsTheIdentity(t *testing.T) {
 	}
 }
 
-func TestRefreshCredentialRefusesWithoutARefreshToken(t *testing.T) {
+func TestRenewCredentialRefusesWithoutARefreshToken(t *testing.T) {
 	w := generateTestWallet(t)
 	imported, err := w.ImportCredential(generateTestCredential(t, w))
 	if err != nil {
 		t.Fatal(err)
 	}
 	server := NewServer(w, 0, nil)
-	if _, err := server.RefreshCredential(imported.ID); err == nil {
+	if _, err := server.RenewCredential(imported.ID); err == nil {
 		t.Error("a credential with no refresh token was renewed")
 	}
 }
@@ -242,10 +238,6 @@ func TestPresentingRenewsACredentialAboutToExpire(t *testing.T) {
 	defer srv.Close()
 	serverURL = srv.URL
 
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
-
 	expiring, err := w.IssueCredential(IssueOptions{
 		Format: "sdjwt", VCT: "urn:test:expiring:1",
 		Claims: map[string]any{"given_name": "Alice"}, ExpiresIn: 20 * time.Second,
@@ -284,7 +276,7 @@ func TestPresentingRenewsACredentialAboutToExpire(t *testing.T) {
 }
 
 // A refresh authenticates the client the same way the original issuance did.
-func TestRefreshCredentialAuthenticatesTheClient(t *testing.T) {
+func TestRenewCredentialAuthenticatesTheClient(t *testing.T) {
 	w := generateTestWallet(t)
 	w.IssuerURL = "https://wallet.example"
 	original := generateTestCredential(t, w)
@@ -324,13 +316,9 @@ func TestRefreshCredentialAuthenticatesTheClient(t *testing.T) {
 		return srv
 	}
 
-	oldClient := httpClient
-	defer func() { httpClient = oldClient }()
-
 	t.Run("wallet attestation", func(t *testing.T) {
 		srv := newIssuer()
 		defer srv.Close()
-		httpClient = srv.Client()
 		challenges, sawAttestation, sawPoP, sawAssertion = 0, "", "", ""
 
 		imported, err := w.ImportCredential(original)
@@ -347,8 +335,8 @@ func TestRefreshCredentialAuthenticatesTheClient(t *testing.T) {
 				ChallengeEndpoint: srv.URL + "/challenge",
 			},
 		})
-		if _, err := w.RefreshCredential(imported.ID); err != nil {
-			t.Fatalf("RefreshCredential: %v", err)
+		if _, err := w.RenewCredential(imported.ID); err != nil {
+			t.Fatalf("RenewCredential: %v", err)
 		}
 		if sawAttestation == "" || sawPoP == "" {
 			t.Error("the refresh carried no client attestation")
@@ -362,7 +350,6 @@ func TestRefreshCredentialAuthenticatesTheClient(t *testing.T) {
 	t.Run("private_key_jwt", func(t *testing.T) {
 		srv := newIssuer()
 		defer srv.Close()
-		httpClient = srv.Client()
 		challenges, sawAttestation, sawPoP, sawAssertion = 0, "", "", ""
 
 		imported, err := w.ImportCredential(original)
@@ -377,8 +364,8 @@ func TestRefreshCredentialAuthenticatesTheClient(t *testing.T) {
 				Method: ClientAuthPrivateKeyJWT, Audience: srv.URL,
 			},
 		})
-		if _, err := w.RefreshCredential(imported.ID); err != nil {
-			t.Fatalf("RefreshCredential: %v", err)
+		if _, err := w.RenewCredential(imported.ID); err != nil {
+			t.Fatalf("RenewCredential: %v", err)
 		}
 		if sawAssertion == "" {
 			t.Error("the refresh carried no client assertion")
@@ -391,7 +378,6 @@ func TestRefreshCredentialAuthenticatesTheClient(t *testing.T) {
 	t.Run("nothing required", func(t *testing.T) {
 		srv := newIssuer()
 		defer srv.Close()
-		httpClient = srv.Client()
 		challenges, sawAttestation, sawPoP, sawAssertion = 0, "", "", ""
 
 		imported, err := w.ImportCredential(original)
@@ -402,8 +388,8 @@ func TestRefreshCredentialAuthenticatesTheClient(t *testing.T) {
 			Issuer: srv.URL, TokenEndpoint: srv.URL + "/token",
 			CredentialEndpoint: srv.URL + "/credential",
 		})
-		if _, err := w.RefreshCredential(imported.ID); err != nil {
-			t.Fatalf("RefreshCredential: %v", err)
+		if _, err := w.RenewCredential(imported.ID); err != nil {
+			t.Fatalf("RenewCredential: %v", err)
 		}
 		if sawAttestation != "" || sawAssertion != "" {
 			t.Error("an issuer that asked for no client authentication got one anyway")
@@ -494,10 +480,6 @@ func TestRefreshReportsWhatTheIssuerSaid(t *testing.T) {
 	defer srv.Close()
 	serverURL = srv.URL
 
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
-
 	imported, err := w.ImportCredential(generateTestCredential(t, w))
 	if err != nil {
 		t.Fatal(err)
@@ -507,7 +489,7 @@ func TestRefreshReportsWhatTheIssuerSaid(t *testing.T) {
 		CredentialEndpoint: srv.URL + "/credential",
 	})
 
-	_, err = w.RefreshCredential(imported.ID)
+	_, err = w.RenewCredential(imported.ID)
 	if err == nil {
 		t.Fatal("a refused refresh reported success")
 	}
@@ -532,10 +514,6 @@ func TestRefreshReportsANonOAuthRefusal(t *testing.T) {
 	defer srv.Close()
 	serverURL = srv.URL
 
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
-
 	imported, err := w.ImportCredential(generateTestCredential(t, w))
 	if err != nil {
 		t.Fatal(err)
@@ -545,7 +523,7 @@ func TestRefreshReportsANonOAuthRefusal(t *testing.T) {
 		CredentialEndpoint: srv.URL + "/credential",
 	})
 
-	_, err = w.RefreshCredential(imported.ID)
+	_, err = w.RenewCredential(imported.ID)
 	if err == nil || !strings.Contains(err.Error(), "gateway is on fire") {
 		t.Errorf("error = %v, want the body of a refusal that is not an OAuth error", err)
 	}
@@ -573,7 +551,7 @@ func proofNonce(raw any) string {
 // Details of type openid_credential was returned from the Token Response. It
 // MUST NOT be used otherwise", and credential_configuration_id "MUST NOT be
 // used" when a credential_identifiers parameter was returned.
-func TestRefreshCredentialNamesTheCredentialTheTokenResponseAllows(t *testing.T) {
+func TestRenewCredentialNamesTheCredentialTheTokenResponseAllows(t *testing.T) {
 	for _, tc := range []struct {
 		name                 string
 		authorizationDetails []any
@@ -624,10 +602,6 @@ func TestRefreshCredentialNamesTheCredentialTheTokenResponseAllows(t *testing.T)
 			defer srv.Close()
 			serverURL = srv.URL
 
-			oldClient := httpClient
-			httpClient = srv.Client()
-			defer func() { httpClient = oldClient }()
-
 			imported, err := w.ImportCredential(original)
 			if err != nil {
 				t.Fatal(err)
@@ -636,8 +610,8 @@ func TestRefreshCredentialNamesTheCredentialTheTokenResponseAllows(t *testing.T)
 				Issuer: srv.URL, TokenEndpoint: srv.URL + "/token",
 				CredentialEndpoint: srv.URL + "/credential", ConfigurationID: "cfg",
 			})
-			if _, err := w.RefreshCredential(imported.ID); err != nil {
-				t.Fatalf("RefreshCredential: %v", err)
+			if _, err := w.RenewCredential(imported.ID); err != nil {
+				t.Fatalf("RenewCredential: %v", err)
 			}
 
 			identifier, _ := request["credential_identifier"].(string)
@@ -678,9 +652,6 @@ func TestStrictARFRefusesARenewalFromAnUnregisteredIssuer(t *testing.T) {
 	}))
 	defer srv.Close()
 	serverURL = srv.URL
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	imported, err := w.ImportCredential(original)
 	if err != nil {
@@ -690,9 +661,9 @@ func TestStrictARFRefusesARenewalFromAnUnregisteredIssuer(t *testing.T) {
 		Issuer: srv.URL, TokenEndpoint: srv.URL + "/token",
 		CredentialEndpoint: srv.URL + "/credential", ConfigurationID: "cfg",
 	})
-	_, err = w.RefreshCredential(imported.ID)
+	_, err = w.RenewCredential(imported.ID)
 	if err == nil || !strings.Contains(err.Error(), "ARF RPRC_22a") {
-		t.Fatalf("RefreshCredential: %v, want the ARF findings", err)
+		t.Fatalf("RenewCredential: %v, want the ARF findings", err)
 	}
 	if credentialRequests != 0 {
 		t.Errorf("the wallet requested the credential %d times", credentialRequests)
@@ -708,9 +679,6 @@ func TestAFailedRenewalKeepsTheStatus(t *testing.T) {
 		rw.WriteHeader(http.StatusBadRequest)
 	}))
 	defer srv.Close()
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	result, err := w.IssueCredential(IssueOptions{Format: "sdjwt", VCT: "urn:example:badge:1", Claims: map[string]any{"level": "gold"}})
 	if err != nil {
@@ -722,7 +690,7 @@ func TestAFailedRenewalKeepsTheStatus(t *testing.T) {
 	}
 	w.rememberRenewal(id, CredentialRenewal{RefreshToken: "refresh-1", Issuer: srv.URL, TokenEndpoint: srv.URL + "/token", CredentialEndpoint: srv.URL + "/credential"})
 
-	if _, err := NewServer(w, 0, nil).RefreshCredential(id); err == nil {
+	if _, err := NewServer(w, 0, nil).RenewCredential(id); err == nil {
 		t.Fatal("a refused renewal reported success")
 	}
 	if entry, _ := w.StatusEntryFor(id); entry.Status != 1 {
@@ -747,9 +715,6 @@ func TestStrictARFRefusesARenewalBeforeTheTokenRequest(t *testing.T) {
 	}))
 	defer srv.Close()
 	serverURL = srv.URL
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	imported, err := w.ImportCredential(generateTestCredential(t, w))
 	if err != nil {
@@ -759,14 +724,14 @@ func TestStrictARFRefusesARenewalBeforeTheTokenRequest(t *testing.T) {
 		Issuer: srv.URL, TokenEndpoint: srv.URL + "/token",
 		CredentialEndpoint: srv.URL + "/credential", ConfigurationID: "cfg",
 	})
-	if _, err := w.RefreshCredential(imported.ID); err == nil || tokenRequests != 0 {
+	if _, err := w.RenewCredential(imported.ID); err == nil || tokenRequests != 0 {
 		t.Errorf("err %v after %d token requests, want the refusal before the first", err, tokenRequests)
 	}
 }
 
 // Renewing a batch replaces every copy. A copy that kept the old validity
 // would still rotate to verifiers.
-func TestRefreshCredentialRenewsTheWholeBatch(t *testing.T) {
+func TestRenewCredentialRenewsTheWholeBatch(t *testing.T) {
 	w := generateTestWallet(t)
 	var serverURL string
 	var proofsSeen int
@@ -803,9 +768,6 @@ func TestRefreshCredentialRenewsTheWholeBatch(t *testing.T) {
 	}))
 	defer srv.Close()
 	serverURL = srv.URL
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	keys := []*ecdsa.PrivateKey{w.HolderKey, testKey(t), testKey(t)}
 	old := map[string]bool{}
@@ -821,8 +783,8 @@ func TestRefreshCredentialRenewsTheWholeBatch(t *testing.T) {
 		CredentialEndpoint: srv.URL + "/credential", ConfigurationID: "cfg",
 	})
 
-	if _, err := w.RefreshCredential(primary.ID); err != nil {
-		t.Fatalf("RefreshCredential: %v", err)
+	if _, err := w.RenewCredential(primary.ID); err != nil {
+		t.Fatalf("RenewCredential: %v", err)
 	}
 	if proofsSeen != 3 {
 		t.Errorf("renewal sent %d proofs, want one per copy of the batch of 3", proofsSeen)
@@ -868,9 +830,6 @@ func TestLocalRenewalSavesARotatedRefreshTokenAfterAFailure(t *testing.T) {
 	}))
 	defer srv.Close()
 	serverURL = srv.URL
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	imported, err := w.ImportCredential(generateTestCredential(t, w))
 	if err != nil {
@@ -881,7 +840,7 @@ func TestLocalRenewalSavesARotatedRefreshTokenAfterAFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := NewManagement(w, store).RefreshCredential(imported.ID); err == nil {
+	if _, err := NewManagement(w, store).RenewCredential(imported.ID); err == nil {
 		t.Fatal("the renewal succeeded against a failing credential endpoint")
 	}
 	reloaded, err := store.LoadOrCreate()

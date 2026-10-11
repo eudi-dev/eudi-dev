@@ -57,9 +57,6 @@ func newStepIssuer(t *testing.T, credRaw string) *stepIssuer {
 	srv := httptest.NewServer(http.HandlerFunc(s.serve))
 	t.Cleanup(srv.Close)
 	s.url = srv.URL
-	oldClient := httpClient
-	httpClient = srv.Client()
-	t.Cleanup(func() { httpClient = oldClient })
 	return s
 }
 
@@ -197,7 +194,7 @@ func TestIssuanceConsentCarriesTheChosenConfiguration(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		server.awaitOfferConsent(noopResponseWriter{}, consentReq, "test issuer", false, OfferOptions{})
+		server.awaitOfferConsent(noopResponseWriter{}, consentReq, "test issuer", OfferOptions{})
 	}()
 	if rec := serverRequest(t, server, "POST", "/api/requests/"+consentReq.ID+"/approve", `{"credential_configuration_id":"second"}`); rec.Code != http.StatusOK {
 		t.Fatalf("approve: %d %s", rec.Code, rec.Body.String())
@@ -254,8 +251,8 @@ func TestPreAuthorizedAttestedIssuanceRenewsAsTheSameClient(t *testing.T) {
 	if stored.Renewal == nil || stored.Renewal.ClientID != "https://wallet.example" || stored.Renewal.ClientAuth == nil {
 		t.Fatalf("renewal = %+v, want the attested client", stored.Renewal)
 	}
-	if _, err := w.RefreshCredential(result.CredentialID); err != nil {
-		t.Fatalf("RefreshCredential: %v", err)
+	if _, err := w.RenewCredential(result.CredentialID); err != nil {
+		t.Fatalf("RenewCredential: %v", err)
 	}
 	if len(issuer.tokenAttestations) != 2 {
 		t.Fatalf("token requests = %d, want 2", len(issuer.tokenAttestations))
@@ -291,8 +288,8 @@ func TestRefreshLogsTheImportAndNotifiesTheIssuer(t *testing.T) {
 		ConfigurationID: "first", RefreshToken: "refresh-1",
 	})
 
-	if _, err := w.RefreshCredential(imported.ID); err != nil {
-		t.Fatalf("RefreshCredential: %v", err)
+	if _, err := w.RenewCredential(imported.ID); err != nil {
+		t.Fatalf("RenewCredential: %v", err)
 	}
 	if issuer.notifications != 1 {
 		t.Errorf("notifications = %d, want 1", issuer.notifications)
@@ -319,9 +316,9 @@ func TestStrictRefreshRefusesATokenResponseWithoutTokenType(t *testing.T) {
 		ConfigurationID: "first", RefreshToken: "refresh-1",
 	})
 
-	_, err = w.RefreshCredential(imported.ID)
+	_, err = w.RenewCredential(imported.ID)
 	if err == nil || !strings.Contains(err.Error(), "token_type") {
-		t.Fatalf("RefreshCredential: %v, want a refusal naming token_type", err)
+		t.Fatalf("RenewCredential: %v, want a refusal naming token_type", err)
 	}
 	if len(issuer.credentialRequests) != 0 {
 		t.Error("the wallet requested a credential with the refused token")

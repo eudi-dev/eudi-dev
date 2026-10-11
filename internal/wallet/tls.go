@@ -27,8 +27,8 @@ func (w *Wallet) TLSVerification() bool {
 }
 
 func (w *Wallet) tlsVerificationLocked() bool {
-	if w.tlsVerify != nil {
-		return *w.tlsVerify
+	if w.TLSVerify != nil {
+		return *w.TLSVerify
 	}
 	return w.ValidationMode == ValidationModeStrict
 }
@@ -54,7 +54,7 @@ func (w *Wallet) ConfigureOutbound(cfg OutboundConfig) error {
 	client := format.NewHTTPClient(w.TLSVerification, roots, cfg.Proxy)
 	w.mu.Lock()
 	previous := w.outboundHTTP
-	w.tlsVerify, w.outboundHTTP = override, client
+	w.TLSVerify, w.outboundHTTP = override, client
 	w.mu.Unlock()
 	if previous != nil {
 		previous.CloseIdleConnections()
@@ -72,14 +72,4 @@ func (w *Wallet) HTTPClient() *http.Client {
 		w.outboundHTTP = format.NewHTTPClient(w.TLSVerification, nil, nil)
 	}
 	return w.outboundHTTP
-}
-
-func (w *Wallet) TLSVerificationOverride() *bool {
-	w.mu.RLock()
-	defer w.mu.RUnlock()
-	if w.tlsVerify == nil {
-		return nil
-	}
-	value := *w.tlsVerify
-	return &value
 }

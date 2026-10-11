@@ -432,15 +432,15 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	}
 
 	if opts.AutoAccept {
-		w.AutoAccept = true
+		w.SetAutoAccept(true)
 	}
 
 	if err := applySessionTranscriptMode(w, opts.SessionTranscript); err != nil {
 		return err
 	}
 
-	if opts.PreferredFormat != "" {
-		w.PreferredFormat = opts.PreferredFormat
+	if err := w.SetPreferredFormat(opts.PreferredFormat); err != nil {
+		return fmt.Errorf("--preferred-format: %w", err)
 	}
 	// Always hold a request object encryption key so wallet_metadata can offer
 	// it. --require-encrypted-request decides whether the Verifier must use it.

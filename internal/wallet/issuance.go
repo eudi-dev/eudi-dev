@@ -41,37 +41,20 @@ var preferredCredentialResponseEncryptionAlgs = []string{jwe.AlgECDHES}
 var preferredCredentialResponseEncryptionEncs = []string{jwe.EncA128GCM, jwe.EncA256GCM, "A128CBC-HS256"}
 var preferredCredentialRequestEncryptionEncs = []string{jwe.EncA256GCM, jwe.EncA128GCM, "A128CBC-HS256"}
 
-type HTTPClient interface {
-	Do(req *http.Request) (*http.Response, error)
-}
-
-var defaultHTTPClient HTTPClient = http.DefaultClient
-
-// httpClient sends the issuance requests. Tests replace it to reach mock
-// servers.
-var httpClient HTTPClient = defaultHTTPClient
-
-func doIssuanceRequest(req *http.Request, clients ...*http.Client) (*http.Response, error) {
-	if httpClient == defaultHTTPClient {
-		return format.HTTPClient(clients...).Do(req)
-	}
-	return httpClient.Do(req)
-}
-
 const metadataFetchAttempts = 3
 
 var metadataRetryDelay = 500 * time.Millisecond
 
 // Retry transport failures and 5xx responses. A 4xx response describes a request error
 // and is not retried.
-func fetchMetadataDocument(newRequest func() (*http.Request, error), clients ...*http.Client) (*http.Response, error) {
+func fetchMetadataDocument(newRequest func() (*http.Request, error), client *http.Client) (*http.Response, error) {
 	var lastErr error
 	for attempt := 1; attempt <= metadataFetchAttempts; attempt++ {
 		req, err := newRequest()
 		if err != nil {
 			return nil, err
 		}
-		resp, err := doIssuanceRequest(req, clients...)
+		resp, err := client.Do(req)
 		if err == nil && resp.StatusCode < 500 {
 			return resp, nil
 		}
@@ -385,12 +368,12 @@ func (w *Wallet) walletClientIdentifier() string {
 	return strings.TrimSpace(w.BaseURL)
 }
 
-func verifyImportedJWTMetadataSignature(raw string, clients ...*http.Client) (string, string) {
+func verifyImportedJWTMetadataSignature(raw string, client *http.Client) (string, string) {
 	token, err := sdjwt.Parse(raw)
 	if err != nil {
 		return "", ""
 	}
-	result, source, err := validate.VerifyJWTSignature(token, nil, nil, clients...)
+	result, source, err := validate.VerifyJWTSignature(token, nil, nil, client)
 	if err != nil {
 		return "fail", err.Error()
 	}

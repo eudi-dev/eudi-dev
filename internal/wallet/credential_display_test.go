@@ -179,10 +179,6 @@ func issueWithDisplay(t *testing.T, w *Wallet, display []map[string]any) *Stored
 	srv, offerURI := displayIssuer(t, w, display)
 	t.Cleanup(srv.Close)
 
-	oldClient := httpClient
-	httpClient = srv.Client()
-	t.Cleanup(func() { httpClient = oldClient })
-
 	result, err := w.ProcessCredentialOffer(offerURI)
 	if err != nil {
 		t.Fatalf("ProcessCredentialOffer: %v", err)
@@ -496,9 +492,6 @@ func TestCacheDisplayImage_BlocksInternalAddress(t *testing.T) {
 	w := generateTestWallet(t)
 
 	// The address policy lives in the default client.
-	oldClient := httpClient
-	httpClient = defaultHTTPClient
-	defer func() { httpClient = oldClient }()
 
 	format.SetFetchPolicy(format.BlockPrivateAddresses)
 	defer format.SetFetchPolicy(nil)

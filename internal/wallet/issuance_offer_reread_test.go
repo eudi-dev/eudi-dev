@@ -40,10 +40,6 @@ func TestApprovingAnOfferSurvivesASingleUseOfferURI(t *testing.T) {
 	})
 	defer srv.Close()
 
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
-
 	consentReq, _, err := generateTestWallet(t).prepareIssuanceConsentRequest(offerURI, "")
 	if err != nil {
 		t.Fatalf("preparing the consent request: %v", err)
@@ -85,10 +81,6 @@ func TestAnUnreadableOfferURIStillFailsWithoutAResolvedOffer(t *testing.T) {
 	srv, offerURI := setupMockIssuer(t, w, mockIssuerOpts{offerViaURI: true, oneShotOfferURI: true})
 	defer srv.Close()
 
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
-
 	if _, err := w.ProcessCredentialOffer(offerURI); err != nil {
 		t.Fatalf("the first read should succeed: %v", err)
 	}
@@ -105,10 +97,6 @@ func TestApproveRequestCompletesWhenTheIssuerServesTheOfferOnce(t *testing.T) {
 	srv, offerURI := setupMockIssuer(t, w, mockIssuerOpts{offerViaURI: true, oneShotOfferURI: true})
 	defer srv.Close()
 
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
-
 	server := NewServer(w, 0, nil)
 
 	consentReq, _, err := generateTestWallet(t).prepareIssuanceConsentRequest(offerURI, "")
@@ -120,7 +108,7 @@ func TestApproveRequestCompletesWhenTheIssuerServesTheOfferOnce(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		server.awaitOfferConsent(noopResponseWriter{}, consentReq, "test issuer", false, OfferOptions{})
+		server.awaitOfferConsent(noopResponseWriter{}, consentReq, "test issuer", OfferOptions{})
 	}()
 
 	consentReq.ResultCh <- consent.Result{Approved: true}
@@ -153,10 +141,6 @@ func TestASwappedOfferDoesNotReplaceTheApprovedOne(t *testing.T) {
 		},
 	})
 	defer srv.Close()
-
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	consentReq, _, err := generateTestWallet(t).prepareIssuanceConsentRequest(offerURI, "")
 	if err != nil {
@@ -195,10 +179,6 @@ func TestAnOfferRereadWithoutAnIssuerKeepsTheApprovedOne(t *testing.T) {
 	})
 	defer srv.Close()
 
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
-
 	consentReq, _, err := generateTestWallet(t).prepareIssuanceConsentRequest(offerURI, "")
 	if err != nil {
 		t.Fatalf("preparing the consent request: %v", err)
@@ -233,10 +213,6 @@ func TestUnattendedIssuanceCarriesNoApprovedOffer(t *testing.T) {
 
 	srv, offerURI := setupMockIssuer(t, w, mockIssuerOpts{offerViaURI: true, oneShotOfferURI: true})
 	defer srv.Close()
-
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	server := NewServer(w, 0, nil)
 	rec := httptest.NewRecorder()

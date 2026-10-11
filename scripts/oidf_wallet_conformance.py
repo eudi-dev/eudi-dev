@@ -1075,7 +1075,7 @@ def tx_code_from_offer(request_url: str) -> str | None:
 def set_wallet_conformance(wallet_url: str, mode: str, requires_haip: bool) -> None:
         # Changing validation mode requires management access, which demo mode rejects.
     try:
-        wallet_request(wallet_url, "PUT", "/api/config/conformance", {"mode": mode, "haip": bool(requires_haip)})
+        wallet_request(wallet_url, "PUT", "/api/config/conformance", {"validation_mode": mode, "require_haip": bool(requires_haip)})
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
         raise SystemExit(

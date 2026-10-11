@@ -43,6 +43,11 @@ type Additions struct {
 	AddedTrustedLists []string `json:"trusted_lists,omitempty"`
 }
 
+// Clone copies the lists, so the copy and a change independently.
+func (a Additions) Clone() Additions {
+	return Additions{TrustedEntities: slices.Clone(a.TrustedEntities), AddedTrustedLists: slices.Clone(a.AddedTrustedLists)}
+}
+
 // Settings are the trust settings of the wallet: the CAs from
 // --relying-party-ca and --trusted-list-ca, the lists from --trusted-list and
 // how many providers and lists users may add. Zero means no bound.

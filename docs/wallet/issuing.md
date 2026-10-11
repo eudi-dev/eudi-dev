@@ -192,7 +192,7 @@ The presentation is bound to the challenge endpoint. An SD-JWT key binding JWT u
 The wallet supports two interaction types. It advertises a type only when it can complete that interaction (§6.2.1):
 
 - The presentation interaction (`urn:openid:dcp:ia:openid4vp_presentation`), always.
-- The browser interaction (`urn:openid:dcp:ia:auth_via_web`, §6.2.1.2), when a redirect URI is configured and the server publishes an `authorization_endpoint`. The server answers the challenge with a `request_uri`. The wallet builds an authorization request from it (RFC 9126 §4) and opens the sign-in URL in the user's browser, as in the redirect flow. The redirect back to the wallet carries the authorization code, or an `auth_session` when further steps remain at the challenge endpoint.
+- The browser interaction (`urn:openid:dcp:ia:auth_via_web`, §6.2.1.2), when an https redirect URI is configured and the server publishes an `authorization_endpoint`. The server answers the challenge with a `request_uri`. The wallet builds an authorization request from it (RFC 9126 §4) and opens the sign-in URL in the user's browser, as in the redirect flow. The redirect back to the wallet carries the authorization code, or an `auth_session` when further steps remain at the challenge endpoint.
 
 The wallet rejects a request for an interaction it did not advertise.
 

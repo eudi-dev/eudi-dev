@@ -274,9 +274,10 @@ func (s *Server) handleSetPreferredFormat(w http.ResponseWriter, r *http.Request
 		http.Error(w, "invalid JSON body", http.StatusBadRequest)
 		return
 	}
-	s.wallet.mu.Lock()
-	s.wallet.PreferredFormat = body.Format
-	s.wallet.mu.Unlock()
+	if err := s.wallet.SetPreferredFormat(body.Format); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]string{"format": body.Format})
 }
 
@@ -290,95 +291,33 @@ func (s *Server) handleSetAutoAccept(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid JSON body", http.StatusBadRequest)
 		return
 	}
-	s.wallet.mu.Lock()
-	s.wallet.AutoAccept = body.Enabled
-	s.wallet.mu.Unlock()
+	s.wallet.SetAutoAccept(body.Enabled)
 	writeJSON(w, http.StatusOK, map[string]bool{"auto_accept": body.Enabled})
 }
 
 // Runtime conformance settings apply to every flow using this server. Demo mode keeps
-// HAIP with debug validation and rejects changes.
+// HAIP with debug validation and rejects changes. A member the patch does not
+// define is refused, so a misspelled setting does not pass unnoticed.
 func (s *Server) handleSetConformance(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		TLSVerify           json.RawMessage `json:"tls_verify,omitempty"`
-		Mode                *string         `json:"mode,omitempty"`
-		HAIP                *bool           `json:"haip,omitempty"`
-		ARF                 *bool           `json:"arf,omitempty"`
-		Encrypted           *bool           `json:"encrypted,omitempty"`
-		VCIVersion          *string         `json:"vci_version,omitempty"`
-		KeyAttestationLevel *string         `json:"key_attestation_level,omitempty"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "invalid JSON body", http.StatusBadRequest)
+	var patch ConformancePatch
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&patch); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid conformance settings: " + err.Error()})
 		return
 	}
-	var tlsVerify *bool
-	if len(body.TLSVerify) > 0 {
-		if err := json.Unmarshal(body.TLSVerify, &tlsVerify); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "tls_verify must be true, false or null (mode default)"})
-			return
-		}
+	if err := s.wallet.UpdateConformance(patch); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
 	}
-	var mode ValidationMode
-	if body.Mode != nil {
-		parsed, err := ParseValidationMode(*body.Mode)
-		if err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-			return
-		}
-		mode = parsed
-	}
-	var vciVersion VCIVersion
-	if body.VCIVersion != nil {
-		parsed, err := ParseVCIVersion(*body.VCIVersion)
-		if err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-			return
-		}
-		vciVersion = parsed
-	}
-	var keyAttestationLevel string
-	if body.KeyAttestationLevel != nil {
-		parsed, err := ParseKeyAttestationLevel(*body.KeyAttestationLevel)
-		if err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-			return
-		}
-		keyAttestationLevel = parsed
-	}
-	s.wallet.mu.Lock()
-	if len(body.TLSVerify) > 0 {
-		s.wallet.tlsVerify = tlsVerify
-	}
-	if body.Mode != nil {
-		s.wallet.ValidationMode = mode
-	}
-	if body.KeyAttestationLevel != nil {
-		s.wallet.KeyAttestationLevel = keyAttestationLevel
-	}
-	if body.VCIVersion != nil {
-		s.wallet.VCIVersion = vciVersion
-	}
-	if body.HAIP != nil {
-		s.wallet.RequireHAIP = *body.HAIP
-	}
-	if body.ARF != nil {
-		s.wallet.RequireARF = *body.ARF
-	}
-	if body.Encrypted != nil {
-		s.wallet.RequireEncryptedRequest = *body.Encrypted
-	}
-	s.wallet.mu.Unlock()
 	s.writeConformanceConfig(w)
 }
 
 func (s *Server) handleResetConformance(w http.ResponseWriter, r *http.Request) {
-	s.wallet.mu.Lock()
-	s.wallet.ConformanceSettings = s.defaultConformance
-	s.wallet.mu.Unlock()
+	s.wallet.restoreConformance(s.defaultConformance)
 	s.writeConformanceConfig(w)
 }
 
 func (s *Server) writeConformanceConfig(w http.ResponseWriter) {
-	writeJSON(w, http.StatusOK, s.wallet.conformanceDocument())
+	writeJSON(w, http.StatusOK, s.wallet.ConformanceDocument())
 }

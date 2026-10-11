@@ -3212,3 +3212,9 @@ func TestOfferEndpointLogsEachStepOnce(t *testing.T) {
 		t.Errorf("log shows the offer %d times, the import %d times and the failure %d times, want each once", received, imported, failures)
 	}
 }
+
+func (s *Server) reloadFromStore() error {
+	s.storeSyncMu.Lock()
+	defer s.unlockStore()
+	return s.reloadLocked(false)
+}

@@ -113,7 +113,9 @@ func interactiveAuthorizationEndpoint(oauthMeta map[string]any) string {
 // needs a redirect URI and an authorization endpoint.
 func (w *Wallet) interactionTypesSupported(setup authorizationCodeSetup) []string {
 	types := []string{interactionTypePresentation}
-	if setup.redirectURI != "" && setup.authorizationEndpoint != "" {
+	// §6.2.1.2: "the redirect URI MUST be an https URL as per Section 7.2 of
+	// [RFC8252]".
+	if strings.HasPrefix(setup.redirectURI, "https://") && setup.authorizationEndpoint != "" {
 		types = append(types, interactionTypeAuthViaWeb)
 	}
 	return types

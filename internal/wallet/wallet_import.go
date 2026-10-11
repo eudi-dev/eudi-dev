@@ -178,13 +178,7 @@ func (w *Wallet) appendCredential(cred StoredCredential) *StoredCredential {
 	w.mu.Lock()
 	w.makeCredentialRoomLocked()
 	w.Credentials = append(w.Credentials, cred)
-	sink := w.credentialSink
 	w.mu.Unlock()
-	// Forward imports from clones to the original wallet so issued credentials survive
-	// the end of the request.
-	if sink != nil {
-		sink(cred)
-	}
 	return &cred
 }
 

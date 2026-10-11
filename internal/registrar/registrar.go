@@ -51,6 +51,15 @@ type State struct {
 	Catalog []CatalogAttestation `json:"catalog,omitempty"`
 }
 
+// Clone copies the lists, so the copy and s change independently.
+func (s State) Clone() State {
+	return State{
+		RelyingParties:       slices.Clone(s.RelyingParties),
+		RegistrationStatuses: slices.Clone(s.RegistrationStatuses),
+		Catalog:              slices.Clone(s.Catalog),
+	}
+}
+
 // Env gives the registrar access to the wallet that hosts it.
 type Env interface {
 	// RegistrarBase is the base URL of the registrar's default contact URLs and
@@ -62,6 +71,9 @@ type Env interface {
 	// TrustedListURL is where the wallet publishes the trusted list of a
 	// credential category.
 	TrustedListURL(category string) string
+	// MaxRelyingParties bounds the registrations of a shared wallet. Zero
+	// means no bound.
+	MaxRelyingParties() int
 }
 
 // Registrar changes a State while holding the lock of the wallet that stores
@@ -176,9 +188,10 @@ func (r *Registrar) RegisterRelyingParty(rp WalletRelyingParty) (WalletRelyingPa
 	if err := normalizeRelyingParty(&rp, base, nil, r.attestationCategories()); err != nil {
 		return WalletRelyingParty{}, err
 	}
+	limit := r.env.MaxRelyingParties()
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if len(r.state.RelyingParties) >= MaxRelyingParties {
+	if limit > 0 && len(r.state.RelyingParties) >= limit {
 		return WalletRelyingParty{}, errRegistrarFull
 	}
 	if err := r.checkIdentifiersFreeLocked(rp, -1); err != nil {
@@ -491,7 +504,6 @@ func normalizeRelyingParty(rp *WalletRelyingParty, base string, before *WalletRe
 // to registrations from the API. The wallet's own demo registrations list
 // every type it issues.
 const (
-	MaxRelyingParties    = 500
 	maxRegistrationItems = 20
 	maxRegisteredClaims  = 100
 )

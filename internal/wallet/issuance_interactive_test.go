@@ -196,10 +196,6 @@ func newInteractiveIssuer(t *testing.T, w *Wallet) *interactiveIssuer {
 	t.Cleanup(server.Close)
 	issuer.url = server.URL
 
-	oldClient := httpClient
-	httpClient = server.Client()
-	t.Cleanup(func() { httpClient = oldClient })
-
 	return issuer
 }
 
@@ -667,7 +663,7 @@ func TestInteractiveAuthorizationAuthViaWeb(t *testing.T) {
 	issuer.interaction = interactionTypeAuthViaWeb
 	issuer.openid4vpRequest = nil
 	issuer.authorizeRedirect = "code=web-code"
-	w.VCIRedirectURI = issuer.url + "/wallet-callback"
+	w.VCIRedirectURI = "https://wallet.example/callback"
 
 	result, err := w.ProcessCredentialOffer(interactiveOfferURI(issuer.url))
 	if err != nil {
@@ -712,7 +708,7 @@ func TestInteractiveAuthorizationAuthViaWebContinuesWithAuthSession(t *testing.T
 	issuer.interaction = interactionTypeAuthViaWeb
 	issuer.openid4vpRequest = nil
 	issuer.authorizeRedirect = "auth_session=web-session"
-	w.VCIRedirectURI = issuer.url + "/wallet-callback"
+	w.VCIRedirectURI = "https://wallet.example/callback"
 
 	result, err := w.ProcessCredentialOffer(interactiveOfferURI(issuer.url))
 	if err != nil {
@@ -757,6 +753,22 @@ func TestInteractiveAuthorizationAuthViaWebIsNotOfferedWithoutARedirectURI(t *te
 	}
 	if !strings.Contains(err.Error(), "did not advertise") {
 		t.Errorf("error = %v, want it to say the interaction was not advertised", err)
+	}
+	if got := issuer.initialForm.Get("interaction_types_supported"); got != interactionTypePresentation {
+		t.Errorf("interaction_types_supported = %q, want the presentation type alone", got)
+	}
+}
+
+// §6.2.1.2: "the redirect URI MUST be an https URL as per Section 7.2 of
+// [RFC8252]". A wallet with an http redirect URI does not offer auth_via_web.
+func TestInteractiveAuthorizationAuthViaWebNeedsAnHTTPSRedirectURI(t *testing.T) {
+	w := newInteractiveWallet(t)
+	issuer := newInteractiveIssuer(t, w)
+	issuer.authorizeRedirect = "code=web-code"
+	w.VCIRedirectURI = "http://localhost:8085/callback"
+
+	if _, err := w.ProcessCredentialOffer(interactiveOfferURI(issuer.url)); err != nil {
+		t.Fatalf("ProcessCredentialOffer() error = %v", err)
 	}
 	if got := issuer.initialForm.Get("interaction_types_supported"); got != interactionTypePresentation {
 		t.Errorf("interaction_types_supported = %q, want the presentation type alone", got)

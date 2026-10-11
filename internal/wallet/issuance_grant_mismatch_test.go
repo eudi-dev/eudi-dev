@@ -150,10 +150,6 @@ func TestProcessCredentialOffer_AuthorizationServerCannotTakeGrant(t *testing.T)
 		srv, offerURI, limitedTokenCalls, ownTokenCalls := grantMismatchIssuer(t, w, true, true)
 		defer srv.Close()
 
-		oldClient := httpClient
-		httpClient = srv.Client()
-		defer func() { httpClient = oldClient }()
-
 		result, err := w.ProcessCredentialOffer(offerURI)
 		if err != nil {
 			t.Fatalf("ProcessCredentialOffer: %v", err)
@@ -196,10 +192,6 @@ func TestProcessCredentialOffer_AuthorizationServerCannotTakeGrant(t *testing.T)
 		w := generateTestWallet(t)
 		srv, offerURI, limitedTokenCalls, ownTokenCalls := grantMismatchIssuer(t, w, true, false)
 		defer srv.Close()
-
-		oldClient := httpClient
-		httpClient = srv.Client()
-		defer func() { httpClient = oldClient }()
 
 		_, err := w.ProcessCredentialOffer(offerURI)
 		if err == nil {
@@ -268,10 +260,6 @@ func TestProcessCredentialOffer_AuthorizationServerCannotTakeGrant(t *testing.T)
 		srv, offerURI, limitedTokenCalls, ownTokenCalls := grantMismatchIssuer(t, w, true, true)
 		defer srv.Close()
 
-		oldClient := httpClient
-		httpClient = srv.Client()
-		defer func() { httpClient = oldClient }()
-
 		_, err := w.ProcessCredentialOffer(offerURI)
 		if err == nil {
 			t.Fatal("expected the offer to be refused")
@@ -291,10 +279,6 @@ func TestProcessCredentialOffer_AuthorizationServerCannotTakeGrant(t *testing.T)
 		w := generateTestWallet(t)
 		srv, offerURI, _, _ := grantMismatchIssuer(t, w, false, true)
 		defer srv.Close()
-
-		oldClient := httpClient
-		httpClient = srv.Client()
-		defer func() { httpClient = oldClient }()
 
 		result, err := w.ProcessCredentialOffer(offerURI)
 		if err != nil {

@@ -151,8 +151,8 @@ func checkRemoteSettings(c *remote.Client, set []string, want walletConformance)
 	if len(set) == 0 && len(outbound) == 0 {
 		return nil
 	}
-	cfg, err := c.ServerConfig()
-	if err != nil {
+	var cfg wallet.ConformanceDocument
+	if err := c.Conformance(&cfg); err != nil {
 		return fmt.Errorf("reading the running wallet's settings: %w", err)
 	}
 	var summary trustedlists.Summary
@@ -178,22 +178,19 @@ func checkRemoteSettings(c *remote.Client, set []string, want walletConformance)
 
 // settingDifference describes how the running wallet differs from flag. It
 // is empty when the wallet already has the flag's value.
-func settingDifference(flag string, want walletConformance, cfg map[string]any, summary trustedlists.Summary) string {
+func settingDifference(flag string, want walletConformance, cfg wallet.ConformanceDocument, summary trustedlists.Summary) string {
 	s := want.settings
-	onOff := func(key string, wanted bool) string {
-		if have, ok := cfg[key].(bool); ok && have == wanted {
+	onOff := func(have, wanted bool) string {
+		switch {
+		case have == wanted:
 			return ""
-		}
-		if _, ok := cfg[key]; !ok {
-			return "the running wallet does not report " + flag
-		}
-		if cfg[key] == true {
+		case have:
 			return flag + " is set on the running wallet"
+		default:
+			return flag + " is off on the running wallet"
 		}
-		return flag + " is off on the running wallet"
 	}
-	value := func(key, wanted string) string {
-		have, _ := cfg[key].(string)
+	value := func(have, wanted string) string {
 		if have == wanted {
 			return ""
 		}
@@ -204,21 +201,21 @@ func settingDifference(flag string, want walletConformance, cfg map[string]any, 
 	}
 	switch flag {
 	case "--mode":
-		return value("validation_mode", string(s.ValidationMode))
+		return value(string(cfg.ValidationMode), string(s.ValidationMode))
 	case "--haip":
-		return onOff("require_haip", s.RequireHAIP)
+		return onOff(cfg.RequireHAIP, s.RequireHAIP)
 	case "--arf":
-		return onOff("require_arf", s.RequireARF)
+		return onOff(cfg.RequireARF, s.RequireARF)
 	case "--require-encrypted-request":
-		return onOff("require_encrypted_request", s.RequireEncryptedRequest)
+		return onOff(cfg.RequireEncryptedRequest, s.RequireEncryptedRequest)
 	case "--client-attestation":
-		return onOff("force_client_attestation", s.ForceClientAttestation)
+		return onOff(cfg.ForceClientAttestation, s.ForceClientAttestation)
 	case "--vci-version":
-		return value("vci_version", string(s.VCIVersion))
+		return value(string(cfg.VCIVersion), string(s.VCIVersion))
 	case "--key-attestation-level":
-		return value("key_attestation_level", s.KeyAttestationLevel)
+		return value(cfg.KeyAttestationLevel, s.KeyAttestationLevel)
 	case "--tls-verify":
-		return onOff("tls_verify", walletTLSVerify)
+		return onOff(cfg.TLSVerification, walletTLSVerify)
 	case "--relying-party-ca":
 		trusted := slices.Clone(summary.RelyingPartyCAs)
 		for _, entity := range summary.Entities {

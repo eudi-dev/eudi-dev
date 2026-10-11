@@ -34,6 +34,17 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
 )
 
+// httpsWalletCallback is an https redirect URI, which auth_via_web requires
+// (OpenID4VCI 1.1 §6.2.1.2).
+const httpsWalletCallback = "https://wallet.example/callback"
+
+// useHTTPSCallback gives the wallet an https origin, so it offers auth_via_web.
+// The test serves the wallet over http and delivers the callback there.
+func useHTTPSCallback(w *wallet.Wallet) {
+	w.BaseURL = "https://wallet.example"
+	w.VCIRedirectURI = httpsWalletCallback
+}
+
 func interactiveTestWallet(t *testing.T) *wallet.Wallet {
 	t.Helper()
 
@@ -129,6 +140,7 @@ func TestInteractiveAuthorizationIssuesTheOfferedTemplate(t *testing.T) {
 func TestOfferCanAskForTheBrowserSignInInstead(t *testing.T) {
 	w := interactiveTestWallet(t)
 	_, ts := serveDemoStack(t, w)
+	useHTTPSCallback(w)
 
 	offer := postJSONTo(t, ts.URL+"/issuer/api/offers?grant="+authCodeGrant+"&authorization="+authorizationBrowser, `{}`)
 	uri, _ := offer["scheme_uri"].(string)
@@ -416,6 +428,7 @@ func TestAuthorizationChallengeRequiresClientAttestation(t *testing.T) {
 func TestAuthViaWebFlowEndToEnd(t *testing.T) {
 	w := interactiveTestWallet(t)
 	_, ts := serveDemoStack(t, w)
+	useHTTPSCallback(w)
 
 	created := postJSONTo(t, ts.URL+"/issuer/api/offers?grant="+authCodeGrant+"&authorization="+authorizationBrowser, `{}`)
 	schemeURI, _ := created["scheme_uri"].(string)
@@ -477,7 +490,7 @@ func TestAuthViaWebFlowEndToEnd(t *testing.T) {
 	if !strings.Contains(callback, "code=") {
 		t.Fatalf("login redirect %q carries no authorization code", callback)
 	}
-	cb, err := client.Get(callback)
+	cb, err := client.Get(strings.Replace(callback, httpsWalletCallback, ts.URL+"/callback", 1))
 	if err != nil {
 		t.Fatalf("following the callback: %v", err)
 	}

@@ -180,10 +180,6 @@ func runABCAOffer(t *testing.T, w *Wallet, cfg abcaIssuerConfig) (*abcaCapture, 
 	srv, offerURI, capture := abcaTestIssuer(t, w, cfg)
 	t.Cleanup(srv.Close)
 
-	oldClient := httpClient
-	httpClient = srv.Client()
-	t.Cleanup(func() { httpClient = oldClient })
-
 	_, err := w.ProcessCredentialOffer(offerURI)
 	return capture, err
 }
@@ -371,9 +367,6 @@ func TestClientAttestorChallengeUse(t *testing.T) {
 		json.NewEncoder(rw).Encode(map[string]any{"attestation_challenge": "endpoint-challenge"})
 	}))
 	defer srv.Close()
-	oldClient := httpClient
-	httpClient = srv.Client()
-	defer func() { httpClient = oldClient }()
 
 	authenticator := w.clientAuthenticatorFor(&ClientAuthentication{
 		Method: ClientAuthAttestation, Audience: "https://as.example",
