@@ -415,14 +415,14 @@ def deliver_credential_offer(wallet_url: str, scenario: DemoScenario, alias: str
 
 
 def submit_verifier_request(wallet_url: str, scenario: DemoScenario, alias: str) -> str:
-    """Create a demo verifier request and submit it to the suite authorization endpoint. Return the request ID used to read the verdict."""
+    """Create a demo verifier request and submit it to the suite authorization endpoint. Return the transaction ID that reads the verdict."""
     created = wallet_request(
         wallet_url, "POST", "/verifier/api/requests", scenario.request_body
     )
     query = urllib.parse.urlsplit(created["scheme_uri"]).query
     suite_get(f"{module_base_url(alias)}/authorize?{query}")
     print(f"[monitor] delivered demo verifier request {created['id']} to {alias}", flush=True)
-    return created["id"]
+    return created["transaction_id"]
 
 
 def unverified_opener() -> urllib.request.OpenerDirector:

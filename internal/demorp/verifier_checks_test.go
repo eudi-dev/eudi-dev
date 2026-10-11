@@ -46,7 +46,7 @@ func TestVerifierRunsTheSharedCredentialChecks(t *testing.T) {
 	id, params := startVerification(t, h, "ticket")
 	postPresentation(t, h, id, "ticket", presentTicket(t, d, holderKey, params.Get("client_id"), params.Get("nonce")))
 
-	_, status := doJSON(t, h, "GET", "/api/requests/"+id, "", nil)
+	_, status := requestStatus(t, d, id)
 	if status["status"] != "verified" {
 		t.Fatalf("status = %v (checks: %v)", status["status"], status["checks"])
 	}
@@ -83,7 +83,7 @@ func TestVerifierReportsEveryHAIPCredentialFinding(t *testing.T) {
 	}
 	postPresentation(t, h, id, "ticket", presentCredential(t, holderKey, credential, params.Get("client_id"), params.Get("nonce")))
 
-	_, status := doJSON(t, h, "GET", "/api/requests/"+id, "", nil)
+	_, status := requestStatus(t, d, id)
 	if status["status"] != "verified" {
 		t.Fatalf("status = %v (checks: %v)", status["status"], status["checks"])
 	}
@@ -120,7 +120,7 @@ func TestVerifierFetchesWithTheWalletsHTTPClient(t *testing.T) {
 		id, params := startVerification(t, h, "ticket")
 		credential := signTicketWithStatus(t, d, holderKey, srv.URL+"/statuslist", 0)
 		postPresentation(t, h, id, "ticket", presentCredential(t, holderKey, credential, params.Get("client_id"), params.Get("nonce")))
-		_, status := doJSON(t, h, "GET", "/api/requests/"+id, "", nil)
+		_, status := requestStatus(t, d, id)
 		return status
 	}
 

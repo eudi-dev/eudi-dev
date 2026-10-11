@@ -77,7 +77,6 @@ function renderPresentationLink(presentation) {
 }
 
 function schedulePoll(id) {
-  pollID = id;
   clearTimeout(pollTimer);
   pollTimer = setTimeout(() => poll(id), pollDelay);
   pollDelay = Math.min(Math.round(pollDelay * 1.4), POLL_MAX);
@@ -88,13 +87,17 @@ function stopPolling() {
   pollID = null;
 }
 
+// A poll that was in flight when the page created a newer request is stale. It
+// must neither render nor schedule another poll.
 async function poll(id) {
+  if (id !== pollID) return;
   if (document.hidden) {
     schedulePoll(id);
     return;
   }
   try {
     const resp = await fetch("api/requests/" + id);
+    if (id !== pollID) return;
     if (resp.status === 404) {
       renderResult({ status: "expired" });
       stopPolling();
@@ -105,6 +108,7 @@ async function poll(id) {
       return;
     }
     const doc = await resp.json();
+    if (id !== pollID) return;
     renderResult(doc);
     if (doc.status === "pending") {
       schedulePoll(id);
@@ -442,11 +446,13 @@ document.getElementById("create-request").addEventListener("click", async () => 
   scheme.href = doc.scheme_uri;
   document.getElementById("request-box").style.display = "block";
   renderResult({ status: "pending" });
-  startPolling(doc.id);
+  startPolling(doc.transaction_id);
   });
 
-const resultID = new URLSearchParams(location.search).get("result");
-if (resultID) startPolling(resultID);
+// The wallet redirects here with the response_code that reads the result
+// (OpenID4VP 1.0 §8.2).
+const responseCode = new URLSearchParams(location.search).get("response_code");
+if (responseCode) startPolling(responseCode);
 
 fetch("../api/config")
   .then((resp) => resp.json())

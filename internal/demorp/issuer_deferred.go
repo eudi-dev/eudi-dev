@@ -41,6 +41,17 @@ type deferredTicket struct {
 	expires    time.Time
 }
 
+// writeIssuancePending answers a credential request or a deferred credential
+// request whose credentials are not ready. OpenID4VCI 1.0 §8.3 and §9.2 require
+// HTTP 202 with transaction_id and interval, which is "REQUIRED if
+// transaction_id is present".
+func writeIssuancePending(w http.ResponseWriter, transactionID string) {
+	writeJSON(w, http.StatusAccepted, map[string]any{
+		"transaction_id": transactionID,
+		"interval":       deferredPollSeconds,
+	})
+}
+
 func (d *DemoRP) deferIssuance(holderKeys []*ecdsa.PublicKey, granted ticketGrant, token string) string {
 	txID := randToken()
 	now := time.Now()
@@ -63,9 +74,9 @@ func (d *DemoRP) deferIssuance(holderKeys []*ecdsa.PublicKey, granted ticketGran
 // Then it returns the credentials array.
 func (d *DemoRP) handleDeferredCredential(w http.ResponseWriter, r *http.Request) {
 
-	token, _, errResp := d.authorizeAccessToken(r, "/deferred_credential")
-	if errResp != nil {
-		writeJSON(w, http.StatusUnauthorized, errResp)
+	token, _, refused := d.authorizeAccessToken(r, "/deferred_credential")
+	if refused != nil {
+		d.writeAccessTokenError(w, refused)
 		return
 	}
 	var req struct {
@@ -89,17 +100,13 @@ func (d *DemoRP) handleDeferredCredential(w http.ResponseWriter, r *http.Request
 	}
 	// Only the access token that started the issuance can collect the credential.
 	if pending.token != token {
-		writeJSON(w, http.StatusUnauthorized, oauthError("invalid_token", "the access token does not match this transaction"))
+		_, scheme, _ := accessToken(r)
+		d.writeAccessTokenError(w, &accessTokenError{scheme: scheme, code: "invalid_token", description: "the access token does not match this transaction"})
 		return
 	}
 
 	if time.Now().Before(pending.readyAt) {
-		// §9.2: the credential is not ready, so answer 202 with the transaction
-		// id and an interval.
-		writeJSON(w, http.StatusAccepted, map[string]any{
-			"transaction_id": req.TransactionID,
-			"interval":       deferredPollSeconds,
-		})
+		writeIssuancePending(w, req.TransactionID)
 		return
 	}
 

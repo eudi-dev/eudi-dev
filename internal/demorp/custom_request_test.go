@@ -84,16 +84,18 @@ func customNationalities(t *testing.T, status map[string]any) []any {
 	return nats
 }
 
+// createCustom creates a request, lets the wallet answer it and returns the
+// transaction_id that reads the result.
 func createCustom(t *testing.T, ts *httptest.Server, body string) string {
 	t.Helper()
 	created := postJSONTo(t, ts.URL+"/verifier/api/requests", body)
-	id, _ := created["id"].(string)
+	transactionID, _ := created["transaction_id"].(string)
 	walletURL, _ := created["wallet_url"].(string)
-	if id == "" || walletURL == "" {
+	if transactionID == "" || walletURL == "" {
 		t.Fatalf("unexpected create response: %v", created)
 	}
 	driveWallet(t, ts, walletURL)
-	return id
+	return transactionID
 }
 
 // OpenID4VP 1.0 §7.1: a path that ends at an array of selectively disclosable

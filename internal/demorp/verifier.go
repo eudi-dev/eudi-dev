@@ -48,7 +48,17 @@ const (
 )
 
 type requestState struct {
+	// id is the request-id of OpenID4VP 1.0 §13.3. It is the state of the
+	// request and names it in the request and response URIs, so anyone who
+	// sees the QR code knows it.
 	id string
+	// transactionID is the transaction-id of §13.3. Only the page that created
+	// the request gets it, and it reads the result with it.
+	transactionID string
+	// responseCode is the "fresh, cryptographically random value" that §8.2
+	// requires in the redirect_uri after the response. It reads the result on
+	// the device that the wallet redirects.
+	responseCode string
 	// queries and sets are the DCQL query. The request sends them and the
 	// response is checked against them.
 	queries  []credentialQuery
@@ -83,7 +93,7 @@ func (d *DemoRP) VerifierHandler() http.Handler {
 	mux.HandleFunc("GET /{$}", d.serveStatic("static/verifier.html"))
 	mux.HandleFunc("GET /verifier.js", d.serveStatic("static/verifier.js"))
 	mux.HandleFunc("POST /api/requests", d.handleCreateRequest)
-	mux.HandleFunc("GET /api/requests/{id}", d.handleRequestStatus)
+	mux.HandleFunc("GET /api/requests/{key}", d.handleRequestStatus)
 	mux.HandleFunc("GET /request/{id}", d.handleRequestObject)
 	mux.HandleFunc("POST /response/{id}", d.handlePresentationResponse)
 	// GuardAPI covers only /api/, which the page calls. Wallets on other
@@ -376,10 +386,11 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 
 	base := d.baseURL()
 	req := &requestState{
-		id:      randToken(),
-		nonce:   randToken(),
-		status:  "pending",
-		expires: time.Now().Add(entryTTL),
+		id:            randToken(),
+		transactionID: randToken(),
+		nonce:         randToken(),
+		status:        "pending",
+		expires:       time.Now().Add(entryTTL),
 	}
 	// Only the requested formats get a query, so a response in another format
 	// is not accepted.
@@ -512,10 +523,17 @@ func (d *DemoRP) finalizeRequest(w http.ResponseWriter, req *requestState, respo
 		"request_uri": {base + "/verifier/request/" + req.id},
 	}.Encode()
 
+	writeCreatedRequest(w, req, base+"/authorize?"+params, "openid4vp://?"+params)
+}
+
+// writeCreatedRequest hands the creating page the transaction_id that reads
+// the result.
+func writeCreatedRequest(w http.ResponseWriter, req *requestState, walletURL, schemeURI string) {
 	writeJSON(w, http.StatusCreated, map[string]any{
-		"id":         req.id,
-		"wallet_url": base + "/authorize?" + params,
-		"scheme_uri": "openid4vp://?" + params,
+		"id":             req.id,
+		"transaction_id": req.transactionID,
+		"wallet_url":     walletURL,
+		"scheme_uri":     schemeURI,
 	})
 }
 
@@ -541,11 +559,12 @@ func (d *DemoRP) createCustomRequest(w http.ResponseWriter, body createRequestBo
 	}
 	base := d.baseURL()
 	req := &requestState{
-		id:      randToken(),
-		nonce:   randToken(),
-		status:  "pending",
-		expires: time.Now().Add(entryTTL),
-		encKey:  encKey,
+		id:            randToken(),
+		transactionID: randToken(),
+		nonce:         randToken(),
+		status:        "pending",
+		expires:       time.Now().Add(entryTTL),
+		encKey:        encKey,
 	}
 	responseURI := base + "/verifier/response/" + req.id
 	req.clientID, err = customClientID(scheme, chain, responseURI, body.ClientID)
@@ -656,11 +675,7 @@ func (d *DemoRP) deliverUnsignedRequest(w http.ResponseWriter, req *requestState
 		"client_metadata": {string(metaJSON)},
 	}.Encode()
 
-	writeJSON(w, http.StatusCreated, map[string]any{
-		"id":         req.id,
-		"wallet_url": base + "/authorize?" + params,
-		"scheme_uri": "openid4vp://?" + params,
-	})
+	writeCreatedRequest(w, req, base+"/authorize?"+params, "openid4vp://?"+params)
 }
 
 func parseSigningKeyBundle(pemBundle string) (*ecdsa.PrivateKey, []*x509.Certificate, error) {
@@ -829,10 +844,13 @@ func responseEncryptionMetadata(key *ecdsa.PrivateKey) map[string]any {
 	}
 }
 
+// handleRequestStatus releases the result to the holder of the transaction_id
+// or of the response_code.
 func (d *DemoRP) handleRequestStatus(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
+	key := r.PathValue("key")
 	d.mu.Lock()
-	req, ok := d.requests[id]
+	req := d.requestByKeyLocked(key)
+	ok := req != nil
 	var doc map[string]any
 	if ok {
 		status := req.status
@@ -859,6 +877,18 @@ func (d *DemoRP) handleRequestStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, doc)
+}
+
+func (d *DemoRP) requestByKeyLocked(key string) *requestState {
+	if key == "" {
+		return nil
+	}
+	for _, req := range d.requests {
+		if req.transactionID == key || req.responseCode == key {
+			return req
+		}
+	}
+	return nil
 }
 
 func (d *DemoRP) handlePresentationResponse(w http.ResponseWriter, r *http.Request) {
@@ -892,59 +922,82 @@ func (d *DemoRP) handlePresentationResponse(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	vpToken, err := decryptResponse(req, r.PostForm)
+	response, err := authorizationResponse(req, r.PostForm)
+	if err != nil {
+		d.finishRequest(req, nil, nil, err)
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid_request"})
+		return
+	}
+	// §8.2: the Response URI answers 200 once it "has successfully processed
+	// the Authorization Response or Authorization Error Response". The page
+	// that created the request shows the error, so the wallet stays where it
+	// is and gets no redirect_uri.
+	if refusal, _ := response["error"].(string); refusal != "" {
+		description, _ := response["error_description"].(string)
+		d.finishRequest(req, nil, nil, fmt.Errorf("the wallet answered with the error %s", strings.TrimSpace(refusal+" "+description)))
+		writeJSON(w, http.StatusOK, map[string]string{})
+		return
+	}
+	vpToken, err := json.Marshal(response["vp_token"])
+	if err == nil && response["vp_token"] == nil {
+		err = fmt.Errorf("the response carried no vp_token")
+	}
 	if err != nil {
 		d.finishRequest(req, nil, nil, err)
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid_request"})
 		return
 	}
 
-	claims, checks, err := d.verifyPresentation(req, vpToken)
+	claims, checks, err := d.verifyPresentation(req, string(vpToken))
 	d.finishRequest(req, claims, checks, err)
+	d.answerResponse(w, req)
+}
 
+// answerResponse answers a processed response with the redirect_uri of
+// OpenID4VP 1.0 §8.2. Its response_code reads the result.
+func (d *DemoRP) answerResponse(w http.ResponseWriter, req *requestState) {
+	code := randToken()
+	d.mu.Lock()
+	req.responseCode = code
+	d.mu.Unlock()
+	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusOK, map[string]string{
-		"redirect_uri": d.baseURL() + "/verifier/?result=" + url.QueryEscape(id),
+		"redirect_uri": d.baseURL() + "/verifier/?response_code=" + code,
 	})
 }
 
-// decryptResponse decrypts a direct_post.jwt response and returns the
-// vp_token. It checks the state inside the JWE, so a response for one request
-// cannot be posted to another.
-func decryptResponse(req *requestState, form url.Values) (string, error) {
-	encrypted := strings.TrimSpace(form.Get("response"))
-	if encrypted == "" {
-		return "", fmt.Errorf("the response carried no encrypted response parameter (direct_post.jwt was requested)")
+// authorizationResponse reads the parameters of a direct_post.jwt response.
+// OpenID4VP 1.0 §8.3.1 lets a wallet that cannot encrypt "send an error
+// response without encryption as per Section 8.2". The state must be the one
+// of this request (RFC 6749 §4.1.2), so a response for one request cannot be
+// posted to another.
+func authorizationResponse(req *requestState, form url.Values) (map[string]any, error) {
+	params := map[string]any{}
+	switch encrypted := strings.TrimSpace(form.Get("response")); {
+	case encrypted != "":
+		if req.encKey == nil {
+			return nil, fmt.Errorf("this request has no response encryption key")
+		}
+		plaintext, err := wallet.DecryptCompactJWE(encrypted, req.encKey)
+		if err != nil {
+			return nil, fmt.Errorf("decrypting the response: %w", err)
+		}
+		if err := json.Unmarshal([]byte(plaintext), &params); err != nil {
+			return nil, fmt.Errorf("parsing the decrypted response: %w", err)
+		}
+	case form.Get("error") != "":
+		for _, name := range []string{"error", "error_description", "state"} {
+			if value := form.Get(name); value != "" {
+				params[name] = value
+			}
+		}
+	default:
+		return nil, fmt.Errorf("the response carried no encrypted response parameter (direct_post.jwt was requested)")
 	}
-	if req.encKey == nil {
-		return "", fmt.Errorf("this request has no response encryption key")
+	if state, _ := params["state"].(string); state != req.id {
+		return nil, fmt.Errorf("the response is for a different request")
 	}
-
-	plaintext, err := wallet.DecryptCompactJWE(encrypted, req.encKey)
-	if err != nil {
-		return "", fmt.Errorf("decrypting the response: %w", err)
-	}
-
-	var payload struct {
-		VPToken any    `json:"vp_token"`
-		State   string `json:"state"`
-	}
-	if err := json.Unmarshal([]byte(plaintext), &payload); err != nil {
-		return "", fmt.Errorf("parsing the decrypted response: %w", err)
-	}
-	// The request carries state, and RFC 6749 §4.1.2 makes the response
-	// return it.
-	if payload.State != req.id {
-		return "", fmt.Errorf("the decrypted response is for a different request")
-	}
-	if payload.VPToken == nil {
-		return "", fmt.Errorf("the decrypted response carried no vp_token")
-	}
-
-	raw, err := json.Marshal(payload.VPToken)
-	if err != nil {
-		return "", fmt.Errorf("re-encoding the vp_token: %w", err)
-	}
-	return string(raw), nil
+	return params, nil
 }
 
 func (d *DemoRP) recordPresentation(req *requestState, presentation string) {
@@ -1111,15 +1164,12 @@ func (d *DemoRP) verifySDJWTEntry(req *requestState, presentation, expectedVCT s
 
 	// RFC 9901 §7.3: "check that the creation time of the Key Binding JWT, as
 	// determined by the iat claim, is within an acceptable window". The claim
-	// is REQUIRED (§4.3). The window is the same as for every per-request proof.
-	kbIat, hasIat := kbJWT.payload["iat"].(float64)
-	iatErr := errIf(!hasIat, "the key binding JWT has no numeric iat")
-	if iatErr == nil {
-		if age := time.Since(time.Unix(int64(kbIat), 0)); age > proofClockSkew || age < -proofClockSkew {
-			iatErr = fmt.Errorf("the key binding JWT iat is %s away from now, outside the %s window this verifier accepts", age.Round(time.Second), proofClockSkew)
-		}
+	// is REQUIRED (§4.3).
+	timeErr := checkTimeClaims(kbJWT.payload, true, false)
+	if timeErr != nil {
+		timeErr = fmt.Errorf("the key binding JWT %w", timeErr)
 	}
-	if err = check("key binding was created within an acceptable window", iatErr); err != nil {
+	if err = check("key binding was created within an acceptable window", timeErr); err != nil {
 		return nil, err
 	}
 

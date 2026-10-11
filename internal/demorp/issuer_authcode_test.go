@@ -602,8 +602,10 @@ func TestAuthorizationCodeFlowWithoutClientAuthentication(t *testing.T) {
 	}
 }
 
-// RFC 9126 §4 gives a client one use of a request_uri. A second authorization
-// request with the same request_uri fails.
+// RFC 9126 §4: "Authorization servers SHOULD treat request_uri values as
+// one-time use but MAY allow for duplicate requests due to a user
+// reloading/refreshing their user agent". The login page may load again, and
+// the request_uri yields one authorization code.
 func TestAuthorizeSpendsTheRequestURI(t *testing.T) {
 	d, _, holderKey := newDemoRP(t)
 	d.SetClientAuthMode(ClientAuthOptional)
@@ -630,28 +632,30 @@ func TestAuthorizeSpendsTheRequestURI(t *testing.T) {
 		h.ServeHTTP(rec, req)
 		return rec
 	}
+	signIn := func() *httptest.ResponseRecorder {
+		return postForm(t, h, "/authorize", url.Values{
+			"request_uri": {requestURI},
+			"username":    {demoAccountUsername},
+			"password":    {demoAccountPassword},
+		})
+	}
+	spent := func(name string, rec *httptest.ResponseRecorder) {
+		t.Helper()
+		if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "already") {
+			t.Errorf("%s: %d %s, want 400 saying the request_uri is spent", name, rec.Code, rec.Body.String())
+		}
+	}
 
-	if first := authorize(); first.Code != http.StatusOK {
-		t.Fatalf("the first authorization request: %d %s", first.Code, first.Body.String())
+	for _, load := range []string{"the login page", "the reloaded login page"} {
+		if rec := authorize(); rec.Code != http.StatusOK {
+			t.Fatalf("%s: %d %s", load, rec.Code, rec.Body.String())
+		}
 	}
-	second := authorize()
-	if second.Code != http.StatusBadRequest {
-		t.Errorf("the second authorization request: %d, want 400 (%s)", second.Code, second.Body.String())
+	if rec := signIn(); rec.Code != http.StatusFound {
+		t.Fatalf("signing in: %d %s", rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(second.Body.String(), "already") {
-		t.Errorf("body = %s, want it to say the request_uri is spent", second.Body.String())
-	}
-
-	// The issuer's own login form posts the request_uri again. That post is
-	// allowed.
-	login := postForm(t, h, "/authorize", url.Values{
-		"request_uri": {requestURI},
-		"username":    {demoAccountUsername},
-		"password":    {demoAccountPassword},
-	})
-	if login.Code != http.StatusFound {
-		t.Fatalf("signing in after the login page was served: %d %s", login.Code, login.Body.String())
-	}
+	spent("a second sign-in", signIn())
+	spent("the login page after the code", authorize())
 }
 
 // Allow the redirect URI in form-action so browser policy does not block the
@@ -767,6 +771,16 @@ func TestAuthorizationServerMetadata(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Errorf("metadata does not mention %s: %s", want, body)
 		}
+	}
+}
+
+// RFC 9207 §2.3: a server that sends iss in the authorization response "MUST
+// indicate its support for the iss parameter by setting the metadata parameter
+// authorization_response_iss_parameter_supported [...] to true".
+func TestAuthorizationServerMetadataAnnouncesTheIssParameter(t *testing.T) {
+	d, _, _ := newDemoRP(t)
+	if got := d.authorizationServerMetadata()["authorization_response_iss_parameter_supported"]; got != true {
+		t.Errorf("authorization_response_iss_parameter_supported = %v, want true", got)
 	}
 }
 

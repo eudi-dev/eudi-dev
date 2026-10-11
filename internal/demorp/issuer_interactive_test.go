@@ -24,6 +24,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -179,6 +180,7 @@ func TestBrowserOfferFallsBackToRedirectToWeb(t *testing.T) {
 	rec := postAuthorizationChallenge(t, d, map[string]string{
 		"OAuth-Client-Attestation":     provider.attest(t, "http://wallet.example", clientKey),
 		"OAuth-Client-Attestation-PoP": attestationPoP(t, clientKey, demoIssuerID),
+		"DPoP":                         dpopProof(t, clientKey, "POST", demoIssuerID+challengePath),
 	}, url.Values{
 		"issuer_state":                {issuerState},
 		"interaction_types_supported": {interactionTypePresentation},
@@ -207,6 +209,7 @@ func TestBrowserOfferAsksForTheAuthViaWebInteraction(t *testing.T) {
 	rec := postAuthorizationChallenge(t, d, map[string]string{
 		"OAuth-Client-Attestation":     provider.attest(t, "http://wallet.example", clientKey),
 		"OAuth-Client-Attestation-PoP": attestationPoP(t, clientKey, demoIssuerID),
+		"DPoP":                         dpopProof(t, clientKey, "POST", demoIssuerID+challengePath),
 	}, url.Values{
 		"issuer_state":                {issuerState},
 		"interaction_types_supported": {interactionTypePresentation + "," + interactionTypeAuthViaWeb},
@@ -268,6 +271,7 @@ func TestAuthorizationChallengeReportsAMissingInteractionType(t *testing.T) {
 	rec := postAuthorizationChallenge(t, d, map[string]string{
 		"OAuth-Client-Attestation":     provider.attest(t, "http://wallet.example", clientKey),
 		"OAuth-Client-Attestation-PoP": attestationPoP(t, clientKey, demoIssuerID),
+		"DPoP":                         dpopProof(t, clientKey, "POST", demoIssuerID+challengePath),
 	}, url.Values{
 		"issuer_state":                {issuerState},
 		"interaction_types_supported": {interactionTypeAuthViaWeb},
@@ -515,6 +519,7 @@ func startInteractiveSession(t *testing.T, d *DemoRP, provider walletProvider, c
 	rec := postAuthorizationChallenge(t, d, map[string]string{
 		"OAuth-Client-Attestation":     provider.attest(t, "http://wallet.example", clientKey),
 		"OAuth-Client-Attestation-PoP": attestationPoP(t, clientKey, demoIssuerID),
+		"DPoP":                         dpopProof(t, clientKey, "POST", demoIssuerID+challengePath),
 	}, url.Values{
 		"issuer_state":                {issuerState},
 		"interaction_types_supported": {interactionTypePresentation},
@@ -631,6 +636,7 @@ func TestInteractiveAuthorizationVerifiesThePresentation(t *testing.T) {
 		return postAuthorizationChallenge(t, d, map[string]string{
 			"OAuth-Client-Attestation":     provider.attest(t, "http://wallet.example", clientKey),
 			"OAuth-Client-Attestation-PoP": attestationPoP(t, clientKey, demoIssuerID),
+			"DPoP":                         dpopProof(t, clientKey, "POST", demoIssuerID+challengePath),
 		}, url.Values{
 			"auth_session":       {session},
 			"openid4vp_response": {string(vpToken)},
@@ -677,6 +683,10 @@ func TestInteractiveAuthorizationVerifiesThePresentation(t *testing.T) {
 		}
 		if !strings.Contains(rec.Body.String(), "authorization_code") {
 			t.Errorf("body = %s, want an authorization code", rec.Body.String())
+		}
+		// RFC 6749 §5.1 keeps a response with a code out of caches.
+		if got := rec.Header().Get("Cache-Control"); got != "no-store" {
+			t.Errorf("Cache-Control = %q, want no-store", got)
 		}
 	})
 }
@@ -727,6 +737,7 @@ func TestAuthViaWebSessionIsReOffered(t *testing.T) {
 		return map[string]string{
 			"OAuth-Client-Attestation":     provider.attest(t, "http://wallet.example", clientKey),
 			"OAuth-Client-Attestation-PoP": attestationPoP(t, clientKey, demoIssuerID),
+			"DPoP":                         dpopProof(t, clientKey, "POST", demoIssuerID+challengePath),
 		}
 	}
 
@@ -764,5 +775,67 @@ func TestAuthViaWebSessionIsReOffered(t *testing.T) {
 	}
 	if got, _ := again["request_uri"].(string); got == "" || got == firstRequestURI {
 		t.Errorf("request_uri = %q, want a fresh pushed request (first was %q)", got, firstRequestURI)
+	}
+}
+
+// A presentation session yields one authorization code. first-party-apps
+// §5.2.2.1 answers a used auth_session with invalid_session, and §9.5.1 has
+// the server "reject subsequent Authorization Challenge Requests [...] unless
+// a DPoP proof for the same key presented in the original Authorization
+// Challenge Request is provided".
+func TestAnInteractiveSessionIsBoundAndSingleUse(t *testing.T) {
+	d, _, holderKey := newDemoRP(t)
+	issuerState := createOfferState(t, d, authorizationPresentation)
+	provider := foreignWalletProvider(t)
+	clientKey, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherKey, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	credential := signPID(t, d, holderKey)
+	session, nonce := startInteractiveSession(t, d, provider, clientKey, issuerState)
+	vpToken, err := json.Marshal(map[string]any{"vp_token": map[string]any{"pid": []string{
+		presentCredential(t, holderKey, credential, "ia:"+d.challengeEndpoint(), nonce),
+	}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	continueWith := func(dpopKey *ecdsa.PrivateKey) *httptest.ResponseRecorder {
+		return postAuthorizationChallenge(t, d, map[string]string{
+			"OAuth-Client-Attestation":     provider.attest(t, "http://wallet.example", clientKey),
+			"OAuth-Client-Attestation-PoP": attestationPoP(t, clientKey, demoIssuerID),
+			"DPoP":                         dpopProof(t, dpopKey, "POST", demoIssuerID+challengePath),
+		}, url.Values{"auth_session": {session}, "openid4vp_response": {string(vpToken)}})
+	}
+
+	if rec := continueWith(otherKey); rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "invalid_dpop_proof") {
+		t.Errorf("a continuation with another DPoP key: %d %s, want 400 invalid_dpop_proof", rec.Code, rec.Body.String())
+	}
+	// Concurrent continuations race for the session, and only one wins.
+	results := make(chan *httptest.ResponseRecorder, 4)
+	var wg sync.WaitGroup
+	for range cap(results) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			results <- continueWith(clientKey)
+		}()
+	}
+	wg.Wait()
+	close(results)
+	codes := 0
+	for rec := range results {
+		switch {
+		case rec.Code == http.StatusOK:
+			codes++
+		case rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "invalid_session"):
+			t.Errorf("a losing continuation: %d %s, want 400 invalid_session", rec.Code, rec.Body.String())
+		}
+	}
+	if codes != 1 {
+		t.Errorf("%d continuations got an authorization code, want 1", codes)
 	}
 }

@@ -104,7 +104,7 @@ async function createIssuerOffer(page, { grant, authorization } = {}) {
 
 async function createVerificationRequest() {
   const { body } = await postJSON("/verifier/api/requests", { type: "pid" });
-  return { id: body.id, walletURL: body.wallet_url, schemeURI: body.scheme_uri };
+  return { id: body.transaction_id, walletURL: body.wallet_url, schemeURI: body.scheme_uri };
 }
 
 async function openAsSchemeHandler(page) {
@@ -910,7 +910,7 @@ test.describe("Consent credential selection", () => {
 
     await page.locator("#consent-approve").click();
     // Verifier navigation confirms that approval completed.
-    await expect(page).toHaveURL(/\/verifier\/\?result=/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/verifier\/\?response_code=/, { timeout: 15_000 });
     const result = await verifierResult(req.id);
     expect(result.status).toBe("verified");
     expect(result.checks.map((c) => c.name)).toContain("presentation parses as an mdoc DeviceResponse");
@@ -929,7 +929,7 @@ test.describe("Consent credential selection", () => {
     await expect(page.locator(".consent-claim input[type=checkbox]").first()).toBeChecked();
 
     await page.locator("#consent-approve").click();
-    await expect(page).toHaveURL(/\/verifier\/\?result=/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/verifier\/\?response_code=/, { timeout: 15_000 });
     const result = await verifierResult(req.id);
     expect(result.status).toBe("verified");
     expect(result.claims.vct).toBe(after);
@@ -940,7 +940,7 @@ test.describe("Consent credential selection", () => {
 
     await page.locator('.consent-claim input[data-claim="given_name"]').uncheck();
     await page.locator("#consent-approve").click();
-    await expect(page).toHaveURL(/\/verifier\/\?result=/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/verifier\/\?response_code=/, { timeout: 15_000 });
 
     const result = await verifierResult(req.id);
     expect(result.status).toBe("failed");
@@ -980,7 +980,7 @@ test.describe("Consent credential selection", () => {
     const owner = await openAsSchemeHandler(page);
     submitAsSchemeHandler("/api/presentations", body.scheme_uri, owner);
     await expect(page.locator("#consent-overlay")).toHaveClass(/active/);
-    return body;
+    return { id: body.transaction_id };
   }
 
   test("an optional ticket set is answered by default and skippable", async ({ page }) => {
@@ -998,7 +998,7 @@ test.describe("Consent credential selection", () => {
 
     await expect(page.locator(".consent-credential")).toHaveCount(1);
     await page.locator("#consent-approve").click();
-    await expect(page).toHaveURL(/\/verifier\/\?result=/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/verifier\/\?response_code=/, { timeout: 15_000 });
     const result = await verifierResult(req.id);
     expect(result.status).toBe("verified");
     expect((result.claims || {}).ticket).toBeFalsy();
@@ -1010,7 +1010,7 @@ test.describe("Consent credential selection", () => {
     const req = await openPreparedConsent(page, { type: "pid", ticket: "optional" });
 
     await page.locator("#consent-approve").click();
-    await expect(page).toHaveURL(/\/verifier\/\?result=/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/verifier\/\?response_code=/, { timeout: 15_000 });
     const result = await verifierResult(req.id);
     expect(result.status).toBe("verified");
     expect(result.claims.ticket.event).toBe("EUDI Interop Fest");
@@ -1031,7 +1031,7 @@ test.describe("Consent credential selection", () => {
 
     await expect(page.locator(".consent-credential")).toHaveCount(1);
     await page.locator("#consent-approve").click();
-    await expect(page).toHaveURL(/\/verifier\/\?result=/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/verifier\/\?response_code=/, { timeout: 15_000 });
     const result = await verifierResult(req.id);
     expect(result.status).toBe("verified");
     expect((result.claims || {}).ticket).toBeFalsy();
@@ -1059,7 +1059,7 @@ test.describe("Consent credential selection", () => {
     await expect(note).toContainText(`Sending 1 of ${sentPIDs}`);
 
     await page.locator("#consent-approve").click();
-    await expect(page).toHaveURL(/\/verifier\/\?result=/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/verifier\/\?response_code=/, { timeout: 15_000 });
     const result = await verifierResult(req.id);
     expect(result.status).toBe("verified");
     expect(result.claims.pid).toHaveLength(1);
@@ -1072,7 +1072,7 @@ test.describe("Consent credential selection", () => {
     const sent = await page.locator("#consent-dialog .consent-credential[data-credential-id]").count();
 
     await page.locator("#consent-approve").click();
-    await expect(page).toHaveURL(/\/verifier\/\?result=/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/verifier\/\?response_code=/, { timeout: 15_000 });
     const result = await verifierResult(req.id);
     expect(result.status).toBe("verified");
     expect(result.claims.pid.length + result.claims.ticket.length).toBe(sent);
@@ -1086,7 +1086,7 @@ test.describe("Consent credential selection", () => {
     await page.setViewportSize({ width: 390, height: 800 });
     const req = await openPreparedConsent(page, { type: "pid", format: "sd-jwt", multiple: true });
     await page.locator("#consent-approve").click();
-    await expect(page).toHaveURL(/\/verifier\/\?result=/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/verifier\/\?response_code=/, { timeout: 15_000 });
     await expect(page.locator("#claims")).toBeVisible();
     expect((await verifierResult(req.id)).claims.pid.length).toBeGreaterThanOrEqual(2);
 
@@ -1122,7 +1122,7 @@ test.describe("Consent credential selection", () => {
     // Reopening Edit during submission must not create another enabled Approve button.
     await page.locator("#consent-selection-done").click({ timeout: 2000 }).catch(() => {});
 
-    await expect(page).toHaveURL(/\/verifier\/\?result=/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/verifier\/\?response_code=/, { timeout: 15_000 });
     expect(await verifierStatus(req.id)).toBe("verified");
   });
 });
@@ -1195,7 +1195,7 @@ test.describe("Verifier polling", () => {
   }
 
   test("an unknown or expired request stops the polling", async ({ page }) => {
-    await page.goto(`${BASE}/verifier/?result=00000000000000000000000000000000`);
+    await page.goto(`${BASE}/verifier/?response_code=00000000000000000000000000000000`);
     await expect(page.locator("#status")).toHaveText(/expired/, { timeout: 10_000 });
 
     const polls = countPolls(page);
@@ -1217,6 +1217,35 @@ test.describe("Verifier polling", () => {
     const polls = countPolls(page);
     await page.waitForTimeout(8000);
     expect(polls.n, "a hidden tab must not keep polling").toBe(0);
+  });
+
+  test("a late answer for an older request does not take over the polling", async ({ page }) => {
+    await page.goto(`${BASE}/verifier/`);
+    let releaseFirst;
+    const firstHeld = new Promise((resolve) => (releaseFirst = resolve));
+    let firstID = null;
+    await page.route("**/verifier/api/requests/*", async (route) => {
+      if (firstID === null) {
+        firstID = route.request().url().split("/").pop();
+        await firstHeld;
+      }
+      await route.continue();
+    });
+    await createVerifierRequest(page, "pid");
+    await expect.poll(() => firstID).not.toBeNull();
+    const secondPolled = page.waitForResponse(
+      (resp) => resp.url().includes("/verifier/api/requests/") && !resp.url().endsWith("/" + firstID)
+    );
+    await createVerifierRequest(page, "pid");
+    await secondPolled;
+
+    const stalePolls = [];
+    page.on("request", (req) => {
+      if (req.url().endsWith("/verifier/api/requests/" + firstID)) stalePolls.push(req.url());
+    });
+    releaseFirst();
+    await page.waitForTimeout(5000);
+    expect(stalePolls, "the older request must not be polled again").toEqual([]);
   });
 
   test("a visible tab backs off instead of hammering", async ({ page }) => {
@@ -1389,7 +1418,7 @@ test.describe("Custom verifier request builder", () => {
     ]);
     const body = await resp.json();
     const schemeURI = (await page.locator("#scheme-uri").textContent()) || "";
-    return { id: body.id, walletURL: body.wallet_url, schemeURI };
+    return { id: body.transaction_id, walletURL: body.wallet_url, schemeURI };
   }
 
   async function present(page, schemeURI) {
@@ -1411,7 +1440,7 @@ test.describe("Custom verifier request builder", () => {
     await expect(natRow.locator('input[type="checkbox"]')).toBeChecked();
 
     await page.locator("#consent-approve").click();
-    await expect(page).toHaveURL(/\/verifier\/\?result=/, { timeout: 45_000 });
+    await expect(page).toHaveURL(/\/verifier\/\?response_code=/, { timeout: 45_000 });
 
     const result = await verifierResult(id);
     expect(result.status).toBe("verified");
@@ -1431,7 +1460,7 @@ test.describe("Custom verifier request builder", () => {
     await expect(page.locator("#consent-dialog .consent-claim-warn")).toHaveCount(0);
 
     await page.locator("#consent-approve").click();
-    await expect(page).toHaveURL(/\/verifier\/\?result=/, { timeout: 45_000 });
+    await expect(page).toHaveURL(/\/verifier\/\?response_code=/, { timeout: 45_000 });
 
     const result = await verifierResult(id);
     expect(result.status).toBe("verified");
@@ -1449,7 +1478,7 @@ test.describe("Custom verifier request builder", () => {
     const shown = await cards.count();
 
     await page.locator("#consent-approve").click();
-    await expect(page).toHaveURL(/\/verifier\/\?result=/, { timeout: 45_000 });
+    await expect(page).toHaveURL(/\/verifier\/\?response_code=/, { timeout: 45_000 });
 
     const result = await verifierResult(id);
     expect(result.status).toBe("verified");
@@ -1484,7 +1513,7 @@ test.describe("Custom verifier request builder", () => {
     await expect(page.locator("#consent-selection-row")).toContainText("Your selection");
 
     await page.locator("#consent-approve").click();
-    await expect(page).toHaveURL(/\/verifier\/\?result=/, { timeout: 45_000 });
+    await expect(page).toHaveURL(/\/verifier\/\?response_code=/, { timeout: 45_000 });
 
     const result = await verifierResult(id);
     expect(result.status).toBe("verified");

@@ -334,7 +334,7 @@ func TestVerifyProofJWTRejectsAProofOutsideTheAcceptedIATWindow(t *testing.T) {
 	t.Run("issued long ago", func(t *testing.T) {
 		_, err := d.verifyProofJWT(proofJWTWith(t, d, proofOptions{
 			nonce: nonce,
-			iat:   time.Now().Add(-2 * proofClockSkew),
+			iat:   time.Now().Add(-2 * freshnessWindow),
 		}))
 		if err == nil {
 			t.Fatal("a proof issued long before now was accepted")
@@ -347,7 +347,7 @@ func TestVerifyProofJWTRejectsAProofOutsideTheAcceptedIATWindow(t *testing.T) {
 	t.Run("issued in the future", func(t *testing.T) {
 		_, err := d.verifyProofJWT(proofJWTWith(t, d, proofOptions{
 			nonce: nonce,
-			iat:   time.Now().Add(2 * proofClockSkew),
+			iat:   time.Now().Add(2 * freshnessWindow),
 		}))
 		if err == nil {
 			t.Fatal("a proof issued in the future was accepted")

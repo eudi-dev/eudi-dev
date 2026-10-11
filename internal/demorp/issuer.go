@@ -16,9 +16,7 @@ package demorp
 
 import (
 	"crypto/ecdsa"
-	"crypto/x509"
 	"embed"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -28,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/httpsec"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
@@ -42,7 +41,7 @@ const (
 	ticketConfigurationID = "demo-ticket"
 	preAuthGrant          = "urn:ietf:params:oauth:grant-type:pre-authorized_code"
 
-	// demoBatchSize is the batch_size advertised under OpenID4VCI 1.0 §8.3.
+	// demoBatchSize is the batch_size of OpenID4VCI 1.0 §12.2.4.
 	// Each copy is bound to its own proof key, as ARF method C requires.
 	demoBatchSize        = 8
 	demoDefaultBatchSize = 3
@@ -85,7 +84,7 @@ type offerState struct {
 }
 
 // tokenState is what an access token grants. Both grants build it with
-// issueTokenLocked.
+// issueToken.
 type tokenState struct {
 	offerSettings
 	// holderClaims name the holder: the names of the account that signed in,
@@ -96,7 +95,11 @@ type tokenState struct {
 	// empty for a bearer token.
 	jkt        string
 	clientAuth *clientAuthentication
-	expires    time.Time
+	// credentialIDs maps each granted configuration to the credential
+	// identifier that the token response returned for it. It is nil when the
+	// flow used no authorization_details.
+	credentialIDs map[string]string
+	expires       time.Time
 }
 
 // offerSettings are the choices of the demo issuer page for one offer.
@@ -109,7 +112,7 @@ type offerSettings struct {
 	withStatus bool
 	// deferred selects deferred issuance (OpenID4VCI 1.0 §9).
 	deferred bool
-	// batchSize is the number of copies to sign (§8.3), each for its own key.
+	// batchSize is the number of copies to sign, each for its own key (§8.3).
 	// 0 or 1 issues a single credential.
 	batchSize int
 	// authorization is authorizationPresentation or authorizationBrowser.
@@ -192,7 +195,8 @@ func (d *DemoRP) handleIssuerMetadata(w http.ResponseWriter, r *http.Request) {
 		// A 1.0 wallet gets its key proof challenge from the Nonce Endpoint
 		// (§7).
 		"nonce_endpoint": issuer + "/nonce",
-		// OpenID4VCI 1.0 §8.3: one credential copy per key proof, up to batch_size.
+		// OpenID4VCI 1.0 §12.2.4: batch_size is "the maximum array size for the
+		// proofs parameter in a Credential Request".
 		"batch_credential_issuance": map[string]any{"batch_size": demoBatchSize},
 		"display": []map[string]any{
 			{
@@ -342,17 +346,19 @@ func (d *DemoRP) handleToken(w http.ResponseWriter, r *http.Request) {
 	}
 	d.mu.Lock()
 	offer := d.redeemOfferLocked(r.PostFormValue("pre-authorized_code"), func(o *offerState) string { return o.preAuthCode })
+	var settings offerSettings
+	if offer != nil {
+		settings = offer.offerSettings
+	}
+	d.mu.Unlock()
 	if offer == nil {
-		d.mu.Unlock()
 		writeJSON(w, http.StatusBadRequest, map[string]string{
 			"error":             "invalid_grant",
 			"error_description": "unknown, used or expired pre-authorized code",
 		})
 		return
 	}
-	token := d.issueTokenLocked(tokenState{offerSettings: offer.offerSettings, jkt: jkt, clientAuth: &clientAuth})
-	d.mu.Unlock()
-	writeTokenResponse(w, token, jkt)
+	d.issueToken(w, r, tokenState{offerSettings: settings, jkt: jkt, clientAuth: &clientAuth}, false)
 }
 
 // redeemOfferLocked finds the offer whose grant key matches and consumes it.
@@ -380,38 +386,102 @@ func (d *DemoRP) offerLocked(key string, grantKey func(*offerState) string) *off
 	return nil
 }
 
-// issueTokenLocked stores what a new access token grants and returns the
-// token. Callers hold d.mu.
-func (d *DemoRP) issueTokenLocked(granted tokenState) string {
+// issueToken applies the authorization_details of the token request (OpenID4VCI
+// 1.0 §6.1.1), stores what the new access token grants and answers with it.
+// withDetails reports that the authorization request used authorization_details.
+func (d *DemoRP) issueToken(w http.ResponseWriter, r *http.Request, granted tokenState, withDetails bool) {
+	detailIDs, errResp := parseAuthorizationDetails(r.PostFormValue("authorization_details"))
+	if errResp == nil && detailIDs != nil {
+		granted.configIDs, errResp = narrowConfigIDs(granted.configIDs, detailIDs)
+		withDetails = true
+	}
+	if errResp != nil {
+		writeJSON(w, http.StatusBadRequest, errResp)
+		return
+	}
+	if withDetails {
+		granted.credentialIDs = make(map[string]string, len(granted.configIDs))
+		for _, id := range granted.configIDs {
+			granted.credentialIDs[id] = randToken()
+		}
+	}
 	token := randToken()
 	granted.expires = time.Now().Add(entryTTL)
+	d.mu.Lock()
 	d.pruneLocked()
 	makeRoom(d.tokens, func(t *tokenState) time.Time { return t.expires })
 	d.tokens[token] = &granted
-	return token
+	d.mu.Unlock()
+	writeTokenResponse(w, token, granted)
 }
 
 // writeTokenResponse answers a token request. OpenID4VCI 1.0 §6.2 defines no
-// c_nonce in it. The wallet gets one from the Nonce Endpoint (§7).
-func writeTokenResponse(w http.ResponseWriter, token, jkt string) {
-	tokenType := "Bearer"
-	if jkt != "" {
-		tokenType = "DPoP"
+// c_nonce in it. The wallet gets one from the Nonce Endpoint (§7). §6.2 makes
+// authorization_details "REQUIRED when the authorization_details parameter
+// [...] is used in either the Authorization Request or Token Request".
+func writeTokenResponse(w http.ResponseWriter, token string, granted tokenState) {
+	noStore(w)
+	tokenType := bearerScheme
+	if granted.jkt != "" {
+		tokenType = dpopScheme
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
+	response := map[string]any{
 		"access_token": token,
 		"token_type":   tokenType,
 		"expires_in":   int(entryTTL.Seconds()),
-	})
+	}
+	if granted.credentialIDs != nil {
+		details := make([]map[string]any, 0, len(granted.configIDs))
+		for _, id := range granted.configIDs {
+			details = append(details, map[string]any{
+				"type":                        "openid_credential",
+				"credential_configuration_id": id,
+				"credential_identifiers":      []string{granted.credentialIDs[id]},
+			})
+		}
+		response["authorization_details"] = details
+	}
+	writeJSON(w, http.StatusOK, response)
+}
+
+// accessTokenError refuses the access token of a request. scheme is the
+// scheme the request used, or empty for a request without an access token.
+type accessTokenError struct {
+	scheme      string
+	code        string
+	description string
+}
+
+// writeAccessTokenError answers 401 with the WWW-Authenticate challenge that
+// RFC 6750 §3 requires, in the DPoP form of RFC 9449 §7.1 for a DPoP request.
+// A request without an access token gets both challenges and, as RFC 6750
+// §3.1 asks, no error information.
+func (d *DemoRP) writeAccessTokenError(w http.ResponseWriter, refused *accessTokenError) {
+	algs := `algs="ES256"`
+	if refused.scheme == "" {
+		w.Header().Set("WWW-Authenticate", `Bearer realm="`+d.issuerID()+`", DPoP `+algs)
+		writeJSON(w, http.StatusUnauthorized, map[string]string{})
+		return
+	}
+	body := oauthError(refused.code, refused.description)
+	challenge := refused.scheme + ` error="` + body["error"] + `", error_description="` + body["error_description"] + `"`
+	if refused.scheme == dpopScheme {
+		challenge += ", " + algs
+	}
+	w.Header().Set("WWW-Authenticate", challenge)
+	writeJSON(w, http.StatusUnauthorized, body)
 }
 
 // authorizeAccessToken checks the access token of a request to endpoint and
-// returns what it grants. A DPoP-bound token needs a proof with its key
-// (RFC 9449 §7).
-func (d *DemoRP) authorizeAccessToken(r *http.Request, endpoint string) (string, tokenState, map[string]string) {
-	token, ok := accessToken(r)
+// returns the token with what it grants. A DPoP-bound token needs a proof with
+// its key (RFC 9449 §7).
+func (d *DemoRP) authorizeAccessToken(r *http.Request, endpoint string) (string, tokenState, *accessTokenError) {
+	token, scheme, ok := accessToken(r)
 	if !ok {
-		return "", tokenState{}, map[string]string{"error": "invalid_token"}
+		return "", tokenState{}, &accessTokenError{}
+	}
+	refuse := func(code, description string) (string, tokenState, *accessTokenError) {
+		return "", tokenState{}, &accessTokenError{scheme: scheme, code: code, description: description}
 	}
 	d.mu.Lock()
 	granted, known := d.tokens[token]
@@ -423,15 +493,20 @@ func (d *DemoRP) authorizeAccessToken(r *http.Request, endpoint string) (string,
 	}
 	d.mu.Unlock()
 	if !known {
-		return "", tokenState{}, map[string]string{"error": "invalid_token"}
+		return refuse("invalid_token", "unknown or expired access token")
 	}
 	if copied.jkt != "" {
+		// RFC 9449 §7.2: a server that also accepts bearer tokens "MUST reject
+		// a DPoP-bound access token received as a bearer token".
+		if scheme != dpopScheme {
+			return refuse("invalid_token", "the access token is bound to a DPoP key and must be sent with the DPoP scheme")
+		}
 		presented, err := d.verifyDPoPProof(r, d.issuerID()+endpoint, token)
 		if err != nil {
-			return "", tokenState{}, oauthError("invalid_dpop_proof", err.Error())
+			return refuse("invalid_dpop_proof", err.Error())
 		}
 		if presented != copied.jkt {
-			return "", tokenState{}, oauthError("invalid_token", "the access token is bound to a different DPoP key")
+			return refuse("invalid_token", "the access token is bound to a different DPoP key")
 		}
 	}
 	return token, copied, nil
@@ -451,9 +526,9 @@ type credentialRequest struct {
 
 func (d *DemoRP) handleCredential(w http.ResponseWriter, r *http.Request) {
 
-	token, tok, errResp := d.authorizeAccessToken(r, "/credential")
-	if errResp != nil {
-		writeJSON(w, http.StatusUnauthorized, errResp)
+	token, tok, refused := d.authorizeAccessToken(r, "/credential")
+	if refused != nil {
+		d.writeAccessTokenError(w, refused)
 		return
 	}
 	granted := ticketGrant{tokenState: tok}
@@ -463,11 +538,12 @@ func (d *DemoRP) handleCredential(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, oauthError("invalid_credential_request", err.Error()))
 		return
 	}
-	if status, errResp := d.checkRequestedCredential(req, granted.configIDs); errResp != nil {
-		writeJSON(w, status, errResp)
+	configID, errResp := requestedConfiguration(req, tok)
+	if errResp != nil {
+		writeJSON(w, http.StatusBadRequest, errResp)
 		return
 	}
-	granted.configID = req.CredentialConfigurationID
+	granted.configID = configID
 	if len(req.Proofs.JWT) == 0 {
 		writeJSON(w, http.StatusBadRequest, oauthError("invalid_proof", "proofs.jwt is required"))
 		return
@@ -488,9 +564,8 @@ func (d *DemoRP) handleCredential(w http.ResponseWriter, r *http.Request) {
 		holderKeys = append(holderKeys, holderKey)
 	}
 
-	// A deferred offer returns a transaction id here (§9).
 	if granted.deferred {
-		writeJSON(w, http.StatusOK, map[string]any{"transaction_id": d.deferIssuance(holderKeys, granted, token)})
+		writeIssuancePending(w, d.deferIssuance(holderKeys, granted, token))
 		return
 	}
 
@@ -525,29 +600,40 @@ func (d *DemoRP) signBatch(holderKeys []*ecdsa.PublicKey, granted ticketGrant) (
 	return credentials, nil
 }
 
-// checkRequestedCredential applies §8.2, where credential_identifier is
+// requestedConfiguration applies §8.2, where credential_identifier is
 // "REQUIRED when an Authorization Details of type openid_credential was
 // returned from the Token Response [...] MUST NOT be used otherwise" and
-// excludes credential_configuration_id.
-//
-// This issuer returns no authorization_details, so a request must use
-// credential_configuration_id. The error codes are those of §8.3.1.2.
-func (d *DemoRP) checkRequestedCredential(req credentialRequest, offered []string) (int, map[string]string) {
-	switch {
-	case req.CredentialIdentifier != "" && req.CredentialConfigurationID != "":
-		return http.StatusBadRequest, oauthError("invalid_credential_request",
+// excludes credential_configuration_id. It returns the configuration to issue.
+// The error codes are those of §8.3.1.2.
+func requestedConfiguration(req credentialRequest, granted tokenState) (string, map[string]string) {
+	if req.CredentialIdentifier != "" && req.CredentialConfigurationID != "" {
+		return "", oauthError("invalid_credential_request",
 			"credential_identifier and credential_configuration_id must not both be present")
-	case req.CredentialIdentifier != "":
-		return http.StatusBadRequest, oauthError("unknown_credential_identifier",
-			"this issuer returns no authorization_details, so no credential identifier is defined")
-	case req.CredentialConfigurationID == "":
-		return http.StatusBadRequest, oauthError("invalid_credential_request",
-			"credential_configuration_id is required")
-	case !slices.Contains(offered, req.CredentialConfigurationID):
-		return http.StatusBadRequest, oauthError("unknown_credential_configuration",
-			fmt.Sprintf("this offer covers the %s configuration(s), not %s", strings.Join(offered, ", "), req.CredentialConfigurationID))
 	}
-	return 0, nil
+	if granted.credentialIDs != nil {
+		if req.CredentialIdentifier == "" {
+			return "", oauthError("invalid_credential_request",
+				"the token response returned credential_identifiers, so the request must name one in credential_identifier")
+		}
+		for configID, identifier := range granted.credentialIDs {
+			if identifier == req.CredentialIdentifier {
+				return configID, nil
+			}
+		}
+		return "", oauthError("unknown_credential_identifier",
+			fmt.Sprintf("%s is not among the credential_identifiers of the token response", req.CredentialIdentifier))
+	}
+	switch {
+	case req.CredentialIdentifier != "":
+		return "", oauthError("unknown_credential_identifier",
+			"the token response returned no authorization_details, so no credential identifier is defined")
+	case req.CredentialConfigurationID == "":
+		return "", oauthError("invalid_credential_request", "credential_configuration_id is required")
+	case !slices.Contains(granted.configIDs, req.CredentialConfigurationID):
+		return "", oauthError("unknown_credential_configuration",
+			fmt.Sprintf("this offer covers the %s configuration(s), not %s", strings.Join(granted.configIDs, ", "), req.CredentialConfigurationID))
+	}
+	return req.CredentialConfigurationID, nil
 }
 
 // handleNonce is the Nonce Endpoint of OpenID4VCI 1.0 §7. A 1.0 wallet gets
@@ -599,12 +685,6 @@ func invalidProof(format string, args ...any) *proofError {
 	return &proofError{code: "invalid_proof", description: fmt.Sprintf(format, args...)}
 }
 
-// proofClockSkew is the accepted window for the iat of a key proof. Appendix
-// F.4 requires "the creation time of the JWT [...] is within an acceptable
-// window (see Section 13.8)" and sets no value. This covers the round trip
-// plus clock drift between two machines.
-const proofClockSkew = 5 * time.Minute
-
 // Key proofs are checked under OpenID4VCI 1.0 Appendix F.4. The aud check
 // against the Credential Issuer Identifier (F.1) stops reuse of a proof made
 // for another issuer.
@@ -631,12 +711,10 @@ func (d *DemoRP) verifyProofJWT(raw string) (*ecdsa.PublicKey, *proofError) {
 	if aud, _ := proof.payload["aud"].(string); aud != d.issuerID() {
 		return nil, invalidProof("proof JWT aud is %q, want the credential issuer identifier %q", aud, d.issuerID())
 	}
-	iat, ok := proof.payload["iat"].(float64)
-	if !ok {
-		return nil, invalidProof("proof JWT has no numeric iat")
-	}
-	if age := time.Since(time.Unix(int64(iat), 0)); age > proofClockSkew || age < -proofClockSkew {
-		return nil, invalidProof("proof JWT iat is %s away from now, outside the %s window this issuer accepts", age.Round(time.Second), proofClockSkew)
+	// Appendix F.4: "the creation time of the JWT [...] is within an
+	// acceptable window (see Section 13.8)".
+	if err := checkTimeClaims(proof.payload, true, false); err != nil {
+		return nil, invalidProof("proof JWT %v", err)
 	}
 
 	// §8.2: "The c_nonce value is retrieved from the Nonce Endpoint as defined
@@ -702,23 +780,14 @@ func proofKeyMaterial(header map[string]any) (*ecdsa.PublicKey, *proofError) {
 // which Appendix F.1 defines as "at least one certificate where the first
 // certificate contains the key that the Credential is to be bound to".
 func proofKeyFromX5C(raw any) (*ecdsa.PublicKey, error) {
-	entries, ok := raw.([]any)
-	if !ok || len(entries) == 0 {
+	certs, err := certchain.FromX5C(raw)
+	if err != nil {
+		return nil, fmt.Errorf("proof JWT %w", err)
+	}
+	if len(certs) == 0 {
 		return nil, fmt.Errorf("proof JWT x5c is not a non-empty array")
 	}
-	encoded, ok := entries[0].(string)
-	if !ok {
-		return nil, fmt.Errorf("proof JWT x5c leaf is not a string")
-	}
-	der, err := base64.StdEncoding.DecodeString(encoded)
-	if err != nil {
-		return nil, fmt.Errorf("decoding proof JWT x5c leaf: %w", err)
-	}
-	cert, err := x509.ParseCertificate(der)
-	if err != nil {
-		return nil, fmt.Errorf("parsing proof JWT x5c leaf: %w", err)
-	}
-	key, ok := cert.PublicKey.(*ecdsa.PublicKey)
+	key, ok := certs[0].PublicKey.(*ecdsa.PublicKey)
 	if !ok {
 		return nil, fmt.Errorf("proof JWT x5c leaf does not carry an EC key")
 	}
@@ -753,14 +822,29 @@ func decodeJSONBody(r *http.Request, target any) error {
 	return dec.Decode(target)
 }
 
-// accessToken reads the access token from the Authorization header. It
-// accepts the DPoP and Bearer schemes.
-func accessToken(r *http.Request) (string, bool) {
+const (
+	bearerScheme = "Bearer"
+	dpopScheme   = "DPoP"
+)
+
+// noStore marks a response that carries a token or a code. RFC 6749 §5.1
+// requires "Cache-Control" "no-store" "in any response containing tokens,
+// credentials, or other sensitive information, as well as the "Pragma"
+// response header field [RFC2616] with a value of "no-cache"".
+func noStore(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
+}
+
+// accessToken reads the access token and its scheme, Bearer or DPoP, from the
+// Authorization header.
+func accessToken(r *http.Request) (token, scheme string, ok bool) {
 	auth := strings.TrimSpace(r.Header.Get("Authorization"))
-	for _, scheme := range []string{"Bearer ", "DPoP "} {
-		if len(auth) > len(scheme) && strings.EqualFold(auth[:len(scheme)], scheme) {
-			return strings.TrimSpace(auth[len(scheme):]), true
+	for _, scheme := range []string{bearerScheme, dpopScheme} {
+		prefix := scheme + " "
+		if len(auth) > len(prefix) && strings.EqualFold(auth[:len(prefix)], prefix) {
+			return strings.TrimSpace(auth[len(prefix):]), scheme, true
 		}
 	}
-	return "", false
+	return "", "", false
 }

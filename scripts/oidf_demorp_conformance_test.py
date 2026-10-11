@@ -169,6 +169,7 @@ class VerifierRequestTests(unittest.TestCase):
             self.assertEqual(payload, {"type": "pid", "format": "sd-jwt"})
             return {
                 "id": "req-1",
+                "transaction_id": "tx-1",
                 "scheme_uri": "openid4vp://?client_id=x509_hash%3Aabc&request_uri=https%3A%2F%2Flocalhost%3A19002%2Fverifier%2Frequest%2Freq-1",
             }
 
@@ -178,7 +179,7 @@ class VerifierRequestTests(unittest.TestCase):
         ), mock.patch.dict(demorp.os.environ, {"CONFORMANCE_SERVER": "https://localhost:8443/"}):
             request_id = demorp.submit_verifier_request("http://wallet.test", scenario, "alias-2")
 
-        self.assertEqual(request_id, "req-1")
+        self.assertEqual(request_id, "tx-1")
         self.assertEqual(
             delivered,
             [

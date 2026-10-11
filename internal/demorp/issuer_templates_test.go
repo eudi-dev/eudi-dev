@@ -178,8 +178,9 @@ func TestOfferRefusesUnknownConfigurations(t *testing.T) {
 	if code != http.StatusBadRequest {
 		t.Errorf("offer for an unknown configuration: %d %v, want 400", code, doc)
 	}
-	if status, errResp := d.checkRequestedCredential(credentialRequest{CredentialConfigurationID: "german-pid-sdjwt"}, []string{ticketConfigurationID}); status != http.StatusBadRequest || errResp["error"] != "unknown_credential_configuration" {
-		t.Errorf("credential request outside the offer: %d %v", status, errResp)
+	granted := tokenState{offerSettings: offerSettings{configIDs: []string{ticketConfigurationID}}}
+	if _, errResp := requestedConfiguration(credentialRequest{CredentialConfigurationID: "german-pid-sdjwt"}, granted); errResp["error"] != "unknown_credential_configuration" {
+		t.Errorf("credential request outside the offer: %v", errResp)
 	}
 }
 

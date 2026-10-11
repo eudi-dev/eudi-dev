@@ -18,16 +18,18 @@ import (
 	"crypto/ecdsa"
 	"crypto/sha256"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"log"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
@@ -47,10 +49,6 @@ const (
 	// requestURIPrefix is the URN form RFC 9126 requires for a PAR request URI.
 	requestURIPrefix = "urn:ietf:params:oauth:request_uri:"
 	authRequestTTL   = 5 * time.Minute
-	clockSkew        = time.Minute
-	// dpopProofMaxAge is the maximum age of a DPoP proof. Clients create a
-	// proof per request, so it only has to cover the round trip.
-	dpopProofMaxAge = 5 * time.Minute
 
 	// draft-ietf-oauth-attestation-based-client-auth-10 has two methods. One
 	// uses a dedicated PoP JWT. In the other the DPoP proof is the only PoP
@@ -110,14 +108,23 @@ type authGrant struct {
 	// dpopJKT is the DPoP key the code is bound to (RFC 9449 §10), if any.
 	dpopJKT  string
 	settings offerSettings
+	// withDetails records that the request used authorization_details, so the
+	// token response returns credential identifiers (OpenID4VCI 1.0 §6.2).
+	withDetails bool
 }
 
 // resolveAuthGrant resolves what an authorization flow issues: the settings
 // of the offer that issuer_state names, else the configurations that the
 // authorization_details and the scope name (OpenID4VCI 1.0 §5.1.1, §5.1.2).
-// A request that names none gets the ticket, the default scope of this
-// server (RFC 6749 §3.3). It returns the OAuth error of an unknown name.
+// authorization_details next to an issuer_state narrow the offer. A request
+// that names none gets the ticket, the default scope of this server (RFC 6749
+// §3.3). It returns the OAuth error of an unknown name.
 func (d *DemoRP) resolveAuthGrant(grant authGrant, scope, authorizationDetails string) (authGrant, map[string]string) {
+	detailIDs, errResp := parseAuthorizationDetails(authorizationDetails)
+	if errResp != nil {
+		return grant, errResp
+	}
+	grant.withDetails = detailIDs != nil
 	if grant.issuerState != "" {
 		d.mu.Lock()
 		offer := d.offerLocked(grant.issuerState, issuerStateKey)
@@ -128,30 +135,61 @@ func (d *DemoRP) resolveAuthGrant(grant authGrant, scope, authorizationDetails s
 		if offer == nil {
 			return grant, oauthError("invalid_request", "unknown or expired issuer_state")
 		}
-		return grant, nil
+		if grant.withDetails {
+			grant.settings.configIDs, errResp = narrowConfigIDs(grant.settings.configIDs, detailIDs)
+		}
+		return grant, errResp
 	}
-	ids := strings.Fields(scope)
-	if authorizationDetails != "" {
-		var details []struct {
-			Type                      string `json:"type"`
-			CredentialConfigurationID string `json:"credential_configuration_id"`
-		}
-		if err := json.Unmarshal([]byte(authorizationDetails), &details); err != nil {
-			return grant, oauthError("invalid_authorization_details", "authorization_details is not a JSON array: "+err.Error())
-		}
-		for _, detail := range details {
-			if detail.Type != "openid_credential" {
-				return grant, oauthError("invalid_authorization_details", fmt.Sprintf("authorization_details type %q is not openid_credential", detail.Type))
-			}
-			ids = append(ids, detail.CredentialConfigurationID)
-		}
-	}
-	configIDs, err := d.offerConfigurationIDs(ids)
+	configIDs, err := d.offerConfigurationIDs(append(strings.Fields(scope), detailIDs...))
 	if err != nil {
 		return grant, oauthError("invalid_scope", err.Error())
 	}
 	grant.settings = offerSettings{configIDs: configIDs, authorization: authorizationBrowser}
 	return grant, nil
+}
+
+// parseAuthorizationDetails reads the credential_configuration_id of each
+// openid_credential entry (OpenID4VCI 1.0 §5.1.1). An absent parameter or an
+// empty array gives nil.
+func parseAuthorizationDetails(raw string) ([]string, map[string]string) {
+	if raw == "" {
+		return nil, nil
+	}
+	var details []struct {
+		Type                      string `json:"type"`
+		CredentialConfigurationID string `json:"credential_configuration_id"`
+	}
+	if err := json.Unmarshal([]byte(raw), &details); err != nil {
+		return nil, oauthError("invalid_authorization_details", "authorization_details is not a JSON array: "+err.Error())
+	}
+	var ids []string
+	for _, detail := range details {
+		if detail.Type != "openid_credential" {
+			return nil, oauthError("invalid_authorization_details", fmt.Sprintf("authorization_details type %q is not openid_credential", detail.Type))
+		}
+		if detail.CredentialConfigurationID == "" {
+			return nil, oauthError("invalid_authorization_details", "an openid_credential entry has no credential_configuration_id")
+		}
+		ids = append(ids, detail.CredentialConfigurationID)
+	}
+	return ids, nil
+}
+
+// narrowConfigIDs keeps the granted configurations that authorization_details
+// ask for. OpenID4VCI 1.0 §6.1.1 recommends that the authorization server
+// accepts "a subset of credential_configuration_id parameters received in the
+// original Authorization Request and issue a token for the reduced set".
+func narrowConfigIDs(granted, requested []string) ([]string, map[string]string) {
+	narrowed := make([]string, 0, len(requested))
+	for _, id := range requested {
+		if !slices.Contains(granted, id) {
+			return nil, oauthError("invalid_authorization_details", fmt.Sprintf("this grant covers %s, not %s", strings.Join(granted, ", "), id))
+		}
+		if !slices.Contains(narrowed, id) {
+			narrowed = append(narrowed, id)
+		}
+	}
+	return narrowed, nil
 }
 
 func issuerStateKey(o *offerState) string { return o.issuerState }
@@ -164,9 +202,10 @@ type authRequestState struct {
 	// debug panel.
 	clientAttestation    string
 	clientAttestationPoP string
-	code                 string
-	codeUsed             bool
-	resolved             bool
+	// code is the authorization code issued from the request. Issuing it
+	// spends the request_uri.
+	code     string
+	codeUsed bool
 	// holderClaims name the holder of the code: the account's names after
 	// the sign-in, or the requested claims of a presented credential.
 	holderClaims map[string]any
@@ -191,7 +230,9 @@ func (d *DemoRP) authorizationServerMetadata() map[string]any {
 		"token_endpoint":                        issuer + "/token",
 		"response_types_supported":              []string{"code"},
 		"response_modes_supported":              []string{"query"},
-		"grant_types_supported":                 []string{authCodeGrant, preAuthGrant},
+		// redirectWithCode sends iss (RFC 9207 §2.3).
+		"authorization_response_iss_parameter_supported": true,
+		"grant_types_supported":                          []string{authCodeGrant, preAuthGrant},
 		// Each credential configuration has its id as scope.
 		"scopes_supported":                                 d.offeredConfigurationIDs(),
 		"code_challenge_methods_supported":                 []string{"S256"},
@@ -234,13 +275,6 @@ func (d *DemoRP) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 	}
 	if clientID := r.URL.Query().Get("client_id"); clientID != "" && clientID != request.clientID {
 		writeAuthorizeError(w, "client_id does not match the pushed authorization request")
-		return
-	}
-	// RFC 9126 §4: "the client MUST only use a request_uri value once". The
-	// login form posts it again, and that post comes from this server's own
-	// page.
-	if err := d.resolveAuthRequest(request.requestURI); err != nil {
-		writeAuthorizeError(w, err.Error())
 		return
 	}
 	renderLoginPage(w, loginPageData{
@@ -287,6 +321,8 @@ func (d *DemoRP) handlePushedAuthorizationRequest(w http.ResponseWriter, r *http
 	if codeKey == "" {
 		codeKey = jkt
 	}
+	// RFC 9126 §2.3 answers errors as RFC 6749 §5.2 does, which lets the
+	// server answer a failed client authentication with 401.
 	if _, authErr := d.authenticateClient(r, clientID, jkt); authErr != nil {
 		writeJSON(w, http.StatusUnauthorized, oauthError(authErr.code, authErr.description))
 		return
@@ -370,10 +406,15 @@ func (d *DemoRP) handleAuthorizeSubmit(w http.ResponseWriter, r *http.Request) {
 // redirect URI. It includes the iss parameter (RFC 9207) because a wallet in
 // strict mode requires it.
 func (d *DemoRP) redirectWithCode(w http.ResponseWriter, r *http.Request, request *authRequestState, holderClaims map[string]any) {
-	// Read the shared request under the lock because the token endpoint reads
-	// the same struct concurrently.
+	// Issue under the lock because the token endpoint reads the same struct
+	// concurrently and two sign-ins may race for the request.
 	code := randToken()
 	d.mu.Lock()
+	if request.code != "" {
+		d.mu.Unlock()
+		writeAuthorizeError(w, errRequestURIUsed.Error())
+		return
+	}
 	request.code = code
 	request.holderClaims = holderClaims
 	makeRoom(d.codes, func(r *authRequestState) time.Time { return r.expires })
@@ -455,15 +496,12 @@ func (d *DemoRP) handleAuthorizationCodeToken(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	d.mu.Lock()
-	token := d.issueTokenLocked(tokenState{
+	d.issueToken(w, r, tokenState{
 		offerSettings: granted.settings,
 		holderClaims:  granted.holderClaims,
 		jkt:           jkt,
 		clientAuth:    &clientAuth,
-	})
-	d.mu.Unlock()
-	writeTokenResponse(w, token, jkt)
+	}, granted.withDetails)
 }
 
 func (d *DemoRP) lookupAuthRequest(requestURI string) (*authRequestState, error) {
@@ -478,24 +516,18 @@ func (d *DemoRP) lookupAuthRequest(requestURI string) (*authRequestState, error)
 		delete(d.authRequests, requestURI)
 		return nil, fmt.Errorf("unknown or expired request_uri")
 	}
+	if request.code != "" {
+		return nil, errRequestURIUsed
+	}
 	return request, nil
 }
 
-// resolveAuthRequest marks a pushed request as answered by the authorization
-// endpoint. A second client asking for the same request is refused.
-func (d *DemoRP) resolveAuthRequest(requestURI string) error {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	request, ok := d.authRequests[requestURI]
-	if !ok {
-		return fmt.Errorf("unknown or expired request_uri")
-	}
-	if request.resolved {
-		return fmt.Errorf("request_uri has already been used, RFC 9126 §4 gives a client one use of it")
-	}
-	request.resolved = true
-	return nil
-}
+// errRequestURIUsed refuses a request_uri that already yielded a code. RFC
+// 9126 §4 lets the server "allow for duplicate requests due to a user
+// reloading/refreshing their user agent", so showing the login page again is
+// fine. §7.3 asks to "make the request URIs one-time use", so a request_uri
+// yields one authorization code.
+var errRequestURIUsed = errors.New("request_uri has already been used, RFC 9126 §4 gives a client one use of it")
 
 func validDemoAccount(username, password string) bool {
 	return strings.TrimSpace(username) == demoAccountUsername && password == demoAccountPassword
@@ -513,15 +545,12 @@ func oauthError(code, description string) map[string]string {
 	return map[string]string{"error": code, "error_description": oid4vc.ErrorDescription(description)}
 }
 
-// verifyDPoPProof checks the signature, HTTP method and URL of a DPoP proof
-// under RFC 9449. It returns the thumbprint of the key that the token is
-// bound to.
 // dpopKey verifies the DPoP proof of a request to an endpoint that issues a
 // code or a token. A proof binds what the endpoint issues to its key (RFC
 // 9449). Without one it issues a bearer value. HAIP 1.0 §4 asks the issuer to
 // support DPoP, and every issuing endpoint applies this one rule.
 func (d *DemoRP) dpopKey(r *http.Request, endpoint string) (string, map[string]string) {
-	if strings.TrimSpace(r.Header.Get("DPoP")) == "" {
+	if len(r.Header.Values("DPoP")) == 0 {
 		return "", nil
 	}
 	jkt, err := d.verifyDPoPProof(r, endpoint, "")
@@ -531,25 +560,33 @@ func (d *DemoRP) dpopKey(r *http.Request, endpoint string) (string, map[string]s
 	return jkt, nil
 }
 
+// verifyDPoPProof applies the checks of RFC 9449 §4.3 to the DPoP header. It
+// returns the thumbprint of the proof key.
 func (d *DemoRP) verifyDPoPProof(r *http.Request, expectedURL, accessToken string) (string, error) {
-	raw := strings.TrimSpace(r.Header.Get("DPoP"))
-	if raw == "" {
+	headers := r.Header.Values("DPoP")
+	switch {
+	case len(headers) == 0 || strings.TrimSpace(headers[0]) == "":
 		return "", fmt.Errorf("a DPoP proof is required")
+	case len(headers) > 1:
+		return "", fmt.Errorf("the request carries %d DPoP header fields, RFC 9449 §4.3 allows one", len(headers))
 	}
-	proof, err := parseCompactJWT(raw)
+	proof, err := parseCompactJWT(headers[0])
 	if err != nil {
 		return "", fmt.Errorf("parsing DPoP proof: %w", err)
 	}
 	if typ, _ := proof.header["typ"].(string); typ != "dpop+jwt" {
 		return "", fmt.Errorf("DPoP proof has typ %q, expected dpop+jwt", typ)
 	}
+	if alg, _ := proof.header["alg"].(string); alg != "ES256" {
+		return "", fmt.Errorf("DPoP proof alg %q is not among the supported algorithms (ES256)", alg)
+	}
+	// §4.2: the payload "MUST contain at least" jti, htm, htu and iat.
+	if jti, _ := proof.payload["jti"].(string); jti == "" {
+		return "", fmt.Errorf("DPoP proof has no jti claim")
+	}
 	jwk, ok := proof.header["jwk"].(map[string]any)
 	if !ok {
 		return "", fmt.Errorf("DPoP proof header has no jwk")
-	}
-	// RFC 9449 §4.3: the jwk header holds the public key, never a private one.
-	if _, holdsPrivate := jwk["d"]; holdsPrivate {
-		return "", fmt.Errorf("DPoP proof jwk carries private key material, it must hold a public key")
 	}
 	key, err := holderKeyFromJWK(jwk)
 	if err != nil {
@@ -566,13 +603,8 @@ func (d *DemoRP) verifyDPoPProof(r *http.Request, expectedURL, accessToken strin
 	}
 	// A DPoP proof has no expiry, so freshness comes from iat. Otherwise a
 	// captured proof would stay usable forever.
-	iat, ok := proof.payload["iat"].(float64)
-	if !ok {
-		return "", fmt.Errorf("DPoP proof has no iat claim")
-	}
-	age := time.Since(time.Unix(int64(iat), 0))
-	if age > dpopProofMaxAge || age < -clockSkew {
-		return "", fmt.Errorf("DPoP proof iat is not within the accepted window")
+	if err := checkTimeClaims(proof.payload, true, false); err != nil {
+		return "", fmt.Errorf("DPoP proof %w", err)
 	}
 	if accessToken != "" {
 		sum := sha256.Sum256([]byte(accessToken))
@@ -610,10 +642,10 @@ func (d *DemoRP) authenticateTokenClient(w http.ResponseWriter, r *http.Request,
 	clientAuth, authErr := d.authenticateClient(r, clientID, jkt)
 	if authErr != nil {
 		// RFC 6749 §5.2 answers a token endpoint refusal "with an HTTP 400
-		// (Bad Request) status code (unless specified otherwise)". It keeps 401
-		// for a client that "attempted to authenticate via the Authorization
-		// request header field". The attestation headers are different headers.
-		// The PAR endpoint answers 401 as RFC 9126 §2.3 says.
+		// (Bad Request) status code (unless specified otherwise)". It requires
+		// 401 only for a client that "attempted to authenticate via the
+		// Authorization request header field", and the attestation headers are
+		// different headers.
 		writeJSON(w, http.StatusBadRequest, oauthError(authErr.code, authErr.description))
 		return clientAuthentication{}, false
 	}
@@ -688,18 +720,15 @@ func (d *DemoRP) authenticateClient(r *http.Request, clientID, jkt string) (clie
 	if clientID != "" && sub != clientID {
 		return clientAuthentication{}, attestationFailed("client attestation sub %q does not match client_id %q", sub, clientID)
 	}
-	// exp is REQUIRED in the attestation.
-	if err := checkJWTValidity(attestation.payload); err != nil {
+	// exp is REQUIRED in the attestation. Without it a leaked attestation
+	// would be usable forever.
+	if err := checkTimeClaims(attestation.payload, false, true); err != nil {
 		return clientAuthentication{}, attestationFailed("client attestation: %v", err)
 	}
 	cnf, _ := attestation.payload["cnf"].(map[string]any)
 	cnfJWK, _ := cnf["jwk"].(map[string]any)
 	if cnfJWK == nil {
 		return clientAuthentication{}, attestationFailed("client attestation has no cnf.jwk")
-	}
-	// The checklist requires that the confirmation key is not a private key.
-	if _, holdsPrivate := cnfJWK["d"]; holdsPrivate {
-		return clientAuthentication{}, attestationFailed("client attestation cnf.jwk carries private key material, the confirmation key must be a public key")
 	}
 	clientKey, err := holderKeyFromJWK(cnfJWK)
 	if err != nil {
@@ -765,7 +794,8 @@ func (d *DemoRP) authenticateClient(r *http.Request, clientID, jkt string) (clie
 	if draft <= 7 && !hasPoPISS {
 		log.Printf("[Demo issuer] client attestation PoP omits iss, which draft-07 (the configured OpenID4VCI 1.0 pin) requires. Accepted, since draft-08 and draft-10 define the shape without it")
 	}
-	if err := checkPoPFreshness(pop.payload); err != nil {
+	// §5.1 requires iat. exp is optional.
+	if err := checkTimeClaims(pop.payload, true, false); err != nil {
 		return clientAuthentication{}, attestationFailed("client attestation PoP: %v", err)
 	}
 	return authenticated, nil
@@ -802,22 +832,12 @@ func (s attestationSigner) name(payload map[string]any) string {
 // key from the x5c leaf and checks the chain against the wallet provider
 // lists.
 func (d *DemoRP) attestationSigner(header map[string]any) (attestationSigner, error) {
-	rawChain, _ := header["x5c"].([]any)
-	if len(rawChain) == 0 {
-		return attestationSigner{}, fmt.Errorf("client attestation header has no x5c certificate")
+	certs, err := certchain.FromX5C(header["x5c"])
+	if err != nil {
+		return attestationSigner{}, err
 	}
-	certs := make([]*x509.Certificate, 0, len(rawChain))
-	for _, entry := range rawChain {
-		encoded, _ := entry.(string)
-		der, err := base64.StdEncoding.DecodeString(encoded)
-		if err != nil {
-			return attestationSigner{}, fmt.Errorf("decoding x5c certificate: %w", err)
-		}
-		cert, err := x509.ParseCertificate(der)
-		if err != nil {
-			return attestationSigner{}, fmt.Errorf("parsing x5c certificate: %w", err)
-		}
-		certs = append(certs, cert)
+	if len(certs) == 0 {
+		return attestationSigner{}, fmt.Errorf("client attestation header has no x5c certificate")
 	}
 	key, ok := certs[0].PublicKey.(*ecdsa.PublicKey)
 	if !ok {
@@ -829,45 +849,8 @@ func (d *DemoRP) attestationSigner(header map[string]any) (attestationSigner, er
 // The wallet provider list of the local wallet anchors the attestation (ETSI
 // TS 119 602 V1.1.1 Annex E).
 func (d *DemoRP) chainsToWalletProviderCA(certs []*x509.Certificate) bool {
-	anchors := d.wallet.WalletProviderAnchors()
-	if len(anchors) == 0 || len(certs) == 0 {
-		return false
-	}
-	roots := x509.NewCertPool()
-	for _, anchor := range anchors {
-		roots.AddCert(anchor)
-	}
-	intermediates := x509.NewCertPool()
-	for _, cert := range certs[1:] {
-		intermediates.AddCert(cert)
-	}
-	_, err := certs[0].Verify(x509.VerifyOptions{
-		Roots:         roots,
-		Intermediates: intermediates,
-		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
-	})
+	_, err := certchain.Verify(certs, d.wallet.WalletProviderAnchors())
 	return err == nil
-}
-
-// checkPoPFreshness checks the age of a Client Attestation PoP from its iat.
-// draft-ietf-oauth-attestation-based-client-auth-10 §5.1 requires aud, jti
-// and iat. exp is optional and checked if present.
-func checkPoPFreshness(payload map[string]any) error {
-	iat, ok := payload["iat"].(float64)
-	if !ok {
-		return fmt.Errorf("has no iat claim")
-	}
-	age := time.Since(time.Unix(int64(iat), 0))
-	if age > dpopProofMaxAge || age < -clockSkew {
-		return fmt.Errorf("iat is not within the accepted window")
-	}
-	if exp, ok := payload["exp"].(float64); ok && time.Now().After(time.Unix(int64(exp), 0)) {
-		return fmt.Errorf("expired")
-	}
-	if nbf, ok := payload["nbf"].(float64); ok && time.Now().Add(clockSkew).Before(time.Unix(int64(nbf), 0)) {
-		return fmt.Errorf("not valid yet")
-	}
-	return nil
 }
 
 // ticketClaim records the client authentication on the ticket, so an
@@ -881,22 +864,6 @@ func (c *clientAuthentication) ticketClaim() string {
 	default:
 		return "untrusted"
 	}
-}
-
-func checkJWTValidity(payload map[string]any) error {
-	now := time.Now()
-	// Without exp a leaked attestation would be usable forever.
-	exp, ok := payload["exp"].(float64)
-	if !ok {
-		return fmt.Errorf("has no exp claim")
-	}
-	if now.After(time.Unix(int64(exp), 0)) {
-		return fmt.Errorf("expired")
-	}
-	if nbf, ok := payload["nbf"].(float64); ok && now.Add(clockSkew).Before(time.Unix(int64(nbf), 0)) {
-		return fmt.Errorf("not valid yet")
-	}
-	return nil
 }
 
 type loginPageData struct {

@@ -105,7 +105,7 @@ func (d *DemoRP) offeredConfigurationIDs() []string {
 }
 
 // credentialConfigurations lists the template configurations as the
-// credential_configurations_supported entries of OpenID4VCI 1.0 §11.2.3.
+// credential_configurations_supported entries of OpenID4VCI 1.0 §12.2.4.
 func (d *DemoRP) credentialConfigurations() map[string]any {
 	base := map[string]any{}
 	for _, cfg := range d.templateConfigurations() {

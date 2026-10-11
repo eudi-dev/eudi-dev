@@ -420,7 +420,7 @@ func TestVerifierRejectsKeyBindingOutsideTheAcceptableWindow(t *testing.T) {
 			presentation := presentCredentialAt(t, holderKey, credential, params.Get("client_id"), params.Get("nonce"), iat)
 			postPresentation(t, h, id, "ticket", presentation)
 
-			_, status := doJSON(t, h, "GET", "/api/requests/"+id, "", nil)
+			_, status := requestStatus(t, d, id)
 			if status["status"] != "failed" {
 				t.Fatalf("status = %v, want failed for a key binding created %s", status["status"], name)
 			}
@@ -447,7 +447,7 @@ func TestVerifierFlow(t *testing.T) {
 		t.Fatalf("presentation response = %d, want 200", code)
 	}
 
-	code, status := doJSON(t, h, "GET", "/api/requests/"+id, "", nil)
+	code, status := requestStatus(t, d, id)
 	if code != http.StatusOK || status["status"] != "verified" {
 		t.Fatalf("request status = %d %v, want verified", code, status)
 	}
@@ -494,7 +494,7 @@ func TestVerifierTrustAnchors(t *testing.T) {
 		}
 		presentation := presentCredential(t, holderKey, credential, params.Get("client_id"), params.Get("nonce"))
 		postPresentation(t, h, id, "pid", presentation)
-		_, status := doJSON(t, h, "GET", "/api/requests/"+id, "", nil)
+		_, status := requestStatus(t, d, id)
 		outcome, _ := status["status"].(string)
 		return outcome
 	}
@@ -524,7 +524,7 @@ func TestVerifierRejectsWrongNonce(t *testing.T) {
 	presentation := presentTicket(t, d, holderKey, params.Get("client_id"), "wrong-nonce")
 	postPresentation(t, h, id, "ticket", presentation)
 
-	_, status := doJSON(t, h, "GET", "/api/requests/"+id, "", nil)
+	_, status := requestStatus(t, d, id)
 	if status["status"] != "failed" {
 		t.Fatalf("status = %v, want failed on nonce mismatch", status["status"])
 	}
@@ -610,7 +610,7 @@ func TestVerifierRejectsRevokedCredential(t *testing.T) {
 			presentation := presentCredential(t, holderKey, credential, params.Get("client_id"), params.Get("nonce"))
 			postPresentation(t, h, id, "ticket", presentation)
 
-			_, status := doJSON(t, h, "GET", "/api/requests/"+id, "", nil)
+			_, status := requestStatus(t, d, id)
 			if status["status"] != tc.wantStatus {
 				t.Fatalf("status = %v, want %v (checks: %v)", status["status"], tc.wantStatus, status["checks"])
 			}
@@ -725,6 +725,14 @@ func postPresentation(t *testing.T, h http.Handler, id, queryID, presentation st
 // a response to its request.
 func postPresentationTo(t *testing.T, h http.Handler, requestID, state, queryID, presentation string) int {
 	t.Helper()
+	code, _ := postPresentationResponse(t, h, requestID, state, queryID, presentation)
+	return code
+}
+
+// postPresentationResponse posts the encrypted response and returns what the
+// response URI answers.
+func postPresentationResponse(t *testing.T, h http.Handler, requestID, state, queryID, presentation string) (int, map[string]any) {
+	t.Helper()
 	payload := fetchRequestObject(t, h, "/request/"+requestID)
 	pub, kid := responseEncryptionKey(t, payload)
 
@@ -740,9 +748,8 @@ func postPresentationTo(t *testing.T, h http.Handler, requestID, state, queryID,
 		t.Fatalf("encrypting response: %v", err)
 	}
 
-	code, _ := doJSON(t, h, "POST", "/response/"+requestID, url.Values{"response": {jwe}}.Encode(),
+	return doJSON(t, h, "POST", "/response/"+requestID, url.Values{"response": {jwe}}.Encode(),
 		map[string]string{"Content-Type": "application/x-www-form-urlencoded"})
-	return code
 }
 
 // TestVerifierRejectsWrongCredentialType checks that the verifier enforces the
@@ -774,7 +781,7 @@ func TestVerifierRejectsWrongCredentialType(t *testing.T) {
 	presentation := presentCredential(t, holderKey, pid, params.Get("client_id"), params.Get("nonce"))
 	postPresentation(t, h, id, "ticket", presentation)
 
-	_, status := doJSON(t, h, "GET", "/api/requests/"+id, "", nil)
+	_, status := requestStatus(t, d, id)
 	if status["status"] != "failed" {
 		t.Fatalf("status = %v, want failed for a mismatched vct (checks: %v)", status["status"], status["checks"])
 	}
@@ -807,7 +814,7 @@ func TestVerifierAcceptsAnExtendingCredentialType(t *testing.T) {
 	presentation := presentCredential(t, holderKey, german, params.Get("client_id"), params.Get("nonce"))
 	postPresentation(t, h, id, "pid", presentation)
 
-	_, status := doJSON(t, h, "GET", "/api/requests/"+id, "", nil)
+	_, status := requestStatus(t, d, id)
 	if status["status"] != "verified" {
 		t.Fatalf("status = %v, want verified for a type extending the requested one (checks: %v)", status["status"], status["checks"])
 	}
@@ -841,7 +848,7 @@ func TestVerifierDomesticPIDRequestRefusesTheCountryIndependentPID(t *testing.T)
 	presentation := presentCredential(t, holderKey, eu, params.Get("client_id"), params.Get("nonce"))
 	postPresentation(t, h, id, "pid", presentation)
 
-	_, status := doJSON(t, h, "GET", "/api/requests/"+id, "", nil)
+	_, status := requestStatus(t, d, id)
 	if status["status"] != "failed" {
 		t.Fatalf("status = %v, want failed for the extended type answering its extension (checks: %v)", status["status"], status["checks"])
 	}
@@ -873,7 +880,7 @@ func TestVerifierDomesticPIDRequestAcceptsThatType(t *testing.T) {
 	presentation := presentCredential(t, holderKey, german, params.Get("client_id"), params.Get("nonce"))
 	postPresentation(t, h, id, "pid", presentation)
 
-	_, status := doJSON(t, h, "GET", "/api/requests/"+id, "", nil)
+	_, status := requestStatus(t, d, id)
 	if status["status"] != "verified" {
 		t.Fatalf("status = %v, want verified (checks: %v)", status["status"], status["checks"])
 	}
@@ -940,7 +947,7 @@ func TestVerifierPIDRequestTakesAnyDomesticType(t *testing.T) {
 	presentation := presentCredential(t, holderKey, french, params.Get("client_id"), params.Get("nonce"))
 	postPresentation(t, h, id, "pid", presentation)
 
-	_, status := doJSON(t, h, "GET", "/api/requests/"+id, "", nil)
+	_, status := requestStatus(t, d, id)
 	if status["status"] != "verified" {
 		t.Fatalf("status = %v, want verified (checks: %v)", status["status"], status["checks"])
 	}
@@ -982,7 +989,7 @@ func TestVerifierWarnsWhenTheCredentialChainCarriesTheTrustAnchor(t *testing.T) 
 	presentation := presentCredential(t, holderKey, cred, params.Get("client_id"), params.Get("nonce"))
 	postPresentation(t, h, id, "pid", presentation)
 
-	_, status := doJSON(t, h, "GET", "/api/requests/"+id, "", nil)
+	_, status := requestStatus(t, d, id)
 	if status["status"] != "verified" {
 		t.Fatalf("status = %v, want verified (checks: %v)", status["status"], status["checks"])
 	}
@@ -1016,7 +1023,7 @@ func TestVerifierRejectsReplay(t *testing.T) {
 		t.Fatalf("replayed response = %d, want 409", code)
 	}
 
-	_, status := doJSON(t, h, "GET", "/api/requests/"+id, "", nil)
+	_, status := requestStatus(t, d, id)
 	if status["status"] != "verified" {
 		t.Fatalf("replay must not change the original result, got %v", status["status"])
 	}
@@ -1029,7 +1036,7 @@ func TestVerifierRequestExpires(t *testing.T) {
 
 	id, _ := startVerification(t, h, "ticket")
 
-	_, status := doJSON(t, h, "GET", "/api/requests/"+id, "", nil)
+	_, status := requestStatus(t, d, id)
 	if status["status"] != "pending" {
 		t.Fatalf("fresh request status = %v, want pending", status["status"])
 	}
@@ -1038,7 +1045,7 @@ func TestVerifierRequestExpires(t *testing.T) {
 	d.requests[id].expires = time.Now().Add(-time.Second)
 	d.mu.Unlock()
 
-	code, status := doJSON(t, h, "GET", "/api/requests/"+id, "", nil)
+	code, status := requestStatus(t, d, id)
 	if code != http.StatusOK || status["status"] != "expired" {
 		t.Fatalf("expired request status = %d %v, want 200 expired", code, status["status"])
 	}
@@ -1060,7 +1067,7 @@ func TestVerifierKeepsResultOfAnsweredRequest(t *testing.T) {
 	d.requests[id].expires = time.Now().Add(-time.Second)
 	d.mu.Unlock()
 
-	_, status := doJSON(t, h, "GET", "/api/requests/"+id, "", nil)
+	_, status := requestStatus(t, d, id)
 	if status["status"] != "verified" {
 		t.Fatalf("status = %v, want the verified result to survive expiry", status["status"])
 	}
@@ -1102,7 +1109,7 @@ func TestVerifierRejectsInjectedDisclosure(t *testing.T) {
 	)
 	postPresentation(t, h, id, "ticket", tampered+kb)
 
-	_, status := doJSON(t, h, "GET", "/api/requests/"+id, "", nil)
+	_, status := requestStatus(t, d, id)
 	if status["status"] != "failed" {
 		t.Fatalf("status = %v, want failed for an injected disclosure (checks: %v)", status["status"], status["checks"])
 	}
@@ -1175,7 +1182,7 @@ func TestVerifierIsHAIPCompliantEndToEnd(t *testing.T) {
 	_, ts := serveDemoStack(t, w)
 
 	created := postJSONTo(t, ts.URL+"/verifier/api/requests", `{"type":"pid"}`)
-	id, _ := created["id"].(string)
+	id, _ := created["transaction_id"].(string)
 	walletURL, _ := created["wallet_url"].(string)
 	if id == "" || walletURL == "" {
 		t.Fatalf("unexpected create response: %v", created)
@@ -1853,7 +1860,7 @@ func redeemDemoTicket(t *testing.T, w *wallet.Wallet, ts *httptest.Server, query
 func presentDemoTicket(t *testing.T, ts *httptest.Server) map[string]any {
 	t.Helper()
 	created := postJSONTo(t, ts.URL+"/verifier/api/requests", `{"type":"ticket"}`)
-	id, _ := created["id"].(string)
+	id, _ := created["transaction_id"].(string)
 	walletURL, _ := created["wallet_url"].(string)
 	if id == "" || walletURL == "" {
 		t.Fatalf("unexpected create response: %v", created)
@@ -1953,7 +1960,7 @@ func TestVerifierSteersThePIDFormatEndToEnd(t *testing.T) {
 			_, ts := serveDemoStack(t, w)
 
 			created := postJSONTo(t, ts.URL+"/verifier/api/requests", `{"type":"pid","format":"`+tc.format+`"}`)
-			id, _ := created["id"].(string)
+			id, _ := created["transaction_id"].(string)
 			walletURL, _ := created["wallet_url"].(string)
 			if id == "" || walletURL == "" {
 				t.Fatalf("unexpected create response: %v", created)
@@ -2005,7 +2012,7 @@ func TestVerifierReportsTheReceivedPresentation(t *testing.T) {
 			presentation := presentTicket(t, d, holderKey, params.Get("client_id"), tc.nonce(params))
 			postPresentation(t, h, id, "ticket", presentation)
 
-			_, status := doJSON(t, h, "GET", "/api/requests/"+id, "", nil)
+			_, status := requestStatus(t, d, id)
 			if status["status"] != tc.wantStatus {
 				t.Fatalf("status = %v, want %v", status["status"], tc.wantStatus)
 			}
@@ -2021,7 +2028,7 @@ func TestVerifierReportsNoPresentationWhilePending(t *testing.T) {
 	h := d.VerifierHandler()
 
 	id, _ := startVerification(t, h, "ticket")
-	_, status := doJSON(t, h, "GET", "/api/requests/"+id, "", nil)
+	_, status := requestStatus(t, d, id)
 	if _, ok := status["presentation"]; ok {
 		t.Errorf("a pending request reported a presentation: %v", status["presentation"])
 	}
@@ -2045,7 +2052,7 @@ func TestVerifierReportsTheReceivedMDOCPresentation(t *testing.T) {
 	_, ts := serveDemoStack(t, w)
 
 	created := postJSONTo(t, ts.URL+"/verifier/api/requests", `{"type":"pid","format":"mdoc"}`)
-	id, _ := created["id"].(string)
+	id, _ := created["transaction_id"].(string)
 	walletURL, _ := created["wallet_url"].(string)
 	resp, err := ts.Client().Get(walletURL)
 	if err != nil {
@@ -2192,7 +2199,7 @@ func TestAStrictARFWalletAcceptsTheDemoVerifier(t *testing.T) {
 		{`{"type":"pid","identity":"unregistered"}`, false},
 	} {
 		created := postJSONTo(t, ts.URL+"/verifier/api/requests", tc.body)
-		id, _ := created["id"].(string)
+		id, _ := created["transaction_id"].(string)
 		resp, err := ts.Client().Get(created["wallet_url"].(string))
 		if err != nil {
 			t.Fatalf("%s: driving the request: %v", tc.body, err)

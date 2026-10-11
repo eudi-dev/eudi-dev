@@ -192,7 +192,7 @@ func TestVerifierPIDAndTicketRequestMultiple(t *testing.T) {
 		}
 
 		driveWallet(t, ts, created["wallet_url"].(string))
-		status := getJSONFrom(t, ts.URL+"/verifier/api/requests/"+created["id"].(string))
+		status := getJSONFrom(t, ts.URL+"/verifier/api/requests/"+created["transaction_id"].(string))
 		if pids := verifiedAnswers(t, status, "pid"); len(pids) != 2 {
 			t.Errorf("%s: verified %d PIDs, want 2", mode, len(pids))
 		}

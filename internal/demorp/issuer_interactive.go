@@ -15,6 +15,8 @@
 package demorp
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -98,7 +100,7 @@ func (d *DemoRP) handleAuthorizationChallenge(w http.ResponseWriter, r *http.Req
 	}
 
 	if session := strings.TrimSpace(r.PostFormValue("auth_session")); session != "" {
-		d.continueInteractiveAuthorization(w, r, session, clientID)
+		d.continueInteractiveAuthorization(w, r, session, clientID, jkt)
 		return
 	}
 	d.startInteractiveAuthorization(w, r, clientID, jkt)
@@ -159,7 +161,7 @@ func (d *DemoRP) startInteractiveAuthorization(w http.ResponseWriter, r *http.Re
 	grant.redirectURI, grant.state = "", ""
 	request := d.newInteractivePIDRequest()
 	session := &interactiveSession{
-		id:        randToken(),
+		id:        newAuthSession(),
 		authGrant: grant,
 		request:   request,
 		expires:   time.Now().Add(entryTTL),
@@ -168,9 +170,7 @@ func (d *DemoRP) startInteractiveAuthorization(w http.ResponseWriter, r *http.Re
 	d.mu.Lock()
 	d.pruneLocked()
 	makeRoom(d.interactive, func(s *interactiveSession) time.Time { return s.expires })
-	makeRoom(d.requests, func(r *requestState) time.Time { return r.expires })
 	d.interactive[session.id] = session
-	d.requests[request.id] = request
 	d.mu.Unlock()
 
 	presentationRequest, err := d.interactivePresentationRequest(request)
@@ -189,20 +189,10 @@ func (d *DemoRP) startInteractiveAuthorization(w http.ResponseWriter, r *http.Re
 
 // continueInteractiveAuthorization verifies the presentation in an
 // Intermediate Request (§6.1.2) and issues an authorization code.
-func (d *DemoRP) continueInteractiveAuthorization(w http.ResponseWriter, r *http.Request, sessionID, clientID string) {
-	d.mu.Lock()
-	session, known := d.interactive[sessionID]
-	if known && time.Now().After(session.expires) {
-		delete(d.interactive, sessionID)
-		known = false
-	}
-	d.mu.Unlock()
-	if !known {
-		writeJSON(w, http.StatusBadRequest, oauthError("invalid_grant", "unknown or expired auth_session"))
-		return
-	}
-	if clientID != "" && clientID != session.clientID {
-		writeJSON(w, http.StatusBadRequest, oauthError("invalid_grant", "client_id does not match the authorization session"))
+func (d *DemoRP) continueInteractiveAuthorization(w http.ResponseWriter, r *http.Request, sessionID, clientID, jkt string) {
+	session, errResp := d.takeInteractiveSession(sessionID, clientID, jkt)
+	if errResp != nil {
+		writeJSON(w, http.StatusBadRequest, errResp)
 		return
 	}
 	// A browser session finishes at the authorization endpoint. A wallet
@@ -220,8 +210,6 @@ func (d *DemoRP) continueInteractiveAuthorization(w http.ResponseWriter, r *http
 	// §6.2.1.1: a wallet that cannot satisfy the request answers with an
 	// Authorization Error Response.
 	if refusal, _ := response["error"].(string); refusal != "" {
-		detail, _ := response["error_description"].(string)
-		d.finishRequest(session.request, nil, nil, fmt.Errorf("the wallet refused: %s", strings.TrimSpace(refusal+" "+detail)))
 		writeJSON(w, http.StatusBadRequest, oauthError("access_denied", "the wallet did not present a credential: "+refusal))
 		return
 	}
@@ -234,8 +222,7 @@ func (d *DemoRP) continueInteractiveAuthorization(w http.ResponseWriter, r *http
 
 	// §6.2.1.4 requires the presentation to be bound to the authorization
 	// session. The session nonce provides that binding.
-	claims, checks, verifyErr := d.verifyPresentation(session.request, string(vpToken))
-	d.finishRequest(session.request, claims, checks, verifyErr)
+	claims, _, verifyErr := d.verifyPresentation(session.request, string(vpToken))
 	if verifyErr != nil {
 		log.Printf("[Demo issuer] interactive authorization: presentation refused: %v", verifyErr)
 		writeJSON(w, http.StatusBadRequest, oauthError("access_denied", "the presentation could not be verified: "+verifyErr.Error()))
@@ -252,11 +239,50 @@ func (d *DemoRP) continueInteractiveAuthorization(w http.ResponseWriter, r *http
 	d.mu.Lock()
 	makeRoom(d.codes, func(r *authRequestState) time.Time { return r.expires })
 	d.codes[code] = granted
-	delete(d.interactive, sessionID)
 	d.mu.Unlock()
 
 	log.Printf("[Demo issuer] interactive authorization: presentation verified, issuing an authorization code to %s", session.clientID)
+	noStore(w)
 	writeJSON(w, http.StatusOK, map[string]any{"authorization_code": code})
+}
+
+// takeInteractiveSession finds the session that an Intermediate Request names.
+// It checks the client and the DPoP key under the same lock that takes a
+// presentation session out, so a session yields at most one authorization
+// code. A browser session stays for the next request. The error codes are
+// those of first-party-apps §5.2.2.1.
+func (d *DemoRP) takeInteractiveSession(sessionID, clientID, jkt string) (*interactiveSession, map[string]string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	session, known := d.interactive[sessionID]
+	if !known || time.Now().After(session.expires) {
+		delete(d.interactive, sessionID)
+		return nil, oauthError("invalid_session", "unknown, used or expired auth_session")
+	}
+	if clientID != "" && clientID != session.clientID {
+		return nil, oauthError("invalid_session", "client_id does not match the authorization session")
+	}
+	// first-party-apps §9.5.1: the server "MUST reject subsequent
+	// Authorization Challenge Requests [...] unless a DPoP proof for the same
+	// key presented in the original Authorization Challenge Request is
+	// provided".
+	if session.dpopJKT != "" && jkt != session.dpopJKT {
+		return nil, oauthError("invalid_dpop_proof", "the authorization session is bound to another DPoP key")
+	}
+	if !session.browser {
+		delete(d.interactive, sessionID)
+	}
+	return session, nil
+}
+
+// newAuthSession returns an auth_session value. first-party-apps §5.3.1:
+// "the value SHOULD have a minimum of 256 bits of entropy".
+func newAuthSession() string {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		panic(fmt.Sprintf("reading random bytes: %v", err))
+	}
+	return hex.EncodeToString(b)
 }
 
 // pushChallengeAuthRequest stores a pushed authorization request for browser
@@ -290,7 +316,7 @@ func (d *DemoRP) startAuthViaWebInteraction(w http.ResponseWriter, grant authGra
 	// request. A wallet that abandoned the sign-in and comes back gets the
 	// interaction again.
 	session := &interactiveSession{
-		id:        randToken(),
+		id:        newAuthSession(),
 		authGrant: grant,
 		expires:   time.Now().Add(entryTTL),
 		browser:   true,
@@ -426,8 +452,6 @@ func offersInteractionType(list, want string) bool {
 	return false
 }
 
-// presentedHolder is the name from the presented PID. The credential is
-// issued to that person.
 // requestedClaims are the presented claims the identity check asks for. The
 // issued credential takes them over its template, and nothing else of the
 // presented credential, such as its vct.

@@ -185,6 +185,43 @@ func (d *DemoRP) pruneLocked() {
 	}
 }
 
+// freshnessWindow is how far the iat of a JWT made for one request may lie
+// from now: DPoP proofs (RFC 9449 §11.1), key proofs (OpenID4VCI 1.0
+// Appendix F.4), attestation PoPs and key binding JWTs (RFC 9901 §7.3). None
+// of them sets a value. It covers the round trip plus clock drift between two
+// machines.
+const freshnessWindow = 5 * time.Minute
+
+// clockSkew is the drift accepted on nbf.
+const clockSkew = time.Minute
+
+// checkTimeClaims checks the time claims of a JWT payload. fresh requires an
+// iat within freshnessWindow of now, and requireExp requires an exp. An exp
+// or nbf that is present is always checked.
+func checkTimeClaims(payload map[string]any, fresh, requireExp bool) error {
+	now := time.Now()
+	if fresh {
+		iat, ok := payload["iat"].(float64)
+		if !ok {
+			return fmt.Errorf("has no numeric iat claim")
+		}
+		if age := now.Sub(time.Unix(int64(iat), 0)); age > freshnessWindow || age < -freshnessWindow {
+			return fmt.Errorf("iat is %s away from now, outside the accepted %s window", age.Round(time.Second), freshnessWindow)
+		}
+	}
+	exp, hasExp := payload["exp"].(float64)
+	if requireExp && !hasExp {
+		return fmt.Errorf("has no exp claim")
+	}
+	if hasExp && now.After(time.Unix(int64(exp), 0)) {
+		return fmt.Errorf("expired")
+	}
+	if nbf, ok := payload["nbf"].(float64); ok && now.Add(clockSkew).Before(time.Unix(int64(nbf), 0)) {
+		return fmt.Errorf("not valid yet")
+	}
+	return nil
+}
+
 type compactJWT struct {
 	header       map[string]any
 	payload      map[string]any
@@ -227,7 +264,14 @@ func verifyES256(pub *ecdsa.PublicKey, signingInput string, sig []byte) bool {
 	return jws.Valid(signingInput+"."+base64.RawURLEncoding.EncodeToString(sig), pub)
 }
 
+// holderKeyFromJWK parses the public key of a JWK header or cnf claim. Such a
+// JWK must not carry a private key: RFC 9449 §4.3 for a DPoP proof, OpenID4VCI
+// 1.0 Appendix F.4 for a key proof and
+// draft-ietf-oauth-attestation-based-client-auth-10 §7.1 for the attested key.
 func holderKeyFromJWK(jwk map[string]any) (*ecdsa.PublicKey, error) {
+	if _, private := jwk["d"]; private {
+		return nil, fmt.Errorf("the jwk carries private key material, it must hold a public key only")
+	}
 	data, err := json.Marshal(jwk)
 	if err != nil {
 		return nil, err
