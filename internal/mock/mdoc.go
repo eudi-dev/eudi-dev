@@ -30,6 +30,7 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"github.com/veraison/go-cose"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 )
 
@@ -297,7 +298,7 @@ func GenerateMDOC(cfg MDOCConfig) (string, error) {
 	// and intermediates.
 	chain := cfg.CertChain
 	if !cfg.KeepTrustAnchor {
-		chain = WithoutSelfSignedTrustAnchor(chain)
+		chain = certchain.WithoutSelfSignedAnchor(chain)
 	}
 	if len(chain) > 0 {
 		// CIR (EU) 2026/1731 Annex I §4.1 requires protected PID certificate references.

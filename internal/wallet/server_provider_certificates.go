@@ -39,8 +39,7 @@ func (s *Server) handleSigningCertificate(w http.ResponseWriter, r *http.Request
 		http.NotFound(w, r)
 		return
 	}
-	store := s.wallet.signingStore()
-	der, err := store.backend.Read(path.Join(store.prefix, "certificate-der", fingerprint+".der"))
+	der, err := s.wallet.providerKeys().RetainedCertificate(fingerprint)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			http.NotFound(w, r)
@@ -59,26 +58,11 @@ func (s *Server) handleSigningCertificate(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) providerCAForRequest(r *http.Request) (*ecdsa.PrivateKey, *x509.Certificate, error) {
-	role := r.PathValue("role")
-	if !isProviderRole(role) {
-		return nil, nil, fmt.Errorf("unknown provider role: %w", fs.ErrNotExist)
-	}
 	country := strings.TrimSuffix(r.PathValue("country"), ".der")
 	if len(country) != 2 || country[0] < 'A' || country[0] > 'Z' || country[1] < 'A' || country[1] > 'Z' {
 		return nil, nil, fmt.Errorf("invalid provider country: %w", fs.ErrNotExist)
 	}
-	store := s.wallet.signingStore()
-	if _, err := store.backend.Stat(path.Join(store.prefix, "signing-keys", role+"-ca-"+country+".pem")); err != nil {
-		return nil, nil, err
-	}
-	s.wallet.mu.RLock()
-	if s.wallet.CAKey == nil || len(s.wallet.CertChain) == 0 {
-		s.wallet.mu.RUnlock()
-		return nil, nil, fmt.Errorf("wallet has no CA certificate chain")
-	}
-	rootKey, root, issuer := s.wallet.CAKey, s.wallet.CertChain[len(s.wallet.CertChain)-1], s.wallet.IssuerURL
-	s.wallet.mu.RUnlock()
-	return store.providerCA(rootKey, root, issuer, role, country)
+	return s.wallet.Signer().ProviderCA(r.PathValue("role"), country)
 }
 
 func writeProviderCAError(w http.ResponseWriter, r *http.Request, err error) {

@@ -20,6 +20,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 )
 
 func TestApplyConsentSelection(t *testing.T) {
@@ -37,14 +39,14 @@ func TestApplyConsentSelection(t *testing.T) {
 	}
 
 	t.Run("no overrides keeps the auto selection", func(t *testing.T) {
-		got := ApplyConsentSelection(options, matches, ConsentResult{Approved: true})
+		got := consent.ApplySelection(options, matches, consent.Result{Approved: true})
 		if len(got) != 1 || got[0].CredentialID != matches[0].CredentialID {
 			t.Errorf("got %+v, want the unchanged auto selection", got)
 		}
 	})
 
 	t.Run("a pick swaps the credential of its query", func(t *testing.T) {
-		got := ApplyConsentSelection(options, matches, ConsentResult{
+		got := consent.ApplySelection(options, matches, consent.Result{
 			Approved: true,
 			Picks:    map[string][]string{"pid_sdjwt": {alternate.CredentialID}},
 		})
@@ -57,14 +59,14 @@ func TestApplyConsentSelection(t *testing.T) {
 	})
 
 	t.Run("a set choice swaps the answered option", func(t *testing.T) {
-		got := ApplyConsentSelection(options, matches, ConsentResult{Approved: true, SetChoices: []int{1}})
+		got := consent.ApplySelection(options, matches, consent.Result{Approved: true, SetChoices: []int{1}})
 		if len(got) != 1 || got[0].QueryID != "pid_mdoc" {
 			t.Fatalf("got %+v, want the mdoc option's credential", got)
 		}
 	})
 
 	t.Run("an unknown pick falls back to the wallet's choice", func(t *testing.T) {
-		got := ApplyConsentSelection(options, matches, ConsentResult{
+		got := consent.ApplySelection(options, matches, consent.Result{
 			Approved: true,
 			Picks:    map[string][]string{"pid_sdjwt": {"not-a-candidate"}},
 		})
@@ -82,7 +84,7 @@ func TestApplyConsentSelection(t *testing.T) {
 			},
 		}
 		optMatches, optOptions := evaluateDCQLWithOptions(t, w, optQuery)
-		got := ApplyConsentSelection(optOptions, optMatches, ConsentResult{Approved: true, SetChoices: []int{0, -1}})
+		got := consent.ApplySelection(optOptions, optMatches, consent.Result{Approved: true, SetChoices: []int{0, -1}})
 		if len(got) != 1 || got[0].QueryID != "pid_sdjwt" {
 			t.Errorf("got %+v, want only the required set answered", got)
 		}
@@ -114,7 +116,7 @@ func TestValidateConsentSelection(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := ValidateConsentSelection(options, tc.picks, tc.setChoices, nil)
+			err := consent.ValidateSelection(options, tc.picks, tc.setChoices, nil)
 			if tc.wantErr == "" {
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
@@ -128,7 +130,7 @@ func TestValidateConsentSelection(t *testing.T) {
 	}
 
 	t.Run("overrides without options are refused", func(t *testing.T) {
-		if err := ValidateConsentSelection(nil, map[string][]string{"pid": {"x"}}, nil, nil); err == nil {
+		if err := consent.ValidateSelection(nil, map[string][]string{"pid": {"x"}}, nil, nil); err == nil {
 			t.Fatal("expected an error")
 		}
 	})
@@ -146,10 +148,10 @@ func TestValidateConsentSelection(t *testing.T) {
 			},
 		}
 		matches, allOptional := evaluateDCQLWithOptions(t, w, query)
-		if err := ValidateConsentSelection(allOptional, nil, []int{-1, -1}, nil); err == nil || !strings.Contains(err.Error(), "at least one") {
+		if err := consent.ValidateSelection(allOptional, nil, []int{-1, -1}, nil); err == nil || !strings.Contains(err.Error(), "at least one") {
 			t.Fatalf("error = %v, want the all-skipped selection refused", err)
 		}
-		got := ApplyConsentSelection(allOptional, matches, ConsentResult{Approved: true, SetChoices: []int{-1, -1}})
+		got := consent.ApplySelection(allOptional, matches, consent.Result{Approved: true, SetChoices: []int{-1, -1}})
 		if len(got) != len(matches) {
 			t.Errorf("got %d matches, want the wallet's choice kept", len(got))
 		}
@@ -163,16 +165,16 @@ func TestApproveRejectsAnInvalidSelectionAndKeepsTheRequestPending(t *testing.T)
 	matches, options := evaluateDCQLWithOptions(t, w, setsQuery())
 	s := NewServer(w, 0, nil)
 
-	consentReq := &ConsentRequest{
+	consentReq := &consent.Request{
 		ID:                newConsentID(),
 		Type:              "presentation",
 		MatchedCreds:      matches,
 		Status:            "pending",
-		ResultCh:          make(chan ConsentResult, 1),
-		SubmissionCh:      make(chan SubmissionResult, 1),
+		ResultCh:          make(chan consent.Result, 1),
+		SubmissionCh:      make(chan consent.SubmissionResult, 1),
 		CredentialOptions: options,
 	}
-	w.CreateConsentRequest(consentReq)
+	w.Consents().Create(consentReq)
 
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/api/requests/"+consentReq.ID+"/approve",
@@ -182,7 +184,7 @@ func TestApproveRejectsAnInvalidSelectionAndKeepsTheRequestPending(t *testing.T)
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400: %s", rr.Code, rr.Body.String())
 	}
-	if pending, _ := w.GetRequest(consentReq.ID); pending.Status != "pending" {
+	if pending, _ := w.Consents().Get(consentReq.ID); pending.Status != "pending" {
 		t.Errorf("request status = %q, want it still pending", pending.Status)
 	}
 }
@@ -197,7 +199,7 @@ func TestASelectionAddsClaimsOnlyInDebugMode(t *testing.T) {
 		}
 		w.ValidationMode = mode
 		cred := w.GetCredentials()[0]
-		matches := []CredentialMatch{{CredentialID: cred.ID, SelectedKeys: []string{"given_name"}}}
+		matches := []consent.Match{{CredentialID: cred.ID, SelectedKeys: []string{"given_name"}}}
 		got := w.applySelectedClaims(matches, map[string][]string{cred.ID: {"given_name", "birthdate"}})
 		added := slices.Contains(got[0].SelectedKeys, "birthdate")
 		if added != (mode == ValidationModeDebug) {

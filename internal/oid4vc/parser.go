@@ -43,7 +43,7 @@ func ParseWithOptions(raw string, opts ParseOptions) (RequestType, any, error) {
 		return parseHTTPURL(raw, opts)
 	}
 
-	if isJWT(raw) {
+	if format.IsJWT(raw) {
 		return parseJWTInput(raw)
 	}
 
@@ -52,11 +52,6 @@ func ParseWithOptions(raw string, opts ParseOptions) (RequestType, any, error) {
 	}
 
 	return 0, nil, fmt.Errorf("unable to detect OpenID4VCI/VP format: not a recognized URI, URL, JWT, or JSON")
-}
-
-func isJWT(s string) bool {
-	parts := strings.SplitN(s, ".", 4)
-	return len(parts) == 3 && len(parts[0]) > 0 && len(parts[1]) > 0
 }
 
 // URIQueryValues parses a request URI's query with RFC 3986 semantics.
@@ -250,7 +245,7 @@ func parseVPParams(q url.Values, opts ParseOptions) (RequestType, any, error) {
 		if err != nil {
 			return TypeVP, nil, fmt.Errorf("fetching request_uri: %w", err)
 		}
-		if isJWT(fetched) {
+		if format.IsJWT(fetched) {
 			header, payload, _, err := format.ParseJWTParts(fetched)
 			if err != nil {
 				return TypeVP, nil, fmt.Errorf("parsing request object JWT: %w", err)

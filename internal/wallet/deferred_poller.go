@@ -18,6 +18,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 )
 
 type backgroundTask struct {
@@ -290,7 +292,7 @@ func (s *Server) attemptDeferredCollection(pending DeferredIssuance) DeferredAtt
 	s.log("  Collected:     deferred %s credential from %s", imported.Format, pending.Issuer)
 
 	s.saveIssuance(&IssuanceResult{Imported: imported})
-	s.wallet.NotifyStateChanged()
+	s.wallet.Consents().NotifyStateChanged()
 	return DeferredAttempt{Collected: true, Credential: imported}
 }
 
@@ -361,7 +363,7 @@ func (s *Server) abandonDeferred(pending DeferredIssuance, reason string) Deferr
 		return true
 	})
 	s.log("  Deferred:      gave up on %s from %s (%s)", pending.TransactionID, pending.Issuer, reason)
-	s.wallet.NotifyError(WalletError{
+	s.wallet.Consents().NotifyError(consent.Error{
 		Message: "Deferred credential was not issued",
 		Detail:  fmt.Sprintf("%s: %s", pending.Issuer, reason),
 	})

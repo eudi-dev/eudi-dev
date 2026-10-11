@@ -26,6 +26,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/qr"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
 )
@@ -84,7 +85,7 @@ func acceptOID4URI(uri string, opts dispatchOID4Opts) error {
 		// The selected wallet fetches the offer and collects the transaction code.
 		// Some offers can be fetched only once.
 		transcript := opts.sessionTranscript
-		if transcript == string(wallet.SessionTranscriptOID4VP) {
+		if transcript == string(oid4vp.SessionTranscriptOID4VP) {
 			transcript = ""
 		}
 		return remoteAccept(c, uri, opts.txCode, transcript, !opts.autoAccept)

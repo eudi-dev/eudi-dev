@@ -30,6 +30,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/httpsec"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
 )
 
@@ -242,9 +243,9 @@ func (d *DemoRP) signTemplate(cfg templateConfiguration, holderKey *ecdsa.Public
 		resolved.Claims["wallet_attestation"] = granted.clientAuth.ticketClaim()
 	}
 	claims := resolved.CredentialClaims()
-	spec := wallet.IssuedAttestationSpec{Format: cfg.format, VCT: cfg.vct, DocType: cfg.docType}
+	spec := provider.IssuedAttestationSpec{Format: cfg.format, VCT: cfg.vct, DocType: cfg.docType}
 	spec.Category = d.wallet.CredentialCategory(&tpl, spec)
-	spec, err = wallet.NormalizeIssuedAttestationSpec(spec, "")
+	spec, err = provider.NormalizeIssuedAttestationSpec(spec, "")
 	if err != nil {
 		return "", fmt.Errorf("building attestation spec for %s: %w", cfg.id, err)
 	}
@@ -274,7 +275,7 @@ func (d *DemoRP) signTemplate(cfg templateConfiguration, holderKey *ecdsa.Public
 	if err != nil {
 		return "", err
 	}
-	signingKey, chain, err := d.wallet.SigningMaterialForIssuedCredential(spec, claims)
+	signingKey, chain, err := d.wallet.Signer().ForCredential(spec, claims)
 	if err != nil {
 		return "", fmt.Errorf("building signing certificate chain for %s: %w", cfg.id, err)
 	}

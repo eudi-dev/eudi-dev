@@ -26,6 +26,7 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 )
 
@@ -64,13 +65,13 @@ func TestAnAccessCertificateFromACSRSignsARequest(t *testing.T) {
 		t.Fatal(err)
 	}
 	reqObj := &oid4vc.RequestObjectJWT{Raw: raw, Header: header, Payload: map[string]any{"client_id": clientID}}
-	if finding := VerifyClientID(clientID, reqObj, "", ""); finding != "" {
+	if finding := oid4vp.VerifyClientID(clientID, reqObj, "", ""); finding != "" {
 		t.Errorf("x509_hash client_id: %s", finding)
 	}
-	if finding := VerifyClientID(result.ClientIDs[1], reqObj, "", ""); finding != "" {
+	if finding := oid4vp.VerifyClientID(result.ClientIDs[1], reqObj, "", ""); finding != "" {
 		t.Errorf("x509_san_dns client_id: %s", finding)
 	}
-	if finding := VerifyRequestObjectSignature(clientID, reqObj); finding != "" {
+	if finding := oid4vp.VerifyRequestObjectSignature(clientID, reqObj); finding != "" {
 		t.Errorf("request object signature: %s", finding)
 	}
 }
@@ -98,7 +99,7 @@ func TestAccessCertificatesDoNotChainToTheWalletCA(t *testing.T) {
 	if _, err := leaf.Verify(x509.VerifyOptions{Roots: walletCA, KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny}}); err == nil {
 		t.Error("an access certificate chains to the wallet CA, which anchors credential issuers")
 	}
-	if _, err := leaf.Verify(x509.VerifyOptions{Roots: certPool(w.RelyingPartyCAs()), KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny}}); err != nil {
+	if _, err := leaf.Verify(x509.VerifyOptions{Roots: certPool(w.TrustedLists().RelyingPartyCAs()), KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny}}); err != nil {
 		t.Errorf("an access certificate does not verify to the relying party CAs: %v", err)
 	}
 }

@@ -32,6 +32,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/validate"
 )
@@ -1366,10 +1367,10 @@ func parseCredentialResponseBody(body []byte, holderKey *ecdsa.PrivateKey, paylo
 	if holderKey == nil {
 		return nil, false, fmt.Errorf("credential response is not valid JSON")
 	}
-	if payload != nil && isJWE(trimmed) {
+	if payload != nil && format.IsJWE(trimmed) {
 		payload.Encrypted, payload.Wire, payload.Body = true, string(body), nil
 	}
-	decrypted, err := DecryptCompactJWE(trimmed, holderKey)
+	decrypted, err := oid4vp.DecryptCompactJWE(trimmed, holderKey)
 	if err != nil {
 		return nil, false, fmt.Errorf("credential response is neither valid JSON nor decryptable compact JWE: %w", err)
 	}

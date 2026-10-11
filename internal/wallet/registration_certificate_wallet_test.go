@@ -24,6 +24,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/regcert"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 )
 
@@ -47,13 +49,13 @@ func TestACreatedRegistrationCertificatePassesTheWalletsChecks(t *testing.T) {
 	if len(certs) != 1 || len(findings) != 0 {
 		t.Fatalf("certificates %d, findings %v, want one verified certificate", len(certs), findings)
 	}
-	if got := registrationCertificateContentFindings(certs[0]); len(got) != 0 {
+	if got := regcert.ContentFindings(certs[0]); len(got) != 0 {
 		t.Errorf("content findings %v, want none", got)
 	}
-	if got := overAskingFindings(certs[0], pidQueryForRegistration()); len(got) != 0 {
+	if got := regcert.OverAskingFindings(certs[0], pidQueryForRegistration()); len(got) != 0 {
 		t.Errorf("over-asking findings %v, want none", got)
 	}
-	if got := purposeStrings(certs[0]["purpose"]); len(got) != 1 || got[0] != "Age check" {
+	if got, _ := regcert.Purposes([]map[string]any{certs[0]}); len(got) != 1 || got[0] != "Age check" {
 		t.Errorf("purpose %v, want Age check", got)
 	}
 	if certs[0]["sub"] != semanticIdentifier(t, rp) || certs[0]["registry_uri"] != rp.RegistryURI {
@@ -84,7 +86,7 @@ func TestTheRegistrationCertificateMatchesTheAccessCertificate(t *testing.T) {
 		t.Fatal(err)
 	}
 	certs, _ := verifiedRegistrationCertificates(map[string]any{"verifier_info": issueTestRegistrationCertificate(t, w, rp).VerifierInfo})
-	if got := registrationBindingFindings(certs[0], accessCert, "ARF RPRC_17a"); len(got) != 0 {
+	if got := regcert.BindingFindings(certs[0], accessCert, "ARF RPRC_17a"); len(got) != 0 {
 		t.Errorf("findings %v for the relying party's own access certificate, want none", got)
 	}
 
@@ -92,13 +94,13 @@ func TestTheRegistrationCertificateMatchesTheAccessCertificate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := registrationBindingFindings(certs[0], demoChain[0], "ARF RPRC_17a"); len(got) != 1 || !strings.Contains(got[0], "RPRC_17a") {
+	if got := regcert.BindingFindings(certs[0], demoChain[0], "ARF RPRC_17a"); len(got) != 1 || !strings.Contains(got[0], "RPRC_17a") {
 		t.Errorf("findings %v for another relying party's access certificate, want the RPRC_17a warning", got)
 	}
 	// An intermediary's certificate names the relying party in act.sub (ETSI
 	// TS 119 475 GEN-5.2.4-09).
 	intermediary := map[string]any{"sub": "LEIXG-INTERMEDIARY", "act": map[string]any{"sub": semanticIdentifier(t, rp)}}
-	if got := registrationBindingFindings(intermediary, accessCert, "ARF RPRC_17a"); len(got) != 0 {
+	if got := regcert.BindingFindings(intermediary, accessCert, "ARF RPRC_17a"); len(got) != 0 {
 		t.Errorf("findings %v for an intermediary acting for the relying party, want none", got)
 	}
 }
@@ -108,7 +110,7 @@ func TestTheConsentDialogLinksThePrivacyPolicy(t *testing.T) {
 	w := generateTestWallet(t)
 	w.IssuerURL = "https://wallet.example"
 	key, chain, verifierInfo := registeredVerifier(t, w)
-	purposes, policies := consentRegistration(signedARFRequest(t, w, key, chain, verifierInfo))
+	purposes, policies := oid4vp.ConsentRegistration(signedARFRequest(t, w, key, chain, verifierInfo))
 	if len(purposes) != 1 || len(policies) != 1 || policies[0] != "https://wallet.example/privacy-policy" {
 		t.Errorf("purposes %v, privacy policies %v, want the registered purpose and policy", purposes, policies)
 	}

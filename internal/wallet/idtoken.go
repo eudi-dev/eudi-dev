@@ -17,13 +17,13 @@ package wallet
 import (
 	"crypto/ecdsa"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
 // signedJWTLifetime is the lifetime of the short-lived JWTs the wallet signs:
@@ -69,30 +69,15 @@ func jwkThumbprint(key *ecdsa.PublicKey) (string, error) {
 	return format.EncodeBase64URL(sum), nil
 }
 
-func ResponseTypeContains(responseType, target string) bool {
-	for _, rt := range strings.Fields(responseType) {
-		if rt == target {
-			return true
-		}
-	}
-	return false
-}
-
-// ResponseTypeRequiresVP reports whether a request requires a vp_token response.
-// An empty response_type defaults to vp_token.
-func ResponseTypeRequiresVP(responseType string) bool {
-	return responseType == "" || ResponseTypeContains(responseType, "vp_token")
-}
-
 // presentationAudience returns the aud value for a presentation or a
 // self-issued ID token. For the Digital Credentials API, OID4VP 1.0 §5.9.3 says
 // "the audience of the Credential Presentation is always the origin value
 // prefixed by origin:". Otherwise it is the Client Identifier with its prefix.
-func presentationAudience(params *AuthorizationRequestParams) string {
+func presentationAudience(params *oid4vp.Request) string {
 	if params == nil {
 		return ""
 	}
-	if isDCAPIResponseMode(params.ResponseMode) && params.RequestOrigin != "" {
+	if oid4vp.IsDCAPIResponseMode(params.ResponseMode) && params.RequestOrigin != "" {
 		return "origin:" + params.RequestOrigin
 	}
 	return params.ClientID

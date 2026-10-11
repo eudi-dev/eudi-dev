@@ -15,17 +15,27 @@
 package wallet
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/base64"
 	"encoding/json"
+	"math/big"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
 )
 
@@ -87,7 +97,7 @@ func TestGeneratingPIDsKeepsOtherIssuedTypes(t *testing.T) {
 	if err := w.GenerateDefaultCredentials(nil, ""); err != nil {
 		t.Fatal(err)
 	}
-	if !slices.ContainsFunc(w.issuedAttestationSpecs(), func(s IssuedAttestationSpec) bool { return s.VCT == "urn:example:badge:1" }) {
+	if !slices.ContainsFunc(w.issuedAttestationSpecs(), func(s provider.IssuedAttestationSpec) bool { return s.VCT == "urn:example:badge:1" }) {
 		t.Errorf("issued types %+v, want the badge kept", w.issuedAttestationSpecs())
 	}
 }
@@ -418,19 +428,19 @@ func TestAddLog(t *testing.T) {
 func TestSubscribe(t *testing.T) {
 	w := generateTestWallet(t)
 
-	ch, unsub := w.Subscribe()
+	ch, unsub := w.Consents().Subscribe()
 	defer unsub()
 
-	req := &ConsentRequest{
+	req := &consent.Request{
 		ID:        "test-req",
 		Type:      "presentation",
 		Status:    "pending",
 		ClientID:  "test-client",
 		CreatedAt: time.Now(),
-		ResultCh:  make(chan ConsentResult, 1),
+		ResultCh:  make(chan consent.Result, 1),
 	}
 
-	go w.CreateConsentRequest(req)
+	go w.Consents().Create(req)
 
 	select {
 	case received := <-ch:
@@ -445,23 +455,23 @@ func TestSubscribe(t *testing.T) {
 func TestPendingRequestDocsListOnlyPendingRequests(t *testing.T) {
 	w := generateTestWallet(t)
 
-	req1 := &ConsentRequest{
+	req1 := &consent.Request{
 		ID:        "req-1",
 		Status:    "pending",
 		CreatedAt: time.Now(),
-		ResultCh:  make(chan ConsentResult, 1),
+		ResultCh:  make(chan consent.Result, 1),
 	}
-	req2 := &ConsentRequest{
+	req2 := &consent.Request{
 		ID:        "req-2",
 		Status:    "approved",
 		CreatedAt: time.Now(),
-		ResultCh:  make(chan ConsentResult, 1),
+		ResultCh:  make(chan consent.Result, 1),
 	}
 
-	w.CreateConsentRequest(req1)
-	w.CreateConsentRequest(req2)
+	w.Consents().Create(req1)
+	w.Consents().Create(req2)
 
-	pending := w.PendingRequestDocsFor(nil, "")
+	pending := w.Consents().PendingDocsFor(nil, "")
 	if len(pending) != 1 || pending[0]["id"] != "req-1" {
 		t.Fatalf("pending requests %v, want req-1 only", pending)
 	}
@@ -505,10 +515,10 @@ func TestCredentialsJSON(t *testing.T) {
 func TestSubscribeErrors(t *testing.T) {
 	w := generateTestWallet(t)
 
-	ch, unsub := w.SubscribeErrors()
+	ch, unsub := w.Consents().SubscribeErrors()
 	defer unsub()
 
-	go w.NotifyError(WalletError{Message: "test error", Detail: "detail"})
+	go w.Consents().NotifyError(consent.Error{Message: "test error", Detail: "detail"})
 
 	select {
 	case err := <-ch:
@@ -526,14 +536,14 @@ func TestSubscribeErrors(t *testing.T) {
 func TestLastErrorKeepsTheLatest(t *testing.T) {
 	w := generateTestWallet(t)
 
-	if err := w.PeekLastError(nil); err != nil {
+	if err := w.Consents().PeekLastError(nil); err != nil {
 		t.Errorf("expected nil, got %v", err)
 	}
 
-	w.NotifyError(WalletError{Message: "first"})
-	w.NotifyError(WalletError{Message: "second"})
+	w.Consents().NotifyError(consent.Error{Message: "first"})
+	w.Consents().NotifyError(consent.Error{Message: "second"})
 
-	err := w.PeekLastError(nil)
+	err := w.Consents().PeekLastError(nil)
 	if err == nil {
 		t.Fatal("expected non-nil error")
 	}
@@ -541,8 +551,8 @@ func TestLastErrorKeepsTheLatest(t *testing.T) {
 		t.Errorf("expected 'second', got %s", err.Message)
 	}
 
-	w.ClearLastError(nil)
-	if err := w.PeekLastError(nil); err != nil {
+	w.Consents().ClearLastError(nil)
+	if err := w.Consents().PeekLastError(nil); err != nil {
 		t.Errorf("expected nil once cleared, got %v", err)
 	}
 }
@@ -647,7 +657,7 @@ func TestRehydrate_PreservesExistingClaims(t *testing.T) {
 
 func TestMarshalConsentRequest(t *testing.T) {
 	now := time.Now()
-	req := &ConsentRequest{
+	req := &consent.Request{
 		ID:          "req-1",
 		Type:        "presentation",
 		Status:      "pending",
@@ -655,13 +665,13 @@ func TestMarshalConsentRequest(t *testing.T) {
 		Nonce:       "nonce123",
 		ResponseURI: "https://verifier.example/callback",
 		CreatedAt:   now,
-		MatchedCreds: []CredentialMatch{
+		MatchedCreds: []consent.Match{
 			{QueryID: "pid", Format: "dc+sd-jwt"},
 		},
 		DCQLQuery: map[string]any{"credentials": []any{}},
 	}
 
-	m := MarshalConsentRequest(req)
+	m := consent.Marshal(req)
 
 	if m["id"] != "req-1" {
 		t.Errorf("expected id req-1, got %v", m["id"])
@@ -684,7 +694,7 @@ func TestMarshalConsentRequest(t *testing.T) {
 }
 
 func TestMarshalConsentRequest_MinimalFields(t *testing.T) {
-	req := &ConsentRequest{
+	req := &consent.Request{
 		ID:        "req-2",
 		Type:      "issuance",
 		Status:    "approved",
@@ -692,7 +702,7 @@ func TestMarshalConsentRequest_MinimalFields(t *testing.T) {
 		CreatedAt: time.Now(),
 	}
 
-	m := MarshalConsentRequest(req)
+	m := consent.Marshal(req)
 
 	if _, ok := m["nonce"]; ok {
 		t.Error("expected no nonce field when empty")
@@ -706,7 +716,7 @@ func TestMarshalConsentRequest_MinimalFields(t *testing.T) {
 }
 
 // The signing certificate's SAN matches client_id.
-func signedRequestParams(t *testing.T, dnsName, clientName string) *AuthorizationRequestParams {
+func signedRequestParams(t *testing.T, dnsName, clientName string) *oid4vp.Request {
 	t.Helper()
 	key, certB64, _ := testCertWithKeyDER([]string{dnsName})
 	header := map[string]any{
@@ -730,7 +740,7 @@ func signedRequestParams(t *testing.T, dnsName, clientName string) *Authorizatio
 	if err != nil {
 		t.Fatalf("ParseJWTParts: %v", err)
 	}
-	return &AuthorizationRequestParams{
+	return &oid4vp.Request{
 		ClientID: "x509_san_dns:" + dnsName,
 		RequestObject: &oid4vc.RequestObjectJWT{
 			Raw:     raw,
@@ -741,16 +751,16 @@ func signedRequestParams(t *testing.T, dnsName, clientName string) *Authorizatio
 }
 
 func TestMarshalConsentRequest_ClientAuthSigned(t *testing.T) {
-	req := &ConsentRequest{
+	req := &consent.Request{
 		ID:        "req-signed",
-		Type:      ConsentTypePresentation,
+		Type:      consent.TypePresentation,
 		Status:    "pending",
 		ClientID:  "x509_san_dns:verifier.example",
 		CreatedAt: time.Now(),
 	}
-	req.applyClientAuth(signedRequestParams(t, "verifier.example", ""))
+	applyClientAuth(req, signedRequestParams(t, "verifier.example", ""))
 
-	m := MarshalConsentRequest(req)
+	m := consent.Marshal(req)
 	auth, ok := m["client_auth"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected client_auth object, got %v", m["client_auth"])
@@ -764,16 +774,16 @@ func TestMarshalConsentRequest_ClientAuthSigned(t *testing.T) {
 }
 
 func TestMarshalConsentRequest_ClientAuthUnsigned(t *testing.T) {
-	req := &ConsentRequest{
+	req := &consent.Request{
 		ID:        "req-unsigned",
-		Type:      ConsentTypePresentation,
+		Type:      consent.TypePresentation,
 		Status:    "pending",
 		ClientID:  "redirect_uri:https://verifier.example/cb",
 		CreatedAt: time.Now(),
 	}
-	req.applyClientAuth(&AuthorizationRequestParams{ClientID: req.ClientID})
+	applyClientAuth(req, &oid4vp.Request{ClientID: req.ClientID})
 
-	m := MarshalConsentRequest(req)
+	m := consent.Marshal(req)
 	auth, ok := m["client_auth"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected client_auth object, got %v", m["client_auth"])
@@ -792,16 +802,16 @@ func TestMarshalConsentRequest_ClientAuthInvalidSignature(t *testing.T) {
 	parts := strings.Split(params.RequestObject.Raw, ".")
 	params.RequestObject.Raw = parts[0] + "." + parts[1] + ".AAAA"
 
-	req := &ConsentRequest{
+	req := &consent.Request{
 		ID:        "req-badsig",
-		Type:      ConsentTypePresentation,
+		Type:      consent.TypePresentation,
 		Status:    "pending",
 		ClientID:  params.ClientID,
 		CreatedAt: time.Now(),
 	}
-	req.applyClientAuth(params)
+	applyClientAuth(req, params)
 
-	auth := MarshalConsentRequest(req)["client_auth"].(map[string]any)
+	auth := consent.Marshal(req)["client_auth"].(map[string]any)
 	if auth["signed"] != false {
 		t.Errorf("expected signed false for a broken signature, got %v", auth["signed"])
 	}
@@ -811,31 +821,31 @@ func TestMarshalConsentRequest_ClientAuthInvalidSignature(t *testing.T) {
 }
 
 func TestMarshalConsentRequest_ClientName(t *testing.T) {
-	req := &ConsentRequest{
+	req := &consent.Request{
 		ID:        "req-name",
-		Type:      ConsentTypePresentation,
+		Type:      consent.TypePresentation,
 		Status:    "pending",
 		ClientID:  "x509_san_dns:verifier.example",
 		CreatedAt: time.Now(),
 	}
-	req.applyClientAuth(signedRequestParams(t, "verifier.example", "Example Verifier"))
+	applyClientAuth(req, signedRequestParams(t, "verifier.example", "Example Verifier"))
 
-	m := MarshalConsentRequest(req)
+	m := consent.Marshal(req)
 	if m["client_name"] != "Example Verifier" {
 		t.Errorf("expected client_name from client_metadata, got %v", m["client_name"])
 	}
 }
 
 func TestMarshalConsentRequest_IssuanceNoClientAuth(t *testing.T) {
-	req := &ConsentRequest{
+	req := &consent.Request{
 		ID:        "req-issuance",
-		Type:      ConsentTypeIssuance,
+		Type:      consent.TypeIssuance,
 		Status:    "pending",
 		ClientID:  "https://issuer.example",
 		CreatedAt: time.Now(),
 	}
 
-	m := MarshalConsentRequest(req)
+	m := consent.Marshal(req)
 	if _, ok := m["client_auth"]; ok {
 		t.Error("expected no client_auth for a pure issuance request")
 	}
@@ -1232,4 +1242,17 @@ func TestUserClaimCountExcludesProtocolClaims(t *testing.T) {
 func predefinedBaselineTypes(t *testing.T) []string {
 	t.Helper()
 	return (&Wallet{Templates: credtemplate.FileLocation(t.TempDir())}).baselinePIDTypes()
+}
+
+func testCertWithKeyDER(dnsNames []string) (*ecdsa.PrivateKey, string, []byte) {
+	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	tmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(2),
+		Subject:      pkix.Name{CommonName: "test-signer"},
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().Add(time.Hour),
+		DNSNames:     dnsNames,
+	}
+	der, _ := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	return key, base64.StdEncoding.EncodeToString(der), der
 }

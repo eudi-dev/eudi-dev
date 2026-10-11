@@ -25,8 +25,9 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/regcert"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/statuslist"
 )
 
 // issuerAuthentication is what the wallet knows about an issuer before it
@@ -92,9 +93,9 @@ func offeredAttestations(metadata map[string]any, configurations []string, categ
 		config, ok := supported[id].(map[string]any)
 		o := offeredAttestation{id: id, known: ok}
 		if ok {
-			o.format = stringClaim(config["format"])
+			o.format = jsonutil.Text(config["format"])
 			for _, key := range []string{"vct", "doctype"} {
-				if t := stringClaim(config[key]); t != "" {
+				if t := jsonutil.Text(config[key]); t != "" {
 					o.types = append(o.types, t)
 				}
 			}
@@ -142,9 +143,9 @@ func issuerARFFindings(a issuerAuthentication) []string {
 		findings = append(findings, fmt.Sprintf("%s: the access certificate %q of the signed issuer metadata does not chain to a trusted access certificate authority: %v", accessRule, a.signerChain[0].Subject.String(), err))
 	}
 
-	entries := infoEntries(a.metadata, "issuer_info")
+	entries := regcert.InfoEntries(a.metadata, "issuer_info")
 	findings = append(findings, issuerInfoShapeFindings(entries)...)
-	registrations, problems := verifyRegistrationEntries(entries)
+	registrations, problems := regcert.Verify(entries)
 	for _, problem := range problems {
 		findings = append(findings, "ARF RPRC_22a: the issuer's registration certificate "+problem)
 	}
@@ -156,24 +157,24 @@ func issuerARFFindings(a issuerAuthentication) []string {
 	}
 
 	var entitlements []string
-	var provided []registeredCredential
+	var provided []regcert.Credential
 	for _, r := range registrations {
-		cert := r.claims
-		name := firstNonEmpty(stringClaim(cert["name"]), stringClaim(cert["sub"]), "the issuer")
-		findings = append(findings, providerCertificateContentFindings(cert)...)
+		cert := r.Claims
+		name := firstNonEmpty(jsonutil.Text(cert["name"]), jsonutil.Text(cert["sub"]), "the issuer")
+		findings = append(findings, regcert.ProviderContentFindings(cert)...)
 		if len(a.signerChain) > 0 {
-			findings = append(findings, registrationBindingFindings(cert, a.signerChain[0], "ARF RPRC_22b")...)
+			findings = append(findings, regcert.BindingFindings(cert, a.signerChain[0], "ARF RPRC_22b")...)
 		}
-		if _, err := certchain.Verify(r.chain, a.registrarCAs); err != nil {
+		if _, err := certchain.Verify(r.Chain, a.registrarCAs); err != nil {
 			findings = append(findings, fmt.Sprintf("%s: the registration certificate of %s does not chain to a trusted registrar: %v", registrarRule, name, err))
 		}
-		findings = append(findings, registrationStatusFindings(cert, a.statusClient, a.statusCAs, "ARF RPRC_22a")...)
-		for _, e := range toAnyList(cert["entitlements"]) {
+		findings = append(findings, regcert.StatusFindings(cert, a.statusClient, a.statusCAs, "ARF RPRC_22a")...)
+		for _, e := range jsonutil.List(cert["entitlements"]) {
 			if s, ok := e.(string); ok {
 				entitlements = append(entitlements, s)
 			}
 		}
-		provided = append(provided, providedAttestationsOf(cert)...)
+		provided = append(provided, regcert.ProvidedAttestations(cert)...)
 	}
 	var reported []string
 	for _, o := range offered {
@@ -187,63 +188,11 @@ func issuerARFFindings(a issuerAuthentication) []string {
 			findings = append(findings, fmt.Sprintf("%s: the issuer metadata has no configuration %s, so the wallet can't tell the offered type", rules.attestationType, o.id))
 		case len(o.types) == 0:
 			findings = append(findings, fmt.Sprintf("%s: the offered configuration %s names no vct or doctype, so the wallet can't check it against provides_attestations", rules.attestationType, o.id))
-		case !providesType(provided, o.format, o.types):
-			findings = append(findings, fmt.Sprintf("%s: the issuer's registration certificate does not list %s in provides_attestations", rules.attestationType, credentialTypeName(o.format, o.types)))
+		case !regcert.Provides(provided, o.format, o.types):
+			findings = append(findings, fmt.Sprintf("%s: the issuer's registration certificate does not list %s in provides_attestations", rules.attestationType, regcert.TypeName(o.format, o.types)))
 		}
 	}
 	return findings
-}
-
-// providesType reports whether a listed attestation has the format and one of
-// the types. A listed entry without a type matches nothing, because
-// provides_attestations lists the types that a provider may issue (ARF
-// RPRC_15).
-func providesType(provided []registeredCredential, format string, types []string) bool {
-	return slices.ContainsFunc(provided, func(p registeredCredential) bool {
-		return p.format == format && len(p.types) > 0 && slices.ContainsFunc(types, func(t string) bool { return slices.Contains(p.types, t) })
-	})
-}
-
-// providedAttestationsOf reads provides_attestations (ETSI TS 119 475 V1.2.1
-// Table 8). A type matches when format and type are the same.
-func providedAttestationsOf(cert map[string]any) []registeredCredential {
-	var out []registeredCredential
-	for _, entry := range listOfMaps(cert["provides_attestations"]) {
-		format, _ := entry["format"].(string)
-		out = append(out, registeredCredential{format: format, types: registrar.CredentialTypes(entry["meta"])})
-	}
-	return out
-}
-
-// providerCertificateContentFindings checks a provider's registration
-// certificate against ETSI TS 119 475 V1.2.1 §5.2.4 and ARF Topic 44. A
-// provider certificate has no intended use (RPRC_05), so it has no privacy
-// policy either.
-func providerCertificateContentFindings(cert map[string]any) []string {
-	var findings []string
-	miss := func(field, rule string) {
-		findings = append(findings, fmt.Sprintf("%s: the issuer's registration certificate has no %s", rule, field))
-	}
-	if stringClaim(cert["name"]) == "" {
-		miss("name (trade name)", "ARF RPRC_06")
-	}
-	if stringClaim(cert["sub"]) == "" {
-		miss("sub (provider identifier)", "ARF RPRC_07")
-	}
-	if len(purposeStrings(cert["srv_description"])) == 0 {
-		miss("srv_description", "ETSI TS 119 475 V1.2.1 GEN-5.2.4-01")
-	}
-	if !nonEmptyList(cert["entitlements"]) {
-		miss("entitlements (at least one)", "ETSI TS 119 475 V1.2.1 GEN-5.2.4-03")
-	}
-	registeredPartyFindings(cert, miss, "ETSI TS 119 475 V1.2.1 GEN-5.2.4-01", "ETSI TS 119 475 V1.2.1 GEN-5.2.4-01")
-	if !nonEmptyList(cert["provides_attestations"]) {
-		miss("provides_attestations (its attestation types)", "ARF RPRC_15")
-	}
-	if statuslist.ExtractStatusRef(cert) == nil {
-		miss("status (its entry in the registrar's status list), so the wallet cannot check revocation", "ETSI TS 119 475 V1.2.1 Table 7")
-	}
-	return append(findings, registrationValidityFindings(cert, "ARF RPRC_22a")...)
 }
 
 // issuerARFCheck runs the issuer checks when --arf is on.
@@ -255,9 +204,9 @@ func (w *Wallet) issuerARFCheck(metadata map[string]any, signerChain []*x509.Cer
 		metadata:       metadata,
 		signerChain:    signerChain,
 		configurations: configurations,
-		accessCAs:      w.RelyingPartyCAs(),
-		registrarCAs:   w.RegistrarCAs(),
-		statusCAs:      w.RegistrationStatusCAs(),
+		accessCAs:      w.TrustedLists().RelyingPartyCAs(),
+		registrarCAs:   w.TrustedLists().RegistrarCAs(),
+		statusCAs:      w.TrustedLists().RegistrationStatusCAs(),
 		statusClient:   w.RegistrationStatusClient(),
 		category:       w.offeredCategory,
 	})
@@ -314,7 +263,7 @@ func issuerInfoShapeFindings(entries []map[string]any) []string {
 			continue
 		}
 		data, _ := entry["data"].(string)
-		if header, _, err := decodeCompactJWT(data); err == nil && entryFormat != "registration_cert" {
+		if header, _, _, err := format.ParseJWTParts(data); err == nil && entryFormat != "registration_cert" {
 			if typ, _ := header["typ"].(string); format.JOSETypeIs(typ, registrar.RegistrationCertificateTyp) {
 				findings = append(findings, fmt.Sprintf("%s05: the issuer_info element with the registration certificate has the format %q, not registration_cert", rule, entryFormat))
 			}

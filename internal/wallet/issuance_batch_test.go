@@ -318,36 +318,6 @@ func TestMdocBindsToKey(t *testing.T) {
 	}
 }
 
-func TestFirstJWKSkipsUnusableKeys(t *testing.T) {
-	usable := map[string]any{
-		"kty": "EC", "crv": "P-256", "use": "enc", "alg": "ECDH-ES",
-		"kid": "usable", "x": "8Yrbbg", "y": "V2Ki0w",
-	}
-	jwks := map[string]any{
-		"keys": []any{
-			map[string]any{"kty": "AKP", "alg": "ML-KEM-9999", "kid": "unusable-pq-enc-key", "use": "enc", "pub": "cGxhY2Vob2xkZXI"},
-			map[string]any{"kty": "OIDF-CONFORMANCE-UNSUPPORTED", "alg": "OIDF-CONFORMANCE-UNSUPPORTED", "kid": "unusable-unknown-enc-key", "use": "enc"},
-			usable,
-		},
-	}
-	got := firstJWK(jwks)
-	if got == nil {
-		t.Fatal("expected the usable key to be found")
-	}
-	if kid, _ := got["kid"].(string); kid != "usable" {
-		t.Fatalf("expected kid 'usable', got %q", kid)
-	}
-
-	jwks = map[string]any{
-		"keys": []any{
-			map[string]any{"kty": "EC", "crv": "P-256", "use": "sig", "kid": "sig-key", "x": "8Yrbbg", "y": "V2Ki0w"},
-		},
-	}
-	if got := firstJWK(jwks); got != nil {
-		t.Fatalf("expected no usable key, got %v", got)
-	}
-}
-
 // A partial batch may omit the holder key. Each copy matches a distinct proof
 // key. The first copy is primary when no copy is bound to the holder key.
 func TestSelectPrimaryCredentialFewerThanAdvertisedNoneHolderBound(t *testing.T) {

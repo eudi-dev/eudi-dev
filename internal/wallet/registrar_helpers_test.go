@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/regcert"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 )
 
@@ -128,10 +129,10 @@ func testAccessCSR(t *testing.T, key *ecdsa.PrivateKey) string {
 // certificates in verifier_info whose signature verifies, and the problems of
 // the others.
 func verifiedRegistrationCertificates(payload map[string]any) ([]map[string]any, []string) {
-	registrations, problems := verifyRegistrationEntries(infoEntries(payload, "verifier_info"))
+	registrations, problems := regcert.Verify(regcert.InfoEntries(payload, "verifier_info"))
 	certs := make([]map[string]any, 0, len(registrations))
 	for _, r := range registrations {
-		certs = append(certs, r.claims)
+		certs = append(certs, r.Claims)
 	}
 	return certs, problems
 }

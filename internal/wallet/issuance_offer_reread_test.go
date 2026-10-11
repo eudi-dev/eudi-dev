@@ -19,6 +19,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 )
 
 // An interactive issuance reads a credential_offer_uri twice. The first read
@@ -113,7 +115,7 @@ func TestApproveRequestCompletesWhenTheIssuerServesTheOfferOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("preparing the consent request: %v", err)
 	}
-	w.CreateConsentRequest(consentReq)
+	w.Consents().Create(consentReq)
 
 	done := make(chan struct{})
 	go func() {
@@ -121,7 +123,7 @@ func TestApproveRequestCompletesWhenTheIssuerServesTheOfferOnce(t *testing.T) {
 		server.awaitOfferConsent(noopResponseWriter{}, consentReq, "test issuer", false, OfferOptions{})
 	}()
 
-	consentReq.ResultCh <- ConsentResult{Approved: true}
+	consentReq.ResultCh <- consent.Result{Approved: true}
 	submission := <-consentReq.SubmissionCh
 	<-done
 

@@ -27,7 +27,8 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/trustlist"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
 )
 
@@ -129,12 +130,12 @@ func TestParseClaimsOverrides(t *testing.T) {
 func TestApplySessionTranscriptMode(t *testing.T) {
 	tests := []struct {
 		mode    string
-		want    wallet.SessionTranscriptMode
+		want    oid4vp.SessionTranscriptMode
 		wantErr bool
 	}{
-		{"oid4vp", wallet.SessionTranscriptOID4VP, false},
-		{"", wallet.SessionTranscriptOID4VP, false},
-		{"iso", wallet.SessionTranscriptISO, false},
+		{"oid4vp", oid4vp.SessionTranscriptOID4VP, false},
+		{"", oid4vp.SessionTranscriptOID4VP, false},
+		{"iso", oid4vp.SessionTranscriptISO, false},
 		{"invalid", "", true},
 	}
 
@@ -484,7 +485,7 @@ func TestTrustListPrintsTheListOfTrustedLists(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
-	list, err := trustlist.Parse(strings.TrimSpace(out))
+	list, err := lote.Parse(strings.TrimSpace(out))
 	if err != nil {
 		t.Fatalf("parsing %q: %v", out, err)
 	}

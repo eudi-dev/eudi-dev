@@ -241,7 +241,7 @@ type credentialDelivery struct {
 	// renewal is stored with the credential. It renews the credential when it
 	// carries a refresh token.
 	renewal   CredentialRenewal
-	display   *CredentialDisplay
+	display   *oid4vc.CredentialDisplay
 	proofKeys []*ecdsa.PrivateKey
 	// replaceID names the credential a renewal replaces. Without it the
 	// credential is stored as a new one.

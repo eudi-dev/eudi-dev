@@ -18,6 +18,8 @@ import (
 	"crypto/x509"
 	"net/http"
 	"testing"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 )
 
 func TestCRLEndpointServesSignedEmptyList(t *testing.T) {
@@ -34,7 +36,7 @@ func TestCRLEndpointServesSignedEmptyList(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parsing CRL: %v", err)
 	}
-	caCert := srv.wallet.TrustAnchorCertificate()
+	caCert := srv.wallet.Signer().TrustAnchor()
 	if err := crl.CheckSignatureFrom(caCert); err != nil {
 		t.Errorf("CRL signature does not verify against the wallet CA: %v", err)
 	}
@@ -50,18 +52,18 @@ func TestCRLEndpointServesSignedEmptyList(t *testing.T) {
 func TestSigningChainCountryFollowsIssuingCountry(t *testing.T) {
 	w := generateTestWallet(t)
 
-	spec := IssuedAttestationSpec{Format: "mso_mdoc", DocType: DefaultMDOCDocType}
-	_, chain, err := w.SigningMaterialForIssuedCredential(spec, map[string]any{"issuing_country": "DE"})
+	spec := provider.IssuedAttestationSpec{Format: "mso_mdoc", DocType: DefaultMDOCDocType}
+	_, chain, err := w.Signer().ForCredential(spec, map[string]any{"issuing_country": "DE"})
 	if err != nil {
-		t.Fatalf("SigningMaterialForIssuedCredential: %v", err)
+		t.Fatalf("ForCredential: %v", err)
 	}
 	if got := chain[0].Subject.Country; len(got) != 1 || got[0] != "DE" {
 		t.Errorf("leaf subject country = %v, want [DE]", got)
 	}
 
-	_, chain, err = w.SigningMaterialForIssuedCredential(spec, map[string]any{})
+	_, chain, err = w.Signer().ForCredential(spec, map[string]any{})
 	if err != nil {
-		t.Fatalf("SigningMaterialForIssuedCredential: %v", err)
+		t.Fatalf("ForCredential: %v", err)
 	}
 	if got := chain[0].Subject.Country; len(got) != 1 || got[0] != "NL" {
 		t.Errorf("leaf subject country without a claim = %v, want the default [NL]", got)

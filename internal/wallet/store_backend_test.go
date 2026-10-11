@@ -25,6 +25,7 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/storage"
 )
 
@@ -285,13 +286,13 @@ func TestPrepareARFChecksReadsTheTrustedListsOnce(t *testing.T) {
 	}
 	w.IssuerURL = "https://wallet.example"
 	w.RequireARF = true
-	w.trustedLists()
+	w.TrustedLists().Lists()
 	backend.reads.Store(0)
-	w.trustedLists()
+	w.TrustedLists().Lists()
 	once := backend.reads.Load()
 
 	backend.reads.Store(0)
-	w.PrepareARFChecks(&AuthorizationRequestParams{})
+	w.PrepareARFChecks(&oid4vp.Request{})
 	// A second pass over the lists would double the count.
 	if reads := backend.reads.Load(); reads >= 2*once {
 		t.Fatalf("preparing the checks read %d blobs, one pass over the lists reads %d", reads, once)

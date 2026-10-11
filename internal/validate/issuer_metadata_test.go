@@ -25,9 +25,9 @@ import (
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/trustlist"
 )
 
 func newIssuerMetadataServer(t *testing.T, issuer string, jwks []map[string]any) *httptest.Server {
@@ -172,7 +172,7 @@ func TestVerifyJWTSignature_SuppliedKeyIsNotReplacedByIssuerMetadata(t *testing.
 
 // newX5CToken uses an unreachable issuer, so a pass proves offline verification
 // with the embedded chain.
-func newX5CToken(t *testing.T) (*sdjwt.Token, []trustlist.CertInfo) {
+func newX5CToken(t *testing.T) (*sdjwt.Token, []lote.CertInfo) {
 	t.Helper()
 	caCert, caKey, caDER := generateCACert(t)
 	leafCert, leafKey, _ := generateLeafCert(t, caCert, caKey)
@@ -192,7 +192,7 @@ func newX5CToken(t *testing.T) (*sdjwt.Token, []trustlist.CertInfo) {
 	if err != nil {
 		t.Fatalf("sdjwt.Parse: %v", err)
 	}
-	anchors := []trustlist.CertInfo{{PublicKey: caCert.PublicKey, Raw: caDER}}
+	anchors := []lote.CertInfo{{PublicKey: caCert.PublicKey, Raw: caDER}}
 	return token, anchors
 }
 
@@ -232,7 +232,7 @@ func TestVerifyJWTSignature_UnmatchedTrustListDoesNotFallBackToLeaf(t *testing.T
 	// A trust list that does not anchor the chain must fail verification. The
 	// leaf-only check applies only without a trust list.
 	otherCA, _, otherDER := generateCACert(t)
-	foreign := []trustlist.CertInfo{{PublicKey: otherCA.PublicKey, Raw: otherDER}}
+	foreign := []lote.CertInfo{{PublicKey: otherCA.PublicKey, Raw: otherDER}}
 
 	result, source, err := VerifyJWTSignature(token, nil, foreign)
 	if err == nil && result != nil && result.SignatureValid && source == SourceX5CLeaf {
@@ -266,7 +266,7 @@ func TestVerifyJWTSignature_TrustListIgnoresAnUnanchoredMetadataKey(t *testing.T
 		t.Fatalf("sdjwt.Parse: %v", err)
 	}
 	otherCA, _, otherDER := generateCACert(t)
-	anchors := []trustlist.CertInfo{{PublicKey: otherCA.PublicKey, Raw: otherDER}}
+	anchors := []lote.CertInfo{{PublicKey: otherCA.PublicKey, Raw: otherDER}}
 
 	result, source, _ := VerifyJWTSignature(token, nil, anchors)
 	if result != nil && result.SignatureValid {

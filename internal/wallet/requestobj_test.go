@@ -29,6 +29,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jwe"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
 func TestBuildWalletMetadata_Basic(t *testing.T) {
@@ -141,7 +142,7 @@ func TestBuildWalletMetadata_SigningAlgsGatedOnPrefix(t *testing.T) {
 }
 
 func TestGenerateWalletNonce(t *testing.T) {
-	nonce1, err := GenerateWalletNonce()
+	nonce1, err := oid4vp.GenerateWalletNonce()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +150,7 @@ func TestGenerateWalletNonce(t *testing.T) {
 		t.Fatal("expected non-empty nonce")
 	}
 
-	nonce2, err := GenerateWalletNonce()
+	nonce2, err := oid4vp.GenerateWalletNonce()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -236,7 +237,7 @@ func TestMakeFetchRequestURI_POST(t *testing.T) {
 		t.Errorf("wallet_metadata is not valid JSON: %v", err)
 	}
 
-	if !isJWT(result) {
+	if !format.IsJWT(result) {
 		t.Error("expected JWT result")
 	}
 	walletLogs := wallet.GetLog()
@@ -275,7 +276,7 @@ func TestMakeFetchRequestURI_POST_WalletNonceFollowsTheValidationMode(t *testing
 		t.Run(name+" debug", func(t *testing.T) {
 			w := &Wallet{ConformanceSettings: ConformanceSettings{ValidationMode: ValidationModeDebug}}
 			result, err := MakeFetchRequestURI(w, nil)(srv.URL, "post", "")
-			if err != nil || !isJWT(result) {
+			if err != nil || !format.IsJWT(result) {
 				t.Fatalf("debug mode returned %q, %v, want the request object", result, err)
 			}
 			if !hasWarning(w, "wallet_nonce") {
@@ -302,110 +303,8 @@ func TestMakeFetchRequestURI_POST_AllowsUnsignedRequestObject(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !isJWT(result) {
+	if !format.IsJWT(result) {
 		t.Fatalf("expected JWT result, got %q", result)
-	}
-}
-
-func TestValidateClientMetadata_RejectsInvalidVPFormatsSupportedValue(t *testing.T) {
-	reqObj := &oid4vc.RequestObjectJWT{
-		Payload: map[string]any{
-			"client_metadata": map[string]any{
-				"vp_formats_supported": []any{},
-			},
-		},
-	}
-
-	err := ValidateClientMetadata(reqObj.Payload["client_metadata"].(map[string]any))
-	if err == nil {
-		t.Fatal("expected error for non-object vp_formats_supported")
-	}
-	if !contains(err.Error(), "vp_formats_supported") {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
-func TestValidateClientMetadata_RejectsInvalidMDocAlgValuesSupported(t *testing.T) {
-	reqObj := &oid4vc.RequestObjectJWT{
-		Payload: map[string]any{
-			"client_metadata": map[string]any{
-				"vp_formats_supported": map[string]any{
-					"mso_mdoc": map[string]any{
-						"issuerauth_alg_values": []any{"ES256"},
-					},
-				},
-			},
-		},
-	}
-
-	err := ValidateClientMetadata(reqObj.Payload["client_metadata"].(map[string]any))
-	if err == nil {
-		t.Fatal("expected error for string mso_mdoc issuerauth_alg_values entry")
-	}
-	if !contains(err.Error(), "COSE algorithm number") {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
-func TestValidateClientMetadata_AcceptsNumericMDocAlgValuesSupported(t *testing.T) {
-	reqObj := &oid4vc.RequestObjectJWT{
-		Payload: map[string]any{
-			"client_metadata": map[string]any{
-				"vp_formats_supported": map[string]any{
-					"mso_mdoc": map[string]any{
-						"deviceauth_alg_values": []any{-7.0},
-					},
-					"dc+sd-jwt": map[string]any{
-						"sd-jwt_alg_values": []any{"ES256"},
-					},
-				},
-			},
-		},
-	}
-
-	if err := ValidateClientMetadata(reqObj.Payload["client_metadata"].(map[string]any)); err != nil {
-		t.Fatalf("expected valid client_metadata, got %v", err)
-	}
-}
-
-// OID4VP 1.0 Appendix B.3.4 names the SD-JWT algorithm members of
-// vp_formats_supported. §5.1: "Other metadata parameters MUST be ignored".
-func TestValidateClientMetadataChecksTheOID4VPMemberNames(t *testing.T) {
-	err := ValidateClientMetadata(map[string]any{
-		"vp_formats_supported": map[string]any{"dc+sd-jwt": map[string]any{"kb-jwt_alg_values": []any{-7.0}}},
-	})
-	if err == nil || !contains(err.Error(), "kb-jwt_alg_values") {
-		t.Errorf("a numeric kb-jwt_alg_values entry gave %v, want an error", err)
-	}
-	if err := ValidateClientMetadata(map[string]any{"authorization_encryption_alg_values_supported": "ECDH-ES"}); err != nil {
-		t.Errorf("a wallet metadata member in client_metadata gave %v, want it ignored", err)
-	}
-}
-
-func TestDecryptRequestObjectJWE(t *testing.T) {
-	walletKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	jwt := makeTestJWT(map[string]any{"alg": "ES256", "typ": "oauth-authz-req+jwt"}, map[string]any{
-		"client_id":     "test-verifier",
-		"response_type": "vp_token",
-		"nonce":         "test-nonce",
-	})
-
-	jweStr, _, err := jwe.EncryptECDHES([]byte(jwt), &walletKey.PublicKey, "test-kid", "A128GCM", "", nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	decrypted, err := DecryptRequestObjectJWE(jweStr, walletKey)
-	if err != nil {
-		t.Fatalf("DecryptRequestObjectJWE: %v", err)
-	}
-
-	if decrypted != jwt {
-		t.Errorf("decrypted JWT doesn't match original")
 	}
 }
 
@@ -462,7 +361,7 @@ func TestMakeFetchRequestURI_POST_Encrypted(t *testing.T) {
 		t.Fatalf("fetch with encrypted response: %v", err)
 	}
 
-	if !isJWT(result) {
+	if !format.IsJWT(result) {
 		t.Error("expected decrypted JWT result")
 	}
 	entry := findLogEntry(wallet.GetLog(), "request_object_fetch_response")
@@ -536,7 +435,7 @@ func TestParseWithOptionsRequestURIMethodPost(t *testing.T) {
 	uri := fmt.Sprintf("openid4vp://authorize?client_id=test-client&request_uri=%s&request_uri_method=post&response_type=vp_token",
 		srv.URL)
 
-	authReq, err := ParseAuthorizationRequestWithOptions(uri, opts)
+	authReq, err := oid4vp.ParseAuthorizationRequestWithOptions(uri, opts)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/trustlist"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 )
 
 // Trust is what one credential validation trusts. A supplied key or trusted
@@ -71,15 +71,15 @@ func (t *Trust) AddKey(key crypto.PublicKey) {
 // certificate chain.
 func (t *Trust) AddTrustedList(raw string, now time.Time) error {
 	t.Supplied = true
-	tl, err := trustlist.Parse(raw)
+	tl, err := lote.Parse(raw)
 	if err != nil {
 		return fmt.Errorf("parsing trusted list: %w", err)
 	}
-	issuance, err := trustlist.Anchors(tl, trustlist.IssuanceServices, now)
+	issuance, err := lote.Anchors(tl, lote.IssuanceServices, now)
 	if err != nil {
 		return err
 	}
-	revocation, err := trustlist.Anchors(tl, trustlist.RevocationServices, now)
+	revocation, err := lote.Anchors(tl, lote.RevocationServices, now)
 	if err != nil {
 		return err
 	}

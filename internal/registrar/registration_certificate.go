@@ -28,8 +28,8 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 )
 
 // RegistrationCertificateRequest selects what to certify. A verifier gets one
@@ -545,7 +545,7 @@ func SignRegistrationCertificateJWT(claims map[string]any, signingKey *ecdsa.Pri
 
 // x5cChain leaves out a self-signed trust anchor, as RFC 7515 §4.1.6 allows.
 func x5cChain(certs []*x509.Certificate) []string {
-	chain := mock.WithoutSelfSignedTrustAnchor(certs)
+	chain := certchain.WithoutSelfSignedAnchor(certs)
 	if len(chain) == 0 && len(certs) > 0 {
 		chain = certs
 	}

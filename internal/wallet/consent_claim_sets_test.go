@@ -19,6 +19,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 )
 
@@ -84,10 +85,10 @@ func TestAChosenClaimSetIsDisclosed(t *testing.T) {
 	matches, options := evaluateDCQLWithOptions(t, w, claimSetsQuery())
 
 	choice := map[string]int{"pid": 2}
-	if err := ValidateConsentSelection(options, nil, nil, choice); err != nil {
-		t.Fatalf("ValidateConsentSelection: %v", err)
+	if err := consent.ValidateSelection(options, nil, nil, choice); err != nil {
+		t.Fatalf("consent.ValidateSelection: %v", err)
 	}
-	got := ApplyConsentSelection(options, matches, ConsentResult{Approved: true, ClaimSetChoices: choice})
+	got := consent.ApplySelection(options, matches, consent.Result{Approved: true, ClaimSetChoices: choice})
 
 	if len(got) != 1 || !slices.Equal(got[0].SelectedKeys, []string{"given_name", "birthdate"}) {
 		t.Fatalf("selection %+v, want given_name and birthdate", got)
@@ -114,7 +115,7 @@ func TestAClaimSetTheCredentialCannotSatisfyIsRefused(t *testing.T) {
 		{"unknown query", map[string]int{"other": 0}, "unknown credential query"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			err := ValidateConsentSelection(options, nil, nil, tc.choice)
+			err := consent.ValidateSelection(options, nil, nil, tc.choice)
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("error %v, want one containing %q", err, tc.want)
 			}

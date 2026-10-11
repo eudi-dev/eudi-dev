@@ -107,3 +107,46 @@ func IsWebURL(rawURL string) bool {
 	scheme := strings.ToLower(u.Scheme)
 	return scheme == "http" || scheme == "https"
 }
+
+// SameURL compares scheme, host with its default port, and path. Host and
+// scheme are case insensitive (RFC 3986 §6.2.2.1).
+func SameURL(u *url.URL, raw string) bool {
+	other, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+	return SameOrigin(u, other) && strings.TrimSuffix(u.Path, "/") == strings.TrimSuffix(other.Path, "/")
+}
+
+// SameOrigin compares scheme and host with its default port. Both are case
+// insensitive (RFC 3986 §6.2.2.1).
+func SameOrigin(u, other *url.URL) bool {
+	hostPort := func(v *url.URL) string {
+		port := v.Port()
+		if port == "" {
+			port = map[string]string{"http": "80", "https": "443"}[strings.ToLower(v.Scheme)]
+		}
+		return strings.ToLower(v.Hostname()) + ":" + port
+	}
+	return strings.EqualFold(u.Scheme, other.Scheme) && hostPort(u) == hostPort(other)
+}
+
+// ValidateAbsoluteURI accepts an empty value or an absolute http or https
+// URI. field names the value in the error. Only HTTP and HTTPS redirects are
+// safe. url.Parse also treats javascript: and data: URLs as absolute, and
+// navigating to them could run script on the wallet's origin.
+func ValidateAbsoluteURI(field, raw string) error {
+	if raw == "" {
+		return nil
+	}
+	u, err := url.Parse(raw)
+	if err != nil || !u.IsAbs() {
+		return fmt.Errorf("%s must be an absolute URI", field)
+	}
+	switch strings.ToLower(u.Scheme) {
+	case "http", "https":
+		return nil
+	default:
+		return fmt.Errorf("%s must use http or https, got scheme %q", field, u.Scheme)
+	}
+}

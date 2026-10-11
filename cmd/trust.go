@@ -25,7 +25,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/remote"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/trustedlists"
 )
 
 func trustCmd() *cobra.Command {
@@ -63,7 +63,7 @@ added.`,
 
 // trustOverview is the --json document of trust list.
 type trustOverview struct {
-	wallet.TrustedListState
+	trustedlists.Summary
 	TrustLists []map[string]any `json:"trust_lists"`
 }
 
@@ -80,7 +80,7 @@ func listTrust(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	printResult(trustOverview{TrustedListState: state, TrustLists: index}, func() {
+	printResult(trustOverview{Summary: state, TrustLists: index}, func() {
 		tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		fmt.Fprintln(tw, "LIST\tDEFAULT\tCATEGORY\tPATH")
 		for _, entry := range index {
@@ -194,19 +194,19 @@ Without a list or selection flag, this prints the PID provider list, like /api/t
 			if w.CAKey == nil || len(w.CertChain) < 2 {
 				return fmt.Errorf("wallet has no CA certificate chain")
 			}
-			if id == wallet.ListOfTrustedListsID {
-				jwt, err := wallet.GenerateListOfTrustedLists(w, w.IssuerURL)
+			if id == trustedlists.ListOfListsID {
+				jwt, err := w.TrustedLists().ListOfLists(w.IssuerURL)
 				if err != nil {
 					return fmt.Errorf("generating the list of trusted lists: %w", err)
 				}
 				printTrustList(jwt)
 				return nil
 			}
-			group, ok := wallet.FindTrustListGroupForWallet(w, id, vct, docType)
+			group, ok := w.TrustedLists().FindGroup(id, vct, docType)
 			if !ok {
 				return fmt.Errorf("wallet has no matching trusted list")
 			}
-			jwt, err := wallet.GenerateTrustListJWTForWalletGroup(w, w.IssuerURL, group, registrar.TrustListPath(group.ID))
+			jwt, err := w.TrustedLists().SignedGroupList(w.IssuerURL, group, registrar.TrustListPath(group.ID))
 			if err != nil {
 				return fmt.Errorf("generating trusted list: %w", err)
 			}
@@ -242,7 +242,7 @@ func completeTrustListIDs(cmd *cobra.Command, args []string, toComplete string) 
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
-	completions := []string{wallet.ListOfTrustedListsID + "\tlist of trusted lists"}
+	completions := []string{trustedlists.ListOfListsID + "\tlist of trusted lists"}
 	for _, entry := range index {
 		completions = append(completions, docString(entry, "id")+"\t"+docString(entry, "category"))
 	}
@@ -319,10 +319,10 @@ a registration certificate and its status list (registrar).`,
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&list, "list", "", "List to add the CA to: "+strings.Join(wallet.TrustedEntityLists(), ", ")+" (required)")
+	cmd.Flags().StringVar(&list, "list", "", "List to add the CA to: "+strings.Join(trustedlists.EntityLists(), ", ")+" (required)")
 	cmd.Flags().StringVar(&name, "name", "", "Name of the provider on the list (default the CA's common name)")
 	cmd.Flags().StringVar(&caFile, "ca", "", "PEM file with the CA certificates (required)")
-	_ = cmd.RegisterFlagCompletionFunc("list", staticCompletion(wallet.TrustedEntityLists()...))
+	_ = cmd.RegisterFlagCompletionFunc("list", staticCompletion(trustedlists.EntityLists()...))
 	_ = cmd.MarkFlagRequired("list")
 	_ = cmd.MarkFlagRequired("ca")
 	_ = cmd.MarkFlagFilename("ca", "pem")

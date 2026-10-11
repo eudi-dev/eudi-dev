@@ -34,23 +34,9 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/defaults"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/publicpath"
 )
-
-// CredentialDisplay is the OpenID4VCI §12.2.4 display entry stored with a
-// credential, so the card renders without contacting the issuer. An image
-// field holds a data URI or an "asset:" reference fetched once at issuance.
-// With --adhoc-display-images it holds the issuer's https URL instead.
-type CredentialDisplay struct {
-	Name            string `json:"name,omitempty"`
-	Description     string `json:"description,omitempty"`
-	Locale          string `json:"locale,omitempty"`
-	LogoURI         string `json:"logo_uri,omitempty"`
-	LogoAltText     string `json:"logo_alt_text,omitempty"`
-	BackgroundColor string `json:"background_color,omitempty"`
-	TextColor       string `json:"text_color,omitempty"`
-	BackgroundURI   string `json:"background_uri,omitempty"`
-}
 
 // Display text comes from issuer metadata, operator forms and templates, so
 // its length is capped.
@@ -72,7 +58,7 @@ func boundDisplayText(s string, maxRunes int) string {
 
 // mergeCredentialDisplay lets each set field of over replace the one in base.
 // Either display may be nil.
-func mergeCredentialDisplay(base, over *CredentialDisplay) *CredentialDisplay {
+func mergeCredentialDisplay(base, over *oid4vc.CredentialDisplay) *oid4vc.CredentialDisplay {
 	if base == nil {
 		return over
 	}
@@ -184,7 +170,7 @@ func dataURIImage(uri string) (contentType string, data []byte, ok bool) {
 
 // resolveCredentialDisplay uses the first §12.2.4 display entry of the
 // configuration. A display problem is a warning in every mode.
-func (w *Wallet) resolveCredentialDisplay(metadata map[string]any, configID string) *CredentialDisplay {
+func (w *Wallet) resolveCredentialDisplay(metadata map[string]any, configID string) *oid4vc.CredentialDisplay {
 	configs, _ := metadata["credential_configurations_supported"].(map[string]any)
 	config, _ := configs[configID].(map[string]any)
 	credentialMetadata, _ := config["credential_metadata"].(map[string]any)
@@ -192,7 +178,7 @@ func (w *Wallet) resolveCredentialDisplay(metadata map[string]any, configID stri
 	if !ok {
 		return nil
 	}
-	d := &CredentialDisplay{}
+	d := &oid4vc.CredentialDisplay{}
 	name, _ := entry["name"].(string)
 	d.Name = boundDisplayText(name, maxDisplayNameRunes)
 	description, _ := entry["description"].(string)
@@ -214,7 +200,7 @@ func (w *Wallet) resolveCredentialDisplay(metadata map[string]any, configID stri
 		d.BackgroundURI = w.cacheDisplayImage(uri, "background_image")
 	}
 	w.checkDisplayContrast(d)
-	if *d == (CredentialDisplay{}) {
+	if *d == (oid4vc.CredentialDisplay{}) {
 		return nil
 	}
 	return d
@@ -222,7 +208,7 @@ func (w *Wallet) resolveCredentialDisplay(metadata map[string]any, configID stri
 
 // checkDisplayContrast warns about a color pair below 3:1. Named colors and
 // hsl() values are skipped because parseCSSColor does not read them.
-func (w *Wallet) checkDisplayContrast(d *CredentialDisplay) {
+func (w *Wallet) checkDisplayContrast(d *oid4vc.CredentialDisplay) {
 	if d.BackgroundColor == "" || d.TextColor == "" {
 		return
 	}
@@ -316,11 +302,11 @@ func relativeLuminance(rgb [3]float64) float64 {
 // templateDisplay validates colors like an issuer's display. An image
 // "embedded:<file>" reads a bundled asset. Any other image goes through
 // cacheDisplayImage. It returns nil for an empty template display.
-func (w *Wallet) templateDisplay(td *credtemplate.TemplateDisplay) *CredentialDisplay {
+func (w *Wallet) templateDisplay(td *credtemplate.TemplateDisplay) *oid4vc.CredentialDisplay {
 	if td == nil {
 		return nil
 	}
-	d := &CredentialDisplay{
+	d := &oid4vc.CredentialDisplay{
 		Name:            boundDisplayText(td.Name, maxDisplayNameRunes),
 		Description:     boundDisplayText(td.Description, maxDisplayDescriptionRunes),
 		Locale:          "en-US",
@@ -380,8 +366,8 @@ func (w *Wallet) templateImage(ref, field string) string {
 
 // issuedDisplay validates operator input like an issuer's display. It
 // returns nil when the input has no display.
-func (w *Wallet) issuedDisplay(in IssueDisplay) *CredentialDisplay {
-	d := &CredentialDisplay{
+func (w *Wallet) issuedDisplay(in IssueDisplay) *oid4vc.CredentialDisplay {
+	d := &oid4vc.CredentialDisplay{
 		Name:            boundDisplayText(in.Name, maxDisplayNameRunes),
 		Description:     boundDisplayText(in.Description, maxDisplayDescriptionRunes),
 		BackgroundColor: w.displayColor(map[string]any{"background_color": in.BackgroundColor}, "background_color"),
@@ -583,7 +569,7 @@ func (w *Wallet) rejectDisplayImage(field, uri, reason string) {
 
 // rememberDisplay updates both the stored credential and the caller's copy.
 // The server may write that copy back after a reload during issuance.
-func (w *Wallet) rememberDisplay(cred *StoredCredential, d *CredentialDisplay) {
+func (w *Wallet) rememberDisplay(cred *StoredCredential, d *oid4vc.CredentialDisplay) {
 	if w == nil || cred == nil || d == nil {
 		return
 	}

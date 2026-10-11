@@ -25,8 +25,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/trustlist"
 )
 
 func generateCACert(t *testing.T) (*x509.Certificate, *ecdsa.PrivateKey, []byte) {
@@ -97,7 +97,7 @@ func TestValidateCertChain_ValidChain(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	tlCerts := []trustlist.CertInfo{
+	tlCerts := []lote.CertInfo{
 		{PublicKey: caCert.PublicKey, Raw: caDER},
 	}
 
@@ -122,7 +122,7 @@ func TestValidateCertChain_InvalidChain(t *testing.T) {
 	_, _, otherCADER := generateCACert(t)
 	otherCACert, _ := x509.ParseCertificate(otherCADER)
 
-	tlCerts := []trustlist.CertInfo{
+	tlCerts := []lote.CertInfo{
 		{PublicKey: otherCACert.PublicKey, Raw: otherCADER},
 	}
 
@@ -157,7 +157,7 @@ func TestValidateCertChain_WithIntermediate(t *testing.T) {
 	_, _, leafDER := generateLeafCert(t, intCert, intKey)
 	leafCert, _ := x509.ParseCertificate(leafDER)
 
-	tlCerts := []trustlist.CertInfo{
+	tlCerts := []lote.CertInfo{
 		{PublicKey: rootCert.PublicKey, Raw: rootDER},
 	}
 
@@ -175,7 +175,7 @@ func TestValidateCertChain_InvalidTrustListCert(t *testing.T) {
 	_, _, leafDER := generateLeafCert(t, caCert, caKey)
 	leafCert, _ := x509.ParseCertificate(leafDER)
 
-	tlCerts := []trustlist.CertInfo{
+	tlCerts := []lote.CertInfo{
 		{PublicKey: nil, Raw: []byte("not a certificate")},
 	}
 
@@ -187,7 +187,7 @@ func TestValidateCertChain_InvalidTrustListCert(t *testing.T) {
 
 func TestExtractAndValidateX5C_NoX5C(t *testing.T) {
 	header := map[string]any{"alg": "ES256"}
-	key, err := ExtractAndValidateX5C(header, []trustlist.CertInfo{{Raw: []byte("x")}})
+	key, err := ExtractAndValidateX5C(header, []lote.CertInfo{{Raw: []byte("x")}})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -209,7 +209,7 @@ func TestExtractAndValidateX5C_EmptyTrustList(t *testing.T) {
 
 func TestExtractAndValidateX5C_NonStringEntry(t *testing.T) {
 	header := map[string]any{"x5c": []any{12345}}
-	tlCerts := []trustlist.CertInfo{{Raw: []byte("x")}}
+	tlCerts := []lote.CertInfo{{Raw: []byte("x")}}
 
 	_, err := ExtractAndValidateX5C(header, tlCerts)
 	if err == nil {
@@ -219,7 +219,7 @@ func TestExtractAndValidateX5C_NonStringEntry(t *testing.T) {
 
 func TestExtractAndValidateX5C_InvalidBase64(t *testing.T) {
 	header := map[string]any{"x5c": []any{"not-valid-base64!!!"}}
-	tlCerts := []trustlist.CertInfo{{Raw: []byte("x")}}
+	tlCerts := []lote.CertInfo{{Raw: []byte("x")}}
 
 	_, err := ExtractAndValidateX5C(header, tlCerts)
 	if err == nil {
@@ -229,7 +229,7 @@ func TestExtractAndValidateX5C_InvalidBase64(t *testing.T) {
 
 func TestExtractAndValidateX5C_ValidBase64InvalidDER(t *testing.T) {
 	header := map[string]any{"x5c": []any{"bm90IGEgY2VydA=="}}
-	tlCerts := []trustlist.CertInfo{{Raw: []byte("x")}}
+	tlCerts := []lote.CertInfo{{Raw: []byte("x")}}
 
 	_, err := ExtractAndValidateX5C(header, tlCerts)
 	if err == nil {
@@ -248,7 +248,7 @@ func TestExtractAndValidateX5C_ValidChain(t *testing.T) {
 	header := map[string]any{
 		"x5c": []any{leafB64, caB64},
 	}
-	tlCerts := []trustlist.CertInfo{
+	tlCerts := []lote.CertInfo{
 		{PublicKey: caCert.PublicKey, Raw: caDER},
 	}
 
@@ -321,7 +321,7 @@ func TestExtractMDOCX5ChainLeafKey_WorksWithoutTrustList(t *testing.T) {
 
 func TestExtractAndValidateMDOCX5Chain_NilIssuerAuth(t *testing.T) {
 	doc := &mdoc.Document{}
-	key, err := ExtractAndValidateMDOCX5Chain(doc, []trustlist.CertInfo{{Raw: []byte("x")}})
+	key, err := ExtractAndValidateMDOCX5Chain(doc, []lote.CertInfo{{Raw: []byte("x")}})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -334,7 +334,7 @@ func TestExtractAndValidateMDOCX5Chain_NilUnprotectedHeader(t *testing.T) {
 	doc := &mdoc.Document{
 		IssuerAuth: &mdoc.IssuerAuth{},
 	}
-	key, err := ExtractAndValidateMDOCX5Chain(doc, []trustlist.CertInfo{{Raw: []byte("x")}})
+	key, err := ExtractAndValidateMDOCX5Chain(doc, []lote.CertInfo{{Raw: []byte("x")}})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -351,7 +351,7 @@ func TestExtractAndValidateMDOCX5Chain_NoX5Chain(t *testing.T) {
 			},
 		},
 	}
-	key, err := ExtractAndValidateMDOCX5Chain(doc, []trustlist.CertInfo{{Raw: []byte("x")}})
+	key, err := ExtractAndValidateMDOCX5Chain(doc, []lote.CertInfo{{Raw: []byte("x")}})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -370,7 +370,7 @@ func TestExtractAndValidateMDOCX5Chain_SingleCert(t *testing.T) {
 			},
 		},
 	}
-	tlCerts := []trustlist.CertInfo{
+	tlCerts := []lote.CertInfo{
 		{PublicKey: caCert.PublicKey, Raw: caDER},
 	}
 
@@ -394,7 +394,7 @@ func TestExtractAndValidateMDOCX5Chain_CertArray(t *testing.T) {
 			},
 		},
 	}
-	tlCerts := []trustlist.CertInfo{
+	tlCerts := []lote.CertInfo{
 		{PublicKey: caCert.PublicKey, Raw: caDER},
 	}
 
@@ -415,7 +415,7 @@ func TestExtractAndValidateMDOCX5Chain_UnsupportedType(t *testing.T) {
 			},
 		},
 	}
-	tlCerts := []trustlist.CertInfo{
+	tlCerts := []lote.CertInfo{
 		{Raw: []byte("x")},
 	}
 
@@ -435,7 +435,7 @@ func TestExtractAndValidateMDOCX5Chain_Uint64Key(t *testing.T) {
 			},
 		},
 	}
-	tlCerts := []trustlist.CertInfo{
+	tlCerts := []lote.CertInfo{
 		{PublicKey: caCert.PublicKey, Raw: caDER},
 	}
 

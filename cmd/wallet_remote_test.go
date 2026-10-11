@@ -30,6 +30,7 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/remote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
 )
@@ -717,7 +718,7 @@ func TestCredDisplayReadsMapAndStruct(t *testing.T) {
 		t.Errorf("description from a JSON map = %q, want %q", got, "a sample")
 	}
 
-	fromStruct := map[string]any{"display": &wallet.CredentialDisplay{Name: "Badge", Description: "issued locally"}}
+	fromStruct := map[string]any{"display": &oid4vc.CredentialDisplay{Name: "Badge", Description: "issued locally"}}
 	if got := credDisplayName(fromStruct); got != "Badge" {
 		t.Errorf("name from a struct = %q, want %q", got, "Badge")
 	}

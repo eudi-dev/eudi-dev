@@ -31,8 +31,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/storage"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/trustedlists"
 )
 
 // Memory and Postgres store entities separately under <prefix>/state/. Saves write
@@ -185,7 +187,7 @@ func (s *WalletStore) loadSections(w *Wallet, sections []string) error {
 		case deferredSection:
 			w.DeferredIssuances = loaded.deferred
 		case attestationsSection:
-			w.IssuedAttestations = dedupeIssuedAttestations(loaded.attestations)
+			w.IssuedAttestations = provider.DedupeIssuedAttestations(loaded.attestations)
 		case registrarSection:
 			w.RelyingParties = loaded.relyingParties
 		case registrationStatusSection:
@@ -283,7 +285,7 @@ type loadedSections struct {
 	statusEntries        map[string]StatusEntry
 	statusListCounter    int
 	deferred             []DeferredIssuance
-	attestations         []IssuedAttestationSpec
+	attestations         []provider.IssuedAttestationSpec
 	relyingParties       []registrar.WalletRelyingParty
 	registrationStatuses []registrar.RegistrationStatus
 	catalog              []registrar.CatalogAttestation
@@ -293,8 +295,8 @@ type loadedSections struct {
 
 // storedTrust holds the providers and lists added by users.
 type storedTrust struct {
-	Entities []TrustedEntity `json:"entities,omitempty"`
-	Lists    []string        `json:"lists,omitempty"`
+	Entities []trustedlists.Entity `json:"entities,omitempty"`
+	Lists    []string              `json:"lists,omitempty"`
 }
 
 // Keep held credentials whose stored row has not changed.
@@ -357,7 +359,7 @@ func (s *WalletStore) parseSections(blobs stateSnapshot, sections []string, know
 				loaded.statusEntries[record.CredentialID] = record.StatusEntry
 			}
 		case attestationsSection:
-			var spec IssuedAttestationSpec
+			var spec provider.IssuedAttestationSpec
 			if err = json.Unmarshal(data, &spec); err == nil {
 				loaded.attestations = append(loaded.attestations, spec)
 			}
@@ -621,7 +623,7 @@ func (s *WalletStore) currentEntities(w *Wallet, snapshot stateSnapshot) (map[st
 			return nil, nil, nil, err
 		}
 	}
-	for _, spec := range dedupeIssuedAttestations(w.IssuedAttestations) {
+	for _, spec := range provider.DedupeIssuedAttestations(w.IssuedAttestations) {
 		if err := put(s.stateKey(attestationsSection, shortHash(spec.Format+"|"+spec.VCT+"|"+spec.DocType)), spec); err != nil {
 			return nil, nil, nil, err
 		}

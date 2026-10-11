@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/news"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
@@ -173,18 +174,18 @@ func (s *Server) handleClearLog(w http.ResponseWriter, r *http.Request) {
 // showsError reports whether a browser sees an error. The flow's browser sees
 // its own errors. An error of a flow without an owner is shown to everyone,
 // except on a public demo, where its text could come from anyone.
-func (s *Server) showsError(owners []string, err WalletError) bool {
+func (s *Server) showsError(owners []string, err consent.Error) bool {
 	if err.Owner == "" {
 		return s.demo == nil
 	}
-	return ownedBy(owners, err.Owner)
+	return consent.OwnedBy(owners, err.Owner)
 }
 
 func (s *Server) handleLastError(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store, private")
 	w.Header().Set("Vary", "Cookie, "+OwnerHeader)
 	owners := callerOwners(r)
-	err := s.wallet.PeekLastError(owners)
+	err := s.wallet.Consents().PeekLastError(owners)
 	if err == nil || !s.showsError(owners, *err) {
 		writeJSON(w, http.StatusOK, nil)
 		return
@@ -193,7 +194,7 @@ func (s *Server) handleLastError(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleClearLastError(w http.ResponseWriter, r *http.Request) {
-	s.wallet.ClearLastError(callerOwners(r))
+	s.wallet.Consents().ClearLastError(callerOwners(r))
 	writeJSON(w, http.StatusOK, map[string]string{"status": "cleared"})
 }
 
@@ -251,17 +252,17 @@ func (s *Server) handleShutdown(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSetNextError(w http.ResponseWriter, r *http.Request) {
-	var body NextErrorOverride
+	var body consent.NextErrorOverride
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "invalid JSON body", http.StatusBadRequest)
 		return
 	}
-	s.wallet.SetNextError(&body)
+	s.wallet.Consents().SetNextError(&body)
 	writeJSON(w, http.StatusOK, body)
 }
 
 func (s *Server) handleClearNextError(w http.ResponseWriter, r *http.Request) {
-	s.wallet.SetNextError(nil)
+	s.wallet.Consents().SetNextError(nil)
 	w.WriteHeader(http.StatusNoContent)
 }
 

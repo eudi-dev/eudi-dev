@@ -33,8 +33,11 @@ import (
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/storage"
 )
 
@@ -210,9 +213,9 @@ func (s *WalletStore) Exists() (bool, error) {
 	return err == nil, err
 }
 
-func (s *WalletStore) runtime() *WalletRuntime {
-	runtime, _ := walletRuntimeRegistry.LoadOrStore(s.Dir, newWalletRuntime())
-	return runtime.(*WalletRuntime)
+func (s *WalletStore) runtime() *consent.Runtime {
+	runtime, _ := walletRuntimeRegistry.LoadOrStore(s.Dir, consent.NewRuntime())
+	return runtime.(*consent.Runtime)
 }
 
 func (s *WalletStore) key(parts ...string) string {
@@ -386,7 +389,7 @@ func (s *WalletStore) LoadOrCreate() (*Wallet, error) {
 	}
 
 	w := newWallet(holderKey, issuerKey, false)
-	w.signers = &signingStore{backend: s.backend, prefix: s.prefix, seed: s.seed}
+	w.signers = provider.NewKeys(s.backend, s.prefix, s.seed)
 	w.runtime = s.runtime()
 	w.Templates = s.Templates()
 	if err := w.SetCertificateAuthority(caKey, caCert); err != nil {
@@ -418,7 +421,7 @@ func (s *WalletStore) LoadOrCreate() (*Wallet, error) {
 	if len(w.DeferredIssuances) == 0 {
 		w.DeferredIssuances = wj.LegacyPendingIssuances
 	}
-	w.IssuedAttestations = dedupeIssuedAttestations(w.IssuedAttestations)
+	w.IssuedAttestations = provider.DedupeIssuedAttestations(w.IssuedAttestations)
 	w.Log = s.filterLogEntries(w.Log)
 	w.BaseURL = wj.BaseURL
 	w.IssuerURL = wj.IssuerURL
@@ -451,7 +454,7 @@ func (s *WalletStore) Save(w *Wallet) error {
 	wj.BaseURL, wj.IssuerURL = w.savedURLsLocked()
 	w.mu.RUnlock()
 	wj.Credentials = creds
-	wj.IssuedAttestations = dedupeIssuedAttestations(wj.IssuedAttestations)
+	wj.IssuedAttestations = provider.DedupeIssuedAttestations(wj.IssuedAttestations)
 	wj.Log = s.filterLogEntries(wj.Log)
 
 	data, err := json.MarshalIndent(wj, "", "  ")
@@ -588,11 +591,11 @@ const (
 )
 
 func (s *WalletStore) parseSharedCA(keyData, certData []byte) (*ecdsa.PrivateKey, *x509.Certificate, error) {
-	key, err := parsePEMKey(keyData, "wallet CA")
+	key, err := keys.ParseECKeyPEM(keyData, "wallet CA")
 	if err != nil {
 		return nil, nil, fmt.Errorf("%s: %w", s.backend.Locate(s.sharedCAKeyPEM()), err)
 	}
-	cert, err := parsePEMCertificate(certData, "wallet CA")
+	cert, err := keys.ParseCertificatePEM(certData, "wallet CA")
 	if err != nil {
 		return nil, nil, fmt.Errorf("%s: %w", s.backend.Locate(s.sharedCACertPEM()), err)
 	}
@@ -612,7 +615,7 @@ func (s *WalletStore) createSharedCA() (*ecdsa.PrivateKey, *x509.Certificate, er
 	if err != nil {
 		return nil, nil, err
 	}
-	if _, err := s.backend.WriteIf(s.sharedCAKeyPEM(), keyPEM(caKey), 0o600, ""); err != nil {
+	if _, err := s.backend.WriteIf(s.sharedCAKeyPEM(), keys.ECKeyPEM(caKey), 0o600, ""); err != nil {
 		if errors.Is(err, storage.ErrConflict) {
 			return nil, nil, err
 		}
@@ -804,7 +807,7 @@ func issuerTLSCertificateMatches(cert tls.Certificate, serverName string, caCert
 func (s *WalletStore) loadOrGenerateKey(at, label string) (*ecdsa.PrivateKey, error) {
 	data, err := s.backend.Read(at)
 	if err == nil {
-		return parsePEMKey(data, label)
+		return keys.ParseECKeyPEM(data, label)
 	}
 
 	if !errors.Is(err, fs.ErrNotExist) {
@@ -816,13 +819,13 @@ func (s *WalletStore) loadOrGenerateKey(at, label string) (*ecdsa.PrivateKey, er
 		return nil, fmt.Errorf("generating %s key: %w", label, err)
 	}
 	// Use the key already saved by a concurrent creator.
-	_, err = s.backend.WriteIf(at, keyPEM(key), 0o600, "")
+	_, err = s.backend.WriteIf(at, keys.ECKeyPEM(key), 0o600, "")
 	if errors.Is(err, storage.ErrConflict) {
 		data, err := s.backend.Read(at)
 		if err != nil {
 			return nil, fmt.Errorf("reading %s key: %w", label, err)
 		}
-		return parsePEMKey(data, label)
+		return keys.ParseECKeyPEM(data, label)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("saving %s key: %w", label, err)
@@ -830,47 +833,6 @@ func (s *WalletStore) loadOrGenerateKey(at, label string) (*ecdsa.PrivateKey, er
 
 	fmt.Fprintf(os.Stderr, "Generated %s key: %s\n", label, s.backend.Locate(at))
 	return key, nil
-}
-
-func parsePEMKey(data []byte, label string) (*ecdsa.PrivateKey, error) {
-	block, _ := pem.Decode(data)
-	if block == nil {
-		return nil, fmt.Errorf("%s key: no PEM block found", label)
-	}
-
-	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
-	if err == nil {
-		if ecKey, ok := key.(*ecdsa.PrivateKey); ok {
-			return ecKey, nil
-		}
-		return nil, fmt.Errorf("%s key: not an EC key", label)
-	}
-
-	ecKey, err := x509.ParseECPrivateKey(block.Bytes)
-	if err != nil {
-		return nil, fmt.Errorf("%s key: unable to parse PEM: %w", label, err)
-	}
-	return ecKey, nil
-}
-
-func parsePEMCertificate(data []byte, label string) (*x509.Certificate, error) {
-	block, _ := pem.Decode(data)
-	if block == nil {
-		return nil, fmt.Errorf("%s certificate: no PEM block found", label)
-	}
-	cert, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return nil, fmt.Errorf("%s certificate: unable to parse PEM: %w", label, err)
-	}
-	return cert, nil
-}
-
-func keyPEM(key *ecdsa.PrivateKey) []byte {
-	der, err := x509.MarshalECPrivateKey(key)
-	if err != nil {
-		panic(err)
-	}
-	return pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: der})
 }
 
 func certPEM(cert *x509.Certificate) []byte {

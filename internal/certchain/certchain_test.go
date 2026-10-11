@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package certchain
+package certchain_test
 
 import (
 	"crypto/x509"
 	"encoding/base64"
 	"testing"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 )
 
@@ -45,7 +46,7 @@ func testChain(t *testing.T) (leaf, ca *x509.Certificate) {
 
 func TestVerifyChainsTheLeafToAnAnchor(t *testing.T) {
 	leaf, ca := testChain(t)
-	got, err := Verify([]*x509.Certificate{leaf}, []*x509.Certificate{ca})
+	got, err := certchain.Verify([]*x509.Certificate{leaf}, []*x509.Certificate{ca})
 	if err != nil {
 		t.Fatalf("Verify: %v", err)
 	}
@@ -53,10 +54,10 @@ func TestVerifyChainsTheLeafToAnAnchor(t *testing.T) {
 		t.Error("Verify returned another certificate than the leaf")
 	}
 	otherLeaf, _ := testChain(t)
-	if _, err := Verify([]*x509.Certificate{otherLeaf}, []*x509.Certificate{ca}); err == nil {
+	if _, err := certchain.Verify([]*x509.Certificate{otherLeaf}, []*x509.Certificate{ca}); err == nil {
 		t.Error("a leaf of another CA verified")
 	}
-	if _, err := Verify([]*x509.Certificate{leaf}, nil); err == nil {
+	if _, err := certchain.Verify([]*x509.Certificate{leaf}, nil); err == nil {
 		t.Error("a chain verified without anchors")
 	}
 }
@@ -72,7 +73,7 @@ func TestFromX5C(t *testing.T) {
 		"JSON":     []any{b64(leaf), b64(ca)},
 		"unpadded": []any{base64.RawStdEncoding.EncodeToString(leaf.Raw), base64.RawStdEncoding.EncodeToString(ca.Raw)},
 	} {
-		certs, err := FromX5C(value)
+		certs, err := certchain.FromX5C(value)
 		if err != nil || len(certs) != 2 || certs[0].Subject.String() != leaf.Subject.String() {
 			t.Errorf("%s: certs = %d, err = %v, want the leaf and the CA", name, len(certs), err)
 		}
@@ -83,7 +84,7 @@ func TestFromX5C(t *testing.T) {
 		"not base64":        []any{"!!!"},
 		"not a certificate": []any{base64.StdEncoding.EncodeToString([]byte("nope"))},
 	} {
-		if _, err := FromX5C(value); err == nil {
+		if _, err := certchain.FromX5C(value); err == nil {
 			t.Errorf("%s was accepted", name)
 		}
 	}
@@ -95,7 +96,7 @@ func TestFromX5C(t *testing.T) {
 func TestFromCOSE(t *testing.T) {
 	leaf, ca := testChain(t)
 
-	certs, err := FromCOSE(map[any]any{int64(33): leaf.Raw}, map[any]any{int64(33): ca.Raw})
+	certs, err := certchain.FromCOSE(map[any]any{int64(33): leaf.Raw}, map[any]any{int64(33): ca.Raw})
 	if err != nil || len(certs) != 1 || certs[0].Subject.String() != leaf.Subject.String() {
 		t.Errorf("protected and unprotected chains: certs = %v, err = %v, want the protected leaf", certs, err)
 	}
@@ -105,7 +106,7 @@ func TestFromCOSE(t *testing.T) {
 		"a byte slice":   [][]byte{leaf.Raw, ca.Raw},
 		"a single entry": leaf.Raw,
 	} {
-		certs, err := FromCOSE(nil, map[any]any{uint64(33): value})
+		certs, err := certchain.FromCOSE(nil, map[any]any{uint64(33): value})
 		if err != nil || len(certs) == 0 || certs[0].Subject.String() != leaf.Subject.String() {
 			t.Errorf("%s: certs = %v, err = %v, want the leaf first", name, certs, err)
 		}
@@ -116,7 +117,7 @@ func TestFromCOSE(t *testing.T) {
 		"a text entry":     []any{leaf.Raw, "a string"},
 		"not certificates": []byte("nope"),
 	} {
-		if _, err := FromCOSE(map[any]any{int64(33): value}, nil); err == nil {
+		if _, err := certchain.FromCOSE(map[any]any{int64(33): value}, nil); err == nil {
 			t.Errorf("%s was accepted", name)
 		}
 	}

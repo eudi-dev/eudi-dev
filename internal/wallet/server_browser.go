@@ -21,19 +21,21 @@ import (
 	"strings"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
 // Returns the result that navigator.credentials.get() would deliver to the requesting
 // page.
 func (s *Server) handleBrowserPresentationAPI(w http.ResponseWriter, r *http.Request) {
-	var body BrowserAPIRequestEnvelope
+	var body oid4vp.BrowserAPIRequestEnvelope
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "invalid JSON body", http.StatusBadRequest)
 		return
 	}
 
 	requestOrigin := strings.TrimSpace(r.Header.Get("Origin"))
-	protocol, authReq, err := ParseBrowserAPIRequest(body, s.parseOpts, requestOrigin)
+	protocol, authReq, err := oid4vp.ParseBrowserAPIRequest(body, s.parseOpts, requestOrigin)
 	if err != nil {
 		s.log("  ERROR: %v", err)
 		s.wallet.AddLog("presentation", fmt.Sprintf("Failed to parse browser request: %v", err), false)
@@ -82,7 +84,7 @@ func (s *Server) handleBrowserPresentationAPI(w http.ResponseWriter, r *http.Req
 
 	s.log("  Mode:          interactive (waiting for consent)")
 	s.allowSlowResponse(w, config.ConsentTimeout)
-	consentReq, matches, approved, answered := s.wallet.askPresentationConsent("presentation", requestOwner(r), authReq.ClientID, authReq, outcome, config.ConsentTimeout, func(req *ConsentRequest) {
+	consentReq, matches, approved, answered := s.wallet.askPresentationConsent("presentation", requestOwner(r), authReq.ClientID, authReq, outcome, config.ConsentTimeout, func(req *consent.Request) {
 		s.triggerUIRequest(req.ID)
 		if s.onConsentRequest != nil {
 			s.onConsentRequest(req)
@@ -91,12 +93,12 @@ func (s *Server) handleBrowserPresentationAPI(w http.ResponseWriter, r *http.Req
 	switch {
 	case !answered:
 		s.wallet.AddLog("presentation", "Consent timeout", false)
-		consentReq.SubmissionCh <- SubmissionResult{Error: "consent timeout"}
+		consentReq.SubmissionCh <- consent.SubmissionResult{Error: "consent timeout"}
 		writeJSON(w, http.StatusRequestTimeout, map[string]string{"error": "consent timeout"})
 	case !approved:
 		s.log("  Consent:       denied")
-		consentReq.SubmissionCh <- SubmissionResult{StatusCode: http.StatusOK, Error: errorCodeAccessDenied}
-		s.writeBrowserAuthorizationError(w, authReq, protocol, errorCodeAccessDenied, "User denied presentation", http.StatusBadGateway)
+		consentReq.SubmissionCh <- consent.SubmissionResult{StatusCode: http.StatusOK, Error: oid4vp.ErrorAccessDenied}
+		s.writeBrowserAuthorizationError(w, authReq, protocol, oid4vp.ErrorAccessDenied, "User denied presentation", http.StatusBadGateway)
 	default:
 		consentReq.SubmissionCh <- s.writeBrowserPresentationResult(w, authReq, protocol, matches)
 	}
@@ -104,7 +106,7 @@ func (s *Server) handleBrowserPresentationAPI(w http.ResponseWriter, r *http.Req
 
 // OpenID4VP 1.0 Appendix A.4 fulfills the DC API promise even for protocol errors.
 // Building an encrypted error response can still fail if dc_api.jwt has no usable key.
-func (s *Server) writeBrowserAuthorizationError(w http.ResponseWriter, authReq *AuthorizationRequestParams, protocol, errorCode, errorDescription string, fallbackStatus int) {
+func (s *Server) writeBrowserAuthorizationError(w http.ResponseWriter, authReq *oid4vp.Request, protocol, errorCode, errorDescription string, fallbackStatus int) {
 	result, err := s.buildBrowserAuthorizationErrorResult(authReq, protocol, errorCode, errorDescription)
 	if err != nil {
 		s.log("  ERROR: Browser error response failed: %v", err)
@@ -126,13 +128,13 @@ func (s *Server) writeBrowserAuthorizationError(w http.ResponseWriter, authReq *
 	writeJSON(w, http.StatusOK, result)
 }
 
-func (s *Server) writeBrowserPresentationResult(w http.ResponseWriter, authReq *AuthorizationRequestParams, protocol string, matches []CredentialMatch) SubmissionResult {
+func (s *Server) writeBrowserPresentationResult(w http.ResponseWriter, authReq *oid4vp.Request, protocol string, matches []consent.Match) consent.SubmissionResult {
 	result, prepared, err := s.buildBrowserPresentationResult(authReq, protocol, matches)
 	if err != nil {
 		s.log("  ERROR: Browser API presentation failed: %v", err)
 		s.wallet.AddLog("presentation", fmt.Sprintf("Browser API presentation failed: %v", err), false)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return SubmissionResult{Error: err.Error()}
+		return consent.SubmissionResult{Error: err.Error()}
 	}
 
 	if prepared.VPResult != nil {
@@ -153,5 +155,5 @@ func (s *Server) writeBrowserPresentationResult(w http.ResponseWriter, authReq *
 	}
 	s.wallet.addProtocolLog("presentation", "presentation_response", fmt.Sprintf("Returned Browser API presentation to %s", authReq.ClientID), true, details, payload)
 	writeJSON(w, http.StatusOK, result)
-	return SubmissionResult{StatusCode: http.StatusOK}
+	return consent.SubmissionResult{StatusCode: http.StatusOK}
 }

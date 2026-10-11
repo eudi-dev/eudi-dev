@@ -27,8 +27,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/regcert"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 )
 
@@ -135,13 +138,13 @@ func TestIssuedCertificatesWorkWithoutTheRegistry(t *testing.T) {
 		}}}
 	}
 	certs, _ := verifiedRegistrationCertificates(map[string]any{"verifier_info": verifierInfo})
-	if findings := overAskingFindings(certs[0], query("given_name")); len(findings) != 0 {
+	if findings := regcert.OverAskingFindings(certs[0], query("given_name")); len(findings) != 0 {
 		t.Errorf("a registered claim: %v", findings)
 	}
-	if findings := overAskingFindings(certs[0], query("birthdate")); len(findings) != 1 {
+	if findings := regcert.OverAskingFindings(certs[0], query("birthdate")); len(findings) != 1 {
 		t.Errorf("an unregistered claim: %v, want one finding", findings)
 	}
-	if purposes, _ := consentRegistration(signedARFRequest(t, fresh, key, chain, verifierInfo)); len(purposes) != 1 || purposes[0] != "Age check" {
+	if purposes, _ := oid4vp.ConsentRegistration(signedARFRequest(t, fresh, key, chain, verifierInfo)); len(purposes) != 1 || purposes[0] != "Age check" {
 		t.Errorf("purposes %v, want Age check", purposes)
 	}
 }
@@ -394,7 +397,7 @@ func TestTheDemoIssuerRegistrationMatchesTheProviderCertificates(t *testing.T) {
 	if got := leaf.Subject.Country; len(got) != 1 || got[0] != issuer.Country {
 		t.Errorf("certificate country %v, want %q", got, issuer.Country)
 	}
-	if got, want := certificatesOrganizationIdentifier([]string{base64.StdEncoding.EncodeToString(leaf.Raw)}), "NTR"+issuer.Country+"-"+demoIdentifier(demoIssuer); got != want {
+	if got, want := certchain.OrganizationIdentifier(leaf), "NTR"+issuer.Country+"-"+demoIdentifier(demoIssuer); got != want {
 		t.Errorf("certificate organizationIdentifier %q, want %q", got, want)
 	}
 }

@@ -874,7 +874,7 @@ func (d *DemoRP) attestationSigner(header map[string]any) (attestationSigner, er
 // The wallet provider list of the local wallet anchors the attestation (ETSI
 // TS 119 602 V1.1.1 Annex E).
 func (d *DemoRP) chainsToWalletProviderCA(certs []*x509.Certificate) bool {
-	_, err := certchain.Verify(certs, d.wallet.WalletProviderAnchors())
+	_, err := certchain.Verify(certs, d.wallet.TrustedLists().WalletProviderAnchors())
 	return err == nil
 }
 

@@ -82,3 +82,16 @@ func joseMediaType(typ string) string {
 	}
 	return typ
 }
+
+// IsJWT reports whether s has the three parts of a compact JWS with a
+// header and a payload.
+func IsJWT(s string) bool {
+	parts := strings.SplitN(s, ".", 4)
+	return len(parts) == 3 && len(parts[0]) > 0 && len(parts[1]) > 0
+}
+
+// IsJWE reports whether s has the five parts of a compact JWE.
+func IsJWE(s string) bool {
+	parts := strings.Split(s, ".")
+	return len(parts) == 5 && len(parts[0]) > 0
+}

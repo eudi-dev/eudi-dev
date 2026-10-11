@@ -25,7 +25,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/trustedlists"
 )
 
 func catalogCmd() *cobra.Command {
@@ -146,7 +146,7 @@ credentials of the type pass the trusted list check. It can't go with
 					return fmt.Errorf("reading --issuer-ca: %w", err)
 				}
 				// The entry is added only with a usable CA.
-				if _, err := wallet.NewTrustedEntity(credtemplate.CategoryEAA, "", string(caPEM)); err != nil {
+				if _, err := trustedlists.NewEntity(credtemplate.CategoryEAA, "", string(caPEM)); err != nil {
 					return fmt.Errorf("--issuer-ca: %w", err)
 				}
 			}

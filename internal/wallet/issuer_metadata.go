@@ -32,8 +32,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/netaddr"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 )
 
 func LocalIssuerURL(port int, docker bool) string {
@@ -89,17 +92,17 @@ func parseIssuerHost(raw string) string {
 // issuerSigningJWKs lists each signing key with its certificate chain: one
 // for every credential list and one for unlisted credentials.
 func issuerSigningJWKs(w *Wallet, exp time.Time) []any {
-	profiles := []trustListProfile{}
-	for _, group := range TrustListGroupsForWallet(w) {
-		if group.listsCredentialProviders() {
+	profiles := []lote.Profile{}
+	for _, group := range w.TrustedLists().Groups() {
+		if group.ListsCredentialProviders() {
 			profiles = append(profiles, group.Profile)
 		}
 	}
-	profiles = append(profiles, trustListProfile{})
+	profiles = append(profiles, lote.Profile{})
 	seen := map[string]bool{}
 	var keys []any
 	for _, profile := range profiles {
-		key, chain, err := w.signingMaterialForProfile(profile, "")
+		key, chain, err := w.Signer().ForProfile(profile, "")
 		if err != nil {
 			continue
 		}
@@ -113,7 +116,7 @@ func issuerSigningJWKs(w *Wallet, exp time.Time) []any {
 			jwk["exp"] = exp.Unix()
 		}
 		var x5c []string
-		for _, cert := range mock.WithoutSelfSignedTrustAnchor(chain) {
+		for _, cert := range certchain.WithoutSelfSignedAnchor(chain) {
 			x5c = append(x5c, base64.StdEncoding.EncodeToString(cert.Raw))
 		}
 		if len(x5c) > 0 {
@@ -155,7 +158,7 @@ func issuerTLSCertificatePEM(serverName string, key *ecdsa.PrivateKey, caKey *ec
 	}
 	dnsNames := []string{"localhost", "host.docker.internal"}
 	ips := []net.IP{net.ParseIP("127.0.0.1"), net.ParseIP("::1")}
-	hostNames, hostIPs := hostSubjectAltNames(serverName)
+	hostNames, hostIPs := provider.HostSubjectAltNames(serverName)
 	for _, name := range hostNames {
 		if !slices.Contains(dnsNames, name) {
 			dnsNames = append(dnsNames, name)

@@ -28,10 +28,10 @@ import (
 	"github.com/fatih/color"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/trustlist"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/validity"
 )
 
@@ -869,7 +869,7 @@ func PrintAuthorizationRequest(req *oid4vc.AuthorizationRequest, opts Options) {
 	fmt.Println()
 }
 
-func BuildTrustListJSON(tl *trustlist.TrustList) map[string]any {
+func BuildTrustListJSON(tl *lote.List) map[string]any {
 	out := map[string]any{
 		"format": "trusted-list",
 		"header": tl.Header,
@@ -907,7 +907,7 @@ func BuildTrustListJSON(tl *trustlist.TrustList) map[string]any {
 	return out
 }
 
-func PrintTrustList(tl *trustlist.TrustList, opts Options) {
+func PrintTrustList(tl *lote.List, opts Options) {
 	if opts.JSON {
 		PrintJSON(BuildTrustListJSON(tl))
 		return

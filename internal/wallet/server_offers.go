@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 
@@ -96,7 +97,7 @@ func (s *Server) runOffer(uri string, logDetails map[string]any, opts OfferOptio
 	// of this one.
 	p := &pendingOffer{ID: newConsentID(), CreatedAt: time.Now()}
 	opts.Flow = p.ID
-	authCh, unsubscribe := s.wallet.SubscribeAuthorization(func(prompt AuthorizationPrompt) bool {
+	authCh, unsubscribe := s.wallet.Consents().SubscribeAuthorization(func(prompt consent.AuthorizationPrompt) bool {
 		return prompt.Flow == p.ID
 	})
 	done := make(chan struct{})
@@ -131,7 +132,7 @@ func (s *Server) applyOfferOutcome(uri, owner string, result *IssuanceResult, er
 	if err != nil {
 		s.log("  ERROR: %v", err)
 		s.wallet.AddLog("issuance", fmt.Sprintf("Failed: %v", err), false)
-		s.wallet.NotifyError(WalletError{
+		s.wallet.Consents().NotifyError(consent.Error{
 			Owner:   owner,
 			Message: "Credential issuance failed",
 			Detail:  err.Error(),
@@ -213,7 +214,7 @@ func (s *Server) handleAuthorizationCodeCallback(w http.ResponseWriter, r *http.
 		})
 		return
 	}
-	if !s.wallet.CompleteAuthorizationCodeCallback(values) {
+	if !s.wallet.Consents().CompleteAuthorizationCodeCallback(values) {
 		writeJSON(w, http.StatusNotFound, map[string]string{
 			"error": "no pending authorization-code flow for callback state",
 		})
@@ -239,7 +240,7 @@ func (s *Server) handleOfferAPI(w http.ResponseWriter, r *http.Request) {
 
 	// Clear the previous failure when a new request starts. Otherwise the UI would
 	// keep showing it until the new consent dialog appears.
-	s.wallet.ClearLastError(callerOwners(r))
+	s.wallet.Consents().ClearLastError(callerOwners(r))
 
 	if body.Interactive {
 		s.noteStaleClient(r)
@@ -267,7 +268,7 @@ func (s *Server) processOfferURI(w http.ResponseWriter, uri string, opts OfferOp
 		if err != nil {
 			s.log("  ERROR: %v", err)
 			s.wallet.AddLog("issuance", fmt.Sprintf("Failed: %v", err), false)
-			s.wallet.NotifyError(WalletError{
+			s.wallet.Consents().NotifyError(consent.Error{
 				Owner:   opts.Owner,
 				Message: "The wallet refused the credential offer",
 				Detail:  err.Error(),
@@ -278,7 +279,7 @@ func (s *Server) processOfferURI(w http.ResponseWriter, uri string, opts OfferOp
 		}
 
 		s.log("  Mode:          interactive (waiting for consent)")
-		s.wallet.CreateConsentRequest(consentReq)
+		s.wallet.Consents().Create(consentReq)
 		s.triggerUIRequest(consentReq.ID)
 		if s.onConsentRequest != nil {
 			s.onConsentRequest(consentReq)
@@ -300,12 +301,12 @@ func (s *Server) processOfferURI(w http.ResponseWriter, uri string, opts OfferOp
 }
 
 // The submission channel also delivers the outcome to the approve API.
-func (s *Server) awaitOfferConsent(w http.ResponseWriter, consentReq *ConsentRequest, issuerDisplay string, browserRedirect bool, opts OfferOptions) {
-	handle := func(consent ConsentResult) {
-		if !consent.Approved {
+func (s *Server) awaitOfferConsent(w http.ResponseWriter, consentReq *consent.Request, issuerDisplay string, browserRedirect bool, opts OfferOptions) {
+	handle := func(answer consent.Result) {
+		if !answer.Approved {
 			s.log("  Consent:       denied")
 			s.wallet.AddLog("issuance", fmt.Sprintf("Denied credential offer from %s", issuerDisplay), false)
-			consentReq.SubmissionCh <- SubmissionResult{Error: "user denied issuance", StatusCode: http.StatusForbidden}
+			consentReq.SubmissionCh <- consent.SubmissionResult{Error: "user denied issuance", StatusCode: http.StatusForbidden}
 			writeJSON(w, http.StatusOK, map[string]any{
 				"status":      "denied",
 				"error":       "user denied issuance",
@@ -317,23 +318,23 @@ func (s *Server) awaitOfferConsent(w http.ResponseWriter, consentReq *ConsentReq
 		s.log("  Consent:       approved")
 		// The offer declares whether a transaction code is required. A code entered in
 		// the consent dialog replaces the code from the request.
-		if consent.TxCode != "" {
-			opts.TxCode = consent.TxCode
+		if answer.TxCode != "" {
+			opts.TxCode = answer.TxCode
 		}
 		// The configuration picked in the dialog replaces the one from the
 		// request.
-		if consent.ConfigurationID != "" {
-			opts.ConfigurationID = consent.ConfigurationID
+		if answer.ConfigurationID != "" {
+			opts.ConfigurationID = answer.ConfigurationID
 		}
 		opts.ResolvedOffer = consentReq.ResolvedOffer
-		opts.Owner = approvingOwner(consentReq.Owner, consent.Owner)
+		opts.Owner = approvingOwner(consentReq.Owner, answer.Owner)
 		// Show consent for any presentation requested by the issuer during this
 		// interactive flow.
 		result, pending, err := s.runOffer(consentReq.OfferURI, map[string]any{
 			"credential_requested": requestedConfigurations(consentReq.OfferConfigs, opts.ConfigurationID),
 		}, opts)
 		if err != nil {
-			consentReq.SubmissionCh <- SubmissionResult{Error: err.Error(), StatusCode: http.StatusBadRequest}
+			consentReq.SubmissionCh <- consent.SubmissionResult{Error: err.Error(), StatusCode: http.StatusBadRequest}
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
@@ -341,18 +342,18 @@ func (s *Server) awaitOfferConsent(w http.ResponseWriter, consentReq *ConsentReq
 		if pending != nil {
 			// The UI already received the sign-in URL through the event stream and is
 			// navigating to it.
-			consentReq.SubmissionCh <- SubmissionResult{StatusCode: http.StatusAccepted}
+			consentReq.SubmissionCh <- consent.SubmissionResult{StatusCode: http.StatusAccepted}
 			s.writeAuthorizationRequired(w, pending, browserRedirect)
 			return
 		}
 
 		if result.Pending {
-			consentReq.SubmissionCh <- SubmissionResult{Pending: true, TransactionID: result.TransactionID, RetryInterval: result.RetryInterval}
+			consentReq.SubmissionCh <- consent.SubmissionResult{Pending: true, TransactionID: result.TransactionID, RetryInterval: result.RetryInterval}
 			writeJSON(w, http.StatusAccepted, result)
 			return
 		}
 
-		consentReq.SubmissionCh <- SubmissionResult{StatusCode: http.StatusOK}
+		consentReq.SubmissionCh <- consent.SubmissionResult{StatusCode: http.StatusOK}
 		if browserRedirect {
 			redirectBrowser(w, "")
 		} else {
@@ -362,14 +363,14 @@ func (s *Server) awaitOfferConsent(w http.ResponseWriter, consentReq *ConsentReq
 
 	// Wait first for offer consent, then for any presentation the issuer requests.
 	s.allowSlowResponse(w, config.ConsentTimeout+interactiveAuthorizationConsentTimeout)
-	consent, answered := s.wallet.awaitConsent(consentReq, config.ConsentTimeout)
+	answer, answered := s.wallet.awaitConsent(consentReq, config.ConsentTimeout)
 	if !answered {
 		s.wallet.AddLog("issuance", "Consent timeout", false)
-		consentReq.SubmissionCh <- SubmissionResult{Error: "consent timeout", StatusCode: http.StatusRequestTimeout}
+		consentReq.SubmissionCh <- consent.SubmissionResult{Error: "consent timeout", StatusCode: http.StatusRequestTimeout}
 		writeJSON(w, http.StatusRequestTimeout, map[string]string{"error": "consent timeout"})
 		return
 	}
-	handle(consent)
+	handle(answer)
 }
 
 func (s *Server) processOfferDirectly(w http.ResponseWriter, uri string, opts OfferOptions, browserRedirect bool) {
@@ -415,16 +416,16 @@ func requestedConfigurations(offered []string, chosen string) []string {
 	return nil
 }
 
-func (w *Wallet) prepareIssuanceConsentRequest(raw, owner string) (*ConsentRequest, string, error) {
+func (w *Wallet) prepareIssuanceConsentRequest(raw, owner string) (*consent.Request, string, error) {
 	trimmed := strings.TrimSpace(raw)
-	req := &ConsentRequest{
+	req := &consent.Request{
 		ID:           newConsentID(),
 		Type:         "issuance",
 		Owner:        owner,
 		OfferURI:     trimmed,
 		Status:       "pending",
-		ResultCh:     make(chan ConsentResult, 1),
-		SubmissionCh: make(chan SubmissionResult, 1),
+		ResultCh:     make(chan consent.Result, 1),
+		SubmissionCh: make(chan consent.SubmissionResult, 1),
 		CreatedAt:    time.Now(),
 	}
 
@@ -435,7 +436,7 @@ func (w *Wallet) prepareIssuanceConsentRequest(raw, owner string) (*ConsentReque
 		// If the offer cannot be fetched, show its host in the consent dialog.
 		if offerURI := extractCredentialOfferURI(trimmed); offerURI != "" {
 			req.ClientID = credentialOfferIssuerDisplay(offerURI)
-			req.OfferDetails = &IssuanceOfferDetails{
+			req.OfferDetails = &consent.OfferDetails{
 				Issuer:       req.ClientID,
 				OfferURI:     offerURI,
 				ResolveError: err.Error(),

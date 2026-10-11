@@ -28,7 +28,6 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 )
 
 // COSE tags from RFC 9052 section 2 and the CWT tag from RFC 8392 section 6.
@@ -263,7 +262,7 @@ func GenerateStatusListCWT(bitstring []byte, signingKey *ecdsa.PrivateKey, cfg S
 
 	// RFC 9360 §2: "The end-entity certificate MUST be integrity protected by
 	// COSE", which x5chain in the protected header does.
-	if chain := mock.WithoutSelfSignedTrustAnchor(cfg.CertChain); len(chain) > 0 {
+	if chain := certchain.WithoutSelfSignedAnchor(cfg.CertChain); len(chain) > 0 {
 		if len(chain) == 1 {
 			msg.Headers.Protected[int64(coseHeaderX5Chain)] = chain[0].Raw
 		} else {

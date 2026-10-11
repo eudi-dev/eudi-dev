@@ -23,10 +23,10 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/statuslist"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/trustlist"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/validity"
 )
 
@@ -144,7 +144,7 @@ func (v run) jwtSignature(token *sdjwt.Token, c catalogueState, r *Result) Check
 	// The catalogue reports AnchoredBy only after the credential's chain and
 	// signature verified with that list.
 	if a, ok := v.catalogueAnchors(c); ok {
-		if key, err := ExtractAndValidateX5C(token.Header, trustlist.CertInfos(a.IssuanceAnchors)); err == nil && key != nil {
+		if key, err := ExtractAndValidateX5C(token.Header, lote.CertInfos(a.IssuanceAnchors)); err == nil && key != nil {
 			if res := sdjwt.Verify(token, key); res.SignatureValid {
 				r.SDJWTVerify, r.SignatureSource = res, SourceX5CChain
 				return Check{Name: CheckSignature, Status: Pass, Detail: "Valid, " + res.Algorithm}
@@ -152,7 +152,7 @@ func (v run) jwtSignature(token *sdjwt.Token, c catalogueState, r *Result) Check
 		}
 	}
 
-	anchors := trustlist.CertInfos(v.trust.Issuance)
+	anchors := lote.CertInfos(v.trust.Issuance)
 	if v.opts.Offline {
 		res, source, err := VerifyJWTSignatureOffline(token, v.trust.Keys, anchors)
 		switch {

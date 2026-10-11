@@ -24,6 +24,7 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
 )
 
@@ -45,7 +46,7 @@ func TestIssueWithSigningOverride(t *testing.T) {
 		Claims:           map[string]any{"given_name": "Erika"},
 		SigningKey:       leafKey,
 		SigningCertChain: []*x509.Certificate{leaf, ca},
-		Trust:            IssuedAttestationSpec{Entitlements: []string{"https://entitlement.example/custom"}},
+		Trust:            provider.IssuedAttestationSpec{Entitlements: []string{"https://entitlement.example/custom"}},
 	}
 	result, err := w.IssueCredential(opts)
 	if err != nil {

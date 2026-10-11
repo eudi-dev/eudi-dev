@@ -37,14 +37,17 @@ import (
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jwe"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/trustlist"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/validate"
 )
 
@@ -517,7 +520,7 @@ func TestPresentationAPI_InvalidURIWithRequestScopedOptionsShowsErrorOnMainWalle
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200 from /api/error, got %d", rec.Code)
 	}
-	var got WalletError
+	var got consent.Error
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode /api/error: %v", err)
 	}
@@ -554,7 +557,7 @@ func TestPresentationAPI_AutoAcceptOverrideSkipsConsent(t *testing.T) {
 	srv.SetOnUIRequest(func(string) {
 		uiRequested = true
 	})
-	srv.SetOnConsentRequest(func(req *ConsentRequest) {
+	srv.SetOnConsentRequest(func(req *consent.Request) {
 		consentRequested = true
 	})
 
@@ -643,7 +646,7 @@ func TestBrowserPresentationAPI_DCAPIUnsigned(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	if result["protocol"] != BrowserAPIProtocolOpenID4VPUnsigned {
+	if result["protocol"] != oid4vp.BrowserAPIProtocolOpenID4VPUnsigned {
 		t.Fatalf("expected unsigned protocol, got %v", result["protocol"])
 	}
 
@@ -743,7 +746,7 @@ func TestBrowserPresentationAPI_DCAPISignedJWT(t *testing.T) {
 		"digital": map[string]any{
 			"requests": []any{
 				map[string]any{
-					"protocol": BrowserAPIProtocolOpenID4VPSigned,
+					"protocol": oid4vp.BrowserAPIProtocolOpenID4VPSigned,
 					"data": map[string]any{
 						"request": requestJWT,
 					},
@@ -769,7 +772,7 @@ func TestBrowserPresentationAPI_DCAPISignedJWT(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	if result["protocol"] != BrowserAPIProtocolOpenID4VPSigned {
+	if result["protocol"] != oid4vp.BrowserAPIProtocolOpenID4VPSigned {
 		t.Fatalf("expected signed protocol, got %v", result["protocol"])
 	}
 
@@ -782,7 +785,7 @@ func TestBrowserPresentationAPI_DCAPISignedJWT(t *testing.T) {
 		t.Fatalf("expected encrypted response JWT, got %v", data["response"])
 	}
 
-	plaintext, err := DecryptRequestObjectJWE(responseJWT, encKey)
+	plaintext, err := oid4vp.DecryptRequestObjectJWE(responseJWT, encKey)
 	if err != nil {
 		t.Fatalf("decrypting browser response: %v", err)
 	}
@@ -849,7 +852,7 @@ func TestBrowserPresentationAPI_UnsignedRequestIgnoresExpectedOrigins(t *testing
 		"digital": map[string]any{
 			"requests": []any{
 				map[string]any{
-					"protocol": BrowserAPIProtocolOpenID4VPUnsigned,
+					"protocol": oid4vp.BrowserAPIProtocolOpenID4VPUnsigned,
 					"data": map[string]any{
 						"response_type":    "vp_token",
 						"response_mode":    "dc_api.jwt",
@@ -924,7 +927,7 @@ func TestBrowserPresentationAPI_DCAPIMultiSignedPrefersValidSignature(t *testing
 		"digital": map[string]any{
 			"requests": []any{
 				map[string]any{
-					"protocol": BrowserAPIProtocolOpenID4VPMulti,
+					"protocol": oid4vp.BrowserAPIProtocolOpenID4VPMulti,
 					"data": map[string]any{
 						"request": map[string]any{
 							"payload": parts[1],
@@ -962,7 +965,7 @@ func TestBrowserPresentationAPI_DCAPIMultiSignedPrefersValidSignature(t *testing
 	if err := json.Unmarshal(rec.Body.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	if result["protocol"] != BrowserAPIProtocolOpenID4VPMulti {
+	if result["protocol"] != oid4vp.BrowserAPIProtocolOpenID4VPMulti {
 		t.Fatalf("expected multisigned protocol, got %v", result["protocol"])
 	}
 
@@ -1494,7 +1497,7 @@ func TestPresentationFlow_NextErrorOverride_DirectPostJWT_SubmitsEncryptedErrorW
 		t.Fatalf("expected no top-level state form field, got %q", parsedForm.Get("state"))
 	}
 
-	plaintext, err := DecryptRequestObjectJWE(parsedForm.Get("response"), key)
+	plaintext, err := oid4vp.DecryptRequestObjectJWE(parsedForm.Get("response"), key)
 	if err != nil {
 		t.Fatalf("decrypting error JWT: %v", err)
 	}
@@ -1602,7 +1605,7 @@ func TestConsentFlow_Deny_DirectPostJWT_SubmitsEncryptedErrorWithState(t *testin
 		t.Fatalf("expected no top-level state form field, got %q", parsedForm.Get("state"))
 	}
 
-	plaintext, err := DecryptRequestObjectJWE(parsedForm.Get("response"), key)
+	plaintext, err := oid4vp.DecryptRequestObjectJWE(parsedForm.Get("response"), key)
 	if err != nil {
 		t.Fatalf("decrypting error JWT: %v", err)
 	}
@@ -1658,14 +1661,14 @@ func TestTrustListAPI(t *testing.T) {
 		t.Fatalf("parsing payload: %v", err)
 	}
 
-	lote, ok := payload["LoTE"].(map[string]any)
+	loteBody, ok := payload["LoTE"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected top-level LoTE object, got %T", payload["LoTE"])
 	}
-	if _, ok := lote["TrustedEntitiesList"]; !ok {
+	if _, ok := loteBody["TrustedEntitiesList"]; !ok {
 		t.Error("expected TrustedEntitiesList in LoTE payload")
 	}
-	if _, ok := lote["ListAndSchemeInformation"]; !ok {
+	if _, ok := loteBody["ListAndSchemeInformation"]; !ok {
 		t.Error("expected ListAndSchemeInformation in LoTE payload")
 	}
 }
@@ -1681,7 +1684,7 @@ func TestTrustListAPI_ParseableByTrustlistParser(t *testing.T) {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
 
-	tl, err := trustlist.Parse(w.Body.String())
+	tl, err := lote.Parse(w.Body.String())
 	if err != nil {
 		t.Fatalf("trusted list parser failed: %v", err)
 	}
@@ -1692,7 +1695,7 @@ func TestTrustListAPI_ParseableByTrustlistParser(t *testing.T) {
 	if tl.SchemeInfo.SchemeOperatorName != "EUDI Dev Wallet" {
 		t.Errorf("expected operator name 'EUDI Dev Wallet', got %q", tl.SchemeInfo.SchemeOperatorName)
 	}
-	if tl.SchemeInfo.LoTEType != pidTrustListType {
+	if tl.SchemeInfo.LoTEType != lote.PIDProvidersListType {
 		t.Errorf("unexpected LoTEType: %s", tl.SchemeInfo.LoTEType)
 	}
 	if tl.SchemeInfo.ListIssueDatetime == "" {
@@ -1745,7 +1748,7 @@ func TestThePIDListNamesTheCountryOfEveryPIDTemplate(t *testing.T) {
 	srv.wallet.Templates = credtemplate.FileLocation(dir)
 
 	resp := serverRequest(t, srv, "GET", "/api/trustlist", "")
-	tl, err := trustlist.Parse(resp.Body.String())
+	tl, err := lote.Parse(resp.Body.String())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1773,13 +1776,13 @@ func TestTrustListAPI_RemainsCertificateCentric(t *testing.T) {
 	var payload map[string]any
 	decodeCompactJWTPayload(t, resp.Body.String(), &payload)
 
-	lote, ok := payload["LoTE"].(map[string]any)
+	loteBody, ok := payload["LoTE"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected top-level LoTE object, got %T", payload["LoTE"])
 	}
-	entities, ok := lote["TrustedEntitiesList"].([]any)
+	entities, ok := loteBody["TrustedEntitiesList"].([]any)
 	if !ok || len(entities) == 0 {
-		t.Fatalf("expected TrustedEntitiesList entries, got %T", lote["TrustedEntitiesList"])
+		t.Fatalf("expected TrustedEntitiesList entries, got %T", loteBody["TrustedEntitiesList"])
 	}
 	entity, ok := entities[0].(map[string]any)
 	if !ok {
@@ -1884,11 +1887,11 @@ func TestJWTVCIssuerMetadata_ExposesSigningKeyTrustedByTrustList(t *testing.T) {
 	if tlResp.Code != http.StatusOK {
 		t.Fatalf("expected trusted list 200, got %d: %s", tlResp.Code, tlResp.Body.String())
 	}
-	tl, err := trustlist.Parse(strings.TrimSpace(tlResp.Body.String()))
+	tl, err := lote.Parse(strings.TrimSpace(tlResp.Body.String()))
 	if err != nil {
 		t.Fatalf("parsing trusted list: %v", err)
 	}
-	tlCerts := trustlist.ServiceCertificates(tl, trustlist.IssuanceServices)
+	tlCerts := lote.ServiceCertificates(tl, lote.IssuanceServices)
 	validatedKey, err := validate.ValidateCertChain([]*x509.Certificate{leafCert}, tlCerts)
 	if err != nil {
 		t.Fatalf("validating issuer metadata x5c against trusted list: %v", err)
@@ -2093,7 +2096,7 @@ func TestRegistrarWRPList_FiltersByProvidedAttestation(t *testing.T) {
 func TestAnEAATypeIsRegisteredAndListedAsAnEAA(t *testing.T) {
 	w := generateTestWallet(t)
 	w.IssuerURL = "https://localhost:8443"
-	w.IssuedAttestations = []IssuedAttestationSpec{
+	w.IssuedAttestations = []provider.IssuedAttestationSpec{
 		{Format: "dc+sd-jwt", VCT: "urn:test:employee:1", Category: credtemplate.CategoryEAA},
 		{Format: "mso_mdoc", DocType: "org.iso.23220.photoid.1", Category: credtemplate.CategoryEAA},
 	}
@@ -2147,14 +2150,14 @@ func TestAnEAATypeIsRegisteredAndListedAsAnEAA(t *testing.T) {
 	}
 	decodeCompactJWTPayload(t, trustListResp.Body.String(), &list)
 	scheme := list.LoTE.ListAndSchemeInformation
-	if scheme["LoTEType"] != eaaTrustListType || scheme["StatusDeterminationApproach"] != categoryTrustListProfile(credtemplate.CategoryEAA).StatusDeterminationApproach {
+	if scheme["LoTEType"] != provider.CategoryProfile(credtemplate.CategoryEAA).LoTEType || scheme["StatusDeterminationApproach"] != provider.CategoryProfile(credtemplate.CategoryEAA).StatusDeterminationApproach {
 		t.Fatalf("scheme %v, want the EAA list type and its status determination approach", scheme)
 	}
 	if len(list.LoTE.TrustedEntitiesList) != 1 || len(list.LoTE.TrustedEntitiesList[0].TrustedEntityServices) != 2 {
 		t.Fatalf("entities %+v, want one entity with two services", list.LoTE.TrustedEntitiesList)
 	}
 	services := list.LoTE.TrustedEntitiesList[0].TrustedEntityServices
-	if services[0].ServiceInformation.ServiceTypeIdentifier != categoryTrustListProfile(credtemplate.CategoryEAA).IssuanceServiceType || services[1].ServiceInformation.ServiceTypeIdentifier != categoryTrustListProfile(credtemplate.CategoryEAA).RevocationServiceType {
+	if services[0].ServiceInformation.ServiceTypeIdentifier != provider.CategoryProfile(credtemplate.CategoryEAA).IssuanceServiceType || services[1].ServiceInformation.ServiceTypeIdentifier != provider.CategoryProfile(credtemplate.CategoryEAA).RevocationServiceType {
 		t.Fatalf("services %+v, want the EAA issuance and revocation types", services)
 	}
 }
@@ -2162,13 +2165,13 @@ func TestAnEAATypeIsRegisteredAndListedAsAnEAA(t *testing.T) {
 func TestTrustListsAPI_ListsEveryCategoryWithThePIDListAsDefault(t *testing.T) {
 	w := generateTestWallet(t)
 	w.IssuerURL = "https://localhost:8443"
-	if err := w.RegisterIssuedAttestation(applyCategoryDefaults(IssuedAttestationSpec{Category: credtemplate.CategoryPID,
+	if err := w.RegisterIssuedAttestation(provider.ApplyCategoryDefaults(provider.IssuedAttestationSpec{Category: credtemplate.CategoryPID,
 		Format: "dc+sd-jwt",
 		VCT:    mock.DefaultPIDVCT,
 	})); err != nil {
 		t.Fatalf("registering PID attestation: %v", err)
 	}
-	if err := w.RegisterIssuedAttestation(applyCategoryDefaults(IssuedAttestationSpec{Category: credtemplate.CategoryEAA,
+	if err := w.RegisterIssuedAttestation(provider.ApplyCategoryDefaults(provider.IssuedAttestationSpec{Category: credtemplate.CategoryEAA,
 		Format:  "mso_mdoc",
 		DocType: "org.iso.23220.photoid.1",
 		Entitlements: []string{
@@ -2219,7 +2222,7 @@ func TestTrustListsAPI_ListsEveryCategoryWithThePIDListAsDefault(t *testing.T) {
 			if entry["default"] == true {
 				t.Fatalf("wallet-provider list must never be the default, got %v", entry)
 			}
-			if entry["loTEType"] != walletProviderTrustListType {
+			if entry["loTEType"] != lote.WalletProvidersListType {
 				t.Fatalf("expected wallet-provider LoTE type, got %v", entry["loTEType"])
 			}
 			if desc, _ := entry["description"].(string); !strings.Contains(strings.ToLower(desc), "attestation") {
@@ -2243,7 +2246,7 @@ func TestTrustListsAPI_ListsEveryCategoryWithThePIDListAsDefault(t *testing.T) {
 		t.Fatalf("expected top-level LoTE object, got %T", legacyPayload["LoTE"])
 	}
 	legacyScheme := legacyLoTE["ListAndSchemeInformation"].(map[string]any)
-	if legacyScheme["LoTEType"] != pidTrustListType {
+	if legacyScheme["LoTEType"] != lote.PIDProvidersListType {
 		t.Fatalf("expected legacy /api/trustlist to return pid profile, got %v", legacyScheme["LoTEType"])
 	}
 
@@ -2258,7 +2261,7 @@ func TestTrustListsAPI_ListsEveryCategoryWithThePIDListAsDefault(t *testing.T) {
 		t.Fatalf("expected top-level LoTE object, got %T", selectedPayload["LoTE"])
 	}
 	selectedScheme := selectedLoTE["ListAndSchemeInformation"].(map[string]any)
-	if selectedScheme["LoTEType"] != eaaTrustListType {
+	if selectedScheme["LoTEType"] != provider.CategoryProfile(credtemplate.CategoryEAA).LoTEType {
 		t.Fatalf("doctype-selected list has LoTEType %v, want the EAA list type", selectedScheme["LoTEType"])
 	}
 
@@ -2273,7 +2276,7 @@ func TestTrustListsAPI_ListsEveryCategoryWithThePIDListAsDefault(t *testing.T) {
 		t.Fatalf("expected top-level LoTE object, got %T", byIDPayload["LoTE"])
 	}
 	byIDScheme := byIDLoTE["ListAndSchemeInformation"].(map[string]any)
-	if byIDScheme["LoTEType"] != eaaTrustListType {
+	if byIDScheme["LoTEType"] != provider.CategoryProfile(credtemplate.CategoryEAA).LoTEType {
 		t.Fatalf("/api/trustlists/eaa has LoTEType %v, want the EAA list type", byIDScheme["LoTEType"])
 	}
 	uris, ok := byIDScheme["SchemeInformationURI"].([]any)
@@ -2306,7 +2309,7 @@ func TestOnConsentRequest_CalledOnInteractiveFlow(t *testing.T) {
 	var callbackMu sync.Mutex
 	var callbackCalled bool
 	var callbackReqID string
-	srv.SetOnConsentRequest(func(req *ConsentRequest) {
+	srv.SetOnConsentRequest(func(req *consent.Request) {
 		callbackMu.Lock()
 		defer callbackMu.Unlock()
 		callbackCalled = true
@@ -2377,7 +2380,7 @@ func TestOnConsentRequest_NotCalledOnAutoAccept(t *testing.T) {
 	srv := newTestServer(t, true)
 
 	callbackCalled := false
-	srv.SetOnConsentRequest(func(req *ConsentRequest) {
+	srv.SetOnConsentRequest(func(req *consent.Request) {
 		callbackCalled = true
 	})
 
@@ -2691,7 +2694,7 @@ func TestFetchRequestURIPOST_AcceptsLocalSelfSignedTLS(t *testing.T) {
 	if receivedMethod != http.MethodPost {
 		t.Fatalf("expected POST, got %s", receivedMethod)
 	}
-	if !isJWT(result) {
+	if !format.IsJWT(result) {
 		t.Fatalf("expected compact JWT response, got %q", result)
 	}
 }

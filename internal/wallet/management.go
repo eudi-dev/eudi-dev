@@ -22,6 +22,7 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/trustedlists"
 )
 
 var (
@@ -248,36 +249,36 @@ func (m *Management) DeleteTemplate(name string) error {
 	return m.wallet.DeleteTemplate(name)
 }
 
-func (m *Management) TrustState() TrustedListState {
-	return m.wallet.TrustState()
+func (m *Management) TrustState() trustedlists.Summary {
+	return m.wallet.TrustedLists().Summary()
 }
 
-func (m *Management) AddTrustedEntity(list, name, certificatesPEM string) (TrustedEntity, error) {
-	entity, err := NewTrustedEntity(list, name, certificatesPEM)
+func (m *Management) AddTrustedEntity(list, name, certificatesPEM string) (trustedlists.Entity, error) {
+	entity, err := trustedlists.NewEntity(list, name, certificatesPEM)
 	if err != nil {
-		return TrustedEntity{}, err
+		return trustedlists.Entity{}, err
 	}
-	return entity, m.commit(func() error { return m.wallet.storeTrustedEntity(entity) })
+	return entity, m.commit(func() error { return m.wallet.TrustedLists().StoreEntity(entity) })
 }
 
 func (m *Management) RemoveTrustedEntity(id string) error {
-	return m.commit(func() error { return m.wallet.RemoveTrustedEntity(id) })
+	return m.commit(func() error { return m.wallet.TrustedLists().RemoveEntity(id) })
 }
 
 // AddTrustedList refuses in a full wallet before it fetches the list.
-func (m *Management) AddTrustedList(url string) (TrustedListLink, error) {
-	if err := m.wallet.trustedListRoom(url); err != nil {
-		return TrustedListLink{}, err
+func (m *Management) AddTrustedList(url string) (trustedlists.Link, error) {
+	if err := m.wallet.TrustedLists().ListRoom(url); err != nil {
+		return trustedlists.Link{}, err
 	}
-	added, err := m.wallet.CheckTrustedList(url)
+	added, err := m.wallet.TrustedLists().CheckList(url)
 	if err != nil {
-		return TrustedListLink{}, err
+		return trustedlists.Link{}, err
 	}
-	return added, m.commit(func() error { return m.wallet.storeTrustedList(added.URL) })
+	return added, m.commit(func() error { return m.wallet.TrustedLists().StoreList(added.URL) })
 }
 
 func (m *Management) RemoveTrustedList(url string) error {
-	return m.commit(func() error { return m.wallet.RemoveTrustedList(strings.TrimSpace(url)) })
+	return m.commit(func() error { return m.wallet.TrustedLists().RemoveList(strings.TrimSpace(url)) })
 }
 
 // The registrar operations below serve the local CLI. A server runs the

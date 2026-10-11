@@ -10,7 +10,7 @@ If the toolkit ignored an unsupported mechanism, a request could look verified. 
 
 ## In the code
 
-`openid_federation:` as a Client Identifier Prefix is refused with "not supported by this wallet". OID4VP 1.0 §5.9.3 defers its processing rules to OpenID Federation, and the wallet resolves no trust chain (`internal/wallet/clientid.go`).
+`openid_federation:` as a Client Identifier Prefix is refused with "not supported by this wallet". OID4VP 1.0 §5.9.3 defers its processing rules to OpenID Federation, and the wallet resolves no trust chain (`internal/oid4vp/clientid_prefixes.go`).
 
 A key identified by a DID is reported as unresolved: in the credential import warning, in the HAIP findings, in the skipped-signature note of `validate`, and in the failure of a status list check (`keys.DIDReference`). An issuer key is resolved through the `x5c` chain (required by HAIP 1.0 §6.1.1) or through the issuer metadata defined by SD-JWT VC. `did:key` carries its key in the identifier and would be easy to decode. It is left out on purpose.
 

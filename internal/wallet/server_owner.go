@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/publicpath"
 )
 
@@ -125,29 +126,10 @@ func callerOwners(r *http.Request) []string {
 	if session := browserSession(r); session != "" {
 		owners = append(owners, session)
 	}
-	if token := presentedOwner(r); token != "" && !ownedBy(owners, token) {
+	if token := presentedOwner(r); token != "" && !consent.OwnedBy(owners, token) {
 		owners = append(owners, token)
 	}
 	return owners
-}
-
-// Unowned requests stay visible to all callers, such as API clients without a
-// browser session. A redirected browser can also access the request by its ID
-// if cookies are unavailable.
-func ownsRequest(owners []string, req *ConsentRequest, named string) bool {
-	if req == nil {
-		return false
-	}
-	return req.Owner == "" || ownedBy(owners, req.Owner) || (named != "" && req.ID == named)
-}
-
-func ownedBy(owners []string, want string) bool {
-	for _, v := range owners {
-		if v == want {
-			return true
-		}
-	}
-	return false
 }
 
 // Use X-Forwarded-Proto when a proxy terminates TLS. Setting Secure for plain HTTP

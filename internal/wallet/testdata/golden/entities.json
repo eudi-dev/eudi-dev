@@ -1,0 +1,241 @@
+{
+  "attestation-catalog/golden-schema": {
+    "name": "Golden Attestation",
+    "credentials": [
+      {
+        "format": "dc+sd-jwt",
+        "type": "urn:example:golden"
+      }
+    ],
+    "schema": {
+      "id": "golden-schema",
+      "version": "1",
+      "rulebookURI": "https://example.org/rulebook",
+      "attestationLoS": "iso_18045_basic",
+      "bindingType": "key",
+      "supportedFormats": [
+        "dc+sd-jwt"
+      ],
+      "schemaURIs": []
+    },
+    "category": "eaa"
+  },
+  "attestations/36efe5717ba914b7": {
+    "format": "dc+sd-jwt",
+    "vct": "urn:example:custom",
+    "trust_list_type": "https://example.org/LoTEType/custom",
+    "scheme_territory": "DE",
+    "entity_name": "Custom Provider",
+    "issuance_service_name": "Issuance Service",
+    "revocation_service_name": "Revocation Service"
+  },
+  "attestations/a4e3b8e27fbc62cc": {
+    "format": "dc+sd-jwt",
+    "vct": "urn:example:golden",
+    "category": "eaa",
+    "entitlements": [
+      "https://uri.etsi.org/19475/Entitlement/Non_Q_EAA_Provider"
+    ],
+    "trust_list_type": "https://eudi-test.dev/LoTEType/EAAProvidersList",
+    "status_determination_approach": "https://eudi-test.dev/EAAProvidersList/StatusDetn",
+    "scheme_type_community_rules": "https://eudi-test.dev/EAAProvidersList/schemerules",
+    "entity_name": "EUDI Dev Wallet EAA Provider",
+    "issuance_service_type": "https://eudi-test.dev/SvcType/EAA/Issuance",
+    "revocation_service_type": "https://eudi-test.dev/SvcType/EAA/Revocation",
+    "issuance_service_name": "EAA Issuance Service",
+    "revocation_service_name": "EAA Revocation Service"
+  },
+  "attestations/ebf8ba6e7ccad7fe": {
+    "format": "mso_mdoc",
+    "doctype": "org.example.golden",
+    "category": "pid",
+    "entitlements": [
+      "https://example.org/entitlement"
+    ],
+    "trust_list_type": "http://uri.etsi.org/19602/LoTEType/EUPIDProvidersList",
+    "status_determination_approach": "http://uri.etsi.org/19602/PIDProvidersList/StatusDetn/EU",
+    "scheme_type_community_rules": "http://uri.etsi.org/19602/PIDProviders/schemerules/EU",
+    "scheme_territory": "EU",
+    "entity_name": "EUDI Dev Wallet PID Provider",
+    "issuance_service_type": "http://uri.etsi.org/19602/SvcType/PID/Issuance",
+    "revocation_service_type": "http://uri.etsi.org/19602/SvcType/PID/Revocation",
+    "issuance_service_name": "PID Issuance Service",
+    "revocation_service_name": "PID Revocation Service"
+  },
+  "credentials/cred-1": {
+    "seq": 0,
+    "value": {
+      "id": "cred-1",
+      "format": "jwt_vc_json",
+      "raw": "eyJhbGciOiJFUzI1NiJ9.eyJpYXQiOjE3MDAwMDAwMDB9.c2ln",
+      "claims": {
+        "address": {
+          "locality": "Berlin"
+        },
+        "given_name": "Erika"
+      },
+      "vct": "urn:example:golden",
+      "protected": true,
+      "renewal": {
+        "issuer": "https://issuer.example",
+        "token_endpoint": "https://issuer.example/token",
+        "credential_endpoint": "https://issuer.example/credential",
+        "credential_configuration_id": "golden",
+        "client_id": "wallet-client",
+        "refresh_token": "refresh",
+        "use_dpop": true,
+        "client_auth": {
+          "method": "attestation",
+          "audience": "https://issuer.example",
+          "challenge_endpoint": "https://issuer.example/challenge",
+          "abca_draft": 10,
+          "combined_pop": true
+        }
+      },
+      "display": {
+        "name": "Golden",
+        "description": "A golden credential",
+        "locale": "en",
+        "background_color": "#123456",
+        "text_color": "#ffffff"
+      },
+      "batch_group": "batch-1",
+      "uses": 2,
+      "last_presented_at": "2026-01-02T03:04:05Z"
+    }
+  },
+  "credentials/cred-2": {
+    "seq": 1,
+    "value": {
+      "id": "cred-2",
+      "format": "jwt_vc_json",
+      "raw": "eyJhbGciOiJFUzI1NiJ9.eyJpYXQiOjE3MDAwMDAwMDF9.c2ln",
+      "claims": {
+        "family_name": "Mustermann"
+      },
+      "doctype": "org.example.golden",
+      "last_presented_at": "0001-01-01T00:00:00Z"
+    }
+  },
+  "deferred/deferred-1": {
+    "seq": 0,
+    "value": {
+      "id": "deferred-1",
+      "transaction_id": "tx-1",
+      "deferred_endpoint": "https://issuer.example/deferred",
+      "issuer": "https://issuer.example",
+      "token_endpoint": "https://issuer.example/token",
+      "credential_endpoint": "https://issuer.example/credential",
+      "refresh_token": "refresh",
+      "format": "dc+sd-jwt",
+      "vct": "urn:example:golden",
+      "access_token": "access",
+      "auth_scheme": "DPoP",
+      "access_token_expires_at": "2026-01-02T04:04:05Z",
+      "interval_seconds": 5,
+      "created_at": "2026-01-02T03:04:05Z",
+      "next_attempt_at": "2026-01-02T03:04:10Z",
+      "attempts": 1
+    }
+  },
+  "log/01767323045000000000-aff6dd8d8f46e92a": {
+    "time": "2026-01-02T03:04:05Z",
+    "action": "present",
+    "detail": "presented",
+    "success": true,
+    "severity": "warning",
+    "details": {
+      "verifier": "https://verifier.example"
+    },
+    "payload": {
+      "label": "VP token",
+      "body": {
+        "vp_token": "x"
+      },
+      "encrypted": true,
+      "wire": "abc"
+    }
+  },
+  "log/01767323046000000000-6860629c7f2c3a95": {
+    "time": "2026-01-02T03:04:06Z",
+    "action": "issue",
+    "detail": "issued",
+    "success": false
+  },
+  "registration-status/3": {
+    "seq": 0,
+    "value": {
+      "index": 3,
+      "identifier": "rp-1",
+      "intendedUse": "use-1",
+      "service": "svc-1",
+      "revoked": true
+    }
+  },
+  "relying-parties/rp-1": {
+    "seq": 0,
+    "value": {
+      "identifier": [
+        {
+          "identifier": "rp-1",
+          "type": "http://data.europa.eu/eudi/id/EUID"
+        }
+      ],
+      "legalPerson": {
+        "legalName": [
+          "Golden RP"
+        ]
+      },
+      "country": "NL",
+      "isPSB": false,
+      "supervisoryAuthority": {
+        "name": "DPA",
+        "country": "NL",
+        "email": [
+          "dpa@example.org"
+        ]
+      },
+      "registryURI": "https://registrar.example/rp-1",
+      "services": [
+        {
+          "serviceTradeName": "Golden Service",
+          "serviceIdentifier": "svc-1",
+          "entitlements": [
+            "https://example.org/entitlement"
+          ],
+          "isIntermediary": false
+        }
+      ]
+    }
+  },
+  "settings/value": {
+    "base_url": "https://wallet.example",
+    "issuer_url": "https://issuer.example"
+  },
+  "status/cred-1": {
+    "credential_id": "cred-1",
+    "index": 1,
+    "status": 1
+  },
+  "status/cred-2": {
+    "credential_id": "cred-2",
+    "index": 2,
+    "status": 0
+  },
+  "trust/lists": {
+    "entities": [
+      {
+        "id": "0011223344556677",
+        "list": "pid",
+        "name": "Golden Provider",
+        "certificates": [
+          "AAEC"
+        ]
+      }
+    ],
+    "lists": [
+      "https://lists.example/pid",
+      "https://lists.example/eaa"
+    ]
+  }
+}

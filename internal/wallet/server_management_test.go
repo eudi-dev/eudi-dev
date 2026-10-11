@@ -20,6 +20,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
 func TestGetCredentialByID(t *testing.T) {
@@ -366,7 +368,7 @@ func TestFlowsReadAutoAcceptUnderTheLock(t *testing.T) {
 		}
 	}()
 	for range 20 {
-		srv.autoAccepts(&AuthorizationRequestParams{})
+		srv.autoAccepts(&oid4vp.Request{})
 	}
 	<-done
 }

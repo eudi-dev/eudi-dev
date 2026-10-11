@@ -4,42 +4,42 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"encoding/asn1"
-	"fmt"
 	"sync"
 	"testing"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/storage"
 )
 
 func TestSigningCertificatesRemainStable(t *testing.T) {
 	w := generateTestWallet(t)
 	w.IssuerURL = "https://issuer.example"
-	spec := applyCategoryDefaults(IssuedAttestationSpec{Category: credtemplate.CategoryPID, Format: "dc+sd-jwt", VCT: mock.DefaultPIDVCT})
-	_, first, err := w.SigningMaterialForIssuedCredential(spec, map[string]any{"issuing_country": "NL"})
+	spec := provider.ApplyCategoryDefaults(provider.IssuedAttestationSpec{Category: credtemplate.CategoryPID, Format: "dc+sd-jwt", VCT: mock.DefaultPIDVCT})
+	_, first, err := w.Signer().ForCredential(spec, map[string]any{"issuing_country": "NL"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, second, err := w.SigningMaterialForIssuedCredential(spec, map[string]any{"issuing_country": "NL"})
+	_, second, err := w.Signer().ForCredential(spec, map[string]any{"issuing_country": "NL"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(first[0].Raw, second[0].Raw) {
 		t.Error("repeated issuance replaced the signing certificate")
 	}
-	_, german, err := w.SigningMaterialForIssuedCredential(spec, map[string]any{"issuing_country": "DE"})
+	_, german, err := w.Signer().ForCredential(spec, map[string]any{"issuing_country": "DE"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if first[0].SerialNumber.Cmp(german[0].SerialNumber) == 0 {
 		t.Error("different certificates share a serial number under the same CA")
 	}
-	_, statusFirst, err := w.StatusListSigningMaterial()
+	_, statusFirst, err := w.Signer().StatusList()
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, statusSecond, err := w.StatusListSigningMaterial()
+	_, statusSecond, err := w.Signer().StatusList()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,12 +52,12 @@ func TestSigningCertificatesRemainStable(t *testing.T) {
 func TestSigningCertificatesIdentifyProviderRoles(t *testing.T) {
 	w := generateTestWallet(t)
 	w.IssuerURL = "https://issuer.example"
-	pid := applyCategoryDefaults(IssuedAttestationSpec{Category: credtemplate.CategoryPID, Format: "dc+sd-jwt", VCT: mock.DefaultPIDVCT})
-	pidChain, err := w.SigningCertChainForIssuedAttestation(pid)
+	pid := provider.ApplyCategoryDefaults(provider.IssuedAttestationSpec{Category: credtemplate.CategoryPID, Format: "dc+sd-jwt", VCT: mock.DefaultPIDVCT})
+	pidChain, err := signingChain(w, pid)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, walletChain, err := w.WalletProviderSigningMaterial()
+	_, walletChain, err := w.Signer().WalletProvider()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,13 +120,13 @@ func TestSigningCertificatesIdentifyProviderRoles(t *testing.T) {
 func TestSigningCertificatesSurviveReload(t *testing.T) {
 	backend := storage.NewMemory()
 	dir := t.TempDir()
-	spec := applyCategoryDefaults(IssuedAttestationSpec{Category: credtemplate.CategoryPID, Format: "dc+sd-jwt", VCT: mock.DefaultPIDVCT})
+	spec := provider.ApplyCategoryDefaults(provider.IssuedAttestationSpec{Category: credtemplate.CategoryPID, Format: "dc+sd-jwt", VCT: mock.DefaultPIDVCT})
 	w, err := NewWalletStoreOn(dir, backend).LoadOrCreate()
 	if err != nil {
 		t.Fatal(err)
 	}
 	w.IssuerURL = "https://issuer.example"
-	chain, err := w.SigningCertChainForIssuedAttestation(spec)
+	chain, err := signingChain(w, spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +139,7 @@ func TestSigningCertificatesSurviveReload(t *testing.T) {
 				return
 			}
 			reloaded.IssuerURL = w.IssuerURL
-			got, err := reloaded.SigningCertChainForIssuedAttestation(spec)
+			got, err := signingChain(reloaded, spec)
 			if err != nil {
 				t.Error(err)
 				return
@@ -150,35 +150,4 @@ func TestSigningCertificatesSurviveReload(t *testing.T) {
 		})
 	}
 	wg.Wait()
-}
-
-type readAllCounter struct {
-	storage.Store
-	readAll int
-}
-
-func (c *readAllCounter) ReadAll(prefix string) (map[string]storage.Blob, error) {
-	c.readAll++
-	return c.Store.ReadAll(prefix)
-}
-
-// The history of a trusted list only grows. Serving the current list and a
-// stored signing certificate reads one blob each, not the whole directory.
-func TestSigningStoreReadsOnlyTheCurrentBlob(t *testing.T) {
-	w := generateTestWallet(t)
-	backend := &readAllCounter{Store: storage.NewMemory()}
-	s := &signingStore{backend: backend}
-	ca := w.CertChain[len(w.CertChain)-1]
-	sign := func(sequence int) (string, error) { return fmt.Sprintf("list-%d", sequence), nil }
-	for range 3 {
-		if _, err := s.sequencedList("trustlists/x", ca, []byte("content"), sign); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := s.certificate(w.CAKey, ca, &w.IssuerKey.PublicKey, mock.LeafCertOptions{}, false); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if backend.readAll != 0 {
-		t.Fatalf("the store read whole directories %d times", backend.readAll)
-	}
 }

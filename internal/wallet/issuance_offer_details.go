@@ -17,58 +17,17 @@ package wallet
 import (
 	"sort"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 )
 
-type OfferedCredential struct {
-	ID          string   `json:"id"`
-	Format      string   `json:"format,omitempty"`
-	VCT         string   `json:"vct,omitempty"`
-	DocType     string   `json:"doctype,omitempty"`
-	Name        string   `json:"name,omitempty"`
-	Description string   `json:"description,omitempty"`
-	Claims      []string `json:"claims,omitempty"`
-	// Display images get the same address checks as images of issued
-	// credentials. --adhoc-display-images can keep HTTPS URLs for the browser.
-	Display *CredentialDisplay `json:"display,omitempty"`
-}
-
-// IssuanceOfferDetails combines the offer with optional issuer metadata for the
-// consent dialog. Fields stay empty when metadata is missing.
-type IssuanceOfferDetails struct {
-	Issuer     string `json:"issuer"`
-	IssuerName string `json:"issuer_name,omitempty"`
-	IssuerLogo string `json:"issuer_logo,omitempty"`
-	Grant      string `json:"grant,omitempty"`
-	TxCode     bool   `json:"tx_code,omitempty"`
-	TxCodeHint string `json:"tx_code_hint,omitempty"`
-	// OID4VCI 1.0 defines these three members on tx_code. The dialog uses them
-	// to size and type its input and to show the issuer's wording.
-	TxCodeInputMode   string              `json:"tx_code_input_mode,omitempty"`
-	TxCodeLength      int                 `json:"tx_code_length,omitempty"`
-	TxCodeDescription string              `json:"tx_code_description,omitempty"`
-	Credentials       []OfferedCredential `json:"credentials,omitempty"`
-	MetadataError     string              `json:"metadata_error,omitempty"`
-	// Findings are the metadata, ARF and catalogue findings about the issuer.
-	// The ARF requires the wallet to warn the user before it requests the
-	// credential.
-	Findings []string `json:"-"`
-	// ARFFindings are the ARF findings among them. Strict mode refuses an
-	// offer that has any before the consent dialog opens.
-	ARFFindings []string `json:"-"`
-	// OfferURI and ResolveError are set when an offer passed by reference
-	// could not be fetched. The dialog then shows the host and the reason.
-	OfferURI     string `json:"offer_uri,omitempty"`
-	ResolveError string `json:"resolve_error,omitempty"`
-}
-
 // describeCredentialOffer shows the offer's own details even when issuer
 // metadata cannot be fetched.
-func (w *Wallet) describeCredentialOffer(offer *oid4vc.CredentialOffer) *IssuanceOfferDetails {
+func (w *Wallet) describeCredentialOffer(offer *oid4vc.CredentialOffer) *consent.OfferDetails {
 	if offer == nil {
 		return nil
 	}
-	details := &IssuanceOfferDetails{
+	details := &consent.OfferDetails{
 		Issuer: offer.CredentialIssuer,
 		Grant:  describeOfferGrant(offer.Grants),
 	}
@@ -137,8 +96,8 @@ func issuerDisplay(metadata map[string]any) (name, logo string) {
 
 // describeConfiguration keeps unknown configuration IDs, so consent still shows
 // everything offered.
-func (w *Wallet) describeConfiguration(metadata map[string]any, id string) OfferedCredential {
-	out := OfferedCredential{ID: id}
+func (w *Wallet) describeConfiguration(metadata map[string]any, id string) consent.OfferedCredential {
+	out := consent.OfferedCredential{ID: id}
 	configs, _ := metadata["credential_configurations_supported"].(map[string]any)
 	config, _ := configs[id].(map[string]any)
 	if config == nil {

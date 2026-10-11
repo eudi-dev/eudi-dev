@@ -27,18 +27,21 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/dcql"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/trustlist"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/validate"
 )
 
 // EvaluateDCQL matches stored credentials against a DCQL query (OID4VP 1.0 Section 6).
 // It returns matched credentials grouped by query credential ID.
-func (w *Wallet) EvaluateDCQL(query map[string]any) ([]CredentialMatch, error) {
+func (w *Wallet) EvaluateDCQL(query map[string]any) ([]consent.Match, error) {
 	matches, _, err := w.EvaluateDCQLWithOptions(query)
 	return matches, err
 }
@@ -46,11 +49,11 @@ func (w *Wallet) EvaluateDCQL(query map[string]any) ([]CredentialMatch, error) {
 // EvaluateDCQLWithOptions returns matching credentials and satisfiable set options for
 // consent. The first candidate and option are the automatic selection.
 //
-// Strict mode refuses a query with DCQLQueryFindings as invalid_request, and a
+// Strict mode refuses a query with dcql.QueryFindings as invalid_request, and a
 // query whose trusted_authorities name a trusted list the wallet cannot use as
 // access_denied. Debug mode warns about both and evaluates the query as far as
 // it can.
-func (w *Wallet) EvaluateDCQLWithOptions(query map[string]any) ([]CredentialMatch, *ConsentCredentialOptions, error) {
+func (w *Wallet) EvaluateDCQLWithOptions(query map[string]any) ([]consent.Match, *consent.CredentialOptions, error) {
 	credentials := w.GetCredentials()
 	credQueries, _ := query["credentials"].([]any)
 	// The conformance API can change these settings while a query runs.
@@ -59,19 +62,19 @@ func (w *Wallet) EvaluateDCQLWithOptions(query map[string]any) ([]CredentialMatc
 
 	log.Printf("[DCQL] Evaluating query: %d credential queries against %d stored credentials", len(credQueries), len(credentials))
 
-	if findings := DCQLQueryFindings(query); len(findings) > 0 {
+	if findings := dcql.QueryFindings(query); len(findings) > 0 {
 		if mode == ValidationModeStrict {
-			return nil, nil, &authorizationError{Code: errorCodeInvalidRequest, Err: fmt.Errorf("invalid dcql_query: %s", strings.Join(findings, ". "))}
+			return nil, nil, &oid4vp.Error{Code: oid4vp.ErrorInvalidRequest, Err: fmt.Errorf("invalid dcql_query: %s", strings.Join(findings, ". "))}
 		}
 		for _, finding := range findings {
 			log.Printf("[DCQL] Warning: %s", finding)
 		}
 	}
 
-	var matches []CredentialMatch
+	var matches []consent.Match
 	// Debug mode offers credentials that do not match, so verifiers can be tested
 	// with wrong answers. They never become the automatic selection.
-	var nonMatching []CredentialMatch
+	var nonMatching []consent.Match
 	debug := mode == ValidationModeDebug
 	// Strict mode never presents an mdoc without deviceKey (ISO 18013-5 makes
 	// deviceKeyInfo mandatory), so in strict mode such an mdoc matches no
@@ -101,7 +104,7 @@ func (w *Wallet) EvaluateDCQLWithOptions(query map[string]any) ([]CredentialMatc
 		listAnchors, listFindings := w.etsiTrustedListAnchors(taList)
 		if len(listFindings) > 0 {
 			if strict {
-				return nil, nil, &authorizationError{Code: errorCodeAccessDenied, Err: fmt.Errorf("credential query %s: %s", queryID, strings.Join(listFindings, ". "))}
+				return nil, nil, &oid4vp.Error{Code: oid4vp.ErrorAccessDenied, Err: fmt.Errorf("credential query %s: %s", queryID, strings.Join(listFindings, ". "))}
 			}
 			w.warnFindings("presentation", fmt.Sprintf("The trusted lists of credential query %s", queryID), listFindings)
 		}
@@ -153,7 +156,7 @@ func (w *Wallet) EvaluateDCQLWithOptions(query map[string]any) ([]CredentialMatc
 			}
 			if len(mismatches) > 0 {
 				if debug {
-					nonMatching = append(nonMatching, CredentialMatch{
+					nonMatching = append(nonMatching, consent.Match{
 						QueryID:      queryID,
 						CredentialID: cred.ID,
 						Format:       cred.Format,
@@ -184,7 +187,7 @@ func (w *Wallet) EvaluateDCQLWithOptions(query map[string]any) ([]CredentialMatc
 
 			// §6.4.1: "the Wallet SHOULD return the first option that it can
 			// satisfy". Debug mode lets the user choose another one.
-			var claimSets []ConsentClaimSet
+			var claimSets []consent.ClaimSet
 			if debug {
 				if sets := satisfiableClaimSets(cred, cqMap); len(sets) > 1 {
 					claimSets = sets
@@ -197,7 +200,7 @@ func (w *Wallet) EvaluateDCQLWithOptions(query map[string]any) ([]CredentialMatc
 			}
 			matched++
 			log.Printf("[DCQL]   query=%s: credential %s (%s) matched, selected claims: %v", queryID, typeLabel, cred.Format, selection.selectedKeys)
-			matches = append(matches, CredentialMatch{
+			matches = append(matches, consent.Match{
 				QueryID:            queryID,
 				CredentialID:       cred.ID,
 				Format:             cred.Format,
@@ -236,7 +239,7 @@ func (w *Wallet) EvaluateDCQLWithOptions(query map[string]any) ([]CredentialMatc
 
 	// Keep candidates in preference order. The first per query becomes the automatic
 	// choice.
-	candidates := append([]CredentialMatch(nil), matches...)
+	candidates := append([]consent.Match(nil), matches...)
 
 	multiple := multipleQueries(credQueries)
 	matches = keepOnePresentationPerQuery(matches, multiple)
@@ -293,11 +296,11 @@ func multipleQueries(credQueries []any) map[string]bool {
 
 // Preserve candidate order so the first credential and option remain the automatic
 // selection.
-func buildConsentCredentialOptions(candidates, nonMatching []CredentialMatch, credQueries, credSets []any, multiple map[string]bool, preferredFormat string) *ConsentCredentialOptions {
+func buildConsentCredentialOptions(candidates, nonMatching []consent.Match, credQueries, credSets []any, multiple map[string]bool, preferredFormat string) *consent.CredentialOptions {
 	if len(candidates) == 0 && len(nonMatching) == 0 {
 		return nil
 	}
-	byQuery := make(map[string][]CredentialMatch)
+	byQuery := make(map[string][]consent.Match)
 	var order []string
 	for _, m := range candidates {
 		if _, ok := byQuery[m.QueryID]; !ok {
@@ -305,7 +308,7 @@ func buildConsentCredentialOptions(candidates, nonMatching []CredentialMatch, cr
 		}
 		byQuery[m.QueryID] = append(byQuery[m.QueryID], m)
 	}
-	nonMatchingByQuery := make(map[string][]CredentialMatch)
+	nonMatchingByQuery := make(map[string][]consent.Match)
 	for _, m := range nonMatching {
 		nonMatchingByQuery[m.QueryID] = append(nonMatchingByQuery[m.QueryID], m)
 	}
@@ -319,16 +322,16 @@ func buildConsentCredentialOptions(candidates, nonMatching []CredentialMatch, cr
 		}
 	}
 
-	options := &ConsentCredentialOptions{}
+	options := &consent.CredentialOptions{}
 	for _, id := range order {
-		options.Queries = append(options.Queries, ConsentQueryOptions{
+		options.Queries = append(options.Queries, consent.QueryOptions{
 			ID:          id,
 			Multiple:    multiple[id],
-			Candidates:  append([]CredentialMatch{}, byQuery[id]...),
+			Candidates:  append([]consent.Match{}, byQuery[id]...),
 			NonMatching: nonMatchingByQuery[id],
 		})
 	}
-	answerable := make(map[string][]CredentialMatch, len(byQuery)+len(nonMatchingByQuery))
+	answerable := make(map[string][]consent.Match, len(byQuery)+len(nonMatchingByQuery))
 	for id, list := range byQuery {
 		answerable[id] = list
 	}
@@ -349,7 +352,7 @@ func buildConsentCredentialOptions(candidates, nonMatching []CredentialMatch, cr
 		if !ok {
 			continue
 		}
-		set := ConsentSetOptions{Optional: !required}
+		set := consent.SetOptions{Optional: !required}
 		ordered := orderOptionsByPreferredFormat(rawOptions, byQuery, preferredFormat)
 		for _, opt := range ordered {
 			if ids, ok := satisfiableOption(opt, byQuery); ok {
@@ -374,7 +377,7 @@ func buildConsentCredentialOptions(candidates, nonMatching []CredentialMatch, cr
 	return options
 }
 
-func satisfiableOption(opt any, byQuery map[string][]CredentialMatch) ([]string, bool) {
+func satisfiableOption(opt any, byQuery map[string][]consent.Match) ([]string, bool) {
 	optArr, ok := opt.([]any)
 	if !ok {
 		return nil, false
@@ -393,7 +396,7 @@ func satisfiableOption(opt any, byQuery map[string][]CredentialMatch) ([]string,
 	return ids, true
 }
 
-func orderOptionsByPreferredFormat(options []any, byQuery map[string][]CredentialMatch, preferredFormat string) []any {
+func orderOptionsByPreferredFormat(options []any, byQuery map[string][]consent.Match, preferredFormat string) []any {
 	if preferredFormat == "" {
 		return options
 	}
@@ -413,7 +416,7 @@ func orderOptionsByPreferredFormat(options []any, byQuery map[string][]Credentia
 }
 
 // Report malformed queries by array position when no query ID is available.
-func unmatchedCredentialQueries(credQueries []any, matches []CredentialMatch) []string {
+func unmatchedCredentialQueries(credQueries []any, matches []consent.Match) []string {
 	matched := make(map[string]bool, len(matches))
 	for _, m := range matches {
 		matched[m.QueryID] = true
@@ -438,101 +441,9 @@ func unmatchedCredentialQueries(credQueries []any, matches []CredentialMatch) []
 	return missing
 }
 
-// DCQLQueryFindings reports where a DCQL query departs from OID4VP 1.0 §6.
-// Strict mode refuses the query. Debug mode logs the findings and evaluates
-// the query as far as it can.
-func DCQLQueryFindings(query map[string]any) []string {
-	if query == nil {
-		return nil
-	}
-
-	// §6: "credentials: REQUIRED. A non-empty array of Credential Queries as
-	// defined in Section 6.1 that specify the requested Credentials."
-	credQueries, ok := query["credentials"].([]any)
-	if !ok || len(credQueries) == 0 {
-		return []string{"OID4VP 1.0 §6: dcql_query.credentials is required and must be a non-empty array"}
-	}
-
-	var findings []string
-	seen := make(map[string]bool, len(credQueries))
-	for i, cq := range credQueries {
-		cqMap, ok := cq.(map[string]any)
-		if !ok {
-			findings = append(findings, fmt.Sprintf("OID4VP 1.0 §6: dcql_query.credentials[%d] must be an object", i))
-			continue
-		}
-
-		// §6.1: "id: REQUIRED. [...] The value MUST be a non-empty string
-		// consisting of alphanumeric, underscore (_), or hyphen (-)
-		// characters. Within the Authorization Request, the same id MUST NOT
-		// be present more than once."
-		id, _ := cqMap["id"].(string)
-		switch {
-		case !isDCQLIdentifier(id):
-			findings = append(findings, fmt.Sprintf(
-				"OID4VP 1.0 §6.1: dcql_query.credentials[%d].id must be a non-empty string of alphanumeric, underscore or hyphen characters, got %q", i, id))
-		case seen[id]:
-			findings = append(findings, fmt.Sprintf("OID4VP 1.0 §6.1: the credential query id %q is present more than once", id))
-		default:
-			seen[id] = true
-		}
-
-		label := id
-		if label == "" {
-			label = fmt.Sprintf("credentials[%d]", i)
-		}
-
-		// §6.1: "format: REQUIRED. A string that specifies the format of the
-		// requested Credential."
-		if f, _ := cqMap["format"].(string); f == "" {
-			findings = append(findings, fmt.Sprintf("OID4VP 1.0 §6.1: the credential query %q is missing the required format", label))
-		}
-
-		// §6.1: "multiple: OPTIONAL. A boolean".
-		if m, present := cqMap["multiple"]; present {
-			if _, ok := m.(bool); !ok {
-				findings = append(findings, fmt.Sprintf("OID4VP 1.0 §6.1: the credential query %q has a multiple that is not a boolean", label))
-			}
-		}
-
-		// §6.1: "require_cryptographic_holder_binding: OPTIONAL. A boolean".
-		if b, present := cqMap["require_cryptographic_holder_binding"]; present {
-			if _, ok := b.(bool); !ok {
-				findings = append(findings, fmt.Sprintf("OID4VP 1.0 §6.1: the credential query %q has a require_cryptographic_holder_binding that is not a boolean", label))
-			}
-		}
-
-		// §6.1 makes meta REQUIRED. An empty object places no constraints.
-		meta, present := cqMap["meta"]
-		if !present {
-			findings = append(findings, fmt.Sprintf("OID4VP 1.0 §6.1: the credential query %q is missing the required meta (use an empty object to place no constraints)", label))
-		} else if _, ok := meta.(map[string]any); !ok {
-			findings = append(findings, fmt.Sprintf("OID4VP 1.0 §6.1: the credential query %q has a meta that is not an object", label))
-		}
-	}
-	return findings
-}
-
-// isDCQLIdentifier checks the id syntax of OID4VP 1.0 §6.1: "a non-empty
-// string consisting of alphanumeric, underscore (_), or hyphen (-)
-// characters".
-func isDCQLIdentifier(id string) bool {
-	if id == "" {
-		return false
-	}
-	for _, r := range id {
-		switch {
-		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '_', r == '-':
-		default:
-			return false
-		}
-	}
-	return true
-}
-
 // Sort by issuance time so renewed credentials take precedence. Undated credentials
 // come last and ties keep their order.
-func sortMatchesNewestFirst(matches []CredentialMatch, credentials []StoredCredential) {
+func sortMatchesNewestFirst(matches []consent.Match, credentials []StoredCredential) {
 	matched := make(map[string]bool, len(matches))
 	for _, m := range matches {
 		matched[m.CredentialID] = true
@@ -557,7 +468,7 @@ func sortMatchesNewestFirst(matches []CredentialMatch, credentials []StoredCrede
 
 // Prefer credentials that match trusted_authorities. Preserve the existing order
 // within matched and debug-only groups.
-func sortMatchesTrustedFirst(matches []CredentialMatch) {
+func sortMatchesTrustedFirst(matches []consent.Match) {
 	sort.SliceStable(matches, func(i, j int) bool {
 		if matches[i].QueryID != matches[j].QueryID {
 			return false
@@ -571,7 +482,7 @@ func sortMatchesTrustedFirst(matches []CredentialMatch) {
 
 // Prefer complete claim matches over partial matches allowed in debug mode. Apply this
 // priority last.
-func sortMatchesCompleteFirst(matches []CredentialMatch) {
+func sortMatchesCompleteFirst(matches []consent.Match) {
 	sort.SliceStable(matches, func(i, j int) bool {
 		if matches[i].QueryID != matches[j].QueryID {
 			return false
@@ -584,7 +495,7 @@ func sortMatchesCompleteFirst(matches []CredentialMatch) {
 // one credential that will be presented. A query that sets multiple keeps every
 // candidate. OID4VP 1.0 §8.1: "When multiple is omitted, or set to false, the
 // array MUST contain only one Presentation."
-func keepOnePresentationPerQuery(matches []CredentialMatch, multiple map[string]bool) []CredentialMatch {
+func keepOnePresentationPerQuery(matches []consent.Match, multiple map[string]bool) []consent.Match {
 	if len(matches) == 0 {
 		return matches
 	}
@@ -618,7 +529,7 @@ func skipReasons(skipped map[string]int) string {
 	return strings.Join(parts, ", ")
 }
 
-func sortMatchesByPreferredFormat(matches []CredentialMatch, preferred string) {
+func sortMatchesByPreferredFormat(matches []consent.Match, preferred string) {
 	sort.SliceStable(matches, func(i, j int) bool {
 		if matches[i].QueryID != matches[j].QueryID {
 			return false
@@ -638,7 +549,7 @@ type claimSelection struct {
 }
 
 // matchesFormat treats a missing format as a wildcard. §6.1 makes format
-// REQUIRED, so DCQLQueryFindings reports it and strict mode refuses the query
+// REQUIRED, so dcql.QueryFindings reports it and strict mode refuses the query
 // before matching.
 func matchesFormat(cred StoredCredential, queryFormat string) bool {
 	if queryFormat == "" {
@@ -648,7 +559,7 @@ func matchesFormat(cred StoredCredential, queryFormat string) bool {
 }
 
 // matchesMeta checks format-specific metadata (vct_values, doctype_value).
-// DCQLQueryFindings reports a missing meta. Debug mode treats it as
+// dcql.QueryFindings reports a missing meta. Debug mode treats it as
 // unconstrained. A vct_values entry matches that type and every type extending
 // it (internal/credtype). ISO/IEC 18013-5 has no inheritance, so doctype_value
 // matches exactly.
@@ -747,7 +658,7 @@ func w3cCredentialTypes(payload map[string]any) []string {
 	case string:
 		return []string{v}
 	case []any:
-		return stringValues(v)
+		return jsonutil.Strings(v)
 	}
 	return nil
 }
@@ -822,17 +733,17 @@ func selectFromClaimSets(cred StoredCredential, claimsQuery []any, claimSets []a
 
 // satisfiableClaimSets lists the matching claim_sets options of a credential, in
 // the verifier's order. Debug mode offers them in the consent dialog.
-func satisfiableClaimSets(cred StoredCredential, cqMap map[string]any) []ConsentClaimSet {
+func satisfiableClaimSets(cred StoredCredential, cqMap map[string]any) []consent.ClaimSet {
 	claimsQuery, _ := cqMap["claims"].([]any)
 	claimSets, _ := cqMap["claim_sets"].([]any)
 	if len(claimsQuery) == 0 || len(claimSets) == 0 {
 		return nil
 	}
 	claimByID := buildClaimByID(claimsQuery)
-	var out []ConsentClaimSet
+	var out []consent.ClaimSet
 	for i, cs := range claimSets {
 		if selected, ok := claimSetSelectors(cred, claimByID, cs); ok {
-			out = append(out, ConsentClaimSet{Index: i, Keys: selected, Claims: filterClaims(cred, selected)})
+			out = append(out, consent.ClaimSet{Index: i, Keys: selected, Claims: filterClaims(cred, selected)})
 		}
 	}
 	return out
@@ -1295,8 +1206,8 @@ func quotedSelectorSegment(s string) (string, int, bool) {
 // nothing may be returned: §6.4.2 requires a set to match "one of the options
 // inside the Credential Set Query", and a wallet that "cannot deliver all
 // non-optional Credentials [...] MUST NOT return any Credential(s)".
-func applyCredentialSets(matches []CredentialMatch, credSets []any, preferredFormat string) []CredentialMatch {
-	byQuery := make(map[string][]CredentialMatch)
+func applyCredentialSets(matches []consent.Match, credSets []any, preferredFormat string) []consent.Match {
+	byQuery := make(map[string][]consent.Match)
 	for _, m := range matches {
 		byQuery[m.QueryID] = append(byQuery[m.QueryID], m)
 	}
@@ -1341,7 +1252,7 @@ func applyCredentialSets(matches []CredentialMatch, credSets []any, preferredFor
 		return nil
 	}
 
-	var result []CredentialMatch
+	var result []consent.Match
 	for _, m := range matches {
 		if needed[m.QueryID] {
 			result = append(result, m)
@@ -1506,11 +1417,11 @@ func (w *Wallet) etsiTrustedListAnchors(taList []any) (map[string][]*x509.Certif
 }
 
 func (w *Wallet) issuanceAnchors(listURL string) ([]*x509.Certificate, error) {
-	list, err := w.readTrustedList(listURL)
+	list, err := w.TrustedLists().ReadList(listURL)
 	if err != nil {
 		return nil, err
 	}
-	certs, err := trustlist.Anchors(list, trustlist.IssuanceServices, time.Now())
+	certs, err := lote.Anchors(list, lote.IssuanceServices, time.Now())
 	if err != nil {
 		return nil, err
 	}
@@ -1532,7 +1443,7 @@ func credentialChainKey(cred StoredCredential, anchors []*x509.Certificate) (cry
 		if parseErr != nil {
 			return nil, fmt.Errorf("failed to parse SD-JWT: %w", parseErr)
 		}
-		if key, err = validate.ExtractAndValidateX5C(token.Header, trustlist.CertInfos(anchors)); err != nil {
+		if key, err = validate.ExtractAndValidateX5C(token.Header, lote.CertInfos(anchors)); err != nil {
 			return nil, fmt.Errorf("x5c chain validation failed: %w", err)
 		}
 	case credtype.FormatMDOC:
@@ -1540,7 +1451,7 @@ func credentialChainKey(cred StoredCredential, anchors []*x509.Certificate) (cry
 		if parseErr != nil {
 			return nil, fmt.Errorf("failed to parse mdoc: %w", parseErr)
 		}
-		if key, err = validate.ExtractAndValidateMDOCX5Chain(doc, trustlist.CertInfos(anchors)); err != nil {
+		if key, err = validate.ExtractAndValidateMDOCX5Chain(doc, lote.CertInfos(anchors)); err != nil {
 			return nil, fmt.Errorf("x5chain validation failed: %w", err)
 		}
 	default:

@@ -17,7 +17,9 @@
 package certchain
 
 import (
+	"bytes"
 	"crypto/x509"
+	"encoding/base64"
 	"errors"
 	"fmt"
 
@@ -156,4 +158,45 @@ func headerValue(h map[any]any, label int64) (any, bool) {
 		}
 	}
 	return nil, false
+}
+
+// OrganizationIdentifier returns the organizationIdentifier attribute (OID
+// 2.5.4.97) of the certificate's subject.
+func OrganizationIdentifier(cert *x509.Certificate) string {
+	for _, attribute := range cert.Subject.Names {
+		if attribute.Type.String() == "2.5.4.97" {
+			value, _ := attribute.Value.(string)
+			return value
+		}
+	}
+	return ""
+}
+
+// WithoutSelfSignedAnchor removes a terminal self-signed root certificate from
+// a chain for JOSE headers or JWK metadata.
+func WithoutSelfSignedAnchor(chain []*x509.Certificate) []*x509.Certificate {
+	if len(chain) == 0 {
+		return nil
+	}
+	out := make([]*x509.Certificate, len(chain))
+	copy(out, chain)
+	last := out[len(out)-1]
+	if bytes.Equal(last.RawSubject, last.RawIssuer) && last.CheckSignatureFrom(last) == nil {
+		return out[:len(out)-1]
+	}
+	return out
+}
+
+// X5C is the x5c header value of a chain: base64 DER certificates, leaf
+// first, without a self-signed anchor. A chain of only the anchor keeps it.
+func X5C(certs []*x509.Certificate) []string {
+	chain := WithoutSelfSignedAnchor(certs)
+	if len(chain) == 0 && len(certs) > 0 {
+		chain = certs
+	}
+	x5c := make([]string, 0, len(chain))
+	for _, cert := range chain {
+		x5c = append(x5c, base64.StdEncoding.EncodeToString(cert.Raw))
+	}
+	return x5c
 }

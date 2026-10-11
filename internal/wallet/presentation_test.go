@@ -24,11 +24,13 @@ import (
 
 	"github.com/fxamacker/cbor/v2"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jwe"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
 )
 
@@ -73,9 +75,9 @@ func TestEncryptResponse_DirectPostJWTPayloadIncludesStateAsTopLevelMember(t *te
 		t.Fatalf("EncryptResponse error: %v", err)
 	}
 
-	plaintext, err := DecryptRequestObjectJWE(jweStr, key)
+	plaintext, err := oid4vp.DecryptRequestObjectJWE(jweStr, key)
 	if err != nil {
-		t.Fatalf("DecryptRequestObjectJWE error: %v", err)
+		t.Fatalf("oid4vp.DecryptRequestObjectJWE error: %v", err)
 	}
 
 	var payload map[string]any
@@ -129,9 +131,9 @@ func TestEncryptErrorResponse_DirectPostJWTPayloadIncludesStateAsTopLevelMember(
 		t.Fatalf("EncryptErrorResponse error: %v", err)
 	}
 
-	plaintext, err := DecryptRequestObjectJWE(jweStr, key)
+	plaintext, err := oid4vp.DecryptRequestObjectJWE(jweStr, key)
 	if err != nil {
-		t.Fatalf("DecryptRequestObjectJWE error: %v", err)
+		t.Fatalf("oid4vp.DecryptRequestObjectJWE error: %v", err)
 	}
 
 	var payload map[string]any
@@ -234,7 +236,7 @@ func TestCreateVPToken_SDJWT(t *testing.T) {
 		t.Fatal("no SD-JWT credential found")
 	}
 
-	match := CredentialMatch{
+	match := consent.Match{
 		QueryID:      "test_query",
 		CredentialID: sdCred.ID,
 		Format:       "dc+sd-jwt",
@@ -301,7 +303,7 @@ func TestCreateVPToken_SDJWTNoDisclosuresParses(t *testing.T) {
 		t.Fatal("no SD-JWT credential found")
 	}
 
-	result, err := w.CreateVPToken(CredentialMatch{
+	result, err := w.CreateVPToken(consent.Match{
 		QueryID:      "pid",
 		CredentialID: sdCred.ID,
 		Format:       "dc+sd-jwt",
@@ -344,7 +346,7 @@ func TestCreateVPToken_SDJWTBrowserAPIUsesOriginAudience(t *testing.T) {
 		t.Fatal("no SD-JWT credential found")
 	}
 
-	result, err := w.CreateVPToken(CredentialMatch{
+	result, err := w.CreateVPToken(consent.Match{
 		QueryID:      "pid",
 		CredentialID: sdCred.ID,
 		Format:       "dc+sd-jwt",
@@ -383,7 +385,7 @@ func TestCreateVPToken_SDJWT_SelectiveDisclosure(t *testing.T) {
 		}
 	}
 
-	match := CredentialMatch{
+	match := consent.Match{
 		QueryID:      "test",
 		CredentialID: sdCred.ID,
 		Format:       "dc+sd-jwt",
@@ -429,7 +431,7 @@ func TestCreateVPToken_SDJWT_NestedSelectiveDisclosure(t *testing.T) {
 		t.Fatal("no SD-JWT credential found")
 	}
 
-	match := CredentialMatch{
+	match := consent.Match{
 		QueryID:      "test",
 		CredentialID: sdCred.ID,
 		Format:       "dc+sd-jwt",
@@ -513,7 +515,7 @@ func TestCreateVPToken_PlainJWT(t *testing.T) {
 	}
 
 	cred := w.GetCredentials()[0]
-	match := CredentialMatch{
+	match := consent.Match{
 		QueryID:      "test",
 		CredentialID: cred.ID,
 		Format:       "jwt_vc_json",
@@ -563,7 +565,7 @@ func TestCreateVPToken_MDoc(t *testing.T) {
 		}
 	}
 
-	match := CredentialMatch{
+	match := consent.Match{
 		QueryID:      "mdoc_query",
 		CredentialID: mdocCred.ID,
 		Format:       "mso_mdoc",
@@ -598,7 +600,7 @@ func TestCreateVPToken_MDocUsesTaggedDeviceNamespaces(t *testing.T) {
 		t.Fatal("no mdoc credential found")
 	}
 
-	match := CredentialMatch{
+	match := consent.Match{
 		QueryID:      "pid",
 		CredentialID: mdocCred.ID,
 		Format:       "mso_mdoc",
@@ -673,7 +675,7 @@ func TestCreateVPToken_MDocUsesTaggedDeviceNamespaces(t *testing.T) {
 func TestCreateVPToken_CredentialNotFound(t *testing.T) {
 	w := generateTestWallet(t)
 
-	match := CredentialMatch{
+	match := consent.Match{
 		QueryID:      "test",
 		CredentialID: "nonexistent",
 		Format:       "dc+sd-jwt",
@@ -689,7 +691,7 @@ func TestCreateVPTokenMap(t *testing.T) {
 	w := generateTestWalletWithPID(t)
 
 	creds := w.GetCredentials()
-	var matches []CredentialMatch
+	var matches []consent.Match
 	for _, c := range creds {
 		keys := make([]string, 0, 2)
 		i := 0
@@ -700,7 +702,7 @@ func TestCreateVPTokenMap(t *testing.T) {
 				break
 			}
 		}
-		matches = append(matches, CredentialMatch{
+		matches = append(matches, consent.Match{
 			QueryID:      "q_" + c.Format,
 			CredentialID: c.ID,
 			Format:       c.Format,
@@ -885,7 +887,7 @@ func TestCreateVPToken_ImportedSDJWT_PreservesDisclosures(t *testing.T) {
 	w.Credentials[0] = cred
 	w.mu.Unlock()
 
-	match := CredentialMatch{
+	match := consent.Match{
 		QueryID:      "test",
 		CredentialID: cred.ID,
 		Format:       "dc+sd-jwt",
@@ -1120,7 +1122,7 @@ func TestCreateVPToken_SDJWT_SurvivesPersistReload(t *testing.T) {
 	}
 	w.mu.Unlock()
 
-	match := CredentialMatch{
+	match := consent.Match{
 		QueryID:      "test",
 		CredentialID: sdCred.ID,
 		Format:       "dc+sd-jwt",

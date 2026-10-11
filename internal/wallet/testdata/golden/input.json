@@ -1,0 +1,94 @@
+{
+  "credentials": [
+    {
+      "id": "cred-1",
+      "format": "jwt_vc_json",
+      "raw": "eyJhbGciOiJFUzI1NiJ9.eyJpYXQiOjE3MDAwMDAwMDB9.c2ln",
+      "claims": {"given_name": "Erika", "address": {"locality": "Berlin"}},
+      "vct": "urn:example:golden",
+      "protected": true,
+      "renewal": {
+        "issuer": "https://issuer.example",
+        "token_endpoint": "https://issuer.example/token",
+        "credential_endpoint": "https://issuer.example/credential",
+        "credential_configuration_id": "golden",
+        "client_id": "wallet-client",
+        "refresh_token": "refresh",
+        "use_dpop": true,
+        "client_auth": {
+          "method": "attestation",
+          "audience": "https://issuer.example",
+          "challenge_endpoint": "https://issuer.example/challenge",
+          "abca_draft": 10,
+          "combined_pop": true
+        }
+      },
+      "display": {"name": "Golden", "description": "A golden credential", "locale": "en", "background_color": "#123456", "text_color": "#ffffff"},
+      "batch_group": "batch-1",
+      "uses": 2,
+      "last_presented_at": "2026-01-02T03:04:05Z"
+    },
+    {
+      "id": "cred-2",
+      "format": "jwt_vc_json",
+      "raw": "eyJhbGciOiJFUzI1NiJ9.eyJpYXQiOjE3MDAwMDAwMDF9.c2ln",
+      "claims": {"family_name": "Mustermann"},
+      "doctype": "org.example.golden"
+    }
+  ],
+  "issued_attestations": [
+    {"format": "dc+sd-jwt", "vct": "urn:example:golden", "category": "eaa"},
+    {"format": "mso_mdoc", "doctype": "org.example.golden", "category": "pid", "entitlements": ["https://example.org/entitlement"]},
+    {"format": "dc+sd-jwt", "vct": "urn:example:custom", "trust_list_type": "https://example.org/LoTEType/custom", "entity_name": "Custom Provider", "scheme_territory": "DE"}
+  ],
+  "relying_parties": [
+    {
+      "identifier": [{"identifier": "rp-1", "type": "http://data.europa.eu/eudi/id/EUID"}],
+      "legalPerson": {"legalName": ["Golden RP"]},
+      "country": "NL",
+      "isPSB": false,
+      "supervisoryAuthority": {"name": "DPA", "country": "NL", "email": ["dpa@example.org"]},
+      "registryURI": "https://registrar.example/rp-1",
+      "services": [{"serviceTradeName": "Golden Service", "serviceIdentifier": "svc-1", "entitlements": ["https://example.org/entitlement"], "isIntermediary": false}]
+    }
+  ],
+  "registration_statuses": [{"index": 3, "identifier": "rp-1", "intendedUse": "use-1", "service": "svc-1", "revoked": true}],
+  "catalog": [
+    {
+      "name": "Golden Attestation",
+      "credentials": [{"format": "dc+sd-jwt", "type": "urn:example:golden"}],
+      "schema": {"id": "golden-schema", "version": "1", "rulebookURI": "https://example.org/rulebook", "attestationLoS": "iso_18045_basic", "bindingType": "key", "supportedFormats": ["dc+sd-jwt"], "schemaURIs": []},
+      "category": "eaa"
+    }
+  ],
+  "trusted_entities": [{"id": "0011223344556677", "list": "pid", "name": "Golden Provider", "certificates": ["AAEC"]}],
+  "trusted_lists": ["https://lists.example/pid", "https://lists.example/eaa"],
+  "log": [
+    {"time": "2026-01-02T03:04:05Z", "action": "present", "detail": "presented", "success": true, "severity": "warning", "details": {"verifier": "https://verifier.example"}, "payload": {"label": "VP token", "body": {"vp_token": "x"}, "encrypted": true, "wire": "abc"}},
+    {"time": "2026-01-02T03:04:06Z", "action": "issue", "detail": "issued", "success": false}
+  ],
+  "deferred_issuances": [
+    {
+      "id": "deferred-1",
+      "transaction_id": "tx-1",
+      "deferred_endpoint": "https://issuer.example/deferred",
+      "issuer": "https://issuer.example",
+      "token_endpoint": "https://issuer.example/token",
+      "credential_endpoint": "https://issuer.example/credential",
+      "refresh_token": "refresh",
+      "format": "dc+sd-jwt",
+      "vct": "urn:example:golden",
+      "access_token": "access",
+      "auth_scheme": "DPoP",
+      "access_token_expires_at": "2026-01-02T04:04:05Z",
+      "interval_seconds": 5,
+      "created_at": "2026-01-02T03:04:05Z",
+      "next_attempt_at": "2026-01-02T03:04:10Z",
+      "attempts": 1
+    }
+  ],
+  "status_entries": {"cred-1": {"index": 1, "status": 1}, "cred-2": {"index": 2, "status": 0}},
+  "status_list_counter": 5,
+  "base_url": "https://wallet.example",
+  "issuer_url": "https://issuer.example"
+}

@@ -17,11 +17,12 @@ package wallet
 import (
 	"crypto/tls"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 )
 
 type caller struct {
@@ -51,8 +52,8 @@ func listRequestsAs(t *testing.T, srv *Server, who caller) []map[string]any {
 	return docs
 }
 
-func pendingPresentation(owner string) *ConsentRequest {
-	return &ConsentRequest{
+func pendingPresentation(owner string) *consent.Request {
+	return &consent.Request{
 		ID:       newConsentID(),
 		Type:     "presentation",
 		Owner:    owner,
@@ -64,7 +65,7 @@ func pendingPresentation(owner string) *ConsentRequest {
 func TestPendingRequests_ReachTheBrowserThatStartedThem(t *testing.T) {
 	w := generateTestWallet(t)
 	srv := NewServer(w, 0, nil)
-	w.CreateConsentRequest(pendingPresentation("browser-a"))
+	w.Consents().Create(pendingPresentation("browser-a"))
 
 	forA := listRequestsAs(t, srv, caller{cookie: "browser-a"})
 	if len(forA) != 1 || forA[0]["mine"] != true {
@@ -78,7 +79,7 @@ func TestPendingRequests_ReachTheBrowserThatStartedThem(t *testing.T) {
 func TestPendingRequests_ClientNamingTheBrowserItActsFor(t *testing.T) {
 	w := generateTestWallet(t)
 	srv := NewServer(w, 0, nil)
-	w.CreateConsentRequest(pendingPresentation("dispatch-nonce"))
+	w.Consents().Create(pendingPresentation("dispatch-nonce"))
 
 	// The opened page has the client's browser ID as well as its own session cookie.
 	page := listRequestsAs(t, srv, caller{cookie: "browser-a", owner: "dispatch-nonce"})
@@ -95,7 +96,7 @@ func TestPendingRequests_ClientNamingTheBrowserItActsFor(t *testing.T) {
 func TestPendingRequests_UnownedStayVisible(t *testing.T) {
 	w := generateTestWallet(t)
 	srv := NewServer(w, 0, nil)
-	w.CreateConsentRequest(pendingPresentation(""))
+	w.Consents().Create(pendingPresentation(""))
 
 	for _, who := range []struct {
 		name string
@@ -337,7 +338,7 @@ func TestBackwardsCompatibility_ClientsThatNameNoBrowser(t *testing.T) {
 		if owner := requestOwner(submission); owner != "" {
 			t.Errorf("%s: owner = %q, want none", client.name, owner)
 		}
-		w.CreateConsentRequest(pendingPresentation(requestOwner(submission)))
+		w.Consents().Create(pendingPresentation(requestOwner(submission)))
 	}
 
 	for _, who := range []struct {
@@ -368,7 +369,7 @@ func TestBackwardsCompatibility_OlderClientIsToldToUpgrade(t *testing.T) {
 		t.Errorf("the notice does not say how to fix it: %s", entry.Detail)
 	}
 
-	w.CreateConsentRequest(pendingPresentation(""))
+	w.Consents().Create(pendingPresentation(""))
 	if got := len(listRequestsAs(t, srv, caller{})); got != 1 {
 		t.Errorf("the submitted request is listed %d times, want 1", got)
 	}
@@ -385,7 +386,7 @@ func TestBackwardsCompatibility_CurrentClientNamesThePageItOpened(t *testing.T) 
 	if owner != "dispatch-nonce" {
 		t.Fatalf("owner = %q, want the page the client named", owner)
 	}
-	w.CreateConsentRequest(pendingPresentation(owner))
+	w.Consents().Create(pendingPresentation(owner))
 
 	if got := listRequestsAs(t, srv, caller{cookie: "browser-a", owner: "dispatch-nonce"}); len(got) != 1 {
 		t.Errorf("the page the client opened sees %d requests, want 1", len(got))
@@ -426,9 +427,9 @@ func TestAnswerBelongsToTheBrowserThatWasAsked(t *testing.T) {
 		w := generateTestWallet(t)
 		srv := NewServer(w, 0, nil)
 		req := pendingPresentation("browser-a")
-		req.ResultCh = make(chan ConsentResult, 1)
-		req.SubmissionCh = make(chan SubmissionResult, 1)
-		w.CreateConsentRequest(req)
+		req.ResultCh = make(chan consent.Result, 1)
+		req.SubmissionCh = make(chan consent.SubmissionResult, 1)
+		w.Consents().Create(req)
 
 		stranger := httptest.NewRequest(http.MethodPost, "/api/requests/"+req.ID+"/"+action, strings.NewReader("{}"))
 		stranger.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "browser-b"})
@@ -438,7 +439,7 @@ func TestAnswerBelongsToTheBrowserThatWasAsked(t *testing.T) {
 		if rec.Code != http.StatusNotFound {
 			t.Errorf("%s by another browser: %d, want 404", action, rec.Code)
 		}
-		if got, _ := w.GetRequest(req.ID); got != nil && got.Status != "pending" {
+		if got, _ := w.Consents().Get(req.ID); got != nil && got.Status != "pending" {
 			t.Errorf("%s by another browser resolved the request as %q", action, got.Status)
 		}
 	}
@@ -448,9 +449,9 @@ func TestUnownedRequestStaysAnswerable(t *testing.T) {
 	w := generateTestWallet(t)
 	srv := NewServer(w, 0, nil)
 	req := pendingPresentation("")
-	req.ResultCh = make(chan ConsentResult, 1)
-	req.SubmissionCh = make(chan SubmissionResult, 1)
-	w.CreateConsentRequest(req)
+	req.ResultCh = make(chan consent.Result, 1)
+	req.SubmissionCh = make(chan consent.SubmissionResult, 1)
+	w.Consents().Create(req)
 
 	deny := httptest.NewRequest(http.MethodPost, "/api/requests/"+req.ID+"/deny", strings.NewReader("{}"))
 	rec := httptest.NewRecorder()
@@ -469,7 +470,7 @@ func TestRedirectedBrowserReachesItsRequest(t *testing.T) {
 	w := generateTestWallet(t)
 	srv := NewServer(w, 0, nil)
 	req := pendingPresentation("a-session-this-browser-never-kept")
-	w.CreateConsentRequest(req)
+	w.Consents().Create(req)
 
 	if got := listRequestsAs(t, srv, caller{}); len(got) != 0 {
 		t.Fatalf("a caller naming nothing sees %d requests, want none", len(got))
@@ -487,7 +488,7 @@ func TestRedirectedBrowserReachesItsRequest(t *testing.T) {
 	}
 
 	other := pendingPresentation("another-browser")
-	w.CreateConsentRequest(other)
+	w.Consents().Create(other)
 	guess := httptest.NewRequest(http.MethodGet, "/api/requests?request=not-an-id", nil)
 	rec = httptest.NewRecorder()
 	srv.handleListRequests(rec, guess)
@@ -509,15 +510,15 @@ func TestUIRequestNamesTheRequestItIsFor(t *testing.T) {
 	srv.SetOnUIRequest(func(requestID string) { announced = append(announced, requestID) })
 
 	srv.triggerUIRequest("request-a")
-	_, unsubscribe := w.Subscribe()
+	_, unsubscribe := w.Consents().Subscribe()
 	defer unsubscribe()
 	srv.triggerUIRequest("request-b")
 
 	if len(announced) != 2 || announced[0] != "request-a" || announced[1] != "request-b" {
 		t.Errorf("announced %v, want both requests named", announced)
 	}
-	if w.AttachedUIs() != 1 {
-		t.Errorf("attached UIs = %d, want the watching tab counted", w.AttachedUIs())
+	if w.Consents().AttachedUIs() != 1 {
+		t.Errorf("attached UIs = %d, want the watching tab counted", w.Consents().AttachedUIs())
 	}
 }
 
@@ -525,7 +526,7 @@ func TestUIRequestNamesTheRequestItIsFor(t *testing.T) {
 func TestOwnerNeverLeavesTheServer(t *testing.T) {
 	w := generateTestWallet(t)
 	srv := NewServer(w, 0, nil)
-	w.CreateConsentRequest(pendingPresentation("browser-a"))
+	w.Consents().Create(pendingPresentation("browser-a"))
 
 	docs := listRequestsAs(t, srv, caller{cookie: "browser-a"})
 	if len(docs) != 1 {
@@ -542,49 +543,32 @@ func TestOwnerNeverLeavesTheServer(t *testing.T) {
 
 func TestLastErrorReachesTheFlowItBelongsTo(t *testing.T) {
 	w := generateTestWallet(t)
-	w.NotifyError(WalletError{Message: "A's flow", Owner: "browser-a"})
+	w.Consents().NotifyError(consent.Error{Message: "A's flow", Owner: "browser-a"})
 
-	if got := w.PeekLastError([]string{"browser-a"}); got == nil || got.Message != "A's flow" {
+	if got := w.Consents().PeekLastError([]string{"browser-a"}); got == nil || got.Message != "A's flow" {
 		t.Errorf("the browser whose flow failed reads %v, want its own error", got)
 	}
-	if got := w.PeekLastError([]string{"browser-b"}); got != nil {
+	if got := w.Consents().PeekLastError([]string{"browser-b"}); got != nil {
 		t.Errorf("another browser reads %v, want nothing", got)
 	}
 
-	w.NotifyError(WalletError{Message: "a client with no browser"})
+	w.Consents().NotifyError(consent.Error{Message: "a client with no browser"})
 	for _, owners := range [][]string{nil, {"browser-b"}} {
-		if got := w.PeekLastError(owners); got == nil || got.Message != "a client with no browser" {
+		if got := w.Consents().PeekLastError(owners); got == nil || got.Message != "a client with no browser" {
 			t.Errorf("caller %v reads %v, want the unowned error", owners, got)
 		}
 	}
 
 	// Clear every error the caller can read, including unowned errors. Otherwise
 	// dismissed errors would return after reloading.
-	w.ClearLastError([]string{"browser-b"})
+	w.Consents().ClearLastError([]string{"browser-b"})
 	for _, owners := range [][]string{nil, {"browser-b"}} {
-		if got := w.PeekLastError(owners); got != nil {
+		if got := w.Consents().PeekLastError(owners); got != nil {
 			t.Errorf("caller %v still reads %v after dismissing it", owners, got)
 		}
 	}
-	if got := w.PeekLastError([]string{"browser-a"}); got == nil {
+	if got := w.Consents().PeekLastError([]string{"browser-a"}); got == nil {
 		t.Error("dismissing one browser's error dropped another's")
-	}
-}
-
-// Caller-selected keys must not allow the error map to grow without limit.
-func TestStoredErrorsStayBounded(t *testing.T) {
-	w := generateTestWallet(t)
-	// Include the unowned slot when testing eviction.
-	w.NotifyError(WalletError{Message: "a client with no browser"})
-	for i := 0; i < maxStoredErrors*3; i++ {
-		w.NotifyError(WalletError{Message: "failed", Owner: fmt.Sprintf("browser-%d", i)})
-	}
-	rt := w.runtimeState()
-	rt.mu.RLock()
-	held := len(rt.lastErrors)
-	rt.mu.RUnlock()
-	if held > maxStoredErrors {
-		t.Errorf("holding %d errors, want at most %d", held, maxStoredErrors)
 	}
 }
 
@@ -609,14 +593,14 @@ func TestALateAnswerIsToldWhichHappened(t *testing.T) {
 	for _, tc := range []struct {
 		name, resolveAs, want string
 	}{
-		{"expired", statusExpired, "This request timed out before it was answered"},
+		{"expired", consent.StatusExpired, "This request timed out before it was answered"},
 		{"answered", "denied", "This request was already answered"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			req := pendingPresentation("browser-a")
 			req.ID = "late-" + tc.name
-			w.CreateConsentRequest(req)
-			if _, ok := w.ResolveRequest(req.ID, tc.resolveAs); !ok {
+			w.Consents().Create(req)
+			if _, ok := w.Consents().Resolve(req.ID, tc.resolveAs); !ok {
 				t.Fatalf("resolving as %s", tc.resolveAs)
 			}
 

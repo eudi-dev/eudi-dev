@@ -26,9 +26,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/dcql"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 )
 
 func captureTestLogs(t *testing.T) *bytes.Buffer {
@@ -48,7 +53,7 @@ func captureTestLogs(t *testing.T) *bytes.Buffer {
 	return &buf
 }
 
-func evaluateDCQL(t testing.TB, w *Wallet, query map[string]any) []CredentialMatch {
+func evaluateDCQL(t testing.TB, w *Wallet, query map[string]any) []consent.Match {
 	t.Helper()
 	matches, err := w.EvaluateDCQL(query)
 	if err != nil {
@@ -57,7 +62,7 @@ func evaluateDCQL(t testing.TB, w *Wallet, query map[string]any) []CredentialMat
 	return matches
 }
 
-func evaluateDCQLWithOptions(t testing.TB, w *Wallet, query map[string]any) ([]CredentialMatch, *ConsentCredentialOptions) {
+func evaluateDCQLWithOptions(t testing.TB, w *Wallet, query map[string]any) ([]consent.Match, *consent.CredentialOptions) {
 	t.Helper()
 	matches, options, err := w.EvaluateDCQLWithOptions(query)
 	if err != nil {
@@ -893,7 +898,7 @@ func etsiTLQuery(listURLs ...any) map[string]any {
 // trusts its operator. It lists anchor as the issuance service.
 func walletSignedList(t *testing.T, w *Wallet, anchor *x509.Certificate) string {
 	t.Helper()
-	list, err := generateTrustListJWTWithOptions(w.CAKey, w.CertChain[len(w.CertChain)-1], trustListOptions{
+	list, err := provider.SignTrustList(w.CAKey, w.CertChain[len(w.CertChain)-1], lote.Options{
 		IssuanceCertificates: []string{base64.StdEncoding.EncodeToString(anchor.Raw)},
 	})
 	if err != nil {
@@ -931,7 +936,7 @@ func TestEvaluateDCQL_TrustedAuthorities_WalletOwnList(t *testing.T) {
 	w := generateTestWalletWithPID(t)
 	w.ValidationMode = ValidationModeStrict
 
-	if matches := evaluateDCQL(t, w, etsiTLQuery(w.ownTrustListURL("pid"))); len(matches) != 1 || matches[0].UntrustedAuthority {
+	if matches := evaluateDCQL(t, w, etsiTLQuery(w.TrustedLists().OwnListURL("pid"))); len(matches) != 1 || matches[0].UntrustedAuthority {
 		t.Fatalf("want the PID anchored by the wallet's own PID list, got %+v", matches)
 	}
 }
@@ -957,7 +962,7 @@ func TestEvaluateDCQL_TrustedAuthorities_UnusableList(t *testing.T) {
 
 			w.ValidationMode = ValidationModeStrict
 			_, err := w.EvaluateDCQL(query)
-			if err == nil || authorizationErrorCode(err) != errorCodeAccessDenied || !strings.Contains(err.Error(), listURL) {
+			if err == nil || oid4vp.ErrorCode(err) != oid4vp.ErrorAccessDenied || !strings.Contains(err.Error(), listURL) {
 				t.Fatalf("strict mode: want access_denied naming %s, got %v", listURL, err)
 			}
 
@@ -1267,7 +1272,7 @@ func TestEvaluateDCQL_PreferredFormatSortIsStable(t *testing.T) {
 	w := generateTestWallet(t)
 	w.PreferredFormat = "dc+sd-jwt"
 
-	matches := []CredentialMatch{
+	matches := []consent.Match{
 		{QueryID: "q", Format: "mso_mdoc", CredentialID: "m1"},
 		{QueryID: "q", Format: "dc+sd-jwt", CredentialID: "s1"},
 		{QueryID: "q", Format: "mso_mdoc", CredentialID: "m2"},
@@ -1460,7 +1465,7 @@ func TestEvaluateDCQL_HolderBinding(t *testing.T) {
 func TestDCQLHolderBindingFlagMustBeBoolean(t *testing.T) {
 	query := sdjwtVCTQuery("urn:example:bearer")
 	query["credentials"].([]any)[0].(map[string]any)["require_cryptographic_holder_binding"] = "false"
-	if findings := DCQLQueryFindings(query); len(findings) != 1 || !strings.Contains(findings[0], "require_cryptographic_holder_binding that is not a boolean") {
+	if findings := dcql.QueryFindings(query); len(findings) != 1 || !strings.Contains(findings[0], "require_cryptographic_holder_binding that is not a boolean") {
 		t.Fatalf("findings = %v", findings)
 	}
 }
@@ -1519,8 +1524,8 @@ func TestPresentingAnUnboundCredentialLeavesAWarning(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	match := CredentialMatch{QueryID: "q", CredentialID: issued.Credential.ID, Format: "dc+sd-jwt", VCT: "urn:example:bearer", Unbound: true}
-	if _, err := w.CreateVPTokenMap([]CredentialMatch{match}, PresentationParams{Nonce: "n", ClientID: "x509_hash:abc", ResponseMode: "direct_post"}); err != nil {
+	match := consent.Match{QueryID: "q", CredentialID: issued.Credential.ID, Format: "dc+sd-jwt", VCT: "urn:example:bearer", Unbound: true}
+	if _, err := w.CreateVPTokenMap([]consent.Match{match}, PresentationParams{Nonce: "n", ClientID: "x509_hash:abc", ResponseMode: "direct_post"}); err != nil {
 		t.Fatal(err)
 	}
 	if !hasWarningContaining(w, "no holder binding") {

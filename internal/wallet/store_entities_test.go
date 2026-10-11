@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/storage"
 )
 
@@ -71,7 +72,7 @@ func TestEntities_RoundTrip(t *testing.T) {
 	first := importTestCredential(t, w, "First")
 	second := importTestCredential(t, w, "Second")
 	for _, vct := range []string{"First", "Second"} {
-		if err := w.RegisterIssuedAttestation(IssuedAttestationSpec{Format: "dc+sd-jwt", VCT: vct}); err != nil {
+		if err := w.RegisterIssuedAttestation(provider.IssuedAttestationSpec{Format: "dc+sd-jwt", VCT: vct}); err != nil {
 			t.Fatal(err)
 		}
 	}

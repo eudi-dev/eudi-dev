@@ -24,6 +24,7 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
 // An empty mdocNonce makes this document generate the nonce for its response.
@@ -85,11 +86,11 @@ func (w *Wallet) createMDocPresentation(cred StoredCredential, selectedKeys []st
 
 	mode := w.sessionTranscriptFor(params)
 	if mode == "" {
-		mode = SessionTranscriptOID4VP
+		mode = oid4vp.SessionTranscriptOID4VP
 	}
 
 	switch {
-	case mode != SessionTranscriptISO:
+	case mode != oid4vp.SessionTranscriptISO:
 		// Only the ISO transcript uses the generated nonce.
 		mdocNonce = ""
 	case mdocNonce == "":
@@ -163,19 +164,19 @@ func (w *Wallet) buildSessionTranscript(params PresentationParams, mdocNonce str
 	// of the configured transcript mode (OpenID4VCI 1.1 Appendix A.2.5).
 	// A.2.5: "If the Response Mode is ia_post, the third element MUST be
 	// null". handoverJWKThumbprint gives null for every unencrypted mode.
-	if isInteractiveAuthorizationResponseMode(params.ResponseMode) {
+	if oid4vp.IsInteractiveAuthorizationResponseMode(params.ResponseMode) {
 		return mdoc.OID4VCIIAESessionTranscript(params.InteractiveAuthorizationEndpoint, params.Nonce, jwkThumbprint)
 	}
 
 	mode := w.sessionTranscriptFor(params)
 	if mode == "" {
-		mode = SessionTranscriptOID4VP
+		mode = oid4vp.SessionTranscriptOID4VP
 	}
 
 	switch mode {
-	case SessionTranscriptISO:
+	case oid4vp.SessionTranscriptISO:
 		return mdoc.ISOSessionTranscript(params.ClientID, params.ResponseURI, params.Nonce, mdocNonce)
-	case SessionTranscriptOID4VP:
+	case oid4vp.SessionTranscriptOID4VP:
 		if params.ResponseMode == "dc_api" || params.ResponseMode == "dc_api.jwt" {
 			return mdoc.OID4VPDCAPISessionTranscript(params.RequestOrigin, params.Nonce, jwkThumbprint)
 		}

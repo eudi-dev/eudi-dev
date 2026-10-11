@@ -26,8 +26,8 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/trustlist"
 )
 
 func CanResolveJWTIssuerMetadata(token *sdjwt.Token) bool {
@@ -53,7 +53,7 @@ func CanResolveJWTIssuerMetadata(token *sdjwt.Token) bool {
 // RECOMMENDED that the Issuer-signed JWT contains a kid JWT header parameter
 // that can be used to look up the public key in the JWK Set". A kid selects
 // its key. Without one, every key of the set is a candidate.
-func ResolveJWTIssuerMetadataKeys(token *sdjwt.Token, tlCerts []trustlist.CertInfo, clients ...*http.Client) ([]crypto.PublicKey, string, error) {
+func ResolveJWTIssuerMetadataKeys(token *sdjwt.Token, tlCerts []lote.CertInfo, clients ...*http.Client) ([]crypto.PublicKey, string, error) {
 	if !CanResolveJWTIssuerMetadata(token) {
 		return nil, "", nil
 	}
@@ -133,7 +133,7 @@ func jwkPublicKey(jwk map[string]any) (crypto.PublicKey, error) {
 
 // verifyWithIssuerMetadata verifies the token with the first metadata key
 // that matches its signature.
-func verifyWithIssuerMetadata(token *sdjwt.Token, tlCerts []trustlist.CertInfo, clients ...*http.Client) (*sdjwt.VerifyResult, string, error) {
+func verifyWithIssuerMetadata(token *sdjwt.Token, tlCerts []lote.CertInfo, clients ...*http.Client) (*sdjwt.VerifyResult, string, error) {
 	keys, source, err := ResolveJWTIssuerMetadataKeys(token, tlCerts, clients...)
 	if err != nil || len(keys) == 0 {
 		return nil, "", err
@@ -171,17 +171,17 @@ const (
 // whole trust, so a key that fails is not replaced by a metadata key. The leaf
 // step keeps validation offline for credentials that carry their issuer
 // certificate.
-func VerifyJWTSignature(token *sdjwt.Token, pubKeys []crypto.PublicKey, tlCerts []trustlist.CertInfo, clients ...*http.Client) (*sdjwt.VerifyResult, string, error) {
+func VerifyJWTSignature(token *sdjwt.Token, pubKeys []crypto.PublicKey, tlCerts []lote.CertInfo, clients ...*http.Client) (*sdjwt.VerifyResult, string, error) {
 	return verifyJWTSignature(token, pubKeys, tlCerts, true, clients...)
 }
 
 // VerifyJWTSignatureOffline uses only supplied keys and certificates. This path must
 // complete without network access.
-func VerifyJWTSignatureOffline(token *sdjwt.Token, pubKeys []crypto.PublicKey, tlCerts []trustlist.CertInfo) (*sdjwt.VerifyResult, string, error) {
+func VerifyJWTSignatureOffline(token *sdjwt.Token, pubKeys []crypto.PublicKey, tlCerts []lote.CertInfo) (*sdjwt.VerifyResult, string, error) {
 	return verifyJWTSignature(token, pubKeys, tlCerts, false)
 }
 
-func verifyJWTSignature(token *sdjwt.Token, pubKeys []crypto.PublicKey, tlCerts []trustlist.CertInfo, resolveIssuerMetadata bool, clients ...*http.Client) (*sdjwt.VerifyResult, string, error) {
+func verifyJWTSignature(token *sdjwt.Token, pubKeys []crypto.PublicKey, tlCerts []lote.CertInfo, resolveIssuerMetadata bool, clients ...*http.Client) (*sdjwt.VerifyResult, string, error) {
 	if token == nil {
 		return nil, "", fmt.Errorf("token is nil")
 	}
@@ -365,7 +365,7 @@ func findIssuerMetadataJWKs(doc map[string]any, kid string, clients ...*http.Cli
 	return found, nil
 }
 
-func extractAndValidateJWKX5C(jwk map[string]any, tlCerts []trustlist.CertInfo) (crypto.PublicKey, error) {
+func extractAndValidateJWKX5C(jwk map[string]any, tlCerts []lote.CertInfo) (crypto.PublicKey, error) {
 	if len(tlCerts) == 0 {
 		return nil, nil
 	}

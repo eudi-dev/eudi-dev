@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
 // deferringIssuer answers HTTP 202 with transaction_id and interval while the
@@ -466,7 +467,7 @@ func TestDeferredCredentialRequestIsEncryptedWhenTheIssuerRequiresIt(t *testing.
 		case strings.HasSuffix(r.URL.Path, "/deferred"):
 			contentType = r.Header.Get("Content-Type")
 			body, _ := io.ReadAll(r.Body)
-			decrypted, err := DecryptCompactJWE(strings.TrimSpace(string(body)), issuerKey)
+			decrypted, err := oid4vp.DecryptCompactJWE(strings.TrimSpace(string(body)), issuerKey)
 			if err != nil {
 				rw.WriteHeader(http.StatusBadRequest)
 				_ = json.NewEncoder(rw).Encode(map[string]any{"error": "invalid_encryption_parameters"})

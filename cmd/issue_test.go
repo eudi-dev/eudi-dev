@@ -28,9 +28,10 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/trustlist"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/validate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
 )
@@ -315,7 +316,7 @@ func TestBuildIssueAttestationSpec_CategoryDefaults(t *testing.T) {
 
 	spec := issueTrustSpecFromFlags()
 	spec.Format, spec.VCT = "dc+sd-jwt", "urn:test:employee:1"
-	spec, err := wallet.NormalizeIssuedAttestationSpec(spec, issueCategory)
+	spec, err := provider.NormalizeIssuedAttestationSpec(spec, issueCategory)
 	if err != nil {
 		t.Fatalf("NormalizeIssuedAttestationSpec: %v", err)
 	}
@@ -342,7 +343,7 @@ func TestBuildIssueAttestationSpec_RespectsExplicitOverrides(t *testing.T) {
 
 	spec := issueTrustSpecFromFlags()
 	spec.Format, spec.DocType = "mso_mdoc", "org.iso.23220.photoid.1"
-	spec, err := wallet.NormalizeIssuedAttestationSpec(spec, issueCategory)
+	spec, err := provider.NormalizeIssuedAttestationSpec(spec, issueCategory)
 	if err != nil {
 		t.Fatalf("NormalizeIssuedAttestationSpec: %v", err)
 	}
@@ -518,17 +519,17 @@ func TestIssueSDJWTToWallet_UsesWalletIssuerContext(t *testing.T) {
 		t.Fatalf("expected status list uri %s/api/statuslist, got %v", wantIssuer, got)
 	}
 
-	group, ok := wallet.FindTrustListGroupForWallet(w, "eaa", "", "")
+	group, ok := w.TrustedLists().FindGroup("eaa", "", "")
 	if !ok {
 		t.Fatal("no eaa trusted list")
 	}
-	tlJWT, err := wallet.GenerateTrustListJWTForWalletGroup(w, w.IssuerURL, group, "/api/trustlists/eaa")
+	tlJWT, err := w.TrustedLists().SignedGroupList(w.IssuerURL, group, "/api/trustlists/eaa")
 	if err != nil {
-		t.Fatalf("GenerateTrustListJWTForWalletGroup: %v", err)
+		t.Fatalf("SignedGroupList: %v", err)
 	}
-	tl, err := trustlist.Parse(tlJWT)
+	tl, err := lote.Parse(tlJWT)
 	if err != nil {
-		t.Fatalf("trustlist.Parse: %v", err)
+		t.Fatalf("lote.Parse: %v", err)
 	}
 	if len(tl.Entities) == 0 || len(tl.Entities[0].Services) == 0 {
 		t.Fatal("expected trusted list services")

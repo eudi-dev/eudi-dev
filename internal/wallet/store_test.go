@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/storage"
 )
 
@@ -86,7 +87,7 @@ func TestWalletStore_SaveAndLoad(t *testing.T) {
 	if _, err := w.ImportCredential(sdjwt); err != nil {
 		t.Fatalf("importing: %v", err)
 	}
-	if err := w.RegisterIssuedAttestation(IssuedAttestationSpec{Format: "dc+sd-jwt", VCT: "TestCred"}); err != nil {
+	if err := w.RegisterIssuedAttestation(provider.IssuedAttestationSpec{Format: "dc+sd-jwt", VCT: "TestCred"}); err != nil {
 		t.Fatal(err)
 	}
 

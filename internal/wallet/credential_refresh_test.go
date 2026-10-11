@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 )
 
@@ -243,7 +244,7 @@ func TestPresentingRenewsACredentialAboutToExpire(t *testing.T) {
 		Issuer: srv.URL, TokenEndpoint: srv.URL + "/token", CredentialEndpoint: srv.URL + "/credential",
 	})
 
-	if _, err := w.CreateVPToken(CredentialMatch{
+	if _, err := w.CreateVPToken(consent.Match{
 		CredentialID: id, QueryID: "q", Format: "dc+sd-jwt", SelectedKeys: []string{"given_name"},
 	}, PresentationParams{Nonce: "n", ClientID: "verifier"}); err != nil {
 		t.Fatalf("creating the VP token: %v", err)

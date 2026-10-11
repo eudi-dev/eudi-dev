@@ -17,93 +17,32 @@ package wallet
 import (
 	"crypto/ecdsa"
 	"crypto/sha256"
-	"crypto/x509"
-	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"maps"
-	"sort"
 	"strings"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 )
 
-// The list types of the credential categories come from the category table.
-var (
-	pidTrustListType    = registrar.CategoryOf(credtemplate.CategoryPID).TrustedList.Type
-	pubEAATrustListType = registrar.CategoryOf(credtemplate.CategoryPubEAA).TrustedList.Type
-	eaaTrustListType    = registrar.CategoryOf(credtemplate.CategoryEAA).TrustedList.Type
-)
-
-const (
-	// eudi-dev 2 wallets store these types for their EAA list.
-	legacyTrustListType       = "http://uri.etsi.org/19602/LoTEType/local"
-	legacyIssuanceServiceType = "http://uri.etsi.org/19602/SvcType/Issuance"
-	legacyRevocationService   = "http://uri.etsi.org/19602/SvcType/Revocation"
-
-	// An issuer that checks a wallet or key attestation looks for a Wallet
-	// Provider list. The wallet publishes one next to its credential lists.
-	// The URIs come from ETSI TS 119 602.
-	walletProviderTrustListType         = "http://uri.etsi.org/19602/LoTEType/EUWalletProvidersList"
-	walletProviderStatusDetermination   = "http://uri.etsi.org/19602/WalletProvidersList/StatusDetn/EU"
-	walletProviderSchemeCommunityRules  = "http://uri.etsi.org/19602/WalletProvidersList/schemerules/EU"
-	walletProviderIssuanceServiceType   = "http://uri.etsi.org/19602/SvcType/WalletSolution/Issuance"
-	walletProviderRevocationServiceType = "http://uri.etsi.org/19602/SvcType/WalletSolution/Revocation"
-)
-
-type IssuedAttestationSpec struct {
-	Format  string `json:"format"`
-	VCT     string `json:"vct,omitempty"`
-	DocType string `json:"doctype,omitempty"`
-	// Category is pid, qeaa, pub-eaa, eaa or unlisted. It decides which of the
-	// wallet's trusted lists carries the type. An unlisted type is on none.
-	Category                    string   `json:"category,omitempty"`
-	Entitlements                []string `json:"entitlements,omitempty"`
-	TrustListType               string   `json:"trust_list_type,omitempty"`
-	StatusDeterminationApproach string   `json:"status_determination_approach,omitempty"`
-	SchemeTypeCommunityRules    string   `json:"scheme_type_community_rules,omitempty"`
-	SchemeTerritory             string   `json:"scheme_territory,omitempty"`
-	EntityName                  string   `json:"entity_name,omitempty"`
-	IssuanceServiceType         string   `json:"issuance_service_type,omitempty"`
-	RevocationServiceType       string   `json:"revocation_service_type,omitempty"`
-	IssuanceServiceName         string   `json:"issuance_service_name,omitempty"`
-	RevocationServiceName       string   `json:"revocation_service_name,omitempty"`
-}
-
-type trustListProfile struct {
-	Category                    string
-	LoTEType                    string
-	StatusDeterminationApproach string
-	SchemeTypeCommunityRules    string
-	SchemeTerritory             string
-	IssuanceServiceType         string
-	RevocationServiceType       string
-	IssuanceServiceName         string
-	RevocationServiceName       string
-	EntityName                  string
-}
-
-func (w *Wallet) issuedAttestationSpecs() []IssuedAttestationSpec {
+func (w *Wallet) issuedAttestationSpecs() []provider.IssuedAttestationSpec {
 	if w == nil {
 		return nil
 	}
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 	if len(w.IssuedAttestations) > 0 {
-		return dedupeIssuedAttestations(w.IssuedAttestations)
+		return provider.DedupeIssuedAttestations(w.IssuedAttestations)
 	}
 
 	seen := make(map[string]bool)
-	out := make([]IssuedAttestationSpec, 0)
+	out := make([]provider.IssuedAttestationSpec, 0)
 	for _, cred := range w.Credentials {
-		spec := IssuedAttestationSpec{Format: cred.Format, VCT: cred.VCT, DocType: cred.DocType}
+		spec := provider.IssuedAttestationSpec{Format: cred.Format, VCT: cred.VCT, DocType: cred.DocType}
 		switch cred.Format {
 		case credtype.FormatSDJWT:
 			if strings.TrimSpace(spec.VCT) == "" {
@@ -126,154 +65,6 @@ func (w *Wallet) issuedAttestationSpecs() []IssuedAttestationSpec {
 	return out
 }
 
-// UnlistedCategory keeps a credential type off every trusted list. It tests
-// how a verifier handles an issuer without a trust anchor. It is not a
-// credential category of the catalogue.
-const UnlistedCategory = "unlisted"
-
-// NormalizeIssuedAttestationSpec trims the spec and resolves its category. A
-// non-empty category replaces the one of the spec. A type without a category
-// and without trusted list fields is an EAA.
-func NormalizeIssuedAttestationSpec(spec IssuedAttestationSpec, category string) (IssuedAttestationSpec, error) {
-	spec.Format = strings.TrimSpace(spec.Format)
-	spec.VCT = strings.TrimSpace(spec.VCT)
-	spec.DocType = strings.TrimSpace(spec.DocType)
-	spec.Category = strings.TrimSpace(spec.Category)
-	spec.TrustListType = strings.TrimSpace(spec.TrustListType)
-	spec.StatusDeterminationApproach = strings.TrimSpace(spec.StatusDeterminationApproach)
-	spec.SchemeTypeCommunityRules = strings.TrimSpace(spec.SchemeTypeCommunityRules)
-	spec.SchemeTerritory = strings.TrimSpace(spec.SchemeTerritory)
-	spec.EntityName = strings.TrimSpace(spec.EntityName)
-	spec.IssuanceServiceType = strings.TrimSpace(spec.IssuanceServiceType)
-	spec.RevocationServiceType = strings.TrimSpace(spec.RevocationServiceType)
-	spec.IssuanceServiceName = strings.TrimSpace(spec.IssuanceServiceName)
-	spec.RevocationServiceName = strings.TrimSpace(spec.RevocationServiceName)
-	spec.Entitlements = dedupeStrings(spec.Entitlements)
-
-	if category != "" {
-		spec.Category = category
-	}
-	if spec.Category == UnlistedCategory {
-		spec.TrustListType, spec.StatusDeterminationApproach, spec.SchemeTypeCommunityRules, spec.SchemeTerritory = "", "", "", ""
-		spec.EntityName, spec.IssuanceServiceType, spec.RevocationServiceType, spec.IssuanceServiceName, spec.RevocationServiceName = "", "", "", "", ""
-		return spec, nil
-	}
-	if err := credtemplate.CheckCategory(spec.Category); err != nil {
-		return IssuedAttestationSpec{}, err
-	}
-	if spec.TrustListType == legacyTrustListType {
-		spec.TrustListType = ""
-		if spec.IssuanceServiceType == legacyIssuanceServiceType {
-			spec.IssuanceServiceType = ""
-		}
-		if spec.RevocationServiceType == legacyRevocationService {
-			spec.RevocationServiceType = ""
-		}
-		if spec.EntityName == config.WalletIssuerName {
-			spec.EntityName = ""
-		}
-	}
-	if spec.TrustListType == walletProviderTrustListType {
-		return IssuedAttestationSpec{}, fmt.Errorf("the wallet provider list holds wallet and key attestations, not credentials")
-	}
-	if spec.Category == "" {
-		if category, ok := registrar.CategoryOfListType(spec.TrustListType); ok {
-			spec.Category = category
-		} else if spec.TrustListType == "" {
-			spec.Category = credtemplate.CategoryEAA
-		}
-	}
-	if spec.Category != "" {
-		spec = applyCategoryDefaults(spec)
-		if len(spec.Entitlements) == 0 {
-			spec.Entitlements = []string{registrar.CategoryOf(spec.Category).Entitlement}
-		}
-	}
-	if spec.TrustListType != "" {
-		spec.EntityName = firstNonEmpty(spec.EntityName, config.WalletIssuerName)
-		spec.IssuanceServiceName = firstNonEmpty(spec.IssuanceServiceName, "Issuance Service")
-		spec.RevocationServiceName = firstNonEmpty(spec.RevocationServiceName, "Revocation Service")
-	}
-	return spec, nil
-}
-
-func dedupeIssuedAttestations(specs []IssuedAttestationSpec) []IssuedAttestationSpec {
-	seen := make(map[string]int)
-	out := make([]IssuedAttestationSpec, 0, len(specs))
-	for _, spec := range specs {
-		normalized, err := NormalizeIssuedAttestationSpec(spec, "")
-		if err != nil {
-			continue
-		}
-		key := normalized.Format + "|" + normalized.VCT + "|" + normalized.DocType
-		if idx, ok := seen[key]; ok {
-			out[idx] = normalized
-			continue
-		}
-		seen[key] = len(out)
-		out = append(out, normalized)
-	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].Format != out[j].Format {
-			return out[i].Format < out[j].Format
-		}
-		if out[i].VCT != out[j].VCT {
-			return out[i].VCT < out[j].VCT
-		}
-		return out[i].DocType < out[j].DocType
-	})
-	return out
-}
-
-func dedupeStrings(values []string) []string {
-	seen := make(map[string]bool)
-	out := make([]string, 0, len(values))
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value == "" || seen[value] {
-			continue
-		}
-		seen[value] = true
-		out = append(out, value)
-	}
-	sort.Strings(out)
-	return out
-}
-
-// categoryTrustListProfile is the trusted list of a credential category. An
-// empty or unknown category is an EAA.
-func categoryTrustListProfile(category string) trustListProfile {
-	c := registrar.CategoryOf(category)
-	return trustListProfile{
-		Category:                    c.ID,
-		LoTEType:                    c.TrustedList.Type,
-		StatusDeterminationApproach: c.TrustedList.StatusDeterminationApproach,
-		SchemeTypeCommunityRules:    c.TrustedList.SchemeTypeCommunityRules,
-		SchemeTerritory:             c.TrustedList.SchemeTerritory,
-		IssuanceServiceType:         c.TrustedList.IssuanceServiceType,
-		RevocationServiceType:       c.TrustedList.RevocationServiceType,
-		IssuanceServiceName:         c.Label + " Issuance Service",
-		RevocationServiceName:       c.Label + " Revocation Service",
-		EntityName:                  config.WalletName + " " + c.Label + " Provider",
-	}
-}
-
-// applyCategoryDefaults fills the empty trusted list fields of the spec from
-// the list of its category.
-func applyCategoryDefaults(spec IssuedAttestationSpec) IssuedAttestationSpec {
-	p := categoryTrustListProfile(spec.Category)
-	spec.TrustListType = firstNonEmpty(spec.TrustListType, p.LoTEType)
-	spec.StatusDeterminationApproach = firstNonEmpty(spec.StatusDeterminationApproach, p.StatusDeterminationApproach)
-	spec.SchemeTypeCommunityRules = firstNonEmpty(spec.SchemeTypeCommunityRules, p.SchemeTypeCommunityRules)
-	spec.SchemeTerritory = firstNonEmpty(spec.SchemeTerritory, p.SchemeTerritory)
-	spec.EntityName = firstNonEmpty(spec.EntityName, p.EntityName)
-	spec.IssuanceServiceType = firstNonEmpty(spec.IssuanceServiceType, p.IssuanceServiceType)
-	spec.RevocationServiceType = firstNonEmpty(spec.RevocationServiceType, p.RevocationServiceType)
-	spec.IssuanceServiceName = firstNonEmpty(spec.IssuanceServiceName, p.IssuanceServiceName)
-	spec.RevocationServiceName = firstNonEmpty(spec.RevocationServiceName, p.RevocationServiceName)
-	return spec
-}
-
 // sanitizeMetadataID turns a credential type into a configuration id of at
 // most 50 characters. A URN such as urn:eudi:pid:1 maps its ':' to '_'. Any
 // other type could share that readable form with another type, so it gets a
@@ -291,7 +82,7 @@ func sanitizeMetadataID(s string) string {
 	return trimmed[:min(len(trimmed), 41)] + "_" + hex.EncodeToString(sum[:4])
 }
 
-func buildCredentialConfiguration(spec IssuedAttestationSpec) (string, map[string]any, bool) {
+func buildCredentialConfiguration(spec provider.IssuedAttestationSpec) (string, map[string]any, bool) {
 	switch spec.Format {
 	case credtype.FormatSDJWT:
 		if strings.TrimSpace(spec.VCT) == "" {
@@ -367,18 +158,6 @@ func signJSONWebSignature(payload any, signingKey *ecdsa.PrivateKey, header map[
 	return jws.Sign(header, payload, signingKey)
 }
 
-func buildJWSX5C(certs []*x509.Certificate) []string {
-	chain := mock.WithoutSelfSignedTrustAnchor(certs)
-	if len(chain) == 0 && len(certs) > 0 {
-		chain = certs
-	}
-	x5c := make([]string, 0, len(chain))
-	for _, cert := range chain {
-		x5c = append(x5c, base64.StdEncoding.EncodeToString(cert.Raw))
-	}
-	return x5c
-}
-
 func signCredentialIssuerMetadataJWT(w *Wallet, issuer string, exp time.Time) (string, error) {
 	metadata, err := buildOpenIDCredentialIssuerMetadata(w, issuer)
 	if err != nil {
@@ -405,35 +184,8 @@ func SignCredentialIssuerMetadata(w *Wallet, issuer string, metadata map[string]
 		"alg": jws.AlgES256,
 		"typ": "openidvci-issuer-metadata+jwt",
 	}
-	if x5c := buildJWSX5C(signerCerts); len(x5c) > 0 {
+	if x5c := certchain.X5C(signerCerts); len(x5c) > 0 {
 		header["x5c"] = x5c
 	}
 	return signJSONWebSignature(payload, signingKey, header)
-}
-
-// SignRequestObjectJWT signs an OpenID4VP authorization request object (JAR)
-// with the signer's certificate chain in x5c. Its typ is
-// oauth-authz-req+jwt, as ValidateRequestObject expects.
-func SignRequestObjectJWT(claims map[string]any, signingKey *ecdsa.PrivateKey, signerCerts []*x509.Certificate) (string, error) {
-	if signingKey == nil {
-		return "", fmt.Errorf("signing key is required")
-	}
-	header := map[string]any{
-		"alg": jws.AlgES256,
-		"typ": format.TypeRequestObject,
-	}
-	if x5c := buildJWSX5C(signerCerts); len(x5c) > 0 {
-		header["x5c"] = x5c
-	}
-	return signJSONWebSignature(claims, signingKey, header)
-}
-
-// X509HashClientID returns the `x509_hash:` client identifier for a leaf
-// certificate. The value is the base64url-encoded SHA-256 of its DER encoding.
-func X509HashClientID(leaf *x509.Certificate) string {
-	if leaf == nil {
-		return ""
-	}
-	sum := sha256.Sum256(leaf.Raw)
-	return "x509_hash:" + format.EncodeBase64URL(sum[:])
 }

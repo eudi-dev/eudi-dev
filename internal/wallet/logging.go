@@ -18,20 +18,22 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
 func VerifierResponseErrorPayload(err error) *LogPayload {
-	var responseErr *verifierResponseError
+	var responseErr *oid4vp.VerifierResponseError
 	if errors.As(err, &responseErr) {
-		return &LogPayload{Label: "Response", Body: responseErr.body}
+		return &LogPayload{Label: "Response", Body: responseErr.Body()}
 	}
 	return nil
 }
 
 func authorizationResponsePlaintext(plain map[string]any, responseMode string) map[string]any {
-	if isDCAPIResponseMode(responseMode) {
+	if oid4vp.IsDCAPIResponseMode(responseMode) {
 		out := make(map[string]any, len(plain))
 		for key, value := range plain {
 			if key != "state" {
@@ -43,7 +45,7 @@ func authorizationResponsePlaintext(plain map[string]any, responseMode string) m
 	return plain
 }
 
-func PresentationLogPayload(response *AuthorizationResponseEnvelope) *LogPayload {
+func PresentationLogPayload(response *oid4vp.AuthorizationResponseEnvelope) *LogPayload {
 	if response == nil {
 		return nil
 	}
@@ -54,14 +56,14 @@ func PresentationLogPayload(response *AuthorizationResponseEnvelope) *LogPayload
 	} else if response.RedirectURI != "" {
 		payload.Wire = response.RedirectURI
 	} else if response.ResponseMode == "direct_post" {
-		if form, err := directPostForm(response.Plain); err == nil {
+		if form, err := oid4vp.DirectPostForm(response.Plain); err == nil {
 			payload.Wire = form.Encode()
 		}
 	}
 	return payload
 }
 
-func (s *Server) addPresentationRequestLog(authReq *AuthorizationRequestParams, source string) {
+func (s *Server) addPresentationRequestLog(authReq *oid4vp.Request, source string) {
 	clientID := authReq.ClientID
 	if clientID == "" {
 		clientID = "unknown verifier"
@@ -110,7 +112,7 @@ func protocolLogDetails(event string, details map[string]any) map[string]any {
 	return details
 }
 
-func presentationRequestLogDetails(authReq *AuthorizationRequestParams) map[string]any {
+func presentationRequestLogDetails(authReq *oid4vp.Request) map[string]any {
 	details := map[string]any{}
 	addStringDetail(details, "client_id", authReq.ClientID)
 	addStringDetail(details, "response_type", authReq.ResponseType)
@@ -133,14 +135,7 @@ func presentationRequestLogDetails(authReq *AuthorizationRequestParams) map[stri
 	return details
 }
 
-func RequestPayload(reqObj *oid4vc.RequestObjectJWT, fallback map[string]any) map[string]any {
-	if reqObj != nil && reqObj.Payload != nil {
-		return reqObj.Payload
-	}
-	return fallback
-}
-
-func PresentationSubmissionLogDetails(authReq *AuthorizationRequestParams, w *Wallet, matches []CredentialMatch, vpResult *VPTokenMapResult, idToken string, result *DirectPostResult) map[string]any {
+func PresentationSubmissionLogDetails(authReq *oid4vp.Request, w *Wallet, matches []consent.Match, vpResult *VPTokenMapResult, idToken string, result *oid4vp.DirectPostResult) map[string]any {
 	details := presentationRequestLogDetails(authReq)
 	if result != nil {
 		details["status_code"] = result.StatusCode
@@ -165,7 +160,7 @@ func PresentationSubmissionLogDetails(authReq *AuthorizationRequestParams, w *Wa
 	return details
 }
 
-func presentationResponseLogDetails(authReq *AuthorizationRequestParams, w *Wallet, matches []CredentialMatch, prepared *preparedPresentation) map[string]any {
+func presentationResponseLogDetails(authReq *oid4vp.Request, w *Wallet, matches []consent.Match, prepared *preparedPresentation) map[string]any {
 	var vpResult *VPTokenMapResult
 	var idToken string
 	var submissionURI string
@@ -180,7 +175,7 @@ func presentationResponseLogDetails(authReq *AuthorizationRequestParams, w *Wall
 // PresentationResponseLogDetails returns the details of the wallet's outbound
 // authorization response. Request material such as DCQL, request objects,
 // client metadata and nonce belongs to the presentation_request entry.
-func PresentationResponseLogDetails(authReq *AuthorizationRequestParams, w *Wallet, matches []CredentialMatch, vpResult *VPTokenMapResult, idToken, submissionURI string) map[string]any {
+func PresentationResponseLogDetails(authReq *oid4vp.Request, w *Wallet, matches []consent.Match, vpResult *VPTokenMapResult, idToken, submissionURI string) map[string]any {
 	details := map[string]any{
 		"direction": "outbound",
 	}
@@ -204,7 +199,7 @@ func PresentationResponseLogDetails(authReq *AuthorizationRequestParams, w *Wall
 	return details
 }
 
-func verifierResponseLogDetails(authReq *AuthorizationRequestParams, prepared *preparedPresentation, result *DirectPostResult) map[string]any {
+func verifierResponseLogDetails(authReq *oid4vp.Request, prepared *preparedPresentation, result *oid4vp.DirectPostResult) map[string]any {
 	details := map[string]any{
 		"direction": "inbound",
 	}
@@ -261,7 +256,7 @@ func credentialImportLogPayload(credentials []*StoredCredential) *LogPayload {
 	}{Credentials: items}}
 }
 
-func sentCredentialLogDetails(matches []CredentialMatch) []map[string]any {
+func sentCredentialLogDetails(matches []consent.Match) []map[string]any {
 	if len(matches) == 0 {
 		return nil
 	}
@@ -280,7 +275,7 @@ func sentCredentialLogDetails(matches []CredentialMatch) []map[string]any {
 	return out
 }
 
-func presentedCredentialLogDetails(w *Wallet, matches []CredentialMatch, vpResult *VPTokenMapResult) []map[string]any {
+func presentedCredentialLogDetails(w *Wallet, matches []consent.Match, vpResult *VPTokenMapResult) []map[string]any {
 	if len(matches) == 0 {
 		return nil
 	}
@@ -320,4 +315,18 @@ func addStringDetail(details map[string]any, key string, value string) {
 	if value != "" {
 		details[key] = value
 	}
+}
+
+func (w *Wallet) warnUndefinedRequestParameters(scope string, params *oid4vp.Request) {
+	w.warnFindings(scope, "The request contains parameters OID4VP 1.0 does not define", oid4vp.UndefinedRequestParameterFindings(params))
+}
+
+func (w *Wallet) warnUndefinedResponseMembers(result *oid4vp.DirectPostResult) {
+	members := oid4vp.UndefinedResponseMembers(result)
+	if len(members) == 0 {
+		return
+	}
+	w.AddWarning("presentation", fmt.Sprintf(
+		"The verifier's response contains fields OID4VP 1.0 §8.2 does not define: %s. They are ignored.",
+		strings.Join(members, ", ")), nil)
 }

@@ -20,22 +20,24 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
 // The console names the transcript the presentation used, which a request can
 // choose for itself.
 func TestMDocPresentationLogsItsOwnTranscript(t *testing.T) {
 	w := pidBaselineWallet(t)
-	w.SessionTranscript = SessionTranscriptOID4VP
+	w.SessionTranscript = oid4vp.SessionTranscriptOID4VP
 	matches := mdocMatches(t, w)
 
 	var out bytes.Buffer
 	log.SetOutput(&out)
 	defer log.SetOutput(os.Stderr)
-	if _, err := w.CreateVPTokenMap(matches[:1], PresentationParams{Nonce: "n", ClientID: "c", ResponseURI: "https://v.example/r", SessionTranscript: SessionTranscriptISO}); err != nil {
+	if _, err := w.CreateVPTokenMap(matches[:1], PresentationParams{Nonce: "n", ClientID: "c", ResponseURI: "https://v.example/r", SessionTranscript: oid4vp.SessionTranscriptISO}); err != nil {
 		t.Fatalf("presenting: %v", err)
 	}
-	if !strings.Contains(out.String(), "transcript="+string(SessionTranscriptISO)) {
+	if !strings.Contains(out.String(), "transcript="+string(oid4vp.SessionTranscriptISO)) {
 		t.Errorf("log %q does not name the iso transcript", out.String())
 	}
 }

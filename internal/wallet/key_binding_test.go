@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 )
 
@@ -231,7 +232,7 @@ func TestPresentingACredentialWithAnUnheldKeyBindingIsReported(t *testing.T) {
 			t.Fatalf("importing: %v", err)
 		}
 		return w.CreateVPToken(
-			CredentialMatch{CredentialID: imported.ID, SelectedKeys: []string{"given_name"}},
+			consent.Match{CredentialID: imported.ID, SelectedKeys: []string{"given_name"}},
 			PresentationParams{Nonce: "n", ClientID: "x509_hash:abc"},
 		)
 	}
@@ -280,7 +281,7 @@ func TestPresentingAHeldCredentialIsNotReported(t *testing.T) {
 		t.Fatalf("importing: %v", err)
 	}
 	if _, err := w.CreateVPToken(
-		CredentialMatch{CredentialID: imported.ID, SelectedKeys: []string{"given_name"}},
+		consent.Match{CredentialID: imported.ID, SelectedKeys: []string{"given_name"}},
 		PresentationParams{Nonce: "n", ClientID: "x509_hash:abc"},
 	); err != nil {
 		t.Fatalf("presenting: %v", err)

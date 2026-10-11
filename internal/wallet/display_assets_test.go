@@ -19,6 +19,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 )
 
 const tinyPNGDataURI = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC"
@@ -139,7 +141,7 @@ func TestPruneUnreferencedAssets(t *testing.T) {
 	}
 
 	w := generateTestWallet(t)
-	w.Credentials = []StoredCredential{{ID: "a", Format: "dc+sd-jwt", Raw: "x~", Display: &CredentialDisplay{LogoURI: usedRef}}}
+	w.Credentials = []StoredCredential{{ID: "a", Format: "dc+sd-jwt", Raw: "x~", Display: &oid4vc.CredentialDisplay{LogoURI: usedRef}}}
 	if err := store.Save(w); err != nil {
 		t.Fatalf("save: %v", err)
 	}

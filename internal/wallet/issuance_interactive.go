@@ -23,8 +23,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
 // Interactive Authorization (OpenID4VCI 1.1 §6) replaces the browser redirect
@@ -324,7 +326,7 @@ func (w *Wallet) runAuthViaWebInteraction(response map[string]any, setup authori
 			"request_uri":            requestURI,
 		})
 
-	values, err := runAuthorizationCodeRequest(w, setup.authorizationEndpoint, setup.clientID, requestURI, nil, setup.redirectURI, setup.state, setup.issuer, AuthorizationPrompt{Owner: setup.owner, Flow: setup.flow}, setup.issRequired)
+	values, err := runAuthorizationCodeRequest(w, setup.authorizationEndpoint, setup.clientID, requestURI, nil, setup.redirectURI, setup.state, setup.issuer, consent.AuthorizationPrompt{Owner: setup.owner, Flow: setup.flow}, setup.issRequired)
 	if err != nil {
 		return nil, err
 	}
@@ -361,7 +363,7 @@ func (w *Wallet) runPresentationInteraction(endpoint string, response map[string
 		action: "issuance", subject: "The issuer's openid4vp_request", owner: setup.owner,
 		interactive: !w.AutoAcceptSetting() && !setup.presentationConsented,
 	})
-	params := authReq.presentationParams()
+	params := presentationParams(authReq)
 	switch {
 	case outcome.invalid != nil:
 		return nil, fmt.Errorf("openid4vp_request: %w", outcome.invalid)
@@ -377,7 +379,7 @@ func (w *Wallet) runPresentationInteraction(endpoint string, response map[string
 	}
 	if !approved {
 		w.AddLog("issuance", "Denied the presentation the issuer asked for", false)
-		return w.interactionErrorResponse(params, errorCodeAccessDenied, "user denied the presentation")
+		return w.interactionErrorResponse(params, oid4vp.ErrorAccessDenied, "user denied the presentation")
 	}
 
 	prepared, err := w.preparePresentation(authReq, matches)
@@ -429,7 +431,7 @@ func (w *Wallet) interactionErrorResponse(params PresentationParams, errorCode, 
 // encodeInteractiveAuthorizationResponse renders an authorization response as
 // the openid4vp_response parameter of §6.2.1.1. That is a JSON object of the
 // response parameters, or the JWE under response when encrypted.
-func encodeInteractiveAuthorizationResponse(envelope *AuthorizationResponseEnvelope) (string, error) {
+func encodeInteractiveAuthorizationResponse(envelope *oid4vp.AuthorizationResponseEnvelope) (string, error) {
 	if envelope == nil {
 		return "", fmt.Errorf("no authorization response to send")
 	}
@@ -451,7 +453,7 @@ func encodeInteractiveAuthorizationResponse(envelope *AuthorizationResponseEnvel
 // §6.2.1.1. Its contents are "the same as for requests passed to the Digital
 // Credentials API". That is a signed Request Object under request, or the
 // parameters themselves.
-func (w *Wallet) parseInteractiveAuthorizationRequest(request map[string]any, endpoint string) (*AuthorizationRequestParams, error) {
+func (w *Wallet) parseInteractiveAuthorizationRequest(request map[string]any, endpoint string) (*oid4vp.Request, error) {
 	opts := oid4vc.ParseOptions{
 		FetchRequestURI: MakeFetchRequestURI(w, func(format string, args ...any) {
 			log.Printf("[VCI] "+format, args...)
@@ -468,19 +470,19 @@ func (w *Wallet) parseInteractiveAuthorizationRequest(request map[string]any, en
 		raw = string(encoded)
 	}
 
-	parsed, err := ParseAuthorizationRequestWithOptions(raw, opts)
+	parsed, err := oid4vp.ParseAuthorizationRequestWithOptions(raw, opts)
 	if err != nil {
 		return nil, fmt.Errorf("parsing openid4vp_request: %w", err)
 	}
 
-	params := authorizationParams(parsed)
+	params := oid4vp.RequestFrom(parsed)
 	params.Source = "interactive_authorization"
 	params.RequestOrigin = derivedOrigin(endpoint)
 	params.InteractiveAuthorizationEndpoint = endpoint
 
 	// §6.2.1.1: "The response_mode MUST be either ia_post for unencrypted
 	// responses or ia_post.jwt for encrypted responses."
-	if !isInteractiveAuthorizationResponseMode(params.ResponseMode) {
+	if !oid4vp.IsInteractiveAuthorizationResponseMode(params.ResponseMode) {
 		return nil, fmt.Errorf("openid4vp_request has response_mode %q, which OpenID4VCI 1.1 §6.2.1.1 does not allow here (ia_post or ia_post.jwt)", params.ResponseMode)
 	}
 
@@ -501,7 +503,7 @@ func derivedOrigin(rawURL string) string {
 // awaitInteractivePresentationConsent asks the user to approve the
 // presentation the issuer requires for issuance. Consent to receive a
 // credential does not cover disclosing one, so this is a separate prompt.
-func (w *Wallet) awaitInteractivePresentationConsent(endpoint string, authReq *AuthorizationRequestParams, outcome presentationOutcome, consented bool, owner string) ([]CredentialMatch, bool, error) {
+func (w *Wallet) awaitInteractivePresentationConsent(endpoint string, authReq *oid4vp.Request, outcome presentationOutcome, consented bool, owner string) ([]consent.Match, bool, error) {
 	if w.AutoAcceptSetting() || consented {
 		return outcome.matches, true, nil
 	}
@@ -513,16 +515,16 @@ func (w *Wallet) awaitInteractivePresentationConsent(endpoint string, authReq *A
 		asking = derivedOrigin(endpoint)
 	}
 	// On a shared wallet the browser that started issuance gets this prompt.
-	consentReq, matches, approved, answered := w.askPresentationConsent(ConsentTypeIssuancePresentation, owner, asking, authReq, outcome, interactiveAuthorizationConsentTimeout, nil)
+	consentReq, matches, approved, answered := w.askPresentationConsent(consent.TypeIssuancePresentation, owner, asking, authReq, outcome, interactiveAuthorizationConsentTimeout, nil)
 	if !answered {
-		consentReq.SubmissionCh <- SubmissionResult{Error: "consent timeout"}
+		consentReq.SubmissionCh <- consent.SubmissionResult{Error: "consent timeout"}
 		return nil, false, fmt.Errorf("no answer to the presentation the issuer asked for")
 	}
-	consentReq.SubmissionCh <- SubmissionResult{StatusCode: 200}
+	consentReq.SubmissionCh <- consent.SubmissionResult{StatusCode: 200}
 	return matches, approved, nil
 }
 
-func (w *Wallet) addPresentationRequestLogEntry(authReq *AuthorizationRequestParams) {
+func (w *Wallet) addPresentationRequestLogEntry(authReq *oid4vp.Request) {
 	details := presentationRequestLogDetails(authReq)
 	details["direction"] = "inbound"
 	details["source"] = "interactive_authorization"

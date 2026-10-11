@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 )
 
@@ -78,7 +79,7 @@ func TestANonMatchingCredentialIsSentOnlyWhenPicked(t *testing.T) {
 	if matches != nil {
 		t.Fatalf("matches %+v, want none", matches)
 	}
-	if err := ValidateConsentSelection(options, nil, nil, nil); err == nil || !strings.Contains(err.Error(), "Pick one to send") {
+	if err := consent.ValidateSelection(options, nil, nil, nil); err == nil || !strings.Contains(err.Error(), "Pick one to send") {
 		t.Fatalf("approving without a pick: error %v, want one asking for a pick", err)
 	}
 
@@ -89,10 +90,10 @@ func TestANonMatchingCredentialIsSentOnlyWhenPicked(t *testing.T) {
 		}
 	}
 	picks := map[string][]string{"pid": {sdjwt}}
-	if err := ValidateConsentSelection(options, picks, nil, nil); err != nil {
-		t.Fatalf("ValidateConsentSelection: %v", err)
+	if err := consent.ValidateSelection(options, picks, nil, nil); err != nil {
+		t.Fatalf("consent.ValidateSelection: %v", err)
 	}
-	got := ApplyConsentSelection(options, matches, ConsentResult{Approved: true, Picks: picks})
+	got := consent.ApplySelection(options, matches, consent.Result{Approved: true, Picks: picks})
 	if len(got) != 1 || got[0].CredentialID != sdjwt || !slices.Equal(got[0].SelectedKeys, []string{"given_name"}) {
 		t.Fatalf("selection %+v, want the picked SD-JWT PID with its requested claim", got)
 	}
@@ -200,13 +201,13 @@ func TestAnUnchangedConsentSkipsAnOptionalSetNothingMatches(t *testing.T) {
 	}
 
 	matches, options := evaluateDCQLWithOptions(t, w, query)
-	if len(options.Sets) != 2 || options.Sets[1].defaultChoice() != -1 {
+	if len(options.Sets) != 2 || options.Sets[1].DefaultChoice() != -1 {
 		t.Fatalf("sets %+v, want the optional set skipped by default", options.Sets)
 	}
-	if err := ValidateConsentSelection(options, nil, nil, nil); err != nil {
+	if err := consent.ValidateSelection(options, nil, nil, nil); err != nil {
 		t.Fatalf("an unchanged consent is refused: %v", err)
 	}
-	got := ApplyConsentSelection(options, matches, ConsentResult{Approved: true})
+	got := consent.ApplySelection(options, matches, consent.Result{Approved: true})
 	if len(got) != 1 || got[0].QueryID != "pid" {
 		t.Fatalf("selection %+v, want only the PID", got)
 	}

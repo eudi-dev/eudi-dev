@@ -25,8 +25,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/dcql"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
 // The PID baseline holds two SD-JWT PIDs that answer urn:eudi:pid:1: the EUDI PID
@@ -92,7 +95,7 @@ func TestDCQLMultipleMustBeBoolean(t *testing.T) {
 	query := map[string]any{"credentials": []any{consentPIDQuery("pid", "dc+sd-jwt")}}
 	query["credentials"].([]any)[0].(map[string]any)["multiple"] = "true"
 
-	findings := DCQLQueryFindings(query)
+	findings := dcql.QueryFindings(query)
 	if len(findings) != 1 || !strings.Contains(findings[0], `"pid" has a multiple that is not a boolean`) {
 		t.Fatalf("findings = %v", findings)
 	}
@@ -102,7 +105,7 @@ func TestDCQLMultipleMustBeBoolean(t *testing.T) {
 		t.Errorf("debug mode presents %d credentials for a non-boolean multiple, want 1", len(matches))
 	}
 	w.ValidationMode = ValidationModeStrict
-	if _, err := w.EvaluateDCQL(query); err == nil || authorizationErrorCode(err) != errorCodeInvalidRequest {
+	if _, err := w.EvaluateDCQL(query); err == nil || oid4vp.ErrorCode(err) != oid4vp.ErrorInvalidRequest {
 		t.Errorf("strict mode answered a malformed query with %v, want invalid_request", err)
 	}
 }
@@ -163,7 +166,7 @@ func TestApplyConsentSelectionMultiple(t *testing.T) {
 	candidates := options.Queries[0].Candidates
 
 	t.Run("no picks presents every candidate", func(t *testing.T) {
-		got := ApplyConsentSelection(options, matches, ConsentResult{Approved: true, SetChoices: []int{}})
+		got := consent.ApplySelection(options, matches, consent.Result{Approved: true, SetChoices: []int{}})
 		if len(got) != 2 {
 			t.Errorf("got %d credentials, want 2", len(got))
 		}
@@ -175,14 +178,14 @@ func TestApplyConsentSelectionMultiple(t *testing.T) {
 			"credential_sets": []any{map[string]any{"options": []any{[]any{"pid"}}}},
 		}
 		setMatches, setOptions := evaluateDCQLWithOptions(t, w, sets)
-		got := ApplyConsentSelection(setOptions, setMatches, ConsentResult{Approved: true, SetChoices: []int{0}})
+		got := consent.ApplySelection(setOptions, setMatches, consent.Result{Approved: true, SetChoices: []int{0}})
 		if len(got) != 2 {
 			t.Errorf("got %d credentials, want 2", len(got))
 		}
 	})
 
 	t.Run("a pick withholds the other candidates", func(t *testing.T) {
-		got := ApplyConsentSelection(options, matches, ConsentResult{
+		got := consent.ApplySelection(options, matches, consent.Result{
 			Approved: true,
 			Picks:    map[string][]string{"pid": {candidates[1].CredentialID}},
 		})
@@ -192,7 +195,7 @@ func TestApplyConsentSelectionMultiple(t *testing.T) {
 	})
 
 	t.Run("picks keep the candidate order", func(t *testing.T) {
-		got := ApplyConsentSelection(options, matches, ConsentResult{
+		got := consent.ApplySelection(options, matches, consent.Result{
 			Approved: true,
 			Picks:    map[string][]string{"pid": {candidates[1].CredentialID, candidates[0].CredentialID}},
 		})
@@ -203,11 +206,11 @@ func TestApplyConsentSelectionMultiple(t *testing.T) {
 
 	t.Run("validation accepts several credentials and refuses duplicates", func(t *testing.T) {
 		both := []string{candidates[0].CredentialID, candidates[1].CredentialID}
-		if err := ValidateConsentSelection(options, map[string][]string{"pid": both}, nil, nil); err != nil {
+		if err := consent.ValidateSelection(options, map[string][]string{"pid": both}, nil, nil); err != nil {
 			t.Errorf("two candidates refused: %v", err)
 		}
 		twice := []string{candidates[0].CredentialID, candidates[0].CredentialID}
-		if err := ValidateConsentSelection(options, map[string][]string{"pid": twice}, nil, nil); err == nil || !strings.Contains(err.Error(), "picked twice") {
+		if err := consent.ValidateSelection(options, map[string][]string{"pid": twice}, nil, nil); err == nil || !strings.Contains(err.Error(), "picked twice") {
 			t.Errorf("a duplicate pick: error = %v", err)
 		}
 	})
@@ -291,7 +294,7 @@ func presentMultiple(t *testing.T, body string) (int, map[string][]string) {
 	}()
 
 	reqID := waitForPendingRequest(t, w).ID
-	pending, _ := w.GetRequest(reqID)
+	pending, _ := w.Consents().Get(reqID)
 	ids := make([]string, 0, 2)
 	for _, c := range pending.CredentialOptions.Queries[0].Candidates {
 		ids = append(ids, c.CredentialID)
@@ -375,7 +378,7 @@ func TestDCQLMultipleCombinedWithAnotherQueryInOneOption(t *testing.T) {
 	if sdjwt.ID != "pid_sdjwt" || !sdjwt.Multiple {
 		t.Fatalf("first query = %+v, want pid_sdjwt marked multiple", sdjwt)
 	}
-	got := ApplyConsentSelection(options, matches, ConsentResult{
+	got := consent.ApplySelection(options, matches, consent.Result{
 		Approved:   true,
 		SetChoices: []int{0},
 		Picks:      map[string][]string{"pid_sdjwt": {sdjwt.Candidates[1].CredentialID}},
@@ -402,7 +405,7 @@ func TestDCQLMultipleWithAnOptionalSet(t *testing.T) {
 		t.Fatalf("matches = %d, want both SD-JWT PIDs and the optional mdoc", len(matches))
 	}
 
-	skipped := ApplyConsentSelection(options, matches, ConsentResult{Approved: true, SetChoices: []int{0, -1}})
+	skipped := consent.ApplySelection(options, matches, consent.Result{Approved: true, SetChoices: []int{0, -1}})
 	if len(skipped) != 2 || skipped[0].QueryID != "pid_sdjwt" || skipped[1].QueryID != "pid_sdjwt" {
 		t.Errorf("skipping the optional set: got %+v, want both SD-JWT PIDs only", skipped)
 	}

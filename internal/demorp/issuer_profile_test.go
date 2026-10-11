@@ -41,7 +41,7 @@ func TestIssuerProfileMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, registrarChain, err := w.RegistrarSigningMaterial()
+	_, registrarChain, err := w.Signer().Registrar()
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -33,6 +33,7 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
 )
@@ -359,8 +360,8 @@ func TestOneShotPresentationSendsTheARFRefusalToTheVerifier(t *testing.T) {
 	if err := json.Unmarshal([]byte(registration.VerifierInfo), &info); err != nil {
 		t.Fatal(err)
 	}
-	clientID := wallet.X509HashClientID(chain[0])
-	request, err := wallet.SignRequestObjectJWT(map[string]any{
+	clientID := oid4vp.X509HashClientID(chain[0])
+	request, err := oid4vp.SignRequestObjectJWT(map[string]any{
 		"client_id": clientID, "response_type": "vp_token", "response_mode": "direct_post",
 		"response_uri": verifier.URL, "nonce": "n", "state": "s", "verifier_info": info,
 		"dcql_query": map[string]any{"credentials": []any{map[string]any{

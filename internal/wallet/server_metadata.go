@@ -22,8 +22,6 @@ import (
 	"io/fs"
 	"math/big"
 	"net/http"
-	"path"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -31,6 +29,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/publicpath"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/statuslist"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/trustedlists"
 )
 
 func (s *Server) handleTrustList(w http.ResponseWriter, r *http.Request) {
@@ -38,24 +37,24 @@ func (s *Server) handleTrustList(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "wallet has no CA certificate chain", http.StatusInternalServerError)
 		return
 	}
-	group, ok := FindTrustListGroupForWallet(s.wallet, "", r.URL.Query().Get("vct"), r.URL.Query().Get("doctype"))
+	group, ok := s.wallet.TrustedLists().FindGroup("", r.URL.Query().Get("vct"), r.URL.Query().Get("doctype"))
 	if !ok {
 		http.Error(w, "wallet has no matching trusted list", http.StatusNotFound)
 		return
 	}
 	// The selected list is the same instance as /api/trustlists/{id}.
-	jwt, err := GenerateTrustListJWTForWalletGroup(s.wallet, s.wallet.IssuerURL, group, registrar.TrustListPath(group.ID))
+	jwt, err := s.wallet.TrustedLists().SignedGroupList(s.wallet.IssuerURL, group, registrar.TrustListPath(group.ID))
 	if err != nil {
 		http.Error(w, fmt.Sprintf("generating trusted list: %v", err), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/jwt")
-	w.Write([]byte(jwt))
+	w.Write([]byte(jwt)) //nolint:gosec // G705: the query only selects one of the wallet's lists, served as application/jwt.
 }
 
 func (s *Server) handleTrustListIndex(w http.ResponseWriter, r *http.Request) {
 	issuer := strings.TrimRight(strings.TrimSpace(s.wallet.IssuerURL), "/")
-	entries := BuildTrustListIndexEntries(s.wallet, issuer)
+	entries := s.wallet.TrustedLists().IndexEntries(issuer)
 	for i := range entries {
 		entries[i].Path = publicpath.Prefix(r) + entries[i].Path
 	}
@@ -67,8 +66,8 @@ func (s *Server) handleTrustListByID(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "wallet has no CA certificate chain", http.StatusInternalServerError)
 		return
 	}
-	if r.PathValue("id") == listOfListsID {
-		jwt, err := GenerateListOfTrustedLists(s.wallet, s.wallet.IssuerURL)
+	if r.PathValue("id") == trustedlists.ListOfListsID {
+		jwt, err := s.wallet.TrustedLists().ListOfLists(s.wallet.IssuerURL)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("generating the list of trusted lists: %v", err), http.StatusInternalServerError)
 			return
@@ -77,12 +76,12 @@ func (s *Server) handleTrustListByID(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(jwt))
 		return
 	}
-	group, ok := FindTrustListGroupForWallet(s.wallet, r.PathValue("id"), "", "")
+	group, ok := s.wallet.TrustedLists().FindGroup(r.PathValue("id"), "", "")
 	if !ok {
 		http.Error(w, "trusted list not found", http.StatusNotFound)
 		return
 	}
-	jwt, err := GenerateTrustListJWTForWalletGroup(s.wallet, s.wallet.IssuerURL, group, registrar.TrustListPath(group.ID))
+	jwt, err := s.wallet.TrustedLists().SignedGroupList(s.wallet.IssuerURL, group, registrar.TrustListPath(group.ID))
 	if err != nil {
 		http.Error(w, fmt.Sprintf("generating trusted list: %v", err), http.StatusInternalServerError)
 		return
@@ -92,26 +91,25 @@ func (s *Server) handleTrustListByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleTrustListHistory(w http.ResponseWriter, r *http.Request) {
-	group, ok := FindTrustListGroupForWallet(s.wallet, r.PathValue("id"), "", "")
+	group, ok := s.wallet.TrustedLists().FindGroup(r.PathValue("id"), "", "")
 	if !ok {
 		http.NotFound(w, r)
 		return
 	}
 	listPath := registrar.TrustListPath(group.ID)
 	issuer := strings.TrimRight(s.wallet.IssuerURL, "/")
-	if _, err := GenerateTrustListJWTForWalletGroup(s.wallet, issuer, group, listPath); err != nil {
+	if _, err := s.wallet.TrustedLists().SignedGroupList(issuer, group, listPath); err != nil {
 		http.Error(w, "loading trusted list history: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	store := s.wallet.signingStore()
-	dir := path.Join(store.trustListDir(issuer, listPath), "history")
+	store := s.wallet.providerKeys()
 	if raw := r.PathValue("sequence"); raw != "" {
 		sequence, err := strconv.Atoi(raw)
 		if err != nil || sequence < 1 {
 			http.NotFound(w, r)
 			return
 		}
-		jwt, err := store.backend.Read(path.Join(dir, strconv.Itoa(sequence)+".jwt"))
+		jwt, err := store.TrustListHistory(issuer, listPath, sequence)
 		if err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
 				http.NotFound(w, r)
@@ -124,7 +122,7 @@ func (s *Server) handleTrustListHistory(w http.ResponseWriter, r *http.Request) 
 		w.Write(jwt)
 		return
 	}
-	files, err := store.backend.List(dir)
+	sequences, err := store.TrustListSequences(issuer, listPath)
 	if err != nil {
 		http.Error(w, "loading trusted list history: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -133,14 +131,10 @@ func (s *Server) handleTrustListHistory(w http.ResponseWriter, r *http.Request) 
 		Sequence int    `json:"sequence"`
 		URL      string `json:"url"`
 	}
-	instances := make([]instance, 0, len(files))
-	for _, file := range files {
-		sequence, err := strconv.Atoi(strings.TrimSuffix(file, ".jwt"))
-		if err == nil {
-			instances = append(instances, instance{Sequence: sequence, URL: issuer + listPath + "/history/" + strconv.Itoa(sequence)})
-		}
+	instances := make([]instance, 0, len(sequences))
+	for _, sequence := range sequences {
+		instances = append(instances, instance{Sequence: sequence, URL: issuer + listPath + "/history/" + strconv.Itoa(sequence)})
 	}
-	sort.Slice(instances, func(i, j int) bool { return instances[i].Sequence < instances[j].Sequence })
 	writeJSON(w, http.StatusOK, map[string]any{"instances": instances})
 }
 
@@ -235,7 +229,7 @@ func (s *Server) handleStatusList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	bits, bitstring := s.wallet.BuildStatusList()
-	signingKey, certChain, err := s.wallet.StatusListSigningMaterial()
+	signingKey, certChain, err := s.wallet.Signer().StatusList()
 	if err != nil {
 		http.Error(w, fmt.Sprintf("loading status list signing material: %v", err), http.StatusInternalServerError)
 		return

@@ -14,7 +14,12 @@
 
 package wallet
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
+)
 
 func TestPresentationSubmissionLogDetailsIncludePresentedCredentialMaterial(t *testing.T) {
 	w := &Wallet{PersistedState: PersistedState{Credentials: []StoredCredential{
@@ -31,7 +36,7 @@ func TestPresentationSubmissionLogDetailsIncludePresentedCredentialMaterial(t *t
 	}}}
 
 	details := PresentationSubmissionLogDetails(
-		&AuthorizationRequestParams{
+		&oid4vp.Request{
 			ClientID:     "verifier.example",
 			ResponseMode: "direct_post",
 			RequestPayload: map[string]any{
@@ -40,7 +45,7 @@ func TestPresentationSubmissionLogDetailsIncludePresentedCredentialMaterial(t *t
 			},
 		},
 		w,
-		[]CredentialMatch{
+		[]consent.Match{
 			{
 				QueryID:      "pid",
 				CredentialID: "cred-1",
@@ -54,7 +59,7 @@ func TestPresentationSubmissionLogDetailsIncludePresentedCredentialMaterial(t *t
 		},
 		&VPTokenMapResult{TokenMap: map[string][]string{"pid": {"presented.sdjwt~kb.jwt"}}},
 		"",
-		&DirectPostResult{StatusCode: 200, Body: "ok"},
+		&oid4vp.DirectPostResult{StatusCode: 200, Body: "ok"},
 	)
 
 	if details["request_object"] == nil {
@@ -87,7 +92,7 @@ func TestPresentationResponseLogDetailsExcludeRequestMaterial(t *testing.T) {
 	}}}
 
 	details := PresentationResponseLogDetails(
-		&AuthorizationRequestParams{
+		&oid4vp.Request{
 			ClientID:         "verifier.example",
 			ResponseMode:     "direct_post",
 			ResponseURI:      "https://verifier.example/response",
@@ -102,7 +107,7 @@ func TestPresentationResponseLogDetailsExcludeRequestMaterial(t *testing.T) {
 			Source:           "api",
 		},
 		w,
-		[]CredentialMatch{
+		[]consent.Match{
 			{
 				QueryID:      "pid",
 				CredentialID: "cred-1",

@@ -34,15 +34,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/storage"
 )
 
 // arfRequest returns a request signed with an access certificate from the
 // registrar. The request carries the relying party's registration certificate.
-func arfRequest(t *testing.T, reg *Wallet, checking *Wallet) *AuthorizationRequestParams {
+func arfRequest(t *testing.T, reg *Wallet, checking *Wallet) *oid4vp.Request {
 	t.Helper()
 	key, chain, verifierInfo := registeredVerifier(t, reg)
 	return signedARFRequest(t, checking, key, chain, verifierInfo)
@@ -85,23 +86,23 @@ func issueTestAccessCertificate(t *testing.T, w *Wallet, identifier string) (*ec
 	return key, chain
 }
 
-func signedARFRequest(t *testing.T, checking *Wallet, key *ecdsa.PrivateKey, chain []*x509.Certificate, verifierInfo string) *AuthorizationRequestParams {
+func signedARFRequest(t *testing.T, checking *Wallet, key *ecdsa.PrivateKey, chain []*x509.Certificate, verifierInfo string) *oid4vp.Request {
 	t.Helper()
 	var info []any
 	if err := json.Unmarshal([]byte(verifierInfo), &info); err != nil {
 		t.Fatal(err)
 	}
-	clientID := X509HashClientID(chain[0])
+	clientID := oid4vp.X509HashClientID(chain[0])
 	claims := map[string]any{"client_id": clientID, "response_type": "vp_token", "nonce": "n", "verifier_info": info}
-	raw, err := SignRequestObjectJWT(claims, key, chain)
+	raw, err := oid4vp.SignRequestObjectJWT(claims, key, chain)
 	if err != nil {
 		t.Fatal(err)
 	}
-	header, payload, err := decodeCompactJWT(raw)
+	header, payload, _, err := format.ParseJWTParts(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
-	params := &AuthorizationRequestParams{
+	params := &oid4vp.Request{
 		ClientID:       clientID,
 		ResponseType:   "vp_token",
 		Nonce:          "n",
@@ -119,7 +120,7 @@ func TestARFRequiresTheAccessCertificateToSignTheRequest(t *testing.T) {
 	w := generateTestWallet(t)
 	params := arfRequest(t, w, w)
 	params.RequestObject.Header["alg"] = "none"
-	if findings := ARFFindings(params); !containsSubstring(findings, "RPA_03") {
+	if findings := oid4vp.ARFFindings(params); !containsSubstring(findings, "RPA_03") {
 		t.Errorf("findings %v, want RPA_03 for an unsigned request with a copied x5c", findings)
 	}
 }
@@ -151,11 +152,11 @@ func TestAnExpiredAccessCertificate(t *testing.T) {
 	}
 	params := signedARFRequest(t, w, key, []*x509.Certificate{expired}, issueTestRegistrationCertificate(t, w, rp).VerifierInfo)
 
-	findings, err := ValidateAuthorizationRequest(ConformanceSettings{ValidationMode: ValidationModeDebug, RequireARF: true}, params)
+	findings, err := oid4vp.ValidateAuthorizationRequest(oid4vp.Checks{ARF: true}, params)
 	if err != nil || !containsSubstring(findings, "RPA_04") {
 		t.Errorf("debug mode: findings %v (%v), want the RPA_04 warning", findings, err)
 	}
-	if _, err := ValidateAuthorizationRequest(ConformanceSettings{ValidationMode: ValidationModeStrict, RequireARF: true}, params); err == nil || !strings.Contains(err.Error(), "RPA_04") {
+	if _, err := oid4vp.ValidateAuthorizationRequest(oid4vp.Checks{Strict: true, ARF: true}, params); err == nil || !strings.Contains(err.Error(), "RPA_04") {
 		t.Errorf("strict mode: err %v, want the RPA_04 refusal", err)
 	}
 }
@@ -185,7 +186,7 @@ func TestVerifierInfoNeedsOnlyARegistrationCertificate(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if findings := ARFFindings(signedARFRequest(t, w, key, chain, string(encoded))); len(findings) != 0 {
+		if findings := oid4vp.ARFFindings(signedARFRequest(t, w, key, chain, string(encoded))); len(findings) != 0 {
 			t.Errorf("%s: findings %v, want none", name, findings)
 		}
 	}
@@ -193,7 +194,7 @@ func TestVerifierInfoNeedsOnlyARegistrationCertificate(t *testing.T) {
 
 func TestARFTrustsTheWalletsOwnRegistrar(t *testing.T) {
 	w := generateTestWallet(t)
-	findings := ARFFindings(arfRequest(t, w, w))
+	findings := oid4vp.ARFFindings(arfRequest(t, w, w))
 	for _, rule := range []string{"RPA_03", "RPA_04", "RPRC_02a", "RPRC_17a"} {
 		if containsSubstring(findings, rule) {
 			t.Errorf("findings %v, want no %s finding", findings, rule)
@@ -205,17 +206,17 @@ func TestARFRefusesUnknownAuthorities(t *testing.T) {
 	foreign := generateTestWallet(t)
 	w := generateTestWallet(t)
 	params := arfRequest(t, foreign, w)
-	findings := ARFFindings(params)
+	findings := oid4vp.ARFFindings(params)
 	if !containsSubstring(findings, "RPA_04") || !containsSubstring(findings, "RPRC_02a") {
 		t.Errorf("findings %v, want RPA_04 and RPRC_02a", findings)
 	}
 
 	// --relying-party-ca trusts the foreign access CA and registrar CA.
-	_, foreignAccessCA, err := foreign.RelyingPartyAccessCA()
+	_, foreignAccessCA, err := foreign.Signer().RelyingPartyAccessCA()
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, foreignRegistrarCA, err := foreign.RegistrarCA()
+	_, foreignRegistrarCA, err := foreign.Signer().RegistrarCA()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -223,15 +224,8 @@ func TestARFRefusesUnknownAuthorities(t *testing.T) {
 		pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: foreignRegistrarCA.Raw}),
 		pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: foreignAccessCA.Raw})...)
 	w.PrepareARFChecks(params)
-	if findings := ARFFindings(params); containsSubstring(findings, "RPA_04") || containsSubstring(findings, "RPRC_02a") {
+	if findings := oid4vp.ARFFindings(params); containsSubstring(findings, "RPA_04") || containsSubstring(findings, "RPRC_02a") {
 		t.Errorf("findings %v with --relying-party-ca, want the foreign CA trusted", findings)
-	}
-}
-
-func TestARFRequiresAnAccessCertificate(t *testing.T) {
-	findings := ARFFindings(&AuthorizationRequestParams{ClientID: "redirect_uri:https://verifier.example/response"})
-	if !containsSubstring(findings, "RPA_03") {
-		t.Errorf("findings %v, want the RPA_03 finding", findings)
 	}
 }
 
@@ -259,8 +253,8 @@ func TestAPresentationRequestReadsTheStatusListOnce(t *testing.T) {
 	if err := json.Unmarshal([]byte(verifierInfo), &info); err != nil {
 		t.Fatal(err)
 	}
-	clientID := X509HashClientID(chain[0])
-	requestObject, err := SignRequestObjectJWT(map[string]any{
+	clientID := oid4vp.X509HashClientID(chain[0])
+	requestObject, err := oid4vp.SignRequestObjectJWT(map[string]any{
 		"client_id":     clientID,
 		"response_type": "vp_token",
 		"response_mode": "direct_post",
@@ -302,7 +296,7 @@ func TestRegistrarCertificatesPassAfterASeededRestart(t *testing.T) {
 		return w
 	}
 	before, after := start(), start()
-	if findings := ARFFindings(arfRequest(t, before, after)); len(findings) != 0 {
+	if findings := oid4vp.ARFFindings(arfRequest(t, before, after)); len(findings) != 0 {
 		t.Errorf("findings after a restart %v, want none", findings)
 	}
 }
@@ -316,7 +310,7 @@ func TestARFRefusesARegistrationSignedWithAnAccessCertificate(t *testing.T) {
 	if err := json.Unmarshal([]byte(verifierInfo), &info); err != nil {
 		t.Fatal(err)
 	}
-	_, payload, err := decodeCompactJWT(info[0]["data"].(string))
+	_, payload, _, err := format.ParseJWTParts(info[0]["data"].(string))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -326,10 +320,10 @@ func TestARFRefusesARegistrationSignedWithAnAccessCertificate(t *testing.T) {
 		t.Fatal(err)
 	}
 	params := signedARFRequest(t, w, key, chain, `[{"format":"registration_cert","data":"`+forged+`"}]`)
-	if findings := ARFFindings(params); !containsSubstring(findings, "RPRC_02a") {
+	if findings := oid4vp.ARFFindings(params); !containsSubstring(findings, "RPRC_02a") {
 		t.Errorf("findings %v, want RPRC_02a for a registration certificate signed with an access certificate", findings)
 	}
-	if findings := ARFFindings(arfRequest(t, w, w)); containsSubstring(findings, "RPRC_02a") {
+	if findings := oid4vp.ARFFindings(arfRequest(t, w, w)); containsSubstring(findings, "RPRC_02a") {
 		t.Errorf("findings %v, want the registrar's own certificate trusted", findings)
 	}
 }
@@ -344,35 +338,9 @@ func TestARFRefusesSeveralRegistrationCertificates(t *testing.T) {
 		t.Fatal(err)
 	}
 	twice, _ := json.Marshal(append(entries, entries...))
-	findings := ARFFindings(signedARFRequest(t, reg, key, chain, string(twice)))
+	findings := oid4vp.ARFFindings(signedARFRequest(t, reg, key, chain, string(twice)))
 	if !slices.ContainsFunc(findings, func(f string) bool { return strings.HasPrefix(f, "ARF RPRC_19: the request carries 2") }) {
 		t.Errorf("findings %v, want RPRC_19 for two certificates", findings)
-	}
-}
-
-// ETSI TS 119 475 V1.2.1 Annex B.2.9 requires format and meta, so an entry
-// without them registers nothing (ARF RPRC_21).
-func TestARegisteredEntryWithoutFormatOrTypeRegistersNothing(t *testing.T) {
-	query := map[string]any{"credentials": []any{map[string]any{
-		"id": "pid", "format": "dc+sd-jwt",
-		"meta":   map[string]any{"vct_values": []any{mock.DefaultPIDVCT}},
-		"claims": []any{map[string]any{"path": []any{"given_name"}}},
-	}}}
-	// A registration certificate lists the claims of an entry under "claim"
-	// (ETSI TS 119 475 V1.2.1 Annex B.2.9).
-	claims := []any{map[string]any{"path": []any{"given_name"}}}
-	for name, tc := range map[string]struct {
-		entry    map[string]any
-		findings int
-	}{
-		"format and type": {map[string]any{"format": "dc+sd-jwt", "meta": map[string]any{"vct_values": []any{mock.DefaultPIDVCT}}, "claim": claims}, 0},
-		"no format":       {map[string]any{"meta": map[string]any{"vct_values": []any{mock.DefaultPIDVCT}}, "claim": claims}, 1},
-		"no type":         {map[string]any{"format": "dc+sd-jwt", "claim": claims}, 1},
-	} {
-		cert := map[string]any{"credentials": []any{tc.entry}}
-		if findings := overAskingFindings(cert, query); len(findings) != tc.findings {
-			t.Errorf("%s: findings %v, want %d", name, findings, tc.findings)
-		}
 	}
 }
 
@@ -383,8 +351,8 @@ func TestDebugARFListsTheFindingsInTheResponse(t *testing.T) {
 	srv.wallet.ValidationMode = ValidationModeDebug
 	key, chain, _ := registeredVerifier(t, srv.wallet)
 	verifier := newCaptureVerifier(t)
-	clientID := X509HashClientID(chain[0])
-	requestObject, err := SignRequestObjectJWT(map[string]any{
+	clientID := oid4vp.X509HashClientID(chain[0])
+	requestObject, err := oid4vp.SignRequestObjectJWT(map[string]any{
 		"client_id": clientID, "response_type": "vp_token", "response_mode": "direct_post",
 		"response_uri": verifier.URL, "nonce": "n", "state": "s",
 		"dcql_query": map[string]any{"credentials": []any{map[string]any{
@@ -422,8 +390,8 @@ func TestStrictARFAnswersAnAuthenticatedVerifierWithAccessDenied(t *testing.T) {
 	if err := json.Unmarshal([]byte(verifierInfo), &info); err != nil {
 		t.Fatal(err)
 	}
-	clientID := X509HashClientID(chain[0])
-	requestObject, err := SignRequestObjectJWT(map[string]any{
+	clientID := oid4vp.X509HashClientID(chain[0])
+	requestObject, err := oid4vp.SignRequestObjectJWT(map[string]any{
 		"client_id": clientID, "response_type": "vp_token", "response_mode": "direct_post",
 		"response_uri": verifier.URL, "nonce": "n", "state": "s", "verifier_info": info,
 		"dcql_query": map[string]any{"credentials": []any{map[string]any{

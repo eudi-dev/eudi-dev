@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 )
 
@@ -864,7 +865,7 @@ func TestProcessCredentialOffer_AuthCodeBrowserFallback(t *testing.T) {
 
 	// The test plays the browser and visits the authorization URL from the
 	// event stream.
-	authCh, unsubscribe := w.SubscribeAuthorization(func(AuthorizationPrompt) bool { return true })
+	authCh, unsubscribe := w.Consents().SubscribeAuthorization(func(consent.AuthorizationPrompt) bool { return true })
 	defer unsubscribe()
 	go func() {
 		prompt, ok := <-authCh
@@ -928,7 +929,7 @@ func TestRunAuthorizationCodeRequest_NobodyTookTheURL(t *testing.T) {
 	defer func() { httpClient = oldClient }()
 
 	_, err := runAuthorizationCodeRequest(w, authServer.URL+"/authorize", "wallet-client",
-		"urn:ietf:params:oauth:request_uri:example", nil, redirectURI, state, "", AuthorizationPrompt{}, false)
+		"urn:ietf:params:oauth:request_uri:example", nil, redirectURI, state, "", consent.AuthorizationPrompt{}, false)
 	if err == nil {
 		t.Fatal("expected the issuance to end when nothing can open the authorization URL")
 	}
@@ -1023,7 +1024,7 @@ func TestProcessCredentialOffer_AuthCodeDirectRedirect(t *testing.T) {
 	httpClient = issuer.Client()
 	defer func() { httpClient = oldClient }()
 
-	authCh, unsubscribe := w.SubscribeAuthorization(func(AuthorizationPrompt) bool { return true })
+	authCh, unsubscribe := w.Consents().SubscribeAuthorization(func(consent.AuthorizationPrompt) bool { return true })
 	defer unsubscribe()
 	defer func() {
 		select {
@@ -1634,7 +1635,7 @@ func TestIssuanceConsentDescribesTheOffer(t *testing.T) {
 		}
 	}
 
-	if _, ok := MarshalConsentRequest(req)["offer_details"]; !ok {
+	if _, ok := consent.Marshal(req)["offer_details"]; !ok {
 		t.Error("offer_details missing from the marshalled consent request")
 	}
 }

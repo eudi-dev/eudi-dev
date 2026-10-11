@@ -23,6 +23,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 )
 
@@ -137,14 +138,14 @@ func TestApproveRequest_CarriesTxCodeIntoIssuance(t *testing.T) {
 				t.Errorf("description = %q, want the issuer's own wording", details.TxCodeDescription)
 			}
 
-			w.CreateConsentRequest(consentReq)
+			w.Consents().Create(consentReq)
 			done := make(chan struct{})
 			go func() {
 				defer close(done)
 				server.awaitOfferConsent(noopResponseWriter{}, consentReq, "test issuer", false, OfferOptions{})
 			}()
 
-			consentReq.ResultCh <- ConsentResult{Approved: true, TxCode: tc.code}
+			consentReq.ResultCh <- consent.Result{Approved: true, TxCode: tc.code}
 			submission := <-consentReq.SubmissionCh
 			<-done
 

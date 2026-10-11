@@ -26,6 +26,7 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
 )
 
@@ -418,8 +419,8 @@ func (d *DemoRP) interactivePresentationRequest(req *requestState) (map[string]a
 	}
 
 	// The x509_hash client ID binds the request to its signing certificate.
-	claims["client_id"] = wallet.X509HashClientID(chain[0])
-	jar, jerr := wallet.SignRequestObjectJWT(claims, signingKey, chain)
+	claims["client_id"] = oid4vp.X509HashClientID(chain[0])
+	jar, jerr := oid4vp.SignRequestObjectJWT(claims, signingKey, chain)
 	if jerr != nil {
 		delete(claims, "client_id")
 		return claims, nil
@@ -431,7 +432,7 @@ func (d *DemoRP) interactivePresentationRequest(req *requestState) (map[string]a
 // match it against the AuthorityKeyIdentifier of a leaf certificate. It is
 // empty without a CA.
 func (d *DemoRP) trustAnchorAKI() string {
-	ca := d.wallet.TrustAnchorCertificate()
+	ca := d.wallet.Signer().TrustAnchor()
 	if ca == nil || len(ca.SubjectKeyId) == 0 {
 		return ""
 	}

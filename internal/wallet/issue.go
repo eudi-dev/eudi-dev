@@ -25,10 +25,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 )
 
@@ -83,7 +86,7 @@ type IssueOptions struct {
 	Category string
 	// Trust is registration metadata stored with the issued credential type.
 	// Its Format, VCT and DocType are replaced by the resolved values.
-	Trust IssuedAttestationSpec
+	Trust provider.IssuedAttestationSpec
 	// Display follows OpenID4VCI §12.2.4.
 	Display *IssueDisplay
 	// BatchSize is the number of copies, each with its own holder key (ARF
@@ -140,7 +143,7 @@ func ParseSigningOverride(keyData, certData string) (*ecdsa.PrivateKey, []*x509.
 // verifier rejection can be tested. A JWT VC is exempt because RFC 7515 lets
 // x5c carry the root.
 func (w *Wallet) judgeSigningChainAnchor(format string, chain []*x509.Certificate) error {
-	if format == "jwt" || len(mock.WithoutSelfSignedTrustAnchor(chain)) == len(chain) {
+	if format == "jwt" || len(certchain.WithoutSelfSignedAnchor(chain)) == len(chain) {
 		return nil
 	}
 	finding := "HAIP 1.0 §6.1.1: the signing certificate chain includes its self-signed root, which MUST NOT be included in the credential's x5c"
@@ -215,7 +218,7 @@ func (w *Wallet) IssueCredential(opts IssueOptions) (result *IssueResult, err er
 		spec.Category = firstNonEmpty(spec.Category, saved.Category)
 	}
 	spec.Category = firstNonEmpty(spec.Category, w.CredentialCategory(tpl, spec))
-	spec, err = NormalizeIssuedAttestationSpec(spec, opts.Category)
+	spec, err = provider.NormalizeIssuedAttestationSpec(spec, opts.Category)
 	if err != nil {
 		return nil, err
 	}
@@ -363,7 +366,7 @@ type credentialSigner struct {
 	keepAnchor bool
 }
 
-func (w *Wallet) issueSigner(opts IssueOptions, resolved credtemplate.Resolved, spec IssuedAttestationSpec, statusURI string) (*credentialSigner, error) {
+func (w *Wallet) issueSigner(opts IssueOptions, resolved credtemplate.Resolved, spec provider.IssuedAttestationSpec, statusURI string) (*credentialSigner, error) {
 	key, chain := opts.SigningKey, opts.SigningCertChain
 	if key != nil {
 		if err := w.judgeSigningChainAnchor(resolved.Format, chain); err != nil {
@@ -371,7 +374,7 @@ func (w *Wallet) issueSigner(opts IssueOptions, resolved credtemplate.Resolved, 
 		}
 	} else {
 		var err error
-		if key, chain, err = w.SigningMaterialForIssuedCredential(spec, resolved.Claims); err != nil {
+		if key, chain, err = w.Signer().ForCredential(spec, resolved.Claims); err != nil {
 			return nil, err
 		}
 	}
@@ -417,7 +420,7 @@ func (s *credentialSigner) sign(holderPub *ecdsa.PublicKey, statusIdx int) (stri
 
 // issueDisplay merges display fields one by one, so setting a name or color
 // keeps the template's images.
-func (w *Wallet) issueDisplay(tpl *credtemplate.Template, opts IssueOptions) (*CredentialDisplay, error) {
+func (w *Wallet) issueDisplay(tpl *credtemplate.Template, opts IssueOptions) (*oid4vc.CredentialDisplay, error) {
 	source := tpl
 	if opts.DisplayTemplate != "" {
 		dt, err := credtemplate.Load(opts.DisplayTemplate, w.Templates)
@@ -426,7 +429,7 @@ func (w *Wallet) issueDisplay(tpl *credtemplate.Template, opts IssueOptions) (*C
 		}
 		source = dt
 	}
-	var display *CredentialDisplay
+	var display *oid4vc.CredentialDisplay
 	if source != nil {
 		display = w.templateDisplay(source.Display)
 	}
@@ -477,7 +480,7 @@ func (w *Wallet) SaveTemplate(tpl credtemplate.Template, entry *registrar.Catalo
 // CredentialCategory is the category of the template, or else of the
 // catalogue entry for the credential type. It is empty without either, and
 // the type is then an EAA.
-func (w *Wallet) CredentialCategory(tpl *credtemplate.Template, spec IssuedAttestationSpec) string {
+func (w *Wallet) CredentialCategory(tpl *credtemplate.Template, spec provider.IssuedAttestationSpec) string {
 	if tpl != nil && tpl.Category != "" {
 		return tpl.Category
 	}

@@ -123,21 +123,6 @@ func TestExtractEncryptionKeyRSA(t *testing.T) {
 	}
 }
 
-// When a verifier offers both an EC and an RSA key, the wallet uses the EC key.
-// ECDH-ES is the OID4VP baseline and the only option HAIP allows.
-func TestFindEncryptionJWKPrefersECOverRSA(t *testing.T) {
-	rsaPriv, _ := rsa.GenerateKey(rand.Reader, 2048)
-	ecJWK := map[string]any{"kty": "EC", "crv": "P-256", "use": "enc", "alg": "ECDH-ES", "kid": "ec", "x": "8Yrbbg", "y": "V2Ki0w"}
-	meta := map[string]any{"jwks": map[string]any{"keys": []any{
-		rsaEncJWK(&rsaPriv.PublicKey, "RSA-OAEP"),
-		ecJWK,
-	}}}
-	jwk := findEncryptionJWK(nil, meta)
-	if kty, _ := jwk["kty"].(string); kty != "EC" {
-		t.Fatalf("expected the EC key to be preferred, got kty %q", kty)
-	}
-}
-
 // A verifier that publishes only a key marked for signing is misconfigured.
 // Debug mode encrypts to it and records a finding. Strict mode refuses.
 func TestExtractEncryptionKeySigningOnlyFallback(t *testing.T) {
@@ -171,21 +156,6 @@ func TestAuthorizationResponseUsesTheModeForTheEncryptionKey(t *testing.T) {
 	debug.ValidationMode = ValidationModeDebug
 	if _, err := debug.BuildAuthorizationErrorResponse("access_denied", "", "s", params); err != nil {
 		t.Errorf("debug: %v", err)
-	}
-}
-
-func TestHaipEncryptionKeyViolationsRSA(t *testing.T) {
-	rsaPriv, _ := rsa.GenerateKey(rand.Reader, 2048)
-	meta := map[string]any{"jwks": map[string]any{"keys": []any{rsaEncJWK(&rsaPriv.PublicKey, "RSA-OAEP")}}}
-	violations := haipEncryptionKeyViolations(nil, meta)
-	if len(violations) == 0 {
-		t.Fatal("HAIP must flag an RSA response encryption key")
-	}
-
-	ecJWK := map[string]any{"kty": "EC", "crv": "P-256", "use": "enc", "alg": "ECDH-ES", "kid": "ec", "x": "8Yrbbg", "y": "V2Ki0w"}
-	ecMeta := map[string]any{"jwks": map[string]any{"keys": []any{ecJWK}}}
-	if v := haipEncryptionKeyViolations(nil, ecMeta); len(v) != 0 {
-		t.Fatalf("an EC P-256 key is HAIP-conformant, got %v", v)
 	}
 }
 

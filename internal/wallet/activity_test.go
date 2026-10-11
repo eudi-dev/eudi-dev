@@ -26,6 +26,7 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jwe"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
 func TestActivityRecordsEncryptedCredentialExchange(t *testing.T) {
@@ -50,7 +51,7 @@ func TestActivityRecordsEncryptedCredentialExchange(t *testing.T) {
 			return
 		}
 		requestWire = string(body)
-		requestPlain, readErr = DecryptCompactJWE(requestWire, issuerKey)
+		requestPlain, readErr = oid4vp.DecryptCompactJWE(requestWire, issuerKey)
 		if readErr != nil {
 			t.Error(readErr)
 			rw.WriteHeader(400)
@@ -113,7 +114,7 @@ func TestActivityRecordsExactEncryptedPresentation(t *testing.T) {
 	var payload *LogPayload
 	_, err = w.SubmitPresentation(&VPTokenMapResult{TokenMap: map[string][]string{"pid": {"presentation"}}}, "", "state", verifier.URL,
 		PresentationParams{ResponseMode: "direct_post.jwt", ClientMetadata: map[string]any{"jwks": map[string]any{"keys": []any{testEncJWK(t, &key.PublicKey)}}}},
-		func(response *AuthorizationResponseEnvelope) { payload = PresentationLogPayload(response) })
+		func(response *oid4vp.AuthorizationResponseEnvelope) { payload = PresentationLogPayload(response) })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +125,7 @@ func TestActivityRecordsExactEncryptedPresentation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plain, err := DecryptCompactJWE(form.Get("response"), key)
+	plain, err := oid4vp.DecryptCompactJWE(form.Get("response"), key)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +194,7 @@ func TestActivityPreservesRejectedVerifierResponse(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			w := generateTestWallet(t)
 			s := NewServer(w, 0, nil)
-			result, err := s.deliverAuthorizationError(&AuthorizationRequestParams{
+			result, err := s.deliverAuthorizationError(&oid4vp.Request{
 				ClientID: "verifier", ResponseURI: verifier.URL, ResponseMode: mode,
 				ClientMetadata: map[string]any{"jwks": map[string]any{"keys": []any{testEncJWK(t, &key.PublicKey)}}},
 			}, "access_denied", "declined")
@@ -292,7 +293,7 @@ func TestActivityRecordsDeferredExchanges(t *testing.T) {
 				requestWire = string(body)
 				requestPlain = requestWire
 				if tc.encrypted {
-					requestPlain, err = DecryptCompactJWE(requestWire, issuerKey)
+					requestPlain, err = oid4vp.DecryptCompactJWE(requestWire, issuerKey)
 					if err != nil {
 						t.Error(err)
 						rw.WriteHeader(400)

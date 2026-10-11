@@ -36,7 +36,9 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jwe"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/validate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
@@ -440,7 +442,7 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 		writeSigningMaterialError(w, body, err)
 		return
 	}
-	req.clientID = wallet.X509HashClientID(chain[0])
+	req.clientID = oid4vp.X509HashClientID(chain[0])
 
 	req.encKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -509,7 +511,7 @@ func (d *DemoRP) finalizeRequest(w http.ResponseWriter, req *requestState, respo
 	if len(verifierInfo) > 0 {
 		claims["verifier_info"] = verifierInfo
 	}
-	jar, err := wallet.SignRequestObjectJWT(claims, signingKey, chain)
+	jar, err := oid4vp.SignRequestObjectJWT(claims, signingKey, chain)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "signing request object: " + err.Error()})
 		return
@@ -628,7 +630,7 @@ func customClientID(scheme string, chain []*x509.Certificate, responseURI, preRe
 		if len(chain) == 0 {
 			return "", fmt.Errorf("x509_hash needs a signing certificate")
 		}
-		return wallet.X509HashClientID(chain[0]), nil
+		return oid4vp.X509HashClientID(chain[0]), nil
 	case "x509_san_dns":
 		if len(chain) == 0 {
 			return "", fmt.Errorf("x509_san_dns needs a signing certificate")
@@ -1186,8 +1188,8 @@ var credentialChecks = validate.Options{Status: true, HAIP: true}
 func (d *DemoRP) credentialTrust() validate.Trust {
 	return validate.Trust{
 		Supplied:   true,
-		Issuance:   append(d.wallet.CredentialProviderAnchors(wallet.IssuanceServices), d.verifierTrustAnchors...),
-		Revocation: append(d.wallet.CredentialProviderAnchors(wallet.RevocationServices), d.verifierTrustAnchors...),
+		Issuance:   append(d.wallet.TrustedLists().CredentialProviderAnchors(lote.IssuanceServices), d.verifierTrustAnchors...),
+		Revocation: append(d.wallet.TrustedLists().CredentialProviderAnchors(lote.RevocationServices), d.verifierTrustAnchors...),
 		HTTPClient: d.wallet.HTTPClient(),
 	}
 }

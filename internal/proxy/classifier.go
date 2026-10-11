@@ -398,9 +398,7 @@ func isJWTBody(body string) bool {
 }
 
 func isJWE(s string) bool {
-	s = strings.TrimSpace(s)
-	parts := strings.Split(s, ".")
-	return len(parts) == 5 && len(parts[0]) > 0
+	return format.IsJWE(strings.TrimSpace(s))
 }
 
 // decodeJARMResponse decodes a JARM response (direct_post.jwt). For a JWE only the

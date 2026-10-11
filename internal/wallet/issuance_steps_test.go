@@ -188,7 +188,7 @@ func TestIssuanceConsentCarriesTheChosenConfiguration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("prepareIssuanceConsentRequest: %v", err)
 	}
-	w.CreateConsentRequest(consentReq)
+	w.Consents().Create(consentReq)
 
 	if rec := serverRequest(t, server, "POST", "/api/requests/"+consentReq.ID+"/approve", `{"credential_configuration_id":"third"}`); rec.Code != http.StatusBadRequest {
 		t.Fatalf("approve with an unlisted configuration: %d %s, want 400", rec.Code, rec.Body.String())

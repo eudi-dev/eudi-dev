@@ -67,7 +67,7 @@ func TestVerifierReportsEveryHAIPCredentialFinding(t *testing.T) {
 	h := d.VerifierHandler()
 	id, params := startVerification(t, h, "ticket")
 
-	chain, err := d.wallet.DefaultSigningCertChain()
+	chain, err := d.wallet.Signer().DefaultChain()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +98,7 @@ func TestVerifierReportsEveryHAIPCredentialFinding(t *testing.T) {
 func TestVerifierFetchesWithTheWalletsHTTPClient(t *testing.T) {
 	d, w, holderKey := newDemoRP(t)
 	w.ValidationMode = wallet.ValidationModeStrict
-	key, chain, err := w.StatusListSigningMaterial()
+	key, chain, err := w.Signer().StatusList()
 	if err != nil {
 		t.Fatal(err)
 	}

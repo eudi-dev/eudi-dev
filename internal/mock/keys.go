@@ -15,7 +15,6 @@
 package mock
 
 import (
-	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/hkdf"
@@ -399,21 +398,6 @@ func GenerateLeafCertWithOptions(caKey *ecdsa.PrivateKey, caCert *x509.Certifica
 	}
 
 	return x509.ParseCertificate(der)
-}
-
-// WithoutSelfSignedTrustAnchor removes a terminal self-signed root certificate from
-// a chain for JOSE headers or JWK metadata.
-func WithoutSelfSignedTrustAnchor(chain []*x509.Certificate) []*x509.Certificate {
-	if len(chain) == 0 {
-		return nil
-	}
-	out := make([]*x509.Certificate, len(chain))
-	copy(out, chain)
-	last := out[len(out)-1]
-	if bytes.Equal(last.RawSubject, last.RawIssuer) && last.CheckSignatureFrom(last) == nil {
-		return out[:len(out)-1]
-	}
-	return out
 }
 
 // Seed keeps generated keys stable across restarts with memory storage. An empty seed

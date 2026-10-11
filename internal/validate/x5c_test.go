@@ -19,15 +19,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/trustlist"
 )
 
 func TestExtractAndValidateJWKX5C(t *testing.T) {
 	caCert, caKey, caDER := generateCACert(t)
 	_, _, leafDER := generateLeafCert(t, caCert, caKey)
-	anchors := []trustlist.CertInfo{{Subject: caCert.Subject.String(), PublicKey: caCert.PublicKey, Raw: caDER}}
+	anchors := []lote.CertInfo{{Subject: caCert.Subject.String(), PublicKey: caCert.PublicKey, Raw: caDER}}
 
 	leafB64 := base64.StdEncoding.EncodeToString(leafDER)
 	caB64 := base64.StdEncoding.EncodeToString(caDER)

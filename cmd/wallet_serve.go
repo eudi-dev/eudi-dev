@@ -45,6 +45,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/remote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/serverlog"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/storage"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/urlhandler"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/web"
 )
@@ -625,7 +626,7 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 		if err != nil {
 			return fmt.Errorf("serializing wallet serve flags for registration: %w", err)
 		}
-		if reg, err := wallet.RegisterURLSchemes(wallet.RegisterOptions{
+		if reg, err := urlhandler.Register(urlhandler.Options{
 			ListenerPort: opts.Port,
 			AutoAccept:   w.AutoAccept,
 			ServeArgs:    serveArgs,
@@ -741,7 +742,7 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 			}
 			// A tab already watching is told over its event stream, so no
 			// second tab is opened. The address is printed either way.
-			watched := w.AttachedUIs() > 0
+			watched := w.Consents().AttachedUIs() > 0
 			if !watched && !noOpen && hasDesktopSession() && openBrowser(target) {
 				fmt.Printf("  Opening wallet UI: %s\n", target)
 				return

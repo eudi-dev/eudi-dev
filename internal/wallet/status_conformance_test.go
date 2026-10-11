@@ -234,7 +234,7 @@ func TestHandleStatusList_ServesCWTWhenAsked(t *testing.T) {
 	if leaf.KeyUsage != x509.KeyUsageDigitalSignature {
 		t.Errorf("status signer key usage = %v, want digitalSignature only", leaf.KeyUsage)
 	}
-	if len(leaf.SubjectKeyId) == 0 || !bytes.Equal(leaf.AuthorityKeyId, w.TrustAnchorCertificate().SubjectKeyId) {
+	if len(leaf.SubjectKeyId) == 0 || !bytes.Equal(leaf.AuthorityKeyId, w.Signer().TrustAnchor().SubjectKeyId) {
 		t.Error("status signer must identify its key and the wallet CA's key")
 	}
 	for _, extension := range leaf.Extensions {
@@ -249,7 +249,7 @@ func TestHandleStatusList_ServesCWTWhenAsked(t *testing.T) {
 		t.Errorf("status signer CRL distribution points = %v", leaf.CRLDistributionPoints)
 	}
 	roots := x509.NewCertPool()
-	roots.AddCert(w.TrustAnchorCertificate())
+	roots.AddCert(w.Signer().TrustAnchor())
 	if _, err := leaf.Verify(x509.VerifyOptions{Roots: roots, KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny}}); err != nil {
 		t.Fatalf("status signer does not chain to the wallet CA: %v", err)
 	}
@@ -261,7 +261,7 @@ func TestHandleStatusList_ServesCWTWhenAsked(t *testing.T) {
 		t.Fatalf("status list signature does not verify: %v", err)
 	}
 	message.Headers.RawProtected = nil
-	message.Headers.Protected[int64(33)] = w.TrustAnchorCertificate().Raw
+	message.Headers.Protected[int64(33)] = w.Signer().TrustAnchor().Raw
 	if err := message.Verify(nil, verifier); err == nil {
 		t.Error("replacing the protected certificate must invalidate the signature")
 	}

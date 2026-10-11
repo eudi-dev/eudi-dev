@@ -151,49 +151,6 @@ func TestJWKThumbprint_KnownVector(t *testing.T) {
 	}
 }
 
-func TestResponseTypeContains(t *testing.T) {
-	tests := []struct {
-		responseType string
-		target       string
-		want         bool
-	}{
-		{"vp_token", "vp_token", true},
-		{"vp_token", "id_token", false},
-		{"vp_token id_token", "vp_token", true},
-		{"vp_token id_token", "id_token", true},
-		{"id_token", "id_token", true},
-		{"id_token", "vp_token", false},
-		{"", "vp_token", false},
-		{"vp_token  id_token", "id_token", true}, // extra spaces
-	}
-
-	for _, tt := range tests {
-		got := ResponseTypeContains(tt.responseType, tt.target)
-		if got != tt.want {
-			t.Errorf("ResponseTypeContains(%q, %q) = %v, want %v", tt.responseType, tt.target, got, tt.want)
-		}
-	}
-}
-
-func TestResponseTypeRequiresVP(t *testing.T) {
-	tests := []struct {
-		responseType string
-		want         bool
-	}{
-		{"", true},
-		{"vp_token", true},
-		{"vp_token id_token", true},
-		{"id_token", false},
-	}
-
-	for _, tt := range tests {
-		got := ResponseTypeRequiresVP(tt.responseType)
-		if got != tt.want {
-			t.Errorf("ResponseTypeRequiresVP(%q) = %v, want %v", tt.responseType, got, tt.want)
-		}
-	}
-}
-
 func verifyES256(t *testing.T, token string, pub *ecdsa.PublicKey) bool {
 	t.Helper()
 	_, _, sig, err := format.ParseJWTParts(token)
@@ -228,34 +185,6 @@ func splitJWT(token string) [3]string {
 	}
 	parts[i] = token
 	return parts
-}
-
-func TestBuildFragmentRedirect_WithIDToken(t *testing.T) {
-	vpToken := map[string][]string{"pid": {"token1"}}
-	got, err := BuildFragmentRedirect("https://verifier.example/cb", "state1", vpToken, "eyJhbGciOiJFUzI1NiJ9.test.sig")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	for _, want := range []string{"vp_token=", "id_token=", "state=state1"} {
-		if !strings.Contains(got, want) {
-			t.Errorf("expected URL to contain %q, got: %s", want, got)
-		}
-	}
-}
-
-func TestBuildFragmentRedirect_IDTokenOnly(t *testing.T) {
-	got, err := BuildFragmentRedirect("https://verifier.example/cb", "state1", nil, "eyJhbGciOiJFUzI1NiJ9.test.sig")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if !strings.Contains(got, "id_token=") {
-		t.Errorf("expected id_token in URL, got: %s", got)
-	}
-	if strings.Contains(got, "vp_token=") {
-		t.Errorf("expected no vp_token when nil, got: %s", got)
-	}
 }
 
 func TestServerIDTokenFlow(t *testing.T) {

@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
@@ -135,7 +136,7 @@ func TestOfferCanAskForTheBrowserSignInInstead(t *testing.T) {
 		t.Fatalf("unexpected offer response: %v", offer)
 	}
 
-	authCh, unsubscribe := w.SubscribeAuthorization(func(wallet.AuthorizationPrompt) bool { return true })
+	authCh, unsubscribe := w.Consents().SubscribeAuthorization(func(consent.AuthorizationPrompt) bool { return true })
 	defer unsubscribe()
 	done := make(chan error, 1)
 	go func() {
@@ -495,7 +496,7 @@ func TestAuthViaWebFlowEndToEnd(t *testing.T) {
 
 func signPID(t *testing.T, d *DemoRP, holderKey *ecdsa.PrivateKey) string {
 	t.Helper()
-	chain, err := d.wallet.DefaultSigningCertChain()
+	chain, err := d.wallet.Signer().DefaultChain()
 	if err != nil {
 		t.Fatalf("signing chain: %v", err)
 	}

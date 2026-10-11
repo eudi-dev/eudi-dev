@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"slices"
 	"time"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 )
 
 // DeferredIssuance is stored on its own because issuance may take hours. It
@@ -40,9 +42,9 @@ type DeferredIssuance struct {
 	DocType string `json:"doctype,omitempty"`
 	// Display keeps the display metadata from the original flow until
 	// collection completes.
-	Display     *CredentialDisplay `json:"display,omitempty"`
-	AccessToken string             `json:"access_token"`
-	AuthScheme  string             `json:"auth_scheme,omitempty"`
+	Display     *oid4vc.CredentialDisplay `json:"display,omitempty"`
+	AccessToken string                    `json:"access_token"`
+	AuthScheme  string                    `json:"auth_scheme,omitempty"`
 	// AccessTokenExpiresAt tells when a long deferral needs a new access
 	// token. The original token is short lived, and an issuer may ask the
 	// wallet to come back in an hour.
@@ -80,7 +82,7 @@ type deferredTransaction struct {
 	renewal       CredentialRenewal
 	metadata      map[string]any
 	format        string
-	display       *CredentialDisplay
+	display       *oid4vc.CredentialDisplay
 	grant         *accessGrant
 	proofKeys     []*ecdsa.PrivateKey
 }

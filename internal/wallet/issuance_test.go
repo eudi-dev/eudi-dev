@@ -24,10 +24,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jwe"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
 func TestResolveCredentialIdentifier_FromAuthDetails(t *testing.T) {
@@ -295,9 +297,9 @@ func TestPrepareCredentialRequestBody_EncryptsWhenIssuerAdvertisesRequestEncrypt
 	if header["alg"] != "ECDH-ES" || header["enc"] != "A256GCM" || header["kid"] != "issuer-enc-key" || header["cty"] != "json" {
 		t.Fatalf("unexpected JWE header: %v", header)
 	}
-	decrypted, err := DecryptCompactJWE(string(body), issuerKey)
+	decrypted, err := oid4vp.DecryptCompactJWE(string(body), issuerKey)
 	if err != nil {
-		t.Fatalf("DecryptCompactJWE: %v", err)
+		t.Fatalf("oid4vp.DecryptCompactJWE: %v", err)
 	}
 	var got map[string]any
 	if err := json.Unmarshal([]byte(decrypted), &got); err != nil {
@@ -614,7 +616,7 @@ func TestParseIssuerMetadataResponse_RejectsSignedMetadataForAnotherIssuer(t *te
 	trustSignedIssuerMetadataFrom(t, w)
 
 	// Only sub differs, so the test reaches the issuer identity check alone.
-	chain, err := w.DefaultSigningCertChain()
+	chain, err := w.Signer().DefaultChain()
 	if err != nil {
 		t.Fatalf("building the signing chain: %v", err)
 	}
@@ -626,7 +628,7 @@ func TestParseIssuerMetadataResponse_RejectsSignedMetadataForAnotherIssuer(t *te
 	}, w.IssuerKey, map[string]any{
 		"alg": "ES256",
 		"typ": signedIssuerMetadataTyp,
-		"x5c": buildJWSX5C(chain),
+		"x5c": certchain.X5C(chain),
 	})
 	if err != nil {
 		t.Fatalf("signing: %v", err)
@@ -828,7 +830,7 @@ func TestParseIssuerMetadataResponse_RequiresIatAndRejectsExpiredMetadata(t *tes
 	w := generateTestWallet(t)
 	w.IssuerURL = "https://issuer.example:8443"
 	trustSignedIssuerMetadataFrom(t, w)
-	chain, err := w.DefaultSigningCertChain()
+	chain, err := w.Signer().DefaultChain()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -842,7 +844,7 @@ func TestParseIssuerMetadataResponse_RequiresIatAndRejectsExpiredMetadata(t *tes
 	} {
 		payload := map[string]any{"credential_issuer": w.IssuerURL, "credential_endpoint": w.IssuerURL + "/credential", "sub": w.IssuerURL}
 		maps.Copy(payload, tc.times)
-		raw, err := signJSONWebSignature(payload, w.IssuerKey, map[string]any{"alg": "ES256", "typ": signedIssuerMetadataTyp, "x5c": buildJWSX5C(chain)})
+		raw, err := signJSONWebSignature(payload, w.IssuerKey, map[string]any{"alg": "ES256", "typ": signedIssuerMetadataTyp, "x5c": certchain.X5C(chain)})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -876,7 +878,7 @@ func TestParseIssuerMetadataResponse_SignedMetadataTypIsAMediaType(t *testing.T)
 		t.Fatalf("generating credentials: %v", err)
 	}
 	trustSignedIssuerMetadataFrom(t, w)
-	chain, err := w.DefaultSigningCertChain()
+	chain, err := w.Signer().DefaultChain()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -886,7 +888,7 @@ func TestParseIssuerMetadataResponse_SignedMetadataTypIsAMediaType(t *testing.T)
 			"credential_endpoint": w.IssuerURL + "/credential",
 			"sub":                 w.IssuerURL,
 			"iat":                 time.Now().Unix(),
-		}, w.IssuerKey, map[string]any{"alg": "ES256", "typ": typ, "x5c": buildJWSX5C(chain)})
+		}, w.IssuerKey, map[string]any{"alg": "ES256", "typ": typ, "x5c": certchain.X5C(chain)})
 		if err != nil {
 			t.Fatal(err)
 		}

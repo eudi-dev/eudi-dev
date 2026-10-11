@@ -25,22 +25,28 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/trustlist"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/validate"
 )
 
 // generateEAATrustListJWT signs an EAA list with the CA as its
 // trust anchor.
+func signingChain(w *Wallet, spec provider.IssuedAttestationSpec) ([]*x509.Certificate, error) {
+	_, chain, err := w.Signer().ForSpec(spec)
+	return chain, err
+}
+
 func generateEAATrustListJWT(signingKey *ecdsa.PrivateKey, caCert *x509.Certificate) (string, error) {
-	return generateTrustListJWTWithOptions(signingKey, caCert, trustListOptions{
+	return provider.SignTrustList(signingKey, caCert, lote.Options{
 		OperatorName: "EUDI Dev Wallet",
-		Profile: trustListProfile{
-			LoTEType:              eaaTrustListType,
-			IssuanceServiceType:   categoryTrustListProfile(credtemplate.CategoryEAA).IssuanceServiceType,
-			RevocationServiceType: categoryTrustListProfile(credtemplate.CategoryEAA).RevocationServiceType,
+		Profile: lote.Profile{
+			LoTEType:              provider.CategoryProfile(credtemplate.CategoryEAA).LoTEType,
+			IssuanceServiceType:   provider.CategoryProfile(credtemplate.CategoryEAA).IssuanceServiceType,
+			RevocationServiceType: provider.CategoryProfile(credtemplate.CategoryEAA).RevocationServiceType,
 			IssuanceServiceName:   "Issuance Service",
 			RevocationServiceName: "Revocation Service",
 			EntityName:            "EUDI Dev Wallet Issuer",
@@ -126,17 +132,17 @@ func TestGenerateTrustListJWT_PayloadStructure(t *testing.T) {
 		t.Fatalf("parsing payload: %v", err)
 	}
 
-	lote, ok := payload["LoTE"].(map[string]any)
+	loteBody, ok := payload["LoTE"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected top-level LoTE object, got %T", payload["LoTE"])
 	}
-	if _, ok := lote["ListAndSchemeInformation"]; !ok {
+	if _, ok := loteBody["ListAndSchemeInformation"]; !ok {
 		t.Error("expected ListAndSchemeInformation in LoTE payload")
 	}
-	if _, ok := lote["TrustedEntitiesList"]; !ok {
+	if _, ok := loteBody["TrustedEntitiesList"]; !ok {
 		t.Error("expected TrustedEntitiesList in LoTE payload")
 	}
-	schemeInfo, ok := lote["ListAndSchemeInformation"].(map[string]any)
+	schemeInfo, ok := loteBody["ListAndSchemeInformation"].(map[string]any)
 	if !ok {
 		t.Fatal("expected ListAndSchemeInformation object")
 	}
@@ -146,8 +152,8 @@ func TestGenerateTrustListJWT_PayloadStructure(t *testing.T) {
 	if schemeInfo["LoTESequenceNumber"] != float64(1) {
 		t.Errorf("expected LoTESequenceNumber 1, got %v", schemeInfo["LoTESequenceNumber"])
 	}
-	if schemeInfo["LoTEType"] != eaaTrustListType {
-		t.Errorf("expected the EAA list type %s, got %v", eaaTrustListType, schemeInfo["LoTEType"])
+	if schemeInfo["LoTEType"] != provider.CategoryProfile(credtemplate.CategoryEAA).LoTEType {
+		t.Errorf("expected the EAA list type %s, got %v", provider.CategoryProfile(credtemplate.CategoryEAA).LoTEType, schemeInfo["LoTEType"])
 	}
 	if _, ok := schemeInfo["ListIssueDateTime"].(string); !ok {
 		t.Errorf("expected ListIssueDateTime string, got %T", schemeInfo["ListIssueDateTime"])
@@ -156,19 +162,19 @@ func TestGenerateTrustListJWT_PayloadStructure(t *testing.T) {
 		t.Errorf("expected NextUpdate string, got %T", schemeInfo["NextUpdate"])
 	}
 
-	entities, ok := lote["TrustedEntitiesList"].([]any)
+	entities, ok := loteBody["TrustedEntitiesList"].([]any)
 	if !ok || len(entities) == 0 {
 		t.Fatal("expected non-empty TrustedEntitiesList")
 	}
 }
 
-func TestGenerateTrustListJWTForWallet_PIDProfileMatchesETSIShape(t *testing.T) {
+func TestTheSignedPIDListMatchesTheETSIShape(t *testing.T) {
 	w := generateTestWalletWithPID(t)
 	w.IssuerURL = "https://wallet.example:8443"
 
-	jwt, err := GenerateTrustListJWTForWallet(w, w.IssuerURL)
+	jwt, err := w.TrustedLists().SignedList(w.IssuerURL)
 	if err != nil {
-		t.Fatalf("GenerateTrustListJWTForWallet: %v", err)
+		t.Fatalf("SignedList: %v", err)
 	}
 
 	parts := strings.SplitN(jwt, ".", 3)
@@ -182,19 +188,19 @@ func TestGenerateTrustListJWTForWallet_PIDProfileMatchesETSIShape(t *testing.T) 
 		t.Fatalf("parsing payload: %v", err)
 	}
 
-	lote, ok := payload["LoTE"].(map[string]any)
+	loteBody, ok := payload["LoTE"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected top-level LoTE object, got %T", payload["LoTE"])
 	}
-	schemeInfo, ok := lote["ListAndSchemeInformation"].(map[string]any)
+	schemeInfo, ok := loteBody["ListAndSchemeInformation"].(map[string]any)
 	if !ok {
-		t.Fatalf("expected ListAndSchemeInformation object, got %T", lote["ListAndSchemeInformation"])
+		t.Fatalf("expected ListAndSchemeInformation object, got %T", loteBody["ListAndSchemeInformation"])
 	}
-	if schemeInfo["LoTEType"] != pidTrustListType {
-		t.Fatalf("expected PID LoTEType %s, got %v", pidTrustListType, schemeInfo["LoTEType"])
+	if schemeInfo["LoTEType"] != lote.PIDProvidersListType {
+		t.Fatalf("expected PID LoTEType %s, got %v", lote.PIDProvidersListType, schemeInfo["LoTEType"])
 	}
-	if schemeInfo["StatusDeterminationApproach"] != categoryTrustListProfile(credtemplate.CategoryPID).StatusDeterminationApproach {
-		t.Fatalf("expected PID status determination %s, got %v", categoryTrustListProfile(credtemplate.CategoryPID).StatusDeterminationApproach, schemeInfo["StatusDeterminationApproach"])
+	if schemeInfo["StatusDeterminationApproach"] != provider.CategoryProfile(credtemplate.CategoryPID).StatusDeterminationApproach {
+		t.Fatalf("expected PID status determination %s, got %v", provider.CategoryProfile(credtemplate.CategoryPID).StatusDeterminationApproach, schemeInfo["StatusDeterminationApproach"])
 	}
 	if schemeInfo["SchemeTerritory"] != "EU" {
 		t.Fatalf("expected EU scheme territory, got %v", schemeInfo["SchemeTerritory"])
@@ -204,20 +210,20 @@ func TestGenerateTrustListJWTForWallet_PIDProfileMatchesETSIShape(t *testing.T) 
 		t.Fatalf("expected one SchemeTypeCommunityRules entry, got %v", schemeInfo["SchemeTypeCommunityRules"])
 	}
 	rule, ok := rules[0].(map[string]any)
-	if !ok || rule["uriValue"] != categoryTrustListProfile(credtemplate.CategoryPID).SchemeTypeCommunityRules {
-		t.Fatalf("expected PID scheme rule %s, got %v", categoryTrustListProfile(credtemplate.CategoryPID).SchemeTypeCommunityRules, rules)
+	if !ok || rule["uriValue"] != provider.CategoryProfile(credtemplate.CategoryPID).SchemeTypeCommunityRules {
+		t.Fatalf("expected PID scheme rule %s, got %v", provider.CategoryProfile(credtemplate.CategoryPID).SchemeTypeCommunityRules, rules)
 	}
 }
 
-func TestTrustListGroupsForWallet_MixedProfiles(t *testing.T) {
+func TestTrustedListGroupsWithMixedProfiles(t *testing.T) {
 	w := generateTestWallet(t)
-	if err := w.RegisterIssuedAttestation(applyCategoryDefaults(IssuedAttestationSpec{Category: credtemplate.CategoryPID,
+	if err := w.RegisterIssuedAttestation(provider.ApplyCategoryDefaults(provider.IssuedAttestationSpec{Category: credtemplate.CategoryPID,
 		Format: "dc+sd-jwt",
 		VCT:    mock.DefaultPIDVCT,
 	})); err != nil {
 		t.Fatalf("registering PID attestation: %v", err)
 	}
-	if err := w.RegisterIssuedAttestation(applyCategoryDefaults(IssuedAttestationSpec{Category: credtemplate.CategoryEAA,
+	if err := w.RegisterIssuedAttestation(provider.ApplyCategoryDefaults(provider.IssuedAttestationSpec{Category: credtemplate.CategoryEAA,
 		Format:  "mso_mdoc",
 		DocType: "org.iso.23220.photoid.1",
 		Entitlements: []string{
@@ -227,7 +233,7 @@ func TestTrustListGroupsForWallet_MixedProfiles(t *testing.T) {
 		t.Fatalf("registering local attestation: %v", err)
 	}
 
-	groups := TrustListGroupsForWallet(w)
+	groups := w.TrustedLists().Groups()
 	var ids []string
 	for _, group := range groups {
 		ids = append(ids, group.ID)
@@ -239,7 +245,7 @@ func TestTrustListGroupsForWallet_MixedProfiles(t *testing.T) {
 		t.Fatalf("eaa group lists %+v, want the photo ID", groups[3].Specs)
 	}
 
-	defaultGroup := DefaultTrustListGroupForWallet(w)
+	defaultGroup := w.TrustedLists().DefaultGroup()
 	if defaultGroup.ID != "pid" {
 		t.Fatalf("expected default group pid, got %s", defaultGroup.ID)
 	}
@@ -250,30 +256,30 @@ func TestWalletProviderTrustList_UsesDistinctSignerAndIsNeverDefault(t *testing.
 	w := generateTestWallet(t)
 	w.IssuerURL = "https://wallet.example:8443"
 
-	group, ok := FindTrustListGroupForWallet(w, "wallet-provider", "", "")
+	group, ok := w.TrustedLists().FindGroup("wallet-provider", "", "")
 	if !ok {
 		t.Fatal("expected a wallet-provider trust-list group")
 	}
-	if group.Profile.LoTEType != walletProviderTrustListType {
+	if group.Profile.LoTEType != lote.WalletProvidersListType {
 		t.Fatalf("expected EUWalletProvidersList type, got %s", group.Profile.LoTEType)
 	}
-	if group.Profile.IssuanceServiceType != walletProviderIssuanceServiceType {
+	if group.Profile.IssuanceServiceType != provider.WalletProviderProfile().IssuanceServiceType {
 		t.Fatalf("expected wallet solution issuance service type, got %s", group.Profile.IssuanceServiceType)
 	}
 
-	defaultGroup := DefaultTrustListGroupForWallet(w)
+	defaultGroup := w.TrustedLists().DefaultGroup()
 	if defaultGroup.ID == "wallet-provider" {
 		t.Fatal("wallet-provider list must never be the default trusted list")
 	}
 
 	// TS 119 412-6 V1.1.1 §5 distinguishes the wallet provider signing role.
-	walletJWT, err := GenerateTrustListJWTForWalletGroup(w, w.IssuerURL, group, "/api/trustlists/wallet-provider")
+	walletJWT, err := w.TrustedLists().SignedGroupList(w.IssuerURL, group, "/api/trustlists/wallet-provider")
 	if err != nil {
-		t.Fatalf("GenerateTrustListJWTForWalletGroup(wallet-provider): %v", err)
+		t.Fatalf("SignedGroupList(wallet-provider): %v", err)
 	}
-	credentialJWT, err := GenerateTrustListJWTForWalletGroup(w, w.IssuerURL, defaultGroup, "/api/trustlists/"+defaultGroup.ID)
+	credentialJWT, err := w.TrustedLists().SignedGroupList(w.IssuerURL, defaultGroup, "/api/trustlists/"+defaultGroup.ID)
 	if err != nil {
-		t.Fatalf("GenerateTrustListJWTForWalletGroup(%s): %v", defaultGroup.ID, err)
+		t.Fatalf("SignedGroupList(%s): %v", defaultGroup.ID, err)
 	}
 	if got, want := trustListAnchorCert(t, walletJWT), trustListAnchorCert(t, credentialJWT); got == want {
 		t.Fatal("wallet and credential lists share a service signing certificate")
@@ -294,8 +300,8 @@ func trustListAnchorCert(t *testing.T, jwt string) string {
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
 		t.Fatalf("parsing payload: %v", err)
 	}
-	lote, _ := payload["LoTE"].(map[string]any)
-	entities, _ := lote["TrustedEntitiesList"].([]any)
+	loteBody, _ := payload["LoTE"].(map[string]any)
+	entities, _ := loteBody["TrustedEntitiesList"].([]any)
 	if len(entities) == 0 {
 		t.Fatal("expected a trusted entity in the trusted list")
 	}
@@ -321,14 +327,14 @@ func trustListAnchorCert(t *testing.T, jwt string) string {
 
 func TestBuildTrustListIndexEntries_UsesRelativePathAndOptionalAdvertisedURL(t *testing.T) {
 	w := generateTestWallet(t)
-	if err := w.RegisterIssuedAttestation(applyCategoryDefaults(IssuedAttestationSpec{Category: credtemplate.CategoryPID,
+	if err := w.RegisterIssuedAttestation(provider.ApplyCategoryDefaults(provider.IssuedAttestationSpec{Category: credtemplate.CategoryPID,
 		Format: "dc+sd-jwt",
 		VCT:    mock.DefaultPIDVCT,
 	})); err != nil {
 		t.Fatalf("registering PID attestation: %v", err)
 	}
 
-	entries := BuildTrustListIndexEntries(w, "")
+	entries := w.TrustedLists().IndexEntries("")
 	if len(entries) != 7 {
 		t.Fatalf("expected seven trust-list entries, got %d", len(entries))
 	}
@@ -342,7 +348,7 @@ func TestBuildTrustListIndexEntries_UsesRelativePathAndOptionalAdvertisedURL(t *
 		t.Fatalf("expected empty legacy url without issuer, got %s", entries[0].URL)
 	}
 
-	entries = BuildTrustListIndexEntries(w, "https://wallet.example:8443")
+	entries = w.TrustedLists().IndexEntries("https://wallet.example:8443")
 	if len(entries) != 7 {
 		t.Fatalf("expected seven trust-list entries, got %d", len(entries))
 	}
@@ -358,11 +364,11 @@ func TestBuildTrustListIndexEntries_UsesRelativePathAndOptionalAdvertisedURL(t *
 // signer keeps the wallet's issuer key.
 func TestEachCategorySignsWithItsOwnKey(t *testing.T) {
 	w := generateTestWallet(t)
-	pid, err := w.SigningCertChainForIssuedAttestation(applyCategoryDefaults(IssuedAttestationSpec{Category: credtemplate.CategoryPID, Format: "dc+sd-jwt", VCT: mock.DefaultPIDVCT}))
+	pid, err := signingChain(w, provider.ApplyCategoryDefaults(provider.IssuedAttestationSpec{Category: credtemplate.CategoryPID, Format: "dc+sd-jwt", VCT: mock.DefaultPIDVCT}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	eaa, err := w.SigningCertChainForIssuedAttestation(applyCategoryDefaults(IssuedAttestationSpec{Category: credtemplate.CategoryEAA, Format: "mso_mdoc", DocType: "org.iso.23220.photoid.1"}))
+	eaa, err := signingChain(w, provider.ApplyCategoryDefaults(provider.IssuedAttestationSpec{Category: credtemplate.CategoryEAA, Format: "mso_mdoc", DocType: "org.iso.23220.photoid.1"}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -430,18 +436,18 @@ func checkCategoryLists(t *testing.T, w *Wallet) {
 		}
 		var lists []string
 		for _, category := range credtemplate.Categories {
-			group, _ := FindTrustListGroupForWallet(w, category, "", "")
-			jwt, err := GenerateTrustListJWTForWalletGroup(w, w.IssuerURL, group, "/api/trustlists/"+category)
+			group, _ := w.TrustedLists().FindGroup(category, "", "")
+			jwt, err := w.TrustedLists().SignedGroupList(w.IssuerURL, group, "/api/trustlists/"+category)
 			if err != nil {
 				t.Fatal(err)
 			}
-			list, err := trustlist.Parse(jwt)
+			list, err := lote.Parse(jwt)
 			if err != nil {
 				t.Fatal(err)
 			}
 			certificates := list.Entities[0].Services[0].Certificates
 			_, chainErr := validate.ExtractAndValidateX5C(token.Header, certificates)
-			signedByListedKey := slices.ContainsFunc(certificates, func(c trustlist.CertInfo) bool {
+			signedByListedKey := slices.ContainsFunc(certificates, func(c lote.CertInfo) bool {
 				return sdjwt.Verify(token, c.PublicKey).SignatureValid
 			})
 			if chainErr == nil || signedByListedKey {
@@ -458,7 +464,7 @@ func checkCategoryLists(t *testing.T, w *Wallet) {
 		{"a PID template", IssueOptions{Format: "sdjwt", Template: "pid-sdjwt"}, []string{"pid"}},
 		{"a catalogue entry", IssueOptions{Format: "sdjwt", VCT: testDiplomaVCT, Claims: map[string]any{"degree": "MSc"}}, []string{"qeaa"}},
 		{"neither", IssueOptions{Format: "sdjwt", VCT: "urn:example:badge:1", Claims: map[string]any{"level": "gold"}}, []string{"eaa"}},
-		{"unlisted", IssueOptions{Format: "sdjwt", VCT: "urn:example:badge:2", Claims: map[string]any{"level": "gold"}, Category: UnlistedCategory}, nil},
+		{"unlisted", IssueOptions{Format: "sdjwt", VCT: "urn:example:badge:2", Claims: map[string]any{"level": "gold"}, Category: provider.UnlistedCategory}, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := w.IssueCredential(tc.opts)
@@ -469,51 +475,6 @@ func checkCategoryLists(t *testing.T, w *Wallet) {
 				t.Errorf("on the lists %v, want %v", got, tc.want)
 			}
 		})
-	}
-}
-
-// A list type stored by an eudi-dev 2 wallet moves to the list of the spec's
-// category.
-func TestAnEudiDev2ListTypeMovesToTheListOfItsCategory(t *testing.T) {
-	legacy := IssuedAttestationSpec{
-		Format:                "dc+sd-jwt",
-		VCT:                   "urn:test:1",
-		TrustListType:         legacyTrustListType,
-		IssuanceServiceType:   legacyIssuanceServiceType,
-		RevocationServiceType: legacyRevocationService,
-		EntityName:            "EUDI Dev Wallet Issuer",
-	}
-	for _, tc := range []struct {
-		category string
-		want     trustListProfile
-	}{
-		{"", categoryTrustListProfile(credtemplate.CategoryEAA)},
-		{credtemplate.CategoryQEAA, categoryTrustListProfile(credtemplate.CategoryQEAA)},
-	} {
-		spec := legacy
-		spec.Category = tc.category
-		got, err := NormalizeIssuedAttestationSpec(spec, "")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if got.TrustListType != tc.want.LoTEType || got.IssuanceServiceType != tc.want.IssuanceServiceType || got.RevocationServiceType != tc.want.RevocationServiceType || got.EntityName != tc.want.EntityName {
-			t.Errorf("category %q: got %+v, want the list of %s", tc.category, got, tc.want.Category)
-		}
-	}
-}
-
-// A spec that names the list type of a category belongs to that category and
-// gets the defaults of its list.
-func TestASpecWithACategoryListTypeGetsThatCategory(t *testing.T) {
-	for _, category := range credtemplate.Categories {
-		want := categoryTrustListProfile(category)
-		got, err := NormalizeIssuedAttestationSpec(IssuedAttestationSpec{Format: "dc+sd-jwt", VCT: "urn:test:1", TrustListType: want.LoTEType}, "")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if got.Category != category || got.IssuanceServiceType != want.IssuanceServiceType || got.EntityName != want.EntityName {
-			t.Errorf("list type %s: got category %q and %+v, want %s", want.LoTEType, got.Category, got, category)
-		}
 	}
 }
 

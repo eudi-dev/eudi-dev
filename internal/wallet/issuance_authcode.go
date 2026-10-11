@@ -29,7 +29,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
@@ -190,7 +192,7 @@ func (w *Wallet) processAuthorizationCodeOffer(offer *oid4vc.CredentialOffer, se
 		"redirect_uri": redirectURI,
 		"state":        state,
 	}, &LogPayload{Label: "Request URL", Body: authURL})
-	callbackValues, err := runAuthorizationCodeRequest(w, authorizationEndpoint, clientID, requestURI, parForm, redirectURI, state, oauthIssuer(oauthMeta, ""), AuthorizationPrompt{Owner: opts.Owner, Flow: opts.Flow}, issAdvertised(oauthMeta))
+	callbackValues, err := runAuthorizationCodeRequest(w, authorizationEndpoint, clientID, requestURI, parForm, redirectURI, state, oauthIssuer(oauthMeta, ""), consent.AuthorizationPrompt{Owner: opts.Owner, Flow: opts.Flow}, issAdvertised(oauthMeta))
 	authorizationResponseDetails := map[string]any{
 		"direction": "inbound",
 		"endpoint":  "authorization",
@@ -662,12 +664,12 @@ func (a *clientAuthenticator) formBody(contentType string, body []byte) ([]byte,
 // (§5.1 and §5.2 rule 1), so one shape verifies under all of them.
 func createClientAttestationHeaders(w *Wallet, auth *ClientAuthentication, clientID, challenge string) (map[string]string, error) {
 
-	signingKey, chain, err := w.WalletProviderSigningMaterial()
+	signingKey, chain, err := w.Signer().WalletProvider()
 	if err != nil {
 		return nil, err
 	}
 
-	x5c := buildJWSX5C(chain)
+	x5c := certchain.X5C(chain)
 	holderJWK := mock.SigningJWKMap(&w.HolderKey.PublicKey)
 	clientAttestationHeader := map[string]any{
 		"alg": jws.AlgES256,
@@ -760,7 +762,7 @@ func createKeyAttestation(w *Wallet, metadata map[string]any, configID, cNonce s
 	if !required {
 		return "", nil
 	}
-	signingKey, chain, err := w.WalletProviderSigningMaterial()
+	signingKey, chain, err := w.Signer().WalletProvider()
 	if err != nil {
 		return "", err
 	}
@@ -775,7 +777,7 @@ func createKeyAttestation(w *Wallet, metadata map[string]any, configID, cNonce s
 	header := map[string]any{
 		"alg": jws.AlgES256,
 		"typ": "key-attestation+jwt",
-		"x5c": buildJWSX5C(chain),
+		"x5c": certchain.X5C(chain),
 	}
 	if kid := mock.KeyIDForPublicKey(&signingKey.PublicKey); kid != "" {
 		header["kid"] = kid
@@ -1680,20 +1682,20 @@ func derefString(v *string) string {
 // runAuthorizationCodeRequest uses the authorization URL exactly once, because
 // RFC 9126 §4 allows one use of a request_uri. A browser opens it when the
 // callback reaches this wallet. Otherwise the wallet calls the endpoint itself.
-func runAuthorizationCodeRequest(w *Wallet, endpoint, clientID, requestURI string, params url.Values, redirectURI, expectedState, expectedIssuer string, route AuthorizationPrompt, issRequired bool) (url.Values, error) {
+func runAuthorizationCodeRequest(w *Wallet, endpoint, clientID, requestURI string, params url.Values, redirectURI, expectedState, expectedIssuer string, route consent.AuthorizationPrompt, issRequired bool) (url.Values, error) {
 	authURL, err := authorizationRequestURL(endpoint, clientID, requestURI, params)
 	if err != nil {
 		return nil, err
 	}
 
 	if canUseInteractiveAuthorizationCallback(w, redirectURI) {
-		callbackCh, unregister := w.RegisterAuthorizationCodeCallback(expectedState)
+		callbackCh, unregister := w.Consents().RegisterAuthorizationCodeCallback(expectedState)
 		defer unregister()
 
 		// The user's browser opens the URL. A browser opened on a hosted wallet
 		// server would not reach the user.
 		route.URL = authURL
-		if !w.NotifyAuthorization(route) {
+		if !w.Consents().NotifyAuthorization(route) {
 			return nil, fmt.Errorf("this offer needs an interactive sign-in at %s, and nothing is attached to this wallet that can open it", authURL)
 		}
 		select {
@@ -1774,7 +1776,7 @@ func authorizationRequestURL(endpoint, clientID, requestURI string, params url.V
 	if endpoint == "" {
 		return "", fmt.Errorf("authorization server metadata did not include authorization_endpoint")
 	}
-	if err := validateAbsoluteURI("authorization_endpoint", endpoint); err != nil {
+	if err := format.ValidateAbsoluteURI("authorization_endpoint", endpoint); err != nil {
 		return "", err
 	}
 	parsed, err := url.Parse(endpoint)

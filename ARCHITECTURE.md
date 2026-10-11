@@ -18,6 +18,7 @@ examples/      Keycloak and web-wallet integration examples
 |---|---|
 | `certchain` | Certificate chains of JOSE (x5c) and COSE (x5chain) messages and their verification against trust anchors |
 | `config` | Defaults (ports, timeouts) |
+| `consent` | Consent requests, the credential options of a presentation, the selection logic and the in-memory runtime of pending requests (ADR-0011) |
 | `credtemplate` | Credential templates, predefined and user-supplied |
 | `credtype` | The EUDI credential type identifiers and which type extends which |
 | `dcql` | DCQL query parsing, evaluation, generation |
@@ -25,27 +26,32 @@ examples/      Keycloak and web-wallet integration examples
 | `format` | Format detection, base64url, and the outbound fetch policy (ADR-0004) |
 | `httpsec` | Browser security headers and the cross-origin guard (ADR-0002) |
 | `imprint` | Operator-supplied legal notice page |
-| `jsonutil` | Type-safe accessors for `map[string]any` |
+| `jsonutil` | Type-safe accessors for `map[string]any` and JSON values |
 | `jwe` | Compact JWE decryption (ECDH-ES, Concat KDF, AES-GCM) |
 | `jws` | JWS signing (ES256) and verification (ES, RS and PS families), shared by signer and verifier (ADR-0008) |
 | `keys` | PEM and JWK key loading and conversion |
+| `lote` | Lists of trusted entities (ETSI TS 119 602): parsing, signing and the certificates of their services |
 | `mdoc` | mdoc parsing (CBOR) and COSE_Sign1 verification |
 | `mock` | Test credential generators |
 | `oid4vc` | OID4VP and OID4VCI request and offer parsing |
+| `oid4vp` | The wallet side of OpenID4VP 1.0: request checks (client identifier, client metadata, verifier_info, HAIP), browser API requests and response delivery |
 | `output` | Terminal output formatting |
+| `provider` | The wallet's provider keys and certificates: the trusted list profile of each credential category, the signing key and CA of each profile, the access and registrar CAs, and the sequenced lists they sign |
 | `proxy` | Reverse proxy, traffic classifier, dashboard |
 | `publicpath` | The path prefix of the base URL behind a reverse proxy (ADR-0019) |
 | `qr` | QR scanning from file or screen |
+| `regcert` | Checks of registration certificates (ETSI TS 119 475) and their binding to access certificates, for the verifiers and issuers the wallet talks to |
 | `registrar` | Relying party registrar (TS05 v1.5): registrations, access certificates (ETSI TS 119 411-8), registration certificates (ETSI TS 119 475), their status list, and the catalogue of attestations (EC TS11) |
 | `remote` | Remote wallet control (REST client, instance discovery) |
 | `sdjwt` | SD-JWT parsing, disclosure resolution, verification |
 | `serverlog` | Console output as JSON log records |
 | `statuslist` | Token Status List encoding and decoding, in JWT and CWT form |
 | `storage` | Blob storage backed by files, memory or Postgres (ADR-0016) |
-| `trustlist` | Parsing of trusted lists (ETSI TS 119 602). The wallet keeps one list per credential category (ADR-0022) |
+| `trustedlists` | The wallet's set of trusted lists (ADR-0022, ADR-0023): its own list per credential category, the providers and lists users add, the external lists it reads and the anchors they give |
+| `urlhandler` | Registration of the wallet as the operating system handler for OID4VP and OID4VCI URL schemes |
 | `validate` | The credential checks shared by `validate` and the web decoder: type, validity, digests, signature, catalogue trust, revocation and HAIP |
 | `validity` | Time claims against the current time, with one clock skew rule |
-| `wallet` | Wallet state (persisted through `storage`), HTTP server, OID4VP and OID4VCI protocol logic, the wallet's trusted lists, provider keys and ARF checks |
+| `wallet` | Wallet state (persisted through `storage`), HTTP server, presentation and issuance flows, the issuer role and the ARF checks of issuers and credentials |
 | `web` | Decoder and validator web UI |
 
 ## Flows

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 )
 
 func (s *Server) SetIssuerTLSCertificate(cert tls.Certificate) {
@@ -53,7 +54,7 @@ func (s *Server) renewIssuerTLSCertificateIfNeeded(now time.Time) {
 		return
 	}
 	leaf, err := x509.ParseCertificate(current.Certificate[0])
-	if err != nil || now.Add(signingCertificateRenewBefore).Before(leaf.NotAfter) {
+	if err != nil || now.Add(provider.RenewBefore).Before(leaf.NotAfter) {
 		return
 	}
 	caKey, chain := s.wallet.certificateAuthority()

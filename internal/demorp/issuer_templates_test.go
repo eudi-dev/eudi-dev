@@ -218,15 +218,15 @@ func TestAStrictWalletRefusesACredentialOutsideItsTrustedList(t *testing.T) {
 	_, ts := serveDemoStack(t, w)
 
 	other := newIssuanceWallet(t)
-	group := wallet.DefaultTrustListGroupForWallet(other)
-	list, err := wallet.GenerateTrustListJWTForWalletGroup(other, other.IssuerURL, group, "/api/trustlists/"+group.ID)
+	group := other.TrustedLists().DefaultGroup()
+	list, err := other.TrustedLists().SignedGroupList(other.IssuerURL, group, "/api/trustlists/"+group.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	foreign := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) { _, _ = rw.Write([]byte(list)) }))
 	t.Cleanup(foreign.Close)
 	// The wallet trusts the other list operator, so the list gives anchors.
-	w.TrustListCAPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: other.TrustAnchorCertificate().Raw})
+	w.TrustListCAPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: other.Signer().TrustAnchor().Raw})
 
 	const vct = "urn:example:badge:1"
 	if _, err := credtemplate.Save(w.Templates, credtemplate.Template{Name: "badge", Format: "sdjwt", VCT: vct, Claims: map[string]any{"level": "gold"}}); err != nil {

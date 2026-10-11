@@ -22,6 +22,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
 // mdocDeviceAuthVerifies presents the first mdoc of the wallet and checks its
@@ -37,7 +38,7 @@ func mdocDeviceAuthVerifies(t *testing.T, w *Wallet, params PresentationParams, 
 		t.Fatalf("creating the vp_token map: %v", err)
 	}
 	var transcript []byte
-	if isDCAPIResponseMode(params.ResponseMode) {
+	if oid4vp.IsDCAPIResponseMode(params.ResponseMode) {
 		transcript, err = mdoc.OID4VPDCAPISessionTranscript(params.RequestOrigin, params.Nonce, thumbprint)
 	} else {
 		transcript, err = mdoc.OID4VPSessionTranscript(params.ClientID, params.Nonce, thumbprint, params.ResponseURI)
@@ -57,7 +58,7 @@ func mdocDeviceAuthVerifies(t *testing.T, w *Wallet, params PresentationParams, 
 // encrypted.
 func TestMDocHandoverCarriesTheThumbprintOnlyForEncryptedResponses(t *testing.T) {
 	w := pidBaselineWallet(t)
-	w.SessionTranscript = SessionTranscriptOID4VP
+	w.SessionTranscript = oid4vp.SessionTranscriptOID4VP
 
 	wrapping := ecEncJWK(t, "enc")
 	wrapping["alg"] = "ECDH-ES+A128KW"

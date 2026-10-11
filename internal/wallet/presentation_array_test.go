@@ -20,6 +20,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
 )
@@ -43,7 +44,7 @@ func importNationalitiesPID(t *testing.T, w *Wallet) StoredCredential {
 	return *cred
 }
 
-func presentedNationalities(t *testing.T, w *Wallet, m CredentialMatch) any {
+func presentedNationalities(t *testing.T, w *Wallet, m consent.Match) any {
 	t.Helper()
 	cred, _ := w.GetCredential(m.CredentialID)
 	presentation, err := w.createSDJWTPresentation(cred, m.SelectedKeys, "nonce", "verifier", w.HolderKey)
@@ -166,7 +167,7 @@ func TestPresentation_UndisclosedClaimsLoggedGrouped(t *testing.T) {
 }
 
 func TestSortMatchesCompleteFirst(t *testing.T) {
-	matches := []CredentialMatch{
+	matches := []consent.Match{
 		{QueryID: "q", CredentialID: "partial", MissingClaims: []string{"x"}},
 		{QueryID: "q", CredentialID: "complete"},
 	}

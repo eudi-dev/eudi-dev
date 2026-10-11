@@ -16,21 +16,22 @@ package wallet
 
 import (
 	"crypto/x509"
-	"errors"
 	"fmt"
 	"log"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/regcert"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/trustlist"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/trustedlists"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/validate"
 )
 
@@ -76,7 +77,7 @@ func (w *Wallet) catalogueFindings(metadata map[string]any, configurations []str
 			continue
 		}
 		if _, ok := catalogueEntryIn(entries, o.format, o.types); !ok {
-			findings = append(findings, fmt.Sprintf("Attestation catalogue: the issuer offers %s (%s), and the catalogue has no entry for it. Add an entry to describe its schema and trusted list.", credentialTypeName(o.format, o.types), o.format))
+			findings = append(findings, fmt.Sprintf("Attestation catalogue: the issuer offers %s (%s), and the catalogue has no entry for it. Add an entry to describe its schema and trusted list.", regcert.TypeName(o.format, o.types), o.format))
 		}
 	}
 	return findings
@@ -152,18 +153,18 @@ func (w *Wallet) catalogueAnchoring(cred StoredCredential) (CatalogueAnchoring, 
 	}
 	rule := category.TrustRule
 	eaa := rule == registrar.CategoryOf(credtemplate.CategoryEAA).TrustRule
-	var candidates []trustedList
+	var candidates []trustedlists.List
 	for _, entry := range entries {
 		for _, authority := range entry.Schema.TrustedAuthorities {
 			// The wallet reads lists of trusted entities (ETSI TS 119 602) only.
 			if authority.FrameworkType == "etsi_tl" && authority.IsLOTE != nil && *authority.IsLOTE && authority.Value != "" && !listedIn(candidates, authority.Value) {
-				list, err := w.readTrustedList(authority.Value)
-				candidates = append(candidates, trustedList{URL: authority.Value, List: list, Err: err})
+				list, err := w.TrustedLists().ReadList(authority.Value)
+				candidates = append(candidates, trustedlists.List{URL: authority.Value, List: list, Err: err})
 			}
 		}
 	}
 	if listType := categoryListType(entries[0].Category); listType != "" {
-		for _, tl := range w.trustedLists() {
+		for _, tl := range w.TrustedLists().Lists() {
 			if tl.Err == nil && tl.List.SchemeInfo.LoTEType == listType && !listedIn(candidates, tl.URL) {
 				candidates = append(candidates, tl)
 			}
@@ -183,13 +184,13 @@ func (w *Wallet) catalogueAnchoring(cred StoredCredential) (CatalogueAnchoring, 
 			continue
 		}
 		read = true
-		issuance, err := trustlist.Anchors(c.List, trustlist.IssuanceServices, now)
+		issuance, err := lote.Anchors(c.List, lote.IssuanceServices, now)
 		if err == nil {
 			err = validateWithAnchors(cred, issuance)
 		}
 		var revocation []*x509.Certificate
 		if err == nil {
-			revocation, err = trustlist.Anchors(c.List, trustlist.RevocationServices, now)
+			revocation, err = lote.Anchors(c.List, lote.RevocationServices, now)
 		}
 		if err == nil {
 			result.AnchoredBy = c.URL
@@ -212,8 +213,8 @@ func (w *Wallet) catalogueAnchoring(cred StoredCredential) (CatalogueAnchoring, 
 	return result, true
 }
 
-func listedIn(lists []trustedList, url string) bool {
-	return slices.ContainsFunc(lists, func(l trustedList) bool { return l.URL == url })
+func listedIn(lists []trustedlists.List, url string) bool {
+	return slices.ContainsFunc(lists, func(l trustedlists.List) bool { return l.URL == url })
 }
 
 // entriesLinking returns the catalogue entries that name the trusted list.
@@ -265,29 +266,6 @@ func validateWithAnchors(cred StoredCredential, anchors []*x509.Certificate) err
 	return nil
 }
 
-// verifyTrustListSigner checks the JAdES signature of a trusted list (ETSI TS
-// 119 602 V1.1.1 Annexes D.4 to H.4) and that its signer chains to one of the
-// certificates: a trusted list operator, or the signer named by a pointer. The
-// ARF has the wallet accept the provider trust anchors because of the list's
-// signature (PPNot_05, TLPub_05, TLPub_07).
-func verifyTrustListSigner(raw string, operators []*x509.Certificate) error {
-	header, _, err := decodeCompactJWT(strings.TrimSpace(raw))
-	if err != nil {
-		return fmt.Errorf("reading the trusted list: %w", err)
-	}
-	chain, err := validate.X5CCertificates(header)
-	if err != nil || len(chain) == 0 {
-		return errors.New("the trusted list has no x5c signer certificate")
-	}
-	if _, err := jws.Verify(strings.TrimSpace(raw), chain[0].PublicKey); err != nil {
-		return errors.New("the trusted list's signature does not verify")
-	}
-	if _, err := certchain.Verify(chain, operators); err != nil {
-		return fmt.Errorf("the list's signer does not chain to a trusted list CA. Add the list operator's CA to trusted-list-ca, or start the wallet with --trusted-list-ca: %w", err)
-	}
-	return nil
-}
-
 // checkReceivedCredentials checks every credential of a credential response
 // before the wallet stores one, on every issuance path. Each copy of a batch
 // is signed on its own. With --haip it applies HAIP 1.0 §6.1.1, and with
@@ -331,11 +309,27 @@ func receivedCredential(raw string) StoredCredential {
 		if err != nil {
 			return StoredCredential{}
 		}
-		return StoredCredential{Format: credtype.FormatSDJWT, VCT: stringClaim(token.Payload["vct"]), Raw: raw}
+		return StoredCredential{Format: credtype.FormatSDJWT, VCT: jsonutil.Text(token.Payload["vct"]), Raw: raw}
 	}
 	doc, err := mdoc.Parse(raw)
 	if err != nil {
 		return StoredCredential{}
 	}
 	return StoredCredential{Format: credtype.FormatMDOC, DocType: doc.DocType, Raw: raw}
+}
+
+// dedupeStrings trims the values and returns each non-empty one once, sorted.
+func dedupeStrings(values []string) []string {
+	seen := make(map[string]bool)
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		out = append(out, value)
+	}
+	sort.Strings(out)
+	return out
 }

@@ -22,8 +22,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/regcert"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 )
 
@@ -53,7 +56,7 @@ func signedTestIssuerMetadata(t *testing.T, key *ecdsa.PrivateKey, chain []*x509
 		}
 		payload["issuer_info"] = info
 	}
-	raw, err := signJSONWebSignature(payload, key, map[string]any{"alg": "ES256", "typ": signedIssuerMetadataTyp, "x5c": buildJWSX5C(chain)})
+	raw, err := signJSONWebSignature(payload, key, map[string]any{"alg": "ES256", "typ": signedIssuerMetadataTyp, "x5c": certchain.X5C(chain)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +171,7 @@ func TestARFRefusesAnIssuerRegistrationFromTheAccessCA(t *testing.T) {
 func TestARFAcceptsTheWalletsOwnIssuer(t *testing.T) {
 	w := generateTestWallet(t)
 	w.IssuerURL = "https://issuer.example"
-	w.IssuedAttestations = []IssuedAttestationSpec{
+	w.IssuedAttestations = []provider.IssuedAttestationSpec{
 		{Format: "dc+sd-jwt", VCT: mock.DefaultPIDVCT},
 		{Format: "mso_mdoc", DocType: mock.PIDNamespace},
 		{Format: "dc+sd-jwt", VCT: testDiplomaVCT, Category: credtemplate.CategoryEAA},
@@ -245,12 +248,6 @@ func TestARFChecksOfferedTypesStrictly(t *testing.T) {
 	if got := strings.Join(w.issuerARFCheck(metadata, signer, []string{"missing"}), "\n"); !strings.Contains(got, "has no configuration missing") {
 		t.Errorf("unknown configuration: %q", got)
 	}
-	if providesType([]registeredCredential{{format: "dc+sd-jwt"}}, "dc+sd-jwt", []string{testDiplomaVCT}) {
-		t.Error("a listed entry without a type authorised a type")
-	}
-	if providesType([]registeredCredential{{format: "mso_mdoc", types: []string{testDiplomaVCT}}}, "dc+sd-jwt", []string{testDiplomaVCT}) {
-		t.Error("a type in another format matched")
-	}
 }
 
 // A PID next to another attestation needs both entitlements (ISSU_24a and
@@ -308,7 +305,7 @@ func TestIssuerInfoNeedsBothElements(t *testing.T) {
 	w := generateTestWallet(t)
 	rp := registerTestIssuer(t, w, registrar.NonQEAAProviderEntitlement)
 	result := issueTestIssuerInfo(t, w, rp)
-	entries := infoEntries(map[string]any{"issuer_info": result.IssuerInfo}, "issuer_info")
+	entries := regcert.InfoEntries(map[string]any{"issuer_info": result.IssuerInfo}, "issuer_info")
 	if got := issuerInfoShapeFindings(entries); len(got) != 0 {
 		t.Fatalf("findings %v for the registrar's issuer_info, want none", got)
 	}

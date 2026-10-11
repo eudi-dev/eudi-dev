@@ -22,14 +22,14 @@ import (
 	"fmt"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/trustlist"
 )
 
 // ValidateCertChain checks that the leaf certs[0] chains to one of the trust
 // list certificates and returns its public key.
-func ValidateCertChain(certs []*x509.Certificate, tlCerts []trustlist.CertInfo) (crypto.PublicKey, error) {
-	anchors, err := trustlist.Certificates(tlCerts)
+func ValidateCertChain(certs []*x509.Certificate, tlCerts []lote.CertInfo) (crypto.PublicKey, error) {
+	anchors, err := lote.Certificates(tlCerts)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +43,7 @@ func ValidateCertChain(certs []*x509.Certificate, tlCerts []trustlist.CertInfo) 
 // ExtractAndValidateX5C extracts the leaf certificate public key from a JWT x5c header
 // and validates that the certificate chain is anchored in the trust list.
 // Returns nil, nil if no x5c header is present.
-func ExtractAndValidateX5C(header map[string]any, tlCerts []trustlist.CertInfo) (crypto.PublicKey, error) {
+func ExtractAndValidateX5C(header map[string]any, tlCerts []lote.CertInfo) (crypto.PublicKey, error) {
 	if len(tlCerts) == 0 {
 		return nil, nil
 	}
@@ -79,7 +79,7 @@ func parseX5CCerts(header map[string]any) ([]*x509.Certificate, error) {
 // ExtractAndValidateMDOCX5Chain extracts the leaf certificate public key from the
 // COSE x5chain (label 33) and validates the chain against the trust list.
 // Returns nil, nil if no x5chain is present.
-func ExtractAndValidateMDOCX5Chain(doc *mdoc.Document, tlCerts []trustlist.CertInfo) (crypto.PublicKey, error) {
+func ExtractAndValidateMDOCX5Chain(doc *mdoc.Document, tlCerts []lote.CertInfo) (crypto.PublicKey, error) {
 	if len(tlCerts) == 0 {
 		return nil, nil
 	}

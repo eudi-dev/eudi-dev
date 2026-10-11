@@ -22,10 +22,10 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/output"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/qr"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/trustlist"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/validate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/web"
 )
@@ -175,7 +175,7 @@ func decodeOID4(raw string, opts output.Options) error {
 }
 
 func decodeTrustList(raw string, opts output.Options) error {
-	tl, err := trustlist.Parse(raw)
+	tl, err := lote.Parse(raw)
 	if err != nil {
 		return fmt.Errorf("parsing trusted list: %w", err)
 	}

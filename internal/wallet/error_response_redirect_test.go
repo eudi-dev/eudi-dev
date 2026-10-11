@@ -21,6 +21,8 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 )
 
 // OpenID4VP 1.0 §8.2: "If the Response URI has successfully processed the
@@ -125,7 +127,7 @@ func TestNoMatchAPIResponseCarriesTheVerifierRedirect(t *testing.T) {
 func TestNextErrorOverrideAPIResponseCarriesTheVerifierRedirect(t *testing.T) {
 	srv := newTestServer(t, true)
 	verifier := newRedirectingVerifier(t, verifierContinueURI)
-	srv.wallet.SetNextError(&NextErrorOverride{Error: "access_denied"})
+	srv.wallet.Consents().SetNextError(&consent.NextErrorOverride{Error: "access_denied"})
 
 	rec := serverRequest(t, srv, "GET", presentationAuthorizePath(t, verifier.URL), "")
 
@@ -210,7 +212,7 @@ func TestNoMatchBrowserNavigationWithoutAVerifierRedirectLandsOnTheWalletUI(t *t
 func TestNextErrorOverrideSkipsAnInvalidRequest(t *testing.T) {
 	srv := newTestServer(t, true)
 	verifier := newRedirectingVerifier(t, verifierContinueURI)
-	srv.wallet.SetNextError(&NextErrorOverride{Error: "access_denied"})
+	srv.wallet.Consents().SetNextError(&consent.NextErrorOverride{Error: "access_denied"})
 
 	valid := presentationAuthorizePath(t, verifier.URL)
 	invalid, err := url.Parse(valid)

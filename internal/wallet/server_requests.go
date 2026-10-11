@@ -25,12 +25,13 @@ import (
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 )
 
 func (s *Server) handleListRequests(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store, private")
 	w.Header().Set("Vary", "Cookie, "+OwnerHeader)
-	writeJSON(w, http.StatusOK, s.wallet.PendingRequestDocsFor(callerOwners(r), namedRequest(r)))
+	writeJSON(w, http.StatusOK, s.wallet.Consents().PendingDocsFor(callerOwners(r), namedRequest(r)))
 }
 
 // Limit each stream write so disconnected readers release their goroutine and
@@ -64,15 +65,15 @@ func (s *Server) handleRequestStream(w http.ResponseWriter, r *http.Request) {
 
 	owners := callerOwners(r)
 
-	reqCh, reqUnsub := s.wallet.Subscribe()
+	reqCh, reqUnsub := s.wallet.Consents().Subscribe()
 	defer reqUnsub()
-	errCh, errUnsub := s.wallet.SubscribeErrors()
+	errCh, errUnsub := s.wallet.Consents().SubscribeErrors()
 	defer errUnsub()
-	stateCh, stateUnsub := s.wallet.SubscribeState()
+	stateCh, stateUnsub := s.wallet.Consents().SubscribeState()
 	defer stateUnsub()
 	// Only the browser that owns the issuance navigates to the sign-in URL.
-	authCh, authUnsub := s.wallet.SubscribeAuthorization(func(prompt AuthorizationPrompt) bool {
-		return ownedBy(owners, prompt.Owner)
+	authCh, authUnsub := s.wallet.Consents().SubscribeAuthorization(func(prompt consent.AuthorizationPrompt) bool {
+		return consent.OwnedBy(owners, prompt.Owner)
 	})
 	defer authUnsub()
 
@@ -90,10 +91,10 @@ func (s *Server) handleRequestStream(w http.ResponseWriter, r *http.Request) {
 			}
 			flusher.Flush()
 		case req := <-reqCh:
-			if !ownsRequest(owners, req, "") {
+			if !consent.Owns(owners, req, "") {
 				continue
 			}
-			data, err := json.Marshal(s.wallet.RequestDocFor(req, owners))
+			data, err := json.Marshal(s.wallet.Consents().DocFor(req, owners))
 			if err != nil {
 				continue
 			}
@@ -153,7 +154,7 @@ func (s *Server) allowSlowResponse(w http.ResponseWriter, wait time.Duration) {
 
 // Distinguish timeout from an answer in another tab so the user knows what happened.
 func refusalReason(status string) string {
-	if status == statusExpired {
+	if status == consent.StatusExpired {
 		return "This request timed out before it was answered"
 	}
 	return "This request was already answered"
@@ -193,8 +194,8 @@ func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
 
 	// Validate selection before resolving consent so an invalid choice leaves the
 	// dialog open.
-	if pending, ok := s.wallet.GetRequest(id); ok {
-		if !ownsRequest(callerOwners(r), pending, namedRequest(r)) {
+	if pending, ok := s.wallet.Consents().Get(id); ok {
+		if !consent.Owns(callerOwners(r), pending, namedRequest(r)) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "request not found"})
 			return
 		}
@@ -202,17 +203,17 @@ func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("the offer does not list credential configuration %q", body.ConfigurationID)})
 			return
 		}
-		if err := ValidateConsentSelection(pending.CredentialOptions, picks, body.SetChoices, body.ClaimSets); err != nil {
+		if err := consent.ValidateSelection(pending.CredentialOptions, picks, body.SetChoices, body.ClaimSets); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
-		if s.wallet.Mode() == ValidationModeStrict && debugOnlySelection(pending.CredentialOptions, picks, body.ClaimSets) {
+		if s.wallet.Mode() == ValidationModeStrict && consent.DebugOnlySelection(pending.CredentialOptions, picks, body.ClaimSets) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "strict mode sends neither non-matching credentials nor another claim set"})
 			return
 		}
 	}
 
-	req, ok := s.wallet.ResolveRequest(id, "approved")
+	req, ok := s.wallet.Consents().Resolve(id, "approved")
 	if !ok {
 		if req == nil {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "request not found"})
@@ -222,7 +223,7 @@ func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req.ResultCh <- ConsentResult{
+	req.ResultCh <- consent.Result{
 		Approved:        true,
 		Owner:           requestOwner(r),
 		SelectedClaims:  body.SelectedClaims,
@@ -261,11 +262,11 @@ func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleDenyRequest(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	if pending, ok := s.wallet.GetRequest(id); ok && !ownsRequest(callerOwners(r), pending, namedRequest(r)) {
+	if pending, ok := s.wallet.Consents().Get(id); ok && !consent.Owns(callerOwners(r), pending, namedRequest(r)) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "request not found"})
 		return
 	}
-	req, ok := s.wallet.ResolveRequest(id, "denied")
+	req, ok := s.wallet.Consents().Resolve(id, "denied")
 	if !ok {
 		if req == nil {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "request not found"})
@@ -275,7 +276,7 @@ func (s *Server) handleDenyRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req.ResultCh <- ConsentResult{Approved: false}
+	req.ResultCh <- consent.Result{Approved: false}
 
 	// OpenID4VP 1.0 §8.2: the verifier can answer the Authorization Error Response
 	// with a redirect_uri, and the wallet must send the user agent there.

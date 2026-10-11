@@ -26,7 +26,6 @@ import (
 	"log"
 	"maps"
 	"net/http"
-	"net/url"
 	"reflect"
 	"slices"
 	"sort"
@@ -34,42 +33,24 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/sync/singleflight"
-
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/storage"
-)
-
-type SessionTranscriptMode string
-
-const (
-	// SessionTranscriptISO uses the ISO 18013-7 Annex B.4.4 handover: the
-	// SHA-256 of CBOR([client_id, mdocGeneratedNonce]), the SHA-256 of
-	// CBOR([response_uri, mdocGeneratedNonce]), and the nonce.
-	SessionTranscriptISO SessionTranscriptMode = "iso"
-
-	// SessionTranscriptOID4VP uses the OID4VP 1.0 Appendix B.2.6 handover: the
-	// SHA-256 of CBOR([client_id, nonce, jwkThumbprint, response_uri]). This is
-	// the default.
-	SessionTranscriptOID4VP SessionTranscriptMode = "oid4vp"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/trustedlists"
 )
 
 type StatusEntry struct {
 	Index  int `json:"index"`
 	Status int `json:"status"` // 0=valid, 1=revoked
-}
-
-// NextErrorOverride applies to the next presentation request only.
-type NextErrorOverride struct {
-	Error            string `json:"error"`
-	ErrorDescription string `json:"error_description"`
 }
 
 type Wallet struct {
@@ -79,8 +60,8 @@ type Wallet struct {
 	CertChain []*x509.Certificate // [leaf, CA] certificate chain
 	PersistedState
 	AutoAccept        bool
-	SessionTranscript SessionTranscriptMode // "oid4vp" (default) or "iso"
-	PreferredFormat   string                // "" (no preference), "dc+sd-jwt", or "mso_mdoc"
+	SessionTranscript oid4vp.SessionTranscriptMode // "oid4vp" (default) or "iso"
+	PreferredFormat   string                       // "" (no preference), "dc+sd-jwt", or "mso_mdoc"
 	// The wallet advertises this key even when RequireEncryptedRequest is false.
 	RequestEncryptionKey *ecdsa.PrivateKey
 	ConformanceSettings  `json:"-"`
@@ -119,9 +100,7 @@ type Wallet struct {
 	// count, and saves it. A server sets it to its saveMutation, which takes
 	// the store lock. Never call it while holding that lock.
 	saveMutation func(change func() bool)
-	listCacheMu  sync.Mutex
-	listCache    map[string]cachedList
-	listFetches  singleflight.Group
+	listCache    trustedlists.ListCache
 	outboundHTTP *http.Client
 	// Entity backends track the last loaded or saved snapshot and section revisions.
 	// File storage leaves these nil.
@@ -139,8 +118,8 @@ type Wallet struct {
 	credentialSink func(StoredCredential)
 	// Forwards batch use from a clone so the original wallet advances its rotation.
 	batchPresentedSink func(id string)
-	runtime            *WalletRuntime
-	signers            *signingStore
+	runtime            *consent.Runtime
+	signers            *provider.Keys
 	// Marks batch use counts for saving so rotation survives restart.
 	batchDirty bool
 }
@@ -153,41 +132,13 @@ func (w *Wallet) takeBatchStateDirty() bool {
 	return dirty
 }
 
-// WalletRuntime shares flow state between wallets using the same store directory in this
-// process.
-type WalletRuntime struct {
-	mu                sync.RWMutex
-	requests          map[string]*ConsentRequest
-	nextError         *NextErrorOverride
-	subscribers       map[int64]chan *ConsentRequest
-	subID             int64
-	errSubscribers    map[int64]chan WalletError
-	errSubID          int64
-	stateSubscribers  map[int64]chan struct{}
-	stateSubID        int64
-	authSubscribers   map[int64]authSubscriber
-	authSubID         int64
-	lastErrors        map[string]*storedError
-	authCodeCallbacks map[string]chan url.Values
-}
-
-func newWalletRuntime() *WalletRuntime {
-	return &WalletRuntime{
-		requests:          make(map[string]*ConsentRequest),
-		subscribers:       make(map[int64]chan *ConsentRequest),
-		errSubscribers:    make(map[int64]chan WalletError),
-		stateSubscribers:  make(map[int64]chan struct{}),
-		authSubscribers:   make(map[int64]authSubscriber),
-		authCodeCallbacks: make(map[string]chan url.Values),
-		lastErrors:        make(map[string]*storedError),
-	}
-}
-
-func (w *Wallet) runtimeState() *WalletRuntime {
+// Consents holds the pending consent requests and the subscriptions of the
+// wallets that share its store in this process.
+func (w *Wallet) Consents() *consent.Runtime {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.runtime == nil {
-		w.runtime = newWalletRuntime()
+		w.runtime = consent.NewRuntime()
 	}
 	return w.runtime
 }
@@ -230,24 +181,15 @@ func (w *Wallet) EnsureRequestEncryptionKey() error {
 	return nil
 }
 
-type WalletError struct {
-	Message string `json:"message"`
-	Detail  string `json:"detail,omitempty"`
-	// Never serialize the owner because another caller could use it to claim the flow.
-	Owner string `json:"-"`
-}
-
 // PersistedState is the wallet state the store saves. Load, save, reload and
 // reset each handle it as a whole.
 type PersistedState struct {
-	Credentials        []StoredCredential      `json:"credentials"`
-	IssuedAttestations []IssuedAttestationSpec `json:"issued_attestations,omitempty"`
+	Credentials        []StoredCredential               `json:"credentials"`
+	IssuedAttestations []provider.IssuedAttestationSpec `json:"issued_attestations,omitempty"`
 	// The registrar's registrations, status entries and catalogue.
 	registrar.State
-	// TrustedEntities and AddedTrustedLists are added by users through
-	// `trust` or the API.
-	TrustedEntities   []TrustedEntity        `json:"trusted_entities,omitempty"`
-	AddedTrustedLists []string               `json:"trusted_lists,omitempty"`
+	// The providers and lists added by users through `trust` or the API.
+	trustedlists.Additions
 	Log               []LogEntry             `json:"log,omitempty"`
 	DeferredIssuances []DeferredIssuance     `json:"deferred_issuances,omitempty"`
 	StatusEntries     map[string]StatusEntry `json:"status_entries,omitempty"`
@@ -294,6 +236,11 @@ type ConformanceSettings struct {
 	tlsVerify *bool
 }
 
+// checks are the checks the settings apply to a presentation request.
+func (c ConformanceSettings) checks() oid4vp.Checks {
+	return oid4vp.Checks{Strict: c.ValidationMode == ValidationModeStrict, HAIP: c.RequireHAIP, ARF: c.RequireARF}
+}
+
 type StoredCredential struct {
 	ID      string         `json:"id"`
 	Format  string         `json:"format"` // "dc+sd-jwt", "mso_mdoc", or "jwt_vc_json"
@@ -309,7 +256,7 @@ type StoredCredential struct {
 	Renewal *CredentialRenewal `json:"renewal,omitempty"`
 	// The appearance declared by the issuer (OpenID4VCI 1.0 §12.2.4), or the
 	// template's appearance for credentials generated by the wallet.
-	Display *CredentialDisplay `json:"display,omitempty"`
+	Display *oid4vc.CredentialDisplay `json:"display,omitempty"`
 	// Groups copies issued together with distinct binding keys. Rotating copies
 	// reduces linking through repeated use of the same credential (EUDI ARF Annex 2
 	// Topic 10 method C, ISSU_51-54). Empty for single issuance.
@@ -380,154 +327,6 @@ func (c StoredCredential) CanRenew() bool {
 		c.Renewal.TokenEndpoint != "" && c.Renewal.CredentialEndpoint != ""
 }
 
-// ConsentTypeIssuancePresentation belongs to the issuance flow that requested it
-// (OpenID4VCI 1.1 §6). It uses presentation consent handling.
-const (
-	ConsentTypePresentation         = "presentation"
-	ConsentTypeIssuance             = "issuance"
-	ConsentTypeIssuancePresentation = "issuance_presentation"
-)
-
-type ConsentRequest struct {
-	ID           string                       `json:"id"`
-	Type         string                       `json:"type"` // presentation, issuance, or issuance_presentation
-	AuthRequest  *oid4vc.AuthorizationRequest `json:"-"`
-	OfferURI     string                       `json:"-"`
-	MatchedCreds []CredentialMatch            `json:"matched_credentials"`
-	Status       string                       `json:"status"` // "pending", "approved", "denied", "expired"
-	ResultCh     chan ConsentResult           `json:"-"`
-	SubmissionCh chan SubmissionResult        `json:"-"`
-	CreatedAt    time.Time                    `json:"created_at"`
-	ClientID     string                       `json:"client_id"`
-	OfferConfigs []string                     `json:"offer_configs,omitempty"`
-	OfferDetails *IssuanceOfferDetails        `json:"offer_details,omitempty"`
-	Nonce        string                       `json:"nonce,omitempty"`
-	ResponseURI  string                       `json:"response_uri,omitempty"`
-	DCQLQuery    map[string]any               `json:"dcql_query,omitempty"`
-	// Findings are the checks on the verifier or issuer that failed in debug
-	// mode. The consent dialog shows them in a collapsed list.
-	Findings []string `json:"findings,omitempty"`
-	// Purposes and privacy policy links from the request's registration
-	// certificates, for the consent dialog.
-	Purposes        []string `json:"purposes,omitempty"`
-	PrivacyPolicies []string `json:"privacy_policies,omitempty"`
-	// Alternatives for the Edit view. MatchedCreds retains the automatic selection.
-	CredentialOptions *ConsentCredentialOptions `json:"credential_options,omitempty"`
-	// Never serialize the owner because another caller could use it to claim the
-	// request. Empty means the request is unowned.
-	Owner string `json:"-"`
-	// Keep the offer shown at consent in case its URL cannot be fetched again after
-	// approval.
-	ResolvedOffer *oid4vc.CredentialOffer `json:"-"`
-	// True when the Request Object signature verifies against the key material it
-	// carries. This does not establish trust in the verifier.
-	ClientAuthSigned bool `json:"-"`
-	// Empty when ClientAuthSigned is true. Otherwise explains why verification was
-	// unavailable or failed.
-	ClientAuthDetail string `json:"-"`
-	// The unverified name from client_metadata.client_name. Empty if absent.
-	ClientName string `json:"-"`
-}
-
-type CredentialMatch struct {
-	QueryID      string         `json:"query_id"`
-	CredentialID string         `json:"credential_id"`
-	Format       string         `json:"format"`
-	VCT          string         `json:"vct,omitempty"`
-	DocType      string         `json:"doctype,omitempty"`
-	Claims       map[string]any `json:"claims"`
-	SelectedKeys []string       `json:"selected_keys"`
-	// Debug mode can offer credentials that fail trusted_authorities matching. The
-	// consent dialog flags this violation.
-	UntrustedAuthority bool `json:"untrusted_authority,omitempty"`
-	// Debug mode offers a credential without holder binding to a query that
-	// requires it (OpenID4VP 1.0 §6.1). The consent dialog flags it.
-	Unbound bool `json:"unbound,omitempty"`
-	// Selecting an array without its selectively disclosed elements produces an empty
-	// array. Warn so the verifier can request elements with null or an index.
-	EmptyArrayClaims []string `json:"empty_array_claims,omitempty"`
-	// Debug mode can offer partial matches and shows missing claims as undisclosed.
-	// Strict mode requires all claims. Complete matches take precedence over partial
-	// matches.
-	MissingClaims []string `json:"missing_claims,omitempty"`
-	// Debug mode offers credentials that do not match the query. Mismatches says why.
-	Mismatches []string `json:"mismatches,omitempty"`
-	// Debug mode lists the matching claim_sets options when there is more than
-	// one. The first is the automatic selection.
-	ClaimSets []ConsentClaimSet `json:"claim_sets,omitempty"`
-}
-
-// ConsentClaimSet is a matching claim_sets option of a credential. Index
-// is its position in the query's claim_sets.
-type ConsentClaimSet struct {
-	Index  int            `json:"index"`
-	Keys   []string       `json:"keys"`
-	Claims map[string]any `json:"claims"`
-}
-
-// ConsentCredentialOptions defaults to the first set option and first candidate for each
-// query. Unchanged consent therefore presents the same credentials as auto-accept.
-type ConsentCredentialOptions struct {
-	// Lists satisfiable credential_sets options in preference order. Without
-	// credential_sets, every query is required.
-	Sets    []ConsentSetOptions   `json:"sets,omitempty"`
-	Queries []ConsentQueryOptions `json:"queries"`
-}
-
-type ConsentSetOptions struct {
-	// Each option lists the query IDs that jointly satisfy the set.
-	Options [][]string `json:"options"`
-	// required: false lets the user skip the entire set.
-	Optional bool `json:"optional,omitempty"`
-	// Unmatched lists the options where only non-matching credentials fit (debug
-	// mode).
-	Unmatched []int `json:"unmatched,omitempty"`
-}
-
-type ConsentQueryOptions struct {
-	ID string `json:"id"`
-	// With multiple, every candidate is sent by default. The user can deselect all
-	// but one.
-	Multiple   bool              `json:"multiple,omitempty"`
-	Candidates []CredentialMatch `json:"candidates"`
-	// Debug mode lists the credentials that do not match the query. The user can
-	// pick them to test how the verifier handles a wrong answer.
-	NonMatching []CredentialMatch `json:"non_matching,omitempty"`
-}
-
-type ConsentResult struct {
-	Approved       bool
-	SelectedClaims map[string][]string
-	// A query omitted from Picks retains the wallet's default credentials. Only a
-	// query that sets multiple can pick more than one.
-	Picks map[string][]string
-	// -1 skips an optional set. Missing entries retain the wallet's default option.
-	SetChoices []int
-	// The claim_sets index per query. A missing entry keeps the first matching
-	// option.
-	ClaimSetChoices map[string]int
-	// Presentations requested during issuance go to the browser that approved the
-	// offer.
-	Owner string
-	// Entered in the consent dialog after the offer declares that a transaction code
-	// is required.
-	TxCode string
-	// ConfigurationID is the credential configuration picked from an offer
-	// that lists several.
-	ConfigurationID string
-}
-
-type SubmissionResult struct {
-	RedirectURI string `json:"redirect_uri,omitempty"`
-	Error       string `json:"error,omitempty"`
-	StatusCode  int    `json:"status_code,omitempty"`
-	// Deferred issuance is still pending. The wallet continues collecting in the
-	// background.
-	Pending       bool   `json:"pending,omitempty"`
-	TransactionID string `json:"transaction_id,omitempty"`
-	RetryInterval string `json:"retry_interval,omitempty"`
-}
-
 type LogEntry struct {
 	Time    time.Time `json:"time"`
 	Action  string    `json:"action"`
@@ -580,7 +379,7 @@ func newWallet(holderKey, issuerKey *ecdsa.PrivateKey, autoAccept bool) *Wallet 
 		IssuerKey:           issuerKey,
 		AutoAccept:          autoAccept,
 		ConformanceSettings: ConformanceSettings{ValidationMode: ValidationModeDebug, VCIVersion: VCIVersion10},
-		runtime:             newWalletRuntime(),
+		runtime:             consent.NewRuntime(),
 	}
 }
 
@@ -595,8 +394,8 @@ func (w *Wallet) setCertificateAuthority(caKey *ecdsa.PrivateKey, caCert *x509.C
 		return fmt.Errorf("wallet CA configuration requires issuer key, CA key, and CA certificate")
 	}
 	opts := mock.LeafCertOptions{}
-	opts.DNSNames, opts.IPAddresses, opts.URIs = issuerSubjectAltNames(w.IssuerURL)
-	leafCert, err := w.signingStore().certificate(caKey, caCert, &w.IssuerKey.PublicKey, opts, renew)
+	opts.DNSNames, opts.IPAddresses, opts.URIs = provider.IssuerSubjectAltNames(w.IssuerURL)
+	leafCert, err := w.providerKeys().Certificate(caKey, caCert, &w.IssuerKey.PublicKey, opts, renew)
 	if err != nil {
 		return fmt.Errorf("generating issuer leaf certificate: %w", err)
 	}
@@ -615,16 +414,6 @@ func (w *Wallet) certificateAuthority() (*ecdsa.PrivateKey, []*x509.Certificate)
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 	return w.CAKey, slices.Clone(w.CertChain)
-}
-
-// hasCertificateAuthority reports whether the wallet holds a CA key and a
-// signing chain under it.
-func (w *Wallet) hasCertificateAuthority() bool {
-	if w == nil {
-		return false
-	}
-	caKey, chain := w.certificateAuthority()
-	return caKey != nil && len(chain) >= 2
 }
 
 // caCertificate is the last certificate of the signing chain, or nil.
@@ -660,12 +449,9 @@ func (w *Wallet) SigningCertificateExpiry() time.Time {
 	return chain[0].NotAfter
 }
 
-// A long running wallet renews its signing certificate this long before expiry.
-const signingCertificateRenewBefore = 30 * 24 * time.Hour
-
 func (w *Wallet) RefreshSigningCertificateIfExpiring(now time.Time) (bool, error) {
 	expiry := w.SigningCertificateExpiry()
-	if expiry.IsZero() || now.Add(signingCertificateRenewBefore).Before(expiry) {
+	if expiry.IsZero() || now.Add(provider.RenewBefore).Before(expiry) {
 		return false, nil
 	}
 	if err := w.RefreshSigningCertificate(); err != nil {
@@ -946,15 +732,15 @@ func (w *Wallet) GenerateProtectedDefaults() error {
 	return nil
 }
 
-func (w *Wallet) RegisterIssuedAttestation(spec IssuedAttestationSpec) error {
+func (w *Wallet) RegisterIssuedAttestation(spec provider.IssuedAttestationSpec) error {
 	_, err := w.EnsureIssuedAttestation(spec)
 	return err
 }
 
 // EnsureIssuedAttestation registers the attestation type and reports whether
 // the wallet changed.
-func (w *Wallet) EnsureIssuedAttestation(spec IssuedAttestationSpec) (bool, error) {
-	normalized, err := NormalizeIssuedAttestationSpec(spec, "")
+func (w *Wallet) EnsureIssuedAttestation(spec provider.IssuedAttestationSpec) (bool, error) {
+	normalized, err := provider.NormalizeIssuedAttestationSpec(spec, "")
 	if err != nil {
 		return false, err
 	}
@@ -976,7 +762,7 @@ func (w *Wallet) EnsureIssuedAttestation(spec IssuedAttestationSpec) (bool, erro
 		return false, visitorLimit("the public demo issues at most %d credential types between resets", limit)
 	}
 	w.IssuedAttestations = append(w.IssuedAttestations, normalized)
-	w.IssuedAttestations = dedupeIssuedAttestations(w.IssuedAttestations)
+	w.IssuedAttestations = provider.DedupeIssuedAttestations(w.IssuedAttestations)
 	return true, nil
 }
 
@@ -1344,56 +1130,6 @@ func CredentialSummary(c StoredCredential) map[string]any {
 		summary["issuer_key_did"] = did
 	}
 	return summary
-}
-
-func MarshalConsentRequest(r *ConsentRequest) map[string]any {
-	m := map[string]any{
-		"id":                  r.ID,
-		"type":                r.Type,
-		"status":              r.Status,
-		"client_id":           r.ClientID,
-		"created_at":          r.CreatedAt.Format(time.RFC3339),
-		"matched_credentials": r.MatchedCreds,
-	}
-	if r.Nonce != "" {
-		m["nonce"] = r.Nonce
-	}
-	if r.ResponseURI != "" {
-		m["response_uri"] = r.ResponseURI
-	}
-	if r.DCQLQuery != nil {
-		m["dcql_query"] = r.DCQLQuery
-	}
-	if len(r.Purposes) > 0 {
-		m["purposes"] = r.Purposes
-	}
-	if len(r.PrivacyPolicies) > 0 {
-		m["privacy_policies"] = r.PrivacyPolicies
-	}
-	if len(r.Findings) > 0 {
-		m["findings"] = r.Findings
-	}
-	if r.CredentialOptions != nil {
-		m["credential_options"] = r.CredentialOptions
-	}
-	if len(r.OfferConfigs) > 0 {
-		m["offer_configs"] = r.OfferConfigs
-	}
-	if r.OfferDetails != nil {
-		m["offer_details"] = r.OfferDetails
-	}
-	// Issuance offers have no Request Object, so only presentations carry
-	// client_auth.
-	if r.Type == ConsentTypePresentation || r.Type == ConsentTypeIssuancePresentation {
-		m["client_auth"] = map[string]any{
-			"signed": r.ClientAuthSigned,
-			"detail": r.ClientAuthDetail,
-		}
-	}
-	if r.ClientName != "" {
-		m["client_name"] = r.ClientName
-	}
-	return m
 }
 
 func (w *Wallet) CredentialsJSON() ([]byte, error) {

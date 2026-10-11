@@ -18,17 +18,19 @@ import (
 	"crypto/ecdsa"
 	"crypto/x509"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
-	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/statuslist"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/trustlist"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/trustedlists"
 )
 
 // RegistrationStatusClient fetches the status lists of registration
@@ -46,7 +48,7 @@ type ownStatusListTransport struct {
 }
 
 func (t ownStatusListTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	if req.Method != http.MethodGet || !sameURL(req.URL, t.wallet.Registrar().RegistrationStatusListURL()) {
+	if req.Method != http.MethodGet || !format.SameURL(req.URL, t.wallet.Registrar().RegistrationStatusListURL()) {
 		if t.next.Transport == nil {
 			return nil, errors.New("the wallet has no outbound transport")
 		}
@@ -70,89 +72,16 @@ func (t ownStatusListTransport) RoundTrip(req *http.Request) (*http.Response, er
 // PrepareARFChecks adds what --arf needs to a request: a client for the status
 // lists of registration certificates, and the anchors for access and
 // registration certificates and their status lists.
-func (w *Wallet) PrepareARFChecks(params *AuthorizationRequestParams) {
+func (w *Wallet) PrepareARFChecks(params *oid4vp.Request) {
 	if !w.ARFChecks() {
 		return
 	}
 	params.StatusClient = w.RegistrationStatusClient()
 	// The three anchor sets come from the same lists, which are read once.
-	lists := w.trustedLists()
-	params.RelyingPartyCAs = anchorsOf(lists, accessCAListType, trustlist.IssuanceServices)
-	params.RegistrarCAs = anchorsOf(lists, registrarListType, trustlist.IssuanceServices)
-	params.RegistrationStatusCAs = anchorsOf(lists, registrarListType, trustlist.RevocationServices)
-}
-
-// RelyingPartyCAs are the anchors --arf trusts for access certificates: the
-// issuance services of the lists of access certificate providers (ARF RPA_04
-// and PPNot_06, ETSI TS 119 602 V1.1.1 Annex F).
-func (w *Wallet) RelyingPartyCAs() []*x509.Certificate {
-	return w.listAnchors(accessCAListType, trustlist.IssuanceServices)
-}
-
-// RegistrarCAs are the anchors --arf trusts for registration certificates:
-// the issuance services of the lists of registration certificate providers
-// (ARF RPRC_02a and RPACANot_04, ETSI TS 119 602 V1.1.1 Annex G).
-func (w *Wallet) RegistrarCAs() []*x509.Certificate {
-	return w.listAnchors(registrarListType, trustlist.IssuanceServices)
-}
-
-// RegistrationStatusCAs are the anchors of the status lists of registration
-// certificates: the revocation services of the same lists (ARF
-// RPACANot_03b).
-func (w *Wallet) RegistrationStatusCAs() []*x509.Certificate {
-	return w.listAnchors(registrarListType, trustlist.RevocationServices)
-}
-
-// TrustListCAs are the CAs --arf trusts for the signer of a trusted list. The
-// wallet's list operator key, certified by the wallet CA, signs the wallet's
-// own lists, like the seal of the Commission on the lists it compiles (ARF
-// TLPub_07). --trusted-list-ca and the trusted-list-ca entities add others.
-func (w *Wallet) TrustListCAs() ([]*x509.Certificate, error) {
-	w.mu.RLock()
-	defer w.mu.RUnlock()
-	var cas []*x509.Certificate
-	if len(w.CertChain) > 0 {
-		cas = append(cas, w.CertChain[len(w.CertChain)-1])
-	}
-	if len(w.TrustListCAPEM) > 0 {
-		configured, err := keys.ParseCertificatesPEM(w.TrustListCAPEM)
-		if err != nil {
-			return nil, fmt.Errorf("the trusted list CAs: %w", err)
-		}
-		cas = append(cas, configured...)
-	}
-	for _, entity := range w.TrustedEntities {
-		if entity.List != trustedListCAID {
-			continue
-		}
-		certs, err := entity.certificates()
-		if err != nil {
-			return nil, fmt.Errorf("the trusted list CA %s: %w", entity.Name, err)
-		}
-		cas = append(cas, certs...)
-	}
-	return cas, nil
-}
-
-// sameURL compares scheme, host with its default port, and path. Host and
-// scheme are case insensitive (RFC 3986 §6.2.2.1).
-func sameURL(u *url.URL, raw string) bool {
-	other, err := url.Parse(raw)
-	if err != nil {
-		return false
-	}
-	return sameOrigin(u, other) && strings.TrimSuffix(u.Path, "/") == strings.TrimSuffix(other.Path, "/")
-}
-
-func sameOrigin(u, other *url.URL) bool {
-	hostPort := func(v *url.URL) string {
-		port := v.Port()
-		if port == "" {
-			port = map[string]string{"http": "80", "https": "443"}[strings.ToLower(v.Scheme)]
-		}
-		return strings.ToLower(v.Hostname()) + ":" + port
-	}
-	return strings.EqualFold(u.Scheme, other.Scheme) && hostPort(u) == hostPort(other)
+	lists := w.TrustedLists().Lists()
+	params.RelyingPartyCAs = trustedlists.AnchorsOf(lists, lote.AccessCertProvidersListType, lote.IssuanceServices)
+	params.RegistrarCAs = trustedlists.AnchorsOf(lists, lote.RegistrationCertProvidersListType, lote.IssuanceServices)
+	params.RegistrationStatusCAs = trustedlists.AnchorsOf(lists, lote.RegistrationCertProvidersListType, lote.RevocationServices)
 }
 
 // RegistrarBase is the base URL of the registrar's default contact URLs and
@@ -172,10 +101,10 @@ type registrarEnv struct{ w *Wallet }
 
 func (e registrarEnv) RegistrarBase() string { return e.w.RegistrarBase() }
 func (e registrarEnv) RegistrarSigningMaterial() (*ecdsa.PrivateKey, []*x509.Certificate, error) {
-	return e.w.RegistrarSigningMaterial()
+	return e.w.Signer().Registrar()
 }
 func (e registrarEnv) RelyingPartyAccessCA() (*ecdsa.PrivateKey, *x509.Certificate, error) {
-	return e.w.RelyingPartyAccessCA()
+	return e.w.Signer().RelyingPartyAccessCA()
 }
 func (e registrarEnv) TemplateLocation() credtemplate.Location { return e.w.Templates }
 
@@ -187,3 +116,38 @@ func firstNonEmpty(values ...string) string {
 	}
 	return ""
 }
+
+// TrustedLists is the wallet's set of trusted lists. It works on the
+// additions stored in the wallet.
+func (w *Wallet) TrustedLists() *trustedlists.Set {
+	return trustedlists.New(&w.mu, &w.Additions, &w.listCache, trustEnv{w})
+}
+
+// trustEnv implements trustedlists.Env for the wallet.
+type trustEnv struct{ w *Wallet }
+
+func (e trustEnv) Signer() *provider.Signer { return e.w.Signer() }
+func (e trustEnv) IssuedAttestationSpecs() []provider.IssuedAttestationSpec {
+	return e.w.issuedAttestationSpecs()
+}
+func (e trustEnv) TemplateLocation() credtemplate.Location { return e.w.Templates }
+func (e trustEnv) IssuerURL() string                       { return e.w.IssuerURL }
+func (e trustEnv) RegistrarBase() string                   { return e.w.RegistrarBase() }
+func (e trustEnv) HTTPClient() *http.Client                { return e.w.HTTPClient() }
+func (e trustEnv) Strict() bool                            { return e.w.Mode() == ValidationModeStrict }
+func (e trustEnv) ListedProviderName() string              { return listedProviderName }
+func (e trustEnv) Settings() trustedlists.Settings {
+	e.w.mu.RLock()
+	defer e.w.mu.RUnlock()
+	return trustedlists.Settings{
+		RelyingPartyCAPEM: e.w.RelyingPartyCAPEM,
+		ListCAPEM:         e.w.TrustListCAPEM,
+		ConfiguredLists:   slices.Clone(e.w.ConfiguredTrustedListURLs),
+		MaxEntities:       e.w.capacity.TrustedEntities,
+		MaxLists:          e.w.capacity.TrustedLists,
+	}
+}
+
+// The listed provider is the demo issuer. Its certificates carry its EUID as
+// NTRNL-NLTEST.00000000 (ETSI EN 319 412-1 V1.6.1 LEG-5.1.4-07 b).
+var listedProviderName = demoIssuer().LegalPerson.LegalName[0]

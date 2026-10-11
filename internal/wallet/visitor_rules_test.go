@@ -23,6 +23,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 )
 
 func pngDataURI(t *testing.T) string {
@@ -75,12 +77,12 @@ func TestOwnWalletKeepsIssuerImages(t *testing.T) {
 func TestIssuedAttestationTypesStopAtCapacity(t *testing.T) {
 	w := generateTestWallet(t)
 	w.SetCapacity(Capacity{IssuedAttestations: len(w.IssuedAttestations) + 1})
-	first := IssuedAttestationSpec{Format: "dc+sd-jwt", VCT: "urn:test:one"}
+	first := provider.IssuedAttestationSpec{Format: "dc+sd-jwt", VCT: "urn:test:one"}
 	if _, err := w.EnsureIssuedAttestation(first); err != nil {
 		t.Fatalf("the first new type: %v", err)
 	}
 	var limit *VisitorLimitError
-	if _, err := w.EnsureIssuedAttestation(IssuedAttestationSpec{Format: "dc+sd-jwt", VCT: "urn:test:two"}); !errors.As(err, &limit) {
+	if _, err := w.EnsureIssuedAttestation(provider.IssuedAttestationSpec{Format: "dc+sd-jwt", VCT: "urn:test:two"}); !errors.As(err, &limit) {
 		t.Fatalf("a type past the capacity: %v", err)
 	}
 	if _, err := w.EnsureIssuedAttestation(first); err != nil {

@@ -28,6 +28,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/defaults"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 )
 
@@ -95,7 +96,7 @@ func (w *Wallet) DemoVerifierAccessSigningMaterial() (*ecdsa.PrivateKey, []*x509
 // the certificate until it is about to expire. The DNS name of the issuer URL
 // makes x509_san_dns client identifiers work (OpenID4VP 1.0 §5.9.3).
 func (w *Wallet) demoAccessSigningMaterial(keyName string, registration registrar.WalletRelyingParty) (*ecdsa.PrivateKey, []*x509.Certificate, error) {
-	key, err := w.signingStore().key(keyName)
+	key, err := w.providerKeys().Key(keyName)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -106,16 +107,16 @@ func (w *Wallet) demoAccessSigningMaterial(keyName string, registration registra
 	if err != nil {
 		return nil, nil, err
 	}
-	_, ca, err := w.RelyingPartyAccessCA()
+	_, ca, err := w.Signer().RelyingPartyAccessCA()
 	if err != nil {
 		return nil, nil, err
 	}
-	dnsNames, _, _ := issuerSubjectAltNames(w.IssuerURL)
+	dnsNames, _, _ := provider.IssuerSubjectAltNames(w.IssuerURL)
 	subject, err := json.Marshal([]any{rp.Identifier[0].Identifier, rp.LegalPerson.LegalName, rp.Country, tradeName, serviceID, rp.Services[0].SupportURI, dnsNames})
 	if err != nil {
 		return nil, nil, err
 	}
-	leaf, err := w.signingStore().cachedCertificate(subject, ca, &key.PublicKey, false, func() (*x509.Certificate, error) {
+	leaf, err := w.providerKeys().CachedCertificate(subject, ca, &key.PublicKey, false, func() (*x509.Certificate, error) {
 		chain, err := w.Registrar().AccessCertificateFor(rp, serviceID, &key.PublicKey, dnsNames, registrar.MaxAccessCertificateValidity)
 		if err != nil {
 			return nil, err
@@ -265,7 +266,7 @@ func (w *Wallet) demoIssuerRegistration() (registrar.WalletRelyingParty, error) 
 			category = entry.Category
 		}
 		switch category {
-		case UnlistedCategory:
+		case provider.UnlistedCategory:
 			return
 		case "":
 			category = credtemplate.CategoryEAA

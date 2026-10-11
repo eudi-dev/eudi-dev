@@ -19,12 +19,14 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
 func (s *Server) handleAuthorize(w http.ResponseWriter, r *http.Request) {
-	var authReq *AuthorizationRequestParams
+	var authReq *oid4vp.Request
 	var err error
 	var values map[string][]string
 
@@ -39,7 +41,7 @@ func (s *Server) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 		}
 		values = r.Form
 	}
-	authReq, err = parseAuthParams(values, s.parseOpts)
+	authReq, err = oid4vp.ParseRequest(values, s.parseOpts)
 
 	if err != nil {
 		// Report parsing failures to the caller. Do not send a response to an invalid
@@ -70,24 +72,24 @@ func (s *Server) handlePresentationAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.wallet.ClearLastError(callerOwners(r))
+	s.wallet.Consents().ClearLastError(callerOwners(r))
 
 	s.log("Received authorization request")
 	uriDisplay := format.Truncate(body.URI, 120)
 	s.log("  URI: %s", uriDisplay)
 
-	transcript := SessionTranscriptMode(body.SessionTranscript)
+	transcript := oid4vp.SessionTranscriptMode(body.SessionTranscript)
 	switch transcript {
-	case "", SessionTranscriptOID4VP, SessionTranscriptISO:
+	case "", oid4vp.SessionTranscriptOID4VP, oid4vp.SessionTranscriptISO:
 	default:
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("invalid session transcript %q", body.SessionTranscript)})
 		return
 	}
-	parsed, err := ParseAuthorizationRequestWithOptions(body.URI, s.parseOpts)
+	parsed, err := oid4vp.ParseAuthorizationRequestWithOptions(body.URI, s.parseOpts)
 	if err != nil {
 		s.log("  ERROR: %v", err)
 		s.wallet.AddLog("presentation", fmt.Sprintf("Failed to parse request: %v", err), false)
-		s.wallet.NotifyError(WalletError{
+		s.wallet.Consents().NotifyError(consent.Error{
 			Owner:   requestOwner(r),
 			Message: "Failed to parse authorization request",
 			Detail:  err.Error(),
@@ -110,7 +112,7 @@ func (s *Server) handlePresentationAPI(w http.ResponseWriter, r *http.Request) {
 		s.log("  Request URI Method: %s", parsed.RequestURIMethod)
 	}
 
-	authReq := authorizationParams(parsed)
+	authReq := oid4vp.RequestFrom(parsed)
 	authReq.Source = "api"
 	authReq.Session = requestOwner(r)
 	authReq.AutoAccept = body.AutoAccept

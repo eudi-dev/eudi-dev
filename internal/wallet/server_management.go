@@ -28,6 +28,7 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/statuslist"
 )
@@ -149,18 +150,18 @@ type IssueAPIRequest struct {
 	AlwaysDisclosed []string       `json:"always_disclosed"`
 	SaveAsTemplate  string         `json:"save_as_template"`
 	// Catalog adds the saved template to the attestation catalogue.
-	Catalog       *registrar.CatalogAttestation `json:"catalog,omitempty"`
-	VCT           string                        `json:"vct"`
-	DocType       string                        `json:"doctype"`
-	Namespace     string                        `json:"namespace"`
-	Exp           string                        `json:"exp"`
-	NBF           string                        `json:"nbf"`
-	StatusListURI *string                       `json:"status_list_uri"`
-	StatusListIdx *int                          `json:"status_list_idx"`
-	Category      string                        `json:"category"`
-	Trust         IssuedAttestationSpec         `json:"trust"`
-	Display       *IssueDisplay                 `json:"display"`
-	Batch         int                           `json:"batch"`
+	Catalog       *registrar.CatalogAttestation  `json:"catalog,omitempty"`
+	VCT           string                         `json:"vct"`
+	DocType       string                         `json:"doctype"`
+	Namespace     string                         `json:"namespace"`
+	Exp           string                         `json:"exp"`
+	NBF           string                         `json:"nbf"`
+	StatusListURI *string                        `json:"status_list_uri"`
+	StatusListIdx *int                           `json:"status_list_idx"`
+	Category      string                         `json:"category"`
+	Trust         provider.IssuedAttestationSpec `json:"trust"`
+	Display       *IssueDisplay                  `json:"display"`
+	Batch         int                            `json:"batch"`
 	// Identifies the template containing display images that could not be included in
 	// the form fields.
 	DisplayTemplate string `json:"display_template"`
@@ -302,7 +303,7 @@ func (s *Server) handleCACertificate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCACertificateDER(w http.ResponseWriter, r *http.Request) {
-	cert := s.wallet.TrustAnchorCertificate()
+	cert := s.wallet.Signer().TrustAnchor()
 	if cert == nil {
 		http.Error(w, "wallet has no CA certificate", http.StatusServiceUnavailable)
 		return
@@ -333,7 +334,7 @@ func (s *Server) handleTLSCertificate(w http.ResponseWriter, r *http.Request) {
 // handleRegistrarCertificate exports the certificate that signs registration
 // certificates and registrar responses.
 func (s *Server) handleRegistrarCertificate(w http.ResponseWriter, r *http.Request) {
-	_, chain, err := s.wallet.RegistrarSigningMaterial()
+	_, chain, err := s.wallet.Signer().Registrar()
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "loading the registrar certificate: " + err.Error()})
 		return
@@ -342,7 +343,7 @@ func (s *Server) handleRegistrarCertificate(w http.ResponseWriter, r *http.Reque
 }
 
 func (s *Server) handleRelyingPartyAccessCA(w http.ResponseWriter, r *http.Request) {
-	_, ca, err := s.wallet.RelyingPartyAccessCA()
+	_, ca, err := s.wallet.Signer().RelyingPartyAccessCA()
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "loading the relying party access CA: " + err.Error()})
 		return
@@ -351,7 +352,7 @@ func (s *Server) handleRelyingPartyAccessCA(w http.ResponseWriter, r *http.Reque
 }
 
 func (s *Server) handleRegistrarCA(w http.ResponseWriter, r *http.Request) {
-	_, ca, err := s.wallet.RegistrarCA()
+	_, ca, err := s.wallet.Signer().RegistrarCA()
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "loading the registrar CA: " + err.Error()})
 		return

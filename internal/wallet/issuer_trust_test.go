@@ -24,6 +24,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/trustedlists"
 )
 
 func TestTheWalletsOwnPIDsValidateWithThePIDTrustedList(t *testing.T) {
@@ -82,8 +83,8 @@ func TestAnAttestationIsCheckedAgainstAFetchedList(t *testing.T) {
 		t.Fatal(err)
 	}
 	serveList := func(w *Wallet) string {
-		group, _ := FindTrustListGroupForWallet(w, credtemplate.CategoryEAA, "", "")
-		list, err := GenerateTrustListJWTForWalletGroup(w, w.IssuerURL, group, "/api/trustlists/"+group.ID)
+		group, _ := w.TrustedLists().FindGroup(credtemplate.CategoryEAA, "", "")
+		list, err := w.TrustedLists().SignedGroupList(w.IssuerURL, group, "/api/trustlists/"+group.ID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -110,9 +111,9 @@ func TestAnAttestationIsCheckedAgainstAFetchedList(t *testing.T) {
 			w := generateTestWallet(t)
 			w.RequireARF = true
 			if tc.operator != nil {
-				anchor := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: tc.operator.TrustAnchorCertificate().Raw})
+				anchor := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: tc.operator.Signer().TrustAnchor().Raw})
 				if tc.added {
-					if _, err := w.AddTrustedEntity(trustedListCAID, "", string(anchor)); err != nil {
+					if _, err := w.TrustedLists().AddEntity(trustedlists.TrustedListCAID, "", string(anchor)); err != nil {
 						t.Fatal(err)
 					}
 				} else {
@@ -145,8 +146,8 @@ func eaaWithUntrustedList(t *testing.T) (*Wallet, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	group, _ := FindTrustListGroupForWallet(issuer, credtemplate.CategoryEAA, "", "")
-	list, err := GenerateTrustListJWTForWalletGroup(issuer, issuer.IssuerURL, group, "/api/trustlists/eaa")
+	group, _ := issuer.TrustedLists().FindGroup(credtemplate.CategoryEAA, "", "")
+	list, err := issuer.TrustedLists().SignedGroupList(issuer.IssuerURL, group, "/api/trustlists/eaa")
 	if err != nil {
 		t.Fatal(err)
 	}

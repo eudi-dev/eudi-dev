@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
@@ -122,7 +123,7 @@ func GenerateStatusListJWT(bitstring []byte, signingKey *ecdsa.PrivateKey, cfg S
 	header["jwk"] = mock.PublicKeyJWKMap(&signingKey.PublicKey)
 
 	// HAIP 6.1 excludes the trust anchor from x5c.
-	if chain := mock.WithoutSelfSignedTrustAnchor(cfg.CertChain); len(chain) > 0 {
+	if chain := certchain.WithoutSelfSignedAnchor(cfg.CertChain); len(chain) > 0 {
 		x5c := make([]string, 0, len(chain))
 		for _, cert := range chain {
 			x5c = append(x5c, base64.StdEncoding.EncodeToString(cert.Raw))

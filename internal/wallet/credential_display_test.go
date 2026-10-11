@@ -30,6 +30,7 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 )
 
 var tinyPNG, _ = base64.StdEncoding.DecodeString(
@@ -406,7 +407,7 @@ func TestProcessCredentialOffer_CredentialDisplay(t *testing.T) {
 	})
 
 	t.Run("the summary references display images by URL, not inline data", func(t *testing.T) {
-		c := StoredCredential{ID: "abc123", Display: &CredentialDisplay{
+		c := StoredCredential{ID: "abc123", Display: &oid4vc.CredentialDisplay{
 			Name:            "Art Badge",
 			BackgroundColor: "#0f766e",
 			LogoURI:         "data:image/png;base64," + base64.StdEncoding.EncodeToString(tinyPNG),
@@ -425,7 +426,7 @@ func TestProcessCredentialOffer_CredentialDisplay(t *testing.T) {
 	})
 
 	t.Run("an external image URL is passed through unchanged", func(t *testing.T) {
-		c := StoredCredential{ID: "x", Display: &CredentialDisplay{LogoURI: "https://issuer.example/logo.svg"}}
+		c := StoredCredential{ID: "x", Display: &oid4vc.CredentialDisplay{LogoURI: "https://issuer.example/logo.svg"}}
 		d := CredentialSummary(c)["display"].(map[string]any)
 		if d["logo_uri"] != "https://issuer.example/logo.svg" {
 			t.Fatalf("external URL was rewritten: %v", d["logo_uri"])
@@ -517,8 +518,8 @@ func TestCacheDisplayImage_BlocksInternalAddress(t *testing.T) {
 }
 
 func TestMergeCredentialDisplayOverlaysFields(t *testing.T) {
-	base := &CredentialDisplay{Name: "Template", BackgroundColor: "#111", LogoURI: "logo", LogoAltText: "alt", BackgroundURI: "bg"}
-	over := &CredentialDisplay{Name: "Custom", TextColor: "#fff"}
+	base := &oid4vc.CredentialDisplay{Name: "Template", BackgroundColor: "#111", LogoURI: "logo", LogoAltText: "alt", BackgroundURI: "bg"}
+	over := &oid4vc.CredentialDisplay{Name: "Custom", TextColor: "#fff"}
 	got := mergeCredentialDisplay(base, over)
 	if got.Name != "Custom" {
 		t.Errorf("name not overridden: %q", got.Name)

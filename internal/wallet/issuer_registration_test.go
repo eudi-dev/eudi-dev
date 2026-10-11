@@ -20,8 +20,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/regcert"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 )
 
@@ -82,12 +84,12 @@ func TestAnIssuerGetsOneCertificateForItsService(t *testing.T) {
 		}
 	}
 
-	registrations, problems := verifyRegistrationEntries(infoEntries(map[string]any{"issuer_info": result.IssuerInfo}, "issuer_info"))
+	registrations, problems := regcert.Verify(regcert.InfoEntries(map[string]any{"issuer_info": result.IssuerInfo}, "issuer_info"))
 	if len(registrations) != 1 || len(problems) != 0 {
 		t.Fatalf("registrations %d, problems %v", len(registrations), problems)
 	}
-	cert := registrations[0].claims
-	if got := providerCertificateContentFindings(cert); len(got) != 0 {
+	cert := registrations[0].Claims
+	if got := regcert.ProviderContentFindings(cert); len(got) != 0 {
 		t.Errorf("content findings %v", got)
 	}
 	// A provider certificate has no intended use (ARF RPRC_05), so it has no
@@ -101,7 +103,7 @@ func TestAnIssuerGetsOneCertificateForItsService(t *testing.T) {
 	if policies, _ := cert["policy_id"].([]any); len(policies) != 1 || policies[0] != "0.4.0.19475.3.1" {
 		t.Errorf("policy_id %v", cert["policy_id"])
 	}
-	if provided := providedAttestationsOf(cert); len(provided) != 1 || !providesType(provided, "dc+sd-jwt", []string{testDiplomaVCT}) {
+	if provided := regcert.ProvidedAttestations(cert); len(provided) != 1 || !regcert.Provides(provided, "dc+sd-jwt", []string{testDiplomaVCT}) {
 		t.Errorf("provides_attestations %v", cert["provides_attestations"])
 	}
 }
@@ -198,15 +200,15 @@ func TestProviderCertificatesFollowTheRegistration(t *testing.T) {
 	w := srv.wallet
 	rp := registerTestIssuer(t, w, registrar.NonQEAAProviderEntitlement)
 	certOf := func(result *registrar.RegistrationCertificateResult) map[string]any {
-		registrations, _ := verifyRegistrationEntries(infoEntries(map[string]any{"issuer_info": result.IssuerInfo}, "issuer_info"))
-		return registrations[0].claims
+		registrations, _ := regcert.Verify(regcert.InfoEntries(map[string]any{"issuer_info": result.IssuerInfo}, "issuer_info"))
+		return registrations[0].Claims
 	}
 	first := certOf(issueTestIssuerInfo(t, w, rp))
 	second := certOf(issueTestIssuerInfo(t, w, rp))
-	if got := registrationStatusFindings(first, ts.Client(), nil, "ARF RPRC_17"); len(got) != 1 || !strings.Contains(got[0], "revoked") {
+	if got := regcert.StatusFindings(first, ts.Client(), nil, "ARF RPRC_17"); len(got) != 1 || !strings.Contains(got[0], "revoked") {
 		t.Fatalf("the replaced certificate: %v, want revoked", got)
 	}
-	if got := registrationStatusFindings(second, ts.Client(), nil, "ARF RPRC_17"); len(got) != 0 {
+	if got := regcert.StatusFindings(second, ts.Client(), nil, "ARF RPRC_17"); len(got) != 0 {
 		t.Fatalf("the new certificate: %v", got)
 	}
 
@@ -231,7 +233,7 @@ func TestProviderCertificatesFollowTheRegistration(t *testing.T) {
 	if _, err := w.Registrar().UpdateRelyingParty(rp); err != nil {
 		t.Fatal(err)
 	}
-	if got := registrationStatusFindings(second, ts.Client(), nil, "ARF RPRC_17"); len(got) != 1 {
+	if got := regcert.StatusFindings(second, ts.Client(), nil, "ARF RPRC_17"); len(got) != 1 {
 		t.Fatalf("after the update: %v, want revoked", got)
 	}
 	if n, err := w.Registrar().SetRegistrationCertificatesRevoked(rp.Identifier[0].Identifier, scope, false); err != nil || n != 0 {
@@ -263,17 +265,17 @@ func TestRegistrationCertificateTypMatchesAsAMediaType(t *testing.T) {
 	if err := w.GenerateDefaultCredentials(nil, ""); err != nil {
 		t.Fatal(err)
 	}
-	chain, err := w.DefaultSigningCertChain()
+	chain, err := w.Signer().DefaultChain()
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, typ := range []string{strings.ToUpper(registrar.RegistrationCertificateTyp), "application/" + registrar.RegistrationCertificateTyp} {
 		t.Run(typ, func(t *testing.T) {
-			raw, err := signJSONWebSignature(map[string]any{"sub": "https://issuer.example"}, w.IssuerKey, map[string]any{"alg": "ES256", "typ": typ, "x5c": buildJWSX5C(chain)})
+			raw, err := signJSONWebSignature(map[string]any{"sub": "https://issuer.example"}, w.IssuerKey, map[string]any{"alg": "ES256", "typ": typ, "x5c": certchain.X5C(chain)})
 			if err != nil {
 				t.Fatal(err)
 			}
-			if registrations, problems := verifyRegistrationEntries([]map[string]any{{"format": "registration_cert", "data": raw}}); len(registrations) != 1 || len(problems) != 0 {
+			if registrations, problems := regcert.Verify([]map[string]any{{"format": "registration_cert", "data": raw}}); len(registrations) != 1 || len(problems) != 0 {
 				t.Errorf("registrations %d, problems %v, want the certificate", len(registrations), problems)
 			}
 			if got := issuerInfoShapeFindings([]map[string]any{{"format": "jwt", "data": raw}}); !containsSubstring(got, "4.2.3-05") {

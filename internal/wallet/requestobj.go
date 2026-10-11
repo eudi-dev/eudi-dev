@@ -15,11 +15,8 @@
 package wallet
 
 import (
-	"crypto/ecdsa"
-	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"mime"
 	"net/http"
 	"net/url"
 	"strings"
@@ -29,6 +26,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jwe"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
 // BuildWalletMetadata advertises signing algorithms only when the client identifier prefix
@@ -50,7 +48,7 @@ func BuildWalletMetadata(w *Wallet, clientID string) map[string]any {
 		},
 		// OID4VP 1.0 §10.1 defaults to pre-registered when this field is absent.
 		// Listing the prefixes allows x509_hash.
-		"client_id_prefixes_supported": advertisedClientIDPrefixes(),
+		"client_id_prefixes_supported": oid4vp.AdvertisedClientIDPrefixes(),
 		// OID4VP 1.0 §10 uses RFC 8414 metadata, which requires
 		// response_types_supported. OpenID4VP returns vp_token (§5.6).
 		"response_types_supported": []string{"vp_token"},
@@ -67,7 +65,7 @@ func BuildWalletMetadata(w *Wallet, clientID string) map[string]any {
 	// OID4VP 1.0 §5.10: "the Wallet MUST NOT include this parameter if the Client
 	// Identifier Prefix precludes signed Request Objects". The redirect_uri prefix
 	// does (§5.9.3).
-	if prefix, _, _ := lookupClientIDPrefix(clientID); !prefix.unsigned {
+	if !oid4vp.PrecludesSignedRequestObject(clientID) {
 		meta["request_object_signing_alg_values_supported"] = []string{jws.AlgES256}
 	}
 
@@ -89,15 +87,6 @@ func BuildWalletMetadata(w *Wallet, clientID string) map[string]any {
 	meta["request_object_encryption_alg_values_supported"] = []string{jwe.AlgECDHES}
 	meta["request_object_encryption_enc_values_supported"] = []string{jwe.EncA128GCM, jwe.EncA256GCM}
 	return meta
-}
-
-// GenerateWalletNonce provides replay protection through wallet_nonce (OID4VP 1.0 §5.10).
-func GenerateWalletNonce() (string, error) {
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("generating wallet nonce: %w", err)
-	}
-	return format.EncodeBase64URL(b), nil
 }
 
 // MakeFetchRequestURI includes wallet_metadata and wallet_nonce in POST requests. An empty
@@ -161,7 +150,7 @@ func fetchRequestURIPOST(w *Wallet, requestURI, clientID string, logFn func(stri
 		return nil, fmt.Errorf("marshaling wallet_metadata: %w", err)
 	}
 
-	walletNonce, err := GenerateWalletNonce()
+	walletNonce, err := oid4vp.GenerateWalletNonce()
 	if err != nil {
 		return nil, err
 	}
@@ -226,27 +215,27 @@ func (w *Wallet) resolveFetchedRequestObject(fetched *fetchedRequestObject, logF
 	}
 
 	result := fetched.body
-	if !isJWT(result) && !isJWE(result) {
+	if !format.IsJWT(result) && !format.IsJWE(result) {
 		return "", fmt.Errorf("request_uri response must be a compact JWT or JWE")
 	}
-	if w.Conformance().RequireEncryptedRequest && !isJWE(result) {
+	if w.Conformance().RequireEncryptedRequest && !format.IsJWE(result) {
 		return "", fmt.Errorf("request_uri response must be a compact JWE when encrypted request objects are required")
 	}
 
-	if isJWE(result) {
+	if format.IsJWE(result) {
 		if w.RequestEncryptionKey == nil {
 			return "", fmt.Errorf("received encrypted request object (JWE) but wallet has no decryption key")
 		}
 		if logFn != nil {
 			logFn("  Request object is encrypted (JWE), decrypting...")
 		}
-		decrypted, err := DecryptRequestObjectJWE(result, w.RequestEncryptionKey)
+		decrypted, err := oid4vp.DecryptRequestObjectJWE(result, w.RequestEncryptionKey)
 		if err != nil {
 			return "", fmt.Errorf("decrypting request object JWE: %w", err)
 		}
 		result = decrypted
 	}
-	if !isJWT(result) {
+	if !format.IsJWT(result) {
 		return "", fmt.Errorf("request_uri response did not resolve to a compact JWT")
 	}
 
@@ -262,7 +251,7 @@ func (w *Wallet) resolveFetchedRequestObject(fetched *fetchedRequestObject, logF
 // strict mode, because OID4VP 1.0 §5.10.1 requires one. RFC 9101 only advises
 // the check for GET (§10.4.1), so a GET response gets a warning.
 func (w *Wallet) judgeRequestURIMediaType(method, contentType string) error {
-	err := validateRequestURIResponse(method, contentType)
+	err := oid4vp.ValidateRequestURIResponse(method, contentType)
 	if err == nil {
 		return nil
 	}
@@ -331,9 +320,9 @@ func logRequestObjectFetchResponse(w *Wallet, method, requestURI string, result 
 	var payload *LogPayload
 	if body, ok := details["response_body"].(string); ok {
 		payload = &LogPayload{Label: "Response", Body: body}
-		if isJWE(body) {
+		if format.IsJWE(body) {
 			payload.Encrypted, payload.Wire, payload.Body = true, body, nil
-			if plain, decryptErr := DecryptRequestObjectJWE(body, w.RequestEncryptionKey); decryptErr == nil {
+			if plain, decryptErr := oid4vp.DecryptRequestObjectJWE(body, w.RequestEncryptionKey); decryptErr == nil {
 				payload.Body = plain
 			}
 		}
@@ -347,56 +336,4 @@ func responseLogResult(statusCode int, details map[string]any) map[string]any {
 	}
 	details["status_code"] = statusCode
 	return details
-}
-
-// validateRequestURIResponse checks the media type of a request_uri response.
-// For POST, OID4VP 1.0 §5.10.1 requires "the content type
-// application/oauth-authz-req+jwt". For GET, RFC 9101 §4 gives a Request
-// Object that type and notes "some existing deployments may alternatively be
-// using the type application/jwt".
-func validateRequestURIResponse(method, contentType string) error {
-	cite := "OID4VP 1.0 §5.10.1"
-	if method != "post" {
-		cite = "RFC 9101 §4"
-	}
-	if contentType == "" {
-		return fmt.Errorf("%s: the request_uri response is missing the Content-Type application/oauth-authz-req+jwt", cite)
-	}
-	mediaType, _, err := mime.ParseMediaType(contentType)
-	if err != nil {
-		return fmt.Errorf("%s: the request_uri response Content-Type does not parse: %w", cite, err)
-	}
-	if mediaType == format.MediaTypeRequestObject || (method != "post" && mediaType == "application/jwt") {
-		return nil
-	}
-	return fmt.Errorf("%s: the request_uri response Content-Type must be application/oauth-authz-req+jwt, got %q", cite, contentType)
-}
-
-func isJWT(s string) bool {
-	parts := strings.SplitN(s, ".", 4)
-	return len(parts) == 3 && len(parts[0]) > 0 && len(parts[1]) > 0
-}
-
-func isJWE(s string) bool {
-	parts := strings.Split(s, ".")
-	return len(parts) == 5 && len(parts[0]) > 0
-}
-
-func DecryptCompactJWE(compact string, key *ecdsa.PrivateKey) (string, error) {
-	if key == nil {
-		return "", fmt.Errorf("decryption requires a private key")
-	}
-	ecdhKey, err := key.ECDH()
-	if err != nil {
-		return "", fmt.Errorf("converting private key to ECDH: %w", err)
-	}
-	plaintext, err := jwe.Decrypt(compact, ecdhKey)
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(plaintext)), nil
-}
-
-func DecryptRequestObjectJWE(jwe string, key *ecdsa.PrivateKey) (string, error) {
-	return DecryptCompactJWE(jwe, key)
 }

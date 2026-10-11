@@ -23,8 +23,10 @@ import (
 
 	"github.com/fxamacker/cbor/v2"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
 // The parser can skip invalid items and duplicate element identifiers. Selecting by
@@ -80,9 +82,9 @@ func TestCreateMDocPresentationSelectsElementByIdentifier(t *testing.T) {
 	}
 }
 
-func mdocMatches(t *testing.T, w *Wallet) []CredentialMatch {
+func mdocMatches(t *testing.T, w *Wallet) []consent.Match {
 	t.Helper()
-	var matches []CredentialMatch
+	var matches []consent.Match
 	for _, c := range w.GetCredentials() {
 		if c.Format != "mso_mdoc" {
 			continue
@@ -91,7 +93,7 @@ func mdocMatches(t *testing.T, w *Wallet) []CredentialMatch {
 		for k := range c.Claims {
 			keys = append(keys, k)
 		}
-		matches = append(matches, CredentialMatch{
+		matches = append(matches, consent.Match{
 			QueryID:      fmt.Sprintf("q%d", len(matches)),
 			CredentialID: c.ID,
 			Format:       c.Format,
@@ -107,7 +109,7 @@ func mdocMatches(t *testing.T, w *Wallet) []CredentialMatch {
 // use the same nonce.
 func TestISOResponseSignsEveryMDocOverTheReportedNonce(t *testing.T) {
 	w := pidBaselineWallet(t)
-	w.SessionTranscript = SessionTranscriptISO
+	w.SessionTranscript = oid4vp.SessionTranscriptISO
 
 	matches := mdocMatches(t, w)
 	if len(matches) < 2 {
@@ -151,11 +153,11 @@ func TestISOResponseSignsEveryMDocOverTheReportedNonce(t *testing.T) {
 // keeps its setting.
 func TestAPresentationCanChooseItsSessionTranscript(t *testing.T) {
 	w := generateTestWallet(t)
-	w.SessionTranscript = SessionTranscriptOID4VP
-	if got := w.sessionTranscriptFor(PresentationParams{SessionTranscript: SessionTranscriptISO}); got != SessionTranscriptISO {
+	w.SessionTranscript = oid4vp.SessionTranscriptOID4VP
+	if got := w.sessionTranscriptFor(PresentationParams{SessionTranscript: oid4vp.SessionTranscriptISO}); got != oid4vp.SessionTranscriptISO {
 		t.Errorf("transcript = %q, want the request's iso", got)
 	}
-	if got := w.sessionTranscriptFor(PresentationParams{}); got != SessionTranscriptOID4VP {
+	if got := w.sessionTranscriptFor(PresentationParams{}); got != oid4vp.SessionTranscriptOID4VP {
 		t.Errorf("transcript = %q, want the wallet's oid4vp", got)
 	}
 	srv := NewServer(w, 0, nil)

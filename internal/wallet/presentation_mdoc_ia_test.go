@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
 // The expected bytes come from the worked example in OpenID4VCI 1.1 Appendix A.2.5.
@@ -73,14 +74,14 @@ func TestInteractiveAuthorizationTranscriptIgnoresTheSessionTranscriptMode(t *te
 	}
 
 	oid4vpWallet := generateTestWallet(t)
-	oid4vpWallet.SessionTranscript = SessionTranscriptOID4VP
+	oid4vpWallet.SessionTranscript = oid4vp.SessionTranscriptOID4VP
 	fromOID4VP, err := oid4vpWallet.buildSessionTranscript(params, "", nil)
 	if err != nil {
 		t.Fatalf("oid4vp mode: %v", err)
 	}
 
 	isoWallet := generateTestWallet(t)
-	isoWallet.SessionTranscript = SessionTranscriptISO
+	isoWallet.SessionTranscript = oid4vp.SessionTranscriptISO
 	fromISO, err := isoWallet.buildSessionTranscript(params, "mdoc-nonce", nil)
 	if err != nil {
 		t.Fatalf("iso mode: %v", err)

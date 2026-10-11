@@ -15,8 +15,6 @@
 package wallet
 
 import (
-	"crypto/x509"
-	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -24,40 +22,12 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
 )
-
-// OpenID4VP 1.0 §8.5 uses invalid_request and access_denied from OAuth 2.0. Appendix
-// E.3 registers the additional error codes.
-const (
-	errorCodeInvalidRequest          = "invalid_request"
-	errorCodeAccessDenied            = "access_denied"
-	errorCodeVPFormatsNotSupported   = "vp_formats_not_supported"
-	errorCodeInvalidRequestURIMethod = "invalid_request_uri_method"
-	errorCodeInvalidTransactionData  = "invalid_transaction_data"
-)
-
-// Errors without an explicit protocol code are reported as invalid_request.
-type authorizationError struct {
-	Code string
-	Err  error
-}
-
-func (e *authorizationError) Error() string { return e.Err.Error() }
-func (e *authorizationError) Unwrap() error { return e.Err }
-
-// Default to invalid_request for requests the wallet cannot parse (OpenID4VP 1.0
-// §8.5).
-func authorizationErrorCode(err error) string {
-	var authErr *authorizationError
-	if errors.As(err, &authErr) && authErr.Code != "" {
-		return authErr.Code
-	}
-	return errorCodeInvalidRequest
-}
 
 var walletPresentationFormats = map[string]bool{
 	credtype.FormatSDJWT: true,
@@ -77,43 +47,19 @@ func unsatisfiableQueryError(query map[string]any) (string, string) {
 		}
 		requested, _ := cq["format"].(string)
 		if requested == "" || walletPresentationFormats[requested] {
-			return errorCodeAccessDenied, "no stored credential satisfies the requested query"
+			return oid4vp.ErrorAccessDenied, "no stored credential satisfies the requested query"
 		}
 		unsupported[requested] = true
 	}
 	if len(unsupported) == 0 {
-		return errorCodeAccessDenied, "no stored credential satisfies the requested query"
+		return oid4vp.ErrorAccessDenied, "no stored credential satisfies the requested query"
 	}
 	formats := make([]string, 0, len(unsupported))
 	for format := range unsupported {
 		formats = append(formats, format)
 	}
 	sort.Strings(formats)
-	return errorCodeVPFormatsNotSupported, "unsupported credential format(s): " + strings.Join(formats, ", ")
-}
-
-// An explicit error code takes precedence. Otherwise inspect the request for the
-// parameter errors defined by OpenID4VP 1.0 §8.5.
-func refusalCodeForRequest(authReq *AuthorizationRequestParams, err error) string {
-	if code := authorizationErrorCode(err); code != errorCodeInvalidRequest {
-		return code
-	}
-	if authReq == nil {
-		return errorCodeInvalidRequest
-	}
-	// §8.5 invalid_request_uri_method: "The value of the request_uri_method
-	// request parameter is neither get nor post (case-sensitive)."
-	switch authReq.RequestURIMethod {
-	case "", "get", "post":
-	default:
-		return errorCodeInvalidRequestURIMethod
-	}
-	// OpenID4VP 1.0 §8.5 uses invalid_transaction_data for unsupported transaction
-	// types. This wallet supports none.
-	if requestHasTransactionData(authReq, authReq.RequestPayload) {
-		return errorCodeInvalidTransactionData
-	}
-	return errorCodeInvalidRequest
+	return oid4vp.ErrorVPFormatsNotSupported, "unsupported credential format(s): " + strings.Join(formats, ", ")
 }
 
 func newConsentID() string {
@@ -132,65 +78,15 @@ func redirectBrowser(w http.ResponseWriter, redirectURI string) {
 	w.WriteHeader(http.StatusSeeOther)
 }
 
-type AuthorizationRequestParams struct {
-	// Findings are the checks that failed in debug mode. The consent dialog
-	// and the API response list them.
-	Findings []string
-	// AutoAccept and SessionTranscript override the wallet's settings for
-	// this request (POST /api/presentations).
-	AutoAccept        bool
-	SessionTranscript SessionTranscriptMode
-	ClientID          string
-	ResponseType      string
-	ResponseMode      string
-	Nonce             string
-	State             string
-	RequestOrigin     string
-	// Session identifies the browser that owns the consent request. Empty for requests
-	// without a browser session.
-	Session          string
-	RedirectURI      string
-	ResponseURI      string
-	Scope            string
-	RequestURIMethod string
-	// Empty when the Request Object was not fetched by reference.
-	RequestURI     string
-	ClientMetadata map[string]any
-	DCQLQuery      map[string]any
-	RequestObject  *oid4vc.RequestObjectJWT
-	RequestPayload map[string]any
-	// Preserved to detect undefined parameters.
-	FullParams map[string]string
-	Source     string
-	// Unsigned DC API requests use the platform's origin to identify the caller and
-	// omit client_id (OpenID4VP 1.0 Appendix A.2 and A.3.1).
-	UnsignedDCAPI bool
-	// InteractiveAuthorizationEndpoint is the Authorization Challenge Endpoint
-	// of a presentation during issuance (OpenID4VCI 1.1 §6.2.1.1).
-	InteractiveAuthorizationEndpoint string
-	// Browser navigations redirect to the verifier after submission. API calls receive
-	// JSON.
-	BrowserRedirect bool
-	// StatusClient fetches the status lists of registration certificates
-	// (Wallet.RegistrationStatusClient).
-	StatusClient *http.Client
-	// RelyingPartyCAs, RegistrarCAs and RegistrationStatusCAs anchor the --arf
-	// checks of access certificates, registration certificates and their status
-	// lists.
-	RelyingPartyCAs       []*x509.Certificate
-	RegistrarCAs          []*x509.Certificate
-	RegistrationStatusCAs []*x509.Certificate
-}
-
 type preparedPresentation struct {
 	ResponseURI string
 	Params      PresentationParams
 	VPResult    *VPTokenMapResult
 	IDToken     string
-	Response    *AuthorizationResponseEnvelope
+	Response    *oid4vp.AuthorizationResponseEnvelope
 }
 
-func (s *Server) handleAuthFlow(w http.ResponseWriter, authReq *AuthorizationRequestParams) {
+func (s *Server) handleAuthFlow(w http.ResponseWriter, authReq *oid4vp.Request) {
 	if authReq.Source == "" {
 		authReq.Source = "authorize"
 	}
@@ -231,8 +127,8 @@ func (s *Server) handleAuthFlow(w http.ResponseWriter, authReq *AuthorizationReq
 		// Browser navigations go to the wallet UI while the consent waits.
 		// After approval, the UI follows the verifier's redirect_uri.
 		s.log("  Mode:          interactive (waiting for consent)")
-		shown := make(chan *ConsentRequest, 1)
-		go s.awaitPresentationConsent(noopResponseWriter{}, authReq, outcome, func(req *ConsentRequest) { shown <- req })
+		shown := make(chan *consent.Request, 1)
+		go s.awaitPresentationConsent(noopResponseWriter{}, authReq, outcome, func(req *consent.Request) { shown <- req })
 		redirectBrowser(w, "/?request="+(<-shown).ID)
 	default:
 		s.log("  Mode:          interactive (waiting for consent)")
@@ -241,7 +137,7 @@ func (s *Server) handleAuthFlow(w http.ResponseWriter, authReq *AuthorizationReq
 }
 
 // logPresentationOutcome writes the decision of the shared flow to the console.
-func (s *Server) logPresentationOutcome(authReq *AuthorizationRequestParams, outcome presentationOutcome) {
+func (s *Server) logPresentationOutcome(authReq *oid4vp.Request, outcome presentationOutcome) {
 	switch {
 	case outcome.invalid != nil:
 		s.log("  ERROR: %v", outcome.invalid)
@@ -267,15 +163,15 @@ func (s *Server) logPresentationOutcome(authReq *AuthorizationRequestParams, out
 
 // autoAccepts reports whether the request goes without a consent dialog. An
 // API submission provides the caller's consent.
-func (s *Server) autoAccepts(authReq *AuthorizationRequestParams) bool {
+func (s *Server) autoAccepts(authReq *oid4vp.Request) bool {
 	return s.wallet.AutoAcceptSetting() || authReq.AutoAccept || authReq.Source == "api"
 }
 
 // awaitPresentationConsent asks the user and delivers the answer. The
 // submission channel also delivers the result to the approve API.
-func (s *Server) awaitPresentationConsent(w http.ResponseWriter, authReq *AuthorizationRequestParams, outcome presentationOutcome, shown func(*ConsentRequest)) {
+func (s *Server) awaitPresentationConsent(w http.ResponseWriter, authReq *oid4vp.Request, outcome presentationOutcome, shown func(*consent.Request)) {
 	s.allowSlowResponse(w, config.ConsentTimeout)
-	consentReq, matches, approved, answered := s.wallet.askPresentationConsent("presentation", authReq.Session, authReq.ClientID, authReq, outcome, config.ConsentTimeout, func(req *ConsentRequest) {
+	consentReq, matches, approved, answered := s.wallet.askPresentationConsent("presentation", authReq.Session, authReq.ClientID, authReq, outcome, config.ConsentTimeout, func(req *consent.Request) {
 		s.triggerUIRequest(req.ID)
 		if s.onConsentRequest != nil {
 			s.onConsentRequest(req)
@@ -287,12 +183,12 @@ func (s *Server) awaitPresentationConsent(w http.ResponseWriter, authReq *Author
 	switch {
 	case !answered:
 		s.wallet.AddLog("presentation", "Consent timeout", false)
-		consentReq.SubmissionCh <- SubmissionResult{Error: "consent timeout"}
+		consentReq.SubmissionCh <- consent.SubmissionResult{Error: "consent timeout"}
 		writeJSON(w, http.StatusRequestTimeout, map[string]string{"error": "consent timeout"})
 	case !approved:
 		s.log("  Consent:       denied")
 		s.wallet.AddLog("presentation", fmt.Sprintf("Denied presentation to %s", authReq.ClientID), false)
-		consentReq.SubmissionCh <- s.submitAuthorizationError(w, authReq, "denied", errorCodeAccessDenied, "User denied presentation")
+		consentReq.SubmissionCh <- s.submitAuthorizationError(w, authReq, "denied", oid4vp.ErrorAccessDenied, "User denied presentation")
 	default:
 		s.log("  Consent:       approved")
 		consentReq.SubmissionCh <- s.submitPresentation(w, authReq, matches)
@@ -307,7 +203,7 @@ func (noopResponseWriter) Header() http.Header         { return http.Header{} }
 func (noopResponseWriter) Write(b []byte) (int, error) { return len(b), nil }
 func (noopResponseWriter) WriteHeader(int)             {}
 
-func (s *Server) autoAcceptPresentation(w http.ResponseWriter, authReq *AuthorizationRequestParams, matches []CredentialMatch) {
+func (s *Server) autoAcceptPresentation(w http.ResponseWriter, authReq *oid4vp.Request, matches []consent.Match) {
 	s.log("  Verifier:      %s", authReq.ClientID)
 	for _, m := range matches {
 		s.log("  Credential:    %s (%s), disclosing %v", m.Format, credTypeLabel(m), m.SelectedKeys)
@@ -316,7 +212,7 @@ func (s *Server) autoAcceptPresentation(w http.ResponseWriter, authReq *Authoriz
 	s.log("  Auto-accepted")
 }
 
-func (s *Server) buildBrowserPresentationResult(authReq *AuthorizationRequestParams, protocol string, matches []CredentialMatch) (*BrowserAPIResult, *preparedPresentation, error) {
+func (s *Server) buildBrowserPresentationResult(authReq *oid4vp.Request, protocol string, matches []consent.Match) (*oid4vp.BrowserAPIResult, *preparedPresentation, error) {
 	prepared, err := s.wallet.preparePresentation(authReq, matches)
 	if err != nil {
 		return nil, nil, err
@@ -325,7 +221,7 @@ func (s *Server) buildBrowserPresentationResult(authReq *AuthorizationRequestPar
 	if err != nil {
 		return nil, nil, err
 	}
-	result, err := BuildBrowserAPIResult(protocol, response)
+	result, err := oid4vp.BuildBrowserAPIResult(protocol, response)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -333,27 +229,18 @@ func (s *Server) buildBrowserPresentationResult(authReq *AuthorizationRequestPar
 	return result, prepared, nil
 }
 
-func (s *Server) buildBrowserAuthorizationErrorResult(authReq *AuthorizationRequestParams, protocol, errorCode, errorDescription string) (*BrowserAPIResult, error) {
-	response, err := s.wallet.BuildAuthorizationErrorResponse(errorCode, errorDescription, authReq.State, authReq.presentationParams())
+func (s *Server) buildBrowserAuthorizationErrorResult(authReq *oid4vp.Request, protocol, errorCode, errorDescription string) (*oid4vp.BrowserAPIResult, error) {
+	response, err := s.wallet.BuildAuthorizationErrorResponse(errorCode, errorDescription, authReq.State, presentationParams(authReq))
 	if err != nil {
 		return nil, err
 	}
-	return BuildBrowserAPIResult(protocol, response)
-}
-
-// DC API responses return through the API call (Appendix A.4). Other responses need
-// response_uri or redirect_uri.
-func canDeliverAuthorizationError(authReq *AuthorizationRequestParams) bool {
-	if authReq == nil || isDCAPIResponseMode(authReq.ResponseMode) {
-		return false
-	}
-	return authReq.ResponseURI != "" || authReq.RedirectURI != ""
+	return oid4vp.BuildBrowserAPIResult(protocol, response)
 }
 
 // deliverAuthorizationError logs the delivery of an error response to the
 // console.
-func (s *Server) deliverAuthorizationError(authReq *AuthorizationRequestParams, errorCode, errorDescription string) (*DirectPostResult, error) {
-	s.log("  Submitting authorization error to %s", authReq.responseDestination())
+func (s *Server) deliverAuthorizationError(authReq *oid4vp.Request, errorCode, errorDescription string) (*oid4vp.DirectPostResult, error) {
+	s.log("  Submitting authorization error to %s", authReq.ResponseDestination())
 	if authReq.State != "" {
 		s.log("  State:         %s", authReq.State)
 	}
@@ -372,8 +259,8 @@ func (s *Server) deliverAuthorizationError(authReq *AuthorizationRequestParams, 
 // reportRefusalToVerifier sends the refusal in the request's response mode
 // (OpenID4VP 1.0 §5.6) and returns the redirect_uri from the verifier's answer
 // (§8.2). A failed delivery is logged and doesn't change the refusal.
-func (s *Server) reportRefusalToVerifier(authReq *AuthorizationRequestParams, errorCode, errorDescription string) string {
-	if !canDeliverAuthorizationError(authReq) {
+func (s *Server) reportRefusalToVerifier(authReq *oid4vp.Request, errorCode, errorDescription string) string {
+	if !oid4vp.CanDeliverError(authReq) {
 		return ""
 	}
 	result, err := s.deliverAuthorizationError(authReq, errorCode, errorDescription)
@@ -386,7 +273,7 @@ func (s *Server) reportRefusalToVerifier(authReq *AuthorizationRequestParams, er
 // SubmittedPresentation builds the answer of POST /api/presentations after the
 // verifier received the response. findings are the checks that failed in
 // debug mode.
-func SubmittedPresentation(result *DirectPostResult, vp *VPTokenMapResult, findings []string) map[string]any {
+func SubmittedPresentation(result *oid4vp.DirectPostResult, vp *VPTokenMapResult, findings []string) map[string]any {
 	keys := []string{}
 	if vp != nil && len(vp.QueryIDs()) > 0 {
 		keys = vp.QueryIDs()
@@ -408,11 +295,11 @@ func withRedirectURI(body map[string]any, redirectURI string) map[string]any {
 	return body
 }
 
-func (s *Server) submitAuthorizationError(w http.ResponseWriter, authReq *AuthorizationRequestParams, status, errorCode, errorDescription string) SubmissionResult {
+func (s *Server) submitAuthorizationError(w http.ResponseWriter, authReq *oid4vp.Request, status, errorCode, errorDescription string) consent.SubmissionResult {
 	result, err := s.deliverAuthorizationError(authReq, errorCode, errorDescription)
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
-		return SubmissionResult{Error: err.Error()}
+		return consent.SubmissionResult{Error: err.Error()}
 	}
 
 	if authReq.BrowserRedirect {
@@ -428,16 +315,16 @@ func (s *Server) submitAuthorizationError(w http.ResponseWriter, authReq *Author
 	return submissionResult(result)
 }
 
-func submissionResult(result *DirectPostResult) SubmissionResult {
-	submission := SubmissionResult{RedirectURI: result.RedirectURI, StatusCode: result.StatusCode}
+func submissionResult(result *oid4vp.DirectPostResult) consent.SubmissionResult {
+	submission := consent.SubmissionResult{RedirectURI: result.RedirectURI, StatusCode: result.StatusCode}
 	if result.StatusCode >= 400 {
 		submission.Error = result.Body
 	}
 	return submission
 }
 
-func (s *Server) submitPresentation(w http.ResponseWriter, authReq *AuthorizationRequestParams, matches []CredentialMatch) SubmissionResult {
-	s.log("  Submitting VP token to %s", authReq.responseDestination())
+func (s *Server) submitPresentation(w http.ResponseWriter, authReq *oid4vp.Request, matches []consent.Match) consent.SubmissionResult {
+	s.log("  Submitting VP token to %s", authReq.ResponseDestination())
 	if authReq.State != "" {
 		s.log("  State:         %s", authReq.State)
 	}
@@ -447,7 +334,7 @@ func (s *Server) submitPresentation(w http.ResponseWriter, authReq *Authorizatio
 		s.log("  ERROR: Presentation preparation failed: %v", err)
 		s.wallet.AddLog("presentation", fmt.Sprintf("Presentation preparation failed: %v", err), false)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return SubmissionResult{Error: err.Error()}
+		return consent.SubmissionResult{Error: err.Error()}
 	}
 	if prepared.VPResult != nil {
 		s.log("  VP tokens:     %d created", prepared.VPResult.PresentationCount())
@@ -460,7 +347,7 @@ func (s *Server) submitPresentation(w http.ResponseWriter, authReq *Authorizatio
 	if err != nil {
 		s.log("  ERROR: Submission failed: %v", err)
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
-		return SubmissionResult{Error: err.Error()}
+		return consent.SubmissionResult{Error: err.Error()}
 	}
 
 	s.log("  Response:      HTTP %d", result.StatusCode)
@@ -479,45 +366,6 @@ func (s *Server) submitPresentation(w http.ResponseWriter, authReq *Authorizatio
 	return submissionResult(result)
 }
 
-// parseAuthParams reads the parameters of an /authorize request. The shared
-// validation checks them, as it does for every entry point.
-func parseAuthParams(values map[string][]string, opts oid4vc.ParseOptions) (*AuthorizationRequestParams, error) {
-	parsed, err := oid4vc.ParseAuthorizationParams(values, opts)
-	switch {
-	case err != nil && len(values["request_uri"]) > 0:
-		return nil, fmt.Errorf("parsing request_uri %q: %w", values["request_uri"][0], err)
-	case err != nil:
-		return nil, fmt.Errorf("parsing request JWT: %w", err)
-	}
-	return authorizationParams(parsed), nil
-}
-
-func requestPayload(reqObj *oid4vc.RequestObjectJWT, fallback map[string]any) map[string]any {
-	return RequestPayload(reqObj, fallback)
-}
-
-// authorizationParams carries a parsed authorization request into the
-// wallet's flow. Callers add where the request came from.
-func authorizationParams(parsed *oid4vc.AuthorizationRequest) *AuthorizationRequestParams {
-	return &AuthorizationRequestParams{
-		ClientID:         parsed.ClientID,
-		ResponseType:     parsed.ResponseType,
-		ResponseMode:     parsed.ResponseMode,
-		Nonce:            parsed.Nonce,
-		State:            parsed.State,
-		RedirectURI:      parsed.RedirectURI,
-		ResponseURI:      parsed.ResponseURI,
-		Scope:            parsed.Scope,
-		RequestURIMethod: parsed.RequestURIMethod,
-		RequestURI:       parsed.RequestURI,
-		ClientMetadata:   parsed.ClientMetadata,
-		DCQLQuery:        parsed.DCQLQuery,
-		RequestObject:    parsed.RequestObject,
-		RequestPayload:   requestPayload(parsed.RequestObject, parsed.FullJSON),
-		FullParams:       parsed.FullParams,
-	}
-}
-
 // shortID shortens a credential ID for the console. An ID from a credentials
 // file can have fewer than 8 characters.
 func shortID(id string) string {
@@ -527,7 +375,7 @@ func shortID(id string) string {
 	return id
 }
 
-func credTypeLabel(m CredentialMatch) string {
+func credTypeLabel(m consent.Match) string {
 	if m.VCT != "" {
 		return m.VCT
 	}

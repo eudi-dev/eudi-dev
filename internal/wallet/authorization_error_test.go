@@ -23,6 +23,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
 // captureVerifier stands in for a verifier waiting on its response_uri. Every
@@ -300,7 +302,7 @@ func dcAPIRefusal(t *testing.T, srv *Server, request map[string]any) map[string]
 	body, err := json.Marshal(map[string]any{
 		"digital": map[string]any{
 			"requests": []any{
-				map[string]any{"protocol": BrowserAPIProtocolOpenID4VPUnsigned, "data": request},
+				map[string]any{"protocol": oid4vp.BrowserAPIProtocolOpenID4VPUnsigned, "data": request},
 			},
 		},
 	})
@@ -366,7 +368,7 @@ func TestDCAPIMalformedRequestIsRefusedWithoutAProtocolResponse(t *testing.T) {
 		"digital": map[string]any{
 			"requests": []any{
 				map[string]any{
-					"protocol": BrowserAPIProtocolOpenID4VPUnsigned,
+					"protocol": oid4vp.BrowserAPIProtocolOpenID4VPUnsigned,
 					"data": map[string]any{
 						"response_type": "not_a_response_type",
 						"response_mode": "dc_api",
@@ -423,9 +425,9 @@ func TestDCAPIErrorIsNotEncryptedUnderTheEncryptedResponseMode(t *testing.T) {
 		t.Errorf("error = %v, want invalid_request", got)
 	}
 
-	result, err := BuildBrowserAPIResult(BrowserAPIProtocolOpenID4VPUnsigned, response)
+	result, err := oid4vp.BuildBrowserAPIResult(oid4vp.BrowserAPIProtocolOpenID4VPUnsigned, response)
 	if err != nil {
-		t.Fatalf("BuildBrowserAPIResult: %v", err)
+		t.Fatalf("oid4vp.BuildBrowserAPIResult: %v", err)
 	}
 	data, ok := result.Data.(map[string]any)
 	if !ok {
@@ -482,8 +484,8 @@ func TestStrictARFAnswersOverTheDCAPIWithAccessDenied(t *testing.T) {
 	if err := json.Unmarshal([]byte(verifierInfo), &info); err != nil {
 		t.Fatal(err)
 	}
-	requestObject, err := SignRequestObjectJWT(map[string]any{
-		"client_id": X509HashClientID(chain[0]), "response_type": "vp_token", "response_mode": "dc_api",
+	requestObject, err := oid4vp.SignRequestObjectJWT(map[string]any{
+		"client_id": oid4vp.X509HashClientID(chain[0]), "response_type": "vp_token", "response_mode": "dc_api",
 		"nonce": "n", "expected_origins": []any{"https://rp.example"}, "verifier_info": info,
 		"dcql_query": map[string]any{"credentials": []any{map[string]any{
 			"id": "pid", "format": "dc+sd-jwt", "meta": map[string]any{"vct_values": []any{"urn:eudi:pid:1"}},
@@ -494,7 +496,7 @@ func TestStrictARFAnswersOverTheDCAPIWithAccessDenied(t *testing.T) {
 		t.Fatal(err)
 	}
 	body, _ := json.Marshal(map[string]any{"digital": map[string]any{"requests": []any{
-		map[string]any{"protocol": BrowserAPIProtocolOpenID4VPSigned, "data": map[string]any{"request": requestObject}},
+		map[string]any{"protocol": oid4vp.BrowserAPIProtocolOpenID4VPSigned, "data": map[string]any{"request": requestObject}},
 	}}})
 	req := httptest.NewRequest("POST", "/api/dc-api", strings.NewReader(string(body)))
 	req.Header.Set("Content-Type", "application/json")

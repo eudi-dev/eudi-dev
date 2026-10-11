@@ -21,7 +21,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/remote"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/urlhandler"
 )
 
 // Version is set at build time via -ldflags:
@@ -46,6 +46,6 @@ func init() {
 		}
 	}
 	remote.SetVersion(Version)
-	wallet.SetHandlerScriptVersion(Version)
+	urlhandler.SetScriptVersion(Version)
 	rootCmd.AddCommand(versionCmd)
 }

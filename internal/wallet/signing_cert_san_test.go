@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
 )
 
@@ -34,7 +35,7 @@ func TestIssuedCredentialLeafNamesTheIssuer(t *testing.T) {
 		t.Fatal("the issued credential carries no iss")
 	}
 
-	chain, err := w.SigningCertChainForIssuedAttestation(IssuedAttestationSpec{Format: "dc+sd-jwt", VCT: token.Payload["vct"].(string)})
+	chain, err := signingChain(w, provider.IssuedAttestationSpec{Format: "dc+sd-jwt", VCT: token.Payload["vct"].(string)})
 	if err != nil {
 		t.Fatalf("signing chain: %v", err)
 	}
@@ -69,7 +70,7 @@ func TestIssuedCredentialLeafNamesTheIssuer(t *testing.T) {
 func TestIssuedCredentialLeafNamesAnAddressIssuer(t *testing.T) {
 	w := generateTestWallet(t)
 	w.IssuerURL = "https://159.195.213.172:8443"
-	chain, err := w.SigningCertChainForIssuedAttestation(IssuedAttestationSpec{Format: "dc+sd-jwt", VCT: "urn:eudi:pid:1"})
+	chain, err := signingChain(w, provider.IssuedAttestationSpec{Format: "dc+sd-jwt", VCT: "urn:eudi:pid:1"})
 	if err != nil {
 		t.Fatalf("signing chain: %v", err)
 	}

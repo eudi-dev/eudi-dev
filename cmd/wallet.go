@@ -34,9 +34,11 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/netaddr"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/output"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/remote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/storage"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/urlhandler"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
 )
 
@@ -393,7 +395,7 @@ openid-credential-offer://, haip-vci:// and eu-eaa-offer://.`,
 				return err
 			}
 			opts.ServeArgs = append(walletRegisterInheritedServeArgs(cmd), opts.ServeArgs...)
-			reg, err := wallet.RegisterURLSchemes(opts)
+			reg, err := urlhandler.Register(opts)
 			if err != nil {
 				return err
 			}
@@ -417,7 +419,7 @@ func walletRegisterInheritedServeArgs(cmd *cobra.Command) []string {
 	return args
 }
 
-func walletRegisterOptions(args []string) (wallet.RegisterOptions, error) {
+func walletRegisterOptions(args []string) (urlhandler.Options, error) {
 	port := config.DefaultWalletPort
 	autoAccept := false
 
@@ -426,10 +428,10 @@ func walletRegisterOptions(args []string) (wallet.RegisterOptions, error) {
 	flags.IntVar(&port, "port", config.DefaultWalletPort, "")
 	flags.BoolVar(&autoAccept, "auto-accept", false, "")
 	if err := flags.Parse(args); err != nil {
-		return wallet.RegisterOptions{}, fmt.Errorf("parsing wallet serve arguments for registration: %w", err)
+		return urlhandler.Options{}, fmt.Errorf("parsing wallet serve arguments for registration: %w", err)
 	}
 
-	return wallet.RegisterOptions{
+	return urlhandler.Options{
 		ListenerPort: port,
 		AutoAccept:   autoAccept,
 		ServeArgs:    append([]string(nil), args...),
@@ -441,7 +443,7 @@ func walletUnregisterCmd() *cobra.Command {
 		Use:   "unregister",
 		Short: "Remove the OS URL scheme handlers (macOS, a no-op elsewhere)",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			unreg, err := wallet.UnregisterURLSchemes()
+			unreg, err := urlhandler.Unregister()
 			if err != nil {
 				return err
 			}
@@ -457,7 +459,7 @@ func walletUnregisterCmd() *cobra.Command {
 	}
 }
 
-func printRegistration(reg wallet.Registration) {
+func printRegistration(reg urlhandler.Registration) {
 	if !reg.Registered {
 		fmt.Println("URL scheme registration is not available on this platform. Continue with 'eudi wallet accept <uri>' for copied offer or presentation links.")
 		return
@@ -590,9 +592,9 @@ func parseClaimsOverrides(flag string) (map[string]any, error) {
 func applySessionTranscriptMode(w *wallet.Wallet, mode string) error {
 	switch mode {
 	case "oid4vp", "":
-		w.SessionTranscript = wallet.SessionTranscriptOID4VP
+		w.SessionTranscript = oid4vp.SessionTranscriptOID4VP
 	case "iso":
-		w.SessionTranscript = wallet.SessionTranscriptISO
+		w.SessionTranscript = oid4vp.SessionTranscriptISO
 	default:
 		return fmt.Errorf("invalid --session-transcript value %q (must be 'iso' or 'oid4vp')", mode)
 	}

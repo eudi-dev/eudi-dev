@@ -14,14 +14,18 @@
 
 package wallet
 
-import "testing"
+import (
+	"testing"
 
-func received(ch <-chan AuthorizationPrompt) (AuthorizationPrompt, bool) {
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
+)
+
+func received(ch <-chan consent.AuthorizationPrompt) (consent.AuthorizationPrompt, bool) {
 	select {
 	case p := <-ch:
 		return p, true
 	default:
-		return AuthorizationPrompt{}, false
+		return consent.AuthorizationPrompt{}, false
 	}
 }
 
@@ -30,14 +34,14 @@ func received(ch <-chan AuthorizationPrompt) (AuthorizationPrompt, bool) {
 // navigates to it (ADR-0011).
 func TestSignInPromptReachesOnlyItsFlowAndOwner(t *testing.T) {
 	w := generateTestWallet(t)
-	flowA, unsubA := w.SubscribeAuthorization(func(p AuthorizationPrompt) bool { return p.Flow == "a" })
+	flowA, unsubA := w.Consents().SubscribeAuthorization(func(p consent.AuthorizationPrompt) bool { return p.Flow == "a" })
 	defer unsubA()
-	flowB, unsubB := w.SubscribeAuthorization(func(p AuthorizationPrompt) bool { return p.Flow == "b" })
+	flowB, unsubB := w.Consents().SubscribeAuthorization(func(p consent.AuthorizationPrompt) bool { return p.Flow == "b" })
 	defer unsubB()
-	otherBrowser, unsubOther := w.SubscribeAuthorization(func(p AuthorizationPrompt) bool { return ownedBy([]string{"visitor-2"}, p.Owner) })
+	otherBrowser, unsubOther := w.Consents().SubscribeAuthorization(func(p consent.AuthorizationPrompt) bool { return consent.OwnedBy([]string{"visitor-2"}, p.Owner) })
 	defer unsubOther()
 
-	if !w.NotifyAuthorization(AuthorizationPrompt{URL: "https://issuer.example/authorize?a", Owner: "visitor-1", Flow: "a"}) {
+	if !w.Consents().NotifyAuthorization(consent.AuthorizationPrompt{URL: "https://issuer.example/authorize?a", Owner: "visitor-1", Flow: "a"}) {
 		t.Fatal("the flow's own caller did not count as receiving the prompt")
 	}
 	if p, ok := received(flowA); !ok || p.URL != "https://issuer.example/authorize?a" {
@@ -50,7 +54,7 @@ func TestSignInPromptReachesOnlyItsFlowAndOwner(t *testing.T) {
 		t.Fatalf("another visitor's browser got the prompt: %+v", p)
 	}
 
-	if w.NotifyAuthorization(AuthorizationPrompt{URL: "https://issuer.example/authorize?c", Owner: "visitor-3", Flow: "c"}) {
+	if w.Consents().NotifyAuthorization(consent.AuthorizationPrompt{URL: "https://issuer.example/authorize?c", Owner: "visitor-3", Flow: "c"}) {
 		t.Fatal("a prompt nobody of its flow received counted as delivered")
 	}
 }

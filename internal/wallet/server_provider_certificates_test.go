@@ -9,14 +9,15 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 )
 
 func TestProviderCertificateRetrievalAndCRL(t *testing.T) {
 	srv := newTestServer(t, false)
 	w := srv.wallet
 	w.IssuerURL = "https://issuer.example"
-	spec := applyCategoryDefaults(IssuedAttestationSpec{Format: "mso_mdoc", DocType: mock.PIDNamespace, Category: credtemplate.CategoryPID})
-	_, chain, err := w.SigningMaterialForIssuedCredential(spec, map[string]any{"issuing_country": "DE"})
+	spec := provider.ApplyCategoryDefaults(provider.IssuedAttestationSpec{Format: "mso_mdoc", DocType: mock.PIDNamespace, Category: credtemplate.CategoryPID})
+	_, chain, err := w.Signer().ForCredential(spec, map[string]any{"issuing_country": "DE"})
 	if err != nil {
 		t.Fatal(err)
 	}

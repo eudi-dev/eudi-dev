@@ -22,6 +22,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/remote"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/trustedlists"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
 )
 
@@ -61,12 +62,12 @@ type walletService interface {
 	CatalogAttestations() ([]registrar.CatalogAttestation, error)
 	AddCatalogAttestation(entry registrar.CatalogAttestation) (registrar.CatalogAttestation, error)
 	DeleteCatalogAttestation(id string) error
-	TrustState() (wallet.TrustedListState, error)
+	TrustState() (trustedlists.Summary, error)
 	// TrustListIndex describes the lists the wallet signs, like /api/trustlists.
 	TrustListIndex() ([]map[string]any, error)
-	AddTrustedEntity(list, name, certificatesPEM string) (wallet.TrustedEntity, error)
+	AddTrustedEntity(list, name, certificatesPEM string) (trustedlists.Entity, error)
 	RemoveTrustedEntity(id string) error
-	AddTrustedList(url string) (wallet.TrustedListLink, error)
+	AddTrustedList(url string) (trustedlists.Link, error)
 	RemoveTrustedList(url string) error
 	Config() (map[string]any, error)
 }
@@ -246,14 +247,14 @@ func (r *remoteWallet) DeleteCatalogAttestation(id string) error {
 
 func (r *remoteWallet) TrustListIndex() ([]map[string]any, error) { return r.c.TrustLists() }
 
-func (r *remoteWallet) TrustState() (wallet.TrustedListState, error) {
-	var out wallet.TrustedListState
+func (r *remoteWallet) TrustState() (trustedlists.Summary, error) {
+	var out trustedlists.Summary
 	err := r.c.TrustState(&out)
 	return out, err
 }
 
-func (r *remoteWallet) AddTrustedEntity(list, name, certificatesPEM string) (wallet.TrustedEntity, error) {
-	var out wallet.TrustedEntity
+func (r *remoteWallet) AddTrustedEntity(list, name, certificatesPEM string) (trustedlists.Entity, error) {
+	var out trustedlists.Entity
 	err := r.c.AddTrustedEntity(map[string]string{"list": list, "name": name, "certificates": certificatesPEM}, &out)
 	return out, err
 }
@@ -262,8 +263,8 @@ func (r *remoteWallet) RemoveTrustedEntity(id string) error {
 	return r.c.RemoveTrustedEntity(id)
 }
 
-func (r *remoteWallet) AddTrustedList(url string) (wallet.TrustedListLink, error) {
-	var link wallet.TrustedListLink
+func (r *remoteWallet) AddTrustedList(url string) (trustedlists.Link, error) {
+	var link trustedlists.Link
 	err := r.c.AddTrustedList(url, &link)
 	return link, err
 }
@@ -484,7 +485,7 @@ func (l *localWallet) TrustListIndex() ([]map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := json.Marshal(wallet.BuildTrustListIndexEntries(w, w.IssuerURL))
+	data, err := json.Marshal(w.TrustedLists().IndexEntries(w.IssuerURL))
 	if err != nil {
 		return nil, err
 	}
@@ -492,12 +493,12 @@ func (l *localWallet) TrustListIndex() ([]map[string]any, error) {
 	return entries, json.Unmarshal(data, &entries)
 }
 
-func (l *localWallet) TrustState() (wallet.TrustedListState, error) {
-	return with(l, func(m *wallet.Management) (wallet.TrustedListState, error) { return m.TrustState(), nil })
+func (l *localWallet) TrustState() (trustedlists.Summary, error) {
+	return with(l, func(m *wallet.Management) (trustedlists.Summary, error) { return m.TrustState(), nil })
 }
 
-func (l *localWallet) AddTrustedEntity(list, name, certificatesPEM string) (wallet.TrustedEntity, error) {
-	return with(l, func(m *wallet.Management) (wallet.TrustedEntity, error) {
+func (l *localWallet) AddTrustedEntity(list, name, certificatesPEM string) (trustedlists.Entity, error) {
+	return with(l, func(m *wallet.Management) (trustedlists.Entity, error) {
 		return m.AddTrustedEntity(list, name, certificatesPEM)
 	})
 }
@@ -507,8 +508,8 @@ func (l *localWallet) RemoveTrustedEntity(id string) error {
 	return err
 }
 
-func (l *localWallet) AddTrustedList(url string) (wallet.TrustedListLink, error) {
-	return with(l, func(m *wallet.Management) (wallet.TrustedListLink, error) { return m.AddTrustedList(url) })
+func (l *localWallet) AddTrustedList(url string) (trustedlists.Link, error) {
+	return with(l, func(m *wallet.Management) (trustedlists.Link, error) { return m.AddTrustedList(url) })
 }
 
 func (l *localWallet) RemoveTrustedList(url string) error {

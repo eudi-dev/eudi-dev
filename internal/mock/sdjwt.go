@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
@@ -153,7 +154,7 @@ func GenerateSDJWT(cfg SDJWTConfig) (string, error) {
 	if len(cfg.CertChain) > 0 {
 		chain := cfg.CertChain
 		if !cfg.KeepTrustAnchor {
-			chain = WithoutSelfSignedTrustAnchor(chain)
+			chain = certchain.WithoutSelfSignedAnchor(chain)
 		}
 		var x5c []string
 		for _, cert := range chain {

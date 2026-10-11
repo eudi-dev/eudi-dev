@@ -26,6 +26,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/remote"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/trustedlists"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
 )
 
@@ -158,17 +159,17 @@ func checkRemoteSettings(c *remote.Client, set []string, want walletConformance)
 	if err != nil {
 		return fmt.Errorf("reading the running wallet's settings: %w", err)
 	}
-	var trust wallet.TrustedListState
+	var summary trustedlists.Summary
 	if slices.ContainsFunc(set, func(flag string) bool {
 		return flag == "--relying-party-ca" || flag == "--trusted-list-ca" || flag == "--trusted-list"
 	}) {
-		if err := c.TrustState(&trust); err != nil {
+		if err := c.TrustState(&summary); err != nil {
 			return fmt.Errorf("reading the running wallet's trusted lists: %w", err)
 		}
 	}
 	var differ []string
 	for _, flag := range append(set, outbound...) {
-		if difference := settingDifference(flag, want, cfg, trust); difference != "" {
+		if difference := settingDifference(flag, want, cfg, summary); difference != "" {
 			differ = append(differ, difference)
 		}
 	}
@@ -181,7 +182,7 @@ func checkRemoteSettings(c *remote.Client, set []string, want walletConformance)
 
 // settingDifference describes how the running wallet differs from flag. It
 // is empty when the wallet already has the flag's value.
-func settingDifference(flag string, want walletConformance, cfg map[string]any, trust wallet.TrustedListState) string {
+func settingDifference(flag string, want walletConformance, cfg map[string]any, summary trustedlists.Summary) string {
 	s := want.settings
 	onOff := func(key string, wanted bool) string {
 		if have, ok := cfg[key].(bool); ok && have == wanted {
@@ -223,20 +224,20 @@ func settingDifference(flag string, want walletConformance, cfg map[string]any, 
 	case "--tls-verify":
 		return onOff("tls_verify", walletTLSVerify)
 	case "--relying-party-ca":
-		trusted := slices.Clone(trust.RelyingPartyCAs)
-		for _, entity := range trust.Entities {
+		trusted := slices.Clone(summary.RelyingPartyCAs)
+		for _, entity := range summary.Entities {
 			trusted = append(trusted, entity.Certificates...)
 		}
 		if missing := certificatesMissing(want.relyingPartyCAPEM, trusted); missing > 0 {
 			return fmt.Sprintf("%s names %d CA certificates the running wallet does not trust", flag, missing)
 		}
 	case "--trusted-list-ca":
-		if missing := certificatesMissing(want.trustListCAPEM, trust.TrustedListCAs); missing > 0 {
+		if missing := certificatesMissing(want.trustListCAPEM, summary.TrustedListCAs); missing > 0 {
 			return fmt.Sprintf("%s names %d CA certificates the running wallet does not trust", flag, missing)
 		}
 	case "--trusted-list":
 		for _, url := range want.trustedLists {
-			if !slices.ContainsFunc(trust.Lists, func(l wallet.TrustedListLink) bool { return l.URL == url }) {
+			if !slices.ContainsFunc(summary.Lists, func(l trustedlists.Link) bool { return l.URL == url }) {
 				return fmt.Sprintf("%s %s is not on the running wallet's list of trusted lists", flag, url)
 			}
 		}

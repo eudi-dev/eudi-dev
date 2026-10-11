@@ -24,6 +24,9 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 )
 
 // MaxBatchSize caps the copies of one batch: the proof keys the wallet sends
@@ -210,7 +213,7 @@ func primaryBindingKeyPEM(raw string, keys []*ecdsa.PrivateKey) string {
 // A presentation clone keeps only the primary copy. The credential sink has
 // already forwarded it to the real wallet without the batch group, so copies
 // stored there would be disconnected from it.
-func (w *Wallet) storeBatchCopies(primary *StoredCredential, copies []batchCopy, display *CredentialDisplay) ([]*StoredCredential, error) {
+func (w *Wallet) storeBatchCopies(primary *StoredCredential, copies []batchCopy, display *oid4vc.CredentialDisplay) ([]*StoredCredential, error) {
 	stored := []*StoredCredential{primary}
 	if len(copies) == 0 {
 		return stored, nil
@@ -283,7 +286,7 @@ func (w *Wallet) batchSize(cred StoredCredential) int {
 
 // collapseBatchMatches keeps one copy per batch so consent does not show
 // identical copies as alternatives.
-func (w *Wallet) collapseBatchMatches(matches []CredentialMatch, credentials []StoredCredential) []CredentialMatch {
+func (w *Wallet) collapseBatchMatches(matches []consent.Match, credentials []StoredCredential) []consent.Match {
 	byID := make(map[string]StoredCredential, len(credentials))
 	for _, c := range credentials {
 		byID[c.ID] = c
@@ -319,7 +322,7 @@ func (w *Wallet) collapseBatchMatches(matches []CredentialMatch, credentials []S
 // It picks a random copy among those presented the fewest times. Each copy is
 // used once in random order before any copy is reused (EUDI ARF method C,
 // ISSU_52).
-func chooseBatchCopy(idxs []int, matches []CredentialMatch, byID map[string]StoredCredential) int {
+func chooseBatchCopy(idxs []int, matches []consent.Match, byID map[string]StoredCredential) int {
 	fewest := -1
 	for _, i := range idxs {
 		uses := byID[matches[i].CredentialID].Uses

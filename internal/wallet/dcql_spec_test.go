@@ -18,7 +18,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/dcql"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
 func sdjwtQuery(id, vct string, claims ...any) map[string]any {
@@ -398,7 +400,7 @@ func TestDCQLQueryFindings(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			findings := DCQLQueryFindings(tt.query)
+			findings := dcql.QueryFindings(tt.query)
 			if len(findings) == 0 {
 				t.Fatalf("expected a finding mentioning %q, got none", tt.want)
 			}
@@ -417,7 +419,7 @@ func TestDCQLQueryFindings_WellFormedQueryHasNone(t *testing.T) {
 		},
 	}
 
-	if findings := DCQLQueryFindings(query); len(findings) > 0 {
+	if findings := dcql.QueryFindings(query); len(findings) > 0 {
 		t.Errorf("expected no findings for a well-formed query, got %v", findings)
 	}
 }
@@ -440,7 +442,7 @@ func TestEvaluateDCQL_StrictRejectsQueryWithoutMeta(t *testing.T) {
 	}
 
 	_, err := w.EvaluateDCQL(query)
-	if err == nil || authorizationErrorCode(err) != errorCodeInvalidRequest || !strings.Contains(err.Error(), "missing the required meta") {
+	if err == nil || oid4vp.ErrorCode(err) != oid4vp.ErrorInvalidRequest || !strings.Contains(err.Error(), "missing the required meta") {
 		t.Fatalf("want an invalid_request naming the missing meta, got %v", err)
 	}
 }

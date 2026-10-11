@@ -19,6 +19,9 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
 // presentationEntry describes the entry point a request came through.
@@ -44,8 +47,8 @@ type presentationOutcome struct {
 	invalidCode string
 	// refusal is the Authorization Error Response for the verifier.
 	refusal *presentationRefusal
-	matches []CredentialMatch
-	options *ConsentCredentialOptions
+	matches []consent.Match
+	options *consent.CredentialOptions
 }
 
 // presentationRefusal is an error the wallet sends to the verifier. status
@@ -56,27 +59,27 @@ type presentationRefusal struct {
 
 // evaluatePresentationRequest validates a parsed request, records what it
 // found and decides between refusing it and presenting credentials.
-func (w *Wallet) evaluatePresentationRequest(authReq *AuthorizationRequestParams, entry presentationEntry) presentationOutcome {
+func (w *Wallet) evaluatePresentationRequest(authReq *oid4vp.Request, entry presentationEntry) presentationOutcome {
 	w.PrepareARFChecks(authReq)
-	findings, err := ValidateAuthorizationRequest(w.Conformance(), authReq)
-	var arf *ARFRefusal
+	findings, err := oid4vp.ValidateAuthorizationRequest(w.Conformance().checks(), authReq)
+	var arf *oid4vp.ARFRefusal
 	if errors.As(err, &arf) {
 		w.AddLog(entry.action, err.Error(), false)
-		w.NotifyError(WalletError{Owner: entry.owner, Message: "The request does not meet the ARF registration rules", Detail: err.Error()})
+		w.Consents().NotifyError(consent.Error{Owner: entry.owner, Message: "The request does not meet the ARF registration rules", Detail: err.Error()})
 		// The description names the findings, so the verifier under test sees
 		// which rule its request breaks.
 		return presentationOutcome{refusal: &presentationRefusal{
-			status: "refused", code: errorCodeAccessDenied,
+			status: "refused", code: oid4vp.ErrorAccessDenied,
 			description: "The request does not meet the ARF registration rules: " + strings.Join(arf.Findings, ", "),
 		}}
 	}
 	if err != nil {
 		w.AddLog(entry.action, err.Error(), false)
-		w.NotifyError(WalletError{Owner: entry.owner, Message: "Authorization request validation failed", Detail: err.Error()})
-		return presentationOutcome{invalid: err, invalidCode: refusalCodeForRequest(authReq, err)}
+		w.Consents().NotifyError(consent.Error{Owner: entry.owner, Message: "Authorization request validation failed", Detail: err.Error()})
+		return presentationOutcome{invalid: err, invalidCode: oid4vp.RefusalCode(authReq, err)}
 	}
 	// The override answers only a valid request.
-	if override := w.ConsumeNextError(); override != nil {
+	if override := w.Consents().ConsumeNextError(); override != nil {
 		w.AddLog(entry.action, fmt.Sprintf("Returned error override: %s", override.Error), false)
 		return presentationOutcome{refusal: &presentationRefusal{status: "error", code: override.Error, description: override.ErrorDescription}}
 	}
@@ -85,7 +88,7 @@ func (w *Wallet) evaluatePresentationRequest(authReq *AuthorizationRequestParams
 	w.warnFindings(entry.action, specCitedSummary(entry.subject, findings), findings)
 	w.warnUndefinedRequestParameters(entry.action, authReq)
 
-	if !ResponseTypeRequiresVP(authReq.ResponseType) {
+	if !oid4vp.ResponseTypeRequiresVP(authReq.ResponseType) {
 		return presentationOutcome{}
 	}
 	var outcome presentationOutcome
@@ -93,9 +96,9 @@ func (w *Wallet) evaluatePresentationRequest(authReq *AuthorizationRequestParams
 		outcome.matches, outcome.options, err = w.EvaluateDCQLWithOptions(authReq.DCQLQuery)
 		if err != nil {
 			w.AddLog(entry.action, err.Error(), false)
-			w.NotifyError(WalletError{Owner: entry.owner, Message: "The wallet refuses the credential query", Detail: err.Error()})
-			code := authorizationErrorCode(err)
-			if code == errorCodeInvalidRequest {
+			w.Consents().NotifyError(consent.Error{Owner: entry.owner, Message: "The wallet refuses the credential query", Detail: err.Error()})
+			code := oid4vp.ErrorCode(err)
+			if code == oid4vp.ErrorInvalidRequest {
 				return presentationOutcome{invalid: err, invalidCode: code}
 			}
 			return presentationOutcome{refusal: &presentationRefusal{status: "refused", code: code, description: err.Error()}}
@@ -104,7 +107,7 @@ func (w *Wallet) evaluatePresentationRequest(authReq *AuthorizationRequestParams
 	// Debug mode lets a person answer with a credential that does not match.
 	if len(outcome.matches) == 0 && (outcome.options == nil || !entry.interactive) {
 		w.AddLog(entry.action, fmt.Sprintf("No matching credentials for %s", authReq.ClientID), false)
-		w.NotifyError(WalletError{
+		w.Consents().NotifyError(consent.Error{
 			Owner:   entry.owner,
 			Message: "No matching credentials",
 			Detail:  fmt.Sprintf("Verifier %s requested credentials but none matched the query", authReq.ClientID),
@@ -120,9 +123,9 @@ func (w *Wallet) evaluatePresentationRequest(authReq *AuthorizationRequestParams
 // askPresentationConsent shows the consent dialog and waits for the
 // decision. answered is false after the timeout. The caller reports the
 // submission on the request's SubmissionCh.
-func (w *Wallet) askPresentationConsent(typ, owner, asking string, authReq *AuthorizationRequestParams, outcome presentationOutcome, timeout time.Duration, shown func(*ConsentRequest)) (consentReq *ConsentRequest, matches []CredentialMatch, approved, answered bool) {
+func (w *Wallet) askPresentationConsent(typ, owner, asking string, authReq *oid4vp.Request, outcome presentationOutcome, timeout time.Duration, shown func(*consent.Request)) (consentReq *consent.Request, matches []consent.Match, approved, answered bool) {
 	consentReq = newPresentationConsent(typ, owner, asking, authReq, outcome.matches, outcome.options)
-	w.CreateConsentRequest(consentReq)
+	w.Consents().Create(consentReq)
 	if shown != nil {
 		shown(consentReq)
 	}
@@ -134,12 +137,12 @@ func (w *Wallet) askPresentationConsent(typ, owner, asking string, authReq *Auth
 }
 
 // presentationParams are the request parameters the response depends on.
-func (r *AuthorizationRequestParams) presentationParams() PresentationParams {
+func presentationParams(r *oid4vp.Request) PresentationParams {
 	return PresentationParams{
 		Nonce:                            r.Nonce,
 		ClientID:                         r.ClientID,
 		RequestOrigin:                    r.RequestOrigin,
-		ResponseURI:                      r.responseDestination(),
+		ResponseURI:                      r.ResponseDestination(),
 		RedirectURI:                      r.RedirectURI,
 		ResponseMode:                     r.ResponseMode,
 		ClientMetadata:                   r.ClientMetadata,
@@ -149,23 +152,15 @@ func (r *AuthorizationRequestParams) presentationParams() PresentationParams {
 	}
 }
 
-// responseDestination is where a redirect-based response goes.
-func (r *AuthorizationRequestParams) responseDestination() string {
-	if r.ResponseURI != "" {
-		return r.ResponseURI
-	}
-	return r.RedirectURI
-}
-
 // preparePresentation creates the vp_token and the id_token the request asks
 // for.
-func (w *Wallet) preparePresentation(authReq *AuthorizationRequestParams, matches []CredentialMatch) (*preparedPresentation, error) {
+func (w *Wallet) preparePresentation(authReq *oid4vp.Request, matches []consent.Match) (*preparedPresentation, error) {
 	prepared := &preparedPresentation{
-		ResponseURI: authReq.responseDestination(),
-		Params:      authReq.presentationParams(),
+		ResponseURI: authReq.ResponseDestination(),
+		Params:      presentationParams(authReq),
 	}
 
-	if ResponseTypeContains(authReq.ResponseType, "vp_token") || authReq.ResponseType == "" {
+	if oid4vp.ResponseTypeContains(authReq.ResponseType, "vp_token") || authReq.ResponseType == "" {
 		// A batch credential's use count changes, so it is saved under the
 		// store lock.
 		var err error
@@ -178,7 +173,7 @@ func (w *Wallet) preparePresentation(authReq *AuthorizationRequestParams, matche
 		}
 	}
 
-	if ResponseTypeContains(authReq.ResponseType, "id_token") {
+	if oid4vp.ResponseTypeContains(authReq.ResponseType, "id_token") {
 		// DC API presentations use the platform origin as the audience, prefixed
 		// with origin: (OID4VP 1.0 §5.9.3).
 		idToken, err := w.CreateSelfIssuedIDToken(authReq.Nonce, presentationAudience(authReq))
@@ -203,23 +198,23 @@ func (w *Wallet) saveChange(change func() bool) {
 
 // submitPreparedPresentation sends a prepared presentation to the response
 // destination and records both directions in the activity log.
-func (w *Wallet) submitPreparedPresentation(authReq *AuthorizationRequestParams, matches []CredentialMatch, prepared *preparedPresentation) (*DirectPostResult, error) {
-	result, err := w.SubmitPresentation(prepared.VPResult, prepared.IDToken, authReq.State, prepared.ResponseURI, prepared.Params, func(response *AuthorizationResponseEnvelope) {
+func (w *Wallet) submitPreparedPresentation(authReq *oid4vp.Request, matches []consent.Match, prepared *preparedPresentation) (*oid4vp.DirectPostResult, error) {
+	result, err := w.SubmitPresentation(prepared.VPResult, prepared.IDToken, authReq.State, prepared.ResponseURI, prepared.Params, func(response *oid4vp.AuthorizationResponseEnvelope) {
 		w.addProtocolLog("presentation", "presentation_response", fmt.Sprintf("Sending presentation response to %s", authReq.ClientID), true, presentationResponseLogDetails(authReq, w, matches, prepared), PresentationLogPayload(response))
 	})
 	if err != nil {
 		w.AddLogPayload("presentation", fmt.Sprintf("Submission failed: %v", err), false, nil, VerifierResponseErrorPayload(err))
 		return nil, err
 	}
-	w.addProtocolLog("presentation", "verifier_response", fmt.Sprintf("Verifier result from %s: %s", authReq.ClientID, FormatDirectPostResult(result)), result.StatusCode < 400, verifierResponseLogDetails(authReq, prepared, result))
+	w.addProtocolLog("presentation", "verifier_response", fmt.Sprintf("Verifier result from %s: %s", authReq.ClientID, oid4vp.FormatDirectPostResult(result)), result.StatusCode < 400, verifierResponseLogDetails(authReq, prepared, result))
 	return result, nil
 }
 
 // deliverAuthorizationError returns an OpenID4VP 1.0 §8.5 Authorization Error
 // Response over the Response Mode of the request. §5.6: "Both successful and
 // error responses SHOULD be returned using the supplied Response Mode."
-func (w *Wallet) deliverAuthorizationError(authReq *AuthorizationRequestParams, errorCode, errorDescription string) (*DirectPostResult, error) {
-	responseURI := authReq.responseDestination()
+func (w *Wallet) deliverAuthorizationError(authReq *oid4vp.Request, errorCode, errorDescription string) (*oid4vp.DirectPostResult, error) {
+	responseURI := authReq.ResponseDestination()
 	errorDetails := presentationRequestLogDetails(authReq)
 	addStringDetail(errorDetails, "submission_uri", responseURI)
 	errorDetails["direction"] = "outbound"
@@ -228,13 +223,18 @@ func (w *Wallet) deliverAuthorizationError(authReq *AuthorizationRequestParams, 
 	if authReq.Source != "" {
 		errorDetails["source"] = authReq.Source
 	}
-	result, err := w.SubmitAuthorizationError(errorCode, errorDescription, authReq.State, responseURI, authReq.presentationParams(), func(response *AuthorizationResponseEnvelope) {
+	result, err := w.SubmitAuthorizationError(errorCode, errorDescription, authReq.State, responseURI, presentationParams(authReq), func(response *oid4vp.AuthorizationResponseEnvelope) {
 		w.addProtocolLog("presentation", "presentation_error_response", fmt.Sprintf("Sending authorization error to %s", authReq.ClientID), true, errorDetails, PresentationLogPayload(response))
 	})
 	if err != nil {
 		w.AddLogPayload("presentation", fmt.Sprintf("Error submission failed: %v", err), false, nil, VerifierResponseErrorPayload(err))
 		return nil, err
 	}
-	w.addProtocolLog("presentation", "verifier_response", fmt.Sprintf("Verifier result from %s: %s", authReq.ClientID, FormatDirectPostResult(result)), result.StatusCode < 400, verifierResponseLogDetails(authReq, &preparedPresentation{ResponseURI: responseURI}, result))
+	w.addProtocolLog("presentation", "verifier_response", fmt.Sprintf("Verifier result from %s: %s", authReq.ClientID, oid4vp.FormatDirectPostResult(result)), result.StatusCode < 400, verifierResponseLogDetails(authReq, &preparedPresentation{ResponseURI: responseURI}, result))
 	return result, nil
+}
+
+func applyClientAuth(r *consent.Request, params *oid4vp.Request) {
+	r.ClientAuthSigned, r.ClientAuthDetail = oid4vp.ClientAuthState(params)
+	r.ClientName = oid4vp.ClientMetadataName(params)
 }

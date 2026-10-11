@@ -41,6 +41,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jwe"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/statuslist"
@@ -580,7 +581,7 @@ func serveStatusList(t *testing.T, d *DemoRP, w *wallet.Wallet) *httptest.Server
 	t.Helper()
 	srv := httptest.NewServer(nil)
 	// The revocation service of the wallet's lists names the status list signer.
-	key, chain, err := w.StatusListSigningMaterial()
+	key, chain, err := w.Signer().StatusList()
 	if err != nil {
 		t.Fatalf("status list signer: %v", err)
 	}
@@ -613,7 +614,7 @@ func ticketTemplate(t *testing.T, d *DemoRP) *credtemplate.Template {
 
 func signTicketWithStatus(t *testing.T, d *DemoRP, holderKey *ecdsa.PrivateKey, uri string, idx int) string {
 	t.Helper()
-	chain, err := d.wallet.DefaultSigningCertChain()
+	chain, err := d.wallet.Signer().DefaultChain()
 	if err != nil {
 		t.Fatalf("signing chain: %v", err)
 	}
@@ -807,7 +808,7 @@ func TestVerifierRejectsWrongCredentialType(t *testing.T) {
 
 	id, params := startVerification(t, h, "ticket")
 
-	chain, err := d.wallet.DefaultSigningCertChain()
+	chain, err := d.wallet.Signer().DefaultChain()
 	if err != nil {
 		t.Fatalf("signing chain: %v", err)
 	}
@@ -840,7 +841,7 @@ func TestVerifierAcceptsAnExtendingCredentialType(t *testing.T) {
 
 	id, params := startVerification(t, h, "pid")
 
-	chain, err := d.wallet.DefaultSigningCertChain()
+	chain, err := d.wallet.Signer().DefaultChain()
 	if err != nil {
 		t.Fatalf("signing chain: %v", err)
 	}
@@ -874,7 +875,7 @@ func TestVerifierDomesticPIDRequestRefusesTheCountryIndependentPID(t *testing.T)
 
 	id, params := startVerificationWith(t, h, `{"type":"pid","vct":"urn:eudi:pid:de:1"}`)
 
-	chain, err := d.wallet.DefaultSigningCertChain()
+	chain, err := d.wallet.Signer().DefaultChain()
 	if err != nil {
 		t.Fatalf("signing chain: %v", err)
 	}
@@ -906,7 +907,7 @@ func TestVerifierDomesticPIDRequestAcceptsThatType(t *testing.T) {
 
 	id, params := startVerificationWith(t, h, `{"type":"pid","vct":"urn:eudi:pid:de:1"}`)
 
-	chain, err := d.wallet.DefaultSigningCertChain()
+	chain, err := d.wallet.Signer().DefaultChain()
 	if err != nil {
 		t.Fatalf("signing chain: %v", err)
 	}
@@ -973,7 +974,7 @@ func TestVerifierPIDRequestTakesAnyDomesticType(t *testing.T) {
 	const frenchPID = "urn:eudi:pid:fr:1"
 	id, params := startVerificationWith(t, h, `{"type":"pid","vct":"`+frenchPID+`"}`)
 
-	chain, err := d.wallet.DefaultSigningCertChain()
+	chain, err := d.wallet.Signer().DefaultChain()
 	if err != nil {
 		t.Fatalf("signing chain: %v", err)
 	}
@@ -2191,7 +2192,7 @@ func TestTheDemoVerifierSendsItsRegistrationCertificate(t *testing.T) {
 		if _, ok := payload["verifier_info"]; ok != tc.wantVerifierInfo {
 			t.Errorf("%s: verifier_info present = %t, want %t", tc.body, ok, tc.wantVerifierInfo)
 		}
-		if payload["client_id"] != wallet.X509HashClientID(chain[0]) {
+		if payload["client_id"] != oid4vp.X509HashClientID(chain[0]) {
 			t.Errorf("%s: client_id = %v, want the x509_hash of the demo verifier's access certificate", tc.body, payload["client_id"])
 		}
 	}

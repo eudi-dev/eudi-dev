@@ -29,7 +29,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 )
 
@@ -497,7 +499,7 @@ func TestRefreshSigningCertificateIfExpiring(t *testing.T) {
 		t.Error("a certificate with a year left should not be re-issued")
 	}
 
-	almostExpired := expiry.Add(-signingCertificateRenewBefore).Add(time.Hour)
+	almostExpired := expiry.Add(-provider.RenewBefore).Add(time.Hour)
 	renewed, err = w.RefreshSigningCertificateIfExpiring(almostExpired)
 	if err != nil {
 		t.Fatalf("RefreshSigningCertificateIfExpiring near expiry: %v", err)
@@ -600,7 +602,7 @@ func TestDemoBlocksClearingSharedHistory(t *testing.T) {
 // reload.
 func TestDemoVisitorDismissesItsOwnError(t *testing.T) {
 	srv := newDemoTestServer(t)
-	srv.wallet.NotifyError(WalletError{Message: "this visitor's flow", Owner: "browser-a"})
+	srv.wallet.Consents().NotifyError(consent.Error{Message: "this visitor's flow", Owner: "browser-a"})
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/error", nil)
 	req.Host = "localhost:8085"
@@ -610,7 +612,7 @@ func TestDemoVisitorDismissesItsOwnError(t *testing.T) {
 	if rec.Code == http.StatusForbidden {
 		t.Fatalf("status = %d, want the error to be dismissable", rec.Code)
 	}
-	if got := srv.wallet.PeekLastError([]string{"browser-a"}); got != nil {
+	if got := srv.wallet.Consents().PeekLastError([]string{"browser-a"}); got != nil {
 		t.Errorf("the error survived being dismissed: %v", got)
 	}
 }
@@ -919,7 +921,7 @@ func TestTheDemoShowsNobodyTheErrorsOfUnownedFlows(t *testing.T) {
 		if demo {
 			srv = newDemoTestServer(t)
 		}
-		srv.wallet.NotifyError(WalletError{Message: "Pay at example.com to continue"})
+		srv.wallet.Consents().NotifyError(consent.Error{Message: "Pay at example.com to continue"})
 		body := serverRequest(t, srv, "GET", "/api/error", "").Body.String()
 		if shown := strings.Contains(body, "example.com"); shown == demo {
 			t.Errorf("demo %t: error shown %t: %s", demo, shown, body)
@@ -1041,7 +1043,7 @@ func TestDemoVisitorTemplateStaysAVisitorTemplateAcrossRestarts(t *testing.T) {
 func TestDemoResetNotifiesOpenPages(t *testing.T) {
 	srv := newDemoTestServer(t)
 	srv.SetStore(NewWalletStore(t.TempDir()))
-	state, unsubscribe := srv.wallet.SubscribeState()
+	state, unsubscribe := srv.wallet.Consents().SubscribeState()
 	defer unsubscribe()
 	if err := srv.demoReset(); err != nil {
 		t.Fatal(err)

@@ -28,9 +28,11 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
 )
 
@@ -176,7 +178,7 @@ func init() {
 
 	for _, c := range []*cobra.Command{issueSDJWTCmd, issueJWTCmd, issueMDOCCmd} {
 		_ = c.RegisterFlagCompletionFunc("template", completeTemplateNames)
-		_ = c.RegisterFlagCompletionFunc("category", staticCompletion(append(credtemplate.Categories, wallet.UnlistedCategory)...))
+		_ = c.RegisterFlagCompletionFunc("category", staticCompletion(append(credtemplate.Categories, provider.UnlistedCategory)...))
 	}
 	_ = issueCmd.RegisterFlagCompletionFunc("remote", completeRemoteFlag)
 	_ = issueCmd.MarkPersistentFlagDirname("wallet-dir")
@@ -380,7 +382,7 @@ func loadIssueCertChain(format string) ([]*x509.Certificate, error) {
 	if err != nil {
 		return nil, err
 	}
-	if format != "jwt" && len(mock.WithoutSelfSignedTrustAnchor(chain)) != len(chain) {
+	if format != "jwt" && len(certchain.WithoutSelfSignedAnchor(chain)) != len(chain) {
 		fmt.Fprintln(os.Stderr, "Note: the chain includes its self-signed root and is embedded as given (HAIP 1.0 §6.1.1 excludes the anchor from x5c)")
 	}
 	return chain, nil
@@ -735,8 +737,8 @@ func addIssueTrustMetadataFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&issueRevocationServiceName, "revocation-service-name", "", "With --wallet: trusted list revocation service name to persist with the issued credential")
 }
 
-func issueTrustSpecFromFlags() wallet.IssuedAttestationSpec {
-	return wallet.IssuedAttestationSpec{
+func issueTrustSpecFromFlags() provider.IssuedAttestationSpec {
+	return provider.IssuedAttestationSpec{
 		Entitlements:                append([]string(nil), issueEntitlements...),
 		TrustListType:               issueTrustListType,
 		StatusDeterminationApproach: issueStatusDetermination,

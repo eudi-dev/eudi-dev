@@ -31,8 +31,10 @@ import (
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/news"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/publicpath"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/storage"
@@ -44,7 +46,7 @@ type Server struct {
 	port             int
 	mux              *http.ServeMux
 	onSave           func()
-	onConsentRequest func(req *ConsentRequest)
+	onConsentRequest func(req *consent.Request)
 	onUIRequest      func(requestID string)
 	logFunc          func(format string, args ...any)
 	httpSrv          *http.Server
@@ -103,7 +105,7 @@ func NewServer(w *Wallet, port int, onSave func()) *Server {
 			if err := store.appendLogEntry(w, entry); err != nil {
 				s.log("  ERROR: saving log entry: %v", err)
 			}
-			w.NotifyStateChanged()
+			w.Consents().NotifyStateChanged()
 			return
 		}
 		s.triggerSave()
@@ -181,7 +183,7 @@ func (s *Server) setupRoutes() {
 	s.routeFunc("POST /api/requests/{id}/approve", s.withFreshStore(s.handleApproveRequest))
 	s.routeFunc("POST /api/requests/{id}/deny", s.withFreshStore(s.handleDenyRequest))
 
-	s.routeFunc("GET "+defaultTrustListPath, s.withFreshStore(s.handleTrustList))
+	s.routeFunc("GET "+provider.DefaultTrustListPath, s.withFreshStore(s.handleTrustList))
 	s.routeFunc("GET "+registrar.TrustListsPath, s.withFreshStore(s.handleTrustListIndex))
 	s.routeFunc("GET /api/trust", s.withFreshStore(s.handleTrustState))
 	s.routeFunc("POST /api/trust/entities", s.withFreshStore(s.handleAddTrustedEntity))
@@ -328,7 +330,7 @@ func (s *Server) ListenAndServeBackground() (string, error) {
 	return addr, nil
 }
 
-func (s *Server) SetOnConsentRequest(fn func(req *ConsentRequest)) {
+func (s *Server) SetOnConsentRequest(fn func(req *consent.Request)) {
 	s.onConsentRequest = fn
 }
 
@@ -506,7 +508,7 @@ func (s *Server) Handle(pattern string, h http.Handler) {
 // the log sink.
 func (s *Server) triggerSave() {
 	s.saveLocked()
-	s.wallet.NotifyStateChanged()
+	s.wallet.Consents().NotifyStateChanged()
 }
 
 // saveLocked persists the wallet. The caller holds storeSyncMu.
@@ -543,7 +545,7 @@ func (s *Server) saveMutationThen(mutate func() bool, saved func()) {
 	}
 	s.storeSyncMu.Unlock()
 	if changed {
-		s.wallet.NotifyStateChanged()
+		s.wallet.Consents().NotifyStateChanged()
 	}
 }
 

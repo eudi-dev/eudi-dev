@@ -24,10 +24,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
 )
 
@@ -46,23 +48,16 @@ type PresentationParams struct {
 	InteractiveAuthorizationEndpoint string
 	// SessionTranscript overrides the wallet's transcript mode for this
 	// presentation.
-	SessionTranscript SessionTranscriptMode
+	SessionTranscript oid4vp.SessionTranscriptMode
 }
 
 // sessionTranscriptFor is the transcript mode of a presentation: its own, or
 // the wallet's.
-func (w *Wallet) sessionTranscriptFor(params PresentationParams) SessionTranscriptMode {
+func (w *Wallet) sessionTranscriptFor(params PresentationParams) oid4vp.SessionTranscriptMode {
 	if params.SessionTranscript != "" {
 		return params.SessionTranscript
 	}
 	return w.SessionTranscript
-}
-
-// isInteractiveAuthorizationResponseMode reports whether a response mode is
-// one of the two defined in OpenID4VCI 1.1 §6.2.1.1. Both send the response to
-// the Authorization Challenge Endpoint.
-func isInteractiveAuthorizationResponseMode(mode string) bool {
-	return mode == "ia_post" || mode == "ia_post.jwt"
 }
 
 type VPTokenResult struct {
@@ -70,14 +65,14 @@ type VPTokenResult struct {
 	MDocNonce string // only set for ISO mode mdoc
 }
 
-func (w *Wallet) CreateVPToken(match CredentialMatch, params PresentationParams) (VPTokenResult, error) {
+func (w *Wallet) CreateVPToken(match consent.Match, params PresentationParams) (VPTokenResult, error) {
 	return w.createVPToken(match, params, "")
 }
 
 // createVPToken builds one presentation. mdocNonce is the mdoc generated nonce
 // shared by the whole response (ISO 18013-7). When it is empty, an mdoc
 // presentation generates its own nonce.
-func (w *Wallet) createVPToken(match CredentialMatch, params PresentationParams, mdocNonce string) (VPTokenResult, error) {
+func (w *Wallet) createVPToken(match consent.Match, params PresentationParams, mdocNonce string) (VPTokenResult, error) {
 	cred, ok := w.GetCredential(match.CredentialID)
 	if !ok {
 		return VPTokenResult{}, fmt.Errorf("credential %s not found", match.CredentialID)
@@ -173,7 +168,7 @@ func (w *Wallet) checkPresentableKeyBinding(cred StoredCredential) error {
 }
 
 func sdJWTAudience(params PresentationParams) string {
-	if isInteractiveAuthorizationResponseMode(params.ResponseMode) && params.InteractiveAuthorizationEndpoint != "" {
+	if oid4vp.IsInteractiveAuthorizationResponseMode(params.ResponseMode) && params.InteractiveAuthorizationEndpoint != "" {
 		return interactiveAuthorizationAudience(params.InteractiveAuthorizationEndpoint)
 	}
 	if (params.ResponseMode == "dc_api" || params.ResponseMode == "dc_api.jwt") && params.RequestOrigin != "" {
@@ -283,7 +278,7 @@ type VPTokenMapResult struct {
 	MDocNonce string // set if any mdoc credential produced a nonce (ISO mode)
 }
 
-func (w *Wallet) CreateVPTokenMap(matches []CredentialMatch, params PresentationParams) (*VPTokenMapResult, error) {
+func (w *Wallet) CreateVPTokenMap(matches []consent.Match, params PresentationParams) (*VPTokenMapResult, error) {
 	log.Printf("[VP] Creating VP token map: %d credentials, client=%s, response_mode=%s", len(matches), params.ClientID, params.ResponseMode)
 	result := &VPTokenMapResult{
 		TokenMap: make(map[string][]string),
@@ -292,7 +287,7 @@ func (w *Wallet) CreateVPTokenMap(matches []CredentialMatch, params Presentation
 	// ISO 18013-7 Annex B uses one mdoc nonce per response in apu. Share it across
 	// documents so every session transcript matches the encrypted response.
 	var mdocNonce string
-	if w.sessionTranscriptFor(params) == SessionTranscriptISO {
+	if w.sessionTranscriptFor(params) == oid4vp.SessionTranscriptISO {
 		var err error
 		if mdocNonce, err = newMDocGeneratedNonce(); err != nil {
 			return nil, err
@@ -370,7 +365,7 @@ func buildPlainAuthorizationErrorResponse(errorCode, errorDescription, state str
 	return payload
 }
 
-func (w *Wallet) BuildAuthorizationResponse(vpResult *VPTokenMapResult, idToken, state string, params PresentationParams) (*AuthorizationResponseEnvelope, error) {
+func (w *Wallet) BuildAuthorizationResponse(vpResult *VPTokenMapResult, idToken, state string, params PresentationParams) (*oid4vp.AuthorizationResponseEnvelope, error) {
 	var vpToken any
 	if vpResult != nil {
 		vpToken = vpResult.VPToken()
@@ -393,7 +388,7 @@ func (w *Wallet) BuildAuthorizationResponse(vpResult *VPTokenMapResult, idToken,
 		if err != nil {
 			return nil, fmt.Errorf("encrypting response: %w", err)
 		}
-		return &AuthorizationResponseEnvelope{
+		return &oid4vp.AuthorizationResponseEnvelope{
 			ResponseMode: responseMode,
 			ResponseJWT:  jwe,
 			CEK:          cek,
@@ -403,18 +398,18 @@ func (w *Wallet) BuildAuthorizationResponse(vpResult *VPTokenMapResult, idToken,
 		if params.RedirectURI == "" {
 			return nil, errFragmentWithoutRedirect
 		}
-		redirectURL, err := BuildFragmentRedirect(params.RedirectURI, state, vpToken, idToken)
+		redirectURL, err := oid4vp.BuildFragmentRedirect(params.RedirectURI, state, vpToken, idToken)
 		if err != nil {
 			return nil, fmt.Errorf("building fragment redirect: %w", err)
 		}
 		log.Printf("[VP] Fragment response mode: redirect to %s", format.Truncate(redirectURL, 120))
-		return &AuthorizationResponseEnvelope{
+		return &oid4vp.AuthorizationResponseEnvelope{
 			ResponseMode: responseMode,
 			RedirectURI:  redirectURL,
 			Plain:        plain,
 		}, nil
 	case "direct_post", "dc_api", "ia_post":
-		return &AuthorizationResponseEnvelope{
+		return &oid4vp.AuthorizationResponseEnvelope{
 			ResponseMode: responseMode,
 			Plain:        plain,
 		}, nil
@@ -426,7 +421,7 @@ func (w *Wallet) BuildAuthorizationResponse(vpResult *VPTokenMapResult, idToken,
 // RFC 6749 §4.2.2 puts the response in the fragment of the redirect URI.
 var errFragmentWithoutRedirect = errors.New("response_mode fragment needs a redirect_uri")
 
-func (w *Wallet) BuildAuthorizationErrorResponse(errorCode, errorDescription, state string, params PresentationParams) (*AuthorizationResponseEnvelope, error) {
+func (w *Wallet) BuildAuthorizationErrorResponse(errorCode, errorDescription, state string, params PresentationParams) (*oid4vp.AuthorizationResponseEnvelope, error) {
 	responseMode := params.ResponseMode
 	if responseMode == "" {
 		responseMode = "direct_post"
@@ -435,8 +430,8 @@ func (w *Wallet) BuildAuthorizationErrorResponse(errorCode, errorDescription, st
 	// A Digital Credentials API error is never encrypted, whatever the response
 	// mode. Appendix A.4 returns it "as an object within the data property". The
 	// caller would read a JWE there as a response.
-	if isDCAPIResponseMode(responseMode) {
-		return &AuthorizationResponseEnvelope{
+	if oid4vp.IsDCAPIResponseMode(responseMode) {
+		return &oid4vp.AuthorizationResponseEnvelope{
 			ResponseMode: responseMode,
 			Plain:        map[string]any{"error": errorCode},
 		}, nil
@@ -448,7 +443,7 @@ func (w *Wallet) BuildAuthorizationErrorResponse(errorCode, errorDescription, st
 		if err != nil {
 			return nil, fmt.Errorf("encrypting error response: %w", err)
 		}
-		return &AuthorizationResponseEnvelope{
+		return &oid4vp.AuthorizationResponseEnvelope{
 			ResponseMode: responseMode,
 			ResponseJWT:  jwe,
 			CEK:          cek,
@@ -458,13 +453,13 @@ func (w *Wallet) BuildAuthorizationErrorResponse(errorCode, errorDescription, st
 		if params.RedirectURI == "" {
 			return nil, errFragmentWithoutRedirect
 		}
-		return &AuthorizationResponseEnvelope{
+		return &oid4vp.AuthorizationResponseEnvelope{
 			ResponseMode: responseMode,
-			RedirectURI:  BuildFragmentErrorRedirect(params.RedirectURI, state, errorCode, errorDescription),
+			RedirectURI:  oid4vp.BuildFragmentErrorRedirect(params.RedirectURI, state, errorCode, errorDescription),
 			Plain:        buildPlainAuthorizationErrorResponse(errorCode, errorDescription, state),
 		}, nil
 	case "direct_post", "dc_api", "ia_post":
-		return &AuthorizationResponseEnvelope{
+		return &oid4vp.AuthorizationResponseEnvelope{
 			ResponseMode: responseMode,
 			Plain:        buildPlainAuthorizationErrorResponse(errorCode, errorDescription, state),
 		}, nil
@@ -473,7 +468,7 @@ func (w *Wallet) BuildAuthorizationErrorResponse(errorCode, errorDescription, st
 	}
 }
 
-func (w *Wallet) SubmitPresentation(vpResult *VPTokenMapResult, idToken, state, responseURI string, params PresentationParams, observe ...func(*AuthorizationResponseEnvelope)) (*DirectPostResult, error) {
+func (w *Wallet) SubmitPresentation(vpResult *VPTokenMapResult, idToken, state, responseURI string, params PresentationParams, observe ...func(*oid4vp.AuthorizationResponseEnvelope)) (*oid4vp.DirectPostResult, error) {
 	response, err := w.BuildAuthorizationResponse(vpResult, idToken, state, params)
 	for _, fn := range observe {
 		fn(response)
@@ -481,7 +476,7 @@ func (w *Wallet) SubmitPresentation(vpResult *VPTokenMapResult, idToken, state, 
 	if err != nil {
 		return nil, err
 	}
-	submit := func(fn func() (*DirectPostResult, error)) (*DirectPostResult, error) {
+	submit := func(fn func() (*oid4vp.DirectPostResult, error)) (*oid4vp.DirectPostResult, error) {
 		result, err := fn()
 		if err == nil {
 			w.warnUndefinedResponseMembers(result)
@@ -490,17 +485,17 @@ func (w *Wallet) SubmitPresentation(vpResult *VPTokenMapResult, idToken, state, 
 	}
 	switch response.ResponseMode {
 	case "direct_post.jwt":
-		return submit(func() (*DirectPostResult, error) {
-			return SubmitDirectPostJWT(responseURI, response.ResponseJWT, response.CEK, w.HTTPClient())
+		return submit(func() (*oid4vp.DirectPostResult, error) {
+			return oid4vp.SubmitDirectPostJWT(responseURI, response.ResponseJWT, response.CEK, w.HTTPClient())
 		})
 	case "fragment":
-		return &DirectPostResult{
+		return &oid4vp.DirectPostResult{
 			StatusCode:  302,
 			RedirectURI: response.RedirectURI,
 		}, nil
 	case "direct_post":
-		return submit(func() (*DirectPostResult, error) {
-			return SubmitDirectPostObject(responseURI, response.Plain, w.HTTPClient())
+		return submit(func() (*oid4vp.DirectPostResult, error) {
+			return oid4vp.SubmitDirectPostObject(responseURI, response.Plain, w.HTTPClient())
 		})
 	case "dc_api", "dc_api.jwt":
 		return nil, fmt.Errorf("response_mode %q must be returned via Browser API, not direct submission", response.ResponseMode)
@@ -511,7 +506,7 @@ func (w *Wallet) SubmitPresentation(vpResult *VPTokenMapResult, idToken, state, 
 	}
 }
 
-func (w *Wallet) SubmitAuthorizationError(errorCode, errorDescription, state, responseURI string, params PresentationParams, observe ...func(*AuthorizationResponseEnvelope)) (*DirectPostResult, error) {
+func (w *Wallet) SubmitAuthorizationError(errorCode, errorDescription, state, responseURI string, params PresentationParams, observe ...func(*oid4vp.AuthorizationResponseEnvelope)) (*oid4vp.DirectPostResult, error) {
 	response, err := w.BuildAuthorizationErrorResponse(errorCode, errorDescription, state, params)
 	for _, fn := range observe {
 		fn(response)
@@ -521,14 +516,14 @@ func (w *Wallet) SubmitAuthorizationError(errorCode, errorDescription, state, re
 	}
 	switch response.ResponseMode {
 	case "direct_post.jwt":
-		return SubmitDirectPostJWT(responseURI, response.ResponseJWT, response.CEK, w.HTTPClient())
+		return oid4vp.SubmitDirectPostJWT(responseURI, response.ResponseJWT, response.CEK, w.HTTPClient())
 	case "fragment":
-		return &DirectPostResult{
+		return &oid4vp.DirectPostResult{
 			StatusCode:  302,
 			RedirectURI: response.RedirectURI,
 		}, nil
 	case "direct_post":
-		return SubmitDirectPostObject(responseURI, response.Plain, w.HTTPClient())
+		return oid4vp.SubmitDirectPostObject(responseURI, response.Plain, w.HTTPClient())
 	case "dc_api", "dc_api.jwt":
 		return nil, fmt.Errorf("response_mode %q must be returned via Browser API, not direct submission", response.ResponseMode)
 	case "ia_post", "ia_post.jwt":
