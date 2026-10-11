@@ -137,8 +137,11 @@ func TestDemoRegistrationMatchesAccessCertificate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	certificate := info[0].(map[string]any)["data"].(string)
-	payload, err := base64.RawURLEncoding.DecodeString(strings.Split(certificate, ".")[1])
+	certificate, err := base64.RawURLEncoding.DecodeString(info[0].(map[string]any)["data"].(string))
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(strings.Split(string(certificate), ".")[1])
 	if err != nil {
 		t.Fatal(err)
 	}

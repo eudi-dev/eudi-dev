@@ -19,6 +19,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"strings"
@@ -43,7 +44,7 @@ func TestACreatedRegistrationCertificatePassesTheWalletsChecks(t *testing.T) {
 	if err := json.Unmarshal([]byte(result.VerifierInfo), &verifierInfo); err != nil {
 		t.Fatalf("verifier_info %q is not a JSON array: %v", result.VerifierInfo, err)
 	}
-	if verifierInfo[0]["format"] != "registration_cert" || verifierInfo[0]["data"] != result.RegistrationCertificate {
+	if verifierInfo[0]["format"] != "registration_cert" || verifierInfo[0]["data"] != base64.RawURLEncoding.EncodeToString([]byte(result.RegistrationCertificate)) {
 		t.Fatalf("verifier_info %v, want the certificate as registration_cert", verifierInfo)
 	}
 	certs, findings := verifiedRegistrationCertificates(map[string]any{"verifier_info": result.VerifierInfo})

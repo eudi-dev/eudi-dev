@@ -146,11 +146,11 @@ curl -s -X POST localhost:8085/api/registrar/registration-certificates -H 'Conte
 ```json
 {
   "registrationCertificate": "eyJhbGciOiJFUzI1NiIsImlh...",
-  "verifierInfo": "[{\"format\":\"registration_cert\",\"data\":\"eyJhbGciOiJFUz...\"},{\"format\":\"registrar_dataset\",\"data\":{...}}]"
+  "verifierInfo": "[{\"format\":\"registration_cert\",\"data\":\"ZXlKaGJHY2lPaUpGVXpJ...\"},{\"format\":\"registrar_dataset\",\"data\":{...}}]"
 }
 ```
 
-`verifierInfo` is a JSON string. Its content is the value of the `verifier_info` request parameter (OpenID4VP 1.0 §5.1). It has two elements. The `registration_cert` holds the certificate, and the `registrar_dataset` holds the registered data of the intended use (ETSI TS 119 472-2 V1.2.1 §6.3.2.2):
+`verifierInfo` is a JSON string. Its content is the value of the `verifier_info` request parameter (OpenID4VP 1.0 §5.1). It has two elements. The `registration_cert` holds the base64url encoding of the certificate (ETSI TS 119 472-2 V1.3.1 RO-16). The `registrar_dataset` holds the registered data of the intended use (ETSI TS 119 472-2 V1.3.1 §6.3.2.2):
 
 ```json
 {

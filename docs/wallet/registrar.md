@@ -3,7 +3,7 @@
 The wallet includes a relying party registrar. Each member state runs a registrar like this one (ARF Topic 27). You register a verifier or an issuer with it and get two certificates:
 
 - An **access certificate** (ETSI TS 119 411-8 V1.1.1). You send a certificate signing request and keep the private key. A verifier signs its request objects with that key and puts the certificate in `x5c`. An issuer signs its Credential Issuer Metadata with it (ARF ISSU_22 and ISSU_32).
-- A **registration certificate** (ETSI TS 119 475 V1.2.1, typ `rc-wrp+jwt`). A verifier gets one for each intended use. It lists which credentials and claims the verifier may request, and the purpose shown in the consent dialog. The verifier sends it in `verifier_info` (OpenID4VP 1.0 §5.1) next to a `registrar_dataset` with its identifier, service description, registry URI, intended use, purpose and privacy policy (ETSI TS 119 472-2 V1.2.1 §6.3.2.2). An issuer gets one for its service (ARF RPRC_13). It lists which attestation types the issuer may issue, and the issuer publishes it in `issuer_info` (ETSI TS 119 472-3 V1.1.1 §4.2.3).
+- A **registration certificate** (ETSI TS 119 475 V1.2.1, typ `rc-wrp+jwt`). A verifier gets one for each intended use. It lists which credentials and claims the verifier may request, and the purpose shown in the consent dialog. The verifier sends it in `verifier_info` (OpenID4VP 1.0 §5.1) next to a `registrar_dataset` with its identifier, service description, registry URI, intended use, purpose and privacy policy (ETSI TS 119 472-2 V1.3.1 §6.3.2.2). There the certificate is base64url encoded (RO-16). An issuer gets one for its service (ARF RPRC_13). It lists which attestation types the issuer may issue, and the issuer publishes it in `issuer_info` as the plain JWT (ETSI TS 119 472-3 V1.1.1 §4.2.3).
 
 Both certificates contain the same identifier (ARF Reg_32 and RPRC_07). The registrar API follows the TS05 v1.5 data model and registry API. The [registrar API walkthrough](registrar-api.md) registers a verifier and an issuer with curl and then uses their certificates with the wallet.
 
@@ -93,7 +93,7 @@ For SD-JWT claims, separate path segments with dots (`address.locality`). For md
 
 ![Registration result](../assets/registrar-result.png)
 
-If the browser created the key, the result PEM contains the key and the access certificate chain. With your own CSR it contains only the chain. The registration certificate is in the `data` field of the `registration_cert` entry.
+If the browser created the key, the result PEM contains the key and the access certificate chain. With your own CSR it contains only the chain. The `data` field of the `registration_cert` entry holds the registration certificate. In `verifier_info` it is base64url encoded. In `issuer_info` it is the plain JWT.
 
 Every element has an ID for automated tests:
 
@@ -114,7 +114,7 @@ Every element has an ID for automated tests:
 | Legal name | Organization | `sub_ln` |
 | Country | Country | `country` |
 | Support contact | URI or email address in the subject alternative name | `support_uri` |
-| Service | Organizational unit | `serviceIdentifier` (ARF RPRC_07a, named as in EC TS5) |
+| Service | Organizational unit (ETSI TS 119 411-8 V1.1.1 GEN-6.6.1-08) | `serviceIdentifier` (ARF RPRC_07a). ETSI TS 119 475 V1.2.1 defines no claim for it, so it takes the attribute name of EC TS5 v1.5 §2.4.1 |
 | Intended use (verifier) | Not included | `intended_use_id` (ETSI TS 119 475 V1.2.1 Table 9) |
 | Purpose (verifier) | Not included | `purpose` |
 | Privacy policy (verifier) | Not included | `privacy_policy` |
@@ -134,14 +134,14 @@ The access certificate has the policy `0.4.0.194118.1.2` (ETSI TS 119 411-8 §5.
 
 ## Wallet checks
 
-The consent dialog shows the registered purpose and a link to the privacy policy (ARF RPA_10). API clients find them in `purposes` and `privacy_policies` of a pending request. The wallet shows them even without `--arf`. The registration certificate must have a valid signature, and it must belong to the access certificate that signed the request object. For a request without a request object the dialog shows neither.
+The consent dialog shows the registered purpose and a link to the privacy policy (ARF RPA_10). API clients find them in `purposes` and `privacy_policies` of a pending request. The wallet shows them even without `--arf`. The registration certificate must have a valid signature, and it must name the relying party of the access certificate that signed the request object (ETSI TS 119 475 V1.2.1 GEN-5.1.1-03). For a request without a request object the dialog shows neither.
 
 With `--arf` the wallet checks the access and registration certificates of every verifier and issuer. It doesn't matter which registrar issued them (see [ARF checks for verifiers](presenting.md#arf-checks) and [for issuers](issuing.md#arf-checks)). It takes the anchors from two [trusted lists](serve.md#trusted-lists):
 
 - **Access certificates** must chain to a CA on an `access-ca` list. The wallet's own list names the relying party access CA.
 - **Registration certificates** must chain to a CA on a `registrar` list. The wallet's own list names the registrar CA. The relying party access CA is not on the registrar list, because that CA signs every visitor's CSR. Otherwise anyone with an access certificate could sign their own registration certificate.
 
-A registration certificate binds to an access certificate with the same relying party identifier and the same service identifier (ARF RPRC_17a). Certificates from this registrar pass these checks. A registered credential without a claim list declares no attributes (ETSI TS 119 475 V1.2.1 Annex B.2.9), so requesting any claim counts as over-asking. TS05 registrars always list the claims.
+With `--arf` a registration certificate binds to an access certificate with the same relying party identifier and the same service identifier (ARF RPRC_17a). Certificates from this registrar pass these checks. A registered credential without a claim list declares no attributes (ETSI TS 119 475 V1.2.1 Annex B.2.9), so requesting any claim counts as over-asking. TS05 registrars always list the claims.
 
 The status list of the registration certificates must chain to a revocation service on a `registrar` list (ARF RPACANot_03b). If the wallet can't read the status, that is a finding. The wallet reads its own registrar's status list directly. It fetches other registrars' lists with its proxy and TLS settings.
 

@@ -72,10 +72,12 @@ func Verify(entries []map[string]any) (registrations []Registration, problems []
 	return registrations, problems
 }
 
-// certificateJWT returns the compact JWT of a registration_cert entry. ETSI
-// TS 119 472-2 V1.3.1 OIDFVP-HAIP-COMMON-REQ-RO-16 makes data "the base64url
-// encoding of the serialized RP registration certificate". The compact JWT
-// itself is read too.
+// certificateJWT returns the compact JWT of a registration_cert entry. In
+// verifier_info the data is "the base64url encoding of the serialized RP
+// registration certificate" (ETSI TS 119 472-2 V1.3.1
+// OIDFVP-HAIP-COMMON-REQ-RO-16). In issuer_info it "shall be the registration
+// certificate" (ETSI TS 119 472-3 V1.1.1 ISS-MDATA-REG_CERT-4.2.3-06), the
+// compact JWT itself. Both arrays share this reader.
 func certificateJWT(value any) string {
 	data, _ := value.(string)
 	if format.IsJWT(data) {
@@ -133,23 +135,37 @@ func Purposes(certs []map[string]any) (purposes, privacyPolicies []string) {
 	return purposes, privacyPolicies
 }
 
+// Bound reports whether a registration certificate names the relying party of
+// the access certificate. ETSI TS 119 475 V1.2.1 GEN-5.1.1-03 links the two
+// "solely on the matching identifier" when other attributes, such as
+// organizational units, differ.
+func Bound(cert map[string]any, access *x509.Certificate) bool {
+	identifier, _ := accessIdentifier(cert)
+	return identifier != "" && identifier == certchain.OrganizationIdentifier(access)
+}
+
+// accessIdentifier is the identifier the access certificate must carry. An
+// intermediary's access certificate names the intermediary, which the
+// registration certificate carries in act.sub (ETSI TS 119 475 V1.2.1
+// GEN-5.2.4-09).
+func accessIdentifier(cert map[string]any) (identifier string, intermediated bool) {
+	if act, ok := cert["act"].(map[string]any); ok && jsonutil.Text(act["sub"]) != "" {
+		return jsonutil.Text(act["sub"]), true
+	}
+	return jsonutil.Text(cert["sub"]), false
+}
+
 // BindingFindings links a registration certificate to the access certificate
 // of the request through the relying party identifier and the service
 // identifier (ARF RPRC_17a). The access certificate carries the service in
-// organizationalUnit (ARF Reg_33). An intermediary's access certificate names
-// the intermediary, which the registration certificate carries in act.sub
-// (ETSI TS 119 475 V1.2.1 GEN-5.2.4-09). The service in the registration
-// certificate is then the intermediated relying party's, so only the
-// identifiers are compared.
+// organizationalUnit (ETSI TS 119 411-8 V1.1.1 GEN-6.6.1-08). For an
+// intermediary the service in the registration certificate is the
+// intermediated relying party's, so only the identifiers are compared.
 func BindingFindings(cert map[string]any, access *x509.Certificate, rule string) []string {
-	identifier := jsonutil.Text(cert["sub"])
-	intermediated := false
-	if act, ok := cert["act"].(map[string]any); ok && jsonutil.Text(act["sub"]) != "" {
-		identifier, intermediated = jsonutil.Text(act["sub"]), true
-	}
+	identifier, intermediated := accessIdentifier(cert)
 	var findings []string
-	if accessIdentifier := certchain.OrganizationIdentifier(access); identifier == "" || identifier != accessIdentifier {
-		findings = append(findings, fmt.Sprintf("%s: the registration certificate identifies %q, but the access certificate's organizationIdentifier is %q", rule, identifier, accessIdentifier))
+	if !Bound(cert, access) {
+		findings = append(findings, fmt.Sprintf("%s: the registration certificate identifies %q, but the access certificate's organizationIdentifier is %q", rule, identifier, certchain.OrganizationIdentifier(access)))
 	}
 	if intermediated {
 		return findings

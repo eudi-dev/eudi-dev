@@ -21,6 +21,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
+	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"math/big"
@@ -304,7 +305,11 @@ func TestARFRefusesARegistrationSignedWithAnAccessCertificate(t *testing.T) {
 	if err := json.Unmarshal([]byte(verifierInfo), &info); err != nil {
 		t.Fatal(err)
 	}
-	_, payload, _, err := format.ParseJWTParts(info[0]["data"].(string))
+	certificate, err := base64.RawURLEncoding.DecodeString(info[0]["data"].(string))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, payload, _, err := format.ParseJWTParts(string(certificate))
 	if err != nil {
 		t.Fatal(err)
 	}

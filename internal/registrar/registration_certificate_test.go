@@ -15,6 +15,7 @@
 package registrar
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"reflect"
 	"strings"
@@ -56,9 +57,10 @@ func issueTestRegistrationCertificate(t *testing.T, w *testWallet, rp WalletRely
 	return result
 }
 
-// ETSI TS 119 472-2 V1.2.1 §6.3.2.2: verifier_info carries the registration
-// certificate and a registrar_dataset with the registered data of the intended
-// use (RO-04 to RO-11). The status list shows the same value.
+// ETSI TS 119 472-2 V1.3.1 §6.3.2.2: verifier_info carries the base64url
+// encoding of the compact registration certificate (RO-16) and a
+// registrar_dataset with the registered data of the intended use (RO-04 to
+// RO-11). The status list shows the same value.
 func TestVerifierInfoCarriesTheRegistrarDataset(t *testing.T) {
 	w := generateTestWallet(t)
 	rp := registerTestRelyingParty(t, w)
@@ -74,7 +76,7 @@ func TestVerifierInfoCarriesTheRegistrarDataset(t *testing.T) {
 	}
 	var certificate string
 	var dataset VerifierRegistrarDataset
-	if info[0].Format != "registration_cert" || json.Unmarshal(info[0].Data, &certificate) != nil || certificate != result.RegistrationCertificate {
+	if info[0].Format != "registration_cert" || json.Unmarshal(info[0].Data, &certificate) != nil || certificate != base64.RawURLEncoding.EncodeToString([]byte(result.RegistrationCertificate)) {
 		t.Errorf("first element %s %s, want the registration certificate", info[0].Format, info[0].Data)
 	}
 	if info[1].Format != "registrar_dataset" || json.Unmarshal(info[1].Data, &dataset) != nil {

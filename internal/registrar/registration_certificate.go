@@ -46,8 +46,9 @@ type RegistrationCertificateRequest struct {
 }
 
 // ServiceIdentifierClaim carries the relying party service in a registration
-// certificate (ARF RPRC_07a). ETSI TS 119 475 V1.2.1 Table 7 has no claim for
-// it, so the certificate uses the attribute name of EC TS5 §2.4.1.
+// certificate (ARF RPRC_07a, RPRC_04a). ETSI TS 119 475 V1.2.1 Table 7 has no
+// claim for it, so the certificate uses the attribute name of EC TS5 v1.5
+// §2.4.1.
 const ServiceIdentifierClaim = "serviceIdentifier"
 
 // RegistrationCertificateContent is what a registration certificate says about
@@ -295,7 +296,8 @@ func RegistrarDatasetFor(rp WalletRelyingParty, service WalletRelyingPartyServic
 }
 
 // IssuerInfoValue builds the issuer_info array of ETSI TS 119 472-3 V1.1.1
-// §4.2.3: the registrar dataset and the registration certificate.
+// §4.2.3: the registrar dataset and the registration certificate, whose data
+// "shall be the registration certificate" itself (ISS-MDATA-REG_CERT-4.2.3-06).
 func IssuerInfoValue(dataset RegistrarDataset, registrationCertificate string) (string, error) {
 	return infoValue("issuer_info", IssuerInfoEntry{Format: "registrar_dataset", Data: dataset}, IssuerInfoEntry{Format: "registration_cert", Data: registrationCertificate})
 }
@@ -314,10 +316,13 @@ func verifierRegistrarDataset(rp WalletRelyingParty, service WalletRelyingPartyS
 }
 
 // VerifierInfoValue builds the verifier_info array of OpenID4VP 1.0 §5.1 as
-// ETSI TS 119 472-2 V1.2.1 §6.3.2.2 profiles it: the registration certificate
-// and the registrar dataset.
+// ETSI TS 119 472-2 V1.3.1 §6.3.2.2 profiles it: the registration certificate
+// and the registrar dataset. RO-16 makes the data "the base64url encoding of
+// the serialized RP registration certificate", which for a JWT is its compact
+// serialization (RFC 7519 §1). Base64url omits the padding (RFC 7515 §2).
 func VerifierInfoValue(dataset VerifierRegistrarDataset, registrationCertificate string) (string, error) {
-	return infoValue("verifier_info", IssuerInfoEntry{Format: "registration_cert", Data: registrationCertificate}, IssuerInfoEntry{Format: "registrar_dataset", Data: dataset})
+	data := base64.RawURLEncoding.EncodeToString([]byte(registrationCertificate))
+	return infoValue("verifier_info", IssuerInfoEntry{Format: "registration_cert", Data: data}, IssuerInfoEntry{Format: "registrar_dataset", Data: dataset})
 }
 
 func infoValue(name string, entries ...IssuerInfoEntry) (string, error) {

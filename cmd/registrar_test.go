@@ -16,6 +16,7 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -64,7 +65,7 @@ func TestWalletRegistrarRegistersAndCertifies(t *testing.T) {
 		t.Fatalf("output %q, want the verifier_info value alone", out)
 	}
 	first := registrationCert()
-	if out := registrationCert("--jwt"); strings.Count(out, ".") != 2 || strings.ContainsAny(out, "\n[") || !strings.Contains(first, out) {
+	if out := registrationCert("--jwt"); strings.Count(out, ".") != 2 || strings.ContainsAny(out, "\n[") || !strings.Contains(first, base64.RawURLEncoding.EncodeToString([]byte(out))) {
 		t.Fatalf("output %q, want the bare current certificate", out)
 	}
 	if out := registrationCert("--new"); out == first {

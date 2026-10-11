@@ -67,7 +67,7 @@ func boundRegistrations(authReq *Request) []map[string]any {
 	registrations, _ := regcert.Verify(regcert.InfoEntries(requestVerifierInfo(authReq), "verifier_info"))
 	var bound []map[string]any
 	for _, r := range registrations {
-		if len(regcert.BindingFindings(r.Claims, accessChain[0], "")) == 0 {
+		if regcert.Bound(r.Claims, accessChain[0]) {
 			bound = append(bound, r.Claims)
 		}
 	}

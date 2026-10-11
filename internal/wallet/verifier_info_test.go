@@ -16,12 +16,14 @@ package wallet
 
 import (
 	"crypto/ecdsa"
+	"encoding/base64"
 	"encoding/json"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
@@ -292,5 +294,38 @@ func TestTheConsentShowsOnlyBoundRegistrations(t *testing.T) {
 	unsigned := &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{FullParams: map[string]string{"verifier_info": verifierInfo}}}
 	if purposes, _ := oid4vp.ConsentRegistration(unsigned); len(purposes) != 0 {
 		t.Errorf("unsigned request: purposes %v, want none", purposes)
+	}
+}
+
+// ETSI TS 119 475 V1.2.1 GEN-5.1.1-03 links the two certificates "solely on
+// the matching identifier" when other attributes differ, so the consent shows
+// the purposes of a certificate for another service. --arf compares the
+// service too (ARF RPRC_17a).
+func TestTheConsentBindsByTheRelyingPartyIdentifier(t *testing.T) {
+	reg := generateTestWallet(t)
+	key, chain, verifierInfo := registeredVerifier(t, reg)
+	var info []map[string]any
+	if err := json.Unmarshal([]byte(verifierInfo), &info); err != nil {
+		t.Fatal(err)
+	}
+	certificate, err := base64.RawURLEncoding.DecodeString(info[0]["data"].(string))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, payload, _, err := format.ParseJWTParts(string(certificate))
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload[registrar.ServiceIdentifierClaim] = "another-service"
+	otherService, err := registrar.SignRegistrationCertificateJWT(payload, key, chain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := signedARFRequest(t, reg, key, chain, `[{"format":"registration_cert","data":"`+otherService+`"}]`)
+	if purposes, _ := oid4vp.ConsentRegistration(request); !slices.Equal(purposes, []string{"Age check"}) {
+		t.Errorf("purposes %v, want Age check", purposes)
+	}
+	if findings := oid4vp.ARFFindings(request); !containsSubstring(findings, "RPRC_17a") {
+		t.Errorf("findings %v, want RPRC_17a for another service", findings)
 	}
 }

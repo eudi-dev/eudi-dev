@@ -56,7 +56,7 @@ func TestOverAskingComparesTheTypeValuesOfW3CCredentials(t *testing.T) {
 
 // ARF RPRC_17a: the registration certificate names the same relying party and
 // the same service as the access certificate, which carries the service in
-// organizationalUnit (ARF Reg_33).
+// organizationalUnit (ETSI TS 119 411-8 V1.1.1 GEN-6.6.1-08).
 func TestTheBindingComparesTheRelyingPartyAndTheService(t *testing.T) {
 	access := &x509.Certificate{Subject: pkix.Name{
 		OrganizationalUnit: []string{"shop"},
@@ -254,9 +254,9 @@ func conformantRegistrationCert() map[string]any {
 	}
 }
 
-// ETSI TS 119 472-2 V1.3.1 OIDFVP-HAIP-COMMON-REQ-RO-16: "The value of the
-// data member ... shall be the base64url encoding of the serialized RP
-// registration certificate." The compact JWT itself is accepted too.
+// verifier_info carries "the base64url encoding of the serialized RP
+// registration certificate" (ETSI TS 119 472-2 V1.3.1 RO-16) and issuer_info
+// the compact JWT itself (ETSI TS 119 472-3 V1.1.1 ISS-MDATA-REG_CERT-4.2.3-06).
 func TestVerifyReadsBothSerializations(t *testing.T) {
 	key, err := mock.GenerateKey()
 	if err != nil {
