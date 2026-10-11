@@ -22,7 +22,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -286,44 +285,6 @@ func credentialTypeLabel(summary map[string]any) string {
 		}
 	}
 	return "credential"
-}
-
-type generatePIDRequest struct {
-	Claims map[string]any `json:"claims"`
-	VCT    string         `json:"vct"`
-}
-
-// Deprecated: use POST /api/issue with a PID template. This endpoint will be removed
-// together with wallet generate-pid.
-func (s *Server) handleGeneratePID(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Deprecation", "true")
-	var req generatePIDRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "parsing request body: " + err.Error()})
-		return
-	}
-
-	var genErr error
-	s.saveMutation(func() bool {
-		if genErr = s.wallet.GenerateDefaultCredentials(req.Claims, req.VCT); genErr != nil {
-			return false
-		}
-		s.wallet.AddLog("management", "Regenerated default PID credentials", true)
-		return true
-	})
-	if genErr != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": genErr.Error()})
-		return
-	}
-
-	data, err := s.wallet.CredentialsJSON()
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	w.Write(data)
 }
 
 func (s *Server) handleCACertificate(w http.ResponseWriter, r *http.Request) {

@@ -159,7 +159,6 @@ func (s *Server) setupRoutes() {
 	s.routeFunc("DELETE /api/credentials/{id}", s.withFreshStore(s.handleDeleteCredential))
 
 	s.routeFunc("POST /api/issue", s.withFreshStore(s.handleIssueCredential))
-	s.routeFunc("POST /api/generate-pid", s.withFreshStore(s.handleGeneratePID))
 
 	s.routeFunc("GET /api/templates", s.handleListTemplates)
 	s.routeFunc("GET /api/templates/{name}", s.handleGetTemplate)

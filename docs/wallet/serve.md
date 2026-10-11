@@ -124,7 +124,7 @@ The category `unlisted` keeps a credential off every list. Its signer has its ow
 
 The wallet also keeps an issued-attestation registry. It lists the type of each credential issued by the wallet, with its category and trusted list data. The trusted lists name these types:
 
-- `wallet generate-pid` and `wallet serve --pid` register the PID types
+- `wallet serve --pid` registers the PID types
 - `issue ... --wallet` registers the type of the issued credential
 
 An imported credential and a credential signed with your own `--key` and `--cert` are on none of the wallet's lists, because the wallet did not sign them.
@@ -137,25 +137,30 @@ Wallet and key attestations use a separate wallet provider key. Their `x5c` cont
 
 To check the relying parties of another registrar, see [Use an external registrar](registrar.md#use-an-external-registrar).
 
-`eudi wallet trust` adds your own providers to the wallet's lists and external lists to the wallet's list of trusted lists:
+`eudi trust` adds your own providers to the wallet's lists and external lists to the wallet's list of trusted lists:
 
 ```bash
-eudi wallet trust add-ca --list pid --name "Example PID Provider" --ca pid-ca.pem
-eudi wallet trust add-ca --list registrar --ca registrar-ca.pem
-eudi wallet trust add-ca --list trusted-list-ca --ca lists-ca.pem
-eudi wallet trust add-list https://lists.example/pid
-eudi wallet trust                       # or: eudi wallet trust list
-eudi wallet trust rm-ca fc390242d2ad08ab
-eudi wallet trust rm-list https://lists.example/pid
+eudi trust add-ca --list pid --name "Example PID Provider" --ca pid-ca.pem
+eudi trust add-ca --list registrar --ca registrar-ca.pem
+eudi trust add-ca --list trusted-list-ca --ca lists-ca.pem
+eudi trust add-list https://lists.example/pid
+eudi trust                       # or: eudi trust list
+eudi trust rm-ca fc390242d2ad08ab
+eudi trust rm-list https://lists.example/pid
 ```
 
 `add-ca` takes a PEM file with CA certificates and one of the list IDs above. The wallet adds the CA to that list as a provider with an issuance and a revocation service, and signs the list. The CA is then a trust anchor for certificates issued under it and for their status lists. Adding the same certificates to the same list again replaces the earlier entry. The name defaults to the CA's common name. The wallet doesn't publish the `trusted-list-ca` list. Its CAs may sign trusted lists, like those from `--trusted-list-ca`, so the wallet accepts external lists signed under them.
 
 `add-list` puts an external list of trusted entities on the list of trusted lists. With `--arf` the providers on the external list are trust anchors for the checks of its list type. For example, a PID provider list anchors the checks of received PIDs. The list signer must chain to the wallet CA or to a CA from `--trusted-list-ca`. In `--mode strict` the wallet refuses an unreadable list. In `--mode debug` it adds the list and reports the reason. `wallet serve --trusted-list <url>` (repeatable) adds lists at startup. They can't be removed through the API.
 
-`eudi wallet trust` shows the added providers and lists:
+`eudi trust` shows the wallet's lists, the added providers and the external lists:
 
 ```
+LIST             DEFAULT  CATEGORY                    PATH
+pid              yes      Credential providers        /api/trustlists/pid
+...
+registrar                 Relying party certificates  /api/trustlists/registrar
+
 ID                LIST  NAME                CERTIFICATES
 fc390242d2ad08ab  eaa   Example University  1
 
@@ -211,7 +216,7 @@ The wallet keeps a fetched external list for 5 minutes. A list past its `NextUpd
 
 The wallet follows the pointers of an external list of this type, one level deep. A pointed-to list must be signed by a certificate of its pointer (§6.3.13). `GET /api/trust` shows such a list with `via`. To trust all lists of another eudi-dev wallet at once, add its `/api/trustlists/lists`. That list is signed under the other wallet's CA. Start this wallet with `--trusted-list-ca` set to that CA.
 
-`wallet serve` reuses persisted issuer and status list URLs unless `--base-url` or `--docker` overrides them. Credentials generated earlier then keep resolving against the same endpoints. Issuance commands (`issue ... --wallet`, `wallet generate-pid`) follow the same rule. They print a note when no server serves the embedded URLs.
+`wallet serve` reuses persisted issuer and status list URLs unless `--base-url` or `--docker` overrides them. Credentials generated earlier then keep resolving against the same endpoints. Issuance with `issue ... --wallet` follows the same rule. They print a note when no server serves the embedded URLs.
 
 The startup banner warns about a persisted Docker hostname outside Docker. It also warns about stored credentials with issuer or status list URLs that this server does not serve. Those credentials fail validation and status checks until they are issued again.
 
@@ -223,7 +228,7 @@ Each list is served at `/api/trustlists/{id}`:
 - `lists` for the list of trusted lists
 - `tl-<8 hex digits>` for a credential type with its own trusted list fields, such as `--trusted-list-type`
 
-`eudi wallet trusted-list --list` shows these lists for the selected local or remote wallet:
+`eudi trust list` shows these lists for the selected local or remote wallet:
 
 ```
 ID               DEFAULT  CATEGORY                    PATH
@@ -236,7 +241,7 @@ access-ca                 Relying party certificates  /api/trustlists/access-ca
 registrar                 Relying party certificates  /api/trustlists/registrar
 ```
 
-With `--json` it prints the `/api/trustlists` body unchanged.
+With `--json` it prints the `/api/trust` body with the `/api/trustlists` entries under `trust_lists`.
 
 `/api/trustlists` lists them for API clients. Each entry includes:
 
@@ -408,45 +413,43 @@ By default, the wallet fetches display images once and stores them. `--adhoc-dis
 
 Data URIs, template images and HTTP URLs are stored in both modes. Storing HTTP images avoids mixed content on an HTTPS page. `GET /api/config` reports the setting as `adhoc_display_images`.
 
-## `wallet trusted-list`
+## `trust show`
 
 Prints a trusted list of the wallet (ETSI TS 119 602) as a signed JWT. It contains the signing certificates, provider CAs and status signing certificates of the selected list. Verifiers use its provider CAs to validate the `x5c` or `x5chain` embedded in credentials. Issuer authorization data such as provider entitlements and `providesAttestations` comes from signed `/.well-known/openid-credential-issuer` metadata and `/api/registrar/wrp`. See [test certificates](../test-certificates.md).
 
-Without selection flags it prints the PID list, like `/api/trustlist`. `--id`, `--vct` or `--doctype` selects another list. The IDs are `pid`, `qeaa`, `pub-eaa`, `eaa`, `wallet-provider`, `access-ca`, `registrar` and the `tl-` IDs of custom lists. `--list` shows all lists of the wallet. `--id lists` prints the list of trusted lists, which is also at `/api/trustlists/lists`.
+Without arguments it prints the PID list, like `/api/trustlist`. A list ID, `--vct` or `--doctype` selects another list. The IDs are `pid`, `qeaa`, `pub-eaa`, `eaa`, `wallet-provider`, `access-ca`, `registrar` and the `tl-` IDs of custom lists. `trust list` shows all lists of the wallet. `trust show lists` prints the list of trusted lists, which is also at `/api/trustlists/lists`.
 
 Pipe the output to a file or pass it to `validate --trusted-list`. `--url` prints only the URL for a running wallet server.
 
 ```bash
-eudi wallet trusted-list                          # Print the trusted list JWT
-eudi wallet trusted-list > trustlist.jwt          # Save to file
-eudi wallet trusted-list --url                    # http://localhost:8085/api/trustlist
-eudi wallet trusted-list --id pid --url           # http://localhost:8085/api/trustlists/pid
-eudi wallet trusted-list --id eaa --url           # http://localhost:8085/api/trustlists/eaa
-eudi wallet trusted-list --doctype org.iso.23220.photoid.1 --url
-eudi wallet trusted-list --url --port 9000        # http://localhost:9000/api/trustlist
-eudi wallet trusted-list --url --docker           # http://host.docker.internal:8085/api/trustlist
+eudi trust show                          # Print the trusted list JWT
+eudi trust show > trustlist.jwt          # Save to file
+eudi trust show --url                    # http://localhost:8085/api/trustlist
+eudi trust show pid --url                # http://localhost:8085/api/trustlists/pid
+eudi trust show eaa --url                # http://localhost:8085/api/trustlists/eaa
+eudi trust show --doctype org.iso.23220.photoid.1 --url
+eudi trust show --url --port 9000        # http://localhost:9000/api/trustlist
+eudi trust show --url --docker           # http://host.docker.internal:8085/api/trustlist
 ```
 
 | Flag       | Default | Description                                        |
 |------------|---------|----------------------------------------------------|
 | `--url`    | `false` | Print only the trusted list URL (for a running server) |
-| `--list`   | `false` | List all trusted lists of the wallet instead of printing one |
-| `--id`     | None    | ID of the list to print, such as `pid`, `eaa` or `wallet-provider` |
 | `--vct`    | None    | Select the trusted list covering this SD-JWT `vct`    |
 | `--doctype`| None    | Select the trusted list covering this mdoc `docType`  |
 | `--port`   | `8085`  | Wallet server port (used with --url)                |
 | `--docker` | `false` | Use `host.docker.internal` instead of `localhost` (used with --url) |
 
-## `wallet ca-cert`
+## `trust ca-cert`
 
 Loads or creates the shared root CA certificate and prints exactly one PEM certificate. Wallets under the same parent directory use this root for their signing and HTTPS certificate chains. Provider chains include an intermediate CA. Trusted lists publish the relevant service certificates and provider CAs.
 
 `--jwks` exports the certificate as a JWKS document. It contains the certificate's public key as a JWK with `kid`, `alg`, `use`, the certificate chain in `x5c`, and the leaf hash in `x5t#S256`.
 
 ```bash
-eudi wallet ca-cert
-eudi wallet ca-cert --out wallet-ca-cert.pem
-eudi wallet ca-cert --jwks
+eudi trust ca-cert
+eudi trust ca-cert --out wallet-ca-cert.pem
+eudi trust ca-cert --jwks
 ```
 
 On a running wallet server the same export is available as `GET /api/certificates/ca` (`?format=jwks` for JWKS). See [Certificate export](http-api.md#certificate-export).
@@ -465,7 +468,7 @@ The wallet runs a relying party registrar. It registers relying parties and issu
 
 ## `wallet tls-cert`
 
-Loads or creates the HTTPS leaf certificate of the wallet's HTTPS endpoints and prints exactly one PEM certificate. To export the shared trust root, use `wallet ca-cert`.
+Loads or creates the HTTPS leaf certificate of the wallet's HTTPS endpoints and prints exactly one PEM certificate. To export the shared trust root, use `trust ca-cert`.
 
 ```bash
 eudi wallet tls-cert

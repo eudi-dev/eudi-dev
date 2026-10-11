@@ -17,21 +17,15 @@ For interaction diagrams of the implemented OID4VP and OID4VCI flows, see [docs/
 | Subcommand     | Purpose                                                         |
 |----------------|-----------------------------------------------------------------|
 | `serve`        | Start wallet HTTP server with web UI, OID4VP endpoints, and optional URL scheme handling |
-| `registrar`    | Register verifiers and issuers, issue their access and registration certificates, and revoke or activate them (`verifiers`, `issuers`, `access-cert`, `registration-cert`, `revoke`, `activate`). See [registrar](wallet/registrar.md) |
-| `catalog`      | List, add and remove attestation types in the [attestation catalogue](wallet/registrar.md#attestation-catalogue) (`list`, `add`, `rm`) |
 | `list`         | List stored credentials                                         |
 | `show`         | Show a stored credential by ID (raw or decoded)                 |
 | `import`       | Import a credential from file, stdin, or raw string (SD-JWT, JWT VC, mdoc) |
 | `remove`       | Remove a credential by ID                                       |
-| `generate-pid` | Deprecated. Generate both PID formats. Use `issue ... --wallet --template <name>` instead (see [templates](templates.md)) |
 | `accept`       | Accept an OID4VP presentation request or OID4VCI credential offer (auto-detects) |
 | `scan`         | Scan a QR code and auto-dispatch to accept/import               |
 | `refresh`      | Ask a credential's issuer for a fresh copy over the refresh token grant |
 | `deferred`     | Manage pending deferred credentials (`check`, `abandon`) |
 | `logs`         | Show persisted wallet OID4VP/OID4VCI interaction logs      |
-| `trust-list`   | Print a trusted list JWT (`--list` for all lists, `--url` for the URL) |
-| `trust`        | Put your CAs on the wallet's trusted lists and add external lists ([trusted lists](wallet/serve.md#your-providers-and-lists)) |
-| `ca-cert`      | Print or export the shared wallet CA certificate                |
 | `tls-cert`     | Print or export the HTTPS wallet certificate used by HTTPS wallet endpoints |
 | `ps`           | List running wallet instances                                   |
 | `use`          | Switch management to a remote instance (`use <url>`) or back to local (`use local`) |
@@ -39,6 +33,14 @@ For interaction diagrams of the implemented OID4VP and OID4VCI flows, see [docs/
 | `info`         | Show the configuration of the managed wallet (local or remote)  |
 | `register`     | Register OS URL scheme handlers on macOS. No-op elsewhere       |
 | `unregister`   | Remove OS URL scheme handlers on macOS. No-op elsewhere         |
+
+Three top-level commands also work on the active wallet and take the same wallet flags:
+
+| Command     | Purpose |
+|-------------|---------|
+| `registrar` | Register verifiers and issuers, issue their access and registration certificates, and revoke or activate them (`verifiers`, `issuers`, `access-cert`, `registration-cert`, `revoke`, `activate`). See [registrar](wallet/registrar.md) |
+| `catalog`   | List, add and remove attestation types in the [attestation catalogue](wallet/registrar.md#attestation-catalogue) (`list`, `add`, `rm`) |
+| `trust`     | List the wallet's trusted lists (`list`), print one (`show`), export the wallet CA (`ca-cert`), and add or remove your CAs and external lists (`add-ca`, `rm-ca`, `add-list`, `rm-list`). See [trusted lists](wallet/serve.md#trusted-lists) |
 
 ## Quick start
 
@@ -51,9 +53,6 @@ eudi wallet list
 # The German PID, which extends the country-independent one
 eudi issue sdjwt --wallet --template german-pid-sdjwt
 eudi issue mdoc --wallet --template german-pid-mdoc
-
-# Deprecated equivalent (issues both PIDs at once, will be removed later)
-eudi wallet generate-pid
 
 # Show a credential (raw)
 eudi wallet show <id>
@@ -68,7 +67,7 @@ eudi wallet serve
 eudi wallet serve --register
 
 # Export the shared wallet CA for verifier trust stores
-eudi wallet ca-cert --out wallet-ca-cert.pem
+eudi trust ca-cert --out wallet-ca-cert.pem
 
 # Export the HTTPS wallet certificate for verifier trust stores
 eudi wallet tls-cert --out wallet-tls-cert.pem

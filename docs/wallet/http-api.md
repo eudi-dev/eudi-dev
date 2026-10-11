@@ -97,16 +97,6 @@ curl -X POST http://localhost:8085/api/issue \
   -d '{"format": "sdjwt", "nbf": "-48h", "exp": "24h"}'
 ```
 
-`POST /api/generate-pid` replaces default PIDs of the same type and returns `201` with the credential list. Like `wallet generate-pid`, this endpoint is deprecated. Use `POST /api/issue` with a PID template instead, for example `{"template": "pid-sdjwt"}`.
-
-The optional body accepts `claims` overrides and a `vct`. The default uses `pid-sdjwt` and `pid-mdoc`. `urn:eudi:pid:de:1` selects `german-pid-sdjwt` and `german-pid-mdoc`. User template overrides apply.
-
-```bash
-curl -X POST http://localhost:8085/api/generate-pid \
-  -H 'Content-Type: application/json' \
-  -d '{"claims": {"given_name": "MAX", "family_name": "POWER"}}'
-```
-
 ### Credential templates
 
 The template endpoints use the same storage backend as the `templates` CLI commands. User templates live under the wallet's `templates/` prefix. See [templates](../templates.md) for the document format.
@@ -134,8 +124,8 @@ The CA and TLS endpoints return PEM by default. `?format=jwks` returns the publi
 
 | Method | Path                            | Description                                              | CLI equivalent   |
 |--------|---------------------------------|----------------------------------------------------------|------------------|
-| `GET`  | `/api/certificates/ca`          | Shared wallet CA certificate (PEM)                       | `wallet ca-cert` |
-| `GET`  | `/api/certificates/ca?format=jwks`  | Shared wallet CA certificate as JWKS                 | `wallet ca-cert --jwks` |
+| `GET`  | `/api/certificates/ca`          | Shared wallet CA certificate (PEM)                       | `trust ca-cert` |
+| `GET`  | `/api/certificates/ca?format=jwks`  | Shared wallet CA certificate as JWKS                 | `trust ca-cert --jwks` |
 | `GET`  | `/api/certificates/tls`         | HTTPS leaf certificate for the wallet's issuer URL (PEM) | `wallet tls-cert` |
 | `GET`  | `/api/certificates/tls?format=jwks` | HTTPS leaf certificate as JWKS                       | `wallet tls-cert --jwks` |
 | `GET` | `/api/certificates/registrar` | Registrar signing certificate (PEM, `?format=jwks` for JWKS) | |
@@ -312,7 +302,7 @@ curl -X POST http://localhost:8085/api/credentials \
 
 ### Status list
 
-PID credentials from `wallet generate-pid` or `wallet serve --pid` carry a `status.status_list` claim pointing to the wallet's HTTPS status list endpoint. `--status-list` enables this for other generated credentials. The URI in the credential is `https://<host>:<port+1>/api/statuslist`.
+PID credentials from `wallet serve --pid` carry a `status.status_list` claim pointing to the wallet's HTTPS status list endpoint. `--status-list` enables this for other generated credentials. The URI in the credential is `https://<host>:<port+1>/api/statuslist`.
 
 The default issuer URL is `https://localhost:<port+1>`. It serves `/.well-known/jwt-vc-issuer`, signed or unsigned `/.well-known/openid-credential-issuer` metadata, and `/api/registrar/wrp` registration data. Certificates use the shared wallet CA.
 
@@ -503,7 +493,7 @@ Use `--remote local` to bypass routing and access storage directly. While a serv
 
 A running or remote wallet keeps its own store. A command that manages it refuses `--storage`, `--templates-dir` and `--seed`. A remote target from `--remote` or `wallet use` also refuses `--wallet-dir`. Add `--remote local` to use the local store with these flags.
 
-A routed command uses the settings of the running wallet for every step of a flow, including a credential collected later. So it refuses a conformance flag whose value differs from the running wallet's, such as `--mode strict` on a wallet in debug mode. A flag with the wallet's own value passes. So does a `--relying-party-ca`, `--trusted-list-ca` or `--trusted-list` the wallet already trusts. Set the mode, HAIP, ARF and key attestation level on `wallet serve` or with `PUT /api/config/conformance`. Put CAs and lists on the wallet's trusted lists with `wallet trust`. `wallet trust add-ca --list trusted-list-ca` adds the CA of a list operator.
+A routed command uses the settings of the running wallet for every step of a flow, including a credential collected later. So it refuses a conformance flag whose value differs from the running wallet's, such as `--mode strict` on a wallet in debug mode. A flag with the wallet's own value passes. So does a `--relying-party-ca`, `--trusted-list-ca` or `--trusted-list` the wallet already trusts. Set the mode, HAIP, ARF and key attestation level on `wallet serve` or with `PUT /api/config/conformance`. Put CAs and lists on the wallet's trusted lists with `trust`. `trust add-ca --list trusted-list-ca` adds the CA of a list operator.
 
 `wallet info` compares a running instance's configuration with the wallet file and warns when they differ (the file changed after the server started). Restarting `wallet serve` reloads the file.
 
@@ -515,8 +505,6 @@ eudi wallet use http://localhost:18924
 eudi wallet kill 18924               # stop by port, pid, or URL
 eudi wallet kill --all               # stop every running instance
 ```
-
-`wallet instances list`, `wallet instances use`, and `wallet instances kill` are hidden deprecated aliases.
 
 Each server registers in `~/.eudi-dev/instances/` and removes its entry on shutdown. Discovery removes an entry only when its process has exited. It asks each instance for its release and build ID through `GET /api/version`. An instance whose process runs but does not answer stays listed without a version, and commands for its wallet directory still route to it. `wallet kill` requests shutdown through the API and falls back to SIGTERM for unresponsive local processes.
 

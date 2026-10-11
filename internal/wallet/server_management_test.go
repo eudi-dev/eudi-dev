@@ -281,45 +281,6 @@ func TestIssueCredentialAPIInvalidRequests(t *testing.T) {
 	}
 }
 
-func TestGeneratePIDAPI(t *testing.T) {
-	srv := newTestServer(t, true)
-	srv.wallet.ClearCredentials()
-
-	resp := serverRequest(t, srv, http.MethodPost, "/api/generate-pid", `{"claims": {"given_name": "Erika"}}`)
-	if resp.Code != http.StatusCreated {
-		t.Fatalf("expected 201, got %d: %s", resp.Code, resp.Body.String())
-	}
-	creds := decodeJSONArray(t, resp)
-	if len(creds) != 2 {
-		t.Fatalf("expected 2 PID credentials, got %d", len(creds))
-	}
-	formats := map[string]bool{}
-	for _, c := range creds {
-		cred := c.(map[string]any)
-		format := cred["format"].(string)
-		formats[format] = true
-		claims, _ := cred["claims"].(map[string]any)
-		key := "given_name"
-		if format == "mso_mdoc" {
-			key = "eu.europa.ec.eudi.pid.1:given_name"
-		}
-		if claims[key] != "Erika" {
-			t.Errorf("expected claim override applied for %s, got %v", format, claims[key])
-		}
-	}
-	if !formats["dc+sd-jwt"] || !formats["mso_mdoc"] {
-		t.Errorf("expected SD-JWT and mdoc PID credentials, got %v", formats)
-	}
-}
-
-func TestGeneratePIDAPIEmptyBody(t *testing.T) {
-	srv := newTestServer(t, true)
-	resp := serverRequest(t, srv, http.MethodPost, "/api/generate-pid", "")
-	if resp.Code != http.StatusCreated {
-		t.Fatalf("expected 201, got %d: %s", resp.Code, resp.Body.String())
-	}
-}
-
 func TestCertificateExportAPI(t *testing.T) {
 	srv := newTestServer(t, true)
 	srv.wallet.IssuerURL = "https://localhost:18086"

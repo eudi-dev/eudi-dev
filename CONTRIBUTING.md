@@ -43,7 +43,7 @@ Each test uses its own wallet directory. Rows from earlier runs stay in the data
 
 ### E2E Tests
 
-E2E tests use Playwright. Its `webServer` builds the binary and starts `serve`. The tests run against that live server:
+E2E tests use Playwright. Its `webServer` builds the binary and starts `decoder`. The tests run against that live server:
 
 ```bash
 cd e2e

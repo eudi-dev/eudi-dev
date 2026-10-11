@@ -432,7 +432,7 @@ curl -s -X POST localhost:8085/api/registrar/registration-certificates -H 'Conte
   -d "{\"identifier\": \"$ID\", \"intendedUseIdentifier\": \"$USE\"}" > identity-check.json
 ```
 
-The CLI adds the intended use and issues its certificate in one step: `eudi wallet registrar verifiers add --to $ID --purpose "Checks who you are before a diploma is issued" --dcql pid.json` prints the `verifier_info` value. `eudi wallet registrar registration-cert --identifier $ID --provider` then prints the new `issuer_info`.
+The CLI adds the intended use and issues its certificate in one step: `eudi registrar verifiers add --to $ID --purpose "Checks who you are before a diploma is issued" --dcql pid.json` prints the `verifier_info` value. `eudi registrar registration-cert --identifier $ID --provider` then prints the new `issuer_info`.
 
 The answer has `verifierInfo` like a verifier's. Sign the request as in [step 4 of the verifier](#4-send-a-request-to-the-wallet), with the issuer's key and access certificate:
 
@@ -460,8 +460,8 @@ The wallet checks this request like any other verifier request. The access certi
 The wallet anchors access certificates and registration certificates only through its `access-ca` and `registrar` lists. To test certificates from your own registrar, put its CAs on these lists:
 
 ```bash
-eudi wallet trust add-ca --list access-ca --name "My Registrar Access CA" --ca my-access-ca.pem
-eudi wallet trust add-ca --list registrar --name "My Registrar" --ca my-registrar-ca.pem
+eudi trust add-ca --list access-ca --name "My Registrar Access CA" --ca my-access-ca.pem
+eudi trust add-ca --list registrar --name "My Registrar" --ca my-registrar-ca.pem
 ```
 
 Or over the API, which answers `201` with the entity and its `id`:

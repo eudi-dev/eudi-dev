@@ -52,7 +52,7 @@ eudi-test.dev {
 		zone flows_burst {
 			match {
 				method POST
-				path /api/presentations /api/dc-api /api/offers /api/issue /api/generate-pid /api/credentials /api/credentials/*/refresh /api/deferred/*/collect /issuer/api/offers /verifier/api/requests
+				path /api/presentations /api/dc-api /api/offers /api/issue /api/credentials /api/credentials/*/refresh /api/deferred/*/collect /issuer/api/offers /verifier/api/requests
 			}
 			key {remote_host}
 			events 120
@@ -61,7 +61,7 @@ eudi-test.dev {
 		zone flows_hour {
 			match {
 				method POST
-				path /api/presentations /api/dc-api /api/offers /api/issue /api/generate-pid /api/credentials /api/credentials/*/refresh /api/deferred/*/collect /issuer/api/offers /verifier/api/requests
+				path /api/presentations /api/dc-api /api/offers /api/issue /api/credentials /api/credentials/*/refresh /api/deferred/*/collect /issuer/api/offers /verifier/api/requests
 			}
 			key {remote_host}
 			events 2000

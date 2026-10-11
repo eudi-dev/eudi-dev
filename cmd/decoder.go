@@ -26,28 +26,28 @@ import (
 )
 
 var (
-	port                      int
-	serveImprintFile          string
-	serveAllowPrivateNetworks bool
+	port                        int
+	decoderImprintFile          string
+	decoderAllowPrivateNetworks bool
 )
 
-var serveCmd = &cobra.Command{
-	Use:   "serve [credential]",
+var decoderCmd = &cobra.Command{
+	Use:   "decoder [credential]",
 	Short: "Start a local web UI for decoding and validating credentials",
 	Long:  "Starts a local HTTP server with a web UI for decoding, validating, and inspecting verifiable credentials (SD-JWT, JWT, mdoc). Optionally pass a credential to pre-fill the input.",
 	Args:  cobra.MaximumNArgs(1),
-	RunE:  runServe,
+	RunE:  runDecoder,
 }
 
 func init() {
-	serveCmd.Flags().IntVar(&port, "port", config.DefaultServePort, "Port to listen on")
-	serveCmd.Flags().StringVar(&serveImprintFile, "imprint-file", "", "HTML snippet with the site operator's legal notice, served at /imprint (required for public EU hosting)")
-	addAllowPrivateNetworksFlag(serveCmd, &serveAllowPrivateNetworks, "")
-	rootCmd.AddCommand(serveCmd)
+	decoderCmd.Flags().IntVar(&port, "port", config.DefaultServePort, "Port to listen on")
+	decoderCmd.Flags().StringVar(&decoderImprintFile, "imprint-file", "", "HTML snippet with the site operator's legal notice, served at /imprint (required for public EU hosting)")
+	addAllowPrivateNetworksFlag(decoderCmd, &decoderAllowPrivateNetworks, "")
+	rootCmd.AddCommand(decoderCmd)
 }
 
-func runServe(cmd *cobra.Command, args []string) error {
-	if err := rejectJSON("serve runs until stopped"); err != nil {
+func runDecoder(cmd *cobra.Command, args []string) error {
+	if err := rejectJSON("decoder runs until stopped"); err != nil {
 		return err
 	}
 	var credential string
@@ -58,7 +58,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 		}
 		credential = raw
 	}
-	if err := installFetchPolicy(cmd, serveAllowPrivateNetworks, false, format.ProxyURLs(format.ProxySettings{})...); err != nil {
+	if err := installFetchPolicy(cmd, decoderAllowPrivateNetworks, false, format.ProxyURLs(format.ProxySettings{})...); err != nil {
 		return err
 	}
 
@@ -68,8 +68,8 @@ func runServe(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	opts := web.MuxOptions{Credential: credential, Version: Version, WalletStore: store}
-	if serveImprintFile != "" {
-		page, err := imprint.Load(serveImprintFile)
+	if decoderImprintFile != "" {
+		page, err := imprint.Load(decoderImprintFile)
 		if err != nil {
 			return err
 		}

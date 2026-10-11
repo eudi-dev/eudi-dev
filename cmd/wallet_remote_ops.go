@@ -25,7 +25,6 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc/scheme"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/output"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/remote"
@@ -338,25 +337,6 @@ func printCredentialDoc(cred map[string]any, decoded bool) error {
 		output.PrintJWT(token, opts)
 	}
 	return nil
-}
-
-func remoteGeneratePID(c *remote.Client, claims map[string]any, vct string) error {
-	if err := c.GeneratePID(claims, vct); err != nil {
-		return err
-	}
-	printGeneratedPID(vct)
-	return nil
-}
-
-// printGeneratedPID reports which PID type the wallet generated. An empty vct
-// means the EUDI PID.
-func printGeneratedPID(vct string) {
-	if vct == "" {
-		vct = mock.DefaultPIDVCT
-	}
-	printResult(map[string]any{"vct": vct, "formats": []string{"dc+sd-jwt", "mso_mdoc"}}, func() {
-		fmt.Printf("Generated %s PID credentials (SD-JWT + mdoc)\n", vct)
-	})
 }
 
 func remoteAccept(c *remote.Client, uri, txCode, sessionTranscript string, interactive bool) error {

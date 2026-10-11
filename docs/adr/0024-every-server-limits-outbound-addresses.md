@@ -4,7 +4,7 @@
 
 ## Decision
 
-`wallet serve` and `serve` install a policy on startup. By default it allows public addresses and loopback. A developer runs wallet, issuer and verifier on one machine, and loopback keeps that setup working without flags. Private, link local, CGNAT, unique local, unspecified and multicast addresses are refused.
+`wallet serve` and `decoder` install a policy on startup. By default it allows public addresses and loopback. A developer runs wallet, issuer and verifier on one machine, and loopback keeps that setup working without flags. Private, link local, CGNAT, unique local, unspecified and multicast addresses are refused.
 
 `--allow-private-networks` or `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=true` lifts the limit for issuers and verifiers on a LAN, in Docker or in a cluster. The Docker image sets the variable, because its verifiers under test run on the Docker host or in other containers.
 

@@ -140,11 +140,11 @@ func TestCredStatusLabelNamesSuspended(t *testing.T) {
 	}
 }
 
-// eudi serve has no --demo, so its help says nothing about it.
+// eudi decoder has no --demo, so its help says nothing about it.
 func TestAllowPrivateNetworksHelpFitsTheCommand(t *testing.T) {
-	serveHelp := serveCmd.Flags().Lookup(allowPrivateNetworksFlag).Usage
-	if strings.Contains(serveHelp, "--demo") {
-		t.Errorf("eudi serve help mentions --demo: %s", serveHelp)
+	decoderHelp := decoderCmd.Flags().Lookup(allowPrivateNetworksFlag).Usage
+	if strings.Contains(decoderHelp, "--demo") {
+		t.Errorf("eudi decoder help mentions --demo: %s", decoderHelp)
 	}
 	walletHelp := walletServeCmd().Flags().Lookup(allowPrivateNetworksFlag).Usage
 	if !strings.Contains(walletHelp, "--demo refuses the flag") {

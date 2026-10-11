@@ -58,7 +58,7 @@ Entitlements belong to a service. The ARF registers the data of TS6 (Reg_01a), a
 
 Every registration certificate has a `status` claim that points to an entry in the registrar's status list (ETSI TS 119 475 V1.2.1 Table 7). The registrar publishes the list at `/api/registrar/status-list` as a Token Status List, signed with the registrar key.
 
-`wallet registrar revoke` or the status endpoint revokes a certificate. `wallet registrar activate` or the same endpoint makes it valid again.
+`registrar revoke` or the status endpoint revokes a certificate. `registrar activate` or the same endpoint makes it valid again.
 
 An intended use or an issuer service has one valid certificate at a time. The registrar also revokes certificates itself, and you can't activate these again:
 
@@ -166,7 +166,7 @@ eudi wallet serve --arf --trusted-list-ca lists-ca.pem --trusted-list https://li
 - `--trusted-list-ca` is the CA of the list operator, which signs the lists. The wallet uses a list only if its signer chains to this CA or to the wallet CA (ARF PPNot_05, TLPub_05 and TLPub_07).
 - `--trusted-list` adds a list or a list of trusted lists. The wallet follows the pointers of a list of trusted lists and takes the anchors from each list according to its type.
 
-A running wallet, the public demo included, takes the same setup at runtime: `eudi wallet trust add-ca --list trusted-list-ca --ca lists-ca.pem` (or **Add CA** with `trusted-list-ca` in the UI), then `eudi wallet trust add-list <url>`. `eudi wallet trust` and **Trust & certificates** in the UI show each list and whether the wallet could read it. The built-in registrar keeps working next to the external one.
+A running wallet, the public demo included, takes the same setup at runtime: `eudi trust add-ca --list trusted-list-ca --ca lists-ca.pem` (or **Add CA** with `trusted-list-ca` in the UI), then `eudi trust add-list <url>`. `eudi trust` and **Trust & certificates** in the UI show each list and whether the wallet could read it. The built-in registrar keeps working next to the external one.
 
 Another eudi-dev wallet can be the external registrar, for example one at `https://other-wallet.example`. Its wallet CA signs its lists, and its list of trusted lists points to its `access-ca` and `registrar` lists:
 
@@ -181,8 +181,8 @@ If you only have the CAs as files, put them on the lists directly. `--relying-pa
 
 ```bash
 eudi wallet serve --arf --relying-party-ca other-access-ca.pem --relying-party-ca other-registrar-ca.pem
-eudi wallet trust add-ca --list access-ca --ca other-access-ca.pem        # on a running wallet
-eudi wallet trust add-ca --list registrar --ca other-registrar-ca.pem
+eudi trust add-ca --list access-ca --ca other-access-ca.pem        # on a running wallet
+eudi trust add-ca --list registrar --ca other-registrar-ca.pem
 ```
 
 ## The demo issuer and verifier
@@ -278,28 +278,28 @@ The registry endpoints follow the TS05 v1.5 registry API. The `GET` endpoints un
 
 TS11 describes `GET /schemas/{schemaId}` in §5.3.1, but its OpenAPI file (Annex A.3) leaves it out. The wallet serves it as the text describes. For `PUT` the text asks for a signed response and the OpenAPI file for JSON. The wallet answers with JSON, like the OpenAPI file.
 
-## `wallet registrar` and `wallet catalog`
+## `registrar` and `catalog` commands
 
 The CLI uses the same registrar. If a wallet is running, it calls the API. Otherwise it changes the wallet state directly.
 
 ```bash
-eudi wallet registrar verifiers add --name "Example Shop" --purpose "Age check" --dcql query.json
-eudi wallet registrar issuers add --name "Example University" --attestation dc+sd-jwt:urn:example:diploma:1
-eudi wallet registrar verifiers add --to NLTEST.1A2B3C4D5E6F7A8B --purpose "Identity check before issuance" --dcql pid.json
-eudi wallet registrar issuers add --to NLTEST.0F1E2D3C4B5A6978 --attestation dc+sd-jwt:urn:example:ticket:1
-eudi wallet registrar verifiers
-eudi wallet registrar issuers
+eudi registrar verifiers add --name "Example Shop" --purpose "Age check" --dcql query.json
+eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:urn:example:diploma:1
+eudi registrar verifiers add --to NLTEST.1A2B3C4D5E6F7A8B --purpose "Identity check before issuance" --dcql pid.json
+eudi registrar issuers add --to NLTEST.0F1E2D3C4B5A6978 --attestation dc+sd-jwt:urn:example:ticket:1
+eudi registrar verifiers
+eudi registrar issuers
 openssl ecparam -name prime256v1 -genkey -noout -out verifier.key
 openssl req -new -key verifier.key -subj "/" -out verifier.csr
-eudi wallet registrar access-cert --identifier NLTEST.1A2B3C4D5E6F7A8B --csr verifier.csr --dns shop.example > verifier.pem
-eudi wallet registrar registration-cert --identifier NLTEST.1A2B3C4D5E6F7A8B
-eudi wallet registrar registration-cert --identifier NLTEST.1A2B3C4D5E6F7A8B --new
-eudi wallet registrar revoke --identifier NLTEST.1A2B3C4D5E6F7A8B
-eudi wallet registrar activate --identifier NLTEST.1A2B3C4D5E6F7A8B
-eudi wallet registrar verifiers rm NLTEST.1A2B3C4D5E6F7A8B
-eudi wallet catalog
-eudi wallet catalog add --name "University diploma" --type dc+sd-jwt:urn:example:diploma:1 --claim dc+sd-jwt:degree
-eudi wallet catalog rm 3f1c3b0d-71ad-496b-9f94-68198503e761
+eudi registrar access-cert --identifier NLTEST.1A2B3C4D5E6F7A8B --csr verifier.csr --dns shop.example > verifier.pem
+eudi registrar registration-cert --identifier NLTEST.1A2B3C4D5E6F7A8B
+eudi registrar registration-cert --identifier NLTEST.1A2B3C4D5E6F7A8B --new
+eudi registrar revoke --identifier NLTEST.1A2B3C4D5E6F7A8B
+eudi registrar activate --identifier NLTEST.1A2B3C4D5E6F7A8B
+eudi registrar verifiers rm NLTEST.1A2B3C4D5E6F7A8B
+eudi catalog
+eudi catalog add --name "University diploma" --type dc+sd-jwt:urn:example:diploma:1 --claim dc+sd-jwt:degree
+eudi catalog rm 3f1c3b0d-71ad-496b-9f94-68198503e761
 ```
 
 `verifiers` and `issuers` list the registered verifiers and issuers, and so do `verifiers list` and `issuers list`. `add` registers one and prints the assigned identifier, and `rm` deletes a registration and revokes its certificates. `verifiers add` takes the credentials and claims of a DCQL query, so requests with that query pass the over-asking check (ARF RPRC_21). `issuers add` takes the attestation types and optionally the categories of its entitlements.

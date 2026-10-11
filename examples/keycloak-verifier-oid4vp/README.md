@@ -19,7 +19,7 @@ sequenceDiagram
     participant EXT as keycloak-extension-oid4vp 0.11.1
     participant W as eudi wallet
 
-    U->>W: generate-pid --docker --base-url http://host.docker.internal:8085
+    U->>W: issue sdjwt --wallet --pid --iss https://host.docker.internal:8086
     U->>KC: import static realm, client, OID4VP IdP
     U->>KC: start OIDC authorize request
     KC->>EXT: invoke oid4vp identity provider

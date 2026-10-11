@@ -184,8 +184,8 @@
       <p class="dialog-hint" id="howto-registrar-sign-hint">4. A verifier signs its request object with the access certificate's key, puts the chain in <code>x5c</code> and adds <code>verifier_info</code>. An issuer signs its metadata the same way and adds <code>issuer_info</code>.</p>
       <div class="cli-install">
         <div class="cli-install-label" id="howto-registrar-cli-label">The same from the CLI</div>
-        <pre class="howto-commands" id="howto-registrar-cli-commands">eudi wallet registrar verifiers add --name "Example Shop" --purpose "Age check" --dcql query.json
-eudi wallet registrar issuers add --name "Example University" --attestation dc+sd-jwt:urn:example:diploma:1</pre>
+        <pre class="howto-commands" id="howto-registrar-cli-commands">eudi registrar verifiers add --name "Example Shop" --purpose "Age check" --dcql query.json
+eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:urn:example:diploma:1</pre>
       </div>
       <p class="dialog-hint" id="howto-registrar-forms-hint">The Registrar section of this page does the same with forms. The <a data-doc="docs/wallet/registrar-api.md" target="_blank" rel="noopener" id="howto-registrar-docs-link">registrar walkthrough</a> shows every request with curl and its response.</p>
       </div>

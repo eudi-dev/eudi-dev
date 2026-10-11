@@ -21,7 +21,7 @@ import (
 
 func TestTheCatalogCommandAddsAndDeletes(t *testing.T) {
 	resetRemoteTestState(t)
-	added := runJSON(t, "wallet", "catalog", "add", "--name", "University diploma",
+	added := runJSON(t, "catalog", "add", "--name", "University diploma",
 		"--type", "dc+sd-jwt:urn:example:diploma:1", "--type", "mso_mdoc:org.example.diploma.1",
 		"--claim", "dc+sd-jwt:address.locality", "--claim", "mso_mdoc:degree", "--claim", "mso_mdoc:org.example.other:grade",
 		"--los", "moderate")
@@ -38,7 +38,7 @@ func TestTheCatalogCommandAddsAndDeletes(t *testing.T) {
 	}
 
 	id := schema["id"].(string)
-	if deleted := runJSON(t, "wallet", "catalog", "rm", id); deleted["removed"] != id {
+	if deleted := runJSON(t, "catalog", "rm", id); deleted["removed"] != id {
 		t.Fatalf("delete: %v", deleted)
 	}
 }

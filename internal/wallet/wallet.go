@@ -244,7 +244,7 @@ type PersistedState struct {
 	// The registrar's registrations, status entries and catalogue.
 	registrar.State
 	// TrustedEntities and AddedTrustedLists are added by users through
-	// `wallet trust` or the API.
+	// `trust` or the API.
 	TrustedEntities   []TrustedEntity        `json:"trusted_entities,omitempty"`
 	AddedTrustedLists []string               `json:"trusted_lists,omitempty"`
 	Log               []LogEntry             `json:"log,omitempty"`

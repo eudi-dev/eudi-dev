@@ -25,7 +25,6 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -77,16 +76,7 @@ type walletServeOptions struct {
 	Detached              bool
 	ServeTLS              bool
 	DemoVerifierIssuerCAs []string
-	// DemoVerifierTrustAnchors holds the deprecated alias of
-	// DemoVerifierIssuerCAs. Each flag needs its own slice, because a string
-	// array flag replaces its slice on first use.
-	DemoVerifierTrustAnchors []string
-	LogFormat                string
-}
-
-// demoVerifierIssuerCAFiles lists the files of both issuer CA flags.
-func (o *walletServeOptions) demoVerifierIssuerCAFiles() []string {
-	return append(slices.Clone(o.DemoVerifierIssuerCAs), o.DemoVerifierTrustAnchors...)
+	LogFormat             string
 }
 
 func walletServeCmd() *cobra.Command {
@@ -107,8 +97,8 @@ func walletServeCmdWithOptions() (*cobra.Command, *walletServeOptions) {
 Capabilities:
   - Web UI for credential management, issuing, and consent
   - OID4VP authorization endpoint (/authorize)
-  - Legacy PID-first trusted list endpoint (/api/trustlist)
-  - Trust-list index endpoint (/api/trustlists)
+  - Trusted list endpoint for the PID list or a credential type (/api/trustlist)
+  - Trusted list index endpoint (/api/trustlists)
   - Request logging with timestamps
   - Browser-based consent UI for incoming requests
 
@@ -148,8 +138,6 @@ so the wallet automatically receives incoming protocol requests.`,
 	cmd.Flags().StringVar(&opts.NewsFile, "news-file", "", "HTML snippet with news for visitors of a public demo, shown once in a popup and again from the footer link. Requires --demo")
 	cmd.Flags().BoolVar(&opts.ServeTLS, "serve-tls", false, "Serve an https --base-url locally with the wallet's own TLS certificate instead of expecting an external TLS terminator in front (the HTTP port stays bound as well)")
 	cmd.Flags().StringArrayVar(&opts.DemoVerifierIssuerCAs, "demo-verifier-issuer-ca", nil, "PEM file with extra issuer CA certificates for the demo verifier, in addition to the wallet's own CA (repeatable). Use it for credentials issued outside this wallet, such as in an OIDF conformance suite run")
-	cmd.Flags().StringArrayVar(&opts.DemoVerifierTrustAnchors, "demo-verifier-trust-anchor", nil, "")
-	_ = cmd.Flags().MarkDeprecated("demo-verifier-trust-anchor", "use --demo-verifier-issuer-ca")
 	cmd.Flags().StringVar(&opts.LogFormat, "log-format", os.Getenv(serverlog.EnvVar), "Console output format: 'text' (the default) or 'json' (one JSON record per line on stdout, for log collectors) (default $"+serverlog.EnvVar+")")
 	cmd.Flags().BoolVarP(&opts.Detached, "detached", "d", false, "Run the server as a background process and return once it responds. Output goes to <wallet-dir>/serve.log")
 	return cmd, &opts
@@ -407,7 +395,7 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 			return fmt.Errorf("--serve-tls: %w", err)
 		}
 	}
-	verifierTrustAnchors, err := loadVerifierTrustAnchors(opts.demoVerifierIssuerCAFiles())
+	verifierTrustAnchors, err := loadVerifierTrustAnchors(opts.DemoVerifierIssuerCAs)
 	if err != nil {
 		return fmt.Errorf("--demo-verifier-issuer-ca: %w", err)
 	}

@@ -4,7 +4,7 @@ The ARF has the wallet check a received credential against the trusted list of i
 
 ## Decision
 
-Each credential type issued by the wallet has a credential category: `pid`, `qeaa`, `pub-eaa` or `eaa`. The predefined templates set it. A user template sets it or takes it from its catalogue entry. You set it in the registrar UI or with `wallet catalog add --category`. `--category` sets it for a single credential. A credential without any of these is an EAA.
+Each credential type issued by the wallet has a credential category: `pid`, `qeaa`, `pub-eaa` or `eaa`. The predefined templates set it. A user template sets it or takes it from its catalogue entry. You set it in the registrar UI or with `catalog add --category`. `--category` sets it for a single credential. A credential without any of these is an EAA.
 
 Each category has its own signing key, its own provider CA under the wallet CA and its own trusted list:
 

@@ -313,17 +313,6 @@ func (c *Client) AccessCertificate(req, out any) error {
 	return c.do(http.MethodPost, apiPath("registrar", "access-certificates"), req, out)
 }
 
-func (c *Client) GeneratePID(claims map[string]any, vct string) error {
-	body := map[string]any{}
-	if claims != nil {
-		body["claims"] = claims
-	}
-	if vct != "" {
-		body["vct"] = vct
-	}
-	return c.do(http.MethodPost, apiPath("generate-pid"), body, nil)
-}
-
 func (c *Client) Log() ([]byte, error) {
 	var out []byte
 	err := c.do(http.MethodGet, apiPath("log"), nil, &out)

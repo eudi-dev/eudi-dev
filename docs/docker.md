@@ -257,7 +257,7 @@ eudi wallet tls-cert --docker --out wallet-tls-cert.pem
 To trust every spawned wallet from one root, export the shared wallet CA:
 
 ```bash
-eudi wallet ca-cert --out wallet-ca-cert.pem
+eudi trust ca-cert --out wallet-ca-cert.pem
 ```
 
 The status list URI and issuer host are written into credentials at generation time. When the verifier runs inside Docker and the wallet on the host (or vice versa), use `--docker` (or `--base-url` for a custom URL). The status list URL, signed issuer metadata and registrar endpoints are then reachable from both sides:

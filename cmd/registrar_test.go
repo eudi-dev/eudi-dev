@@ -35,9 +35,9 @@ func TestWalletRegistrarRegistersAndCertifies(t *testing.T) {
 	}
 	dir := walletDir
 	out := captureStdout(t, func() {
-		rootCmd.SetArgs([]string{"wallet", "registrar", "verifiers", "add", "--name", "Example Shop", "--purpose", "Age check", "--dcql", dcql})
+		rootCmd.SetArgs([]string{"registrar", "verifiers", "add", "--name", "Example Shop", "--purpose", "Age check", "--dcql", dcql})
 		if err := rootCmd.Execute(); err != nil {
-			t.Fatalf("wallet registrar verifiers add: %v", err)
+			t.Fatalf("registrar verifiers add: %v", err)
 		}
 	})
 	identifier := regexp.MustCompile(`as ([A-Z]{2}TEST\.[0-9A-F]+)`).FindStringSubmatch(out)
@@ -53,9 +53,9 @@ func TestWalletRegistrarRegistersAndCertifies(t *testing.T) {
 		walletDir = dir
 		buf := new(bytes.Buffer)
 		rootCmd.SetOut(buf)
-		rootCmd.SetArgs(append([]string{"wallet", "registrar", "registration-cert", "--identifier", identifier[1]}, args...))
+		rootCmd.SetArgs(append([]string{"registrar", "registration-cert", "--identifier", identifier[1]}, args...))
 		if err := rootCmd.Execute(); err != nil {
-			t.Fatalf("wallet registrar registration-cert %v: %v", args, err)
+			t.Fatalf("registrar registration-cert %v: %v", args, err)
 		}
 		return strings.TrimSpace(buf.String())
 	}
@@ -84,11 +84,11 @@ func TestRegistrarRegistersAnIssuer(t *testing.T) {
 		rootCmd.SetOut(buf)
 		var err error
 		out := captureStdout(t, func() {
-			rootCmd.SetArgs(append([]string{"wallet", "registrar"}, args...))
+			rootCmd.SetArgs(append([]string{"registrar"}, args...))
 			err = rootCmd.Execute()
 		})
 		if err != nil {
-			t.Fatalf("wallet registrar %v: %v", args, err)
+			t.Fatalf("registrar %v: %v", args, err)
 		}
 		return strings.TrimSpace(out + buf.String())
 	}
@@ -118,7 +118,7 @@ func TestRegistrarRegistersAnIssuer(t *testing.T) {
 	}
 	resetFlags(rootCmd)
 	walletDir = dir
-	rootCmd.SetArgs([]string{"wallet", "registrar", "verifiers", "rm", identifier[1]})
+	rootCmd.SetArgs([]string{"registrar", "verifiers", "rm", identifier[1]})
 	if err := rootCmd.Execute(); err == nil || !strings.Contains(err.Error(), "is not a registered verifier") {
 		t.Fatalf("verifiers rm of an issuer: %v", err)
 	}
@@ -140,7 +140,7 @@ func TestTheIssuerCommandChecksItsFlags(t *testing.T) {
 		{[]string{"--name", "X", "--attestation", "dc+sd-jwt:urn:example:x", "--category", "provider"}, "--category takes pid, qeaa, pub-eaa, eaa"},
 	} {
 		resetFlags(rootCmd)
-		rootCmd.SetArgs(append([]string{"wallet", "registrar", "issuers", "add"}, tc.args...))
+		rootCmd.SetArgs(append([]string{"registrar", "issuers", "add"}, tc.args...))
 		if err := rootCmd.Execute(); err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("%v: got %v, want %q", tc.args, err, tc.want)
 		}
@@ -165,11 +165,11 @@ func TestRegistrarAddsTheOtherRoleToARegistration(t *testing.T) {
 		rootCmd.SetOut(buf)
 		var err error
 		out := captureStdout(t, func() {
-			rootCmd.SetArgs(append([]string{"wallet", "registrar"}, args...))
+			rootCmd.SetArgs(append([]string{"registrar"}, args...))
 			err = rootCmd.Execute()
 		})
 		if err != nil {
-			t.Fatalf("wallet registrar %v: %v", args, err)
+			t.Fatalf("registrar %v: %v", args, err)
 		}
 		return strings.TrimSpace(out + buf.String())
 	}
@@ -207,10 +207,10 @@ func TestRegistrarAddsTheOtherRoleToARegistration(t *testing.T) {
 // Each list subcommand describes the listing, not its parent's subcommands.
 func TestListSubcommandsDescribeTheListing(t *testing.T) {
 	for _, path := range [][]string{
-		{"wallet", "catalog", "list"},
-		{"wallet", "trust", "list"},
-		{"wallet", "registrar", "verifiers", "list"},
-		{"wallet", "registrar", "issuers", "list"},
+		{"catalog", "list"},
+		{"trust", "list"},
+		{"registrar", "verifiers", "list"},
+		{"registrar", "issuers", "list"},
 	} {
 		list, _, err := rootCmd.Find(path)
 		if err != nil {

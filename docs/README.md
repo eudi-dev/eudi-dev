@@ -9,7 +9,7 @@ Guides for using eudi-dev as a wallet, issuer, verifier and CA.
 ## The wallet
 
 - [Wallet](wallet.md): overview, subcommands, quick start, storage, and credential type inheritance
-- [Serving the wallet](wallet/serve.md): `wallet serve`, endpoints, trusted lists and `wallet trust`, certificate export, and every serve flag
+- [Serving the wallet](wallet/serve.md): `wallet serve`, endpoints, trusted lists and `trust`, certificate export, and every serve flag
 - [Presenting from the wallet](wallet/presenting.md): `wallet accept`, `wallet scan`, invoking by URL, HAIP enforcement
 - [Issuing into the wallet](wallet/issuing.md): sign-in, deferred issuance, renewing, VCI feature level, wallet attestation, interactive authorization
 - [Wallet HTTP API](wallet/http-api.md): the full REST API and remote control

@@ -316,16 +316,6 @@ func TestWalletPsShowsInstanceVersion(t *testing.T) {
 	if !strings.Contains(out, "VERSION") || !strings.Contains(out, "1.42.0") {
 		t.Errorf("the listing must report the instance version, got:\n%s", out)
 	}
-
-	out = captureStdout(t, func() {
-		rootCmd.SetArgs([]string{"wallet", "instances", "list"})
-		if err := rootCmd.Execute(); err != nil {
-			t.Fatalf("wallet instances list: %v", err)
-		}
-	})
-	if !strings.Contains(out, "1.42.0") {
-		t.Errorf("the deprecated listing must report the instance version, got:\n%s", out)
-	}
 }
 
 func withCLIVersion(t *testing.T, version string) {
@@ -591,9 +581,9 @@ func TestTrustListFollowsTheRemoteWallet(t *testing.T) {
 	wantAnchors := trustListAnchors(t, served)
 
 	out := captureStdout(t, func() {
-		rootCmd.SetArgs([]string{"wallet", "trusted-list", "--remote", url})
+		rootCmd.SetArgs([]string{"trust", "show", "--remote", url})
 		if err := rootCmd.Execute(); err != nil {
-			t.Fatalf("wallet trusted-list --remote: %v", err)
+			t.Fatalf("trust show --remote: %v", err)
 		}
 	})
 
@@ -603,11 +593,11 @@ func TestTrustListFollowsTheRemoteWallet(t *testing.T) {
 	}
 	for der := range wantAnchors {
 		if !anchors[der] {
-			t.Error("trust-list --remote does not anchor the remote wallet's CA")
+			t.Error("trust show --remote does not anchor the remote wallet's CA")
 		}
 	}
 	if anchors[string(local.CertChain[len(local.CertChain)-1].Raw)] {
-		t.Error("trust-list --remote anchored the local CA, which validates nothing the remote issues")
+		t.Error("trust show --remote anchored the local CA, which validates nothing the remote issues")
 	}
 }
 
@@ -648,27 +638,28 @@ func trustListAnchors(t *testing.T, jwt string) map[string]bool {
 	return found
 }
 
-func TestTrustListListsProfiles(t *testing.T) {
+func TestTrustListListsTheWalletLists(t *testing.T) {
 	resetRemoteTestState(t)
 	url, _ := startRemoteTestWallet(t)
 
 	out := captureStdout(t, func() {
-		rootCmd.SetArgs([]string{"wallet", "trusted-list", "--list", "--remote", url})
+		rootCmd.SetArgs([]string{"trust", "list", "--remote", url})
 		if err := rootCmd.Execute(); err != nil {
-			t.Fatalf("wallet trusted-list --list: %v", err)
+			t.Fatalf("trust list: %v", err)
 		}
 	})
 
-	for _, want := range []string{"wallet-provider", "/api/trustlists/"} {
+	for _, want := range []string{"wallet-provider", "/api/trustlists/", "List of trusted lists"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("the listing does not mention %q:\n%s", want, out)
 		}
 	}
 
-	// Combining a listing with a selection is an error.
-	rootCmd.SetArgs([]string{"wallet", "trusted-list", "--list", "--id", "pid", "--remote", url})
+	// A list ID and a type selection pick different lists.
+	resetFlags(rootCmd)
+	rootCmd.SetArgs([]string{"trust", "show", "pid", "--vct", "urn:eudi:pid:1", "--remote", url})
 	if err := rootCmd.Execute(); err == nil {
-		t.Error("--list with --id was accepted")
+		t.Error("a list ID with --vct was accepted")
 	}
 }
 

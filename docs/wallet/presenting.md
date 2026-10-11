@@ -59,7 +59,7 @@ For sign-in, `wallet accept` prints the authorization URL. It opens the URL only
 
 Strict mode verifies HTTPS certificates. Debug mode skips verification by default. For local flows, `--tls-verify=true|false` overrides either default and `--tls-ca dev-ca.pem` adds trusted CA certificates. See [HTTPS certificate verification](serve.md#https-certificate-verification).
 
-When `accept` or `scan` forwards a flow to a running wallet, that wallet uses its own settings for every step of the flow. A conformance flag with the running wallet's own value changes nothing. A CA or list the wallet already trusts changes nothing either. A flag that differs returns an error that names the wallet's value. The TLS CA and proxy flags always return an error, because the wallet doesn't report them. Set the settings on `wallet serve`, change them in its Conformance panel, or put CAs and lists on its trusted lists with [`wallet trust`](serve.md#trusted-lists).
+When `accept` or `scan` forwards a flow to a running wallet, that wallet uses its own settings for every step of the flow. A conformance flag with the running wallet's own value changes nothing. A CA or list the wallet already trusts changes nothing either. A flag that differs returns an error that names the wallet's value. The TLS CA and proxy flags always return an error, because the wallet doesn't report them. Set the settings on `wallet serve`, change them in its Conformance panel, or put CAs and lists on its trusted lists with [`trust`](serve.md#trusted-lists).
 
 ## `wallet scan`
 
@@ -181,5 +181,5 @@ Consent shows purposes and privacy policies only from registration certificates 
 
 The wallet takes its trust anchors from [trusted lists](serve.md#trusted-lists) only. An access certificate must chain to a CA on an access certificate provider list (`access-ca`, ETSI TS 119 602 V1.1.1 Annex F). The wallet's own list names the relying party access CA of its [registrar](registrar.md). The demo issuer and the demo verifier get their access certificates from that CA too. A registration certificate and its status list must chain to a CA on a registration certificate provider list (`registrar`, Annex G). The wallet's own list names the registrar CA. The relying party access CA signs any visitor's CSR, so it is not on the `registrar` list.
 
-For the CAs of another ecosystem, such as a member state's sandbox, use `wallet trust add-ca --list access-ca` and `--list registrar`, or `--relying-party-ca`, which puts the CAs on both lists. An external list on the list of trusted lists works too. See [ADR 0023](../adr/0023-trust-anchors-come-from-trusted-lists.md).
+For the CAs of another ecosystem, such as a member state's sandbox, use `trust add-ca --list access-ca` and `--list registrar`, or `--relying-party-ca`, which puts the CAs on both lists. An external list on the list of trusted lists works too. See [ADR 0023](../adr/0023-trust-anchors-come-from-trusted-lists.md).
 

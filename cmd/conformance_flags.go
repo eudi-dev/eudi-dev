@@ -75,7 +75,7 @@ func addConformanceFlags(cmd *cobra.Command) *conformanceFlags {
 // changed names the conformance flags set on the command line.
 func (f *conformanceFlags) changed() []string {
 	var set []string
-	if walletCmd.PersistentFlags().Changed("mode") {
+	if walletFlags.Changed("mode") {
 		set = append(set, "--mode")
 	}
 	f.cmd.Flags().Visit(func(flag *pflag.Flag) {
@@ -175,7 +175,7 @@ func checkRemoteSettings(c *remote.Client, set []string, want walletConformance)
 	if len(differ) == 0 {
 		return nil
 	}
-	return fmt.Errorf("%s. A running wallet applies its settings to every step of a flow, so a command can't change them. Change them on 'wallet serve' or through PUT /api/config/conformance, and add CAs and lists with '%s wallet trust'",
+	return fmt.Errorf("%s. A running wallet applies its settings to every step of a flow, so a command can't change them. Change them on 'wallet serve' or through PUT /api/config/conformance, and add CAs and lists with '%s trust'",
 		strings.Join(differ, ", "), binaryName())
 }
 
@@ -271,7 +271,7 @@ func certificatesMissing(bundle []byte, trusted []string) int {
 func changedOutboundFlags() []string {
 	var set []string
 	for _, name := range []string{"tls-verify", "tls-ca", "http-proxy", "https-proxy", "no-proxy"} {
-		if walletCmd.PersistentFlags().Changed(name) {
+		if walletFlags.Changed(name) {
 			set = append(set, "--"+name)
 		}
 	}

@@ -24,7 +24,7 @@ The demo issuer and the demo verifier register with the registrar and get their 
 
 A list of trusted lists at `/api/trustlists/lists` points to all of these lists and to added external lists (§6.3.13). Each pointer names the location and the signer certificate, with the list type, the scheme operator name, the scheme territory and the MIME type as qualifiers. The wallet follows the pointers of an external list of trusted lists one level deep. A pointed-to list must be signed by a certificate of its pointer.
 
-The user adds trust in two ways, with `wallet trust`, the trust API or the UI:
+The user adds trust in two ways, with `trust`, the trust API or the UI:
 
 - A provider on one of the wallet's own lists. The wallet signs the list with the provider's CA on it as an issuance and a revocation service.
 - An external list on the list of trusted lists. Its signer must chain to a trusted list operator: the wallet CA or a CA from `--trusted-list-ca`.

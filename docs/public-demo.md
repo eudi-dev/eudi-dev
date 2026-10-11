@@ -151,7 +151,7 @@ The access token is bound to the DPoP key. The credential request must prove pos
 
 ### Wallets from other providers
 
-The demo issuer trusts the providers on the wallet provider lists of the wallet's [list of trusted lists](wallet/serve.md#trusted-lists). That is the wallet's own `wallet-provider` list at `/api/trustlists/wallet-provider`, providers added with `wallet trust add-ca --list wallet-provider`, and external wallet provider lists. It also accepts attestations from other providers when their signature verifies against the included leaf certificate.
+The demo issuer trusts the providers on the wallet provider lists of the wallet's [list of trusted lists](wallet/serve.md#trusted-lists). That is the wallet's own `wallet-provider` list at `/api/trustlists/wallet-provider`, providers added with `trust add-ca --list wallet-provider`, and external wallet provider lists. It also accepts attestations from other providers when their signature verifies against the included leaf certificate.
 
 The ticket records the result in `wallet_attestation`: `trusted` for a chain to a trusted wallet provider, `untrusted` for another signer, or `none` when authentication was optional and omitted.
 

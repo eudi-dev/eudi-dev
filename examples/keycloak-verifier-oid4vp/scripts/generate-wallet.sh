@@ -14,10 +14,8 @@ require_oid4vc_dev() {
 
 require_oid4vc_dev
 eudi wallet remove --all >/dev/null
-eudi wallet generate-pid \
-  --docker \
-  --base-url "http://host.docker.internal:${OID4VC_WALLET_PORT}"
-eudi wallet ca-cert --out "${SCRIPT_DIR}/../wallet-ca-cert.pem" >/dev/null
+eudi issue sdjwt --wallet --pid --iss "https://host.docker.internal:$((OID4VC_WALLET_PORT + 1))" >/dev/null
+eudi trust ca-cert --out "${SCRIPT_DIR}/../wallet-ca-cert.pem" >/dev/null
 
 echo
 echo "Stored credentials:"

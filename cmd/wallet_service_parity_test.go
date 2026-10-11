@@ -470,6 +470,18 @@ func parityCases() []parityCase {
 			}
 			return []any{len(state.Entities), state.Entities[0].Name, state.EntityLists, strings.HasSuffix(state.ListsURL, "/api/trustlists/lists")}
 		}},
+		{method: "TrustListIndex", observe: func(t *testing.T, s walletService) any {
+			index, err := s.TrustListIndex()
+			if err != nil {
+				t.Fatal(err)
+			}
+			var ids, paths []string
+			for _, entry := range index {
+				ids = append(ids, docString(entry, "id"))
+				paths = append(paths, docString(entry, "path"))
+			}
+			return []any{ids, paths}
+		}},
 		{method: "AddTrustedEntity", observe: func(t *testing.T, s walletService) any {
 			entity, err := s.AddTrustedEntity("pid", "", parityCAPEM(t))
 			_, unknown := s.AddTrustedEntity("nowhere", "", parityCAPEM(t))

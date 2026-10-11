@@ -23,7 +23,6 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
-	"text/tabwriter"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -64,77 +63,64 @@ var walletCmd = &cobra.Command{
 		"instance selected by `wallet use` or --remote, or through a running server for the same wallet directory.",
 }
 
+// walletFlags select and configure the wallet a command works on. The wallet
+// commands and the top-level registrar, catalog and trust commands share the
+// same flag values, so Changed reads the same on every path.
+var walletFlags = newWalletFlags()
+
+func newWalletFlags() *pflag.FlagSet {
+	flags := pflag.NewFlagSet("wallet", pflag.ContinueOnError)
+	flags.StringVar(&walletDir, "wallet-dir", "", "Wallet storage directory (default ~/.eudi-dev/wallet/)")
+	flags.StringVar(&remoteFlag, "remote", "", "Manage a remote wallet server at this URL for this invocation (\"local\" forces the local store)")
+	flags.StringVar(&templatesDir, "templates-dir", "", "Credential template directory (default <wallet-dir>/templates/)")
+	flags.StringVar(&storageSpec, "storage", "", storageFlagUsage)
+	flags.StringVar(&keySeed, "seed", "", seedFlagUsage)
+	flags.StringVar(&walletValidationMode, "mode", string(wallet.ValidationModeDebug), "Wallet validation mode: 'debug' (default) or 'strict'")
+	flags.BoolVar(&walletTLSVerify, "tls-verify", false, "Verify certificates for every outbound HTTPS request (default: true in strict mode, false in debug mode)")
+	flags.StringVar(&walletTLSCA, "tls-ca", "", "PEM CA bundle added to system trust for outbound HTTPS")
+	flags.StringVar(&walletHTTPProxy, "http-proxy", "", "Forward proxy URL for outbound http:// requests (default $HTTP_PROXY)")
+	flags.StringVar(&walletHTTPSProxy, "https-proxy", "", "Forward proxy URL for outbound https:// requests (default $HTTPS_PROXY)")
+	flags.StringVar(&walletNoProxy, "no-proxy", "", "Comma-separated hosts, domains and CIDRs that bypass the proxy (default $NO_PROXY)")
+	return flags
+}
+
+// addWalletCommand registers a command that works on the active wallet.
+func addWalletCommand(cmd *cobra.Command) {
+	cmd.PersistentFlags().AddFlagSet(walletFlags)
+	rootCmd.AddCommand(cmd)
+}
+
 func init() {
-	walletCmd.PersistentFlags().StringVar(&walletDir, "wallet-dir", "", "Wallet storage directory (default ~/.eudi-dev/wallet/)")
-	walletCmd.PersistentFlags().StringVar(&remoteFlag, "remote", "", "Manage a remote wallet server at this URL for this invocation (\"local\" forces the local store)")
-	walletCmd.PersistentFlags().StringVar(&templatesDir, "templates-dir", "", "Credential template directory (default <wallet-dir>/templates/)")
-	walletCmd.PersistentFlags().StringVar(&storageSpec, "storage", "", storageFlagUsage)
-	walletCmd.PersistentFlags().StringVar(&keySeed, "seed", "", seedFlagUsage)
-	walletCmd.PersistentFlags().StringVar(&walletValidationMode, "mode", string(wallet.ValidationModeDebug), "Wallet validation mode: 'debug' (default) or 'strict'")
-	walletCmd.PersistentFlags().BoolVar(&walletTLSVerify, "tls-verify", false, "Verify certificates for every outbound HTTPS request (default: true in strict mode, false in debug mode)")
-	walletCmd.PersistentFlags().StringVar(&walletTLSCA, "tls-ca", "", "PEM CA bundle added to system trust for outbound HTTPS")
-	walletCmd.PersistentFlags().StringVar(&walletHTTPProxy, "http-proxy", "", "Forward proxy URL for outbound http:// requests (default $HTTP_PROXY)")
-	walletCmd.PersistentFlags().StringVar(&walletHTTPSProxy, "https-proxy", "", "Forward proxy URL for outbound https:// requests (default $HTTPS_PROXY)")
-	walletCmd.PersistentFlags().StringVar(&walletNoProxy, "no-proxy", "", "Comma-separated hosts, domains and CIDRs that bypass the proxy (default $NO_PROXY)")
 	walletCmd.PersistentFlags().BoolVar(&noOpen, "no-open", false, "Never open a browser, only print the URL")
 	walletCmd.AddCommand(walletServeCmd())
 	walletCmd.AddCommand(walletListCmd())
 	walletCmd.AddCommand(walletShowCmd())
 	walletCmd.AddCommand(walletImportCmd())
 	walletCmd.AddCommand(walletRemoveCmd())
-	walletCmd.AddCommand(walletGeneratePIDCmd())
-	acceptCmd := walletAcceptCmd()
-	walletCmd.AddCommand(acceptCmd)
+	walletCmd.AddCommand(walletAcceptCmd())
 	walletCmd.AddCommand(walletScanCmd())
 	walletCmd.AddCommand(walletLogsCmd())
 	walletCmd.AddCommand(walletDeferredCmd())
 	walletCmd.AddCommand(walletRefreshCmd())
 	walletCmd.AddCommand(walletRegisterCmd())
 	walletCmd.AddCommand(walletUnregisterCmd())
-	walletCmd.AddCommand(walletTrustListCmd())
-	walletCmd.AddCommand(walletCACertCmd())
-	walletCmd.AddCommand(walletRegistrarCmd())
-	walletCmd.AddCommand(walletCatalogCmd())
-	walletCmd.AddCommand(walletTrustCmd())
 	walletCmd.AddCommand(walletTLSCertCmd())
 	walletCmd.AddCommand(walletInfoCmd())
 	walletCmd.AddCommand(walletPsCmd())
 	walletCmd.AddCommand(walletUseCmd())
 	walletCmd.AddCommand(walletKillCmd())
+	addWalletCommand(walletCmd)
+	addWalletCommand(registrarCmd())
+	addWalletCommand(catalogCmd())
+	addWalletCommand(trustCmd())
+	addMovedCommands()
 
-	walletCmd.AddCommand(walletInstancesCmd())
-	presentAlias := &cobra.Command{
-		Use:        "present <uri>",
-		Short:      "Deprecated: use 'wallet accept' instead",
-		Hidden:     true,
-		Deprecated: "use 'wallet accept' instead",
-		Args:       cobra.ExactArgs(1),
-		// Share accept's flag set and RunE so cobra parses --auto-accept,
-		// --tx-code and the rest for the present invocation too.
-		RunE: acceptCmd.RunE,
-	}
-	presentAlias.Flags().AddFlagSet(acceptCmd.Flags())
-	walletCmd.AddCommand(presentAlias)
-
-	listenAlias := &cobra.Command{
-		Use:        "listen",
-		Short:      "Deprecated: use 'wallet serve --register' instead",
-		Hidden:     true,
-		Deprecated: "use 'wallet serve --register' instead",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			serveCmd, _, _ := walletCmd.Find([]string{"serve"})
-			_ = serveCmd.Flags().Set("register", "true")
-			return serveCmd.RunE(serveCmd, args)
-		},
-	}
-	walletCmd.AddCommand(listenAlias)
-
+	// Completions and annotations live on the shared flags, so they hold for
+	// every command above.
 	_ = walletCmd.RegisterFlagCompletionFunc("remote", completeRemoteFlag)
 	_ = walletCmd.RegisterFlagCompletionFunc("mode", staticCompletion("debug", "strict"))
 	_ = walletCmd.MarkPersistentFlagDirname("wallet-dir")
 	_ = walletCmd.MarkPersistentFlagDirname("templates-dir")
-
-	rootCmd.AddCommand(walletCmd)
 }
 
 const storageFlagUsage = "Where the wallet state lives: 'file', 'memory', 'auto' (files when a state directory was given or exists, memory otherwise) or a postgres:// URL (default $EUDI_DEV_STORAGE)"
@@ -495,118 +481,6 @@ func printRegistration(reg wallet.Registration) {
 	fmt.Printf("  Schemes:    %s\n", strings.Join(schemes, ", "))
 }
 
-func walletTrustListCmd() *cobra.Command {
-	var (
-		port    int
-		docker  bool
-		urlOnly bool
-		list    bool
-		id      string
-		vct     string
-		docType string
-	)
-
-	cmd := &cobra.Command{
-		Use:   "trusted-list",
-		Short: "Print a trusted list of this wallet (or just its URL)",
-		Long: `Prints a list of trusted entities (ETSI TS 119 602) of this wallet as a signed JWT.
-The output can be piped to a file or used directly with --trusted-list in the validate command.
-
-The wallet keeps one list per credential category (pid, qeaa, pub-eaa, eaa),
-one for wallet providers (wallet-provider), one for access certificate
-providers (access-ca) and one for registrars (registrar). --id lists prints the
-list of trusted lists. Each list names its providers with their certificates.
-Without selection flags, this prints the PID provider list, like /api/trustlist.
-Use --id, --vct, or --doctype to select another list.
-Use --list to see all lists of the wallet.
-Use --url to print only the list URL of a running wallet server.`,
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			if id != "" && (vct != "" || docType != "") {
-				return fmt.Errorf("--id cannot be combined with --vct or --doctype")
-			}
-			if list && (id != "" || vct != "" || docType != "" || urlOnly) {
-				return fmt.Errorf("--list prints every list, so it takes no selection flags")
-			}
-			return nil
-		},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			// A remote wallet has its own CA. Reading the local store would return the
-			// wrong trust anchor.
-			client, err := remoteClientIfConfigured()
-			if err != nil {
-				return err
-			}
-
-			if list {
-				return printTrustListIndex(client)
-			}
-
-			if urlOnly {
-				path := remote.TrustListPath(id, vct, docType)
-				var trustListURL string
-				if client != nil {
-					trustListURL = client.BaseURL + path
-				} else {
-					origin, _ := walletOrigin(port, "", docker)
-					trustListURL = origin.Base + path
-				}
-				printResult(map[string]string{"url": trustListURL}, func() { fmt.Println(trustListURL) })
-				return nil
-			}
-
-			if client != nil {
-				jwt, err := client.TrustList(id, vct, docType)
-				if err != nil {
-					return err
-				}
-				printTrustList(jwt)
-				return nil
-			}
-
-			w, _, err := loadWallet()
-			if err != nil {
-				return err
-			}
-
-			if w.CAKey == nil || len(w.CertChain) < 2 {
-				return fmt.Errorf("wallet has no CA certificate chain")
-			}
-			if id == wallet.ListOfTrustedListsID {
-				jwt, err := wallet.GenerateListOfTrustedLists(w, w.IssuerURL)
-				if err != nil {
-					return fmt.Errorf("generating the list of trusted lists: %w", err)
-				}
-				printTrustList(jwt)
-				return nil
-			}
-			group, ok := wallet.FindTrustListGroupForWallet(w, id, vct, docType)
-			if !ok {
-				return fmt.Errorf("wallet has no matching trusted list")
-			}
-			jwt, err := wallet.GenerateTrustListJWTForWalletGroup(w, w.IssuerURL, group, "/api/trustlists/"+group.ID)
-			if err != nil {
-				return fmt.Errorf("generating trusted list: %w", err)
-			}
-
-			printTrustList(jwt)
-			return nil
-		},
-	}
-
-	cmd.Flags().BoolVar(&urlOnly, "url", false, "Print only the trusted list URL (for a running wallet server)")
-	cmd.Flags().BoolVar(&list, "list", false, "List all trusted lists of the wallet instead of printing one")
-	cmd.Flags().IntVar(&port, "port", config.DefaultWalletPort, "Wallet server port (used with --url)")
-	cmd.Flags().BoolVar(&docker, "docker", false, "Use host.docker.internal instead of localhost (used with --url)")
-	cmd.Flags().StringVar(&id, "id", "", "ID of the list to print, for example 'pid', 'eaa', 'wallet-provider' or 'lists' for the list of trusted lists")
-	cmd.Flags().StringVar(&vct, "vct", "", "Select the trusted list covering this SD-JWT VCT")
-	cmd.Flags().StringVar(&docType, "doctype", "", "Select the trusted list covering this mdoc docType")
-	return cmd
-}
-
-func printTrustList(jwt string) {
-	printResult(map[string]string{"trust_list": jwt}, func() { fmt.Println(jwt) })
-}
-
 func certificateExportFormat(asPEM, asJWKS bool) (string, error) {
 	if asPEM && asJWKS {
 		return "", fmt.Errorf("--pem and --jwks are mutually exclusive")
@@ -643,45 +517,6 @@ func writeCertificateExport(cmd *cobra.Command, kind, certFormat string, data []
 	return nil
 }
 
-func walletCACertCmd() *cobra.Command {
-	var (
-		outPath string
-		asPEM   bool
-		asJWKS  bool
-	)
-
-	cmd := &cobra.Command{
-		Use:   "ca-cert",
-		Short: "Print or export the shared wallet CA certificate",
-		Long: `Loads or creates the shared wallet CA certificate and prints it as PEM.
-Wallets under the same parent directory share this root for signing and HTTPS
-certificate chains. New provider chains include an intermediate CA.
-
-Use --jwks to export the certificate as a JWKS document (public key with x5c
-chain).`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			certFormat, err := certificateExportFormat(asPEM, asJWKS)
-			if err != nil {
-				return err
-			}
-			svc, err := managedWallet()
-			if err != nil {
-				return err
-			}
-			certData, err := svc.Certificate("ca", certFormat, walletCertOptions{})
-			if err != nil {
-				return err
-			}
-			return writeCertificateExport(cmd, "CA", certFormat, certData, outPath)
-		},
-	}
-
-	cmd.Flags().StringVar(&outPath, "out", "", "Write the shared wallet CA certificate to a file instead of stdout")
-	cmd.Flags().BoolVar(&asPEM, "pem", false, "Output as PEM (the default)")
-	cmd.Flags().BoolVar(&asJWKS, "jwks", false, "Output as JWKS (public key with x5c chain)")
-	return cmd
-}
-
 func walletTLSCertCmd() *cobra.Command {
 	var (
 		port    int
@@ -697,7 +532,7 @@ func walletTLSCertCmd() *cobra.Command {
 		Short: "Print or export the wallet TLS leaf certificate used by HTTPS wallet endpoints",
 		Long: `Loads or creates the HTTPS leaf certificate used by the wallet's HTTPS endpoints.
 Use this to inspect or export the exact server certificate presented by the wallet.
-Use 'wallet ca-cert' for the one trust root shared by every wallet under the same base directory.
+Use 'trust ca-cert' for the one trust root shared by every wallet under the same base directory.
 
 Use --jwks to export the certificate as a JWKS document (public key with x5c
 chain).`,
@@ -818,57 +653,6 @@ func loadWalletECKey(path, label string) (*ecdsa.PrivateKey, error) {
 	return key, nil
 }
 
-func printTrustListIndex(client *remote.Client) error {
-	var entries []map[string]any
-	if client != nil {
-		remoteEntries, err := client.TrustLists()
-		if err != nil {
-			return err
-		}
-		entries = remoteEntries
-	} else {
-		w, _, err := loadWallet()
-		if err != nil {
-			return err
-		}
-		data, err := json.Marshal(wallet.BuildTrustListIndexEntries(w, w.IssuerURL))
-		if err != nil {
-			return err
-		}
-		if err := json.Unmarshal(data, &entries); err != nil {
-			return err
-		}
-	}
-
-	if jsonOutput {
-		if entries == nil {
-			entries = []map[string]any{}
-		}
-		output.PrintJSON(map[string]any{"trust_lists": entries})
-		return nil
-	}
-
-	if len(entries) == 0 {
-		fmt.Println("No trusted lists.")
-		return nil
-	}
-
-	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "ID\tDEFAULT\tCATEGORY\tPATH")
-	for _, entry := range entries {
-		str := func(key string) string {
-			v, _ := entry[key].(string)
-			return v
-		}
-		def := ""
-		if isDefault, _ := entry["default"].(bool); isDefault {
-			def = "yes"
-		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", str("id"), def, str("category"), str("path"))
-	}
-	return tw.Flush()
-}
-
 func walletRefreshCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "refresh <credential-id>",
@@ -907,7 +691,7 @@ server renews on its own shortly before expiry. This asks now.`,
 
 func applyWalletOutbound(w *wallet.Wallet) error {
 	var verify *bool
-	if walletCmd.PersistentFlags().Changed("tls-verify") {
+	if walletFlags.Changed("tls-verify") {
 		verify = &walletTLSVerify
 	}
 	var caPEM []byte

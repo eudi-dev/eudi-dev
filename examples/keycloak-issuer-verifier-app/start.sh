@@ -5,7 +5,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 WALLET_PORT="${OID4VC_WALLET_PORT:-8087}"
-WALLET_BASE_URL="http://host.docker.internal:${WALLET_PORT}"
 APP_PORT="${APP_PORT:-8090}"
 APP_PID=""
 WALLET_PID=""
@@ -69,8 +68,8 @@ ensure_oid4vc_dev
 # container. Add the wallet CA to its truststore.
 echo "Seeding the wallet with a PID..."
 eudi wallet remove --all >/dev/null 2>&1 || true
-eudi wallet generate-pid --docker --base-url "${WALLET_BASE_URL}"
-eudi wallet ca-cert --out "${SCRIPT_DIR}/wallet-ca-cert.pem" >/dev/null
+eudi issue sdjwt --wallet --pid --iss "https://host.docker.internal:$((WALLET_PORT + 1))" >/dev/null
+eudi trust ca-cert --out "${SCRIPT_DIR}/wallet-ca-cert.pem" >/dev/null
 
 echo "Starting the wallet on port ${WALLET_PORT}..."
 eudi wallet serve --docker --port "${WALLET_PORT}" &

@@ -17,7 +17,7 @@ A failing command exits non-zero and writes the error to stderr. If a command fa
 
 ## Long-running commands
 
-`wallet serve` and `serve` do not take `--json`. They run until stopped, so there is no single result. `wallet serve --log-format json` writes its log as one JSON record per line. `proxy --json` writes one JSON object per line for each captured OID4VP or OID4VCI exchange (every exchange with `--all-traffic`) and nothing else on stdout. `wallet logs` and `proxy logs` refuse `--json` together with `--follow`. The shell completion commands print a script and do not take `--json`.
+`wallet serve` and `decoder` do not take `--json`. They run until stopped, so there is no single result. `wallet serve --log-format json` writes its log as one JSON record per line. `proxy --json` writes one JSON object per line for each captured OID4VP or OID4VCI exchange (every exchange with `--all-traffic`) and nothing else on stdout. `wallet logs` and `proxy logs` refuse `--json` together with `--follow`. The shell completion commands print a script and do not take `--json`.
 
 ## Consequences
 

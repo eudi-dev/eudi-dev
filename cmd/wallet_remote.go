@@ -243,30 +243,6 @@ func incompatibilityNotice(url, instanceVersion string) string {
 		url, instanceVersion, Version)
 }
 
-func walletInstancesCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:        "instances",
-		Short:      "Deprecated: use 'wallet ps', 'wallet use', and 'wallet kill' instead",
-		Hidden:     true,
-		Deprecated: "use 'wallet ps', 'wallet use', and 'wallet kill' instead",
-		Args:       cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runInstancesList()
-		},
-	}
-	list := walletPsCmd()
-	list.Use = "list"
-	list.Deprecated = "use 'wallet ps' instead"
-	use := walletUseCmd()
-	use.Deprecated = "use 'wallet use' instead"
-	kill := walletKillCmd()
-	kill.Deprecated = "use 'wallet kill' instead"
-	cmd.AddCommand(list)
-	cmd.AddCommand(use)
-	cmd.AddCommand(kill)
-	return cmd
-}
-
 func walletPsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "ps",

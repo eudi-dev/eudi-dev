@@ -62,6 +62,8 @@ type walletService interface {
 	AddCatalogAttestation(entry registrar.CatalogAttestation) (registrar.CatalogAttestation, error)
 	DeleteCatalogAttestation(id string) error
 	TrustState() (wallet.TrustedListState, error)
+	// TrustListIndex describes the lists the wallet signs, like /api/trustlists.
+	TrustListIndex() ([]map[string]any, error)
 	AddTrustedEntity(list, name, certificatesPEM string) (wallet.TrustedEntity, error)
 	RemoveTrustedEntity(id string) error
 	AddTrustedList(url string) (wallet.TrustedListLink, error)
@@ -88,7 +90,7 @@ func managedWalletWithLoader(load func() (*wallet.Wallet, *wallet.WalletStore, e
 		return nil, err
 	}
 	if c != nil {
-		if walletCmd.PersistentFlags().Changed("mode") {
+		if walletFlags.Changed("mode") {
 			mode, err := wallet.ParseValidationMode(walletValidationMode)
 			if err != nil {
 				return nil, err
@@ -241,6 +243,8 @@ func (r *remoteWallet) AddCatalogAttestation(entry registrar.CatalogAttestation)
 func (r *remoteWallet) DeleteCatalogAttestation(id string) error {
 	return r.c.DeleteCatalogAttestation(id)
 }
+
+func (r *remoteWallet) TrustListIndex() ([]map[string]any, error) { return r.c.TrustLists() }
 
 func (r *remoteWallet) TrustState() (wallet.TrustedListState, error) {
 	var out wallet.TrustedListState
@@ -473,6 +477,19 @@ func (l *localWallet) RegistrationCertificate(req registrar.RegistrationCertific
 	return with(l, func(m *wallet.Management) (*registrar.RegistrationCertificateResult, error) {
 		return m.RegistrationCertificate(req)
 	})
+}
+
+func (l *localWallet) TrustListIndex() ([]map[string]any, error) {
+	w, _, err := l.load()
+	if err != nil {
+		return nil, err
+	}
+	data, err := json.Marshal(wallet.BuildTrustListIndexEntries(w, w.IssuerURL))
+	if err != nil {
+		return nil, err
+	}
+	entries := []map[string]any{}
+	return entries, json.Unmarshal(data, &entries)
 }
 
 func (l *localWallet) TrustState() (wallet.TrustedListState, error) {

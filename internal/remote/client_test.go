@@ -137,17 +137,6 @@ func TestClientEndpoints(t *testing.T) {
 			wantMethod: http.MethodPost, wantPath: "/api/issue", wantBody: `{"vct":"urn:test"}`,
 		},
 		{
-			name:       "GeneratePID",
-			call:       func(c *Client) error { return c.GeneratePID(map[string]any{"given_name": "Ada"}, "urn:x") },
-			wantMethod: http.MethodPost, wantPath: "/api/generate-pid",
-			wantBody: `{"claims":{"given_name":"Ada"},"vct":"urn:x"}`,
-		},
-		{
-			name:       "GeneratePID without overrides",
-			call:       func(c *Client) error { return c.GeneratePID(nil, "") },
-			wantMethod: http.MethodPost, wantPath: "/api/generate-pid", wantBody: `{}`,
-		},
-		{
 			name:  "Log",
 			reply: `[{"event":"issuance"}]`,
 			call: func(c *Client) error {

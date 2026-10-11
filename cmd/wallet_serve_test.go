@@ -18,7 +18,6 @@ import (
 	"encoding/pem"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 
@@ -237,18 +236,6 @@ func TestWalletServeRejectsBasePathOnWalletRoute(t *testing.T) {
 	err = rootCmd.Execute()
 	if err == nil || !strings.Contains(err.Error(), "cannot start with /verifier") {
 		t.Fatalf("expected a base path error, got %v", err)
-	}
-}
-
-// The deprecated --demo-verifier-trust-anchor adds to --demo-verifier-issuer-ca
-// instead of replacing it.
-func TestTheDeprecatedTrustAnchorFlagAddsIssuerCAs(t *testing.T) {
-	cmd, opts := walletServeCmdWithOptions()
-	if err := cmd.Flags().Parse([]string{"--demo-verifier-issuer-ca", "a.pem", "--demo-verifier-trust-anchor", "b.pem"}); err != nil {
-		t.Fatal(err)
-	}
-	if got := opts.demoVerifierIssuerCAFiles(); !slices.Equal(got, []string{"a.pem", "b.pem"}) {
-		t.Errorf("issuer CA files %v, want both", got)
 	}
 }
 

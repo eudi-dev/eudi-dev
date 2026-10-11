@@ -35,7 +35,7 @@ Its doctype is `eu.europa.ec.eudi.pid.1`, like every PID. A claim key written as
 
 Regenerating a PID replaces the existing mdoc PID with the same doctype and namespaces. So an override of `german-pid-mdoc` needs at least one `eu.europa.ec.eudi.pid.de.1` element to stay distinguishable from `pid-mdoc`.
 
-`issue ... --pid`, the deprecated `wallet generate-pid` and `POST /api/generate-pid` use these templates. They use the `pid-*` pair by default. With `--vct` they use the SD-JWT template of that type and the mdoc template with the PID doctype and the same display name. A user template for another PID type, such as `urn:eudi:pid:fr:1`, works the same way. A type without templates gets the EUDI PID claims under that type. A user template saved under the same name overrides the predefined one everywhere. Deleting the override restores the original.
+`issue ... --pid` and `wallet serve --pid` use these templates. They use the `pid-*` pair by default. With `--vct` they use the SD-JWT template of that type and the mdoc template with the PID doctype and the same display name. A user template for another PID type, such as `urn:eudi:pid:fr:1`, works the same way. A type without templates gets the EUDI PID claims under that type. A user template saved under the same name overrides the predefined one everywhere. Deleting the override restores the original.
 
 ## Template files and storage
 

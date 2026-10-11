@@ -250,15 +250,6 @@ func TestLocalHostHelpersShareOneDefinition(t *testing.T) {
 	}
 }
 
-func TestWalletPortFromBaseURL(t *testing.T) {
-	if got, want := walletPortFromBaseURL("http://host.docker.internal:8091/wallet"), 8091; got != want {
-		t.Fatalf("walletPortFromBaseURL() = %d, want %d", got, want)
-	}
-	if got := walletPortFromBaseURL("https://wallet-test.ngrok.dev"); got != 0 {
-		t.Fatalf("walletPortFromBaseURL(no port) = %d, want 0", got)
-	}
-}
-
 func TestResolvePresentationPortUsesFreePairWhenDefaultBusy(t *testing.T) {
 	busy, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -424,18 +415,6 @@ func TestSerializeWalletServeArgs(t *testing.T) {
 	}
 }
 
-func TestPresentAliasForwardsAcceptFlags(t *testing.T) {
-	cmd, _, err := rootCmd.Find([]string{"wallet", "present"})
-	if err != nil {
-		t.Fatalf("finding wallet present: %v", err)
-	}
-	for _, name := range []string{"auto-accept", "tx-code", "haip", "port", "session-transcript"} {
-		if cmd.Flags().Lookup(name) == nil {
-			t.Errorf("present alias is missing forwarded accept flag --%s", name)
-		}
-	}
-}
-
 func TestSerializeWalletServeArgs_UnchangedBoolOmitted(t *testing.T) {
 	cmd := &cobra.Command{Use: "serve"}
 	flags := cmd.Flags()
@@ -491,15 +470,15 @@ func TestEveryRemoteCommandRefusesMode(t *testing.T) {
 	}
 	mode.Changed = true
 	t.Cleanup(func() { _ = mode.Value.Set(mode.DefValue); mode.Changed = false })
-	if _, err := managedWallet(); err == nil || !strings.Contains(err.Error(), "eudi wallet trust") {
-		t.Fatalf("err = %v, want the refusal that points to wallet trust", err)
+	if _, err := managedWallet(); err == nil || !strings.Contains(err.Error(), "'eudi trust'") {
+		t.Fatalf("err = %v, want the refusal that points to eudi trust", err)
 	}
 }
 
-// trust-list prints the list of trusted lists under the ID of its URL.
+// trust show prints the list of trusted lists under the ID of its URL.
 func TestTrustListPrintsTheListOfTrustedLists(t *testing.T) {
 	resetRemoteTestState(t)
-	rootCmd.SetArgs([]string{"wallet", "trusted-list", "--id", "lists"})
+	rootCmd.SetArgs([]string{"trust", "show", "lists"})
 	out := captureStdout(t, func() {
 		if err := rootCmd.Execute(); err != nil {
 			t.Fatal(err)

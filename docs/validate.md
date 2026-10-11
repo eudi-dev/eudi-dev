@@ -85,13 +85,13 @@ A trusted list past its `NextUpdate` is expired (ETSI TS 119 602 V1.1.1 §6.3.15
 
 When the wallet's attestation catalogue has an entry for the credential type, `validate` and the web decoder also check whether one of the entry's trusted lists anchors the credential. The check reads the lists linked in the entry. For a PID or a PuB-EAA it also reads the lists of that type from the wallet's list of trusted lists, like the wallet does on issuance. `validate` adds the result as `trust` to `--json`. The result doesn't change the exit code. A type without a catalogue entry gets no trust check.
 
-`validate` and the decoder of `eudi serve` read the stored wallet when it exists. Neither creates one. The lists from `wallet serve --trusted-list` and the operators from `--trusted-list-ca` count only in the decoder of the running wallet. Fetches use the HTTP client of the wallet. In the decoder of the running wallet, that client follows `--tls-ca` and the proxy flags of `wallet serve`.
+`validate` and `eudi decoder` read the stored wallet when it exists. Neither creates one. The lists from `wallet serve --trusted-list` and the operators from `--trusted-list-ca` count only in the decoder of the running wallet. Fetches use the HTTP client of the wallet. In the decoder of the running wallet, that client follows `--tls-ca` and the proxy flags of `wallet serve`.
 
-The decoder fetches the trusted lists, issuer metadata and status lists that a visitor's input names. So the decoders of `eudi serve` and `wallet serve` reach public addresses and loopback only. Start the server with `--allow-private-networks`, or set `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=true`, for issuers on a private network (see [outbound address limits](wallet/serve.md#outbound-address-limits)). The `validate` command has no limit.
+The decoder fetches the trusted lists, issuer metadata and status lists that a visitor's input names. So `eudi decoder` and the decoder of `wallet serve` reach public addresses and loopback only. Start the server with `--allow-private-networks`, or set `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=true`, for issuers on a private network (see [outbound address limits](wallet/serve.md#outbound-address-limits)). The `validate` command has no limit.
 
 Trusted list validation covers certificate trust and service listing. Provider class and attestation-type entitlement come from signed Credential Issuer metadata (`/.well-known/openid-credential-issuer`, `issuer_info`) and registrar data. A wallet keeps one trusted list per credential category. `/api/trustlist` serves the PID list and `/api/trustlists` lists every list. In containers, use the index entry's relative `path` instead of its advertised URL.
 
-To let a verifier trust the wallet's local HTTPS endpoints, export the wallet CA with `eudi wallet ca-cert --out wallet-ca-cert.pem` and add it to the verifier trust store. `wallet tls-cert` exports the per-wallet HTTPS leaf certificate as a single PEM instead.
+To let a verifier trust the wallet's local HTTPS endpoints, export the wallet CA with `eudi trust ca-cert --out wallet-ca-cert.pem` and add it to the verifier trust store. `wallet tls-cert` exports the per-wallet HTTPS leaf certificate as a single PEM instead.
 
 ```bash
 # Validate a wallet-issued credential against the wallet's trusted list

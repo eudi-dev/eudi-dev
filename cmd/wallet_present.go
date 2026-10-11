@@ -250,18 +250,6 @@ func defaultWalletCommandPort() int {
 	return config.DefaultWalletPort
 }
 
-func walletPortFromBaseURL(raw string) int {
-	u, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil {
-		return 0
-	}
-	port, err := strconv.Atoi(u.Port())
-	if err != nil {
-		return 0
-	}
-	return port
-}
-
 // A Docker hostname may be intentional. Only realign localhost issuer URLs to the
 // registered listener.
 func isLocalhostIssuerURL(raw string) bool {

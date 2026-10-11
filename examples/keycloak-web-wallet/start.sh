@@ -92,7 +92,7 @@ fi
 
 echo "Exporting the wallet CA certificate for Keycloak's truststore..."
 docker compose build wallet-init
-current_ca="$(docker compose run --rm -T wallet-init wallet ca-cert)"
+current_ca="$(docker compose run --rm -T wallet-init trust ca-cert)"
 compose_up_flags=""
 if [[ ! -f wallet-ca-cert.pem ]] || [[ "$(cat wallet-ca-cert.pem)" != "${current_ca}" ]]; then
   # Keycloak reads its truststore at startup. Recreate containers when the wallet CA

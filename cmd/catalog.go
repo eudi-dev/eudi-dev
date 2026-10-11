@@ -27,7 +27,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
 )
 
-func walletCatalogCmd() *cobra.Command {
+func catalogCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "catalog",
 		Short: "List, add and remove attestation types in the catalogue of attestations",
@@ -44,7 +44,7 @@ Without a subcommand, or with list, it lists the catalogue.`,
 		Args: cobra.NoArgs,
 		RunE: listCatalog,
 	}
-	cmd.AddCommand(walletCatalogAddCmd(), walletCatalogRemoveCmd(), listSubcommand(cmd, "List the attestation types in the catalogue"))
+	cmd.AddCommand(catalogAddCmd(), catalogRemoveCmd(), listSubcommand(cmd, "List the attestation types in the catalogue"))
 	return cmd
 }
 
@@ -76,7 +76,7 @@ func listCatalog(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func walletCatalogAddCmd() *cobra.Command {
+func catalogAddCmd() *cobra.Command {
 	var (
 		entry                    registrar.CatalogAttestation
 		types, claims            []string
@@ -101,9 +101,9 @@ category's trusted list unless --trusted-list names another. --issuer-ca puts
 the CA of your own issuer on the category's list, so with --arf its
 credentials of the type pass the trusted list check. It can't go with
 --trusted-list, because the entry then links another list.`,
-		Example: `  eudi wallet catalog add --name "University diploma" --type dc+sd-jwt:urn:example:diploma:1 --claim dc+sd-jwt:degree
-  eudi wallet catalog add --name "University diploma" --type mso_mdoc:org.example.diploma.1 --claim mso_mdoc:degree --category qeaa
-  eudi wallet catalog add --name "University diploma" --type mso_mdoc:org.example.diploma.1 --los moderate --trusted-list https://example.com/lote`,
+		Example: `  eudi catalog add --name "University diploma" --type dc+sd-jwt:urn:example:diploma:1 --claim dc+sd-jwt:degree
+  eudi catalog add --name "University diploma" --type mso_mdoc:org.example.diploma.1 --claim mso_mdoc:degree --category qeaa
+  eudi catalog add --name "University diploma" --type mso_mdoc:org.example.diploma.1 --los moderate --trusted-list https://example.com/lote`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			for _, value := range types {
@@ -205,7 +205,7 @@ func catalogClaimPath(format, typ, claim string) []any {
 	return path
 }
 
-func walletCatalogRemoveCmd() *cobra.Command {
+func catalogRemoveCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "rm <id>",
 		Aliases: []string{"remove", "delete"},

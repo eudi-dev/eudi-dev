@@ -99,9 +99,6 @@ func TestJSONOutputIsOneDocument(t *testing.T) {
 	if creds := runJSON(t, "wallet", "list")["credentials"]; creds == nil || len(creds.([]any)) != 0 {
 		t.Errorf("an empty wallet lists %v, want []", creds)
 	}
-	if doc := runJSON(t, "wallet", "generate-pid"); doc["vct"] == "" {
-		t.Errorf("wallet generate-pid: %v", doc)
-	}
 
 	credFile := filepath.Join(t.TempDir(), "cred.txt")
 	if err := os.WriteFile(credFile, []byte(credential), 0o600); err != nil {
@@ -119,18 +116,20 @@ func TestJSONOutputIsOneDocument(t *testing.T) {
 		t.Errorf("wallet remove: %v", doc)
 	}
 
-	if doc := runJSON(t, "wallet", "trusted-list"); !strings.Contains(doc["trust_list"].(string), ".") {
-		t.Errorf("wallet trusted-list: %v", doc)
+	if doc := runJSON(t, "trust", "show"); !strings.Contains(doc["trust_list"].(string), ".") {
+		t.Errorf("trust show: %v", doc)
 	}
-	if doc := runJSON(t, "wallet", "trusted-list", "--url"); !strings.HasPrefix(doc["url"].(string), "http") {
-		t.Errorf("wallet trusted-list --url: %v", doc)
+	if doc := runJSON(t, "trust", "show", "--url"); !strings.HasPrefix(doc["url"].(string), "http") {
+		t.Errorf("trust show --url: %v", doc)
 	}
-	runJSON(t, "wallet", "trusted-list", "--list")
-	if doc := runJSON(t, "wallet", "ca-cert"); !strings.Contains(doc["pem"].(string), "BEGIN CERTIFICATE") {
-		t.Errorf("wallet ca-cert: %v", doc)
+	if doc := runJSON(t, "trust", "list"); doc["trust_lists"] == nil || doc["lists_url"] == nil {
+		t.Errorf("trust list: %v", doc)
 	}
-	if doc := runJSON(t, "wallet", "ca-cert", "--jwks"); doc["keys"] == nil {
-		t.Errorf("wallet ca-cert --jwks: %v", doc)
+	if doc := runJSON(t, "trust", "ca-cert"); !strings.Contains(doc["pem"].(string), "BEGIN CERTIFICATE") {
+		t.Errorf("trust ca-cert: %v", doc)
+	}
+	if doc := runJSON(t, "trust", "ca-cert", "--jwks"); doc["keys"] == nil {
+		t.Errorf("trust ca-cert --jwks: %v", doc)
 	}
 	var logs []any
 	runJSONInto(t, &logs, "wallet", "logs")
@@ -143,15 +142,15 @@ func TestJSONOutputIsOneDocument(t *testing.T) {
 	if err := os.WriteFile(csrFile, []byte(testCSR(t)), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	registered := runJSON(t, "wallet", "registrar", "issuers", "add", "--name", "Shop", "--attestation", "dc+sd-jwt:urn:example:diploma:1")
+	registered := runJSON(t, "registrar", "issuers", "add", "--name", "Shop", "--attestation", "dc+sd-jwt:urn:example:diploma:1")
 	identifier := registered["identifier"].([]any)[0].(map[string]any)["identifier"].(string)
-	if doc := runJSON(t, "wallet", "registrar", "access-cert", "--csr", csrFile, "--identifier", identifier); !strings.HasPrefix(doc["certificate"].(string), "-----BEGIN CERTIFICATE-----") {
-		t.Errorf("wallet registrar access-cert: %v", doc)
+	if doc := runJSON(t, "registrar", "access-cert", "--csr", csrFile, "--identifier", identifier); !strings.HasPrefix(doc["certificate"].(string), "-----BEGIN CERTIFICATE-----") {
+		t.Errorf("registrar access-cert: %v", doc)
 	}
 	var records []any
-	runJSONInto(t, &records, "wallet", "registrar", "issuers")
+	runJSONInto(t, &records, "registrar", "issuers")
 	if len(records) != 1 {
-		t.Errorf("wallet registrar issuers printed %d records, want the registration", len(records))
+		t.Errorf("registrar issuers printed %d records, want the registration", len(records))
 	}
 
 	var templates []any
@@ -175,7 +174,7 @@ func TestJSONIsRefusedWithoutASingleResult(t *testing.T) {
 	resetRemoteTestState(t)
 	for _, args := range [][]string{
 		{"completion", "bash"},
-		{"serve"},
+		{"decoder"},
 		{"wallet", "serve"},
 	} {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {

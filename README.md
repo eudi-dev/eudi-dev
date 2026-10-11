@@ -53,7 +53,7 @@ Never use real credentials (see [SECURITY.md](SECURITY.md)).
 brew install dominikschlosser/tap/eudi-dev
 eudi wallet serve --pid            # wallet UI at http://localhost:8085 with PIDs
 eudi wallet accept 'openid4vp://authorize?...'
-eudi wallet registrar verifiers add --name "Example Shop" --purpose "Age check" --dcql query.json   # new in 3.0.0
+eudi registrar verifiers add --name "Example Shop" --purpose "Age check" --dcql query.json   # new in 3.0.0
 eudi decode credential.txt
 ```
 
@@ -102,16 +102,16 @@ eudi [--json] [--no-color] [-v] <command> [flags] [input]
 | Command | Purpose | Docs |
 |---|---|---|
 | `wallet` | The testing wallet: `serve`, `accept`, `scan`, `list`, `logs` and more | [wallet](docs/wallet.md) |
-| `wallet registrar` | Register `verifiers` and `issuers`, then issue, `revoke` and `activate` their certificates (new in 3.0.0) | [registrar](docs/wallet/registrar.md) |
-| `wallet catalog` | List, add and remove attestation types (new in 3.0.0) | [catalogue](docs/wallet/registrar.md#attestation-catalogue) |
-| `wallet trust` | Put your CAs on the wallet's trusted lists and add external lists (new in 3.0.0) | [trusted lists](docs/wallet/serve.md#your-providers-and-lists) |
+| `registrar` | Register `verifiers` and `issuers`, then issue, `revoke` and `activate` their certificates (new in 3.0.0) | [registrar](docs/wallet/registrar.md) |
+| `catalog` | List, add and remove attestation types (new in 3.0.0) | [catalogue](docs/wallet/registrar.md#attestation-catalogue) |
+| `trust` | Show and export the wallet's trusted lists and CA, put your CAs on them and add external lists | [trusted lists](docs/wallet/serve.md#trusted-lists) |
 | `issue` | Generate SD-JWT, JWT or mdoc test credentials | [issue](docs/issue.md) |
 | `templates` | Manage credential templates | [templates](docs/templates.md) |
 | `decode` | Inspect credentials, OpenID4VCI and OpenID4VP requests, and trusted lists | [decode](docs/decode.md) |
 | `validate` | Verify signatures, expiry and revocation status | [validate](docs/validate.md) |
 | `dcql` | Generate a DCQL query from a credential | |
 | `proxy` | Debug proxy for wallet traffic with a live dashboard | [proxy](docs/proxy.md) |
-| `serve` | Decoder web UI | |
+| `decoder` | Decoder web UI | |
 | `completion` | Shell completion (`eudi completion install`) | |
 
 Input is a file path, a URL, a raw credential string or stdin. `--json` prints one JSON document on stdout for scripts, and messages go to stderr ([ADR 0020](docs/adr/0020-cli-output-can-be-automated.md)). `-v` adds detail such as x5c chains, device keys and digest IDs.

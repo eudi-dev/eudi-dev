@@ -247,9 +247,9 @@ func TestOneShotPresentationPrintsOnlyTheResultAsJSON(t *testing.T) {
 		resetFlags(rootCmd)
 	})
 	dir := walletDir
-	rootCmd.SetArgs([]string{"wallet", "generate-pid"})
+	rootCmd.SetArgs([]string{"issue", "sdjwt", "--pid", "--wallet"})
 	if err := rootCmd.Execute(); err != nil {
-		t.Fatalf("wallet generate-pid: %v", err)
+		t.Fatalf("issue sdjwt --pid --wallet: %v", err)
 	}
 	resetFlags(rootCmd)
 	walletDir = dir

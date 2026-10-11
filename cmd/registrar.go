@@ -30,7 +30,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 )
 
-func walletRegistrarCmd() *cobra.Command {
+func registrarCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "registrar",
 		Short: "Register relying parties and issue their certificates",
@@ -42,7 +42,7 @@ A verifier registers intended uses and gets a registration certificate for each.
 An issuer registers as an attestation provider and lists its attestation types.
 It gets one registration certificate for its service.`,
 	}
-	cmd.AddCommand(walletPartiesCmd("verifiers"), walletPartiesCmd("issuers"), walletAccessCertCmd(), walletRegistrationCertCmd(), walletRegistrarStatusCmd(true), walletRegistrarStatusCmd(false))
+	cmd.AddCommand(partiesCmd("verifiers"), partiesCmd("issuers"), accessCertCmd(), registrationCertCmd(), registrarStatusCmd(true), registrarStatusCmd(false))
 	return cmd
 }
 
@@ -118,11 +118,11 @@ func (f *partyFlags) register(service registrar.WalletRelyingPartyService) (regi
 	return svc.RegisterRelyingParty(rp)
 }
 
-func walletPartiesCmd(role string) *cobra.Command {
+func partiesCmd(role string) *cobra.Command {
 	isIssuer := role == "issuers"
-	short, add := "List, add and remove registered verifiers", walletVerifiersAddCmd()
+	short, add := "List, add and remove registered verifiers", verifiersAddCmd()
 	if isIssuer {
-		short, add = "List, add and remove registered issuers", walletIssuersAddCmd()
+		short, add = "List, add and remove registered issuers", issuersAddCmd()
 	}
 	cmd := &cobra.Command{
 		Use:   role,
@@ -165,7 +165,7 @@ func walletPartiesCmd(role string) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.AddCommand(add, walletPartyRemoveCmd(role), listSubcommand(cmd, "List the registered "+role))
+	cmd.AddCommand(add, partyRemoveCmd(role), listSubcommand(cmd, "List the registered "+role))
 	return cmd
 }
 
@@ -191,7 +191,7 @@ func listSubcommand(parent *cobra.Command, short string) *cobra.Command {
 	}
 }
 
-func walletPartyRemoveCmd(role string) *cobra.Command {
+func partyRemoveCmd(role string) *cobra.Command {
 	singular := strings.TrimSuffix(role, "s")
 	return &cobra.Command{
 		Use:     "rm <identifier>",
@@ -227,7 +227,7 @@ both roles.`,
 	}
 }
 
-func walletVerifiersAddCmd() *cobra.Command {
+func verifiersAddCmd() *cobra.Command {
 	var party partyFlags
 	var purpose, privacy, dcqlIn, to string
 	cmd := &cobra.Command{
@@ -246,8 +246,8 @@ both roles. The command issues the verifier registration certificate and
 prints its verifier_info. The service gets the Service_Provider entitlement,
 so the registrar revokes the issuer registration certificate of the service.
 Run registration-cert --provider for a new one.`,
-		Example: `  eudi wallet registrar verifiers add --name "Example Shop" --purpose "Age check" --dcql query.json
-  eudi wallet registrar verifiers add --to NLTEST.1A2B3C4D5E6F7A8B --purpose "Identity check before issuance" --dcql pid.json`,
+		Example: `  eudi registrar verifiers add --name "Example Shop" --purpose "Age check" --dcql query.json
+  eudi registrar verifiers add --to NLTEST.1A2B3C4D5E6F7A8B --purpose "Identity check before issuance" --dcql pid.json`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := party.check(cmd, to); err != nil {
@@ -284,7 +284,7 @@ Run registration-cert --provider for a new one.`,
 	return cmd
 }
 
-func walletIssuersAddCmd() *cobra.Command {
+func issuersAddCmd() *cobra.Command {
 	var party partyFlags
 	var to string
 	var categories []string
@@ -307,10 +307,10 @@ service gets a provider entitlement, so the registrar revokes the verifier
 registration certificates of the service. An issuer lists the new types next to
 its others. The command issues the new issuer registration certificate, which
 revokes the current one, and prints its issuer_info.`,
-		Example: `  eudi wallet registrar issuers add --name "Example University" --attestation dc+sd-jwt:urn:example:diploma:1
-  eudi wallet registrar issuers add --name "Example PID Provider" --attestation dc+sd-jwt:urn:eudi:pid:1 --attestation mso_mdoc:eu.europa.ec.eudi.pid.1
-  eudi wallet registrar issuers add --name "Example Bank" --category qeaa --attestation dc+sd-jwt:urn:example:account:1
-  eudi wallet registrar issuers add --to NLTEST.1A2B3C4D5E6F7A8B --attestation dc+sd-jwt:urn:example:ticket:1`,
+		Example: `  eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:urn:example:diploma:1
+  eudi registrar issuers add --name "Example PID Provider" --attestation dc+sd-jwt:urn:eudi:pid:1 --attestation mso_mdoc:eu.europa.ec.eudi.pid.1
+  eudi registrar issuers add --name "Example Bank" --category qeaa --attestation dc+sd-jwt:urn:example:account:1
+  eudi registrar issuers add --to NLTEST.1A2B3C4D5E6F7A8B --attestation dc+sd-jwt:urn:example:ticket:1`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := party.check(cmd, to); err != nil {
@@ -501,7 +501,7 @@ func intendedUseFromFlags(purpose, privacy, dcqlInput string) (registrar.Intende
 	return use, nil
 }
 
-func walletAccessCertCmd() *cobra.Command {
+func accessCertCmd() *cobra.Command {
 	var (
 		req     registrar.AccessCertificateRequest
 		csrPath string
@@ -519,7 +519,7 @@ x509_san_dns for every --dns name) go to stderr, or into the JSON output
 with --json.`,
 		Example: `  openssl ecparam -name prime256v1 -genkey -noout -out verifier.key
   openssl req -new -key verifier.key -subj "/" -out verifier.csr
-  eudi wallet registrar access-cert --identifier NLTEST.1A2B3C4D5E6F7A8B --csr verifier.csr > verifier.pem`,
+  eudi registrar access-cert --identifier NLTEST.1A2B3C4D5E6F7A8B --csr verifier.csr > verifier.pem`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pemData, err := format.ReadInput(csrPath)
 			if err != nil {
@@ -554,7 +554,7 @@ with --json.`,
 	return cmd
 }
 
-func walletRegistrationCertCmd() *cobra.Command {
+func registrationCertCmd() *cobra.Command {
 	var req registrar.RegistrationCertificateRequest
 	var provider, renew, jwt bool
 	cmd := &cobra.Command{
@@ -579,10 +579,10 @@ Without --intended-use it uses the relying party's only intended use, or its
 only provider service. --provider selects the provider service of
 --service-id. --jwt prints the bare registration certificate instead, and
 --json prints both.`,
-		Example: `  eudi wallet registrar registration-cert --identifier NLTEST.1A2B3C4D5E6F7A8B
-  eudi wallet registrar registration-cert --identifier NLTEST.1A2B3C4D5E6F7A8B --jwt | eudi decode
-  eudi wallet registrar registration-cert --identifier NLTEST.1A2B3C4D5E6F7A8B --intended-use 3f2a9c1e7b6d4a50 --json
-  eudi wallet registrar registration-cert --identifier NLTEST.1A2B3C4D5E6F7A8B --service-id diplomas --provider --new`,
+		Example: `  eudi registrar registration-cert --identifier NLTEST.1A2B3C4D5E6F7A8B
+  eudi registrar registration-cert --identifier NLTEST.1A2B3C4D5E6F7A8B --jwt | eudi decode
+  eudi registrar registration-cert --identifier NLTEST.1A2B3C4D5E6F7A8B --intended-use 3f2a9c1e7b6d4a50 --json
+  eudi registrar registration-cert --identifier NLTEST.1A2B3C4D5E6F7A8B --service-id diplomas --provider --new`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if provider && req.IntendedUseIdentifier != "" {
 				return fmt.Errorf("--provider selects a service, so it takes no --intended-use")
@@ -702,8 +702,8 @@ func onlyCertificateTarget(svc walletService, identifier, serviceIdentifier stri
 	}
 }
 
-// walletRegistrarStatusCmd revokes or activates registration certificates.
-func walletRegistrarStatusCmd(revoke bool) *cobra.Command {
+// registrarStatusCmd revokes or activates registration certificates.
+func registrarStatusCmd(revoke bool) *cobra.Command {
 	var identifier string
 	var scope registrar.RegistrationScope
 	use, verb, done := "activate", "Activate", "Activated"
@@ -722,7 +722,7 @@ itself is kept.
 Certificates revoked by the registrar itself stay revoked. That happens when a
 newer certificate replaces one, or when an update changes or removes what it
 certifies.`,
-		Example: "  eudi wallet registrar " + use + " --identifier NLTEST.1A2B3C4D5E6F7A8B\n  eudi wallet registrar " + use + " --identifier NLTEST.1A2B3C4D5E6F7A8B --intended-use 3f2a9c1e7b6d4a50\n  eudi wallet registrar " + use + " --identifier NLTEST.1A2B3C4D5E6F7A8B --service-id diplomas",
+		Example: "  eudi registrar " + use + " --identifier NLTEST.1A2B3C4D5E6F7A8B\n  eudi registrar " + use + " --identifier NLTEST.1A2B3C4D5E6F7A8B --intended-use 3f2a9c1e7b6d4a50\n  eudi registrar " + use + " --identifier NLTEST.1A2B3C4D5E6F7A8B --service-id diplomas",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			svc, err := managedWallet()
