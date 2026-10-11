@@ -165,7 +165,7 @@ The wallet checks that:
 - the request is signed with an access certificate in `x5c` (RPA_03)
 - the access certificate chains to a trusted access certificate authority (RPA_04)
 - the request carries exactly one registration certificate in `verifier_info` (RPRC_19)
-- the registration certificate is signed by a trusted registrar (RPRC_02a), names the relying party of the access certificate (RPRC_17a), has a valid signature and `typ`, contains all claims required by ETSI TS 119 475 and is not expired (RPRC_17)
+- the registration certificate is signed by a trusted registrar (RPRC_02a), names the relying party and the service of the access certificate (RPRC_17a), has a valid signature and `typ`, contains all claims required by ETSI TS 119 475 and is not expired (RPRC_17)
 - the registrar has not revoked the registration certificate (RPRC_17). Its status list must be readable and chain to a trusted registrar (RPACANot_03b)
 - the request asks only for credentials and claims registered in that certificate (RPRC_21)
 

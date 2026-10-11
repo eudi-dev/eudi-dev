@@ -405,7 +405,17 @@ func normalizeRelyingParty(rp *WalletRelyingParty, base string, before *WalletRe
 		return err
 	}
 	if rp.Country == "" {
-		rp.Country = semantic[3:5]
+		// ETSI TS 119 475 V1.2.1 B.2.2 takes an ISO 3166-1 code. The EUID and
+		// VAT prefix of Greece is EL, and a LEI names no country (ETSI EN 319
+		// 412-1 V1.6.1 LEG-5.1.4-03 uses XG).
+		switch prefix := semantic[3:5]; prefix {
+		case "XG":
+			return fmt.Errorf("a LEI names no country. Set the relying party's country")
+		case "EL":
+			rp.Country = "GR"
+		default:
+			rp.Country = prefix
+		}
 	}
 	// Every identifier maps to a semantics identifier, and one that names the
 	// same party as an earlier one is dropped.

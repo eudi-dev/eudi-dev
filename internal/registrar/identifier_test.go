@@ -14,7 +14,10 @@
 
 package registrar
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 // ETSI TS 119 475 V1.2.1 Table 2 maps each identifier type to a legal person
 // semantics identifier of ETSI EN 319 412-1 V1.6.1 §5.1.4.
@@ -39,6 +42,48 @@ func TestTheSemanticsIdentifierFollowsTheIdentifierType(t *testing.T) {
 		if err != nil || got != tc.want {
 			t.Errorf("%s %s: %q, %v, want %q", tc.id.Type, tc.id.Identifier, got, err, tc.want)
 		}
+	}
+}
+
+// ETSI TS 119 475 V1.2.1 B.2.2: the country is an ISO 3166-1 alpha-2 code. A
+// registration without one takes it from an identifier that carries a
+// country. The EUID and VAT prefix EL is Greece, GR in ISO 3166-1. A LEI
+// carries no country (XG), so its registration names the country.
+func TestTheCountryOfARegistrationIsAnISOCode(t *testing.T) {
+	w := generateTestWallet(t)
+	for _, id := range []Identifier{{Type: EUIDIdentifierType, Identifier: "ELGEMI.123456789"}, {Type: VATINIdentifierType, Identifier: "EL123456789"}} {
+		rp, err := w.RegisterRelyingParty(WalletRelyingParty{TradeName: "Greek Shop " + id.Identifier, Identifier: []Identifier{id}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if rp.Country != "GR" {
+			t.Errorf("%s: country %q, want GR", id.Identifier, rp.Country)
+		}
+	}
+	lei := []Identifier{{Type: LEIIdentifierType, Identifier: "529900T8BM49AURSDO55"}}
+	if rp, err := w.RegisterRelyingParty(WalletRelyingParty{TradeName: "LEI Shop", Identifier: lei}); err == nil {
+		t.Errorf("a LEI without a country registered with the country %q", rp.Country)
+	}
+	if rp, err := w.RegisterRelyingParty(WalletRelyingParty{TradeName: "LEI Shop", Country: "DE", Identifier: lei}); err != nil || rp.Country != "DE" {
+		t.Errorf("a LEI with a country: %q, %v", rp.Country, err)
+	}
+}
+
+// ETSI TS 119 475 V1.2.1 Annex B.2.1 and the example of Annex C: srv_description
+// is an array of arrays. Each registered description keeps its languages in
+// its own inner array.
+func TestTheRegistrationCertificateKeepsEachServiceDescription(t *testing.T) {
+	descriptions := ServiceDescription{
+		{{Lang: "en", Content: "Shop"}, {Lang: "de", Content: "Laden"}},
+		{{Lang: "en", Content: "Age check"}},
+	}
+	claims, err := RegistrationCertificateClaimsFor("https://wallet.example", RegistrationCertificateContent{Name: "Shop", Subject: "NTRNL-NLTEST.1", Description: descriptions}, nil, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _ := claims["srv_description"].([]any)
+	if len(got) != 2 || len(got[0].([]map[string]any)) != 2 || len(got[1].([]map[string]any)) != 1 {
+		t.Errorf("srv_description %v, want one inner array per description", claims["srv_description"])
 	}
 }
 

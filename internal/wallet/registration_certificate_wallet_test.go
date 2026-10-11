@@ -24,6 +24,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/regcert"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
@@ -94,7 +95,7 @@ func TestTheRegistrationCertificateMatchesTheAccessCertificate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := regcert.BindingFindings(certs[0], demoChain[0], "ARF RPRC_17a"); len(got) != 1 || !strings.Contains(got[0], "RPRC_17a") {
+	if got := regcert.BindingFindings(certs[0], demoChain[0], "ARF RPRC_17a"); len(got) == 0 || !strings.Contains(got[0], "RPRC_17a") {
 		t.Errorf("findings %v for another relying party's access certificate, want the RPRC_17a warning", got)
 	}
 	// An intermediary's certificate names the relying party in act.sub (ETSI
@@ -102,6 +103,63 @@ func TestTheRegistrationCertificateMatchesTheAccessCertificate(t *testing.T) {
 	intermediary := map[string]any{"sub": "LEIXG-INTERMEDIARY", "act": map[string]any{"sub": semanticIdentifier(t, rp)}}
 	if got := regcert.BindingFindings(intermediary, accessCert, "ARF RPRC_17a"); len(got) != 0 {
 		t.Errorf("findings %v for an intermediary acting for the relying party, want none", got)
+	}
+}
+
+// ARF RPRC_07a and RPRC_17a: a registration certificate names its service,
+// so it binds only to the access certificate of that service.
+func TestTheRegistrationCertificateBindsToTheAccessCertificateOfItsService(t *testing.T) {
+	w := generateTestWallet(t)
+	use := func(purpose string) []registrar.IntendedUse {
+		return []registrar.IntendedUse{{
+			Purpose: []registrar.MultiLangString{{Lang: "en", Content: purpose}},
+			Credentials: []registrar.RegisteredCredential{{
+				Format: "dc+sd-jwt",
+				Meta:   map[string]any{"vct_values": []any{mock.DefaultPIDVCT}},
+				Claims: []registrar.RegisteredClaim{{Path: []any{"given_name"}}},
+			}},
+		}}
+	}
+	rp, err := w.Registrar().RegisterRelyingParty(registrar.WalletRelyingParty{
+		TradeName: "Example Shop",
+		Services: []registrar.WalletRelyingPartyService{
+			{ServiceIdentifier: "shop", ServiceTradeName: "Example Shop", IntendedUses: use("Age check")},
+			{ServiceIdentifier: "loyalty", ServiceTradeName: "Example Loyalty", IntendedUses: use("Membership")},
+		},
+	})
+	if err != nil {
+		t.Fatalf("RegisterRelyingParty: %v", err)
+	}
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	accessCert := func(service string) *x509.Certificate {
+		access, err := w.Registrar().IssueAccessCertificate(registrar.AccessCertificateRequest{Identifier: rp.Identifier[0].Identifier, ServiceIdentifier: service, CSR: testAccessCSR(t, key)})
+		if err != nil {
+			t.Fatalf("IssueAccessCertificate: %v", err)
+		}
+		block, _ := pem.Decode([]byte(access.Certificate))
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return cert
+	}
+	result, err := w.Registrar().IssueRegistrationCertificate(registrar.RegistrationCertificateRequest{
+		Identifier:            rp.Identifier[0].Identifier,
+		ServiceIdentifier:     "shop",
+		IntendedUseIdentifier: rp.Services[0].IntendedUses[0].IntendedUseIdentifier,
+	})
+	if err != nil {
+		t.Fatalf("IssueRegistrationCertificate: %v", err)
+	}
+	certs, _ := verifiedRegistrationCertificates(map[string]any{"verifier_info": result.VerifierInfo})
+	if got := regcert.BindingFindings(certs[0], accessCert("shop"), "ARF RPRC_17a"); len(got) != 0 {
+		t.Errorf("findings %v for the access certificate of the same service, want none", got)
+	}
+	if got := regcert.BindingFindings(certs[0], accessCert("loyalty"), "ARF RPRC_17a"); len(got) != 1 {
+		t.Errorf("findings %v for the access certificate of another service, want the RPRC_17a warning", got)
 	}
 }
 

@@ -134,19 +134,34 @@ func Purposes(certs []map[string]any) (purposes, privacyPolicies []string) {
 }
 
 // BindingFindings links a registration certificate to the access certificate
-// of the request through the relying party identifier (ARF RPRC_17a). An intermediary's certificate carries it in act.sub (ETSI TS 119
-// 475 V1.2.1 GEN-5.2.4-09). The registration certificate has no service
-// identifier (Table 7), so only the relying party is compared.
+// of the request through the relying party identifier and the service
+// identifier (ARF RPRC_17a). The access certificate carries the service in
+// organizationalUnit (ARF Reg_33). An intermediary's access certificate names
+// the intermediary, which the registration certificate carries in act.sub
+// (ETSI TS 119 475 V1.2.1 GEN-5.2.4-09). The service in the registration
+// certificate is then the intermediated relying party's, so only the
+// identifiers are compared.
 func BindingFindings(cert map[string]any, access *x509.Certificate, rule string) []string {
 	identifier := jsonutil.Text(cert["sub"])
+	intermediated := false
 	if act, ok := cert["act"].(map[string]any); ok && jsonutil.Text(act["sub"]) != "" {
-		identifier = jsonutil.Text(act["sub"])
+		identifier, intermediated = jsonutil.Text(act["sub"]), true
 	}
-	accessIdentifier := certchain.OrganizationIdentifier(access)
-	if identifier != "" && identifier == accessIdentifier {
-		return nil
+	var findings []string
+	if accessIdentifier := certchain.OrganizationIdentifier(access); identifier == "" || identifier != accessIdentifier {
+		findings = append(findings, fmt.Sprintf("%s: the registration certificate identifies %q, but the access certificate's organizationIdentifier is %q", rule, identifier, accessIdentifier))
 	}
-	return []string{fmt.Sprintf("%s: the registration certificate identifies %q, but the access certificate's organizationIdentifier is %q", rule, identifier, accessIdentifier)}
+	if intermediated {
+		return findings
+	}
+	var accessService string
+	if len(access.Subject.OrganizationalUnit) > 0 {
+		accessService = access.Subject.OrganizationalUnit[0]
+	}
+	if service := jsonutil.Text(cert[registrar.ServiceIdentifierClaim]); service != accessService {
+		findings = append(findings, fmt.Sprintf("%s: the registration certificate is for the service %q, but the access certificate's organizationalUnit is %q", rule, service, accessService))
+	}
+	return findings
 }
 
 // ContentFindings checks the required content of a relying party's
@@ -173,6 +188,9 @@ func ContentFindings(cert map[string]any) []string {
 		miss("entitlements (at least one)", "ETSI TS 119 475 V1.2.1 GEN-5.2.4-03")
 	}
 	partyFindings(cert, miss, "ARF RPRC_11", "ARF RPRC_12")
+	if authority, _ := cert["supervisory_authority"].(map[string]any); jsonutil.Text(authority["name"]) == "" || jsonutil.Text(authority["country"]) == "" {
+		miss("supervisory_authority name and country", "ARF RPRC_12")
+	}
 	if !nonEmptyList(cert["credentials"]) {
 		miss("credentials (the registered attestations and attributes)", "ETSI TS 119 475 V1.2.1 GEN-5.2.4-06")
 	}

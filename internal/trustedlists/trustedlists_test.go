@@ -20,9 +20,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/storage"
@@ -130,5 +135,57 @@ func TestOwnListIDMatchesTheOriginLikeSameURL(t *testing.T) {
 		if id, ok := tr.ownListID(raw); ok != want || (ok && id != "pid") {
 			t.Errorf("%s: %q %t, want %t", raw, id, ok, want)
 		}
+	}
+}
+
+// ETSI TS 119 602 V1.1.1 §6.4.0: a list of lists approves no trusted entity,
+// so it has no TrustedEntitiesList.
+func TestTheListOfListsHasNoTrustedEntities(t *testing.T) {
+	tr, _ := newTestTrust(t)
+	raw, err := tr.ListOfLists("https://wallet.example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, payload, _, err := format.ParseJWTParts(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := payload["LoTE"].(map[string]any)
+	if _, ok := content["TrustedEntitiesList"]; ok {
+		t.Errorf("the list of lists has a TrustedEntitiesList: %v", content["TrustedEntitiesList"])
+	}
+	if pointers, _ := content["ListAndSchemeInformation"].(map[string]any)["PointersToOtherLoTE"].([]any); len(pointers) == 0 {
+		t.Error("the list of lists points to no list")
+	}
+}
+
+// ETSI TS 119 602 V1.1.1 §6.3.15: a list past its next update is expired. The
+// wallet fetches the list again instead of reusing the expired copy.
+func TestTheListCacheEndsAtTheNextUpdate(t *testing.T) {
+	tr, env := newTestTrust(t)
+	key, chain, err := env.signer.TrustList(config.WalletName, mock.DefaultCertificateCountry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sign := func(issued time.Time) string {
+		raw, err := lote.Sign(key, chain[0], lote.Options{OperatorName: "External", IssuedAt: issued})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return raw
+	}
+	expired, current := sign(time.Now().Add(-lote.UpdateInterval-time.Minute)), sign(time.Now())
+	var served atomic.Value
+	served.Store(expired)
+	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		_, _ = rw.Write([]byte(served.Load().(string)))
+	}))
+	defer srv.Close()
+	if _, err := tr.ReadList(srv.URL); err == nil {
+		t.Fatal("the expired list was read")
+	}
+	served.Store(current)
+	if _, err := tr.ReadList(srv.URL); err != nil {
+		t.Errorf("the wallet reused the expired list: %v", err)
 	}
 }

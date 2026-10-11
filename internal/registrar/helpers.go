@@ -20,27 +20,43 @@ import (
 )
 
 // CredentialTypes reads the types of a DCQL meta object. SD-JWT VC uses
-// vct_values. mdoc uses doctype_value.
+// vct_values and mdoc doctype_value. A W3C credential lists alternative type
+// sets in type_values (OpenID4VP 1.0 §B.1.1). Each set becomes one type, its
+// sorted members joined by spaces, which an IRI cannot contain.
 func CredentialTypes(meta any) []string {
 	m, ok := meta.(map[string]any)
 	if !ok {
 		return nil
 	}
-	var types []string
-	switch values := m["vct_values"].(type) {
-	case []string:
-		types = append(types, values...)
-	case []any:
-		for _, v := range values {
-			if s, ok := v.(string); ok {
-				types = append(types, s)
-			}
-		}
-	}
+	types := stringList(m["vct_values"])
 	if s, ok := m["doctype_value"].(string); ok && s != "" {
 		types = append(types, s)
 	}
+	if sets, ok := m["type_values"].([]any); ok {
+		for _, set := range sets {
+			if members := stringList(set); len(members) > 0 {
+				slices.Sort(members)
+				types = append(types, strings.Join(members, " "))
+			}
+		}
+	}
 	return types
+}
+
+func stringList(value any) []string {
+	switch values := value.(type) {
+	case []string:
+		return slices.Clone(values)
+	case []any:
+		var out []string
+		for _, v := range values {
+			if s, ok := v.(string); ok {
+				out = append(out, s)
+			}
+		}
+		return out
+	}
+	return nil
 }
 
 func dedupeStrings(values []string) []string {

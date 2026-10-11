@@ -127,7 +127,7 @@ The wallet also keeps an issued-attestation registry. It lists the type of each 
 
 An imported credential and a credential signed with your own `--key` and `--cert` are on none of the wallet's lists, because the wallet did not sign them.
 
-Each trusted list publishes its service's signing certificates, provider CAs and status signing certificates. With a configured root of path length zero, the list names only the signing certificates. A separate list operator key under the wallet CA signs the list. An unchanged list keeps its signed instance until it expires. Changed content or expiry increments the sequence number. Previous instances are available at the list's `/history` endpoint. Every list except `pub-eaa` points to itself. Tables D.1 to G.1 require that for the lists of Annexes D to G, and Table H.1 forbids pointers.
+Each trusted list publishes its service's signing certificates, provider CAs and status signing certificates. With a configured root of path length zero, the list names only the signing certificates. A separate list operator key under the wallet CA signs the list. An unchanged list keeps its signed instance until it expires. Changed content or expiry increments the sequence number. Previous instances are available at the list's `/history` endpoint. Every list except `pub-eaa` points to itself. Tables D.1 to G.1 require that for the lists of Annexes D to G, and Table H.1 forbids pointers. The `pub-eaa` list keeps its history. A service it no longer names stays on it with the status withdrawn (Table H.3).
 
 Wallet and key attestations use a separate wallet provider key. Their `x5c` contains the leaf and any intermediate certificates, with the self-signed root omitted. Issuers can pin the root from `/api/certificates/ca` or use `/api/trustlists/wallet-provider`.
 
@@ -193,7 +193,7 @@ Each entry of `lists` has `url` and, where they apply, `configured` (from `--tru
 }
 ```
 
-The wallet keeps a fetched external list for 5 minutes. A list past its `NextUpdate` is expired and anchors nothing (ETSI TS 119 602 V1.1.1 §6.3.15). A withdrawn service anchors nothing either. The public demo holds at most 20 added providers and 5 added lists.
+The wallet keeps a fetched external list for 5 minutes, or until its `NextUpdate` if that comes first. A list past its `NextUpdate` is expired and anchors nothing (ETSI TS 119 602 V1.1.1 §6.3.15). A withdrawn service anchors nothing either. The public demo holds at most 20 added providers and 5 added lists.
 
 #### List of trusted lists
 

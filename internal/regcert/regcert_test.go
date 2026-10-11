@@ -15,6 +15,9 @@
 package regcert
 
 import (
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/asn1"
 	"encoding/base64"
 	"net/http"
 	"strings"
@@ -26,6 +29,53 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 )
+
+// OpenID4VP 1.0 §B.1.1: a W3C credential query names its types in
+// type_values, a set of alternatives that each list types in any order. A
+// registered alternative covers the same set (ARF RPRC_21).
+func TestOverAskingComparesTheTypeValuesOfW3CCredentials(t *testing.T) {
+	cert := map[string]any{"credentials": []any{map[string]any{
+		"format": "jwt_vc_json",
+		"meta":   map[string]any{"type_values": []any{[]any{"VerifiableCredential", "AlumniCredential"}}},
+		"claim":  []any{map[string]any{"path": []any{"credentialSubject", "name"}}},
+	}}}
+	query := func(types ...any) map[string]any {
+		return map[string]any{"credentials": []any{map[string]any{
+			"id": "alumni", "format": "jwt_vc_json",
+			"meta":   map[string]any{"type_values": []any{types}},
+			"claims": []any{map[string]any{"path": []any{"credentialSubject", "name"}}},
+		}}}
+	}
+	if findings := OverAskingFindings(cert, query("AlumniCredential", "VerifiableCredential")); len(findings) != 0 {
+		t.Errorf("findings %v for the registered types, want none", findings)
+	}
+	if findings := OverAskingFindings(cert, query("VerifiableCredential", "DiplomaCredential")); len(findings) != 1 {
+		t.Errorf("findings %v for unregistered types, want one", findings)
+	}
+}
+
+// ARF RPRC_17a: the registration certificate names the same relying party and
+// the same service as the access certificate, which carries the service in
+// organizationalUnit (ARF Reg_33).
+func TestTheBindingComparesTheRelyingPartyAndTheService(t *testing.T) {
+	access := &x509.Certificate{Subject: pkix.Name{
+		OrganizationalUnit: []string{"shop"},
+		Names:              []pkix.AttributeTypeAndValue{{Type: asn1.ObjectIdentifier{2, 5, 4, 97}, Value: "LEIXG-SHOP"}},
+	}}
+	for name, tc := range map[string]struct {
+		cert     map[string]any
+		findings int
+	}{
+		"same party and service": {map[string]any{"sub": "LEIXG-SHOP", registrar.ServiceIdentifierClaim: "shop"}, 0},
+		"another service":        {map[string]any{"sub": "LEIXG-SHOP", registrar.ServiceIdentifierClaim: "loyalty"}, 1},
+		"no service":             {map[string]any{"sub": "LEIXG-SHOP"}, 1},
+		"another party":          {map[string]any{"sub": "LEIXG-OTHER", registrar.ServiceIdentifierClaim: "shop"}, 1},
+	} {
+		if got := BindingFindings(tc.cert, access, "ARF RPRC_17a"); len(got) != tc.findings {
+			t.Errorf("%s: findings %v, want %d", name, got, tc.findings)
+		}
+	}
+}
 
 // ETSI TS 119 475 V1.2.1 Annex B.2.9 requires format and meta, so an entry
 // without them registers nothing (ARF RPRC_21).
@@ -162,6 +212,16 @@ func TestProvidesNeedsTheFormatAndAType(t *testing.T) {
 	}
 }
 
+// ARF RPRC_12: the registration certificate of a relying party names its
+// data protection authority and the authority's country, besides a contact.
+func TestTheSupervisoryAuthorityNeedsANameAndACountry(t *testing.T) {
+	cert := conformantRegistrationCert()
+	cert["supervisory_authority"] = map[string]any{"email": "dpa@example"}
+	if findings := ContentFindings(cert); len(findings) != 1 || !strings.Contains(findings[0], "RPRC_12") {
+		t.Errorf("findings %v, want the RPRC_12 finding", findings)
+	}
+}
+
 func containsSubstring(values []string, want string) bool {
 	for _, value := range values {
 		if strings.Contains(value, want) {
@@ -183,7 +243,7 @@ func conformantRegistrationCert() map[string]any {
 		"entitlements":          []any{"https://uri.etsi.org/19475/Entitlement/Service_Provider"},
 		"privacy_policy":        "https://example/privacy",
 		"support_uri":           "https://example/support",
-		"supervisory_authority": map[string]any{"email": "dpa@example"},
+		"supervisory_authority": map[string]any{"name": "Test DPA", "country": "NL", "email": "dpa@example"},
 		"iat":                   float64(time.Now().Unix()),
 		"status":                map[string]any{"status_list": map[string]any{"idx": float64(7), "uri": "https://registrar.example/status"}},
 		"credentials": []any{map[string]any{

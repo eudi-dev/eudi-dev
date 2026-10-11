@@ -17,11 +17,13 @@ package lote
 import (
 	"crypto/x509"
 	"encoding/base64"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 )
@@ -127,4 +129,127 @@ func TestAListedEntityTakesTheTradeNameOfItsCertificates(t *testing.T) {
 	if none := trustedEntityInformation(Options{}, Entity{Name: "None", Issuance: encode(ca)}); none["TETradeName"] != nil {
 		t.Errorf("trade name %v for a certificate without an identifier", none["TETradeName"])
 	}
+}
+
+// ETSI TS 119 602 V1.1.1 §6.3.6 writes the scheme name as CC:name, and
+// §6.3.5.2 asks for the operator's email address and website.
+func TestTheSchemeNameAndOperatorAddressFollowTheirForms(t *testing.T) {
+	scheme := signedPayload(t, Options{OperatorName: "Operator", Profile: Profile{LoTEType: PIDProvidersListType, SchemeTerritory: "NL"}})["ListAndSchemeInformation"].(map[string]any)
+	if got := firstMultiLangValue(scheme["SchemeName"]); got != "NL:EUDI Dev Test Providers" {
+		t.Errorf("scheme name %q", got)
+	}
+	var mail, web bool
+	for _, entry := range objects(scheme["SchemeOperatorAddress"].(map[string]any)["SchemeOperatorElectronicAddress"]) {
+		uri, _ := entry["uriValue"].(string)
+		mail = mail || strings.HasPrefix(uri, "mailto:")
+		web = web || strings.HasPrefix(uri, "https://")
+	}
+	if !mail || !web {
+		t.Errorf("electronic address %v, want a mailto and a web URI", scheme["SchemeOperatorAddress"])
+	}
+}
+
+// ETSI TS 119 602 V1.1.1 Table H.1 keeps the history of a Pub-EAA providers
+// list forever. A service the next list no longer names stays with the status
+// withdrawn (Table H.3) and its earlier status in ServiceHistory (§6.4.4),
+// whose digital identity is an X509SKI only. Every service holds one public
+// key.
+func TestAPubEAAListKeepsTheServicesItWithdraws(t *testing.T) {
+	certificate := func() string {
+		key, err := mock.GenerateKey()
+		if err != nil {
+			t.Fatal(err)
+		}
+		cert, err := mock.GenerateCACert(key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return base64.StdEncoding.EncodeToString(cert.Raw)
+	}
+	kept, removed, revocationA, revocationB := certificate(), certificate(), certificate(), certificate()
+	profile := Profile{LoTEType: PubEAAProvidersListType, SchemeTerritory: "EU", IssuanceServiceType: "issuance", RevocationServiceType: "revocation"}
+	key, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	signer, err := mock.GenerateCACert(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := Sign(key, signer, Options{Profile: profile, ProviderName: "Provider", IssuedAt: time.Now().Add(-time.Hour),
+		IssuanceCertificates: []string{kept, removed}, RevocationCertificates: []string{revocationA, revocationB}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstServices := serviceInformation(listPayload(t, first)["TrustedEntitiesList"].([]any)[0].(map[string]any))
+	if len(firstServices) != 4 {
+		t.Fatalf("services %v, want one per certificate", firstServices)
+	}
+	second, err := Sign(key, signer, Options{Profile: profile, ProviderName: "Provider", Previous: first,
+		IssuanceCertificates: []string{kept}, RevocationCertificates: []string{revocationA, revocationB}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	entities := listPayload(t, second)["TrustedEntitiesList"].([]any)
+	if len(entities) != 1 {
+		t.Fatalf("entities %v, want the provider once", entities)
+	}
+	services := objects(entities[0].(map[string]any)["TrustedEntityServices"])
+	statuses := map[string]string{}
+	for _, svc := range services {
+		info := svc["ServiceInformation"].(map[string]any)
+		statuses[firstCertificate(info)] = info["ServiceStatus"].(string)
+		if firstCertificate(info) == kept && info["StatusStartingTime"] != firstServices[0]["StatusStartingTime"] {
+			t.Errorf("the kept service starts at %v, want %v from the first list", info["StatusStartingTime"], firstServices[0]["StatusStartingTime"])
+		}
+		if firstCertificate(info) != removed {
+			continue
+		}
+		history := objects(svc["ServiceHistory"])
+		if len(history) != 1 || history[0]["ServiceStatus"] != PubEAANotifiedStatus || history[0]["ServiceDigitalIdentity"].(map[string]any)["X509SKIs"] == nil {
+			t.Errorf("history %v, want the notified status with an X509SKI", history)
+		}
+	}
+	if statuses[kept] != PubEAANotifiedStatus || statuses[removed] != PubEAAWithdrawnStatus || len(services) != 4 {
+		t.Errorf("statuses %v, want the removed service withdrawn and the others notified", statuses)
+	}
+	list, err := Parse(second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, info := range ServiceCertificates(list, IssuanceServices) {
+		if base64.StdEncoding.EncodeToString(info.Raw) == removed {
+			t.Error("the withdrawn service still anchors credentials")
+		}
+	}
+}
+
+func signedPayload(t *testing.T, opts Options) map[string]any {
+	t.Helper()
+	key, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	signer, err := mock.GenerateCACert(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := Sign(key, signer, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return listPayload(t, raw)
+}
+
+func listPayload(t *testing.T, raw string) map[string]any {
+	t.Helper()
+	list, err := Parse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, payload, _, err := format.ParseJWTParts(list.Raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return payload["LoTE"].(map[string]any)
 }

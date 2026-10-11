@@ -45,12 +45,20 @@ type RegistrationCertificateRequest struct {
 	Validity string `json:"validity,omitempty"`
 }
 
+// ServiceIdentifierClaim carries the relying party service in a registration
+// certificate (ARF RPRC_07a). ETSI TS 119 475 V1.2.1 Table 7 has no claim for
+// it, so the certificate uses the attribute name of EC TS5 §2.4.1.
+const ServiceIdentifierClaim = "serviceIdentifier"
+
 // RegistrationCertificateContent is what a registration certificate says about
 // the relying party (ETSI TS 119 475 V1.2.1 §5.2.4).
 type RegistrationCertificateContent struct {
 	// Name is the trade name. The wallet shows it (ARF RPRC_06).
-	Name    string
-	Purpose []MultiLangString
+	Name string
+	// ServiceIdentifier is the organizationalUnit of the service's access
+	// certificate (ARF RPRC_07a).
+	ServiceIdentifier string
+	Purpose           []MultiLangString
 	// Identifier is the registered legal entity identifier (ARF RPRC_07).
 	Identifier string
 	// Subject is its semantics identifier, the sub of the certificate. It is
@@ -59,7 +67,7 @@ type RegistrationCertificateContent struct {
 	Subject              string
 	LegalName            string
 	Country              string
-	Description          []MultiLangString
+	Description          ServiceDescription
 	Entitlements         []string
 	RegistryURI          string
 	PrivacyPolicy        string
@@ -324,13 +332,14 @@ func infoValue(name string, entries ...IssuerInfoEntry) (string, error) {
 // apart from the credentials.
 func registrationContent(rp WalletRelyingParty, service WalletRelyingPartyService, use IntendedUse) RegistrationCertificateContent {
 	return RegistrationCertificateContent{
-		Name:        service.ServiceTradeName,
-		Purpose:     use.Purpose,
-		Identifier:  rp.Identifier[0].Identifier,
-		Subject:     semanticIdentifier(rp),
-		LegalName:   rp.LegalPerson.LegalName[0],
-		Country:     rp.Country,
-		Description: service.SrvDescription.Strings(),
+		Name:              service.ServiceTradeName,
+		ServiceIdentifier: service.ServiceIdentifier,
+		Purpose:           use.Purpose,
+		Identifier:        rp.Identifier[0].Identifier,
+		Subject:           semanticIdentifier(rp),
+		LegalName:         rp.LegalPerson.LegalName[0],
+		Country:           rp.Country,
+		Description:       service.SrvDescription,
 		// ARF Reg_01a registers the data of EC TS6, which keeps the
 		// entitlements per service (TS6 v1.1 row 12, TS05 v1.5 §2.4.1). ETSI
 		// TS 119 475 V1.2.1 Annex B.2.1 keeps them per relying party.
@@ -402,7 +411,7 @@ func RegistrationCertificateClaimsFor(base string, req RegistrationCertificateCo
 		"registry_uri": jsonutil.FirstNonEmpty(req.RegistryURI, base+"/api/registrar/wrp"),
 		// TS05 v1.5 §2.4.1 and the example of ETSI TS 119 475 V1.2.1 Annex C
 		// nest the descriptions in an array of arrays.
-		"srv_description":       []any{multiLangClaim(req.Description, name)},
+		"srv_description":       serviceDescriptionClaim(req.Description, name),
 		"entitlements":          entitlementsOrDefault(req.Entitlements),
 		"privacy_policy":        jsonutil.FirstNonEmpty(req.PrivacyPolicy, base+"/privacy-policy"),
 		"support_uri":           jsonutil.FirstNonEmpty(req.SupportURI, base+"/support"),
@@ -433,10 +442,28 @@ func RegistrationCertificateClaimsFor(base string, req RegistrationCertificateCo
 	if req.IntendedUseIdentifier != "" {
 		claims["intended_use_id"] = req.IntendedUseIdentifier
 	}
+	if service := strings.TrimSpace(req.ServiceIdentifier); service != "" {
+		claims[ServiceIdentifierClaim] = service
+	}
 	if purpose := multiLangClaim(req.Purpose, ""); len(purpose) > 0 {
 		claims["purpose"] = purpose
 	}
 	return claims, nil
+}
+
+// serviceDescriptionClaim writes one inner array per description. Without a
+// description it describes the service by its name.
+func serviceDescriptionClaim(descriptions ServiceDescription, name string) []any {
+	var out []any
+	for _, description := range descriptions {
+		if claim := multiLangClaim(description, ""); len(claim) > 0 {
+			out = append(out, claim)
+		}
+	}
+	if len(out) == 0 {
+		out = append(out, multiLangClaim(nil, name))
+	}
+	return out
 }
 
 // multiLangClaim writes localised strings as ETSI TS 119 475 does, with lang

@@ -68,8 +68,8 @@ func (s *Keys) TrustList(key *ecdsa.PrivateKey, ca *x509.Certificate, opts lote.
 	if err != nil {
 		return "", err
 	}
-	return s.sequencedList(s.trustListDir(opts.Issuer, opts.Path), ca, options, func(sequence int) (string, error) {
-		opts.Sequence = sequence
+	return s.sequencedList(s.trustListDir(opts.Issuer, opts.Path), ca, options, func(sequence int, issued time.Time, previous string) (string, error) {
+		opts.Sequence, opts.IssuedAt, opts.Previous = sequence, issued, previous
 		return SignTrustList(key, ca, opts)
 	})
 }
@@ -96,12 +96,13 @@ func SignTrustList(signingKey *ecdsa.PrivateKey, caCert *x509.Certificate, opts 
 // SequencedList returns the current list that the issuer publishes at
 // listPath. It signs a new one with the next sequence number when the content
 // changed or the list reached its next update (ETSI TS 119 602 V1.1.1 §6.3.2
-// and §6.3.15).
-func (s *Keys) SequencedList(issuer, listPath string, ca *x509.Certificate, content []byte, sign func(sequence int) (string, error)) (string, error) {
+// and §6.3.15). sign gets the issue time, which sets the next update, and the
+// list it replaces.
+func (s *Keys) SequencedList(issuer, listPath string, ca *x509.Certificate, content []byte, sign func(sequence int, issued time.Time, previous string) (string, error)) (string, error) {
 	return s.sequencedList(s.trustListDir(issuer, listPath), ca, content, sign)
 }
 
-func (s *Keys) sequencedList(dir string, ca *x509.Certificate, content []byte, sign func(sequence int) (string, error)) (string, error) {
+func (s *Keys) sequencedList(dir string, ca *x509.Certificate, content []byte, sign func(sequence int, issued time.Time, previous string) (string, error)) (string, error) {
 	hash := sha256.New()
 	hash.Write(ca.Raw)
 	hash.Write(content)
@@ -126,11 +127,12 @@ func (s *Keys) sequencedList(dir string, ca *x509.Certificate, content []byte, s
 			}
 		}
 		sequence := current.Sequence + 1
-		jwt, err := sign(sequence)
+		issued := time.Now().UTC().Truncate(time.Second)
+		jwt, err := sign(sequence, issued, current.JWT)
 		if err != nil {
 			return "", err
 		}
-		updated := storedTrustList{Identity: identity, Sequence: sequence, NextUpdate: time.Now().UTC().Truncate(time.Second).Add(lote.UpdateInterval), JWT: jwt}
+		updated := storedTrustList{Identity: identity, Sequence: sequence, NextUpdate: issued.Add(lote.UpdateInterval), JWT: jwt}
 		data, err = json.Marshal(updated) //nolint:gosec // The signed trusted list is public data.
 		if err != nil {
 			return "", err

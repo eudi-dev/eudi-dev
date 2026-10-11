@@ -114,7 +114,7 @@ Every element has an ID for automated tests:
 | Legal name | Organization | `sub_ln` |
 | Country | Country | `country` |
 | Support contact | URI or email address in the subject alternative name | `support_uri` |
-| Service | Organizational unit | Not included |
+| Service | Organizational unit | `serviceIdentifier` (ARF RPRC_07a, named as in EC TS5) |
 | Intended use (verifier) | Not included | `intended_use_id` (ETSI TS 119 475 V1.2.1 Table 9) |
 | Purpose (verifier) | Not included | `purpose` |
 | Privacy policy (verifier) | Not included | `privacy_policy` |
@@ -141,13 +141,12 @@ With `--arf` the wallet checks the access and registration certificates of every
 - **Access certificates** must chain to a CA on an `access-ca` list. The wallet's own list names the relying party access CA.
 - **Registration certificates** must chain to a CA on a `registrar` list. The wallet's own list names the registrar CA. The relying party access CA is not on the registrar list, because that CA signs every visitor's CSR. Otherwise anyone with an access certificate could sign their own registration certificate.
 
-Certificates from this registrar pass both checks. A registered credential without a claim list declares no attributes (ETSI TS 119 475 V1.2.1 Annex B.2.9), so requesting any claim counts as over-asking. TS05 registrars always list the claims.
+A registration certificate binds to an access certificate with the same relying party identifier and the same service identifier (ARF RPRC_17a). Certificates from this registrar pass these checks. A registered credential without a claim list declares no attributes (ETSI TS 119 475 V1.2.1 Annex B.2.9), so requesting any claim counts as over-asking. TS05 registrars always list the claims.
 
 The status list of the registration certificates must chain to a revocation service on a `registrar` list (ARF RPACANot_03b). If the wallet can't read the status, that is a finding. The wallet reads its own registrar's status list directly. It fetches other registrars' lists with its proxy and TLS settings.
 
 The wallet does not check these:
 
-- **The service identifier.** ARF RPRC_17a also compares the service identifier, but ETSI TS 119 475 V1.2.1 has no claim for it. The access certificate has it as organizational unit.
 - **Access certificate revocation.** The registrar does not revoke access certificates. A deleted relying party keeps a valid access certificate until it expires.
 - **The register.** The wallet does not look up `registry_uri`. A verifier sends exactly one registration certificate with its request, so no external request is needed to check it (ARF RPRC_19). An issuer publishes its certificate in its metadata (RPRC_22). For a request with no registration certificate or with several, the consent dialog warns that the registered information could not be checked (RPRC_17).
 
@@ -318,7 +317,7 @@ With `--to`, both add the other role to a registered relying party instead. `ver
 | `verifiers add`, `issuers add` | `--to` | None | Identifier of a registered relying party to add the role to |
 | `verifiers add`, `issuers add` | `--identifier` | Assigned EUID | EUID, or an `organizationIdentifier` such as `LEIXG-529900T8BM49AURSDO55` |
 | `verifiers add`, `issuers add` | `--legal-name` | `--name` | Legal name |
-| `verifiers add`, `issuers add` | `--country` | The identifier's country (`NL` for an assigned identifier) | Country code |
+| `verifiers add`, `issuers add` | `--country` | The identifier's country (`NL` for an assigned identifier, `GR` for the prefix `EL`). Required for a LEI | Country code |
 | `verifiers add`, `issuers add` | `--support-uri` | `<issuer URL>/support` | Support contact: a web address or an email address |
 | `verifiers add`, `issuers add` | `--service-id` | None | Service identifier |
 | `verifiers add` | `--dcql` | None | DCQL query to register (file, JSON or `-` for stdin, required) |

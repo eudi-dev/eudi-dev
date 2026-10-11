@@ -77,6 +77,11 @@ type Options struct {
 	Entities     []Entity
 	ProviderName string `json:"-"`
 	Country      string `json:"-"`
+	// IssuedAt is the ListIssueDateTime. It defaults to the current time.
+	IssuedAt time.Time `json:"-"`
+	// Previous is the list this one replaces. A Pub-EAA providers list keeps
+	// its services.
+	Previous string `json:"-"`
 }
 
 // Entity is a provider on a list with the base64 DER certificates of its
@@ -99,7 +104,11 @@ func Sign(signingKey *ecdsa.PrivateKey, signer *x509.Certificate, opts Options) 
 			opts.RevocationCertificates = []string{signerB64}
 		}
 	}
-	now := time.Now().UTC().Truncate(time.Second)
+	now := opts.IssuedAt
+	if now.IsZero() {
+		now = time.Now()
+	}
+	now = now.UTC().Truncate(time.Second)
 	if opts.Sequence == 0 {
 		opts.Sequence = 1
 	}
@@ -114,11 +123,12 @@ func Sign(signingKey *ecdsa.PrivateKey, signer *x509.Certificate, opts Options) 
 	}
 	// ETSI TS 119 602 V1.1.1 Annexes D to H ask for scheme explicit lists, and
 	// Table 1 makes every scheme element mandatory for them.
-	schemeInfo["SchemeName"] = []map[string]string{{"lang": "en", "value": opts.Profile.SchemeTerritory + ": EUDI Dev Test Providers"}}
+	schemeInfo["SchemeName"] = []map[string]string{{"lang": "en", "value": opts.Profile.SchemeTerritory + ":EUDI Dev Test Providers"}}
 	schemeInfo["PolicyOrLegalNotice"] = []map[string]string{{"LoTELegalNotice": "Test data of eudi-dev. The listed providers are fictional and carry no official trust."}}
 	schemeInfo["SchemeOperatorAddress"] = map[string]any{
-		"SchemeOperatorPostalAddress":     []map[string]string{{"lang": "en", "StreetAddress": "Test address", "Country": opts.Country}},
-		"SchemeOperatorElectronicAddress": []map[string]string{{"lang": "en", "uriValue": projectURL}},
+		"SchemeOperatorPostalAddress": []map[string]string{{"lang": "en", "StreetAddress": "Test address", "Country": opts.Country}},
+		// ETSI TS 119 602 V1.1.1 §6.3.5.2 asks for an email address and a website.
+		"SchemeOperatorElectronicAddress": []map[string]string{{"lang": "en", "uriValue": "mailto:operator@example.invalid"}, {"lang": "en", "uriValue": projectURL}},
 	}
 	schemeInfo["StatusDeterminationApproach"] = opts.Profile.StatusDeterminationApproach
 	schemeInfo["SchemeTypeCommunityRules"] = []map[string]string{{"lang": "en", "uriValue": opts.Profile.SchemeTypeCommunityRules}}
@@ -147,9 +157,16 @@ func Sign(signingKey *ecdsa.PrivateKey, signer *x509.Certificate, opts Options) 
 			"TrustedEntityServices":    services(opts.Profile, entity),
 		})
 	}
+	var listed any = trustedEntities
+	if opts.Profile.LoTEType == PubEAAProvidersListType {
+		var err error
+		if listed, err = keepPubEAAHistory(opts.Previous, trustedEntities, now); err != nil {
+			return "", err
+		}
+	}
 	return SignList(signingKey, signer, now, map[string]any{
 		"ListAndSchemeInformation": schemeInfo,
-		"TrustedEntitiesList":      trustedEntities,
+		"TrustedEntitiesList":      listed,
 	})
 }
 
@@ -241,8 +258,8 @@ func services(profile Profile, entity Entity) []map[string]any {
 		for _, certificate := range entity.Issuance {
 			out = append(out, service(profile.IssuanceServiceType, profile.IssuanceServiceName, []string{certificate}))
 		}
-		if len(entity.Revocation) > 0 {
-			out = append(out, service(profile.RevocationServiceType, profile.RevocationServiceName, entity.Revocation))
+		for _, certificate := range entity.Revocation {
+			out = append(out, service(profile.RevocationServiceType, profile.RevocationServiceName, []string{certificate}))
 		}
 		for _, s := range out {
 			s["ServiceInformation"].(map[string]any)["ServiceStatus"] = PubEAANotifiedStatus

@@ -173,6 +173,22 @@ type cachedList struct {
 	raw     string
 	err     error
 	fetched time.Time
+	expires time.Time
+}
+
+// cacheExpiry ends the reuse of a fetched list at its next update, when the
+// list expires (ETSI TS 119 602 V1.1.1 §6.3.15).
+func cacheExpiry(raw string, err error, fetched time.Time) time.Time {
+	if err != nil {
+		return fetched.Add(failedListCacheTTL)
+	}
+	expires := fetched.Add(listCacheTTL)
+	if list, err := lote.Parse(raw); err == nil && list.SchemeInfo != nil {
+		if next, err := time.Parse(time.RFC3339, list.SchemeInfo.NextUpdate); err == nil && next.Before(expires) {
+			return next
+		}
+	}
+	return expires
 }
 
 // ownListID returns the ID of one of the wallet's own lists. The URL
@@ -204,7 +220,7 @@ func (t *Set) rawList(rawURL string) (string, error) {
 	c.mu.Lock()
 	cached, ok := c.lists[rawURL]
 	c.mu.Unlock()
-	if ok && (cached.err == nil && time.Since(cached.fetched) < listCacheTTL || cached.err != nil && time.Since(cached.fetched) < failedListCacheTTL) {
+	if ok && time.Now().Before(cached.expires) {
 		return cached.raw, cached.err
 	}
 	fetched, err, _ := c.fetches.Do(rawURL, func() (any, error) {
@@ -223,7 +239,8 @@ func (t *Set) rawList(rawURL string) (string, error) {
 			}
 			delete(c.lists, oldest)
 		}
-		c.lists[rawURL] = cachedList{raw: raw, err: err, fetched: time.Now()}
+		fetched := time.Now()
+		c.lists[rawURL] = cachedList{raw: raw, err: err, fetched: fetched, expires: cacheExpiry(raw, err, fetched)}
 		c.mu.Unlock()
 		return raw, err
 	})
@@ -423,21 +440,23 @@ func (t *Set) ListOfLists(issuer string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return signer.Keys().SequencedList(jsonutil.FirstNonEmpty(issuer, t.env.RegistrarBase()), registrar.TrustListPath(ListOfListsID), chain[0], content, func(sequence int) (string, error) {
-		now := time.Now().UTC().Truncate(time.Second)
-		return lote.SignList(key, chain[0], now, map[string]any{
-			"ListAndSchemeInformation": map[string]any{
-				"LoTEVersionIdentifier": 1,
-				"LoTESequenceNumber":    sequence,
-				"LoTEType":              ListOfListsType,
-				"SchemeOperatorName":    []map[string]string{{"lang": "en", "value": config.WalletName}},
-				"SchemeTerritory":       "EU",
-				"ListIssueDateTime":     now.Format(time.RFC3339),
-				"NextUpdate":            now.Add(lote.UpdateInterval).Format(time.RFC3339),
-				"PointersToOtherLoTE":   pointers,
-			},
-			"TrustedEntitiesList": []map[string]any{},
-		})
+	return signer.Keys().SequencedList(jsonutil.FirstNonEmpty(issuer, t.env.RegistrarBase()), registrar.TrustListPath(ListOfListsID), chain[0], content, func(sequence int, issued time.Time, _ string) (string, error) {
+		scheme := map[string]any{
+			"LoTEVersionIdentifier": 1,
+			"LoTESequenceNumber":    sequence,
+			"LoTEType":              ListOfListsType,
+			"SchemeOperatorName":    []map[string]string{{"lang": "en", "value": config.WalletName}},
+			"SchemeTerritory":       "EU",
+			"ListIssueDateTime":     issued.Format(time.RFC3339),
+			"NextUpdate":            issued.Add(lote.UpdateInterval).Format(time.RFC3339),
+		}
+		// ETSI TS 119 602 V1.1.1 §6.3.13 needs one or more pointers. A list of
+		// lists approves no trusted entity, so it has no TrustedEntitiesList
+		// (§6.4.0).
+		if len(pointers) > 0 {
+			scheme["PointersToOtherLoTE"] = pointers
+		}
+		return lote.SignList(key, chain[0], issued, map[string]any{"ListAndSchemeInformation": scheme})
 	})
 }
 
