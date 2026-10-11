@@ -52,7 +52,7 @@ func chooseOfferConfiguration(offer *oid4vc.CredentialOffer, chosen string) (str
 func (w *Wallet) readIssuerMetadata(issuer string, report func(...string)) (map[string]any, []*x509.Certificate, error) {
 	var signerChain []*x509.Certificate
 	preferSigned := w.ARFChecks()
-	policy := w.metadataPolicy(w.Mode(), report)
+	onProblem := w.reportMetadataProblem(report)
 	metadata, err := w.fetchLoggedMetadata(metadataFetch{
 		event:         "issuer_metadata",
 		fetchLabel:    "issuer metadata",
@@ -60,7 +60,7 @@ func (w *Wallet) readIssuerMetadata(issuer string, report func(...string)) (map[
 		wellKnown:     "openid-credential-issuer",
 		issuer:        issuer,
 		fetch: func(client *http.Client, issuer string, payloads ...*LogPayload) (map[string]any, error) {
-			metadata, chain, err := fetchIssuerMetadataDocument(client, issuer, preferSigned, policy, payloads...)
+			metadata, chain, err := fetchIssuerMetadataDocument(client, issuer, preferSigned, onProblem, payloads...)
 			signerChain = chain
 			return metadata, err
 		},
@@ -129,18 +129,15 @@ func (w *Wallet) dpopKeyForRenewal(r CredentialRenewal) *ecdsa.PrivateKey {
 // is returned even if a check of the answer fails, so the caller can keep a
 // rotated refresh token.
 func (w *Wallet) requestAccessToken(r CredentialRenewal, form url.Values, nonce *string) (*accessGrant, error) {
-	if err := applyClientAuthentication(form, r.ClientAuth, r.ClientID, w.HolderKeyPair()); err != nil {
-		return nil, err
-	}
 	dpopKey := w.dpopKeyForRenewal(r)
-	attestor := w.attestorFor(r.ClientAuth, r.ClientID)
+	authenticator := w.clientAuthenticatorFor(r.ClientAuth, r.ClientID)
 	details := formRequestLogDetails(r.TokenEndpoint, "token", form)
 	details["grant_type"] = form.Get("grant_type")
-	details["client_attestation"] = attestor != nil
+	details["client_attestation"] = r.ClientAuth != nil && r.ClientAuth.Method == ClientAuthAttestation
 	details["dpop"] = dpopKey != nil
 	w.addProtocolLog("issuance", "token_request", fmt.Sprintf("Request token from %s", r.TokenEndpoint), true, details, &LogPayload{Label: "Request", Body: form.Encode()})
 	payload := &LogPayload{}
-	resp, err := postFormWithDPoP(w.HTTPClient(), r.TokenEndpoint, form, dpopKey, "", nonce, attestor, payload)
+	resp, err := postFormWithDPoP(w.HTTPClient(), r.TokenEndpoint, form, dpopKey, "", nonce, authenticator, payload)
 	w.addProtocolLog("issuance", "token_response", fmt.Sprintf("Token response from %s", r.TokenEndpoint), err == nil, responseMapLogDetails(r.TokenEndpoint, "token", resp, err), payload)
 	if err != nil {
 		return nil, err
@@ -274,11 +271,14 @@ func (w *Wallet) storeIssuedCredential(credResp map[string]any, d credentialDeli
 		return nil, "", err
 	}
 	details := credentialImportLogDetails(primary, batch.primary)
-	stored := []*StoredCredential{primary}
+	var stored []*StoredCredential
 	if d.replaceID == "" {
-		if stored, err = w.storeBatchCopies(primary, batch.copies, d.display); err != nil {
-			return nil, "", err
-		}
+		stored, err = w.storeBatchCopies(primary, batch.copies, d.display)
+	} else {
+		stored, err = w.replaceBatchCopies(primary, batch.copies)
+	}
+	if err != nil {
+		return nil, "", err
 	}
 	for key, value := range d.logDetails {
 		details[key] = value

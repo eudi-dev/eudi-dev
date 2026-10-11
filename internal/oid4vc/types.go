@@ -15,7 +15,11 @@
 // Package oid4vc parses OID4VCI credential offers and OID4VP authorization requests.
 package oid4vc
 
-import "net/http"
+import (
+	"fmt"
+	"net/http"
+	"strings"
+)
 
 type RequestType int
 
@@ -33,9 +37,42 @@ type CredentialOffer struct {
 
 type OfferGrants struct {
 	PreAuthorizedCode string
-	TxCode            map[string]any // input_mode, length, description
+	// TxCode is the tx_code object of the pre-authorized grant: input_mode,
+	// length and description. It is non-nil whenever the offer carries one.
+	TxCode            map[string]any
 	AuthorizationCode string
 	IssuerState       string
+}
+
+// RequiresTxCode reports whether the offer asks for a Transaction Code.
+// OID4VCI 1.0 §4.1.1: the tx_code object indicates "that a Transaction Code is
+// required if present, even if empty".
+func (g OfferGrants) RequiresTxCode() bool {
+	return g.TxCode != nil
+}
+
+// TxCodeHint describes the expected Transaction Code for the End-User. The
+// issuer's description wins. Otherwise it names the length and input mode.
+func (g OfferGrants) TxCodeHint() string {
+	if description, _ := g.TxCode["description"].(string); strings.TrimSpace(description) != "" {
+		return strings.TrimSpace(description)
+	}
+	mode, _ := g.TxCode["input_mode"].(string)
+	length := 0
+	switch n := g.TxCode["length"].(type) {
+	case float64:
+		length = int(n)
+	case int:
+		length = n
+	}
+	switch {
+	case length > 0 && mode != "":
+		return fmt.Sprintf("%d %s characters", length, mode)
+	case length > 0:
+		return fmt.Sprintf("%d characters", length)
+	default:
+		return mode
+	}
 }
 
 type AuthorizationRequest struct {

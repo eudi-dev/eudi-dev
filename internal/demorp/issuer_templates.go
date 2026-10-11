@@ -242,22 +242,21 @@ func templateClaimPaths(cfg templateConfiguration) []map[string]any {
 // holderKey. Holder claims from the offer override the template claims.
 func (d *DemoRP) signTemplate(cfg templateConfiguration, holderKey *ecdsa.PublicKey, granted ticketGrant) (string, error) {
 	tpl := cfg.template
-	expiresIn := 30 * 24 * time.Hour
-	if tpl.Exp != "" {
-		if parsed, err := time.ParseDuration(tpl.Exp); err == nil && parsed > 0 {
-			expiresIn = parsed
-		}
+	resolved, err := credtemplate.Resolve(&tpl, credtemplate.Request{
+		Format: cfg.format, Claims: granted.holderClaims, VCT: cfg.vct, DocType: cfg.docType,
+	})
+	if err != nil {
+		return "", fmt.Errorf("resolving the template of %s: %w", cfg.id, err)
 	}
-	merged := credtemplate.MergeClaims(tpl.Claims, granted.holderClaims)
 	// The demo ticket records the wallet attestation of its issuance and its
 	// trust status, since the demo accepts attestations from unknown CAs.
 	if cfg.id == ticketConfigurationID && granted.clientAuth != nil {
-		merged["wallet_attestation"] = granted.clientAuth.ticketClaim()
+		resolved.Claims["wallet_attestation"] = granted.clientAuth.ticketClaim()
 	}
-	claims := tpl.WithUniqueClaims(merged)
+	claims := resolved.CredentialClaims()
 	spec := wallet.IssuedAttestationSpec{Format: cfg.format, VCT: cfg.vct, DocType: cfg.docType}
 	spec.Category = d.wallet.CredentialCategory(&tpl, spec)
-	spec, err := wallet.NormalizeIssuedAttestationSpec(spec, "")
+	spec, err = wallet.NormalizeIssuedAttestationSpec(spec, "")
 	if err != nil {
 		return "", fmt.Errorf("building attestation spec for %s: %w", cfg.id, err)
 	}
@@ -291,29 +290,25 @@ func (d *DemoRP) signTemplate(cfg templateConfiguration, holderKey *ecdsa.Public
 			CertificateIssuer: d.wallet.IssuerURL,
 			Issuer:            d.issuerID(),
 			VCT:               cfg.vct,
-			ExpiresIn:         expiresIn,
+			ExpiresIn:         resolved.Exp,
 			IssuedAt:          &issuedAt,
 			Claims:            claims,
 			Key:               signingKey,
 			HolderKey:         holderKey,
 			CertChain:         chain,
-			AlwaysDisclosed:   tpl.AlwaysDisclosed,
+			AlwaysDisclosed:   resolved.AlwaysDisclosed,
 			StatusListURI:     statusURI,
 			StatusListIdx:     statusIdx,
 		})
 	case "mso_mdoc":
-		namespace := tpl.Namespace
-		if namespace == "" {
-			namespace = cfg.docType
-		}
 		return mock.GenerateMDOC(mock.MDOCConfig{
 			CertificateIssuer: d.wallet.IssuerURL,
 			DocType:           cfg.docType,
-			Namespace:         namespace,
+			Namespace:         resolved.Namespace,
 			Claims:            claims,
 			Key:               signingKey,
 			HolderKey:         holderKey,
-			ExpiresIn:         expiresIn,
+			ExpiresIn:         resolved.Exp,
 			CertChain:         chain,
 			StatusListURI:     statusURI,
 			StatusListIdx:     statusIdx,

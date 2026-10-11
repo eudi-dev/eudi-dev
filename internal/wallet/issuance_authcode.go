@@ -86,9 +86,9 @@ func (w *Wallet) processAuthorizationCodeOffer(offer *oid4vc.CredentialOffer, se
 	dpopKey := w.dpopKeyForRenewal(session.renewal)
 
 	configID := session.renewal.ConfigurationID
-	scope := resolveCredentialScope(session.metadata, configID)
-	if scope == "" {
-		return nil, fmt.Errorf("credential configuration %q did not expose a scope for authorization_code flow", configID)
+	credentialRequest, err := w.authorizationCredentialRequest(session.metadata, configID)
+	if err != nil {
+		return nil, err
 	}
 
 	state := randomBase64URL(18)
@@ -99,7 +99,7 @@ func (w *Wallet) processAuthorizationCodeOffer(offer *oid4vc.CredentialOffer, se
 	parForm.Set("response_type", "code")
 	parForm.Set("client_id", clientID)
 	parForm.Set("redirect_uri", redirectURI)
-	parForm.Set("scope", scope)
+	setValues(parForm, credentialRequest)
 	parForm.Set("state", state)
 	parForm.Set("code_challenge", codeChallenge)
 	parForm.Set("code_challenge_method", "S256")
@@ -108,16 +108,13 @@ func (w *Wallet) processAuthorizationCodeOffer(offer *oid4vc.CredentialOffer, se
 	}
 	authCtx := clientAuthContext{oauthMeta: oauthMeta, tokenEndpoint: session.renewal.TokenEndpoint}
 	clientAuth := w.resolveClientAuthentication(clientAuthMethod, authCtx)
-	if err := applyClientAuthentication(parForm, clientAuth, clientID, w.HolderKey); err != nil {
-		return nil, err
-	}
 	session.renewal.ClientID = clientID
 	session.renewal.ClientAuth = clientAuth
 
 	setup := authorizationCodeSetup{
 		clientID:              clientID,
 		redirectURI:           redirectURI,
-		scope:                 scope,
+		credentialRequest:     credentialRequest,
 		state:                 state,
 		codeVerifier:          codeVerifier,
 		codeChallenge:         codeChallenge,
@@ -168,7 +165,7 @@ func (w *Wallet) processAuthorizationCodeOffer(offer *oid4vc.CredentialOffer, se
 	if requestURI == "" && parEndpoint != "" {
 		w.addProtocolLog("issuance", "par_request", fmt.Sprintf("Request PAR from %s", parEndpoint), true, formRequestLogDetails(parEndpoint, "par", parForm), &LogPayload{Label: "Request", Body: parForm.Encode()})
 		parPayload := &LogPayload{}
-		parResp, err := postFormWithDPoP(w.HTTPClient(), parEndpoint, parForm, dpopKey, "", &nonces.authzServer, w.attestorFor(clientAuth, clientID), parPayload)
+		parResp, err := postFormWithDPoP(w.HTTPClient(), parEndpoint, parForm, dpopKey, "", &nonces.authzServer, w.clientAuthenticatorFor(clientAuth, clientID), parPayload)
 		w.addProtocolLog("issuance", "par_response", fmt.Sprintf("PAR response from %s", parEndpoint), err == nil, responseMapLogDetails(parEndpoint, "par", parResp, err), parPayload)
 		if err != nil {
 			return nil, fmt.Errorf("PAR request: %w", err)
@@ -216,15 +213,16 @@ func (w *Wallet) processAuthorizationCodeOffer(offer *oid4vc.CredentialOffer, se
 }
 
 type authorizationCodeSetup struct {
-	clientID      string
-	redirectURI   string
-	scope         string
-	state         string
-	codeVerifier  string
-	codeChallenge string
-	clientAuth    *ClientAuthentication
-	dpopKey       *ecdsa.PrivateKey
-	nonces        *dpopNonceState
+	clientID    string
+	redirectURI string
+	// credentialRequest names the credential: scope or authorization_details.
+	credentialRequest url.Values
+	state             string
+	codeVerifier      string
+	codeChallenge     string
+	clientAuth        *ClientAuthentication
+	dpopKey           *ecdsa.PrivateKey
+	nonces            *dpopNonceState
 	// The auth_via_web interaction (OpenID4VCI 1.1 §6.2.1.2) takes the
 	// request_uri to authorizationEndpoint and checks the redirect back against
 	// issuer.
@@ -342,6 +340,34 @@ func supportsDPoP(oauthMeta map[string]any) bool {
 	return ok && len(values) > 0
 }
 
+// authorizationCredentialRequest returns the authorization request parameter
+// that names the credential. OID4VCI 1.0 §12.2.4: "If scope is absent, the
+// only way to request the Credential is using authorization_details" (§5.1.1).
+// HAIP 1.0 §4.1: "The Credential Issuer metadata MUST include a scope for every
+// Credential Configuration it supports."
+func (w *Wallet) authorizationCredentialRequest(metadata map[string]any, configID string) (url.Values, error) {
+	if scope := resolveCredentialScope(metadata, configID); scope != "" {
+		return url.Values{"scope": {scope}}, nil
+	}
+	if w.HAIPChecks() {
+		detail := fmt.Sprintf("credential configuration %q has no scope, which HAIP 1.0 §4.1 requires for every credential configuration", configID)
+		if err := w.reportDeviation(deviation{action: "issuance", event: "haip_violation", detail: detail, details: map[string]any{"credential_configuration_id": configID}}); err != nil {
+			return nil, err
+		}
+	}
+	details, err := json.Marshal([]map[string]any{{"type": "openid_credential", "credential_configuration_id": configID}})
+	if err != nil {
+		return nil, err
+	}
+	return url.Values{"authorization_details": {string(details)}}, nil
+}
+
+func setValues(form, values url.Values) {
+	for key, entries := range values {
+		form[key] = entries
+	}
+}
+
 func resolveCredentialScope(metadata map[string]any, configID string) string {
 	configs, ok := metadata["credential_configurations_supported"].(map[string]any)
 	if !ok {
@@ -377,7 +403,8 @@ func issAdvertised(oauthMeta map[string]any) bool {
 //
 // HAIP 1.0 §4.4.1 says "Wallets MUST use, and Issuers MUST require, an OAuth2
 // Client authentication mechanism". Under HAIP the wallet also attests when no
-// method is advertised, since §10.1 makes advertising only a SHOULD. When only
+// method is advertised, since every draft makes advertising only a SHOULD
+// (see abcaMetadataSection). When only
 // unauthenticated access is advertised, strict mode attests and debug mode does
 // not.
 func (w *Wallet) attestsClient(oauthMeta map[string]any) bool {
@@ -415,16 +442,15 @@ func (w *Wallet) resolveClientAuthentication(method string, ctx clientAuthContex
 		}
 	}
 	if w.attestsClient(ctx.oauthMeta) {
-		// §10.1 lets an issuer require attestation without advertising it. The
-		// wallet attests and warns about the missing advertisement.
+		auth := w.attestationClientAuth(ctx)
 		if w != nil && w.HAIPChecks() && w.Mode() != ValidationModeStrict &&
 			!w.ForceClientAttestation &&
 			detectTokenEndpointAuthMethod(ctx.oauthMeta) == "" {
 			w.addProtocolWarning("issuance", "client_authentication_not_advertised",
-				"The issuer's authorization server advertises no token endpoint client authentication method (draft-ietf-oauth-attestation-based-client-auth §10.1 recommends it). Attesting anyway, since HAIP requires client authentication.",
+				fmt.Sprintf("The issuer's authorization server advertises no token endpoint client authentication method (draft-ietf-oauth-attestation-based-client-auth-%02d %s recommends it). Attesting anyway, since HAIP requires client authentication.", auth.ABCADraft, abcaMetadataSection(auth.ABCADraft)),
 				map[string]any{"token_endpoint": ctx.tokenEndpoint})
 		}
-		return w.attestationClientAuth(ctx)
+		return auth
 	}
 	if w != nil && w.HAIPChecks() && !w.ForceClientAttestation {
 		w.addProtocolWarning("issuance", "haip_client_authentication_unavailable",
@@ -432,6 +458,20 @@ func (w *Wallet) resolveClientAuthentication(method string, ctx clientAuthContex
 			map[string]any{"token_endpoint": ctx.tokenEndpoint})
 	}
 	return nil
+}
+
+// abcaMetadataSection returns the section of an ABCA draft that recommends
+// advertising attest_jwt_client_auth in token_endpoint_auth_methods_supported
+// (a SHOULD in each draft).
+func abcaMetadataSection(draft int) string {
+	switch draft {
+	case 7:
+		return "§10.1"
+	case 8:
+		return "§9"
+	default:
+		return "§8"
+	}
 }
 
 func (w *Wallet) attestationClientAuth(ctx clientAuthContext) *ClientAuthentication {
@@ -486,18 +526,22 @@ func usesDPoP(oauthMeta map[string]any) bool {
 	return supportsDPoP(oauthMeta) || usesCombinedPoP(oauthMeta)
 }
 
-func (w *Wallet) attestorFor(auth *ClientAuthentication, clientID string) *clientAttestor {
-	if auth == nil || auth.Method != ClientAuthAttestation {
+func (w *Wallet) clientAuthenticatorFor(auth *ClientAuthentication, clientID string) *clientAuthenticator {
+	if auth == nil || (auth.Method != ClientAuthAttestation && auth.Method != ClientAuthPrivateKeyJWT) {
 		return nil
 	}
-	return &clientAttestor{wallet: w, auth: auth, clientID: clientID}
+	return &clientAuthenticator{wallet: w, auth: auth, clientID: clientID}
 }
 
-// clientAttestor adds the wallet attestation to requests and tracks the
-// server's challenges. Every supported ABCA draft lets a server return a fresh
-// challenge in the OAuth-Client-Attestation-Challenge header of any response.
-// The client MUST send it in the next PoP.
-type clientAttestor struct {
+// clientAuthenticator authenticates each request to the authorization server.
+// Every attempt, including a retry, gets fresh proofs, since a server may
+// accept a jti only once.
+//
+// For attestation it tracks the server's challenges. Every supported ABCA
+// draft lets a server return a fresh challenge in the
+// OAuth-Client-Attestation-Challenge header of any response. The client MUST
+// send it in the next PoP.
+type clientAuthenticator struct {
 	wallet *Wallet
 	auth   *ClientAuthentication
 	// clientID is the subject of the attestation.
@@ -508,7 +552,10 @@ type clientAttestor struct {
 
 // headers creates the attestation headers for one request. In combined mode the
 // challenge goes in the DPoP proof instead (see dpopChallenge).
-func (a *clientAttestor) headers() (map[string]string, error) {
+func (a *clientAuthenticator) headers() (map[string]string, error) {
+	if a.auth.Method != ClientAuthAttestation {
+		return nil, nil
+	}
 	challenge := ""
 	if !a.auth.CombinedPoP {
 		var err error
@@ -527,7 +574,7 @@ func (a *clientAttestor) headers() (map[string]string, error) {
 // requestChallenge returns the challenge for one request. A challenge from a
 // response header is single use, so it is consumed here. Without one the wallet
 // fetches a fresh challenge from the challenge endpoint.
-func (a *clientAttestor) requestChallenge() (string, error) {
+func (a *clientAuthenticator) requestChallenge() (string, error) {
 	challenge := a.challenge
 	a.challenge = ""
 	if challenge != "" {
@@ -543,14 +590,21 @@ func (a *clientAttestor) requestChallenge() (string, error) {
 // dpopChallenge returns the challenge for the DPoP proof in combined mode,
 // where that proof is the possession proof (draft-10 §5.2). It is empty with a
 // dedicated PoP, which carries the challenge itself.
-func (a *clientAttestor) dpopChallenge() (string, error) {
-	if !a.auth.CombinedPoP {
+//
+// Draft-10 §7.3 step 5: the challenge "MUST match the nonce payload claim of
+// the DPoP proof". Drafts -07 and -08 have no combined mode, so this is the
+// only rule. RFC 9449 §8 puts a pending DPoP-Nonce in the same claim. A proof
+// has one nonce, so the attestation challenge takes it: §6.1 makes the client
+// use the endpoint challenge, and a server in combined mode checks its
+// challenge as the DPoP nonce.
+func (a *clientAuthenticator) dpopChallenge() (string, error) {
+	if a.auth.Method != ClientAuthAttestation || !a.auth.CombinedPoP {
 		return "", nil
 	}
 	return a.requestChallenge()
 }
 
-func (a *clientAttestor) observe(headers http.Header) {
+func (a *clientAuthenticator) observe(headers http.Header) {
 	if value := strings.TrimSpace(headers.Get("OAuth-Client-Attestation-Challenge")); value != "" {
 		a.challenge = value
 	}
@@ -560,7 +614,10 @@ func (a *clientAttestor) observe(headers http.Header) {
 // attestation material. use_attestation_challenge comes with the challenge for
 // the retry (§6.2 requires the header alongside it). use_fresh_attestation
 // needs no extra step because the wallet creates a new attestation per request.
-func (a *clientAttestor) retryAfterRefusal(body []byte) bool {
+func (a *clientAuthenticator) retryAfterRefusal(body []byte) bool {
+	if a.auth.Method != ClientAuthAttestation {
+		return false
+	}
 	var parsed struct {
 		Error string `json:"error"`
 	}
@@ -576,18 +633,23 @@ func (a *clientAttestor) retryAfterRefusal(body []byte) bool {
 	return false
 }
 
-// private_key_jwt uses form fields. Attestation authentication uses headers.
-func applyClientAuthentication(form url.Values, auth *ClientAuthentication, clientID string, holderKey *ecdsa.PrivateKey) error {
-	if auth == nil || auth.Method != ClientAuthPrivateKeyJWT {
-		return nil
+// formBody adds a fresh private_key_jwt client assertion to a form body (RFC
+// 7523 §2.2). Attestation authentication uses headers instead.
+func (a *clientAuthenticator) formBody(contentType string, body []byte) ([]byte, error) {
+	if a.auth.Method != ClientAuthPrivateKeyJWT || contentType != "application/x-www-form-urlencoded" {
+		return body, nil
 	}
-	assertion, err := createClientAssertionJWT(holderKey, clientID, auth.Audience)
+	form, err := url.ParseQuery(string(body))
 	if err != nil {
-		return fmt.Errorf("creating client assertion: %w", err)
+		return nil, fmt.Errorf("reading form body: %w", err)
+	}
+	assertion, err := createClientAssertionJWT(a.wallet.HolderKeyPair(), a.clientID, a.auth.Audience)
+	if err != nil {
+		return nil, fmt.Errorf("creating client assertion: %w", err)
 	}
 	form.Set("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer")
 	form.Set("client_assertion", assertion)
-	return nil
+	return []byte(form.Encode()), nil
 }
 
 // createClientAttestationHeaders creates the attestation and, outside combined
@@ -896,7 +958,7 @@ func createClientAssertionJWT(key *ecdsa.PrivateKey, clientID, audience string) 
 	return signJWT(header, payload, key)
 }
 
-func createDPoPProofJWT(key *ecdsa.PrivateKey, method, targetURL, nonce, accessToken, challenge string) (string, error) {
+func createDPoPProofJWT(key *ecdsa.PrivateKey, method, targetURL, nonce, accessToken string) (string, error) {
 	jwk := mock.SigningJWKMap(&key.PublicKey)
 	header := map[string]any{
 		"alg": "ES256",
@@ -911,11 +973,6 @@ func createDPoPProofJWT(key *ecdsa.PrivateKey, method, targetURL, nonce, accessT
 	}
 	if nonce != "" {
 		payload["nonce"] = nonce
-	}
-	// The challenge for combined mode attestation-based client authentication
-	// (draft-10 §5.2), where this proof is the possession proof.
-	if challenge != "" {
-		payload["challenge"] = challenge
 	}
 	if accessToken != "" {
 		sum := sha256.Sum256([]byte(accessToken))
@@ -1015,9 +1072,9 @@ func (e *serverRefusal) Error() string { return e.Message }
 
 func (e *serverRefusal) Unwrap() error { return e.Cause }
 
-func postFormWithDPoP(client *http.Client, target string, form url.Values, key *ecdsa.PrivateKey, accessToken string, nonce *string, attestor *clientAttestor, payloads ...*LogPayload) (map[string]any, error) {
+func postFormWithDPoP(client *http.Client, target string, form url.Values, key *ecdsa.PrivateKey, accessToken string, nonce *string, authenticator *clientAuthenticator, payloads ...*LogPayload) (map[string]any, error) {
 	body := []byte(form.Encode())
-	respBody, status, err := doDPoPRequest("POST", target, "application/x-www-form-urlencoded", "", body, "", accessToken, key, nonce, attestor, client)
+	respBody, status, err := doDPoPRequest("POST", target, "application/x-www-form-urlencoded", "", body, "", accessToken, key, nonce, authenticator, client)
 	if payload := firstLogPayload(payloads); payload != nil {
 		payload.Label, payload.Body = "Response", string(respBody)
 	}
@@ -1097,12 +1154,11 @@ type credentialExchangeLog struct {
 	Response *LogPayload
 }
 
-func requestCredentialWithDPoP(client *http.Client, mode ValidationMode, metadata map[string]any, endpoint, accessToken, authScheme string, proofs credentialProofs, credentialIdentifier, credentialConfigurationID string, credentialResponseEncryption map[string]any, dpopKey, holderKey *ecdsa.PrivateKey, nonce *string, traces ...*credentialExchangeLog) (map[string]any, error) {
-	reqBody := credentialRequestBody(proofs, credentialIdentifier, credentialConfigurationID, credentialResponseEncryption)
-	body, contentType, err := prepareCredentialRequestBody(mode, metadata, reqBody)
+func (w *Wallet) requestCredentialWithDPoP(a credentialRequestAttempt, proofs credentialProofs, trace *credentialExchangeLog) (map[string]any, error) {
+	reqBody := credentialRequestBody(proofs, a.credentialIdentifier, a.credentialConfigurationID, a.responseEncryption)
+	body, contentType, err := prepareCredentialRequestBody(w.Mode(), a.metadata, reqBody)
 	var responsePayload *LogPayload
-	if len(traces) > 0 && traces[0] != nil {
-		trace := traces[0]
+	if trace != nil {
 		payload := &LogPayload{Label: "Request", Body: string(body)}
 		if contentType == "application/jwt" {
 			payload.Body, payload.Wire, payload.Encrypted = reqBody, string(body), true
@@ -1119,8 +1175,8 @@ func requestCredentialWithDPoP(client *http.Client, mode ValidationMode, metadat
 	if err != nil {
 		return nil, err
 	}
-	respBody, _, reqErr := doDPoPRequest("POST", endpoint, contentType, credentialAccept(credentialResponseEncryption), body, authScheme, accessToken, dpopKey, nonce, nil, client)
-	out, parseErr := parseCredentialResponseBody(respBody, holderKey, responsePayload)
+	respBody, _, reqErr := doDPoPRequest("POST", a.endpoint, contentType, credentialAccept(a.responseEncryption), body, a.authScheme, a.accessToken, a.dpopKey, a.nonce, nil, w.HTTPClient())
+	out, encrypted, parseErr := parseCredentialResponseBody(respBody, w.HolderKey, responsePayload)
 	if parseErr == nil {
 		// The caller acts on the code of a Credential Error Response
 		// (§8.3.1.2), so it is returned in place of the HTTP error.
@@ -1134,6 +1190,9 @@ func requestCredentialWithDPoP(client *http.Client, mode ValidationMode, metadat
 	}
 	if parseErr != nil {
 		return nil, parseErr
+	}
+	if err := w.checkResponseEncryption(a.responseEncryption, encrypted, out, a.endpoint); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -1213,26 +1272,99 @@ func (w *Wallet) deferredCredentialAttempt(mode ValidationMode, metadata map[str
 		details["method"], details["status_code"], details["transaction_id"] = "POST", statusCode, transactionID
 		w.addProtocolLog("issuance", "deferred_credential_response", fmt.Sprintf("Deferred credential response from %s", endpoint), logErr == nil && statusCode < 400, details, responsePayload)
 	}()
-	out, parseErr := parseCredentialResponseBody(respBody, holderKey, responsePayload)
-	if parseErr != nil {
-		if reqErr != nil {
-			return nil, reqErr
-		}
+	out, encrypted, parseErr := parseCredentialResponseBody(respBody, holderKey, responsePayload)
+	switch {
+	case parseErr != nil && statusCode >= 400:
+		return nil, deferredCredentialError{status: statusCode, description: truncateBody(string(respBody))}
+	case parseErr != nil && reqErr != nil:
+		return nil, reqErr
+	case parseErr != nil:
 		return nil, fmt.Errorf("parsing deferred credential response: %w", parseErr)
 	}
-
-	if pending, interval := deferredIssuancePending(out); pending {
-		return nil, stillPendingError{transactionID: transactionID, interval: interval}
-	}
-	if errMsg, _ := out["error"].(string); errMsg != "" {
-		desc, _ := out["error_description"].(string)
-		return nil, fmt.Errorf("deferred credential error: %s: %s", errMsg, desc)
+	if code, _ := out["error"].(string); code != "" {
+		description, _ := out["error_description"].(string)
+		return nil, deferredCredentialError{status: statusCode, code: code, description: description}
 	}
 	if reqErr != nil {
-		return nil, reqErr
+		return nil, deferredCredentialError{status: statusCode, description: truncateBody(string(respBody))}
+	}
+	if err := w.checkResponseEncryption(responseEncryption, encrypted, out, endpoint); err != nil {
+		return nil, finalDeferredError{err}
+	}
+	if pending, interval := deferredIssuancePending(out); pending {
+		if err := w.checkDeferredPendingResponse(out, statusCode, endpoint); err != nil {
+			return nil, finalDeferredError{err}
+		}
+		return nil, stillPendingError{transactionID: transactionID, interval: interval}
 	}
 	return out, nil
 }
+
+// checkDeferredPendingResponse applies §9.2 to an answer that defers again:
+// "the Deferred Credential Response MUST use the interval and transaction_id
+// parameters [...] and it MUST respond with the HTTP status code 202".
+func (w *Wallet) checkDeferredPendingResponse(out map[string]any, statusCode int, endpoint string) error {
+	var problems []string
+	if statusCode != http.StatusAccepted {
+		problems = append(problems, fmt.Sprintf("answered with HTTP %d instead of 202", statusCode))
+	}
+	if _, ok := out["interval"]; !ok {
+		problems = append(problems, "left out interval")
+	}
+	if len(problems) == 0 {
+		return nil
+	}
+	detail := fmt.Sprintf("%s deferred the credential again but %s (OID4VCI 1.0 §9.2)", endpoint, strings.Join(problems, " and "))
+	return w.reportDeviation(deviation{
+		action: "issuance", event: "deferred_response_deviation", detail: detail,
+		details: map[string]any{"endpoint": endpoint, "status_code": statusCode},
+	})
+}
+
+// deferredCredentialError is a refusal from the Deferred Credential Endpoint
+// (§9.3). code is empty when the body carries no error code.
+type deferredCredentialError struct {
+	status      int
+	code        string
+	description string
+}
+
+func (e deferredCredentialError) Error() string {
+	message := fmt.Sprintf("deferred credential request refused (HTTP %d)", e.status)
+	if e.code != "" {
+		message += ": " + e.code
+	}
+	if e.description != "" {
+		message += ": " + e.description
+	}
+	return message
+}
+
+// authorizationRejected reports a refused access token (RFC 6750 §3.1).
+func (e deferredCredentialError) authorizationRejected() bool {
+	return e.status == http.StatusUnauthorized || e.status == http.StatusForbidden || e.code == "invalid_token"
+}
+
+// final reports a refusal that a retry would only repeat. §9.3: after
+// credential_request_denied "A wallet upon receiving this error SHOULD stop
+// making requests to the deferred credential endpoint for the given
+// transaction_id."
+func (e deferredCredentialError) final() bool {
+	if e.authorizationRejected() {
+		return true
+	}
+	switch e.code {
+	case "invalid_transaction_id", "credential_request_denied", "invalid_grant", "invalid_request", "invalid_client":
+		return true
+	}
+	return false
+}
+
+// finalDeferredError is a deferred response the wallet refuses. Asking again
+// gets the same answer.
+type finalDeferredError struct{ error }
+
+func (e finalDeferredError) Unwrap() error { return e.error }
 
 // deferredIssuancePending reports whether a deferred credential response is
 // still pending and how long to wait. OpenID4VCI 1.0 §9.2 answers that case
@@ -1433,15 +1565,21 @@ func credentialAccept(credentialResponseEncryption map[string]any) string {
 // doDPoPRequest retries once for a DPoP nonce challenge and once for an
 // attestation challenge (RFC 9449 §8, ABCA §6.2 and §7.4). One retry does not
 // use up the other.
-func doDPoPRequest(method, target, contentType, accept string, body []byte, authScheme, token string, key *ecdsa.PrivateKey, nonce *string, attestor *clientAttestor, clients ...*http.Client) ([]byte, int, error) {
+func doDPoPRequest(method, target, contentType, accept string, body []byte, authScheme, token string, key *ecdsa.PrivateKey, nonce *string, authenticator *clientAuthenticator, clients ...*http.Client) ([]byte, int, error) {
 	if accept == "" {
 		accept = "application/json, application/jwt"
 	}
 	dpopRetried := false
 	attestationRetried := false
 	for {
-		reqBody := bytes.NewReader(body)
-		req, err := http.NewRequest(method, target, reqBody)
+		reqBody := body
+		if authenticator != nil {
+			var err error
+			if reqBody, err = authenticator.formBody(contentType, body); err != nil {
+				return nil, 0, err
+			}
+		}
+		req, err := http.NewRequest(method, target, bytes.NewReader(reqBody))
 		if err != nil {
 			return nil, 0, fmt.Errorf("creating request: %w", err)
 		}
@@ -1452,8 +1590,8 @@ func doDPoPRequest(method, target, contentType, accept string, body []byte, auth
 		if token != "" && authScheme != "" {
 			req.Header.Set("Authorization", authScheme+" "+token)
 		}
-		if attestor != nil {
-			headers, err := attestor.headers()
+		if authenticator != nil {
+			headers, err := authenticator.headers()
 			if err != nil {
 				return nil, 0, err
 			}
@@ -1462,15 +1600,17 @@ func doDPoPRequest(method, target, contentType, accept string, body []byte, auth
 			}
 		}
 		if key != nil {
-			challenge := ""
-			if attestor != nil {
-				var err error
-				challenge, err = attestor.dpopChallenge()
+			dpopNonce := derefString(nonce)
+			if authenticator != nil {
+				challenge, err := authenticator.dpopChallenge()
 				if err != nil {
 					return nil, 0, err
 				}
+				if challenge != "" {
+					dpopNonce = challenge
+				}
 			}
-			dpopJWT, err := createDPoPProofJWT(key, method, target, derefString(nonce), token, challenge)
+			dpopJWT, err := createDPoPProofJWT(key, method, target, dpopNonce, token)
 			if err != nil {
 				return nil, 0, fmt.Errorf("creating DPoP proof: %w", err)
 			}
@@ -1487,14 +1627,14 @@ func doDPoPRequest(method, target, contentType, accept string, body []byte, auth
 			return nil, resp.StatusCode, fmt.Errorf("reading response: %w", readErr)
 		}
 		updateDPoPNonce(nonce, resp.Header)
-		if attestor != nil {
-			attestor.observe(resp.Header)
+		if authenticator != nil {
+			authenticator.observe(resp.Header)
 		}
 		if needsDPoPRetry(resp.StatusCode, resp.Header, respBody) && !dpopRetried {
 			dpopRetried = true
 			continue
 		}
-		if resp.StatusCode >= 400 && attestor != nil && attestor.retryAfterRefusal(respBody) && !attestationRetried {
+		if resp.StatusCode >= 400 && authenticator != nil && authenticator.retryAfterRefusal(respBody) && !attestationRetried {
 			attestationRetried = true
 			continue
 		}
@@ -1626,27 +1766,32 @@ func (w *Wallet) validateAuthorizationCodeResponse(values url.Values, expectedSt
 
 // authorizationRequestURL builds the authorization request. After PAR it sends
 // only client_id and request_uri (RFC 9126 §4). Otherwise the parameters go in
-// the query string (RFC 6749 §4.1.1).
+// the query string (RFC 6749 §4.1.1). RFC 6749 §3.1: the endpoint's own query
+// component "MUST be retained when adding additional query parameters".
 func authorizationRequestURL(endpoint, clientID, requestURI string, params url.Values) (string, error) {
-	values := url.Values{}
+	// A javascript: or data: endpoint from issuer metadata would run in the
+	// wallet's origin.
+	if endpoint == "" {
+		return "", fmt.Errorf("authorization server metadata did not include authorization_endpoint")
+	}
+	if err := validateAbsoluteURI("authorization_endpoint", endpoint); err != nil {
+		return "", err
+	}
+	parsed, err := url.Parse(endpoint)
+	if err != nil {
+		return "", fmt.Errorf("parsing authorization_endpoint: %w", err)
+	}
+	values := parsed.Query()
 	if requestURI != "" {
-		values.Set("client_id", clientID)
 		values.Set("request_uri", requestURI)
 	} else {
 		for key, entries := range params {
-			for _, entry := range entries {
-				values.Add(key, entry)
-			}
+			values[key] = entries
 		}
-		values.Set("client_id", clientID)
 	}
-	// A javascript: or data: endpoint from issuer metadata would run in the
-	// wallet's origin.
-	authURL := endpoint + "?" + values.Encode()
-	if err := validateAbsoluteURI("authorization_endpoint", authURL); err != nil {
-		return "", err
-	}
-	return authURL, nil
+	values.Set("client_id", clientID)
+	parsed.RawQuery = values.Encode()
+	return parsed.String(), nil
 }
 
 func callAuthorizationEndpoint(authURL string, clients ...*http.Client) (string, string, error) {

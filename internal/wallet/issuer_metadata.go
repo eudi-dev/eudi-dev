@@ -27,6 +27,7 @@ import (
 	"math/big"
 	"net"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -152,8 +153,17 @@ func issuerTLSCertificatePEM(serverName string, key *ecdsa.PrivateKey, caKey *ec
 		serverName = "localhost"
 	}
 	dnsNames := []string{"localhost", "host.docker.internal"}
-	if serverName != "localhost" && serverName != "host.docker.internal" {
-		dnsNames = append(dnsNames, serverName)
+	ips := []net.IP{net.ParseIP("127.0.0.1"), net.ParseIP("::1")}
+	hostNames, hostIPs := hostSubjectAltNames(serverName)
+	for _, name := range hostNames {
+		if !slices.Contains(dnsNames, name) {
+			dnsNames = append(dnsNames, name)
+		}
+	}
+	for _, ip := range hostIPs {
+		if !slices.ContainsFunc(ips, ip.Equal) {
+			ips = append(ips, ip)
+		}
 	}
 
 	tmpl := &x509.Certificate{
@@ -167,7 +177,7 @@ func issuerTLSCertificatePEM(serverName string, key *ecdsa.PrivateKey, caKey *ec
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
 		DNSNames:              dnsNames,
-		IPAddresses:           []net.IP{net.ParseIP("127.0.0.1"), net.ParseIP("::1")},
+		IPAddresses:           ips,
 	}
 
 	parent := tmpl

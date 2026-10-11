@@ -21,6 +21,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -30,9 +31,9 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 )
 
-const DefaultIssueExpiry = 720 * time.Hour
+const DefaultIssueExpiry = credtemplate.DefaultExp
 
-const DefaultMDOCDocType = "eu.europa.ec.eudi.pid.1"
+const DefaultMDOCDocType = credtemplate.DefaultDocType
 
 // IssueOptions describes a credential to issue with the wallet's issuer key
 // and import into the wallet. It is shared by the `issue ... --wallet` CLI
@@ -145,11 +146,7 @@ func (w *Wallet) judgeSigningChainAnchor(format string, chain []*x509.Certificat
 	if format == "mdoc" {
 		finding = "ISO 18013-5: the signing certificate chain includes its self-signed root, which does not belong in the x5chain header"
 	}
-	if w.Mode() == ValidationModeStrict {
-		return fmt.Errorf("%s", finding)
-	}
-	w.AddWarning("management", finding+". It is embedded as given.", nil)
-	return nil
+	return w.reportDeviation(deviation{action: "management", event: "signing_chain_anchor", detail: finding})
 }
 
 type IssueDisplay struct {
@@ -174,81 +171,12 @@ type IssueResult struct {
 }
 
 // IssueCredential leaves saving to the caller. The credential, its status
-// entry and the type registration exist only in memory until then.
-func (w *Wallet) IssueCredential(opts IssueOptions) (*IssueResult, error) {
-	tpl, pidTemplate, err := w.resolveIssueTemplate(opts)
+// entry and the type registration exist only in memory until then. A failed
+// request leaves no credential behind.
+func (w *Wallet) IssueCredential(opts IssueOptions) (result *IssueResult, err error) {
+	resolved, tpl, err := w.resolveIssue(opts)
 	if err != nil {
 		return nil, err
-	}
-
-	formatInput := opts.Format
-	if strings.TrimSpace(formatInput) == "" && tpl != nil {
-		formatInput = tpl.Format
-	}
-	format, err := normalizeIssueFormat(formatInput)
-	if err != nil {
-		return nil, err
-	}
-	// A named template has to match the requested format. A PID template
-	// chosen through opts.PID only supplies claims, so a jwt request can use
-	// the SD-JWT PID claims.
-	if tpl != nil && tpl.Format != "" && !pidTemplate {
-		tplFormat, err := credtemplate.NormalizeFormat(tpl.Format)
-		if err != nil {
-			return nil, err
-		}
-		if tplFormat != "" && tplFormat != format {
-			return nil, fmt.Errorf("template %q is for format %s, not %s", tpl.Name, tplFormat, format)
-		}
-	}
-
-	claims := opts.Claims
-	if tpl != nil {
-		claims = credtemplate.MergeClaims(tpl.Claims, opts.Claims)
-	} else if claims == nil {
-		claims = mock.DefaultClaims
-	}
-	claims = omitIssueClaims(claims, opts.Omit)
-
-	alwaysDisclosed := opts.AlwaysDisclosed
-	if tpl != nil {
-		alwaysDisclosed = mergeAlwaysDisclosed(tpl.AlwaysDisclosed, opts.AlwaysDisclosed)
-	}
-	if format == "mdoc" && len(alwaysDisclosed) > 0 {
-		return nil, fmt.Errorf("always-disclosed claims are not supported for mdoc: every mdoc element is selectively disclosable")
-	}
-
-	expiresIn := opts.ExpiresIn
-	if expiresIn == 0 && tpl != nil && tpl.Exp != "" {
-		expiresIn, err = time.ParseDuration(tpl.Exp)
-		if err != nil {
-			return nil, fmt.Errorf("template %q: invalid exp duration: %w", tpl.Name, err)
-		}
-	}
-	if expiresIn == 0 {
-		expiresIn = DefaultIssueExpiry
-	}
-
-	vct := strings.TrimSpace(opts.VCT)
-	if vct == "" && tpl != nil {
-		vct = strings.TrimSpace(tpl.VCT)
-	}
-	if vct == "" {
-		vct = mock.DefaultPIDVCT
-	}
-	docType := strings.TrimSpace(opts.DocType)
-	if docType == "" && tpl != nil {
-		docType = strings.TrimSpace(tpl.DocType)
-	}
-	if docType == "" {
-		docType = DefaultMDOCDocType
-	}
-	namespace := strings.TrimSpace(opts.Namespace)
-	if namespace == "" && tpl != nil {
-		namespace = strings.TrimSpace(tpl.Namespace)
-	}
-	if namespace == "" {
-		namespace = docType
 	}
 
 	// The template and its catalogue entry are checked before the credential
@@ -256,23 +184,8 @@ func (w *Wallet) IssueCredential(opts IssueOptions) (*IssueResult, error) {
 	var saved *credtemplate.Template
 	var catalogEntry registrar.CatalogAttestation
 	if name := strings.TrimSpace(opts.SaveTemplate); name != "" {
-		saved = &credtemplate.Template{
-			Name:            name,
-			Format:          format,
-			Exp:             formatIssueExpiry(expiresIn),
-			Claims:          claims,
-			AlwaysDisclosed: alwaysDisclosed,
-		}
-		switch format {
-		case "mdoc":
-			saved.DocType = docType
-			saved.Namespace = namespace
-		default:
-			saved.VCT = vct
-		}
-		if tpl != nil {
-			saved.UniqueClaims = tpl.UniqueClaims
-		}
+		t := resolved.Template(name)
+		saved = &t
 		if opts.Catalog != nil {
 			if catalogEntry, err = w.Registrar().TemplateCatalogEntry(*saved, *opts.Catalog); err != nil {
 				return nil, err
@@ -289,13 +202,13 @@ func (w *Wallet) IssueCredential(opts IssueOptions) (*IssueResult, error) {
 	}
 
 	spec := opts.Trust
-	switch format {
+	switch resolved.Format {
 	case "sdjwt":
-		spec.Format, spec.VCT, spec.DocType = "dc+sd-jwt", vct, ""
+		spec.Format, spec.VCT, spec.DocType = "dc+sd-jwt", resolved.VCT, ""
 	case "jwt":
-		spec.Format, spec.VCT, spec.DocType = "jwt_vc_json", vct, ""
+		spec.Format, spec.VCT, spec.DocType = "jwt_vc_json", resolved.VCT, ""
 	case "mdoc":
-		spec.Format, spec.VCT, spec.DocType = "mso_mdoc", "", docType
+		spec.Format, spec.VCT, spec.DocType = "mso_mdoc", "", resolved.DocType
 	}
 	if saved != nil && saved.Category != "" {
 		spec.Category = firstNonEmpty(spec.Category, saved.Category)
@@ -305,87 +218,22 @@ func (w *Wallet) IssueCredential(opts IssueOptions) (*IssueResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	signingKey, certChain := opts.SigningKey, opts.SigningCertChain
-	if signingKey != nil {
-		if err := w.judgeSigningChainAnchor(format, certChain); err != nil {
-			return nil, err
-		}
-	} else if signingKey, certChain, err = w.SigningMaterialForIssuedCredential(spec, claims); err != nil {
+	signer, err := w.issueSigner(opts, resolved, spec, statusURI)
+	if err != nil {
 		return nil, err
 	}
 
-	issuer := strings.TrimRight(strings.TrimSpace(w.IssuerURL), "/")
-	if issuer == "" {
-		issuer = "https://issuer.example"
-	}
-
-	var holderPub *ecdsa.PublicKey
-	if !opts.Unbound && w.HolderKey != nil {
-		holderPub = &w.HolderKey.PublicKey
-	}
-
 	if opts.BatchSize >= 2 {
-		if format == "jwt" {
+		if resolved.Format == "jwt" {
 			return nil, fmt.Errorf("batch issuance needs holder binding, which jwt_vc_json does not carry")
 		}
 		if opts.Unbound {
 			return nil, fmt.Errorf("an unbound credential cannot be issued as a batch (a batch needs a distinct holder key per copy)")
 		}
 	}
-
-	signCopy := func(holderPub *ecdsa.PublicKey, statusIdx int) (string, error) {
-		// An override chain is embedded as given, root included, to test
-		// verifier rejection.
-		keepAnchor := opts.SigningKey != nil
-		claims := tpl.WithUniqueClaims(claims)
-		switch format {
-		case "sdjwt":
-			return mock.GenerateSDJWT(mock.SDJWTConfig{
-				CertificateIssuer: w.IssuerURL,
-				Issuer:            issuer, VCT: vct, ExpiresIn: expiresIn, NotBefore: opts.NotBefore,
-				Claims: claims, Key: signingKey, HolderKey: holderPub,
-				StatusListURI: statusURI, StatusListIdx: statusIdx, CertChain: certChain,
-				AlwaysDisclosed: alwaysDisclosed, KeepTrustAnchor: keepAnchor,
-			})
-		case "jwt":
-			return mock.GenerateJWT(mock.JWTConfig{
-				Issuer: issuer, VCT: vct, ExpiresIn: expiresIn, NotBefore: opts.NotBefore,
-				Claims: claims, Key: signingKey,
-				StatusListURI: statusURI, StatusListIdx: statusIdx, CertChain: certChain,
-			})
-		case "mdoc":
-			return mock.GenerateMDOC(mock.MDOCConfig{
-				CertificateIssuer: w.IssuerURL,
-				DocType:           docType, NamespaceClaims: splitClaimsByNamespace(claims, namespace),
-				Key: signingKey, HolderKey: holderPub, ExpiresIn: expiresIn, ValidFrom: opts.NotBefore,
-				StatusListURI: statusURI, StatusListIdx: statusIdx, CertChain: certChain,
-				KeepTrustAnchor: keepAnchor,
-			})
-		}
-		return "", fmt.Errorf("unsupported format %q", format)
-	}
-
-	// Display fields merge one by one, so setting a name or color keeps the
-	// template's images.
-	displaySource := tpl
-	if opts.DisplayTemplate != "" {
-		dt, err := credtemplate.Load(opts.DisplayTemplate, w.Templates)
-		if err != nil {
-			return nil, fmt.Errorf("loading the display template %q: %w", opts.DisplayTemplate, err)
-		}
-		displaySource = dt
-	}
-	var issuedDisplay *CredentialDisplay
-	if displaySource != nil {
-		issuedDisplay = w.templateDisplay(displaySource.Display)
-	}
-	if opts.Display != nil {
-		issuedDisplay = mergeCredentialDisplay(issuedDisplay, w.issuedDisplay(*opts.Display))
-	}
-	applyIssuedDisplay := func(cred *StoredCredential) {
-		if issuedDisplay != nil {
-			w.rememberDisplay(cred, issuedDisplay)
-		}
+	display, err := w.issueDisplay(tpl, opts)
+	if err != nil {
+		return nil, err
 	}
 
 	// A shared status index would link two presentations of a batch. So every
@@ -397,7 +245,27 @@ func (w *Wallet) IssueCredential(opts IssueOptions) (*IssueResult, error) {
 		}
 	}
 
-	raw, err := signCopy(holderPub, statusIdx)
+	var issued []string
+	defer func() {
+		if err != nil {
+			w.discardCredentials(issued)
+		}
+	}()
+	keep := func(cred *StoredCredential, idx int) {
+		issued = append(issued, cred.ID)
+		if display != nil {
+			w.rememberDisplay(cred, display)
+		}
+		if registerStatus {
+			w.RegisterStatusEntry(cred.ID, idx)
+		}
+	}
+
+	var holderPub *ecdsa.PublicKey
+	if !opts.Unbound && w.HolderKey != nil {
+		holderPub = &w.HolderKey.PublicKey
+	}
+	raw, err := signer.sign(holderPub, statusIdx)
 	if err != nil {
 		return nil, fmt.Errorf("generating credential: %w", err)
 	}
@@ -405,10 +273,7 @@ func (w *Wallet) IssueCredential(opts IssueOptions) (*IssueResult, error) {
 	if err != nil {
 		return nil, fmt.Errorf("importing to wallet: %w", err)
 	}
-	applyIssuedDisplay(imported)
-	if registerStatus {
-		w.RegisterStatusEntry(imported.ID, statusIdx)
-	}
+	keep(imported, statusIdx)
 
 	// Each batch copy gets its own holder key and status index, so rotated
 	// presentations share no identifier.
@@ -427,7 +292,7 @@ func (w *Wallet) IssueCredential(opts IssueOptions) (*IssueResult, error) {
 					return nil, err
 				}
 			}
-			copyRaw, err := signCopy(&copyKey.PublicKey, copyIdx)
+			copyRaw, err := signer.sign(&copyKey.PublicKey, copyIdx)
 			if err != nil {
 				return nil, fmt.Errorf("generating batch copy: %w", err)
 			}
@@ -439,10 +304,7 @@ func (w *Wallet) IssueCredential(opts IssueOptions) (*IssueResult, error) {
 			if err != nil {
 				return nil, fmt.Errorf("importing batch copy: %w", err)
 			}
-			applyIssuedDisplay(copyCred)
-			if registerStatus {
-				w.RegisterStatusEntry(copyCred.ID, copyIdx)
-			}
+			keep(copyCred, copyIdx)
 		}
 	}
 
@@ -454,28 +316,142 @@ func (w *Wallet) IssueCredential(opts IssueOptions) (*IssueResult, error) {
 		}
 	}
 
-	result := &IssueResult{
+	result = &IssueResult{
 		Raw:              raw,
 		Credential:       imported,
 		StatusIdx:        statusIdx,
 		StatusRegistered: registerStatus,
 	}
-
 	if saved != nil {
 		var entry *registrar.CatalogAttestation
 		if opts.Catalog != nil {
 			entry = &catalogEntry
 		}
-		path, err := w.SaveTemplate(*saved, entry)
-		if err != nil {
-			// A failed request leaves no credential behind.
-			w.RemoveCredential(result.Credential.ID)
+		if result.TemplatePath, err = w.SaveTemplate(*saved, entry); err != nil {
 			return nil, err
 		}
-		result.TemplatePath = path
 	}
-
 	return result, nil
+}
+
+// resolveIssue applies the issue options to their template.
+func (w *Wallet) resolveIssue(opts IssueOptions) (credtemplate.Resolved, *credtemplate.Template, error) {
+	tpl, pidTemplate, err := w.resolveIssueTemplate(opts)
+	if err != nil {
+		return credtemplate.Resolved{}, nil, err
+	}
+	resolved, err := credtemplate.Resolve(tpl, credtemplate.Request{
+		Format:          opts.Format,
+		Claims:          opts.Claims,
+		Omit:            opts.Omit,
+		AlwaysDisclosed: opts.AlwaysDisclosed,
+		VCT:             opts.VCT,
+		DocType:         opts.DocType,
+		Namespace:       opts.Namespace,
+		Exp:             opts.ExpiresIn,
+		ClaimSet:        pidTemplate,
+	})
+	return resolved, tpl, err
+}
+
+// credentialSigner signs the credentials of one issue request.
+type credentialSigner struct {
+	resolved  credtemplate.Resolved
+	issuer    string
+	certIss   string
+	notBefore *time.Time
+	statusURI string
+	key       *ecdsa.PrivateKey
+	chain     []*x509.Certificate
+	// keepAnchor embeds an override chain as given, root included, to test
+	// verifier rejection.
+	keepAnchor bool
+}
+
+func (w *Wallet) issueSigner(opts IssueOptions, resolved credtemplate.Resolved, spec IssuedAttestationSpec, statusURI string) (*credentialSigner, error) {
+	key, chain := opts.SigningKey, opts.SigningCertChain
+	if key != nil {
+		if err := w.judgeSigningChainAnchor(resolved.Format, chain); err != nil {
+			return nil, err
+		}
+	} else {
+		var err error
+		if key, chain, err = w.SigningMaterialForIssuedCredential(spec, resolved.Claims); err != nil {
+			return nil, err
+		}
+	}
+	issuer := strings.TrimRight(strings.TrimSpace(w.IssuerURL), "/")
+	if issuer == "" {
+		issuer = "https://issuer.example"
+	}
+	return &credentialSigner{
+		resolved: resolved, issuer: issuer, certIss: w.IssuerURL, notBefore: opts.NotBefore,
+		statusURI: statusURI, key: key, chain: chain, keepAnchor: opts.SigningKey != nil,
+	}, nil
+}
+
+func (s *credentialSigner) sign(holderPub *ecdsa.PublicKey, statusIdx int) (string, error) {
+	r := s.resolved
+	claims := r.CredentialClaims()
+	switch r.Format {
+	case "sdjwt":
+		return mock.GenerateSDJWT(mock.SDJWTConfig{
+			CertificateIssuer: s.certIss,
+			Issuer:            s.issuer, VCT: r.VCT, ExpiresIn: r.Exp, NotBefore: s.notBefore,
+			Claims: claims, Key: s.key, HolderKey: holderPub,
+			StatusListURI: s.statusURI, StatusListIdx: statusIdx, CertChain: s.chain,
+			AlwaysDisclosed: r.AlwaysDisclosed, KeepTrustAnchor: s.keepAnchor,
+		})
+	case "jwt":
+		return mock.GenerateJWT(mock.JWTConfig{
+			Issuer: s.issuer, VCT: r.VCT, ExpiresIn: r.Exp, NotBefore: s.notBefore,
+			Claims: claims, Key: s.key,
+			StatusListURI: s.statusURI, StatusListIdx: statusIdx, CertChain: s.chain,
+		})
+	case "mdoc":
+		return mock.GenerateMDOC(mock.MDOCConfig{
+			CertificateIssuer: s.certIss,
+			DocType:           r.DocType, NamespaceClaims: splitClaimsByNamespace(claims, r.Namespace),
+			Key: s.key, HolderKey: holderPub, ExpiresIn: r.Exp, ValidFrom: s.notBefore,
+			StatusListURI: s.statusURI, StatusListIdx: statusIdx, CertChain: s.chain,
+			KeepTrustAnchor: s.keepAnchor,
+		})
+	}
+	return "", fmt.Errorf("unsupported format %q", r.Format)
+}
+
+// issueDisplay merges display fields one by one, so setting a name or color
+// keeps the template's images.
+func (w *Wallet) issueDisplay(tpl *credtemplate.Template, opts IssueOptions) (*CredentialDisplay, error) {
+	source := tpl
+	if opts.DisplayTemplate != "" {
+		dt, err := credtemplate.Load(opts.DisplayTemplate, w.Templates)
+		if err != nil {
+			return nil, fmt.Errorf("loading the display template %q: %w", opts.DisplayTemplate, err)
+		}
+		source = dt
+	}
+	var display *CredentialDisplay
+	if source != nil {
+		display = w.templateDisplay(source.Display)
+	}
+	if opts.Display != nil {
+		display = mergeCredentialDisplay(display, w.issuedDisplay(*opts.Display))
+	}
+	return display, nil
+}
+
+// discardCredentials removes credentials and their status entries.
+func (w *Wallet) discardCredentials(ids []string) {
+	if len(ids) == 0 {
+		return
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.Credentials = slices.DeleteFunc(w.Credentials, func(c StoredCredential) bool { return slices.Contains(ids, c.ID) })
+	for _, id := range ids {
+		delete(w.StatusEntries, id)
+	}
 }
 
 // SaveTemplate stores a template and, if entry is set, its catalogue entry.
@@ -522,49 +498,13 @@ func (w *Wallet) resolveIssueTemplate(opts IssueOptions) (tpl *credtemplate.Temp
 	if opts.PID && opts.Claims == nil {
 		sdName, mdocName, _ := credtemplate.PIDTemplateNames(opts.VCT, w.Templates)
 		name := sdName
-		if format, _ := normalizeIssueFormat(opts.Format); format == "mdoc" {
+		if format, _ := credtemplate.NormalizeFormat(opts.Format); format == "mdoc" {
 			name = mdocName
 		}
 		tpl, err = credtemplate.Load(name, w.Templates)
 		return tpl, true, err
 	}
 	return nil, false, nil
-}
-
-func mergeAlwaysDisclosed(base, extra []string) []string {
-	seen := make(map[string]bool, len(base)+len(extra))
-	var out []string
-	for _, list := range [][]string{base, extra} {
-		for _, path := range list {
-			path = strings.TrimSpace(path)
-			if path == "" || seen[path] {
-				continue
-			}
-			seen[path] = true
-			out = append(out, path)
-		}
-	}
-	return out
-}
-
-func formatIssueExpiry(d time.Duration) string {
-	if d%time.Hour == 0 {
-		return fmt.Sprintf("%dh", int64(d/time.Hour))
-	}
-	return d.String()
-}
-
-func normalizeIssueFormat(format string) (string, error) {
-	switch strings.TrimSpace(format) {
-	case "sdjwt", "sd-jwt", "dc+sd-jwt":
-		return "sdjwt", nil
-	case "jwt", "jwt_vc_json":
-		return "jwt", nil
-	case "mdoc", "mso_mdoc":
-		return "mdoc", nil
-	default:
-		return "", fmt.Errorf("unsupported credential format %q: expected sdjwt, jwt, or mdoc", format)
-	}
 }
 
 // resolveIssueStatus follows the status flags of the issue commands. An
@@ -604,21 +544,4 @@ func (w *Wallet) resolveIssueStatus(uri *string, idx *int) (string, int, bool, e
 
 func splitClaimsByNamespace(claims map[string]any, defaultNamespace string) map[string]map[string]any {
 	return mock.SplitClaimsByNamespace(claims, defaultNamespace)
-}
-
-func omitIssueClaims(claims map[string]any, omit []string) map[string]any {
-	if len(omit) == 0 {
-		return claims
-	}
-	exclude := make(map[string]bool, len(omit))
-	for _, name := range omit {
-		exclude[strings.TrimSpace(name)] = true
-	}
-	result := make(map[string]any, len(claims))
-	for k, v := range claims {
-		if !exclude[k] {
-			result[k] = v
-		}
-	}
-	return result
 }

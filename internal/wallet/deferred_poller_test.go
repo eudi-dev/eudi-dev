@@ -268,6 +268,9 @@ func TestDeferredPoller_GivesUpOnFatalAnswers(t *testing.T) {
 	}{
 		{"rejected token", "invalid_token"},
 		{"unknown transaction", "invalid_transaction_id"},
+		// §9.3: "A wallet upon receiving this error SHOULD stop making
+		// requests to the deferred credential endpoint".
+		{"denied request", "credential_request_denied"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			w := generateTestWallet(t)
@@ -372,10 +375,13 @@ func TestIsRetryableDeferredError(t *testing.T) {
 		retry bool
 	}{
 		{"network trouble", errString("connection refused"), true},
-		{"server fault", errString("HTTP 503: upstream unavailable"), true},
-		{"rejected token", errString(`HTTP 401: {"error":"invalid_token"}`), false},
-		{"unknown transaction", errString(`HTTP 400: {"error":"invalid_transaction_id"}`), false},
-		{"expired grant", errString(`HTTP 400: {"error":"invalid_grant","error_description":"expired"}`), false},
+		{"server fault", deferredCredentialError{status: 503, description: "upstream unavailable"}, true},
+		{"server fault naming a token", deferredCredentialError{status: 502, description: "invalid_token cache unavailable"}, true},
+		{"rejected token", deferredCredentialError{status: 401, code: "invalid_token"}, false},
+		{"unknown transaction", deferredCredentialError{status: 400, code: "invalid_transaction_id"}, false},
+		{"denied request", deferredCredentialError{status: 400, code: "credential_request_denied"}, false},
+		{"expired grant", deferredCredentialError{status: 400, code: "invalid_grant", description: "expired"}, false},
+		{"refused response", finalDeferredError{errString("plaintext response")}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := isRetryableDeferredError(tc.err); got != tc.retry {
@@ -553,15 +559,84 @@ func TestDeferredIssuanceRecordsTheCredentialType(t *testing.T) {
 // A rejected token that cannot be refreshed ends collection. Collection may
 // outlast an access token by hours.
 func TestDeferredGivesUpOnARejectedToken(t *testing.T) {
-	for _, status := range []string{"HTTP 401", "HTTP 403"} {
-		if isRetryableDeferredError(fmt.Errorf("deferred credential request: %s: ", status)) {
-			t.Errorf("%s is treated as retryable, so the wallet keeps asking with a token the issuer already refused", status)
+	for _, status := range []int{http.StatusUnauthorized, http.StatusForbidden} {
+		err := fmt.Errorf("deferred credential request: %w", deferredCredentialError{status: status})
+		if isRetryableDeferredError(err) || !isAuthorizationRejected(err) {
+			t.Errorf("HTTP %d is treated as retryable, so the wallet keeps asking with a token the issuer already refused", status)
 		}
 	}
-	for _, status := range []string{"HTTP 500", "HTTP 502", "connection refused"} {
-		if !isRetryableDeferredError(fmt.Errorf("deferred credential request: %s", status)) {
-			t.Errorf("%s should stay retryable", status)
+	for _, status := range []int{http.StatusInternalServerError, http.StatusBadGateway} {
+		if !isRetryableDeferredError(deferredCredentialError{status: status}) {
+			t.Errorf("HTTP %d should stay retryable", status)
 		}
+	}
+}
+
+// A collection that starts from an outdated copy of the record does not ask
+// the issuer again once the credential is collected.
+func TestDeferredCollectionFromAStaleCopyDoesNotCollectTwice(t *testing.T) {
+	w := generateTestWallet(t)
+	credRaw := generateTestCredential(t, w)
+	srv, polls := deferredCollectionIssuer(t, credRaw, 0, 1)
+	defer srv.Close()
+	oldClient := httpClient
+	httpClient = srv.Client()
+	defer func() { httpClient = oldClient }()
+
+	server := NewServer(w, 0, func() {})
+	pending := pendingFor(t, w, srv.URL, 1)
+	w.AddDeferredIssuance(pending)
+	snapshot := w.DeferredIssuanceList()[0]
+
+	if attempt := server.attemptDeferredCollection(snapshot); !attempt.Collected {
+		t.Fatalf("first collection = %+v, want collected", attempt)
+	}
+	if attempt := server.attemptDeferredCollection(snapshot); attempt.Collected {
+		t.Errorf("second collection from the stale copy = %+v, want nothing collected", attempt)
+	}
+	if got := polls(); got != 1 {
+		t.Errorf("issuer saw %d deferred requests, want 1", got)
+	}
+	if got := len(w.GetCredentials()); got != 1 {
+		t.Errorf("wallet holds %d credentials, want 1", got)
+	}
+}
+
+// §9.2: a response that defers again MUST be a 202 with interval and
+// transaction_id. Debug mode keeps polling with a finding. Strict mode stops.
+func TestDeferredPendingResponseWithout202(t *testing.T) {
+	for _, mode := range []ValidationMode{ValidationModeDebug, ValidationModeStrict} {
+		t.Run(string(mode), func(t *testing.T) {
+			w := generateTestWallet(t)
+			w.ValidationMode = mode
+			srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				if serveIssuerMetadata(rw, r) {
+					return
+				}
+				json.NewEncoder(rw).Encode(map[string]any{"transaction_id": "test-transaction"})
+			}))
+			defer srv.Close()
+			oldClient := httpClient
+			httpClient = srv.Client()
+			defer func() { httpClient = oldClient }()
+
+			server := NewServer(w, 0, func() {})
+			pending := pendingFor(t, w, srv.URL, 1)
+			w.AddDeferredIssuance(pending)
+			attempt := server.attemptDeferredCollection(*pending)
+			if mode == ValidationModeStrict {
+				if !attempt.Abandoned {
+					t.Errorf("strict attempt = %+v, want collection stopped", attempt)
+				}
+				return
+			}
+			if !attempt.Pending {
+				t.Errorf("debug attempt = %+v, want still pending", attempt)
+			}
+			if !hasWarningContaining(w, "§9.2") {
+				t.Error("debug mode did not report the deviation")
+			}
+		})
 	}
 }
 

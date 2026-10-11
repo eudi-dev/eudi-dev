@@ -15,9 +15,7 @@
 package wallet
 
 import (
-	"fmt"
 	"sort"
-	"strings"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 )
@@ -74,9 +72,9 @@ func (w *Wallet) describeCredentialOffer(offer *oid4vc.CredentialOffer) *Issuanc
 		Issuer: offer.CredentialIssuer,
 		Grant:  describeOfferGrant(offer.Grants),
 	}
-	if len(offer.Grants.TxCode) > 0 {
+	if offer.Grants.RequiresTxCode() {
 		details.TxCode = true
-		details.TxCodeHint = describeTxCode(offer.Grants.TxCode)
+		details.TxCodeHint = offer.Grants.TxCodeHint()
 		details.TxCodeInputMode, _ = offer.Grants.TxCode["input_mode"].(string)
 		details.TxCodeDescription, _ = offer.Grants.TxCode["description"].(string)
 		if length, ok := numericValue(offer.Grants.TxCode["length"]); ok {
@@ -84,10 +82,11 @@ func (w *Wallet) describeCredentialOffer(offer *oid4vc.CredentialOffer) *Issuanc
 		}
 	}
 
-	// The flow logs the metadata problems itself, so the dialog only lists them.
+	// The dialog lists the metadata problems. The flow reports them and, in
+	// strict mode, refuses.
 	var freshness []string
-	policy := metadataPolicy{strict: w.Mode() == ValidationModeStrict, warn: func(problem string) { freshness = append(freshness, problem) }}
-	metadata, signerChain, err := fetchIssuerMetadataDocument(w.HTTPClient(), offer.CredentialIssuer, w.ARFChecks(), policy)
+	collect := func(problem string) error { freshness = append(freshness, problem); return nil }
+	metadata, signerChain, err := fetchIssuerMetadataDocument(w.HTTPClient(), offer.CredentialIssuer, w.ARFChecks(), collect)
 	if err != nil {
 		details.MetadataError = err.Error()
 	} else {
@@ -112,24 +111,6 @@ func describeOfferGrant(grants oid4vc.OfferGrants) string {
 	default:
 		return ""
 	}
-}
-
-func describeTxCode(txCode map[string]any) string {
-	description, _ := txCode["description"].(string)
-	if strings.TrimSpace(description) != "" {
-		return description
-	}
-	mode, _ := txCode["input_mode"].(string)
-	length, hasLength := numericValue(txCode["length"])
-	switch {
-	case hasLength && mode != "":
-		return fmt.Sprintf("%d %s characters", int(length), mode)
-	case hasLength:
-		return fmt.Sprintf("%d characters", int(length))
-	case mode != "":
-		return mode
-	}
-	return ""
 }
 
 func numericValue(v any) (float64, bool) {

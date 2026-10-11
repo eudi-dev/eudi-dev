@@ -437,8 +437,8 @@ func TestDoDPoPRequest_RegeneratesAttestationHeadersOnRetry(t *testing.T) {
 	defer func() { httpClient = oldClient }()
 
 	nonce := ""
-	attestor := w.attestorFor(&ClientAuthentication{Method: ClientAuthAttestation, Audience: srv.URL}, "wallet-client")
-	_, _, err := doDPoPRequest(http.MethodPost, srv.URL, "application/json", "", []byte(`{}`), "", "", w.HolderKey, &nonce, attestor)
+	authenticator := w.clientAuthenticatorFor(&ClientAuthentication{Method: ClientAuthAttestation, Audience: srv.URL}, "wallet-client")
+	_, _, err := doDPoPRequest(http.MethodPost, srv.URL, "application/json", "", []byte(`{}`), "", "", w.HolderKey, &nonce, authenticator)
 	if err != nil {
 		t.Fatalf("doDPoPRequest: %v", err)
 	}

@@ -15,6 +15,7 @@
 package wallet
 
 import (
+	"crypto/ecdsa"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -426,7 +427,7 @@ func TestResolveClientAuthentication(t *testing.T) {
 	}
 
 	// In debug mode the wallet still attests and warns. An issuer may require
-	// an attestation without advertising it (§10.1).
+	// an attestation without advertising it (ABCA-07 §10.1).
 	w.ValidationMode = ValidationModeDebug
 	if auth := w.resolveClientAuthentication("", plain); auth == nil || auth.Method != ClientAuthAttestation {
 		t.Errorf("HAIP debug should attest a silent issuer, got %+v", auth)
@@ -734,5 +735,94 @@ func TestStrictARFRefusesARenewalBeforeTheTokenRequest(t *testing.T) {
 	})
 	if _, err := w.RefreshCredential(imported.ID); err == nil || tokenRequests != 0 {
 		t.Errorf("err %v after %d token requests, want the refusal before the first", err, tokenRequests)
+	}
+}
+
+// Renewing a batch replaces every copy. A copy that kept the old validity
+// would still rotate to verifiers.
+func TestRefreshCredentialRenewsTheWholeBatch(t *testing.T) {
+	w := generateTestWallet(t)
+	var serverURL string
+	var proofsSeen int
+	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rw.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/.well-known/openid-credential-issuer"):
+			metadata := renewalIssuerMetadata(serverURL)
+			metadata["batch_credential_issuance"] = map[string]any{"batch_size": 10}
+			_ = json.NewEncoder(rw).Encode(metadata)
+		case strings.HasSuffix(r.URL.Path, "/nonce"):
+			_ = json.NewEncoder(rw).Encode(map[string]any{"c_nonce": "renewal-nonce"})
+		case strings.HasSuffix(r.URL.Path, "/token"):
+			_ = json.NewEncoder(rw).Encode(map[string]any{"access_token": "fresh", "token_type": "Bearer"})
+		case strings.HasSuffix(r.URL.Path, "/credential"):
+			var body map[string]any
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			proofs, _ := body["proofs"].(map[string]any)
+			jwts, _ := proofs["jwt"].([]any)
+			proofsSeen = len(jwts)
+			credentials := make([]any, 0, len(jwts))
+			for _, proof := range jwts {
+				jwk, _ := decodeJWTPart(t, proof.(string), 0)["jwk"].(map[string]any)
+				pub, _, err := ecdsaPublicKeyFromJWK(ValidationModeDebug, jwk["x"].(string), jwk["y"].(string))
+				if err != nil {
+					t.Fatalf("proof key: %v", err)
+				}
+				credentials = append(credentials, map[string]any{"credential": sdJWTBoundTo(t, w, pub)})
+			}
+			_ = json.NewEncoder(rw).Encode(map[string]any{"credentials": credentials})
+		default:
+			rw.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+	serverURL = srv.URL
+	oldClient := httpClient
+	httpClient = srv.Client()
+	defer func() { httpClient = oldClient }()
+
+	primary, err := w.ImportCredential(sdJWTBoundTo(t, w, &w.HolderKey.PublicKey))
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := map[string]bool{primary.Raw: true}
+	copyKeys := []*ecdsa.PrivateKey{testKey(t), testKey(t)}
+	copies := make([]batchCopy, 0, len(copyKeys))
+	for _, key := range copyKeys {
+		pem, err := encodeECPrivateKeyPEM(key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw := sdJWTBoundTo(t, w, &key.PublicKey)
+		old[raw] = true
+		copies = append(copies, batchCopy{raw: raw, bindingKeyPEM: pem})
+	}
+	if _, err := w.storeBatchCopies(primary, copies, nil); err != nil {
+		t.Fatal(err)
+	}
+	w.rememberRenewal(primary.ID, CredentialRenewal{RefreshToken: "refresh-1",
+		Issuer: srv.URL, TokenEndpoint: srv.URL + "/token",
+		CredentialEndpoint: srv.URL + "/credential", ConfigurationID: "cfg",
+	})
+
+	if _, err := w.RefreshCredential(primary.ID); err != nil {
+		t.Fatalf("RefreshCredential: %v", err)
+	}
+	if proofsSeen != 3 {
+		t.Errorf("renewal sent %d proofs, want one per copy of the batch of 3", proofsSeen)
+	}
+	var group []StoredCredential
+	for _, c := range w.GetCredentials() {
+		if c.BatchGroup == primary.BatchGroup {
+			group = append(group, c)
+		}
+	}
+	if len(group) != 3 {
+		t.Fatalf("batch holds %d copies after renewal, want 3", len(group))
+	}
+	for _, c := range group {
+		if old[c.Raw] {
+			t.Errorf("copy %s still holds a credential from before the renewal", c.ID)
+		}
 	}
 }

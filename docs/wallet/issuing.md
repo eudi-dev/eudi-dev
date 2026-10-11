@@ -33,7 +33,7 @@ eudi wallet refresh <credential-id>
 curl -X POST http://localhost:8085/api/credentials/<id>/refresh
 ```
 
-The credential keeps its id. A rotated refresh token replaces the stored one. Credentials that can be renewed report `can_renew` in listings, alongside `expires_at` (read from `exp` for SD-JWT and from the MSO validity for mdoc).
+The credential keeps its id. A rotated refresh token replaces the stored one. A batch is renewed as a whole. Every copy is replaced by a new credential on a fresh key. Credentials that can be renewed report `can_renew` in listings, alongside `expires_at` (read from `exp` for SD-JWT and from the MSO validity for mdoc).
 
 Renewal uses `grant_type=refresh_token` at the original token endpoint, with the original client authentication method. The wallet stores the method, audience and challenge endpoint with the refresh token. It rebuilds authentication proofs and fetches a fresh attestation challenge for each request.
 
@@ -45,7 +45,7 @@ The server checks for renewal every 30 seconds and renews credentials within a m
 
 An issuer that cannot issue the credential immediately responds to the credential request with a `transaction_id`. The wallet collects the credential from the `deferred_credential_endpoint` later, in both issuance flows.
 
-While the credential is not ready, the issuer responds with the `issuance_pending` error and an `interval` to wait ([OID4VCI 1.0 §9.3](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html)). The wallet waits that interval. Some issuers instead return the `transaction_id` in a success response. The wallet accepts this too.
+While the credential is not ready, the issuer answers with HTTP 202, the `transaction_id` and an `interval` to wait ([OID4VCI 1.0 §9.2](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html)). The wallet waits that interval. An answer without the 202 or the `interval` is a deviation. Debug mode reports it and keeps polling. Strict mode stops collecting. After `credential_request_denied` the wallet stops asking, as §9.3 recommends.
 
 The wallet records the transaction and returns immediately. `wallet serve` collects the credential in the background at the issuer's interval.
 
@@ -114,7 +114,7 @@ The wallet supports three drafts of the attestation specification ([ADR-0014](..
 
 Draft-10 features are selected through server metadata. If a server offers only `attest_jwt_client_auth_dpop`, or lists only `dpop_combined` in `client_attestation_pop_methods_supported`, the wallet uses DPoP as the possession proof and omits the dedicated PoP header. It warns when this mechanism is newer than the configured draft.
 
-A server can request an attestation challenge through the `OAuth-Client-Attestation-Challenge` response header or the `use_attestation_challenge` error. The wallet includes the challenge in its next PoP and retries once. It also supports the `challenge_endpoint` advertised in metadata.
+A server can request an attestation challenge through the `OAuth-Client-Attestation-Challenge` response header or the `use_attestation_challenge` error. The wallet includes the challenge in its next PoP and retries once. It also supports the `challenge_endpoint` advertised in metadata. In combined mode the challenge goes in the `nonce` claim of the DPoP proof, as draft-10 section 7.3 requires. When the server has sent both a challenge and a DPoP nonce, the challenge goes in that claim.
 
 Under `--haip` the wallet always attests. HAIP 1.0 §4.4.1 requires it of both sides:
 
@@ -122,7 +122,7 @@ Under `--haip` the wallet always attests. HAIP 1.0 §4.4.1 requires it of both s
 
 Debug mode, used by the public demo, handles two issuer deviations:
 
-- An issuer that requires an attestation but advertises no client authentication method. Advertising is a SHOULD in §10.1, so the wallet attests anyway and warns about the missing advertisement.
+- An issuer that requires an attestation but advertises no client authentication method. Advertising is a SHOULD in every draft (draft-07 section 10.1, draft-08 section 9, draft-10 section 8). The wallet attests anyway and warns about the missing advertisement.
 - An issuer that advertises only unauthenticated access (`none`). The wallet proceeds without client authentication and warns.
 
 `--mode strict` attests in both cases and lets the exchange fail at the token endpoint if the issuer rejects it.

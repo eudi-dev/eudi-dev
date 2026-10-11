@@ -111,7 +111,7 @@ func TestWalletTLSModeAndOverrides(t *testing.T) {
 					return err
 				}},
 				{"issuer metadata", func() error {
-					_, err := fetchIssuerMetadata(w.HTTPClient(), server.URL, metadataPolicy{strict: true})
+					_, _, err := fetchIssuerMetadataDocument(w.HTTPClient(), server.URL, false, refuseMetadataProblem)
 					return err
 				}},
 				{"OAuth metadata", func() error { _, err := fetchOAuthMetadata(w.HTTPClient(), server.URL); return err }},

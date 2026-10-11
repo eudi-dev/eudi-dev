@@ -18,7 +18,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/x509"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -266,19 +265,19 @@ func (w *Wallet) processCredentialOffer(offerURI string, opts OfferOptions) (_ *
 		return nil, err
 	}
 
+	grantType := preAuthorizedCodeGrant
+	if offer.Grants.PreAuthorizedCode == "" {
+		grantType = "authorization_code"
+	}
 	// A missing authorization server document is not fatal. The endpoints fall
 	// back to the issuer's own metadata, so oauthErr is kept for later checks.
-	authServer, err := selectAuthorizationServer(metadata, offer)
+	authServer, err := selectAuthorizationServer(metadata, offer, grantType)
 	if err != nil {
 		return nil, err
 	}
 	oauthMeta, oauthErr := w.fetchLoggedMetadata(oauthMetadataFetch(authServer))
 	// Check support before consuming the grant so the offer can still be used with
 	// another wallet.
-	grantType := preAuthorizedCodeGrant
-	if offer.Grants.PreAuthorizedCode == "" {
-		grantType = "authorization_code"
-	}
 	if err := w.checkAuthorizationServerGrant(authServer, oauthMeta, grantType); err != nil {
 		return nil, err
 	}
@@ -286,7 +285,7 @@ func (w *Wallet) processCredentialOffer(offerURI string, opts OfferOptions) (_ *
 		authServer, oauthMeta, oauthErr = server, meta, nil
 	}
 
-	tokenEndpoint, err := w.resolveTokenEndpoint(metadata, oauthMeta, offer.CredentialIssuer)
+	tokenEndpoint, err := w.resolveTokenEndpoint(metadata, oauthMeta, authServer)
 	if err != nil {
 		return nil, err
 	}
@@ -319,11 +318,12 @@ func (w *Wallet) processCredentialOffer(offerURI string, opts OfferOptions) (_ *
 	}
 
 	if offer.Grants.PreAuthorizedCode == "" {
-		if w.Mode() == ValidationModeStrict {
-			if oauthErr != nil {
-				return nil, fmt.Errorf("fetching authorization server metadata: %w", oauthErr)
-			}
-			if err := validateAuthorizationServerIssuer(authServer, oauthMeta); err != nil {
+		authServerErr := oauthErr
+		if authServerErr == nil {
+			authServerErr = validateAuthorizationServerIssuer(authServer, oauthMeta)
+		}
+		if authServerErr != nil {
+			if err := w.reportServerDeviation(fmt.Sprintf("authorization server metadata of %s: %v", authServer, authServerErr)); err != nil {
 				return nil, err
 			}
 		}
@@ -345,8 +345,12 @@ func (w *Wallet) processCredentialOffer(offerURI string, opts OfferOptions) (_ *
 	// §4.1.1 puts tx_code in the grant when the Authorization Server expects
 	// one. An auto-accepting wallet shows no dialog. An API caller supplies the
 	// code with the call.
-	if len(offer.Grants.TxCode) > 0 && strings.TrimSpace(txCode) == "" {
-		return nil, fmt.Errorf("this offer requires a transaction code, which the issuer delivers separately: supply it as tx_code on the call, or --tx-code on the command line%s", txCodeHintSuffix(offer.Grants.TxCode))
+	if offer.Grants.RequiresTxCode() && strings.TrimSpace(txCode) == "" {
+		hint := ""
+		if h := offer.Grants.TxCodeHint(); h != "" {
+			hint = " (" + h + ")"
+		}
+		return nil, fmt.Errorf("this offer requires a transaction code, which the issuer delivers separately: supply it as tx_code on the call, or --tx-code on the command line%s", hint)
 	}
 	// OID4VCI 1.0 §6.1: "the client_id parameter is only needed when a form of
 	// Client Authentication that relies on this parameter is used."
@@ -428,35 +432,26 @@ func (w *Wallet) fetchLoggedMetadata(f metadataFetch) (map[string]any, error) {
 	return metadata, err
 }
 
-// metadataPolicy decides what happens to signed issuer metadata without iat
-// or past its exp. Strict mode refuses it. Debug mode logs a warning and
-// passes it to report.
-type metadataPolicy struct {
-	strict bool
-	warn   func(problem string)
-}
+// metadataProblem receives a problem with signed issuer metadata, such as a
+// missing iat or a past exp (§12.2.3). An error refuses the metadata.
+type metadataProblem func(problem string) error
 
-func (w *Wallet) metadataPolicy(mode ValidationMode, report func(findings ...string)) metadataPolicy {
-	return metadataPolicy{
-		strict: mode == ValidationModeStrict,
-		warn: func(problem string) {
-			w.addProtocolWarning("issuance", "issuer_metadata_freshness", problem+". Debug mode continues", nil)
-			if report != nil {
-				report(problem)
-			}
-		},
+// reportMetadataProblem reports a metadata problem as a deviation and hands it
+// to report.
+func (w *Wallet) reportMetadataProblem(report func(findings ...string)) metadataProblem {
+	return func(problem string) error {
+		if err := w.reportDeviation(deviation{action: "issuance", event: "issuer_metadata_freshness", detail: problem}); err != nil {
+			return err
+		}
+		report(problem)
+		return nil
 	}
-}
-
-func fetchIssuerMetadata(client *http.Client, issuer string, policy metadataPolicy, payloads ...*LogPayload) (map[string]any, error) {
-	metadata, _, err := fetchIssuerMetadataDocument(client, issuer, false, policy, payloads...)
-	return metadata, err
 }
 
 // fetchIssuerMetadataDocument also returns the certificate chain of signed
 // metadata. preferSigned asks for the signed form first. The ARF requires
 // issuers to provide it (ISSU_22, ISSU_32).
-func fetchIssuerMetadataDocument(client *http.Client, issuer string, preferSigned bool, policy metadataPolicy, payloads ...*LogPayload) (map[string]any, []*x509.Certificate, error) {
+func fetchIssuerMetadataDocument(client *http.Client, issuer string, preferSigned bool, onProblem metadataProblem, payloads ...*LogPayload) (map[string]any, []*x509.Certificate, error) {
 	metadataURL, err := wellKnownURL(issuer, "openid-credential-issuer")
 	if err != nil {
 		return nil, nil, fmt.Errorf("building issuer metadata URL: %w", err)
@@ -499,7 +494,7 @@ func fetchIssuerMetadataDocument(client *http.Client, issuer string, preferSigne
 	if payload := firstLogPayload(payloads); payload != nil {
 		payload.Body = string(body)
 	}
-	return parseIssuerMetadataDocument(body, resp.Header.Get("Content-Type"), issuer, policy)
+	return parseIssuerMetadataDocument(body, resp.Header.Get("Content-Type"), issuer, onProblem)
 }
 
 func wellKnownURL(issuerOrServer, wellKnownType string) (string, error) {
@@ -523,9 +518,9 @@ func wellKnownURL(issuerOrServer, wellKnownType string) (string, error) {
 
 // parseIssuerMetadataDocument also returns the certificate chain that signed
 // the metadata, or nil for unsigned metadata. OpenID4VCI 1.0 §12.2.3 requires
-// iat in signed metadata, and exp limits its use. The policy decides what
+// iat in signed metadata, and exp limits its use. onProblem decides what
 // happens to metadata that breaks this.
-func parseIssuerMetadataDocument(body []byte, contentType, issuer string, policy metadataPolicy) (map[string]any, []*x509.Certificate, error) {
+func parseIssuerMetadataDocument(body []byte, contentType, issuer string, onProblem metadataProblem) (map[string]any, []*x509.Certificate, error) {
 	raw := strings.TrimSpace(string(body))
 	if raw == "" {
 		return nil, nil, fmt.Errorf("issuer metadata response was empty")
@@ -543,13 +538,8 @@ func parseIssuerMetadataDocument(body []byte, contentType, issuer string, policy
 			return nil, nil, err
 		}
 		if problem := signedIssuerMetadataFreshness(token); problem != "" {
-			problem = "OpenID4VCI 1.0 §12.2.3: " + problem
-			if policy.strict {
-				return nil, nil, errors.New(problem)
-			}
-			log.Printf("[VCI] Warning: %s. Debug mode continues", problem)
-			if policy.warn != nil {
-				policy.warn(problem)
+			if err := onProblem("OpenID4VCI 1.0 §12.2.3: " + problem); err != nil {
+				return nil, nil, err
 			}
 		}
 		metadata = token.Payload
@@ -732,14 +722,6 @@ func normalizeMetadataX5CEntries(raw any) ([]string, error) {
 // (§4.1.1).
 const preAuthorizedCodeGrant = "urn:ietf:params:oauth:grant-type:pre-authorized_code"
 
-func getAuthorizationServer(metadata map[string]any, issuer string) string {
-	servers := authorizationServersFromMetadata(metadata)
-	if len(servers) == 0 {
-		return issuer
-	}
-	return servers[0]
-}
-
 // authorizationServersFromMetadata lists the authorization_servers entries of
 // the Credential Issuer Metadata. §12.2.4 makes the parameter optional: "If
 // this parameter is omitted, the entity providing the Credential Issuer is also
@@ -759,28 +741,18 @@ func authorizationServersFromMetadata(metadata map[string]any) []string {
 }
 
 // offerAuthorizationServer reads the optional authorization_server hint in
-// the grant of the offer. §4.1.1 defines it as "OPTIONAL string that the
-// Wallet can use to identify the Authorization Server to use with this grant
-// type when authorization_servers parameter in the Credential Issuer metadata
-// has multiple entries."
-func offerAuthorizationServer(offer *oid4vc.CredentialOffer) string {
+// the offer's grant of grantType. §4.1.1 defines it as "OPTIONAL string that
+// the Wallet can use to identify the Authorization Server to use with this
+// grant type when authorization_servers parameter in the Credential Issuer
+// metadata has multiple entries."
+func offerAuthorizationServer(offer *oid4vc.CredentialOffer, grantType string) string {
 	if offer == nil {
 		return ""
 	}
-	grants, ok := offer.FullJSON["grants"].(map[string]any)
-	if !ok {
-		return ""
-	}
-	for _, grantType := range []string{preAuthorizedCodeGrant, "authorization_code"} {
-		grant, ok := grants[grantType].(map[string]any)
-		if !ok {
-			continue
-		}
-		if server, _ := grant["authorization_server"].(string); server != "" {
-			return server
-		}
-	}
-	return ""
+	grants, _ := offer.FullJSON["grants"].(map[string]any)
+	grant, _ := grants[grantType].(map[string]any)
+	server, _ := grant["authorization_server"].(string)
+	return server
 }
 
 // selectAuthorizationServer picks the authorization server for this offer.
@@ -788,9 +760,9 @@ func offerAuthorizationServer(offer *oid4vc.CredentialOffer) string {
 // authorization_server Credential Offer parameter value does not match any of
 // the entries in the authorization_servers array". A hint that matches no
 // entry is an error.
-func selectAuthorizationServer(metadata map[string]any, offer *oid4vc.CredentialOffer) (string, error) {
+func selectAuthorizationServer(metadata map[string]any, offer *oid4vc.CredentialOffer, grantType string) (string, error) {
 	servers := authorizationServersFromMetadata(metadata)
-	hint := offerAuthorizationServer(offer)
+	hint := offerAuthorizationServer(offer, grantType)
 	issuer := ""
 	if offer != nil {
 		issuer = offer.CredentialIssuer
@@ -925,15 +897,15 @@ func sameIdentifier(a, b string) bool {
 // authorization server metadata parameter (RFC 8414 §2). §12.2.4 defines no
 // Credential Issuer Metadata equivalent, so the issuer metadata is only a
 // fallback. Without either, strict mode refuses and debug mode warns and uses
-// the conventional path.
-func (w *Wallet) resolveTokenEndpoint(metadata map[string]any, oauthMeta map[string]any, issuer string) (string, error) {
+// the conventional path on the authorization server in use.
+func (w *Wallet) resolveTokenEndpoint(metadata map[string]any, oauthMeta map[string]any, authServer string) (string, error) {
 	if ep, ok := oauthMeta["token_endpoint"].(string); ok && ep != "" {
 		return ep, nil
 	}
 	if ep, ok := metadata["token_endpoint"].(string); ok && ep != "" {
 		return ep, nil
 	}
-	fallback := getAuthorizationServer(metadata, issuer) + "/token"
+	fallback := strings.TrimRight(authServer, "/") + "/token"
 	if err := w.reportServerDeviation(fmt.Sprintf("the authorization server metadata has no token_endpoint, which RFC 8414 requires (assuming %s)", fallback)); err != nil {
 		return "", err
 	}
@@ -1297,11 +1269,7 @@ func (w *Wallet) issuanceChallenge(metadata, tokenResp map[string]any, issuer st
 	// §7.1. Strict mode refuses. Debug mode warns and sends the proof without a
 	// c_nonce, so the issuer's rejection shows the result.
 	if ep, _ := metadata["nonce_endpoint"].(string); ep != "" {
-		if w.Mode() == ValidationModeStrict {
-			return "", fmt.Errorf("the nonce endpoint %s that %s advertises returned no c_nonce (OID4VCI 1.0 §7.1)", ep, issuer)
-		}
-		w.AddWarning("issuance", fmt.Sprintf("The nonce endpoint %s that %s advertises returned no c_nonce (OID4VCI 1.0 §7.1). The key proof goes out without a c_nonce and the credential endpoint rejects it.", ep, issuer), nil)
-		return "", nil
+		return "", w.reportServerDeviation(fmt.Sprintf("the nonce endpoint %s that %s advertises returned no c_nonce (OID4VCI 1.0 §7.1)", ep, issuer))
 	}
 	cNonce, _ := tokenResp["c_nonce"].(string)
 	if cNonce == "" {
@@ -1352,10 +1320,9 @@ type credentialProofs struct {
 // attestation that lists every batch key (Appendix F.1, HAIP §4.5.1).
 func (w *Wallet) buildCredentialProofs(a credentialRequestAttempt, cNonce string) (credentialProofs, error) {
 	if finding := proofSigningAlgFinding(a.metadata, a.configID, w.HAIPChecks()); finding != "" {
-		if w.Mode() == ValidationModeStrict {
-			return credentialProofs{}, fmt.Errorf("%s", finding)
+		if err := w.reportServerDeviation(finding); err != nil {
+			return credentialProofs{}, err
 		}
-		w.AddWarning("issuance", finding, nil)
 	}
 	attestation, err := createKeyAttestation(w, a.metadata, a.configID, cNonce, a.proofKeys)
 	if err != nil {
@@ -1405,53 +1372,59 @@ func (w *Wallet) sendCredentialRequest(a credentialRequestAttempt, proofs creden
 				credentialRequestLogDetails(a.endpoint, a.accessToken, proofs, a.credentialIdentifier, a.credentialConfigurationID, a.responseEncryption), payload)
 		},
 	}
-	credResp, err := requestCredentialWithDPoP(
-		w.HTTPClient(), w.Mode(),
-		a.metadata,
-		a.endpoint,
-		a.accessToken,
-		a.authScheme,
-		proofs,
-		a.credentialIdentifier,
-		a.credentialConfigurationID,
-		a.responseEncryption,
-		a.dpopKey,
-		w.HolderKey,
-		a.nonce,
-		trace,
-	)
+	credResp, err := w.requestCredentialWithDPoP(a, proofs, trace)
 	w.addProtocolLog("issuance", "credential_response", fmt.Sprintf("Credential response from %s", a.endpoint), err == nil,
 		credentialResponseLogDetails(a.endpoint, credResp, err), trace.Response)
 	return credResp, err
 }
 
-func parseCredentialResponseBody(body []byte, holderKey *ecdsa.PrivateKey, payloads ...*LogPayload) (map[string]any, error) {
+// parseCredentialResponseBody reads a plain JSON or an encrypted (compact JWE)
+// credential response. encrypted reports which one arrived.
+func parseCredentialResponseBody(body []byte, holderKey *ecdsa.PrivateKey, payloads ...*LogPayload) (out map[string]any, encrypted bool, err error) {
 	payload := firstLogPayload(payloads)
 	if payload != nil {
 		payload.Label, payload.Body = "Response", string(body)
 	}
 	trimmed := strings.TrimSpace(string(body))
-	var out map[string]any
 	if err := json.Unmarshal([]byte(trimmed), &out); err == nil {
-		return out, nil
+		return out, false, nil
 	}
 	if holderKey == nil {
-		return nil, fmt.Errorf("credential response is not valid JSON")
+		return nil, false, fmt.Errorf("credential response is not valid JSON")
 	}
 	if payload != nil && isJWE(trimmed) {
 		payload.Encrypted, payload.Wire, payload.Body = true, string(body), nil
 	}
 	decrypted, err := DecryptCompactJWE(trimmed, holderKey)
 	if err != nil {
-		return nil, fmt.Errorf("credential response is neither valid JSON nor decryptable compact JWE: %w", err)
+		return nil, false, fmt.Errorf("credential response is neither valid JSON nor decryptable compact JWE: %w", err)
 	}
 	if payload != nil {
 		payload.Body = decrypted
 	}
 	if err := json.Unmarshal([]byte(decrypted), &out); err != nil {
-		return nil, fmt.Errorf("parsing decrypted credential response JSON: %w", err)
+		return nil, true, fmt.Errorf("parsing decrypted credential response JSON: %w", err)
 	}
-	return out, nil
+	return out, true, nil
+}
+
+// checkResponseEncryption reports a plaintext answer to a request that asked
+// for an encrypted response. OID4VCI 1.0 §8.3 and §9.2: the issuer "MUST
+// encode the information" as specified by Section 10 "regardless of the
+// content". §10: an unencrypted message where encryption was required "SHOULD
+// be rejected". §8.3.1.2: "Credential Error Responses are never encrypted".
+func (w *Wallet) checkResponseEncryption(requested map[string]any, encrypted bool, out map[string]any, endpoint string) error {
+	if requested == nil || encrypted {
+		return nil
+	}
+	if code, _ := out["error"].(string); code != "" {
+		return nil
+	}
+	detail := fmt.Sprintf("%s answered in plaintext although the request asked for an encrypted response (OID4VCI 1.0 §8.3, §10)", endpoint)
+	return w.reportDeviation(deviation{
+		action: "issuance", event: "credential_response_not_encrypted", detail: detail,
+		details: map[string]any{"endpoint": endpoint},
+	})
 }
 
 func credentialRequestLogDetails(endpoint, accessToken string, proofs credentialProofs, credentialIdentifier, credentialConfigurationID string, credentialResponseEncryption map[string]any) map[string]any {
@@ -1485,27 +1458,4 @@ func credentialResponseLogDetails(endpoint string, response map[string]any, err 
 		details["error"] = err.Error()
 	}
 	return details
-}
-
-func txCodeHintSuffix(txCode map[string]any) string {
-	if description, _ := txCode["description"].(string); strings.TrimSpace(description) != "" {
-		return " (" + strings.TrimSpace(description) + ")"
-	}
-	mode, _ := txCode["input_mode"].(string)
-	length := 0
-	switch n := txCode["length"].(type) {
-	case float64:
-		length = int(n)
-	case int:
-		length = n
-	}
-	switch {
-	case length > 0 && mode != "":
-		return fmt.Sprintf(" (%d %s characters)", length, mode)
-	case length > 0:
-		return fmt.Sprintf(" (%d characters)", length)
-	case mode != "":
-		return " (" + mode + ")"
-	}
-	return ""
 }

@@ -672,3 +672,35 @@ func TestParseVPRequestURIObjectOutranksTheQueryString(t *testing.T) {
 		t.Error("request_uri was dropped, it records how the object arrived")
 	}
 }
+
+// OID4VCI 1.0 §4.1.1: an empty tx_code object still requires a code.
+func TestParseEmptyTxCodeRequiresCode(t *testing.T) {
+	offer := `{"credential_issuer":"https://issuer.example","credential_configuration_ids":["pid"],"grants":{"urn:ietf:params:oauth:grant-type:pre-authorized_code":{"pre-authorized_code":"abc","tx_code":{}}}}`
+	_, result, err := Parse("openid-credential-offer://?credential_offer=" + url.QueryEscape(offer))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	grants := result.(*CredentialOffer).Grants
+	if !grants.RequiresTxCode() {
+		t.Error("an empty tx_code object must require a transaction code")
+	}
+	if hint := grants.TxCodeHint(); hint != "" {
+		t.Errorf("TxCodeHint = %q, want none for an empty object", hint)
+	}
+}
+
+func TestTxCodeHint(t *testing.T) {
+	for _, tc := range []struct {
+		txCode map[string]any
+		want   string
+	}{
+		{map[string]any{"input_mode": "numeric", "length": float64(6)}, "6 numeric characters"},
+		{map[string]any{"length": float64(4)}, "4 characters"},
+		{map[string]any{"input_mode": "text"}, "text"},
+		{map[string]any{"input_mode": "text", "description": " From the letter "}, "From the letter"},
+	} {
+		if got := (OfferGrants{TxCode: tc.txCode}).TxCodeHint(); got != tc.want {
+			t.Errorf("TxCodeHint(%v) = %q, want %q", tc.txCode, got, tc.want)
+		}
+	}
+}

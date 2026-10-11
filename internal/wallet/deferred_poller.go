@@ -17,7 +17,6 @@ package wallet
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 )
 
@@ -195,6 +194,11 @@ func (s *Server) attemptDeferredCollection(pending DeferredIssuance) DeferredAtt
 		return DeferredAttempt{Pending: true, Reason: "a collection for this credential is already in progress"}
 	}
 	defer s.endDeferredCollection(pending.ID)
+	// The caller's copy can predate a collection that finished meanwhile.
+	pending, ok := s.wallet.DeferredIssuanceByID(pending.ID)
+	if !ok {
+		return DeferredAttempt{Reason: "this deferred credential is no longer pending"}
+	}
 
 	proofKeys, err := pending.ProofKeys()
 	if err != nil {
@@ -304,24 +308,21 @@ func (s *Server) handleDeferredAttemptError(pending DeferredIssuance, err error)
 }
 
 func isAuthorizationRejected(err error) bool {
-	message := err.Error()
-	return strings.Contains(message, "HTTP 401") ||
-		strings.Contains(message, "HTTP 403") ||
-		strings.Contains(message, "invalid_token")
+	var refusal deferredCredentialError
+	return errors.As(err, &refusal) && refusal.authorizationRejected()
 }
 
-// isRetryableDeferredError reports whether collection retries after err.
-// Rejected authorization, unknown transactions and expiry are final.
+// isRetryableDeferredError reports whether collection retries after err. A
+// transport failure or a server fault is retried. Final refusals and responses
+// the wallet refuses end collection.
 func isRetryableDeferredError(err error) bool {
-	message := err.Error()
-	for _, fatal := range []string{
-		"invalid_token", "invalid_grant", "invalid_transaction_id",
-		"invalid_request", "invalid_client", "expired",
-		"HTTP 401", "HTTP 403",
-	} {
-		if strings.Contains(message, fatal) {
-			return false
-		}
+	var refused finalDeferredError
+	if errors.As(err, &refused) {
+		return false
+	}
+	var refusal deferredCredentialError
+	if errors.As(err, &refusal) {
+		return !refusal.final()
 	}
 	return true
 }

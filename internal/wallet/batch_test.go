@@ -424,3 +424,30 @@ func TestBatchPresentsEachCopyOnceThenReuses(t *testing.T) {
 		t.Fatalf("the reused copy should be on its second use, got a highest use count of %d", highest)
 	}
 }
+
+// A request that fails after the first copies were stored leaves no copy and
+// no status entry behind.
+func TestIssueCredentialFailureLeavesNoPartialBatch(t *testing.T) {
+	w := generateTestWallet(t)
+	w.IssuerURL = "https://issuer.example"
+	statusURL := w.StatusListURL()
+	before := len(w.GetCredentials())
+	entriesBefore := len(w.StatusEntries)
+	_, err := w.IssueCredential(IssueOptions{
+		Format:        "sdjwt",
+		VCT:           testBatchVCT,
+		BatchSize:     3,
+		StatusListURI: &statusURL,
+		// The template is saved last, and this name is invalid.
+		SaveTemplate: ".invalid",
+	})
+	if err == nil {
+		t.Fatal("issuing with an invalid template name succeeded")
+	}
+	if got := len(w.GetCredentials()); got != before {
+		t.Errorf("wallet holds %d credentials after the failed request, want %d", got, before)
+	}
+	if got := len(w.StatusEntries); got != entriesBefore {
+		t.Errorf("wallet holds %d status entries after the failed request, want %d", got, entriesBefore)
+	}
+}

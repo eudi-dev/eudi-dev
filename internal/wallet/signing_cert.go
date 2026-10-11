@@ -304,14 +304,21 @@ func issuerSubjectAltNames(issuerURL string) (dnsNames []string, ips []net.IP, u
 	if err != nil || parsed.Host == "" {
 		return nil, nil, nil
 	}
-	if host := parsed.Hostname(); host != "" {
-		if ip := net.ParseIP(host); ip != nil {
-			ips = append(ips, ip)
-		} else {
-			dnsNames = append(dnsNames, host)
-		}
-	}
+	dnsNames, ips = hostSubjectAltNames(parsed.Hostname())
 	return dnsNames, ips, []*url.URL{parsed}
+}
+
+// hostSubjectAltNames puts an IP address in the iPAddress SAN and a name in
+// the dNSName SAN (RFC 5280 §4.2.1.6). TLS clients match an IP host only
+// against iPAddress entries.
+func hostSubjectAltNames(host string) (dnsNames []string, ips []net.IP) {
+	if host == "" {
+		return nil, nil
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return nil, []net.IP{ip}
+	}
+	return []string{host}, nil
 }
 
 func signingLeafCommonName(profile trustListProfile) string {

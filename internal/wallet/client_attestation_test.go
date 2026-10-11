@@ -26,7 +26,7 @@ import (
 // TestAttestsClient covers when the wallet authenticates with its wallet
 // attestation. The spec uses authorization server metadata as the signal.
 // Advertising the method is only a SHOULD, so an override exists
-// (draft-ietf-oauth-attestation-based-client-auth §8, §10.1).
+// (draft-ietf-oauth-attestation-based-client-auth-07 §10.1, -08 §9, -10 §8).
 func TestAttestsClient(t *testing.T) {
 	advertised := map[string]any{
 		"token_endpoint_auth_methods_supported": []any{"attest_jwt_client_auth"},
@@ -57,7 +57,8 @@ func TestAttestsClient(t *testing.T) {
 		{"no metadata at all", nil, false, false, ValidationModeDebug, false},
 		// HAIP 1.0 §4.4.1 requires client authentication. In strict mode the
 		// wallet always attests. In debug mode it attests when the metadata is
-		// silent, since §10.1 lets an issuer require it without advertising it.
+		// silent, since every ABCA draft lets an issuer require it without
+		// advertising it.
 		// An issuer that lists an unauthenticated method gets no attestation,
 		// so a non-HAIP issuer stays reachable.
 		{"haip strict, silent metadata", silent, true, false, ValidationModeStrict, true},
@@ -199,8 +200,8 @@ func TestForceClientAttestation_ReachesSilentIssuer(t *testing.T) {
 }
 
 // TestHAIPDebugAttestsSilentIssuer covers a HAIP wallet in debug mode against
-// an issuer that requires client attestation without advertising it. §10.1
-// makes advertising a SHOULD. The wallet attests anyway and warns about the
+// an issuer that requires client attestation without advertising it. Every
+// ABCA draft makes advertising a SHOULD. The wallet attests anyway and warns about the
 // missing advertisement. A non-HAIP wallet needs --client-attestation here.
 func TestHAIPDebugAttestsSilentIssuer(t *testing.T) {
 	w := generateTestWallet(t)
@@ -228,6 +229,18 @@ func TestHAIPDebugAttestsSilentIssuer(t *testing.T) {
 	}
 	if !hasWarningContaining(w, "advertises no token endpoint client authentication") {
 		t.Error("expected a warning that the issuer does not advertise its client authentication method")
+	}
+	// OpenID4VCI 1.0 pins draft-07, where §10.1 holds the recommendation.
+	if !hasWarningContaining(w, "draft-ietf-oauth-attestation-based-client-auth-07 §10.1") {
+		t.Error("expected the warning to cite the pinned ABCA draft and its section")
+	}
+}
+
+func TestABCAMetadataSection(t *testing.T) {
+	for draft, want := range map[int]string{7: "§10.1", 8: "§9", 10: "§8"} {
+		if got := abcaMetadataSection(draft); got != want {
+			t.Errorf("abcaMetadataSection(%d) = %q, want %q", draft, got, want)
+		}
 	}
 }
 

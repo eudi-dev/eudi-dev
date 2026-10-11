@@ -18,6 +18,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -198,25 +199,27 @@ func (w *Wallet) parseCredentialSDJWT(raw string) (*sdjwt.Token, error) {
 	if typ, _ := token.Header["typ"].(string); typ == sdjwt.TypeSDJWTVCLegacy {
 		vcType = append(vcType, fmt.Sprintf("the typ header is %s, draft-ietf-oauth-sd-jwt-vc-19 §2.2.1 requires %s", sdjwt.TypeSDJWTVCLegacy, sdjwt.TypeSDJWTVC))
 	}
-	if w.Mode() == ValidationModeStrict {
-		if all := append(append([]string{}, token.Deviations...), vcType...); len(all) > 0 {
-			return nil, fmt.Errorf("%s", strings.Join(all, ". "))
-		}
-		return token, nil
+	if err := w.reportCredentialDeviations("RFC 9901", token.Deviations); err != nil {
+		return nil, err
 	}
-	w.recordCredentialDeviations("RFC 9901", token.Deviations)
-	w.recordCredentialDeviations("draft-ietf-oauth-sd-jwt-vc-19", vcType)
+	if err := w.reportCredentialDeviations("draft-ietf-oauth-sd-jwt-vc-19", vcType); err != nil {
+		return nil, err
+	}
 	return token, nil
 }
 
-// Group deviations into one log entry with the full list in its details.
-func (w *Wallet) recordCredentialDeviations(spec string, deviations []string) {
+// reportCredentialDeviations groups deviations into one log entry with the
+// full list in its details.
+func (w *Wallet) reportCredentialDeviations(spec string, deviations []string) error {
 	if len(deviations) == 0 {
-		return
+		return nil
 	}
-	detail := findingsSummary("The credential deviates from "+spec, deviations)
-	w.addProtocolWarning("wallet", "credential_structure_deviation", detail,
-		map[string]any{"deviations": deviations})
+	return w.reportDeviation(deviation{
+		action: "wallet", event: "credential_structure_deviation",
+		detail:  findingsSummary("The credential deviates from "+spec, deviations),
+		details: map[string]any{"deviations": deviations},
+		refusal: errors.New(strings.Join(deviations, ". ")),
+	})
 }
 
 func (w *Wallet) parseSDJWTEntry(raw, group, bindingKeyPEM string) (StoredCredential, error) {
@@ -299,11 +302,8 @@ func (w *Wallet) parseMDocEntry(raw, group, bindingKeyPEM string) (StoredCredent
 	}
 	// Strict mode rejects credentials that required dropping invalid content. Debug
 	// mode keeps them.
-	if len(doc.Deviations) > 0 {
-		if w.Mode() == ValidationModeStrict {
-			return StoredCredential{}, fmt.Errorf("%s", strings.Join(doc.Deviations, ". "))
-		}
-		w.recordCredentialDeviations("ISO/IEC 18013-5", doc.Deviations)
+	if err := w.reportCredentialDeviations("ISO/IEC 18013-5", doc.Deviations); err != nil {
+		return StoredCredential{}, err
 	}
 
 	claims := make(map[string]any)

@@ -39,9 +39,12 @@ type abcaIssuerConfig struct {
 	requireAttestation bool
 	// challengeValue makes the token endpoint demand a server-provided
 	// challenge. The first request gets use_attestation_challenge with this
-	// value in the OAuth-Client-Attestation-Challenge header. Only a PoP with
-	// the value in its challenge claim is accepted.
+	// value in the OAuth-Client-Attestation-Challenge header. A dedicated PoP
+	// must carry it in its challenge claim (draft-07 §9, draft-08 §8, draft-10
+	// §7.2), a combined DPoP proof in its nonce claim (draft-10 §7.3 step 5).
 	challengeValue string
+	// dpopNonceValue adds this DPoP-Nonce header to the challenge refusal.
+	dpopNonceValue string
 	// refuseFirstAsStale answers the first token request with
 	// use_fresh_attestation. A server sends that error when it considers the
 	// attestation too old (§7.4).
@@ -130,10 +133,13 @@ func abcaTestIssuer(t *testing.T, w *Wallet, cfg abcaIssuerConfig) (*httptest.Se
 				if pop != "" {
 					challenge, _ = decodeJWTPart(t, pop, 1)["challenge"].(string)
 				} else if dpop != "" {
-					challenge, _ = decodeJWTPart(t, dpop, 1)["challenge"].(string)
+					challenge, _ = decodeJWTPart(t, dpop, 1)["nonce"].(string)
 				}
 				if challenge != cfg.challengeValue {
 					rw.Header().Set("OAuth-Client-Attestation-Challenge", cfg.challengeValue)
+					if cfg.dpopNonceValue != "" {
+						rw.Header().Set("DPoP-Nonce", cfg.dpopNonceValue)
+					}
 					rw.WriteHeader(http.StatusUnauthorized)
 					json.NewEncoder(rw).Encode(map[string]string{"error": "use_attestation_challenge"})
 					return
@@ -292,29 +298,36 @@ func TestPopMethodsMetadataSelectsCombined(t *testing.T) {
 }
 
 // After use_attestation_challenge the next PoP carries the
-// OAuth-Client-Attestation-Challenge value from the response.
+// OAuth-Client-Attestation-Challenge value from the response in its challenge
+// claim. Draft-07 §8.1, draft-08 §7.1 and draft-10 §6.2 define the header, and
+// each draft's PoP checks the challenge claim. OpenID4VCI 1.0 pins draft-07 and
+// 1.1 pins draft-08.
 func TestUseAttestationChallengeRetry(t *testing.T) {
-	w := generateTestWallet(t)
-	w.VCIVersion = VCIVersion11
-	w.VCIClientID = "test-wallet-client"
+	for _, version := range []VCIVersion{VCIVersion10, VCIVersion11} {
+		t.Run(string(version), func(t *testing.T) {
+			w := generateTestWallet(t)
+			w.VCIVersion = version
+			w.VCIClientID = "test-wallet-client"
 
-	capture, err := runABCAOffer(t, w, abcaIssuerConfig{
-		authMethods:        []string{"attest_jwt_client_auth"},
-		requireAttestation: true,
-		challengeValue:     "server-challenge-1",
-	})
-	if err != nil {
-		t.Fatalf("ProcessCredentialOffer: %v", err)
-	}
-	if capture.tokenRequests != 2 {
-		t.Fatalf("issuer saw %d token requests, want the refused first and the retried second", capture.tokenRequests)
-	}
-	if len(capture.pops) == 0 {
-		t.Fatal("issuer saw no PoP JWTs")
-	}
-	last := decodeJWTPart(t, capture.pops[len(capture.pops)-1], 1)
-	if last["challenge"] != "server-challenge-1" {
-		t.Errorf("retried PoP challenge = %v, want the served challenge", last["challenge"])
+			capture, err := runABCAOffer(t, w, abcaIssuerConfig{
+				authMethods:        []string{"attest_jwt_client_auth"},
+				requireAttestation: true,
+				challengeValue:     "server-challenge-1",
+			})
+			if err != nil {
+				t.Fatalf("ProcessCredentialOffer: %v", err)
+			}
+			if capture.tokenRequests != 2 {
+				t.Fatalf("issuer saw %d token requests, want the refused first and the retried second", capture.tokenRequests)
+			}
+			if len(capture.pops) == 0 {
+				t.Fatal("issuer saw no PoP JWTs")
+			}
+			last := decodeJWTPart(t, capture.pops[len(capture.pops)-1], 1)
+			if last["challenge"] != "server-challenge-1" {
+				t.Errorf("retried PoP challenge = %v, want the served challenge", last["challenge"])
+			}
+		})
 	}
 }
 
@@ -362,16 +375,16 @@ func TestClientAttestorChallengeUse(t *testing.T) {
 	httpClient = srv.Client()
 	defer func() { httpClient = oldClient }()
 
-	attestor := w.attestorFor(&ClientAuthentication{
+	authenticator := w.clientAuthenticatorFor(&ClientAuthentication{
 		Method: ClientAuthAttestation, Audience: "https://as.example",
 		ChallengeEndpoint: srv.URL,
 	}, "c")
 	header := http.Header{}
 	header.Set("OAuth-Client-Attestation-Challenge", "served-challenge")
-	attestor.observe(header)
+	authenticator.observe(header)
 
 	for _, want := range []string{"served-challenge", "endpoint-challenge"} {
-		headers, err := attestor.headers()
+		headers, err := authenticator.headers()
 		if err != nil {
 			t.Fatalf("headers: %v", err)
 		}
@@ -445,8 +458,9 @@ func TestStoredABCADraftDrivesEmission(t *testing.T) {
 	}
 }
 
-// In combined mode the retried DPoP proof carries the returned challenge.
-func TestCombinedModeChallengeInDPoPProof(t *testing.T) {
+// In combined mode the retried DPoP proof carries the returned challenge in
+// its nonce claim (draft-10 §7.3 step 5).
+func TestCombinedModeChallengeInDPoPNonce(t *testing.T) {
 	w := generateTestWallet(t)
 	w.VCIVersion = VCIVersion11
 	w.VCIClientID = "test-wallet-client"
@@ -464,11 +478,32 @@ func TestCombinedModeChallengeInDPoPProof(t *testing.T) {
 	if capture.tokenRequests != 2 {
 		t.Fatalf("issuer saw %d token requests, want the refused first and the retried second", capture.tokenRequests)
 	}
-	if len(capture.dpops) == 0 {
-		t.Fatal("issuer saw no DPoP proofs")
+	last := decodeJWTPart(t, capture.dpops[len(capture.dpops)-1], 1)
+	if last["nonce"] != "combined-challenge-1" {
+		t.Errorf("retried DPoP proof nonce = %v, want the served challenge", last["nonce"])
+	}
+}
+
+// A pending attestation challenge takes the nonce claim of a combined DPoP
+// proof over a DPoP-Nonce from the same response.
+func TestCombinedModeChallengeWinsOverDPoPNonce(t *testing.T) {
+	w := generateTestWallet(t)
+	w.VCIVersion = VCIVersion11
+	w.VCIClientID = "test-wallet-client"
+
+	capture, err := runABCAOffer(t, w, abcaIssuerConfig{
+		authMethods:        []string{"attest_jwt_client_auth_dpop"},
+		dpop:               true,
+		requireAttestation: true,
+		requireCombined:    true,
+		challengeValue:     "combined-challenge-2",
+		dpopNonceValue:     "dpop-nonce-2",
+	})
+	if err != nil {
+		t.Fatalf("ProcessCredentialOffer: %v", err)
 	}
 	last := decodeJWTPart(t, capture.dpops[len(capture.dpops)-1], 1)
-	if last["challenge"] != "combined-challenge-1" {
-		t.Errorf("retried DPoP proof challenge = %v, want the served challenge", last["challenge"])
+	if last["nonce"] != "combined-challenge-2" {
+		t.Errorf("retried DPoP proof nonce = %v, want the attestation challenge", last["nonce"])
 	}
 }

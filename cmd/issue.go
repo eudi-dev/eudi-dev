@@ -193,22 +193,9 @@ func runIssueSDJWT(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	tpl, err := resolveIssueTemplate(cmd, "sdjwt")
+	resolved, err := resolveStandaloneIssue(cmd, "sdjwt")
 	if err != nil {
 		return err
-	}
-	claims, err := resolveIssueClaimsForFormat("sdjwt", tpl)
-	if err != nil {
-		return err
-	}
-	alwaysDisclosed, err := resolveIssueAlwaysDisclosed("sdjwt", tpl)
-	if err != nil {
-		return err
-	}
-
-	expDuration, err := time.ParseDuration(issueExpires)
-	if err != nil {
-		return fmt.Errorf("invalid --exp duration: %w", err)
 	}
 
 	nbf, err := parseNBF(issueNBF)
@@ -223,14 +210,14 @@ func runIssueSDJWT(cmd *cobra.Command, args []string) error {
 
 	cfg := mock.SDJWTConfig{
 		Issuer:          issueIssuer,
-		VCT:             issueVCT,
-		ExpiresIn:       expDuration,
+		VCT:             resolved.VCT,
+		ExpiresIn:       resolved.Exp,
 		NotBefore:       nbf,
-		Claims:          claims,
+		Claims:          resolved.CredentialClaims(),
 		Key:             key,
 		StatusListURI:   issueStatusListURI,
 		StatusListIdx:   issueStatusListIdx,
-		AlwaysDisclosed: alwaysDisclosed,
+		AlwaysDisclosed: resolved.AlwaysDisclosed,
 		CertChain:       certChain,
 		KeepTrustAnchor: issueCertPath != "",
 	}
@@ -242,10 +229,7 @@ func runIssueSDJWT(cmd *cobra.Command, args []string) error {
 
 	printIssuedCredential(result, "")
 
-	if err := saveIssueTemplate("sdjwt", claims, alwaysDisclosed); err != nil {
-		return err
-	}
-	return nil
+	return saveIssueTemplate(resolved)
 }
 
 func runIssueJWT(cmd *cobra.Command, args []string) error {
@@ -258,18 +242,9 @@ func runIssueJWT(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	tpl, err := resolveIssueTemplate(cmd, "jwt")
+	resolved, err := resolveStandaloneIssue(cmd, "jwt")
 	if err != nil {
 		return err
-	}
-	claims, err := resolveIssueClaimsForFormat("jwt", tpl)
-	if err != nil {
-		return err
-	}
-
-	expDuration, err := time.ParseDuration(issueExpires)
-	if err != nil {
-		return fmt.Errorf("invalid --exp duration: %w", err)
 	}
 
 	nbf, err := parseNBF(issueNBF)
@@ -284,10 +259,10 @@ func runIssueJWT(cmd *cobra.Command, args []string) error {
 
 	cfg := mock.JWTConfig{
 		Issuer:        issueIssuer,
-		VCT:           issueVCT,
-		ExpiresIn:     expDuration,
+		VCT:           resolved.VCT,
+		ExpiresIn:     resolved.Exp,
 		NotBefore:     nbf,
-		Claims:        claims,
+		Claims:        resolved.CredentialClaims(),
 		Key:           key,
 		StatusListURI: issueStatusListURI,
 		StatusListIdx: issueStatusListIdx,
@@ -301,10 +276,7 @@ func runIssueJWT(cmd *cobra.Command, args []string) error {
 
 	printIssuedCredential(result, "")
 
-	if err := saveIssueTemplate("jwt", claims, nil); err != nil {
-		return err
-	}
-	return nil
+	return saveIssueTemplate(resolved)
 }
 
 func runIssueMDOC(cmd *cobra.Command, args []string) error {
@@ -317,21 +289,9 @@ func runIssueMDOC(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	tpl, err := resolveIssueTemplate(cmd, "mdoc")
+	resolved, err := resolveStandaloneIssue(cmd, "mdoc")
 	if err != nil {
 		return err
-	}
-	claims, err := resolveIssueClaimsForFormat("mdoc", tpl)
-	if err != nil {
-		return err
-	}
-	if _, err := resolveIssueAlwaysDisclosed("mdoc", tpl); err != nil {
-		return err
-	}
-
-	expDuration, err := time.ParseDuration(issueExpires)
-	if err != nil {
-		return fmt.Errorf("invalid --exp duration: %w", err)
 	}
 
 	nbf, err := parseNBF(issueNBF)
@@ -345,11 +305,11 @@ func runIssueMDOC(cmd *cobra.Command, args []string) error {
 	}
 
 	cfg := mock.MDOCConfig{
-		DocType:         issueDocType,
-		Namespace:       issueNamespace,
-		Claims:          claims,
+		DocType:         resolved.DocType,
+		Namespace:       resolved.Namespace,
+		Claims:          resolved.CredentialClaims(),
 		Key:             key,
-		ExpiresIn:       expDuration,
+		ExpiresIn:       resolved.Exp,
 		ValidFrom:       nbf,
 		StatusListURI:   issueStatusListURI,
 		StatusListIdx:   issueStatusListIdx,
@@ -364,10 +324,7 @@ func runIssueMDOC(cmd *cobra.Command, args []string) error {
 
 	printIssuedCredential(result, "")
 
-	if err := saveIssueTemplate("mdoc", claims, nil); err != nil {
-		return err
-	}
-	return nil
+	return saveIssueTemplate(resolved)
 }
 
 func loadOrGenerateIssueKey() (*ecdsa.PrivateKey, error) {
@@ -521,115 +478,85 @@ func printIssuedCredential(raw, id string) {
 	printResult(doc, func() { fmt.Println(raw) })
 }
 
-// Explicit flags override template defaults. With --pid and no --claims, --vct selects
-// the built-in PID template.
-func resolveIssueTemplate(cmd *cobra.Command, format string) (*credtemplate.Template, error) {
-	if issueTemplate == "" && (!issuePID || issueClaims != "") {
-		return nil, nil
-	}
-	loc, err := resolveTemplates()
+// resolveStandaloneIssue applies the flags to their template. A flag the user
+// set wins over the template, and the template over the defaults. With --pid
+// and no --claims, --vct selects the built-in PID template, which serves only
+// as a claim set, so `issue jwt --pid` uses the SD-JWT PID claims.
+func resolveStandaloneIssue(cmd *cobra.Command, format string) (credtemplate.Resolved, error) {
+	overrides, err := issueClaimOverrides()
 	if err != nil {
-		return nil, err
+		return credtemplate.Resolved{}, err
 	}
-	// A template named by --template must match the format. The --pid
-	// template is a claim set, so `issue jwt --pid` uses the SD-JWT PID
-	// template and skips the format check.
-	name := issueTemplate
-	pidTemplate := name == ""
-	if pidTemplate {
-		sdName, mdocName, _ := credtemplate.PIDTemplateNames(issueVCT, loc)
-		name = sdName
-		if format == "mdoc" {
-			name = mdocName
-		}
+	req := credtemplate.Request{
+		Format: format, Claims: overrides, Omit: issueOmit, AlwaysDisclosed: issueAlwaysDisclosed,
 	}
-	tpl, err := credtemplate.Load(name, loc)
-	if err != nil {
-		return nil, err
-	}
-	if tpl.Format != "" && !pidTemplate {
-		tplFormat, err := credtemplate.NormalizeFormat(tpl.Format)
-		if err != nil {
-			return nil, err
-		}
-		if tplFormat != "" && tplFormat != format {
-			return nil, fmt.Errorf("template %q is for format %s, not %s", tpl.Name, tplFormat, format)
-		}
-	}
-
 	flags := cmd.Flags()
-	if tpl.VCT != "" && flags.Lookup("vct") != nil && !flags.Changed("vct") {
-		issueVCT = tpl.VCT
+	changed := func(name string) bool { return flags.Lookup(name) != nil && flags.Changed(name) }
+	if changed("vct") {
+		req.VCT = issueVCT
 	}
-	if tpl.DocType != "" && flags.Lookup("doc-type") != nil && !flags.Changed("doc-type") {
-		issueDocType = tpl.DocType
+	if changed("doc-type") {
+		req.DocType = issueDocType
 	}
-	if tpl.Namespace != "" && flags.Lookup("namespace") != nil && !flags.Changed("namespace") {
-		issueNamespace = tpl.Namespace
+	if changed("namespace") {
+		req.Namespace = issueNamespace
 	}
-	if tpl.Exp != "" && !flags.Changed("exp") {
-		issueExpires = tpl.Exp
+	if changed("exp") {
+		if req.Exp, err = time.ParseDuration(issueExpires); err != nil {
+			return credtemplate.Resolved{}, fmt.Errorf("invalid --exp duration: %w", err)
+		}
 	}
-	return tpl, nil
-}
 
-// resolveIssueAlwaysDisclosed combines the template's always-disclosed list
-// with --always-disclosed. A jwt credential ignores it because all its
-// claims are plain. An mdoc rejects it because every element is selectively
-// disclosable.
-func resolveIssueAlwaysDisclosed(format string, tpl *credtemplate.Template) ([]string, error) {
-	var merged []string
-	seen := make(map[string]bool)
-	var lists [][]string
-	if tpl != nil {
-		lists = append(lists, tpl.AlwaysDisclosed)
-	}
-	lists = append(lists, issueAlwaysDisclosed)
-	for _, list := range lists {
-		for _, path := range list {
-			path = strings.TrimSpace(path)
-			if path == "" || seen[path] {
-				continue
+	var tpl *credtemplate.Template
+	if issueTemplate != "" || (issuePID && issueClaims == "") {
+		loc, err := resolveTemplates()
+		if err != nil {
+			return credtemplate.Resolved{}, err
+		}
+		name := issueTemplate
+		if name == "" {
+			req.ClaimSet = true
+			sdName, mdocName, _ := credtemplate.PIDTemplateNames(issueVCT, loc)
+			name = sdName
+			if format == "mdoc" {
+				name = mdocName
 			}
-			seen[path] = true
-			merged = append(merged, path)
+		}
+		if tpl, err = credtemplate.Load(name, loc); err != nil {
+			return credtemplate.Resolved{}, err
 		}
 	}
-	switch format {
-	case "mdoc":
-		if len(merged) > 0 {
-			return nil, fmt.Errorf("always-disclosed claims are not supported for mdoc: every mdoc element is selectively disclosable")
-		}
-		return nil, nil
-	case "jwt":
-		return nil, nil
-	default:
-		return merged, nil
-	}
+	return credtemplate.Resolve(tpl, req)
 }
 
-func saveIssueTemplate(format string, claims map[string]any, alwaysDisclosed []string) error {
+// issueClaimOverrides reads --claims, a JSON object or @file.
+func issueClaimOverrides() (map[string]any, error) {
+	if issueClaims == "" {
+		return nil, nil
+	}
+	data := []byte(issueClaims)
+	if strings.HasPrefix(issueClaims, "@") {
+		var err error
+		if data, err = os.ReadFile(issueClaims[1:]); err != nil {
+			return nil, fmt.Errorf("reading claims file: %w", err)
+		}
+	}
+	var claims map[string]any
+	if err := json.Unmarshal(data, &claims); err != nil {
+		return nil, fmt.Errorf("parsing claims JSON: %w", err)
+	}
+	return claims, nil
+}
+
+func saveIssueTemplate(resolved credtemplate.Resolved) error {
 	if issueSaveTemplate == "" {
 		return nil
-	}
-	tpl := credtemplate.Template{
-		Name:            issueSaveTemplate,
-		Format:          format,
-		Exp:             issueExpires,
-		Claims:          claims,
-		AlwaysDisclosed: alwaysDisclosed,
-	}
-	if format == "mdoc" {
-		tpl.DocType = issueDocType
-		tpl.Namespace = issueNamespace
-	} else {
-		tpl.VCT = issueVCT
 	}
 	loc, err := resolveTemplates()
 	if err != nil {
 		return err
 	}
-	path, err := credtemplate.Save(loc, tpl)
+	path, err := credtemplate.Save(loc, resolved.Template(issueSaveTemplate))
 	if err != nil {
 		return fmt.Errorf("saving template: %w", err)
 	}
@@ -658,21 +585,11 @@ func issueAPIRequestFromFlags(cmd *cobra.Command, format string) (map[string]any
 	if issuePID {
 		req["pid"] = true
 	}
-	if issueClaims != "" {
-		var data []byte
-		if strings.HasPrefix(issueClaims, "@") {
-			var err error
-			data, err = os.ReadFile(issueClaims[1:])
-			if err != nil {
-				return nil, fmt.Errorf("reading claims file: %w", err)
-			}
-		} else {
-			data = []byte(issueClaims)
-		}
-		var claims map[string]any
-		if err := json.Unmarshal(data, &claims); err != nil {
-			return nil, fmt.Errorf("parsing claims JSON: %w", err)
-		}
+	claims, err := issueClaimOverrides()
+	if err != nil {
+		return nil, err
+	}
+	if claims != nil {
 		req["claims"] = claims
 	}
 	if len(issueOmit) > 0 {
@@ -753,33 +670,6 @@ func issueAPIRequestFromFlags(cmd *cobra.Command, format string) (map[string]any
 		req["display"] = display
 	}
 	return req, nil
-}
-
-func resolveIssueClaimsForFormat(format string, tpl *credtemplate.Template) (map[string]any, error) {
-	var overrides map[string]any
-	if issueClaims != "" {
-		var data []byte
-		if strings.HasPrefix(issueClaims, "@") {
-			var err error
-			data, err = os.ReadFile(issueClaims[1:])
-			if err != nil {
-				return nil, fmt.Errorf("reading claims file: %w", err)
-			}
-		} else {
-			data = []byte(issueClaims)
-		}
-		if err := json.Unmarshal(data, &overrides); err != nil {
-			return nil, fmt.Errorf("parsing claims JSON: %w", err)
-		}
-	}
-
-	if tpl != nil {
-		return omitClaims(credtemplate.MergeClaims(tpl.Claims, overrides), issueOmit), nil
-	}
-	if overrides != nil {
-		return omitClaims(overrides, issueOmit), nil
-	}
-	return omitClaims(mock.DefaultClaims, issueOmit), nil
 }
 
 // addIssueDisplayFlags registers the display flags shared by the issue
@@ -868,21 +758,4 @@ func parseNBF(val string) (*time.Time, error) {
 		return nil, fmt.Errorf("invalid --nbf value %q: expected RFC3339 (e.g. 2025-01-15T00:00:00Z) or duration (e.g. -1h)", val)
 	}
 	return &t, nil
-}
-
-func omitClaims(claims map[string]any, omit []string) map[string]any {
-	if len(omit) == 0 {
-		return claims
-	}
-	exclude := make(map[string]bool, len(omit))
-	for _, name := range omit {
-		exclude[strings.TrimSpace(name)] = true
-	}
-	result := make(map[string]any, len(claims))
-	for k, v := range claims {
-		if !exclude[k] {
-			result[k] = v
-		}
-	}
-	return result
 }

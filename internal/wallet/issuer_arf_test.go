@@ -57,7 +57,7 @@ func signedTestIssuerMetadata(t *testing.T, key *ecdsa.PrivateKey, chain []*x509
 	if err != nil {
 		t.Fatal(err)
 	}
-	metadata, signerChain, err := parseIssuerMetadataDocument([]byte(raw), "application/jwt", "https://issuer.example", metadataPolicy{strict: true})
+	metadata, signerChain, err := parseIssuerMetadataDocument([]byte(raw), "application/jwt", "https://issuer.example", refuseMetadataProblem)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,7 +184,7 @@ func TestARFAcceptsTheWalletsOwnIssuer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	parsed, chain, err := parseIssuerMetadataDocument([]byte(signed), "application/jwt", w.IssuerURL, metadataPolicy{strict: true})
+	parsed, chain, err := parseIssuerMetadataDocument([]byte(signed), "application/jwt", w.IssuerURL, refuseMetadataProblem)
 	if err != nil {
 		t.Fatal(err)
 	}

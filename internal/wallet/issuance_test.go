@@ -18,6 +18,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"maps"
 	"strings"
 	"testing"
@@ -318,8 +319,8 @@ func TestParseCredentialResponseBody_EncryptedJWE(t *testing.T) {
 	}
 
 	payload := &LogPayload{}
-	got, err := parseCredentialResponseBody([]byte(jwe), holderKey, payload)
-	if err != nil {
+	got, encrypted, err := parseCredentialResponseBody([]byte(jwe), holderKey, payload)
+	if err != nil || !encrypted {
 		t.Fatalf("parseCredentialResponseBody: %v", err)
 	}
 	if got["credential"] != "encrypted-credential" {
@@ -426,23 +427,6 @@ func TestResolveEndpoint_MissingOrEmptyIsADeviation(t *testing.T) {
 	}
 }
 
-func TestGetAuthorizationServer_PreservesTrailingSlash(t *testing.T) {
-	got := getAuthorizationServer(map[string]any{}, "https://issuer.example/test/")
-	if got != "https://issuer.example/test/" {
-		t.Fatalf("expected trailing slash to be preserved, got %s", got)
-	}
-}
-
-func TestGetAuthorizationServer_FromMetadataPreservesTrailingSlash(t *testing.T) {
-	metadata := map[string]any{
-		"authorization_servers": []any{"https://issuer.example/authz/"},
-	}
-	got := getAuthorizationServer(metadata, "https://issuer.example/test/")
-	if got != "https://issuer.example/authz/" {
-		t.Fatalf("expected authorization_servers entry to be preserved, got %s", got)
-	}
-}
-
 func TestWellKnownURL_PathlessIssuer(t *testing.T) {
 	got, err := wellKnownURL("https://issuer.example", "openid-credential-issuer")
 	if err != nil {
@@ -488,7 +472,7 @@ func TestParseIssuerMetadataResponse_SignedJWT(t *testing.T) {
 		t.Fatalf("signing issuer metadata: %v", err)
 	}
 
-	metadata, _, err := parseIssuerMetadataDocument([]byte(raw), "application/jwt", w.IssuerURL, metadataPolicy{strict: true})
+	metadata, _, err := parseIssuerMetadataDocument([]byte(raw), "application/jwt", w.IssuerURL, refuseMetadataProblem)
 	if err != nil {
 		t.Fatalf("parsing signed issuer metadata: %v", err)
 	}
@@ -551,7 +535,7 @@ func TestParseIssuerMetadataResponse_RejectsTamperedSignedJWT(t *testing.T) {
 	parts[1] = format.EncodeBase64URL([]byte(tamperedPayload))
 	tampered := strings.Join(parts, ".")
 
-	if _, _, err := parseIssuerMetadataDocument([]byte(tampered), "application/jwt", w.IssuerURL, metadataPolicy{strict: true}); err == nil {
+	if _, _, err := parseIssuerMetadataDocument([]byte(tampered), "application/jwt", w.IssuerURL, refuseMetadataProblem); err == nil {
 		t.Fatal("expected tampered signed issuer metadata to fail verification")
 	}
 }
@@ -583,7 +567,7 @@ func TestParseIssuerMetadataResponse_SignedMetadataTrust(t *testing.T) {
 		if err != nil {
 			t.Fatalf("signing: %v", err)
 		}
-		if _, _, err := parseIssuerMetadataDocument([]byte(raw), "application/jwt", w.IssuerURL, metadataPolicy{strict: true}); err == nil {
+		if _, _, err := parseIssuerMetadataDocument([]byte(raw), "application/jwt", w.IssuerURL, refuseMetadataProblem); err == nil {
 			t.Fatal("signed issuer metadata with no way to establish trust in its signer was accepted")
 		}
 	})
@@ -597,7 +581,7 @@ func TestParseIssuerMetadataResponse_SignedMetadataTrust(t *testing.T) {
 		}
 		issuerMetadataTrustAnchors = x509.NewCertPool()
 		t.Cleanup(func() { issuerMetadataTrustAnchors = nil })
-		metadata, _, err := parseIssuerMetadataDocument([]byte(raw), "application/jwt", w.IssuerURL, metadataPolicy{strict: true})
+		metadata, _, err := parseIssuerMetadataDocument([]byte(raw), "application/jwt", w.IssuerURL, refuseMetadataProblem)
 		if err != nil {
 			t.Fatalf("signed issuer metadata from an unanchored signer was refused: %v", err)
 		}
@@ -612,7 +596,7 @@ func TestParseIssuerMetadataResponse_SignedMetadataTrust(t *testing.T) {
 		}
 		sig[0] ^= 0xFF
 		parts[2] = format.EncodeBase64URL(sig)
-		if _, _, err := parseIssuerMetadataDocument([]byte(strings.Join(parts, ".")), "application/jwt", w.IssuerURL, metadataPolicy{strict: true}); err == nil {
+		if _, _, err := parseIssuerMetadataDocument([]byte(strings.Join(parts, ".")), "application/jwt", w.IssuerURL, refuseMetadataProblem); err == nil {
 			t.Fatal("signed issuer metadata whose signature does not verify was accepted")
 		}
 	})
@@ -646,7 +630,7 @@ func TestParseIssuerMetadataResponse_RejectsSignedMetadataForAnotherIssuer(t *te
 	if err != nil {
 		t.Fatalf("signing: %v", err)
 	}
-	if _, _, err := parseIssuerMetadataDocument([]byte(raw), "application/jwt", w.IssuerURL, metadataPolicy{strict: true}); err == nil {
+	if _, _, err := parseIssuerMetadataDocument([]byte(raw), "application/jwt", w.IssuerURL, refuseMetadataProblem); err == nil {
 		t.Fatal("signed issuer metadata whose sub names another issuer was accepted")
 	}
 }
@@ -657,17 +641,17 @@ func TestParseIssuerMetadataResponse_RejectsSignedMetadataForAnotherIssuer(t *te
 func TestParseIssuerMetadataResponse_RejectsMismatchedCredentialIssuer(t *testing.T) {
 	raw := []byte(`{"credential_issuer":"https://attacker.example","credential_endpoint":"https://attacker.example/credential"}`)
 
-	if _, _, err := parseIssuerMetadataDocument(raw, "application/json", "https://issuer.example", metadataPolicy{strict: true}); err == nil {
+	if _, _, err := parseIssuerMetadataDocument(raw, "application/json", "https://issuer.example", refuseMetadataProblem); err == nil {
 		t.Fatal("metadata declaring a different credential_issuer was used")
 	}
 
 	missing := []byte(`{"credential_endpoint":"https://issuer.example/credential"}`)
-	if _, _, err := parseIssuerMetadataDocument(missing, "application/json", "https://issuer.example", metadataPolicy{strict: true}); err == nil {
+	if _, _, err := parseIssuerMetadataDocument(missing, "application/json", "https://issuer.example", refuseMetadataProblem); err == nil {
 		t.Fatal("metadata carrying no credential_issuer was used")
 	}
 
 	slashed := []byte(`{"credential_issuer":"https://issuer.example/"}`)
-	if _, _, err := parseIssuerMetadataDocument(slashed, "application/json", "https://issuer.example", metadataPolicy{strict: true}); err == nil {
+	if _, _, err := parseIssuerMetadataDocument(slashed, "application/json", "https://issuer.example", refuseMetadataProblem); err == nil {
 		t.Fatal("metadata whose credential_issuer differs only by a trailing slash was used")
 	}
 }
@@ -683,7 +667,7 @@ func TestParseIssuerMetadataResponse_JSONWithDots(t *testing.T) {
 		}
 	}`)
 
-	metadata, _, err := parseIssuerMetadataDocument(raw, "application/json", "http://localhost:8080/realms/wallet-app-demo", metadataPolicy{strict: true})
+	metadata, _, err := parseIssuerMetadataDocument(raw, "application/json", "http://localhost:8080/realms/wallet-app-demo", refuseMetadataProblem)
 	if err != nil {
 		t.Fatalf("parsing metadata JSON: %v", err)
 	}
@@ -717,7 +701,7 @@ func TestSelectAuthorizationServer(t *testing.T) {
 	}
 
 	t.Run("the hint selects the named server", func(t *testing.T) {
-		got, err := selectAuthorizationServer(metadata, offerWithHint("https://as-two.example"))
+		got, err := selectAuthorizationServer(metadata, offerWithHint("https://as-two.example"), preAuthorizedCodeGrant)
 		if err != nil {
 			t.Fatalf("selectAuthorizationServer: %v", err)
 		}
@@ -727,13 +711,13 @@ func TestSelectAuthorizationServer(t *testing.T) {
 	})
 
 	t.Run("a hint matching no entry stops the flow", func(t *testing.T) {
-		if _, err := selectAuthorizationServer(metadata, offerWithHint("https://attacker.example")); err == nil {
+		if _, err := selectAuthorizationServer(metadata, offerWithHint("https://attacker.example"), preAuthorizedCodeGrant); err == nil {
 			t.Fatal("an authorization server the issuer metadata does not list was accepted")
 		}
 	})
 
 	t.Run("no hint falls back to the first entry", func(t *testing.T) {
-		got, err := selectAuthorizationServer(metadata, offerWithHint(""))
+		got, err := selectAuthorizationServer(metadata, offerWithHint(""), preAuthorizedCodeGrant)
 		if err != nil {
 			t.Fatalf("selectAuthorizationServer: %v", err)
 		}
@@ -742,8 +726,18 @@ func TestSelectAuthorizationServer(t *testing.T) {
 		}
 	})
 
+	t.Run("the hint of another grant does not apply", func(t *testing.T) {
+		got, err := selectAuthorizationServer(metadata, offerWithHint("https://as-two.example"), "authorization_code")
+		if err != nil {
+			t.Fatalf("selectAuthorizationServer: %v", err)
+		}
+		if got != "https://as-one.example" {
+			t.Errorf("authorization server = %q, want the first entry for the authorization_code grant", got)
+		}
+	})
+
 	t.Run("no authorization_servers at all is the issuer itself", func(t *testing.T) {
-		got, err := selectAuthorizationServer(map[string]any{}, offerWithHint(""))
+		got, err := selectAuthorizationServer(map[string]any{}, offerWithHint(""), preAuthorizedCodeGrant)
 		if err != nil {
 			t.Fatalf("selectAuthorizationServer: %v", err)
 		}
@@ -766,6 +760,16 @@ func TestResolveTokenEndpoint_PrefersTheAuthorizationServerMetadata(t *testing.T
 	}
 	if got, err := w.resolveTokenEndpoint(metadata, nil, "https://issuer.example"); err != nil || got != "https://issuer.example/token" {
 		t.Errorf("token endpoint = %q, err = %v, want the issuer's own when no AS metadata was reachable", got, err)
+	}
+}
+
+// Without any token_endpoint, debug mode assumes the conventional path on the
+// authorization server in use, not on the first one the issuer lists.
+func TestResolveTokenEndpoint_FallbackUsesTheChosenAuthorizationServer(t *testing.T) {
+	w := generateTestWallet(t)
+	metadata := map[string]any{"authorization_servers": []any{"https://as-one.example", "https://as-two.example/"}}
+	if got, err := w.resolveTokenEndpoint(metadata, nil, "https://as-two.example/"); err != nil || got != "https://as-two.example/token" {
+		t.Errorf("token endpoint = %q, err = %v, want the chosen server's /token", got, err)
 	}
 }
 
@@ -842,13 +846,13 @@ func TestParseIssuerMetadataResponse_RequiresIatAndRejectsExpiredMetadata(t *tes
 			t.Fatal(err)
 		}
 		var reported []string
-		if _, _, err := parseIssuerMetadataDocument([]byte(raw), "application/jwt", w.IssuerURL, w.metadataPolicy(ValidationModeDebug, func(f ...string) { reported = append(reported, f...) })); err != nil {
+		if _, _, err := parseIssuerMetadataDocument([]byte(raw), "application/jwt", w.IssuerURL, w.reportMetadataProblem(func(f ...string) { reported = append(reported, f...) })); err != nil {
 			t.Errorf("%s in debug mode: %v", name, err)
 		}
 		if tc.want != "" && (len(reported) != 1 || !strings.Contains(reported[0], "§12.2.3")) {
 			t.Errorf("%s in debug mode reported %v, want the §12.2.3 finding", name, reported)
 		}
-		_, _, err = parseIssuerMetadataDocument([]byte(raw), "application/jwt", w.IssuerURL, metadataPolicy{strict: true})
+		_, _, err = parseIssuerMetadataDocument([]byte(raw), "application/jwt", w.IssuerURL, refuseMetadataProblem)
 		if tc.want == "" && err != nil {
 			t.Errorf("%s: %v", name, err)
 		}
@@ -857,3 +861,7 @@ func TestParseIssuerMetadataResponse_RequiresIatAndRejectsExpiredMetadata(t *tes
 		}
 	}
 }
+
+// refuseMetadataProblem refuses issuer metadata with a §12.2.3 problem, as
+// strict mode does.
+func refuseMetadataProblem(problem string) error { return errors.New(problem) }

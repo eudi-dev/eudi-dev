@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"log"
 	"math/big"
+	"slices"
 	"strings"
 	"time"
 )
@@ -47,14 +48,17 @@ func advertisedBatchSize(metadata map[string]any) int {
 // key. RFC 9901 §10.1 requires this for SD-JWT batches. It is recommended for
 // mdoc.
 func issuanceProofKeys(holderKey *ecdsa.PrivateKey, metadata map[string]any) ([]*ecdsa.PrivateKey, error) {
+	return batchProofKeys(holderKey, metadata, maxBatchProofKeys)
+}
+
+// batchProofKeys returns the holder key and fresh keys for up to wanted
+// copies, as many as the issuer's batch_size allows.
+func batchProofKeys(holderKey *ecdsa.PrivateKey, metadata map[string]any, wanted int) ([]*ecdsa.PrivateKey, error) {
 	keys := []*ecdsa.PrivateKey{holderKey}
 	batchSize := advertisedBatchSize(metadata)
-	if batchSize < 2 {
+	count := min(batchSize, wanted, maxBatchProofKeys)
+	if count < 2 {
 		return keys, nil
-	}
-	count := batchSize
-	if count > maxBatchProofKeys {
-		count = maxBatchProofKeys
 	}
 	for len(keys) < count {
 		key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -228,6 +232,52 @@ func (w *Wallet) storeBatchCopies(primary *StoredCredential, copies []batchCopy,
 	}
 	log.Printf("[VCI] Stored a batch of %d copies (group %s) for one-time-use presentation", len(stored), group)
 	return stored, nil
+}
+
+// replaceBatchCopies puts copies in place of the other copies of the renewed
+// primary's batch. A renewal that returns fewer copies drops the rest, since
+// they keep the old validity.
+func (w *Wallet) replaceBatchCopies(primary *StoredCredential, copies []batchCopy) ([]*StoredCredential, error) {
+	if primary.BatchGroup == "" {
+		return w.storeBatchCopies(primary, copies, primary.Display)
+	}
+	w.mu.Lock()
+	w.Credentials = slices.DeleteFunc(w.Credentials, func(c StoredCredential) bool {
+		if c.BatchGroup != primary.BatchGroup || c.ID == primary.ID {
+			return false
+		}
+		delete(w.StatusEntries, c.ID)
+		return true
+	})
+	w.mu.Unlock()
+
+	stored := []*StoredCredential{primary}
+	for _, c := range copies {
+		copyCred, err := w.importBatchCopy(c.raw, primary.BatchGroup, c.bindingKeyPEM)
+		if err != nil {
+			return stored, fmt.Errorf("storing a renewed batch copy: %w", err)
+		}
+		w.rememberDisplay(copyCred, primary.Display)
+		stored = append(stored, copyCred)
+	}
+	return stored, nil
+}
+
+// batchSize counts the copies of the credential's batch. A credential outside
+// a batch counts as one.
+func (w *Wallet) batchSize(cred StoredCredential) int {
+	if cred.BatchGroup == "" {
+		return 1
+	}
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	n := 0
+	for _, c := range w.Credentials {
+		if c.BatchGroup == cred.BatchGroup {
+			n++
+		}
+	}
+	return n
 }
 
 // collapseBatchMatches keeps one copy per batch so consent does not show

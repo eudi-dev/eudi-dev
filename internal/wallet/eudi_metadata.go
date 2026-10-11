@@ -19,6 +19,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"maps"
 	"sort"
@@ -339,18 +340,21 @@ func applyCategoryDefaults(spec IssuedAttestationSpec) IssuedAttestationSpec {
 	return spec
 }
 
+// sanitizeMetadataID turns a credential type into a configuration id of at
+// most 50 characters. A URN such as urn:eudi:pid:1 maps its ':' to '_'. Any
+// other type could share that readable form with another type, so it gets a
+// hash suffix and each type keeps its own configuration.
 func sanitizeMetadataID(s string) string {
-	s = strings.ReplaceAll(s, ":", "_")
-	s = strings.ReplaceAll(s, ".", "_")
-	s = strings.ReplaceAll(s, "/", "_")
-	s = strings.TrimLeft(s, "_")
-	if len(s) > 50 {
-		s = s[:50]
+	readable := strings.NewReplacer(":", "_", ".", "_", "/", "_").Replace(s)
+	trimmed := strings.TrimLeft(readable, "_")
+	if trimmed != "" && trimmed == readable && !strings.ContainsAny(s, "_./") && len(trimmed) <= 50 {
+		return trimmed
 	}
-	if s == "" {
-		return "credential"
+	if trimmed == "" {
+		trimmed = "credential"
 	}
-	return s
+	sum := sha256.Sum256([]byte(s))
+	return trimmed[:min(len(trimmed), 41)] + "_" + hex.EncodeToString(sum[:4])
 }
 
 func buildCredentialConfiguration(spec IssuedAttestationSpec) (string, map[string]any, bool) {

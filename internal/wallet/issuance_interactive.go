@@ -123,9 +123,6 @@ func (w *Wallet) interactionTypesSupported(setup authorizationCodeSetup) []strin
 // request then has to repeat the redirect URI (RFC 6749 §4.1.3).
 func (w *Wallet) obtainInteractiveAuthorizationCode(endpoint string, setup authorizationCodeSetup, offer *oid4vc.CredentialOffer) (code string, viaWeb bool, err error) {
 	form := w.initialAuthorizationChallengeForm(setup, offer)
-	if err := applyClientAuthentication(form, setup.clientAuth, setup.clientID, w.HolderKey); err != nil {
-		return "", false, err
-	}
 
 	var authSession string
 	for round := 1; round <= maxInteractiveAuthorizationRounds; round++ {
@@ -183,9 +180,6 @@ func (w *Wallet) obtainInteractiveAuthorizationCode(endpoint string, setup autho
 		if setup.clientID != "" {
 			next.Set("client_id", setup.clientID)
 		}
-		if err := applyClientAuthentication(next, setup.clientAuth, setup.clientID, w.HolderKey); err != nil {
-			return "", false, err
-		}
 		form = next
 	}
 
@@ -204,7 +198,7 @@ func (w *Wallet) initialAuthorizationChallengeForm(setup authorizationCodeSetup,
 	form := url.Values{}
 	form.Set("response_type", "code")
 	form.Set("client_id", setup.clientID)
-	form.Set("scope", setup.scope)
+	setValues(form, setup.credentialRequest)
 	// A redirect_to_web response needs state to build a browser request whose
 	// callback matches this flow.
 	form.Set("state", setup.state)
@@ -231,7 +225,7 @@ func (w *Wallet) postAuthorizationChallenge(endpoint string, form url.Values, se
 
 	body := []byte(form.Encode())
 	respBody, status, reqErr := doDPoPRequest("POST", endpoint, "application/x-www-form-urlencoded", "", body,
-		"", "", setup.dpopKey, &setup.nonces.authzServer, w.attestorFor(setup.clientAuth, setup.clientID), w.HTTPClient())
+		"", "", setup.dpopKey, &setup.nonces.authzServer, w.clientAuthenticatorFor(setup.clientAuth, setup.clientID), w.HTTPClient())
 
 	var response map[string]any
 	if len(respBody) > 0 {

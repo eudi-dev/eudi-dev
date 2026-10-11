@@ -20,6 +20,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 )
@@ -425,5 +426,50 @@ func TestListReturnsTheReadableTemplatesWithTheError(t *testing.T) {
 	}
 	if !names["club"] || !names["demo-ticket"] {
 		t.Errorf("templates %v, want the stored and the predefined ones", names)
+	}
+}
+
+// Resolve applies a request to a template the same way for every issuer.
+func TestResolve(t *testing.T) {
+	tpl := &Template{
+		Name: "t", Format: "sdjwt", VCT: "urn:t", Exp: "48h",
+		Claims:          map[string]any{"a": 1, "b": 2, "id": "x"},
+		AlwaysDisclosed: []string{"a"},
+		UniqueClaims:    []string{"id"},
+	}
+
+	r, err := Resolve(tpl, Request{Claims: map[string]any{"b": 3}, Omit: []string{"a"}, AlwaysDisclosed: []string{"b", "a"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Format != "sdjwt" || r.VCT != "urn:t" || r.Exp != 48*time.Hour {
+		t.Errorf("resolved %+v, want the template's format, vct and exp", r)
+	}
+	if _, ok := r.Claims["a"]; ok || r.Claims["b"] != 3 {
+		t.Errorf("claims = %v, want b overridden and a omitted", r.Claims)
+	}
+	if len(r.AlwaysDisclosed) != 2 {
+		t.Errorf("always disclosed = %v, want the merged list", r.AlwaysDisclosed)
+	}
+	if first, second := r.CredentialClaims()["id"], r.CredentialClaims()["id"]; first == "x" || first == second {
+		t.Errorf("unique claim id = %v then %v, want a fresh value per credential", first, second)
+	}
+
+	if _, err := Resolve(tpl, Request{Format: "mdoc"}); err == nil {
+		t.Error("a sdjwt template resolved for mdoc")
+	}
+	if _, err := Resolve(&Template{Name: "bad", Exp: "soon"}, Request{Format: "sdjwt"}); err == nil {
+		t.Error("an invalid template exp was accepted")
+	}
+	if _, err := Resolve(&Template{Name: "m", AlwaysDisclosed: []string{"a"}}, Request{Format: "mdoc"}); err == nil {
+		t.Error("always-disclosed claims were accepted for mdoc")
+	}
+
+	defaults, err := Resolve(nil, Request{Format: "mso_mdoc"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if defaults.Format != "mdoc" || defaults.DocType != DefaultDocType || defaults.Namespace != DefaultDocType || defaults.Exp != DefaultExp {
+		t.Errorf("defaults = %+v", defaults)
 	}
 }

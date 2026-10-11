@@ -48,12 +48,12 @@ func resolveTxCode(uri, given string, client *http.Client) (string, *oid4vc.Cred
 	if !ok {
 		return given, nil
 	}
-	if len(offer.Grants.TxCode) == 0 {
+	if !offer.Grants.RequiresTxCode() {
 		return given, offer
 	}
 
 	prompt := "Transaction code"
-	if hint := describeTxCodePrompt(offer.Grants.TxCode); hint != "" {
+	if hint := offer.Grants.TxCodeHint(); hint != "" {
 		prompt += " (" + hint + ")"
 	}
 	fmt.Fprintf(os.Stderr, "%s: ", prompt)
@@ -62,28 +62,6 @@ func resolveTxCode(uri, given string, client *http.Client) (string, *oid4vc.Cred
 		return given, offer
 	}
 	return strings.TrimSpace(line), offer
-}
-
-func describeTxCodePrompt(txCode map[string]any) string {
-	if description, _ := txCode["description"].(string); strings.TrimSpace(description) != "" {
-		return strings.TrimSpace(description)
-	}
-	mode, _ := txCode["input_mode"].(string)
-	length := 0
-	switch n := txCode["length"].(type) {
-	case float64:
-		length = int(n)
-	case int:
-		length = n
-	}
-	switch {
-	case length > 0 && mode != "":
-		return fmt.Sprintf("%d %s characters", length, mode)
-	case length > 0:
-		return fmt.Sprintf("%d characters", length)
-	default:
-		return mode
-	}
 }
 
 func stdinIsTerminal() bool {

@@ -178,6 +178,20 @@ func (w *Wallet) DeferredIssuanceList() []DeferredIssuance {
 	return append([]DeferredIssuance(nil), w.DeferredIssuances...)
 }
 
+func (w *Wallet) DeferredIssuanceByID(id string) (DeferredIssuance, bool) {
+	if w == nil {
+		return DeferredIssuance{}, false
+	}
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	for _, pending := range w.DeferredIssuances {
+		if pending.ID == id {
+			return pending, true
+		}
+	}
+	return DeferredIssuance{}, false
+}
+
 func (w *Wallet) RemoveDeferredIssuance(id string) bool {
 	if w == nil {
 		return false

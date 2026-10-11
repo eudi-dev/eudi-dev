@@ -15,7 +15,6 @@
 package wallet
 
 import (
-	"crypto/ecdsa"
 	"fmt"
 	"slices"
 	"strings"
@@ -53,8 +52,12 @@ func (w *Wallet) RefreshCredential(id string) (*StoredCredential, error) {
 	}
 
 	nonce := ""
-	// A renewal replaces one credential, so it needs one proof key.
-	proofKeys := []*ecdsa.PrivateKey{w.HolderKeyPair()}
+	// A batch is renewed as a whole, each copy bound to a fresh key, so no
+	// expired copy stays in the presentation rotation.
+	proofKeys, err := batchProofKeys(w.HolderKeyPair(), metadata, w.batchSize(cred))
+	if err != nil {
+		return nil, err
+	}
 	credResp, err := w.requestCredential(credentialRequest{
 		renewal:   renewal,
 		metadata:  metadata,

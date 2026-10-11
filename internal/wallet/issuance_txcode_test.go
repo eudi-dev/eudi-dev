@@ -28,6 +28,15 @@ import (
 
 func txCodeIssuer(t *testing.T, w *Wallet, wantCode string) (*httptest.Server, string) {
 	t.Helper()
+	return txCodeIssuerWithObject(t, w, wantCode, map[string]any{
+		"input_mode":  "numeric",
+		"length":      float64(4),
+		"description": "The code from your letter",
+	})
+}
+
+func txCodeIssuerWithObject(t *testing.T, w *Wallet, wantCode string, txCode map[string]any) (*httptest.Server, string) {
+	t.Helper()
 
 	credRaw := generateTestCredential(t, w)
 	var serverURL string
@@ -79,11 +88,7 @@ func txCodeIssuer(t *testing.T, w *Wallet, wantCode string) (*httptest.Server, s
 		"grants": map[string]any{
 			"urn:ietf:params:oauth:grant-type:pre-authorized_code": map[string]any{
 				"pre-authorized_code": "test-pre-auth-code",
-				"tx_code": map[string]any{
-					"input_mode":  "numeric",
-					"length":      float64(4),
-					"description": "The code from your letter",
-				},
+				"tx_code":             txCode,
 			},
 		},
 	}
@@ -240,11 +245,6 @@ func TestDescribeCredentialOffer_TxCodeShape(t *testing.T) {
 				CredentialIssuer: "https://issuer.invalid",
 				Grants:           oid4vc.OfferGrants{PreAuthorizedCode: "code", TxCode: tc.txCode},
 			}
-			// An empty tx_code object still counts as a tx_code. The parser only
-			// records a non-empty map, so this case sets the grant directly.
-			if len(tc.txCode) == 0 {
-				offer.Grants.TxCode = map[string]any{"input_mode": ""}
-			}
 			details := generateTestWallet(t).describeCredentialOffer(offer)
 			if !details.TxCode {
 				t.Fatal("expected tx_code to be reported as required")
@@ -289,6 +289,26 @@ func TestOfferNeedingATxCodeIsRefusedBeforeTheCodeIsSpent(t *testing.T) {
 		}
 	}
 
+	if _, err := w.ProcessCredentialOfferWithOptions(offerURI, OfferOptions{TxCode: "1234"}); err != nil {
+		t.Fatalf("issuance with the code: %v", err)
+	}
+}
+
+// OID4VCI 1.0 §4.1.1: a tx_code object means "a Transaction Code is required if
+// present, even if empty". §6.1 makes the token request carry it.
+func TestEmptyTxCodeObjectRequiresACode(t *testing.T) {
+	w := generateTestWallet(t)
+	srv, offerURI := txCodeIssuerWithObject(t, w, "1234", map[string]any{})
+	defer srv.Close()
+
+	oldClient := httpClient
+	httpClient = srv.Client()
+	defer func() { httpClient = oldClient }()
+
+	_, err := w.ProcessCredentialOfferWithOptions(offerURI, OfferOptions{})
+	if err == nil || !strings.Contains(err.Error(), "requires a transaction code") {
+		t.Fatalf("error = %v, want the missing transaction code named", err)
+	}
 	if _, err := w.ProcessCredentialOfferWithOptions(offerURI, OfferOptions{TxCode: "1234"}); err != nil {
 		t.Fatalf("issuance with the code: %v", err)
 	}

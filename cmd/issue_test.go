@@ -39,7 +39,7 @@ const (
 )
 
 func TestOmitClaims_RemovesSpecifiedClaims(t *testing.T) {
-	result := omitClaims(mock.SDJWTPIDClaims, []string{"place_of_birth", "address", "nationalities"})
+	result := credtemplate.OmitClaims(mock.SDJWTPIDClaims, []string{"place_of_birth", "address", "nationalities"})
 
 	for _, name := range []string{"place_of_birth", "address", "nationalities"} {
 		if _, ok := result[name]; ok {
@@ -60,21 +60,21 @@ func TestOmitClaims_RemovesSpecifiedClaims(t *testing.T) {
 }
 
 func TestOmitClaims_EmptyOmitReturnsOriginal(t *testing.T) {
-	result := omitClaims(mock.SDJWTPIDClaims, nil)
+	result := credtemplate.OmitClaims(mock.SDJWTPIDClaims, nil)
 	if len(result) != len(mock.SDJWTPIDClaims) {
 		t.Errorf("expected %d claims, got %d", len(mock.SDJWTPIDClaims), len(result))
 	}
 }
 
 func TestOmitClaims_OmitNonexistentClaimIsNoOp(t *testing.T) {
-	result := omitClaims(mock.DefaultClaims, []string{"nonexistent_claim"})
+	result := credtemplate.OmitClaims(mock.DefaultClaims, []string{"nonexistent_claim"})
 	if len(result) != len(mock.DefaultClaims) {
 		t.Errorf("expected %d claims, got %d", len(mock.DefaultClaims), len(result))
 	}
 }
 
 func TestOmitClaims_TrimsWhitespace(t *testing.T) {
-	result := omitClaims(mock.SDJWTPIDClaims, []string{" place_of_birth ", " address"})
+	result := credtemplate.OmitClaims(mock.SDJWTPIDClaims, []string{" place_of_birth ", " address"})
 
 	if _, ok := result["place_of_birth"]; ok {
 		t.Error("place_of_birth should have been omitted (with whitespace trimming)")
@@ -86,7 +86,7 @@ func TestOmitClaims_TrimsWhitespace(t *testing.T) {
 
 func TestOmitClaims_DoesNotMutateOriginal(t *testing.T) {
 	original := map[string]any{"a": 1, "b": 2, "c": 3}
-	result := omitClaims(original, []string{"b"})
+	result := credtemplate.OmitClaims(original, []string{"b"})
 
 	if len(result) != 2 {
 		t.Errorf("expected 2 claims in result, got %d", len(result))
@@ -98,7 +98,7 @@ func TestOmitClaims_DoesNotMutateOriginal(t *testing.T) {
 
 func TestOmitClaims_OmitAllClaims(t *testing.T) {
 	claims := map[string]any{"a": 1, "b": 2}
-	result := omitClaims(claims, []string{"a", "b"})
+	result := credtemplate.OmitClaims(claims, []string{"a", "b"})
 	if len(result) != 0 {
 		t.Errorf("expected 0 claims, got %d", len(result))
 	}
@@ -1041,5 +1041,47 @@ func assertClaimSet(t *testing.T, label string, claims map[string]any, want map[
 	}
 	if len(claims) != len(want) {
 		t.Errorf("%s has %d claims, want %d", label, len(claims), len(want))
+	}
+}
+
+// resolveIssueClaimsForFormat resolves the claims of the --claims, --omit and
+// --pid flags against tpl.
+func resolveIssueClaimsForFormat(format string, tpl *credtemplate.Template) (map[string]any, error) {
+	overrides, err := issueClaimOverrides()
+	if err != nil {
+		return nil, err
+	}
+	resolved, err := credtemplate.Resolve(tpl, credtemplate.Request{Format: format, Claims: overrides, Omit: issueOmit, ClaimSet: true})
+	return resolved.Claims, err
+}
+
+// A standalone credential from a template gives each unique claim a fresh
+// value, as the wallet and the demo issuer do.
+func TestIssueSDJWT_TemplateUniqueClaims(t *testing.T) {
+	dir := t.TempDir()
+	tpl := `{"name":"uniq","format":"sdjwt","claims":{"subject_id":"fixed"},"unique_claims":["subject_id"]}`
+	if err := os.WriteFile(filepath.Join(dir, "uniq.json"), []byte(tpl), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	templatesDir = dir
+	t.Cleanup(func() { templatesDir = "" })
+	issueClaims, issueKeyPath, issueOmit, issuePID = "", "", nil, false
+
+	issueOnce := func() any {
+		out := captureStdout(t, func() {
+			rootCmd.SetArgs([]string{"issue", "sdjwt", "--template", "uniq"})
+			if err := rootCmd.Execute(); err != nil {
+				t.Fatalf("issue sdjwt --template: %v", err)
+			}
+		})
+		token, err := sdjwt.Parse(strings.TrimSpace(out))
+		if err != nil {
+			t.Fatalf("parsing the issued credential: %v", err)
+		}
+		return token.ResolvedClaims["subject_id"]
+	}
+	first, second := issueOnce(), issueOnce()
+	if first == "fixed" || first == second {
+		t.Errorf("subject_id = %v then %v, want a fresh value per credential", first, second)
 	}
 }

@@ -149,7 +149,7 @@ The wallet does not check these:
 
 - **The service identifier.** ARF RPRC_17a also compares the service identifier, but ETSI TS 119 475 V1.2.1 has no claim for it. The access certificate has it as organizational unit.
 - **Access certificate revocation.** The registrar does not revoke access certificates. A deleted relying party keeps a valid access certificate until it expires.
-- **The register.** The wallet does not look up `registry_uri`. A verifier sends exactly one registration certificate with its request (ARF RPRC_19), and an issuer publishes its certificate in its metadata (RPRC_22). A request with no registration certificate or with several gets an RPRC_19 finding.
+- **The register.** The wallet does not look up `registry_uri`. A verifier sends exactly one registration certificate with its request, so no external request is needed to check it (ARF RPRC_19). An issuer publishes its certificate in its metadata (RPRC_22). For a request with no registration certificate or with several, the consent dialog warns that the registered information could not be checked (RPRC_17).
 
 ## Use an external registrar
 
