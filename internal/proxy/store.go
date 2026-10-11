@@ -21,12 +21,15 @@ import (
 
 // Store is a thread-safe ring buffer of traffic entries with SSE broadcast support.
 type Store struct {
-	mu          sync.RWMutex
-	entries     []*TrafficEntry
-	maxSize     int
-	nextID      int64
-	nextFlowID  int64
-	flows       map[string]string // correlation key → flow ID
+	mu         sync.RWMutex
+	entries    []*TrafficEntry
+	maxSize    int
+	nextID     int64
+	nextFlowID int64
+	flows      map[string]string // correlation key → flow ID
+	// A flow's keys live as long as any of its entries is in the buffer.
+	flowKeys    map[string][]string
+	flowEntries map[string]int
 	subscribers map[int64]chan *TrafficEntry
 	subID       int64
 }
@@ -36,6 +39,8 @@ func NewStore(maxSize int) *Store {
 		maxSize:     maxSize,
 		entries:     make([]*TrafficEntry, 0, maxSize),
 		flows:       make(map[string]string),
+		flowKeys:    make(map[string][]string),
+		flowEntries: make(map[string]int),
 		subscribers: make(map[int64]chan *TrafficEntry),
 	}
 }
@@ -57,17 +62,16 @@ func (s *Store) Add(entry *TrafficEntry) {
 			entry.FlowID = fmt.Sprintf("flow-%d", s.nextFlowID)
 		}
 		for _, key := range keys {
-			s.flows[key] = entry.FlowID
+			if s.flows[key] != entry.FlowID {
+				s.flows[key] = entry.FlowID
+				s.flowKeys[entry.FlowID] = append(s.flowKeys[entry.FlowID], key)
+			}
 		}
+		s.flowEntries[entry.FlowID]++
 	}
 
 	if len(s.entries) >= s.maxSize {
-		evicted := s.entries[0]
-		s.entries = s.entries[1:]
-		// Evicted correlation keys are removed to bound memory in long proxy sessions.
-		for _, key := range ExtractCorrelationKeys(evicted) {
-			delete(s.flows, key)
-		}
+		s.evictOldest()
 	}
 	s.entries = append(s.entries, entry)
 	subs := make([]chan *TrafficEntry, 0, len(s.subscribers))
@@ -86,6 +90,27 @@ func (s *Store) Add(entry *TrafficEntry) {
 	}
 }
 
+func (s *Store) evictOldest() {
+	evicted := s.entries[0]
+	s.entries = s.entries[1:]
+	flowID := evicted.FlowID
+	if flowID == "" {
+		return
+	}
+	s.flowEntries[flowID]--
+	if s.flowEntries[flowID] > 0 {
+		return
+	}
+	for _, key := range s.flowKeys[flowID] {
+		// A later entry can move a key to the flow it joined.
+		if s.flows[key] == flowID {
+			delete(s.flows, key)
+		}
+	}
+	delete(s.flowKeys, flowID)
+	delete(s.flowEntries, flowID)
+}
+
 // MaxSize is how many entries the store keeps.
 func (s *Store) MaxSize() int { return s.maxSize }
 
@@ -94,18 +119,6 @@ func (s *Store) Entries() []*TrafficEntry {
 	defer s.mu.RUnlock()
 	out := make([]*TrafficEntry, len(s.entries))
 	copy(out, s.entries)
-	return out
-}
-
-func (s *Store) FlowEntries(flowID string) []*TrafficEntry {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	var out []*TrafficEntry
-	for _, e := range s.entries {
-		if e.FlowID == flowID {
-			out = append(out, e)
-		}
-	}
 	return out
 }
 

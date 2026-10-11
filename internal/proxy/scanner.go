@@ -15,37 +15,25 @@
 package proxy
 
 import (
-	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"regexp"
 	"strings"
 	"sync"
-	"time"
 )
 
-// OutputScanner scans lines from a subprocess's stdout and stderr for encryption
-// keys and credentials. It is safe for concurrent use. Detection is best effort.
+// OutputScanner scans lines from a subprocess's stdout and stderr for the keys
+// that decrypt encrypted responses. It is safe for concurrent use. Detection is
+// best effort.
 type OutputScanner struct {
-	mu          sync.RWMutex
-	lastCEK     string // most recent base64url-encoded CEK
-	lastJWK     string // most recent JWK private key JSON (with "d" parameter)
-	credentials []ScannedCredential
-}
-
-type ScannedCredential struct {
-	Raw       string
-	Label     string
-	Timestamp time.Time
+	mu      sync.RWMutex
+	lastCEK string // most recent base64url-encoded CEK
+	lastJWK string // most recent JWK private key JSON (with "d" parameter)
 }
 
 var (
 	// A CEK log line such as "[VP] JWE content encryption key for proxy debugging: <base64url>",
 	// or any line with CEK and then a base64url value.
 	cekPattern = regexp.MustCompile(`(?i)(?:CEK|content.encryption.key)[^:]*:\s*([A-Za-z0-9_-]{16,})`)
-
-	// A JWT, optionally followed by SD-JWT ~disclosures.
-	jwtPattern = regexp.MustCompile(`eyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*(?:~[A-Za-z0-9_-]*)*`)
 )
 
 func NewOutputScanner() *OutputScanner {
@@ -55,8 +43,6 @@ func NewOutputScanner() *OutputScanner {
 func (s *OutputScanner) Scan(line string) {
 	s.scanCEK(line)
 	s.scanJWK(line)
-	s.scanCredentials(line)
-	s.scanVPTokenJSON(line)
 }
 
 func (s *OutputScanner) scanCEK(line string) {
@@ -114,68 +100,6 @@ func (s *OutputScanner) scanJWK(line string) {
 	}
 }
 
-func (s *OutputScanner) scanCredentials(line string) {
-	matches := jwtPattern.FindAllString(line, -1)
-	for _, m := range matches {
-		// Very short matches are likely false positives.
-		if len(m) < 50 {
-			continue
-		}
-		if isRequestObjectJWT(m) {
-			continue
-		}
-		label := detectCredentialLabel(line, m)
-
-		s.mu.Lock()
-		s.credentials = append(s.credentials, ScannedCredential{
-			Raw:       m,
-			Label:     label,
-			Timestamp: time.Now(),
-		})
-		s.mu.Unlock()
-	}
-}
-
-func isRequestObjectJWT(token string) bool {
-	dot := strings.IndexByte(token, '.')
-	if dot < 0 {
-		return false
-	}
-	headerB64 := token[:dot]
-	if m := len(headerB64) % 4; m != 0 {
-		headerB64 += strings.Repeat("=", 4-m)
-	}
-	b, err := base64.URLEncoding.DecodeString(headerB64)
-	if err != nil {
-		return false
-	}
-	var hdr struct {
-		Typ string `json:"typ"`
-	}
-	if json.Unmarshal(b, &hdr) != nil {
-		return false
-	}
-	return strings.EqualFold(hdr.Typ, "oauth-authz-req+jwt")
-}
-
-func detectCredentialLabel(line, token string) string {
-	lower := strings.ToLower(line)
-	switch {
-	case strings.Contains(lower, "vp_token") || strings.Contains(lower, "vp token"):
-		return "vp_token"
-	case strings.Contains(lower, "id_token") || strings.Contains(lower, "id token"):
-		return "id_token"
-	case strings.Contains(lower, "access_token") || strings.Contains(lower, "access token"):
-		return "access_token"
-	case strings.Contains(lower, "credential"):
-		return "credential"
-	case strings.Contains(lower, "sd-jwt") || strings.Contains(token, "~"):
-		return "sd-jwt"
-	default:
-		return "jwt"
-	}
-}
-
 func (s *OutputScanner) LastCEK() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -186,112 +110,4 @@ func (s *OutputScanner) LastJWK() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.lastJWK
-}
-
-func (s *OutputScanner) Credentials() []ScannedCredential {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	out := make([]ScannedCredential, len(s.credentials))
-	copy(out, s.credentials)
-	return out
-}
-
-// mdoc credentials in JSON vp_token maps do not match the JWT regex.
-func (s *OutputScanner) scanVPTokenJSON(line string) {
-	lower := strings.ToLower(line)
-	if !strings.Contains(lower, "vp_token") && !strings.Contains(lower, "vp token") {
-		return
-	}
-
-	start := strings.Index(line, "{")
-	if start < 0 {
-		return
-	}
-
-	for i := start; i < len(line); i++ {
-		if line[i] != '{' {
-			continue
-		}
-		candidate := line[i:]
-		depth := 0
-		end := -1
-		for j, c := range candidate {
-			if c == '{' {
-				depth++
-			} else if c == '}' {
-				depth--
-				if depth == 0 {
-					end = j + 1
-					break
-				}
-			}
-		}
-		if end < 0 {
-			continue
-		}
-		jsonStr := candidate[:end]
-		var obj map[string]any
-		if err := json.Unmarshal([]byte(jsonStr), &obj); err != nil {
-			continue
-		}
-		s.extractNonJWTCredentials(obj, "vp_token")
-		return
-	}
-}
-
-// extractNonJWTCredentials extracts long base64 or base64url strings that do not
-// start with "eyJ" from a JSON object. These are usually mdoc credentials in a
-// DCQL vp_token.
-func (s *OutputScanner) extractNonJWTCredentials(obj map[string]any, prefix string) {
-	for key, val := range obj {
-		label := prefix + "." + key
-		switch v := val.(type) {
-		case string:
-			if isNonJWTCredential(v) {
-				s.mu.Lock()
-				s.credentials = append(s.credentials, ScannedCredential{
-					Raw:       v,
-					Label:     label,
-					Timestamp: time.Now(),
-				})
-				s.mu.Unlock()
-			}
-		case []any:
-			for i, item := range v {
-				if str, ok := item.(string); ok && isNonJWTCredential(str) {
-					s.mu.Lock()
-					s.credentials = append(s.credentials, ScannedCredential{
-						Raw:       str,
-						Label:     fmt.Sprintf("%s[%d]", label, i),
-						Timestamp: time.Now(),
-					})
-					s.mu.Unlock()
-				}
-			}
-		}
-	}
-}
-
-func isNonJWTCredential(s string) bool {
-	if len(s) < 100 {
-		return false
-	}
-	if strings.HasPrefix(s, "eyJ") {
-		return false
-	}
-	for _, c := range s[:64] {
-		if !((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
-			c == '+' || c == '/' || c == '-' || c == '_' || c == '=') {
-			return false
-		}
-	}
-	return true
-}
-
-func (s *OutputScanner) DrainCredentials() []ScannedCredential {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	out := s.credentials
-	s.credentials = nil
-	return out
 }

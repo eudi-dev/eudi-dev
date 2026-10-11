@@ -73,10 +73,15 @@ func StartSubprocess(args []string, scanner *OutputScanner, out io.Writer) (*Sub
 
 	// Both streams are read at once. A service that logs heavily to stderr
 	// while stdout stays open must never block on a full stderr pipe.
-	go sub.scanStream(stdout)
-	go sub.scanStream(stderr)
+	var reading sync.WaitGroup
+	reading.Add(2)
+	go func() { defer reading.Done(); sub.scanStream(stdout) }()
+	go func() { defer reading.Done(); sub.scanStream(stderr) }()
 
 	go func() {
+		// exec.Cmd.Wait closes the pipes, so it runs after both are read to
+		// the end.
+		reading.Wait()
 		sub.err = cmd.Wait()
 		close(sub.done)
 	}()
@@ -84,10 +89,15 @@ func StartSubprocess(args []string, scanner *OutputScanner, out io.Writer) (*Sub
 	return sub, nil
 }
 
+// maxLineLength bounds the memory for one output line. A longer line is
+// forwarded in pieces of this length.
+const maxLineLength = 1024 * 1024
+
 func (s *Subprocess) scanStream(r io.Reader) {
 	dim := color.New(color.Faint)
 	scan := bufio.NewScanner(r)
-	scan.Buffer(make([]byte, 0, 256*1024), 1024*1024)
+	scan.Buffer(make([]byte, 0, 64*1024), maxLineLength)
+	scan.Split(scanLinesUpTo(maxLineLength))
 	for scan.Scan() {
 		line := scan.Text()
 		s.outputMu.Lock()
@@ -95,6 +105,21 @@ func (s *Subprocess) scanStream(r io.Reader) {
 		_, _ = dim.Fprint(s.out, "[service] ")
 		fmt.Fprintln(s.out, line)
 		s.outputMu.Unlock()
+	}
+}
+
+// scanLinesUpTo splits like bufio.ScanLines and cuts a line that reaches max
+// bytes, so the scanner never stops with bufio.ErrTooLong.
+func scanLinesUpTo(max int) bufio.SplitFunc {
+	return func(data []byte, atEOF bool) (int, []byte, error) {
+		advance, token, err := bufio.ScanLines(data, atEOF)
+		if advance > 0 || token != nil || err != nil {
+			return advance, token, err
+		}
+		if len(data) >= max {
+			return max, data[:max], nil
+		}
+		return 0, nil, nil
 	}
 }
 

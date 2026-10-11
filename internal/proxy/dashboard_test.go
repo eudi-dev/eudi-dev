@@ -172,15 +172,7 @@ func TestHandleStream(t *testing.T) {
 		t.Errorf("expected Content-Type text/event-stream, got %s", ct)
 	}
 
-	// An entry added before the subscription exists is never delivered.
-	deadline := time.Now().Add(2 * time.Second)
-	for store.SubscriberCount() == 0 && time.Now().Before(deadline) {
-		time.Sleep(5 * time.Millisecond)
-	}
-	if store.SubscriberCount() == 0 {
-		t.Fatal("SSE handler did not subscribe in time")
-	}
-
+	// The handler subscribes before it sends the response head.
 	store.Add(&TrafficEntry{Method: "GET", URL: "http://example.com/test", StatusCode: 200})
 
 	scanner := bufio.NewScanner(resp.Body)
@@ -209,22 +201,70 @@ func TestHandleStream(t *testing.T) {
 	srv.Close()
 }
 
-func TestHandleHARContainsFlowID(t *testing.T) {
+// Captured traffic carries tokens, so a page on another origin must not read
+// the stream.
+func TestHandleStreamIsReadableOnlyFromTheDashboardOrigin(t *testing.T) {
+	srv := httptest.NewServer(NewDashboard(NewStore(10), 0).Handler())
+	defer srv.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, "GET", srv.URL+"/api/stream", nil)
+	req.Header.Set("Origin", "https://other.example")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if corsAllows(resp.Header, "https://other.example") {
+		t.Errorf("the stream grants https://other.example read access (Access-Control-Allow-Origin %q)", resp.Header.Get("Access-Control-Allow-Origin"))
+	}
+}
+
+func corsAllows(h http.Header, origin string) bool {
+	allowed := h.Get("Access-Control-Allow-Origin")
+	return allowed == "*" || allowed == origin
+}
+
+func TestHandleHARExportsTheRecordedTraffic(t *testing.T) {
 	store := NewStore(100)
-	e := &TrafficEntry{
+	store.Add(&TrafficEntry{
 		Timestamp:  time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
 		Method:     "GET",
 		URL:        "http://example.com/authorize?client_id=test&response_type=vp_token&state=s1",
 		StatusCode: 200,
-		Class:      ClassVPAuthRequest,
-		ClassLabel: "VP Auth Request",
-	}
-	Classify(e)
-	store.Add(e)
+	})
 
-	entries := store.Entries()
-	if entries[0].FlowID == "" {
-		t.Error("expected FlowID to be set")
+	w := httptest.NewRecorder()
+	NewDashboard(store, 0).handleHAR(w, httptest.NewRequest("GET", "/api/har", nil))
+
+	if got := w.Header().Get("Content-Disposition"); got != `attachment; filename="eudi-dev.har"` {
+		t.Errorf("Content-Disposition %q", got)
+	}
+	var har struct {
+		Log struct {
+			Version string `json:"version"`
+			Entries []struct {
+				Request struct {
+					Method string `json:"method"`
+					URL    string `json:"url"`
+				} `json:"request"`
+				Response struct {
+					Status int `json:"status"`
+				} `json:"response"`
+			} `json:"entries"`
+		} `json:"log"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&har); err != nil {
+		t.Fatal(err)
+	}
+	if har.Log.Version != "1.2" || len(har.Log.Entries) != 1 {
+		t.Fatalf("HAR %+v", har)
+	}
+	e := har.Log.Entries[0]
+	if e.Request.Method != "GET" || e.Request.URL != "http://example.com/authorize?client_id=test&response_type=vp_token&state=s1" || e.Response.Status != 200 {
+		t.Errorf("HAR entry %+v", e)
 	}
 }
 

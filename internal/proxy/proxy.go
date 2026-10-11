@@ -21,9 +21,11 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"mime"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -95,6 +97,9 @@ func NewServer(cfg Config, writer EntryWriter) *Server {
 			out.Header.Set("X-Forwarded-Host", forwardedHost)
 			out.Header.Set("X-Forwarded-Proto", forwardedProto)
 			out.Header.Set("X-Forwarded-Port", forwardedPort)
+			// The transport then negotiates gzip and decodes it, so the proxy
+			// can read and rewrite the body.
+			out.Header.Del("Accept-Encoding")
 		},
 		ModifyResponse: s.modifyResponse,
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
@@ -117,7 +122,7 @@ func (s *Server) Store() *Store {
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 
-	// Read the original URL now, because the Director rewrites it to the target.
+	// Read the original URL now, because the Rewrite hook points it at the target.
 	origURL := originalURL(r)
 
 	var reqBody string
@@ -181,41 +186,11 @@ func (s *Server) modifyResponse(resp *http.Response) error {
 	origURL, _ := resp.Request.Context().Value(proxyOriginalURLContextKey).(string)
 	debugJWEKey, _ := resp.Request.Context().Value(proxyDebugJWEKeyContextKey).(string)
 
-	var respBody string
-	if resp.Body != nil {
-		var reader io.ReadCloser
-		switch resp.Header.Get("Content-Encoding") {
-		case "gzip":
-			gz, err := gzip.NewReader(resp.Body)
-			if err == nil {
-				reader = gz
-				resp.Header.Del("Content-Encoding")
-				resp.Header.Del("Content-Length")
-			} else {
-				reader = resp.Body
-			}
-		default:
-			reader = resp.Body
-		}
-
-		bodyBytes, err := io.ReadAll(reader)
-		reader.Close()
-		if err != nil {
-			// The original body is closed. ReverseProxy needs a body to copy.
-			resp.Body = io.NopCloser(strings.NewReader(""))
-			resp.ContentLength = 0
-		} else {
-			respBody = string(bodyBytes)
-
-			contentType := resp.Header.Get("Content-Type")
-			rewritten := s.rewriter.RewriteBody(respBody, contentType)
-			s.rewriter.RewriteHeaders(resp.Header)
-
-			resp.Body = io.NopCloser(strings.NewReader(rewritten))
-			resp.ContentLength = int64(len(rewritten))
-			resp.Header.Set("Content-Length", fmt.Sprintf("%d", len(rewritten)))
-		}
+	respBody, err := s.captureResponseBody(resp)
+	if err != nil {
+		return err
 	}
+	s.rewriter.RewriteHeaders(resp.Header)
 
 	duration := time.Since(start)
 
@@ -264,6 +239,47 @@ func (s *Server) modifyResponse(resp *http.Response) error {
 	}
 
 	return nil
+}
+
+// captureResponseBody reads the body for the entry and rewrites target host
+// references in it. An event stream passes through unread because it ends
+// only when the connection does. A body in an encoding the proxy cannot decode
+// passes through unchanged because a text rewrite would corrupt it.
+func (s *Server) captureResponseBody(resp *http.Response) (string, error) {
+	if resp.Body == nil || isEventStream(resp.Header) {
+		return "", nil
+	}
+	var reader io.Reader
+	switch strings.ToLower(resp.Header.Get("Content-Encoding")) {
+	case "", "identity":
+		reader = resp.Body
+	case "gzip":
+		gz, err := gzip.NewReader(resp.Body)
+		if err != nil {
+			return "", fmt.Errorf("reading the gzip response body: %w", err)
+		}
+		reader = gz
+		resp.Header.Del("Content-Encoding")
+	default:
+		return "", nil
+	}
+
+	bodyBytes, err := io.ReadAll(reader)
+	resp.Body.Close()
+	if err != nil {
+		return "", fmt.Errorf("reading the response body: %w", err)
+	}
+	body := string(bodyBytes)
+	rewritten := s.rewriter.RewriteBody(body)
+	resp.Body = io.NopCloser(strings.NewReader(rewritten))
+	resp.ContentLength = int64(len(rewritten))
+	resp.Header.Set("Content-Length", strconv.Itoa(len(rewritten)))
+	return body, nil
+}
+
+func isEventStream(h http.Header) bool {
+	mediaType, _, _ := mime.ParseMediaType(h.Get("Content-Type"))
+	return mediaType == "text/event-stream"
 }
 
 func shouldEmitEntry(entry *TrafficEntry, allTraffic bool) bool {

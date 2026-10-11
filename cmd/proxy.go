@@ -51,9 +51,8 @@ traffic between a wallet and a verifier/issuer. Point your wallet at the proxy
 port instead of the target.
 
 Optionally launch the target service as a subprocess by passing its command
-after '--'. The proxy scans the service's stdout for encryption keys and
-credentials (best-effort), enabling automatic JWE decryption and credential
-decode links even when using third-party wallets.
+after '--'. The proxy scans the service's output for encryption keys
+(best-effort), so it decrypts JWE responses of third-party wallets too.
 
 Examples:
   eudi proxy --target http://localhost:8080

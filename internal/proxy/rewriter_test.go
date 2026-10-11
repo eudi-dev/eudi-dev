@@ -23,7 +23,7 @@ func TestRewriteBodyReplacesHost(t *testing.T) {
 	rw := NewRewriter("target.example.com", "localhost:9090")
 
 	body := `{"redirect_uri":"http://target.example.com/callback","other":"value"}`
-	got := rw.RewriteBody(body, "application/json")
+	got := rw.RewriteBody(body)
 	want := `{"redirect_uri":"http://localhost:9090/callback","other":"value"}`
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
@@ -34,7 +34,7 @@ func TestRewriteBodySkipsJWT(t *testing.T) {
 	rw := NewRewriter("target.example.com", "localhost:9090")
 
 	jwt := "eyJhbGciOiJFUzI1NiJ9.eyJpc3MiOiJ0YXJnZXQuZXhhbXBsZS5jb20ifQ.signature"
-	got := rw.RewriteBody(jwt, "application/jwt")
+	got := rw.RewriteBody(jwt)
 	if got != jwt {
 		t.Errorf("expected JWT to be unchanged, got %q", got)
 	}
@@ -44,7 +44,7 @@ func TestRewriteBodyNoMatch(t *testing.T) {
 	rw := NewRewriter("target.example.com", "localhost:9090")
 
 	body := `{"key":"value"}`
-	got := rw.RewriteBody(body, "application/json")
+	got := rw.RewriteBody(body)
 	if got != body {
 		t.Errorf("expected body unchanged, got %q", got)
 	}
@@ -54,7 +54,7 @@ func TestRewriteBodyMultipleOccurrences(t *testing.T) {
 	rw := NewRewriter("target.example.com", "localhost:9090")
 
 	body := "http://target.example.com/a and http://target.example.com/b"
-	got := rw.RewriteBody(body, "text/html")
+	got := rw.RewriteBody(body)
 	want := "http://localhost:9090/a and http://localhost:9090/b"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)

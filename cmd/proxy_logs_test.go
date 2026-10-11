@@ -160,54 +160,111 @@ func TestProxyLogsRefusesJSONWithFollow(t *testing.T) {
 	}
 }
 
-// Subscribing before reading history can deliver the same entry twice. Follow must
-// print it only once.
-func TestProxyLogsFollowsWithoutRepeatingWhatItAlreadyPrinted(t *testing.T) {
-	store := proxy.NewStore(50)
-	store.Add(&proxy.TrafficEntry{Method: "GET", URL: "http://target/recorded", StatusCode: 200})
-	srv := httptest.NewServer(proxy.NewDashboard(store, 0).Handler())
-	defer srv.Close()
+// followRun runs "proxy logs --follow" and collects what it prints while it
+// runs. It stops in a test cleanup. Close the dashboard server in a cleanup
+// registered before, so the stream ends first.
+type followRun struct {
+	mu     sync.Mutex
+	output bytes.Buffer
+	copied chan struct{}
+	done   chan error
+	cancel context.CancelFunc
+	stop   func() string
+}
 
+func startFollow(t *testing.T, dashboardURL string, reconnectDelay time.Duration) *followRun {
+	t.Helper()
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
 	}
 	oldStdout, oldColor := os.Stdout, color.Output
 	os.Stdout, color.Output = w, w
-	defer func() { os.Stdout, color.Output = oldStdout, oldColor }()
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	run := &followRun{copied: make(chan struct{}), done: make(chan error, 1), cancel: cancel}
+	go func() {
+		defer close(run.copied)
+		buf := make([]byte, 4096)
+		for {
+			n, err := r.Read(buf)
+			run.mu.Lock()
+			run.output.Write(buf[:n])
+			run.mu.Unlock()
+			if err != nil {
+				return
+			}
+		}
+	}()
 
-	cmd := proxyLogsCmd()
+	cmd := proxyLogsCmdReconnectingAfter(reconnectDelay)
 	cmd.SetOut(w)
 	cmd.SetErr(w)
-	cmd.SetArgs([]string{srv.URL, "--follow"})
+	cmd.SetArgs([]string{dashboardURL, "--follow"})
 	cmd.SetContext(ctx)
+	go func() { run.done <- cmd.Execute() }()
 
-	done := make(chan error, 1)
-	go func() { done <- cmd.Execute() }()
-
-	time.Sleep(300 * time.Millisecond)
-	store.Add(&proxy.TrafficEntry{Method: "POST", URL: "http://target/live", StatusCode: 201})
-	time.Sleep(300 * time.Millisecond)
-
-	cancel()
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Fatalf("follow ended with %v", err)
+	stopped := false
+	run.stop = func() string {
+		t.Helper()
+		if !stopped {
+			stopped = true
+			cancel()
+			select {
+			case err := <-run.done:
+				if err != nil {
+					t.Errorf("follow ended with %v", err)
+				}
+			case <-time.After(5 * time.Second):
+				t.Error("follow did not stop when the context ended")
+			}
+			os.Stdout, color.Output = oldStdout, oldColor
+			w.Close()
+			<-run.copied
 		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("follow did not stop when the context ended")
+		run.mu.Lock()
+		defer run.mu.Unlock()
+		return run.output.String()
 	}
+	t.Cleanup(func() { run.stop() })
+	return run
+}
 
-	w.Close()
-	var buf bytes.Buffer
-	if _, err := buf.ReadFrom(r); err != nil {
-		t.Fatal(err)
+func (run *followRun) waitForOutput(t *testing.T, want string) {
+	t.Helper()
+	waitUntil(t, "the output to contain "+want, func() bool {
+		run.mu.Lock()
+		defer run.mu.Unlock()
+		return strings.Contains(run.output.String(), want)
+	})
+}
+
+func waitUntil(t *testing.T, what string, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for !cond() {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %s", what)
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
-	output := buf.String()
+}
+
+// Subscribing before reading history can deliver the same entry twice. Follow must
+// print it only once.
+func TestProxyLogsFollowsWithoutRepeatingWhatItAlreadyPrinted(t *testing.T) {
+	store := proxy.NewStore(50)
+	store.Add(&proxy.TrafficEntry{Method: "GET", URL: "http://target/recorded", StatusCode: 200})
+	srv := httptest.NewServer(proxy.NewDashboard(store, 0).Handler())
+	t.Cleanup(srv.Close)
+
+	run := startFollow(t, srv.URL, time.Second)
+	waitUntil(t, "the stream subscription", func() bool { return store.SubscriberCount() == 1 })
+	store.Add(&proxy.TrafficEntry{Method: "POST", URL: "http://target/live", StatusCode: 201})
+	// Output keeps its order, so once the last entry shows, any repeat would too.
+	store.Add(&proxy.TrafficEntry{Method: "GET", URL: "http://target/last", StatusCode: 200})
+	run.waitForOutput(t, "http://target/last")
+	output := run.stop()
 
 	if got := strings.Count(output, "http://target/recorded"); got != 1 {
 		t.Errorf("the recorded entry was printed %d times, want once:\n%s", got, output)
@@ -218,76 +275,49 @@ func TestProxyLogsFollowsWithoutRepeatingWhatItAlreadyPrinted(t *testing.T) {
 }
 
 // Swapping the store simulates a proxy restart. The old stream closes and entry IDs
-// start over.
+// start over, so the first entry after the restart reuses the ID of the last one
+// printed before it.
 func TestProxyLogsFollowSurvivesARestartedProxy(t *testing.T) {
-	proxyLogsReconnectDelay = 10 * time.Millisecond
-	defer func() { proxyLogsReconnectDelay = 2 * time.Second }()
+	for _, tc := range []struct {
+		name           string
+		beforeReattach bool
+	}{
+		{name: "traffic after the reattach"},
+		{name: "traffic before the reattach", beforeReattach: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var mu sync.Mutex
+			store := proxy.NewStore(50)
+			store.Add(&proxy.TrafficEntry{Method: "GET", URL: "http://target/before-restart", StatusCode: 200})
 
-	var mu sync.Mutex
-	store := proxy.NewStore(50)
-	store.Add(&proxy.TrafficEntry{Method: "GET", URL: "http://target/before-restart", StatusCode: 200})
+			current := func() *proxy.Store {
+				mu.Lock()
+				defer mu.Unlock()
+				return store
+			}
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				proxy.NewDashboard(current(), 0).Handler().ServeHTTP(w, r)
+			}))
+			t.Cleanup(srv.Close)
 
-	current := func() *proxy.Store {
-		mu.Lock()
-		defer mu.Unlock()
-		return store
-	}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		proxy.NewDashboard(current(), 0).Handler().ServeHTTP(w, r)
-	}))
-	defer srv.Close()
+			run := startFollow(t, srv.URL, 10*time.Millisecond)
+			run.waitForOutput(t, "http://target/before-restart")
+			waitUntil(t, "the stream subscription", func() bool { return current().SubscriberCount() == 1 })
 
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	oldStdout, oldColor := os.Stdout, color.Output
-	os.Stdout, color.Output = w, w
-	defer func() { os.Stdout, color.Output = oldStdout, oldColor }()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	cmd := proxyLogsCmd()
-	cmd.SetOut(w)
-	cmd.SetErr(w)
-	cmd.SetArgs([]string{srv.URL, "--follow"})
-	cmd.SetContext(ctx)
-
-	done := make(chan error, 1)
-	go func() { done <- cmd.Execute() }()
-	time.Sleep(300 * time.Millisecond)
-
-	mu.Lock()
-	store = proxy.NewStore(50)
-	mu.Unlock()
-	srv.CloseClientConnections()
-	time.Sleep(300 * time.Millisecond)
-
-	current().Add(&proxy.TrafficEntry{Method: "POST", URL: "http://target/after-restart", StatusCode: 201})
-	time.Sleep(600 * time.Millisecond)
-
-	cancel()
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Fatalf("follow ended with %v", err)
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("follow did not stop when the context ended")
-	}
-
-	w.Close()
-	var buf bytes.Buffer
-	if _, err := buf.ReadFrom(r); err != nil {
-		t.Fatal(err)
-	}
-	output := buf.String()
-
-	if !strings.Contains(output, "http://target/before-restart") {
-		t.Errorf("the traffic recorded before the restart was never printed:\n%s", output)
-	}
-	if !strings.Contains(output, "http://target/after-restart") {
-		t.Errorf("traffic recorded after the restart was dropped, which is what renumbering does to a follow:\n%s", output)
+			restarted := proxy.NewStore(50)
+			after := &proxy.TrafficEntry{Method: "POST", URL: "http://target/after-restart", StatusCode: 201}
+			if tc.beforeReattach {
+				restarted.Add(after)
+			}
+			mu.Lock()
+			store = restarted
+			mu.Unlock()
+			srv.CloseClientConnections()
+			waitUntil(t, "the reattached stream", func() bool { return restarted.SubscriberCount() == 1 })
+			if !tc.beforeReattach {
+				restarted.Add(after)
+			}
+			run.waitForOutput(t, "http://target/after-restart")
+		})
 	}
 }

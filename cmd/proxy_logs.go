@@ -31,10 +31,11 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/proxy"
 )
 
-// Tests can shorten the delay between stream reconnects.
-var proxyLogsReconnectDelay = 2 * time.Second
-
 func proxyLogsCmd() *cobra.Command {
+	return proxyLogsCmdReconnectingAfter(2 * time.Second)
+}
+
+func proxyLogsCmdReconnectingAfter(reconnectDelay time.Duration) *cobra.Command {
 	var follow bool
 
 	cmd := &cobra.Command{
@@ -90,10 +91,10 @@ Examples:
 				return printProxyEntriesJSON(cmd.OutOrStdout(), entries)
 			}
 
-			var lastID int64
+			var last *proxy.TrafficEntry
 			for _, entry := range entries {
 				proxy.PrintEntryWithDecodeBase(entry, client.BaseURL)
-				lastID = entry.ID
+				last = entry
 			}
 			if !follow {
 				if len(entries) == 0 {
@@ -101,7 +102,7 @@ Examples:
 				}
 				return nil
 			}
-			return followProxyEntries(ctx, client, stream, cmd.ErrOrStderr(), lastID)
+			return followProxyEntries(ctx, client, stream, cmd.ErrOrStderr(), last, reconnectDelay)
 		},
 	}
 	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "Keep running and print traffic as the proxy records it")
@@ -118,7 +119,7 @@ func printProxyEntriesJSON(out io.Writer, entries []*proxy.TrafficEntry) error {
 	return enc.Encode(entries)
 }
 
-func followProxyEntries(ctx context.Context, client *proxy.DashboardClient, stream *proxy.EntryStream, out io.Writer, lastID int64) error {
+func followProxyEntries(ctx context.Context, client *proxy.DashboardClient, stream *proxy.EntryStream, out io.Writer, last *proxy.TrafficEntry, reconnectDelay time.Duration) error {
 	for {
 		for {
 			entry, err := stream.Next()
@@ -127,16 +128,16 @@ func followProxyEntries(ctx context.Context, client *proxy.DashboardClient, stre
 			}
 			// History and the stream can overlap because the subscription
 			// starts first.
-			if entry.ID <= lastID {
+			if printedUpTo(last, entry) {
 				continue
 			}
 			proxy.PrintEntryWithDecodeBase(entry, client.BaseURL)
-			lastID = entry.ID
+			last = entry
 		}
 		_ = stream.Close()
 
 		fmt.Fprintf(out, "Lost the stream from %s, reattaching...\n", client.BaseURL)
-		next, err := reattachToProxy(ctx, client, out)
+		next, err := reattachToProxy(ctx, client, out, reconnectDelay)
 		if err != nil {
 			return nil
 		}
@@ -144,14 +145,14 @@ func followProxyEntries(ctx context.Context, client *proxy.DashboardClient, stre
 
 		// Read missed entries from history. The new stream only carries future
 		// traffic.
-		lastID = printMissedEntries(ctx, client, out, lastID)
+		last = printMissedEntries(ctx, client, out, last)
 	}
 }
 
-func reattachToProxy(ctx context.Context, client *proxy.DashboardClient, out io.Writer) (*proxy.EntryStream, error) {
+func reattachToProxy(ctx context.Context, client *proxy.DashboardClient, out io.Writer, reconnectDelay time.Duration) (*proxy.EntryStream, error) {
 	reported := false
 	for {
-		if err := sleepContext(ctx, proxyLogsReconnectDelay); err != nil {
+		if err := sleepContext(ctx, reconnectDelay); err != nil {
 			return nil, err
 		}
 		stream, err := client.Stream(ctx)
@@ -171,30 +172,47 @@ func reattachToProxy(ctx context.Context, client *proxy.DashboardClient, out io.
 	}
 }
 
-func printMissedEntries(ctx context.Context, client *proxy.DashboardClient, out io.Writer, lastID int64) int64 {
+// printedUpTo reports whether entry is at or before the last printed one.
+func printedUpTo(last, entry *proxy.TrafficEntry) bool {
+	return last != nil && entry.ID <= last.ID
+}
+
+func printMissedEntries(ctx context.Context, client *proxy.DashboardClient, out io.Writer, last *proxy.TrafficEntry) *proxy.TrafficEntry {
 	entries, err := client.Entries(ctx)
 	if err != nil {
 		fmt.Fprintf(out, "Could not read what %s recorded while the stream was down: %v\n", client.BaseURL, err)
-		return lastID
+		return last
 	}
-	// A restarted proxy numbers entries from the beginning. An empty or
-	// lower-numbered history resets the last-seen ID.
 	if len(entries) == 0 {
-		return 0
+		return nil
 	}
-	highest := entries[len(entries)-1].ID
-	if highest < lastID {
+	if last != nil && restartedSince(last, entries) {
 		fmt.Fprintf(out, "%s restarted, its traffic is numbered from the beginning again\n", client.BaseURL)
-		lastID = 0
+		last = nil
 	}
 	for _, entry := range entries {
-		if entry.ID <= lastID {
+		if printedUpTo(last, entry) {
 			continue
 		}
 		proxy.PrintEntryWithDecodeBase(entry, client.BaseURL)
-		lastID = entry.ID
+		last = entry
 	}
-	return lastID
+	return last
+}
+
+// restartedSince reports whether the proxy numbered its entries anew after
+// last was printed. A restarted proxy reuses IDs, so an entry with the ID of
+// last but other content means a restart too.
+func restartedSince(last *proxy.TrafficEntry, entries []*proxy.TrafficEntry) bool {
+	if entries[len(entries)-1].ID < last.ID {
+		return true
+	}
+	for _, entry := range entries {
+		if entry.ID == last.ID {
+			return !entry.Timestamp.Equal(last.Timestamp) || entry.Method != last.Method || entry.URL != last.URL
+		}
+	}
+	return false
 }
 
 func sleepContext(ctx context.Context, d time.Duration) error {

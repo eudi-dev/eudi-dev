@@ -15,12 +15,14 @@
 package proxy
 
 import (
+	"bufio"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestOriginalURL(t *testing.T) {
@@ -370,4 +372,110 @@ type testWriter struct {
 
 func (tw *testWriter) WriteEntry(entry *TrafficEntry) {
 	*tw.entries = append(*tw.entries, entry)
+}
+
+func proxyTo(t *testing.T, backend http.Handler) (*httptest.Server, *[]*TrafficEntry) {
+	t.Helper()
+	upstream := httptest.NewServer(backend)
+	t.Cleanup(upstream.Close)
+	targetURL, _ := url.Parse(upstream.URL)
+	var captured []*TrafficEntry
+	front := httptest.NewServer(NewServer(Config{TargetURL: targetURL, AllTraffic: true}, &testWriter{entries: &captured}))
+	t.Cleanup(front.Close)
+	return front, &captured
+}
+
+func TestServerAnswersBadGatewayWhenTheBodyBreaksOff(t *testing.T) {
+	front, _ := proxyTo(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", "100")
+		w.Write([]byte("only ten b"))
+	}))
+
+	resp, err := http.Get(front.URL + "/broken")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if _, err := io.ReadAll(resp.Body); err != nil {
+		t.Fatalf("reading the proxied response: %v", err)
+	}
+	if resp.StatusCode != http.StatusBadGateway {
+		t.Errorf("status %d, want 502", resp.StatusCode)
+	}
+}
+
+func TestServerStreamsEventStreams(t *testing.T) {
+	release := make(chan struct{})
+	front, _ := proxyTo(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Write([]byte("data: first\n\n"))
+		w.(http.Flusher).Flush()
+		<-release
+	}))
+	defer close(release)
+
+	line := make(chan string, 1)
+	go func() {
+		resp, err := http.Get(front.URL + "/events")
+		if err != nil {
+			line <- err.Error()
+			return
+		}
+		defer resp.Body.Close()
+		got, _ := bufio.NewReader(resp.Body).ReadString('\n')
+		line <- got
+	}()
+	select {
+	case got := <-line:
+		if got != "data: first\n" {
+			t.Errorf("first line %q", got)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the first event did not arrive while the stream stayed open")
+	}
+}
+
+func TestServerPassesUndecodableEncodingsThroughUnchanged(t *testing.T) {
+	for _, encoding := range []string{"br", "deflate"} {
+		t.Run(encoding, func(t *testing.T) {
+			var targetHost string
+			front, _ := proxyTo(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				targetHost = r.Host
+				w.Header().Set("Content-Encoding", encoding)
+				w.Write([]byte("\x8b\x00" + r.Host + "\x03"))
+			}))
+
+			resp, err := http.Get(front.URL + "/compressed")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+			body, _ := io.ReadAll(resp.Body)
+			if want := "\x8b\x00" + targetHost + "\x03"; string(body) != want {
+				t.Errorf("body %q, want %q", body, want)
+			}
+		})
+	}
+}
+
+func TestServerAsksTheTargetOnlyForEncodingsItDecodes(t *testing.T) {
+	var got string
+	front, captured := proxyTo(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.Header.Get("Accept-Encoding")
+		w.Write([]byte(`{"ok":true}`))
+	}))
+
+	req, _ := http.NewRequest(http.MethodGet, front.URL+"/json", nil)
+	req.Header.Set("Accept-Encoding", "gzip, deflate, br")
+	resp, err := http.DefaultTransport.RoundTrip(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if got != "gzip" {
+		t.Errorf("the target saw Accept-Encoding %q, want gzip", got)
+	}
+	if len(*captured) != 1 || (*captured)[0].ResponseBody != `{"ok":true}` {
+		t.Errorf("captured %+v", *captured)
+	}
 }

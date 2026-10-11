@@ -14,7 +14,7 @@ Wallet  <-->  Proxy (:9090)  <-->  Verifier/Issuer (:8080)
             Live dashboard (:9091)
 ```
 
-The proxy can launch the target service as a subprocess and scan its stdout for encryption keys and credentials:
+The proxy can launch the target service as a subprocess and scan its output for encryption keys:
 
 ```bash
 eudi proxy --target http://localhost:3000 -- mvn spring-boot:run
@@ -23,15 +23,24 @@ eudi proxy --target http://localhost:3000 -- npm start
 
 ## Traffic classification
 
-| Badge               | Detected when                                                     |
-|---------------------|-------------------------------------------------------------------|
-| VP Auth Request     | `client_id` + `response_type` containing `vp_token` or `id_token` in query |
-| VP Request Object   | Response body is a JWT (request object fetch)                     |
-| VP Auth Response    | POST body contains `vp_token`, `presentation_submission`, `id_token`, or `response` (JARM) |
-| VCI Credential Offer| `credential_offer` / `credential_offer_uri` in query              |
-| VCI Metadata        | Path contains `.well-known/openid-credential-issuer`              |
-| VCI Token Request   | POST to path ending `/token`                                      |
-| VCI Credential Request | POST to path ending `/credential` or `/credentials`            |
+The proxy checks the rules from top to bottom. The first match sets the badge.
+
+| Badge                  | Detected when |
+|------------------------|---------------|
+| VCI Metadata           | Path contains `.well-known/openid-credential-issuer` |
+| OIDC Metadata          | Path contains `.well-known/openid-configuration` |
+| VCI Credential Offer   | `credential_offer` or `credential_offer_uri` in query |
+| VP Auth Request        | `client_id` and a `response_type` with `vp_token` in query. An `id_token` response type counts with an OID4VP parameter such as `request_uri`, `response_uri` or `dcql_query` |
+| OIDC Auth Request      | `client_id`, `redirect_uri` and a `response_type` with `code`, `token` or `id_token` in query, plus the `openid` scope or a `form_post` response mode |
+| OIDC Callback          | GET with `code` or `error` in query, or a POST body with `code` or `error` and no `grant_type` |
+| VP Request Object      | GET whose response body is a JWT, or a POST body with `wallet_metadata` or `wallet_nonce` (`request_uri_method=post`) |
+| VCI Nonce Request      | POST to a path ending in `/nonce` whose response contains `c_nonce` |
+| VP Auth Response       | POST body contains `vp_token`, `presentation_submission`, `id_token` or `response` (JARM) |
+| OIDC Token Request     | POST to `/protocol/openid-connect/token`, a response with `id_token`, or an `authorization_code` grant with `redirect_uri` |
+| VCI Token Request      | POST to a path ending in `/token` |
+| VCI Credential Request | POST to a path ending in `/credential` or `/credentials` |
+
+When no rule matches, a request to an endpoint that earlier traffic advertised gets the badge of that endpoint. Metadata, authorization requests and request objects advertise endpoints.
 
 By default only OID4VP/VCI traffic is shown. Other requests (favicon, health checks) are proxied but hidden. `--all-traffic` shows everything.
 
@@ -130,15 +139,6 @@ The proxy detects lines like:
 - JWK objects containing a `"d"` (private key) parameter
 
 Without a key the proxy shows the JWE header fields only (`alg`, `enc`, `kid`, `epk`).
-
-### Credential detection from service stdout
-
-The proxy also scans the subprocess's stdout for JWT and SD-JWT credentials and adds them to the activity log with decode links:
-
-```
-  → eudi decode 'eyJhbGci...'  (vp_token)
-  → http://localhost:9091/decode/#credential=eyJhbGci...
-```
 
 ## Debugging tips
 

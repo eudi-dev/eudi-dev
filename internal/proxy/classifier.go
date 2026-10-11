@@ -22,6 +22,7 @@ import (
 	"sync"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/web"
 )
 
@@ -74,7 +75,7 @@ func classifyEntry(e *TrafficEntry) TrafficClass {
 	query := url.Values{}
 	if u != nil {
 		path = u.Path
-		query = u.Query()
+		query = oid4vc.URIQueryValues(u)
 	}
 
 	if strings.Contains(path, ".well-known/openid-credential-issuer") {
@@ -146,7 +147,7 @@ func decodeEntry(e *TrafficEntry) map[string]any {
 	case ClassVPAuthRequest:
 		u, _ := url.Parse(e.URL)
 		if u != nil {
-			q := u.Query()
+			q := oid4vc.URIQueryValues(u)
 			decoded["client_id"] = q.Get("client_id")
 			decoded["response_type"] = q.Get("response_type")
 			if v := q.Get("response_mode"); v != "" {
@@ -267,13 +268,13 @@ func decodeEntry(e *TrafficEntry) map[string]any {
 	case ClassVCICredentialOffer:
 		u, _ := url.Parse(e.URL)
 		if u != nil {
-			if offer := u.Query().Get("credential_offer"); offer != "" {
+			if offer := oid4vc.URIQueryValues(u).Get("credential_offer"); offer != "" {
 				var m map[string]any
 				if err := json.Unmarshal([]byte(offer), &m); err == nil {
 					decoded["credential_offer"] = m
 				}
 			}
-			if uri := u.Query().Get("credential_offer_uri"); uri != "" {
+			if uri := oid4vc.URIQueryValues(u).Get("credential_offer_uri"); uri != "" {
 				decoded["credential_offer_uri"] = uri
 			}
 		}
@@ -339,7 +340,7 @@ func decodeEntry(e *TrafficEntry) map[string]any {
 	case ClassOIDCAuthRequest:
 		u, _ := url.Parse(e.URL)
 		if u != nil {
-			q := u.Query()
+			q := oid4vc.URIQueryValues(u)
 			decoded["client_id"] = q.Get("client_id")
 			decoded["response_type"] = q.Get("response_type")
 			if v := q.Get("scope"); v != "" {
@@ -371,7 +372,7 @@ func decodeEntry(e *TrafficEntry) map[string]any {
 	case ClassOIDCCallback:
 		u, _ := url.Parse(e.URL)
 		if u != nil {
-			q := u.Query()
+			q := oid4vc.URIQueryValues(u)
 			if v := q.Get("code"); v != "" {
 				decoded["code"] = v
 			}
@@ -669,104 +670,6 @@ func parseFormOrJSON(body string) map[string]string {
 	return result
 }
 
-func ExtractCorrelationKey(entry *TrafficEntry) string {
-	u, _ := url.Parse(entry.URL)
-
-	switch entry.Class {
-	case ClassVPAuthRequest:
-		if u != nil {
-			if v := u.Query().Get("state"); v != "" {
-				return v
-			}
-			if v := u.Query().Get("nonce"); v != "" {
-				return v
-			}
-		}
-
-	case ClassVPRequestObject:
-		if entry.Decoded != nil {
-			if payload, ok := entry.Decoded["payload"].(map[string]any); ok {
-				if v, ok := payload["state"].(string); ok && v != "" {
-					return v
-				}
-				if v, ok := payload["nonce"].(string); ok && v != "" {
-					return v
-				}
-			}
-		}
-
-	case ClassVPAuthResponse:
-		fields := parseFormOrJSON(entry.RequestBody)
-		if v, ok := fields["state"]; ok && v != "" {
-			return v
-		}
-		if entry.Decoded != nil {
-			if payload, ok := entry.Decoded["response_payload"].(map[string]any); ok {
-				if v, ok := payload["state"].(string); ok && v != "" {
-					return v
-				}
-			}
-		}
-
-	case ClassVCITokenRequest:
-		fields := parseFormOrJSON(entry.RequestBody)
-		if v, ok := fields["pre-authorized_code"]; ok && v != "" {
-			return v
-		}
-		if v, ok := fields["code"]; ok && v != "" {
-			return v
-		}
-
-	case ClassVCINonceRequest:
-		return entry.RequestHeaders.Get("Authorization")
-
-	case ClassVCICredentialRequest:
-		return entry.RequestHeaders.Get("Authorization")
-
-	case ClassOIDCAuthRequest:
-		if u != nil {
-			if v := u.Query().Get("state"); v != "" {
-				return v
-			}
-			if v := u.Query().Get("nonce"); v != "" {
-				return v
-			}
-		}
-
-	case ClassOIDCTokenRequest:
-		fields := parseFormOrJSON(entry.RequestBody)
-		if v, ok := fields["code"]; ok && v != "" {
-			return v
-		}
-
-	case ClassOIDCCallback:
-		if u != nil {
-			if v := u.Query().Get("state"); v != "" {
-				return v
-			}
-			if v := u.Query().Get("code"); v != "" {
-				return v
-			}
-		}
-
-	case ClassVCICredentialOffer:
-		if u != nil {
-			if offer := u.Query().Get("credential_offer"); offer != "" {
-				var keys []string
-				appendVCIOfferKeys(&keys, offer)
-				for _, key := range keys {
-					label, value := describeCorrelationKey(key)
-					if label == "pre-authorized_code" {
-						return value
-					}
-				}
-			}
-		}
-	}
-
-	return ""
-}
-
 func ExtractCorrelationKeys(entry *TrafficEntry) []string {
 	u, _ := url.Parse(entry.URL)
 	var keys []string
@@ -774,13 +677,13 @@ func ExtractCorrelationKeys(entry *TrafficEntry) []string {
 	switch entry.Class {
 	case ClassVPAuthRequest:
 		if u != nil {
-			if v := u.Query().Get("state"); v != "" {
+			if v := oid4vc.URIQueryValues(u).Get("state"); v != "" {
 				keys = append(keys, "vp:state:"+v)
 			}
-			if v := u.Query().Get("nonce"); v != "" {
+			if v := oid4vc.URIQueryValues(u).Get("nonce"); v != "" {
 				keys = append(keys, "vp:nonce:"+v)
 			}
-			if v := u.Query().Get("request_uri"); v != "" {
+			if v := oid4vc.URIQueryValues(u).Get("request_uri"); v != "" {
 				keys = append(keys, "vp:request_uri:"+v)
 			}
 		}
@@ -846,13 +749,13 @@ func ExtractCorrelationKeys(entry *TrafficEntry) []string {
 
 	case ClassOIDCAuthRequest:
 		if u != nil {
-			if v := u.Query().Get("state"); v != "" {
+			if v := oid4vc.URIQueryValues(u).Get("state"); v != "" {
 				keys = append(keys, "oidc:state:"+v)
 			}
-			if v := u.Query().Get("nonce"); v != "" {
+			if v := oid4vc.URIQueryValues(u).Get("nonce"); v != "" {
 				keys = append(keys, "oidc:nonce:"+v)
 			}
-			if v := u.Query().Get("issuer_state"); v != "" {
+			if v := oid4vc.URIQueryValues(u).Get("issuer_state"); v != "" {
 				keys = append(keys, "vci:issuer_state:"+v)
 			}
 		}
@@ -871,20 +774,20 @@ func ExtractCorrelationKeys(entry *TrafficEntry) []string {
 
 	case ClassOIDCCallback:
 		if u != nil {
-			if v := u.Query().Get("state"); v != "" {
+			if v := oid4vc.URIQueryValues(u).Get("state"); v != "" {
 				keys = append(keys, "oidc:state:"+v)
 			}
-			if v := u.Query().Get("code"); v != "" {
+			if v := oid4vc.URIQueryValues(u).Get("code"); v != "" {
 				keys = append(keys, "oauth:code:"+v)
 			}
 		}
 
 	case ClassVCICredentialOffer:
 		if u != nil {
-			if offer := u.Query().Get("credential_offer"); offer != "" {
+			if offer := oid4vc.URIQueryValues(u).Get("credential_offer"); offer != "" {
 				appendVCIOfferKeys(&keys, offer)
 			}
-			if offerURI := u.Query().Get("credential_offer_uri"); offerURI != "" {
+			if offerURI := oid4vc.URIQueryValues(u).Get("credential_offer_uri"); offerURI != "" {
 				keys = append(keys, "vci:credential_offer_uri:"+offerURI)
 			}
 		}
@@ -1000,14 +903,6 @@ func uniqueStrings(values []string) []string {
 		out = append(out, value)
 	}
 	return out
-}
-
-func describeCorrelationKey(key string) (string, string) {
-	parts := strings.SplitN(key, ":", 3)
-	if len(parts) != 3 {
-		return "", key
-	}
-	return parts[1], parts[2]
 }
 
 // extractCredentials returns the raw credentials of the entry for the dashboard's

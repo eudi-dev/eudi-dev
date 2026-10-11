@@ -17,18 +17,38 @@
   let showAll = false;
   let timelineView = localStorage.getItem("proxy-timeline") === "true";
 
-  const savedTheme = localStorage.getItem("proxy-theme") || "dark";
-  if (savedTheme === "light") document.documentElement.setAttribute("data-theme", "light");
+  // The wallet, decoder and proxy share the theme choice. Without one the
+  // system preference applies.
+  const THEME_KEY = "eudi-dev-theme";
+  const systemLight = window.matchMedia("(prefers-color-scheme: light)");
+
+  function chosenTheme() {
+    try {
+      const value = localStorage.getItem(THEME_KEY);
+      return value === "light" || value === "dark" ? value : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function applyTheme() {
+    const theme = chosenTheme() || (systemLight.matches ? "light" : "dark");
+    if (theme === "light") document.documentElement.setAttribute("data-theme", "light");
+    else document.documentElement.removeAttribute("data-theme");
+  }
+
+  applyTheme();
+  systemLight.addEventListener("change", applyTheme);
 
   themeToggle.addEventListener("click", function () {
     const isLight = document.documentElement.getAttribute("data-theme") === "light";
-    if (isLight) {
-      document.documentElement.removeAttribute("data-theme");
-      localStorage.setItem("proxy-theme", "dark");
-    } else {
-      document.documentElement.setAttribute("data-theme", "light");
-      localStorage.setItem("proxy-theme", "light");
+    try {
+      localStorage.setItem(THEME_KEY, isLight ? "dark" : "light");
+    } catch (e) {
+      // Without storage the choice lasts until the page reloads.
     }
+    if (isLight) document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", "light");
   });
 
   showAllCheckbox.checked = localStorage.getItem("proxy-show-all") === "true";
@@ -55,7 +75,7 @@
         var url = URL.createObjectURL(blob);
         var a = document.createElement("a");
         a.href = url;
-        a.download = "oid4vc-dev.har";
+        a.download = "eudi-dev.har";
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -115,19 +135,25 @@
     return String(text).replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || "empty";
   }
 
+  // POSIX single quotes keep every character literal. A quote inside ends
+  // the quoting, adds an escaped quote and quotes again.
+  function shellQuote(s) {
+    return "'" + String(s).replace(/'/g, "'\\''") + "'";
+  }
+
   function generateCurl(entry) {
-    var parts = ["curl -X " + entry.method + " '" + entry.url + "'"];
+    var parts = ["curl -X " + shellQuote(entry.method) + " " + shellQuote(entry.url)];
     if (entry.requestHeaders) {
       for (var key in entry.requestHeaders) {
         if (key.toLowerCase().startsWith("x-proxy-")) continue;
         var vals = entry.requestHeaders[key];
         for (var i = 0; i < vals.length; i++) {
-          parts.push("-H '" + key + ": " + vals[i] + "'");
+          parts.push("-H " + shellQuote(key + ": " + vals[i]));
         }
       }
     }
     if (entry.requestBody) {
-      parts.push("--data-raw '" + entry.requestBody.replace(/'/g, "'\\''") + "'");
+      parts.push("--data-raw " + shellQuote(entry.requestBody));
     }
     return parts.join(" \\\n  ");
   }
@@ -326,6 +352,8 @@
   }
 
   function addEntry(entry) {
+    // The stream and the entry list overlap after every (re)connect.
+    if (entry.id <= clearedThroughID || entries.some(function (e) { return e.id === entry.id; })) return;
     entries.push(entry);
     if (entries.length > entriesLimit) {
       entries.splice(0, entries.length - entriesLimit);

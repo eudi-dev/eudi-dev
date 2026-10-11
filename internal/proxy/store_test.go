@@ -99,18 +99,43 @@ func TestStoreFlowCorrelation(t *testing.T) {
 	if e2.FlowID != e1.FlowID {
 		t.Errorf("expected same flow ID, got %q and %q", e1.FlowID, e2.FlowID)
 	}
+}
 
-	flowEntries := s.FlowEntries(e1.FlowID)
-	if len(flowEntries) != 2 {
-		t.Fatalf("expected 2 flow entries, got %d", len(flowEntries))
+// A request URI carries "+" literally (RFC 3986), while the form-encoded
+// response body escapes it as %2B.
+func TestStoreCorrelatesAStateWithAPlusSign(t *testing.T) {
+	s := NewStore(10)
+	request := &TrafficEntry{Method: "GET", URL: "http://example.com/authorize?client_id=test&response_type=vp_token&state=ab+cd/ef="}
+	response := &TrafficEntry{Method: "POST", URL: "http://example.com/response", RequestBody: "state=ab%2Bcd%2Fef%3D&vp_token=x"}
+	for _, e := range []*TrafficEntry{request, response} {
+		Classify(e)
+		s.Add(e)
+	}
+
+	if response.FlowID != request.FlowID {
+		t.Errorf("the response joined %q, want the request's flow %q", response.FlowID, request.FlowID)
 	}
 }
 
-func TestStoreFlowEntriesEmpty(t *testing.T) {
-	s := NewStore(100)
-	entries := s.FlowEntries("nonexistent")
-	if len(entries) != 0 {
-		t.Errorf("expected 0 entries for nonexistent flow, got %d", len(entries))
+func TestStoreKeepsAFlowTogetherWhenItsFirstEntryIsEvicted(t *testing.T) {
+	s := NewStore(3)
+	add := func(e *TrafficEntry) *TrafficEntry {
+		Classify(e)
+		s.Add(e)
+		return e
+	}
+	vpAuth := func(query string) *TrafficEntry {
+		return &TrafficEntry{Method: "GET", URL: "http://example.com/authorize?client_id=test&response_type=vp_token&" + query}
+	}
+
+	add(vpAuth("state=s1"))
+	second := add(vpAuth("state=s1&nonce=n1"))
+	add(&TrafficEntry{Method: "GET", URL: "http://example.com/favicon.ico"})
+	add(&TrafficEntry{Method: "GET", URL: "http://example.com/health"})
+	response := add(&TrafficEntry{Method: "POST", URL: "http://example.com/response", RequestBody: "state=s1&vp_token=x"})
+
+	if response.FlowID != second.FlowID {
+		t.Errorf("the response joined %q, want the flow %q of the request still in the buffer", response.FlowID, second.FlowID)
 	}
 }
 
