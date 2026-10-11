@@ -84,7 +84,7 @@ func (s *Server) handleBrowserPresentationAPI(w http.ResponseWriter, r *http.Req
 
 	s.log("  Mode:          interactive (waiting for consent)")
 	s.allowSlowResponse(w, config.ConsentTimeout)
-	consentReq, matches, approved, answered := s.wallet.askPresentationConsent("presentation", requestOwner(r), authReq.ClientID, authReq, outcome, config.ConsentTimeout, func(req *consent.Request) {
+	consentReq, matches, approved, answered := s.wallet.askPresentationConsent(consent.TypePresentation, requestOwner(r), authReq.ClientID, authReq, outcome, config.ConsentTimeout, func(req *consent.Request) {
 		s.triggerUIRequest(req.ID)
 		if s.onConsentRequest != nil {
 			s.onConsentRequest(req)
@@ -92,11 +92,9 @@ func (s *Server) handleBrowserPresentationAPI(w http.ResponseWriter, r *http.Req
 	})
 	switch {
 	case !answered:
-		s.wallet.AddLog("presentation", "Consent timeout", false)
-		consentReq.SubmissionCh <- consent.SubmissionResult{Error: "consent timeout"}
-		writeJSON(w, http.StatusRequestTimeout, map[string]string{"error": "consent timeout"})
+		s.answerConsentTimeout(w, "presentation", consentReq)
 	case !approved:
-		s.log("  Consent:       denied")
+		s.logDeniedPresentation(authReq)
 		consentReq.SubmissionCh <- consent.SubmissionResult{StatusCode: http.StatusOK, Error: oid4vp.ErrorAccessDenied}
 		s.writeBrowserAuthorizationError(w, authReq, protocol, oid4vp.ErrorAccessDenied, "User denied presentation", http.StatusBadGateway)
 	default:

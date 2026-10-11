@@ -25,20 +25,20 @@ import (
 )
 
 const (
-	BrowserAPIProtocolOpenID4VPUnsigned = "openid4vp-v1-unsigned"
-	BrowserAPIProtocolOpenID4VPSigned   = "openid4vp-v1-signed"
-	BrowserAPIProtocolOpenID4VPMulti    = "openid4vp-v1-multisigned"
+	browserAPIProtocolUnsigned    = "openid4vp-v1-unsigned"
+	browserAPIProtocolSigned      = "openid4vp-v1-signed"
+	browserAPIProtocolMultiSigned = "openid4vp-v1-multisigned"
 )
 
 type BrowserAPIRequestEnvelope struct {
-	Digital BrowserAPIDigitalRequest `json:"digital"`
+	Digital browserAPIDigitalRequest `json:"digital"`
 }
 
-type BrowserAPIDigitalRequest struct {
-	Requests []BrowserAPICredentialRequest `json:"requests"`
+type browserAPIDigitalRequest struct {
+	Requests []browserAPICredentialRequest `json:"requests"`
 }
 
-type BrowserAPICredentialRequest struct {
+type browserAPICredentialRequest struct {
 	Protocol string `json:"protocol"`
 	Data     any    `json:"data"`
 }
@@ -59,10 +59,16 @@ type AuthorizationResponseEnvelope struct {
 func ParseBrowserAPIRequest(body BrowserAPIRequestEnvelope, opts oid4vc.ParseOptions, requestOrigin string) (string, *Request, error) {
 	for _, req := range body.Digital.Requests {
 		switch req.Protocol {
-		case BrowserAPIProtocolOpenID4VPUnsigned, BrowserAPIProtocolOpenID4VPSigned, BrowserAPIProtocolOpenID4VPMulti:
+		case browserAPIProtocolUnsigned, browserAPIProtocolSigned, browserAPIProtocolMultiSigned:
 			params, err := parseBrowserAuthorizationRequest(req.Protocol, req.Data, opts, requestOrigin)
 			if err != nil {
 				return "", nil, err
+			}
+			// Appendix A.2: "The value of the response_mode parameter MUST be
+			// dc_api when the response is not encrypted and dc_api.jwt when the
+			// response is encrypted". A missing one is a §5.2 finding.
+			if params.ResponseMode != "" && !IsDCAPIResponseMode(params.ResponseMode) {
+				return "", nil, fmt.Errorf("OID4VP 1.0 Appendix A.2: response_mode must be dc_api or dc_api.jwt over the Digital Credentials API, got %q", params.ResponseMode)
 			}
 			return req.Protocol, params, nil
 		}
@@ -75,7 +81,7 @@ func parseBrowserAuthorizationRequest(protocol string, data any, opts oid4vc.Par
 	var unsignedDCAPI bool
 
 	switch protocol {
-	case BrowserAPIProtocolOpenID4VPSigned:
+	case browserAPIProtocolSigned:
 		switch typed := data.(type) {
 		case string:
 			raw = typed
@@ -98,7 +104,7 @@ func parseBrowserAuthorizationRequest(protocol string, data any, opts oid4vc.Par
 		default:
 			return nil, fmt.Errorf("signed browser request data must be a JWT string or object")
 		}
-	case BrowserAPIProtocolOpenID4VPMulti:
+	case browserAPIProtocolMultiSigned:
 		requestMap, ok := data.(map[string]any)
 		if !ok {
 			return nil, fmt.Errorf("multisigned browser request data must be an object")
@@ -108,7 +114,7 @@ func parseBrowserAuthorizationRequest(protocol string, data any, opts oid4vc.Par
 			return nil, fmt.Errorf("multisigned browser request must contain a request object")
 		}
 		return parseMultiSignedBrowserAuthorizationRequest(requestObject, opts, requestOrigin)
-	case BrowserAPIProtocolOpenID4VPUnsigned:
+	case browserAPIProtocolUnsigned:
 		payload := data
 		// OpenID4VP 1.0 Appendix A.2: the wallet ignores client_id and
 		// expected_origins in an unsigned request.
@@ -190,7 +196,7 @@ func parseMultiSignedBrowserAuthorizationRequest(requestObject map[string]any, o
 			firstCandidate = candidate
 		}
 
-		if parsed.RequestObject != nil && clientID != "" && VerifyRequestObjectSignature(clientID, parsed.RequestObject) == "" {
+		if parsed.RequestObject != nil && clientID != "" && verifyRequestObjectSignature(clientID, parsed.RequestObject) == "" {
 			return candidate, nil
 		}
 	}

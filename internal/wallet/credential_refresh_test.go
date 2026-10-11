@@ -27,6 +27,8 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
 // renewalIssuerMetadata is served at the Credential Issuer Identifier
@@ -203,11 +205,18 @@ func TestRenewExpiringCredentialsSweep(t *testing.T) {
 
 // Presentation renews a credential near expiry, because the background
 // sweep runs only under wallet serve.
+// A credential about to expire is renewed before it is presented, and the
+// renewal is saved. The renewal calls the issuer, so it runs outside the
+// server's store lock.
 func TestPresentingRenewsACredentialAboutToExpire(t *testing.T) {
+	store, _ := entityStore(t)
 	w := generateTestWallet(t)
+	server := NewServer(w, 0, nil)
+	server.SetStore(store)
 	replacement := generateTestCredential(t, w)
 
 	var credentialRequests int
+	var renewedUnderLock bool
 	var serverURL string
 	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		rw.Header().Set("Content-Type", "application/json")
@@ -220,6 +229,11 @@ func TestPresentingRenewsACredentialAboutToExpire(t *testing.T) {
 			_ = json.NewEncoder(rw).Encode(map[string]any{"access_token": "fresh", "token_type": "Bearer"})
 		case strings.HasSuffix(r.URL.Path, "/credential"):
 			credentialRequests++
+			if server.storeSyncMu.TryLock() {
+				server.storeSyncMu.Unlock()
+			} else {
+				renewedUnderLock = true
+			}
 			_ = json.NewEncoder(rw).Encode(map[string]any{"credentials": []any{map[string]any{"credential": replacement}}})
 		default:
 			rw.WriteHeader(http.StatusNotFound)
@@ -243,18 +257,29 @@ func TestPresentingRenewsACredentialAboutToExpire(t *testing.T) {
 	w.rememberRenewal(id, CredentialRenewal{RefreshToken: "refresh-1",
 		Issuer: srv.URL, TokenEndpoint: srv.URL + "/token", CredentialEndpoint: srv.URL + "/credential",
 	})
+	if err := store.Save(w); err != nil {
+		t.Fatal(err)
+	}
 
-	if _, err := w.CreateVPToken(consent.Match{
+	authReq := &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "n", ClientID: "verifier", ResponseType: "vp_token"}}
+	if _, err := w.preparePresentation(authReq, []consent.Match{{
 		CredentialID: id, QueryID: "q", Format: "dc+sd-jwt", SelectedKeys: []string{"given_name"},
-	}, PresentationParams{Nonce: "n", ClientID: "verifier"}); err != nil {
-		t.Fatalf("creating the VP token: %v", err)
+	}}); err != nil {
+		t.Fatalf("preparing the presentation: %v", err)
 	}
 
 	if credentialRequests != 1 {
-		t.Errorf("the issuer saw %d credential requests, want 1: a credential about to expire is renewed before it is presented", credentialRequests)
+		t.Errorf("the issuer saw %d credential requests, want 1", credentialRequests)
 	}
-	if stored, _ := w.GetCredential(id); stored.Raw != replacement {
-		t.Error("the renewed credential was not stored")
+	if renewedUnderLock {
+		t.Error("the renewal called the issuer while holding the store lock")
+	}
+	reloaded, err := store.LoadOrCreate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored, _ := reloaded.GetCredential(id); stored.Raw != replacement {
+		t.Error("the renewed credential was not saved")
 	}
 }
 

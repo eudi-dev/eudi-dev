@@ -31,6 +31,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
 var tinyPNG, _ = base64.StdEncoding.DecodeString(
@@ -758,7 +759,7 @@ func TestPresentingAnMdocWithoutDeviceKey(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, err = w.createMDocPresentation(cred, nil, PresentationParams{ClientID: "x509_hash:abc", Nonce: "n", ResponseURI: "https://verifier.example/response"}, "", key)
+			_, err = w.createMDocPresentation(cred, nil, &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ClientID: "x509_hash:abc", Nonce: "n", ResponseURI: "https://verifier.example/response"}}, "", key)
 			if (err != nil) != wantErr {
 				t.Fatalf("error %v, want an error: %v", err, wantErr)
 			}

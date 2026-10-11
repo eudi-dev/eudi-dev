@@ -26,6 +26,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
@@ -57,7 +58,7 @@ func TestCreateMDocPresentationSelectsElementByIdentifier(t *testing.T) {
 	}
 
 	result, err := w.createMDocPresentation(cred, []string{"ns:y"},
-		PresentationParams{Nonce: "n", ClientID: "c", ResponseURI: "r"}, "", w.HolderKey)
+		&oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "n", ClientID: "c", ResponseURI: "r"}}, "", w.HolderKey)
 	if err != nil {
 		t.Fatalf("createMDocPresentation: %v", err)
 	}
@@ -116,12 +117,8 @@ func TestISOResponseSignsEveryMDocOverTheReportedNonce(t *testing.T) {
 		t.Fatalf("the baseline holds %d mdoc credentials, want at least 2", len(matches))
 	}
 
-	params := PresentationParams{
-		Nonce:       "verifier-nonce",
-		ClientID:    "x509_hash:example",
-		ResponseURI: "https://verifier.example/response",
-	}
-	result, err := w.CreateVPTokenMap(matches, params)
+	params := &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "verifier-nonce", ClientID: "x509_hash:example", ResponseURI: "https://verifier.example/response"}}
+	result, err := w.createVPTokenMap(matches, params)
 	if err != nil {
 		t.Fatalf("creating the vp_token map: %v", err)
 	}
@@ -154,10 +151,10 @@ func TestISOResponseSignsEveryMDocOverTheReportedNonce(t *testing.T) {
 func TestAPresentationCanChooseItsSessionTranscript(t *testing.T) {
 	w := generateTestWallet(t)
 	w.SessionTranscript = oid4vp.SessionTranscriptOID4VP
-	if got := w.sessionTranscriptFor(PresentationParams{SessionTranscript: oid4vp.SessionTranscriptISO}); got != oid4vp.SessionTranscriptISO {
+	if got := w.sessionTranscriptFor(&oid4vp.Request{SessionTranscript: oid4vp.SessionTranscriptISO}); got != oid4vp.SessionTranscriptISO {
 		t.Errorf("transcript = %q, want the request's iso", got)
 	}
-	if got := w.sessionTranscriptFor(PresentationParams{}); got != oid4vp.SessionTranscriptOID4VP {
+	if got := w.sessionTranscriptFor(&oid4vp.Request{}); got != oid4vp.SessionTranscriptOID4VP {
 		t.Errorf("transcript = %q, want the wallet's oid4vp", got)
 	}
 	srv := NewServer(w, 0, nil)

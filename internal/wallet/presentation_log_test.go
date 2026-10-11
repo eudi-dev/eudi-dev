@@ -21,6 +21,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
@@ -34,7 +35,7 @@ func TestMDocPresentationLogsItsOwnTranscript(t *testing.T) {
 	var out bytes.Buffer
 	log.SetOutput(&out)
 	defer log.SetOutput(os.Stderr)
-	if _, err := w.CreateVPTokenMap(matches[:1], PresentationParams{Nonce: "n", ClientID: "c", ResponseURI: "https://v.example/r", SessionTranscript: oid4vp.SessionTranscriptISO}); err != nil {
+	if _, err := w.createVPTokenMap(matches[:1], &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "n", ClientID: "c", ResponseURI: "https://v.example/r"}, SessionTranscript: oid4vp.SessionTranscriptISO}); err != nil {
 		t.Fatalf("presenting: %v", err)
 	}
 	if !strings.Contains(out.String(), "transcript="+string(oid4vp.SessionTranscriptISO)) {

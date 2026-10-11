@@ -15,11 +15,16 @@
 package regcert
 
 import (
+	"encoding/base64"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 )
 
 // ETSI TS 119 475 V1.2.1 Annex B.2.9 requires format and meta, so an entry
@@ -186,5 +191,47 @@ func conformantRegistrationCert() map[string]any {
 			"meta":   map[string]any{"vct_values": []any{"urn:eudi:pid:1"}},
 			"claim":  []any{map[string]any{"path": []any{"given_name"}}},
 		}},
+	}
+}
+
+// ETSI TS 119 472-2 V1.3.1 OIDFVP-HAIP-COMMON-REQ-RO-16: "The value of the
+// data member ... shall be the base64url encoding of the serialized RP
+// registration certificate." The compact JWT itself is accepted too.
+func TestVerifyReadsBothSerializations(t *testing.T) {
+	key, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cert, err := mock.GenerateCACert(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	header := map[string]any{"alg": "ES256", "typ": registrar.RegistrationCertificateTyp, "x5c": []any{base64.StdEncoding.EncodeToString(cert.Raw)}}
+	compact, err := jws.Sign(header, conformantRegistrationCert(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, data := range map[string]string{
+		"base64url of the serialized certificate": format.EncodeBase64URL([]byte(compact)),
+		"compact JWT": compact,
+	} {
+		t.Run(name, func(t *testing.T) {
+			registrations, problems := Verify([]map[string]any{{"format": "registration_cert", "data": data}})
+			if len(registrations) != 1 || len(problems) != 0 {
+				t.Fatalf("got %d registrations and problems %v, want the certificate", len(registrations), problems)
+			}
+		})
+	}
+}
+
+// ARF RPACANot_03b: the lists that revoke registration certificates "can be
+// authenticated using the trust anchors for revocation lists notified to the
+// Commission". Without such an anchor the status cannot be trusted.
+func TestAnUnanchoredStatusListIsAFinding(t *testing.T) {
+	cert := conformantRegistrationCert()
+	cert["status"] = map[string]any{"status_list": map[string]any{"idx": float64(7), "uri": "http://127.0.0.1:1/status"}}
+	findings := StatusFindings(cert, &http.Client{Timeout: time.Second}, nil, "ARF RPRC_17")
+	if !containsSubstring(findings, "RPACANot_03b") {
+		t.Fatalf("findings %v, want the missing revocation anchor", findings)
 	}
 }

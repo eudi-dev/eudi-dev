@@ -2035,19 +2035,17 @@
       }
     });
     es.addEventListener('open', () => {
-      // SSE events are not replayed. Fetch pending state after reconnecting.
-      if (streamDropped) {
-        streamDropped = false;
-        loadPendingRequests();
-      }
+      // The server subscribes before the stream opens, and SSE events are not
+      // replayed. Requests created before this point come from this fetch.
+      document.body.dataset.requestStream = 'open';
+      loadAppConfigPromise.then(loadPendingRequests);
     });
     es.onerror = () => {
-      streamDropped = true;
+      document.body.dataset.requestStream = 'closed';
       es.close();
       setTimeout(connectSSE, 3000);
     };
   }
-  let streamDropped = false;
 
   // Clear stored errors before a new flow so they cannot appear over its consent dialog.
   function expectError() {
@@ -5178,6 +5176,5 @@
   loadCredentials();
   loadDeferred();
   loadLog();
-  loadAppConfigPromise.then(loadPendingRequests);
   connectSSE();
 })();

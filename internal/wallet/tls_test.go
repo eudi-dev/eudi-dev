@@ -25,6 +25,9 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
 func TestStrictTLSRequestFetch(t *testing.T) {
@@ -49,8 +52,8 @@ func TestStrictTLSResponsePost(t *testing.T) {
 	defer verifier.Close()
 	w := generateTestWallet(t)
 	w.ValidationMode = ValidationModeStrict
-	_, err := w.SubmitAuthorizationError("access_denied", "declined", "state", verifier.URL,
-		PresentationParams{ResponseMode: "direct_post"})
+	_, err := w.submitAuthorizationError("access_denied", "declined", "state", verifier.URL,
+		&oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ResponseMode: "direct_post"}})
 	var certErr *tls.CertificateVerificationError
 	if !errors.As(err, &certErr) {
 		t.Fatalf("strict wallet must reject the untrusted TLS certificate: %v", err)
@@ -103,7 +106,7 @@ func TestWalletTLSModeAndOverrides(t *testing.T) {
 					return err
 				}},
 				{"response POST", func() error {
-					_, err := w.SubmitAuthorizationError("access_denied", "declined", "state", server.URL, PresentationParams{ResponseMode: "direct_post"})
+					_, err := w.submitAuthorizationError("access_denied", "declined", "state", server.URL, &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ResponseMode: "direct_post"}})
 					return err
 				}},
 				{"offer GET", func() error {

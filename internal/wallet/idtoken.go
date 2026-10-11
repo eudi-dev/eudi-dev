@@ -33,9 +33,10 @@ const signedJWTLifetime = 5 * time.Minute
 // crlUpdateInterval is the time to the nextUpdate of a CRL the wallet signs.
 const crlUpdateInterval = 7 * 24 * time.Hour
 
-func (w *Wallet) CreateSelfIssuedIDToken(nonce, clientID string) (string, error) {
-	subJWK := mock.PublicKeyJWKMap(&w.HolderKey.PublicKey)
-	thumbprint, err := jwkThumbprint(&w.HolderKey.PublicKey)
+func (w *Wallet) createSelfIssuedIDToken(nonce, clientID string) (string, error) {
+	holderKey := w.HolderKeyPair()
+	subJWK := mock.PublicKeyJWKMap(&holderKey.PublicKey)
+	thumbprint, err := jwkThumbprint(&holderKey.PublicKey)
 	if err != nil {
 		return "", fmt.Errorf("computing JWK thumbprint: %w", err)
 	}
@@ -48,7 +49,8 @@ func (w *Wallet) CreateSelfIssuedIDToken(nonce, clientID string) (string, error)
 
 	now := time.Now()
 	payload := map[string]any{
-		"iss":     "https://self-issued.me/v2",
+		// SIOPv2 §11: iss "MUST be set to the value of the sub claim".
+		"iss":     thumbprint,
 		"sub":     thumbprint,
 		"aud":     clientID,
 		"nonce":   nonce,
@@ -57,7 +59,7 @@ func (w *Wallet) CreateSelfIssuedIDToken(nonce, clientID string) (string, error)
 		"sub_jwk": subJWK,
 	}
 
-	return signJWT(header, payload, w.HolderKey)
+	return signJWT(header, payload, holderKey)
 }
 
 // jwkThumbprint computes the RFC 7638 thumbprint of a public key.

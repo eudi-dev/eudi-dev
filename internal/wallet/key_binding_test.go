@@ -23,6 +23,8 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
 const keyBindingEvent = "credential_key_binding_not_held"
@@ -231,9 +233,9 @@ func TestPresentingACredentialWithAnUnheldKeyBindingIsReported(t *testing.T) {
 		if err != nil {
 			t.Fatalf("importing: %v", err)
 		}
-		return w.CreateVPToken(
+		return vpToken(w,
 			consent.Match{CredentialID: imported.ID, SelectedKeys: []string{"given_name"}},
-			PresentationParams{Nonce: "n", ClientID: "x509_hash:abc"},
+			&oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "n", ClientID: "x509_hash:abc"}},
 		)
 	}
 
@@ -280,9 +282,9 @@ func TestPresentingAHeldCredentialIsNotReported(t *testing.T) {
 	if err != nil {
 		t.Fatalf("importing: %v", err)
 	}
-	if _, err := w.CreateVPToken(
+	if _, err := vpToken(w,
 		consent.Match{CredentialID: imported.ID, SelectedKeys: []string{"given_name"}},
-		PresentationParams{Nonce: "n", ClientID: "x509_hash:abc"},
+		&oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "n", ClientID: "x509_hash:abc"}},
 	); err != nil {
 		t.Fatalf("presenting: %v", err)
 	}

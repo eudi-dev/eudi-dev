@@ -61,16 +61,10 @@ func TestEncryptResponse_DirectPostJWTPayloadIncludesStateAsTopLevelMember(t *te
 		},
 	}
 
-	params := PresentationParams{
-		Nonce:         "test-nonce",
-		ClientID:      "https://verifier.example",
-		ResponseURI:   "https://verifier.example/response",
-		ResponseMode:  "direct_post.jwt",
-		RequestObject: reqObj,
-	}
+	params := &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "test-nonce", ClientID: "https://verifier.example", ResponseURI: "https://verifier.example/response", ResponseMode: "direct_post.jwt", RequestObject: reqObj}}
 
 	vpToken := map[string][]string{"pid": {"token1"}}
-	jweStr, _, err := w.EncryptResponse(vpToken, "eyJ.id.token", "state-123", "", params)
+	jweStr, _, err := w.encryptResponse(vpToken, "eyJ.id.token", "state-123", "", params)
 	if err != nil {
 		t.Fatalf("EncryptResponse error: %v", err)
 	}
@@ -118,15 +112,9 @@ func TestEncryptErrorResponse_DirectPostJWTPayloadIncludesStateAsTopLevelMember(
 		},
 	}
 
-	params := PresentationParams{
-		Nonce:         "test-nonce",
-		ClientID:      "https://verifier.example",
-		ResponseURI:   "https://verifier.example/response",
-		ResponseMode:  "direct_post.jwt",
-		RequestObject: reqObj,
-	}
+	params := &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "test-nonce", ClientID: "https://verifier.example", ResponseURI: "https://verifier.example/response", ResponseMode: "direct_post.jwt", RequestObject: reqObj}}
 
-	jweStr, _, err := w.EncryptErrorResponse("access_denied", "testing", "state-123", params)
+	jweStr, _, err := w.encryptErrorResponse("access_denied", "testing", "state-123", params)
 	if err != nil {
 		t.Fatalf("EncryptErrorResponse error: %v", err)
 	}
@@ -168,15 +156,9 @@ func TestEncryptResponse_MDocISOIncludesAPUAndAPV(t *testing.T) {
 		},
 	}
 
-	params := PresentationParams{
-		Nonce:         "test-auth-request-nonce",
-		ClientID:      "https://verifier.example",
-		ResponseURI:   "https://verifier.example/response",
-		ResponseMode:  "direct_post.jwt",
-		RequestObject: reqObj,
-	}
+	params := &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "test-auth-request-nonce", ClientID: "https://verifier.example", ResponseURI: "https://verifier.example/response", ResponseMode: "direct_post.jwt", RequestObject: reqObj}}
 
-	jweStr, _, err := w.EncryptResponse(map[string][]string{"pid": {"token1"}}, "", "state-123", "mdoc-generated-nonce", params)
+	jweStr, _, err := w.encryptResponse(map[string][]string{"pid": {"token1"}}, "", "state-123", "mdoc-generated-nonce", params)
 	if err != nil {
 		t.Fatalf("EncryptResponse error: %v", err)
 	}
@@ -243,7 +225,7 @@ func TestCreateVPToken_SDJWT(t *testing.T) {
 		SelectedKeys: []string{"given_name", "family_name"},
 	}
 
-	result, err := w.CreateVPToken(match, PresentationParams{Nonce: "test-nonce", ClientID: "https://verifier.example", ResponseURI: "https://verifier.example/response"})
+	result, err := vpToken(w, match, &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "test-nonce", ClientID: "https://verifier.example", ResponseURI: "https://verifier.example/response"}})
 	if err != nil {
 		t.Fatalf("CreateVPToken error: %v", err)
 	}
@@ -303,16 +285,12 @@ func TestCreateVPToken_SDJWTNoDisclosuresParses(t *testing.T) {
 		t.Fatal("no SD-JWT credential found")
 	}
 
-	result, err := w.CreateVPToken(consent.Match{
+	result, err := vpToken(w, consent.Match{
 		QueryID:      "pid",
 		CredentialID: sdCred.ID,
 		Format:       "dc+sd-jwt",
 		SelectedKeys: nil,
-	}, PresentationParams{
-		Nonce:       "test-nonce",
-		ClientID:    "https://verifier.example",
-		ResponseURI: "https://verifier.example/response",
-	})
+	}, &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "test-nonce", ClientID: "https://verifier.example", ResponseURI: "https://verifier.example/response"}})
 	if err != nil {
 		t.Fatalf("CreateVPToken error: %v", err)
 	}
@@ -346,17 +324,12 @@ func TestCreateVPToken_SDJWTBrowserAPIUsesOriginAudience(t *testing.T) {
 		t.Fatal("no SD-JWT credential found")
 	}
 
-	result, err := w.CreateVPToken(consent.Match{
+	result, err := vpToken(w, consent.Match{
 		QueryID:      "pid",
 		CredentialID: sdCred.ID,
 		Format:       "dc+sd-jwt",
 		SelectedKeys: []string{"given_name"},
-	}, PresentationParams{
-		Nonce:         "test-nonce",
-		ClientID:      "x509_hash:test-client",
-		RequestOrigin: "https://rp.example",
-		ResponseMode:  "dc_api.jwt",
-	})
+	}, &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "test-nonce", ClientID: "x509_hash:test-client", ResponseMode: "dc_api.jwt"}, RequestOrigin: "https://rp.example"})
 	if err != nil {
 		t.Fatalf("CreateVPToken error: %v", err)
 	}
@@ -392,7 +365,7 @@ func TestCreateVPToken_SDJWT_SelectiveDisclosure(t *testing.T) {
 		SelectedKeys: []string{"given_name"},
 	}
 
-	result, err := w.CreateVPToken(match, PresentationParams{Nonce: "n", ClientID: "client", ResponseURI: "response"})
+	result, err := vpToken(w, match, &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "n", ClientID: "client", ResponseURI: "response"}})
 	if err != nil {
 		t.Fatalf("CreateVPToken error: %v", err)
 	}
@@ -438,7 +411,7 @@ func TestCreateVPToken_SDJWT_NestedSelectiveDisclosure(t *testing.T) {
 		SelectedKeys: []string{"given_name", "address.postal_code"},
 	}
 
-	result, err := w.CreateVPToken(match, PresentationParams{Nonce: "n", ClientID: "client", ResponseURI: "response"})
+	result, err := vpToken(w, match, &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "n", ClientID: "client", ResponseURI: "response"}})
 	if err != nil {
 		t.Fatalf("CreateVPToken error: %v", err)
 	}
@@ -522,7 +495,7 @@ func TestCreateVPToken_PlainJWT(t *testing.T) {
 		SelectedKeys: []string{"given_name"},
 	}
 
-	result, err := w.CreateVPToken(match, PresentationParams{Nonce: "n", ClientID: "client", ResponseURI: "response"})
+	result, err := vpToken(w, match, &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "n", ClientID: "client", ResponseURI: "response"}})
 	if err != nil {
 		t.Fatalf("CreateVPToken error: %v", err)
 	}
@@ -572,7 +545,7 @@ func TestCreateVPToken_MDoc(t *testing.T) {
 		SelectedKeys: selectedKeys,
 	}
 
-	result, err := w.CreateVPToken(match, PresentationParams{Nonce: "nonce123", ClientID: "https://verifier.example", ResponseURI: "https://verifier.example/response"})
+	result, err := vpToken(w, match, &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "nonce123", ClientID: "https://verifier.example", ResponseURI: "https://verifier.example/response"}})
 	if err != nil {
 		t.Fatalf("CreateVPToken error: %v", err)
 	}
@@ -607,11 +580,7 @@ func TestCreateVPToken_MDocUsesTaggedDeviceNamespaces(t *testing.T) {
 		SelectedKeys: []string{"eu.europa.ec.eudi.pid.1:given_name", "eu.europa.ec.eudi.pid.1:family_name"},
 	}
 
-	result, err := w.CreateVPToken(match, PresentationParams{
-		Nonce:       "test-nonce",
-		ClientID:    "https://verifier.example",
-		ResponseURI: "https://verifier.example/response",
-	})
+	result, err := vpToken(w, match, &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "test-nonce", ClientID: "https://verifier.example", ResponseURI: "https://verifier.example/response"}})
 	if err != nil {
 		t.Fatalf("CreateVPToken error: %v", err)
 	}
@@ -681,7 +650,7 @@ func TestCreateVPToken_CredentialNotFound(t *testing.T) {
 		Format:       "dc+sd-jwt",
 	}
 
-	_, err := w.CreateVPToken(match, PresentationParams{Nonce: "n", ClientID: "c", ResponseURI: "r"})
+	_, err := vpToken(w, match, &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "n", ClientID: "c", ResponseURI: "r"}})
 	if err == nil {
 		t.Fatal("expected error for nonexistent credential")
 	}
@@ -710,9 +679,9 @@ func TestCreateVPTokenMap(t *testing.T) {
 		})
 	}
 
-	vpResult, err := w.CreateVPTokenMap(matches, PresentationParams{Nonce: "nonce", ClientID: "client", ResponseURI: "response_uri"})
+	vpResult, err := w.createVPTokenMap(matches, &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "nonce", ClientID: "client", ResponseURI: "response_uri"}})
 	if err != nil {
-		t.Fatalf("CreateVPTokenMap error: %v", err)
+		t.Fatalf("createVPTokenMap error: %v", err)
 	}
 
 	if len(vpResult.TokenMap) != len(matches) {
@@ -894,11 +863,7 @@ func TestCreateVPToken_ImportedSDJWT_PreservesDisclosures(t *testing.T) {
 		SelectedKeys: []string{"user_id"},
 	}
 
-	result, err := w.CreateVPToken(match, PresentationParams{
-		Nonce:       "test-nonce",
-		ClientID:    "https://verifier.example",
-		ResponseURI: "https://verifier.example/callback",
-	})
+	result, err := vpToken(w, match, &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "test-nonce", ClientID: "https://verifier.example", ResponseURI: "https://verifier.example/callback"}})
 	if err != nil {
 		t.Fatalf("CreateVPToken error: %v", err)
 	}
@@ -942,15 +907,9 @@ func TestEncryptResponse_UsesEncryptedResponseEncValuesSupported(t *testing.T) {
 		},
 	}
 
-	params := PresentationParams{
-		Nonce:         "test-nonce",
-		ClientID:      "https://verifier.example",
-		ResponseURI:   "https://verifier.example/response",
-		ResponseMode:  "direct_post.jwt",
-		RequestObject: reqObj,
-	}
+	params := &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "test-nonce", ClientID: "https://verifier.example", ResponseURI: "https://verifier.example/response", ResponseMode: "direct_post.jwt", RequestObject: reqObj}}
 
-	jweStr, _, err := w.EncryptResponse(map[string]any{"test": "value"}, "", "state", "", params)
+	jweStr, _, err := w.encryptResponse(map[string]any{"test": "value"}, "", "state", "", params)
 	if err != nil {
 		t.Fatalf("EncryptResponse error: %v", err)
 	}
@@ -987,15 +946,9 @@ func TestEncryptResponse_DefaultsToA128GCMWhenNoEncValues(t *testing.T) {
 		},
 	}
 
-	params := PresentationParams{
-		Nonce:         "test-nonce",
-		ClientID:      "https://verifier.example",
-		ResponseURI:   "https://verifier.example/response",
-		ResponseMode:  "direct_post.jwt",
-		RequestObject: reqObj,
-	}
+	params := &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "test-nonce", ClientID: "https://verifier.example", ResponseURI: "https://verifier.example/response", ResponseMode: "direct_post.jwt", RequestObject: reqObj}}
 
-	jweStr, _, err := w.EncryptResponse(map[string]any{"test": "value"}, "", "state", "", params)
+	jweStr, _, err := w.encryptResponse(map[string]any{"test": "value"}, "", "state", "", params)
 	if err != nil {
 		t.Fatalf("EncryptResponse error: %v", err)
 	}
@@ -1027,15 +980,9 @@ func TestEncryptResponse_TopLevelJWKSNotUsed(t *testing.T) {
 		},
 	}
 
-	params := PresentationParams{
-		Nonce:         "test-nonce",
-		ClientID:      "https://verifier.example",
-		ResponseURI:   "https://verifier.example/response",
-		ResponseMode:  "direct_post.jwt",
-		RequestObject: reqObj,
-	}
+	params := &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "test-nonce", ClientID: "https://verifier.example", ResponseURI: "https://verifier.example/response", ResponseMode: "direct_post.jwt", RequestObject: reqObj}}
 
-	_, _, err := w.EncryptResponse(map[string]any{"test": "value"}, "", "state", "", params)
+	_, _, err := w.encryptResponse(map[string]any{"test": "value"}, "", "state", "", params)
 	if err == nil {
 		t.Fatal("expected error when JWK is only in top-level jwks (not client_metadata.jwks)")
 	}
@@ -1059,15 +1006,9 @@ func TestEncryptResponse_LegacyFieldNamesIgnored(t *testing.T) {
 		},
 	}
 
-	params := PresentationParams{
-		Nonce:         "test-nonce",
-		ClientID:      "https://verifier.example",
-		ResponseURI:   "https://verifier.example/response",
-		ResponseMode:  "direct_post.jwt",
-		RequestObject: reqObj,
-	}
+	params := &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "test-nonce", ClientID: "https://verifier.example", ResponseURI: "https://verifier.example/response", ResponseMode: "direct_post.jwt", RequestObject: reqObj}}
 
-	jweStr, _, err := w.EncryptResponse(map[string]any{"test": "value"}, "", "state", "", params)
+	jweStr, _, err := w.encryptResponse(map[string]any{"test": "value"}, "", "state", "", params)
 	if err != nil {
 		t.Fatalf("EncryptResponse error: %v", err)
 	}
@@ -1129,7 +1070,7 @@ func TestCreateVPToken_SDJWT_SurvivesPersistReload(t *testing.T) {
 		SelectedKeys: []string{"given_name", "family_name"},
 	}
 
-	result, err := w.CreateVPToken(match, PresentationParams{Nonce: "n", ClientID: "client", ResponseURI: "response"})
+	result, err := vpToken(w, match, &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "n", ClientID: "client", ResponseURI: "response"}})
 	if err != nil {
 		t.Fatalf("CreateVPToken error: %v", err)
 	}
@@ -1161,19 +1102,13 @@ func TestSubmitPresentation_DirectPostJWT_NoEncryptionKey(t *testing.T) {
 		TokenMap: map[string][]string{"q1": {"dummy-token"}},
 	}
 
-	params := PresentationParams{
-		Nonce:        "n",
-		ClientID:     "c",
-		ResponseURI:  "https://verifier.example/response",
-		ResponseMode: "direct_post.jwt",
-		RequestObject: &oid4vc.RequestObjectJWT{
-			Payload: map[string]any{
-				"client_metadata": map[string]any{},
-			},
+	params := &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "n", ClientID: "c", ResponseURI: "https://verifier.example/response", ResponseMode: "direct_post.jwt", RequestObject: &oid4vc.RequestObjectJWT{
+		Payload: map[string]any{
+			"client_metadata": map[string]any{},
 		},
-	}
+	}}}
 
-	_, err := w.SubmitPresentation(vpResult, "", "state", params.ResponseURI, params)
+	_, err := w.submitPresentation(vpResult, "", "state", params.ResponseURI, params)
 	if err == nil {
 		t.Fatal("expected error when direct_post.jwt is used without encryption key")
 	}
@@ -1197,15 +1132,9 @@ func TestEncryptResponse_UsesAlgFromJWK(t *testing.T) {
 		},
 	}
 
-	params := PresentationParams{
-		Nonce:         "test-nonce",
-		ClientID:      "https://verifier.example",
-		ResponseURI:   "https://verifier.example/response",
-		ResponseMode:  "direct_post.jwt",
-		RequestObject: reqObj,
-	}
+	params := &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "test-nonce", ClientID: "https://verifier.example", ResponseURI: "https://verifier.example/response", ResponseMode: "direct_post.jwt", RequestObject: reqObj}}
 
-	jweStr, _, err := w.EncryptResponse(map[string]any{"test": "value"}, "", "state", "", params)
+	jweStr, _, err := w.encryptResponse(map[string]any{"test": "value"}, "", "state", "", params)
 	if err != nil {
 		t.Fatalf("EncryptResponse error: %v", err)
 	}
@@ -1237,15 +1166,9 @@ func TestEncryptResponse_ErrorWhenJWKMissingAlg(t *testing.T) {
 		},
 	}
 
-	params := PresentationParams{
-		Nonce:         "test-nonce",
-		ClientID:      "https://verifier.example",
-		ResponseURI:   "https://verifier.example/response",
-		ResponseMode:  "direct_post.jwt",
-		RequestObject: reqObj,
-	}
+	params := &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "test-nonce", ClientID: "https://verifier.example", ResponseURI: "https://verifier.example/response", ResponseMode: "direct_post.jwt", RequestObject: reqObj}}
 
-	_, _, err := w.EncryptResponse(map[string]any{"test": "value"}, "", "state", "", params)
+	_, _, err := w.encryptResponse(map[string]any{"test": "value"}, "", "state", "", params)
 	if err == nil {
 		t.Fatal("expected error when JWK is missing 'alg' field")
 	}
@@ -1358,4 +1281,9 @@ func TestEncryptJWE_A128CBCHS256(t *testing.T) {
 	if len(tagBytes) != 16 {
 		t.Errorf("expected 16-byte tag, got %d bytes", len(tagBytes))
 	}
+}
+
+// vpToken builds one presentation with its own mdoc generated nonce.
+func vpToken(w *Wallet, match consent.Match, params *oid4vp.Request) (VPTokenResult, error) {
+	return w.createVPToken(match, params, "")
 }

@@ -15,30 +15,35 @@
 package oid4vp
 
 import (
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 )
 
-// VerifyRequestObjectSignature verifies the Request Object JWS.
+// verifyRequestObjectSignature verifies the Request Object JWS with the key
+// that the Client Identifier Prefix names (OID4VP 1.0 §5.9.3).
 //
 // The x509 prefixes (x509_san_dns:, x509_hash:) carry the signing certificate
 // in the x5c header. The signature is checked against the leaf, and the chain
-// is checked for consistency. verifier_attestation: and
-// decentralized_identifier: take the key from the attestation or the resolved
-// DID. This wallet resolves neither, so it reports the signature as unverified.
-func VerifyRequestObjectSignature(clientID string, reqObj *oid4vc.RequestObjectJWT) string {
+// is checked for consistency. verifier_attestation: takes the key from the cnf
+// claim of the Verifier Attestation JWT. Every other prefix takes it from a
+// source this wallet does not resolve, so the signature stays unverified.
+func verifyRequestObjectSignature(clientID string, reqObj *oid4vc.RequestObjectJWT) string {
 	if reqObj == nil {
 		return ""
 	}
@@ -57,13 +62,24 @@ func VerifyRequestObjectSignature(clientID string, reqObj *oid4vc.RequestObjectJ
 		return ""
 	}
 
-	if len(jsonutil.GetArray(reqObj.Header, "x5c")) == 0 {
-		if prefix, _, _ := lookupClientIDPrefix(clientID); prefix.x5c {
-			return "OID4VP 1.0 §5.9.3: Request Object signature verification requires an x5c header"
-		}
-		return unverifiedSignatureFinding(clientID)
+	if strings.Count(reqObj.Raw, ".") != 2 {
+		return "Request Object is not a compact JWS"
 	}
 
+	prefix, _, known := lookupClientIDPrefix(clientID)
+	switch {
+	case known && prefix.x5c:
+		return verifyX5CSignature(reqObj)
+	case known && prefix.attestation:
+		return verifyAttestedSignature(reqObj)
+	}
+	return unverifiedSignatureFinding(clientID)
+}
+
+func verifyX5CSignature(reqObj *oid4vc.RequestObjectJWT) string {
+	if len(jsonutil.GetArray(reqObj.Header, "x5c")) == 0 {
+		return "OID4VP 1.0 §5.9.3: Request Object signature verification requires an x5c header"
+	}
 	certs, warning := extractCertChain(reqObj)
 	if warning != "" {
 		return warning
@@ -71,15 +87,59 @@ func VerifyRequestObjectSignature(clientID string, reqObj *oid4vc.RequestObjectJ
 	if warning := verifySuppliedX5CChain(certs); warning != "" {
 		return warning
 	}
-
-	if strings.Count(reqObj.Raw, ".") != 2 {
-		return "Request Object is not a compact JWS"
-	}
 	if _, err := jws.Verify(reqObj.Raw, certs[0].PublicKey); err != nil {
 		return fmt.Sprintf("OID4VP 1.0 §5.9.3: Request Object signature verification failed: %v", err)
 	}
-
 	return ""
+}
+
+// verifyAttestedSignature checks the request against the cnf key of its
+// Verifier Attestation JWT, and that JWT against the certificate in its x5c
+// header. §5.9.3: "If the Wallet cannot establish trust, it MUST refuse the
+// request." The wallet has no anchors for attestation issuers (ADR-0009), so
+// a valid chain of signatures still ends in a finding.
+func verifyAttestedSignature(reqObj *oid4vc.RequestObjectJWT) string {
+	attestation := jsonutil.GetString(reqObj.Header, "jwt")
+	header, payload, _, err := format.ParseJWTParts(attestation)
+	if err != nil {
+		return "Request Object signature was not verified: the jwt header carries no readable Verifier Attestation JWT"
+	}
+	cnfKey, err := attestationCNFKey(payload)
+	if err != nil {
+		return fmt.Sprintf("Request Object signature was not verified: %v", err)
+	}
+	if _, err := jws.Verify(reqObj.Raw, cnfKey); err != nil {
+		return fmt.Sprintf("OID4VP 1.0 §5.9.3: the Request Object is not signed with the cnf key of the Verifier Attestation JWT: %v", err)
+	}
+
+	issuer, _ := payload["iss"].(string)
+	certs, err := certchain.FromX5C(header["x5c"])
+	if err != nil || len(certs) == 0 {
+		return fmt.Sprintf("OID4VP 1.0 §5.9.3: the Verifier Attestation JWT signature was not verified: it carries no x5c header, and this wallet has no key for its issuer %q", issuer)
+	}
+	if _, err := jws.Verify(attestation, certs[0].PublicKey); err != nil {
+		return fmt.Sprintf("OID4VP 1.0 §5.9.3: the Verifier Attestation JWT signature verification failed: %v", err)
+	}
+	return fmt.Sprintf("OID4VP 1.0 §5.9.3: the Verifier Attestation JWT issuer %q is not anchored to a trust anchor of this wallet, so the request signer is not verified", issuer)
+}
+
+// attestationCNFKey reads the key of OID4VP 1.0 §12: cnf "MUST contain a
+// JSON Web Key [RFC7517] as defined in Section 3.2 of [RFC7800]."
+func attestationCNFKey(payload map[string]any) (crypto.PublicKey, error) {
+	cnf, _ := payload["cnf"].(map[string]any)
+	jwk, ok := cnf["jwk"].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("the Verifier Attestation JWT has no cnf.jwk")
+	}
+	raw, err := json.Marshal(jwk)
+	if err != nil {
+		return nil, err
+	}
+	key, err := keys.ParseJWK(raw)
+	if err != nil {
+		return nil, fmt.Errorf("the cnf.jwk of the Verifier Attestation JWT is unreadable: %w", err)
+	}
+	return key, nil
 }
 
 // ClientAuthState reports whether the request signature verified with the key
@@ -92,7 +152,7 @@ func ClientAuthState(params *Request) (signed bool, detail string) {
 	if jsonutil.GetString(params.RequestObject.Header, "alg") == "none" {
 		return false, "The request object is unsigned (alg none)."
 	}
-	if finding := VerifyRequestObjectSignature(params.ClientID, params.RequestObject); finding != "" {
+	if finding := verifyRequestObjectSignature(params.ClientID, params.RequestObject); finding != "" {
 		return false, finding
 	}
 	return true, ""
@@ -111,12 +171,12 @@ func ClientMetadataName(params *Request) string {
 	if reqPayload == nil {
 		reqPayload = params.RequestPayload
 	}
-	name, _ := ResolveClientMetadata(reqPayload, params.ClientMetadata)["client_name"].(string)
+	name, _ := resolveClientMetadata(reqPayload, params.ClientMetadata)["client_name"].(string)
 	return name
 }
 
-// unverifiedSignatureFinding explains why a signed request without x5c stays
-// unverified.
+// unverifiedSignatureFinding explains why a signed request under a prefix
+// without a key source in this wallet stays unverified.
 func unverifiedSignatureFinding(clientID string) string {
 	prefix, value, known := lookupClientIDPrefix(clientID)
 	switch {
@@ -126,7 +186,7 @@ func unverifiedSignatureFinding(clientID string) string {
 	case known && prefix.unverified != nil:
 		return prefix.unverified(value)
 	case known:
-		// VerifyClientID reports the prefix.
+		// verifyClientID reports the prefix.
 		return ""
 	default:
 		// §5.9.2 treats a client_id without a known prefix as pre-registered.
@@ -134,10 +194,10 @@ func unverifiedSignatureFinding(clientID string) string {
 	}
 }
 
-// VerifyClientID checks the client_id prefix against the request object and
+// verifyClientID checks the client_id prefix against the request object and
 // the response URI (OID4VP 1.0 §5.9.3). It returns a finding on a mismatch
 // and "" otherwise.
-func VerifyClientID(clientID string, reqObj *oid4vc.RequestObjectJWT, responseURI string, requestOrigin string) string {
+func verifyClientID(clientID string, reqObj *oid4vc.RequestObjectJWT, responseURI string, requestOrigin string) string {
 	if prefix, _, known := lookupClientIDPrefix(clientID); known {
 		return prefix.verify(clientID, reqObj, responseURI, requestOrigin)
 	}
@@ -224,19 +284,42 @@ func verifyVerifierAttestation(clientID string, reqObj *oid4vc.RequestObjectJWT)
 		return "OID4VP 1.0 §5.9.3: verifier_attestation: the 'jwt' header value is not a valid JWT (expected 3 dot-separated parts)"
 	}
 
-	_, payload, _, err := format.ParseJWTParts(jwtStr)
+	header, payload, _, err := format.ParseJWTParts(jwtStr)
 	if err != nil {
 		return fmt.Sprintf("OID4VP 1.0 §5.9.3: verifier_attestation: the Verifier Attestation JWT does not parse: %v", err)
 	}
 
+	// §12: "A Verifier Attestation JWT MUST set the typ JOSE header to
+	// verifier-attestation+jwt."
+	if typ := jsonutil.GetString(header, "typ"); !format.JOSETypeIs(typ, typeVerifierAttestation) {
+		return fmt.Sprintf("OID4VP 1.0 §12: the Verifier Attestation JWT has typ %q, required is %q", typ, typeVerifierAttestation)
+	}
 	expected := strings.TrimPrefix(clientID, "verifier_attestation:")
 	sub, _ := payload["sub"].(string)
-	if sub != "" && sub != expected {
+	if sub == "" {
+		return "OID4VP 1.0 §12: the Verifier Attestation JWT has no sub claim"
+	}
+	if sub != expected {
 		return fmt.Sprintf("OID4VP 1.0 §5.9.3: verifier_attestation: the Attestation JWT sub %q does not match the client_id value %q", sub, expected)
 	}
-
+	exp, ok := payload["exp"].(float64)
+	if !ok {
+		return "OID4VP 1.0 §12: the Verifier Attestation JWT has no exp claim"
+	}
+	if time.Unix(int64(exp), 0).Add(clockSkew).Before(time.Now()) {
+		return fmt.Sprintf("OID4VP 1.0 §12: the Verifier Attestation JWT expired at %s", time.Unix(int64(exp), 0).UTC().Format(time.RFC3339))
+	}
+	if _, err := attestationCNFKey(payload); err != nil {
+		return "OID4VP 1.0 §12: " + err.Error()
+	}
 	return ""
 }
+
+const typeVerifierAttestation = "verifier-attestation+jwt"
+
+// clockSkew is the allowance of OID4VP 1.0 §12 for exp: "subject to allowable
+// clock skew between systems".
+const clockSkew = time.Minute
 
 // verifyDecentralizedIdentifier checks the decentralized_identifier: prefix
 // (OID4VP 1.0 §5.9.3). The value is a DID (did:method:identifier) and a signed
@@ -298,10 +381,10 @@ func prefixRequiresSigning(clientID string) bool {
 	return prefix.signed
 }
 
-// ValidateRequestObject checks that the typ header of the Request Object is
+// validateRequestObject checks that the typ header of the Request Object is
 // "oauth-authz-req+jwt" (OID4VP 1.0, RFC 9101). It also warns when the
 // client_id prefix requires signing and no Request Object is present.
-func ValidateRequestObject(clientID string, reqObj *oid4vc.RequestObjectJWT) string {
+func validateRequestObject(clientID string, reqObj *oid4vc.RequestObjectJWT) string {
 	if reqObj == nil {
 		if prefixRequiresSigning(clientID) {
 			return "OID4VP 1.0 §5.9.3: the client_id prefix requires a signed Request Object but none was provided"
@@ -317,7 +400,7 @@ func ValidateRequestObject(clientID string, reqObj *oid4vc.RequestObjectJWT) str
 	typ := jsonutil.GetString(reqObj.Header, "typ")
 
 	// An unsigned ("alg": "none") Request Object fails every prefix that
-	// OID4VP 1.0 requires to be signed. VerifyRequestObjectSignature has
+	// OID4VP 1.0 requires to be signed. verifyRequestObjectSignature has
 	// nothing to verify for alg=none, so this check catches it.
 	if alg == "none" && prefixRequiresSigning(clientID) {
 		return "OID4VP 1.0 §5.9.3: the client_id prefix requires a signed Request Object but the Request Object is unsigned (alg \"none\")"
@@ -328,7 +411,7 @@ func ValidateRequestObject(clientID string, reqObj *oid4vc.RequestObjectJWT) str
 	if typ == "" {
 		return "OID4VP 1.0 §5: the Request Object is missing the required typ header 'oauth-authz-req+jwt'"
 	}
-	if typ != format.TypeRequestObject {
+	if !format.JOSETypeIs(typ, format.TypeRequestObject) {
 		return fmt.Sprintf("OID4VP 1.0 §5: the Request Object has typ %q, required is 'oauth-authz-req+jwt'", typ)
 	}
 
@@ -393,7 +476,7 @@ func verifySuppliedX5CChain(certs []*x509.Certificate) string {
 
 // SignRequestObjectJWT signs an OpenID4VP authorization request object (JAR)
 // with the signer's certificate chain in x5c. Its typ is
-// oauth-authz-req+jwt, as ValidateRequestObject expects.
+// oauth-authz-req+jwt, as validateRequestObject expects.
 func SignRequestObjectJWT(claims map[string]any, signingKey *ecdsa.PrivateKey, signerCerts []*x509.Certificate) (string, error) {
 	if signingKey == nil {
 		return "", fmt.Errorf("signing key is required")

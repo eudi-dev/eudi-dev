@@ -104,7 +104,7 @@ func TestVerifyClientID_X509SanDNS(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			warning := VerifyClientID(tt.clientID, tt.reqObj, "", "")
+			warning := verifyClientID(tt.clientID, tt.reqObj, "", "")
 			if tt.wantEmpty && warning != "" {
 				t.Errorf("expected no warning, got: %s", warning)
 			}
@@ -137,7 +137,7 @@ func TestVerifyClientID_X509SanDNSResponseFQDN(t *testing.T) {
 		{"no response uri", "", "", true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			warning := VerifyClientID(clientID, req, tt.responseURI, tt.requestOrigin)
+			warning := verifyClientID(clientID, req, tt.responseURI, tt.requestOrigin)
 			if tt.wantEmpty && warning != "" {
 				t.Errorf("expected no finding, got %q", warning)
 			}
@@ -166,7 +166,7 @@ func TestVerifyClientID_X509Hash(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			warning := VerifyClientID(tt.clientID, reqObjWithX5C(certB64), "", "")
+			warning := verifyClientID(tt.clientID, reqObjWithX5C(certB64), "", "")
 			if tt.wantEmpty && warning != "" {
 				t.Errorf("expected no warning, got: %s", warning)
 			}
@@ -207,7 +207,7 @@ func TestVerifyClientID_RedirectURI(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			warning := VerifyClientID(tt.clientID, tt.reqObj, tt.responseURI, "")
+			warning := verifyClientID(tt.clientID, tt.reqObj, tt.responseURI, "")
 			if tt.wantEmpty && warning != "" {
 				t.Errorf("expected no warning, got: %s", warning)
 			}
@@ -230,6 +230,14 @@ func TestValidateRequestObject(t *testing.T) {
 			name:      "correct typ",
 			clientID:  "x509_san_dns:example.com",
 			reqObj:    &oid4vc.RequestObjectJWT{Header: map[string]any{"typ": "oauth-authz-req+jwt"}},
+			wantEmpty: true,
+		},
+		// RFC 7515 §4.1.9: media types are case insensitive, and a typ without
+		// a slash means "application/" prepended.
+		{
+			name:      "typ as a full media type in other case",
+			clientID:  "x509_san_dns:example.com",
+			reqObj:    &oid4vc.RequestObjectJWT{Header: map[string]any{"typ": "Application/OAuth-Authz-Req+JWT"}},
 			wantEmpty: true,
 		},
 		{
@@ -278,7 +286,7 @@ func TestValidateRequestObject(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			warning := ValidateRequestObject(tt.clientID, tt.reqObj)
+			warning := validateRequestObject(tt.clientID, tt.reqObj)
 			if tt.wantEmpty && warning != "" {
 				t.Errorf("expected no warning, got: %s", warning)
 			}
@@ -328,8 +336,6 @@ func TestVerifyAlgMatchesCert(t *testing.T) {
 }
 
 func TestVerifyClientID_VerifierAttestation(t *testing.T) {
-	attestationJWT := createTestJWT(t, map[string]any{"alg": "ES256", "typ": "JWT"}, map[string]any{"sub": "my-verifier"})
-
 	tests := []struct {
 		name      string
 		clientID  string
@@ -355,23 +361,11 @@ func TestVerifyClientID_VerifierAttestation(t *testing.T) {
 			reqObj:   &oid4vc.RequestObjectJWT{Header: map[string]any{"jwt": "not-a-jwt"}},
 			wantMsg:  "not a valid JWT",
 		},
-		{
-			name:      "valid attestation with matching sub",
-			clientID:  "verifier_attestation:my-verifier",
-			reqObj:    &oid4vc.RequestObjectJWT{Header: map[string]any{"jwt": attestationJWT}},
-			wantEmpty: true,
-		},
-		{
-			name:     "sub mismatch",
-			clientID: "verifier_attestation:other-verifier",
-			reqObj:   &oid4vc.RequestObjectJWT{Header: map[string]any{"jwt": attestationJWT}},
-			wantMsg:  "does not match",
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			warning := VerifyClientID(tt.clientID, tt.reqObj, "", "")
+			warning := verifyClientID(tt.clientID, tt.reqObj, "", "")
 			if tt.wantEmpty && warning != "" {
 				t.Errorf("expected no warning, got: %s", warning)
 			}
@@ -430,7 +424,7 @@ func TestVerifyClientID_DecentralizedIdentifier(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			warning := VerifyClientID(tt.clientID, tt.reqObj, "", "")
+			warning := verifyClientID(tt.clientID, tt.reqObj, "", "")
 			if tt.wantEmpty && warning != "" {
 				t.Errorf("expected no warning, got: %s", warning)
 			}
@@ -439,13 +433,6 @@ func TestVerifyClientID_DecentralizedIdentifier(t *testing.T) {
 			}
 		})
 	}
-}
-
-func createTestJWT(t *testing.T, header, payload map[string]any) string {
-	t.Helper()
-	headerJSON, _ := json.Marshal(header)
-	payloadJSON, _ := json.Marshal(payload)
-	return format.EncodeBase64URL(headerJSON) + "." + format.EncodeBase64URL(payloadJSON) + ".fakesig"
 }
 
 func TestVerifyAlgMatchesCert_NoX5C(t *testing.T) {
@@ -484,13 +471,13 @@ func TestVerifyRequestObjectSignature(t *testing.T) {
 		Header:  parsedHeader,
 		Payload: parsedPayload,
 	}
-	if warning := VerifyRequestObjectSignature("x509_san_dns:example.com", reqObj); warning != "" {
+	if warning := verifyRequestObjectSignature("x509_san_dns:example.com", reqObj); warning != "" {
 		t.Fatalf("expected valid signature, got %s", warning)
 	}
 
 	parts := strings.Split(raw, ".")
 	reqObj.Raw = parts[0] + "." + parts[1] + ".AAAA"
-	if warning := VerifyRequestObjectSignature("x509_san_dns:example.com", reqObj); warning == "" {
+	if warning := verifyRequestObjectSignature("x509_san_dns:example.com", reqObj); warning == "" {
 		t.Fatal("expected signature verification failure")
 	}
 }
@@ -523,7 +510,7 @@ func TestVerifyRequestObjectSignature_X5CScopedToX509Prefixes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			warning := VerifyRequestObjectSignature(tt.clientID, reqObj)
+			warning := verifyRequestObjectSignature(tt.clientID, reqObj)
 			gotX5CReq := warning == "OID4VP 1.0 §5.9.3: Request Object signature verification requires an x5c header"
 			if gotX5CReq != tt.wantx5cReq {
 				t.Errorf("x5c-required finding = %v (warning %q), want %v", gotX5CReq, warning, tt.wantx5cReq)
@@ -550,7 +537,7 @@ func TestVerifyRequestObjectSignature_AllowsAlgNone(t *testing.T) {
 		Header:  header,
 		Payload: payload,
 	}
-	if warning := VerifyRequestObjectSignature("redirect_uri:https://verifier.example/cb", reqObj); warning != "" {
+	if warning := verifyRequestObjectSignature("redirect_uri:https://verifier.example/cb", reqObj); warning != "" {
 		t.Fatalf("expected alg=none request object to bypass signature verification, got %s", warning)
 	}
 }
@@ -563,7 +550,7 @@ func TestVerifyClientID_RedirectURIAllowsUnsignedRequestObject(t *testing.T) {
 		},
 	}
 
-	warning := VerifyClientID(
+	warning := verifyClientID(
 		"redirect_uri:https://verifier.example/cb",
 		reqObj,
 		"https://verifier.example/cb",
@@ -588,7 +575,7 @@ func TestVerifyClientIDRejectsReservedAndUnsupportedPrefixes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			warning := VerifyClientID(tt.clientID, nil, "", "https://verifier.example")
+			warning := verifyClientID(tt.clientID, nil, "", "https://verifier.example")
 			if warning == "" {
 				t.Fatal("expected the prefix to be refused")
 			}
@@ -632,7 +619,7 @@ func TestVerifyRequestObjectSignature_NamesWhatItCouldNotVerify(t *testing.T) {
 		{"a bare client_id was never registered", "example-client", "pre-registered"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			finding := VerifyRequestObjectSignature(tt.clientID, reqObj)
+			finding := verifyRequestObjectSignature(tt.clientID, reqObj)
 			if finding == "" {
 				t.Fatal("a signature this wallet cannot verify was reported as fine")
 			}
@@ -648,13 +635,173 @@ func TestVerifyRequestObjectSignature_NamesWhatItCouldNotVerify(t *testing.T) {
 func TestVerifyRequestObjectSignature_QuietWhereAnotherCheckSpeaks(t *testing.T) {
 	header := map[string]any{"alg": "none", "typ": "oauth-authz-req+jwt"}
 	reqObj := &oid4vc.RequestObjectJWT{Raw: "e30.e30.", Header: header, Payload: map[string]any{}}
-	if finding := VerifyRequestObjectSignature("redirect_uri:https://verifier.example/cb", reqObj); finding != "" {
+	if finding := verifyRequestObjectSignature("redirect_uri:https://verifier.example/cb", reqObj); finding != "" {
 		t.Errorf("an unsigned request under redirect_uri: was reported: %s", finding)
 	}
 
 	signed := map[string]any{"alg": "ES256", "typ": "oauth-authz-req+jwt"}
 	signedReq := &oid4vc.RequestObjectJWT{Raw: "e30.e30.AAAA", Header: signed, Payload: map[string]any{}}
-	if finding := VerifyRequestObjectSignature("redirect_uri:https://verifier.example/cb", signedReq); finding != "" {
+	if finding := verifyRequestObjectSignature("redirect_uri:https://verifier.example/cb", signedReq); finding != "" {
 		t.Errorf("a signed request under redirect_uri: is VerifyClientID's finding, but the signature check also reported: %s", finding)
+	}
+}
+
+func signedRequestObject(t *testing.T, header, payload map[string]any, key *ecdsa.PrivateKey) *oid4vc.RequestObjectJWT {
+	t.Helper()
+	raw, err := jws.Sign(header, payload, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, p, _, err := format.ParseJWTParts(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &oid4vc.RequestObjectJWT{Raw: raw, Header: h, Payload: p}
+}
+
+// OID4VP 1.0 §5.9.3 binds the request key to the Client Identifier Prefix.
+// Only x509_san_dns: and x509_hash: take it from x5c. A DID takes it from the
+// DID Document, verifier_attestation: from the cnf claim of the attestation,
+// and a pre-registered client from its registration.
+func TestVerifyRequestObjectSignature_X5CNeverVerifiesOtherPrefixes(t *testing.T) {
+	key, certB64, _ := testCertWithKeyDER([]string{"verifier.example"})
+	header := map[string]any{"alg": "ES256", "typ": "oauth-authz-req+jwt", "x5c": []any{certB64}}
+	reqObj := signedRequestObject(t, header, map[string]any{"nonce": "n"}, key)
+
+	for _, clientID := range []string{
+		"decentralized_identifier:did:web:verifier.example",
+		"verifier_attestation:verifier.example",
+		"verifier.example",
+	} {
+		t.Run(clientID, func(t *testing.T) {
+			if finding := verifyRequestObjectSignature(clientID, reqObj); finding == "" {
+				t.Fatal("the request was verified against its own x5c")
+			}
+			if signed, _ := ClientAuthState(&Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ClientID: clientID, RequestObject: reqObj}}); signed {
+				t.Error("consent would show a verified signer")
+			}
+		})
+	}
+}
+
+type attestationFixture struct {
+	issuerKey, verifierKey *ecdsa.PrivateKey
+	issuerCert             string
+}
+
+func newAttestationFixture(t *testing.T) attestationFixture {
+	t.Helper()
+	issuerKey, issuerCert, _ := testCertWithKeyDER(nil)
+	verifierKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return attestationFixture{issuerKey: issuerKey, verifierKey: verifierKey, issuerCert: issuerCert}
+}
+
+// attestation signs a Verifier Attestation JWT. A nil claim value removes it.
+func (f attestationFixture) attestation(t *testing.T, claims map[string]any) string {
+	t.Helper()
+	x, y, err := format.ECPublicCoords(&f.verifierKey.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := map[string]any{
+		"iss": "https://attester.example",
+		"sub": "verifier.example",
+		"exp": time.Now().Add(time.Hour).Unix(),
+		"cnf": map[string]any{"jwk": map[string]any{"kty": "EC", "crv": "P-256", "x": format.EncodeBase64URL(x), "y": format.EncodeBase64URL(y)}},
+	}
+	for k, v := range claims {
+		if v == nil {
+			delete(payload, k)
+		} else {
+			payload[k] = v
+		}
+	}
+	header := map[string]any{"alg": "ES256", "typ": "verifier-attestation+jwt", "x5c": []any{f.issuerCert}}
+	raw, err := jws.Sign(header, payload, f.issuerKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return raw
+}
+
+func (f attestationFixture) request(t *testing.T, attestation string, signer *ecdsa.PrivateKey) *oid4vc.RequestObjectJWT {
+	t.Helper()
+	header := map[string]any{"alg": "ES256", "typ": "oauth-authz-req+jwt", "jwt": attestation}
+	return signedRequestObject(t, header, map[string]any{"nonce": "n"}, signer)
+}
+
+// OID4VP 1.0 §12: sub "MUST be the client_id", exp is REQUIRED and "The
+// Wallet MUST reject any Verifier Attestation JWT with an expiration time that
+// has passed", cnf is REQUIRED, and typ is verifier-attestation+jwt.
+func TestVerifyClientID_VerifierAttestationClaims(t *testing.T) {
+	f := newAttestationFixture(t)
+	const clientID = "verifier_attestation:verifier.example"
+	for _, tt := range []struct {
+		name   string
+		claims map[string]any
+		want   string
+	}{
+		{"valid", nil, ""},
+		{"missing sub", map[string]any{"sub": nil}, "sub"},
+		{"other sub", map[string]any{"sub": "other.example"}, "sub"},
+		{"missing exp", map[string]any{"exp": nil}, "exp"},
+		{"expired", map[string]any{"exp": time.Now().Add(-time.Hour).Unix()}, "expired"},
+		{"missing cnf", map[string]any{"cnf": nil}, "cnf"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			finding := verifyClientID(clientID, f.request(t, f.attestation(t, tt.claims), f.verifierKey), "", "")
+			if tt.want == "" {
+				if finding != "" {
+					t.Fatalf("finding = %q, want none", finding)
+				}
+				return
+			}
+			if !strings.Contains(finding, tt.want) {
+				t.Fatalf("finding = %q, want it to name %q", finding, tt.want)
+			}
+		})
+	}
+}
+
+// §5.9.3: "The request MUST be signed with the private key corresponding to
+// the public key in the cnf claim". "The Wallet MUST validate the signature on
+// the Verifier attestation JWT" and "If the Wallet cannot establish trust, it
+// MUST refuse the request." This wallet has no anchors for attestation
+// issuers, so a valid attestation still leaves the signer unverified.
+func TestVerifyRequestObjectSignature_VerifierAttestation(t *testing.T) {
+	f := newAttestationFixture(t)
+	const clientID = "verifier_attestation:verifier.example"
+	other, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	attestation := f.attestation(t, nil)
+	parts := strings.Split(attestation, ".")
+	forged := parts[0] + "." + parts[1] + ".AAAA"
+
+	for _, tt := range []struct {
+		name        string
+		attestation string
+		signer      *ecdsa.PrivateKey
+		want        string
+	}{
+		{"request not signed by the cnf key", attestation, other, "cnf"},
+		{"attestation signature invalid", forged, f.verifierKey, "Verifier Attestation JWT signature"},
+		{"valid but unanchored issuer", attestation, f.verifierKey, "https://attester.example"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			reqObj := f.request(t, tt.attestation, tt.signer)
+			finding := verifyRequestObjectSignature(clientID, reqObj)
+			if !strings.Contains(finding, tt.want) {
+				t.Fatalf("finding = %q, want it to name %q", finding, tt.want)
+			}
+			if signed, _ := ClientAuthState(&Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ClientID: clientID, RequestObject: reqObj}}); signed {
+				t.Error("consent would show a verified signer")
+			}
+		})
 	}
 }

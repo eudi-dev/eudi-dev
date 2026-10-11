@@ -243,22 +243,29 @@ func TestDecryptErrors(t *testing.T) {
 		{"header not base64", "!!!..AAAA.AAAA.AAAA", key, "decoding JWE header"},
 		{"header not json", b64([]byte("not json")) + "..AAAA.AAAA.AAAA", key, "parsing JWE header"},
 		{"missing enc", headerOnly(map[string]any{"alg": "ECDH-ES"}), key, "missing enc"},
-		{"missing epk", headerOnly(map[string]any{"enc": "A256GCM"}), key, "missing epk"},
+		// RFC 7518 §4.6: "The "alg" (algorithm) Header Parameter value
+		// "ECDH-ES" is used in the Direct Key Agreement mode."
+		{"missing alg", headerOnly(map[string]any{"enc": "A256GCM", "epk": goodEPK}), key, "alg"},
+		{"key wrapping alg", headerOnly(map[string]any{"alg": "ECDH-ES+A128KW", "enc": "A256GCM", "epk": goodEPK}), key, "alg"},
+		// RFC 7516 §5.2 step 10: "verify that the JWE Encrypted Key value is
+		// an empty octet sequence."
+		{"encrypted key present", strings.Replace(headerOnly(map[string]any{"alg": "ECDH-ES", "enc": "A256GCM", "epk": goodEPK}), "..", ".AAAA.", 1), key, "encrypted key"},
+		{"missing epk", headerOnly(map[string]any{"alg": "ECDH-ES", "enc": "A256GCM"}), key, "missing epk"},
 		{
 			"epk on an unsupported curve",
-			headerOnly(map[string]any{"enc": "A256GCM", "epk": map[string]any{"crv": "P-384", "x": "aa", "y": "bb"}}),
+			headerOnly(map[string]any{"alg": "ECDH-ES", "enc": "A256GCM", "epk": map[string]any{"crv": "P-384", "x": "aa", "y": "bb"}}),
 			key,
 			"unsupported curve",
 		},
 		{
 			"epk without coordinates",
-			headerOnly(map[string]any{"enc": "A256GCM", "epk": map[string]any{"crv": "P-256"}}),
+			headerOnly(map[string]any{"alg": "ECDH-ES", "enc": "A256GCM", "epk": map[string]any{"crv": "P-256"}}),
 			key,
 			"missing x or y",
 		},
 		{
 			"unsupported enc",
-			headerOnly(map[string]any{"enc": "A192GCM", "epk": goodEPK}),
+			headerOnly(map[string]any{"alg": "ECDH-ES", "enc": "A192GCM", "epk": goodEPK}),
 			key,
 			"unsupported content encryption algorithm",
 		},
@@ -274,6 +281,32 @@ func TestDecryptErrors(t *testing.T) {
 				t.Errorf("error = %q, want it to mention %q", err, tt.want)
 			}
 		})
+	}
+}
+
+// RFC 7518 §5.3: A128GCM uses a 128-bit key. A 256-bit key under that enc
+// header is the wrong algorithm.
+func TestDecryptWithCEKRejectsAKeyOfTheWrongLength(t *testing.T) {
+	header, err := json.Marshal(map[string]any{"enc": "A128GCM"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	protected := b64(header)
+	cek := make([]byte, 32)
+	block, err := aes.NewCipher(cek)
+	if err != nil {
+		t.Fatal(err)
+	}
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		t.Fatal(err)
+	}
+	iv := make([]byte, aead.NonceSize())
+	out := aead.Seal(nil, iv, []byte("payload"), []byte(protected))
+	compact := strings.Join([]string{protected, "", b64(iv), b64(out[:len(out)-16]), b64(out[len(out)-16:])}, ".")
+
+	if _, err := DecryptWithCEK(compact, cek); err == nil || !strings.Contains(err.Error(), "key") {
+		t.Errorf("error = %v, want the key length refused", err)
 	}
 }
 

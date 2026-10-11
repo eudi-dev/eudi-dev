@@ -32,6 +32,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
 )
@@ -55,20 +56,13 @@ func captureTestLogs(t *testing.T) *bytes.Buffer {
 
 func evaluateDCQL(t testing.TB, w *Wallet, query map[string]any) []consent.Match {
 	t.Helper()
-	matches, err := w.EvaluateDCQL(query)
-	if err != nil {
-		t.Fatalf("EvaluateDCQL: %v", err)
-	}
+	matches, _ := w.matchDCQL(query)
 	return matches
 }
 
 func evaluateDCQLWithOptions(t testing.TB, w *Wallet, query map[string]any) ([]consent.Match, *consent.CredentialOptions) {
 	t.Helper()
-	matches, options, err := w.EvaluateDCQLWithOptions(query)
-	if err != nil {
-		t.Fatalf("EvaluateDCQLWithOptions: %v", err)
-	}
-	return matches, options
+	return w.matchDCQL(query)
 }
 
 func TestEvaluateDCQL_MatchesSDJWTByVCT(t *testing.T) {
@@ -747,124 +741,6 @@ func TestEvaluateDCQL_OptionalClaimMissing_Accepted(t *testing.T) {
 	}
 }
 
-func TestMatchesFormat(t *testing.T) {
-	tests := []struct {
-		name   string
-		format string
-		query  string
-		want   bool
-	}{
-		{"exact match", "dc+sd-jwt", "dc+sd-jwt", true},
-		{"mismatch", "dc+sd-jwt", "mso_mdoc", false},
-		{"empty query", "dc+sd-jwt", "", true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cred := StoredCredential{Format: tt.format}
-			got := matchesFormat(cred, tt.query)
-			if got != tt.want {
-				t.Errorf("matchesFormat(%s, %s) = %v, want %v", tt.format, tt.query, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestFilterClaims(t *testing.T) {
-	cred := StoredCredential{
-		Format: "dc+sd-jwt",
-		Claims: map[string]any{
-			"given_name":  "Erika",
-			"family_name": "Mustermann",
-			"birth_date":  "1984-08-12",
-			"address": map[string]any{
-				"postal_code": "10115",
-			},
-		},
-	}
-
-	filtered := filterClaims(cred, []string{"given_name", "birth_date", "address.postal_code"})
-	if len(filtered) != 3 {
-		t.Fatalf("expected 3 filtered claims, got %d", len(filtered))
-	}
-	if filtered["given_name"] != "Erika" {
-		t.Errorf("expected given_name Erika, got %v", filtered["given_name"])
-	}
-	if filtered["address.postal_code"] != "10115" {
-		t.Errorf("expected address.postal_code 10115, got %v", filtered["address.postal_code"])
-	}
-	if _, ok := filtered["family_name"]; ok {
-		t.Error("family_name should not be in filtered claims")
-	}
-}
-
-func TestClaimKeyFromPath(t *testing.T) {
-	sdCred := StoredCredential{
-		Format: "dc+sd-jwt",
-		Claims: map[string]any{
-			"given_name": "Max",
-			"address": map[string]any{
-				"street_address": "123 Main St",
-				"city":           "Berlin",
-			},
-			"place_of_birth": map[string]any{
-				"locality": "Berlin",
-			},
-			"nationalities": []any{"DE", "FR"},
-		},
-	}
-	mdocCred := StoredCredential{
-		Format: "mso_mdoc",
-		Claims: map[string]any{
-			"eu.europa.ec.eudi.pid.1:given_name":     "Max",
-			"eu.europa.ec.eudi.pid.1:place_of_birth": "Berlin",
-		},
-	}
-
-	tests := []struct {
-		name string
-		cred StoredCredential
-		path []any
-		want string
-	}{
-		{"empty path", sdCred, []any{}, ""},
-		{"sd-jwt simple", sdCred, []any{"given_name"}, "given_name"},
-		{"sd-jwt missing", sdCred, []any{"missing"}, ""},
-		{"sd-jwt nested object", sdCred, []any{"address", "street_address"}, "address"},
-		{"sd-jwt nested missing key", sdCred, []any{"address", "zipcode"}, ""},
-		{"sd-jwt nested non-map", sdCred, []any{"given_name", "sub"}, ""},
-		{"sd-jwt nested place_of_birth", sdCred, []any{"place_of_birth", "locality"}, "place_of_birth"},
-		{"sd-jwt array index", sdCred, []any{"nationalities", float64(0)}, "nationalities"},
-		{"sd-jwt array oob", sdCred, []any{"nationalities", float64(5)}, ""},
-		{"sd-jwt array negative", sdCred, []any{"nationalities", float64(-1)}, ""},
-		{"sd-jwt array non-array", sdCred, []any{"given_name", float64(0)}, ""},
-		{"sd-jwt array wildcard", sdCred, []any{"nationalities", nil}, "nationalities"},
-		{"sd-jwt wildcard non-array", sdCred, []any{"given_name", nil}, ""},
-		{"sd-jwt non-string first", sdCred, []any{42}, ""},
-		{"sd-jwt unknown second type", sdCred, []any{"given_name", true}, ""},
-		{"mdoc valid", mdocCred, []any{"eu.europa.ec.eudi.pid.1", "given_name"}, "eu.europa.ec.eudi.pid.1:given_name"},
-		{"mdoc missing", mdocCred, []any{"eu.europa.ec.eudi.pid.1", "missing"}, ""},
-		// §7.2.1 selects the data element in the second component and fails
-		// when it does not exist. The rulebook identifier birth_place does not
-		// match the mdoc element place_of_birth.
-		{"mdoc no aliasing", mdocCred, []any{"eu.europa.ec.eudi.pid.1", "birth_place"}, ""},
-		{"mdoc native", mdocCred, []any{"eu.europa.ec.eudi.pid.1", "place_of_birth"}, "eu.europa.ec.eudi.pid.1:place_of_birth"},
-		{"mdoc nested alias unsupported", mdocCred, []any{"eu.europa.ec.eudi.pid.1", "birth_place", "locality"}, ""},
-		{"mdoc nested native unsupported", mdocCred, []any{"eu.europa.ec.eudi.pid.1", "place_of_birth", "locality"}, ""},
-		{"mdoc element-first unsupported", mdocCred, []any{"place_of_birth"}, ""},
-		{"mdoc short path", mdocCred, []any{"eu.europa.ec.eudi.pid.1"}, ""},
-		{"mdoc non-string ns", mdocCred, []any{42, "given_name"}, ""},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := claimKeyFromPath(tt.cred, tt.path)
-			if got != tt.want {
-				t.Errorf("claimKeyFromPath() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
 func serveTrustList(t *testing.T, tlJWT string) *httptest.Server {
 	t.Helper()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -941,9 +817,8 @@ func TestEvaluateDCQL_TrustedAuthorities_WalletOwnList(t *testing.T) {
 	}
 }
 
-// A trusted list the wallet cannot use is a finding. Strict mode refuses the
-// request with access_denied. Debug mode warns and offers the credential as
-// untrusted.
+// A trusted list the wallet cannot use matches nothing and draws a warning.
+// Debug mode offers the credential as untrusted. Strict mode offers nothing.
 func TestEvaluateDCQL_TrustedAuthorities_UnusableList(t *testing.T) {
 	otherKey, _ := mock.GenerateKey()
 	otherCACert, _ := mock.GenerateCACert(otherKey)
@@ -960,19 +835,9 @@ func TestEvaluateDCQL_TrustedAuthorities_UnusableList(t *testing.T) {
 			w := generateTestWalletWithPID(t)
 			query := etsiTLQuery(listURL)
 
-			w.ValidationMode = ValidationModeStrict
-			_, err := w.EvaluateDCQL(query)
-			if err == nil || oid4vp.ErrorCode(err) != oid4vp.ErrorAccessDenied || !strings.Contains(err.Error(), listURL) {
-				t.Fatalf("strict mode: want access_denied naming %s, got %v", listURL, err)
-			}
-
-			w.ValidationMode = ValidationModeDebug
-			matches := evaluateDCQL(t, w, query)
-			if len(matches) != 1 || !matches[0].UntrustedAuthority {
-				t.Fatalf("debug mode: want the PID offered as untrusted, got %+v", matches)
-			}
+			assertUntrustedAuthorityBehavior(t, w, query)
 			if !slices.ContainsFunc(w.Log, func(e LogEntry) bool { return e.Severity == severityWarning && strings.Contains(e.Detail, listURL) }) {
-				t.Errorf("debug mode: no warning names %s", listURL)
+				t.Errorf("no warning names %s", listURL)
 			}
 		})
 	}
@@ -1031,6 +896,36 @@ func TestEvaluateDCQL_TrustedAuthorities_AKIMatch(t *testing.T) {
 	matches := evaluateDCQL(t, w, query)
 	if len(matches) != 1 {
 		t.Fatalf("expected 1 match, got %d", len(matches))
+	}
+}
+
+// OID4VP 1.0 §6.1.1: "A Credential is identified as a match to a Trusted
+// Authorities Query if it matches with one of the provided values in one of
+// the provided types." A trusted list the wallet cannot read matches nothing,
+// and the other entries still decide.
+func TestEvaluateDCQL_TrustedAuthorities_UnreadableListMatchesNothing(t *testing.T) {
+	w := generateTestWalletWithPID(t)
+	w.ValidationMode = ValidationModeStrict
+	unreadable := httptest.NewServer(http.NotFoundHandler())
+	t.Cleanup(unreadable.Close)
+
+	query := map[string]any{
+		"credentials": []any{
+			map[string]any{
+				"id":     "pid",
+				"format": "dc+sd-jwt",
+				"meta":   map[string]any{"vct_values": []any{mock.DefaultPIDVCT}},
+				"claims": []any{map[string]any{"path": []any{"given_name"}}},
+				"trusted_authorities": []any{
+					map[string]any{"type": "etsi_tl", "values": []any{unreadable.URL}},
+					map[string]any{"type": "aki", "values": []any{format.EncodeBase64URL(w.CertChain[0].AuthorityKeyId)}},
+				},
+			},
+		},
+	}
+
+	if matches := evaluateDCQL(t, w, query); len(matches) != 1 {
+		t.Fatalf("expected the aki entry to match, got %d matches", len(matches))
 	}
 }
 
@@ -1263,32 +1158,6 @@ func TestEvaluateDCQL_CredentialSets_OptionalSetIsSkipped(t *testing.T) {
 	}
 	if len(matches) != 1 || matches[0].QueryID != "pid_sdjwt" {
 		t.Fatalf("expected only pid_sdjwt, got %d matches: %+v", len(matches), matches)
-	}
-}
-
-// Sorting by preferred format keeps the order of equally preferred
-// credentials. A comparator that checks only the left item breaks this.
-func TestEvaluateDCQL_PreferredFormatSortIsStable(t *testing.T) {
-	w := generateTestWallet(t)
-	w.PreferredFormat = "dc+sd-jwt"
-
-	matches := []consent.Match{
-		{QueryID: "q", Format: "mso_mdoc", CredentialID: "m1"},
-		{QueryID: "q", Format: "dc+sd-jwt", CredentialID: "s1"},
-		{QueryID: "q", Format: "mso_mdoc", CredentialID: "m2"},
-		{QueryID: "q", Format: "dc+sd-jwt", CredentialID: "s2"},
-	}
-	sortMatchesByPreferredFormat(matches, w.PreferredFormat)
-
-	var order []string
-	for _, m := range matches {
-		order = append(order, m.CredentialID)
-	}
-	want := []string{"s1", "s2", "m1", "m2"}
-	for i := range want {
-		if order[i] != want[i] {
-			t.Fatalf("order = %v, want %v (preferred first, input order kept within each group)", order, want)
-		}
 	}
 }
 
@@ -1525,7 +1394,7 @@ func TestPresentingAnUnboundCredentialLeavesAWarning(t *testing.T) {
 		t.Fatal(err)
 	}
 	match := consent.Match{QueryID: "q", CredentialID: issued.Credential.ID, Format: "dc+sd-jwt", VCT: "urn:example:bearer", Unbound: true}
-	if _, err := w.CreateVPTokenMap([]consent.Match{match}, PresentationParams{Nonce: "n", ClientID: "x509_hash:abc", ResponseMode: "direct_post"}); err != nil {
+	if _, err := w.createVPTokenMap([]consent.Match{match}, &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "n", ClientID: "x509_hash:abc", ResponseMode: "direct_post"}}); err != nil {
 		t.Fatal(err)
 	}
 	if !hasWarningContaining(w, "no holder binding") {

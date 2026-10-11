@@ -106,7 +106,7 @@ func TestHAIPRejectsSelfSignedAndAnchoredChains(t *testing.T) {
 		params.RequestOrigin = ""
 		reqObj := &oid4vc.RequestObjectJWT{Raw: raw, Header: header, Payload: payload}
 
-		violations := ValidateHAIPCompliance(params, reqObj)
+		violations := validateHAIPCompliance(params, reqObj)
 		if !containsSubstring(violations, "self-signed") {
 			t.Errorf("violations = %v, want the self-signed certificate refused", violations)
 		}
@@ -142,7 +142,7 @@ func TestHAIPRejectsSelfSignedAndAnchoredChains(t *testing.T) {
 		params.RequestOrigin = ""
 		reqObj := &oid4vc.RequestObjectJWT{Raw: raw, Header: header, Payload: payload}
 
-		violations := ValidateHAIPCompliance(params, reqObj)
+		violations := validateHAIPCompliance(params, reqObj)
 		// Report the self-signed certificate that was observed. Without configured
 		// trust anchors, the wallet cannot identify a certificate as the trusted root.
 		if !containsSubstring(violations, "self-signed certificate at position 2") {
@@ -155,19 +155,6 @@ func TestHAIPRejectsSelfSignedAndAnchoredChains(t *testing.T) {
 			t.Errorf("violations = %v, want the anchor refused", violations)
 		}
 	})
-}
-
-// HAIP §5.3.1 and §5.3.2 profile only mso_mdoc and dc+sd-jwt.
-func TestHAIPRejectsCredentialFormatsOutsideTheProfile(t *testing.T) {
-	params, reqObj := haipCompliantParams(t)
-	params.DCQLQuery = map[string]any{"credentials": []any{
-		map[string]any{"id": "vc", "format": "jwt_vc_json"},
-	}}
-
-	violations := ValidateHAIPCompliance(params, reqObj)
-	if !containsSubstring(violations, "credential format") {
-		t.Errorf("violations = %v, want the format refused", violations)
-	}
 }
 
 // HAIP §5: "Verifiers MUST list both A128GCM and A256GCM in
@@ -203,7 +190,7 @@ func TestHAIPRequiresVPTokenResponseType(t *testing.T) {
 	params, reqObj := haipCompliantParams(t)
 	params.ResponseType = "id_token"
 
-	violations := ValidateHAIPCompliance(params, reqObj)
+	violations := validateHAIPCompliance(params, reqObj)
 	if !containsSubstring(violations, "response_type") {
 		t.Errorf("violations = %v, want the response type refused", violations)
 	}
@@ -304,26 +291,31 @@ func haipCompliantParams(t *testing.T) (*Request, *oid4vc.RequestObjectJWT) {
 		t.Fatal(err)
 	}
 
-	params := &Request{
-		ClientID:      clientID,
-		ResponseType:  "vp_token",
-		ResponseMode:  "dc_api.jwt",
-		Nonce:         "n-haip",
-		RequestOrigin: "https://verifier.example",
-		DCQLQuery: map[string]any{"credentials": []any{
-			map[string]any{
-				"id":     "pid",
-				"format": "dc+sd-jwt",
-				"meta":   map[string]any{"vct_values": []any{"urn:eudi:pid:1"}},
-			},
-		}},
-		ClientMetadata: map[string]any{
-			"encrypted_response_enc_values_supported": []any{"A128GCM", "A256GCM"},
+	params := &Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ClientID: clientID, ResponseType: "vp_token", ResponseMode: "dc_api.jwt", Nonce: "n-haip", DCQLQuery: map[string]any{"credentials": []any{
+		map[string]any{
+			"id":     "pid",
+			"format": "dc+sd-jwt",
+			"meta":   map[string]any{"vct_values": []any{"urn:eudi:pid:1"}},
 		},
-		RequestPayload: payload,
-	}
+	}}, ClientMetadata: map[string]any{
+		"encrypted_response_enc_values_supported": []any{"A128GCM", "A256GCM"},
+	}}, RequestOrigin: "https://verifier.example", RequestPayload: payload}
 	reqObj := &oid4vc.RequestObjectJWT{Raw: raw, Header: header, Payload: payload}
 	return params, reqObj
+}
+
+// HAIP 1.0 §5.3.1 and §5.3.2 apply "when the mdoc Credential Format is used"
+// and "when the SD-JWT VC Credential Format is used". A query for another
+// format is outside the profile, and HAIP does not forbid it.
+func TestHAIPLeavesOtherFormatsAlone(t *testing.T) {
+	params, reqObj := haipCompliantParams(t)
+	params.RequestObject = reqObj
+	params.DCQLQuery = map[string]any{"credentials": []any{
+		map[string]any{"id": "diploma", "format": "jwt_vc_json", "meta": map[string]any{"type_values": []any{[]any{"VerifiableCredential"}}}},
+	}}
+	if findings := validateHAIPCompliance(params, reqObj); len(findings) != 0 {
+		t.Errorf("findings = %v, want none", findings)
+	}
 }
 
 func containsSubstring(values []string, want string) bool {
@@ -383,4 +375,142 @@ func authorityChain(t *testing.T) (ca, leaf *x509.Certificate, leafKey *ecdsa.Pr
 		t.Fatal(err)
 	}
 	return ca, leaf, leafKey, subjectKeyID
+}
+
+func TestValidateHAIPCompliance(t *testing.T) {
+	tests := []struct {
+		name           string
+		modifyParams   func(p *Request)
+		modifyReqObj   func(r *oid4vc.RequestObjectJWT)
+		useNilReqObj   bool
+		wantViolations int    // minimum expected violations (0 = compliant)
+		wantContain    string // substring expected in at least one violation
+	}{
+		{
+			name:           "fully compliant",
+			wantViolations: 0,
+		},
+		{
+			name:           "wrong response_mode",
+			modifyParams:   func(p *Request) { p.ResponseMode = "direct_post" },
+			wantViolations: 1,
+			wantContain:    "response_mode",
+		},
+		{
+			name:           "client identifier prefix the profile does not allow",
+			modifyParams:   func(p *Request) { p.ClientID = "redirect_uri:https://example.com" },
+			wantViolations: 1,
+			wantContain:    "Client Identifier Prefix",
+		},
+		{
+			// HAIP §5 permits only x509_hash for signed requests.
+			name:           "x509_san_dns is not a HAIP prefix",
+			modifyParams:   func(p *Request) { p.ClientID = "x509_san_dns:verifier.example" },
+			wantViolations: 1,
+			wantContain:    "Client Identifier Prefix",
+		},
+		{
+			// Over the redirect flow a missing Request Object is a violation.
+			// Over the Digital Credentials API it is a valid unsigned request
+			// (see the next case).
+			name: "missing request object (JAR) on the redirect flow",
+			modifyParams: func(p *Request) {
+				p.ResponseMode = "direct_post.jwt"
+				p.RequestOrigin = ""
+			},
+			useNilReqObj:   true,
+			wantViolations: 1,
+			wantContain:    "JAR",
+		},
+		{
+			name:           "missing DCQL query",
+			modifyParams:   func(p *Request) { p.DCQLQuery = nil },
+			wantViolations: 1,
+			wantContain:    "DCQL",
+		},
+		{
+			// HAIP §5.2: "The Wallet MUST support unsigned, signed, and
+			// multi-signed requests." An unsigned one carries no client_id.
+			// The origin reported by the platform identifies the caller.
+			name: "unsigned Digital Credentials API request",
+			modifyParams: func(p *Request) {
+				p.ClientID = ""
+				p.UnsignedDCAPI = true
+				p.ResponseMode = "dc_api.jwt"
+				p.RequestOrigin = "https://wallet.example"
+				p.RequestPayload = nil
+			},
+			useNilReqObj:   true,
+			wantViolations: 0,
+		},
+		{
+			// Appendix A.2 of OID4VP: expected_origins "is not for use in
+			// unsigned requests and therefore a Wallet MUST ignore this
+			// parameter if it is present in an unsigned request". A foreign
+			// origin in it is no violation.
+			name: "unsigned request carrying expected_origins it does not match",
+			modifyParams: func(p *Request) {
+				p.ClientID = ""
+				p.UnsignedDCAPI = true
+				p.ResponseMode = "dc_api.jwt"
+				p.RequestOrigin = "https://wallet.example"
+				p.RequestPayload = map[string]any{
+					"expected_origins": []any{"https://other.example"},
+				}
+			},
+			useNilReqObj:   true,
+			wantViolations: 0,
+		},
+		{
+			name: "multiple violations",
+			modifyParams: func(p *Request) {
+				p.ClientID = "redirect_uri:https://example.com"
+				p.ResponseMode = "direct_post"
+				p.DCQLQuery = nil
+			},
+			useNilReqObj:   true,
+			wantViolations: 4,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			params, reqObj := haipCompliantParams(t)
+			if tt.modifyParams != nil {
+				tt.modifyParams(params)
+			}
+			if tt.modifyReqObj != nil {
+				tt.modifyReqObj(reqObj)
+			}
+			if tt.useNilReqObj {
+				reqObj = nil
+			}
+
+			violations := validateHAIPCompliance(params, reqObj)
+
+			if tt.wantViolations == 0 {
+				if len(violations) != 0 {
+					t.Errorf("expected 0 violations, got %d: %v", len(violations), violations)
+				}
+				return
+			}
+
+			if len(violations) < tt.wantViolations {
+				t.Errorf("expected at least %d violations, got %d: %v", tt.wantViolations, len(violations), violations)
+			}
+
+			if tt.wantContain != "" {
+				found := false
+				for _, v := range violations {
+					if contains(v, tt.wantContain) {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected violation containing %q, got: %v", tt.wantContain, violations)
+				}
+			}
+		})
+	}
 }

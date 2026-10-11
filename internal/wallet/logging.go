@@ -135,7 +135,7 @@ func presentationRequestLogDetails(authReq *oid4vp.Request) map[string]any {
 	return details
 }
 
-func PresentationSubmissionLogDetails(authReq *oid4vp.Request, w *Wallet, matches []consent.Match, vpResult *VPTokenMapResult, idToken string, result *oid4vp.DirectPostResult) map[string]any {
+func presentationSubmissionLogDetails(authReq *oid4vp.Request, w *Wallet, matches []consent.Match, vpResult *VPTokenMapResult, idToken string, result *oid4vp.DirectPostResult) map[string]any {
 	details := presentationRequestLogDetails(authReq)
 	if result != nil {
 		details["status_code"] = result.StatusCode

@@ -205,10 +205,10 @@ func TestProviderCertificatesFollowTheRegistration(t *testing.T) {
 	}
 	first := certOf(issueTestIssuerInfo(t, w, rp))
 	second := certOf(issueTestIssuerInfo(t, w, rp))
-	if got := regcert.StatusFindings(first, ts.Client(), nil, "ARF RPRC_17"); len(got) != 1 || !strings.Contains(got[0], "revoked") {
+	if got := regcert.StatusFindings(first, ts.Client(), w.TrustedLists().RegistrationStatusCAs(), "ARF RPRC_17"); len(got) != 1 || !strings.Contains(got[0], "revoked") {
 		t.Fatalf("the replaced certificate: %v, want revoked", got)
 	}
-	if got := regcert.StatusFindings(second, ts.Client(), nil, "ARF RPRC_17"); len(got) != 0 {
+	if got := regcert.StatusFindings(second, ts.Client(), w.TrustedLists().RegistrationStatusCAs(), "ARF RPRC_17"); len(got) != 0 {
 		t.Fatalf("the new certificate: %v", got)
 	}
 
@@ -233,7 +233,7 @@ func TestProviderCertificatesFollowTheRegistration(t *testing.T) {
 	if _, err := w.Registrar().UpdateRelyingParty(rp); err != nil {
 		t.Fatal(err)
 	}
-	if got := regcert.StatusFindings(second, ts.Client(), nil, "ARF RPRC_17"); len(got) != 1 {
+	if got := regcert.StatusFindings(second, ts.Client(), w.TrustedLists().RegistrationStatusCAs(), "ARF RPRC_17"); len(got) != 1 {
 		t.Fatalf("after the update: %v, want revoked", got)
 	}
 	if n, err := w.Registrar().SetRegistrationCertificatesRevoked(rp.Identifier[0].Identifier, scope, false); err != nil || n != 0 {

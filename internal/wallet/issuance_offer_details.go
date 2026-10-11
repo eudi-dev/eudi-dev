@@ -18,6 +18,7 @@ import (
 	"sort"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/dcql"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 )
 
@@ -145,7 +146,7 @@ func configurationClaimNames(raw any) []string {
 			if !ok || len(path) == 0 {
 				continue
 			}
-			names = append(names, claimPathString(path))
+			names = append(names, dcql.ClaimPathString(path))
 		}
 		return names
 	case map[string]any:

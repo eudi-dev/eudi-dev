@@ -102,13 +102,7 @@ func signedARFRequest(t *testing.T, checking *Wallet, key *ecdsa.PrivateKey, cha
 	if err != nil {
 		t.Fatal(err)
 	}
-	params := &oid4vp.Request{
-		ClientID:       clientID,
-		ResponseType:   "vp_token",
-		Nonce:          "n",
-		RequestObject:  &oid4vc.RequestObjectJWT{Raw: raw, Header: header, Payload: payload},
-		RequestPayload: payload,
-	}
+	params := &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ClientID: clientID, ResponseType: "vp_token", Nonce: "n", RequestObject: &oid4vc.RequestObjectJWT{Raw: raw, Header: header, Payload: payload}}, RequestPayload: payload}
 	checking.RequireARF = true
 	checking.PrepareARFChecks(params)
 	return params

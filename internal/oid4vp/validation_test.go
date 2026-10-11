@@ -25,12 +25,7 @@ import (
 )
 
 func TestValidateAuthorizationRequest_StrictRejectsMissingNonce(t *testing.T) {
-	params := &Request{
-		ClientID:     "redirect_uri:https://verifier.example/response",
-		ResponseType: "vp_token",
-		ResponseMode: "direct_post",
-		ResponseURI:  "https://verifier.example/response",
-	}
+	params := &Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ClientID: "redirect_uri:https://verifier.example/response", ResponseType: "vp_token", ResponseMode: "direct_post", ResponseURI: "https://verifier.example/response"}}
 
 	_, err := ValidateAuthorizationRequest(Checks{Strict: true}, params)
 	if err == nil || !strings.Contains(err.Error(), "nonce") {
@@ -39,12 +34,7 @@ func TestValidateAuthorizationRequest_StrictRejectsMissingNonce(t *testing.T) {
 }
 
 func TestValidateAuthorizationRequest_DebugAllowsMissingNonce(t *testing.T) {
-	params := &Request{
-		ClientID:     "redirect_uri:https://verifier.example/response",
-		ResponseType: "vp_token",
-		ResponseMode: "direct_post",
-		ResponseURI:  "https://verifier.example/response",
-	}
+	params := &Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ClientID: "redirect_uri:https://verifier.example/response", ResponseType: "vp_token", ResponseMode: "direct_post", ResponseURI: "https://verifier.example/response"}}
 
 	if _, err := ValidateAuthorizationRequest(Checks{}, params); err != nil {
 		t.Fatalf("expected debug mode to allow missing nonce, got %v", err)
@@ -52,13 +42,7 @@ func TestValidateAuthorizationRequest_DebugAllowsMissingNonce(t *testing.T) {
 }
 
 func TestValidateAuthorizationRequest_StrictRejectsUnsupportedClientIDPrefix(t *testing.T) {
-	params := &Request{
-		ClientID:     "invalid_scheme:verifier",
-		ResponseType: "vp_token",
-		ResponseMode: "direct_post",
-		ResponseURI:  "https://verifier.example/response",
-		Nonce:        "nonce",
-	}
+	params := &Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ClientID: "invalid_scheme:verifier", ResponseType: "vp_token", ResponseMode: "direct_post", ResponseURI: "https://verifier.example/response", Nonce: "nonce"}}
 
 	_, err := ValidateAuthorizationRequest(Checks{Strict: true}, params)
 	if err == nil || !strings.Contains(err.Error(), "unsupported prefix") {
@@ -67,22 +51,14 @@ func TestValidateAuthorizationRequest_StrictRejectsUnsupportedClientIDPrefix(t *
 }
 
 func TestValidateAuthorizationRequest_StrictRejectsRedirectURIWithDirectPost(t *testing.T) {
-	params := &Request{
-		ClientID:     "redirect_uri:https://verifier.example/response",
-		ResponseType: "vp_token",
-		ResponseMode: "direct_post.jwt",
-		ResponseURI:  "https://verifier.example/response",
-		RedirectURI:  "https://verifier.example/callback",
-		Nonce:        "nonce",
-		RequestObject: &oid4vc.RequestObjectJWT{
-			Raw: "header.payload.",
-			Header: map[string]any{
-				"alg": "none",
-				"typ": "oauth-authz-req+jwt",
-			},
-			Payload: map[string]any{},
+	params := &Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ClientID: "redirect_uri:https://verifier.example/response", ResponseType: "vp_token", ResponseMode: "direct_post.jwt", ResponseURI: "https://verifier.example/response", RedirectURI: "https://verifier.example/callback", Nonce: "nonce", RequestObject: &oid4vc.RequestObjectJWT{
+		Raw: "header.payload.",
+		Header: map[string]any{
+			"alg": "none",
+			"typ": "oauth-authz-req+jwt",
 		},
-	}
+		Payload: map[string]any{},
+	}}}
 
 	_, err := ValidateAuthorizationRequest(Checks{Strict: true}, params)
 	if err == nil || !strings.Contains(err.Error(), "redirect_uri") {
@@ -99,19 +75,11 @@ func TestValidateAuthorizationRequest_StrictRejectsRequestObjectTransactionData(
 		"nonce":            "nonce",
 		"transaction_data": []any{map[string]any{"type": "unknown"}},
 	}
-	params := &Request{
-		ClientID:       "redirect_uri:https://verifier.example/response",
-		ResponseType:   "vp_token",
-		ResponseMode:   "direct_post",
-		ResponseURI:    "https://verifier.example/response",
-		Nonce:          "nonce",
-		RequestPayload: payload,
-		RequestObject: &oid4vc.RequestObjectJWT{
-			Raw:     "header.payload.",
-			Header:  map[string]any{"alg": "none", "typ": "oauth-authz-req+jwt"},
-			Payload: payload,
-		},
-	}
+	params := &Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ClientID: "redirect_uri:https://verifier.example/response", ResponseType: "vp_token", ResponseMode: "direct_post", ResponseURI: "https://verifier.example/response", Nonce: "nonce", RequestObject: &oid4vc.RequestObjectJWT{
+		Raw:     "header.payload.",
+		Header:  map[string]any{"alg": "none", "typ": "oauth-authz-req+jwt"},
+		Payload: payload,
+	}}, RequestPayload: payload}
 
 	_, err := ValidateAuthorizationRequest(Checks{Strict: true}, params)
 	if err == nil || !strings.Contains(err.Error(), "transaction_data") {
@@ -121,13 +89,7 @@ func TestValidateAuthorizationRequest_StrictRejectsRequestObjectTransactionData(
 
 // OID4VP 1.0 §5.2 marks response_mode REQUIRED.
 func TestMissingResponseModeIsAFinding(t *testing.T) {
-	params := &Request{
-		ClientID:     "redirect_uri:https://verifier.example/cb",
-		ResponseType: "vp_token",
-		Nonce:        "n",
-		RedirectURI:  "https://verifier.example/cb",
-		DCQLQuery:    sdjwtVCTQuery("urn:example:x"),
-	}
+	params := &Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ClientID: "redirect_uri:https://verifier.example/cb", ResponseType: "vp_token", Nonce: "n", RedirectURI: "https://verifier.example/cb", DCQLQuery: sdjwtVCTQuery("urn:example:x")}}
 	findings, err := ValidateAuthorizationRequest(Checks{}, params)
 	if err != nil {
 		t.Fatalf("debug mode: %v", err)
@@ -144,10 +106,7 @@ func TestMissingResponseModeIsAFinding(t *testing.T) {
 // unsupported prefix gives one finding.
 func TestAClientIDPrefixGivesOneFinding(t *testing.T) {
 	for _, clientID := range []string{"origin:https://verifier.example", "openid_federation:https://verifier.example"} {
-		params := &Request{
-			ClientID: clientID, ResponseType: "vp_token", ResponseMode: "direct_post", Nonce: "n",
-			ResponseURI: "https://verifier.example/r", DCQLQuery: sdjwtVCTQuery("urn:example:x"),
-		}
+		params := &Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ClientID: clientID, ResponseType: "vp_token", ResponseMode: "direct_post", Nonce: "n", ResponseURI: "https://verifier.example/r", DCQLQuery: sdjwtVCTQuery("urn:example:x")}}
 		findings, err := ValidateAuthorizationRequest(Checks{}, params)
 		if err != nil {
 			t.Fatalf("%s: %v", clientID, err)
@@ -162,7 +121,7 @@ func TestAClientIDPrefixGivesOneFinding(t *testing.T) {
 // Parameter is not present". That holds for an unsigned Request Object too.
 func TestUnsignedRequestObjectNeedsTyp(t *testing.T) {
 	reqObj := &oid4vc.RequestObjectJWT{Header: map[string]any{"alg": "none"}, Payload: map[string]any{}}
-	if finding := ValidateRequestObject("redirect_uri:https://verifier.example/cb", reqObj); !strings.Contains(finding, "typ") {
+	if finding := validateRequestObject("redirect_uri:https://verifier.example/cb", reqObj); !strings.Contains(finding, "typ") {
 		t.Errorf("finding = %q, want the missing typ", finding)
 	}
 }

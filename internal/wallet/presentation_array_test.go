@@ -22,6 +22,8 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
 )
 
@@ -142,7 +144,7 @@ func TestPresentation_UndisclosedClaimsLoggedGrouped(t *testing.T) {
 	if len(matches) != 1 {
 		t.Fatalf("want one match, got %d", len(matches))
 	}
-	if _, err := w.CreateVPToken(matches[0], PresentationParams{Nonce: "n", ClientID: "verifier"}); err != nil {
+	if _, err := vpToken(w, matches[0], &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "n", ClientID: "verifier"}}); err != nil {
 		t.Fatalf("CreateVPToken: %v", err)
 	}
 
@@ -163,30 +165,6 @@ func TestPresentation_UndisclosedClaimsLoggedGrouped(t *testing.T) {
 	findings := warning.Details["findings"]
 	if !strings.Contains(fmt.Sprint(findings), "nationalities[1]") {
 		t.Errorf("grouped findings %v do not mention the missing claim nationalities[1]", findings)
-	}
-}
-
-func TestSortMatchesCompleteFirst(t *testing.T) {
-	matches := []consent.Match{
-		{QueryID: "q", CredentialID: "partial", MissingClaims: []string{"x"}},
-		{QueryID: "q", CredentialID: "complete"},
-	}
-	sortMatchesCompleteFirst(matches)
-	if matches[0].CredentialID != "complete" {
-		t.Errorf("want the complete match first, got %q", matches[0].CredentialID)
-	}
-}
-
-// Use the same selector format for missing and disclosed claims: namespace:element for
-// mdoc and dotted paths with array brackets for SD-JWT.
-func TestMissingClaimLabel(t *testing.T) {
-	mdoc := StoredCredential{Format: "mso_mdoc"}
-	if got := missingClaimLabel(mdoc, []any{"eu.europa.ec.eudi.pid.1", "given_name"}); got != "eu.europa.ec.eudi.pid.1:given_name" {
-		t.Errorf("mdoc label = %q, want the namespace:element form", got)
-	}
-	sdjwt := StoredCredential{Format: "dc+sd-jwt"}
-	if got := missingClaimLabel(sdjwt, []any{"nationalities", float64(1)}); got != "nationalities[1]" {
-		t.Errorf("sd-jwt label = %q, want nationalities[1]", got)
 	}
 }
 

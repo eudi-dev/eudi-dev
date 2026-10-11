@@ -14,10 +14,14 @@
 
 package oid4vp
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
+)
 
 func TestARFRequiresAnAccessCertificate(t *testing.T) {
-	findings := ARFFindings(&Request{ClientID: "redirect_uri:https://verifier.example/response"})
+	findings := ARFFindings(&Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ClientID: "redirect_uri:https://verifier.example/response"}})
 	if !containsSubstring(findings, "RPA_03") {
 		t.Errorf("findings %v, want the RPA_03 finding", findings)
 	}

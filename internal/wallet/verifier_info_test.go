@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/regcert"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
@@ -256,20 +257,12 @@ func TestARFChecksOverAsking(t *testing.T) {
 		t.Fatalf("signing registration certificate: %v", err)
 	}
 	request := func(claim string) *oid4vp.Request {
-		return &oid4vp.Request{
-			ClientID:     "redirect_uri:https://verifier.example/response",
-			ResponseType: "vp_token",
-			ResponseMode: "direct_post",
-			ResponseURI:  "https://verifier.example/response",
-			Nonce:        "n",
-			DCQLQuery: map[string]any{"credentials": []any{map[string]any{
-				"id":     "pid",
-				"format": "dc+sd-jwt",
-				"meta":   map[string]any{"vct_values": []any{mock.DefaultPIDVCT}},
-				"claims": []any{map[string]any{"path": []any{claim}}},
-			}}},
-			RequestPayload: verifierInfoPayload(map[string]any{"format": "registration_cert", "data": cert}),
-		}
+		return &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ClientID: "redirect_uri:https://verifier.example/response", ResponseType: "vp_token", ResponseMode: "direct_post", ResponseURI: "https://verifier.example/response", Nonce: "n", DCQLQuery: map[string]any{"credentials": []any{map[string]any{
+			"id":     "pid",
+			"format": "dc+sd-jwt",
+			"meta":   map[string]any{"vct_values": []any{mock.DefaultPIDVCT}},
+			"claims": []any{map[string]any{"path": []any{claim}}},
+		}}}}, RequestPayload: verifierInfoPayload(map[string]any{"format": "registration_cert", "data": cert})}
 	}
 
 	if _, err := oid4vp.ValidateAuthorizationRequest(oid4vp.Checks{Strict: true, ARF: true}, request("birthdate")); err == nil || !strings.Contains(err.Error(), "RPRC_21") {
@@ -296,7 +289,7 @@ func TestTheConsentShowsOnlyBoundRegistrations(t *testing.T) {
 	if purposes, _ := oid4vp.ConsentRegistration(signedARFRequest(t, reg, otherKey, otherChain, verifierInfo)); len(purposes) != 0 {
 		t.Errorf("certificate of another relying party: purposes %v, want none", purposes)
 	}
-	unsigned := &oid4vp.Request{FullParams: map[string]string{"verifier_info": verifierInfo}}
+	unsigned := &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{FullParams: map[string]string{"verifier_info": verifierInfo}}}
 	if purposes, _ := oid4vp.ConsentRegistration(unsigned); len(purposes) != 0 {
 		t.Errorf("unsigned request: purposes %v, want none", purposes)
 	}

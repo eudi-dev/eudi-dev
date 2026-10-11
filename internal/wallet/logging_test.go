@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
@@ -35,15 +36,11 @@ func TestPresentationSubmissionLogDetailsIncludePresentedCredentialMaterial(t *t
 		},
 	}}}
 
-	details := PresentationSubmissionLogDetails(
-		&oid4vp.Request{
-			ClientID:     "verifier.example",
-			ResponseMode: "direct_post",
-			RequestPayload: map[string]any{
-				"nonce":         "n-1",
-				"response_mode": "direct_post",
-			},
-		},
+	details := presentationSubmissionLogDetails(
+		&oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ClientID: "verifier.example", ResponseMode: "direct_post"}, RequestPayload: map[string]any{
+			"nonce":         "n-1",
+			"response_mode": "direct_post",
+		}},
 		w,
 		[]consent.Match{
 			{
@@ -92,20 +89,7 @@ func TestPresentationResponseLogDetailsExcludeRequestMaterial(t *testing.T) {
 	}}}
 
 	details := PresentationResponseLogDetails(
-		&oid4vp.Request{
-			ClientID:         "verifier.example",
-			ResponseMode:     "direct_post",
-			ResponseURI:      "https://verifier.example/response",
-			RedirectURI:      "https://verifier.example/redirect",
-			Nonce:            "request-nonce",
-			State:            "state-1",
-			RequestURIMethod: "post",
-			RequestOrigin:    "https://rp.example",
-			ClientMetadata:   map[string]any{"client_name": "Verifier"},
-			DCQLQuery:        map[string]any{"credentials": []any{}},
-			RequestPayload:   map[string]any{"nonce": "request-nonce"},
-			Source:           "api",
-		},
+		&oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ClientID: "verifier.example", ResponseMode: "direct_post", ResponseURI: "https://verifier.example/response", RedirectURI: "https://verifier.example/redirect", Nonce: "request-nonce", State: "state-1", RequestURIMethod: "post", ClientMetadata: map[string]any{"client_name": "Verifier"}, DCQLQuery: map[string]any{"credentials": []any{}}}, RequestOrigin: "https://rp.example", RequestPayload: map[string]any{"nonce": "request-nonce"}, Source: "api"},
 		w,
 		[]consent.Match{
 			{

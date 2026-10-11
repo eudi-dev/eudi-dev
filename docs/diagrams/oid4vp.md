@@ -156,7 +156,7 @@ sequenceDiagram
 | `x509_hash:` | Implemented and verified. |
 | `x509_san_dns:` | Implemented and verified against the verifier certificate SAN. |
 | `redirect_uri:` | Implemented. Requires unsigned request objects and must match `response_uri`. |
-| `verifier_attestation:` | Validated structurally. |
+| `verifier_attestation:` | Attestation claims and both signatures are checked. The attestation issuer is reported as not anchored. |
 | `decentralized_identifier:` | DID syntax and the `kid` cross-check are validated. The signing key is reported as unresolved (ADR-0013). |
 | No prefix (no `:` in the value) | Treated as a pre-registered client (OpenID4VP §5.9.2). The wallet registers no clients, so a signed request object under it is reported as not verified. |
 | `origin:` | Refused. §5.9.3 reserves it and forbids a wallet to accept it in a request. |

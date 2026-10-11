@@ -42,9 +42,9 @@ func TestCreateSelfIssuedIDToken(t *testing.T) {
 	}
 	w := &Wallet{HolderKey: key}
 
-	token, err := w.CreateSelfIssuedIDToken("test-nonce", "https://verifier.example")
+	token, err := w.createSelfIssuedIDToken("test-nonce", "https://verifier.example")
 	if err != nil {
-		t.Fatalf("CreateSelfIssuedIDToken() error: %v", err)
+		t.Fatalf("createSelfIssuedIDToken() error: %v", err)
 	}
 
 	header, payload, _, err := format.ParseJWTParts(token)
@@ -62,8 +62,9 @@ func TestCreateSelfIssuedIDToken(t *testing.T) {
 		t.Error("expected jwk in header")
 	}
 
-	if payload["iss"] != "https://self-issued.me/v2" {
-		t.Errorf("expected iss=https://self-issued.me/v2, got %v", payload["iss"])
+	// SIOPv2 §11: iss "MUST be set to the value of the sub claim".
+	if payload["iss"] == nil || payload["iss"] != payload["sub"] {
+		t.Errorf("iss = %v, want the sub %v", payload["iss"], payload["sub"])
 	}
 	if payload["aud"] != "https://verifier.example" {
 		t.Errorf("expected aud=https://verifier.example, got %v", payload["aud"])
@@ -240,8 +241,8 @@ func TestServerIDTokenFlow(t *testing.T) {
 	if header["alg"] != "ES256" {
 		t.Errorf("expected alg=ES256, got %v", header["alg"])
 	}
-	if payload["iss"] != "https://self-issued.me/v2" {
-		t.Errorf("expected SIOPv2 issuer, got %v", payload["iss"])
+	if payload["iss"] == nil || payload["iss"] != payload["sub"] {
+		t.Errorf("iss = %v, want the sub %v", payload["iss"], payload["sub"])
 	}
 	if payload["aud"] != "https://verifier.example" {
 		t.Errorf("expected aud=https://verifier.example, got %v", payload["aud"])

@@ -23,7 +23,6 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/dcql"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 )
 
 // Checks are the checks a wallet applies to a request. Strict refuses a
@@ -42,35 +41,11 @@ func ValidateAuthorizationRequest(checks Checks, params *Request) ([]string, err
 		return nil, fmt.Errorf("authorization request validation failed: %w", err)
 	}
 
-	var reqPayload map[string]any
-	if params != nil && params.RequestObject != nil {
-		reqPayload = params.RequestObject.Payload
-	}
-	if reqPayload == nil && params != nil {
-		reqPayload = params.RequestPayload
-	}
-	var outerClientMetadata map[string]any
-	if params != nil {
-		outerClientMetadata = params.ClientMetadata
-	}
-	if err := ValidateClientMetadata(ResolveClientMetadata(reqPayload, outerClientMetadata)); err != nil {
+	payload := requestPayload(params.RequestObject, params.RequestPayload)
+	if err := validateClientMetadata(resolveClientMetadata(payload, params.ClientMetadata)); err != nil {
 		return nil, fmt.Errorf("authorization request validation failed: %w", err)
 	}
-
-	responseURI := ""
-	clientID := ""
-	requestOrigin := ""
-	var reqObj *oid4vc.RequestObjectJWT
-	if params != nil {
-		responseURI = params.ResponseURI
-		if responseURI == "" {
-			responseURI = params.RedirectURI
-		}
-		clientID = params.ClientID
-		requestOrigin = params.RequestOrigin
-		reqObj = params.RequestObject
-	}
-	return validatePresentationRequestCore(checks, clientID, reqObj, responseURI, requestOrigin, params, reqPayload)
+	return validatePresentationRequestCore(checks, params, payload)
 }
 
 // ARFRefusal is a strict refusal on ARF findings alone. The relying party
@@ -85,23 +60,24 @@ func (e *ARFRefusal) Error() string {
 	return "authorization request validation failed: " + strings.Join(e.Findings, ", ")
 }
 
-func validatePresentationRequestCore(checks Checks, clientID string, reqObj *oid4vc.RequestObjectJWT, responseURI string, requestOrigin string, params *Request, payload map[string]any) ([]string, error) {
+func validatePresentationRequestCore(checks Checks, params *Request, payload map[string]any) ([]string, error) {
 	var findings []string
 
-	if finding := VerifyClientID(clientID, reqObj, responseURI, requestOrigin); finding != "" {
+	clientID, reqObj := params.ClientID, params.RequestObject
+	if finding := verifyClientID(clientID, reqObj, params.ResponseDestination(), params.RequestOrigin); finding != "" {
 		findings = append(findings, finding)
 	}
-	if finding := ValidateRequestObject(clientID, reqObj); finding != "" {
+	if finding := validateRequestObject(clientID, reqObj); finding != "" {
 		findings = append(findings, finding)
 	}
-	if finding := VerifyRequestObjectSignature(clientID, reqObj); finding != "" {
+	if finding := verifyRequestObjectSignature(clientID, reqObj); finding != "" {
 		findings = append(findings, finding)
 	}
 	findings = append(findings, authorizationFindings(params, payload)...)
 	var advisories []string
 	if checks.HAIP {
-		findings = append(findings, ValidateHAIPCompliance(params, reqObj)...)
-		advisories = HAIPAdvisories(params)
+		findings = append(findings, validateHAIPCompliance(params, reqObj)...)
+		advisories = haipAdvisories(params)
 	}
 	var arfFindings []string
 	if checks.ARF {
@@ -119,13 +95,10 @@ func validatePresentationRequestCore(checks Checks, clientID string, reqObj *oid
 	return append(findings, advisories...), nil
 }
 
-// Collect the same OID4VP 1.0 findings in every mode. The caller decides whether to
-// reject or warn.
+// authorizationFindings collects the OID4VP 1.0 findings of a request.
+// validatePresentationRequestCore refuses them in strict mode and returns them
+// as warnings otherwise.
 func authorizationFindings(params *Request, payload map[string]any) []string {
-	if params == nil {
-		return nil
-	}
-
 	var findings []string
 	if !hasKnownClientIDPrefix(params.ClientID) {
 		findings = append(findings, fmt.Sprintf("OID4VP 1.0 §5.9.3: client_id uses an unsupported prefix: %q", params.ClientID))
@@ -160,7 +133,7 @@ func authorizationFindings(params *Request, payload map[string]any) []string {
 	findings = append(findings, dcql.QueryFindings(params.DCQLQuery)...)
 	// §5.1: "Wallets that do not support this parameter MUST reject requests
 	// that contain it."
-	if HasTransactionData(params, payload) {
+	if hasTransactionData(params, payload) {
 		findings = append(findings, "OID4VP 1.0 §5.1: transaction_data is not supported by this wallet")
 	}
 	if finding := expectedOriginsFinding(params, payload); finding != "" {
@@ -217,9 +190,9 @@ func hasKnownClientIDPrefix(clientID string) bool {
 	return known || !strings.Contains(clientID, ":")
 }
 
-// HasTransactionData finds transaction_data in a request object,
+// hasTransactionData finds transaction_data in a request object,
 // a JSON request or the query parameters.
-func HasTransactionData(params *Request, payload map[string]any) bool {
+func hasTransactionData(params *Request, payload map[string]any) bool {
 	_, inQuery := params.FullParams["transaction_data"]
 	return inQuery || payloadHasKey(payload, "transaction_data")
 }

@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/dcql"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
@@ -45,7 +46,7 @@ func (w *Wallet) applySelectedClaims(matches []consent.Match, selected map[strin
 			continue
 		}
 		matches[i].SelectedKeys = keys
-		matches[i].Claims = filterClaims(cred, keys)
+		matches[i].Claims = dcql.FilterClaims(dcqlCredential(cred), keys)
 		log.Printf("[VP]   %s: disclosing %v", shortID(m.CredentialID), keys)
 	}
 	return matches
@@ -54,22 +55,14 @@ func (w *Wallet) applySelectedClaims(matches []consent.Match, selected map[strin
 // newPresentationConsent is the consent request for a presentation. typ tells a
 // verifier's request from one an issuer makes during issuance.
 func newPresentationConsent(typ, owner, clientID string, authReq *oid4vp.Request, matches []consent.Match, options *consent.CredentialOptions) *consent.Request {
-	req := &consent.Request{
-		ID:                newConsentID(),
-		Type:              typ,
-		Owner:             owner,
-		MatchedCreds:      matches,
-		Status:            "pending",
-		ResultCh:          make(chan consent.Result, 1),
-		SubmissionCh:      make(chan consent.SubmissionResult, 1),
-		CreatedAt:         time.Now(),
-		ClientID:          clientID,
-		Nonce:             authReq.Nonce,
-		ResponseURI:       authReq.ResponseURI,
-		DCQLQuery:         authReq.DCQLQuery,
-		Findings:          authReq.Findings,
-		CredentialOptions: options,
-	}
+	req := consent.NewRequest(typ, owner)
+	req.MatchedCreds = matches
+	req.ClientID = clientID
+	req.Nonce = authReq.Nonce
+	req.ResponseURI = authReq.ResponseURI
+	req.DCQLQuery = authReq.DCQLQuery
+	req.Findings = authReq.Findings
+	req.CredentialOptions = options
 	req.Purposes, req.PrivacyPolicies = oid4vp.ConsentRegistration(authReq)
 	req.RegisteredName = oid4vp.RegisteredName(authReq)
 	applyClientAuth(req, authReq)

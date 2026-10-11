@@ -1635,7 +1635,7 @@ func TestIssuanceConsentDescribesTheOffer(t *testing.T) {
 		}
 	}
 
-	if _, ok := consent.Marshal(req)["offer_details"]; !ok {
+	if _, ok := consent.NewRuntime().DocFor(req, nil)["offer_details"]; !ok {
 		t.Error("offer_details missing from the marshalled consent request")
 	}
 }

@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package dcql generates Digital Credentials Query Language (DCQL) queries from existing credentials.
+// Package dcql generates Digital Credentials Query Language (DCQL) queries from
+// existing credentials and matches credentials against a query.
 package dcql
 
 type Query struct {

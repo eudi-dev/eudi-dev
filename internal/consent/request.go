@@ -21,6 +21,8 @@ package consent
 import (
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 )
 
@@ -32,48 +34,72 @@ const (
 	TypeIssuancePresentation = "issuance_presentation"
 )
 
+// Status values of a Request.
+const (
+	StatusPending  = "pending"
+	StatusApproved = "approved"
+	StatusDenied   = "denied"
+	// StatusExpired distinguishes a timeout from a denial when the wallet
+	// reports why a late answer failed.
+	StatusExpired = "expired"
+)
+
+// Request is a question to the user. Runtime.DocFor gives its wire shape.
 type Request struct {
-	ID           string                       `json:"id"`
-	Type         string                       `json:"type"` // presentation, issuance, or issuance_presentation
-	AuthRequest  *oid4vc.AuthorizationRequest `json:"-"`
-	OfferURI     string                       `json:"-"`
-	MatchedCreds []Match                      `json:"matched_credentials"`
-	Status       string                       `json:"status"` // "pending", "approved", "denied", "expired"
-	ResultCh     chan Result                  `json:"-"`
-	SubmissionCh chan SubmissionResult        `json:"-"`
-	CreatedAt    time.Time                    `json:"created_at"`
-	ClientID     string                       `json:"client_id"`
-	OfferConfigs []string                     `json:"offer_configs,omitempty"`
-	OfferDetails *OfferDetails                `json:"offer_details,omitempty"`
-	Nonce        string                       `json:"nonce,omitempty"`
-	ResponseURI  string                       `json:"response_uri,omitempty"`
-	DCQLQuery    map[string]any               `json:"dcql_query,omitempty"`
+	ID           string
+	Type         string // TypePresentation, TypeIssuance or TypeIssuancePresentation
+	OfferURI     string
+	MatchedCreds []Match
+	Status       string // StatusPending until Runtime.Resolve sets another status
+	ResultCh     chan Result
+	SubmissionCh chan SubmissionResult
+	CreatedAt    time.Time
+	ClientID     string
+	OfferConfigs []string
+	OfferDetails *OfferDetails
+	Nonce        string
+	ResponseURI  string
+	DCQLQuery    map[string]any
 	// Findings are the checks on the verifier or issuer that failed in debug
 	// mode. The consent dialog shows them in a collapsed list.
-	Findings []string `json:"findings,omitempty"`
+	Findings []string
 	// Purposes and privacy policy links from the request's registration
 	// certificates, for the consent dialog.
-	Purposes        []string `json:"purposes,omitempty"`
-	PrivacyPolicies []string `json:"privacy_policies,omitempty"`
+	Purposes        []string
+	PrivacyPolicies []string
 	// Alternatives for the Edit view. MatchedCreds retains the automatic selection.
-	CredentialOptions *CredentialOptions `json:"credential_options,omitempty"`
-	// Never serialize the owner because another caller could use it to claim the
-	// request. Empty means the request is unowned.
-	Owner string `json:"-"`
+	CredentialOptions *CredentialOptions
+	// Marshal leaves the owner out, because another caller could use it to
+	// claim the request. Empty means the request is unowned.
+	Owner string
 	// Keep the offer shown at consent in case its URL cannot be fetched again after
 	// approval.
-	ResolvedOffer *oid4vc.CredentialOffer `json:"-"`
+	ResolvedOffer *oid4vc.CredentialOffer
 	// True when the Request Object signature verifies against the key material it
 	// carries. This does not establish trust in the verifier.
-	ClientAuthSigned bool `json:"-"`
+	ClientAuthSigned bool
 	// Empty when ClientAuthSigned is true. Otherwise explains why verification was
 	// unavailable or failed.
-	ClientAuthDetail string `json:"-"`
+	ClientAuthDetail string
 	// The unverified name from client_metadata.client_name. Empty if absent.
-	ClientName string `json:"-"`
+	ClientName string
 	// RegisteredName is the relying party name of the registration
 	// certificate bound to the request's access certificate.
-	RegisteredName string `json:"-"`
+	RegisteredName string
+}
+
+// NewRequest is a pending request of typ that belongs to owner. An empty
+// owner leaves the request visible to every caller (ADR-0011).
+func NewRequest(typ, owner string) *Request {
+	return &Request{
+		ID:           uuid.New().String(),
+		Type:         typ,
+		Owner:        owner,
+		Status:       StatusPending,
+		ResultCh:     make(chan Result, 1),
+		SubmissionCh: make(chan SubmissionResult, 1),
+		CreatedAt:    time.Now(),
+	}
 }
 
 type Match struct {
@@ -175,7 +201,7 @@ type SubmissionResult struct {
 	RetryInterval string `json:"retry_interval,omitempty"`
 }
 
-func Marshal(r *Request) map[string]any {
+func marshal(r *Request) map[string]any {
 	m := map[string]any{
 		"id":                  r.ID,
 		"type":                r.Type,

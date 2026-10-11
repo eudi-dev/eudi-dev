@@ -34,10 +34,7 @@ func ValidateSelection(options *CredentialOptions, picks map[string][]string, se
 	}
 	answered := len(options.Sets) == 0
 	for i, set := range options.Sets {
-		choice := set.DefaultChoice()
-		if i < len(setChoices) {
-			choice = setChoices[i]
-		}
+		choice := chosenOption(set, i, setChoices)
 		if choice == -1 {
 			if !set.Optional {
 				return fmt.Errorf("set %d is required and cannot be skipped", i)
@@ -167,33 +164,8 @@ func selectCredentials(options *CredentialOptions, matches []Match, result Resul
 		return append([]Match(nil), matches...)
 	}
 
-	var needed []string
-	seen := make(map[string]bool)
-	if len(options.Sets) > 0 {
-		for i, set := range options.Sets {
-			choice := set.DefaultChoice()
-			if i < len(result.SetChoices) {
-				choice = result.SetChoices[i]
-			}
-			if choice == -1 && set.Optional {
-				continue
-			}
-			if choice < 0 || choice >= len(set.Options) {
-				choice = 0
-			}
-			for _, qid := range set.Options[choice] {
-				if !seen[qid] {
-					seen[qid] = true
-					needed = append(needed, qid)
-				}
-			}
-		}
-	} else {
-		for _, query := range options.Queries {
-			needed = append(needed, query.ID)
-		}
-	}
-
+	// ValidateSelection has checked the choices.
+	needed := activeQueries(options, result.SetChoices)
 	out := make([]Match, 0, len(needed))
 	for _, qid := range needed {
 		query := findConsentQuery(options, qid)
@@ -221,10 +193,7 @@ func activeQueries(options *CredentialOptions, setChoices []int) []string {
 		return ids
 	}
 	for i, set := range options.Sets {
-		choice := set.DefaultChoice()
-		if i < len(setChoices) {
-			choice = setChoices[i]
-		}
+		choice := chosenOption(set, i, setChoices)
 		if choice < 0 || choice >= len(set.Options) {
 			continue
 		}
@@ -235,6 +204,14 @@ func activeQueries(options *CredentialOptions, setChoices []int) []string {
 		}
 	}
 	return ids
+}
+
+// chosenOption is the option the user chose for set i, or its default.
+func chosenOption(set SetOptions, i int, setChoices []int) int {
+	if i < len(setChoices) {
+		return setChoices[i]
+	}
+	return set.DefaultChoice()
 }
 
 // pickedCandidates returns the picked credentials, matching ones first. Without a

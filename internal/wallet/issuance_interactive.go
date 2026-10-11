@@ -363,14 +363,13 @@ func (w *Wallet) runPresentationInteraction(endpoint string, response map[string
 		action: "issuance", subject: "The issuer's openid4vp_request", owner: setup.owner,
 		interactive: !w.AutoAcceptSetting() && !setup.presentationConsented,
 	})
-	params := presentationParams(authReq)
 	switch {
 	case outcome.invalid != nil:
 		return nil, fmt.Errorf("openid4vp_request: %w", outcome.invalid)
 	case outcome.refusal != nil:
 		// §6.2.1.1: openid4vp_response "in the case of an error instead
 		// encodes the Authorization Error Response parameters".
-		return w.interactionErrorResponse(params, outcome.refusal.code, outcome.refusal.description)
+		return w.interactionErrorResponse(authReq, outcome.refusal.code, outcome.refusal.description)
 	}
 
 	matches, approved, err := w.awaitInteractivePresentationConsent(endpoint, authReq, outcome, setup.presentationConsented, setup.owner)
@@ -379,7 +378,7 @@ func (w *Wallet) runPresentationInteraction(endpoint string, response map[string
 	}
 	if !approved {
 		w.AddLog("issuance", "Denied the presentation the issuer asked for", false)
-		return w.interactionErrorResponse(params, oid4vp.ErrorAccessDenied, "user denied the presentation")
+		return w.interactionErrorResponse(authReq, oid4vp.ErrorAccessDenied, "user denied the presentation")
 	}
 
 	prepared, err := w.preparePresentation(authReq, matches)
@@ -388,7 +387,7 @@ func (w *Wallet) runPresentationInteraction(endpoint string, response map[string
 	}
 	vpResult := prepared.VPResult
 	// In Interactive Authorization the auth_session correlates the exchange.
-	envelope, err := w.BuildAuthorizationResponse(vpResult, prepared.IDToken, authReq.State, params)
+	envelope, err := w.buildAuthorizationResponse(vpResult, prepared.IDToken, authReq.State, authReq)
 	if err != nil {
 		return nil, fmt.Errorf("building the presentation response for interactive authorization: %w", err)
 	}
@@ -405,7 +404,7 @@ func (w *Wallet) runPresentationInteraction(endpoint string, response map[string
 	w.AddLogPayload("issuance", fmt.Sprintf("Presented %d credential(s) to satisfy interactive authorization", len(matches)), true, map[string]any{
 		"event":                            "interactive_authorization_presentation",
 		"authorization_challenge_endpoint": endpoint,
-		"response_mode":                    params.ResponseMode,
+		"response_mode":                    authReq.ResponseMode,
 		"query_ids":                        vpResult.QueryIDs(),
 	}, payload)
 
@@ -414,8 +413,8 @@ func (w *Wallet) runPresentationInteraction(endpoint string, response map[string
 	return form, nil
 }
 
-func (w *Wallet) interactionErrorResponse(params PresentationParams, errorCode, description string) (url.Values, error) {
-	envelope, err := w.BuildAuthorizationErrorResponse(errorCode, description, "", params)
+func (w *Wallet) interactionErrorResponse(params *oid4vp.Request, errorCode, description string) (url.Values, error) {
+	envelope, err := w.buildAuthorizationErrorResponse(errorCode, description, "", params)
 	if err != nil {
 		return nil, fmt.Errorf("building the error response for interactive authorization: %w", err)
 	}

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package wallet
+package dcql
 
 import (
 	"crypto/ecdsa"
@@ -78,7 +78,7 @@ func authorityChain(t *testing.T) (ca, leaf *x509.Certificate, leafKey *ecdsa.Pr
 	return ca, leaf, leafKey, subjectKeyID
 }
 
-func mdocWithChain(t *testing.T, chain ...*x509.Certificate) StoredCredential {
+func mdocWithChain(t *testing.T, chain ...*x509.Certificate) Credential {
 	t.Helper()
 	key, err := mock.GenerateKey()
 	if err != nil {
@@ -87,28 +87,28 @@ func mdocWithChain(t *testing.T, chain ...*x509.Certificate) StoredCredential {
 	raw, err := mock.GenerateMDOC(mock.MDOCConfig{
 		DocType:   "eu.europa.ec.eudi.pid.1",
 		Namespace: "eu.europa.ec.eudi.pid.1",
-		Claims:    templateClaims("pid-mdoc"),
+		Claims:    map[string]any{"given_name": "Erika", "family_name": "Mustermann"},
 		Key:       key,
 		CertChain: chain,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return StoredCredential{Format: "mso_mdoc", Raw: raw}
+	return Credential{Format: "mso_mdoc", Raw: raw}
 }
 
 func TestExtractCredentialCertificatesIgnoresOtherFormats(t *testing.T) {
-	certs, err := extractCredentialCertificates(StoredCredential{Format: "jwt_vc", Raw: "whatever"})
+	certs, err := extractCredentialCertificates(Credential{Format: "jwt_vc", Raw: "whatever"})
 	if err != nil || certs != nil {
 		t.Errorf("certs = %v, err = %v, want both empty for a format with no chain", certs, err)
 	}
 }
 
 func TestExtractCredentialCertificatesReportsUnparseableCredentials(t *testing.T) {
-	if _, err := extractCredentialCertificates(StoredCredential{Format: "dc+sd-jwt", Raw: "not a token"}); err == nil {
+	if _, err := extractCredentialCertificates(Credential{Format: "dc+sd-jwt", Raw: "not a token"}); err == nil {
 		t.Error("an unparseable SD-JWT was accepted")
 	}
-	if _, err := extractCredentialCertificates(StoredCredential{Format: "mso_mdoc", Raw: "not an mdoc"}); err == nil {
+	if _, err := extractCredentialCertificates(Credential{Format: "mso_mdoc", Raw: "not an mdoc"}); err == nil {
 		t.Error("an unparseable mdoc was accepted")
 	}
 }
@@ -132,13 +132,13 @@ func TestCheckAuthorityKeyIdentifiers(t *testing.T) {
 	})
 
 	t.Run("a credential with no chain", func(t *testing.T) {
-		if checkAuthorityKeyIdentifiers(StoredCredential{Format: "jwt_vc"}, []string{wanted}) {
+		if checkAuthorityKeyIdentifiers(Credential{Format: "jwt_vc"}, []string{wanted}) {
 			t.Error("a credential without a certificate chain was accepted")
 		}
 	})
 
 	t.Run("a credential that does not parse", func(t *testing.T) {
-		if checkAuthorityKeyIdentifiers(StoredCredential{Format: "mso_mdoc", Raw: "nope"}, []string{wanted}) {
+		if checkAuthorityKeyIdentifiers(Credential{Format: "mso_mdoc", Raw: "nope"}, []string{wanted}) {
 			t.Error("an unparseable credential was accepted")
 		}
 	})
@@ -209,12 +209,8 @@ func TestCheckTrustedAuthorities(t *testing.T) {
 // listed CA and rejects an unrelated one.
 func TestCheckETSITrustListMDOC(t *testing.T) {
 	caCert, leafCert, _, _ := authorityChain(t)
-	w := generateTestWallet(t)
-	listURL := serveTrustList(t, walletSignedList(t, w, caCert)).URL
-	anchors, findings := w.etsiTrustedListAnchors([]any{map[string]any{"type": "etsi_tl", "values": []any{listURL}}})
-	if len(findings) > 0 {
-		t.Fatalf("reading the list: %v", findings)
-	}
+	const listURL = "https://lists.example/pid"
+	anchors := map[string][]*x509.Certificate{listURL: {caCert}}
 
 	otherCA, otherLeaf, _, _ := authorityChain(t)
 

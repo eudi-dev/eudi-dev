@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
@@ -55,11 +56,11 @@ func TestBuildSessionTranscriptOID4VCIIAEOmitsTheThumbprintForIAPost(t *testing.
 	key := ecEncJWK(t, "enc")
 	meta := map[string]any{"jwks": map[string]any{"keys": []any{key}}}
 
-	if got := w.handoverJWKThumbprint(PresentationParams{ResponseMode: "ia_post", ClientMetadata: meta}); got != nil {
+	if got := w.handoverJWKThumbprint(&oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ResponseMode: "ia_post", ClientMetadata: meta}}); got != nil {
 		t.Errorf("ia_post handover thumbprint = %x, want null", got)
 	}
 	want := computeJWKThumbprint(key)
-	if got := w.handoverJWKThumbprint(PresentationParams{ResponseMode: "ia_post.jwt", ClientMetadata: meta}); hex.EncodeToString(got) != hex.EncodeToString(want) {
+	if got := w.handoverJWKThumbprint(&oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ResponseMode: "ia_post.jwt", ClientMetadata: meta}}); hex.EncodeToString(got) != hex.EncodeToString(want) {
 		t.Errorf("ia_post.jwt handover thumbprint = %x, want %x", got, want)
 	}
 }
@@ -67,11 +68,7 @@ func TestBuildSessionTranscriptOID4VCIIAEOmitsTheThumbprintForIAPost(t *testing.
 // Interactive Authorization defines its own handover. The wallet's ISO transcript
 // setting only applies to OpenID4VP presentations.
 func TestInteractiveAuthorizationTranscriptIgnoresTheSessionTranscriptMode(t *testing.T) {
-	params := PresentationParams{
-		ResponseMode:                     "ia_post",
-		Nonce:                            iaeExampleNonce,
-		InteractiveAuthorizationEndpoint: iaeExampleEndpoint,
-	}
+	params := &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ResponseMode: "ia_post", Nonce: iaeExampleNonce}, InteractiveAuthorizationEndpoint: iaeExampleEndpoint}
 
 	oid4vpWallet := generateTestWallet(t)
 	oid4vpWallet.SessionTranscript = oid4vp.SessionTranscriptOID4VP
@@ -103,11 +100,7 @@ func TestBuildSessionTranscriptOID4VCIIAERefusesAnEmptyEndpoint(t *testing.T) {
 // Appendix A.3.5 binds an SD-JWT presentation through the Key Binding JWT
 // audience. The ia: prefix separates it from a client_id.
 func TestSDJWTAudienceForInteractiveAuthorization(t *testing.T) {
-	audience := sdJWTAudience(PresentationParams{
-		ResponseMode:                     "ia_post",
-		ClientID:                         "x509_hash:something-else",
-		InteractiveAuthorizationEndpoint: "https://issuer.example/authorize-challenge",
-	})
+	audience := sdJWTAudience(&oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ResponseMode: "ia_post", ClientID: "x509_hash:something-else"}, InteractiveAuthorizationEndpoint: "https://issuer.example/authorize-challenge"})
 	if audience != "ia:https://issuer.example/authorize-challenge" {
 		t.Errorf("aud = %q, want the challenge endpoint with the ia: prefix", audience)
 	}
@@ -115,10 +108,7 @@ func TestSDJWTAudienceForInteractiveAuthorization(t *testing.T) {
 		t.Errorf("aud = %q, want an ia: prefix", audience)
 	}
 
-	plain := sdJWTAudience(PresentationParams{
-		ResponseMode: "direct_post",
-		ClientID:     "x509_hash:verifier",
-	})
+	plain := sdJWTAudience(&oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ResponseMode: "direct_post", ClientID: "x509_hash:verifier"}})
 	if plain != "x509_hash:verifier" {
 		t.Errorf("direct_post aud = %q, want the client_id", plain)
 	}

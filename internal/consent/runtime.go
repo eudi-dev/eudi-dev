@@ -36,7 +36,7 @@ func (rt *Runtime) Create(req *Request) {
 	}
 	for id, r := range rt.requests {
 		age := now.Sub(r.CreatedAt)
-		if age > consentRequestMaxAge || (r.Status != "pending" && age > resolvedConsentRetention) {
+		if age > consentRequestMaxAge || (r.Status != StatusPending && age > resolvedConsentRetention) {
 			delete(rt.requests, id)
 		}
 	}
@@ -61,7 +61,7 @@ func (rt *Runtime) Pending() []*Request {
 	defer rt.mu.RUnlock()
 	var out []*Request
 	for _, r := range rt.requests {
-		if r.Status == "pending" {
+		if r.Status == StatusPending {
 			out = append(out, r)
 		}
 	}
@@ -75,15 +75,11 @@ func (rt *Runtime) Get(id string) (*Request, bool) {
 	return req, ok
 }
 
-// StatusExpired distinguishes a timeout from a denial when the wallet reports
-// why a late answer failed.
-const StatusExpired = "expired"
-
 // Resolve returns false for missing or resolved requests.
 func (rt *Runtime) Resolve(id, status string) (*Request, bool) {
 	rt.mu.Lock()
 	req, ok := rt.requests[id]
-	if !ok || req.Status != "pending" {
+	if !ok || req.Status != StatusPending {
 		rt.mu.Unlock()
 		return req, false
 	}
@@ -103,7 +99,7 @@ func (rt *Runtime) PendingDocsFor(owners []string, named string) []map[string]an
 	defer rt.mu.RUnlock()
 	docs := make([]map[string]any, 0, len(rt.requests))
 	for _, r := range rt.requests {
-		if r.Status == "pending" && Owns(owners, r, named) {
+		if r.Status == StatusPending && Owns(owners, r, named) {
 			docs = append(docs, marshalConsentRequestFor(r, owners))
 		}
 	}
@@ -119,7 +115,7 @@ func (rt *Runtime) DocFor(r *Request, owners []string) map[string]any {
 
 // The UI uses the mine field to choose between a consent dialog and a banner.
 func marshalConsentRequestFor(r *Request, owners []string) map[string]any {
-	doc := Marshal(r)
+	doc := marshal(r)
 	doc["mine"] = OwnedBy(owners, r.Owner)
 	return doc
 }

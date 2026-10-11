@@ -29,7 +29,7 @@ func TestValidateClientMetadata_RejectsInvalidVPFormatsSupportedValue(t *testing
 		},
 	}
 
-	err := ValidateClientMetadata(reqObj.Payload["client_metadata"].(map[string]any))
+	err := validateClientMetadata(reqObj.Payload["client_metadata"].(map[string]any))
 	if err == nil {
 		t.Fatal("expected error for non-object vp_formats_supported")
 	}
@@ -51,7 +51,7 @@ func TestValidateClientMetadata_RejectsInvalidMDocAlgValuesSupported(t *testing.
 		},
 	}
 
-	err := ValidateClientMetadata(reqObj.Payload["client_metadata"].(map[string]any))
+	err := validateClientMetadata(reqObj.Payload["client_metadata"].(map[string]any))
 	if err == nil {
 		t.Fatal("expected error for string mso_mdoc issuerauth_alg_values entry")
 	}
@@ -76,7 +76,7 @@ func TestValidateClientMetadata_AcceptsNumericMDocAlgValuesSupported(t *testing.
 		},
 	}
 
-	if err := ValidateClientMetadata(reqObj.Payload["client_metadata"].(map[string]any)); err != nil {
+	if err := validateClientMetadata(reqObj.Payload["client_metadata"].(map[string]any)); err != nil {
 		t.Fatalf("expected valid client_metadata, got %v", err)
 	}
 }
@@ -84,13 +84,13 @@ func TestValidateClientMetadata_AcceptsNumericMDocAlgValuesSupported(t *testing.
 // OID4VP 1.0 Appendix B.3.4 names the SD-JWT algorithm members of
 // vp_formats_supported. §5.1: "Other metadata parameters MUST be ignored".
 func TestValidateClientMetadataChecksTheOID4VPMemberNames(t *testing.T) {
-	err := ValidateClientMetadata(map[string]any{
+	err := validateClientMetadata(map[string]any{
 		"vp_formats_supported": map[string]any{"dc+sd-jwt": map[string]any{"kb-jwt_alg_values": []any{-7.0}}},
 	})
 	if err == nil || !contains(err.Error(), "kb-jwt_alg_values") {
 		t.Errorf("a numeric kb-jwt_alg_values entry gave %v, want an error", err)
 	}
-	if err := ValidateClientMetadata(map[string]any{"authorization_encryption_alg_values_supported": "ECDH-ES"}); err != nil {
+	if err := validateClientMetadata(map[string]any{"authorization_encryption_alg_values_supported": "ECDH-ES"}); err != nil {
 		t.Errorf("a wallet metadata member in client_metadata gave %v, want it ignored", err)
 	}
 }

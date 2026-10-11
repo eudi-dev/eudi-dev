@@ -557,7 +557,7 @@ func TestPresentationAPI_AutoAcceptOverrideSkipsConsent(t *testing.T) {
 	srv.SetOnUIRequest(func(string) {
 		uiRequested = true
 	})
-	srv.SetOnConsentRequest(func(req *consent.Request) {
+	srv.setOnConsentRequest(func(req *consent.Request) {
 		consentRequested = true
 	})
 
@@ -646,7 +646,7 @@ func TestBrowserPresentationAPI_DCAPIUnsigned(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	if result["protocol"] != oid4vp.BrowserAPIProtocolOpenID4VPUnsigned {
+	if result["protocol"] != "openid4vp-v1-unsigned" {
 		t.Fatalf("expected unsigned protocol, got %v", result["protocol"])
 	}
 
@@ -665,6 +665,33 @@ func TestBrowserPresentationAPI_DCAPIUnsigned(t *testing.T) {
 	pidEntries, ok := vpToken["pid"].([]any)
 	if !ok || len(pidEntries) != 1 {
 		t.Fatalf("expected vp_token.pid with one entry, got %v", vpToken["pid"])
+	}
+}
+
+// OID4VP 1.0 Appendix A.2: "The value of the response_mode parameter MUST be
+// dc_api when the response is not encrypted and dc_api.jwt when the response
+// is encrypted". The wallet refuses another mode before it asks for consent.
+func TestBrowserPresentationAPI_RefusesANonDCAPIResponseMode(t *testing.T) {
+	srv := newTestServer(t, true)
+	body := `{"digital": {"requests": [{
+		"protocol": "openid4vp-v1-unsigned",
+		"data": {
+			"response_type": "vp_token",
+			"response_mode": "direct_post",
+			"response_uri": "https://rp.example/response",
+			"nonce": "browser-nonce",
+			"dcql_query": {"credentials": [{"id": "pid", "format": "dc+sd-jwt", "meta": {"vct_values": ["` + mock.DefaultPIDVCT + `"]}}]}
+		}
+	}]}}`
+
+	req := httptest.NewRequest("POST", "/api/dc-api", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "https://rp.example")
+	rec := httptest.NewRecorder()
+	srv.mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "dc_api") {
+		t.Fatalf("got %d: %s, want 400 naming dc_api", rec.Code, rec.Body.String())
 	}
 }
 
@@ -746,7 +773,7 @@ func TestBrowserPresentationAPI_DCAPISignedJWT(t *testing.T) {
 		"digital": map[string]any{
 			"requests": []any{
 				map[string]any{
-					"protocol": oid4vp.BrowserAPIProtocolOpenID4VPSigned,
+					"protocol": "openid4vp-v1-signed",
 					"data": map[string]any{
 						"request": requestJWT,
 					},
@@ -772,7 +799,7 @@ func TestBrowserPresentationAPI_DCAPISignedJWT(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	if result["protocol"] != oid4vp.BrowserAPIProtocolOpenID4VPSigned {
+	if result["protocol"] != "openid4vp-v1-signed" {
 		t.Fatalf("expected signed protocol, got %v", result["protocol"])
 	}
 
@@ -852,7 +879,7 @@ func TestBrowserPresentationAPI_UnsignedRequestIgnoresExpectedOrigins(t *testing
 		"digital": map[string]any{
 			"requests": []any{
 				map[string]any{
-					"protocol": oid4vp.BrowserAPIProtocolOpenID4VPUnsigned,
+					"protocol": "openid4vp-v1-unsigned",
 					"data": map[string]any{
 						"response_type":    "vp_token",
 						"response_mode":    "dc_api.jwt",
@@ -927,7 +954,7 @@ func TestBrowserPresentationAPI_DCAPIMultiSignedPrefersValidSignature(t *testing
 		"digital": map[string]any{
 			"requests": []any{
 				map[string]any{
-					"protocol": oid4vp.BrowserAPIProtocolOpenID4VPMulti,
+					"protocol": "openid4vp-v1-multisigned",
 					"data": map[string]any{
 						"request": map[string]any{
 							"payload": parts[1],
@@ -965,7 +992,7 @@ func TestBrowserPresentationAPI_DCAPIMultiSignedPrefersValidSignature(t *testing
 	if err := json.Unmarshal(rec.Body.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	if result["protocol"] != oid4vp.BrowserAPIProtocolOpenID4VPMulti {
+	if result["protocol"] != "openid4vp-v1-multisigned" {
 		t.Fatalf("expected multisigned protocol, got %v", result["protocol"])
 	}
 
@@ -2309,7 +2336,7 @@ func TestOnConsentRequest_CalledOnInteractiveFlow(t *testing.T) {
 	var callbackMu sync.Mutex
 	var callbackCalled bool
 	var callbackReqID string
-	srv.SetOnConsentRequest(func(req *consent.Request) {
+	srv.setOnConsentRequest(func(req *consent.Request) {
 		callbackMu.Lock()
 		defer callbackMu.Unlock()
 		callbackCalled = true
@@ -2380,7 +2407,7 @@ func TestOnConsentRequest_NotCalledOnAutoAccept(t *testing.T) {
 	srv := newTestServer(t, true)
 
 	callbackCalled := false
-	srv.SetOnConsentRequest(func(req *consent.Request) {
+	srv.setOnConsentRequest(func(req *consent.Request) {
 		callbackCalled = true
 	})
 
@@ -2956,6 +2983,41 @@ func TestRequestStreamKeepalive(t *testing.T) {
 		if strings.HasPrefix(line, ":") {
 			seen++
 		}
+	}
+}
+
+// subscriptionAtFlush records how many event streams were subscribed when the
+// handler first flushed its headers.
+type subscriptionAtFlush struct {
+	*httptest.ResponseRecorder
+	srv     *Server
+	cancel  context.CancelFunc
+	flushed bool
+	count   int
+}
+
+func (f *subscriptionAtFlush) Flush() {
+	if !f.flushed {
+		f.flushed = true
+		f.count = f.srv.wallet.Consents().AttachedUIs()
+		f.cancel()
+	}
+	f.ResponseRecorder.Flush()
+}
+
+// The page reads the pending requests when the stream opens. A request created
+// after that read reaches the page only if the stream already listens, so the
+// stream subscribes before the browser sees it open.
+func TestRequestStreamSubscribesBeforeItOpens(t *testing.T) {
+	srv := newTestServer(t, false)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	rec := &subscriptionAtFlush{ResponseRecorder: httptest.NewRecorder(), srv: srv, cancel: cancel}
+
+	srv.handleRequestStream(rec, httptest.NewRequest("GET", "/api/requests/stream", nil).WithContext(ctx))
+
+	if rec.count != 1 {
+		t.Fatalf("%d subscriptions when the stream opened, want 1", rec.count)
 	}
 }
 

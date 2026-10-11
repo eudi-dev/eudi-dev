@@ -365,9 +365,7 @@ func (s *Server) awaitOfferConsent(w http.ResponseWriter, consentReq *consent.Re
 	s.allowSlowResponse(w, config.ConsentTimeout+interactiveAuthorizationConsentTimeout)
 	answer, answered := s.wallet.awaitConsent(consentReq, config.ConsentTimeout)
 	if !answered {
-		s.wallet.AddLog("issuance", "Consent timeout", false)
-		consentReq.SubmissionCh <- consent.SubmissionResult{Error: "consent timeout", StatusCode: http.StatusRequestTimeout}
-		writeJSON(w, http.StatusRequestTimeout, map[string]string{"error": "consent timeout"})
+		s.answerConsentTimeout(w, "issuance", consentReq)
 		return
 	}
 	handle(answer)
@@ -418,16 +416,8 @@ func requestedConfigurations(offered []string, chosen string) []string {
 
 func (w *Wallet) prepareIssuanceConsentRequest(raw, owner string) (*consent.Request, string, error) {
 	trimmed := strings.TrimSpace(raw)
-	req := &consent.Request{
-		ID:           newConsentID(),
-		Type:         "issuance",
-		Owner:        owner,
-		OfferURI:     trimmed,
-		Status:       "pending",
-		ResultCh:     make(chan consent.Result, 1),
-		SubmissionCh: make(chan consent.SubmissionResult, 1),
-		CreatedAt:    time.Now(),
-	}
+	req := consent.NewRequest(consent.TypeIssuance, owner)
+	req.OfferURI = trimmed
 
 	// Resolve referenced offers before consent so the dialog can describe the
 	// credentials. The specification permits fetching the offer again after approval.

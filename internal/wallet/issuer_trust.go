@@ -25,6 +25,7 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/dcql"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
@@ -241,7 +242,7 @@ func validateWithAnchors(cred StoredCredential, anchors []*x509.Certificate) err
 	if len(anchors) == 0 {
 		return fmt.Errorf("the trusted list names no issuance service")
 	}
-	key, err := credentialChainKey(cred, anchors)
+	key, err := dcql.ChainKey(dcqlCredential(cred), anchors)
 	if err != nil {
 		return err
 	}

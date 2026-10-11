@@ -80,7 +80,6 @@ func redirectBrowser(w http.ResponseWriter, redirectURI string) {
 
 type preparedPresentation struct {
 	ResponseURI string
-	Params      PresentationParams
 	VPResult    *VPTokenMapResult
 	IDToken     string
 	Response    *oid4vp.AuthorizationResponseEnvelope
@@ -171,7 +170,7 @@ func (s *Server) autoAccepts(authReq *oid4vp.Request) bool {
 // submission channel also delivers the result to the approve API.
 func (s *Server) awaitPresentationConsent(w http.ResponseWriter, authReq *oid4vp.Request, outcome presentationOutcome, shown func(*consent.Request)) {
 	s.allowSlowResponse(w, config.ConsentTimeout)
-	consentReq, matches, approved, answered := s.wallet.askPresentationConsent("presentation", authReq.Session, authReq.ClientID, authReq, outcome, config.ConsentTimeout, func(req *consent.Request) {
+	consentReq, matches, approved, answered := s.wallet.askPresentationConsent(consent.TypePresentation, authReq.Session, authReq.ClientID, authReq, outcome, config.ConsentTimeout, func(req *consent.Request) {
 		s.triggerUIRequest(req.ID)
 		if s.onConsentRequest != nil {
 			s.onConsentRequest(req)
@@ -182,17 +181,26 @@ func (s *Server) awaitPresentationConsent(w http.ResponseWriter, authReq *oid4vp
 	})
 	switch {
 	case !answered:
-		s.wallet.AddLog("presentation", "Consent timeout", false)
-		consentReq.SubmissionCh <- consent.SubmissionResult{Error: "consent timeout"}
-		writeJSON(w, http.StatusRequestTimeout, map[string]string{"error": "consent timeout"})
+		s.answerConsentTimeout(w, "presentation", consentReq)
 	case !approved:
-		s.log("  Consent:       denied")
-		s.wallet.AddLog("presentation", fmt.Sprintf("Denied presentation to %s", authReq.ClientID), false)
+		s.logDeniedPresentation(authReq)
 		consentReq.SubmissionCh <- s.submitAuthorizationError(w, authReq, "denied", oid4vp.ErrorAccessDenied, "User denied presentation")
 	default:
 		s.log("  Consent:       approved")
 		consentReq.SubmissionCh <- s.submitPresentation(w, authReq, matches)
 	}
+}
+
+// answerConsentTimeout ends a consent request that nobody answered in time.
+func (s *Server) answerConsentTimeout(w http.ResponseWriter, action string, req *consent.Request) {
+	s.wallet.AddLog(action, "Consent timeout", false)
+	req.SubmissionCh <- consent.SubmissionResult{Error: "consent timeout", StatusCode: http.StatusRequestTimeout}
+	writeJSON(w, http.StatusRequestTimeout, map[string]string{"error": "consent timeout"})
+}
+
+func (s *Server) logDeniedPresentation(authReq *oid4vp.Request) {
+	s.log("  Consent:       denied")
+	s.wallet.AddLog("presentation", fmt.Sprintf("Denied presentation to %s", authReq.ClientID), false)
 }
 
 // Browser navigations redirect to the UI immediately. Their consent flows finish in
@@ -217,7 +225,7 @@ func (s *Server) buildBrowserPresentationResult(authReq *oid4vp.Request, protoco
 	if err != nil {
 		return nil, nil, err
 	}
-	response, err := s.wallet.BuildAuthorizationResponse(prepared.VPResult, prepared.IDToken, authReq.State, prepared.Params)
+	response, err := s.wallet.buildAuthorizationResponse(prepared.VPResult, prepared.IDToken, authReq.State, authReq)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -230,7 +238,7 @@ func (s *Server) buildBrowserPresentationResult(authReq *oid4vp.Request, protoco
 }
 
 func (s *Server) buildBrowserAuthorizationErrorResult(authReq *oid4vp.Request, protocol, errorCode, errorDescription string) (*oid4vp.BrowserAPIResult, error) {
-	response, err := s.wallet.BuildAuthorizationErrorResponse(errorCode, errorDescription, authReq.State, presentationParams(authReq))
+	response, err := s.wallet.buildAuthorizationErrorResponse(errorCode, errorDescription, authReq.State, authReq)
 	if err != nil {
 		return nil, err
 	}

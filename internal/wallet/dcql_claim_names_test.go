@@ -18,6 +18,10 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/dcql"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
 // A claim name may contain any character, so a selector must name it without
@@ -30,8 +34,8 @@ func TestSelectorRoundTripsClaimNamesWithSeparators(t *testing.T) {
 		{"", "x"},
 		{"list", float64(0), "x.y"},
 	} {
-		selector := claimPathString(path)
-		got, ok := parseSDJWTSelector(selector)
+		selector := dcql.ClaimPathString(path)
+		got, ok := dcql.ParseSDJWTSelector(selector)
 		if !ok {
 			t.Errorf("%#v: selector %q does not parse", path, selector)
 			continue
@@ -65,7 +69,7 @@ func TestPresentationDisclosesAClaimWithADotInItsName(t *testing.T) {
 	if len(matches) != 1 {
 		t.Fatalf("matches = %v, want the issued credential", matches)
 	}
-	token, err := w.CreateVPToken(matches[0], PresentationParams{Nonce: "n", ClientID: "x509_hash:abc"})
+	token, err := vpToken(w, matches[0], &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "n", ClientID: "x509_hash:abc"}})
 	if err != nil {
 		t.Fatalf("presenting: %v", err)
 	}

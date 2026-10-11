@@ -22,18 +22,19 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
 // mdocDeviceAuthVerifies presents the first mdoc of the wallet and checks its
 // DeviceAuth against a transcript built from the given thumbprint.
-func mdocDeviceAuthVerifies(t *testing.T, w *Wallet, params PresentationParams, thumbprint []byte) bool {
+func mdocDeviceAuthVerifies(t *testing.T, w *Wallet, params *oid4vp.Request, thumbprint []byte) bool {
 	t.Helper()
 	matches := mdocMatches(t, w)
 	if len(matches) == 0 {
 		t.Fatal("the baseline holds no mdoc")
 	}
-	result, err := w.CreateVPTokenMap(matches[:1], params)
+	result, err := w.createVPTokenMap(matches[:1], params)
 	if err != nil {
 		t.Fatalf("creating the vp_token map: %v", err)
 	}
@@ -77,14 +78,7 @@ func TestMDocHandoverCarriesTheThumbprintOnlyForEncryptedResponses(t *testing.T)
 		{"dc_api.jwt", computeJWKThumbprint(direct)},
 	} {
 		t.Run(tc.mode, func(t *testing.T) {
-			params := PresentationParams{
-				Nonce:          "n",
-				ClientID:       "x509_hash:abc",
-				ResponseURI:    "https://verifier.example/response",
-				RequestOrigin:  "https://verifier.example",
-				ResponseMode:   tc.mode,
-				ClientMetadata: meta,
-			}
+			params := &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "n", ClientID: "x509_hash:abc", ResponseURI: "https://verifier.example/response", ResponseMode: tc.mode, ClientMetadata: meta}, RequestOrigin: "https://verifier.example"}
 			if !mdocDeviceAuthVerifies(t, w, params, tc.thumbprint) {
 				t.Errorf("DeviceAuth does not verify against the transcript with thumbprint %x", tc.thumbprint)
 			}
@@ -114,8 +108,8 @@ func TestEncryptedResponseUsesAKeyWhoseAlgTheWalletImplements(t *testing.T) {
 	direct := ecEncJWK(t, "enc")
 	direct["kid"] = "direct"
 
-	params := PresentationParams{ResponseMode: "direct_post.jwt", ClientMetadata: map[string]any{"jwks": map[string]any{"keys": []any{wrapping, direct}}}}
-	compact, _, err := w.EncryptResponse(map[string]any{"q": []string{"x"}}, "", "", "", params)
+	params := &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ResponseMode: "direct_post.jwt", ClientMetadata: map[string]any{"jwks": map[string]any{"keys": []any{wrapping, direct}}}}}
+	compact, _, err := w.encryptResponse(map[string]any{"q": []string{"x"}}, "", "", "", params)
 	if err != nil {
 		t.Fatalf("encrypting: %v", err)
 	}
@@ -125,7 +119,7 @@ func TestEncryptedResponseUsesAKeyWhoseAlgTheWalletImplements(t *testing.T) {
 	}
 
 	params.ClientMetadata = map[string]any{"jwks": map[string]any{"keys": []any{wrapping}}}
-	if _, _, err := w.EncryptResponse(map[string]any{"q": []string{"x"}}, "", "", "", params); err == nil {
+	if _, _, err := w.encryptResponse(map[string]any{"q": []string{"x"}}, "", "", "", params); err == nil {
 		t.Error("a verifier offering only ECDH-ES+A128KW got a response, want an error")
 	}
 }
@@ -147,7 +141,7 @@ func TestEncryptedResponsePrefersA256GCM(t *testing.T) {
 		if tc.offered != nil {
 			meta["encrypted_response_enc_values_supported"] = tc.offered
 		}
-		compact, _, err := w.EncryptResponse(map[string]any{"q": []string{"x"}}, "", "", "", PresentationParams{ResponseMode: "direct_post.jwt", ClientMetadata: meta})
+		compact, _, err := w.encryptResponse(map[string]any{"q": []string{"x"}}, "", "", "", &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ResponseMode: "direct_post.jwt", ClientMetadata: meta}})
 		if err != nil {
 			t.Fatalf("offered %v: %v", tc.offered, err)
 		}

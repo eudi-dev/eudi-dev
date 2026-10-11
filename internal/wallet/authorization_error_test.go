@@ -24,6 +24,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
@@ -302,7 +303,7 @@ func dcAPIRefusal(t *testing.T, srv *Server, request map[string]any) map[string]
 	body, err := json.Marshal(map[string]any{
 		"digital": map[string]any{
 			"requests": []any{
-				map[string]any{"protocol": oid4vp.BrowserAPIProtocolOpenID4VPUnsigned, "data": request},
+				map[string]any{"protocol": "openid4vp-v1-unsigned", "data": request},
 			},
 		},
 	})
@@ -368,7 +369,7 @@ func TestDCAPIMalformedRequestIsRefusedWithoutAProtocolResponse(t *testing.T) {
 		"digital": map[string]any{
 			"requests": []any{
 				map[string]any{
-					"protocol": oid4vp.BrowserAPIProtocolOpenID4VPUnsigned,
+					"protocol": "openid4vp-v1-unsigned",
 					"data": map[string]any{
 						"response_type": "not_a_response_type",
 						"response_mode": "dc_api",
@@ -408,13 +409,9 @@ func TestDCAPIMalformedRequestIsRefusedWithoutAProtocolResponse(t *testing.T) {
 // the error object would read it as a response.
 func TestDCAPIErrorIsNotEncryptedUnderTheEncryptedResponseMode(t *testing.T) {
 	w := generateTestWallet(t)
-	params := PresentationParams{
-		ResponseMode:   "dc_api.jwt",
-		RequestOrigin:  "https://verifier.example",
-		ClientMetadata: map[string]any{},
-	}
+	params := &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ResponseMode: "dc_api.jwt", ClientMetadata: map[string]any{}}, RequestOrigin: "https://verifier.example"}
 
-	response, err := w.BuildAuthorizationErrorResponse("invalid_request", "nonce is required", "some-state", params)
+	response, err := w.buildAuthorizationErrorResponse("invalid_request", "nonce is required", "some-state", params)
 	if err != nil {
 		t.Fatalf("BuildAuthorizationErrorResponse: %v", err)
 	}
@@ -425,7 +422,7 @@ func TestDCAPIErrorIsNotEncryptedUnderTheEncryptedResponseMode(t *testing.T) {
 		t.Errorf("error = %v, want invalid_request", got)
 	}
 
-	result, err := oid4vp.BuildBrowserAPIResult(oid4vp.BrowserAPIProtocolOpenID4VPUnsigned, response)
+	result, err := oid4vp.BuildBrowserAPIResult("openid4vp-v1-unsigned", response)
 	if err != nil {
 		t.Fatalf("oid4vp.BuildBrowserAPIResult: %v", err)
 	}
@@ -496,7 +493,7 @@ func TestStrictARFAnswersOverTheDCAPIWithAccessDenied(t *testing.T) {
 		t.Fatal(err)
 	}
 	body, _ := json.Marshal(map[string]any{"digital": map[string]any{"requests": []any{
-		map[string]any{"protocol": oid4vp.BrowserAPIProtocolOpenID4VPSigned, "data": map[string]any{"request": requestObject}},
+		map[string]any{"protocol": "openid4vp-v1-signed", "data": map[string]any{"request": requestObject}},
 	}}})
 	req := httptest.NewRequest("POST", "/api/dc-api", strings.NewReader(string(body)))
 	req.Header.Set("Content-Type", "application/json")

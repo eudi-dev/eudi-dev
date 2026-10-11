@@ -23,6 +23,8 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
 const testBatchVCT = "urn:example:batch-pid"
@@ -378,7 +380,7 @@ func TestBatchPresentsEachCopyOnceThenReuses(t *testing.T) {
 	}
 
 	query := batchTestQuery()
-	params := PresentationParams{Nonce: "n", ClientID: "https://verifier.example"}
+	params := &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "n", ClientID: "https://verifier.example"}}
 
 	presentedOnce := make(map[string]int)
 	for round := 0; round < len(keys); round++ {
@@ -389,7 +391,7 @@ func TestBatchPresentsEachCopyOnceThenReuses(t *testing.T) {
 		id := matches[0].CredentialID
 		presentedOnce[id]++
 
-		result, err := w.CreateVPTokenMap(matches, params)
+		result, err := w.createVPTokenMap(matches, params)
 		if err != nil {
 			t.Fatalf("round %d: creating the presentation: %v", round, err)
 		}
@@ -413,7 +415,7 @@ func TestBatchPresentsEachCopyOnceThenReuses(t *testing.T) {
 	if len(matches) != 1 {
 		t.Fatalf("after exhaustion a batch still presents one copy, got %d", len(matches))
 	}
-	if _, err := w.CreateVPTokenMap(matches, params); err != nil {
+	if _, err := w.createVPTokenMap(matches, params); err != nil {
 		t.Fatalf("presenting an exhausted batch must reuse a copy, not fail: %v", err)
 	}
 	highest := 0

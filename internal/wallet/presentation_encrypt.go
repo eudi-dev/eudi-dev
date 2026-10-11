@@ -40,7 +40,7 @@ func responseModeEncrypts(mode string) bool {
 // be the JWK SHA-256 Thumbprint [...] of the Verifier's public key used to
 // encrypt the response. Otherwise, the third element MUST be null." B.2.6.2
 // says the same for dc_api.jwt and dc_api.
-func (w *Wallet) handoverJWKThumbprint(params PresentationParams) []byte {
+func (w *Wallet) handoverJWKThumbprint(params *oid4vp.Request) []byte {
 	if !responseModeEncrypts(params.ResponseMode) {
 		return nil
 	}
@@ -162,7 +162,7 @@ func joinFindings(findings ...string) string {
 
 // The payload must include the top level members required by OID4VP 1.0 for success or
 // error responses.
-func (w *Wallet) encryptDirectPostJWTPayload(payload map[string]any, mdocNonce string, params PresentationParams) (string, []byte, error) {
+func (w *Wallet) encryptDirectPostJWTPayload(payload map[string]any, mdocNonce string, params *oid4vp.Request) (string, []byte, error) {
 	payloadJSON, err := json.Marshal(payload)
 	if err != nil {
 		return "", nil, fmt.Errorf("marshaling response payload: %w", err)
@@ -199,8 +199,8 @@ func (w *Wallet) encryptDirectPostJWTPayload(payload map[string]any, mdocNonce s
 	return jwe.EncryptECDHES(payloadJSON, keyInfo.Key, keyInfo.Kid, enc, "", apu, apv)
 }
 
-// EncryptResponse also returns the content encryption key (CEK) for debugging.
-func (w *Wallet) EncryptResponse(vpToken any, idToken, state string, mdocNonce string, params PresentationParams) (string, []byte, error) {
+// encryptResponse also returns the content encryption key (CEK) for debugging.
+func (w *Wallet) encryptResponse(vpToken any, idToken, state string, mdocNonce string, params *oid4vp.Request) (string, []byte, error) {
 	log.Printf("[VP] Encrypting response: response_mode=%s", params.ResponseMode)
 	payload := map[string]any{}
 	// OID4VP 1.0 Appendix A.2: "since the state parameter is not defined for the DC
@@ -218,10 +218,10 @@ func (w *Wallet) EncryptResponse(vpToken any, idToken, state string, mdocNonce s
 	return w.encryptDirectPostJWTPayload(payload, mdocNonce, params)
 }
 
-// EncryptErrorResponse encrypts an authorization error response. The payload
+// encryptErrorResponse encrypts an authorization error response. The payload
 // carries error, optional error_description, and state as top-level members per
 // OID4VP 1.0.
-func (w *Wallet) EncryptErrorResponse(errorCode, errorDescription, state string, params PresentationParams) (string, []byte, error) {
+func (w *Wallet) encryptErrorResponse(errorCode, errorDescription, state string, params *oid4vp.Request) (string, []byte, error) {
 	log.Printf("[VP] Encrypting error response: response_mode=%s error=%s", params.ResponseMode, errorCode)
 	payload := map[string]any{
 		"error": errorCode,

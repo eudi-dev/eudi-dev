@@ -34,6 +34,9 @@ type clientIDPrefix struct {
 	signed, unsigned bool
 	// x5c prefixes carry the signing certificate in the x5c header.
 	x5c bool
+	// attestation prefixes carry the signing key in the cnf claim of the
+	// Verifier Attestation JWT in the jwt header.
+	attestation bool
 	// unverified explains why the wallet cannot verify a signature under this
 	// prefix. Nil when it can. See
 	// docs/adr/0013-only-the-eudi-stack-is-supported.md.
@@ -63,10 +66,7 @@ var clientIDPrefixes = map[string]clientIDPrefix{
 		verify: func(clientID string, reqObj *oid4vc.RequestObjectJWT, _, _ string) string {
 			return verifyVerifierAttestation(clientID, reqObj)
 		},
-		signed: true,
-		unverified: func(string) string {
-			return "Request Object signature was not verified: verifier_attestation: carries its key in the cnf claim of the Verifier Attestation JWT, which this wallet does not read"
-		},
+		signed: true, attestation: true,
 	},
 	"decentralized_identifier": {
 		verify: func(clientID string, reqObj *oid4vc.RequestObjectJWT, _, _ string) string {

@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
@@ -48,8 +47,8 @@ type Registration struct {
 // certificate ...".
 func Verify(entries []map[string]any) (registrations []Registration, problems []string) {
 	for _, entry := range entries {
-		data, _ := entry["data"].(string)
-		if strings.Count(data, ".") != 2 {
+		data := certificateJWT(entry["data"])
+		if data == "" {
 			continue
 		}
 		header, claims, _, err := format.ParseJWTParts(data)
@@ -73,6 +72,22 @@ func Verify(entries []map[string]any) (registrations []Registration, problems []
 	return registrations, problems
 }
 
+// certificateJWT returns the compact JWT of a registration_cert entry. ETSI
+// TS 119 472-2 V1.3.1 OIDFVP-HAIP-COMMON-REQ-RO-16 makes data "the base64url
+// encoding of the serialized RP registration certificate". The compact JWT
+// itself is read too.
+func certificateJWT(value any) string {
+	data, _ := value.(string)
+	if format.IsJWT(data) {
+		return data
+	}
+	decoded, err := format.DecodeBase64URL(data)
+	if err != nil || !format.IsJWT(string(decoded)) {
+		return ""
+	}
+	return string(decoded)
+}
+
 // StatusFindings checks a registration certificate against its registrar's
 // status list (ARF §6.6.3.3 step 4). The list must chain to the
 // revocation service of a trusted registrar (ARF RPACANot_03b). An unreadable
@@ -88,14 +103,18 @@ func StatusFindings(cert map[string]any, client *http.Client, statusCAs []*x509.
 	for _, ca := range statusCAs {
 		anchors = append(anchors, statuslist.TrustCert{Raw: ca.Raw})
 	}
+	var findings []string
 	result, err := statuslist.CheckWithOptions(ref, statuslist.CheckOptions{HTTPClient: client, TrustListCerts: anchors, Prefer: statuslist.FormatJWT})
-	if err != nil {
-		return []string{fmt.Sprintf("%s: the status of the registration certificate of %s cannot be checked: %v", rule, name, err)}
+	switch {
+	case err != nil:
+		findings = append(findings, fmt.Sprintf("%s: the status of the registration certificate of %s cannot be checked: %v", rule, name, err))
+	case !result.IsValid:
+		findings = append(findings, fmt.Sprintf("%s: the registrar revoked the registration certificate of %s (status %s at index %d of %s)", rule, name, result.StatusName, ref.Idx, ref.URI))
 	}
-	if !result.IsValid {
-		return []string{fmt.Sprintf("%s: the registrar revoked the registration certificate of %s (status %s at index %d of %s)", rule, name, result.StatusName, ref.Idx, ref.URI)}
+	if len(statusCAs) == 0 {
+		findings = append(findings, fmt.Sprintf("ARF RPACANot_03b: the status list of the registration certificate of %s is not anchored, because no trusted list names a revocation service of a registration certificate provider", name))
 	}
-	return nil
+	return findings
 }
 
 // Purposes collects the purposes and the privacy policy links of

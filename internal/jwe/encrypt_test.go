@@ -74,6 +74,26 @@ func TestEncryptECDHES_CompactFormat(t *testing.T) {
 	}
 }
 
+// A recipient key without a kid gives a header without one. RFC 7516 §4.1.6
+// defines kid as a hint that references the key.
+func TestEncryptOmitsAnEmptyKid(t *testing.T) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compact, _, err := EncryptECDHES([]byte("{}"), &key.PublicKey, "", "A128GCM", "", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	header, err := ParseHeader(compact)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, present := header.Raw["kid"]; present {
+		t.Errorf("header = %v, want no kid", header.Raw)
+	}
+}
+
 func TestEncryptECDHES_WithAPU(t *testing.T) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {

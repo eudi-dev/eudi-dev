@@ -29,6 +29,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/dcql"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
@@ -105,8 +106,8 @@ func TestDCQLMultipleMustBeBoolean(t *testing.T) {
 		t.Errorf("debug mode presents %d credentials for a non-boolean multiple, want 1", len(matches))
 	}
 	w.ValidationMode = ValidationModeStrict
-	if _, err := w.EvaluateDCQL(query); err == nil || oid4vp.ErrorCode(err) != oid4vp.ErrorInvalidRequest {
-		t.Errorf("strict mode answered a malformed query with %v, want invalid_request", err)
+	if outcome := w.evaluatePresentationRequest(queryRequest(query), presentationEntry{action: "presentation", subject: "The request"}); outcome.invalidCode != oid4vp.ErrorInvalidRequest {
+		t.Errorf("strict mode answered a malformed query with %v, want invalid_request", outcome.invalid)
 	}
 }
 
@@ -151,7 +152,7 @@ func TestDCQLMultiplePresentsOneCopyPerBatch(t *testing.T) {
 		t.Errorf("matches = %+v, want one batch copy and the standalone credential", matches)
 	}
 
-	result, err := w.CreateVPTokenMap(matches, PresentationParams{Nonce: "n", ClientID: "https://verifier.example"})
+	result, err := w.createVPTokenMap(matches, &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "n", ClientID: "https://verifier.example"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,9 +220,9 @@ func TestApplyConsentSelectionMultiple(t *testing.T) {
 func TestCreateVPTokenMapMultiple(t *testing.T) {
 	w := pidBaselineWallet(t)
 	matches := evaluateDCQL(t, w, map[string]any{"credentials": []any{multiplePIDQuery("pid")}})
-	params := PresentationParams{Nonce: "nonce-1", ClientID: "https://verifier.example", ResponseURI: "https://verifier.example/response"}
+	params := &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "nonce-1", ClientID: "https://verifier.example", ResponseURI: "https://verifier.example/response"}}
 
-	result, err := w.CreateVPTokenMap(matches, params)
+	result, err := w.createVPTokenMap(matches, params)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -247,7 +248,7 @@ func TestCreateVPTokenMapMultiple(t *testing.T) {
 		}
 	}
 
-	envelope, err := w.BuildAuthorizationResponse(result, "", "state", params)
+	envelope, err := w.buildAuthorizationResponse(result, "", "state", params)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -410,7 +411,7 @@ func TestDCQLMultipleWithAnOptionalSet(t *testing.T) {
 		t.Errorf("skipping the optional set: got %+v, want both SD-JWT PIDs only", skipped)
 	}
 
-	result, err := w.CreateVPTokenMap(matches, PresentationParams{Nonce: "n", ClientID: "https://verifier.example"})
+	result, err := w.createVPTokenMap(matches, &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{Nonce: "n", ClientID: "https://verifier.example"}})
 	if err != nil {
 		t.Fatal(err)
 	}

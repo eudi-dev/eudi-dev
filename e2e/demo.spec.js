@@ -408,6 +408,7 @@ test.describe("Demo mode consent visibility", () => {
     await bystander.goto(`${BASE}/?focus=overview`);
     await expect(bystander.locator("#credentials")).toBeVisible();
     await expect(bystander.locator("#demo-note")).toBeVisible();
+    await expect(bystander.locator("body")).toHaveAttribute("data-request-stream", "open");
 
     await fetch(`${BASE}/api/offers`, {
       method: "POST",
@@ -417,8 +418,13 @@ test.describe("Demo mode consent visibility", () => {
       }),
     }).catch(() => {});
 
-    await bystander.waitForTimeout(1500);
+    // The stream delivers events in order. Once the later unowned request shows,
+    // the error has had its chance to arrive.
+    const unowned = await createVerificationRequest();
+    submitAsSchemeHandler("/api/presentations", unowned.schemeURI);
+    await expect(bystander.locator("#pending-banner")).toBeVisible();
     await expect(bystander.locator("#consent-overlay")).not.toHaveClass(/active/);
+    await clearPending();
     await context.close();
   });
 
@@ -546,17 +552,19 @@ test.describe("Demo mode consent visibility", () => {
     await bystander.goto(BASE);
     // The page must load its configuration and enter demo mode before submission.
     await expect(bystander.locator("#demo-note")).toBeVisible();
+    await expect(bystander.locator("body")).toHaveAttribute("data-request-stream", "open");
 
     const req = await createVerificationRequest();
     await starter.goto(req.walletURL);
     await expect(starter.locator("#consent-overlay")).toHaveClass(/active/);
 
-    await bystander.waitForTimeout(1500);
-    await expect(bystander.locator("#consent-overlay")).not.toHaveClass(/active/);
-    await expect(bystander.locator("#pending-banner")).toBeHidden();
+    // The stream delivers events in order. The banner counts only the later
+    // unowned request, so the starter's request never reached this tab.
     const unowned = await createVerificationRequest();
     submitAsSchemeHandler("/api/presentations", unowned.schemeURI);
-    await expect(bystander.locator("#pending-banner")).toBeVisible();
+    await expect(bystander.locator("#pending-text")).toHaveText("A request is waiting that no browser claimed.");
+    await expect(bystander.locator("#consent-overlay")).not.toHaveClass(/active/);
+    await clearPending();
 
     await starter.close();
     await bystander.close();
@@ -1148,7 +1156,9 @@ test.describe("Multi-tab dialogs", () => {
       await tab1.goto(`${BASE}/?focus=overview&owner=${owner}`);
       await tab2.goto(`${BASE}/?focus=overview&owner=${owner}`);
       // Both event streams must connect before the request arrives.
-      await tab1.waitForTimeout(300);
+      for (const tab of [tab1, tab2]) {
+        await expect(tab.locator("body")).toHaveAttribute("data-request-stream", "open");
+      }
       submitAsSchemeHandler("/api/presentations", req.schemeURI, owner);
       await expect(tab1.locator("#consent-overlay")).toHaveClass(/active/);
       await expect(tab2.locator("#consent-overlay")).toHaveClass(/active/);
@@ -1174,7 +1184,9 @@ test.describe("Multi-tab dialogs", () => {
       const stale = await ctx.newPage();
       await acting.goto(`${BASE}/?focus=overview&owner=${owner}`);
       await stale.goto(`${BASE}/?focus=overview&owner=${owner}`);
-      await acting.waitForTimeout(300);
+      for (const tab of [acting, stale]) {
+        await expect(tab.locator("body")).toHaveAttribute("data-request-stream", "open");
+      }
       submitAsSchemeHandler("/api/presentations", req.schemeURI, owner);
       await expect(acting.locator("#consent-overlay")).toHaveClass(/active/);
       await expect(stale.locator("#consent-overlay")).toHaveClass(/active/);

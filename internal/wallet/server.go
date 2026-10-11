@@ -330,7 +330,7 @@ func (s *Server) ListenAndServeBackground() (string, error) {
 	return addr, nil
 }
 
-func (s *Server) SetOnConsentRequest(fn func(req *consent.Request)) {
+func (s *Server) setOnConsentRequest(fn func(req *consent.Request)) {
 	s.onConsentRequest = fn
 }
 

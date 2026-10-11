@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package wallet
+package dcql
 
 import (
 	"crypto"
@@ -29,68 +29,65 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/dcql"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/validate"
 )
 
-// EvaluateDCQL matches stored credentials against a DCQL query (OID4VP 1.0 Section 6).
-// It returns matched credentials grouped by query credential ID.
-func (w *Wallet) EvaluateDCQL(query map[string]any) ([]consent.Match, error) {
-	matches, _, err := w.EvaluateDCQLWithOptions(query)
-	return matches, err
+// Credential is a stored credential as the matcher sees it.
+type Credential struct {
+	ID, Format, VCT, DocType, Raw string
+	Claims                        map[string]any
+	// Disclosures are the disclosures of an SD-JWT VC.
+	Disclosures []sdjwt.Disclosure
+	// Bound is set when the holder can prove holder binding: a KB-JWT for an
+	// SD-JWT VC, deviceKey for an mdoc. A jwt_vc_json credential is presented
+	// without a Verifiable Presentation, so it has none (OpenID4VP 1.0
+	// Appendix B.1).
+	Bound bool
+	// IssuedAt orders renewed credentials first. A zero time sorts last.
+	IssuedAt time.Time
 }
 
-// EvaluateDCQLWithOptions returns matching credentials and satisfiable set options for
+// Options are the wallet settings a query is evaluated with.
+type Options struct {
+	// Strict answers only with matching credentials. Otherwise debug mode
+	// also offers credentials that do not match, so verifiers can be tested
+	// with wrong answers. They never become the automatic selection.
+	Strict          bool
+	PreferredFormat string
+	// Anchors are the anchors of each etsi_tl trusted list by URL (§6.1.1.2).
+	// A list without anchors matches nothing.
+	Anchors map[string][]*x509.Certificate
+	// Collapse reduces the matches before they are ordered, such as the copies
+	// of one batch to one.
+	Collapse func([]consent.Match) []consent.Match
+}
+
+// Evaluate matches credentials against a DCQL query (OID4VP 1.0 §6). It
+// returns the matching credentials and the satisfiable set options for
 // consent. The first candidate and option are the automatic selection.
 //
-// Strict mode refuses a query with dcql.QueryFindings as invalid_request, and a
-// query whose trusted_authorities name a trusted list the wallet cannot use as
-// access_denied. Debug mode warns about both and evaluates the query as far as
-// it can.
-func (w *Wallet) EvaluateDCQLWithOptions(query map[string]any) ([]consent.Match, *consent.CredentialOptions, error) {
-	credentials := w.GetCredentials()
+// The request validation reports QueryFindings. Debug mode evaluates a query
+// with findings as far as it can.
+func Evaluate(query map[string]any, credentials []Credential, opts Options) ([]consent.Match, *consent.CredentialOptions) {
 	credQueries, _ := query["credentials"].([]any)
-	// The conformance API can change these settings while a query runs.
-	mode := w.Mode()
-	preferredFormat := w.PreferredFormatSetting()
+	preferredFormat := opts.PreferredFormat
 
 	log.Printf("[DCQL] Evaluating query: %d credential queries against %d stored credentials", len(credQueries), len(credentials))
-
-	if findings := dcql.QueryFindings(query); len(findings) > 0 {
-		if mode == ValidationModeStrict {
-			return nil, nil, &oid4vp.Error{Code: oid4vp.ErrorInvalidRequest, Err: fmt.Errorf("invalid dcql_query: %s", strings.Join(findings, ". "))}
-		}
-		for _, finding := range findings {
-			log.Printf("[DCQL] Warning: %s", finding)
-		}
-	}
 
 	var matches []consent.Match
 	// Debug mode offers credentials that do not match, so verifiers can be tested
 	// with wrong answers. They never become the automatic selection.
 	var nonMatching []consent.Match
-	debug := mode == ValidationModeDebug
+	debug := !opts.Strict
 	// Strict mode never presents an mdoc without deviceKey (ISO 18013-5 makes
 	// deviceKeyInfo mandatory), so in strict mode such an mdoc matches no
 	// query.
-	strict := mode == ValidationModeStrict
-
-	// The wallet proves holder binding with a KB-JWT for an SD-JWT VC and with
-	// deviceKey for an mdoc. It presents a jwt_vc_json credential without a
-	// Verifiable Presentation, so the credential has no holder binding
-	// (OpenID4VP 1.0 Appendix B.1). Strict mode answers a query that requires
-	// binding only with a bound credential. Debug mode offers an unbound one
-	// too, flagged and after the bound ones.
-	bound := make(map[string]bool, len(credentials))
-	for _, cred := range credentials {
-		bound[cred.ID] = (cred.Format == credtype.FormatSDJWT || cred.Format == credtype.FormatMDOC) && credentialHolderBinding(cred.Raw).Bound
-	}
+	strict := opts.Strict
 
 	for _, cq := range credQueries {
 		cqMap, ok := cq.(map[string]any)
@@ -101,13 +98,6 @@ func (w *Wallet) EvaluateDCQLWithOptions(query map[string]any) ([]consent.Match,
 		queryID, _ := cqMap["id"].(string)
 		queryFormat, _ := cqMap["format"].(string)
 		taList, _ := cqMap["trusted_authorities"].([]any)
-		listAnchors, listFindings := w.etsiTrustedListAnchors(taList)
-		if len(listFindings) > 0 {
-			if strict {
-				return nil, nil, &oid4vp.Error{Code: oid4vp.ErrorAccessDenied, Err: fmt.Errorf("credential query %s: %s", queryID, strings.Join(listFindings, ". "))}
-			}
-			w.warnFindings("presentation", fmt.Sprintf("The trusted lists of credential query %s", queryID), listFindings)
-		}
 		// Log skipped credentials by reason only when nothing matches.
 		matched := 0
 		skipped := make(map[string]int)
@@ -127,9 +117,12 @@ func (w *Wallet) EvaluateDCQLWithOptions(query map[string]any) ([]consent.Match,
 				skipped["meta mismatch"]++
 				mismatches = append(mismatches, metaMismatch(cred, cqMap))
 			}
+			// Strict mode answers a query that requires binding only with a
+			// bound credential. Debug mode offers an unbound one too, flagged
+			// and after the bound ones.
 			unbound := false
 			switch {
-			case bound[cred.ID]:
+			case cred.Bound:
 			case requiresHolderBinding(cqMap) && debug:
 				unbound = true
 			case requiresHolderBinding(cqMap):
@@ -140,7 +133,7 @@ func (w *Wallet) EvaluateDCQLWithOptions(query map[string]any) ([]consent.Match,
 				mismatches = append(mismatches, "is an mdoc without deviceKey, which strict mode does not present")
 			}
 
-			selection := w.selectClaims(cred, cqMap)
+			selection := selectClaims(cred, cqMap)
 			if len(mismatches) == 0 && len(selection.missingRequired) > 0 {
 				if debug && len(selection.selectedKeys) > 0 {
 					log.Printf("[DCQL] Warning: query=%s: credential %s (%s) missing required claims %v in debug mode, continuing with selected claims %v",
@@ -162,7 +155,7 @@ func (w *Wallet) EvaluateDCQLWithOptions(query map[string]any) ([]consent.Match,
 						Format:       cred.Format,
 						VCT:          cred.VCT,
 						DocType:      cred.DocType,
-						Claims:       filterClaims(cred, selection.selectedKeys),
+						Claims:       FilterClaims(cred, selection.selectedKeys),
 						SelectedKeys: selection.selectedKeys,
 						Mismatches:   mismatches,
 					})
@@ -172,8 +165,8 @@ func (w *Wallet) EvaluateDCQLWithOptions(query map[string]any) ([]consent.Match,
 
 			untrustedAuthority := false
 			if len(taList) > 0 {
-				if !checkTrustedAuthorities(cred, taList, listAnchors) {
-					if mode != ValidationModeDebug {
+				if !checkTrustedAuthorities(cred, taList, opts.Anchors) {
+					if !debug {
 						skipped["not trusted by any trusted_authority"]++
 						continue
 					}
@@ -206,7 +199,7 @@ func (w *Wallet) EvaluateDCQLWithOptions(query map[string]any) ([]consent.Match,
 				Format:             cred.Format,
 				VCT:                cred.VCT,
 				DocType:            cred.DocType,
-				Claims:             filterClaims(cred, selection.selectedKeys),
+				Claims:             FilterClaims(cred, selection.selectedKeys),
 				SelectedKeys:       selection.selectedKeys,
 				UntrustedAuthority: untrustedAuthority,
 				Unbound:            unbound,
@@ -220,10 +213,10 @@ func (w *Wallet) EvaluateDCQLWithOptions(query map[string]any) ([]consent.Match,
 		}
 	}
 
-	// Keep one unused batch copy so consent and presentation treat the batch as one
-	// credential.
-	matches = w.collapseBatchMatches(matches, credentials)
-	nonMatching = w.collapseBatchMatches(nonMatching, credentials)
+	if opts.Collapse != nil {
+		matches = opts.Collapse(matches)
+		nonMatching = opts.Collapse(nonMatching)
+	}
 	sortMatchesNewestFirst(nonMatching, credentials)
 
 	sortMatchesNewestFirst(matches, credentials)
@@ -267,17 +260,9 @@ func (w *Wallet) EvaluateDCQLWithOptions(query map[string]any) ([]consent.Match,
 
 	log.Printf("[DCQL] Result: %d matches", len(matches))
 	if matches == nil && len(nonMatching) == 0 {
-		return nil, nil, nil
+		return nil, nil
 	}
-	return matches, buildConsentCredentialOptions(candidates, nonMatching, credQueries, credSets, multiple, preferredFormat), nil
-}
-
-// PreferredFormatSetting takes the lock because PUT
-// /api/config/preferred-format changes the setting at runtime.
-func (w *Wallet) PreferredFormatSetting() string {
-	w.mu.RLock()
-	defer w.mu.RUnlock()
-	return w.PreferredFormat
+	return matches, buildConsentCredentialOptions(candidates, nonMatching, credQueries, credSets, multiple, preferredFormat)
 }
 
 // multipleQueries returns the ids of the credential queries that set multiple
@@ -443,7 +428,7 @@ func unmatchedCredentialQueries(credQueries []any, matches []consent.Match) []st
 
 // Sort by issuance time so renewed credentials take precedence. Undated credentials
 // come last and ties keep their order.
-func sortMatchesNewestFirst(matches []consent.Match, credentials []StoredCredential) {
+func sortMatchesNewestFirst(matches []consent.Match, credentials []Credential) {
 	matched := make(map[string]bool, len(matches))
 	for _, m := range matches {
 		matched[m.CredentialID] = true
@@ -451,7 +436,7 @@ func sortMatchesNewestFirst(matches []consent.Match, credentials []StoredCredent
 	issued := make(map[string]time.Time, len(matches))
 	for _, c := range credentials {
 		if matched[c.ID] {
-			issued[c.ID] = CredentialIssuedAt(c)
+			issued[c.ID] = c.IssuedAt
 		}
 	}
 	sort.SliceStable(matches, func(i, j int) bool {
@@ -549,9 +534,9 @@ type claimSelection struct {
 }
 
 // matchesFormat treats a missing format as a wildcard. §6.1 makes format
-// REQUIRED, so dcql.QueryFindings reports it and strict mode refuses the query
+// REQUIRED, so QueryFindings reports it and strict mode refuses the query
 // before matching.
-func matchesFormat(cred StoredCredential, queryFormat string) bool {
+func matchesFormat(cred Credential, queryFormat string) bool {
 	if queryFormat == "" {
 		return true
 	}
@@ -559,11 +544,11 @@ func matchesFormat(cred StoredCredential, queryFormat string) bool {
 }
 
 // matchesMeta checks format-specific metadata (vct_values, doctype_value).
-// dcql.QueryFindings reports a missing meta. Debug mode treats it as
+// QueryFindings reports a missing meta. Debug mode treats it as
 // unconstrained. A vct_values entry matches that type and every type extending
 // it (internal/credtype). ISO/IEC 18013-5 has no inheritance, so doctype_value
 // matches exactly.
-func matchesMeta(cred StoredCredential, cqMap map[string]any) bool {
+func matchesMeta(cred Credential, cqMap map[string]any) bool {
 	meta, ok := cqMap["meta"].(map[string]any)
 	if !ok {
 		return true
@@ -673,7 +658,7 @@ func requiresHolderBinding(cqMap map[string]any) bool {
 
 // metaMismatch describes how the credential type differs from the types in the
 // query's meta.
-func metaMismatch(cred StoredCredential, cqMap map[string]any) string {
+func metaMismatch(cred Credential, cqMap map[string]any) string {
 	meta, _ := cqMap["meta"].(map[string]any)
 	if values, ok := meta["vct_values"].([]any); ok {
 		var want []string
@@ -702,7 +687,7 @@ func metaMismatch(cred StoredCredential, cqMap map[string]any) string {
 	return fmt.Sprintf("type %s, the query asks for %s", have, docType)
 }
 
-func (w *Wallet) selectClaims(cred StoredCredential, cqMap map[string]any) claimSelection {
+func selectClaims(cred Credential, cqMap map[string]any) claimSelection {
 	claimsQuery, ok := cqMap["claims"].([]any)
 	if !ok || len(claimsQuery) == 0 {
 		return claimSelection{match: true}
@@ -721,7 +706,7 @@ func (w *Wallet) selectClaims(cred StoredCredential, cqMap map[string]any) claim
 
 // selectFromClaimSets picks the first satisfiable claim_set (preference order).
 // claim_sets entries reference claims by their "id" property (string).
-func selectFromClaimSets(cred StoredCredential, claimsQuery []any, claimSets []any) []string {
+func selectFromClaimSets(cred Credential, claimsQuery []any, claimSets []any) []string {
 	claimByID := buildClaimByID(claimsQuery)
 	for _, cs := range claimSets {
 		if selected, ok := claimSetSelectors(cred, claimByID, cs); ok {
@@ -733,7 +718,7 @@ func selectFromClaimSets(cred StoredCredential, claimsQuery []any, claimSets []a
 
 // satisfiableClaimSets lists the matching claim_sets options of a credential, in
 // the verifier's order. Debug mode offers them in the consent dialog.
-func satisfiableClaimSets(cred StoredCredential, cqMap map[string]any) []consent.ClaimSet {
+func satisfiableClaimSets(cred Credential, cqMap map[string]any) []consent.ClaimSet {
 	claimsQuery, _ := cqMap["claims"].([]any)
 	claimSets, _ := cqMap["claim_sets"].([]any)
 	if len(claimsQuery) == 0 || len(claimSets) == 0 {
@@ -743,7 +728,7 @@ func satisfiableClaimSets(cred StoredCredential, cqMap map[string]any) []consent
 	var out []consent.ClaimSet
 	for i, cs := range claimSets {
 		if selected, ok := claimSetSelectors(cred, claimByID, cs); ok {
-			out = append(out, consent.ClaimSet{Index: i, Keys: selected, Claims: filterClaims(cred, selected)})
+			out = append(out, consent.ClaimSet{Index: i, Keys: selected, Claims: FilterClaims(cred, selected)})
 		}
 	}
 	return out
@@ -751,7 +736,7 @@ func satisfiableClaimSets(cred StoredCredential, cqMap map[string]any) []consent
 
 // claimSetSelectors resolves one claim_sets option. ok is false when the credential
 // cannot answer one of its claims.
-func claimSetSelectors(cred StoredCredential, claimByID map[string]map[string]any, claimSet any) ([]string, bool) {
+func claimSetSelectors(cred Credential, claimByID map[string]map[string]any, claimSet any) ([]string, bool) {
 	ids, ok := claimSet.([]any)
 	if !ok {
 		return nil, false
@@ -794,7 +779,7 @@ func buildClaimByID(claimsQuery []any) map[string]map[string]any {
 // the selector to disclose, or "" when the credential does not answer it.
 // §6.4.1 treats a value mismatch "the same as if it did not exist in the
 // Credential".
-func claimSelectorFor(cred StoredCredential, cqMap map[string]any) string {
+func claimSelectorFor(cred Credential, cqMap map[string]any) string {
 	path, ok := cqMap["path"].([]any)
 	if !ok {
 		return ""
@@ -817,7 +802,7 @@ func claimSelectorFor(cred StoredCredential, cqMap map[string]any) string {
 // credential, plus the paths of the ones it cannot answer. §6.4.1: "If claims
 // is present, but claim_sets is absent, the Verifier requests all claims
 // listed in claims". None of them is optional.
-func selectAllRequestedClaims(cred StoredCredential, claimsQuery []any) claimSelection {
+func selectAllRequestedClaims(cred Credential, claimsQuery []any) claimSelection {
 	var selected []string
 	var missingRequired []string
 	var emptyArrays []string
@@ -834,7 +819,7 @@ func selectAllRequestedClaims(cred StoredCredential, claimsQuery []any) claimSel
 		if selector := claimSelectorFor(cred, cqMap); selector != "" {
 			selected = append(selected, selector)
 			if disclosesEmptyArray(cred, path) {
-				emptyArrays = append(emptyArrays, claimPathString(path))
+				emptyArrays = append(emptyArrays, ClaimPathString(path))
 			}
 		} else {
 			missingRequired = append(missingRequired, missingClaimLabel(cred, path))
@@ -852,7 +837,7 @@ func selectAllRequestedClaims(cred StoredCredential, claimsQuery []any) claimSel
 	}
 }
 
-func claimSelectorFromPath(cred StoredCredential, path []any) string {
+func claimSelectorFromPath(cred Credential, path []any) string {
 	if len(path) == 0 {
 		return ""
 	}
@@ -866,10 +851,10 @@ func claimSelectorFromPath(cred StoredCredential, path []any) string {
 		return ""
 	}
 
-	return claimPathString(path)
+	return ClaimPathString(path)
 }
 
-func missingClaimLabel(cred StoredCredential, path []any) string {
+func missingClaimLabel(cred Credential, path []any) string {
 	if cred.Format == credtype.FormatMDOC && len(path) == 2 {
 		ns, nsOK := path[0].(string)
 		el, elOK := path[1].(string)
@@ -877,14 +862,14 @@ func missingClaimLabel(cred StoredCredential, path []any) string {
 			return ns + ":" + el
 		}
 	}
-	return claimPathString(path)
+	return ClaimPathString(path)
 }
 
-// claimPathString writes a claims path as a selector such as
+// ClaimPathString writes a claims path as a selector such as
 // address.locality or degrees[0]. A name that contains '.', '[', ']' or '"'
-// is written as a quoted segment, ["a.b"], so parseSDJWTSelector reads back
+// is written as a quoted segment, ["a.b"], so ParseSDJWTSelector reads back
 // the same path.
-func claimPathString(path []any) string {
+func ClaimPathString(path []any) string {
 	if len(path) == 0 {
 		return "<empty>"
 	}
@@ -928,7 +913,7 @@ func claimPathString(path []any) string {
 //	array index:    ["nationalities", 0] → validates array has enough elements, returns "nationalities"
 //
 // For mdoc: path is like ["eu.europa.ec.eudi.pid.1", "given_name"] → key "eu.europa.ec.eudi.pid.1:given_name"
-func claimKeyFromPath(cred StoredCredential, path []any) string {
+func claimKeyFromPath(cred Credential, path []any) string {
 	if len(path) == 0 {
 		return ""
 	}
@@ -941,7 +926,7 @@ func claimKeyFromPath(cred StoredCredential, path []any) string {
 	if !ok {
 		return ""
 	}
-	if _, ok := dcql.SelectClaims(cred.Claims, path); !ok {
+	if _, ok := SelectClaims(cred.Claims, path); !ok {
 		return ""
 	}
 	return key
@@ -950,7 +935,7 @@ func claimKeyFromPath(cred StoredCredential, path []any) string {
 // mdocClaimKeyFromPath applies a claims path pointer to an mdoc, per §7.2.1.
 // The data element identifier is matched exactly: "If the data element does
 // not exist in the Credential then abort processing and return an error."
-func mdocClaimKeyFromPath(cred StoredCredential, path []any) string {
+func mdocClaimKeyFromPath(cred Credential, path []any) string {
 	// §7.2.1: "If the claims path pointer does not contain exactly two
 	// components or one of the components is not a string then abort
 	// processing and return an error."
@@ -976,7 +961,7 @@ func mdocClaimKeyFromPath(cred StoredCredential, path []any) string {
 // claimValuesAtPath returns the claims selected by a claims path pointer
 // (§7). An array wildcard selects every element, so it adds one entry per
 // element.
-func claimValuesAtPath(cred StoredCredential, path []any) []any {
+func claimValuesAtPath(cred Credential, path []any) []any {
 	if len(path) == 0 {
 		return nil
 	}
@@ -989,7 +974,7 @@ func claimValuesAtPath(cred StoredCredential, path []any) []any {
 		return []any{mdocValueAsJSON(cred.Claims[key])}
 	}
 
-	selected, _ := dcql.SelectClaims(cred.Claims, path)
+	selected, _ := SelectClaims(cred.Claims, path)
 	return selected
 }
 
@@ -1082,7 +1067,7 @@ func numericClaimValue(value any) (float64, bool) {
 	}
 }
 
-func filterClaims(cred StoredCredential, selectedKeys []string) map[string]any {
+func FilterClaims(cred Credential, selectedKeys []string) map[string]any {
 	filtered := make(map[string]any, len(selectedKeys))
 	for _, k := range selectedKeys {
 		if v, ok := claimValueBySelector(cred, k); ok {
@@ -1092,17 +1077,17 @@ func filterClaims(cred StoredCredential, selectedKeys []string) map[string]any {
 	return filtered
 }
 
-func claimValueBySelector(cred StoredCredential, selector string) (any, bool) {
+func claimValueBySelector(cred Credential, selector string) (any, bool) {
 	if cred.Format == credtype.FormatMDOC {
 		v, ok := cred.Claims[selector]
 		return v, ok
 	}
 
-	path, ok := parseSDJWTSelector(selector)
+	path, ok := ParseSDJWTSelector(selector)
 	if !ok {
 		return nil, false
 	}
-	selected, ok := dcql.SelectClaims(cred.Claims, path)
+	selected, ok := SelectClaims(cred.Claims, path)
 	if !ok {
 		return nil, false
 	}
@@ -1113,7 +1098,7 @@ func claimValueBySelector(cred StoredCredential, selector string) (any, bool) {
 	return selected[0], true
 }
 
-func parseSDJWTSelector(selector string) ([]any, bool) {
+func ParseSDJWTSelector(selector string) ([]any, bool) {
 	if selector == "" {
 		return nil, false
 	}
@@ -1282,7 +1267,7 @@ func optionMatchesFormat(opt any, queryFormat map[string]string, format string) 
 // is trusted by at least one of the given trusted authorities.
 // Each entry must have "type" and "values" (array) fields. listAnchors holds
 // the anchors of each etsi_tl list by URL.
-func checkTrustedAuthorities(cred StoredCredential, taList []any, listAnchors map[string][]*x509.Certificate) bool {
+func checkTrustedAuthorities(cred Credential, taList []any, listAnchors map[string][]*x509.Certificate) bool {
 	for _, taRaw := range taList {
 		taMap, ok := taRaw.(map[string]any)
 		if !ok {
@@ -1325,7 +1310,7 @@ func checkTrustedAuthorities(cred StoredCredential, taList []any, listAnchors ma
 	return false
 }
 
-func checkAuthorityKeyIdentifiers(cred StoredCredential, values []string) bool {
+func checkAuthorityKeyIdentifiers(cred Credential, values []string) bool {
 	certs, err := extractCredentialCertificates(cred)
 	if err != nil {
 		log.Printf("[DCQL]   trusted_authorities: failed to extract certificate chain: %v", err)
@@ -1354,7 +1339,7 @@ func checkAuthorityKeyIdentifiers(cred StoredCredential, values []string) bool {
 	return false
 }
 
-func extractCredentialCertificates(cred StoredCredential) ([]*x509.Certificate, error) {
+func extractCredentialCertificates(cred Credential) ([]*x509.Certificate, error) {
 	switch cred.Format {
 	case credtype.FormatSDJWT:
 		token, err := sdjwt.ParseLenient(cred.Raw)
@@ -1373,68 +1358,21 @@ func extractCredentialCertificates(cred StoredCredential) ([]*x509.Certificate, 
 	}
 }
 
-func checkETSITrustList(cred StoredCredential, trustListURL string, anchors []*x509.Certificate) bool {
+func checkETSITrustList(cred Credential, trustListURL string, anchors []*x509.Certificate) bool {
 	if len(anchors) == 0 {
 		return false
 	}
-	if _, err := credentialChainKey(cred, anchors); err != nil {
+	if _, err := ChainKey(cred, anchors); err != nil {
 		log.Printf("[DCQL]   trusted_authorities: %s: %v", trustListURL, err)
 		return false
 	}
 	return true
 }
 
-// etsiTrustedListAnchors reads the lists that the etsi_tl entries of
-// trusted_authorities name, the way the wallet reads its own trusted lists:
-// cached, signed by a trusted list operator and current. The issuance services
-// anchor credentials (ETSI TS 119 602 V1.1.1 Table D.3). Each list that gives
-// no anchors is a finding.
-func (w *Wallet) etsiTrustedListAnchors(taList []any) (map[string][]*x509.Certificate, []string) {
-	anchors := map[string][]*x509.Certificate{}
-	var findings []string
-	for _, entry := range taList {
-		entryMap, _ := entry.(map[string]any)
-		if t, _ := entryMap["type"].(string); t != "etsi_tl" {
-			continue
-		}
-		values, _ := entryMap["values"].([]any)
-		for _, v := range values {
-			listURL, _ := v.(string)
-			if listURL == "" {
-				continue
-			}
-			if _, read := anchors[listURL]; read {
-				continue
-			}
-			certs, err := w.issuanceAnchors(listURL)
-			if err != nil {
-				findings = append(findings, fmt.Sprintf("the trusted list %s of trusted_authorities cannot be used: %v", listURL, err))
-			}
-			anchors[listURL] = certs
-		}
-	}
-	return anchors, findings
-}
-
-func (w *Wallet) issuanceAnchors(listURL string) ([]*x509.Certificate, error) {
-	list, err := w.TrustedLists().ReadList(listURL)
-	if err != nil {
-		return nil, err
-	}
-	certs, err := lote.Anchors(list, lote.IssuanceServices, time.Now())
-	if err != nil {
-		return nil, err
-	}
-	if len(certs) == 0 {
-		return nil, fmt.Errorf("the list names no issuance service")
-	}
-	return certs, nil
-}
-
-// credentialChainKey checks that the issuer certificate chain of cred (x5c of
+// ChainKey checks that the issuer certificate chain of cred (x5c of
 // an SD-JWT, x5chain of an mdoc) ends in one of the anchors. It returns the
 // key of the chain's leaf.
-func credentialChainKey(cred StoredCredential, anchors []*x509.Certificate) (crypto.PublicKey, error) {
+func ChainKey(cred Credential, anchors []*x509.Certificate) (crypto.PublicKey, error) {
 	var key crypto.PublicKey
 	var err error
 	switch cred.Format {
@@ -1461,4 +1399,74 @@ func credentialChainKey(cred StoredCredential, anchors []*x509.Certificate) (cry
 		return nil, fmt.Errorf("the credential carries no certificate chain")
 	}
 	return key, nil
+}
+
+// A path ending at a selectively disclosed array reveals the array without its
+// elements. Only a trailing null or index selects elements. Arrays with always-visible
+// elements are unaffected.
+func disclosesEmptyArray(cred Credential, path []any) bool {
+	if cred.Format != credtype.FormatSDJWT || len(path) == 0 {
+		return false
+	}
+	switch path[len(path)-1].(type) {
+	case nil, float64, int:
+		return false
+	}
+	parts := strings.Split(cred.Raw, "~")
+	_, payload, _, err := format.ParseJWTParts(parts[0])
+	if err != nil {
+		return false
+	}
+	digestMap := make(map[string]*sdjwt.Disclosure, len(cred.Disclosures))
+	for i := range cred.Disclosures {
+		digestMap[cred.Disclosures[i].Digest] = &cred.Disclosures[i]
+	}
+	arr, ok := placeholderValueAtPath(payload, path, digestMap).([]any)
+	if !ok || len(arr) == 0 {
+		return false
+	}
+	for _, item := range arr {
+		obj, ok := item.(map[string]any)
+		if !ok {
+			return false
+		}
+		if _, ok := obj["..."].(string); !ok {
+			return false
+		}
+	}
+	return true
+}
+
+// placeholderValueAtPath walks a claims path (string components only) to its
+// value in the credential's placeholder form. A selectively disclosable member
+// resolves to its disclosure value. For an array of disclosable elements that
+// value is a list of {"...": digest} references.
+func placeholderValueAtPath(value any, path []any, digestMap map[string]*sdjwt.Disclosure) any {
+	if len(path) == 0 {
+		return value
+	}
+	segment, ok := path[0].(string)
+	if !ok {
+		return nil
+	}
+	obj, ok := value.(map[string]any)
+	if !ok {
+		return nil
+	}
+	if next, ok := obj[segment]; ok {
+		return placeholderValueAtPath(next, path[1:], digestMap)
+	}
+	sdArr, _ := obj["_sd"].([]any)
+	for _, item := range sdArr {
+		digest, ok := item.(string)
+		if !ok {
+			continue
+		}
+		disc := digestMap[digest]
+		if disc == nil || disc.IsArrayEntry || disc.Name != segment {
+			continue
+		}
+		return placeholderValueAtPath(disc.Value, path[1:], digestMap)
+	}
+	return nil
 }

@@ -24,6 +24,8 @@ import (
 	"testing"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
 func TestEcdsaPublicKeyFromJWK(t *testing.T) {
@@ -137,16 +139,14 @@ func TestShortCoordinateIsReportedInTheActivityLog(t *testing.T) {
 	w := generateTestWallet(t)
 	w.ValidationMode = ValidationModeDebug
 
-	params := PresentationParams{
-		ClientMetadata: map[string]any{
-			"jwks": map[string]any{
-				"keys": []any{map[string]any{
-					"kty": "EC", "crv": "P-256", "use": "enc", "alg": "ECDH-ES",
-					"kid": "verifier-key", "x": shortX, "y": fullY,
-				}},
-			},
+	params := &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ClientMetadata: map[string]any{
+		"jwks": map[string]any{
+			"keys": []any{map[string]any{
+				"kty": "EC", "crv": "P-256", "use": "enc", "alg": "ECDH-ES",
+				"kid": "verifier-key", "x": shortX, "y": fullY,
+			}},
 		},
-	}
+	}}}
 
 	if _, _, err := w.encryptDirectPostJWTPayload(map[string]any{"vp_token": "x"}, "", params); err != nil {
 		t.Fatalf("debug mode refused to encrypt to a repairable key: %v", err)

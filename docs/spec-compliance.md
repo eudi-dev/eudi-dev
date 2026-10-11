@@ -36,7 +36,7 @@ Three settings control validation:
 | `x509_san_dns:` client_id | Implemented | Verified against the leaf certificate SAN |
 | `x509_hash:` client_id | Implemented | SHA-256 of the leaf certificate matched against the prefix value |
 | `redirect_uri:` client_id | Implemented | Requires unsigned request objects and checks that the prefix value matches `response_uri` |
-| `verifier_attestation:` client_id | Validated | Checks the JWT structure in the header and that its `sub` claim matches the client_id. The Request Object signing key is in the attestation's `cnf` claim. The wallet does not read that claim, so it reports the signature as not verified |
+| `verifier_attestation:` client_id | Validated | Checks the attestation `typ`, `sub`, `exp` and `cnf` claims. Verifies the Request Object with the `cnf` key and the attestation with its `x5c` certificate. The wallet has no trust anchors for attestation issuers, so it reports the signer as not verified |
 | `decentralized_identifier:` client_id | Validated | Validates the DID format and cross-checks `kid`. DID resolution is not implemented, so the wallet reports the Request Object signature as not verified ([ADR-0013](adr/0013-only-the-eudi-stack-is-supported.md)) |
 | Pre-registered client (no prefix) | Validated | A Client Identifier without a `:` refers to a pre-registered client (§5.9.2). The wallet does not report it as an unknown prefix. No client keys are pre-registered with this wallet, so it reports the Request Object signature as not verified |
 | `origin:` client_id | Refused | §5.9.3 reserves the prefix: "The Wallet MUST NOT accept this Client Identifier Prefix in requests". The prefix identifies the audience of a Digital Credentials API presentation. The wallet derives that audience from the caller origin reported by the platform |
@@ -119,7 +119,7 @@ These features are active only with `--vci-version 1.1` and only when the issuer
 | VP signing certificate rules | Enforced | §5: the certificate signing the request must not be self-signed, and the trust anchor must not be in the `x5c` header |
 | VP signed request object (JAR) | Enforced | §5.1 requires JAR with the `request_uri` parameter, so an inline request object over redirects is refused. Unsigned requests are accepted only over the Digital Credentials API, where §5.2 requires them and they carry no `client_id` |
 | VP DCQL query | Enforced | §5: "The DCQL query and response MUST be used as defined in Section 6 of [OIDF.OID4VP]" |
-| VP credential formats | Enforced | `mso_mdoc` (§5.3.1) or `dc+sd-jwt` (§5.3.2). Any other format identifier in the query is refused |
+| VP credential formats | Not restricted | §5.3.1 and §5.3.2 apply when an mdoc or an SD-JWT VC is used. A query for another format is outside the profile and is not refused |
 | VP Verifier response encryption metadata | Advisory | §5 requires both `A128GCM` and `A256GCM`. If the Verifier offers only one and the wallet can use it, the wallet warns in either mode |
 | VP `expected_origins` | Enforced | A signed Digital Credentials API request must list the caller origin (OpenID4VP Appendix A.2, which §5.2 incorporates) |
 | VP Request Object `alg` | Enforced | `ES256`. §7 sets it as the minimum, and the wallet advertises it in `request_object_signing_alg_values_supported` |

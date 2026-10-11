@@ -26,6 +26,7 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jwe"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
@@ -112,8 +113,8 @@ func TestActivityRecordsExactEncryptedPresentation(t *testing.T) {
 	}))
 	defer verifier.Close()
 	var payload *LogPayload
-	_, err = w.SubmitPresentation(&VPTokenMapResult{TokenMap: map[string][]string{"pid": {"presentation"}}}, "", "state", verifier.URL,
-		PresentationParams{ResponseMode: "direct_post.jwt", ClientMetadata: map[string]any{"jwks": map[string]any{"keys": []any{testEncJWK(t, &key.PublicKey)}}}},
+	_, err = w.submitPresentation(&VPTokenMapResult{TokenMap: map[string][]string{"pid": {"presentation"}}}, "", "state", verifier.URL,
+		&oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ResponseMode: "direct_post.jwt", ClientMetadata: map[string]any{"jwks": map[string]any{"keys": []any{testEncJWK(t, &key.PublicKey)}}}}},
 		func(response *oid4vp.AuthorizationResponseEnvelope) { payload = PresentationLogPayload(response) })
 	if err != nil {
 		t.Fatal(err)
@@ -194,10 +195,7 @@ func TestActivityPreservesRejectedVerifierResponse(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			w := generateTestWallet(t)
 			s := NewServer(w, 0, nil)
-			result, err := s.deliverAuthorizationError(&oid4vp.Request{
-				ClientID: "verifier", ResponseURI: verifier.URL, ResponseMode: mode,
-				ClientMetadata: map[string]any{"jwks": map[string]any{"keys": []any{testEncJWK(t, &key.PublicKey)}}},
-			}, "access_denied", "declined")
+			result, err := s.deliverAuthorizationError(&oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ClientID: "verifier", ResponseURI: verifier.URL, ResponseMode: mode, ClientMetadata: map[string]any{"jwks": map[string]any{"keys": []any{testEncJWK(t, &key.PublicKey)}}}}}, "access_denied", "declined")
 			if err == nil || result != nil {
 				t.Fatalf("invalid redirect must still fail: result=%v err=%v", result, err)
 			}

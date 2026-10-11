@@ -88,6 +88,16 @@ func Decrypt(compact string, key *ecdh.PrivateKey) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	// RFC 7518 §4.6: "The "alg" (algorithm) Header Parameter value "ECDH-ES"
+	// is used in the Direct Key Agreement mode."
+	if alg, _ := header.Raw["alg"].(string); alg != AlgECDHES {
+		return nil, fmt.Errorf("unsupported JWE alg %q, want %s", alg, AlgECDHES)
+	}
+	// RFC 7516 §5.2 step 10: "verify that the JWE Encrypted Key value is an
+	// empty octet sequence."
+	if strings.Split(compact, ".")[1] != "" {
+		return nil, fmt.Errorf("the JWE encrypted key must be empty under %s", AlgECDHES)
+	}
 	if header.EPK == nil {
 		return nil, fmt.Errorf("missing epk in JWE header")
 	}
@@ -129,6 +139,13 @@ func DecryptWithCEK(compact string, cek []byte) ([]byte, error) {
 	tag, err := format.DecodeBase64URL(parts[4])
 	if err != nil {
 		return nil, fmt.Errorf("decoding tag: %w", err)
+	}
+	keyBitLen, err := EncKeyBitLen(header.Enc)
+	if err != nil {
+		return nil, err
+	}
+	if len(cek)*8 != keyBitLen {
+		return nil, fmt.Errorf("%s requires a %d-bit key, got %d bits", header.Enc, keyBitLen, len(cek)*8)
 	}
 	// The AAD is the ASCII of the encoded protected header (RFC 7516 §5.1).
 	switch header.Enc {

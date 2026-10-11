@@ -15,11 +15,13 @@
 package wallet
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/dcql"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 )
 
@@ -247,45 +249,6 @@ func TestEvaluateDCQL_ValuesFilterMDocElements(t *testing.T) {
 	}
 }
 
-// §6.3: "the CBOR value used for matching MUST first be converted to JSON,
-// following the advice given in Section 6.1 of [RFC8949]". That turns a CBOR
-// integer into a JSON number and a byte string into base64url text.
-func TestClaimSelectorFor_MDocValueMatchingUsesJSONConversion(t *testing.T) {
-	cred := StoredCredential{
-		Format: "mso_mdoc",
-		Claims: map[string]any{
-			"ns:issue_count":   uint64(3),
-			"ns:balance":       int64(-7),
-			"ns:portrait":      []byte{0xfb, 0xfb, 0xfb},
-			"ns:document_code": "D",
-		},
-	}
-
-	tests := []struct {
-		name  string
-		claim map[string]any
-		want  string
-	}{
-		{"unsigned integer", map[string]any{"path": []any{"ns", "issue_count"}, "values": []any{float64(3)}}, "ns:issue_count"},
-		{"unsigned integer differs", map[string]any{"path": []any{"ns", "issue_count"}, "values": []any{float64(4)}}, ""},
-		{"negative integer", map[string]any{"path": []any{"ns", "balance"}, "values": []any{float64(-7)}}, "ns:balance"},
-		{"integer is not its decimal string", map[string]any{"path": []any{"ns", "issue_count"}, "values": []any{"3"}}, ""},
-		// 0xfbfbfb is "+/v7" in standard base64 and "-_v7" in base64url.
-		// RFC 8949 Section 6.1 asks for base64url.
-		{"byte string as base64url", map[string]any{"path": []any{"ns", "portrait"}, "values": []any{"-_v7"}}, "ns:portrait"},
-		{"byte string not as standard base64", map[string]any{"path": []any{"ns", "portrait"}, "values": []any{"+/v7"}}, ""},
-		{"text string", map[string]any{"path": []any{"ns", "document_code"}, "values": []any{"D"}}, "ns:document_code"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := claimSelectorFor(cred, tt.claim); got != tt.want {
-				t.Errorf("claimSelectorFor() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
 // §6.3 defines id, path and values for a Claims Query. None of them makes a
 // claim optional. §6.4.1: "If the Wallet cannot deliver
 // all claims requested by the Verifier according to these rules, it MUST NOT
@@ -424,14 +387,21 @@ func TestDCQLQueryFindings_WellFormedQueryHasNone(t *testing.T) {
 	}
 }
 
-// In strict mode the findings are errors. A query without a member that §6.1
-// marks REQUIRED is an invalid_request, even for a caller that did not
-// validate the request first.
-func TestEvaluateDCQL_StrictRejectsQueryWithoutMeta(t *testing.T) {
-	w := generateTestWalletWithPID(t)
-	w.ValidationMode = ValidationModeStrict
+// queryRequest is a valid request for query, so only the query decides the
+// outcome.
+func queryRequest(query map[string]any) *oid4vp.Request {
+	return &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{
+		ClientID:     "redirect_uri:https://verifier.example/cb",
+		ResponseType: "vp_token",
+		ResponseMode: "direct_post",
+		ResponseURI:  "https://verifier.example/cb",
+		Nonce:        "n",
+		DCQLQuery:    query,
+	}}
+}
 
-	query := map[string]any{
+func queryWithoutMeta() map[string]any {
+	return map[string]any{
 		"credentials": []any{
 			map[string]any{
 				"id":     "pid",
@@ -440,34 +410,32 @@ func TestEvaluateDCQL_StrictRejectsQueryWithoutMeta(t *testing.T) {
 			},
 		},
 	}
+}
 
-	_, err := w.EvaluateDCQL(query)
-	if err == nil || oid4vp.ErrorCode(err) != oid4vp.ErrorInvalidRequest || !strings.Contains(err.Error(), "missing the required meta") {
-		t.Fatalf("want an invalid_request naming the missing meta, got %v", err)
+// In strict mode the findings are errors. A query without a member that §6.1
+// marks REQUIRED is an invalid_request.
+func TestStrictRefusesAQueryWithoutMeta(t *testing.T) {
+	w := generateTestWalletWithPID(t)
+	w.ValidationMode = ValidationModeStrict
+
+	outcome := w.evaluatePresentationRequest(queryRequest(queryWithoutMeta()), presentationEntry{action: "presentation", subject: "The request"})
+	if outcome.invalid == nil || outcome.invalidCode != oid4vp.ErrorInvalidRequest || !strings.Contains(outcome.invalid.Error(), "missing the required meta") {
+		t.Fatalf("want an invalid_request naming the missing meta, got %v (%s)", outcome.invalid, outcome.invalidCode)
 	}
 }
 
 // Debug mode reports the same findings as warnings and continues, so a
 // developer can watch the rest of the exchange.
-func TestEvaluateDCQL_DebugWarnsAboutQueryWithoutMeta(t *testing.T) {
-	logs := captureTestLogs(t)
+func TestDebugWarnsAboutAQueryWithoutMeta(t *testing.T) {
 	w := generateTestWalletWithPID(t)
 	w.ValidationMode = ValidationModeDebug
 
-	query := map[string]any{
-		"credentials": []any{
-			map[string]any{
-				"id":     "pid",
-				"format": "dc+sd-jwt",
-				"claims": []any{map[string]any{"path": []any{"given_name"}}},
-			},
-		},
+	authReq := queryRequest(queryWithoutMeta())
+	outcome := w.evaluatePresentationRequest(authReq, presentationEntry{action: "presentation", subject: "The request"})
+	if len(outcome.matches) != 1 {
+		t.Fatalf("expected debug mode to keep evaluating, got %d matches", len(outcome.matches))
 	}
-
-	if matches := evaluateDCQL(t, w, query); len(matches) != 1 {
-		t.Fatalf("expected debug mode to keep evaluating, got %d matches", len(matches))
-	}
-	if !strings.Contains(logs.String(), "missing the required meta") {
-		t.Errorf("expected a warning about the missing meta, got:\n%s", logs.String())
+	if !slices.ContainsFunc(authReq.Findings, func(f string) bool { return strings.Contains(f, "missing the required meta") }) {
+		t.Errorf("findings = %v, want the missing meta", authReq.Findings)
 	}
 }

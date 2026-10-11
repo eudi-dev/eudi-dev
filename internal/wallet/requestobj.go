@@ -52,9 +52,9 @@ func BuildWalletMetadata(w *Wallet, clientID string) map[string]any {
 		// OID4VP 1.0 §10 uses RFC 8414 metadata, which requires
 		// response_types_supported. OpenID4VP returns vp_token (§5.6).
 		"response_types_supported": []string{"vp_token"},
-		// RFC 8414 defaults to query and fragment, so the wallet lists its own
-		// response modes.
-		"response_modes_supported": []string{"direct_post", "direct_post.jwt", "dc_api", "dc_api.jwt"},
+		// RFC 8414 defaults to query and fragment, so the wallet lists every
+		// response mode it answers.
+		"response_modes_supported": []string{"direct_post", "direct_post.jwt", "dc_api", "dc_api.jwt", "fragment"},
 		// OID4VP 1.0 §5.10 advertises response encryption for direct_post.jwt and
 		// dc_api.jwt. ECDH-ES with P-256 is the baseline. HAIP requires both A128GCM
 		// and A256GCM.
@@ -255,11 +255,11 @@ func (w *Wallet) judgeRequestURIMediaType(method, contentType string) error {
 	if err == nil {
 		return nil
 	}
-	if method == "post" && w.Mode() == ValidationModeStrict {
-		return err
+	if method != "post" {
+		w.AddWarning("presentation", err.Error(), nil)
+		return nil
 	}
-	w.AddWarning("presentation", err.Error(), nil)
-	return nil
+	return w.reportDeviation(deviation{action: "presentation", event: "request_uri_media_type", detail: err.Error(), refusal: err})
 }
 
 // checkWalletNonce applies OID4VP 1.0 §5.10.1: "if the Wallet passed a

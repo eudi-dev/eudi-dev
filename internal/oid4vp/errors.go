@@ -14,8 +14,6 @@
 
 package oid4vp
 
-import "errors"
-
 // OpenID4VP 1.0 §8.5 uses invalid_request and access_denied from OAuth 2.0. Appendix
 // E.3 registers the additional error codes.
 const (
@@ -26,34 +24,9 @@ const (
 	ErrorInvalidTransactionData  = "invalid_transaction_data"
 )
 
-// Error is a refusal with the error code of OpenID4VP 1.0 §8.5. An error
-// without a code is reported as invalid_request.
-type Error struct {
-	Code string
-	Err  error
-}
-
-func (e *Error) Error() string { return e.Err.Error() }
-
-func (e *Error) Unwrap() error { return e.Err }
-
-// ErrorCode is the code of err. It defaults to invalid_request for requests
-// the wallet cannot parse (OpenID4VP 1.0 §8.5).
-func ErrorCode(err error) string {
-	var authErr *Error
-	if errors.As(err, &authErr) && authErr.Code != "" {
-		return authErr.Code
-	}
-	return ErrorInvalidRequest
-}
-
-// RefusalCode is the error code of a refused request. An explicit error code
-// takes precedence. Otherwise it inspects the request for the parameter errors
-// defined by OpenID4VP 1.0 §8.5.
-func RefusalCode(authReq *Request, err error) string {
-	if code := ErrorCode(err); code != ErrorInvalidRequest {
-		return code
-	}
+// RefusalCode is the error code of a refused request. It inspects the request
+// for the parameter errors defined by OpenID4VP 1.0 §8.5.
+func RefusalCode(authReq *Request) string {
 	if authReq == nil {
 		return ErrorInvalidRequest
 	}
@@ -66,7 +39,7 @@ func RefusalCode(authReq *Request, err error) string {
 	}
 	// OpenID4VP 1.0 §8.5 uses invalid_transaction_data for unsupported transaction
 	// types. This wallet supports none.
-	if HasTransactionData(authReq, authReq.RequestPayload) {
+	if hasTransactionData(authReq, authReq.RequestPayload) {
 		return ErrorInvalidTransactionData
 	}
 	return ErrorInvalidRequest

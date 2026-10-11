@@ -22,15 +22,10 @@ import (
 	"crypto/x509"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 )
-
-func ParseAuthorizationRequest(raw string) (*oid4vc.AuthorizationRequest, error) {
-	return ParseAuthorizationRequestWithOptions(raw, oid4vc.ParseOptions{})
-}
 
 func ParseAuthorizationRequestWithOptions(raw string, opts oid4vc.ParseOptions) (*oid4vc.AuthorizationRequest, error) {
 	raw = strings.TrimSpace(raw)
@@ -50,29 +45,6 @@ func ParseAuthorizationRequestWithOptions(raw string, opts oid4vc.ParseOptions) 
 	}
 
 	return authReq, nil
-}
-
-func ParseAuthorizationRequestFromParams(params url.Values) (*oid4vc.AuthorizationRequest, error) {
-	u := url.URL{
-		Scheme:   "openid4vp",
-		Host:     "authorize",
-		RawQuery: params.Encode(),
-	}
-	return ParseAuthorizationRequest(u.String())
-}
-
-func GetResponseURI(authReq *oid4vc.AuthorizationRequest) string {
-	if authReq.ResponseURI != "" {
-		return authReq.ResponseURI
-	}
-	return authReq.RedirectURI
-}
-
-func GetResponseMode(authReq *oid4vc.AuthorizationRequest) string {
-	if authReq.ResponseMode != "" {
-		return authReq.ResponseMode
-	}
-	return "direct_post"
 }
 
 func ResponseTypeContains(responseType, target string) bool {
@@ -97,7 +69,7 @@ func IsInteractiveAuthorizationResponseMode(mode string) bool {
 	return mode == "ia_post" || mode == "ia_post.jwt"
 }
 
-func RequestPayload(reqObj *oid4vc.RequestObjectJWT, fallback map[string]any) map[string]any {
+func requestPayload(reqObj *oid4vc.RequestObjectJWT, fallback map[string]any) map[string]any {
 	if reqObj != nil && reqObj.Payload != nil {
 		return reqObj.Payload
 	}
@@ -126,7 +98,10 @@ func (r *Request) ResponseDestination() string {
 	return r.RedirectURI
 }
 
+// Request is an authorization request on its way through the wallet: the
+// parsed parameters and where the request came from.
 type Request struct {
+	oid4vc.AuthorizationRequest
 	// Findings are the checks that failed in debug mode. The consent dialog
 	// and the API response list them.
 	Findings []string
@@ -134,28 +109,14 @@ type Request struct {
 	// this request (POST /api/presentations).
 	AutoAccept        bool
 	SessionTranscript SessionTranscriptMode
-	ClientID          string
-	ResponseType      string
-	ResponseMode      string
-	Nonce             string
-	State             string
 	RequestOrigin     string
 	// Session identifies the browser that owns the consent request. Empty for requests
 	// without a browser session.
-	Session          string
-	RedirectURI      string
-	ResponseURI      string
-	Scope            string
-	RequestURIMethod string
-	// Empty when the Request Object was not fetched by reference.
-	RequestURI     string
-	ClientMetadata map[string]any
-	DCQLQuery      map[string]any
-	RequestObject  *oid4vc.RequestObjectJWT
+	Session string
+	// RequestPayload is the payload of the request object, or else the JSON
+	// of a request sent as JSON.
 	RequestPayload map[string]any
-	// Preserved to detect undefined parameters.
-	FullParams map[string]string
-	Source     string
+	Source         string
 	// Unsigned DC API requests use the platform's origin to identify the caller and
 	// omit client_id (OpenID4VP 1.0 Appendix A.2 and A.3.1).
 	UnsignedDCAPI bool
@@ -203,20 +164,7 @@ func ParseRequest(values map[string][]string, opts oid4vc.ParseOptions) (*Reques
 // wallet's flow. Callers add where the request came from.
 func RequestFrom(parsed *oid4vc.AuthorizationRequest) *Request {
 	return &Request{
-		ClientID:         parsed.ClientID,
-		ResponseType:     parsed.ResponseType,
-		ResponseMode:     parsed.ResponseMode,
-		Nonce:            parsed.Nonce,
-		State:            parsed.State,
-		RedirectURI:      parsed.RedirectURI,
-		ResponseURI:      parsed.ResponseURI,
-		Scope:            parsed.Scope,
-		RequestURIMethod: parsed.RequestURIMethod,
-		RequestURI:       parsed.RequestURI,
-		ClientMetadata:   parsed.ClientMetadata,
-		DCQLQuery:        parsed.DCQLQuery,
-		RequestObject:    parsed.RequestObject,
-		RequestPayload:   RequestPayload(parsed.RequestObject, parsed.FullJSON),
-		FullParams:       parsed.FullParams,
+		AuthorizationRequest: *parsed,
+		RequestPayload:       requestPayload(parsed.RequestObject, parsed.FullJSON),
 	}
 }

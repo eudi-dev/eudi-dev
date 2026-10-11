@@ -58,21 +58,22 @@ func TestAnAccessCertificateFromACSRSignsARequest(t *testing.T) {
 		t.Errorf("chain holds %d certificates, want the leaf and the CA", strings.Count(result.Chain, "BEGIN CERTIFICATE"))
 	}
 
-	clientID := result.ClientIDs[0]
-	header := map[string]any{"alg": "ES256", "typ": "oauth-authz-req+jwt", "x5c": []any{base64.StdEncoding.EncodeToString(leaf.Raw)}}
-	raw, err := jws.Sign(header, map[string]any{"client_id": clientID}, key)
-	if err != nil {
-		t.Fatal(err)
-	}
-	reqObj := &oid4vc.RequestObjectJWT{Raw: raw, Header: header, Payload: map[string]any{"client_id": clientID}}
-	if finding := oid4vp.VerifyClientID(clientID, reqObj, "", ""); finding != "" {
-		t.Errorf("x509_hash client_id: %s", finding)
-	}
-	if finding := oid4vp.VerifyClientID(result.ClientIDs[1], reqObj, "", ""); finding != "" {
-		t.Errorf("x509_san_dns client_id: %s", finding)
-	}
-	if finding := oid4vp.VerifyRequestObjectSignature(clientID, reqObj); finding != "" {
-		t.Errorf("request object signature: %s", finding)
+	for _, clientID := range result.ClientIDs {
+		header := map[string]any{"alg": "ES256", "typ": "oauth-authz-req+jwt", "x5c": []any{base64.StdEncoding.EncodeToString(leaf.Raw)}}
+		payload := map[string]any{"client_id": clientID}
+		raw, err := jws.Sign(header, payload, key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req := &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{
+			ClientID: clientID, ResponseType: "vp_token", ResponseMode: "direct_post",
+			ResponseURI: "https://shop.example/response", Nonce: "n",
+			DCQLQuery:     map[string]any{"credentials": []any{map[string]any{"id": "pid", "format": "dc+sd-jwt", "meta": map[string]any{"vct_values": []any{"urn:eudi:pid:1"}}}}},
+			RequestObject: &oid4vc.RequestObjectJWT{Raw: raw, Header: header, Payload: payload},
+		}, RequestPayload: payload}
+		if _, err := oid4vp.ValidateAuthorizationRequest(oid4vp.Checks{Strict: true}, req); err != nil {
+			t.Errorf("%s: %v", clientID, err)
+		}
 	}
 }
 

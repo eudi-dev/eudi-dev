@@ -21,7 +21,7 @@ When a verifier responds to a presentation with a `redirect_uri`, the wallet pri
 
 `debug` mode matches DCQL queries loosely to help troubleshoot verifier queries. A credential that matches the requested format and metadata and at least one requested claim counts as a match with a warning, even when other required claim paths are missing. `strict` mode requires every claim path.
 
-An `etsi_tl` entry in `trusted_authorities` names a trusted list. The wallet reads it like its own trusted lists. The list must be signed by a trusted list operator and be current, and its issuance services anchor the credential. If the wallet can't read or verify the list, `strict` mode refuses the request with `access_denied`. `debug` mode logs a warning and offers the credential as untrusted.
+An `etsi_tl` entry in `trusted_authorities` names a trusted list. The wallet reads it like its own trusted lists. The list must be signed by a trusted list operator and be current, and its issuance services anchor the credential. If the wallet can't read or verify the list, it logs a warning and the list matches no credential. The other entries still count. `debug` mode offers an unmatched credential as untrusted.
 
 The wallet presents a `jwt_vc_json` credential without a Verifiable Presentation, so it can't prove holder binding. Such a credential answers only a query with `require_cryptographic_holder_binding: false` (OpenID4VP 1.0 Appendix B.1).
 
@@ -126,7 +126,7 @@ For **presentations** (OID4VP `direct_post.jwt` and Browser API `dc_api.jwt`) th
 - A request object must use the `x509_hash:` Client Identifier Prefix (§5), and its Request Object signature must verify against a certificate whose SHA-256 is the prefix value
 - The certificate signing the request must not be self-signed, and the trust anchor must not be included in the `x5c` header (§5)
 - A request sent by redirect must carry a signed request object (JAR) delivered through `request_uri` (§5.1). An unsigned request is accepted only over the Digital Credentials API, where §5.2 requires wallet support for it
-- The query must use DCQL (§5), and every credential it asks for must be `mso_mdoc` (§5.3.1) or `dc+sd-jwt` (§5.3.2)
+- The query must use DCQL (§5)
 - The Verifier's client metadata must list both `A128GCM` and `A256GCM` in `encrypted_response_enc_values_supported` (§5)
 - A signed Digital Credentials API request must list the caller origin in `expected_origins` (OpenID4VP Appendix A.2, which §5.2 incorporates)
 - The request object signing algorithm must be `ES256`

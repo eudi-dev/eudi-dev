@@ -58,11 +58,6 @@ func (s *Server) handleRequestStream(w http.ResponseWriter, r *http.Request) {
 	}
 	extendDeadline()
 
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	flusher.Flush()
-
 	owners := callerOwners(r)
 
 	reqCh, reqUnsub := s.wallet.Consents().Subscribe()
@@ -76,6 +71,14 @@ func (s *Server) handleRequestStream(w http.ResponseWriter, r *http.Request) {
 		return consent.OwnedBy(owners, prompt.Owner)
 	})
 	defer authUnsub()
+
+	// The page reads the pending requests when the stream opens, so the stream
+	// subscribes first. A request created after that read then arrives as an
+	// event.
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	flusher.Flush()
 
 	// Keepalives prevent proxies from dropping idle streams and causing repeated
 	// reconnects.
@@ -213,7 +216,7 @@ func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	req, ok := s.wallet.Consents().Resolve(id, "approved")
+	req, ok := s.wallet.Consents().Resolve(id, consent.StatusApproved)
 	if !ok {
 		if req == nil {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "request not found"})
@@ -266,7 +269,7 @@ func (s *Server) handleDenyRequest(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "request not found"})
 		return
 	}
-	req, ok := s.wallet.Consents().Resolve(id, "denied")
+	req, ok := s.wallet.Consents().Resolve(id, consent.StatusDenied)
 	if !ok {
 		if req == nil {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "request not found"})

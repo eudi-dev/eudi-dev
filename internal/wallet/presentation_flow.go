@@ -17,6 +17,7 @@ package wallet
 import (
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -76,7 +77,7 @@ func (w *Wallet) evaluatePresentationRequest(authReq *oid4vp.Request, entry pres
 	if err != nil {
 		w.AddLog(entry.action, err.Error(), false)
 		w.Consents().NotifyError(consent.Error{Owner: entry.owner, Message: "Authorization request validation failed", Detail: err.Error()})
-		return presentationOutcome{invalid: err, invalidCode: oid4vp.RefusalCode(authReq, err)}
+		return presentationOutcome{invalid: err, invalidCode: oid4vp.RefusalCode(authReq)}
 	}
 	// The override answers only a valid request.
 	if override := w.Consents().ConsumeNextError(); override != nil {
@@ -93,16 +94,7 @@ func (w *Wallet) evaluatePresentationRequest(authReq *oid4vp.Request, entry pres
 	}
 	var outcome presentationOutcome
 	if authReq.DCQLQuery != nil {
-		outcome.matches, outcome.options, err = w.EvaluateDCQLWithOptions(authReq.DCQLQuery)
-		if err != nil {
-			w.AddLog(entry.action, err.Error(), false)
-			w.Consents().NotifyError(consent.Error{Owner: entry.owner, Message: "The wallet refuses the credential query", Detail: err.Error()})
-			code := oid4vp.ErrorCode(err)
-			if code == oid4vp.ErrorInvalidRequest {
-				return presentationOutcome{invalid: err, invalidCode: code}
-			}
-			return presentationOutcome{refusal: &presentationRefusal{status: "refused", code: code, description: err.Error()}}
-		}
+		outcome.matches, outcome.options = w.matchDCQL(authReq.DCQLQuery)
 	}
 	// Debug mode lets a person answer with a credential that does not match.
 	if len(outcome.matches) == 0 && (outcome.options == nil || !entry.interactive) {
@@ -136,36 +128,20 @@ func (w *Wallet) askPresentationConsent(typ, owner, asking string, authReq *oid4
 	return consentReq, w.consentedMatches(consentReq, outcome.matches, result), true, true
 }
 
-// presentationParams are the request parameters the response depends on.
-func presentationParams(r *oid4vp.Request) PresentationParams {
-	return PresentationParams{
-		Nonce:                            r.Nonce,
-		ClientID:                         r.ClientID,
-		RequestOrigin:                    r.RequestOrigin,
-		ResponseURI:                      r.ResponseDestination(),
-		RedirectURI:                      r.RedirectURI,
-		ResponseMode:                     r.ResponseMode,
-		ClientMetadata:                   r.ClientMetadata,
-		RequestObject:                    r.RequestObject,
-		SessionTranscript:                r.SessionTranscript,
-		InteractiveAuthorizationEndpoint: r.InteractiveAuthorizationEndpoint,
-	}
-}
-
 // preparePresentation creates the vp_token and the id_token the request asks
 // for.
 func (w *Wallet) preparePresentation(authReq *oid4vp.Request, matches []consent.Match) (*preparedPresentation, error) {
 	prepared := &preparedPresentation{
 		ResponseURI: authReq.ResponseDestination(),
-		Params:      presentationParams(authReq),
 	}
 
 	if oid4vp.ResponseTypeContains(authReq.ResponseType, "vp_token") || authReq.ResponseType == "" {
+		w.renewExpiring(matches)
 		// A batch credential's use count changes, so it is saved under the
 		// store lock.
 		var err error
 		w.saveChange(func() bool {
-			prepared.VPResult, err = w.CreateVPTokenMap(matches, prepared.Params)
+			prepared.VPResult, err = w.createVPTokenMap(matches, authReq)
 			return w.takeBatchStateDirty()
 		})
 		if err != nil {
@@ -176,7 +152,7 @@ func (w *Wallet) preparePresentation(authReq *oid4vp.Request, matches []consent.
 	if oid4vp.ResponseTypeContains(authReq.ResponseType, "id_token") {
 		// DC API presentations use the platform origin as the audience, prefixed
 		// with origin: (OID4VP 1.0 §5.9.3).
-		idToken, err := w.CreateSelfIssuedIDToken(authReq.Nonce, presentationAudience(authReq))
+		idToken, err := w.createSelfIssuedIDToken(authReq.Nonce, presentationAudience(authReq))
 		if err != nil {
 			return nil, fmt.Errorf("creating id_token: %w", err)
 		}
@@ -184,6 +160,34 @@ func (w *Wallet) preparePresentation(authReq *oid4vp.Request, matches []consent.
 	}
 
 	return prepared, nil
+}
+
+// renewExpiring renews the matched credentials that are about to expire, so
+// headless CLI flows without the background poller present a fresh one. The
+// renewal calls the issuer, so it runs before the store lock is taken. A
+// failed renewal leaves the stored credential, which the verifier may still
+// accept.
+func (w *Wallet) renewExpiring(matches []consent.Match) {
+	manage := &Management{wallet: w, commit: func(change func() error) error {
+		var err error
+		w.saveChange(func() bool {
+			err = change()
+			return err == nil
+		})
+		return err
+	}}
+	now := time.Now()
+	for _, match := range matches {
+		cred, ok := w.GetCredential(match.CredentialID)
+		if !ok || !cred.CanRenew() || !CredentialNeedsRenewal(cred, now) {
+			continue
+		}
+		if _, err := manage.RefreshCredential(cred.ID); err != nil {
+			log.Printf("[VP] renewing %s before presenting it failed, sending the credential as it is: %v", cred.ID, err)
+			continue
+		}
+		log.Printf("[VP] renewed %s before presenting it", cred.ID)
+	}
 }
 
 // saveChange runs change under the server's store lock and saves the wallet
@@ -199,7 +203,7 @@ func (w *Wallet) saveChange(change func() bool) {
 // submitPreparedPresentation sends a prepared presentation to the response
 // destination and records both directions in the activity log.
 func (w *Wallet) submitPreparedPresentation(authReq *oid4vp.Request, matches []consent.Match, prepared *preparedPresentation) (*oid4vp.DirectPostResult, error) {
-	result, err := w.SubmitPresentation(prepared.VPResult, prepared.IDToken, authReq.State, prepared.ResponseURI, prepared.Params, func(response *oid4vp.AuthorizationResponseEnvelope) {
+	result, err := w.submitPresentation(prepared.VPResult, prepared.IDToken, authReq.State, prepared.ResponseURI, authReq, func(response *oid4vp.AuthorizationResponseEnvelope) {
 		w.addProtocolLog("presentation", "presentation_response", fmt.Sprintf("Sending presentation response to %s", authReq.ClientID), true, presentationResponseLogDetails(authReq, w, matches, prepared), PresentationLogPayload(response))
 	})
 	if err != nil {
@@ -223,7 +227,7 @@ func (w *Wallet) deliverAuthorizationError(authReq *oid4vp.Request, errorCode, e
 	if authReq.Source != "" {
 		errorDetails["source"] = authReq.Source
 	}
-	result, err := w.SubmitAuthorizationError(errorCode, errorDescription, authReq.State, responseURI, presentationParams(authReq), func(response *oid4vp.AuthorizationResponseEnvelope) {
+	result, err := w.submitAuthorizationError(errorCode, errorDescription, authReq.State, responseURI, authReq, func(response *oid4vp.AuthorizationResponseEnvelope) {
 		w.addProtocolLog("presentation", "presentation_error_response", fmt.Sprintf("Sending authorization error to %s", authReq.ClientID), true, errorDetails, PresentationLogPayload(response))
 	})
 	if err != nil {

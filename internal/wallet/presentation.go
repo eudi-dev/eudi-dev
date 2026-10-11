@@ -26,6 +26,7 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/dcql"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
@@ -33,27 +34,9 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
 )
 
-type PresentationParams struct {
-	Nonce          string
-	ClientID       string
-	RequestOrigin  string
-	ResponseURI    string
-	RedirectURI    string // used for fragment response mode
-	ResponseMode   string // e.g. "direct_post.jwt", "direct_post", "fragment"
-	ClientMetadata map[string]any
-	RequestObject  *oid4vc.RequestObjectJWT // optional, used to extract JWK thumbprint for mdoc
-	// InteractiveAuthorizationEndpoint is the Authorization Challenge Endpoint
-	// called by the wallet. The presentation is bound to it (OpenID4VCI 1.1
-	// §6.2.1.1). Other flows leave it empty.
-	InteractiveAuthorizationEndpoint string
-	// SessionTranscript overrides the wallet's transcript mode for this
-	// presentation.
-	SessionTranscript oid4vp.SessionTranscriptMode
-}
-
 // sessionTranscriptFor is the transcript mode of a presentation: its own, or
 // the wallet's.
-func (w *Wallet) sessionTranscriptFor(params PresentationParams) oid4vp.SessionTranscriptMode {
+func (w *Wallet) sessionTranscriptFor(params *oid4vp.Request) oid4vp.SessionTranscriptMode {
 	if params.SessionTranscript != "" {
 		return params.SessionTranscript
 	}
@@ -65,28 +48,13 @@ type VPTokenResult struct {
 	MDocNonce string // only set for ISO mode mdoc
 }
 
-func (w *Wallet) CreateVPToken(match consent.Match, params PresentationParams) (VPTokenResult, error) {
-	return w.createVPToken(match, params, "")
-}
-
 // createVPToken builds one presentation. mdocNonce is the mdoc generated nonce
 // shared by the whole response (ISO 18013-7). When it is empty, an mdoc
 // presentation generates its own nonce.
-func (w *Wallet) createVPToken(match consent.Match, params PresentationParams, mdocNonce string) (VPTokenResult, error) {
+func (w *Wallet) createVPToken(match consent.Match, params *oid4vp.Request, mdocNonce string) (VPTokenResult, error) {
 	cred, ok := w.GetCredential(match.CredentialID)
 	if !ok {
 		return VPTokenResult{}, fmt.Errorf("credential %s not found", match.CredentialID)
-	}
-
-	// Try renewal before presentation because headless CLI flows have no background
-	// poller. If renewal fails, the stored credential may still be accepted.
-	if cred.CanRenew() && CredentialNeedsRenewal(cred, time.Now()) {
-		if renewed, err := w.RefreshCredential(cred.ID); err != nil {
-			log.Printf("[VP] renewing %s before presenting it failed, sending the credential as it is: %v", cred.ID, err)
-		} else {
-			log.Printf("[VP] renewed %s before presenting it", cred.ID)
-			cred = *renewed
-		}
 	}
 
 	if err := w.checkPresentableKeyBinding(cred); err != nil {
@@ -167,14 +135,11 @@ func (w *Wallet) checkPresentableKeyBinding(cred StoredCredential) error {
 	return w.reportDeviation(deviation{action: "presentation", event: "key_binding_cannot_be_signed", detail: detail, details: details})
 }
 
-func sdJWTAudience(params PresentationParams) string {
+func sdJWTAudience(params *oid4vp.Request) string {
 	if oid4vp.IsInteractiveAuthorizationResponseMode(params.ResponseMode) && params.InteractiveAuthorizationEndpoint != "" {
 		return interactiveAuthorizationAudience(params.InteractiveAuthorizationEndpoint)
 	}
-	if (params.ResponseMode == "dc_api" || params.ResponseMode == "dc_api.jwt") && params.RequestOrigin != "" {
-		return "origin:" + params.RequestOrigin
-	}
-	return params.ClientID
+	return presentationAudience(params)
 }
 
 // interactiveAuthorizationAudience binds a Key Binding JWT to the
@@ -209,7 +174,7 @@ func (w *Wallet) createSDJWTPresentation(cred StoredCredential, selectedKeys []s
 	includedDigests := make(map[string]bool)
 
 	for _, selector := range selectedKeys {
-		path, ok := parseSDJWTSelector(selector)
+		path, ok := dcql.ParseSDJWTSelector(selector)
 		if !ok || len(path) == 0 {
 			continue
 		}
@@ -278,7 +243,7 @@ type VPTokenMapResult struct {
 	MDocNonce string // set if any mdoc credential produced a nonce (ISO mode)
 }
 
-func (w *Wallet) CreateVPTokenMap(matches []consent.Match, params PresentationParams) (*VPTokenMapResult, error) {
+func (w *Wallet) createVPTokenMap(matches []consent.Match, params *oid4vp.Request) (*VPTokenMapResult, error) {
 	log.Printf("[VP] Creating VP token map: %d credentials, client=%s, response_mode=%s", len(matches), params.ClientID, params.ResponseMode)
 	result := &VPTokenMapResult{
 		TokenMap: make(map[string][]string),
@@ -365,7 +330,7 @@ func buildPlainAuthorizationErrorResponse(errorCode, errorDescription, state str
 	return payload
 }
 
-func (w *Wallet) BuildAuthorizationResponse(vpResult *VPTokenMapResult, idToken, state string, params PresentationParams) (*oid4vp.AuthorizationResponseEnvelope, error) {
+func (w *Wallet) buildAuthorizationResponse(vpResult *VPTokenMapResult, idToken, state string, params *oid4vp.Request) (*oid4vp.AuthorizationResponseEnvelope, error) {
 	var vpToken any
 	if vpResult != nil {
 		vpToken = vpResult.VPToken()
@@ -384,7 +349,7 @@ func (w *Wallet) BuildAuthorizationResponse(vpResult *VPTokenMapResult, idToken,
 
 	switch responseMode {
 	case "direct_post.jwt", "dc_api.jwt", "ia_post.jwt":
-		jwe, cek, err := w.EncryptResponse(vpToken, idToken, state, mdocNonce, params)
+		jwe, cek, err := w.encryptResponse(vpToken, idToken, state, mdocNonce, params)
 		if err != nil {
 			return nil, fmt.Errorf("encrypting response: %w", err)
 		}
@@ -421,7 +386,7 @@ func (w *Wallet) BuildAuthorizationResponse(vpResult *VPTokenMapResult, idToken,
 // RFC 6749 §4.2.2 puts the response in the fragment of the redirect URI.
 var errFragmentWithoutRedirect = errors.New("response_mode fragment needs a redirect_uri")
 
-func (w *Wallet) BuildAuthorizationErrorResponse(errorCode, errorDescription, state string, params PresentationParams) (*oid4vp.AuthorizationResponseEnvelope, error) {
+func (w *Wallet) buildAuthorizationErrorResponse(errorCode, errorDescription, state string, params *oid4vp.Request) (*oid4vp.AuthorizationResponseEnvelope, error) {
 	responseMode := params.ResponseMode
 	if responseMode == "" {
 		responseMode = "direct_post"
@@ -439,7 +404,7 @@ func (w *Wallet) BuildAuthorizationErrorResponse(errorCode, errorDescription, st
 
 	switch responseMode {
 	case "direct_post.jwt", "ia_post.jwt":
-		jwe, cek, err := w.EncryptErrorResponse(errorCode, errorDescription, state, params)
+		jwe, cek, err := w.encryptErrorResponse(errorCode, errorDescription, state, params)
 		if err != nil {
 			return nil, fmt.Errorf("encrypting error response: %w", err)
 		}
@@ -468,8 +433,8 @@ func (w *Wallet) BuildAuthorizationErrorResponse(errorCode, errorDescription, st
 	}
 }
 
-func (w *Wallet) SubmitPresentation(vpResult *VPTokenMapResult, idToken, state, responseURI string, params PresentationParams, observe ...func(*oid4vp.AuthorizationResponseEnvelope)) (*oid4vp.DirectPostResult, error) {
-	response, err := w.BuildAuthorizationResponse(vpResult, idToken, state, params)
+func (w *Wallet) submitPresentation(vpResult *VPTokenMapResult, idToken, state, responseURI string, params *oid4vp.Request, observe ...func(*oid4vp.AuthorizationResponseEnvelope)) (*oid4vp.DirectPostResult, error) {
+	response, err := w.buildAuthorizationResponse(vpResult, idToken, state, params)
 	for _, fn := range observe {
 		fn(response)
 	}
@@ -506,8 +471,8 @@ func (w *Wallet) SubmitPresentation(vpResult *VPTokenMapResult, idToken, state, 
 	}
 }
 
-func (w *Wallet) SubmitAuthorizationError(errorCode, errorDescription, state, responseURI string, params PresentationParams, observe ...func(*oid4vp.AuthorizationResponseEnvelope)) (*oid4vp.DirectPostResult, error) {
-	response, err := w.BuildAuthorizationErrorResponse(errorCode, errorDescription, state, params)
+func (w *Wallet) submitAuthorizationError(errorCode, errorDescription, state, responseURI string, params *oid4vp.Request, observe ...func(*oid4vp.AuthorizationResponseEnvelope)) (*oid4vp.DirectPostResult, error) {
+	response, err := w.buildAuthorizationErrorResponse(errorCode, errorDescription, state, params)
 	for _, fn := range observe {
 		fn(response)
 	}
@@ -531,76 +496,6 @@ func (w *Wallet) SubmitAuthorizationError(errorCode, errorDescription, state, re
 	default:
 		return nil, fmt.Errorf("unsupported response_mode %q", response.ResponseMode)
 	}
-}
-
-// A path ending at a selectively disclosed array reveals the array without its
-// elements. Only a trailing null or index selects elements. Arrays with always-visible
-// elements are unaffected.
-func disclosesEmptyArray(cred StoredCredential, path []any) bool {
-	if cred.Format != credtype.FormatSDJWT || len(path) == 0 {
-		return false
-	}
-	switch path[len(path)-1].(type) {
-	case nil, float64, int:
-		return false
-	}
-	parts := strings.Split(cred.Raw, "~")
-	payload, err := parseIssuerJWTPayload(parts[0])
-	if err != nil {
-		return false
-	}
-	digestMap := make(map[string]*sdjwt.Disclosure, len(cred.Disclosures))
-	for i := range cred.Disclosures {
-		digestMap[cred.Disclosures[i].Digest] = &cred.Disclosures[i]
-	}
-	arr, ok := placeholderValueAtPath(payload, path, digestMap).([]any)
-	if !ok || len(arr) == 0 {
-		return false
-	}
-	for _, item := range arr {
-		obj, ok := item.(map[string]any)
-		if !ok {
-			return false
-		}
-		if _, ok := obj["..."].(string); !ok {
-			return false
-		}
-	}
-	return true
-}
-
-// placeholderValueAtPath walks a claims path (string components only) to its
-// value in the credential's placeholder form. A selectively disclosable member
-// resolves to its disclosure value. For an array of disclosable elements that
-// value is a list of {"...": digest} references.
-func placeholderValueAtPath(value any, path []any, digestMap map[string]*sdjwt.Disclosure) any {
-	if len(path) == 0 {
-		return value
-	}
-	segment, ok := path[0].(string)
-	if !ok {
-		return nil
-	}
-	obj, ok := value.(map[string]any)
-	if !ok {
-		return nil
-	}
-	if next, ok := obj[segment]; ok {
-		return placeholderValueAtPath(next, path[1:], digestMap)
-	}
-	sdArr, _ := obj["_sd"].([]any)
-	for _, item := range sdArr {
-		digest, ok := item.(string)
-		if !ok {
-			continue
-		}
-		disc := digestMap[digest]
-		if disc == nil || disc.IsArrayEntry || disc.Name != segment {
-			continue
-		}
-		return placeholderValueAtPath(disc.Value, path[1:], digestMap)
-	}
-	return nil
 }
 
 func parseIssuerJWTPayload(issuerJWT string) (map[string]any, error) {

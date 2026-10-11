@@ -671,7 +671,7 @@ func TestMarshalConsentRequest(t *testing.T) {
 		DCQLQuery: map[string]any{"credentials": []any{}},
 	}
 
-	m := consent.Marshal(req)
+	m := consent.NewRuntime().DocFor(req, nil)
 
 	if m["id"] != "req-1" {
 		t.Errorf("expected id req-1, got %v", m["id"])
@@ -702,7 +702,7 @@ func TestMarshalConsentRequest_MinimalFields(t *testing.T) {
 		CreatedAt: time.Now(),
 	}
 
-	m := consent.Marshal(req)
+	m := consent.NewRuntime().DocFor(req, nil)
 
 	if _, ok := m["nonce"]; ok {
 		t.Error("expected no nonce field when empty")
@@ -740,14 +740,11 @@ func signedRequestParams(t *testing.T, dnsName, clientName string) *oid4vp.Reque
 	if err != nil {
 		t.Fatalf("ParseJWTParts: %v", err)
 	}
-	return &oid4vp.Request{
-		ClientID: "x509_san_dns:" + dnsName,
-		RequestObject: &oid4vc.RequestObjectJWT{
-			Raw:     raw,
-			Header:  parsedHeader,
-			Payload: parsedPayload,
-		},
-	}
+	return &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ClientID: "x509_san_dns:" + dnsName, RequestObject: &oid4vc.RequestObjectJWT{
+		Raw:     raw,
+		Header:  parsedHeader,
+		Payload: parsedPayload,
+	}}}
 }
 
 func TestMarshalConsentRequest_ClientAuthSigned(t *testing.T) {
@@ -760,7 +757,7 @@ func TestMarshalConsentRequest_ClientAuthSigned(t *testing.T) {
 	}
 	applyClientAuth(req, signedRequestParams(t, "verifier.example", ""))
 
-	m := consent.Marshal(req)
+	m := consent.NewRuntime().DocFor(req, nil)
 	auth, ok := m["client_auth"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected client_auth object, got %v", m["client_auth"])
@@ -781,9 +778,9 @@ func TestMarshalConsentRequest_ClientAuthUnsigned(t *testing.T) {
 		ClientID:  "redirect_uri:https://verifier.example/cb",
 		CreatedAt: time.Now(),
 	}
-	applyClientAuth(req, &oid4vp.Request{ClientID: req.ClientID})
+	applyClientAuth(req, &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ClientID: req.ClientID}})
 
-	m := consent.Marshal(req)
+	m := consent.NewRuntime().DocFor(req, nil)
 	auth, ok := m["client_auth"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected client_auth object, got %v", m["client_auth"])
@@ -811,7 +808,7 @@ func TestMarshalConsentRequest_ClientAuthInvalidSignature(t *testing.T) {
 	}
 	applyClientAuth(req, params)
 
-	auth := consent.Marshal(req)["client_auth"].(map[string]any)
+	auth := consent.NewRuntime().DocFor(req, nil)["client_auth"].(map[string]any)
 	if auth["signed"] != false {
 		t.Errorf("expected signed false for a broken signature, got %v", auth["signed"])
 	}
@@ -830,7 +827,7 @@ func TestMarshalConsentRequest_ClientName(t *testing.T) {
 	}
 	applyClientAuth(req, signedRequestParams(t, "verifier.example", "Example Verifier"))
 
-	m := consent.Marshal(req)
+	m := consent.NewRuntime().DocFor(req, nil)
 	if m["client_name"] != "Example Verifier" {
 		t.Errorf("expected client_name from client_metadata, got %v", m["client_name"])
 	}
@@ -845,7 +842,7 @@ func TestMarshalConsentRequest_IssuanceNoClientAuth(t *testing.T) {
 		CreatedAt: time.Now(),
 	}
 
-	m := consent.Marshal(req)
+	m := consent.NewRuntime().DocFor(req, nil)
 	if _, ok := m["client_auth"]; ok {
 		t.Error("expected no client_auth for a pure issuance request")
 	}

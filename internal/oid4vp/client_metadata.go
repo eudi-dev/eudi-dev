@@ -20,7 +20,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 )
 
-func ResolveClientMetadata(reqPayload map[string]any, outer map[string]any) map[string]any {
+func resolveClientMetadata(reqPayload map[string]any, outer map[string]any) map[string]any {
 	if reqPayload != nil {
 		if clientMeta, ok := reqPayload["client_metadata"].(map[string]any); ok {
 			return clientMeta
@@ -29,7 +29,7 @@ func ResolveClientMetadata(reqPayload map[string]any, outer map[string]any) map[
 	return outer
 }
 
-func ValidateClientMetadata(clientMeta map[string]any) error {
+func validateClientMetadata(clientMeta map[string]any) error {
 	if len(clientMeta) == 0 {
 		return nil
 	}

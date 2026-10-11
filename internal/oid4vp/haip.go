@@ -18,17 +18,15 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jwe"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/validate"
 )
 
-// ValidateHAIPCompliance checks an authorization request against HAIP 1.0 and
+// validateHAIPCompliance checks an authorization request against HAIP 1.0 and
 // returns the violations. Every finding is a MUST in the profile. The
 // validation mode decides what a violation does.
-func ValidateHAIPCompliance(params *Request, reqObj *oid4vc.RequestObjectJWT) []string {
+func validateHAIPCompliance(params *Request, reqObj *oid4vc.RequestObjectJWT) []string {
 	var violations []string
 	if params == nil {
 		return []string{"HAIP 1.0: authorization request is missing"}
@@ -83,7 +81,6 @@ func ValidateHAIPCompliance(params *Request, reqObj *oid4vc.RequestObjectJWT) []
 	if params.DCQLQuery == nil {
 		violations = append(violations, "HAIP 1.0 §5: DCQL query MUST be used (not presentation_definition)")
 	}
-	violations = append(violations, haipCredentialFormatViolations(params.DCQLQuery)...)
 
 	if !interactive {
 		violations = append(violations, haipClientMetadataViolations(params.ClientMetadata)...)
@@ -145,27 +142,6 @@ func haipSignedRequestViolations(reqObj *oid4vc.RequestObjectJWT) []string {
 	return violations
 }
 
-// haipCredentialFormatViolations checks the credential formats requested by a
-// DCQL query. §5.3.1: "The Credential Format identifier MUST be mso_mdoc."
-// §5.3.2: "The Credential Format identifier MUST be dc+sd-jwt." HAIP 1.0
-// profiles only these two formats.
-func haipCredentialFormatViolations(query map[string]any) []string {
-	credentials, _ := query["credentials"].([]any)
-	var violations []string
-	for _, entry := range credentials {
-		credential, ok := entry.(map[string]any)
-		if !ok {
-			continue
-		}
-		format := jsonutil.GetString(credential, "format")
-		if format != credtype.FormatMDOC && format != credtype.FormatSDJWT {
-			violations = append(violations, fmt.Sprintf(
-				"HAIP 1.0 §5.3.1/§5.3.2: credential format MUST be 'mso_mdoc' or 'dc+sd-jwt', got %q", format))
-		}
-	}
-	return violations
-}
-
 // haipClientMetadataViolations reports client metadata without A128GCM and
 // A256GCM, the encryption algorithms required by HAIP 1.0 §5.
 func haipClientMetadataViolations(metadata map[string]any) []string {
@@ -178,10 +154,10 @@ func haipClientMetadataViolations(metadata map[string]any) []string {
 	return nil
 }
 
-// HAIPAdvisories reports client metadata that lists only one of A128GCM and
+// haipAdvisories reports client metadata that lists only one of A128GCM and
 // A256GCM. HAIP 1.0 §5 requires both. This is a warning in every mode, and the
 // wallet encrypts the response with the listed one.
-func HAIPAdvisories(params *Request) []string {
+func haipAdvisories(params *Request) []string {
 	if params == nil || params.ClientMetadata == nil || IsInteractiveAuthorizationResponseMode(params.ResponseMode) {
 		return nil
 	}

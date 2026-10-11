@@ -23,13 +23,13 @@ import (
 
 func TestUndefinedRequestParameterFindings(t *testing.T) {
 	t.Run("plain request with undefined parameters", func(t *testing.T) {
-		params := &Request{FullParams: map[string]string{
+		params := &Request{AuthorizationRequest: oid4vc.AuthorizationRequest{FullParams: map[string]string{
 			"client_id":               "x509_san_dns:verifier.example",
 			"response_type":           "vp_token",
 			"nonce":                   "n-1",
 			"presentation_definition": `{}`,
 			"my_custom_field":         "x",
-		}}
+		}}}
 		findings := UndefinedRequestParameterFindings(params)
 		if len(findings) != 2 {
 			t.Fatalf("findings = %v, want 2", findings)
@@ -40,7 +40,7 @@ func TestUndefinedRequestParameterFindings(t *testing.T) {
 	})
 
 	t.Run("signed request object allows JWT claims", func(t *testing.T) {
-		params := &Request{RequestObject: &oid4vc.RequestObjectJWT{
+		params := &Request{AuthorizationRequest: oid4vc.AuthorizationRequest{RequestObject: &oid4vc.RequestObjectJWT{
 			Payload: map[string]any{
 				"client_id":        "x509_hash:abc",
 				"response_type":    "vp_token",
@@ -49,7 +49,7 @@ func TestUndefinedRequestParameterFindings(t *testing.T) {
 				"exp":              1,
 				"client_id_scheme": "x509_san_dns",
 			},
-		}}
+		}}}
 		findings := UndefinedRequestParameterFindings(params)
 		if len(findings) != 1 || !strings.Contains(findings[0], `"client_id_scheme"`) {
 			t.Errorf("findings = %v, want only client_id_scheme flagged", findings)
@@ -57,16 +57,13 @@ func TestUndefinedRequestParameterFindings(t *testing.T) {
 	})
 
 	t.Run("signed request with undefined outer query parameters", func(t *testing.T) {
-		params := &Request{
-			RequestObject: &oid4vc.RequestObjectJWT{Payload: map[string]any{
-				"client_id": "x509_hash:abc", "response_type": "vp_token",
-			}},
-			FullParams: map[string]string{
-				"client_id":               "x509_hash:abc",
-				"request_uri":             "https://verifier.example/ro",
-				"presentation_definition": `{}`,
-			},
-		}
+		params := &Request{AuthorizationRequest: oid4vc.AuthorizationRequest{RequestObject: &oid4vc.RequestObjectJWT{Payload: map[string]any{
+			"client_id": "x509_hash:abc", "response_type": "vp_token",
+		}}, FullParams: map[string]string{
+			"client_id":               "x509_hash:abc",
+			"request_uri":             "https://verifier.example/ro",
+			"presentation_definition": `{}`,
+		}}}
 		findings := UndefinedRequestParameterFindings(params)
 		if len(findings) != 1 || !strings.Contains(findings[0], `"presentation_definition"`) {
 			t.Errorf("findings = %v, want the outer presentation_definition flagged", findings)
@@ -74,11 +71,11 @@ func TestUndefinedRequestParameterFindings(t *testing.T) {
 	})
 
 	t.Run("defined parameters only", func(t *testing.T) {
-		params := &Request{FullParams: map[string]string{
+		params := &Request{AuthorizationRequest: oid4vc.AuthorizationRequest{FullParams: map[string]string{
 			"client_id": "x", "response_type": "vp_token", "nonce": "n",
 			"response_uri": "https://v.example/cb", "dcql_query": "{}",
 			"state": "s", "request_uri": "https://v.example/ro", "request_uri_method": "post",
-		}}
+		}}}
 		if findings := UndefinedRequestParameterFindings(params); len(findings) != 0 {
 			t.Errorf("findings = %v, want none", findings)
 		}

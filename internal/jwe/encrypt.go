@@ -121,6 +121,9 @@ func EncryptRSAOAEP(payload []byte, recipient *rsa.PublicKey, kid, alg, enc stri
 // sealCompact encrypts payload under cek and returns the compact serialization. The
 // AAD is the ASCII of the encoded protected header (RFC 7516 §5.1).
 func sealCompact(header map[string]any, encryptedKey, cek, payload []byte) (string, error) {
+	if header["kid"] == "" {
+		delete(header, "kid")
+	}
 	headerJSON, err := json.Marshal(header)
 	if err != nil {
 		return "", fmt.Errorf("marshaling header: %w", err)

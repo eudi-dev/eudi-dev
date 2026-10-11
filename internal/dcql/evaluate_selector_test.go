@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package wallet
+package dcql
 
 import (
 	"reflect"
@@ -45,7 +45,7 @@ func TestParseSDJWTSelector(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.selector, func(t *testing.T) {
-			got, ok := parseSDJWTSelector(tt.selector)
+			got, ok := ParseSDJWTSelector(tt.selector)
 			if ok != tt.wantOK {
 				t.Fatalf("ok = %v, want %v (got %#v)", ok, tt.wantOK, got)
 			}
@@ -57,7 +57,7 @@ func TestParseSDJWTSelector(t *testing.T) {
 }
 
 func TestClaimValueBySelector(t *testing.T) {
-	sdjwt := StoredCredential{
+	sdjwt := Credential{
 		Format: "dc+sd-jwt",
 		Claims: map[string]any{
 			"given_name": "Ada",
@@ -66,14 +66,14 @@ func TestClaimValueBySelector(t *testing.T) {
 	}
 	// Stored mdoc claims are already split from their namespace, so the
 	// selector is the bare element identifier.
-	mdocCred := StoredCredential{
+	mdocCred := Credential{
 		Format: "mso_mdoc",
 		Claims: map[string]any{"given_name": "Ada"},
 	}
 
 	tests := []struct {
 		name     string
-		cred     StoredCredential
+		cred     Credential
 		selector string
 		want     any
 		wantOK   bool
@@ -115,8 +115,8 @@ func TestClaimPathString(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := claimPathString(tt.path); got != tt.want {
-				t.Errorf("claimPathString(%#v) = %q, want %q", tt.path, got, tt.want)
+			if got := ClaimPathString(tt.path); got != tt.want {
+				t.Errorf("ClaimPathString(%#v) = %q, want %q", tt.path, got, tt.want)
 			}
 		})
 	}

@@ -29,7 +29,7 @@ import (
 
 // An empty mdocNonce makes this document generate the nonce for its response.
 // Documents in a shared response receive the same nonce.
-func (w *Wallet) createMDocPresentation(cred StoredCredential, selectedKeys []string, params PresentationParams, mdocNonce string, signingKey *ecdsa.PrivateKey) (VPTokenResult, error) {
+func (w *Wallet) createMDocPresentation(cred StoredCredential, selectedKeys []string, params *oid4vp.Request, mdocNonce string, signingKey *ecdsa.PrivateKey) (VPTokenResult, error) {
 	// ISO 18013-5 §9.1.2.4 requires deviceKey in the MSO. Without it, the issuer has
 	// not bound the credential to the key used for DeviceSigned. Strict mode refuses
 	// the presentation. Debug mode still builds the response and warns, so the
@@ -159,7 +159,7 @@ func newMDocGeneratedNonce() (string, error) {
 
 // buildSessionTranscript constructs the SessionTranscript CBOR bytes using the
 // configured mode (ISO 18013-7 or OID4VP).
-func (w *Wallet) buildSessionTranscript(params PresentationParams, mdocNonce string, jwkThumbprint []byte) ([]byte, error) {
+func (w *Wallet) buildSessionTranscript(params *oid4vp.Request, mdocNonce string, jwkThumbprint []byte) ([]byte, error) {
 	// Interactive Authorization uses the challenge endpoint in its handover regardless
 	// of the configured transcript mode (OpenID4VCI 1.1 Appendix A.2.5).
 	// A.2.5: "If the Response Mode is ia_post, the third element MUST be
@@ -175,12 +175,12 @@ func (w *Wallet) buildSessionTranscript(params PresentationParams, mdocNonce str
 
 	switch mode {
 	case oid4vp.SessionTranscriptISO:
-		return mdoc.ISOSessionTranscript(params.ClientID, params.ResponseURI, params.Nonce, mdocNonce)
+		return mdoc.ISOSessionTranscript(params.ClientID, params.ResponseDestination(), params.Nonce, mdocNonce)
 	case oid4vp.SessionTranscriptOID4VP:
 		if params.ResponseMode == "dc_api" || params.ResponseMode == "dc_api.jwt" {
 			return mdoc.OID4VPDCAPISessionTranscript(params.RequestOrigin, params.Nonce, jwkThumbprint)
 		}
-		return mdoc.OID4VPSessionTranscript(params.ClientID, params.Nonce, jwkThumbprint, params.ResponseURI)
+		return mdoc.OID4VPSessionTranscript(params.ClientID, params.Nonce, jwkThumbprint, params.ResponseDestination())
 	default:
 		return nil, fmt.Errorf("unknown session transcript mode: %s", mode)
 	}
