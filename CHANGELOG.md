@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **TLS settings in the demo issuer and verifier.** Their credential checks use the wallet's TLS and proxy settings, so `--tls-verify=false`, `--tls-ca` and the proxy flags also apply to status lists.
+- **Event streams under a path prefix.** The wallet writes each response header once, so a base URL with a path no longer logs `superfluous response.WriteHeader call`.
 
 ## [2.7.4] - 2026-10-12
 

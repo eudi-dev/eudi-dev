@@ -314,13 +314,17 @@ func (w *locationWriter) WriteHeader(code int) {
 }
 
 func (w *locationWriter) Write(b []byte) (int, error) {
-	w.WriteHeader(http.StatusOK)
+	if !w.wroteHeader {
+		w.WriteHeader(http.StatusOK)
+	}
 	return w.ResponseWriter.Write(b)
 }
 
 // Flush passes flushes through so event streams keep working.
 func (w *locationWriter) Flush() {
-	w.WriteHeader(http.StatusOK)
+	if !w.wroteHeader {
+		w.WriteHeader(http.StatusOK)
+	}
 	if f, ok := w.ResponseWriter.(http.Flusher); ok {
 		f.Flush()
 	}
