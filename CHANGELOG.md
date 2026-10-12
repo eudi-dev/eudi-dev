@@ -126,6 +126,18 @@ Version 3.0.0 adds a registrar, ARF checks, a catalogue of attestations and a tr
 - **Graceful shutdown.** `POST /api/shutdown` stops `wallet serve` like Ctrl-C.
 - **Card images in the demo issuer metadata.** The issuer metadata lists the logo and card image of each template (see [templates](docs/templates.md)).
 
+## [2.8.4] - 2026-10-12
+
+Backports from 3.0.0.
+
+### Changed
+
+- **Type.** Every page uses IBM Plex Sans and IBM Plex Mono, bundled in the binary under the SIL Open Font License.
+
+### Fixed
+
+- **Activity width.** The activity panel lines up with the credential list.
+
 ## [2.8.3] - 2026-10-12
 
 Backports from 3.0.0.
