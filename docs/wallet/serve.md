@@ -42,30 +42,7 @@ API clients receive the alternatives in `credential_options`. In debug mode each
 
 A credential issued in the web UI can reference the wallet's own status list when configured, a custom URI and index, or no status list. The UI can revoke and activate credentials on the wallet's own status list. For an external status list it fetches the list on request.
 
-UI controls have stable IDs and data attributes for browser automation. Credential cards expose `data-credential-id`, `data-format`, `data-vct`, `data-doctype` and `data-status`. For example, select a PID with `.credential-card[data-vct="urn:eudi:pid:1"]`.
-
-| Control | ID or selector |
-|---|---|
-| Credential actions | `show-<id>`, `delete-<id>`, `revoke-<id>`, `status-check-<id>` |
-| Template rows and actions | `template-row-<name>`, `template-edit-<name>`, `template-delete-<name>` |
-| Consent actions | `consent-approve`, `consent-deny` |
-| Registered purpose and privacy policy | `consent-purpose-<n>`, `consent-privacy-policy-<n>` |
-| Consent credential | `consent-credential-<id>` |
-| Claim checkboxes | `data-cred` and `data-claim` |
-| Selection controls | `consent-edit-selection`, `consent-selection-done`, `consent-selection-reset` |
-| Set options | `consent-set-<n>-option-<m>`, `consent-set-<n>-none` for optional sets |
-| Query sections | `consent-query-<id>` |
-| Claim set dropdown | `consent-claim-set-<query>` |
-| Non-matching credentials | `consent-show-nonmatching-<query>` toggles the list. While a non-matching credential is picked or none matches, the list stays open under `consent-nonmatching-label-<query>`. Rows carry `data-non-matching="true"`. Reasons are in `consent-mismatch-<query>-<credential>` |
-| Query without a matching credential | `consent-unanswered-<query>` |
-| Candidate rows | `consent-candidate-<query>-<credential>`, with `data-query` and `data-cred` |
-| Activity entries | `data-testid="log-entry"`, with `data-event` and `data-action` |
-| Open or close an activity entry | `data-testid="log-entry-toggle"` |
-| Switch encrypted or decrypted view | `data-testid="log-payload-toggle"` |
-| Open a token in the decoder | `data-testid="log-decoder-link"` |
-| Show an alternate wire value | `data-testid="log-wire-toggle"` |
-
-Scope activity controls to their entry. Entries for a stored credential also have `data-credential-id`. Presentation decoder links have `data-query-id` and `data-token-index`. Credential response and batch import links have `data-credential-index`. Batch import links also have `data-credential-id` for each stored copy. Token indexes start at zero within each query. Credential indexes start at zero within the entry. The encryption toggle keeps the same selector in both views.
+To drive the web UI from Playwright or Selenium, see [UI automation](../ui-automation.md).
 
 ![Issue credential dialog](../assets/wallet-issue-ui.png)
 

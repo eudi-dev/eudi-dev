@@ -29,7 +29,7 @@ A wallet for testing EUDI issuers and verifiers, in the browser, on the command 
 
 ## Highlights
 
-**A wallet for testing your issuer or verifier.** Accept credential offers and answer presentation requests from the web UI, the CLI or the HTTP API. Every exchange shows up in the activity log with its requests and responses. Debug mode reports what an issuer or verifier gets wrong and carries on. Strict mode refuses. → [Wallet](docs/wallet.md), [presenting](docs/wallet/presenting.md), [issuing](docs/wallet/issuing.md)
+**A wallet for testing your issuer or verifier.** Accept credential offers and answer presentation requests from the web UI, the CLI or the HTTP API. Every exchange shows up in the activity log with its requests and responses. Debug mode reports what an issuer or verifier gets wrong and carries on. Strict mode refuses. → [Wallet](docs/wallet.md), [presenting](docs/wallet/presenting.md), [issuing](docs/wallet/issuing.md), [UI automation](docs/ui-automation.md)
 
 **HAIP and ARF checks.** `--haip` checks verifiers and issuers against HAIP 1.0. `--arf` (new in 3.0.0) checks how they authenticate under the ARF: access and registration certificates, revocation, and whether a verifier asks for more than it registered. → [HAIP](docs/wallet/presenting.md#haip-10-enforcement), [ARF checks for verifiers](docs/wallet/presenting.md#arf-checks) and [for issuers](docs/wallet/issuing.md#arf-checks)
 

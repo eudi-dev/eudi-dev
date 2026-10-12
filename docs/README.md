@@ -17,6 +17,7 @@ Guides for using eudi-dev as a wallet, issuer, verifier and CA.
 - [Wallet HTTP API](wallet/http-api.md): the full REST API and remote control
 - [Registrar](wallet/registrar.md): register verifiers and issuers, issue their certificates, keep a catalogue of attestations, and see what the wallet checks
 - [Registrar API walkthrough](wallet/registrar-api.md): register a verifier and an issuer with curl and use their certificates against the wallet
+- [UI automation](ui-automation.md): drive the wallet UI, the demo issuer and the demo verifier from Playwright or Selenium
 
 ## Issuance
 

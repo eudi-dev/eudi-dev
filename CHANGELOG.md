@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Highlights
 
-Version 3.0.0 adds a registrar, ARF checks, a catalogue of attestations and a trust model built on trusted lists. It includes every change of 2.7.0 to 2.8.4. [What's new in 3.0](docs/whats-new-3.0.md) shows what you can do with it, and [upgrading from 2.x](docs/upgrading.md) lists what to change.
+Version 3.0.0 adds a registrar, ARF checks, a catalogue of attestations and a trust model built on trusted lists. It also includes all changes from 2.7.0 to 2.8.4. See [What's new in 3.0.0](docs/whats-new-3.0.md) for the highlights and [upgrading from 2.x](docs/upgrading.md) for breaking changes.
 
 - **Registrar for verifiers and issuers.** Register a verifier or an issuer and get its access and registration certificates, ready for `verifier_info` or `issuer_info` (see [registrar](docs/wallet/registrar.md) and the [registrar walkthrough](docs/wallet/registrar-api.md)).
 - **ARF checks.** `--arf` checks how verifiers and issuers authenticate, the way `--haip` checks HAIP (see [presenting](docs/wallet/presenting.md#arf-checks) and [issuing](docs/wallet/issuing.md#arf-checks)).
