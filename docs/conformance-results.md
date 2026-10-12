@@ -2,6 +2,21 @@
 
 Reproduce these runs with the [wallet conformance runner](./conformance-run.md).
 
+## Run of 2026-10-12 (3.0.0-rc.1)
+
+The release candidate was checked against suite `release-v5.3.2` (revision `11999aa`) in strict mode. The full wallet matrix ran with file storage. The demo issuer and verifier ran all nine plans.
+
+| Target | Configurations | Modules | `PASSED` | `REVIEW` | `WARNING` | `FAILED` |
+|---|---:|---:|---:|---:|---:|---:|
+| Wallet, file | 78 | 750 | 536 | 188 | 26 | 0 |
+| Demo issuer and verifier | 9 | 111 | 67 | 36 | 8 | 0 |
+
+No module failed and no module was interrupted. The counts match beta.4. The 26 wallet warnings are the IACA path length advisory described for 2.5.0. The 8 demo warnings are the metadata warnings described for the run of 2026-10-08.
+
+The demo issuer now refuses failed client authentication at PAR and at the challenge endpoint with HTTP 400, as RFC 6749 §5.2 asks. The suite accepts it, and every demo verifier verdict matched its expectation.
+
+The full Go race suite and all 266 browser tests passed. Vet and lint also passed.
+
 ## Run of 2026-10-12 (3.0.0-beta.4)
 
 The beta was checked against suite `release-v5.3.2` (revision `11999aa`) in strict mode. The full wallet matrix ran with file storage. The demo issuer and verifier ran all nine plans.
