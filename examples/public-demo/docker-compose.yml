@@ -113,9 +113,13 @@ services:
       - --status-list
       - --imprint-file
       - /config/imprint.html
+      # The preview shows the news of the release it tries out.
+      - --news-file
+      - /config/news/news-3.0.0.html
     volumes:
       - wallet-data-preview:/home/app/.eudi-dev
       - ./imprint.html:/config/imprint.html:ro
+      - ./news:/config/news:ro
 
   # The conformance wallet runs strict mode with auto-accept for the hosted OIDF suite.
   # STRICT_TAG selects its release independently. See docs/conformance-run.md.
