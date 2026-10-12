@@ -179,7 +179,7 @@ func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Body != nil {
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil && !errors.Is(err, io.EOF) {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body: " + err.Error()})
+			writeAPIError(w, http.StatusBadRequest, apiErrorInvalidRequest, "invalid JSON body: "+err.Error())
 			return
 		}
 	}
@@ -199,19 +199,19 @@ func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
 	// dialog open.
 	if pending, ok := s.wallet.Consents().Get(id); ok {
 		if !consent.Owns(callerOwners(r), pending, namedRequest(r)) {
-			writeJSON(w, http.StatusNotFound, map[string]string{"error": "request not found"})
+			writeAPIError(w, http.StatusNotFound, apiErrorNotFound, "request not found")
 			return
 		}
 		if body.ConfigurationID != "" && !slices.Contains(pending.OfferConfigs, body.ConfigurationID) {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("the offer does not list credential configuration %q", body.ConfigurationID)})
+			writeAPIError(w, http.StatusBadRequest, apiErrorInvalidRequest, fmt.Sprintf("the offer does not list credential configuration %q", body.ConfigurationID))
 			return
 		}
 		if err := consent.ValidateSelection(pending.CredentialOptions, picks, body.SetChoices, body.ClaimSets); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			writeAPIError(w, http.StatusBadRequest, apiErrorInvalidRequest, err.Error())
 			return
 		}
 		if s.wallet.Mode() == ValidationModeStrict && consent.DebugOnlySelection(pending.CredentialOptions, picks, body.ClaimSets) {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "strict mode sends neither non-matching credentials nor another claim set"})
+			writeAPIError(w, http.StatusBadRequest, apiErrorInvalidRequest, "strict mode sends neither non-matching credentials nor another claim set")
 			return
 		}
 	}
@@ -219,9 +219,9 @@ func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
 	req, ok := s.wallet.Consents().Resolve(id, consent.StatusApproved)
 	if !ok {
 		if req == nil {
-			writeJSON(w, http.StatusNotFound, map[string]string{"error": "request not found"})
+			writeAPIError(w, http.StatusNotFound, apiErrorNotFound, "request not found")
 		} else {
-			writeJSON(w, http.StatusConflict, map[string]string{"error": refusalReason(req.Status)})
+			writeAPIError(w, http.StatusConflict, apiErrorConflict, refusalReason(req.Status))
 		}
 		return
 	}
@@ -266,15 +266,15 @@ func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleDenyRequest(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if pending, ok := s.wallet.Consents().Get(id); ok && !consent.Owns(callerOwners(r), pending, namedRequest(r)) {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "request not found"})
+		writeAPIError(w, http.StatusNotFound, apiErrorNotFound, "request not found")
 		return
 	}
 	req, ok := s.wallet.Consents().Resolve(id, consent.StatusDenied)
 	if !ok {
 		if req == nil {
-			writeJSON(w, http.StatusNotFound, map[string]string{"error": "request not found"})
+			writeAPIError(w, http.StatusNotFound, apiErrorNotFound, "request not found")
 		} else {
-			writeJSON(w, http.StatusConflict, map[string]string{"error": refusalReason(req.Status)})
+			writeAPIError(w, http.StatusConflict, apiErrorConflict, refusalReason(req.Status))
 		}
 		return
 	}

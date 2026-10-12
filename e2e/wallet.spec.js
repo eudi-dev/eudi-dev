@@ -474,7 +474,8 @@ test.describe("Presentation Flow API", () => {
       uri: "not-a-valid-uri",
     });
     expect(res.status).toBe(400);
-    expect(res.body.error).toBeDefined();
+    expect(res.body.error).toBe("invalid_request");
+    expect(res.body.error_description).toBeDefined();
   });
 });
 
@@ -1198,7 +1199,9 @@ test("EUDI offer scheme reports missing offer parameters through issuance", asyn
   const response = await responsePromise;
   expect(new URL(response.url()).pathname).toBe("/api/offers");
   expect(response.status()).toBe(400);
-  expect((await response.json()).error).toContain("credential_offer");
+  const body = await response.json();
+  expect(body.error).toBe("invalid_request");
+  expect(body.error_description).toContain("credential_offer");
 });
 
 test.describe("Mobile layout", () => {
@@ -1311,7 +1314,8 @@ test.describe("Deferred issuance in the UI", () => {
       {}
     );
     expect(res.status).toBe(404);
-    expect(res.body.error).toContain("no deferred issuance");
+    expect(res.body.error).toBe("not_found");
+    expect(res.body.error_description).toContain("no deferred issuance");
   });
 });
 

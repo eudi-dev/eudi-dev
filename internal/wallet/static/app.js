@@ -2930,7 +2930,7 @@
         // Do not update the replacement with the earlier result.
         if (consentRequestID !== req.id) return;
         if (!resp.ok) {
-          showErrorDialog('This request could not be answered', result.error || 'The wallet refused the answer.');
+          showErrorDialog('This request could not be answered', result.error_description || result.error || 'The wallet refused the answer.');
           return;
         }
         if (isIssuance) {
@@ -2966,7 +2966,7 @@
         const resp = await fetch(approveURL(req.id, '/deny'), { method: 'POST' });
         const result = await resp.json().catch(() => ({}));
         if (!resp.ok) {
-          showErrorDialog('This request could not be denied', result.error || 'The wallet refused the answer.');
+          showErrorDialog('This request could not be denied', result.error_description || result.error || 'The wallet refused the answer.');
           return;
         }
         if (followVerifierRedirect(result)) return;

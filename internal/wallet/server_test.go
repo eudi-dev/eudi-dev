@@ -481,24 +481,45 @@ func TestStaticFiles_JS(t *testing.T) {
 	}
 }
 
-func TestPresentationAPI_InvalidJSON(t *testing.T) {
+// Every flow endpoint answers a rejected call with the RFC 6749 §5.2 error
+// object, so a client reads one shape.
+func TestFlowAPIErrorsUseTheErrorObject(t *testing.T) {
 	srv := newTestServer(t, true)
 
-	req := httptest.NewRequest("POST", "/api/presentations", strings.NewReader("not json"))
-	w := httptest.NewRecorder()
-	srv.mux.ServeHTTP(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d", w.Code)
-	}
-}
-
-func TestPresentationAPI_InvalidURI(t *testing.T) {
-	srv := newTestServer(t, true)
-	w := serverRequest(t, srv, "POST", "/api/presentations", `{"uri":"not-a-valid-uri"}`)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d", w.Code)
+	for _, tc := range []struct {
+		name, method, path, body string
+		status                   int
+		code, description        string
+	}{
+		{"presentation malformed body", "POST", "/api/presentations", "not json", http.StatusBadRequest, "invalid_request", "invalid JSON body"},
+		{"presentation unparseable URI", "POST", "/api/presentations", `{"uri":"not-a-valid-uri"}`, http.StatusBadRequest, "invalid_request", ""},
+		{"presentation session transcript", "POST", "/api/presentations", `{"uri":"openid4vp://?client_id=x","session_transcript":"bogus"}`, http.StatusBadRequest, "invalid_request", `invalid session transcript "bogus"`},
+		{"offer malformed body", "POST", "/api/offers", "not json", http.StatusBadRequest, "invalid_request", "invalid JSON body"},
+		{"offer unparseable URI", "POST", "/api/offers", `{"uri":"not-an-offer"}`, http.StatusBadRequest, "invalid_request", ""},
+		{"offer status unknown", "GET", "/api/offers/missing", "", http.StatusNotFound, "not_found", "unknown offer"},
+		{"dc api malformed body", "POST", "/api/dc-api", "not json", http.StatusBadRequest, "invalid_request", "invalid JSON body"},
+		{"approve unknown request", "POST", "/api/requests/missing/approve", "", http.StatusNotFound, "not_found", "request not found"},
+		{"deny unknown request", "POST", "/api/requests/missing/deny", "", http.StatusNotFound, "not_found", "request not found"},
+		{"approve malformed body", "POST", "/api/requests/missing/approve", "not json", http.StatusBadRequest, "invalid_request", "invalid JSON body"},
+		{"collect unknown deferred", "POST", "/api/deferred/missing/collect", "", http.StatusNotFound, "not_found", "no deferred issuance with that id"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := serverRequest(t, srv, tc.method, tc.path, tc.body)
+			if rec.Code != tc.status {
+				t.Fatalf("status = %d, want %d: %s", rec.Code, tc.status, rec.Body.String())
+			}
+			if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
+				t.Errorf("Content-Type = %q, want application/json", ct)
+			}
+			body := decodeJSON(t, rec)
+			if body["error"] != tc.code {
+				t.Errorf("error = %v, want %s", body["error"], tc.code)
+			}
+			description, _ := body["error_description"].(string)
+			if description == "" || !strings.Contains(description, tc.description) {
+				t.Errorf("error_description = %q, want it to contain %q", description, tc.description)
+			}
+		})
 	}
 }
 

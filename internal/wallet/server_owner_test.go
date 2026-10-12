@@ -617,8 +617,8 @@ func TestALateAnswerIsToldWhichHappened(t *testing.T) {
 			if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
 				t.Fatalf("decoding: %v", err)
 			}
-			if body["error"] != tc.want {
-				t.Errorf("error = %q, want %q", body["error"], tc.want)
+			if body["error"] != "conflict" || body["error_description"] != tc.want {
+				t.Errorf("body = %v, want conflict with %q", body, tc.want)
 			}
 		})
 	}

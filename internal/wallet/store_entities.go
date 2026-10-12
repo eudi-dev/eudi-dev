@@ -361,6 +361,7 @@ func (s *WalletStore) parseSections(blobs stateSnapshot, sections []string, know
 		case attestationsSection:
 			var spec provider.IssuedAttestationSpec
 			if err = json.Unmarshal(data, &spec); err == nil {
+				upgradeStoredScheme(&spec, data)
 				loaded.attestations = append(loaded.attestations, spec)
 			}
 		case registrarSection, registrationStatusSection:

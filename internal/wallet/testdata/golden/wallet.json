@@ -54,9 +54,9 @@
     {
       "format": "dc+sd-jwt",
       "vct": "urn:example:custom",
-      "trust_list_type": "https://example.org/LoTEType/custom",
+      "trusted_list_type": "https://example.org/LoTEType/custom",
       "scheme_territory": "DE",
-      "entity_name": "Custom Provider",
+      "trusted_entity_name": "Custom Provider",
       "issuance_service_name": "Issuance Service",
       "revocation_service_name": "Revocation Service"
     },
@@ -67,10 +67,10 @@
       "entitlements": [
         "https://uri.etsi.org/19475/Entitlement/Non_Q_EAA_Provider"
       ],
-      "trust_list_type": "https://eudi-test.dev/LoTEType/EAAProvidersList",
+      "trusted_list_type": "https://eudi-test.dev/LoTEType/EAAProvidersList",
       "status_determination_approach": "https://eudi-test.dev/EAAProvidersList/StatusDetn",
       "scheme_type_community_rules": "https://eudi-test.dev/EAAProvidersList/schemerules",
-      "entity_name": "EUDI Dev Wallet EAA Provider",
+      "trusted_entity_name": "EUDI Dev Wallet EAA Provider",
       "issuance_service_type": "https://eudi-test.dev/SvcType/EAA/Issuance",
       "revocation_service_type": "https://eudi-test.dev/SvcType/EAA/Revocation",
       "issuance_service_name": "EAA Issuance Service",
@@ -83,11 +83,11 @@
       "entitlements": [
         "https://example.org/entitlement"
       ],
-      "trust_list_type": "http://uri.etsi.org/19602/LoTEType/EUPIDProvidersList",
+      "trusted_list_type": "http://uri.etsi.org/19602/LoTEType/EUPIDProvidersList",
       "status_determination_approach": "http://uri.etsi.org/19602/PIDProvidersList/StatusDetn/EU",
       "scheme_type_community_rules": "http://uri.etsi.org/19602/PIDProviders/schemerules/EU",
       "scheme_territory": "EU",
-      "entity_name": "EUDI Dev Wallet PID Provider",
+      "trusted_entity_name": "EUDI Dev Wallet PID Provider",
       "issuance_service_type": "http://uri.etsi.org/19602/SvcType/PID/Issuance",
       "revocation_service_type": "http://uri.etsi.org/19602/SvcType/PID/Revocation",
       "issuance_service_name": "PID Issuance Service",

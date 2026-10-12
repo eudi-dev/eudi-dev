@@ -49,11 +49,11 @@ const (
 // §6.3.10) and the types of its services (§6.6.1), with the names a list
 // gives its operator's entity and services.
 type Scheme struct {
-	LoTEType                    string `json:"trust_list_type,omitempty"`
+	LoTEType                    string `json:"trusted_list_type,omitempty"`
 	StatusDeterminationApproach string `json:"status_determination_approach,omitempty"`
 	SchemeTypeCommunityRules    string `json:"scheme_type_community_rules,omitempty"`
 	SchemeTerritory             string `json:"scheme_territory,omitempty"`
-	EntityName                  string `json:"entity_name,omitempty"`
+	EntityName                  string `json:"trusted_entity_name,omitempty"`
 	IssuanceServiceType         string `json:"issuance_service_type,omitempty"`
 	RevocationServiceType       string `json:"revocation_service_type,omitempty"`
 	IssuanceServiceName         string `json:"issuance_service_name,omitempty"`

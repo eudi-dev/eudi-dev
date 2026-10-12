@@ -443,6 +443,7 @@ func (s *WalletStore) load(stored *storage.Blob) (*Wallet, error) {
 	if len(w.DeferredIssuances) == 0 {
 		w.DeferredIssuances = wj.LegacyPendingIssuances
 	}
+	upgradeStoredSchemes(w.IssuedAttestations, stored.Data)
 	w.IssuedAttestations = provider.DedupeIssuedAttestations(w.IssuedAttestations)
 	w.Log = s.filterLogEntries(w.Log)
 	w.BaseURL = wj.BaseURL

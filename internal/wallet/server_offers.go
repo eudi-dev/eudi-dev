@@ -164,7 +164,7 @@ func (s *Server) writeAuthorizationRequired(w http.ResponseWriter, p *pendingOff
 func (s *Server) handleOfferStatus(w http.ResponseWriter, r *http.Request) {
 	p := s.lookupPendingOffer(r.PathValue("id"))
 	if p == nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "unknown offer"})
+		writeAPIError(w, http.StatusNotFound, apiErrorNotFound, "unknown offer")
 		return
 	}
 	result, err, done := p.outcome()
@@ -220,7 +220,7 @@ func (s *Server) handleOfferAPI(w http.ResponseWriter, r *http.Request) {
 		ConfigurationID string `json:"credential_configuration_id,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "invalid JSON body", http.StatusBadRequest)
+		writeAPIError(w, http.StatusBadRequest, apiErrorInvalidRequest, "invalid JSON body: "+err.Error())
 		return
 	}
 
@@ -254,7 +254,7 @@ func (s *Server) processOfferURI(w http.ResponseWriter, uri string, opts OfferOp
 				Detail:  err.Error(),
 			})
 			s.triggerUIRequest("")
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			writeAPIError(w, http.StatusBadRequest, apiErrorInvalidRequest, err.Error())
 			return
 		}
 
@@ -313,7 +313,7 @@ func (s *Server) awaitOfferConsent(w http.ResponseWriter, consentReq *consent.Re
 		result, pending, err := s.runOffer(consentReq.OfferURI, opts)
 		if err != nil {
 			consentReq.SubmissionCh <- consent.SubmissionResult{Error: err.Error(), StatusCode: http.StatusBadRequest}
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			writeAPIError(w, http.StatusBadRequest, apiErrorInvalidRequest, err.Error())
 			return
 		}
 
@@ -351,7 +351,7 @@ func (s *Server) processOfferDirectly(w http.ResponseWriter, uri string, opts Of
 		if !s.wallet.AutoAcceptSetting() {
 			s.triggerUIRequest("")
 		}
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		writeAPIError(w, http.StatusBadRequest, apiErrorInvalidRequest, err.Error())
 		return
 	}
 

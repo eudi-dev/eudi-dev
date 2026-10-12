@@ -26,7 +26,7 @@ func (s *Server) handleCollectDeferred(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	attempt, ok := s.CollectDeferredNow(id)
 	if !ok {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no deferred issuance with that id"})
+		writeAPIError(w, http.StatusNotFound, apiErrorNotFound, "no deferred issuance with that id")
 		return
 	}
 	out := map[string]any{
@@ -51,7 +51,7 @@ func (s *Server) handleCollectDeferred(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleAbandonDeferred(w http.ResponseWriter, r *http.Request) {
 	pending, ok := s.AbandonDeferredNow(r.PathValue("id"))
 	if !ok {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no deferred issuance with that id"})
+		writeAPIError(w, http.StatusNotFound, apiErrorNotFound, "no deferred issuance with that id")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{

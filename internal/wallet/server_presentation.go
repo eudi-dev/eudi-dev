@@ -68,7 +68,7 @@ func (s *Server) handlePresentationAPI(w http.ResponseWriter, r *http.Request) {
 		SessionTranscript string `json:"session_transcript,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "invalid JSON body", http.StatusBadRequest)
+		writeAPIError(w, http.StatusBadRequest, apiErrorInvalidRequest, "invalid JSON body: "+err.Error())
 		return
 	}
 
@@ -82,7 +82,7 @@ func (s *Server) handlePresentationAPI(w http.ResponseWriter, r *http.Request) {
 	switch transcript {
 	case "", oid4vp.SessionTranscriptOID4VP, oid4vp.SessionTranscriptISO:
 	default:
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("invalid session transcript %q", body.SessionTranscript)})
+		writeAPIError(w, http.StatusBadRequest, apiErrorInvalidRequest, fmt.Sprintf("invalid session transcript %q", body.SessionTranscript))
 		return
 	}
 	parsed, err := oid4vp.ParseAuthorizationRequestWithOptions(body.URI, s.parseOpts)
@@ -95,7 +95,7 @@ func (s *Server) handlePresentationAPI(w http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		s.triggerUIRequest("")
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		writeAPIError(w, http.StatusBadRequest, apiErrorInvalidRequest, err.Error())
 		return
 	}
 

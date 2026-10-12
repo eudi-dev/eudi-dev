@@ -70,7 +70,7 @@ curl -X DELETE http://localhost:8085/api/credentials
 | `status_list_uri` | string  | Status list URI to embed. Default is the wallet's own status list when configured. `""` disables it |
 | `status_list_idx` | int     | Status list index (default is the next free index on the wallet's status list)               |
 | `category`        | string  | Credential category: `pid`, `qeaa`, `pub-eaa`, `eaa` or `unlisted`. Empty (default) takes the category of the template or the catalogue entry, else `eaa` |
-| `trust`           | object  | Trust/registration metadata to persist with the credential type (same fields as the `issue` trust flags, e.g. `entitlements`, `trust_list_type`, `entity_name`) |
+| `trust`           | object  | Trusted list and registration metadata to persist with the credential type. The fields match the `issue` trust flags: `entitlements`, `trusted_list_type`, `status_determination_approach`, `scheme_type_community_rules`, `scheme_territory`, `trusted_entity_name`, `issuance_service_type`, `revocation_service_type`, `issuance_service_name` and `revocation_service_name` |
 | `display`         | object  | Card appearance: `name`, `description`, `background_color`, `text_color`, `logo`, `logo_alt_text`, `background_image` (the `--display-*` flags). The public demo answers `403` to an image that is not bundled with the wallet |
 | `display_template`| string  | Template that supplies the logo and background image of the credential (for a form with the template's claims flattened into `claims`) |
 | `batch`           | int     | Issue this many copies with distinct holder keys, at most 8. The wallet rotates between them (like `--batch`) |

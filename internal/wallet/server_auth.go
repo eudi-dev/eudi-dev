@@ -195,7 +195,7 @@ func (s *Server) awaitPresentationConsent(w http.ResponseWriter, authReq *oid4vp
 func (s *Server) answerConsentTimeout(w http.ResponseWriter, action string, req *consent.Request) {
 	s.wallet.AddLog(action, "Consent timeout", false)
 	req.SubmissionCh <- consent.SubmissionResult{Error: "consent timeout", StatusCode: http.StatusRequestTimeout}
-	writeJSON(w, http.StatusRequestTimeout, map[string]string{"error": "consent timeout"})
+	writeAPIError(w, http.StatusRequestTimeout, apiErrorConsentTimeout, "consent timeout")
 }
 
 func (s *Server) logDeniedPresentation(authReq *oid4vp.Request) {
@@ -306,7 +306,7 @@ func withRedirectURI(body map[string]any, redirectURI string) map[string]any {
 func (s *Server) submitAuthorizationError(w http.ResponseWriter, authReq *oid4vp.Request, status, errorCode, errorDescription string) consent.SubmissionResult {
 	result, err := s.deliverAuthorizationError(authReq, errorCode, errorDescription)
 	if err != nil {
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+		writeAPIError(w, http.StatusBadGateway, apiErrorServerError, err.Error())
 		return consent.SubmissionResult{Error: err.Error()}
 	}
 
@@ -341,7 +341,7 @@ func (s *Server) submitPresentation(w http.ResponseWriter, authReq *oid4vp.Reque
 	if err != nil {
 		s.log("  ERROR: Presentation preparation failed: %v", err)
 		s.wallet.AddLog("presentation", fmt.Sprintf("Presentation preparation failed: %v", err), false)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeAPIError(w, http.StatusInternalServerError, apiErrorServerError, err.Error())
 		return consent.SubmissionResult{Error: err.Error()}
 	}
 	if prepared.VPResult != nil {
@@ -354,7 +354,7 @@ func (s *Server) submitPresentation(w http.ResponseWriter, authReq *oid4vp.Reque
 	result, err := s.wallet.submitPreparedPresentation(authReq, matches, prepared)
 	if err != nil {
 		s.log("  ERROR: Submission failed: %v", err)
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+		writeAPIError(w, http.StatusBadGateway, apiErrorServerError, err.Error())
 		return consent.SubmissionResult{Error: err.Error()}
 	}
 

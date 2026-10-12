@@ -561,3 +561,19 @@ func writeJSON(w http.ResponseWriter, status int, data any) {
 	enc.SetEscapeHTML(false)
 	enc.Encode(data)
 }
+
+// Error codes of the wallet's flow endpoints. invalid_request and server_error
+// come from RFC 6749 §5.2. The others name the HTTP condition.
+const (
+	apiErrorInvalidRequest = "invalid_request"
+	apiErrorNotFound       = "not_found"
+	apiErrorConflict       = "conflict"
+	apiErrorConsentTimeout = "consent_timeout"
+	apiErrorServerError    = "server_error"
+)
+
+// writeAPIError writes the error object of the flow endpoints. It has the
+// shape of an OAuth 2.0 error response (RFC 6749 §5.2).
+func writeAPIError(w http.ResponseWriter, status int, code, description string) {
+	writeJSON(w, status, map[string]string{"error": code, "error_description": description})
+}

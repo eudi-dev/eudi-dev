@@ -30,7 +30,7 @@ import (
 func (s *Server) handleBrowserPresentationAPI(w http.ResponseWriter, r *http.Request) {
 	var body oid4vp.BrowserAPIRequestEnvelope
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "invalid JSON body", http.StatusBadRequest)
+		writeAPIError(w, http.StatusBadRequest, apiErrorInvalidRequest, "invalid JSON body: "+err.Error())
 		return
 	}
 
@@ -39,7 +39,7 @@ func (s *Server) handleBrowserPresentationAPI(w http.ResponseWriter, r *http.Req
 	if err != nil {
 		s.log("  ERROR: %v", err)
 		s.wallet.AddLog("presentation", fmt.Sprintf("Failed to parse browser request: %v", err), false)
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		writeAPIError(w, http.StatusBadRequest, apiErrorInvalidRequest, err.Error())
 		return
 	}
 
@@ -131,7 +131,7 @@ func (s *Server) writeBrowserPresentationResult(w http.ResponseWriter, authReq *
 	if err != nil {
 		s.log("  ERROR: Browser API presentation failed: %v", err)
 		s.wallet.AddLog("presentation", fmt.Sprintf("Browser API presentation failed: %v", err), false)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeAPIError(w, http.StatusInternalServerError, apiErrorServerError, err.Error())
 		return consent.SubmissionResult{Error: err.Error()}
 	}
 

@@ -167,7 +167,7 @@ func (s *Server) handleSetCredentialStatus(w http.ResponseWriter, r *http.Reques
 func (s *Server) handleRenewCredential(w http.ResponseWriter, r *http.Request) {
 	renewed, err := s.RenewCredential(r.PathValue("id"))
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		writeAPIError(w, http.StatusBadRequest, apiErrorInvalidRequest, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, withPublicImagePaths(r, CredentialSummary(*renewed)))
