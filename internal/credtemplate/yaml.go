@@ -12,9 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package yamljson converts YAML documents to JSON. A YAML file then goes
-// through the same JSON decoder as its JSON form and gets the same types.
-package yamljson
+package credtemplate
 
 import (
 	"encoding/json"
@@ -23,16 +21,17 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// Convert parses a YAML document and returns it as JSON. Each fix edits the
-// parsed document before the conversion.
-func Convert(data []byte, fixes ...func(*yaml.Node)) ([]byte, error) {
+// YAMLToJSON converts a YAML template, catalogue or credentials file to JSON,
+// so it goes through the same decoder as its JSON form. Scalars stay text
+// where YAML would read them as another type than JSON does: 1990-01-01 is
+// a timestamp in YAML, 01234 is the octal number 668, a mapping key can be a
+// number, and a version such as 1.0 is a float.
+func YAMLToJSON(data []byte) ([]byte, error) {
 	var root yaml.Node
 	if err := yaml.Unmarshal(data, &root); err != nil {
 		return nil, err
 	}
-	for _, fix := range fixes {
-		fix(&root)
-	}
+	keepStrings(&root)
 	var document any
 	if err := root.Decode(&document); err != nil {
 		return nil, err
@@ -42,12 +41,7 @@ func Convert(data []byte, fixes ...func(*yaml.Node)) ([]byte, error) {
 
 var decimalInt = regexp.MustCompile(`^[-+]?(0|[1-9][0-9]*)$`)
 
-// KeepStrings keeps scalars as text where JSON has no YAML equivalent. A
-// mapping key stays a string, as in JSON. A date such as 1990-01-01 stays the
-// date as written. YAML reads it as a timestamp. An integer written other than
-// in plain decimal, such as the postal code 01234 or 0x1F, stays text. YAML
-// reads 01234 as the octal number 668.
-func KeepStrings(node *yaml.Node) {
+func keepStrings(node *yaml.Node) {
 	if node.Kind == yaml.ScalarNode && node.Style == 0 {
 		switch {
 		case node.Tag == "!!timestamp":
@@ -57,28 +51,16 @@ func KeepStrings(node *yaml.Node) {
 		}
 	}
 	if node.Kind == yaml.MappingNode {
-		for i := 0; i < len(node.Content); i += 2 {
+		for i := 0; i+1 < len(node.Content); i += 2 {
 			if node.Content[i].Kind == yaml.ScalarNode {
 				node.Content[i].Tag = "!!str"
 			}
-		}
-	}
-	for _, child := range node.Content {
-		KeepStrings(child)
-	}
-}
-
-// KeepVersionStrings keeps the value of every version key as text, so a
-// version such as 1.0 stays "1.0". YAML reads it as a number.
-func KeepVersionStrings(node *yaml.Node) {
-	if node.Kind == yaml.MappingNode {
-		for i := 0; i+1 < len(node.Content); i += 2 {
 			if node.Content[i].Value == "version" && node.Content[i+1].Kind == yaml.ScalarNode {
 				node.Content[i+1].Tag = "!!str"
 			}
 		}
 	}
 	for _, child := range node.Content {
-		KeepVersionStrings(child)
+		keepStrings(child)
 	}
 }

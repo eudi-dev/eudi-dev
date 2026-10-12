@@ -39,7 +39,6 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/defaults"
 	"github.com/eudi-dev/eudi-dev/v3/internal/storage"
-	"github.com/eudi-dev/eudi-dev/v3/internal/yamljson"
 )
 
 // Template describes a reusable credential template. All fields except Claims
@@ -530,7 +529,7 @@ func Decode(data []byte, file string) (Template, error) {
 	}
 	if yamlData {
 		var err error
-		data, err = yamljson.Convert(data, yamljson.KeepStrings)
+		data, err = YAMLToJSON(data)
 		if err != nil {
 			return Template{}, err
 		}

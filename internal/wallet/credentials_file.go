@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eudi-dev/eudi-dev/v3/internal/yamljson"
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 )
 
 // CredentialsFile lists credentials the wallet adds on every start. An entry
@@ -125,7 +125,7 @@ func parseCredentialsSource(name string, data []byte) (*CredentialsFile, error) 
 // decoding, so entries use the template JSON field names and claims get the
 // same value types as an issue API request.
 func ParseCredentialsFile(data []byte) (*CredentialsFile, error) {
-	encoded, err := yamljson.Convert(data, yamljson.KeepStrings)
+	encoded, err := credtemplate.YAMLToJSON(data)
 	if err != nil {
 		return nil, err
 	}

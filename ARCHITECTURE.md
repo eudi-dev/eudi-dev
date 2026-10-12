@@ -59,7 +59,6 @@ examples/      Keycloak and web-wallet integration examples
 | `wallet` | Wallet state (persisted through `storage`), HTTP server, presentation and issuance flows, the issuer role and the ARF checks of issuers and credentials |
 | `web` | Decoder and validator web UI |
 | `webui` | Files every page shares: colour tokens and the theme script |
-| `yamljson` | YAML to JSON conversion, so a YAML template, catalogue or credentials file decodes like its JSON form |
 
 ## Flows
 

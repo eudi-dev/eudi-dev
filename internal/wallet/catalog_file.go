@@ -29,7 +29,6 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
 	"github.com/eudi-dev/eudi-dev/v3/internal/trustedlists"
-	"github.com/eudi-dev/eudi-dev/v3/internal/yamljson"
 )
 
 // CatalogFile holds the attestation types the operator pre-registers in the
@@ -101,7 +100,7 @@ func LoadCatalogFile(path string) (*CatalogFile, error) {
 // parseCatalogSource reads the entries of one file and the issuer CAs they
 // name. dir resolves a relative IssuerCA path.
 func parseCatalogSource(name, dir string, data []byte) ([]CatalogFileEntry, error) {
-	encoded, err := yamljson.Convert(data, yamljson.KeepVersionStrings)
+	encoded, err := credtemplate.YAMLToJSON(data)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", name, err)
 	}
