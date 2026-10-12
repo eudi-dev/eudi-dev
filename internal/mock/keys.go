@@ -33,7 +33,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/format"
+	"github.com/eudi-dev/eudi-dev/v2/internal/format"
 )
 
 func SigningCertificateURL(issuer string, cert *x509.Certificate, extension string) string {
@@ -54,7 +54,7 @@ const DefaultCertificateCountry = "NL"
 // issuerContactURI is the contact of the operator of a generated CA. ISO/IEC
 // 18013-5 Annex B requires an issuer alternative name extension with issuer
 // contact information on IACA and document signer certificates.
-const issuerContactURI = "https://github.com/dominikschlosser/eudi-dev"
+const issuerContactURI = "https://github.com/eudi-dev/eudi-dev"
 
 var (
 	oidExtensionIssuerAltName    = asn1.ObjectIdentifier{2, 5, 29, 18}
@@ -353,7 +353,7 @@ func GenerateLeafCertWithOptions(caKey *ecdsa.PrivateKey, caCert *x509.Certifica
 			ID: asn1.ObjectIdentifier{0, 4, 0, 194118, 1, 2},
 			Qualifiers: []policyQualifier{{
 				ID:  asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 2, 1},
-				URI: "https://github.com/dominikschlosser/eudi-dev/blob/main/docs/test-certificates.md",
+				URI: "https://github.com/eudi-dev/eudi-dev/blob/main/docs/test-certificates.md",
 			}},
 		}})
 		if err != nil {

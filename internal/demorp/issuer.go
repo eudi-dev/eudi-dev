@@ -28,9 +28,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/httpsec"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/mock"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/wallet"
+	"github.com/eudi-dev/eudi-dev/v2/internal/httpsec"
+	"github.com/eudi-dev/eudi-dev/v2/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v2/internal/wallet"
 )
 
 //go:embed static

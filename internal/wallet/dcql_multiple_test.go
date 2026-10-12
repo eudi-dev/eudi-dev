@@ -25,8 +25,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/jws"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v2/internal/jws"
+	"github.com/eudi-dev/eudi-dev/v2/internal/mock"
 )
 
 // The PID baseline holds two SD-JWT PIDs that answer urn:eudi:pid:1: the EUDI PID

@@ -22,8 +22,8 @@ import (
 
 	"github.com/fxamacker/cbor/v2"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/format"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/mdoc"
+	"github.com/eudi-dev/eudi-dev/v2/internal/format"
+	"github.com/eudi-dev/eudi-dev/v2/internal/mdoc"
 )
 
 // The parser can skip invalid items and duplicate element identifiers. Selecting by

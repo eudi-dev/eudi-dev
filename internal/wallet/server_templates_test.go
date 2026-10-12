@@ -22,8 +22,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/credtemplate"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v2/internal/credtemplate"
+	"github.com/eudi-dev/eudi-dev/v2/internal/sdjwt"
 )
 
 func TestTemplatesListIncludesPredefined(t *testing.T) {

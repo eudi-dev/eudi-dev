@@ -21,9 +21,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/credtemplate"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/mock"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/wallet"
+	"github.com/eudi-dev/eudi-dev/v2/internal/credtemplate"
+	"github.com/eudi-dev/eudi-dev/v2/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v2/internal/wallet"
 )
 
 // The demo issuer offers the ticket and every credential template as a

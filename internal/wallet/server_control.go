@@ -25,7 +25,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/news"
+	"github.com/eudi-dev/eudi-dev/v2/internal/news"
 )
 
 // Hash the running executable once at startup. Comparing it with the file on disk
@@ -85,8 +85,8 @@ func (s *Server) handleImprint(w http.ResponseWriter, r *http.Request) {
 // Security reports go to the project regardless of who hosts the wallet.
 func handleSecurityTxt(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	fmt.Fprintf(w, "Contact: https://github.com/dominikschlosser/eudi-dev/issues\n"+
-		"Policy: https://github.com/dominikschlosser/eudi-dev/blob/main/SECURITY.md\n"+
+	fmt.Fprintf(w, "Contact: https://github.com/eudi-dev/eudi-dev/issues\n"+
+		"Policy: https://github.com/eudi-dev/eudi-dev/blob/main/SECURITY.md\n"+
 		"Preferred-Languages: en, de\n"+
 		"Expires: %s\n", time.Now().UTC().AddDate(0, 6, 0).Format(time.RFC3339))
 }

@@ -25,9 +25,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/format"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/jws"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v2/internal/format"
+	"github.com/eudi-dev/eudi-dev/v2/internal/jws"
+	"github.com/eudi-dev/eudi-dev/v2/internal/mock"
 )
 
 const (
@@ -559,7 +559,7 @@ func IssuerInfo(w *Wallet, issuer string, specs []IssuedAttestationSpec) ([]Issu
 		"support_uri": issuer, "info_uri": issuer,
 		"supervisory_authority": map[string]any{"email": dataset.SupervisoryAuthority.Email[0]},
 		"policy_id":             []string{"0.4.0.19475.3.1"},
-		"certificate_policy":    "https://github.com/dominikschlosser/eudi-dev/blob/main/docs/test-certificates.md",
+		"certificate_policy":    "https://github.com/eudi-dev/eudi-dev/blob/main/docs/test-certificates.md",
 		"iat":                   now.Unix(), "exp": now.Add(time.Hour).Unix(),
 	}
 	registration, err := SignRegistrationCertificateJWT(claims, key, chain)

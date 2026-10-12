@@ -23,8 +23,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/mock"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v2/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v2/internal/sdjwt"
 )
 
 // SD-JWT VC §3 forms the metadata location "by inserting the well-known

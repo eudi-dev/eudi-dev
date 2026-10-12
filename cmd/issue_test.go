@@ -22,14 +22,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/config"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/credtemplate"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/credtype"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/mock"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/sdjwt"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/trustlist"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/validate"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/wallet"
+	"github.com/eudi-dev/eudi-dev/v2/internal/config"
+	"github.com/eudi-dev/eudi-dev/v2/internal/credtemplate"
+	"github.com/eudi-dev/eudi-dev/v2/internal/credtype"
+	"github.com/eudi-dev/eudi-dev/v2/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v2/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v2/internal/trustlist"
+	"github.com/eudi-dev/eudi-dev/v2/internal/validate"
+	"github.com/eudi-dev/eudi-dev/v2/internal/wallet"
 )
 
 func TestOmitClaims_RemovesSpecifiedClaims(t *testing.T) {

@@ -26,12 +26,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/credtype"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/format"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/mdoc"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/sdjwt"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/trustlist"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/validate"
+	"github.com/eudi-dev/eudi-dev/v2/internal/credtype"
+	"github.com/eudi-dev/eudi-dev/v2/internal/format"
+	"github.com/eudi-dev/eudi-dev/v2/internal/mdoc"
+	"github.com/eudi-dev/eudi-dev/v2/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v2/internal/trustlist"
+	"github.com/eudi-dev/eudi-dev/v2/internal/validate"
 )
 
 // EvaluateDCQL matches stored credentials against a DCQL query (OID4VP 1.0 Section 6).

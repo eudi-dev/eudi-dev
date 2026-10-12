@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/format"
+	"github.com/eudi-dev/eudi-dev/v2/internal/format"
 )
 
 // renewalIssuerMetadata is served at the Credential Issuer Identifier

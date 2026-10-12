@@ -5,9 +5,9 @@
   </picture>
 </p>
 
-[![CI](https://github.com/dominikschlosser/eudi-dev/actions/workflows/ci.yml/badge.svg)](https://github.com/dominikschlosser/eudi-dev/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/dominikschlosser/eudi-dev/graph/badge.svg)](https://codecov.io/gh/dominikschlosser/eudi-dev)
-[![Release](https://img.shields.io/github/v/release/dominikschlosser/eudi-dev)](https://github.com/dominikschlosser/eudi-dev/releases/latest)
+[![CI](https://github.com/eudi-dev/eudi-dev/actions/workflows/ci.yml/badge.svg)](https://github.com/eudi-dev/eudi-dev/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/eudi-dev/eudi-dev/graph/badge.svg)](https://codecov.io/gh/eudi-dev/eudi-dev)
+[![Release](https://img.shields.io/github/v/release/eudi-dev/eudi-dev)](https://github.com/eudi-dev/eudi-dev/releases/latest)
 [![OpenID Certified](https://img.shields.io/badge/OpenID-Certified-orange)](#openid-certification)
 
 [![OpenID4VP](https://img.shields.io/badge/OpenID4VP-1.0-blue)](docs/spec-compliance.md#oid4vp-10-openid-for-verifiable-presentations)
@@ -68,29 +68,29 @@ Never use real credentials (see [SECURITY.md](SECURITY.md)).
 ### Homebrew (macOS and Linux)
 
 ```bash
-brew install dominikschlosser/tap/eudi-dev
+brew install eudi-dev/tap/eudi-dev
 ```
 
 Installs the `eudi` command with shell completion.
 
 ### From GitHub Releases
 
-Download the latest binary for your platform from [Releases](https://github.com/dominikschlosser/eudi-dev/releases).
+Download the latest binary for your platform from [Releases](https://github.com/eudi-dev/eudi-dev/releases).
 
 ### From source
 
 ```bash
-go install github.com/dominikschlosser/eudi-dev/v2@latest
+go install github.com/eudi-dev/eudi-dev/v2@latest
 ```
 
 This installs the binary as `eudi-dev` (Go uses the module name). The documentation uses `eudi`. Link it for the shorter name: `ln -s "$(go env GOPATH)/bin/eudi-dev" "$(go env GOPATH)/bin/eudi"`.
 
-The v2 module path is `github.com/dominikschlosser/eudi-dev/v2`. The `/v2` suffix is required for v2 releases. Earlier v2 tags (up to v2.4.2) have an incorrect module path. Install them from release binaries or build them from source.
+The v2 module path is `github.com/eudi-dev/eudi-dev/v2`. The `/v2` suffix is required for v2 releases. Earlier v2 tags (up to v2.4.2) have an incorrect module path. Install them from release binaries or build them from source.
 
 ### Build locally
 
 ```bash
-git clone https://github.com/dominikschlosser/eudi-dev.git
+git clone https://github.com/eudi-dev/eudi-dev.git
 cd eudi-dev
 go build -o eudi .
 ```
@@ -98,8 +98,8 @@ go build -o eudi .
 ### Docker
 
 ```bash
-docker pull ghcr.io/dominikschlosser/eudi-dev:latest
-docker run -p 8085:8085 -p 8086:8086 ghcr.io/dominikschlosser/eudi-dev
+docker pull ghcr.io/eudi-dev/eudi-dev:latest
+docker run -p 8085:8085 -p 8086:8086 ghcr.io/eudi-dev/eudi-dev
 ```
 
 The default CMD starts a headless wallet server with preloaded PID credentials. State is kept in memory, so the container needs no volume.

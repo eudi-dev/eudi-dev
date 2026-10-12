@@ -29,7 +29,7 @@ import (
 
 	josev4 "github.com/go-jose/go-jose/v4"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/format"
+	"github.com/eudi-dev/eudi-dev/v2/internal/format"
 )
 
 // DIDReference detects DID key references so callers can tell them apart from

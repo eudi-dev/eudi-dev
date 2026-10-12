@@ -8,7 +8,7 @@
 ## Setup
 
 ```bash
-git clone https://github.com/dominikschlosser/eudi-dev.git
+git clone https://github.com/eudi-dev/eudi-dev.git
 cd eudi-dev
 go build ./...
 go test ./...

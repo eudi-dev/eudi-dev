@@ -30,8 +30,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/mock"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/wallet"
+	"github.com/eudi-dev/eudi-dev/v2/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v2/internal/wallet"
 )
 
 // customTestWallet is a demo wallet holding the default PID. HAIP and strict

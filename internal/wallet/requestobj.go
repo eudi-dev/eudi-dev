@@ -24,8 +24,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/format"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/jwe"
+	"github.com/eudi-dev/eudi-dev/v2/internal/format"
+	"github.com/eudi-dev/eudi-dev/v2/internal/jwe"
 )
 
 // The wallet advertises its encryption key even when encrypted Request Objects are

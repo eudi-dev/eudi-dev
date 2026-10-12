@@ -25,7 +25,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/credtemplate"
+	"github.com/eudi-dev/eudi-dev/v2/internal/credtemplate"
 )
 
 var (

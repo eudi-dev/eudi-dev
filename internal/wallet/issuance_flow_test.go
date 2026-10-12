@@ -28,7 +28,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v2/internal/mock"
 )
 
 type mockIssuerOpts struct {

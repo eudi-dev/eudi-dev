@@ -21,9 +21,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/credtemplate"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/mock"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/storage"
+	"github.com/eudi-dev/eudi-dev/v2/internal/credtemplate"
+	"github.com/eudi-dev/eudi-dev/v2/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v2/internal/storage"
 )
 
 // Stores opened for the same wallet must share persisted state, keys and CA material.

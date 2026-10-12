@@ -18,8 +18,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/mdoc"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v2/internal/mdoc"
+	"github.com/eudi-dev/eudi-dev/v2/internal/sdjwt"
 )
 
 // renewalMargin is how long before expiry a credential is renewed. It only

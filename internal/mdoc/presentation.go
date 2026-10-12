@@ -28,7 +28,7 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"github.com/veraison/go-cose"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/format"
+	"github.com/eudi-dev/eudi-dev/v2/internal/format"
 )
 
 // VerifyValueDigests checks the disclosed items against the digests the issuer

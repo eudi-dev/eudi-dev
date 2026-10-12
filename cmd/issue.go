@@ -28,10 +28,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/credtemplate"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/keys"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/mock"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/wallet"
+	"github.com/eudi-dev/eudi-dev/v2/internal/credtemplate"
+	"github.com/eudi-dev/eudi-dev/v2/internal/keys"
+	"github.com/eudi-dev/eudi-dev/v2/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v2/internal/wallet"
 )
 
 var (

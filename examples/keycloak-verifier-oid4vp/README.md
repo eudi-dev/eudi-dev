@@ -51,7 +51,7 @@ cd examples/keycloak-verifier-oid4vp
 ./start.sh
 ```
 
-If `eudi-dev` is not already installed, `start.sh` installs the latest release with `go install github.com/dominikschlosser/eudi-dev/v2@latest`.
+If `eudi-dev` is not already installed, `start.sh` installs the latest release with `go install github.com/eudi-dev/eudi-dev/v2@latest`.
 
 Browser-driven flow:
 

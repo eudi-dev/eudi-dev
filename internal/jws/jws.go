@@ -23,7 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/format"
+	"github.com/eudi-dev/eudi-dev/v2/internal/format"
 )
 
 // SigningInput returns the base64url header and payload joined by a dot. A JWS

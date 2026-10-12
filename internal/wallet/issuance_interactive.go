@@ -23,8 +23,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/jsonutil"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/oid4vc"
+	"github.com/eudi-dev/eudi-dev/v2/internal/jsonutil"
+	"github.com/eudi-dev/eudi-dev/v2/internal/oid4vc"
 )
 
 // Interactive Authorization (OpenID4VCI 1.1 §6) replaces the browser redirect

@@ -18,7 +18,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v2/internal/mock"
 )
 
 // The issuer metadata lists every credential template beside the ticket,

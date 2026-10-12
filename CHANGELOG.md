@@ -5,6 +5,12 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.1] - 2026-10-12
+
+### Changed
+
+- **New home in the eudi-dev organization.** The repository moved to [github.com/eudi-dev/eudi-dev](https://github.com/eudi-dev/eudi-dev). The Go module path is `github.com/eudi-dev/eudi-dev/v2`, so install with `go install github.com/eudi-dev/eudi-dev/v2@latest`. The image is `ghcr.io/eudi-dev/eudi-dev`, and Homebrew installs from `eudi-dev/tap/eudi-dev`. If you installed from `dominikschlosser/tap`, run `brew upgrade eudi-dev/tap/eudi-dev` once to trust and use the new tap. The old images keep their published tags, and old GitHub links redirect. Nothing else changed since 2.7.0.
+
 ## [2.7.0] - 2026-10-10
 
 ### Added

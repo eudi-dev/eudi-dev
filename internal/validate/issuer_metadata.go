@@ -23,11 +23,11 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/format"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/jsonutil"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/keys"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/sdjwt"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/trustlist"
+	"github.com/eudi-dev/eudi-dev/v2/internal/format"
+	"github.com/eudi-dev/eudi-dev/v2/internal/jsonutil"
+	"github.com/eudi-dev/eudi-dev/v2/internal/keys"
+	"github.com/eudi-dev/eudi-dev/v2/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v2/internal/trustlist"
 )
 
 func CanResolveJWTIssuerMetadata(token *sdjwt.Token) bool {

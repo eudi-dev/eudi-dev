@@ -30,7 +30,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/storage"
+	"github.com/eudi-dev/eudi-dev/v2/internal/storage"
 )
 
 // Memory and Postgres store entities separately under <prefix>/state/. Saves write

@@ -20,7 +20,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v2/internal/mock"
 )
 
 // Replace typ with the legacy value to test import parsing. This invalidates the

@@ -22,7 +22,7 @@ import (
 	"hash"
 	"strings"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/format"
+	"github.com/eudi-dev/eudi-dev/v2/internal/format"
 )
 
 // Parse splits and decodes an SD-JWT and processes its Disclosures per RFC

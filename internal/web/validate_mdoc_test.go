@@ -22,8 +22,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/mdoc"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v2/internal/mdoc"
+	"github.com/eudi-dev/eudi-dev/v2/internal/mock"
 )
 
 func testMDoc(t *testing.T, cfg mock.MDOCConfig) *mdoc.Document {

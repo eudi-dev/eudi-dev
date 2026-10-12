@@ -18,8 +18,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/credtype"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v2/internal/credtype"
+	"github.com/eudi-dev/eudi-dev/v2/internal/mock"
 )
 
 func sdjwtVCTQuery(vct string) map[string]any {

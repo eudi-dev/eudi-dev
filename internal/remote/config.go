@@ -22,7 +22,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/config"
+	"github.com/eudi-dev/eudi-dev/v2/internal/config"
 )
 
 var configBaseDir = config.BaseDir

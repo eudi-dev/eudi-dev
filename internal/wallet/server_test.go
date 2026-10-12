@@ -32,11 +32,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/format"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/mock"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/sdjwt"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/trustlist"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/validate"
+	"github.com/eudi-dev/eudi-dev/v2/internal/format"
+	"github.com/eudi-dev/eudi-dev/v2/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v2/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v2/internal/trustlist"
+	"github.com/eudi-dev/eudi-dev/v2/internal/validate"
 )
 
 func newTestServer(t testing.TB, autoAccept bool) *Server {

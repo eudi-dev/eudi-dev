@@ -27,10 +27,10 @@ import (
 
 	"github.com/fatih/color"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/mdoc"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/oid4vc"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/sdjwt"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/trustlist"
+	"github.com/eudi-dev/eudi-dev/v2/internal/mdoc"
+	"github.com/eudi-dev/eudi-dev/v2/internal/oid4vc"
+	"github.com/eudi-dev/eudi-dev/v2/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v2/internal/trustlist"
 )
 
 var (

@@ -26,10 +26,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/format"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/jws"
+	"github.com/eudi-dev/eudi-dev/v2/internal/format"
+	"github.com/eudi-dev/eudi-dev/v2/internal/jws"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/oid4vc"
+	"github.com/eudi-dev/eudi-dev/v2/internal/oid4vc"
 )
 
 // The fixture is a real signed request with x509_hash and a CA-issued leaf, so

@@ -25,8 +25,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/mdoc"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/trustlist"
+	"github.com/eudi-dev/eudi-dev/v2/internal/mdoc"
+	"github.com/eudi-dev/eudi-dev/v2/internal/trustlist"
 )
 
 func generateCACert(t *testing.T) (*x509.Certificate, *ecdsa.PrivateKey, []byte) {

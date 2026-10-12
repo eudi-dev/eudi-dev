@@ -28,8 +28,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/jws"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v2/internal/jws"
+	"github.com/eudi-dev/eudi-dev/v2/internal/mock"
 )
 
 // OpenID4VCI 1.0 wallets fetch c_nonce from the Nonce Endpoint. Omitting that endpoint

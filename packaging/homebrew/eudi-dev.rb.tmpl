@@ -1,21 +1,21 @@
 # typed: strict
 # frozen_string_literal: true
 
-# Homebrew formula for eudi-dev, published to the dominikschlosser/homebrew-tap
+# Homebrew formula for eudi-dev, published to the eudi-dev/homebrew-tap
 # repository by the release workflow. __VERSION__ (without the leading v) and
 # __SHA256__ are filled in per release.
 class EudiDev < Formula
   desc "Developer toolkit for the EUDI and OpenID4VC ecosystem"
-  homepage "https://github.com/dominikschlosser/eudi-dev"
-  url "https://github.com/dominikschlosser/eudi-dev/archive/refs/tags/v__VERSION__.tar.gz"
+  homepage "https://github.com/eudi-dev/eudi-dev"
+  url "https://github.com/eudi-dev/eudi-dev/archive/refs/tags/v__VERSION__.tar.gz"
   sha256 "__SHA256__"
   license "Apache-2.0"
-  head "https://github.com/dominikschlosser/eudi-dev.git", branch: "main"
+  head "https://github.com/eudi-dev/eudi-dev.git", branch: "main"
 
   depends_on "go" => :build
 
   def install
-    ldflags = "-s -w -X github.com/dominikschlosser/eudi-dev/v2/cmd.Version=v#{version}"
+    ldflags = "-s -w -X github.com/eudi-dev/eudi-dev/v2/cmd.Version=v#{version}"
     system "go", "build", *std_go_args(ldflags: ldflags, output: bin/"eudi")
     # Legacy command name keeps working for the time being
     bin.install_symlink "eudi" => "oid4vc-dev"

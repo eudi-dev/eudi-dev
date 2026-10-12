@@ -18,8 +18,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/mdoc"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v2/internal/mdoc"
+	"github.com/eudi-dev/eudi-dev/v2/internal/sdjwt"
 )
 
 func FromSDJWT(token *sdjwt.Token) *Query {

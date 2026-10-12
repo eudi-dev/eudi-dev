@@ -47,7 +47,7 @@ cd examples/keycloak-issuer-wallet
 eudi wallet list
 ```
 
-If `eudi-dev` is not already installed, `start.sh` installs the latest release with `go install github.com/dominikschlosser/eudi-dev/v2@latest`.
+If `eudi-dev` is not already installed, `start.sh` installs the latest release with `go install github.com/eudi-dev/eudi-dev/v2@latest`.
 
 Setup only:
 

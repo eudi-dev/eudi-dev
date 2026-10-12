@@ -22,8 +22,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/mock"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/statuslist"
+	"github.com/eudi-dev/eudi-dev/v2/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v2/internal/statuslist"
 )
 
 func checkByName(t *testing.T, w *httptest.ResponseRecorder, name string) map[string]any {

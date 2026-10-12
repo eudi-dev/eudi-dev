@@ -29,11 +29,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/config"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/news"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/oid4vc"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/publicpath"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/storage"
+	"github.com/eudi-dev/eudi-dev/v2/internal/config"
+	"github.com/eudi-dev/eudi-dev/v2/internal/news"
+	"github.com/eudi-dev/eudi-dev/v2/internal/oid4vc"
+	"github.com/eudi-dev/eudi-dev/v2/internal/publicpath"
+	"github.com/eudi-dev/eudi-dev/v2/internal/storage"
 )
 
 type Server struct {

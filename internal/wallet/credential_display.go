@@ -31,8 +31,8 @@ import (
 
 	"golang.org/x/image/draw"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/credtemplate"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/publicpath"
+	"github.com/eudi-dev/eudi-dev/v2/internal/credtemplate"
+	"github.com/eudi-dev/eudi-dev/v2/internal/publicpath"
 )
 
 // CredentialDisplay is the OpenID4VCI §12.2.4 display entry stored with a

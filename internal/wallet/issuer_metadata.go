@@ -31,7 +31,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v2/internal/mock"
 )
 
 func LocalIssuerURL(port int, docker bool) string {

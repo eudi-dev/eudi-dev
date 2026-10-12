@@ -1,6 +1,6 @@
 # Issue tracker: GitHub
 
-Issues and feature specifications live in GitHub Issues on `dominikschlosser/eudi-dev`. Run `gh` from this checkout so it uses the Git remote to find the repository.
+Issues and feature specifications live in GitHub Issues on `eudi-dev/eudi-dev`. Run `gh` from this checkout so it uses the Git remote to find the repository.
 
 ## Common commands
 

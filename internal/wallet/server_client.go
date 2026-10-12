@@ -18,7 +18,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/config"
+	"github.com/eudi-dev/eudi-dev/v2/internal/config"
 )
 
 // ClientHeader identifies the client and release so the server can detect outdated URL

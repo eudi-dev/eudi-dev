@@ -20,7 +20,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v2/internal/sdjwt"
 )
 
 // ETSI TS 119 182-1 V1.2.1 §5.1.11 defines the header iat as the signing time.

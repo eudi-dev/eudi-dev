@@ -28,7 +28,7 @@ import (
 
 	"github.com/fatih/color"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/proxy"
+	"github.com/eudi-dev/eudi-dev/v2/internal/proxy"
 )
 
 // The renderer writes to both stdout and the color package writer. Capture both to

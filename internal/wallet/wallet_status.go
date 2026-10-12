@@ -15,8 +15,8 @@
 package wallet
 
 import (
-	"github.com/dominikschlosser/eudi-dev/v2/internal/mdoc"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/statuslist"
+	"github.com/eudi-dev/eudi-dev/v2/internal/mdoc"
+	"github.com/eudi-dev/eudi-dev/v2/internal/statuslist"
 )
 
 // SetCredentialStatus accepts values from 0 through 255 as draft-ietf-oauth-status-list §7

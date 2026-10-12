@@ -19,8 +19,8 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/jsonutil"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/oid4vc"
+	"github.com/eudi-dev/eudi-dev/v2/internal/jsonutil"
+	"github.com/eudi-dev/eudi-dev/v2/internal/oid4vc"
 )
 
 const (

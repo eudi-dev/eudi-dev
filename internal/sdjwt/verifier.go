@@ -20,8 +20,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/jsonutil"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/jws"
+	"github.com/eudi-dev/eudi-dev/v2/internal/jsonutil"
+	"github.com/eudi-dev/eudi-dev/v2/internal/jws"
 )
 
 type VerifyResult struct {

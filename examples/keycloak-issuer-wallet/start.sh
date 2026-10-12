@@ -29,7 +29,7 @@ ensure_oid4vc_dev() {
 
   if ! command -v eudi-dev >/dev/null 2>&1; then
     echo "eudi not found. Installing latest with Go..."
-    GOBIN="${gobin}" go install github.com/dominikschlosser/eudi-dev/v2@latest
+    GOBIN="${gobin}" go install github.com/eudi-dev/eudi-dev/v2@latest
   fi
   export PATH="${gobin}:${PATH}"
 

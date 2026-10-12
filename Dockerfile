@@ -4,7 +4,7 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN go build -ldflags "-s -w -X github.com/dominikschlosser/eudi-dev/v2/cmd.Version=${VERSION}" -o eudi .
+RUN go build -ldflags "-s -w -X github.com/eudi-dev/eudi-dev/v2/cmd.Version=${VERSION}" -o eudi .
 
 FROM alpine:3.21
 # The state directory exists and belongs to app, so a named volume mounted

@@ -20,7 +20,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v2/internal/mock"
 )
 
 func TestApplyConsentSelection(t *testing.T) {

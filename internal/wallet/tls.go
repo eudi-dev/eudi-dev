@@ -17,7 +17,7 @@ package wallet
 import (
 	"net/http"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/format"
+	"github.com/eudi-dev/eudi-dev/v2/internal/format"
 )
 
 func (w *Wallet) TLSVerification() bool {

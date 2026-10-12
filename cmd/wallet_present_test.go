@@ -24,7 +24,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/wallet"
+	"github.com/eudi-dev/eudi-dev/v2/internal/wallet"
 )
 
 func useStrictValidation(t *testing.T) {

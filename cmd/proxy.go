@@ -30,8 +30,8 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/config"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/proxy"
+	"github.com/eudi-dev/eudi-dev/v2/internal/config"
+	"github.com/eudi-dev/eudi-dev/v2/internal/proxy"
 )
 
 var (

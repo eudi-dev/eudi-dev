@@ -22,8 +22,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/format"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/wallet"
+	"github.com/eudi-dev/eudi-dev/v2/internal/format"
+	"github.com/eudi-dev/eudi-dev/v2/internal/wallet"
 )
 
 // Interactive Authorization (OpenID4VCI 1.1 §6). The issuer asks for a PID at

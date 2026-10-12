@@ -24,9 +24,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/format"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/jws"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/validate"
+	"github.com/eudi-dev/eudi-dev/v2/internal/format"
+	"github.com/eudi-dev/eudi-dev/v2/internal/jws"
+	"github.com/eudi-dev/eudi-dev/v2/internal/validate"
 )
 
 // ETSI TS 119 475 identifies registration certificates by rc-wrp+jwt. Select by this

@@ -7,7 +7,7 @@ See CONTRIBUTING.md for the human contributor guide.
 
 ### Issue tracker
 
-Issues live in GitHub Issues on `dominikschlosser/eudi-dev`, via the `gh` CLI.
+Issues live in GitHub Issues on `eudi-dev/eudi-dev`, via the `gh` CLI.
 See `docs/agents/issue-tracker.md`.
 
 ### Domain docs

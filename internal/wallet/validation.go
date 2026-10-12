@@ -19,7 +19,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/oid4vc"
+	"github.com/eudi-dev/eudi-dev/v2/internal/oid4vc"
 )
 
 // ValidateAuthorizationRequest adds profile checks when requireHAIP is set. The validation

@@ -28,7 +28,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/credtemplate"
+	"github.com/eudi-dev/eudi-dev/v2/internal/credtemplate"
 )
 
 func newDemoTestServer(t *testing.T) *Server {

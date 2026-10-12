@@ -25,8 +25,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/jws"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v2/internal/jws"
+	"github.com/eudi-dev/eudi-dev/v2/internal/mock"
 )
 
 type trustListOptions struct {
@@ -410,7 +410,7 @@ func generateTrustListJWTWithOptions(signingKey *ecdsa.PrivateKey, caCert *x509.
 	schemeInfo["SchemeName"] = []map[string]string{{"lang": "en", "value": opts.Profile.SchemeTerritory + ": EUDI Dev Test Providers"}}
 	schemeInfo["SchemeOperatorAddress"] = map[string]any{
 		"SchemeOperatorPostalAddress":     []map[string]string{{"lang": "en", "StreetAddress": "Test address", "Country": "NL"}},
-		"SchemeOperatorElectronicAddress": []map[string]string{{"lang": "en", "uriValue": "https://github.com/dominikschlosser/eudi-dev"}},
+		"SchemeOperatorElectronicAddress": []map[string]string{{"lang": "en", "uriValue": "https://github.com/eudi-dev/eudi-dev"}},
 	}
 	if opts.Profile.StatusDeterminationApproach != "" {
 		schemeInfo["StatusDeterminationApproach"] = opts.Profile.StatusDeterminationApproach
@@ -427,7 +427,7 @@ func generateTrustListJWTWithOptions(signingKey *ecdsa.PrivateKey, caCert *x509.
 			path = "/api/trustlist"
 		}
 		schemeInfo["SchemeInformationURI"] = []map[string]string{
-			{"lang": "en", "uriValue": "https://github.com/dominikschlosser/eudi-dev/blob/main/docs/test-certificates.md"},
+			{"lang": "en", "uriValue": "https://github.com/eudi-dev/eudi-dev/blob/main/docs/test-certificates.md"},
 			{"lang": "en", "uriValue": opts.Issuer + path + "/history"},
 		}
 		schemeInfo["DistributionPoints"] = []string{opts.Issuer + path}
@@ -443,7 +443,7 @@ func generateTrustListJWTWithOptions(signingKey *ecdsa.PrivateKey, caCert *x509.
 		"TETradeName": []map[string]string{{"lang": "en", "value": opts.Profile.EntityName}},
 		"TEAddress": map[string]any{
 			"TEPostalAddress":     []map[string]string{{"lang": "en", "StreetAddress": "Test address", "Locality": "Test city", "PostalCode": "0000", "Country": "NL"}},
-			"TEElectronicAddress": []map[string]string{{"lang": "en", "uriValue": "https://github.com/dominikschlosser/eudi-dev"}},
+			"TEElectronicAddress": []map[string]string{{"lang": "en", "uriValue": "https://github.com/eudi-dev/eudi-dev"}},
 		},
 	}
 	if opts.Issuer != "" {

@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/config"
+	"github.com/eudi-dev/eudi-dev/v2/internal/config"
 )
 
 // Returns the result that navigator.credentials.get() would deliver to the requesting

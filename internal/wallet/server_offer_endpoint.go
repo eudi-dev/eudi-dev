@@ -18,7 +18,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/oid4vc"
+	"github.com/eudi-dev/eudi-dev/v2/internal/oid4vc"
 )
 
 // This web endpoint accepts the same credential_offer and credential_offer_uri

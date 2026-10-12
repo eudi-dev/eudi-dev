@@ -19,11 +19,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/dcql"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/format"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/mdoc"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/output"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v2/internal/dcql"
+	"github.com/eudi-dev/eudi-dev/v2/internal/format"
+	"github.com/eudi-dev/eudi-dev/v2/internal/mdoc"
+	"github.com/eudi-dev/eudi-dev/v2/internal/output"
+	"github.com/eudi-dev/eudi-dev/v2/internal/sdjwt"
 )
 
 var dcqlCmd = &cobra.Command{

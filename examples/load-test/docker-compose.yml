@@ -13,7 +13,7 @@ services:
       retries: 30
 
   wallet-1: &wallet
-    image: ghcr.io/dominikschlosser/eudi-dev:${WALLET_TAG:-latest}
+    image: ghcr.io/eudi-dev/eudi-dev:${WALLET_TAG:-latest}
     build:
       context: ../..
     # The state persists in the database, so the wallet generates its own random keys.

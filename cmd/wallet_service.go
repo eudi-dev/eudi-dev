@@ -18,10 +18,10 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/dominikschlosser/eudi-dev/v2/internal/credtemplate"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/keys"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/remote"
-	"github.com/dominikschlosser/eudi-dev/v2/internal/wallet"
+	"github.com/eudi-dev/eudi-dev/v2/internal/credtemplate"
+	"github.com/eudi-dev/eudi-dev/v2/internal/keys"
+	"github.com/eudi-dev/eudi-dev/v2/internal/remote"
+	"github.com/eudi-dev/eudi-dev/v2/internal/wallet"
 )
 
 // Management commands use the same API documents for local and remote wallets. Prefer
