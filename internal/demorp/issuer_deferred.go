@@ -20,6 +20,7 @@ package demorp
 
 import (
 	"crypto/ecdsa"
+	"encoding/json"
 	"net/http"
 	"time"
 )
@@ -80,10 +81,15 @@ func (d *DemoRP) handleDeferredCredential(w http.ResponseWriter, r *http.Request
 		return
 	}
 	var req struct {
-		TransactionID string `json:"transaction_id"`
+		TransactionID                string          `json:"transaction_id"`
+		CredentialResponseEncryption json.RawMessage `json:"credential_response_encryption"`
 	}
 	if err := decodeJSONBody(r, &req); err != nil {
 		writeJSON(w, http.StatusBadRequest, oauthError("invalid_credential_request", err.Error()))
+		return
+	}
+	// §9.1 defines credential_response_encryption "as defined in Section 8.2".
+	if refuseResponseEncryption(w, req.CredentialResponseEncryption) {
 		return
 	}
 	// §9.1 marks transaction_id REQUIRED. §8.3.1.2 invalid_credential_request:

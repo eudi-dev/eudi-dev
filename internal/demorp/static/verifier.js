@@ -72,6 +72,8 @@ function renderResult(doc) {
     status.textContent = text;
   } else if (doc.status === "failed") {
     status.innerHTML = "✗ Verification failed" + (doc.error ? `<div class="check-detail" id="status-error">${esc(sentence(doc.error))}</div>` : "");
+  } else if (doc.status === "declined") {
+    status.innerHTML = `✗ The wallet declined: <span id="status-error">${esc(doc.error || "")}</span>`;
   } else {
     status.textContent = doc.status === "expired" ? "Request expired, create a new one" : "Waiting for the wallet…";
   }

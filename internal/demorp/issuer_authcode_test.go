@@ -196,7 +196,7 @@ func attestationPoP(t *testing.T, clientKey *ecdsa.PrivateKey, audience string) 
 	t.Helper()
 	return signES256(t, clientKey,
 		map[string]any{"alg": "ES256", "typ": "oauth-client-attestation-pop+jwt", "jwk": holderJWK(t, clientKey)},
-		map[string]any{"aud": audience, "iat": time.Now().Unix(), "jti": "pop-" + audience},
+		map[string]any{"aud": audience, "iat": time.Now().Unix(), "jti": randToken()},
 	)
 }
 
@@ -243,6 +243,48 @@ func pushAuthorizationRequest(t *testing.T, h http.Handler, clientID string, dpo
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 	return rec
+}
+
+// ABCA draft-07 §12.1: the authorization server keeps the "witnessed jti
+// values of the Client Attestation PoP JWT" and answers a replayed PoP "with
+// an authentication error".
+func TestAClientAttestationPoPIsAcceptedOnce(t *testing.T) {
+	d, _, _ := newDemoRP(t)
+	provider := foreignWalletProvider(t)
+	clientKey, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	headers := map[string]string{
+		"OAuth-Client-Attestation":     provider.attest(t, "http://wallet.example", clientKey),
+		"OAuth-Client-Attestation-PoP": attestationPoP(t, clientKey, demoIssuerID),
+	}
+	const challenge = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+	if rec := pushAuthorizationRequest(t, d.IssuerHandler(), "http://wallet.example", nil, challenge, headers); rec.Code != http.StatusCreated {
+		t.Fatalf("first use: %d %s", rec.Code, rec.Body.String())
+	}
+	rec := pushAuthorizationRequest(t, d.IssuerHandler(), "http://wallet.example", nil, challenge, headers)
+	if rec.Code == http.StatusCreated || !strings.Contains(rec.Body.String(), "invalid_client") || !strings.Contains(rec.Body.String(), "jti") {
+		t.Errorf("replayed PoP: %d %s, want invalid_client naming the jti", rec.Code, rec.Body.String())
+	}
+}
+
+// RFC 9126 §2.1: "The request_uri authorization request parameter is one
+// exception, and it MUST NOT be provided."
+func TestAPushedAuthorizationRequestMustNotCarryARequestURI(t *testing.T) {
+	d, _, _ := newDemoRP(t)
+	form := url.Values{
+		"client_id":             {"http://wallet.example"},
+		"response_type":         {"code"},
+		"code_challenge_method": {"S256"},
+		"code_challenge":        {"E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"},
+		"redirect_uri":          {"http://wallet.example/cb"},
+		"request_uri":           {requestURIPrefix + "pushed-elsewhere"},
+	}
+	code, doc := doJSON(t, d.IssuerHandler(), "POST", "/par", form.Encode(), map[string]string{"Content-Type": "application/x-www-form-urlencoded"})
+	if code != http.StatusBadRequest || doc["error"] != "invalid_request" {
+		t.Errorf("%d %v, want 400 invalid_request", code, doc)
+	}
 }
 
 // RFC 9449 §10 makes dpop_jkt OPTIONAL, and §10.1 lets the client send a DPoP

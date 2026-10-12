@@ -89,6 +89,13 @@ async function createVerificationRequest() {
   return { id: body.transaction_id, walletURL: body.wallet_url, schemeURI: body.scheme_uri };
 }
 
+// The demo verifier answers a denial with a redirect_uri back to its page
+// (OpenID4VP 1.0 §8.2), and the wallet tab follows it.
+async function denyAtVerifier(page) {
+  await page.locator("#consent-deny").click();
+  await expect(page).toHaveURL(/\/verifier\/\?response_code=/, { timeout: 15_000 });
+}
+
 async function openAsSchemeHandler(page) {
   const owner = "test-owner-" + Math.random().toString(36).slice(2);
   await page.goto(`${BASE}/?focus=overview&owner=${owner}`);
@@ -455,8 +462,8 @@ test.describe("Demo mode consent visibility", () => {
     submitAsSchemeHandler("/api/presentations", first.schemeURI, owner);
     await expect(page.locator("#consent-overlay")).toHaveClass(/active/);
 
-    await page.locator("#consent-deny").click();
-    await expect(page.locator("#consent-overlay")).not.toHaveClass(/active/);
+    await denyAtVerifier(page);
+    await page.goto(`${BASE}/?focus=overview&owner=${owner}`);
 
     const second = await createVerificationRequest();
     submitAsSchemeHandler("/api/presentations", second.schemeURI, "someone-else");
@@ -466,9 +473,7 @@ test.describe("Demo mode consent visibility", () => {
     const third = await createVerificationRequest();
     submitAsSchemeHandler("/api/presentations", third.schemeURI, owner);
     await expect(page.locator("#consent-overlay")).toHaveClass(/active/);
-    await page.locator("#consent-deny").click();
-    await expect(page.locator("#consent-overlay")).not.toHaveClass(/active/);
-    await expect(page.locator("#pending-banner")).toBeHidden();
+    await denyAtVerifier(page);
     expect((await listPending("someone-else")).length, "the other owner's request stays pending").toBe(1);
     await clearPending("someone-else");
   });
@@ -483,10 +488,12 @@ test.describe("Demo mode consent visibility", () => {
     await expect(page.locator("#consent-overlay")).toHaveClass(/active/);
 
     // Only one dialog is visible. The banner must keep the replaced request accessible
-    // after the current dialog closes.
-    const second = await createVerificationRequest();
-    submitAsSchemeHandler("/api/presentations", second.schemeURI, owner);
+    // after the current dialog closes. A denied offer leaves the user in the
+    // wallet, so the banner shows in the same tab.
+    const { body: offer } = await postJSON("/issuer/api/offers", {});
+    submitAsSchemeHandler("/api/offers", offer.scheme_uri, owner);
     await waitForPending(2, owner);
+    await expect(page.locator("#consent-dialog")).toContainText("Demo Event Ticket");
 
     await expect(page.locator("#pending-banner")).toBeHidden();
     await page.locator("#consent-deny").click();
@@ -497,8 +504,7 @@ test.describe("Demo mode consent visibility", () => {
     await page.locator("#pending-review").click();
     await expect(page.locator("#consent-overlay")).toHaveClass(/active/);
     await expect(page.locator("#consent-approve")).toBeVisible();
-    await page.locator("#consent-deny").click();
-    await expect(page.locator("#pending-banner")).toBeHidden();
+    await denyAtVerifier(page);
     await waitForPending(0, owner);
   });
 
@@ -737,6 +743,18 @@ test.describe("Verifier request types", () => {
     await expect(page.locator("#claims")).toContainText("urn:eudi:pid:de:1");
   });
 
+  test("denying in the wallet returns to the verifier page, which shows the refusal", async ({ page }) => {
+    await page.goto(`${BASE}/verifier/`);
+    await createVerifierRequest(page, "pid");
+    await expect(page.locator("#wallet-link")).toHaveAttribute("href", /request_uri=/);
+    await page.goto(await page.locator("#wallet-link").getAttribute("href"));
+    await expect(page.locator("#consent-overlay")).toHaveClass(/active/);
+
+    await denyAtVerifier(page);
+    await expect(page.locator("#status")).toHaveText(/^✗ The wallet declined: access_denied/, { timeout: 15000 });
+    await expect(page.locator("#credential-pid")).toHaveAttribute("aria-checked", "true");
+  });
+
   test("the redirect shows the requested credential and folds the passed checks", async ({ page }) => {
     await page.goto(`${BASE}/verifier/`);
     await createVerifierRequest(page, "pid-de");
@@ -896,8 +914,7 @@ test.describe("Consent credential selection", () => {
     await expect(page.locator(".consent-credential")).toHaveCount(1);
     await expect(page.locator(".consent-claim input[type=checkbox]").first()).toBeChecked();
 
-    await page.locator("#consent-deny").click();
-    await expect(page.locator("#consent-overlay")).not.toHaveClass(/active/);
+    await denyAtVerifier(page);
   });
 
   test("the edit screen offers the set options and the candidates per query", async ({ page }) => {
@@ -910,8 +927,7 @@ test.describe("Consent credential selection", () => {
     await expect(page.locator(".consent-credential[data-query-id] .candidate")).toHaveCount(2);
     await expect(page.locator("#consent-approve")).toBeVisible();
 
-    await page.locator("#consent-deny").click();
-    await expect(page.locator("#consent-overlay")).not.toHaveClass(/active/);
+    await denyAtVerifier(page);
   });
 
   test("switching the set option presents the other format", async ({ page }) => {
@@ -982,8 +998,7 @@ test.describe("Consent credential selection", () => {
     await expect(page.locator(`.candidate[data-cred="${alternateID}"]`)).not.toHaveClass(/selected/);
     await expect(page.locator("#consent-selection-reset")).toHaveCount(0);
 
-    await page.locator("#consent-deny").click();
-    await expect(page.locator("#consent-overlay")).not.toHaveClass(/active/);
+    await denyAtVerifier(page);
   });
 
   async function ensureTicket() {
@@ -1165,8 +1180,7 @@ test.describe("Multi-tab dialogs", () => {
       await expect(tab1.locator("#consent-overlay")).toHaveClass(/active/);
       await expect(tab2.locator("#consent-overlay")).toHaveClass(/active/);
 
-      await tab1.locator("#consent-deny").click();
-      await expect(tab1.locator("#consent-overlay")).not.toHaveClass(/active/);
+      await denyAtVerifier(tab1);
       await expect(tab2.locator("#consent-overlay")).not.toHaveClass(/active/);
     } finally {
       await ctx.close();

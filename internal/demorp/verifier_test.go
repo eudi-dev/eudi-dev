@@ -103,24 +103,56 @@ func TestTheResultNamesThePagesChoice(t *testing.T) {
 }
 
 // OpenID4VP 1.0 §8.3.1 lets a wallet that cannot encrypt "send an error
-// response without encryption as per Section 8.2", and §8.2 answers 200 after
-// "the Authorization Response or Authorization Error Response" is processed.
+// response without encryption as per Section 8.2". §8.2 lets the Response URI
+// return a redirect_uri "for Error Responses", so the user returns to the
+// verifier page and reads the error there.
 func TestVerifierProcessesAnUnencryptedErrorResponse(t *testing.T) {
 	d, _, _ := newDemoRP(t)
-	id, _ := startVerification(t, d.VerifierHandler(), "ticket")
+	h := d.VerifierHandler()
+	id, _ := startVerification(t, h, "ticket")
 
 	if code, doc := postResponseForm(t, d, id, url.Values{"error": {"access_denied"}, "state": {"another-request"}}); code != http.StatusBadRequest {
 		t.Errorf("an error response for another request: %d %v, want 400", code, doc)
 	}
 
-	id, _ = startVerification(t, d.VerifierHandler(), "ticket")
 	form := url.Values{"error": {"access_denied"}, "error_description": {"the user declined"}, "state": {id}}
-	if code, doc := postResponseForm(t, d, id, form); code != http.StatusOK {
+	code, answer := postResponseForm(t, d, id, form)
+	if code != http.StatusOK {
+		t.Fatalf("an error response: %d %v, want 200", code, answer)
+	}
+	redirect, err := url.Parse(fmt.Sprint(answer["redirect_uri"]))
+	if err != nil || redirect.Path != "/verifier/" || redirect.Query().Get("response_code") == "" {
+		t.Fatalf("redirect_uri = %v, want the verifier page with a response_code", answer["redirect_uri"])
+	}
+	_, status := doJSON(t, h, "GET", "/api/requests/"+redirect.Query().Get("response_code"), "", nil)
+	if status["status"] != "declined" || status["error"] != "access_denied (the user declined)" {
+		t.Errorf("result = %v, want the wallet's error", status)
+	}
+}
+
+// The request id and so the state are in the QR code. An error response from
+// whoever saw it must not stop the wallet from answering the request.
+func TestAnErrorResponseLeavesTheRequestOpen(t *testing.T) {
+	d, _, holderKey := newDemoRP(t)
+	h := d.VerifierHandler()
+	id, params := startVerification(t, h, "ticket")
+
+	if code, doc := postResponseForm(t, d, id, url.Values{"error": {"access_denied"}, "state": {id}}); code != http.StatusOK {
 		t.Fatalf("an error response: %d %v, want 200", code, doc)
 	}
-	_, status := requestStatus(t, d, id)
-	if status["status"] != "failed" || !strings.Contains(status["error"].(string), "access_denied the user declined") {
-		t.Errorf("result = %v, want the failure with the wallet's error", status)
+	if _, status := requestStatus(t, d, id); status["status"] != "declined" || status["open"] != true {
+		t.Errorf("result after the error response = %v, want declined and open", status)
+	}
+
+	presentation := presentTicket(t, d, holderKey, params.Get("client_id"), params.Get("nonce"))
+	if code, doc := postPresentationResponse(t, h, id, id, "ticket", presentation); code != http.StatusOK {
+		t.Fatalf("the wallet's presentation after the error response: %d %v, want 200", code, doc)
+	}
+	if _, status := requestStatus(t, d, id); status["status"] != "verified" {
+		t.Errorf("result = %v, want verified", status)
+	}
+	if code, doc := postResponseForm(t, d, id, url.Values{"error": {"access_denied"}, "state": {id}}); code != http.StatusConflict {
+		t.Errorf("an error response after the verified one: %d %v, want 409", code, doc)
 	}
 }
 
@@ -176,6 +208,31 @@ func TestAnEmptyPresentationArrayFails(t *testing.T) {
 	postVPToken(t, d, id, map[string][]string{"ticket": {}})
 	if _, status := requestStatus(t, d, id); status["status"] != "failed" || !strings.Contains(fmt.Sprint(status["error"]), "one or more") {
 		t.Errorf("result %v, want the §8.1 failure", status)
+	}
+}
+
+// OpenID4VP 1.0 §8.3 takes the enc value from
+// encrypted_response_enc_values_supported. The verifier offers only A128GCM
+// and A256GCM (HAIP 1.0 §5).
+func TestAuthorizationResponseRequiresAnOfferedEnc(t *testing.T) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := &requestState{id: "req-1", encKey: key}
+	body, _ := json.Marshal(map[string]any{"vp_token": map[string]any{"q": []string{"x"}}, "state": "req-1"})
+	for enc, offered := range map[string]bool{"A128GCM": true, "A256GCM": true, "A128CBC-HS256": false} {
+		compact, _, err := jwe.EncryptECDHES(body, &key.PublicKey, "", enc, "", nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = authorizationResponse(req, url.Values{"response": {compact}})
+		if offered && err != nil {
+			t.Errorf("%s: %v", enc, err)
+		}
+		if !offered && (err == nil || !strings.Contains(err.Error(), enc)) {
+			t.Errorf("%s: error %v, want a refusal naming %s", enc, err, enc)
+		}
 	}
 }
 

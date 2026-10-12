@@ -28,6 +28,9 @@ type Document struct {
 	ResponseVersion  string
 	ResponseStatus   *uint64
 	IsDeviceResponse bool
+	// Documents counts the documents of a DeviceResponse. Only the first is
+	// read.
+	Documents int
 	// Deviations records unreadable parts the parser dropped, such as a malformed
 	// namespace or a repeated element. The rest of the document still displays.
 	// Strict mode rejects a document with deviations.

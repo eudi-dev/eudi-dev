@@ -325,39 +325,197 @@ func TestAKeyProofWithAPrivateKeyIsRefused(t *testing.T) {
 	}
 }
 
-// RFC 9449 §4.3: the server "MUST ensure" that "there is not more than one
-// DPoP HTTP request header field" and that all claims of §4.2, jti among
-// them, are present.
+// RFC 9449 §4.3 lists the checks of a DPoP proof. The server "MUST ensure"
+// that "there is not more than one DPoP HTTP request header field", that the
+// proof is a well-formed JWT with typ dpop+jwt, a supported alg, a valid
+// signature by its jwk and all claims of §4.2, that htm and htu match the
+// request, that iat is recent and that ath is the hash of the access token.
 func TestDPoPProofChecks(t *testing.T) {
 	d, _, _ := newDemoRP(t)
 	key, err := mock.GenerateKey()
 	if err != nil {
 		t.Fatal(err)
 	}
-	htu := demoIssuerID + "/token"
-	withoutJTI := signES256(t, key,
-		map[string]any{"alg": "ES256", "typ": "dpop+jwt", "jwk": holderJWK(t, key)},
-		map[string]any{"htm": "POST", "htu": htu, "iat": time.Now().Unix()},
-	)
+	otherKey, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	const accessToken = "the-access-token"
+	htu := demoIssuerID + "/credential"
+	ath := func(token string) string {
+		sum := sha256.Sum256([]byte(token))
+		return format.EncodeBase64URL(sum[:])
+	}
+	// proof signs a complete proof for the access token after edit changes
+	// its header and payload.
+	proof := func(signer *ecdsa.PrivateKey, edit func(header, payload map[string]any)) string {
+		header := map[string]any{"alg": "ES256", "typ": "dpop+jwt", "jwk": holderJWK(t, key)}
+		payload := map[string]any{"htm": "POST", "htu": htu, "iat": time.Now().Unix(), "jti": randToken(), "ath": ath(accessToken)}
+		if edit != nil {
+			edit(header, payload)
+		}
+		return signES256(t, signer, header, payload)
+	}
 	for _, tc := range []struct {
-		name    string
-		proofs  []string
-		refused bool
+		name   string
+		proofs []string
+		want   string
 	}{
-		{"one complete proof", []string{dpopProof(t, key, "POST", htu)}, false},
-		{"two proofs", []string{dpopProof(t, key, "POST", htu), dpopProof(t, key, "POST", htu)}, true},
-		{"a proof without jti", []string{withoutJTI}, true},
+		{"one complete proof", []string{proof(key, nil)}, ""},
+		{"no proof", nil, "required"},
+		{"an empty header", []string{" "}, "required"},
+		{"two proofs", []string{proof(key, nil), proof(key, nil)}, "header fields"},
+		{"a proof that is no JWT", []string{"not-a-jwt"}, "parsing"},
+		{"another typ", []string{proof(key, func(h, _ map[string]any) { h["typ"] = "JWT" })}, "typ"},
+		{"another alg", []string{proof(key, func(h, _ map[string]any) { h["alg"] = "ES384" })}, "alg"},
+		{"no jwk", []string{proof(key, func(h, _ map[string]any) { delete(h, "jwk") })}, "no jwk"},
+		{"a jwk that is no key", []string{proof(key, func(h, _ map[string]any) {
+			h["jwk"] = map[string]any{"kty": "EC", "crv": "P-256", "x": "AA", "y": "AA"}
+		})}, "jwk"},
+		{"a signature by another key", []string{proof(otherKey, nil)}, "signature"},
+		{"no jti", []string{proof(key, func(_, p map[string]any) { delete(p, "jti") })}, "jti"},
+		{"another method", []string{proof(key, func(_, p map[string]any) { p["htm"] = "GET" })}, "htm"},
+		{"another URI", []string{proof(key, func(_, p map[string]any) { p["htu"] = demoIssuerID + "/token" })}, "htu"},
+		{"a stale iat", []string{proof(key, func(_, p map[string]any) { p["iat"] = time.Now().Add(-2 * freshnessWindow).Unix() })}, "iat"},
+		{"the hash of another access token", []string{proof(key, func(_, p map[string]any) { p["ath"] = ath("another-token") })}, "ath"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodPost, "/token", nil)
+			req := httptest.NewRequest(http.MethodPost, "/credential", nil)
 			for _, proof := range tc.proofs {
 				req.Header.Add("DPoP", proof)
 			}
-			_, errResp := d.dpopKey(req, htu)
-			if refused := errResp != nil; refused != tc.refused {
-				t.Errorf("refused = %v (%v), want %v", refused, errResp, tc.refused)
+			_, err := d.verifyDPoPProof(req, htu, accessToken)
+			switch {
+			case tc.want == "" && err != nil:
+				t.Errorf("refused: %v", err)
+			case tc.want != "" && (err == nil || !strings.Contains(err.Error(), tc.want)):
+				t.Errorf("error = %v, want a refusal naming %q", err, tc.want)
 			}
 		})
+	}
+}
+
+// RFC 9449 §4.3 matches htu "ignoring any query and fragment parts" after the
+// syntax-based and scheme-based normalization of RFC 3986 §6.2.2 and §6.2.3.
+func TestSameHTU(t *testing.T) {
+	const target = "https://issuer.example/a/token"
+	for htu, same := range map[string]bool{
+		target:                                  true,
+		target + "?x=1#frag":                    true,
+		"HTTPS://Issuer.EXAMPLE:443/a/token":    true,
+		"https://issuer.example/a/%74oken":      true,
+		"https://issuer.example/a/./b/../token": true,
+		"https://issuer.example:8443/a/token":   false,
+		"http://issuer.example/a/token":         false,
+		"https://other.example/a/token":         false,
+		"https://issuer.example/a/token/":       false,
+		"https://issuer.example/a/TOKEN":        false,
+		"/a/token":                              false,
+		"":                                      false,
+	} {
+		if got := sameHTU(htu, target); got != same {
+			t.Errorf("sameHTU(%q) = %v, want %v", htu, got, same)
+		}
+	}
+	if !sameHTU("http://issuer.example:80", "http://issuer.example/") {
+		t.Error("an empty path and the default port differ from / without a port")
+	}
+}
+
+// RFC 9449 §7.1: a request with the DPoP scheme carries a valid proof, and
+// its key is the key the access token is bound to. An access token without a
+// DPoP key matches no proof.
+func TestTheDPoPSchemeNeedsAProofOfTheBoundKey(t *testing.T) {
+	d, _, _ := newDemoRP(t)
+	key, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	bearer := redeemPreAuthOffer(t, d, "", nil)["access_token"].(string)
+	bound := dpopBoundToken(t, d, key)
+	target := demoIssuerID + "/credential"
+	for _, tc := range []struct {
+		name    string
+		headers map[string]string
+		code    int
+		error   string
+	}{
+		{"a bearer token with the DPoP scheme and no proof", map[string]string{"Authorization": "DPoP " + bearer}, http.StatusUnauthorized, "invalid_dpop_proof"},
+		{"a bearer token with the DPoP scheme and a proof", map[string]string{
+			"Authorization": "DPoP " + bearer,
+			"DPoP":          dpopProofForToken(t, key, "POST", target, bearer),
+		}, http.StatusUnauthorized, "invalid_token"},
+		{"a bound token without a proof", map[string]string{"Authorization": "DPoP " + bound}, http.StatusUnauthorized, "invalid_dpop_proof"},
+		{"a bound token with its proof", map[string]string{
+			"Authorization": "DPoP " + bound,
+			"DPoP":          dpopProofForToken(t, key, "POST", target, bound),
+		}, http.StatusBadRequest, "invalid_credential_request"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := sendCredentialRequest(t, d, tc.headers)
+			if rec.Code != tc.code || !strings.Contains(rec.Body.String(), tc.error) {
+				t.Errorf("%d %s, want %d %s", rec.Code, rec.Body.String(), tc.code, tc.error)
+			}
+		})
+	}
+}
+
+// OpenID4VCI 1.0 §8.2: proofs "contains exactly one parameter named as the
+// proof type in Appendix F".
+func TestACredentialRequestCarriesOneProofType(t *testing.T) {
+	d, _, _ := newDemoRP(t)
+	h := d.IssuerHandler()
+	token := redeemPreAuthOffer(t, d, "", nil)["access_token"].(string)
+	_, nonceDoc := doJSON(t, h, "POST", "/nonce", "", nil)
+	proof := proofJWTWith(t, d, proofOptions{nonce: nonceDoc["c_nonce"].(string)})
+	body := fmt.Sprintf(`{"credential_configuration_id":%q,"proofs":{"jwt":[%q],"attestation":["x"]}}`, ticketConfigurationID, proof)
+	code, doc := doJSON(t, h, "POST", "/credential", body, map[string]string{
+		"Authorization": "Bearer " + token,
+		"Content-Type":  "application/json",
+	})
+	if code != http.StatusBadRequest || doc["error"] != "invalid_proof" {
+		t.Errorf("two proof types: %d %v, want 400 invalid_proof", code, doc)
+	}
+}
+
+// The metadata publishes no credential_response_encryption. OpenID4VCI 1.0
+// §8.3.1.2 answers encryption parameters the issuer cannot use with
+// invalid_encryption_parameters, and the Deferred Credential Request takes the
+// parameter "as defined in Section 8.2" (§9.1).
+func TestARequestForAnEncryptedResponseIsRefused(t *testing.T) {
+	d, _, _ := newDemoRP(t)
+	if _, metadata := doJSON(t, d.IssuerHandler(), "GET", "/.well-known/openid-credential-issuer", "", nil); metadata["credential_response_encryption"] != nil {
+		t.Fatalf("the metadata publishes credential_response_encryption %v", metadata["credential_response_encryption"])
+	}
+	const encryption = `"credential_response_encryption":{"jwk":{"kty":"EC"},"enc":"A128GCM"},`
+	token := redeemPreAuthOffer(t, d, "", nil)["access_token"].(string)
+	code, doc := requestCredential(t, d, token, encryption+`"credential_configuration_id":"demo-ticket",`)
+	if code != http.StatusBadRequest || doc["error"] != "invalid_encryption_parameters" {
+		t.Errorf("credential request: %d %v, want 400 invalid_encryption_parameters", code, doc)
+	}
+
+	d.deferredDelay = 0
+	token = redeemPreAuthOffer(t, d, "deferred=true", nil)["access_token"].(string)
+	_, accepted := requestCredential(t, d, token, `"credential_configuration_id":"demo-ticket",`)
+	code, doc = doJSON(t, d.IssuerHandler(), "POST", "/deferred_credential",
+		fmt.Sprintf(`{%s"transaction_id":%q}`, encryption, accepted["transaction_id"]), map[string]string{
+			"Authorization": "Bearer " + token,
+			"Content-Type":  "application/json",
+		})
+	if code != http.StatusBadRequest || doc["error"] != "invalid_encryption_parameters" {
+		t.Errorf("deferred credential request: %d %v, want 400 invalid_encryption_parameters", code, doc)
+	}
+}
+
+// OpenID4VCI 1.0 §8.3.1.1: an access token that "does not [...] enable
+// issuance of a requested Credential" gets an RFC 6750 §3 authorization
+// error. §3.1 answers insufficient_scope with 403.
+func TestAConfigurationOutsideTheTokenIsAnAuthorizationError(t *testing.T) {
+	d, _, _ := newDemoRP(t)
+	token := redeemPreAuthOffer(t, d, "", nil)["access_token"].(string)
+	code, doc := requestCredential(t, d, token, `"credential_configuration_id":"german-pid-sdjwt",`)
+	if code != http.StatusForbidden || doc["error"] != "insufficient_scope" {
+		t.Errorf("%d %v, want 403 insufficient_scope", code, doc)
 	}
 }
 
@@ -414,8 +572,8 @@ func TestAFullDPoPReplayCacheKeepsEverySeenJTI(t *testing.T) {
 		t.Fatalf("first use: %v", errResp)
 	}
 	d.mu.Lock()
-	for i := len(d.dpopJTIs); i < maxDPoPProofs; i++ {
-		d.dpopJTIs[fmt.Sprint("other-", i)] = time.Now().Add(time.Hour)
+	for i := len(d.seenJTIs); i < maxSeenJTIs; i++ {
+		d.seenJTIs[fmt.Sprint("other-", i)] = time.Now().Add(time.Hour)
 	}
 	d.mu.Unlock()
 	if errResp := send("second"); errResp == nil {

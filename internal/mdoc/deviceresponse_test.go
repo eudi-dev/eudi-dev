@@ -134,6 +134,40 @@ func TestParseDeviceResponseReadsAnInt64Status(t *testing.T) {
 	}
 }
 
+// ISO 18013-5 §8.3.2.1.2.2 requires the DeviceResponse status, and only
+// status 0 is "OK". Another status or none is a deviation.
+func TestParseDeviceResponseChecksTheStatus(t *testing.T) {
+	for name, status := range map[string]any{"OK": uint64(0), "general error": uint64(10), "missing": nil} {
+		resp := fullDeviceResponse(t)
+		if status == nil {
+			delete(resp, "status")
+		} else {
+			resp["status"] = status
+		}
+		doc, err := Parse(deviceResponse(t, resp))
+		if err != nil {
+			t.Fatalf("%s: Parse: %v", name, err)
+		}
+		deviates := strings.Contains(strings.Join(doc.Deviations, " "), "status")
+		if want := name != "OK"; deviates != want {
+			t.Errorf("%s: deviations %v, want a status deviation %v", name, doc.Deviations, want)
+		}
+	}
+}
+
+func TestParseDeviceResponseCountsTheDocuments(t *testing.T) {
+	resp := fullDeviceResponse(t)
+	first := resp["documents"].([]any)[0]
+	resp["documents"] = []any{first, first}
+	doc, err := Parse(deviceResponse(t, resp))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if doc.Documents != 2 {
+		t.Errorf("Documents = %d, want 2", doc.Documents)
+	}
+}
+
 func TestParseDeviceResponseWithoutDeviceSigned(t *testing.T) {
 	resp := fullDeviceResponse(t)
 	docs := resp["documents"].([]any)

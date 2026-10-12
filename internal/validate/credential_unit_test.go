@@ -17,6 +17,7 @@ package validate
 import (
 	"crypto/ecdsa"
 	"crypto/x509"
+	"strings"
 	"testing"
 	"time"
 
@@ -99,16 +100,19 @@ func TestCredential_SDJWTExpiryNoExp(t *testing.T) {
 	}
 }
 
+// ISO 18013-5 §9.1.2.4 makes validityInfo and its validUntil mandatory in
+// the MSO.
 func TestCredential_MDOCExpiryNoValidityInfo(t *testing.T) {
-	doc := &mdoc.Document{
-		IssuerAuth: &mdoc.IssuerAuth{
-			MSO: &mdoc.MSO{},
-		},
-	}
-
-	result := mustFind(t, MDOC(doc, Trust{}, Options{Offline: true}), CheckExpiry)
-	if result.Status != "skipped" {
-		t.Errorf("expected skipped when no validity info, got %s", result.Status)
+	signed := time.Now().Add(-time.Hour)
+	for name, doc := range map[string]*mdoc.Document{
+		"no issuerAuth":   {},
+		"no validityInfo": {IssuerAuth: &mdoc.IssuerAuth{MSO: &mdoc.MSO{}}},
+		"no validUntil":   {IssuerAuth: &mdoc.IssuerAuth{MSO: &mdoc.MSO{ValidityInfo: &mdoc.ValidityInfo{Signed: &signed, ValidFrom: &signed}}}},
+	} {
+		result := mustFind(t, MDOC(doc, Trust{}, Options{Offline: true}), CheckExpiry)
+		if result.Status != Fail || !strings.Contains(result.Detail, "validUntil") {
+			t.Errorf("%s: %s %q, want a failure naming validUntil", name, result.Status, result.Detail)
+		}
 	}
 }
 
@@ -214,15 +218,6 @@ func TestCredential_MDOCStatusNilIssuerAuth(t *testing.T) {
 	doc := &mdoc.Document{}
 
 	result := mustFind(t, MDOC(doc, Trust{}, Options{Status: true}), CheckStatus)
-	if result.Status != "skipped" {
-		t.Errorf("expected skipped when no issuerAuth, got %s", result.Status)
-	}
-}
-
-func TestCredential_MDOCExpiryNilIssuerAuth(t *testing.T) {
-	doc := &mdoc.Document{}
-
-	result := mustFind(t, MDOC(doc, Trust{}, Options{Offline: true}), CheckExpiry)
 	if result.Status != "skipped" {
 		t.Errorf("expected skipped when no issuerAuth, got %s", result.Status)
 	}

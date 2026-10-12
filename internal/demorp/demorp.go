@@ -44,9 +44,9 @@ const (
 	// maxEntries caps each state map. Anonymous visitors could otherwise grow
 	// memory without limit between TTL sweeps (see makeRoom).
 	maxEntries = 500
-	// maxDPoPProofs caps the DPoP replay cache. It holds 32-byte hashes for
-	// the freshness window.
-	maxDPoPProofs = 20000
+	// maxSeenJTIs caps the replay cache of DPoP proofs and attestation PoPs.
+	// It holds 32-byte hashes for the freshness window.
+	maxSeenJTIs = 20000
 	// maxBodyBytes leaves room for a form-encoded presentation with a portrait.
 	maxBodyBytes = 256 << 10
 )
@@ -85,9 +85,9 @@ type DemoRP struct {
 	// nonceKey authenticates the Nonce Endpoint challenges. A wallet can use
 	// one nonce for a whole batch of proofs.
 	nonceKey []byte
-	// dpopJTIs holds a hash of the target URI and jti of each accepted DPoP
-	// proof until its iat leaves the freshness window.
-	dpopJTIs map[string]time.Time
+	// seenJTIs holds a hash of the jti of each accepted DPoP proof and
+	// attestation PoP with its scope until its iat leaves the freshness window.
+	seenJTIs map[string]time.Time
 	// deferred holds accepted issuances that are not delivered yet, keyed by
 	// the transaction id. The wallet polls with that id.
 	deferred map[string]*deferredTicket
@@ -110,7 +110,7 @@ func New(w *wallet.Wallet, baseURL func() string) *DemoRP {
 		codes:         make(map[string]*authRequestState),
 		interactive:   make(map[string]*interactiveSession),
 		nonceKey:      randomBytes(32),
-		dpopJTIs:      make(map[string]time.Time),
+		seenJTIs:      make(map[string]time.Time),
 		deferred:      make(map[string]*deferredTicket),
 		deferredDelay: deferredReadyDelay,
 	}
@@ -175,9 +175,9 @@ func (d *DemoRP) pruneLocked() {
 			delete(d.codes, code)
 		}
 	}
-	for seen, expires := range d.dpopJTIs {
+	for seen, expires := range d.seenJTIs {
 		if now.After(expires) {
-			delete(d.dpopJTIs, seen)
+			delete(d.seenJTIs, seen)
 		}
 	}
 	for id, session := range d.interactive {

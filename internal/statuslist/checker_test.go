@@ -173,6 +173,25 @@ func TestExtractStatusRef(t *testing.T) {
 	}
 }
 
+// Section 8.3 checks the reference before fetching anything: it needs a uri
+// and a non-negative idx.
+func TestCheckRefusesAnUnusableReference(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		ref  *StatusRef
+		want string
+	}{
+		{"no reference", nil, "no status list reference"},
+		{"an invalid reference", &StatusRef{URI: "https://example.com/1", Invalid: "the status_list reference has no idx claim"}, "no idx claim"},
+		{"no uri", &StatusRef{Idx: 1}, "no uri"},
+		{"a negative index", &StatusRef{URI: "https://example.com/1", Idx: -1}, "negative"},
+	} {
+		if _, err := CheckWithOptions(tc.ref, CheckOptions{}); err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("%s: error = %v, want it to contain %q", tc.name, err, tc.want)
+		}
+	}
+}
+
 func TestExtractStatus(t *testing.T) {
 	// byte 0 = 0b00000101 (idx 0 = 1, idx 1 = 0, idx 2 = 1)
 	bitstring := []byte{0x05, 0x00}

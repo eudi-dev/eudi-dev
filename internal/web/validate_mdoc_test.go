@@ -102,8 +102,8 @@ func TestCheckMDOCExpiry(t *testing.T) {
 
 	t.Run("no validity info at all", func(t *testing.T) {
 		got := mdocCheck(t, &mdoc.Document{}, validate.Trust{}, validate.CheckExpiry)
-		if got.Status != "skipped" {
-			t.Errorf("status = %q, want skipped", got.Status)
+		if got.Status != "fail" {
+			t.Errorf("status = %q, want fail", got.Status)
 		}
 	})
 
@@ -111,8 +111,8 @@ func TestCheckMDOCExpiry(t *testing.T) {
 		doc := testMDoc(t, pidConfig(t))
 		doc.IssuerAuth.MSO.ValidityInfo.ValidUntil = nil
 		got := mdocCheck(t, doc, validate.Trust{}, validate.CheckExpiry)
-		if got.Status != "skipped" {
-			t.Errorf("status = %q (%s), want skipped", got.Status, got.Detail)
+		if got.Status != "fail" || !strings.Contains(got.Detail, "validUntil") {
+			t.Errorf("status = %q (%s), want fail naming validUntil", got.Status, got.Detail)
 		}
 	})
 }

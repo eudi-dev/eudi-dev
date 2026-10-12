@@ -23,9 +23,11 @@ import (
 	"fmt"
 	"html/template"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -310,6 +312,12 @@ func (d *DemoRP) handlePushedAuthorizationRequest(w http.ResponseWriter, r *http
 	// only identifier.
 	if clientID == "" {
 		writeJSON(w, http.StatusBadRequest, oauthError("invalid_request", "client_id is required"))
+		return
+	}
+	// RFC 9126 §2.1: "The request_uri authorization request parameter is one
+	// exception, and it MUST NOT be provided."
+	if r.PostForm.Has("request_uri") {
+		writeJSON(w, http.StatusBadRequest, oauthError("invalid_request", "a pushed authorization request must not carry request_uri"))
 		return
 	}
 	jkt, errResp := d.dpopKey(r, d.issuerID()+"/par")
@@ -602,7 +610,7 @@ func (d *DemoRP) verifyDPoPProof(r *http.Request, expectedURL, accessToken strin
 	if htm, _ := proof.payload["htm"].(string); !strings.EqualFold(htm, r.Method) {
 		return "", fmt.Errorf("DPoP htm %q does not match the request method", htm)
 	}
-	if htu, _ := proof.payload["htu"].(string); htu != expectedURL {
+	if htu, _ := proof.payload["htu"].(string); !sameHTU(htu, expectedURL) {
 		return "", fmt.Errorf("DPoP htu %q does not match %q", htu, expectedURL)
 	}
 	// A DPoP proof has no expiry, so freshness comes from iat. Otherwise a
@@ -616,10 +624,78 @@ func (d *DemoRP) verifyDPoPProof(r *http.Request, expectedURL, accessToken strin
 			return "", fmt.Errorf("DPoP ath does not match the access token")
 		}
 	}
-	if err := d.firstUseOfDPoPProof(expectedURL, proof.payload); err != nil {
+	// RFC 9449 §11.1: "HTTP requests to the same URI for which the jti value
+	// has been seen before would be declined."
+	if err := d.firstUseOfJTI("DPoP proof", expectedURL, proof.payload); err != nil {
 		return "", err
 	}
 	return jwkThumbprint(key)
+}
+
+// sameHTU compares a DPoP htu with the request URI. RFC 9449 §4.3 matches
+// them "ignoring any query and fragment parts" and asks servers to "employ
+// Syntax-Based Normalization and Scheme-Based Normalization" (RFC 3986
+// §6.2.2 and §6.2.3) first.
+func sameHTU(htu, requestURI string) bool {
+	a, ok := normalizeHTU(htu)
+	if !ok {
+		return false
+	}
+	b, ok := normalizeHTU(requestURI)
+	return ok && a == b
+}
+
+func normalizeHTU(raw string) (string, bool) {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme == "" || u.Host == "" || u.Opaque != "" {
+		return "", false
+	}
+	scheme := strings.ToLower(u.Scheme)
+	host, port := strings.ToLower(u.Hostname()), u.Port()
+	if port == "" || (scheme == "https" && port == "443") || (scheme == "http" && port == "80") {
+		if strings.Contains(host, ":") {
+			host = "[" + host + "]"
+		}
+	} else {
+		host = net.JoinHostPort(host, port)
+	}
+	// RFC 3986 §6.2.2.3 removes dot segments after the percent-encodings are
+	// normalized. ResolveReference applies the §5.2.4 algorithm.
+	path, err := url.Parse("x://h" + normalizePercentEncoding(u.EscapedPath()))
+	if err != nil {
+		return "", false
+	}
+	cleaned := path.ResolveReference(&url.URL{}).EscapedPath()
+	if cleaned == "" {
+		cleaned = "/"
+	}
+	return scheme + "://" + host + cleaned, true
+}
+
+// normalizePercentEncoding writes percent-encodings in upper case and
+// decodes those of unreserved characters (RFC 3986 §6.2.2.1 and §6.2.2.2).
+func normalizePercentEncoding(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] == '%' && i+2 < len(s) {
+			if c, err := strconv.ParseUint(s[i+1:i+3], 16, 8); err == nil {
+				if isUnreserved(byte(c)) {
+					b.WriteByte(byte(c))
+				} else {
+					b.WriteString("%" + strings.ToUpper(s[i+1:i+3]))
+				}
+				i += 2
+				continue
+			}
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
+}
+
+// isUnreserved reports the unreserved characters of RFC 3986 §2.3.
+func isUnreserved(c byte) bool {
+	return 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' || '0' <= c && c <= '9' || strings.IndexByte("-._~", c) >= 0
 }
 
 // jwkThumbprint is the JWK SHA-256 Thumbprint of RFC 7638 that RFC 9449 §6.1
@@ -632,36 +708,35 @@ func jwkThumbprint(key *ecdsa.PublicKey) (string, error) {
 	return format.EncodeBase64URL(sum), nil
 }
 
-// firstUseOfDPoPProof records the jti of an accepted proof for its target
-// URI. RFC 9449 §11.1: "servers can store the jti value of each DPoP proof
-// for the time window in which the respective DPoP proof JWT would be
-// accepted". It suggests storing "only a hash thereof" against memory
-// exhaustion.
+// firstUseOfJTI records the jti of an accepted proof for the scope it is
+// valid in. The proof's iat is inside the freshness window, so the jti is kept
+// until the window closes. RFC 9449 §11.1 suggests storing "only a hash
+// thereof" against memory exhaustion.
 // A full cache refuses new proofs. Forgetting a live jti would let its proof
 // be replayed.
-func (d *DemoRP) firstUseOfDPoPProof(targetURI string, payload map[string]any) error {
+func (d *DemoRP) firstUseOfJTI(proofType, scope string, payload map[string]any) error {
 	jti, _ := payload["jti"].(string)
 	iat, _ := payload["iat"].(float64)
-	sum := sha256.Sum256([]byte(targetURI + " " + jti))
+	sum := sha256.Sum256([]byte(proofType + " " + scope + " " + jti))
 	seen := string(sum[:])
 
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	now := time.Now()
-	if expires, ok := d.dpopJTIs[seen]; ok && now.Before(expires) {
-		return fmt.Errorf("DPoP proof jti was already used at %s", targetURI)
+	if expires, ok := d.seenJTIs[seen]; ok && now.Before(expires) {
+		return fmt.Errorf("%s jti was already used at %s", proofType, scope)
 	}
-	if len(d.dpopJTIs) >= maxDPoPProofs {
-		for key, expires := range d.dpopJTIs {
+	if len(d.seenJTIs) >= maxSeenJTIs {
+		for key, expires := range d.seenJTIs {
 			if now.After(expires) {
-				delete(d.dpopJTIs, key)
+				delete(d.seenJTIs, key)
 			}
 		}
 	}
-	if len(d.dpopJTIs) >= maxDPoPProofs {
-		return fmt.Errorf("the issuer holds too many recent DPoP proofs. Retry in a few minutes")
+	if len(d.seenJTIs) >= maxSeenJTIs {
+		return fmt.Errorf("the issuer holds too many recent proofs. Retry in a few minutes")
 	}
-	d.dpopJTIs[seen] = time.Unix(int64(iat), 0).Add(freshnessWindow)
+	d.seenJTIs[seen] = time.Unix(int64(iat), 0).Add(freshnessWindow)
 	return nil
 }
 
@@ -852,6 +927,12 @@ func (d *DemoRP) authenticateClient(r *http.Request, clientID, jkt string) (clie
 	// §5.1 requires iat. exp is optional.
 	if err := checkTimeClaims(pop.payload, true, false); err != nil {
 		return clientAuthentication{}, attestationFailed("client attestation PoP: %v", err)
+	}
+	// ABCA draft-07 §12.1: "The Authorization Server manages a list of
+	// witnessed jti values of the Client Attestation PoP JWT for the time
+	// window of which the JWT would be considered valid."
+	if err := d.firstUseOfJTI("client attestation PoP", d.issuerID(), pop.payload); err != nil {
+		return clientAuthentication{}, attestationFailed("%v", err)
 	}
 	return authenticated, nil
 }

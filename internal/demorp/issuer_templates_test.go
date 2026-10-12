@@ -224,8 +224,11 @@ func TestOfferOfTemplatesIssuesThem(t *testing.T) {
 	}
 }
 
-// The issuer refuses an offer for an unknown configuration. It also refuses a
-// credential request for a configuration outside the offer.
+// The issuer refuses an offer for an unknown configuration. OpenID4VCI 1.0
+// §8.3.1.2 answers a credential request for one with
+// unknown_credential_configuration. A configuration of this issuer that the
+// access token does not cover is an authorization error of §8.3.1.1, which
+// RFC 6750 §3.1 calls insufficient_scope.
 func TestOfferRefusesUnknownConfigurations(t *testing.T) {
 	d, _, _ := newDemoRP(t)
 	code, doc := doJSON(t, d.IssuerHandler(), "POST", "/api/offers?credential=no-such-template", "", nil)
@@ -233,8 +236,11 @@ func TestOfferRefusesUnknownConfigurations(t *testing.T) {
 		t.Errorf("offer for an unknown configuration: %d %v, want 400", code, doc)
 	}
 	granted := tokenState{offerSettings: offerSettings{configIDs: []string{ticketConfigurationID}}}
-	if _, errResp := requestedConfiguration(credentialRequest{CredentialConfigurationID: "german-pid-sdjwt"}, granted); errResp["error"] != "unknown_credential_configuration" {
-		t.Errorf("credential request outside the offer: %v", errResp)
+	if _, errResp := d.requestedConfiguration(credentialRequest{CredentialConfigurationID: "german-pid-sdjwt"}, granted); errResp["error"] != "insufficient_scope" {
+		t.Errorf("credential request for a configuration outside the token: %v, want insufficient_scope", errResp)
+	}
+	if _, errResp := d.requestedConfiguration(credentialRequest{CredentialConfigurationID: "no-such-template"}, granted); errResp["error"] != "unknown_credential_configuration" {
+		t.Errorf("credential request for an unknown configuration: %v, want unknown_credential_configuration", errResp)
 	}
 }
 

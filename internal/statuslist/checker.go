@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"mime"
 	"net/http"
 	"strings"
@@ -541,7 +542,17 @@ func publicKeyFromJWK(raw any) (crypto.PublicKey, error) {
 	return keys.ParseJWK(data)
 }
 
+// unixClaim reads a NumericDate. RFC 7519 §2 and RFC 8392 §2 allow a
+// non-integer value.
 func unixClaim(v any) *time.Time {
+	if f, ok := v.(float64); ok {
+		if math.IsNaN(f) || math.IsInf(f, 0) {
+			return nil
+		}
+		sec, frac := math.Modf(f)
+		t := time.Unix(int64(sec), int64(frac*float64(time.Second)))
+		return &t
+	}
 	n, ok := asInt(v)
 	if !ok {
 		return nil

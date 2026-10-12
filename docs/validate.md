@@ -20,8 +20,8 @@ eudi validate credential.txt
 | Check | What it checks |
 |---|---|
 | `type` | The `typ` header of an SD-JWT VC is `dc+sd-jwt` |
-| `expiry` | `exp`, `nbf` and `iat` of a JWT, `validFrom` and `validUntil` of an mdoc |
-| `integrity` | The disclosure digests of an SD-JWT. Every disclosed element of an mdoc must match a value digest of the MSO |
+| `expiry` | `exp`, `nbf` and `iat` of a JWT, `validFrom` and `validUntil` of an mdoc. An mdoc without `validUntil` fails, because ISO 18013-5 requires it |
+| `integrity` | The disclosure digests of an SD-JWT. Every disclosed element of an mdoc must match a value digest of the MSO. A DeviceResponse must report status 0 |
 | `trusted list` | Entries of the supplied trusted list that could not be read (only when there are some) |
 | `signature` | The issuer signature |
 | `trust` | Whether the trusted list of the credential's catalogue entry anchors it (SD-JWT VC and mdoc) |

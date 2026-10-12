@@ -71,7 +71,7 @@ Pages opened by the CLI or URL handler keep the supplied browser ID in `sessionS
 
 Every wallet server includes an issuer at `/issuer` and a verifier at `/verifier`. The issuer offers a Demo Event Ticket through pre-authorized and authorization code flows. The verifier requests the ticket or a PID through OpenID4VP.
 
-The verifier signs requests delivered from `/verifier/request/{id}` with its access certificate, identifies itself with `x509_hash:` and receives encrypted `direct_post.jwt` responses. It is registered with the wallet's registrar for the credentials of the wallet's templates and sends its registration certificate with each request. A request can also go out without the registration certificate, or with your own key, access certificate and `verifier_info`. Each request has its own encryption key and accepts one verified response or error response. A response that does not verify shows its failure and leaves the request open. Offers and requests expire after ten minutes and are kept only in memory.
+The verifier signs requests delivered from `/verifier/request/{id}` with its access certificate, identifies itself with `x509_hash:` and receives encrypted `direct_post.jwt` responses. It is registered with the wallet's registrar for the credentials of the wallet's templates and sends its registration certificate with each request. A request can also go out without the registration certificate, or with your own key, access certificate and `verifier_info`. Each request has its own encryption key and accepts one verified response. A response that does not verify shows its failure and leaves the request open. So does an error response, such as the one a wallet sends after Deny. The verifier answers it with a `redirect_uri` back to its page, which shows the error. Offers and requests expire after ten minutes and are kept only in memory.
 
 By default, a PID request accepts either an SD-JWT VC or an mdoc. The ticket is always an SD-JWT VC. With **multiple**, the wallet may send several credentials for each query, such as two stored PIDs.
 
@@ -155,9 +155,9 @@ The flow waits for the issuer to redirect to `/callback`. The wallet then resume
 
 The callback is matched by `state` alone, so the sign-in can happen in any browser with access to the wallet. `eudi wallet accept` can therefore complete an authorization code offer against the hosted demo. The CLI opens the URL locally and polls `GET /api/offers/{offer_id}` until it reports `completed` or `failed`.
 
-By default, PAR and token requests both require a wallet attestation. The issuer verifies its signature and the possession proof, including `sub`, `aud`, `jti` and expiry. It accepts either a separate `OAuth-Client-Attestation-PoP` JWT or a DPoP proof signed by the attested key (`attest_jwt_client_auth_dpop`).
+By default, PAR and token requests both require a wallet attestation. The issuer verifies its signature and the possession proof, including `sub`, `aud` and expiry. It refuses a possession proof whose `jti` it has seen before. It accepts either a separate `OAuth-Client-Attestation-PoP` JWT or a DPoP proof signed by the attested key (`attest_jwt_client_auth_dpop`).
 
-The access token is bound to the DPoP key. The credential request must prove possession of that key again. The ticket includes the signed-in account name, so a skipped login shows in the result.
+The access token is bound to the DPoP key. The credential request must prove possession of that key again. The issuer does not encrypt credential responses and refuses a request for an encrypted one with `invalid_encryption_parameters`. The ticket includes the signed-in account name, so a skipped login shows in the result.
 
 ### Wallets from other providers
 

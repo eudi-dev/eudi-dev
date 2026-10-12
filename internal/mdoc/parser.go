@@ -67,7 +67,6 @@ func parseDeviceResponse(data []byte) (*Document, error) {
 		return nil, fmt.Errorf("empty documents array")
 	}
 
-	// Only the first document is read.
 	docMap, ok := docArr[0].(map[any]any)
 	if !ok {
 		return nil, fmt.Errorf("invalid document entry")
@@ -113,8 +112,17 @@ func parseDeviceResponse(data []byte) (*Document, error) {
 		converted := uint64(st)
 		doc.ResponseStatus = &converted
 	}
+	// ISO 18013-5 §8.3.2.1.2.2 defines status as a required member of the
+	// DeviceResponse. Status 0 is "OK". The other codes report an error.
+	switch {
+	case doc.ResponseStatus == nil:
+		doc.Deviations = append(doc.Deviations, "the DeviceResponse has no status, which ISO 18013-5 §8.3.2.1.2.2 requires")
+	case *doc.ResponseStatus != 0:
+		doc.Deviations = append(doc.Deviations, fmt.Sprintf("the DeviceResponse status is %d, only 0 (OK) reports a successful response (ISO 18013-5 §8.3.2.1.2.2)", *doc.ResponseStatus))
+	}
 
 	doc.IsDeviceResponse = true
+	doc.Documents = len(docArr)
 	doc.Raw = data
 
 	return doc, nil

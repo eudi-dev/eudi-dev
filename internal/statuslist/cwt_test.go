@@ -337,6 +337,119 @@ func TestCheck_AcceptsAnESP256CWT(t *testing.T) {
 	}
 }
 
+// otherAlgSigner labels an ES256 signature with another algorithm.
+type otherAlgSigner struct {
+	cose.Signer
+	alg cose.Algorithm
+}
+
+func (s otherAlgSigner) Algorithm() cose.Algorithm { return s.alg }
+
+// signCWTClaims signs the claims as a tagged COSE_Sign1 with the type header
+// of Section 5.2.
+func signCWTClaims(t *testing.T, signer cose.Signer, claims map[int64]any) []byte {
+	t.Helper()
+	payload, err := cbor.Marshal(claims)
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg := cose.NewSign1Message()
+	msg.Headers.Protected[cose.HeaderLabelAlgorithm] = signer.Algorithm()
+	msg.Headers.Protected[int64(coseHeaderType)] = MediaTypeCWT
+	msg.Payload = payload
+	if err := msg.Sign(rand.Reader, nil, signer); err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := msg.MarshalCBOR()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return encoded
+}
+
+// Section 5.2: "The COSE message MUST either be the tagged COSE_Sign1_Tagged
+// (18) or COSE_Mac0_Tagged (17)". Section 5.2 requires the status list claim
+// 65533, and Section 4.3 defines bits as an unsigned integer and lst as a
+// byte string. The ttl is a positive number.
+func TestCheck_CWTStructureRules(t *testing.T) {
+	key := mustGenerateKey(t)
+	es256, err := cose.NewSigner(cose.AlgorithmES256, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compressed, err := compressBitstring(make([]byte, 16))
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims := func(uri string, edit func(claims map[int64]any)) map[int64]any {
+		c := map[int64]any{
+			cwtClaimSubject:    uri,
+			cwtClaimIssuedAt:   time.Now().Unix(),
+			cwtClaimExpiration: time.Now().Add(time.Hour).Unix(),
+			cwtClaimStatusList: map[string]any{"bits": 1, "lst": compressed},
+		}
+		if edit != nil {
+			edit(c)
+		}
+		return c
+	}
+	retag := func(tagged []byte, number uint64) []byte {
+		if tagged[0] != 0xd2 {
+			t.Fatalf("COSE_Sign1 starts with %#x, want tag 18", tagged[0])
+		}
+		if number == 0 {
+			return tagged[1:]
+		}
+		out, err := cbor.Marshal(cbor.RawTag{Number: number, Content: cbor.RawMessage(tagged[1:])})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+	for _, tc := range []struct {
+		name    string
+		token   func(uri string) []byte
+		want    string
+		warning string
+	}{
+		{"an untagged COSE_Sign1", func(uri string) []byte { return retag(signCWTClaims(t, es256, claims(uri, nil)), 0) }, "not a tagged COSE message", ""},
+		{"a COSE_Mac0", func(uri string) []byte { return retag(signCWTClaims(t, es256, claims(uri, nil)), tagCOSEMac0) }, "COSE_Mac0", ""},
+		{"another tag", func(uri string) []byte { return retag(signCWTClaims(t, es256, claims(uri, nil)), 99) }, "CBOR tag 99", ""},
+		{"an algorithm outside ES256, ESP256 and ES384", func(uri string) []byte {
+			return signCWTClaims(t, otherAlgSigner{es256, cose.AlgorithmES512}, claims(uri, nil))
+		}, "not one of the accepted algorithms", ""},
+		{"no status list claim", func(uri string) []byte {
+			return signCWTClaims(t, es256, claims(uri, func(c map[int64]any) { delete(c, cwtClaimStatusList) }))
+		}, "65533", ""},
+		{"bits that are no integer", func(uri string) []byte {
+			return signCWTClaims(t, es256, claims(uri, func(c map[int64]any) { c[cwtClaimStatusList] = map[string]any{"bits": "one", "lst": compressed} }))
+		}, "bits member", ""},
+		{"lst as a text string", func(uri string) []byte {
+			return signCWTClaims(t, es256, claims(uri, func(c map[int64]any) { c[cwtClaimStatusList] = map[string]any{"bits": 1, "lst": "eNrbuRgAAhcBXQ"} }))
+		}, "byte string", ""},
+		{"a ttl that is not positive", func(uri string) []byte {
+			return signCWTClaims(t, es256, claims(uri, func(c map[int64]any) { c[cwtClaimTTL] = -5 }))
+		}, "", "time to live"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := statusListServer(t, func(uri string) (string, []byte) { return MediaTypeCWT, tc.token(uri) })
+			result, err := CheckWithOptions(&StatusRef{URI: srv.URL, Idx: 0}, CheckOptions{Keys: []crypto.PublicKey{&key.PublicKey}})
+			if tc.want != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.want) {
+					t.Errorf("error = %v, want it to contain %q", err, tc.want)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("CheckWithOptions: %v", err)
+			}
+			if !strings.Contains(strings.Join(result.Warnings, " | "), tc.warning) {
+				t.Errorf("warnings = %v, want one about %q", result.Warnings, tc.warning)
+			}
+		})
+	}
+}
+
 func signCWT(t *testing.T, signer cose.Signer, uri string, typ any) []byte {
 	t.Helper()
 	compressed, err := compressBitstring(make([]byte, 16))

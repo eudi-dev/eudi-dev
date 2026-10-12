@@ -498,10 +498,11 @@ type accessTokenError struct {
 	description string
 }
 
-// writeAccessTokenError answers 401 with the WWW-Authenticate challenge that
+// writeAccessTokenError answers with the WWW-Authenticate challenge that
 // RFC 6750 §3 requires, in the DPoP form of RFC 9449 §7.1 for a DPoP request.
 // A request without an access token gets both challenges and, as RFC 6750
-// §3.1 asks, no error information.
+// §3.1 asks, no error information. RFC 6750 §3.1 answers insufficient_scope
+// with 403 and the other errors with 401.
 func (d *DemoRP) writeAccessTokenError(w http.ResponseWriter, refused *accessTokenError) {
 	algs := `algs="` + jws.AlgES256 + `"`
 	if refused.scheme == "" {
@@ -515,7 +516,11 @@ func (d *DemoRP) writeAccessTokenError(w http.ResponseWriter, refused *accessTok
 		challenge += ", " + algs
 	}
 	w.Header().Set("WWW-Authenticate", challenge)
-	writeJSON(w, http.StatusUnauthorized, body)
+	status := http.StatusUnauthorized
+	if refused.code == "insufficient_scope" {
+		status = http.StatusForbidden
+	}
+	writeJSON(w, status, body)
 }
 
 // authorizeAccessToken checks the access token of a request to endpoint and
@@ -541,21 +546,28 @@ func (d *DemoRP) authorizeAccessToken(r *http.Request, endpoint string) (string,
 	if !known {
 		return refuse("invalid_token", "unknown or expired access token")
 	}
-	if copied.jkt != "" {
-		// RFC 9449 §7.2: a server that also accepts bearer tokens "MUST reject
-		// a DPoP-bound access token received as a bearer token".
-		if scheme != dpopScheme {
+	// RFC 9449 §7.2: a server that also accepts bearer tokens "MUST reject
+	// a DPoP-bound access token received as a bearer token".
+	if scheme != dpopScheme {
+		if copied.jkt != "" {
 			return refuse("invalid_token", "the access token is bound to a DPoP key and must be sent with the DPoP scheme")
 		}
-		presented, err := d.verifyDPoPProof(r, d.issuerID()+endpoint, token)
-		if err != nil {
-			return refuse("invalid_dpop_proof", err.Error())
-		}
-		if presented != copied.jkt {
-			return refuse("invalid_token", "the access token is bound to a different DPoP key")
-		}
+		return token, copied, nil
 	}
-	return token, copied, nil
+	// RFC 9449 §7.1: a request with the DPoP scheme carries a valid proof
+	// whose key matches the key the access token is bound to.
+	presented, err := d.verifyDPoPProof(r, d.issuerID()+endpoint, token)
+	if err != nil {
+		return refuse("invalid_dpop_proof", err.Error())
+	}
+	switch copied.jkt {
+	case "":
+		return refuse("invalid_token", "the access token is not bound to a DPoP key and must be sent with the Bearer scheme")
+	case presented:
+		return token, copied, nil
+	default:
+		return refuse("invalid_token", "the access token is bound to a different DPoP key")
+	}
 }
 
 // credentialRequest is a Credential Request as defined in OpenID4VCI 1.0 §8.2.
@@ -563,11 +575,46 @@ func (d *DemoRP) authorizeAccessToken(r *http.Request, endpoint string) (string,
 // the proof type in Appendix F, the value set for this parameter is a
 // non-empty array".
 type credentialRequest struct {
-	CredentialConfigurationID string `json:"credential_configuration_id"`
-	CredentialIdentifier      string `json:"credential_identifier"`
-	Proofs                    struct {
-		JWT []string `json:"jwt"`
-	} `json:"proofs"`
+	CredentialConfigurationID    string                     `json:"credential_configuration_id"`
+	CredentialIdentifier         string                     `json:"credential_identifier"`
+	Proofs                       map[string]json.RawMessage `json:"proofs"`
+	CredentialResponseEncryption json.RawMessage            `json:"credential_response_encryption"`
+}
+
+// jwtProofs returns the key proofs of the jwt proof type, the only one in
+// proof_types_supported. The error codes are those of OpenID4VCI 1.0
+// §8.3.1.2.
+func (req credentialRequest) jwtProofs() ([]string, map[string]string) {
+	if len(req.Proofs) > 1 {
+		return nil, oauthError("invalid_proof", "proofs must contain exactly one proof type")
+	}
+	var proofs []string
+	if raw, ok := req.Proofs["jwt"]; ok {
+		if err := json.Unmarshal(raw, &proofs); err != nil {
+			return nil, oauthError("invalid_proof", "proofs.jwt must be an array of strings")
+		}
+	}
+	if len(proofs) == 0 {
+		return nil, oauthError("invalid_proof", "proofs.jwt is required")
+	}
+	if len(proofs) > demoBatchSize {
+		return nil, oauthError("invalid_credential_request",
+			fmt.Sprintf("this issuer signs at most %d copies in one request", demoBatchSize))
+	}
+	return proofs, nil
+}
+
+// refuseResponseEncryption refuses a request for an encrypted response. The
+// metadata has no credential_response_encryption, and OpenID4VCI 1.0
+// §8.3.1.2 answers encryption parameters the issuer cannot use with
+// invalid_encryption_parameters.
+func refuseResponseEncryption(w http.ResponseWriter, parameter json.RawMessage) bool {
+	if len(parameter) == 0 || string(parameter) == "null" {
+		return false
+	}
+	writeJSON(w, http.StatusBadRequest, oauthError("invalid_encryption_parameters",
+		"this issuer does not encrypt credential responses and publishes no credential_response_encryption"))
+	return true
 }
 
 func (d *DemoRP) handleCredential(w http.ResponseWriter, r *http.Request) {
@@ -584,24 +631,28 @@ func (d *DemoRP) handleCredential(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, oauthError("invalid_credential_request", err.Error()))
 		return
 	}
-	configID, errResp := requestedConfiguration(req, tok)
+	configID, errResp := d.requestedConfiguration(req, tok)
+	if errResp["error"] == "insufficient_scope" {
+		_, scheme, _ := accessToken(r)
+		d.writeAccessTokenError(w, &accessTokenError{scheme: scheme, code: errResp["error"], description: errResp["error_description"]})
+		return
+	}
 	if errResp != nil {
 		writeJSON(w, http.StatusBadRequest, errResp)
 		return
 	}
 	granted.configID = configID
-	if len(req.Proofs.JWT) == 0 {
-		writeJSON(w, http.StatusBadRequest, oauthError("invalid_proof", "proofs.jwt is required"))
+	if refuseResponseEncryption(w, req.CredentialResponseEncryption) {
 		return
 	}
-	if len(req.Proofs.JWT) > demoBatchSize {
-		writeJSON(w, http.StatusBadRequest, oauthError("invalid_credential_request",
-			fmt.Sprintf("this issuer signs at most %d copies in one request", demoBatchSize)))
+	proofs, errResp := req.jwtProofs()
+	if errResp != nil {
+		writeJSON(w, http.StatusBadRequest, errResp)
 		return
 	}
 
-	holderKeys := make([]*ecdsa.PublicKey, 0, len(req.Proofs.JWT))
-	for _, proof := range req.Proofs.JWT {
+	holderKeys := make([]*ecdsa.PublicKey, 0, len(proofs))
+	for _, proof := range proofs {
 		holderKey, err := d.verifyProofJWT(proof)
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, oauthError(err.code, err.description))
@@ -650,8 +701,10 @@ func (d *DemoRP) signBatch(holderKeys []*ecdsa.PublicKey, granted ticketGrant) (
 // "REQUIRED when an Authorization Details of type openid_credential was
 // returned from the Token Response [...] MUST NOT be used otherwise" and
 // excludes credential_configuration_id. It returns the configuration to issue.
-// The error codes are those of §8.3.1.2.
-func requestedConfiguration(req credentialRequest, granted tokenState) (string, map[string]string) {
+// The error codes are those of §8.3.1.2. A configuration of this issuer that
+// the token does not cover is an authorization error of §8.3.1.1, which
+// answers as RFC 6750 §3.1 does with insufficient_scope.
+func (d *DemoRP) requestedConfiguration(req credentialRequest, granted tokenState) (string, map[string]string) {
 	if req.CredentialIdentifier != "" && req.CredentialConfigurationID != "" {
 		return "", oauthError("invalid_credential_request",
 			"credential_identifier and credential_configuration_id must not both be present")
@@ -676,8 +729,12 @@ func requestedConfiguration(req credentialRequest, granted tokenState) (string, 
 	case req.CredentialConfigurationID == "":
 		return "", oauthError("invalid_credential_request", "credential_configuration_id is required")
 	case !slices.Contains(granted.configIDs, req.CredentialConfigurationID):
-		return "", oauthError("unknown_credential_configuration",
-			fmt.Sprintf("this offer covers the %s configuration(s), not %s", strings.Join(granted.configIDs, ", "), req.CredentialConfigurationID))
+		if _, known := d.templateConfiguration(req.CredentialConfigurationID); !known {
+			return "", oauthError("unknown_credential_configuration",
+				fmt.Sprintf("this issuer has no credential configuration %s", req.CredentialConfigurationID))
+		}
+		return "", oauthError("insufficient_scope",
+			fmt.Sprintf("the access token covers the %s configuration(s), not %s", strings.Join(granted.configIDs, ", "), req.CredentialConfigurationID))
 	}
 	return req.CredentialConfigurationID, nil
 }

@@ -230,6 +230,36 @@ func TestCheck_RejectsExpiredToken(t *testing.T) {
 	}
 }
 
+// RFC 7519 §2 defines a NumericDate as seconds "where values MAY be
+// non-integer values". A fractional exp in the past expires the token.
+func TestCheck_RejectsATokenWithAFractionalExpiry(t *testing.T) {
+	key := mustGenerateKey(t)
+	var srv *httptest.Server
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		issued := time.Now().Add(-48 * time.Hour)
+		token := handcraftedToken(t, key, nil, map[string]any{
+			"sub":         srv.URL,
+			"iat":         issued.Unix(),
+			"exp":         float64(issued.Add(time.Hour).Unix()) + 0.5,
+			"status_list": map[string]any{"bits": 1, "lst": zlibLST(t, make([]byte, 16))},
+		})
+		w.Header().Set("Content-Type", MediaTypeJWT)
+		_, _ = w.Write([]byte(token))
+	}))
+	defer srv.Close()
+
+	if _, err := Check(&StatusRef{URI: srv.URL, Idx: 0}); err == nil || !strings.Contains(err.Error(), "expired") {
+		t.Errorf("error = %v, want it to say the token expired", err)
+	}
+}
+
+func TestUnixClaimReadsAFractionalNumericDate(t *testing.T) {
+	got := unixClaim(1700000000.25)
+	if got == nil || !got.Equal(time.Unix(1700000000, 250_000_000)) {
+		t.Errorf("unixClaim(1700000000.25) = %v", got)
+	}
+}
+
 // RFC 7519 §4.1.5: "The nbf (not before) claim identifies the time before
 // which the JWT MUST NOT be accepted for processing."
 func TestCheck_RejectsTokenBeforeNotBefore(t *testing.T) {

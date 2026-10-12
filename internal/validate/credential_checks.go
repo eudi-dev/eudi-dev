@@ -36,13 +36,17 @@ func jwtValidity(payload map[string]any, now time.Time) Check {
 	return validityCheck(unixClaim(payload, "nbf"), unixClaim(payload, "iat"), unixClaim(payload, "exp"), now, "No exp claim present")
 }
 
-// mdocValidity reads the MSO validityInfo (ISO 18013-5 §9.1.2.4).
+// mdocValidity reads the MSO validityInfo. ISO 18013-5 §9.1.2.4 makes
+// validityInfo and its validUntil mandatory.
 func mdocValidity(doc *mdoc.Document, now time.Time) Check {
-	if doc.IssuerAuth == nil || doc.IssuerAuth.MSO == nil || doc.IssuerAuth.MSO.ValidityInfo == nil {
-		return Check{Name: CheckExpiry, Status: Skipped, Detail: "No validity info in MSO"}
+	var vi *mdoc.ValidityInfo
+	if doc.IssuerAuth != nil && doc.IssuerAuth.MSO != nil {
+		vi = doc.IssuerAuth.MSO.ValidityInfo
 	}
-	vi := doc.IssuerAuth.MSO.ValidityInfo
-	return validityCheck(vi.ValidFrom, vi.Signed, vi.ValidUntil, now, "No validUntil in MSO")
+	if vi == nil || vi.ValidUntil == nil {
+		return Check{Name: CheckExpiry, Status: Fail, Detail: "the MSO has no validityInfo.validUntil, which ISO 18013-5 §9.1.2.4 requires"}
+	}
+	return validityCheck(vi.ValidFrom, vi.Signed, vi.ValidUntil, now, "")
 }
 
 func validityCheck(from, issued, until *time.Time, now time.Time, noUntil string) Check {

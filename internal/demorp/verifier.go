@@ -40,6 +40,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
 	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/internal/trustedlists"
 	"github.com/eudi-dev/eudi-dev/v3/internal/validate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
 	"github.com/eudi-dev/eudi-dev/v3/internal/webui"
@@ -810,6 +811,8 @@ func originOf(raw string) string {
 	return parsed.Scheme + "://" + parsed.Host
 }
 
+var responseEncValues = []string{jwe.EncA128GCM, jwe.EncA256GCM}
+
 // responseEncryptionMetadata publishes the public per-request encryption key.
 // The wallet needs a usable JWK with an explicit alg for direct_post.jwt.
 func responseEncryptionMetadata(key *ecdsa.PrivateKey) map[string]any {
@@ -821,7 +824,7 @@ func responseEncryptionMetadata(key *ecdsa.PrivateKey) map[string]any {
 		},
 		// HAIP 1.0 §5: "Verifiers MUST list both A128GCM and A256GCM in
 		// encrypted_response_enc_values_supported in their client metadata."
-		"encrypted_response_enc_values_supported": []string{jwe.EncA128GCM, jwe.EncA256GCM},
+		"encrypted_response_enc_values_supported": responseEncValues,
 		"vp_formats_supported": map[string]any{
 			credtype.FormatSDJWT: map[string]any{
 				"sd-jwt_alg_values": []string{jws.AlgES256},
@@ -866,7 +869,7 @@ func (d *DemoRP) handleRequestStatus(w http.ResponseWriter, r *http.Request) {
 		}
 		// A failure that did not answer the request leaves it open for the
 		// wallet's response, so the page keeps polling.
-		if status == "failed" && !req.answered && time.Now().Before(req.expires) {
+		if (status == "failed" || status == "declined") && !req.answered && time.Now().Before(req.expires) {
 			doc["open"] = true
 		}
 	}
@@ -921,17 +924,20 @@ func (d *DemoRP) handlePresentationResponse(w http.ResponseWriter, r *http.Reque
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid_request", "error_description": err.Error()})
 		return
 	}
-	// §8.2: the Response URI answers 200 once it "has successfully processed
-	// the Authorization Response or Authorization Error Response". The page
-	// that created the request shows the error, so the wallet stays where it
-	// is and gets no redirect_uri.
+	// §8.2: "The Response URI MAY return the redirect_uri parameter in
+	// response to successful Authorization Responses or for Error Responses."
+	// The state is the request id from the QR code, so an error response
+	// leaves the request open like any response that does not verify.
 	if refusal, _ := response["error"].(string); refusal != "" {
-		description, _ := response["error_description"].(string)
-		if !d.finishRequest(req, nil, nil, fmt.Errorf("the wallet answered with the error %s", strings.TrimSpace(refusal+" "+description)), true) {
+		reason := refusal
+		if description, _ := response["error_description"].(string); description != "" {
+			reason += " (" + description + ")"
+		}
+		if !d.declineRequest(req, reason) {
 			writeAnswered(w)
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]string{})
+		d.answerResponse(w, req)
 		return
 	}
 	vpToken, err := json.Marshal(response["vp_token"])
@@ -984,6 +990,16 @@ func authorizationResponse(req *requestState, form url.Values) (map[string]any, 
 		if req.encKey == nil {
 			return nil, fmt.Errorf("this request has no response encryption key")
 		}
+		header, err := jwe.ParseHeader(encrypted)
+		if err != nil {
+			return nil, fmt.Errorf("reading the response header: %w", err)
+		}
+		// OpenID4VP 1.0 §8.3: "The JWE enc content encryption algorithm used
+		// is obtained from the encrypted_response_enc_values_supported
+		// parameter of client metadata".
+		if !slices.Contains(responseEncValues, header.Enc) {
+			return nil, fmt.Errorf("the response is encrypted with %s, the request offered %s", header.Enc, strings.Join(responseEncValues, " and "))
+		}
 		ecdhKey, err := req.encKey.ECDH()
 		if err != nil {
 			return nil, fmt.Errorf("converting the response encryption key: %w", err)
@@ -1008,6 +1024,20 @@ func authorizationResponse(req *requestState, form url.Values) (map[string]any, 
 		return nil, fmt.Errorf("the response is for a different request")
 	}
 	return params, nil
+}
+
+// declineRequest records the wallet's error response unless a verified
+// presentation answered the request first.
+func (d *DemoRP) declineRequest(req *requestState, reason string) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if req.answered {
+		return false
+	}
+	req.status = "declined"
+	req.err = reason
+	req.claims, req.checks = nil, nil
+	return true
 }
 
 func (d *DemoRP) recordPresentation(req *requestState, presentation string) {
@@ -1067,10 +1097,10 @@ func (d *DemoRP) verifyPresentation(req *requestState, vpToken string) (map[stri
 		return nil, log.entries, err
 	}
 
-	trust := d.credentialTrust()
 	result := map[string]any{}
 	recorded := false
 	for _, q := range req.queries {
+		trust := d.credentialTrustFor(q)
 		presentations := tokenDoc[q.id]
 		if len(presentations) == 0 {
 			_ = log.record(q.label()+": not presented (optional)", nil)
@@ -1239,6 +1269,17 @@ func (d *DemoRP) credentialTrust() validate.Trust {
 	}
 }
 
+// credentialTrustFor anchors the credential that answers the query. Under
+// --arf a PID chains to a PID provider list (ARF ISSU_07, ADR-0022), so a
+// signer on the list of another category cannot issue an accepted PID.
+func (d *DemoRP) credentialTrustFor(q credentialQuery) validate.Trust {
+	trust := d.credentialTrust()
+	if d.wallet.ARFChecks() && (credtype.IsPIDType(q.vct) || credtype.IsPIDType(q.docType)) {
+		trust.Issuance = append(trustedlists.AnchorsOf(d.wallet.TrustedLists().Lists(), lote.PIDProvidersListType, lote.IssuanceServices), d.verifierTrustAnchors...)
+	}
+	return trust
+}
+
 func errIf(cond bool, format string, args ...any) error {
 	if cond {
 		return fmt.Errorf(format, args...)
@@ -1267,6 +1308,12 @@ func (d *DemoRP) verifyMDOCPresentation(req *requestState, presentation, docType
 	}
 	doc, err := mdoc.Parse(presentation)
 	if err = check("presentation parses as an mdoc DeviceResponse", err); err != nil {
+		return nil, err
+	}
+	// Each presentation answers one credential query. The checks below read
+	// only the first document, so a second one would pass unverified.
+	if err = check("DeviceResponse holds one document",
+		errIf(doc.Documents > 1, "the DeviceResponse holds %d documents", doc.Documents)); err != nil {
 		return nil, err
 	}
 

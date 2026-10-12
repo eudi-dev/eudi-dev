@@ -163,7 +163,8 @@ Selective disclosure is RFC 9901. The credential profile on top of it is `draft-
 | DeviceResponse generation | Implemented | |
 | COSE_Sign1 verification | Implemented | ES256/384/512, ESP256, PS256 |
 | MSO (Mobile Security Object) parsing | Implemented | |
-| Validity info (validFrom, validUntil) | Implemented | |
+| Validity info (validFrom, validUntil) | Implemented | An MSO without `validUntil` fails the expiry check (ISO 18013-5 §9.1.2.4) |
+| DeviceResponse status | Implemented | A status other than 0 or a missing status fails the integrity check. Only the first document is read. The demo verifier refuses a DeviceResponse with more than one |
 | IssuerSignedItem digest verification | Implemented | |
 | Session transcript (OID4VP mode) | Implemented | Default |
 | Session transcript (ISO 18013-7 mode) | Implemented | `--session-transcript iso` |
