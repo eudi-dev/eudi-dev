@@ -63,7 +63,7 @@ Or with Docker:
 docker run -p 8085:8085 -p 8086:8086 ghcr.io/eudi-dev/eudi-dev
 ```
 
-→ [Examples](docs/examples.md) for end-to-end recipes, and [all documentation](docs/README.md)
+→ [What's new in 3.0](docs/whats-new-3.0.md), [Examples](docs/examples.md) for end-to-end recipes, and [all documentation](docs/README.md)
 
 ## Install
 

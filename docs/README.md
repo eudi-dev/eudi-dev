@@ -4,6 +4,8 @@ Guides for using eudi-dev as a wallet, issuer, verifier and CA.
 
 ## First steps
 
+- [What's new in 3.0](whats-new-3.0.md): the headline features and what you can do with them
+- [Upgrading from 2.x](upgrading.md): what to change when you move to 3.0
 - [Examples](examples.md): end-to-end recipes that issue, present, and validate credentials
 
 ## Wallet
