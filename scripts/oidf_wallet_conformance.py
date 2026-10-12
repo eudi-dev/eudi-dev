@@ -1368,7 +1368,7 @@ def handle_module(base_url: str, token: str | None, wallet_url: str, module_id: 
 
 def main() -> int:
     args = parse_args()
-    suite_dir = Path(args.suite_dir)
+    suite_dir = Path(args.suite_dir).resolve()
     results_dir = Path(args.results_dir)
     runner_log = Path(args.runner_log)
     runner_path = suite_dir / "scripts" / "run-test-plan.py"
