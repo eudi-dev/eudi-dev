@@ -17,7 +17,9 @@ package wallet
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
+	"hash/crc32"
 	"image"
 	"image/png"
 	"io"
@@ -65,22 +67,24 @@ func cardArtPNG(t *testing.T) []byte {
 	return buf.Bytes()
 }
 
-// pixelBombPNG is a small file whose dimensions exceed the pixel cap.
+// pixelBombPNG is the 1x1 tinyPNG with an IHDR that declares 8192x8192 pixels,
+// 67 megapixels past the 32-megapixel cap. A pixel bomb is a small file whose
+// header declares huge dimensions.
 func pixelBombPNG(t *testing.T) []byte {
 	t.Helper()
-	side := 8192 // 67 megapixels, past the 32-megapixel cap
-	img := image.NewRGBA(image.Rect(0, 0, side, side))
-	for i := range img.Pix {
-		img.Pix[i] = 255
+	const side = 8192
+	bomb := bytes.Clone(tinyPNG)
+	// The IHDR chunk follows the 8-byte signature: length, type, 13 data bytes
+	// starting with width and height, then a CRC over type and data.
+	ihdr := bomb[12 : 12+4+13]
+	binary.BigEndian.PutUint32(ihdr[4:], side)
+	binary.BigEndian.PutUint32(ihdr[8:], side)
+	binary.BigEndian.PutUint32(bomb[12+4+13:], crc32.ChecksumIEEE(ihdr))
+	config, err := png.DecodeConfig(bytes.NewReader(bomb))
+	if err != nil || config.Width != side || config.Height != side {
+		t.Fatalf("crafted bomb header does not parse as %dx%d: %v", side, side, err)
 	}
-	var buf bytes.Buffer
-	if err := png.Encode(&buf, img); err != nil {
-		t.Fatalf("encoding bomb: %v", err)
-	}
-	if buf.Len() > maxDisplayImageFetchBytes {
-		t.Fatalf("bomb must fit the download cap to reach the dimension guard, got %d bytes", buf.Len())
-	}
-	return buf.Bytes()
+	return bomb
 }
 
 func displayIssuer(t *testing.T, w *Wallet, display []map[string]any) (*httptest.Server, string) {
