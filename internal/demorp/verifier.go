@@ -1102,6 +1102,7 @@ func (d *DemoRP) verifyPresentation(req *requestState, vpToken string) (map[stri
 	for _, q := range req.queries {
 		trust := d.credentialTrustFor(q)
 		presentations := tokenDoc[q.id]
+		log.group = q.label()
 		if len(presentations) == 0 {
 			_ = log.record(q.label()+": not presented (optional)", nil)
 			continue
@@ -1128,6 +1129,7 @@ func (d *DemoRP) verifyPresentation(req *requestState, vpToken string) (map[stri
 			itemLabel := label
 			if q.multiple {
 				itemLabel = fmt.Sprintf("%s[%d]: ", q.label(), i)
+				log.group = fmt.Sprintf("%s[%d]", q.label(), i)
 			}
 			var claims map[string]any
 			var err error
@@ -1144,6 +1146,7 @@ func (d *DemoRP) verifyPresentation(req *requestState, vpToken string) (map[stri
 		}
 		switch {
 		case q.multiple:
+			log.group = q.label()
 			_ = check(fmt.Sprintf("%s: %d presentation(s) verified", q.label(), len(answers)), nil)
 			result[q.label()] = answers
 		case q.resultKey == "":
@@ -1152,6 +1155,7 @@ func (d *DemoRP) verifyPresentation(req *requestState, vpToken string) (map[stri
 			result[q.resultKey] = answers[0]
 		}
 	}
+	log.group = ""
 	return result, log.entries, nil
 }
 
@@ -1380,6 +1384,15 @@ func encryptionJWKThumbprint(key *ecdsa.PrivateKey) []byte {
 // checklist keeps each check result for the UI.
 type checklist struct {
 	entries []map[string]any
+	// group names the credential query the next checks belong to.
+	group string
+}
+
+func (c *checklist) add(entry map[string]any) {
+	if c.group != "" {
+		entry["credential"] = c.group
+	}
+	c.entries = append(c.entries, entry)
 }
 
 func (c *checklist) record(name string, err error) error {
@@ -1387,7 +1400,7 @@ func (c *checklist) record(name string, err error) error {
 	if err != nil {
 		entry["error"] = err.Error()
 	}
-	c.entries = append(c.entries, entry)
+	c.add(entry)
 	return err
 }
 
@@ -1397,7 +1410,7 @@ func (c *checklist) warn(name string, err error) {
 	if err != nil {
 		entry["warning"] = err.Error()
 	}
-	c.entries = append(c.entries, entry)
+	c.add(entry)
 }
 
 // decidingChecks are the shared credential checks that decide whether the
@@ -1435,7 +1448,7 @@ func (c *checklist) credential(label string, result *validate.Result) error {
 		default:
 			entry["warning"] = check.Detail
 		}
-		c.entries = append(c.entries, entry)
+		c.add(entry)
 	}
 	return rejection
 }

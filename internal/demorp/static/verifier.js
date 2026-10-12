@@ -48,7 +48,10 @@ function checkItem(c, i) {
   }
   // A passing type check names the typ value, which keeps its case.
   if (!(kind === "ok" && /(^|: )type$/.test(c.name))) detail = sentence(detail);
-  return { id: "checks-" + i, kind, name: checkName(c.name), detail };
+  // The group heading shows the credential, so the name drops it.
+  const group = c.credential || "";
+  const name = group && c.name.startsWith(group + ": ") ? c.name.slice(group.length + 2) : c.name;
+  return { id: "checks-" + i, kind, name: checkName(name), detail, group };
 }
 
 const CHECK_ICONS = { ok: "✓", fail: "✗", warn: "!", skip: "–" };
@@ -58,7 +61,25 @@ function checkHTML(it) {
   return `<div class="check-item ${it.kind}" id="${it.id}"><span class="check-icon">${CHECK_ICONS[it.kind]}</span><span class="check-text"><span id="${it.id}-name">${esc(it.name)}</span>${detail}</span></div>`;
 }
 
+// A response with several credentials lists the checks of each one under its
+// query id. Checks of the whole response come first.
+function groupedHTML(items, idPrefix) {
+  const groups = [...new Set(items.map((it) => it.group))];
+  if (groups.length < 2 && !groups[0]) return items.map(checkHTML).join("");
+  return groups.map((g) => {
+    const head = g ? `<div class="check-group" id="${idPrefix}-${idPart(g)}">${esc(g)}</div>` : "";
+    return head + items.filter((it) => it.group === g).map(checkHTML).join("");
+  }).join("");
+}
+
+let lastRendered = "";
+
 function renderResult(doc) {
+  // Polling continues while the request stays open. An unchanged result keeps
+  // the page as it is, with the passed checks opened or closed.
+  const rendered = JSON.stringify(doc);
+  if (rendered === lastRendered) return;
+  lastRendered = rendered;
   const box = document.getElementById("result-box");
   box.style.display = "block";
   const items = (doc.checks || []).map(checkItem);
@@ -78,9 +99,10 @@ function renderResult(doc) {
     status.textContent = doc.status === "expired" ? "Request expired, create a new one" : "Waiting for the wallet…";
   }
   const checks = document.getElementById("checks");
-  const shown = items.filter((it) => it.kind !== "ok").map(checkHTML).join("");
+  const wasOpen = document.getElementById("checks-passed")?.open;
+  const shown = groupedHTML(items.filter((it) => it.kind !== "ok"), "checks-group-shown");
   checks.innerHTML = shown + (passed.length
-    ? `<details id="checks-passed"><summary id="checks-passed-summary">${passed.length === 1 ? "1 check passed" : passed.length + " checks passed"}</summary>${passed.map(checkHTML).join("")}</details>`
+    ? `<details id="checks-passed"${wasOpen ? " open" : ""}><summary id="checks-passed-summary">${passed.length === 1 ? "1 check passed" : passed.length + " checks passed"}</summary>${groupedHTML(passed, "checks-group")}</details>`
     : "");
   const claims = document.getElementById("claims");
   const label = document.getElementById("claims-label");

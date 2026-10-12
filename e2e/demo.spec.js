@@ -761,6 +761,26 @@ test.describe("Verifier request types", () => {
     await expect(page.locator("#credential-pid")).toHaveAttribute("aria-checked", "true");
   });
 
+  test("a response with a ticket and a PID lists the checks of each credential", async ({ page }) => {
+    const offer = await postJSON("/issuer/api/offers", {});
+    expect((await postJSON("/api/offers", { uri: offer.body.scheme_uri })).status).toBe(200);
+    await page.goto(`${BASE}/verifier/`);
+    await createVerifierRequest(page, "pid-ticket");
+    await expect(page.locator("#status")).toHaveText(/Waiting/);
+    const uri = await page.locator("#scheme-uri").textContent();
+    expect((await postJSON("/api/presentations", { uri })).status).toBe(200);
+
+    await expect(page.locator("#status")).toHaveText(/^✓ Presentation verified/, { timeout: 15000 });
+    await page.locator("#checks-passed-summary").click();
+    const groups = page.locator("#checks-passed .check-group");
+    expect(await groups.count()).toBeGreaterThanOrEqual(2);
+    await expect(groups.filter({ hasText: /^ticket$/ })).toHaveCount(1);
+    await expect(page.locator("#checks-passed .check-item", { hasText: /^. ticket: / })).toHaveCount(0);
+    // Polling continues while the request is open. The passed checks stay open.
+    await page.waitForTimeout(4000);
+    await expect(page.locator("#checks-passed")).toHaveAttribute("open", "");
+  });
+
   test("the redirect shows the requested credential and folds the passed checks", async ({ page }) => {
     await page.goto(`${BASE}/verifier/`);
     await createVerifierRequest(page, "pid-de");
