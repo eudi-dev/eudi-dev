@@ -1710,7 +1710,7 @@ textarea.form-input {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  margin: 0 24px;
+  margin: 0 calc(24px + var(--main-gutter, 0px)) 0 24px;
   border: 1px solid var(--border-subtle);
   border-radius: 16px;
   background: var(--bg-surface);
@@ -2034,7 +2034,7 @@ textarea.form-input {
   }
 
   .activity-drawer {
-    margin: 0 16px;
+    margin: 0 calc(16px + var(--main-gutter, 0px)) 0 16px;
   }
 
   header {
