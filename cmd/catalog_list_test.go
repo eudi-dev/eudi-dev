@@ -34,8 +34,8 @@ func catalogRow(out, id string) []string {
 
 func TestTheCatalogListsItsEntriesAsATable(t *testing.T) {
 	resetRemoteTestState(t)
-	added := runJSON(t, "catalog", "add", "--name", "University diploma",
-		"--type", "dc+sd-jwt:urn:example:diploma:1", "--type", "mso_mdoc:org.example.diploma.1", "--los", "moderate")
+	added := runJSON(t, "catalog", "add", "--name", "Library card",
+		"--type", "dc+sd-jwt:urn:example:library-card:1", "--type", "mso_mdoc:org.example.library_card.1", "--los", "moderate")
 	id := added["schema"].(map[string]any)["id"].(string)
 
 	for _, args := range [][]string{{"catalog"}, {"catalog", "list"}} {
@@ -46,7 +46,7 @@ func TestTheCatalogListsItsEntriesAsATable(t *testing.T) {
 		if header := strings.Fields(strings.SplitN(out, "\n", 2)[0]); strings.Join(header, " ") != "ID NAME CATEGORY TYPES LEVEL OF SECURITY" {
 			t.Errorf("%v: header %q", args, header)
 		}
-		want := []string{id, "University diploma", "eaa", "dc+sd-jwt:urn:example:diploma:1 mso_mdoc:org.example.diploma.1", "iso_18045_moderate"}
+		want := []string{id, "Library card", "eaa", "dc+sd-jwt:urn:example:library-card:1 mso_mdoc:org.example.library_card.1", "iso_18045_moderate"}
 		if row := catalogRow(out, id); strings.Join(row, "|") != strings.Join(want, "|") {
 			t.Errorf("%v: row %q, want %q", args, row, want)
 		}
