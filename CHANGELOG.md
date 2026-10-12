@@ -87,7 +87,7 @@ Version 3.0.0 adds a registrar, ARF checks, a catalogue of attestations and a tr
 - **Shared credential checks.** `validate`, the decoder and the demo verifier run the same checks: chain, signature, validity with one minute of clock skew, status and HAIP. A trusted list past its `NextUpdate` anchors nothing there either (see [validate](docs/validate.md#checks)).
 - **Deferred credentials.** Collection checks the issuer metadata like the first request. A collected credential can be renewed.
 - **Check results.** The decoder and the demo verifier show one verdict with short check details. Warnings get their own group, and the decoder names the anchoring trusted list once with a link. The demo verifier folds the passed checks.
-- **UI texts.** Shorter hints in the wallet, the decoder and the demo pages, sentence case in every dialog title and labels for every input. The consent dialog names the registered relying party. **Show** is now **Open in decoder** everywhere, also in the proxy. The proxy writes its traffic classes in sentence case, also in `classLabel` of `--json`. The issuer CA field of the catalogue says which trusted list gets the CA, and saving over another template asks first.
+- **UI texts.** Shorter hints in the wallet, the decoder and the demo pages, sentence case in every dialog title and labels for every input. The consent dialog names the registered relying party. The proxy writes its traffic classes in sentence case, also in `classLabel` of `--json`. The issuer CA field of the catalogue says which trusted list gets the CA, and saving over another template asks first.
 - **More findings.** Batch copies that bind no proof key, an `expected_origins` mismatch in interactive authorization and an unreadable `trusted_authorities` list are findings: strict mode refuses, debug mode warns.
 
 ### Fixed
@@ -103,7 +103,7 @@ Version 3.0.0 adds a registrar, ARF checks, a catalogue of attestations and a tr
 - **Long decoder links.** **Open in decoder** links carry the credential in the URL fragment. A proxy's URL length limit doesn't cut off a long request object there. Links with `?credential=` open too.
 - **Template offers with an authorization code.** The demo issuer issues the offered template with an authorization code too, also with a PID presentation during issuance. It takes only the requested names of the presented PID.
 - **Demo issuer offer scheme.** The demo issuer's offer links use `openid-credential-offer://`. The wallet also accepts `eu-eaa-offer://`.
-- **Offer dialog.** A long credential description shows two lines with a **More** button. The status badges of a consent row don't overlap the **Open in decoder** button at phone width.
+- **Offer dialog.** A long credential description shows two lines with a **More** button. The status badges of a consent row don't overlap the **Show** button at phone width.
 - **Phone layout.** Long check details in the decoder wrap, and the forms and relying party rows of the wallet fit a 375 px screen.
 - **Demo verifier after the redirect.** The page shows the requested credential.
 - **Request object signatures.** The wallet verifies a request object only with the key its client identifier prefix names. Under `verifier_attestation:` it checks the attestation and its `cnf` key. Under `decentralized_identifier:` it reports the signature as not verified.

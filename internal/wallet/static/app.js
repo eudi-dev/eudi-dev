@@ -542,7 +542,7 @@
       const actionsHtml = '<div class="credential-actions">' +
           aboutBtn +
           revokeBtn +
-          '<button class="btn btn-sm" id="show-' + domID(cred.id) + '" data-show="' + escHtml(cred.id) + '">Open in decoder</button>' +
+          '<button class="btn btn-sm" id="show-' + domID(cred.id) + '" data-show="' + escHtml(cred.id) + '">Show</button>' +
           (isProtected ? '' : '<button class="btn btn-danger btn-sm" id="delete-' + domID(cred.id) + '" data-delete="' + escHtml(cred.id) + '">Delete</button>') +
         '</div>';
       // The flipped card hides the About button, so phones need a Back control inside the
@@ -2621,7 +2621,7 @@
             // Open decoding in another tab to preserve pending consent.
             '<a class="btn btn-sm candidate-decode" id="consent-decode-' + domID(qid) + '-' + c.credential_id + '"' +
               ' href="decoder/?id=' + encodeURIComponent(c.credential_id) + '" target="_blank" rel="noopener"' +
-              '>Open in decoder</a>' +
+              ' title="Open in decoder">Show</a>' +
           '</div>' +
         '</div>' + untrustedAuthorityNote(c, rowID + '-untrusted') + unboundNote(c) +
         mismatchNote(c, 'consent-mismatch-' + qid + '-' + c.credential_id) + '</div>';
