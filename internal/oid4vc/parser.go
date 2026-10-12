@@ -16,6 +16,7 @@ package oid4vc
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -24,6 +25,10 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc/scheme"
 )
+
+// ErrUnsupportedRequestURIMethod is a request_uri_method other than get or
+// post. OpenID4VP 1.0 §8.5 answers it with invalid_request_uri_method.
+var ErrUnsupportedRequestURIMethod = errors.New("unsupported request_uri_method")
 
 func Parse(raw string) (RequestType, any, error) {
 	return ParseWithOptions(raw, ParseOptions{})
@@ -232,7 +237,7 @@ func parseVPParams(q url.Values, opts ParseOptions) (RequestType, any, error) {
 		// this specification: get and post." The wallet fetches nothing for
 		// another value.
 		if method != "get" && method != "post" {
-			return TypeVP, nil, fmt.Errorf("unsupported request_uri_method %q", method)
+			return TypeVP, nil, fmt.Errorf("%w %q", ErrUnsupportedRequestURIMethod, method)
 		}
 
 		var fetched string

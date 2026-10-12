@@ -240,11 +240,12 @@ func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
 	s.allowSlowResponse(w, config.SlowRequestTimeout)
 	select {
 	case submission := <-req.SubmissionCh:
-		out := map[string]any{
-			"status":       "approved",
-			"redirect_uri": submission.RedirectURI,
-			"error":        submission.Error,
-			"status_code":  submission.StatusCode,
+		out := withRedirectURI(map[string]any{
+			"status":      "approved",
+			"status_code": submission.StatusCode,
+		}, submission.RedirectURI)
+		if submission.Error != "" {
+			out["error"] = submission.Error
 		}
 		if submission.Pending {
 			// Report deferred issuance explicitly. Approval does not mean the
@@ -286,10 +287,11 @@ func (s *Server) handleDenyRequest(w http.ResponseWriter, r *http.Request) {
 	s.allowSlowResponse(w, config.SlowRequestTimeout)
 	select {
 	case submission := <-req.SubmissionCh:
-		writeJSON(w, http.StatusOK, withRedirectURI(map[string]any{
-			"status": "denied",
-			"error":  submission.Error,
-		}, submission.RedirectURI))
+		out := map[string]any{"status": "denied"}
+		if submission.Error != "" {
+			out["error"] = submission.Error
+		}
+		writeJSON(w, http.StatusOK, withRedirectURI(out, submission.RedirectURI))
 	case <-time.After(config.SlowRequestTimeout):
 		writeJSON(w, http.StatusOK, map[string]any{"status": "denied"})
 	}

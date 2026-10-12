@@ -94,7 +94,7 @@ func (d *DemoRP) handleAuthorizationChallenge(w http.ResponseWriter, r *http.Req
 	}
 	clientID := r.PostFormValue("client_id")
 	if _, authErr := d.authenticateClient(r, clientID, jkt); authErr != nil {
-		writeJSON(w, http.StatusUnauthorized, oauthError(authErr.code, authErr.description))
+		writeClientAuthError(w, authErr)
 		return
 	}
 

@@ -58,7 +58,7 @@ The [deferred issuance](#deferred-issuance) endpoints follow up on an offer that
 | `auto_accept` | bool | Approve without the dialog, also when `interactive` is set |
 | `session_transcript` | string | mdoc session transcript for this request: `oid4vp` or `iso`. Default is the server setting `--session-transcript` |
 
-A submitted presentation answers `200` with `status` `submitted`, the verifier's `response` (`status_code`, `body` and `redirect_uri`), the `vp_token_keys` and the debug mode `findings`. A `redirect_uri` from the verifier also appears at the top level. When no credential matches, the wallet sends the verifier an error response and answers `200` with `status` `no_match`. A refusal answers `200` with `status` `refused` and the error the wallet sent to the verifier. A denied consent answers `200` with `status` `denied`. See [presenting](presenting.md) for the strict and ARF rules.
+A submitted presentation answers `200` with `status` `submitted`, the verifier's `response` (`status_code`, `body` and `redirect_uri`), the `vp_token_keys` and the debug mode `findings`. A `redirect_uri` from the verifier also appears at the top level. When no credential matches, the wallet sends the verifier an error response and answers `200` with `status` `no_match` and the error it sent. A refusal answers `200` with `status` `refused` and the error the wallet sent to the verifier. A denied consent answers `200` with `status` `denied`. See [presenting](presenting.md) for the strict and ARF rules.
 
 ```bash
 curl -X POST http://localhost:8085/api/presentations \

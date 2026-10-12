@@ -86,6 +86,12 @@ func (d *DemoRP) handleDeferredCredential(w http.ResponseWriter, r *http.Request
 		writeJSON(w, http.StatusBadRequest, oauthError("invalid_credential_request", err.Error()))
 		return
 	}
+	// §9.1 marks transaction_id REQUIRED. §8.3.1.2 invalid_credential_request:
+	// "The Credential Request is missing a required parameter".
+	if req.TransactionID == "" {
+		writeJSON(w, http.StatusBadRequest, oauthError("invalid_credential_request", "transaction_id is required"))
+		return
+	}
 
 	d.mu.Lock()
 	pending, known := d.deferred[req.TransactionID]

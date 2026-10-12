@@ -365,6 +365,10 @@ func TestIsRetryableDeferredError(t *testing.T) {
 		{"unknown transaction", deferredCredentialError{status: 400, code: "invalid_transaction_id"}, false},
 		{"denied request", deferredCredentialError{status: 400, code: "credential_request_denied"}, false},
 		{"expired grant", deferredCredentialError{status: 400, code: "invalid_grant", description: "expired"}, false},
+		// §9.3 answers an invalid request with the §8.3.1.2 codes. The next
+		// poll sends the same request.
+		{"malformed request", deferredCredentialError{status: 400, code: "invalid_credential_request"}, false},
+		{"refused encryption parameters", deferredCredentialError{status: 400, code: "invalid_encryption_parameters"}, false},
 		{"refused response", finalDeferredError{errString("plaintext response")}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -75,8 +76,11 @@ func TestDenyOfAPastedRequestReturnsTheVerifierRedirect(t *testing.T) {
 
 	pending := waitForPendingRequest(t, srv.wallet)
 	denyRec := serverRequest(t, srv, "POST", "/api/requests/"+pending.ID+"/deny", "")
-	if got := decodeJSON(t, denyRec)["redirect_uri"]; got != verifierContinueURI {
-		t.Fatalf("deny response redirect_uri %v, want %s", got, verifierContinueURI)
+	// The verifier accepted the error response, so the answer names only the
+	// outcome and the redirect.
+	want := map[string]any{"status": "denied", "redirect_uri": verifierContinueURI}
+	if got := decodeJSON(t, denyRec); !reflect.DeepEqual(got, want) {
+		t.Fatalf("deny response %v, want %v", got, want)
 	}
 
 	rec := <-done

@@ -1362,19 +1362,13 @@ func (e deferredCredentialError) authorizationRejected() bool {
 	return e.status == http.StatusUnauthorized || e.status == http.StatusForbidden || e.code == "invalid_token"
 }
 
-// final reports a refusal that a retry would only repeat. §9.3: after
-// credential_request_denied "A wallet upon receiving this error SHOULD stop
-// making requests to the deferred credential endpoint for the given
-// transaction_id."
+// final reports a refusal that a retry would only repeat. §9.3 answers an
+// invalid request with the 400 error codes of §8.3.1.2 and invalid_transaction_id,
+// and every poll sends the same request. After credential_request_denied "A
+// wallet upon receiving this error SHOULD stop making requests to the deferred
+// credential endpoint for the given transaction_id."
 func (e deferredCredentialError) final() bool {
-	if e.authorizationRejected() {
-		return true
-	}
-	switch e.code {
-	case "invalid_transaction_id", "credential_request_denied", "invalid_grant", "invalid_request", "invalid_client":
-		return true
-	}
-	return false
+	return e.authorizationRejected() || e.code == "credential_request_denied" || (e.status == http.StatusBadRequest && e.code != "")
 }
 
 // finalDeferredError is a deferred response the wallet refuses. Asking again
@@ -1673,12 +1667,18 @@ func updateDPoPNonce(target *string, headers http.Header) {
 	}
 }
 
+// needsDPoPRetry reports a use_dpop_nonce refusal. An authorization server
+// sends it as the error of a 400 (RFC 9449 §8), a resource server in the
+// WWW-Authenticate challenge of a 401 (§9). Other refusals may carry a
+// DPoP-Nonce as well (§8.2), and a retry would only repeat them.
 func needsDPoPRetry(statusCode int, headers http.Header, body []byte) bool {
 	if statusCode < 400 {
 		return false
 	}
-	if strings.TrimSpace(headers.Get("DPoP-Nonce")) != "" {
-		return true
+	for _, challenge := range headers.Values("WWW-Authenticate") {
+		if strings.Contains(challenge, `error="use_dpop_nonce"`) {
+			return true
+		}
 	}
 	var parsed map[string]any
 	if err := json.Unmarshal(body, &parsed); err != nil {

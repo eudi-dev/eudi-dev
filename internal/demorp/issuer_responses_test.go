@@ -134,6 +134,21 @@ func TestTheDeferredCredentialEndpointDeliversTheCredentialOnce(t *testing.T) {
 	}
 }
 
+// OpenID4VCI 1.0 §9.1 marks transaction_id REQUIRED, and §8.3.1.2 answers a
+// request "missing a required parameter" with invalid_credential_request.
+func TestADeferredRequestWithoutTransactionIDIsMalformed(t *testing.T) {
+	d, _, _ := newDemoRP(t)
+	token := redeemPreAuthOffer(t, d, "deferred=true", nil)["access_token"].(string)
+
+	code, doc := doJSON(t, d.IssuerHandler(), "POST", "/deferred_credential", `{}`, map[string]string{
+		"Authorization": "Bearer " + token,
+		"Content-Type":  "application/json",
+	})
+	if code != http.StatusBadRequest || doc["error"] != "invalid_credential_request" {
+		t.Errorf("%d %v, want 400 invalid_credential_request", code, doc)
+	}
+}
+
 // ticketDetails is an authorization_details value that asks for the ticket.
 const ticketDetails = `[{"type":"openid_credential","credential_configuration_id":"demo-ticket"}]`
 

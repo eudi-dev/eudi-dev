@@ -67,7 +67,7 @@ func TestPushedAuthorizationRequestRejections(t *testing.T) {
 				"code_challenge":        {"abc"},
 				"redirect_uri":          {"http://wallet.example/cb"},
 			},
-			wantStatus: http.StatusUnauthorized,
+			wantStatus: http.StatusBadRequest,
 			wantError:  "invalid_client",
 		},
 	}
@@ -316,8 +316,8 @@ func TestPushedAuthorizationRequestAcceptsADPoPCombinedProof(t *testing.T) {
 		rec := pushAuthorizationRequest(t, d.IssuerHandler(), "http://wallet.example", otherKey, "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM", map[string]string{
 			"OAuth-Client-Attestation": provider.attest(t, "http://wallet.example", clientKey),
 		})
-		if rec.Code != http.StatusUnauthorized {
-			t.Fatalf("status = %d, want 401 (%s)", rec.Code, rec.Body.String())
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400 (%s)", rec.Code, rec.Body.String())
 		}
 		if !strings.Contains(rec.Body.String(), "invalid_client_attestation") {
 			t.Errorf("body = %s, want an invalid_client_attestation error", rec.Body.String())
@@ -370,8 +370,8 @@ func TestPushedAuthorizationRequestNamesABrokenAttestation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := pushAuthorizationRequest(t, d.IssuerHandler(), "http://wallet.example", clientKey, "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM", tt.headers)
-			if rec.Code != http.StatusUnauthorized {
-				t.Fatalf("status = %d, want 401 (%s)", rec.Code, rec.Body.String())
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400 (%s)", rec.Code, rec.Body.String())
 			}
 			if !strings.Contains(rec.Body.String(), "invalid_client_attestation") {
 				t.Errorf("body = %s, want an invalid_client_attestation error", rec.Body.String())
@@ -390,8 +390,8 @@ func TestPushedAuthorizationRequestWithoutClientAuthentication(t *testing.T) {
 	t.Run("required by default", func(t *testing.T) {
 		d, _, _ := newDemoRP(t)
 		rec := pushAuthorizationRequest(t, d.IssuerHandler(), "http://wallet.example", clientKey, "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM", nil)
-		if rec.Code != http.StatusUnauthorized {
-			t.Fatalf("status = %d, want 401 (%s)", rec.Code, rec.Body.String())
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400 (%s)", rec.Code, rec.Body.String())
 		}
 		if !strings.Contains(rec.Body.String(), `"invalid_client"`) {
 			t.Errorf("body = %s, want an invalid_client error", rec.Body.String())
@@ -417,6 +417,30 @@ func TestPushedAuthorizationRequestWithoutClientAuthentication(t *testing.T) {
 			t.Fatalf("status = %d, want 400 (%s)", rec.Code, rec.Body.String())
 		}
 	})
+}
+
+// RFC 9110 §15.5.2: "The server generating a 401 response MUST send a
+// WWW-Authenticate header field". The sign-in form has no such challenge, so
+// a wrong account is a 400.
+func TestAWrongDemoAccountIsABadRequest(t *testing.T) {
+	d, _, _ := newDemoRP(t)
+	d.SetClientAuthMode(ClientAuthOptional)
+	h := d.IssuerHandler()
+	pushed := pushAuthorizationRequest(t, h, "http://wallet.example", nil, "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM", nil)
+	var pushedDoc map[string]any
+	if err := json.Unmarshal(pushed.Body.Bytes(), &pushedDoc); err != nil {
+		t.Fatalf("decoding the pushed authorization response: %v (%s)", err, pushed.Body.String())
+	}
+	requestURI, _ := pushedDoc["request_uri"].(string)
+
+	rec := postForm(t, h, "/authorize", url.Values{
+		"request_uri": {requestURI},
+		"username":    {"erika"},
+		"password":    {"wrong"},
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", rec.Code)
+	}
 }
 
 // OpenID4VCI 1.0 §12.3: pre-authorized_grant_anonymous_access_supported says

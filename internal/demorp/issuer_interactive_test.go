@@ -383,8 +383,8 @@ func TestAuthorizationChallengeRequiresClientAttestation(t *testing.T) {
 	t.Run("required by default", func(t *testing.T) {
 		d, _, _ := newDemoRP(t)
 		rec := postAuthorizationChallenge(t, d, nil, nil)
-		if rec.Code != http.StatusUnauthorized {
-			t.Fatalf("status = %d, want 401 (%s)", rec.Code, rec.Body.String())
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400 (%s)", rec.Code, rec.Body.String())
 		}
 		if !strings.Contains(rec.Body.String(), `"invalid_client"`) {
 			t.Errorf("body = %s, want an invalid_client error", rec.Body.String())
@@ -402,7 +402,7 @@ func TestAuthorizationChallengeRequiresClientAttestation(t *testing.T) {
 			"OAuth-Client-Attestation":     provider.attest(t, "http://wallet.example", clientKey),
 			"OAuth-Client-Attestation-PoP": attestationPoP(t, clientKey, demoIssuerID),
 		}, nil)
-		if rec.Code == http.StatusUnauthorized {
+		if rec.Code == http.StatusBadRequest {
 			t.Fatalf("an attested request was refused as unauthenticated: %s", rec.Body.String())
 		}
 		if !strings.Contains(rec.Body.String(), "redirect_to_web") {
@@ -414,7 +414,7 @@ func TestAuthorizationChallengeRequiresClientAttestation(t *testing.T) {
 		d, _, _ := newDemoRP(t)
 		d.SetClientAuthMode(ClientAuthOptional)
 		rec := postAuthorizationChallenge(t, d, nil, nil)
-		if rec.Code == http.StatusUnauthorized {
+		if rec.Code == http.StatusBadRequest {
 			t.Fatalf("optional mode refused an unauthenticated client: %s", rec.Body.String())
 		}
 		if !strings.Contains(rec.Body.String(), "redirect_to_web") {

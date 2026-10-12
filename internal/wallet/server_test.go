@@ -493,6 +493,10 @@ func TestFlowAPIErrorsUseTheErrorObject(t *testing.T) {
 	}{
 		{"presentation malformed body", "POST", "/api/presentations", "not json", http.StatusBadRequest, "invalid_request", "invalid JSON body"},
 		{"presentation unparseable URI", "POST", "/api/presentations", `{"uri":"not-a-valid-uri"}`, http.StatusBadRequest, "invalid_request", ""},
+		// OpenID4VP 1.0 §8.5 names this refusal invalid_request_uri_method.
+		{"presentation request_uri_method", "POST", "/api/presentations", `{"uri":"openid4vp://?client_id=x&request_uri=https%3A%2F%2Fverifier.example%2Fr&request_uri_method=PATCH"}`, http.StatusBadRequest, "invalid_request_uri_method", `unsupported request_uri_method "PATCH"`},
+		{"authorize request_uri_method", "GET", "/authorize?client_id=x&request_uri=https%3A%2F%2Fverifier.example%2Fr&request_uri_method=PATCH", "", http.StatusBadRequest, "invalid_request_uri_method", `unsupported request_uri_method "PATCH"`},
+		{"credential offer endpoint without an offer", "GET", "/credential-offer", "", http.StatusBadRequest, "invalid_request", "missing credential_offer"},
 		{"presentation session transcript", "POST", "/api/presentations", `{"uri":"openid4vp://?client_id=x","session_transcript":"bogus"}`, http.StatusBadRequest, "invalid_request", `invalid session transcript "bogus"`},
 		{"offer malformed body", "POST", "/api/offers", "not json", http.StatusBadRequest, "invalid_request", "invalid JSON body"},
 		{"offer unparseable URI", "POST", "/api/offers", `{"uri":"not-an-offer"}`, http.StatusBadRequest, "invalid_request", ""},

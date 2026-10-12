@@ -145,8 +145,10 @@ func TestNoMatchingCredentialsReturnsAccessDeniedToTheVerifier(t *testing.T) {
 	if local["status"] != "no_match" {
 		t.Fatalf("local status %v, want no_match", local["status"])
 	}
-	if local["error_code"] != "access_denied" {
-		t.Fatalf("local error_code %v, want access_denied", local["error_code"])
+	// The caller reads the code the verifier received in the same error
+	// object as every other refusal.
+	if local["error"] != "access_denied" {
+		t.Fatalf("local error %v, want access_denied", local["error"])
 	}
 }
 
@@ -202,7 +204,7 @@ func TestValidationFailuresAreNotSentToTheVerifier(t *testing.T) {
 					"response_uri":  {responseURI},
 				}
 			},
-			wantLocal: "invalid_request",
+			wantLocal: `"error":"invalid_request"`,
 		},
 		{
 			name: "a request_uri_method that is neither get nor post",
@@ -218,9 +220,10 @@ func TestValidationFailuresAreNotSentToTheVerifier(t *testing.T) {
 					"request_uri_method": {"PATCH"},
 				}
 			},
-			// This path answers before the request is built. Its error is the
-			// parameter name.
-			wantLocal: "request_uri_method",
+			// §8.5 invalid_request_uri_method: "The value of the
+			// request_uri_method request parameter is neither get nor post
+			// (case-sensitive)."
+			wantLocal: `"error":"invalid_request_uri_method"`,
 		},
 	}
 

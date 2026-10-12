@@ -34,7 +34,7 @@ func (s *Server) handleCredentialOfferEndpoint(w http.ResponseWriter, r *http.Re
 		offerParams.Set("credential_offer_uri", v)
 	}
 	if len(offerParams) == 0 {
-		http.Error(w, "missing credential_offer or credential_offer_uri parameter", http.StatusBadRequest)
+		writeAPIError(w, http.StatusBadRequest, apiErrorInvalidRequest, "missing credential_offer or credential_offer_uri parameter")
 		return
 	}
 

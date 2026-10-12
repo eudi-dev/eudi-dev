@@ -36,7 +36,7 @@ func (s *Server) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 		values = oid4vc.URIQueryValues(r.URL)
 	} else {
 		if parseErr := r.ParseForm(); parseErr != nil {
-			http.Error(w, "invalid form data", http.StatusBadRequest)
+			writeAPIError(w, http.StatusBadRequest, apiErrorInvalidRequest, "invalid form data: "+parseErr.Error())
 			return
 		}
 		values = r.Form
@@ -46,7 +46,7 @@ func (s *Server) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Report parsing failures to the caller. Do not send a response to an invalid
 		// request's destination (RFC 6749 §4.1.2.1, adopted by OpenID4VP §8.5).
-		http.Error(w, fmt.Sprintf("invalid authorization request: %v", err), http.StatusBadRequest)
+		writeAPIError(w, http.StatusBadRequest, oid4vp.ParseErrorCode(err), "invalid authorization request: "+err.Error())
 		return
 	}
 
@@ -95,7 +95,7 @@ func (s *Server) handlePresentationAPI(w http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		s.triggerUIRequest("")
-		writeAPIError(w, http.StatusBadRequest, apiErrorInvalidRequest, err.Error())
+		writeAPIError(w, http.StatusBadRequest, oid4vp.ParseErrorCode(err), err.Error())
 		return
 	}
 

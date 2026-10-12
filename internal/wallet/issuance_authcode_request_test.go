@@ -232,3 +232,33 @@ func TestTruncateBodyKeepsWholeCharacters(t *testing.T) {
 		t.Errorf("truncateBody = %q, want 200 é and ...", got)
 	}
 }
+
+// RFC 9449 signals a missing or stale DPoP nonce with use_dpop_nonce: in the
+// error of a 400 at the authorization server (§8) and in the WWW-Authenticate
+// challenge of a 401 at a resource server (§9). A DPoP-Nonce on another
+// refusal is the next nonce (§8.2), and the refusal itself stands.
+func TestADPoPRetryFollowsUseDPoPNonce(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		status    int
+		challenge string
+		body      string
+		retry     bool
+	}{
+		{"authorization server", http.StatusBadRequest, "", `{"error":"use_dpop_nonce"}`, true},
+		{"resource server", http.StatusUnauthorized, `DPoP error="use_dpop_nonce", error_description="nonce required"`, "", true},
+		{"a refused key proof with the next nonce", http.StatusBadRequest, "", `{"error":"invalid_proof"}`, false},
+		{"a refused grant with the next nonce", http.StatusBadRequest, "", `{"error":"invalid_grant"}`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			headers := http.Header{}
+			headers.Set("DPoP-Nonce", "n-1")
+			if tc.challenge != "" {
+				headers.Set("WWW-Authenticate", tc.challenge)
+			}
+			if got := needsDPoPRetry(tc.status, headers, []byte(tc.body)); got != tc.retry {
+				t.Errorf("needsDPoPRetry = %v, want %v", got, tc.retry)
+			}
+		})
+	}
+}

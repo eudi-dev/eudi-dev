@@ -237,8 +237,8 @@ func TestAttestationCnfPrivateKeyRejected(t *testing.T) {
 		"OAuth-Client-Attestation":     attestation,
 		"OAuth-Client-Attestation-PoP": attestationPoP(t, clientKey, demoIssuerID),
 	})
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("status = %d, want 401 (%s)", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 (%s)", rec.Code, rec.Body.String())
 	}
 	if !strings.Contains(rec.Body.String(), "private key") {
 		t.Errorf("body = %s, want it to name the private key material", rec.Body.String())
@@ -277,8 +277,8 @@ func TestDuplicateAttestationHeaderRejected(t *testing.T) {
 			rec := httptest.NewRecorder()
 			d.IssuerHandler().ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusUnauthorized {
-				t.Fatalf("status = %d, want 401 (%s)", rec.Code, rec.Body.String())
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400 (%s)", rec.Code, rec.Body.String())
 			}
 			if !strings.Contains(rec.Body.String(), "precisely one") {
 				t.Errorf("body = %s, want the single-header rule named", rec.Body.String())
@@ -330,8 +330,8 @@ func TestAttestationAlgRejected(t *testing.T) {
 				"OAuth-Client-Attestation":     attestation,
 				"OAuth-Client-Attestation-PoP": pop,
 			})
-			if rec.Code != http.StatusUnauthorized {
-				t.Fatalf("status = %d, want 401 (%s)", rec.Code, rec.Body.String())
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400 (%s)", rec.Code, rec.Body.String())
 			}
 			if !strings.Contains(rec.Body.String(), "ES384") {
 				t.Errorf("body = %s, want the refused algorithm named", rec.Body.String())
@@ -361,8 +361,8 @@ func TestPoPIssuerMismatchRejected(t *testing.T) {
 		"OAuth-Client-Attestation":     provider.attest(t, "wallet", clientKey),
 		"OAuth-Client-Attestation-PoP": pop,
 	})
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("status = %d, want 401 (%s)", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 (%s)", rec.Code, rec.Body.String())
 	}
 	if !strings.Contains(rec.Body.String(), "somebody-else") {
 		t.Errorf("body = %s, want the mismatching iss named", rec.Body.String())

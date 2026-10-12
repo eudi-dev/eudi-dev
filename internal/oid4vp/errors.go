@@ -14,6 +14,12 @@
 
 package oid4vp
 
+import (
+	"errors"
+
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
+)
+
 // OpenID4VP 1.0 §8.5 defines these error codes. invalid_request and
 // access_denied come from OAuth 2.0.
 const (
@@ -23,6 +29,14 @@ const (
 	ErrorInvalidRequestURIMethod = "invalid_request_uri_method"
 	ErrorInvalidTransactionData  = "invalid_transaction_data"
 )
+
+// ParseErrorCode is the error code of a request that could not be parsed.
+func ParseErrorCode(err error) string {
+	if errors.Is(err, oid4vc.ErrUnsupportedRequestURIMethod) {
+		return ErrorInvalidRequestURIMethod
+	}
+	return ErrorInvalidRequest
+}
 
 // RefusalCode is the error code of a refused request. It inspects the request
 // for the parameter errors defined by OpenID4VP 1.0 §8.5.

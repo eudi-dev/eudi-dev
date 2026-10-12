@@ -112,8 +112,7 @@ func (s *Server) handleAuthFlow(w http.ResponseWriter, authReq *oid4vp.Request) 
 		}
 		writeJSON(w, http.StatusOK, withRedirectURI(map[string]any{
 			"status":            "no_match",
-			"error":             "no matching credentials found",
-			"error_code":        outcome.refusal.code,
+			"error":             outcome.refusal.code,
 			"error_description": outcome.refusal.description,
 		}, redirectURI))
 	case outcome.refusal != nil:

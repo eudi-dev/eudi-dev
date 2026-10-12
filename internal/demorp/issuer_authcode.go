@@ -326,10 +326,9 @@ func (d *DemoRP) handlePushedAuthorizationRequest(w http.ResponseWriter, r *http
 	if codeKey == "" {
 		codeKey = jkt
 	}
-	// RFC 9126 §2.3 answers errors as RFC 6749 §5.2 does, which lets the
-	// server answer a failed client authentication with 401.
+	// RFC 9126 §2.3 answers errors as RFC 6749 §5.2 does.
 	if _, authErr := d.authenticateClient(r, clientID, jkt); authErr != nil {
-		writeJSON(w, http.StatusUnauthorized, oauthError(authErr.code, authErr.description))
+		writeClientAuthError(w, authErr)
 		return
 	}
 	if r.PostFormValue("response_type") != "code" {
@@ -692,18 +691,23 @@ type clientAuthError struct {
 func (d *DemoRP) authenticateTokenClient(w http.ResponseWriter, r *http.Request, clientID, jkt string) (clientAuthentication, bool) {
 	clientAuth, authErr := d.authenticateClient(r, clientID, jkt)
 	if authErr != nil {
-		// RFC 6749 §5.2 answers a token endpoint refusal "with an HTTP 400
-		// (Bad Request) status code (unless specified otherwise)". It requires
-		// 401 only for a client that "attempted to authenticate via the
-		// Authorization request header field", and the attestation headers are
-		// different headers.
-		writeJSON(w, http.StatusBadRequest, oauthError(authErr.code, authErr.description))
+		writeClientAuthError(w, authErr)
 		return clientAuthentication{}, false
 	}
 	if clientAuth.method != unauthenticatedClientAuth && !clientAuth.trusted {
 		log.Printf("[Demo issuer] client attestation from %q accepted on its own certificate, which does not chain to a wallet provider CA this issuer knows", clientAuth.attester)
 	}
 	return clientAuth, true
+}
+
+// writeClientAuthError refuses a client at the PAR, token and authorization
+// challenge endpoints. RFC 6749 §5.2 answers "with an HTTP 400 (Bad Request)
+// status code (unless specified otherwise)" and requires 401 only for a client
+// that "attempted to authenticate via the "Authorization" request header
+// field". The attestation headers are not an HTTP authentication scheme, and a
+// 401 needs a WWW-Authenticate challenge (RFC 9110 §15.5.2).
+func writeClientAuthError(w http.ResponseWriter, authErr *clientAuthError) {
+	writeJSON(w, http.StatusBadRequest, oauthError(authErr.code, authErr.description))
 }
 
 // attestationFailed reports a problem with a presented attestation as
@@ -1005,7 +1009,9 @@ func renderLoginPage(w http.ResponseWriter, data loginPageData) {
 	w.Header().Set("Cache-Control", "no-store")
 	status := http.StatusOK
 	if data.Error != "" {
-		status = http.StatusUnauthorized
+		// A 401 needs a WWW-Authenticate challenge (RFC 9110 §15.5.2), and the
+		// sign-in form is not an HTTP authentication scheme.
+		status = http.StatusBadRequest
 	}
 	w.WriteHeader(status)
 	data.IssuerName = wallet.DemoIssuerName
