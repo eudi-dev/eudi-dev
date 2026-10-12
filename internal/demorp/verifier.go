@@ -1351,6 +1351,7 @@ func (d *DemoRP) checkRevocation(token *sdjwt.Token, check func(string, error) e
 		trustCerts = append(trustCerts, statuslist.TrustCert{Raw: anchor.Raw})
 	}
 	result, err := statuslist.CheckWithOptions(ref, statuslist.CheckOptions{
+		HTTPClient:     d.wallet.HTTPClient(),
 		TrustListCerts: trustCerts,
 	})
 	if err != nil {

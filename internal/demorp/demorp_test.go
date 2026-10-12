@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"net/http"
@@ -523,6 +524,14 @@ func TestVerifierRejectsWrongNonce(t *testing.T) {
 func serveStatusList(t *testing.T, d *DemoRP, w *wallet.Wallet) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(nil)
+	srv.Config.Handler = statusListHandler(t, w, srv.URL)
+	return srv
+}
+
+// statusListHandler serves a status list at /statuslist whose second entry is
+// revoked. The token names the list as issuerURL + "/statuslist".
+func statusListHandler(t *testing.T, w *wallet.Wallet, issuerURL string) http.Handler {
+	t.Helper()
 	chain, err := w.DefaultSigningCertChain()
 	if err != nil {
 		t.Fatalf("signing chain: %v", err)
@@ -530,8 +539,8 @@ func serveStatusList(t *testing.T, d *DemoRP, w *wallet.Wallet) *httptest.Server
 	mux := http.NewServeMux()
 	mux.HandleFunc("/statuslist", func(rw http.ResponseWriter, r *http.Request) {
 		jwt, err := statuslist.GenerateStatusListJWT([]byte{0b00000010}, w.IssuerKey, statuslist.StatusListConfig{
-			URI:       srv.URL + "/statuslist",
-			Issuer:    srv.URL,
+			URI:       issuerURL + "/statuslist",
+			Issuer:    issuerURL,
 			CertChain: chain,
 		})
 		if err != nil {
@@ -541,8 +550,7 @@ func serveStatusList(t *testing.T, d *DemoRP, w *wallet.Wallet) *httptest.Server
 		rw.Header().Set("Content-Type", "application/statuslist+jwt")
 		_, _ = rw.Write([]byte(jwt))
 	})
-	srv.Config.Handler = mux
-	return srv
+	return mux
 }
 
 func signTicketWithStatus(t *testing.T, d *DemoRP, holderKey *ecdsa.PrivateKey, uri string, idx int) string {
@@ -595,6 +603,71 @@ func TestVerifierRejectsRevokedCredential(t *testing.T) {
 				t.Fatalf("status = %v, want %v (checks: %v)", status["status"], tc.wantStatus, status["checks"])
 			}
 		})
+	}
+}
+
+// The demo verifier fetches status lists with the wallet's outbound settings.
+// A status list host with a private CA is reachable with --tls-ca or
+// --tls-verify=false and refused with verification on and no CA.
+func TestVerifierRevocationCheckUsesTheWalletTLSSettings(t *testing.T) {
+	d, w, holderKey := newDemoRP(t)
+	statusSrv := httptest.NewUnstartedServer(nil)
+	statusSrv.StartTLS()
+	defer statusSrv.Close()
+	statusSrv.Config.Handler = statusListHandler(t, w, statusSrv.URL)
+	caPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: statusSrv.Certificate().Raw})
+	on, off := true, false
+	h := d.VerifierHandler()
+
+	for _, tc := range []struct {
+		name       string
+		cfg        wallet.OutboundConfig
+		wantStatus string
+	}{
+		{"verification off", wallet.OutboundConfig{TLSVerify: &off}, "verified"},
+		{"private CA configured", wallet.OutboundConfig{TLSVerify: &on, TLSCAPEM: caPEM}, "verified"},
+		{"verification on without the CA", wallet.OutboundConfig{TLSVerify: &on}, "failed"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := w.ConfigureOutbound(tc.cfg); err != nil {
+				t.Fatalf("configuring outbound: %v", err)
+			}
+			id, params := startVerification(t, h, "ticket")
+			credential := signTicketWithStatus(t, d, holderKey, statusSrv.URL+"/statuslist", 0)
+			presentation := presentCredential(t, holderKey, credential, params.Get("client_id"), params.Get("nonce"))
+			postPresentation(t, h, id, "ticket", presentation)
+
+			_, status := doJSON(t, h, "GET", "/api/requests/"+id, "", nil)
+			if status["status"] != tc.wantStatus {
+				t.Fatalf("status = %v, want %v (checks: %v)", status["status"], tc.wantStatus, status["checks"])
+			}
+		})
+	}
+}
+
+// The demo verifier reaches status lists through the wallet's proxy.
+func TestVerifierRevocationCheckUsesTheWalletProxy(t *testing.T) {
+	d, w, holderKey := newDemoRP(t)
+	const statusHost = "http://status.invalid"
+	proxy := httptest.NewServer(statusListHandler(t, w, statusHost))
+	defer proxy.Close()
+	proxyURL, err := url.Parse(proxy.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.ConfigureOutbound(wallet.OutboundConfig{Proxy: http.ProxyURL(proxyURL)}); err != nil {
+		t.Fatalf("configuring outbound: %v", err)
+	}
+	h := d.VerifierHandler()
+
+	id, params := startVerification(t, h, "ticket")
+	credential := signTicketWithStatus(t, d, holderKey, statusHost+"/statuslist", 0)
+	presentation := presentCredential(t, holderKey, credential, params.Get("client_id"), params.Get("nonce"))
+	postPresentation(t, h, id, "ticket", presentation)
+
+	_, status := doJSON(t, h, "GET", "/api/requests/"+id, "", nil)
+	if status["status"] != "verified" {
+		t.Fatalf("status = %v, want verified (checks: %v)", status["status"], status["checks"])
 	}
 }
 

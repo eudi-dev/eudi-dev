@@ -5,6 +5,12 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.0] - 2026-10-12
+
+### Fixed
+
+- **TLS settings in the demo issuer and verifier.** Their credential checks use the wallet's TLS and proxy settings, so `--tls-verify=false`, `--tls-ca` and the proxy flags also apply to status lists.
+
 ## [2.7.4] - 2026-10-12
 
 ### Fixed
