@@ -21,10 +21,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
+	"github.com/eudi-dev/eudi-dev/v3/internal/format"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
+	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 )
 
 // The provider regenerates the list on each request. The expiry ends a cached copy.

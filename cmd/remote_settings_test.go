@@ -29,10 +29,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/remote"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/trustedlists"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
+	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v3/internal/remote"
+	"github.com/eudi-dev/eudi-dev/v3/internal/trustedlists"
+	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
 )
 
 func runWalletListWithMode(t *testing.T, mode string) error {

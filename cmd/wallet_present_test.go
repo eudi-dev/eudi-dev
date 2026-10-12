@@ -31,11 +31,11 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
+	"github.com/eudi-dev/eudi-dev/v3/internal/config"
+	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
+	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
+	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
 )
 
 func useStrictValidation(t *testing.T) {

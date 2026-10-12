@@ -28,8 +28,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/statuslist"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
+	"github.com/eudi-dev/eudi-dev/v3/internal/statuslist"
 )
 
 // Server answers the registrar API. The wallet server routes the requests to

@@ -15,9 +15,9 @@
 package web
 
 import (
-	"github.com/dominikschlosser/eudi-dev/v3/internal/output"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/validate"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
+	"github.com/eudi-dev/eudi-dev/v3/internal/output"
+	"github.com/eudi-dev/eudi-dev/v3/internal/validate"
+	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
 )
 
 // CheckResult is one check of the decoder's validation.

@@ -21,12 +21,12 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/jwe"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
+	"github.com/eudi-dev/eudi-dev/v3/internal/format"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jwe"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
+	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
 )
 
 // BuildWalletMetadata advertises signing algorithms only when the client identifier prefix

@@ -25,15 +25,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
+	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
+	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
+	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
+	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
+	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
 )
 
 const DefaultIssueExpiry = credtemplate.DefaultExp

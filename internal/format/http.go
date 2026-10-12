@@ -22,7 +22,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/netaddr"
+	"github.com/eudi-dev/eudi-dev/v3/internal/netaddr"
 )
 
 type policyTransport struct {

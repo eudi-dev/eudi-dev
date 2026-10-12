@@ -23,10 +23,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
+	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
+	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
 )
 
 func (w *Wallet) issuedAttestationSpecs() []provider.IssuedAttestationSpec {

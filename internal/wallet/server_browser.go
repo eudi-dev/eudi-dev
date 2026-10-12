@@ -20,9 +20,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
+	"github.com/eudi-dev/eudi-dev/v3/internal/config"
+	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
 )
 
 // Returns the result that navigator.credentials.get() would deliver to the requesting

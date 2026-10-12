@@ -24,13 +24,13 @@ import (
 	"slices"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/statuslist"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/validate"
+	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
+	"github.com/eudi-dev/eudi-dev/v3/internal/format"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
+	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
+	"github.com/eudi-dev/eudi-dev/v3/internal/statuslist"
+	"github.com/eudi-dev/eudi-dev/v3/internal/validate"
 )
 
 // Registration is a registration certificate whose signature verifies with

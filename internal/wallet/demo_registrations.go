@@ -25,11 +25,11 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/defaults"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
+	"github.com/eudi-dev/eudi-dev/v3/internal/defaults"
+	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
+	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
 )
 
 // The demo issuer and the demo verifier are registered with the wallet's

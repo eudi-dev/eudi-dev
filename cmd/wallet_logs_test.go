@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
+	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
 )
 
 func TestWalletLogsCompactOneLinePerEntry(t *testing.T) {

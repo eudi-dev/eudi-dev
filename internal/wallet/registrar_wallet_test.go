@@ -27,12 +27,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/regcert"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
+	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
+	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
+	"github.com/eudi-dev/eudi-dev/v3/internal/regcert"
+	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
 )
 
 func TestRegistrationsAreStored(t *testing.T) {

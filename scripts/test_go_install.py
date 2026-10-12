@@ -11,7 +11,7 @@ import zipfile
 
 def main():
     root = Path(__file__).resolve().parent.parent
-    module = "github.com/dominikschlosser/eudi-dev/v3"
+    module = "github.com/eudi-dev/eudi-dev/v3"
     version = "v3.0.0"
     files = subprocess.check_output(
         ["git", "ls-files", "-z"], cwd=root

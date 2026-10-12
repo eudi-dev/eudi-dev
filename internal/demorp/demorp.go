@@ -32,10 +32,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
+	"github.com/eudi-dev/eudi-dev/v3/internal/format"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
+	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
+	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
 )
 
 const (

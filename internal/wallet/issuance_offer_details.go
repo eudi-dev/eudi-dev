@@ -17,9 +17,9 @@ package wallet
 import (
 	"sort"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/dcql"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
+	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
+	"github.com/eudi-dev/eudi-dev/v3/internal/dcql"
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 )
 
 // describeCredentialOffer shows the offer's own details even when issuer

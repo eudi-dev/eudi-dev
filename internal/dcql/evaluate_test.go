@@ -17,7 +17,7 @@ package dcql
 import (
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
+	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
 )
 
 // §6.3: "the CBOR value used for matching MUST first be converted to JSON,

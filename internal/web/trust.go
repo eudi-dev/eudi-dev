@@ -18,10 +18,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/validate"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
+	"github.com/eudi-dev/eudi-dev/v3/internal/format"
+	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
+	"github.com/eudi-dev/eudi-dev/v3/internal/validate"
+	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
 )
 
 // resolveTrust builds the trust of one validation: the supplied key and

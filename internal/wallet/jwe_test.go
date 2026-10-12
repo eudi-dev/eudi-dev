@@ -23,9 +23,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
+	"github.com/eudi-dev/eudi-dev/v3/internal/format"
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
 )
 
 func TestEcdsaPublicKeyFromJWK(t *testing.T) {

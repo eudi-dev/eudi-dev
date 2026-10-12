@@ -19,8 +19,8 @@ import (
 	"crypto/x509"
 	"slices"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/storage"
+	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
+	"github.com/eudi-dev/eudi-dev/v3/internal/storage"
 )
 
 // providerKeys are the provider keys of the store that loaded the wallet. A

@@ -28,9 +28,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
+	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
 )
 
 // RegistrationCertificateRequest selects what to certify. A verifier gets one
@@ -102,7 +102,7 @@ type RegistrationCertificateResult struct {
 // document that describes the registrar's test certificates.
 const (
 	registrationCertificatePolicy    = "0.4.0.19475.3.1"
-	registrationCertificatePolicyURI = "https://github.com/dominikschlosser/eudi-dev/blob/main/docs/test-certificates.md"
+	registrationCertificatePolicyURI = "https://github.com/eudi-dev/eudi-dev/blob/main/docs/test-certificates.md"
 )
 
 // errRegistrarSigning marks a failure of the wallet's own signer (HTTP 500).

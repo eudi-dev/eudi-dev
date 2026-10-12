@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 )
 
 // The German PID types come from the predefined templates.

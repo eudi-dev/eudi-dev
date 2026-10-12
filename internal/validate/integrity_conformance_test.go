@@ -17,7 +17,7 @@ package validate
 import (
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
 )
 
 // draft-ietf-oauth-sd-jwt-vc-19 §2.2.1 requires dc+sd-jwt. A vc+sd-jwt token

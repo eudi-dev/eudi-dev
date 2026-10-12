@@ -24,10 +24,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/jwe"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jwe"
+	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
 )
 
 func TestActivityRecordsEncryptedCredentialExchange(t *testing.T) {

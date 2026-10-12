@@ -258,7 +258,7 @@ case "${COMMAND}" in
     set_wallet_tag "${target}"
     if ! compose "pull -q wallet" >/dev/null 2>&1; then
       set_wallet_tag ""
-      die "ghcr.io/dominikschlosser/eudi-dev:${target} could not be pulled, so nothing was changed."
+      die "ghcr.io/eudi-dev/eudi-dev:${target} could not be pulled, so nothing was changed."
     fi
     apply_stack
     echo "Main site promoted to ${target}. ./deploy.sh update returns to the newest release."
@@ -284,12 +284,12 @@ case "${COMMAND}" in
     # must leave the demo running.
     if ! compose "pull -q wallet" >/dev/null 2>&1; then
       set_wallet_tag "${previous_tag}"
-      die "ghcr.io/dominikschlosser/eudi-dev:${target} could not be pulled, so nothing was changed. Check that the release exists."
+      die "ghcr.io/eudi-dev/eudi-dev:${target} could not be pulled, so nothing was changed. Check that the release exists."
     fi
     apply_stack
     live="$(deployed_version)"
     if [[ -n "${live}" && "${live}" != "${target}" ]]; then
-      die "asked for ${target} but ${live} is live. Check that the tag names a published release (the image is ghcr.io/dominikschlosser/eudi-dev:${target}), then ./deploy.sh logs."
+      die "asked for ${target} but ${live} is live. Check that the tag names a published release (the image is ghcr.io/eudi-dev/eudi-dev:${target}), then ./deploy.sh logs."
     fi
     echo "Rolled back to ${target}. ./deploy.sh update returns to the newest release."
     ;;

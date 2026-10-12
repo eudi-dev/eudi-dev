@@ -15,8 +15,8 @@
 package oid4vp
 
 import (
-	"github.com/dominikschlosser/eudi-dev/v3/internal/jwe"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jwe"
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 )
 
 // FindEncryptionJWK returns the first encryption JWK in client_metadata.jwks

@@ -21,7 +21,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
 )
 
 func TestSubmitDirectPost_Success(t *testing.T) {

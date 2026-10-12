@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 )
 
 // The text output reports the checks of the JSON output, such as a disclosure

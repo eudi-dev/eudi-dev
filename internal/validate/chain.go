@@ -21,9 +21,9 @@ import (
 	"crypto/x509"
 	"fmt"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
+	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
+	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
 )
 
 // ValidateCertChain checks that the leaf certs[0] chains to one of the trust

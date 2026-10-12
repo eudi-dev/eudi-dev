@@ -17,7 +17,7 @@ package oid4vp
 import (
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 )
 
 func TestValidateClientMetadata_RejectsInvalidVPFormatsSupportedValue(t *testing.T) {

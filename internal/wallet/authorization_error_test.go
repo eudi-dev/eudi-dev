@@ -24,8 +24,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
 )
 
 // captureVerifier stands in for a verifier waiting on its response_uri. Every

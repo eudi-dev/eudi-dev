@@ -30,10 +30,10 @@ import (
 
 	"github.com/fxamacker/cbor/v2"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/defaults"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/internal/defaults"
+	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
 )
 
 var updateGolden = flag.Bool("update", false, "rewrite testdata/predefined_credentials.json")

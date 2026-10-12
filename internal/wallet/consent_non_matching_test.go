@@ -21,8 +21,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
+	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 )
 
 func nobodyQuery() map[string]any {

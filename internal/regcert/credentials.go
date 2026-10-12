@@ -19,8 +19,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
+	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
 )
 
 // OverAskingFindings checks a DCQL query against the registration certificate.

@@ -29,7 +29,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/netaddr"
+	"github.com/eudi-dev/eudi-dev/v3/internal/netaddr"
 )
 
 // DefaultRemoteTimeout stops an unresponsive issuer or verifier from stalling a flow.

@@ -22,7 +22,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 )
 
 // DeferredIssuance is stored on its own because issuance may take hours. It

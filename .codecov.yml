@@ -9,7 +9,7 @@ coverage:
 
 # Match go.mod so coverage paths become relative before applying ignore patterns.
 fixes:
-  - "github.com/dominikschlosser/eudi-dev/v3/::"
+  - "github.com/eudi-dev/eudi-dev/v3/::"
 
 ignore:
   - "main.go"

@@ -19,7 +19,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
+	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
 )
 
 func TestCRLEndpointServesSignedEmptyList(t *testing.T) {

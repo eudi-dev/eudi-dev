@@ -24,11 +24,11 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
+	"github.com/eudi-dev/eudi-dev/v3/internal/config"
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
+	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
+	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
 )
 
 const (

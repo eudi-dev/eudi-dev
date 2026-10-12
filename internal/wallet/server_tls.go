@@ -22,8 +22,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
+	"github.com/eudi-dev/eudi-dev/v3/internal/config"
+	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
 )
 
 func (s *Server) SetIssuerTLSCertificate(cert tls.Certificate) {

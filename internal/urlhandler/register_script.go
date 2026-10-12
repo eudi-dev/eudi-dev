@@ -19,7 +19,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
+	"github.com/eudi-dev/eudi-dev/v3/internal/config"
 )
 
 // Homebrew's stable symlink survives upgrades that replace the versioned binary. Other

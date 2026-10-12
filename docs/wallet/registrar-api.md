@@ -179,7 +179,7 @@ The payload of the certificate (ETSI TS 119 475 V1.2.1, typ `rc-wrp+jwt`) looks 
   },
   "registry_uri": "https://localhost:8086/api/registrar/wrp/NLTEST.79AA013C47925C7B",
   "policy_id": ["0.4.0.19475.3.1"],
-  "certificate_policy": "https://github.com/dominikschlosser/eudi-dev/blob/main/docs/test-certificates.md",
+  "certificate_policy": "https://github.com/eudi-dev/eudi-dev/blob/main/docs/test-certificates.md",
   "status": { "status_list": { "idx": 47187, "uri": "https://localhost:8086/api/registrar/status-list" } },
   "jti": "74f297f5-363e-482c-bb2f-33736e19b7ee",
   "iat": 1791563942,

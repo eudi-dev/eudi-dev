@@ -26,7 +26,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/jwe"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jwe"
 )
 
 // transactionOf is the transaction_id that the page creating the request got.

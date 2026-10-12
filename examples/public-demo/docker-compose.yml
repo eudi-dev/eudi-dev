@@ -38,7 +38,7 @@ services:
   wallet:
     # WALLET_TAG in the host .env pins a release for rollback. Without a pin, use the
     # latest release.
-    image: ghcr.io/dominikschlosser/eudi-dev:${WALLET_TAG:-latest}
+    image: ghcr.io/eudi-dev/eudi-dev:${WALLET_TAG:-latest}
     restart: unless-stopped
     logging: *logging
     # The demo persists: files on the mounted volume and its own random keys.
@@ -78,7 +78,7 @@ services:
   # The preview host runs the newest release, betas included, with its own URL
   # and data volume.
   wallet-preview:
-    image: ghcr.io/dominikschlosser/eudi-dev:${PREVIEW_TAG:-beta}
+    image: ghcr.io/eudi-dev/eudi-dev:${PREVIEW_TAG:-beta}
     restart: unless-stopped
     logging: *logging
     # The demo persists: files on the mounted volume and its own random keys.
@@ -112,7 +112,7 @@ services:
   # The conformance wallet runs strict mode with auto-accept for the hosted OIDF suite.
   # STRICT_TAG selects its release independently. See docs/conformance-run.md.
   wallet-strict:
-    image: ghcr.io/dominikschlosser/eudi-dev:${STRICT_TAG:-latest}
+    image: ghcr.io/eudi-dev/eudi-dev:${STRICT_TAG:-latest}
     restart: unless-stopped
     logging: *logging
     # Persist files and randomly generated keys on the mounted volume. The

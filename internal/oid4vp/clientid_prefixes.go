@@ -20,7 +20,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 )
 
 // clientIDPrefix is what the wallet does with one Client Identifier Prefix of

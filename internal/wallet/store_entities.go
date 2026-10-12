@@ -31,10 +31,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/storage"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/trustedlists"
+	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
+	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
+	"github.com/eudi-dev/eudi-dev/v3/internal/storage"
+	"github.com/eudi-dev/eudi-dev/v3/internal/trustedlists"
 )
 
 // Memory and Postgres store entities separately under <prefix>/state/. Saves write

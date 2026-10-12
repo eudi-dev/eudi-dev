@@ -17,8 +17,8 @@ package sdjwt
 import (
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
 )
 
 // The registered JWT claims and the never disclosed SD-JWT VC claims carry

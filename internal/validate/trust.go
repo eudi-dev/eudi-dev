@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
+	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
 )
 
 // Trust is what one credential validation trusts. A supplied key or trusted

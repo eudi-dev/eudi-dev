@@ -22,7 +22,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/statuslist"
+	"github.com/eudi-dev/eudi-dev/v3/internal/statuslist"
 )
 
 const RegistrationStatusListPath = "/api/registrar/status-list"

@@ -19,11 +19,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/regcert"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/validate"
+	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
+	"github.com/eudi-dev/eudi-dev/v3/internal/regcert"
+	"github.com/eudi-dev/eudi-dev/v3/internal/validate"
 )
 
 // Unsigned requests carry verifier_info as a parameter. Signed requests use only the

@@ -21,7 +21,7 @@ import (
 
 	"github.com/fxamacker/cbor/v2"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 )
 
 func Parse(raw string) (*Document, error) {

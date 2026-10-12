@@ -19,8 +19,8 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/jwe"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jwe"
+	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
 )
 
 // DecryptJWEWithCEK decrypts a compact JWE with a known content encryption key.

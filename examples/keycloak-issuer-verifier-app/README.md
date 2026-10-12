@@ -64,7 +64,7 @@ cd examples/keycloak-issuer-verifier-app
 ./start.sh
 ```
 
-If `eudi-dev` is not installed, `start.sh` installs the latest release with `go install github.com/dominikschlosser/eudi-dev/v3@latest`.
+If `eudi-dev` is not installed, `start.sh` installs the latest release with `go install github.com/eudi-dev/eudi-dev/v3@latest`.
 
 Open the demo app at `http://127.0.0.1:8090` and choose "Sign in with your wallet". The first login asks for the `alice` / `alice` password and issues the membership credential into the wallet. Sign out and sign in again to see the passwordless login.
 

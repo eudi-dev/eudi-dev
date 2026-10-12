@@ -31,8 +31,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/eudi-dev/eudi-dev/v3/internal/config"
+	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 )
 
 // Instance describes a running wallet server. Every `wallet serve` writes an

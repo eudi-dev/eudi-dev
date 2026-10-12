@@ -5137,7 +5137,7 @@
     // A release links the docs of its own tag. A beta's docs aren't on main yet.
     const ref = /^v\d/.test(window.EUDI_VERSION || '') ? window.EUDI_VERSION : 'main';
     howtoOverlay.querySelectorAll('a[data-doc]').forEach((a) => {
-      a.href = 'https://github.com/dominikschlosser/eudi-dev/blob/' + encodeURIComponent(ref) + '/' + a.dataset.doc;
+      a.href = 'https://github.com/eudi-dev/eudi-dev/blob/' + encodeURIComponent(ref) + '/' + a.dataset.doc;
     });
     howtoOverlay.classList.add('active');
   });

@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
+	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
 )
 
 func TestWallet_AddAndGetLog(t *testing.T) {

@@ -25,7 +25,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 )
 
 // maxImageSize keeps an inlined image from bloating every news response.

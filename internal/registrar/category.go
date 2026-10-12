@@ -18,8 +18,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/defaults"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
+	"github.com/eudi-dev/eudi-dev/v3/internal/defaults"
+	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
 )
 
 // Category describes a credential category for the wallet, the registrar and

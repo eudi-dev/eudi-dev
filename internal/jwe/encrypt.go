@@ -29,8 +29,8 @@ import (
 	"fmt"
 	"hash"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
+	"github.com/eudi-dev/eudi-dev/v3/internal/format"
+	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
 )
 
 // EncryptECDHES encrypts payload to the recipient's P-256 key as a compact JWE

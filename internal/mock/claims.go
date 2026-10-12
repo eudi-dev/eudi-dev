@@ -16,7 +16,7 @@
 // of the PIDs are the predefined templates of the credtemplate package.
 package mock
 
-import "github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
+import "github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 
 const (
 	DefaultPIDVCT = credtype.PIDVCT

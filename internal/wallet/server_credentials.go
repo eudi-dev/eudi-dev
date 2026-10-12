@@ -23,7 +23,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/httpsec"
+	"github.com/eudi-dev/eudi-dev/v3/internal/httpsec"
 )
 
 // An asset: reference loads an image from storage. Newly issued credentials can still

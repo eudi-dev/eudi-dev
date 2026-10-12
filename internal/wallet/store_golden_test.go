@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/storage"
+	"github.com/eudi-dev/eudi-dev/v3/internal/storage"
 )
 
 var updateGolden = flag.Bool("update-golden", false, "rewrite the golden files of the stored wallet state")

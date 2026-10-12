@@ -20,10 +20,10 @@ Version 3.0.0 adds a registrar, ARF checks, a catalogue of attestations and a tr
 
 ### Breaking changes
 
-- **Go module path.** Install with `go install github.com/dominikschlosser/eudi-dev/v3@latest`.
+- **New home in the eudi-dev organization.** The repository moved to [github.com/eudi-dev/eudi-dev](https://github.com/eudi-dev/eudi-dev). The Go module path is `github.com/eudi-dev/eudi-dev/v3`, so install with `go install github.com/eudi-dev/eudi-dev/v3@latest`. The image is `ghcr.io/eudi-dev/eudi-dev`, and Homebrew installs from `eudi-dev/tap/eudi-dev`. The old image keeps its published tags. If you installed from `dominikschlosser/tap`, run `brew upgrade eudi-dev/tap/eudi-dev` once to trust and use the new tap. Old GitHub links redirect.
 - **Command layout.** `registrar`, `catalog`, `trust` and `decoder` (formerly `serve`) are top-level commands. `wallet trust-list --id <list>` is `trust show <list>`, and `trust show lists` prints the list of trusted lists. An old command path fails with a message that names the new one (see [ADR 0027](docs/adr/0027-the-cli-groups-commands-by-role.md)).
 - **Deprecated commands removed.** `wallet generate-pid` and `POST /api/generate-pid` are gone. Issue PIDs with `issue sdjwt --wallet --pid` and `issue mdoc --wallet --pid`, or start the wallet with `wallet serve --pid`. `wallet instances` is gone. Use `wallet ps`. `--demo-verifier-trust-anchor` is now `--demo-verifier-issuer-ca`.
-- **Former name oid4vc-dev.** The `oid4vc-dev` command alias, the `ghcr.io/dominikschlosser/oid4vc-dev` image, `OID4VC_DEV_HOME` and the `~/.oid4vc-dev` directory are gone. Use `eudi`, `ghcr.io/dominikschlosser/eudi-dev`, `EUDI_DEV_HOME` and `~/.eudi-dev`. Move an old state directory with `mv ~/.oid4vc-dev ~/.eudi-dev`.
+- **Former name oid4vc-dev.** The `oid4vc-dev` command alias, the `ghcr.io/dominikschlosser/oid4vc-dev` image, `OID4VC_DEV_HOME` and the `~/.oid4vc-dev` directory are gone. Use `eudi`, `ghcr.io/eudi-dev/eudi-dev`, `EUDI_DEV_HOME` and `~/.eudi-dev`. Move an old state directory with `mv ~/.oid4vc-dev ~/.eudi-dev`.
 - **`--category` replaces `--trust-profile`.** `issue --category` and the API field `category` replace `--trust-profile` and `trust_profile`. They take `pid`, `qeaa`, `pub-eaa`, `eaa` or `unlisted`. A credential without a category is an EAA. `unlisted` keeps it off every list (see [ADR 0022](docs/adr/0022-one-trusted-list-per-credential-category.md)).
 - **Trusted lists.** Each category signs with its own key and has its own list. Only PIDs are signed with `issuer.pem`. The `local` list is renamed to `eaa`, so `/api/trustlists/local` is now `/api/trustlists/eaa`. `wallet serve --issuer-key` signs only PIDs too. The QEAA list, the EAA list and the list of trusted lists use the types `https://eudi-test.dev/LoTEType/QEAAProvidersList`, `EAAProvidersList` and `ListOfTrustedLists` instead of the unregistered `http://uri.etsi.org/19602/LoTEType/local`. A wallet from eudi-dev 2 migrates its stored types.
 - **Trust anchors of the ARF checks.** Access certificates anchor only through the access certificate provider list, and registration certificates only through the registrar list. The wallet CA anchors neither. The registrar signs under its own registrar CA, and the CAs from `--relying-party-ca` are on both lists (see [ADR 0023](docs/adr/0023-trust-anchors-come-from-trusted-lists.md)).
@@ -115,6 +115,12 @@ Version 3.0.0 adds a registrar, ARF checks, a catalogue of attestations and a tr
 - **DNS names of `x509_san_dns`.** The wallet compares the client identifier with the certificate's DNS names case-insensitively (RFC 5280 §4.2.1.6).
 - **Graceful shutdown.** `POST /api/shutdown` stops `wallet serve` like Ctrl-C.
 - **Card images in the demo issuer metadata.** The issuer metadata lists the logo and card image of each template (see [templates](docs/templates.md)).
+
+## [2.7.1] - 2026-10-12
+
+### Changed
+
+- **New home in the eudi-dev organization.** The repository moved to [github.com/eudi-dev/eudi-dev](https://github.com/eudi-dev/eudi-dev). The Go module path is `github.com/eudi-dev/eudi-dev/v2`, so install with `go install github.com/eudi-dev/eudi-dev/v2@latest`. The image is `ghcr.io/eudi-dev/eudi-dev`, and Homebrew installs from `eudi-dev/tap/eudi-dev`. If you installed from `dominikschlosser/tap`, run `brew upgrade eudi-dev/tap/eudi-dev` once to trust and use the new tap. The old images keep their published tags, and old GitHub links redirect. Nothing else changed since 2.7.0.
 
 ## [2.7.0] - 2026-10-10
 

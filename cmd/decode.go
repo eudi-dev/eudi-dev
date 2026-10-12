@@ -20,14 +20,14 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/output"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/qr"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/validate"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/web"
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
+	"github.com/eudi-dev/eudi-dev/v3/internal/format"
+	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
+	"github.com/eudi-dev/eudi-dev/v3/internal/output"
+	"github.com/eudi-dev/eudi-dev/v3/internal/qr"
+	"github.com/eudi-dev/eudi-dev/v3/internal/validate"
+	"github.com/eudi-dev/eudi-dev/v3/internal/web"
 )
 
 var (

@@ -28,8 +28,8 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"github.com/veraison/go-cose"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/mdoc"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 )
 
 func cwtServer(t *testing.T, key *ecdsa.PrivateKey, bits int, bitstring []byte, chain []*x509.Certificate) *httptest.Server {

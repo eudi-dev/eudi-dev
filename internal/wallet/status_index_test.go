@@ -20,7 +20,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 )
 
 func protectedStatusIndex(t *testing.T, srv *Server) (string, int) {

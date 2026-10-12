@@ -19,7 +19,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/trustedlists"
+	"github.com/eudi-dev/eudi-dev/v3/internal/trustedlists"
 )
 
 func (s *Server) handleTrustState(w http.ResponseWriter, _ *http.Request) {

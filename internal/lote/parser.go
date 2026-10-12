@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 )
 
 // Parse parses the JWT of a list of trusted entities (ETSI TS 119 602).

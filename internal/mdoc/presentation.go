@@ -27,7 +27,7 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"github.com/veraison/go-cose"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
+	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
 )
 
 // VerifyValueDigests checks the disclosed items against the digests in the MSO.

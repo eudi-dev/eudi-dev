@@ -19,7 +19,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/output"
+	"github.com/eudi-dev/eudi-dev/v3/internal/output"
 )
 
 // humanOut returns the writer for messages to a person. With --json that is

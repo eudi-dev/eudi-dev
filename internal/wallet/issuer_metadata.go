@@ -32,10 +32,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/netaddr"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
+	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
+	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v3/internal/netaddr"
+	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
 )
 
 func LocalIssuerURL(port int, docker bool) string {

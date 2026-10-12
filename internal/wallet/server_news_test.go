@@ -18,7 +18,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/news"
+	"github.com/eudi-dev/eudi-dev/v3/internal/news"
 )
 
 func TestNewsIsServedWithItsIDInTheConfig(t *testing.T) {

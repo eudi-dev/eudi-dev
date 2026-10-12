@@ -17,7 +17,7 @@ package wallet
 import (
 	"strings"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/defaults"
+	"github.com/eudi-dev/eudi-dev/v3/internal/defaults"
 )
 
 func LogoSVG() []byte {

@@ -17,7 +17,7 @@ package wallet
 import (
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
+	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
 )
 
 func received(ch <-chan consent.AuthorizationPrompt) (consent.AuthorizationPrompt, bool) {

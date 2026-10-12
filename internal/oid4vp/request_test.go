@@ -18,7 +18,7 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 )
 
 func TestResponseDestination(t *testing.T) {

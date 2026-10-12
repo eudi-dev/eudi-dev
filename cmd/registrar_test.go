@@ -24,7 +24,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/regcert"
+	"github.com/eudi-dev/eudi-dev/v3/internal/regcert"
 )
 
 // registration-cert needs no intended use ID when the relying party has only

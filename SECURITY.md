@@ -22,4 +22,4 @@
 
 ## Reporting
 
-Report security issues at [github.com/dominikschlosser/eudi-dev/issues](https://github.com/dominikschlosser/eudi-dev/issues).
+Report security issues at [github.com/eudi-dev/eudi-dev/issues](https://github.com/eudi-dev/eudi-dev/issues).

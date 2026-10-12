@@ -25,8 +25,8 @@ import (
 
 	"github.com/veraison/go-cose"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
+	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 )
 
 func generateTestMDoc(t *testing.T, cfg mock.MDOCConfig) *Document {

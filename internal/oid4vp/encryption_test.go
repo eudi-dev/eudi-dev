@@ -20,7 +20,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 )
 
 func TestFirstJWKSkipsUnusableKeys(t *testing.T) {

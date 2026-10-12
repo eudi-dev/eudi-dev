@@ -20,10 +20,10 @@ import (
 	"io/fs"
 	"net/http"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/httpsec"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/wallet"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/webui"
+	"github.com/eudi-dev/eudi-dev/v3/internal/config"
+	"github.com/eudi-dev/eudi-dev/v3/internal/httpsec"
+	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
+	"github.com/eudi-dev/eudi-dev/v3/internal/webui"
 )
 
 const maxRequestBody = 1 << 20 // 1MB

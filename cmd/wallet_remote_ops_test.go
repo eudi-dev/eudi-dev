@@ -17,7 +17,7 @@ package cmd
 import (
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/remote"
+	"github.com/eudi-dev/eudi-dev/v3/internal/remote"
 )
 
 func TestOpensSignInHere(t *testing.T) {

@@ -17,7 +17,7 @@ package sdjwt
 import (
 	"fmt"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 )
 
 const (

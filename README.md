@@ -5,9 +5,9 @@
   </picture>
 </p>
 
-[![CI](https://github.com/dominikschlosser/eudi-dev/actions/workflows/ci.yml/badge.svg)](https://github.com/dominikschlosser/eudi-dev/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/dominikschlosser/eudi-dev/graph/badge.svg)](https://codecov.io/gh/dominikschlosser/eudi-dev)
-[![Release](https://img.shields.io/github/v/release/dominikschlosser/eudi-dev)](https://github.com/dominikschlosser/eudi-dev/releases/latest)
+[![CI](https://github.com/eudi-dev/eudi-dev/actions/workflows/ci.yml/badge.svg)](https://github.com/eudi-dev/eudi-dev/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/eudi-dev/eudi-dev/graph/badge.svg)](https://codecov.io/gh/eudi-dev/eudi-dev)
+[![Release](https://img.shields.io/github/v/release/eudi-dev/eudi-dev)](https://github.com/eudi-dev/eudi-dev/releases/latest)
 [![OpenID Certified](https://img.shields.io/badge/OpenID-Certified-orange)](#openid-certification)
 
 [![OpenID4VP](https://img.shields.io/badge/OpenID4VP-1.0-blue)](docs/spec-compliance.md#oid4vp-10-openid-for-verifiable-presentations)
@@ -50,7 +50,7 @@ Never use real credentials (see [SECURITY.md](SECURITY.md)).
 ## Quick start
 
 ```bash
-brew install dominikschlosser/tap/eudi-dev
+brew install eudi-dev/tap/eudi-dev
 eudi wallet serve --pid            # wallet UI at http://localhost:8085 with PIDs
 eudi wallet accept 'openid4vp://authorize?...'
 eudi registrar verifiers add --name "Example Shop" --purpose "Age check" --dcql query.json   # new in 3.0.0
@@ -60,7 +60,7 @@ eudi decode credential.txt
 Or with Docker:
 
 ```bash
-docker run -p 8085:8085 -p 8086:8086 ghcr.io/dominikschlosser/eudi-dev
+docker run -p 8085:8085 -p 8086:8086 ghcr.io/eudi-dev/eudi-dev
 ```
 
 → [Examples](docs/examples.md) for end-to-end recipes, and [all documentation](docs/README.md)
@@ -69,15 +69,15 @@ docker run -p 8085:8085 -p 8086:8086 ghcr.io/dominikschlosser/eudi-dev
 
 | Method | Command |
 |---|---|
-| Homebrew (macOS and Linux) | `brew install dominikschlosser/tap/eudi-dev` installs `eudi` with shell completion |
-| Binaries | [GitHub Releases](https://github.com/dominikschlosser/eudi-dev/releases) |
-| Go | `go install github.com/dominikschlosser/eudi-dev/v3@latest` installs `eudi-dev`. The docs use `eudi`, so link it: `ln -s "$(go env GOPATH)/bin/eudi-dev" "$(go env GOPATH)/bin/eudi"` |
-| Docker | `docker pull ghcr.io/dominikschlosser/eudi-dev`. The default command starts a wallet with PIDs and keeps state in memory ([guide](docs/docker.md)) |
+| Homebrew (macOS and Linux) | `brew install eudi-dev/tap/eudi-dev` installs `eudi` with shell completion |
+| Binaries | [GitHub Releases](https://github.com/eudi-dev/eudi-dev/releases) |
+| Go | `go install github.com/eudi-dev/eudi-dev/v3@latest` installs `eudi-dev`. The docs use `eudi`, so link it: `ln -s "$(go env GOPATH)/bin/eudi-dev" "$(go env GOPATH)/bin/eudi"` |
+| Docker | `docker pull ghcr.io/eudi-dev/eudi-dev`. The default command starts a wallet with PIDs and keeps state in memory ([guide](docs/docker.md)) |
 | Kubernetes | `helm install my-release oci://ghcr.io/dominikschlosser/charts/eudi-dev` ([chart](https://github.com/dominikschlosser/eudi-dev-helm)) |
 | Java tests | [testcontainers-eudi](https://github.com/dominikschlosser/testcontainers-eudi) starts the wallet in Docker and drives it from Java |
-| Source | `git clone https://github.com/dominikschlosser/eudi-dev.git && cd eudi-dev && go build -o eudi .` |
+| Source | `git clone https://github.com/eudi-dev/eudi-dev.git && cd eudi-dev && go build -o eudi .` |
 
-The Go module path is `github.com/dominikschlosser/eudi-dev/v3`. Each major version has its own suffix, so v2 releases install from `github.com/dominikschlosser/eudi-dev/v2`. Earlier v2 tags (up to v2.4.2) have an incorrect module path. Install them from release binaries or build them from source.
+The Go module path is `github.com/eudi-dev/eudi-dev/v3`. Each major version has its own suffix, so v2 releases install from `github.com/eudi-dev/eudi-dev/v2` (2.7.1 and later) or `github.com/dominikschlosser/eudi-dev/v2` (up to 2.7.0). Earlier v2 tags (up to v2.4.2) have an incorrect module path. Install them from release binaries or build them from source.
 
 ### Beta releases
 
@@ -86,9 +86,9 @@ A beta, such as `v3.0.0-beta.1`, is a GitHub prerelease. You only get it when yo
 | Method | Command |
 |---|---|
 | Online | <https://preview.eudi-test.dev> runs the newest beta |
-| Docker | `docker pull ghcr.io/dominikschlosser/eudi-dev:beta` gets the newest release, betas included. For repeatable runs, pin the exact tag, such as `:v3.0.0-beta.1` |
-| Go | `go install github.com/dominikschlosser/eudi-dev/v3@v3.0.0-beta.1`. `@latest` installs a beta only while its major version has no stable release |
-| Binaries | Download them from the prerelease on [GitHub Releases](https://github.com/dominikschlosser/eudi-dev/releases). The binaries aren't signed, so macOS blocks a binary downloaded in the browser. Run `xattr -d com.apple.quarantine eudi` to unblock it |
+| Docker | `docker pull ghcr.io/eudi-dev/eudi-dev:beta` gets the newest release, betas included. For repeatable runs, pin the exact tag, such as `:v3.0.0-beta.1` |
+| Go | `go install github.com/eudi-dev/eudi-dev/v3@v3.0.0-beta.1`. `@latest` installs a beta only while its major version has no stable release |
+| Binaries | Download them from the prerelease on [GitHub Releases](https://github.com/eudi-dev/eudi-dev/releases). The binaries aren't signed, so macOS blocks a binary downloaded in the browser. Run `xattr -d com.apple.quarantine eudi` to unblock it |
 | Java tests | [testcontainers-eudi](https://github.com/dominikschlosser/testcontainers-eudi) publishes a matching beta, such as `3.0.0-beta.1`. Maven only uses it when you set that version |
 
 Homebrew and the `latest` Docker tag stay on the newest stable release. When a stable release is the newest version, `beta` points to it too.

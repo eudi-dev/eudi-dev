@@ -22,7 +22,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
+	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
 )
 
 // OpenID4VP 1.0 §8.2: "If the Response URI has successfully processed the

@@ -17,8 +17,8 @@ package wallet
 import (
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
 )
 
 // IT-Wallet 1.4.7 §11.2.1 keeps sub, date_of_expiry, verification and the issuer

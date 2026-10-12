@@ -23,11 +23,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/httpsec"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/publicpath"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/web"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/webui"
+	"github.com/eudi-dev/eudi-dev/v3/internal/config"
+	"github.com/eudi-dev/eudi-dev/v3/internal/httpsec"
+	"github.com/eudi-dev/eudi-dev/v3/internal/publicpath"
+	"github.com/eudi-dev/eudi-dev/v3/internal/web"
+	"github.com/eudi-dev/eudi-dev/v3/internal/webui"
 )
 
 // Tests shorten the keepalive interval.

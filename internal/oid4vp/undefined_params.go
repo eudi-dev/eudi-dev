@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
 )
 
 // definedRequestParameters lists the Authorization Request parameters defined

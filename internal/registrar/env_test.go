@@ -20,8 +20,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
+	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 )
 
 // testWallet gives a registrar its own state, CAs and signing material, as a

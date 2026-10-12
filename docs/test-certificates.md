@@ -76,7 +76,7 @@ The [complete certificate examples](test-certificate-examples.md) contain public
 | `notAfter` | Generation time plus 3650 days for the root, 1825 days for provider CAs, 365 days for signing leaves. A child certificate's expiry is capped at its issuer's expiry |
 | Subject key identifier (`2.5.29.14`) | SHA-1 of the subject public key BIT STRING value, non-critical |
 | Authority key identifier (`2.5.29.35`) | Issuer's subject key identifier, non-critical, present on issued certificates |
-| Issuer alternative name (`2.5.29.18`) | URI `https://github.com/dominikschlosser/eudi-dev`, non-critical |
+| Issuer alternative name (`2.5.29.18`) | URI `https://github.com/eudi-dev/eudi-dev`, non-critical |
 
 The root's subject and issuer are both `C=NL, O=EUDI Dev Test CA, CN=EUDI Dev Wallet CA`. It has critical key usage `keyCertSign, cRLSign` (`2.5.29.15`) and critical basic constraints `CA:TRUE, pathlen:1` (`2.5.29.19`).
 
@@ -113,7 +113,7 @@ The PID and wallet provider signers have a non-critical QCStatements extension (
 | PID | `0.4.0.194126.1.1` | `30153013060604008e4601063009060704008bec4e0101` |
 | Wallet provider | `0.4.0.194126.1.2` | `30153013060604008e4601063009060704008bec4e0102` |
 
-Every access certificate has a non-critical certificate policies extension (`2.5.29.32`) with policy `0.4.0.194118.1.2`, the legal person access policy identifier from TS 119 411-8 V1.1.1 clause 5.3. Its CPS qualifier (`1.3.6.1.5.5.7.2.1`) is `https://github.com/dominikschlosser/eudi-dev/blob/main/docs/test-certificates.md`. Access certificates have critical basic constraints `CA:FALSE` and last one year.
+Every access certificate has a non-critical certificate policies extension (`2.5.29.32`) with policy `0.4.0.194118.1.2`, the legal person access policy identifier from TS 119 411-8 V1.1.1 clause 5.3. Its CPS qualifier (`1.3.6.1.5.5.7.2.1`) is `https://github.com/eudi-dev/eudi-dev/blob/main/docs/test-certificates.md`. Access certificates have critical basic constraints `CA:FALSE` and last one year.
 
 ### Retrieval, revocation and alternative names
 

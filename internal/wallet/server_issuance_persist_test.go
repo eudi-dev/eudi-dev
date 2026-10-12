@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/storage"
+	"github.com/eudi-dev/eudi-dev/v3/internal/storage"
 )
 
 // A reload must wait until a mutation has been saved. Otherwise it could replace the

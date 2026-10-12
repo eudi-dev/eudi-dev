@@ -24,7 +24,7 @@ import (
 )
 
 // disclaimer repeats the EU non-affiliation disclaimer from the README.
-const disclaimer = `This site runs <a href="https://github.com/dominikschlosser/eudi-dev">eudi-dev</a>, an independent open source project. It is <strong>not</strong> an official service of the European Commission or the European Union, has no affiliation with them, and is not endorsed by them. &ldquo;EUDI&rdquo; is used descriptively (a developer tool for the European Digital Identity ecosystem).`
+const disclaimer = `This site runs <a href="https://github.com/eudi-dev/eudi-dev">eudi-dev</a>, an independent open source project. It is <strong>not</strong> an official service of the European Commission or the European Union, has no affiliation with them, and is not endorsed by them. &ldquo;EUDI&rdquo; is used descriptively (a developer tool for the European Digital Identity ecosystem).`
 
 // The server's script-src policy blocks inline scripts and javascript: links.
 const pageTemplate = `<!doctype html>

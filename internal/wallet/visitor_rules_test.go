@@ -25,9 +25,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
+	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
+	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
 )
 
 func pngDataURI(t *testing.T) string {

@@ -25,9 +25,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/output"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/remote"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/storage"
+	"github.com/eudi-dev/eudi-dev/v3/internal/output"
+	"github.com/eudi-dev/eudi-dev/v3/internal/remote"
+	"github.com/eudi-dev/eudi-dev/v3/internal/storage"
 )
 
 // remoteFlag is the one-off remote override (--remote <url>, or --remote

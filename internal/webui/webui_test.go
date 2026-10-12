@@ -23,7 +23,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
+	"github.com/eudi-dev/eudi-dev/v3/internal/config"
 )
 
 // The pages of every server, with the stylesheets and scripts they define

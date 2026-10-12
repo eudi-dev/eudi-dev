@@ -19,7 +19,7 @@ package urlhandler
 import (
 	"slices"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc/scheme"
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc/scheme"
 )
 
 type Options struct {

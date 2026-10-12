@@ -23,8 +23,8 @@ import (
 	"maps"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
+	"github.com/eudi-dev/eudi-dev/v3/internal/format"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 )
 
 // PubEAAWithdrawnStatus marks a service the provider may no longer use (ETSI

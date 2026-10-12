@@ -19,7 +19,7 @@ package registrar
 import (
 	"encoding/json"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 )
 
 // Entitlements of ETSI TS 119 475 V1.2.1 Annex A.2.

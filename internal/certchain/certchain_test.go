@@ -19,8 +19,8 @@ import (
 	"encoding/base64"
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
+	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 )
 
 func testChain(t *testing.T) (leaf, ca *x509.Certificate) {

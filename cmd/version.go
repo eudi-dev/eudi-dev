@@ -20,13 +20,13 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/remote"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/urlhandler"
+	"github.com/eudi-dev/eudi-dev/v3/internal/remote"
+	"github.com/eudi-dev/eudi-dev/v3/internal/urlhandler"
 )
 
 // Version is set at build time via -ldflags:
 //
-//	go build -ldflags="-X github.com/dominikschlosser/eudi-dev/v3/cmd.Version=1.0.0"
+//	go build -ldflags="-X github.com/eudi-dev/eudi-dev/v3/cmd.Version=1.0.0"
 var Version = "dev"
 
 var versionCmd = &cobra.Command{

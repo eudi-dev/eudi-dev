@@ -18,7 +18,7 @@ import (
 	"encoding/base64"
 	"slices"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/keys"
+	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
 )
 
 // Summary is the answer to GET /api/trust: the providers added to the

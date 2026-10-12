@@ -26,8 +26,8 @@ import (
 	"encoding/pem"
 	"fmt"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
+	"github.com/eudi-dev/eudi-dev/v3/internal/format"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
 )
 
 // CertificatePEMToJWKS converts one or more PEM certificates into a JWKS JSON

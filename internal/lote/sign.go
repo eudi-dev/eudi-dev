@@ -22,9 +22,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/certchain"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
+	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
 )
 
 // The list types that ETSI TS 119 602 V1.1.1 defines in Annexes D to H.
@@ -41,7 +41,7 @@ const (
 const PubEAANotifiedStatus = "http://uri.etsi.org/19602/PubEAAProvidersList/SvcStatus/notified"
 
 const (
-	projectURL           = "https://github.com/dominikschlosser/eudi-dev"
+	projectURL           = "https://github.com/eudi-dev/eudi-dev"
 	schemeInformationURI = projectURL + "/blob/main/docs/test-certificates.md"
 )
 

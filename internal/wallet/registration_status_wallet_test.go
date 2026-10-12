@@ -20,9 +20,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/regcert"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
+	"github.com/eudi-dev/eudi-dev/v3/internal/format"
+	"github.com/eudi-dev/eudi-dev/v3/internal/regcert"
+	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
 )
 
 // registrarServer serves the registrar, so registration certificates point at a

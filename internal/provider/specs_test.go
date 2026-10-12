@@ -17,8 +17,8 @@ package provider
 import (
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
+	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
 )
 
 // A list type stored by an eudi-dev 2 wallet moves to the list of the spec's

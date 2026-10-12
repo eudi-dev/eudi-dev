@@ -21,8 +21,8 @@ import (
 	"mime"
 	"strings"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/jwe"
+	"github.com/eudi-dev/eudi-dev/v3/internal/format"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jwe"
 )
 
 // GenerateWalletNonce provides replay protection through wallet_nonce (OID4VP 1.0 §5.10).

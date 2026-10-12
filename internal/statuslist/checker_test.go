@@ -24,7 +24,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 )
 
 func mustGenerateKey(t *testing.T) *ecdsa.PrivateKey {

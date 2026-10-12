@@ -23,7 +23,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 )
 
 // coseX5Chain is the x5chain header label of RFC 9360 §2.

@@ -21,7 +21,7 @@ import (
 
 	"github.com/veraison/go-cose"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/validity"
+	"github.com/eudi-dev/eudi-dev/v3/internal/validity"
 )
 
 // VerifyResult uses the camelCase keys of the validate --json document.

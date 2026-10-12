@@ -17,7 +17,7 @@ package oid4vp
 import (
 	"fmt"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 )
 
 func resolveClientMetadata(reqPayload map[string]any, outer map[string]any) map[string]any {

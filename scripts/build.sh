@@ -5,10 +5,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 VERSION="${1:-dev}"
-LDFLAGS="-s -w -X github.com/dominikschlosser/eudi-dev/v3/cmd.Version=${VERSION}"
+LDFLAGS="-s -w -X github.com/eudi-dev/eudi-dev/v3/cmd.Version=${VERSION}"
 
 echo "Formatting..."
-go run golang.org/x/tools/cmd/goimports@latest -w -local github.com/dominikschlosser/eudi-dev/v3 .
+go run golang.org/x/tools/cmd/goimports@latest -w -local github.com/eudi-dev/eudi-dev/v3 .
 gofmt -w .
 
 echo "Building eudi ${VERSION}..."

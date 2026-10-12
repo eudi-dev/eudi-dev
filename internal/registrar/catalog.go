@@ -28,10 +28,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
+	"github.com/eudi-dev/eudi-dev/v3/internal/format"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 )
 
 // AttestationSchema is the SchemaMeta of the catalogue of attestations (EC
@@ -496,7 +496,8 @@ func cloneCatalogAttestation(entry CatalogAttestation) CatalogAttestation {
 }
 
 // templateCatalogNamespace makes the ids of template entries stable across
-// restarts and instances.
+// restarts and instances. Stored entries carry ids derived from it, so the
+// name keeps the repository's first location.
 var templateCatalogNamespace = uuid.NewSHA1(uuid.NameSpaceURL, []byte("https://github.com/dominikschlosser/eudi-dev/catalog"))
 
 // templateCatalog lists the attestations of the predefined credential

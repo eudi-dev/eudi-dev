@@ -17,7 +17,7 @@ package credtemplate
 import (
 	"testing"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/testenv"
+	"github.com/eudi-dev/eudi-dev/v3/internal/testenv"
 )
 
 func TestMain(m *testing.M) { testenv.Main(m) }

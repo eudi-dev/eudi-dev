@@ -154,7 +154,7 @@ test.describe("Wallet Dashboard", () => {
     await expect(panel).toContainText(`${WALLET_URL}/api/registrar/wrp`);
     await expect(panel.locator('a[data-doc="docs/wallet/registrar-api.md"]')).toHaveAttribute(
       "href",
-      /^https:\/\/github\.com\/dominikschlosser\/eudi-dev\/blob\/[^/]+\/docs\/wallet\/registrar-api\.md$/,
+      /^https:\/\/github\.com\/eudi-dev\/eudi-dev\/blob\/[^/]+\/docs\/wallet\/registrar-api\.md$/,
     );
 
     await page.keyboard.press("ArrowLeft");

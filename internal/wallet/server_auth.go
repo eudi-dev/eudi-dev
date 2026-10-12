@@ -22,11 +22,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/consent"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
+	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/config"
+	"github.com/eudi-dev/eudi-dev/v3/internal/config"
 )
 
 var walletPresentationFormats = map[string]bool{

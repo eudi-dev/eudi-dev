@@ -17,8 +17,8 @@ package sdjwt
 import (
 	"slices"
 
-	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
-	"github.com/dominikschlosser/eudi-dev/v3/internal/jws"
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
 )
 
 // protocolClaims are the registered claims of RFC 7519 §4.1, the claims of

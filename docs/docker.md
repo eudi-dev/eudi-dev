@@ -5,8 +5,8 @@ The Docker image runs an EUDI wallet for automated integration tests of OID4VP v
 ## Quick start
 
 ```bash
-docker pull ghcr.io/dominikschlosser/eudi-dev:latest
-docker run -p 8085:8085 -p 8086:8086 ghcr.io/dominikschlosser/eudi-dev
+docker pull ghcr.io/eudi-dev/eudi-dev:latest
+docker run -p 8085:8085 -p 8086:8086 ghcr.io/eudi-dev/eudi-dev
 ```
 
 The default command starts a headless wallet with PID credentials. It stores state in memory and derives keys from a fixed seed. Each start uses the same keys and CA without a volume (see [Storage](#storage)). Stopping the container discards credentials issued or imported during the run.
@@ -16,8 +16,8 @@ The image sets `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=true`, so the wallet reaches ver
 Override the command to use any CLI feature:
 
 ```bash
-echo "eyJhbGci..." | docker run -i ghcr.io/dominikschlosser/eudi-dev decode
-docker run -i ghcr.io/dominikschlosser/eudi-dev validate --trusted-list https://example.com/trustlist.jwt < credential.txt
+echo "eyJhbGci..." | docker run -i ghcr.io/eudi-dev/eudi-dev decode
+docker run -i ghcr.io/eudi-dev/eudi-dev validate --trusted-list https://example.com/trustlist.jwt < credential.txt
 ```
 
 ## Demo profile
@@ -27,7 +27,7 @@ The container also runs the demo profile of the public instance at [eudi-test.de
 ```bash
 docker run -d --name eudi-demo -p 8085:8085 -p 8086:8086 \
   -v wallet-data:/home/app/.eudi-dev -e EUDI_DEV_STORAGE=file -e EUDI_DEV_SEED= \
-  ghcr.io/dominikschlosser/eudi-dev:latest \
+  ghcr.io/eudi-dev/eudi-dev:latest \
   wallet serve --demo --port 8085 --base-url http://localhost:8085
 ```
 
@@ -61,7 +61,7 @@ Containers with the same `EUDI_DEV_SEED` derive the same holder, issuer, CA, TLS
 The image's seed `eudi-dev` is public, so anyone can derive those keys (see [SECURITY.md](../SECURITY.md)). The startup summary shows `Keys: derived from the built-in seed`, and `wallet serve` warns when that seed is used with `--demo` or a persistent backend (`file` or Postgres). Set your own value with `-e EUDI_DEV_SEED=<seed>` (or `--seed`) for a test bench, or an empty value for random keys. `auto` seeds the memory backend only and leaves every other backend with random keys.
 
 ```bash
-docker run --read-only -p 8085:8085 -p 8086:8086 -e EUDI_DEV_SEED=my-bench ghcr.io/dominikschlosser/eudi-dev
+docker run --read-only -p 8085:8085 -p 8086:8086 -e EUDI_DEV_SEED=my-bench ghcr.io/eudi-dev/eudi-dev
 ```
 
 ### Shared database
@@ -123,7 +123,7 @@ Behind Docker port mappings or Testcontainers, resolve the relative `path` from 
 ```yaml
 services:
   wallet:
-    image: ghcr.io/dominikschlosser/eudi-dev:latest
+    image: ghcr.io/eudi-dev/eudi-dev:latest
     ports:
       - "8085:8085"
       - "8086:8086"
@@ -143,7 +143,7 @@ services:
 ## Testcontainers (Java)
 
 ```java
-GenericContainer<?> wallet = new GenericContainer<>("ghcr.io/dominikschlosser/eudi-dev:latest")
+GenericContainer<?> wallet = new GenericContainer<>("ghcr.io/eudi-dev/eudi-dev:latest")
     .withExposedPorts(8085)
     .waitingFor(Wait.forHttp("/api/trustlist").forStatusCode(200));
 wallet.start();
@@ -173,7 +173,7 @@ String trustListUrl = walletUrl + "/api/trustlist";
 ctx := context.Background()
 wallet, _ := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
     ContainerRequest: testcontainers.ContainerRequest{
-        Image:        "ghcr.io/dominikschlosser/eudi-dev:latest",
+        Image:        "ghcr.io/eudi-dev/eudi-dev:latest",
         ExposedPorts: []string{"8085/tcp"},
         WaitingFor:   wait.ForHTTP("/api/trustlist").WithPort("8085"),
     },
@@ -192,17 +192,17 @@ To customize the PID claims, mount a folder of [credential templates](templates.
 
 ```bash
 # my-templates/pid-sdjwt.json overrides the predefined PID template
-docker run -p 8085:8085 -v ./my-templates:/templates ghcr.io/dominikschlosser/eudi-dev \
+docker run -p 8085:8085 -v ./my-templates:/templates ghcr.io/eudi-dev/eudi-dev \
   wallet serve --auto-accept --pid --port 8085 --templates-dir /templates
 ```
 
 Or generate customized PIDs into a mounted data directory first. Mount the parent of `wallet/` to persist the shared CA with the credentials. Select the file backend and an empty seed for a private persisted CA:
 
 ```bash
-docker run --rm -v wallet-data:/home/app/.eudi-dev -e EUDI_DEV_STORAGE=file -e EUDI_DEV_SEED= ghcr.io/dominikschlosser/eudi-dev \
+docker run --rm -v wallet-data:/home/app/.eudi-dev -e EUDI_DEV_STORAGE=file -e EUDI_DEV_SEED= ghcr.io/eudi-dev/eudi-dev \
   issue sdjwt --wallet --template german-pid-sdjwt --claims '{"given_name":"MAX","family_name":"POWER"}'
 
-docker run -p 8085:8085 -v wallet-data:/home/app/.eudi-dev -e EUDI_DEV_STORAGE=file -e EUDI_DEV_SEED= ghcr.io/dominikschlosser/eudi-dev \
+docker run -p 8085:8085 -v wallet-data:/home/app/.eudi-dev -e EUDI_DEV_STORAGE=file -e EUDI_DEV_SEED= ghcr.io/eudi-dev/eudi-dev \
   wallet serve --auto-accept --port 8085
 ```
 
@@ -271,7 +271,7 @@ eudi wallet serve --pid --auto-accept --docker
 # Docker Compose: both in containers, use the service name
 services:
   wallet:
-    image: ghcr.io/dominikschlosser/eudi-dev:latest
+    image: ghcr.io/eudi-dev/eudi-dev:latest
     command: ["wallet", "serve", "--auto-accept", "--pid", "--port", "8085",
               "--base-url", "http://wallet:8085"]
     ports:
