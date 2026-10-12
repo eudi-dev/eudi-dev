@@ -28,19 +28,30 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/eudi-dev/eudi-dev/v3/internal/netaddr"
 )
 
-type proxyContextKey string
+type proxyContextKey struct{}
 
-const (
-	proxyStartContextKey       proxyContextKey = "proxy-start"
-	proxyRequestBodyContextKey proxyContextKey = "proxy-request-body"
-	proxyOriginalURLContextKey proxyContextKey = "proxy-original-url"
-	proxyDebugJWEKeyContextKey proxyContextKey = "proxy-debug-jwe-key"
-)
+// proxiedRequest is what ServeHTTP learns about a request before the Rewrite
+// hook points it at the target. modifyResponse reads it from the context.
+type proxiedRequest struct {
+	start         time.Time
+	body          string
+	bodyTruncated bool
+	originalURL   string
+	debugJWEKey   string
+}
+
+// maxCapturedBody caps what the proxy keeps of a request or response body for
+// the dashboard. The target and the client still get the whole body. Tests
+// lower it.
+var maxCapturedBody = 1 << 20
 
 type Config struct {
 	TargetURL     *url.URL
+	ListenHost    string
 	ProxyPort     int
 	DashboardPort int
 	NoDashboard   bool
@@ -65,7 +76,7 @@ func NewServer(cfg Config, writer EntryWriter) *Server {
 		classify: NewStatefulClassifier(),
 	}
 
-	proxyHost := fmt.Sprintf("localhost:%d", cfg.ProxyPort)
+	proxyHost := strings.TrimPrefix(netaddr.LocalURL(cfg.ListenHost, cfg.ProxyPort), "http://")
 	targetHost := cfg.TargetURL.Host
 	s.rewriter = NewRewriter(targetHost, proxyHost)
 
@@ -102,6 +113,9 @@ func NewServer(cfg Config, writer EntryWriter) *Server {
 			out.Header.Del("Accept-Encoding")
 		},
 		ModifyResponse: s.modifyResponse,
+		// Each chunk of an event stream or of a body over the capture limit
+		// goes to the client as it arrives.
+		FlushInterval: -1,
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			log.Printf("proxy: backend error for %q %q: %v", r.Method, r.URL.Path, err)
 			w.WriteHeader(http.StatusBadGateway)
@@ -120,36 +134,72 @@ func (s *Server) Store() *Store {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	start := time.Now()
+	req := proxiedRequest{start: time.Now(), originalURL: originalURL(r)}
 
-	// Read the original URL now, because the Rewrite hook points it at the target.
-	origURL := originalURL(r)
-
-	var reqBody string
 	if r.Body != nil {
-		bodyBytes, err := io.ReadAll(r.Body)
+		head, err := io.ReadAll(io.LimitReader(r.Body, int64(maxCapturedBody)+1))
 		if err != nil {
 			log.Printf("proxy: reading the request body of %q %q: %v", r.Method, r.URL.Path, err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		reqBody = string(bodyBytes)
-		r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+		req.body = string(head)
+		if len(head) > maxCapturedBody {
+			req.body, req.bodyTruncated = string(head[:maxCapturedBody]), true
+			r.Body = readCloser{io.MultiReader(bytes.NewReader(head), r.Body), r.Body}
+		} else {
+			r.Body = io.NopCloser(bytes.NewReader(head))
+		}
 	}
 
 	// The debug JWE key header is meant for the proxy, so the target never
 	// sees it.
-	debugJWEKey := r.Header.Get("X-Debug-JWE-CEK")
+	req.debugJWEKey = r.Header.Get("X-Debug-JWE-CEK")
 	r.Header.Del("X-Debug-JWE-CEK")
 
-	ctx := r.Context()
-	ctx = context.WithValue(ctx, proxyStartContextKey, start)
-	ctx = context.WithValue(ctx, proxyRequestBodyContextKey, reqBody)
-	ctx = context.WithValue(ctx, proxyOriginalURLContextKey, origURL)
-	ctx = context.WithValue(ctx, proxyDebugJWEKeyContextKey, debugJWEKey)
-	r = r.WithContext(ctx)
+	r = r.WithContext(context.WithValue(r.Context(), proxyContextKey{}, req))
+	s.proxy.ServeHTTP(newDeadlineWriter(w), r)
+}
 
-	s.proxy.ServeHTTP(w, r)
+type readCloser struct {
+	io.Reader
+	io.Closer
+}
+
+// deadlineWriter gives every write to the client a fresh deadline. A long poll
+// or an event stream then outlasts the server's write timeout, and a client
+// that stops reading still releases the connection.
+type deadlineWriter struct {
+	http.ResponseWriter
+	rc *http.ResponseController
+}
+
+func newDeadlineWriter(w http.ResponseWriter) *deadlineWriter {
+	return &deadlineWriter{ResponseWriter: w, rc: http.NewResponseController(w)}
+}
+
+// A writer without deadlines, such as a test recorder, keeps none.
+func (d *deadlineWriter) extend() {
+	_ = d.rc.SetWriteDeadline(time.Now().Add(streamWriteTimeout))
+}
+
+func (d *deadlineWriter) WriteHeader(code int) {
+	d.extend()
+	d.ResponseWriter.WriteHeader(code)
+}
+
+func (d *deadlineWriter) Write(p []byte) (int, error) {
+	d.extend()
+	return d.ResponseWriter.Write(p)
+}
+
+func (d *deadlineWriter) FlushError() error {
+	d.extend()
+	return d.rc.Flush()
+}
+
+func (d *deadlineWriter) Unwrap() http.ResponseWriter {
+	return d.ResponseWriter
 }
 
 // originalURL reconstructs the URL that the client requested. Behind another
@@ -181,23 +231,22 @@ func forwardedPortForProto(proto string) string {
 }
 
 func (s *Server) modifyResponse(resp *http.Response) error {
-	start := time.Now()
-	if value, ok := resp.Request.Context().Value(proxyStartContextKey).(time.Time); ok {
-		start = value
+	req, ok := resp.Request.Context().Value(proxyContextKey{}).(proxiedRequest)
+	if !ok {
+		req.start = time.Now()
 	}
-	reqBody, _ := resp.Request.Context().Value(proxyRequestBodyContextKey).(string)
-	origURL, _ := resp.Request.Context().Value(proxyOriginalURLContextKey).(string)
-	debugJWEKey, _ := resp.Request.Context().Value(proxyDebugJWEKeyContextKey).(string)
+	debugJWEKey := req.debugJWEKey
 
-	respBody, err := s.captureResponseBody(resp)
+	respBody, respTruncated, err := s.captureResponseBody(resp)
 	if err != nil {
 		return err
 	}
 	s.rewriter.RewriteHeaders(resp.Header)
 
+	start := req.start
 	duration := time.Since(start)
 
-	displayURL := origURL
+	displayURL := req.originalURL
 	if displayURL == "" {
 		displayURL = resp.Request.URL.String()
 	}
@@ -212,18 +261,20 @@ func (s *Server) modifyResponse(resp *http.Response) error {
 	}
 
 	entry := &TrafficEntry{
-		Timestamp:       start,
-		Method:          resp.Request.Method,
-		URL:             displayURL,
-		RequestHeaders:  resp.Request.Header.Clone(),
-		RequestBody:     reqBody,
-		StatusCode:      resp.StatusCode,
-		ResponseHeaders: resp.Header.Clone(),
-		ResponseBody:    respBody,
-		Duration:        duration,
-		DurationMS:      duration.Milliseconds(),
-		DebugJWEKey:     debugJWEKey,
-		DebugJWK:        debugJWK,
+		Timestamp:         start,
+		Method:            resp.Request.Method,
+		URL:               displayURL,
+		RequestHeaders:    resp.Request.Header.Clone(),
+		RequestBody:       req.body,
+		RequestTruncated:  req.bodyTruncated,
+		StatusCode:        resp.StatusCode,
+		ResponseHeaders:   resp.Header.Clone(),
+		ResponseBody:      respBody,
+		ResponseTruncated: respTruncated,
+		Duration:          duration,
+		DurationMS:        duration.Milliseconds(),
+		DebugJWEKey:       debugJWEKey,
+		DebugJWK:          debugJWK,
 	}
 
 	s.classify.Classify(entry)
@@ -241,12 +292,14 @@ func (s *Server) modifyResponse(resp *http.Response) error {
 }
 
 // captureResponseBody reads the body for the entry and rewrites target host
-// references in it. An event stream passes through unread because it ends
-// only when the connection does. A body in an encoding the proxy cannot decode
-// passes through unchanged because a text rewrite would corrupt it.
-func (s *Server) captureResponseBody(resp *http.Response) (string, error) {
+// references in it. It reports whether it kept only the first
+// maxCapturedBody bytes. An event stream passes through unread because it
+// ends only when the connection does. A body in an encoding the proxy cannot
+// decode passes through unchanged because a text rewrite would corrupt it. So
+// does the rest of a body over the limit, which the proxy never holds whole.
+func (s *Server) captureResponseBody(resp *http.Response) (string, bool, error) {
 	if resp.Body == nil || isEventStream(resp.Header) {
-		return "", nil
+		return "", false, nil
 	}
 	var reader io.Reader
 	switch strings.ToLower(resp.Header.Get("Content-Encoding")) {
@@ -255,25 +308,32 @@ func (s *Server) captureResponseBody(resp *http.Response) (string, error) {
 	case "gzip":
 		gz, err := gzip.NewReader(resp.Body)
 		if err != nil {
-			return "", fmt.Errorf("reading the gzip response body: %w", err)
+			return "", false, fmt.Errorf("reading the gzip response body: %w", err)
 		}
 		reader = gz
 		resp.Header.Del("Content-Encoding")
+		resp.Header.Del("Content-Length")
+		resp.ContentLength = -1
 	default:
-		return "", nil
+		return "", false, nil
 	}
 
-	bodyBytes, err := io.ReadAll(reader)
-	resp.Body.Close()
+	head, err := io.ReadAll(io.LimitReader(reader, int64(maxCapturedBody)+1))
 	if err != nil {
-		return "", fmt.Errorf("reading the response body: %w", err)
+		resp.Body.Close()
+		return "", false, fmt.Errorf("reading the response body: %w", err)
 	}
-	body := string(bodyBytes)
+	if len(head) > maxCapturedBody {
+		resp.Body = readCloser{io.MultiReader(bytes.NewReader(head), reader), resp.Body}
+		return string(head[:maxCapturedBody]), true, nil
+	}
+	resp.Body.Close()
+	body := string(head)
 	rewritten := s.rewriter.RewriteBody(body)
 	resp.Body = io.NopCloser(strings.NewReader(rewritten))
 	resp.ContentLength = int64(len(rewritten))
 	resp.Header.Set("Content-Length", strconv.Itoa(len(rewritten)))
-	return body, nil
+	return body, false, nil
 }
 
 func isEventStream(h http.Header) bool {

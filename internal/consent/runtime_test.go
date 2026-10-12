@@ -15,6 +15,7 @@
 package consent
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -220,5 +221,21 @@ func TestStoredErrorsStayBounded(t *testing.T) {
 	rt.mu.RUnlock()
 	if held > maxStoredErrors {
 		t.Errorf("holding %d errors, want at most %d", held, maxStoredErrors)
+	}
+}
+
+// An answered request no longer waits, so it frees its place under the cap.
+func TestCreateRefusesRequestsBeyondTheCap(t *testing.T) {
+	rt := NewRuntime()
+	rt.SetMaxPending(1)
+	if err := rt.Create(&Request{ID: "a", Status: StatusPending}); err != nil {
+		t.Fatal(err)
+	}
+	if err := rt.Create(&Request{ID: "b", Status: StatusPending}); !errors.Is(err, ErrTooManyPending) {
+		t.Fatalf("second request: %v, want ErrTooManyPending", err)
+	}
+	rt.Resolve("a", StatusExpired)
+	if err := rt.Create(&Request{ID: "b", Status: StatusPending}); err != nil {
+		t.Fatalf("after the first expired: %v", err)
 	}
 }

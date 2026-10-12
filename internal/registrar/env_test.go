@@ -88,6 +88,4 @@ func generateTestWallet(t testing.TB) *testWallet {
 	return &testWallet{Registrar: New(&sync.RWMutex{}, state, env), State: state, env: env}
 }
 
-func (w *testWallet) RegistrarBase() string { return w.env.base }
-
 const testDiplomaVCT = "urn:example:diploma:1"

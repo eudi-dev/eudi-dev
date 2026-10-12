@@ -113,6 +113,9 @@ func refuseLocalListenerFlags(target string, opts dispatchOID4Opts) error {
 	if opts.docker {
 		set = append(set, "--docker")
 	}
+	if opts.listenExplicit {
+		set = append(set, "--listen")
+	}
 	if len(set) == 0 {
 		return nil
 	}
@@ -127,6 +130,7 @@ func walletAcceptCmd() *cobra.Command {
 		txCode            string
 		conformanceFlags  *conformanceFlags
 		docker            bool
+		listen            string
 	)
 
 	cmd := &cobra.Command{
@@ -149,9 +153,15 @@ request boundaries, so later presentation requests see the new credential.`,
 			if err != nil {
 				return err
 			}
+			listenHost, err := resolveListenHost(cmd, listen, docker)
+			if err != nil {
+				return err
+			}
 			return acceptOID4URI(args[0], dispatchOID4Opts{
 				port:              port,
 				portExplicit:      cmd.Flags().Changed("port"),
+				listenHost:        listenHost,
+				listenExplicit:    cmd.Flags().Changed(listenFlag),
 				autoAccept:        autoAccept,
 				sessionTranscript: sessionTranscript,
 				txCode:            txCode,
@@ -165,6 +175,7 @@ request boundaries, so later presentation requests see the new credential.`,
 	cmd.Flags().IntVar(&port, "port", config.DefaultWalletPort, "Server port for OID4VP (serves trusted list and consent UI)")
 	cmd.Flags().BoolVar(&autoAccept, "auto-accept", false, "Approve presentations without asking")
 	cmd.Flags().BoolVar(&docker, "docker", false, "Serve the trusted lists and the status list under host.docker.internal for verifiers in a container")
+	addListenFlag(cmd, &listen, "--docker binds 0.0.0.0 unless this flag or the variable is set. ")
 	cmd.Flags().StringVar(&sessionTranscript, "session-transcript", "oid4vp", "mdoc session transcript mode: 'oid4vp' (OID4VP 1.0, default) or 'iso' (ISO 18013-7)")
 	cmd.Flags().StringVar(&txCode, "tx-code", "", "Transaction code for OID4VCI pre-authorized code flow")
 	conformanceFlags = addConformanceFlags(cmd)
@@ -180,6 +191,7 @@ func walletScanCmd() *cobra.Command {
 		txCode            string
 		conformanceFlags  *conformanceFlags
 		docker            bool
+		listen            string
 	)
 
 	cmd := &cobra.Command{
@@ -229,9 +241,15 @@ func walletScanCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			listenHost, err := resolveListenHost(cmd, listen, docker)
+			if err != nil {
+				return err
+			}
 			return acceptOID4URI(content, dispatchOID4Opts{
 				port:              port,
 				portExplicit:      cmd.Flags().Changed("port"),
+				listenHost:        listenHost,
+				listenExplicit:    cmd.Flags().Changed(listenFlag),
 				autoAccept:        autoAccept,
 				sessionTranscript: sessionTranscript,
 				txCode:            txCode,
@@ -246,6 +264,7 @@ func walletScanCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&screen, "screen", false, "Interactive screen capture (macOS)")
 	cmd.Flags().BoolVar(&autoAccept, "auto-accept", false, "Approve presentations without asking")
 	cmd.Flags().BoolVar(&docker, "docker", false, "Serve the trusted lists and the status list under host.docker.internal for verifiers in a container")
+	addListenFlag(cmd, &listen, "--docker binds 0.0.0.0 unless this flag or the variable is set. ")
 	cmd.Flags().StringVar(&sessionTranscript, "session-transcript", "oid4vp", "mdoc session transcript mode: 'oid4vp' (OID4VP 1.0, default) or 'iso' (ISO 18013-7)")
 	cmd.Flags().StringVar(&txCode, "tx-code", "", "Transaction code for OID4VCI pre-authorized code flow")
 	conformanceFlags = addConformanceFlags(cmd)

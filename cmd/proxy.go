@@ -30,6 +30,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/config"
+	"github.com/eudi-dev/eudi-dev/v3/internal/netaddr"
 	"github.com/eudi-dev/eudi-dev/v3/internal/proxy"
 )
 
@@ -40,6 +41,7 @@ var (
 	noDashboard      bool
 	dashboardBaseURL string
 	allTraffic       bool
+	proxyListen      string
 )
 
 var proxyCmd = &cobra.Command{
@@ -67,6 +69,7 @@ func init() {
 	proxyCmd.Flags().StringVar(&proxyTarget, "target", "", "URL of the verifier/issuer to proxy to (required)")
 	proxyCmd.Flags().IntVar(&proxyPort, "port", config.DefaultProxyPort, "Proxy listen port")
 	proxyCmd.Flags().IntVar(&dashboardPort, "dashboard", config.DefaultProxyDashboardPort, "Dashboard listen port")
+	addListenFlag(proxyCmd, &proxyListen, "The proxy and its dashboard bind it. ")
 	proxyCmd.Flags().BoolVar(&noDashboard, "no-dashboard", false, "Disable web dashboard")
 	proxyCmd.Flags().StringVar(&dashboardBaseURL, "dashboard-base-url", "", "Public dashboard URL when a reverse proxy serves it under a path prefix, such as https://example.com/eudi-proxy")
 	proxyCmd.Flags().BoolVar(&allTraffic, "all-traffic", false, "Show all traffic, not just OID4VP/VCI requests")
@@ -86,25 +89,31 @@ func runProxy(cmd *cobra.Command, args []string) error {
 	if targetURL.Host == "" {
 		return fmt.Errorf("target URL must include a host (e.g. http://localhost:8080)")
 	}
+	listenHost, err := resolveListenHost(cmd, proxyListen, false)
+	if err != nil {
+		return err
+	}
 
 	cfg := proxy.Config{
 		TargetURL:     targetURL,
+		ListenHost:    listenHost,
 		ProxyPort:     proxyPort,
 		DashboardPort: dashboardPort,
 		NoDashboard:   noDashboard,
 		AllTraffic:    allTraffic,
 	}
 
-	dashPort := 0
+	proxyURL := netaddr.LocalURL(listenHost, proxyPort)
+	dashboardURL := ""
 	if !noDashboard {
-		dashPort = dashboardPort
+		dashboardURL = netaddr.LocalURL(listenHost, dashboardPort)
 	}
 
 	var writer proxy.EntryWriter
 	if jsonOutput {
 		writer = proxy.NewJSONWriter(allTraffic)
 	} else {
-		writer = &proxy.TerminalWriter{AllTraffic: allTraffic, DashboardPort: dashPort}
+		writer = &proxy.TerminalWriter{AllTraffic: allTraffic, DashboardURL: dashboardURL}
 	}
 
 	srv := proxy.NewServer(cfg, writer)
@@ -136,9 +145,12 @@ func runProxy(cmd *cobra.Command, args []string) error {
 	cyan.Fprintf(humanOut(), "%s %s\n", config.ProxyName, Version)
 	_, _ = dim.Fprintln(humanOut(), "───────────────────────────────────────")
 	fmt.Fprintf(humanOut(), "  Target:    %s\n", proxyTarget)
-	fmt.Fprintf(humanOut(), "  Proxy:     http://localhost:%d\n", proxyPort)
+	fmt.Fprintf(humanOut(), "  Proxy:     %s\n", proxyURL)
+	if !netaddr.IsLoopback(listenHost) {
+		color.New(color.FgYellow).Fprintf(humanOut(), "             bound to %s, open to the network\n", listenHost)
+	}
 	if !noDashboard {
-		fmt.Fprintf(humanOut(), "  Dashboard: http://localhost:%d\n", dashboardPort)
+		fmt.Fprintf(humanOut(), "  Dashboard: %s\n", dashboardURL)
 		if dashboardBaseURL != "" {
 			dim.Fprintf(humanOut(), "             %s\n", dashboardBaseURL)
 		}
@@ -158,7 +170,7 @@ func runProxy(cmd *cobra.Command, args []string) error {
 	var dashboardServer *http.Server
 	if dashboard != nil {
 		dashboardServer = &http.Server{
-			Addr:         fmt.Sprintf(":%d", dashboardPort),
+			Addr:         netaddr.ListenAddr(listenHost, dashboardPort),
 			Handler:      dashboard.Handler(),
 			ReadTimeout:  config.ServerReadTimeout,
 			WriteTimeout: config.ServerWriteTimeout,
@@ -172,7 +184,7 @@ func runProxy(cmd *cobra.Command, args []string) error {
 	}
 
 	proxyServer := &http.Server{
-		Addr:    fmt.Sprintf(":%d", proxyPort),
+		Addr:    netaddr.ListenAddr(listenHost, proxyPort),
 		Handler: srv,
 		BaseContext: func(_ net.Listener) context.Context {
 			return ctx

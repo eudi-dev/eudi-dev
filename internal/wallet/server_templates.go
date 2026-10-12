@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
 )
@@ -32,7 +33,7 @@ import (
 func (s *Server) handleListTemplates(w http.ResponseWriter, r *http.Request) {
 	templates, err := s.management().Templates()
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		apierror.WriteStatus(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, templates)
@@ -43,13 +44,13 @@ func (s *Server) handleListTemplates(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleGetTemplate(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	if !credtemplate.IsBareName(name) {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("invalid template name %q", name)})
+		apierror.WriteStatus(w, http.StatusBadRequest, fmt.Sprintf("invalid template name %q", name))
 		return
 	}
 
 	tpl, err := s.management().Template(name)
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+		apierror.WriteStatus(w, http.StatusNotFound, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, tpl)
@@ -66,18 +67,18 @@ type templateSaveRequest struct {
 func (s *Server) handlePutTemplate(w http.ResponseWriter, r *http.Request) {
 	var req templateSaveRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "parsing request body: " + err.Error()})
+		apierror.WriteStatus(w, http.StatusBadRequest, "parsing request body: "+err.Error())
 		return
 	}
 	tpl := req.Template
 	tpl.Name = strings.TrimSpace(r.PathValue("name"))
 	if !credtemplate.IsBareName(tpl.Name) {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("invalid template name %q", tpl.Name)})
+		apierror.WriteStatus(w, http.StatusBadRequest, fmt.Sprintf("invalid template name %q", tpl.Name))
 		return
 	}
 	if _, err := s.management().SaveTemplate(tpl, req.Catalog); err != nil {
 		if status := visitorLimitStatus(err, 0); status != 0 {
-			writeJSON(w, status, map[string]string{"error": err.Error()})
+			apierror.WriteStatus(w, status, err.Error())
 			return
 		}
 		registrar.WriteCatalogError(w, err)
@@ -86,7 +87,7 @@ func (s *Server) handlePutTemplate(w http.ResponseWriter, r *http.Request) {
 	s.templatesChanged()
 	saved, err := s.management().Template(tpl.Name)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		apierror.WriteStatus(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, saved)
@@ -96,7 +97,7 @@ func (s *Server) handlePutTemplate(w http.ResponseWriter, r *http.Request) {
 // cannot be deleted.
 func (s *Server) handleDeleteTemplate(w http.ResponseWriter, r *http.Request) {
 	if !credtemplate.IsBareName(r.PathValue("name")) {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("invalid template name %q", r.PathValue("name"))})
+		apierror.WriteStatus(w, http.StatusBadRequest, fmt.Sprintf("invalid template name %q", r.PathValue("name")))
 		return
 	}
 	if err := s.management().DeleteTemplate(r.PathValue("name")); err != nil {
@@ -105,7 +106,7 @@ func (s *Server) handleDeleteTemplate(w http.ResponseWriter, r *http.Request) {
 			status = http.StatusNotFound
 		}
 		status = visitorLimitStatus(err, status)
-		writeJSON(w, status, map[string]string{"error": err.Error()})
+		apierror.WriteStatus(w, status, err.Error())
 		return
 	}
 	s.templatesChanged()

@@ -524,7 +524,10 @@ func (w *Wallet) awaitInteractivePresentationConsent(endpoint string, authReq *o
 		asking = derivedOrigin(endpoint)
 	}
 	// On a shared wallet the browser that started issuance gets this prompt.
-	consentReq, matches, approved, answered := w.askPresentationConsent(consent.TypeIssuancePresentation, owner, asking, authReq, outcome, interactiveAuthorizationConsentTimeout, nil)
+	consentReq, matches, approved, answered, err := w.askPresentationConsent(consent.TypeIssuancePresentation, owner, asking, authReq, outcome, interactiveAuthorizationConsentTimeout, nil)
+	if err != nil {
+		return nil, false, err
+	}
 	if !answered {
 		consentReq.SubmissionCh <- consent.SubmissionResult{Error: "consent timeout"}
 		return nil, false, fmt.Errorf("no answer to the presentation the issuer asked for")

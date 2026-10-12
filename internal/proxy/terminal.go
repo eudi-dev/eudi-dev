@@ -36,8 +36,8 @@ var (
 )
 
 type TerminalWriter struct {
-	AllTraffic    bool
-	DashboardPort int // if > 0, print /decode links
+	AllTraffic   bool
+	DashboardURL string // if set, print /decode links
 }
 
 type renderedField struct {
@@ -54,20 +54,12 @@ func (tw *TerminalWriter) WriteEntry(entry *TrafficEntry) {
 	if entry.Class == ClassUnknown && !tw.AllTraffic {
 		return
 	}
-	PrintEntry(entry, tw.DashboardPort)
+	PrintEntry(entry, tw.DashboardURL)
 }
 
-func PrintEntry(entry *TrafficEntry, dashboardPort int) {
-	base := ""
-	if dashboardPort > 0 {
-		base = fmt.Sprintf("http://localhost:%d", dashboardPort)
-	}
-	PrintEntryWithDecodeBase(entry, base)
-}
-
-// PrintEntryWithDecodeBase uses the remote dashboard origin in decode links. The CLI may
+// PrintEntry uses the remote dashboard origin in decode links. The CLI may
 // not reach the dashboard's localhost address. Without a dashboard it prints a CLI command.
-func PrintEntryWithDecodeBase(entry *TrafficEntry, decodeBase string) {
+func PrintEntry(entry *TrafficEntry, decodeBase string) {
 	ts := entry.Timestamp.Format("15:04:05")
 
 	statusFn := successColor.Sprintf

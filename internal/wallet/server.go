@@ -29,8 +29,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
 	"github.com/eudi-dev/eudi-dev/v3/internal/config"
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
+	"github.com/eudi-dev/eudi-dev/v3/internal/netaddr"
 	"github.com/eudi-dev/eudi-dev/v3/internal/news"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
@@ -42,6 +44,7 @@ import (
 
 type Server struct {
 	wallet           *Wallet
+	listenHost       string
 	port             int
 	mux              *http.ServeMux
 	onSave           func()
@@ -100,6 +103,7 @@ func NewServer(w *Wallet, port int, onSave func()) *Server {
 	processBuildID()
 	s := &Server{
 		wallet:             w,
+		listenHost:         netaddr.DefaultListenHost,
 		port:               port,
 		onSave:             onSave,
 		defaultConformance: w.Conformance(),
@@ -304,9 +308,14 @@ func noStaleCache(h http.Handler) http.Handler {
 	})
 }
 
+// SetListenHost sets the IP address the HTTP and HTTPS listeners bind.
+func (s *Server) SetListenHost(host string) {
+	s.listenHost = host
+}
+
 func (s *Server) ListenAndServe() error {
 	s.httpSrv = &http.Server{
-		Addr:         fmt.Sprintf(":%d", s.port),
+		Addr:         netaddr.ListenAddr(s.listenHost, s.port),
 		Handler:      s.Handler(),
 		ReadTimeout:  config.ServerReadTimeout,
 		WriteTimeout: config.SlowRequestTimeout,
@@ -321,11 +330,11 @@ func (s *Server) ListenAndServe() error {
 }
 
 func (s *Server) ListenAndServeBackground() (string, error) {
-	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", s.port))
+	ln, err := net.Listen("tcp", netaddr.ListenAddr(s.listenHost, s.port))
 	if err != nil {
 		return "", err
 	}
-	addr := fmt.Sprintf("http://localhost:%d", ln.Addr().(*net.TCPAddr).Port)
+	addr := netaddr.LocalURL(s.listenHost, ln.Addr().(*net.TCPAddr).Port)
 	s.httpSrv = &http.Server{
 		Handler:      s.Handler(),
 		ReadTimeout:  config.ServerReadTimeout,
@@ -391,7 +400,7 @@ func (s *Server) reloading(withLog bool, handler http.HandlerFunc) http.HandlerF
 		s.unlockStore()
 		if err != nil {
 			s.log("  ERROR: reloading wallet store: %v", err)
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "reloading wallet store: " + err.Error()})
+			apierror.WriteStatus(w, http.StatusInternalServerError, "reloading wallet store: "+err.Error())
 			return
 		}
 		handler(w, r)
@@ -560,20 +569,4 @@ func writeJSON(w http.ResponseWriter, status int, data any) {
 	enc := json.NewEncoder(w)
 	enc.SetEscapeHTML(false)
 	enc.Encode(data)
-}
-
-// Error codes of the wallet's flow endpoints. invalid_request and server_error
-// come from RFC 6749 §5.2. The others name the HTTP condition.
-const (
-	apiErrorInvalidRequest = "invalid_request"
-	apiErrorNotFound       = "not_found"
-	apiErrorConflict       = "conflict"
-	apiErrorConsentTimeout = "consent_timeout"
-	apiErrorServerError    = "server_error"
-)
-
-// writeAPIError writes the error object of the flow endpoints. It has the
-// shape of an OAuth 2.0 error response (RFC 6749 §5.2).
-func writeAPIError(w http.ResponseWriter, status int, code, description string) {
-	writeJSON(w, status, map[string]string{"error": code, "error_description": description})
 }

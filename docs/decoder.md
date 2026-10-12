@@ -21,6 +21,7 @@ The decoder fetches the trusted lists, issuer metadata and status lists named in
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--port` | `8080` | Port to listen on |
+| `--listen` | `$EUDI_DEV_LISTEN`, else `127.0.0.1` | IP address to bind. `0.0.0.0` opens the decoder to the network (see [listen address](wallet/serve.md#listen-address)) |
 | `--imprint-file` | None | HTML snippet with the operator's legal notice, served at `/imprint` |
 | `--allow-private-networks` | `$EUDI_DEV_ALLOW_PRIVATE_NETWORKS`, else `false` | Let outbound requests reach private networks |
 
@@ -61,4 +62,4 @@ curl -X POST http://localhost:8080/api/validate \
 }
 ```
 
-A body without `input` returns `400`. Input that does not decode returns `422`. Both carry an `error` message. The API refuses requests with a foreign `Origin` header with `403`.
+A body without `input` returns `400`. Input that does not decode returns `422`. The API refuses requests with a foreign `Origin` header with `403`. Each error answer is an [error object](wallet/http-api.md#errors) with `error` and `error_description`.

@@ -16,6 +16,7 @@ package proxy
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -512,5 +513,120 @@ func TestServerAsksTheTargetOnlyForEncodingsItDecodes(t *testing.T) {
 	}
 	if len(*captured) != 1 || (*captured)[0].ResponseBody != `{"ok":true}` {
 		t.Errorf("captured %+v", *captured)
+	}
+}
+
+// proxyWithWriteTimeout fronts backend with a proxy whose server write
+// timeout is short, as cmd/proxy sets one.
+func proxyWithWriteTimeout(t *testing.T, backend http.Handler, timeout time.Duration) *httptest.Server {
+	t.Helper()
+	upstream := httptest.NewServer(backend)
+	t.Cleanup(upstream.Close)
+	targetURL, _ := url.Parse(upstream.URL)
+	front := httptest.NewUnstartedServer(NewServer(Config{TargetURL: targetURL, AllTraffic: true}, nil))
+	front.Config.WriteTimeout = timeout
+	front.Start()
+	t.Cleanup(front.Close)
+	return front
+}
+
+// An event stream and a long poll run longer than the proxy's write timeout.
+// Each write gets a fresh deadline, so neither is cut.
+func TestServerKeepsResponsesOpenPastTheWriteTimeout(t *testing.T) {
+	const timeout = 200 * time.Millisecond
+	front := proxyWithWriteTimeout(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/events":
+			w.Header().Set("Content-Type", "text/event-stream")
+			for i := range 6 {
+				fmt.Fprintf(w, "data: %d\n\n", i)
+				w.(http.Flusher).Flush()
+				time.Sleep(timeout / 2)
+			}
+		case "/poll":
+			time.Sleep(3 * timeout)
+			w.Write([]byte(`{"status":"done"}`))
+		}
+	}), timeout)
+
+	resp, err := http.Get(front.URL + "/events")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil || strings.Count(string(body), "data: ") != 6 {
+		t.Errorf("event stream ended after %q: %v", body, err)
+	}
+
+	resp, err = http.Get(front.URL + "/poll")
+	if err != nil {
+		t.Fatalf("long poll: %v", err)
+	}
+	body, err = io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil || string(body) != `{"status":"done"}` {
+		t.Errorf("long poll answered %q: %v", body, err)
+	}
+}
+
+func lowerCaptureLimit(t *testing.T, limit int) {
+	t.Helper()
+	previous := maxCapturedBody
+	maxCapturedBody = limit
+	t.Cleanup(func() { maxCapturedBody = previous })
+}
+
+// The dashboard keeps the start of a large body. Target and client get all of
+// it, unchanged.
+func TestServerCapturesTheStartOfALargeBody(t *testing.T) {
+	lowerCaptureLimit(t, 16)
+	request := strings.Repeat("r", 100)
+	var received, targetHost string
+	front, captured := proxyTo(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got, _ := io.ReadAll(r.Body)
+		received, targetHost = string(got), r.Host
+		w.Write([]byte(strings.Repeat("x", 100) + r.Host))
+	}))
+
+	resp, err := http.Post(front.URL+"/upload", "text/plain", strings.NewReader(request))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+
+	if received != request {
+		t.Errorf("the target received %d bytes, want %d", len(received), len(request))
+	}
+	if want := strings.Repeat("x", 100) + targetHost; string(body) != want {
+		t.Errorf("the client received %q, want the target's body unchanged", body)
+	}
+	if len(*captured) != 1 {
+		t.Fatalf("captured %d entries", len(*captured))
+	}
+	entry := (*captured)[0]
+	if entry.RequestBody != request[:16] || !entry.RequestTruncated {
+		t.Errorf("request body %q, truncated %v", entry.RequestBody, entry.RequestTruncated)
+	}
+	if entry.ResponseBody != strings.Repeat("x", 16) || !entry.ResponseTruncated {
+		t.Errorf("response body %q, truncated %v", entry.ResponseBody, entry.ResponseTruncated)
+	}
+}
+
+func TestServerCapturesABodyAtTheLimitWhole(t *testing.T) {
+	lowerCaptureLimit(t, 16)
+	front, captured := proxyTo(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(strings.Repeat("x", 16)))
+	}))
+
+	resp, err := http.Post(front.URL+"/upload", "text/plain", strings.NewReader(strings.Repeat("r", 16)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	entry := (*captured)[0]
+	if entry.RequestTruncated || entry.ResponseTruncated || len(entry.RequestBody) != 16 || len(entry.ResponseBody) != 16 {
+		t.Errorf("captured %+v, want both bodies whole", entry)
 	}
 }

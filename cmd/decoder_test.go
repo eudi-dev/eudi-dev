@@ -49,7 +49,7 @@ func runCommand(t *testing.T, args ...string) (string, error) {
 // busyPort holds a port, so the decoder fails to listen after its setup.
 func busyPort(t *testing.T) int {
 	t.Helper()
-	l, err := net.Listen("tcp", ":0")
+	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -28,6 +28,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
 	"github.com/eudi-dev/eudi-dev/v3/internal/statuslist"
 )
@@ -58,7 +59,7 @@ func (h *Server) refuseProtected(w http.ResponseWriter, identifier string) bool 
 	if !ok || !h.Protected(rp) {
 		return false
 	}
-	writeJSON(w, http.StatusForbidden, map[string]string{"error": fmt.Sprintf("%s is a registration of the public demo, and visitors can't change it. Register your own relying party instead", identifier)})
+	apierror.WriteStatus(w, http.StatusForbidden, fmt.Sprintf("%s is a registration of the public demo, and visitors can't change it. Register your own relying party instead", identifier))
 	return true
 }
 
@@ -178,11 +179,11 @@ func (h *Server) handleEnrol(update bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var e Enrolment
 		if err := json.NewDecoder(io.LimitReader(r.Body, 128<<10)).Decode(&e); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid enrolment: " + err.Error()})
+			apierror.WriteStatus(w, http.StatusBadRequest, "invalid enrolment: "+err.Error())
 			return
 		}
 		if err := checkRegistrationSize(e.RelyingParty); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			apierror.WriteStatus(w, http.StatusBadRequest, err.Error())
 			return
 		}
 		if update {
@@ -213,11 +214,11 @@ func (h *Server) handleEnrol(update bool) http.HandlerFunc {
 func decodeRelyingParty(w http.ResponseWriter, r *http.Request) (WalletRelyingParty, bool) {
 	var rp WalletRelyingParty
 	if err := json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&rp); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid relying party: " + err.Error()})
+		apierror.WriteStatus(w, http.StatusBadRequest, "invalid relying party: "+err.Error())
 		return rp, false
 	}
 	if err := checkRegistrationSize(rp); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		apierror.WriteStatus(w, http.StatusBadRequest, err.Error())
 		return rp, false
 	}
 	return rp, true
@@ -235,7 +236,7 @@ func (h *Server) handleRegistrarWRPList(w http.ResponseWriter, r *http.Request) 
 	}
 	start, end, _, err := page(q, "cursor", len(matching))
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		apierror.WriteStatus(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	pagination := map[string]any{"has_next_page": end < len(matching)}
@@ -270,7 +271,7 @@ func page(q url.Values, offsetParam string, total int) (start, end, limit int, e
 func (h *Server) handleRegistrarWRPByIdentifier(w http.ResponseWriter, r *http.Request) {
 	rp, ok := h.Registrar().RelyingParty(r.PathValue("identifier"))
 	if !ok {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "relying party not registered"})
+		apierror.WriteStatus(w, http.StatusNotFound, "relying party not registered")
 		return
 	}
 	h.writeRegistrarResponse(w, r, map[string]any{"data": rp})
@@ -285,7 +286,7 @@ func (h *Server) handleRegistrarWRPService(w http.ResponseWriter, r *http.Reques
 		})
 	}
 	if !ok || len(rp.Services) == 0 {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "wallet relying party service not found"})
+		apierror.WriteStatus(w, http.StatusNotFound, "wallet relying party service not found")
 		return
 	}
 	h.writeRegistrarResponse(w, r, map[string]any{"data": rp})
@@ -300,7 +301,7 @@ func (h *Server) handleCheckIntendedUse(w http.ResponseWriter, r *http.Request) 
 	if identifier := strings.TrimSpace(q.Get("identifier")); identifier != "" {
 		rp, ok := h.Registrar().RelyingParty(identifier)
 		if !ok {
-			writeJSON(w, http.StatusNotFound, map[string]string{"error": "relying party not registered"})
+			apierror.WriteStatus(w, http.StatusNotFound, "relying party not registered")
 			return
 		}
 		parties = []WalletRelyingParty{rp}
@@ -321,12 +322,12 @@ func (h *Server) writeRegistrarResponse(w http.ResponseWriter, r *http.Request, 
 	}
 	key, chain, err := h.Registrar().env.RegistrarSigningMaterial()
 	if err != nil {
-		http.Error(w, "loading registrar signer: "+err.Error(), http.StatusInternalServerError)
+		apierror.WriteStatus(w, http.StatusInternalServerError, "loading registrar signer: "+err.Error())
 		return
 	}
 	signed, err := signRegistrarResponseJWT(key, chain, payload)
 	if err != nil {
-		http.Error(w, "signing registrar response: "+err.Error(), http.StatusInternalServerError)
+		apierror.WriteStatus(w, http.StatusInternalServerError, "signing registrar response: "+err.Error())
 		return
 	}
 	w.Header().Set("Content-Type", "application/jwt")
@@ -343,7 +344,7 @@ func (h *Server) handleSetRegistrationCertificateStatus(w http.ResponseWriter, r
 		Revoked bool `json:"revoked"`
 	}
 	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body: " + err.Error()})
+		apierror.WriteStatus(w, http.StatusBadRequest, "invalid request body: "+err.Error())
 		return
 	}
 	if h.refuseProtected(w, req.Identifier) {
@@ -373,7 +374,7 @@ func (h *Server) handleRegistrationStatusList(w http.ResponseWriter, r *http.Req
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	token, err := h.Registrar().RegistrationStatusListToken()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		apierror.WriteStatus(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	w.Header().Set("Content-Type", statuslist.MediaTypeJWT)
@@ -390,7 +391,7 @@ func writeRegistrarError(w http.ResponseWriter, err error) {
 	case errors.Is(err, errRegistrarSigning):
 		status = http.StatusInternalServerError
 	}
-	writeJSON(w, status, map[string]string{"error": err.Error()})
+	apierror.WriteStatus(w, status, err.Error())
 }
 
 // handleCatalogSchemas answers GET /schemas of the catalogue of attestations
@@ -406,7 +407,7 @@ func (h *Server) handleCatalogSchemas(w http.ResponseWriter, r *http.Request) {
 	}
 	start, end, limit, err := page(q, "offset", len(matching))
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		apierror.WriteStatus(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	schemas := matching[start:end]
@@ -463,7 +464,7 @@ func matchesSchemaQuery(schema AttestationSchema, q map[string][]string) bool {
 func (h *Server) handleCatalogSchema(w http.ResponseWriter, r *http.Request) {
 	entry, ok := h.Registrar().CatalogAttestation(r.PathValue("id"))
 	if !ok {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "attestation schema not found"})
+		apierror.WriteStatus(w, http.StatusNotFound, "attestation schema not found")
 		return
 	}
 	h.writeRegistrarResponse(w, r, map[string]any{"data": entry.Schema})
@@ -478,7 +479,7 @@ func (h *Server) handleCatalogFormatSchema(w http.ResponseWriter, r *http.Reques
 		schema, ok = entry.FormatSchema(r.PathValue("format"))
 	}
 	if !ok {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "attestation schema not found"})
+		apierror.WriteStatus(w, http.StatusNotFound, "attestation schema not found")
 		return
 	}
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -489,11 +490,11 @@ func (h *Server) handleCatalogFormatSchema(w http.ResponseWriter, r *http.Reques
 func (h *Server) handleUpdateCatalogSchema(w http.ResponseWriter, r *http.Request) {
 	var schema AttestationSchema
 	if err := json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&schema); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid attestation schema: " + err.Error()})
+		apierror.WriteStatus(w, http.StatusBadRequest, "invalid attestation schema: "+err.Error())
 		return
 	}
 	if h.keepsOperatorEntries() && h.Registrar().IsOperatorCatalogID(r.PathValue("id")) {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "the operator of the public demo set up this entry, and visitors can't change it"})
+		apierror.WriteStatus(w, http.StatusForbidden, "the operator of the public demo set up this entry, and visitors can't change it")
 		return
 	}
 	var updated CatalogAttestation
@@ -514,11 +515,11 @@ func (h *Server) handleDeleteCatalogSchema(w http.ResponseWriter, r *http.Reques
 	if h.keepsOperatorEntries() {
 		id := r.PathValue("id")
 		if h.Registrar().IsTemplateCatalogID(id) {
-			writeJSON(w, http.StatusForbidden, map[string]string{"error": "the entries of the templates are part of the public demo, and visitors can't delete them"})
+			apierror.WriteStatus(w, http.StatusForbidden, "the entries of the templates are part of the public demo, and visitors can't delete them")
 			return
 		}
 		if h.Registrar().IsOperatorCatalogID(id) {
-			writeJSON(w, http.StatusForbidden, map[string]string{"error": "the operator of the public demo set up this entry, and visitors can't delete it"})
+			apierror.WriteStatus(w, http.StatusForbidden, "the operator of the public demo set up this entry, and visitors can't delete it")
 			return
 		}
 	}
@@ -563,7 +564,7 @@ func (h *Server) handleCatalogSchemaOptions(w http.ResponseWriter, _ *http.Reque
 func (h *Server) handleAddCatalogAttestation(w http.ResponseWriter, r *http.Request) {
 	var entry CatalogAttestation
 	if err := json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&entry); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid attestation: " + err.Error()})
+		apierror.WriteStatus(w, http.StatusBadRequest, "invalid attestation: "+err.Error())
 		return
 	}
 	var stored CatalogAttestation
@@ -590,7 +591,7 @@ func WriteCatalogError(w http.ResponseWriter, err error) {
 	case errors.Is(err, errCatalogFull):
 		status = http.StatusConflict
 	}
-	writeJSON(w, status, map[string]string{"error": err.Error()})
+	apierror.WriteStatus(w, status, err.Error())
 }
 
 // handleIssueRegistrationCertificate signs a registration certificate for a
@@ -598,7 +599,7 @@ func WriteCatalogError(w http.ResponseWriter, err error) {
 func (h *Server) handleIssueRegistrationCertificate(w http.ResponseWriter, r *http.Request) {
 	var req RegistrationCertificateRequest
 	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body: " + err.Error()})
+		apierror.WriteStatus(w, http.StatusBadRequest, "invalid request body: "+err.Error())
 		return
 	}
 	if h.refuseProtected(w, req.Identifier) {
@@ -622,7 +623,7 @@ func (h *Server) handleIssueRegistrationCertificate(w http.ResponseWriter, r *ht
 func (h *Server) handleIssueAccessCertificate(w http.ResponseWriter, r *http.Request) {
 	var req AccessCertificateRequest
 	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body: " + err.Error()})
+		apierror.WriteStatus(w, http.StatusBadRequest, "invalid request body: "+err.Error())
 		return
 	}
 	// An access certificate for a protected party's identifier would let its

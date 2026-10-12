@@ -114,9 +114,9 @@ func TestRemoteAcceptPrintsTextAndRefusesListenerFlags(t *testing.T) {
 		}
 	}
 
-	for _, opts := range []dispatchOID4Opts{{autoAccept: true, port: 9999, portExplicit: true}, {autoAccept: true, docker: true}} {
+	for _, opts := range []dispatchOID4Opts{{autoAccept: true, port: 9999, portExplicit: true}, {autoAccept: true, docker: true}, {autoAccept: true, listenHost: "0.0.0.0", listenExplicit: true}} {
 		if err := acceptOID4URI(vp, opts); err == nil || !strings.Contains(err.Error(), "--remote local") {
-			t.Errorf("remote accept with --port %v, --docker %v: %v, want a refusal", opts.portExplicit, opts.docker, err)
+			t.Errorf("remote accept with --port %v, --docker %v, --listen %v: %v, want a refusal", opts.portExplicit, opts.docker, opts.listenExplicit, err)
 		}
 	}
 }

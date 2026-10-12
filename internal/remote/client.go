@@ -29,6 +29,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
 	"github.com/eudi-dev/eudi-dev/v3/internal/config"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 )
@@ -114,10 +115,7 @@ func (c *Client) doWithTimeout(timeout time.Duration, method, path string, body 
 		return fmt.Errorf("reading response: %w", err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		var apiErr struct {
-			Error       string `json:"error"`
-			Description string `json:"error_description"`
-		}
+		var apiErr apierror.Body
 		if json.Unmarshal(data, &apiErr) == nil && apiErr.Error != "" {
 			if apiErr.Description != "" {
 				return fmt.Errorf("remote wallet: %s: %s (HTTP %d)", apiErr.Error, apiErr.Description, resp.StatusCode)

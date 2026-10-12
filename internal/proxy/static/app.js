@@ -202,9 +202,9 @@
         renderCredentialLinks(entry.credentials, entry.credentialLabels, id + "-credentials") +
         (entry.decoded ? '<div class="detail-section" id="' + id + '-decoded"><h3 id="' + id + '-decoded-title">Decoded</h3>' + renderDecoded(entry.decoded, id + "-decoded") + '</div>' : '') +
         detailSection(id + "-request-headers", "Request headers", renderHeaders(entry.requestHeaders)) +
-        (entry.requestBody ? detailSection(id + "-request-body", "Request body", escapeHtml(entry.requestBody)) : '') +
+        (entry.requestBody ? detailSection(id + "-request-body", entry.requestTruncated ? "Request body (start only)" : "Request body", escapeHtml(entry.requestBody)) : '') +
         detailSection(id + "-response-headers", "Response headers", renderHeaders(entry.responseHeaders)) +
-        (entry.responseBody ? detailSection(id + "-response-body", "Response body", escapeHtml(entry.responseBody)) : '') +
+        (entry.responseBody ? detailSection(id + "-response-body", entry.responseTruncated ? "Response body (start only)" : "Response body", escapeHtml(entry.responseBody)) : '') +
       '</div>';
 
     if (expandedEntries.has(entry.id)) el.classList.add("expanded");

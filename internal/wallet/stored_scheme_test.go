@@ -45,7 +45,7 @@ func TestIssueAPIRefusesTheRenamedTrustFields(t *testing.T) {
 			if rec.Code != http.StatusBadRequest {
 				t.Fatalf("status = %d, want 400: %s", rec.Code, rec.Body.String())
 			}
-			if msg, _ := decodeJSON(t, rec)["error"].(string); !strings.Contains(msg, current) {
+			if msg, _ := decodeJSON(t, rec)["error_description"].(string); !strings.Contains(msg, current) {
 				t.Errorf("error = %q, want it to name %s", msg, current)
 			}
 		})

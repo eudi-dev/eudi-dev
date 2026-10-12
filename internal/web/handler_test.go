@@ -292,8 +292,8 @@ func TestValidateEndpointDecodes_EmptyInput(t *testing.T) {
 	}
 
 	result := decodeResponse(t, w)
-	if result["error"] != "input is required" {
-		t.Errorf("expected error 'input is required', got %v", result["error"])
+	if result["error"] != "invalid_request" || result["error_description"] != "input is required" {
+		t.Errorf("expected invalid_request with 'input is required', got %v", result)
 	}
 }
 
@@ -305,8 +305,8 @@ func TestValidateEndpointDecodes_MissingInputField(t *testing.T) {
 	}
 
 	result := decodeResponse(t, w)
-	if result["error"] != "input is required" {
-		t.Errorf("expected 'input is required', got %v", result["error"])
+	if result["error_description"] != "input is required" {
+		t.Errorf("expected 'input is required', got %v", result["error_description"])
 	}
 }
 
@@ -699,7 +699,7 @@ func TestCredentialByIDWithoutAWallet(t *testing.T) {
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("GET without a wallet = %d, want 404", w.Code)
 	}
-	if detail, _ := decodeResponse(t, w)["error"].(string); !strings.Contains(detail, "not attached to a wallet") {
+	if detail, _ := decodeResponse(t, w)["error_description"].(string); !strings.Contains(detail, "not attached to a wallet") {
 		t.Errorf("error = %q, want it to name the missing wallet", detail)
 	}
 }

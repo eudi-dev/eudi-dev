@@ -22,6 +22,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/config"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/imprint"
+	"github.com/eudi-dev/eudi-dev/v3/internal/netaddr"
 	"github.com/eudi-dev/eudi-dev/v3/internal/web"
 )
 
@@ -29,6 +30,7 @@ var (
 	port                        int
 	decoderImprintFile          string
 	decoderAllowPrivateNetworks bool
+	decoderListen               string
 )
 
 var decoderCmd = &cobra.Command{
@@ -41,6 +43,7 @@ var decoderCmd = &cobra.Command{
 
 func init() {
 	decoderCmd.Flags().IntVar(&port, "port", config.DefaultServePort, "Port to listen on")
+	addListenFlag(decoderCmd, &decoderListen, "")
 	decoderCmd.Flags().StringVar(&decoderImprintFile, "imprint-file", "", "HTML snippet with the site operator's legal notice, served at /imprint (required for public EU hosting)")
 	addAllowPrivateNetworksFlag(decoderCmd, &decoderAllowPrivateNetworks, "")
 	rootCmd.AddCommand(decoderCmd)
@@ -76,6 +79,10 @@ func runDecoder(cmd *cobra.Command, args []string) error {
 		opts.ImprintHTML = page
 	}
 
-	fmt.Printf("Starting %s at http://localhost:%d\n", config.DecoderName, port)
-	return web.ListenAndServe(port, opts)
+	listenHost, err := resolveListenHost(cmd, decoderListen, false)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Starting %s at %s\n", config.DecoderName, netaddr.LocalURL(listenHost, port))
+	return web.ListenAndServe(netaddr.ListenAddr(listenHost, port), opts)
 }

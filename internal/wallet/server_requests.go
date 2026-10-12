@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
 	"github.com/eudi-dev/eudi-dev/v3/internal/config"
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
 )
@@ -44,7 +45,7 @@ var sseKeepaliveInterval = config.StreamKeepaliveInterval
 func (s *Server) handleRequestStream(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		http.Error(w, "streaming not supported", http.StatusInternalServerError)
+		apierror.WriteStatus(w, http.StatusInternalServerError, "streaming not supported")
 		return
 	}
 
@@ -179,7 +180,7 @@ func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Body != nil {
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil && !errors.Is(err, io.EOF) {
-			writeAPIError(w, http.StatusBadRequest, apiErrorInvalidRequest, "invalid JSON body: "+err.Error())
+			apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, "invalid JSON body: "+err.Error())
 			return
 		}
 	}
@@ -199,19 +200,19 @@ func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
 	// dialog open.
 	if pending, ok := s.wallet.Consents().Get(id); ok {
 		if !consent.Owns(callerOwners(r), pending, namedRequest(r)) {
-			writeAPIError(w, http.StatusNotFound, apiErrorNotFound, "request not found")
+			apierror.Write(w, http.StatusNotFound, apierror.NotFound, "request not found")
 			return
 		}
 		if body.ConfigurationID != "" && !slices.Contains(pending.OfferConfigs, body.ConfigurationID) {
-			writeAPIError(w, http.StatusBadRequest, apiErrorInvalidRequest, fmt.Sprintf("the offer does not list credential configuration %q", body.ConfigurationID))
+			apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, fmt.Sprintf("the offer does not list credential configuration %q", body.ConfigurationID))
 			return
 		}
 		if err := consent.ValidateSelection(pending.CredentialOptions, picks, body.SetChoices, body.ClaimSets); err != nil {
-			writeAPIError(w, http.StatusBadRequest, apiErrorInvalidRequest, err.Error())
+			apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, err.Error())
 			return
 		}
 		if s.wallet.Mode() == ValidationModeStrict && consent.DebugOnlySelection(pending.CredentialOptions, picks, body.ClaimSets) {
-			writeAPIError(w, http.StatusBadRequest, apiErrorInvalidRequest, "strict mode sends neither non-matching credentials nor another claim set")
+			apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, "strict mode sends neither non-matching credentials nor another claim set")
 			return
 		}
 	}
@@ -219,9 +220,9 @@ func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
 	req, ok := s.wallet.Consents().Resolve(id, consent.StatusApproved)
 	if !ok {
 		if req == nil {
-			writeAPIError(w, http.StatusNotFound, apiErrorNotFound, "request not found")
+			apierror.Write(w, http.StatusNotFound, apierror.NotFound, "request not found")
 		} else {
-			writeAPIError(w, http.StatusConflict, apiErrorConflict, refusalReason(req.Status))
+			apierror.Write(w, http.StatusConflict, apierror.Conflict, refusalReason(req.Status))
 		}
 		return
 	}
@@ -267,15 +268,15 @@ func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleDenyRequest(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if pending, ok := s.wallet.Consents().Get(id); ok && !consent.Owns(callerOwners(r), pending, namedRequest(r)) {
-		writeAPIError(w, http.StatusNotFound, apiErrorNotFound, "request not found")
+		apierror.Write(w, http.StatusNotFound, apierror.NotFound, "request not found")
 		return
 	}
 	req, ok := s.wallet.Consents().Resolve(id, consent.StatusDenied)
 	if !ok {
 		if req == nil {
-			writeAPIError(w, http.StatusNotFound, apiErrorNotFound, "request not found")
+			apierror.Write(w, http.StatusNotFound, apierror.NotFound, "request not found")
 		} else {
-			writeAPIError(w, http.StatusConflict, apiErrorConflict, refusalReason(req.Status))
+			apierror.Write(w, http.StatusConflict, apierror.Conflict, refusalReason(req.Status))
 		}
 		return
 	}

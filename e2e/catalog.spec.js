@@ -104,7 +104,9 @@ test("visitors delete only the entries they added", async ({ page, request }) =>
     .find((e) => e.name === "E2E operator diploma");
   const refused = await request.delete(`${BASE}/api/catalog/schemas/${operator.schema.id}`);
   expect(refused.status()).toBe(403);
-  expect((await refused.json()).error).toContain("visitors can't delete it");
+  const refusal = await refused.json();
+  expect(refusal.error).toBe("forbidden");
+  expect(refusal.error_description).toContain("visitors can't delete it");
 
   await openCatalog(page);
   const pid = page.locator("#registrar-catalog-list .registrar-party").filter({ hasText: "EUDI PID" });

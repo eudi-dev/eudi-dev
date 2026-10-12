@@ -16,6 +16,8 @@ package wallet
 
 import (
 	"net/http"
+
+	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
 )
 
 func (s *Server) handleListDeferred(w http.ResponseWriter, r *http.Request) {
@@ -26,7 +28,7 @@ func (s *Server) handleCollectDeferred(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	attempt, ok := s.CollectDeferredNow(id)
 	if !ok {
-		writeAPIError(w, http.StatusNotFound, apiErrorNotFound, "no deferred issuance with that id")
+		apierror.Write(w, http.StatusNotFound, apierror.NotFound, "no deferred issuance with that id")
 		return
 	}
 	out := map[string]any{
@@ -51,7 +53,7 @@ func (s *Server) handleCollectDeferred(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleAbandonDeferred(w http.ResponseWriter, r *http.Request) {
 	pending, ok := s.AbandonDeferredNow(r.PathValue("id"))
 	if !ok {
-		writeAPIError(w, http.StatusNotFound, apiErrorNotFound, "no deferred issuance with that id")
+		apierror.Write(w, http.StatusNotFound, apierror.NotFound, "no deferred issuance with that id")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{

@@ -499,11 +499,6 @@ func runIssueToWallet(cmd *cobra.Command, format string) error {
 	if err != nil {
 		return err
 	}
-	if req.SigningKey != "" {
-		if applied, _ := result["signing_override"].(bool); !applied {
-			return fmt.Errorf("the wallet server ignored the signing override and issued with its own issuer key (it runs a release without --key/--cert support). Update it, or remove the imported credential and retry with --remote local")
-		}
-	}
 	printIssuedCredential(docString(result, "raw"), docString(result, "id"))
 	if path := docString(result, "template_path"); path != "" {
 		printTemplateSaved("Saved", issueSaveTemplate, path)

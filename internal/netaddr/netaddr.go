@@ -17,9 +17,45 @@
 package netaddr
 
 import (
+	"fmt"
+	"net"
 	"net/netip"
+	"strconv"
 	"strings"
 )
+
+// DefaultListenHost keeps a server on this machine because the servers have
+// no authentication (SECURITY.md).
+const DefaultListenHost = "127.0.0.1"
+
+// ParseListenHost checks the address a server binds. It takes an IP address,
+// such as 0.0.0.0 for every interface. localhost stands for 127.0.0.1.
+func ParseListenHost(host string) (string, error) {
+	host = strings.Trim(strings.TrimSpace(host), "[]")
+	if normalize(host) == "localhost" {
+		return DefaultListenHost, nil
+	}
+	addr, err := netip.ParseAddr(host)
+	if err != nil || addr.Zone() != "" {
+		return "", fmt.Errorf("%q is not an IP address, use 127.0.0.1, ::1 or 0.0.0.0", host)
+	}
+	return addr.String(), nil
+}
+
+// ListenAddr is the address net.Listen takes for host and port.
+func ListenAddr(host string, port int) string {
+	return net.JoinHostPort(host, strconv.Itoa(port))
+}
+
+// LocalURL is the URL a client on this machine uses for a server that binds
+// host and port. A server on loopback or on every interface answers at
+// localhost.
+func LocalURL(host string, port int) string {
+	if addr, err := netip.ParseAddr(host); err == nil && !addr.IsLoopback() && !addr.IsUnspecified() {
+		return "http://" + ListenAddr(host, port)
+	}
+	return "http://localhost:" + strconv.Itoa(port)
+}
 
 // DockerHost is the name a Docker container uses for the machine it runs on.
 const DockerHost = "host.docker.internal"

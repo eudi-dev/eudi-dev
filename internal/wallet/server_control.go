@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/news"
@@ -165,7 +166,7 @@ func (s *Server) handleLog(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleClearLog(w http.ResponseWriter, r *http.Request) {
 	if err := s.management().ClearLog(); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		apierror.WriteStatus(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -254,7 +255,7 @@ func (s *Server) handleShutdown(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleSetNextError(w http.ResponseWriter, r *http.Request) {
 	var body consent.NextErrorOverride
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "invalid JSON body", http.StatusBadRequest)
+		apierror.WriteStatus(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
 	s.wallet.Consents().SetNextError(&body)
@@ -271,11 +272,11 @@ func (s *Server) handleSetPreferredFormat(w http.ResponseWriter, r *http.Request
 		Format string `json:"format"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "invalid JSON body", http.StatusBadRequest)
+		apierror.WriteStatus(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
 	if err := s.wallet.SetPreferredFormat(body.Format); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		apierror.WriteStatus(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"format": body.Format})
@@ -288,7 +289,7 @@ func (s *Server) handleSetAutoAccept(w http.ResponseWriter, r *http.Request) {
 		Enabled bool `json:"enabled"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "invalid JSON body", http.StatusBadRequest)
+		apierror.WriteStatus(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
 	s.wallet.SetAutoAccept(body.Enabled)
@@ -303,11 +304,11 @@ func (s *Server) handleSetConformance(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&patch); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid conformance settings: " + err.Error()})
+		apierror.WriteStatus(w, http.StatusBadRequest, "invalid conformance settings: "+err.Error())
 		return
 	}
 	if err := s.wallet.UpdateConformance(patch); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		apierror.WriteStatus(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	s.writeConformanceConfig(w)

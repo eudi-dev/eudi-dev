@@ -16,6 +16,7 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -39,9 +40,41 @@ var movedCommands = []struct {
 	{"wallet instances", []string{"wallet ps"}},
 }
 
-// addMovedCommands registers a hidden stub for every moved command. A stub
-// parses nothing and runs nothing. It only names the new command.
+// renamedFlags map a flag of eudi-dev 2 to the flag that replaces it. command
+// is the command path that had the flag, and it covers its subcommands.
+var renamedFlags = []struct {
+	command string
+	old     string
+	new     string
+}{
+	{"issue", "trust-profile", "category"},
+	{"issue", "trust-list-type", "trusted-list-type"},
+	{"issue", "trust-entity-name", "trusted-entity-name"},
+	{"validate", "trust-list", "trusted-list"},
+	{"wallet serve", "demo-verifier-trust-anchor", "demo-verifier-issuer-ca"},
+}
+
+// renamedFlagError names the new flag when a command gets a flag of
+// eudi-dev 2. Every other parse error stays as it is.
+func renamedFlagError(cmd *cobra.Command, err error) error {
+	name, ok := strings.CutPrefix(err.Error(), "unknown flag: --")
+	if !ok {
+		return err
+	}
+	path := strings.TrimPrefix(cmd.CommandPath(), binaryName()+" ") + " "
+	for _, renamed := range renamedFlags {
+		if renamed.old == name && strings.HasPrefix(path, renamed.command+" ") {
+			return fmt.Errorf("unknown flag --%s: renamed to --%s in 3.0", renamed.old, renamed.new)
+		}
+	}
+	return err
+}
+
+// addMovedCommands registers a hidden stub for every moved command and the
+// error for renamed flags. A stub parses nothing and runs nothing. It only
+// names the new command.
 func addMovedCommands() {
+	rootCmd.SetFlagErrorFunc(renamedFlagError)
 	for _, moved := range movedCommands {
 		path := strings.Fields(moved.old)
 		parent := rootCmd

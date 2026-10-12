@@ -53,6 +53,7 @@ import (
 
 type walletServeOptions struct {
 	Port                  int
+	Listen                string
 	AllowPrivateNetworks  bool
 	AutoAccept            bool
 	CredFiles             []string
@@ -129,6 +130,7 @@ Every flag can also be set as EUDI_DEV_<FLAG>, such as EUDI_DEV_BASE_URL for --b
 	}
 
 	cmd.Flags().IntVar(&opts.Port, "port", config.DefaultWalletPort, "Wallet server port")
+	addListenFlag(cmd, &opts.Listen, "--docker binds 0.0.0.0 unless this flag or the variable is set. ")
 	cmd.Flags().BoolVar(&opts.AutoAccept, "auto-accept", false, "Approve presentations and credential offers without asking. --demo ignores $EUDI_DEV_AUTO_ACCEPT and takes this flag from the command line only")
 	cmd.Flags().StringSliceVar(&opts.CredFiles, "credential", nil, "Import credential from file (repeatable)")
 	cmd.Flags().StringVar(&opts.CredentialsFile, "credentials", "", "Credentials to issue or import on every start and after a demo reset: a YAML or JSON file, a directory of such files, or '-' for stdin")
@@ -435,8 +437,13 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	if opts.CredentialsFile == "-" && opts.CatalogFile == "-" {
 		return fmt.Errorf("--credentials and --catalog can't both read stdin")
 	}
+	listenHost, err := resolveListenHost(cmd, opts.Listen, opts.Docker)
+	if err != nil {
+		return err
+	}
+	localURL := netaddr.LocalURL(listenHost, opts.Port)
 	if opts.Detached {
-		return spawnDetachedServe(cmd, opts.Port, opts.Register, opts.NoRegister)
+		return spawnDetachedServe(cmd, localURL, opts.Register, opts.NoRegister)
 	}
 	logFormat, err := serverlog.ParseFormat(opts.LogFormat)
 	if err != nil {
@@ -556,7 +563,7 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	w.ServingOrigin = origin.Base
 
 	// The serving URLs are resolved, so the policy can exempt them.
-	operatorURLs := append([]string{w.BaseURL, w.IssuerURL, fmt.Sprintf("http://localhost:%d", opts.Port)}, w.TrustSettings.ConfiguredLists...)
+	operatorURLs := append([]string{w.BaseURL, w.IssuerURL, localURL}, w.TrustSettings.ConfiguredLists...)
 	operatorURLs = append(operatorURLs, format.ProxyURLs(format.ProxySettings{HTTPProxy: walletHTTPProxy, HTTPSProxy: walletHTTPSProxy})...)
 	reachesPrivateNetworks, err := installFetchPolicy(cmd, opts.AllowPrivateNetworks, opts.Demo, operatorURLs...)
 	if err != nil {
@@ -637,8 +644,11 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 
 	cyan.Printf("%s %s\n", config.WalletName, Version)
 	dim.Println("───────────────────────────────────────")
-	fmt.Printf("  Server:        http://localhost:%d\n", opts.Port)
-	if publicHTTPURL != fmt.Sprintf("http://localhost:%d", opts.Port) {
+	fmt.Printf("  Server:        %s\n", localURL)
+	if !netaddr.IsLoopback(listenHost) {
+		yellow.Printf("                 bound to %s, open to the network\n", listenHost)
+	}
+	if publicHTTPURL != localURL {
 		dim.Printf("                 %s\n", publicHTTPURL)
 	}
 	if issuerViaBaseURL {
@@ -740,6 +750,7 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	}
 
 	srv := wallet.NewServer(w, opts.Port, nil)
+	srv.SetListenHost(listenHost)
 	srv.SetStore(store)
 	srv.SetVersion(Version)
 	srv.SetImprint(imprintHTML)
@@ -774,7 +785,7 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 		if base := strings.TrimSpace(w.BaseURL); base != "" {
 			return base
 		}
-		return fmt.Sprintf("http://localhost:%d", opts.Port)
+		return localURL
 	})
 	demoRP.SetClientAuthMode(clientAuthMode)
 	demoRP.SetVerifierTrustAnchors(verifierTrustAnchors)
@@ -816,7 +827,7 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	// visitors reach it through the browser redirect.
 	if !w.AutoAccept && !opts.Demo {
 		srv.SetOnUIRequest(func(requestID string) {
-			target := fmt.Sprintf("http://localhost:%d/?focus=overview", opts.Port)
+			target := localURL + "/?focus=overview"
 			if requestID != "" {
 				// Pass the request id so the tab answers this request and no other
 				// pending one.
@@ -844,7 +855,7 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	if err := remote.RegisterInstance(remote.Instance{
 		PID:       processID,
 		Port:      opts.Port,
-		URL:       fmt.Sprintf("http://localhost:%d", opts.Port),
+		URL:       localURL,
 		WalletDir: store.Dir,
 		StartedAt: time.Now(),
 	}); err != nil && !readOnlyHome(err) {

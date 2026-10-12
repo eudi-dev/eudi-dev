@@ -103,6 +103,27 @@ test.describe("Docker Image", () => {
     }
   });
 
+  // The image sets EUDI_DEV_LISTEN=0.0.0.0, so every server in it answers
+  // on the published port, not only the wallet.
+  test("the decoder in the image answers on its published port", async () => {
+    const name = `${CONTAINER_NAME}-decoder`;
+    const hostPort = HOST_PORT + 3;
+    try {
+      execSync(`docker rm -f ${name}`, { stdio: "pipe" });
+    } catch {}
+    execSync(
+      `docker run -d --name ${name} -p ${hostPort}:8080 ${DOCKER_IMAGE} decoder`,
+      { stdio: "pipe" }
+    );
+    try {
+      await waitForServer(`http://localhost:${hostPort}`, 30_000);
+      const res = await httpGet(`http://localhost:${hostPort}/`);
+      expect(res.status).toBe(200);
+    } finally {
+      execSync(`docker rm -f ${name}`, { stdio: "pipe" });
+    }
+  });
+
   test("an unknown EUDI_DEV_ variable stops the wallet", () => {
     let output = "";
     try {

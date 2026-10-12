@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/config"
+	"github.com/eudi-dev/eudi-dev/v3/internal/netaddr"
 	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
 )
 
@@ -86,7 +87,7 @@ func (s *Server) startIssuerTLSServer() error {
 		s.SetIssuerTLSCertificate(cert)
 	}
 
-	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", s.issuerPort))
+	ln, err := net.Listen("tcp", netaddr.ListenAddr(s.listenHost, s.issuerPort))
 	if err != nil {
 		return fmt.Errorf("listening for issuer HTTPS server: %w", err)
 	}

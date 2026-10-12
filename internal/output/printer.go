@@ -19,7 +19,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -942,8 +941,4 @@ func PrintTrustList(tl *lote.List, opts Options) {
 		}
 	}
 	fmt.Println()
-}
-
-func PrintError(msg string) {
-	fmt.Fprintf(os.Stderr, "%s %s\n", errorColor.Sprint("Error:"), msg)
 }

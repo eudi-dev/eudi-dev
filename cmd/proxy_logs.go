@@ -93,7 +93,7 @@ Examples:
 
 			var last *proxy.TrafficEntry
 			for _, entry := range entries {
-				proxy.PrintEntryWithDecodeBase(entry, client.BaseURL)
+				proxy.PrintEntry(entry, client.BaseURL)
 				last = entry
 			}
 			if !follow {
@@ -131,7 +131,7 @@ func followProxyEntries(ctx context.Context, client *proxy.DashboardClient, stre
 			if printedUpTo(last, entry) {
 				continue
 			}
-			proxy.PrintEntryWithDecodeBase(entry, client.BaseURL)
+			proxy.PrintEntry(entry, client.BaseURL)
 			last = entry
 		}
 		_ = stream.Close()
@@ -194,7 +194,7 @@ func printMissedEntries(ctx context.Context, client *proxy.DashboardClient, out 
 		if printedUpTo(last, entry) {
 			continue
 		}
-		proxy.PrintEntryWithDecodeBase(entry, client.BaseURL)
+		proxy.PrintEntry(entry, client.BaseURL)
 		last = entry
 	}
 	return last

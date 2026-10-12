@@ -116,11 +116,11 @@ python3 -m venv "$VENV_DIR"
 
 # The local suite competes for CPU with the wallet. Raise the remote timeout because a
 # timed out flow cannot resume.
-EUDI_REMOTE_TIMEOUT=${EUDI_REMOTE_TIMEOUT:-120s}
-export EUDI_REMOTE_TIMEOUT
+EUDI_DEV_REMOTE_TIMEOUT=${EUDI_DEV_REMOTE_TIMEOUT:-120s}
+export EUDI_DEV_REMOTE_TIMEOUT
 
 if [ "$WALLET_MANAGED" = "1" ]; then
-  echo "Starting wallet on $WALLET_URL (remote timeout $EUDI_REMOTE_TIMEOUT)"
+  echo "Starting wallet on $WALLET_URL (remote timeout $EUDI_DEV_REMOTE_TIMEOUT)"
   (
     cd "$ROOT_DIR"
     if [ -n "$WALLET_BASE_URL" ]; then

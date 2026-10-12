@@ -14,6 +14,9 @@ COPY --from=build /app/eudi /usr/local/bin/
 USER app
 # wallet serve reads each flag from EUDI_DEV_<FLAG>. A flag on the command wins.
 ENV EUDI_DEV_PORT=8085 EUDI_DEV_AUTO_ACCEPT=true EUDI_DEV_PID=true
+# Published ports reach the container on its network interface, so the
+# servers bind every interface instead of loopback.
+ENV EUDI_DEV_LISTEN=0.0.0.0
 # Memory storage and a public seed give each restart the same keys. For persistence,
 # select file or Postgres storage and clear EUDI_DEV_SEED to generate random keys.
 ENV EUDI_DEV_STORAGE=memory

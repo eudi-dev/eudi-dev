@@ -16,6 +16,7 @@ examples/      Keycloak and web-wallet integration examples
 
 | Package | Responsibility |
 |---|---|
+| `apierror` | The JSON error object of the HTTP APIs (RFC 6749 §5.2 shape) |
 | `certchain` | Certificate chains of JOSE (x5c) and COSE (x5chain) messages and their verification against trust anchors |
 | `config` | Defaults (ports, timeouts) and the product names that certificates and trusted lists carry |
 | `consent` | Consent requests, the credential options of a presentation, the selection logic and the in-memory runtime of pending requests (ADR-0011) |

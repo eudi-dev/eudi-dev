@@ -19,6 +19,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
 	"github.com/eudi-dev/eudi-dev/v3/internal/trustedlists"
 )
 
@@ -33,7 +34,7 @@ func (s *Server) handleAddTrustedEntity(w http.ResponseWriter, r *http.Request) 
 		Certificates string `json:"certificates"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON body"})
+		apierror.WriteStatus(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
 	entity, err := s.management().AddTrustedEntity(body.List, body.Name, body.Certificates)
@@ -53,7 +54,7 @@ func (s *Server) handleAddTrustedList(w http.ResponseWriter, r *http.Request) {
 		URL string `json:"url"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON body"})
+		apierror.WriteStatus(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
 	added, err := s.management().AddTrustedList(body.URL)
@@ -71,11 +72,11 @@ func (s *Server) handleRemoveTrustedList(w http.ResponseWriter, r *http.Request)
 func writeTrustResult(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, trustedlists.ErrNotFound):
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+		apierror.WriteStatus(w, http.StatusNotFound, err.Error())
 	case errors.Is(err, trustedlists.ErrFull):
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+		apierror.WriteStatus(w, http.StatusForbidden, err.Error())
 	case err != nil:
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		apierror.WriteStatus(w, http.StatusBadRequest, err.Error())
 	default:
 		w.WriteHeader(http.StatusNoContent)
 	}

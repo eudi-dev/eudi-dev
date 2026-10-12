@@ -337,7 +337,7 @@
       .then((data) => {
         if (seq !== decodeSeq || renderedSeq === seq) return;
         if (data.error) {
-          showDecodeError(data.error);
+          showDecodeError(data.error_description || data.error);
           return;
         }
         render(seq, data, { awaitingNetworkChecks: true });
@@ -350,7 +350,7 @@
       .then((data) => {
         if (seq !== decodeSeq) return;
         if (data.error) {
-          showDecodeError(data.error);
+          showDecodeError(data.error_description || data.error);
           return;
         }
         lastData = data;
@@ -405,7 +405,7 @@
       .then((data) => {
         if (seq !== decodeSeq) return;
         if (data.error) {
-          showToast("Verification error: " + data.error);
+          showToast("Verification error: " + (data.error_description || data.error));
           return;
         }
         render(seq, data, {});
@@ -1502,7 +1502,7 @@
       .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
       .then(({ ok, data }) => {
         if (!ok || !data.credential) {
-          throw new Error(data.error || "the wallet returned no credential");
+          throw new Error(data.error_description || data.error || "the wallet returned no credential");
         }
         walletCredential = { id: id, credential: data.credential };
         history.replaceState({ credential: data.credential }, "", buildCredentialURL(data.credential));

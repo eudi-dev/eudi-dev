@@ -54,6 +54,12 @@ By default only OID4VP/VCI traffic is shown. Other requests (favicon, health che
 - **JARM/JWE detection**: shows encrypted response headers and the verifier's ephemeral public key
 - **NDJSON output**: `--json` prints one JSON object per line
 
+## Bodies and streams
+
+The proxy forwards every body in full. It keeps the first MiB of each request and response body for the terminal, the dashboard and the HAR export. A longer body is marked `requestTruncated` or `responseTruncated` in `--json`. In a response it keeps whole, the proxy replaces the host of the target with its own. A longer response passes through unchanged.
+
+Event streams pass through as each event arrives. Event streams and long polls stay open past the server's write timeout, because each write gets a new deadline.
+
 ## Flags
 
 | Flag             | Default | Description                              |
@@ -61,6 +67,7 @@ By default only OID4VP/VCI traffic is shown. Other requests (favicon, health che
 | `--target`       | None    | URL of the verifier/issuer (required)    |
 | `--port`         | `9090`  | Proxy listen port                        |
 | `--dashboard`    | `9091`  | Dashboard listen port                    |
+| `--listen` | `$EUDI_DEV_LISTEN`, else `127.0.0.1` | IP address the proxy and its dashboard bind. `0.0.0.0` opens them to the network (see [listen address](wallet/serve.md#listen-address)) |
 | `--no-dashboard` | `false` | Disable web dashboard                    |
 | `--dashboard-base-url` | None | Public dashboard URL when a reverse proxy serves it under a path prefix, such as `https://example.com/eudi-proxy` (see [reverse proxy setup](reverse-proxy.md#proxy-dashboard)) |
 | `--all-traffic`  | `false` | Show all traffic                          |

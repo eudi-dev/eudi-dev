@@ -26,15 +26,15 @@ import (
 	"time"
 )
 
-// Streaming has no deadline, so history reads need their own timeout.
+// Streaming has no deadline, so history reads need their own timeout. A
+// dashboard that does not send the response head in this time fails too.
 var entriesTimeout = 30 * time.Second
 
 // DashboardClient reads the dashboard's traffic history and event stream.
 type DashboardClient struct {
 	// BaseURL is the dashboard origin, without a trailing slash.
 	BaseURL string
-	// HTTPClient sends the requests. A nil client uses a default client
-	// without a timeout because a stream has no deadline.
+	// HTTPClient sends the requests. A nil client uses newDashboardHTTPClient.
 	HTTPClient *http.Client
 }
 
@@ -59,14 +59,22 @@ func NewDashboardClient(rawURL string) (*DashboardClient, error) {
 		return nil, fmt.Errorf("dashboard URL %q must be http or https", rawURL)
 	}
 	base := parsed.Scheme + "://" + parsed.Host + strings.TrimRight(parsed.Path, "/")
-	return &DashboardClient{BaseURL: base}, nil
+	return &DashboardClient{BaseURL: base, HTTPClient: newDashboardHTTPClient()}, nil
+}
+
+// newDashboardHTTPClient sets no overall timeout because an event stream
+// stays open. It limits the wait for the response head instead.
+func newDashboardHTTPClient() *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.ResponseHeaderTimeout = entriesTimeout
+	return &http.Client{Transport: transport}
 }
 
 func (c *DashboardClient) httpClient() *http.Client {
 	if c.HTTPClient != nil {
 		return c.HTTPClient
 	}
-	return http.DefaultClient
+	return newDashboardHTTPClient()
 }
 
 func (c *DashboardClient) get(ctx context.Context, path string) (*http.Response, error) {

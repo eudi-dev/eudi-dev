@@ -15,8 +15,10 @@
 package format
 
 import (
+	"bytes"
 	"crypto/x509"
 	"errors"
+	"log"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -288,9 +290,22 @@ func TestResolveRemoteTimeout(t *testing.T) {
 		{"negative", "-5s", DefaultRemoteTimeout},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := resolveRemoteTimeout(tc.raw); got != tc.want {
+			if got := resolveRemoteTimeout(tc.raw, ""); got != tc.want {
 				t.Errorf("resolveRemoteTimeout(%q) = %s, want %s", tc.raw, got, tc.want)
 			}
 		})
+	}
+}
+
+// The eudi-dev 2 variable no longer sets the timeout, and a warning says so.
+func TestOldRemoteTimeoutVariableOnlyWarns(t *testing.T) {
+	var logged bytes.Buffer
+	log.SetOutput(&logged)
+	t.Cleanup(func() { log.SetOutput(os.Stderr) })
+	if got := resolveRemoteTimeout("", "2m"); got != DefaultRemoteTimeout {
+		t.Errorf("timeout = %s, want the default %s", got, DefaultRemoteTimeout)
+	}
+	if !strings.Contains(logged.String(), "ignoring EUDI_REMOTE_TIMEOUT, which is EUDI_DEV_REMOTE_TIMEOUT in 3.0") {
+		t.Errorf("logged %q, want a warning naming the new variable", logged.String())
 	}
 }

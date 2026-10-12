@@ -36,6 +36,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
+
 	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
@@ -195,8 +197,8 @@ func TestAnswerConsentTimeout(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
 	}
-	if body["error"] != apiErrorConsentTimeout {
-		t.Errorf("error = %q, want %q", body["error"], apiErrorConsentTimeout)
+	if body["error"] != apierror.ConsentTimeout {
+		t.Errorf("error = %q, want %q", body["error"], apierror.ConsentTimeout)
 	}
 	select {
 	case result := <-req.SubmissionCh:
@@ -518,9 +520,9 @@ func TestStaticFiles_JS(t *testing.T) {
 	}
 }
 
-// Every flow endpoint answers a rejected call with the RFC 6749 §5.2 error
+// Every API endpoint answers a rejected call with the RFC 6749 §5.2 error
 // object, so a client reads one shape.
-func TestFlowAPIErrorsUseTheErrorObject(t *testing.T) {
+func TestAPIErrorsUseTheErrorObject(t *testing.T) {
 	srv := newTestServer(t, true)
 
 	for _, tc := range []struct {
@@ -543,6 +545,21 @@ func TestFlowAPIErrorsUseTheErrorObject(t *testing.T) {
 		{"deny unknown request", "POST", "/api/requests/missing/deny", "", http.StatusNotFound, "not_found", "request not found"},
 		{"approve malformed body", "POST", "/api/requests/missing/approve", "not json", http.StatusBadRequest, "invalid_request", "invalid JSON body"},
 		{"collect unknown deferred", "POST", "/api/deferred/missing/collect", "", http.StatusNotFound, "not_found", "no deferred issuance with that id"},
+		{"credential unknown", "GET", "/api/credentials/missing", "", http.StatusNotFound, "not_found", ""},
+		{"credential list invalid limit", "GET", "/api/credentials?limit=x", "", http.StatusBadRequest, "invalid_request", "invalid limit"},
+		{"credential import without body", "POST", "/api/credentials", "", http.StatusBadRequest, "invalid_request", "empty body"},
+		{"credential status unknown", "POST", "/api/credentials/missing/status", `{"status":1}`, http.StatusNotFound, "not_found", ""},
+		{"preferred format malformed body", "PUT", "/api/config/preferred-format", "not json", http.StatusBadRequest, "invalid_request", "invalid JSON body"},
+		{"auto accept malformed body", "PUT", "/api/config/auto-accept", "not json", http.StatusBadRequest, "invalid_request", "invalid JSON body"},
+		{"next error malformed body", "POST", "/api/next-error", "not json", http.StatusBadRequest, "invalid_request", "invalid JSON body"},
+		{"conformance unknown field", "PUT", "/api/config/conformance", `{"bogus":true}`, http.StatusBadRequest, "invalid_request", "invalid conformance settings"},
+		{"template unknown", "GET", "/api/templates/missing", "", http.StatusNotFound, "not_found", ""},
+		{"trust entity malformed body", "POST", "/api/trust/entities", "not json", http.StatusBadRequest, "invalid_request", "invalid JSON body"},
+		{"certificate without a store", "GET", "/api/certificates/ca", "", http.StatusServiceUnavailable, "temporarily_unavailable", "wallet store is not configured"},
+		{"trusted list unknown", "GET", "/api/trustlists/missing", "", http.StatusNotFound, "not_found", "trusted list not found"},
+		{"status list history", "GET", "/api/statuslist?time=1", "", http.StatusNotImplemented, "not_implemented", "time query parameter"},
+		{"registrar party unknown", "GET", "/api/registrar/wrp/missing", "", http.StatusNotFound, "not_found", ""},
+		{"catalog schema unknown", "GET", "/api/catalog/schemas/missing", "", http.StatusNotFound, "not_found", "attestation schema not found"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			rec := serverRequest(t, srv, tc.method, tc.path, tc.body)

@@ -28,6 +28,8 @@ import (
 	"path"
 	"strings"
 	"time"
+
+	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
 )
 
 func (s *Server) handleSigningCertificate(w http.ResponseWriter, r *http.Request) {
@@ -44,7 +46,7 @@ func (s *Server) handleSigningCertificate(w http.ResponseWriter, r *http.Request
 		if errors.Is(err, fs.ErrNotExist) {
 			http.NotFound(w, r)
 		} else {
-			http.Error(w, "reading signing certificate: "+err.Error(), http.StatusInternalServerError)
+			apierror.WriteStatus(w, http.StatusInternalServerError, "reading signing certificate: "+err.Error())
 		}
 		return
 	}
@@ -70,7 +72,7 @@ func writeProviderCAError(w http.ResponseWriter, r *http.Request, err error) {
 		http.NotFound(w, r)
 		return
 	}
-	http.Error(w, "loading provider CA: "+err.Error(), http.StatusInternalServerError)
+	apierror.WriteStatus(w, http.StatusInternalServerError, "loading provider CA: "+err.Error())
 }
 
 func (s *Server) handleProviderCertificateDER(w http.ResponseWriter, r *http.Request) {
@@ -94,7 +96,7 @@ func (s *Server) handleProviderCRL(w http.ResponseWriter, r *http.Request) {
 		Number: big.NewInt(now.Unix()), ThisUpdate: now, NextUpdate: now.Add(crlUpdateInterval),
 	}, cert, key)
 	if err != nil {
-		http.Error(w, "signing CRL: "+err.Error(), http.StatusInternalServerError)
+		apierror.WriteStatus(w, http.StatusInternalServerError, "signing CRL: "+err.Error())
 		return
 	}
 	w.Header().Set("Content-Type", "application/pkix-crl")

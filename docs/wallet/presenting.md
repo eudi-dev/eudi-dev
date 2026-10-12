@@ -42,7 +42,8 @@ eudi wallet accept 'openid-credential-offer://...' --tx-code 123456
 | `--mode`                | `debug`  | Validation mode: `debug` or `strict`             |
 | `--session-transcript`  | `oid4vp` | mdoc session transcript mode: `oid4vp` or `iso`  |
 | `--tx-code`             | None     | Transaction code for OID4VCI pre-authorized code flow |
-| `--docker`              | `false`  | Serve the trust and status lists under `host.docker.internal` for verifiers in a container |
+| `--docker`              | `false`  | Serve the trust and status lists under `host.docker.internal` for verifiers in a container. The server then binds `0.0.0.0` unless `--listen` says otherwise |
+| `--listen`              | `$EUDI_DEV_LISTEN`, else `127.0.0.1` | IP address the local server binds (see [listen address](serve.md#listen-address)) |
 | `--key-attestation-level` | Issuer requirements | Test claims for key storage and user authentication: issuer requirements (default), `none`, or a level such as `iso_18045_high`. See [key attestation claims](serve.md#key-attestation-claims) |
 | `--haip`                | `false`  | Check incoming presentations and credential offers against HAIP 1.0. `--mode` sets how violations are handled: strict refuses the flow, debug reports them and continues |
 | `--arf`                 | `false`  | Check the access and registration certificates of verifiers and issuers against the ARF (see [ARF checks](#arf-checks) and [issuers](issuing.md#arf-checks)). With `--mode strict` the wallet refuses the request or the offer on any finding |

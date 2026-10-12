@@ -18,10 +18,12 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
@@ -127,7 +129,12 @@ func (s *Server) handleAuthFlow(w http.ResponseWriter, authReq *oid4vp.Request) 
 		s.log("  Mode:          interactive (waiting for consent)")
 		shown := make(chan *consent.Request, 1)
 		go s.awaitPresentationConsent(noopResponseWriter{}, authReq, outcome, func(req *consent.Request) { shown <- req })
-		redirectBrowser(w, "/?request="+(<-shown).ID)
+		req := <-shown
+		if req == nil {
+			s.refuseBusy(w, consent.ErrTooManyPending)
+			return
+		}
+		redirectBrowser(w, "/?request="+req.ID)
 	default:
 		s.log("  Mode:          interactive (waiting for consent)")
 		s.awaitPresentationConsent(w, authReq, outcome, nil)
@@ -166,10 +173,11 @@ func (s *Server) autoAccepts(authReq *oid4vp.Request) bool {
 }
 
 // awaitPresentationConsent asks the user and delivers the answer. The
-// submission channel also delivers the result to the approve API.
+// submission channel also delivers the result to the approve API. shown gets
+// nil when the wallet refuses to ask.
 func (s *Server) awaitPresentationConsent(w http.ResponseWriter, authReq *oid4vp.Request, outcome presentationOutcome, shown func(*consent.Request)) {
 	s.allowSlowResponse(w, config.ConsentTimeout)
-	consentReq, matches, approved, answered := s.wallet.askPresentationConsent(consent.TypePresentation, authReq.Session, authReq.ClientID, authReq, outcome, config.ConsentTimeout, func(req *consent.Request) {
+	consentReq, matches, approved, answered, err := s.wallet.askPresentationConsent(consent.TypePresentation, authReq.Session, authReq.ClientID, authReq, outcome, config.ConsentTimeout, func(req *consent.Request) {
 		s.triggerUIRequest(req.ID)
 		if s.onConsentRequest != nil {
 			s.onConsentRequest(req)
@@ -179,6 +187,11 @@ func (s *Server) awaitPresentationConsent(w http.ResponseWriter, authReq *oid4vp
 		}
 	})
 	switch {
+	case err != nil:
+		if shown != nil {
+			shown(nil)
+		}
+		s.refuseBusy(w, err)
 	case !answered:
 		s.answerConsentTimeout(w, "presentation", consentReq)
 	case !approved:
@@ -190,11 +203,19 @@ func (s *Server) awaitPresentationConsent(w http.ResponseWriter, authReq *oid4vp
 	}
 }
 
+// refuseBusy answers a flow the wallet does not start because too many wait
+// for consent.
+func (s *Server) refuseBusy(w http.ResponseWriter, err error) {
+	s.log("  REFUSED: %v", err)
+	w.Header().Set("Retry-After", strconv.Itoa(int(config.ConsentTimeout.Seconds())))
+	apierror.Write(w, http.StatusServiceUnavailable, apierror.TemporarilyUnavailable, err.Error())
+}
+
 // answerConsentTimeout ends a consent request that nobody answered in time.
 func (s *Server) answerConsentTimeout(w http.ResponseWriter, action string, req *consent.Request) {
 	s.wallet.AddLog(action, "Consent timed out", false)
 	req.SubmissionCh <- consent.SubmissionResult{Error: "consent timeout", StatusCode: http.StatusRequestTimeout}
-	writeAPIError(w, http.StatusRequestTimeout, apiErrorConsentTimeout, "consent timeout")
+	apierror.Write(w, http.StatusRequestTimeout, apierror.ConsentTimeout, "consent timeout")
 }
 
 func (s *Server) logDeniedPresentation(authReq *oid4vp.Request) {
@@ -305,7 +326,7 @@ func withRedirectURI(body map[string]any, redirectURI string) map[string]any {
 func (s *Server) submitAuthorizationError(w http.ResponseWriter, authReq *oid4vp.Request, status, errorCode, errorDescription string) consent.SubmissionResult {
 	result, err := s.deliverAuthorizationError(authReq, errorCode, errorDescription)
 	if err != nil {
-		writeAPIError(w, http.StatusBadGateway, apiErrorServerError, err.Error())
+		apierror.Write(w, http.StatusBadGateway, apierror.ServerError, err.Error())
 		return consent.SubmissionResult{Error: err.Error()}
 	}
 
@@ -340,7 +361,7 @@ func (s *Server) submitPresentation(w http.ResponseWriter, authReq *oid4vp.Reque
 	if err != nil {
 		s.log("  ERROR: Presentation preparation failed: %v", err)
 		s.wallet.AddLog("presentation", fmt.Sprintf("Presentation preparation failed: %v", err), false)
-		writeAPIError(w, http.StatusInternalServerError, apiErrorServerError, err.Error())
+		apierror.Write(w, http.StatusInternalServerError, apierror.ServerError, err.Error())
 		return consent.SubmissionResult{Error: err.Error()}
 	}
 	if prepared.VPResult != nil {
@@ -353,7 +374,7 @@ func (s *Server) submitPresentation(w http.ResponseWriter, authReq *oid4vp.Reque
 	result, err := s.wallet.submitPreparedPresentation(authReq, matches, prepared)
 	if err != nil {
 		s.log("  ERROR: Submission failed: %v", err)
-		writeAPIError(w, http.StatusBadGateway, apiErrorServerError, err.Error())
+		apierror.Write(w, http.StatusBadGateway, apierror.ServerError, err.Error())
 		return consent.SubmissionResult{Error: err.Error()}
 	}
 

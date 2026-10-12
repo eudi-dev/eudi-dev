@@ -38,6 +38,8 @@ import (
 type dispatchOID4Opts struct {
 	port              int
 	portExplicit      bool
+	listenHost        string
+	listenExplicit    bool
 	autoAccept        bool
 	sessionTranscript string
 	txCode            string
@@ -78,7 +80,7 @@ func dispatchURI(uri string, opts dispatchOID4Opts) error {
 		if err != nil {
 			return err
 		}
-		return runPresent(w, store, uri, port, opts.docker)
+		return runPresent(w, store, uri, opts.listenHost, port, opts.docker)
 
 	case format.FormatOID4VCI:
 		return processCredentialOffer(uri, opts)
@@ -92,9 +94,12 @@ func dispatchURI(uri string, opts dispatchOID4Opts) error {
 // request takes the flow of POST /api/presentations, the one every entry
 // point uses (ADR-0012). The server also serves the trusted list the verifier
 // reads and the consent dialog.
-func runPresent(w *wallet.Wallet, store *wallet.WalletStore, uri string, port int, docker bool) error {
+func runPresent(w *wallet.Wallet, store *wallet.WalletStore, uri, listenHost string, port int, docker bool) error {
 	setLocalPresentationIssuerURL(w, port, docker)
 	srv := wallet.NewServer(w, port, nil)
+	if listenHost != "" {
+		srv.SetListenHost(listenHost)
+	}
 	if err := configureIssuerTLSCertificate(srv, store, w.IssuerURL); err != nil {
 		return err
 	}

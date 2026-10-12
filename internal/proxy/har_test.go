@@ -150,3 +150,27 @@ func TestGenerateHARCreator(t *testing.T) {
 		t.Errorf("expected creator name eudi-dev, got %v", creator["name"])
 	}
 }
+
+// HAR 1.2 has -1 for a size that is not known, and a truncated body has no
+// known size.
+func TestGenerateHARMarksTruncatedBodies(t *testing.T) {
+	har := GenerateHAR([]*TrafficEntry{{
+		Method:            "POST",
+		URL:               "http://example.com/upload",
+		RequestBody:       "start",
+		RequestTruncated:  true,
+		StatusCode:        200,
+		ResponseBody:      "start",
+		ResponseTruncated: true,
+	}})
+	entry := har["log"].(map[string]any)["entries"].([]map[string]any)[0]
+	req := entry["request"].(map[string]any)
+	resp := entry["response"].(map[string]any)
+	content := resp["content"].(map[string]any)
+	if req["bodySize"] != -1 || resp["bodySize"] != -1 || content["size"] != -1 {
+		t.Errorf("sizes %v, %v, %v, want -1", req["bodySize"], resp["bodySize"], content["size"])
+	}
+	if req["postData"].(map[string]any)["comment"] != harTruncatedComment || content["comment"] != harTruncatedComment {
+		t.Errorf("the truncated bodies carry no comment: %v, %v", req["postData"], content)
+	}
+}

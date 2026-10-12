@@ -92,7 +92,7 @@ func TestPrintEntryIncludesDecodeHints(t *testing.T) {
 		CredentialLabels: []string{"vp_token"},
 	}
 
-	output := captureOutput(t, func() { PrintEntry(entry, 0) })
+	output := captureOutput(t, func() { PrintEntry(entry, "") })
 
 	if !strings.Contains(output, "eudi decode") {
 		t.Error("expected decode hint in output")
@@ -146,7 +146,7 @@ func TestPrintEntryWithDashboardPortRendersDecodeLinkPerCredential(t *testing.T)
 		CredentialLabels: []string{"vp_token.pid[0]", "vp_token.mdl[0]"},
 	}
 
-	output := captureOutput(t, func() { PrintEntry(entry, 9091) })
+	output := captureOutput(t, func() { PrintEntry(entry, "http://localhost:9091") })
 
 	if strings.Count(output, "http://localhost:9091/decode/#credential=") != 2 {
 		t.Errorf("expected 2 decode links, got %q", output)
@@ -199,7 +199,7 @@ func TestPrintEntryGroupsRequestResponseAndDecodeSections(t *testing.T) {
 		CredentialLabels: []string{"access_token", "refresh_token"},
 	}
 
-	output := captureOutput(t, func() { PrintEntry(entry, 9091) })
+	output := captureOutput(t, func() { PrintEntry(entry, "http://localhost:9091") })
 
 	if !strings.Contains(output, longURL) {
 		t.Fatalf("expected full URL in entry header, got %q", output)
@@ -263,7 +263,7 @@ func TestPrintEntryShowsPostHeadersAndBodyButFiltersInternalHeaders(t *testing.T
 		RequestBody: `{"credential_identifier":"membership-credential_0000"}`,
 	}
 
-	output := captureOutput(t, func() { PrintEntry(entry, 0) })
+	output := captureOutput(t, func() { PrintEntry(entry, "") })
 
 	if !strings.Contains(output, "  request headers:\n") {
 		t.Fatalf("expected request headers section, got %q", output)
@@ -346,7 +346,7 @@ func TestPrintEntryShowsRedirectLocationAsResponseHeader(t *testing.T) {
 		FlowID:     "flow-redirect",
 	}
 
-	output := captureOutput(t, func() { PrintEntry(entry, 0) })
+	output := captureOutput(t, func() { PrintEntry(entry, "") })
 
 	if strings.Contains(output, "302 https://wallet.example/callback?code=abc&state=s1") {
 		t.Fatalf("expected redirect location not to be adjacent to status in header, got %q", output)

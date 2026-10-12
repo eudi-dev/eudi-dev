@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
 	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
@@ -37,7 +38,7 @@ import (
 func (s *Server) handleGetCredential(w http.ResponseWriter, r *http.Request) {
 	summary, err := s.management().Credential(r.PathValue("id"))
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+		apierror.WriteStatus(w, http.StatusNotFound, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, withPublicImagePaths(r, summary))
@@ -49,7 +50,7 @@ func (s *Server) handleGetCredentialStatus(w http.ResponseWriter, r *http.Reques
 	id := r.PathValue("id")
 	cred, ok := s.wallet.GetCredential(id)
 	if !ok {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "credential not found"})
+		apierror.WriteStatus(w, http.StatusNotFound, "credential not found")
 		return
 	}
 
@@ -69,13 +70,13 @@ func (s *Server) handleGetCredentialStatus(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if ref == nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "credential has no status list reference"})
+		apierror.WriteStatus(w, http.StatusNotFound, "credential has no status list reference")
 		return
 	}
 	if ref.Invalid != "" {
 		// A malformed status_list object violates section 6.2. Report it as a
 		// credential error.
-		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": ref.Invalid})
+		apierror.WriteStatus(w, http.StatusUnprocessableEntity, ref.Invalid)
 		return
 	}
 
@@ -99,9 +100,10 @@ func (s *Server) handleGetCredentialStatus(w http.ResponseWriter, r *http.Reques
 				"error":         err.Error(),
 			})
 		writeJSON(w, http.StatusBadGateway, map[string]any{
-			"error": "checking external status list: " + err.Error(),
-			"uri":   ref.URI,
-			"idx":   ref.Idx,
+			"error":             apierror.ServerError,
+			"error_description": "checking external status list: " + err.Error(),
+			"uri":               ref.URI,
+			"idx":               ref.Idx,
 		})
 		return
 	}
@@ -121,7 +123,7 @@ func (s *Server) handleGetCredentialStatus(w http.ResponseWriter, r *http.Reques
 func (s *Server) handleDeleteAllCredentials(w http.ResponseWriter, r *http.Request) {
 	removed, err := s.management().RemoveAllCredentials()
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		apierror.WriteStatus(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, removed)
@@ -232,27 +234,22 @@ func (w *Wallet) IssueSummary(opts IssueOptions) (map[string]any, error) {
 	if result.TemplatePath != "" {
 		summary["template_path"] = result.TemplatePath
 	}
-	// Echo the override. A caller can then detect an older server that ignores it
-	// and signs with its own key.
-	if opts.SigningKey != nil {
-		summary["signing_override"] = true
-	}
 	return summary, nil
 }
 
 func (s *Server) handleIssueCredential(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "reading request body: " + err.Error()})
+		apierror.WriteStatus(w, http.StatusBadRequest, "reading request body: "+err.Error())
 		return
 	}
 	var req IssueAPIRequest
 	if err := json.Unmarshal(body, &req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "parsing request body: " + err.Error()})
+		apierror.WriteStatus(w, http.StatusBadRequest, "parsing request body: "+err.Error())
 		return
 	}
 	if err := refuseRenamedTrustFields(body); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		apierror.WriteStatus(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -260,13 +257,13 @@ func (s *Server) handleIssueCredential(w http.ResponseWriter, r *http.Request) {
 	// read a file of the server.
 	for _, name := range []string{req.Template, req.SaveAsTemplate, req.DisplayTemplate} {
 		if name = strings.TrimSpace(name); name != "" && !credtemplate.IsBareName(name) {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("invalid template name %q", name)})
+			apierror.WriteStatus(w, http.StatusBadRequest, fmt.Sprintf("invalid template name %q", name))
 			return
 		}
 	}
 	summary, err := s.management().Issue(req)
 	if err != nil {
-		writeJSON(w, visitorLimitStatus(err, http.StatusBadRequest), map[string]string{"error": err.Error()})
+		apierror.WriteStatus(w, visitorLimitStatus(err, http.StatusBadRequest), err.Error())
 		return
 	}
 	if req.SaveAsTemplate != "" {
@@ -296,12 +293,12 @@ func credentialTypeLabel(summary map[string]any) string {
 func (s *Server) handleCACertificate(w http.ResponseWriter, r *http.Request) {
 	store := s.currentStore()
 	if store == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "wallet store is not configured"})
+		apierror.WriteStatus(w, http.StatusServiceUnavailable, "wallet store is not configured")
 		return
 	}
 	certPEM, err := store.LoadOrCreateSharedCACertificatePEM()
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "loading wallet CA certificate: " + err.Error()})
+		apierror.WriteStatus(w, http.StatusInternalServerError, "loading wallet CA certificate: "+err.Error())
 		return
 	}
 	writeCertificateExport(w, r, certPEM)
@@ -310,7 +307,7 @@ func (s *Server) handleCACertificate(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleCACertificateDER(w http.ResponseWriter, r *http.Request) {
 	cert := s.wallet.Signer().TrustAnchor()
 	if cert == nil {
-		http.Error(w, "wallet has no CA certificate", http.StatusServiceUnavailable)
+		apierror.WriteStatus(w, http.StatusServiceUnavailable, "wallet has no CA certificate")
 		return
 	}
 	w.Header().Set("Content-Type", "application/pkix-cert")
@@ -320,17 +317,17 @@ func (s *Server) handleCACertificateDER(w http.ResponseWriter, r *http.Request) 
 func (s *Server) handleTLSCertificate(w http.ResponseWriter, r *http.Request) {
 	store := s.currentStore()
 	if store == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "wallet store is not configured"})
+		apierror.WriteStatus(w, http.StatusServiceUnavailable, "wallet store is not configured")
 		return
 	}
 	issuerURL := strings.TrimSpace(s.wallet.IssuerURL)
 	if issuerURL == "" {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "wallet issuer URL is not configured"})
+		apierror.WriteStatus(w, http.StatusServiceUnavailable, "wallet issuer URL is not configured")
 		return
 	}
 	certPEM, err := store.LoadOrCreateIssuerTLSLeafCertificatePEMForURL(issuerURL)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "loading wallet TLS certificate: " + err.Error()})
+		apierror.WriteStatus(w, http.StatusInternalServerError, "loading wallet TLS certificate: "+err.Error())
 		return
 	}
 	writeCertificateExport(w, r, certPEM)
@@ -341,7 +338,7 @@ func (s *Server) handleTLSCertificate(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleRegistrarCertificate(w http.ResponseWriter, r *http.Request) {
 	_, chain, err := s.wallet.Signer().Registrar()
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "loading the registrar certificate: " + err.Error()})
+		apierror.WriteStatus(w, http.StatusInternalServerError, "loading the registrar certificate: "+err.Error())
 		return
 	}
 	writeCertificateExport(w, r, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: chain[0].Raw}))
@@ -350,7 +347,7 @@ func (s *Server) handleRegistrarCertificate(w http.ResponseWriter, r *http.Reque
 func (s *Server) handleRelyingPartyAccessCA(w http.ResponseWriter, r *http.Request) {
 	_, ca, err := s.wallet.Signer().RelyingPartyAccessCA()
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "loading the relying party access CA: " + err.Error()})
+		apierror.WriteStatus(w, http.StatusInternalServerError, "loading the relying party access CA: "+err.Error())
 		return
 	}
 	writeCertificateExport(w, r, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: ca.Raw}))
@@ -359,7 +356,7 @@ func (s *Server) handleRelyingPartyAccessCA(w http.ResponseWriter, r *http.Reque
 func (s *Server) handleRegistrarCA(w http.ResponseWriter, r *http.Request) {
 	_, ca, err := s.wallet.Signer().RegistrarCA()
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "loading the registrar CA: " + err.Error()})
+		apierror.WriteStatus(w, http.StatusInternalServerError, "loading the registrar CA: "+err.Error())
 		return
 	}
 	writeCertificateExport(w, r, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: ca.Raw}))
@@ -373,13 +370,13 @@ func writeCertificateExport(w http.ResponseWriter, r *http.Request, certPEM []by
 	case "jwks":
 		jwks, err := keys.CertificatePEMToJWKS(certPEM)
 		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "building JWKS: " + err.Error()})
+			apierror.WriteStatus(w, http.StatusInternalServerError, "building JWKS: "+err.Error())
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(jwks)
 	default:
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unsupported format: expected pem or jwks"})
+		apierror.WriteStatus(w, http.StatusBadRequest, "unsupported format: expected pem or jwks")
 	}
 }
 

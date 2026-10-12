@@ -64,25 +64,29 @@ func (c TrafficClass) Label() string {
 }
 
 type TrafficEntry struct {
-	ID               int64          `json:"id"`
-	Timestamp        time.Time      `json:"timestamp"`
-	Method           string         `json:"method"`
-	URL              string         `json:"url"`
-	RequestHeaders   http.Header    `json:"requestHeaders"`
-	RequestBody      string         `json:"requestBody,omitempty"`
-	StatusCode       int            `json:"statusCode"`
-	ResponseHeaders  http.Header    `json:"responseHeaders"`
-	ResponseBody     string         `json:"responseBody,omitempty"`
-	Class            TrafficClass   `json:"class"`
-	ClassLabel       string         `json:"classLabel"`
-	Decoded          map[string]any `json:"decoded,omitempty"`
-	Credentials      []string       `json:"credentials,omitempty"`      // raw credential strings found in this entry
-	CredentialLabels []string       `json:"credentialLabels,omitempty"` // human-readable label per credential (parallel to Credentials)
-	Duration         time.Duration  `json:"duration"`
-	DurationMS       int64          `json:"durationMs"`
-	FlowID           string         `json:"flowId,omitempty"`
-	DebugJWEKey      string         `json:"-"` // CEK from X-Debug-JWE-CEK header (internal, not serialized)
-	DebugJWK         string         `json:"-"` // JWK private key from scanner (internal, not serialized)
+	ID             int64       `json:"id"`
+	Timestamp      time.Time   `json:"timestamp"`
+	Method         string      `json:"method"`
+	URL            string      `json:"url"`
+	RequestHeaders http.Header `json:"requestHeaders"`
+	RequestBody    string      `json:"requestBody,omitempty"`
+	// RequestTruncated and ResponseTruncated mark a body the proxy kept only
+	// the start of.
+	RequestTruncated  bool           `json:"requestTruncated,omitempty"`
+	StatusCode        int            `json:"statusCode"`
+	ResponseHeaders   http.Header    `json:"responseHeaders"`
+	ResponseBody      string         `json:"responseBody,omitempty"`
+	ResponseTruncated bool           `json:"responseTruncated,omitempty"`
+	Class             TrafficClass   `json:"class"`
+	ClassLabel        string         `json:"classLabel"`
+	Decoded           map[string]any `json:"decoded,omitempty"`
+	Credentials       []string       `json:"credentials,omitempty"`      // raw credential strings found in this entry
+	CredentialLabels  []string       `json:"credentialLabels,omitempty"` // human-readable label per credential (parallel to Credentials)
+	Duration          time.Duration  `json:"duration"`
+	DurationMS        int64          `json:"durationMs"`
+	FlowID            string         `json:"flowId,omitempty"`
+	DebugJWEKey       string         `json:"-"` // CEK from X-Debug-JWE-CEK header (internal, not serialized)
+	DebugJWK          string         `json:"-"` // JWK private key from scanner (internal, not serialized)
 }
 
 // EntryWriter is called for each intercepted traffic entry.

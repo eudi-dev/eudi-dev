@@ -15,6 +15,7 @@
 package consent
 
 import (
+	"errors"
 	"net/url"
 	"sync"
 	"time"
@@ -27,18 +28,51 @@ const (
 	consentRequestMaxAge     = time.Hour
 )
 
-func (rt *Runtime) Create(req *Request) {
+// DefaultMaxPending caps the requests that wait for an answer. Each one holds
+// a waiting flow until it times out.
+const DefaultMaxPending = 100
+
+// ErrTooManyPending refuses a flow while the maximum number of flows waits
+// for the user.
+var ErrTooManyPending = errors.New("too many flows wait for the user, try again later")
+
+// SetMaxPending sets how many requests may wait for an answer at once.
+func (rt *Runtime) SetMaxPending(n int) {
+	rt.mu.Lock()
+	defer rt.mu.Unlock()
+	rt.maxPending = n
+}
+
+// MaxPending returns how many requests may wait for an answer at once.
+func (rt *Runtime) MaxPending() int {
+	rt.mu.RLock()
+	defer rt.mu.RUnlock()
+	return rt.maxPending
+}
+
+// Create registers a request that waits for an answer. It refuses one with
+// ErrTooManyPending when the maximum number already waits.
+func (rt *Runtime) Create(req *Request) error {
 	rt.mu.Lock()
 	now := time.Now()
 	// Retention needs a creation time, so a request without one gets the registry clock.
 	if req.CreatedAt.IsZero() {
 		req.CreatedAt = now
 	}
+	pending := 0
 	for id, r := range rt.requests {
 		age := now.Sub(r.CreatedAt)
 		if age > consentRequestMaxAge || (r.Status != StatusPending && age > resolvedConsentRetention) {
 			delete(rt.requests, id)
+			continue
 		}
+		if r.Status == StatusPending {
+			pending++
+		}
+	}
+	if pending >= rt.maxPending {
+		rt.mu.Unlock()
+		return ErrTooManyPending
 	}
 	rt.requests[req.ID] = req
 	subs := make([]chan *Request, 0, len(rt.subscribers))
@@ -53,6 +87,7 @@ func (rt *Runtime) Create(req *Request) {
 		default:
 		}
 	}
+	return nil
 }
 
 // Pending returns the requests that wait for an answer.
@@ -366,6 +401,7 @@ type NextErrorOverride struct {
 type Runtime struct {
 	mu                sync.RWMutex
 	requests          map[string]*Request
+	maxPending        int
 	nextError         *NextErrorOverride
 	subscribers       map[int64]chan *Request
 	subID             int64
@@ -382,6 +418,7 @@ type Runtime struct {
 func NewRuntime() *Runtime {
 	return &Runtime{
 		requests:          make(map[string]*Request),
+		maxPending:        DefaultMaxPending,
 		subscribers:       make(map[int64]chan *Request),
 		errSubscribers:    make(map[int64]chan Error),
 		stateSubscribers:  make(map[int64]chan struct{}),

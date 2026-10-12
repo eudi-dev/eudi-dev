@@ -116,7 +116,7 @@ eudi [--json] [--no-color] [-v] <command> [flags] [input]
 
 Input is a file path, a URL, a raw credential string or stdin. `--json` prints one JSON document on stdout for scripts, and messages go to stderr ([ADR 0020](docs/adr/0020-cli-output-can-be-automated.md)). `-v` adds detail such as x5c chains, device keys and digest IDs.
 
-> **Security:** Anyone with network access to the wallet port controls its credentials and registered relying parties. Use localhost or an isolated test network and store test data only. For public hosting, use the `--demo` profile (see [public demo hosting](docs/public-demo.md)).
+> **Security:** Anyone with network access to the wallet port controls its credentials and registered relying parties. The wallet binds `127.0.0.1` unless `--listen` says otherwise. Use localhost or an isolated test network and store test data only. For public hosting, use the `--demo` profile (see [public demo hosting](docs/public-demo.md)).
 
 ## Supported formats
 

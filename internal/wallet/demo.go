@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/httpsec"
 	"github.com/eudi-dev/eudi-dev/v3/internal/publicpath"
@@ -107,6 +108,9 @@ const (
 	maxDemoIssuedAttestations = 100
 	maxDemoTemplates          = 50
 	maxDemoRelyingParties     = 500
+	// Each request that waits for consent holds a flow for up to
+	// config.ConsentTimeout.
+	maxDemoPendingConsents = 30
 )
 
 // SetDemo turns on the public demo profile. Templates that visitors save are
@@ -127,6 +131,7 @@ func (s *Server) SetDemo(opts DemoOptions) error {
 	s.wallet.TrustSettings.MaxEntities, s.wallet.TrustSettings.MaxLists = maxDemoTrustedEntities, maxDemoTrustedLists
 	s.wallet.mu.Unlock()
 	s.wallet.SetVisitorRules(VisitorRules{VisitorTemplates: true, BundledImagesOnly: true, OwnSigningKeys: true})
+	s.wallet.Consents().SetMaxPending(maxDemoPendingConsents)
 	return nil
 }
 
@@ -140,9 +145,7 @@ func (s *Server) Handler() http.Handler {
 	}
 	inner := secure(s.guardAPI(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if s.demo != nil && demoBlockedRoute(r) {
-			writeJSON(w, http.StatusForbidden, map[string]string{
-				"error": "the public demo disables this endpoint",
-			})
+			apierror.WriteStatus(w, http.StatusForbidden, "the public demo disables this endpoint")
 			return
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)

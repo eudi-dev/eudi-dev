@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 )
 
@@ -34,7 +35,7 @@ func (s *Server) handleCredentialOfferEndpoint(w http.ResponseWriter, r *http.Re
 		offerParams.Set("credential_offer_uri", v)
 	}
 	if len(offerParams) == 0 {
-		writeAPIError(w, http.StatusBadRequest, apiErrorInvalidRequest, "missing credential_offer or credential_offer_uri parameter")
+		apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, "missing credential_offer or credential_offer_uri parameter")
 		return
 	}
 

@@ -28,6 +28,33 @@ To approve or deny a request through `POST /api/requests/{id}/approve` or `/deny
 
 Protected baseline credentials cannot be deleted or revoked through the API. Individual operations return `403`. Deleting all credentials preserves protected entries and reports `kept_protected`. The public demo marks its generated PIDs as protected. Changing the flag requires direct access to stored state, such as editing `wallet.json` on the file backend.
 
+### Errors
+
+Every endpoint under `/api` rejects a call with the same JSON error object. The registrar and the decoder do too. It has the shape of an OAuth 2.0 error response (RFC 6749 §5.2). `error` is a code for programs. `error_description` says what went wrong.
+
+```json
+{"error": "invalid_request", "error_description": "invalid JSON body: invalid character 'n' looking for beginning of value"}
+```
+
+| Status | `error` | Cause |
+|--------|---------|-------|
+| `400`, `422` | `invalid_request` | A malformed body or parameter, a request or offer the wallet cannot use, an invalid selection. A strict refusal of a presentation request carries the OpenID4VP 1.0 §8.5 error code instead |
+| `403` | `forbidden` | A cross-origin request, a protected credential or template, or an endpoint the public demo disables |
+| `404` | `not_found` | An unknown credential, template, request, offer, deferred credential or registration |
+| `408` | `consent_timeout` | Nobody answered the consent dialog in time |
+| `409` | `conflict` | The request timed out or was answered already, or a registration changed meanwhile |
+| `501` | `not_implemented` | A feature the wallet does not offer, such as historical status lists |
+| `503` | `temporarily_unavailable` | The wallet lacks what the endpoint needs, such as a store. Or too many flows wait for the user, see [waiting flows](#waiting-flows) |
+| `500`, `502` | `server_error` | The wallet could not build or deliver the response |
+
+Some errors carry more members. A failed check of an external status list adds its `uri` and `idx`.
+
+The endpoints that a verifier or issuer calls answer as their specification says. Status lists, trusted lists and certificates answer with the same error object when they fail. `/readyz` answers `503` with `status` and `error` (see [health probes](#health-probes)).
+
+### Waiting flows
+
+A flow that waits for the consent dialog or for a sign-in at the issuer holds the wallet until it ends or times out. At most 100 consent dialogs and 100 sign-ins wait at once, 30 of each on a public demo. Beyond that the wallet refuses a new interactive presentation or offer with `503`, `temporarily_unavailable` and a `Retry-After` header. A waiting flow ends after five minutes at the latest.
+
 ### Presentations and offers
 
 These endpoints run the OID4VP and OID4VCI flows. `wallet accept`, `wallet scan` and the remote URL handler call them. A client that sets `X-Eudi-Owner` owns the consent requests the call creates (see [consent ownership](#consent-ownership)).
@@ -99,22 +126,6 @@ The wallet answers `200` with the issued credential: `credential_id`, `format`, 
 Approval answers `200` with `status` `approved`, the verifier's `redirect_uri` and `status_code`, and an `error` when the submission failed. A deferred credential reports `status` `pending` with `transaction_id` and `retry_interval`. `POST /api/requests/{id}/deny` answers `200` with `status` `denied` and the verifier's `redirect_uri`. A request that timed out or was answered already returns `409`.
 
 `GET /api/version` returns `version`, `build_id` and, outside the public demo, the `pid` of the server process.
-
-#### Errors
-
-A flow endpoint rejects a call with an error object like an OAuth 2.0 error response (RFC 6749 §5.2):
-
-```json
-{"error": "invalid_request", "error_description": "invalid JSON body: invalid character 'n' looking for beginning of value"}
-```
-
-| Status | `error` | Cause |
-|--------|---------|-------|
-| `400` | `invalid_request` | A malformed body, a request or offer the wallet cannot use, an invalid selection. A strict refusal carries the OpenID4VP 1.0 §8.5 error code instead |
-| `404` | `not_found` | An unknown request, offer or deferred credential |
-| `408` | `consent_timeout` | Nobody answered the consent dialog in time |
-| `409` | `conflict` | The request timed out or was answered already |
-| `500`, `502` | `server_error` | The wallet could not build or deliver the response |
 
 ### Credential management
 

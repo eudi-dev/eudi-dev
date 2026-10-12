@@ -81,8 +81,8 @@ func TestGuardAPI(t *testing.T) {
 			if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
 				t.Errorf("Content-Type = %q, want application/json", ct)
 			}
-			if !strings.Contains(rec.Body.String(), "cross-origin") {
-				t.Errorf("body %q does not say why", rec.Body.String())
+			if body := rec.Body.String(); !strings.Contains(body, `"error":"forbidden"`) || !strings.Contains(body, "cross-origin") {
+				t.Errorf("body %q is not the forbidden error object that says why", body)
 			}
 		})
 	}

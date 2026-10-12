@@ -16,10 +16,10 @@ package web
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/fs"
 	"net/http"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
 	"github.com/eudi-dev/eudi-dev/v3/internal/config"
 	"github.com/eudi-dev/eudi-dev/v3/internal/httpsec"
 	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
@@ -44,9 +44,9 @@ type MuxOptions struct {
 	Wallet *wallet.Wallet
 }
 
-func ListenAndServe(port int, opts MuxOptions) error {
+func ListenAndServe(addr string, opts MuxOptions) error {
 	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%d", port),
+		Addr:         addr,
 		Handler:      NewMuxWithOptions(opts),
 		ReadTimeout:  config.ServerReadTimeout,
 		WriteTimeout: config.ServerWriteTimeout,
@@ -110,12 +110,12 @@ func handlePrefill(credential string) http.HandlerFunc {
 func handleCredentialByID(resolve func(string) (string, bool)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if resolve == nil {
-			writeError(w, http.StatusNotFound, "this decoder is not attached to a wallet, so it cannot resolve credential ids")
+			apierror.WriteStatus(w, http.StatusNotFound, "this decoder is not attached to a wallet, so it cannot resolve credential ids")
 			return
 		}
 		credential, ok := resolve(r.PathValue("id"))
 		if !ok {
-			writeError(w, http.StatusNotFound, "no credential with that id in this wallet")
+			apierror.WriteStatus(w, http.StatusNotFound, "no credential with that id in this wallet")
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -138,12 +138,12 @@ func handleValidate(store *wallet.WalletStore, live *wallet.Wallet) http.Handler
 
 		var req validateRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid request body")
+			apierror.WriteStatus(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
 
 		if req.Input == "" {
-			writeError(w, http.StatusBadRequest, "input is required")
+			apierror.WriteStatus(w, http.StatusBadRequest, "input is required")
 			return
 		}
 
@@ -157,7 +157,7 @@ func handleValidate(store *wallet.WalletStore, live *wallet.Wallet) http.Handler
 			Wallet:       live,
 		})
 		if err != nil {
-			writeError(w, http.StatusUnprocessableEntity, err.Error())
+			apierror.WriteStatus(w, http.StatusUnprocessableEntity, err.Error())
 			return
 		}
 
@@ -166,10 +166,4 @@ func handleValidate(store *wallet.WalletStore, live *wallet.Wallet) http.Handler
 		enc.SetEscapeHTML(false)
 		enc.Encode(result)
 	}
-}
-
-func writeError(w http.ResponseWriter, status int, msg string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(map[string]string{"error": msg})
 }

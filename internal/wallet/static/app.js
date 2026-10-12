@@ -9,6 +9,8 @@
     [FORMATS.JWTVC]: { short: 'JWT VC', long: 'JWT VC' },
   };
   const formatOptions = (formats) => formats.map(f => '<option value="' + f + '">' + FORMAT_LABELS[f].long + '</option>').join('');
+  // The API answers errors with error and error_description (RFC 6749 §5.2).
+  const apiErrorText = (result, resp) => (result && (result.error_description || result.error)) || ('HTTP ' + resp.status);
 
   // CSS chooses the menu layout. JavaScript only controls whether it is open.
   const menuToggle = document.getElementById('header-menu-toggle');
@@ -661,7 +663,7 @@
       });
       if (!resp.ok) {
         const result = await resp.json().catch(() => ({}));
-        alert('Setting status failed: ' + (result.error || 'HTTP ' + resp.status));
+        alert('Setting status failed: ' + apiErrorText(result, resp));
         return;
       }
       await loadCredentials();
@@ -680,7 +682,7 @@
       if (!badge) return;
       if (!resp.ok) {
         badge.textContent = 'Check failed';
-        badge.title = result.error || ('HTTP ' + resp.status);
+        badge.title = apiErrorText(result, resp);
         return;
       }
       const revoked = result.status === 1;
@@ -766,8 +768,8 @@
         body: raw
       });
       if (!resp.ok) {
-        const err = await resp.json();
-        alert('Import failed: ' + (err.error || 'unknown error'));
+        const err = await resp.json().catch(() => ({}));
+        alert('Import failed: ' + apiErrorText(err, resp));
         return;
       }
       importOverlay.classList.remove('active');
@@ -1348,7 +1350,7 @@
       });
       const result = await resp.json();
       if (!resp.ok) {
-        issueError.textContent = result.error || ('HTTP ' + resp.status);
+        issueError.textContent = apiErrorText(result, resp);
         return;
       }
       issueOverlay.classList.remove('active');
@@ -1508,7 +1510,7 @@
       });
       const result = await resp.json();
       if (!resp.ok) {
-        issueError.textContent = result.error || ('HTTP ' + resp.status);
+        issueError.textContent = apiErrorText(result, resp);
         return;
       }
       templatesCache = null;
@@ -1571,7 +1573,7 @@
             const resp = await fetch('api/templates/' + encodeURIComponent(tpl.name), { method: 'DELETE' });
             if (!resp.ok) {
               const result = await resp.json();
-              templateError.textContent = result.error || ('HTTP ' + resp.status);
+              templateError.textContent = apiErrorText(result, resp);
               return;
             }
             await renderTemplatesList();
@@ -3569,7 +3571,7 @@
       body: body ? JSON.stringify(body) : undefined,
     });
     const result = resp.status === 204 ? {} : await resp.json().catch(() => ({}));
-    if (!resp.ok) throw new Error(result.error || ('HTTP ' + resp.status));
+    if (!resp.ok) throw new Error(apiErrorText(result, resp));
     return result;
   }
 

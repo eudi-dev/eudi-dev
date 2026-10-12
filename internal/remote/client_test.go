@@ -549,3 +549,32 @@ func TestRegistrarRecordsFollowsTheCursor(t *testing.T) {
 		t.Errorf("records %v, want a, b and c", records)
 	}
 }
+
+// The wallet API answers errors with the RFC 6749 §5.2 error object. A proxy
+// in front of the wallet may answer with plain text instead.
+func TestClientReportsAPIErrors(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		contentType string
+		body        string
+		want        string
+	}{
+		{"error object", "application/json", `{"error":"not_found","error_description":"credential not found"}`, "remote wallet: not_found: credential not found (HTTP 404)"},
+		{"code only", "application/json", `{"error":"not_found"}`, "remote wallet: not_found (HTTP 404)"},
+		{"plain text", "text/plain", "upstream gone\n", "remote wallet: upstream gone (HTTP 404)"},
+		{"empty", "text/plain", "", "remote wallet: Not Found (HTTP 404)"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", tc.contentType)
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = io.WriteString(w, tc.body)
+			}))
+			defer srv.Close()
+			_, err := NewClient(srv.URL).Credential("missing")
+			if err == nil || err.Error() != tc.want {
+				t.Fatalf("error = %v, want %q", err, tc.want)
+			}
+		})
+	}
+}

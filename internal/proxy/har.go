@@ -64,7 +64,7 @@ func harRequest(e *TrafficEntry) map[string]any {
 		"headers":     harHeaders(e.RequestHeaders),
 		"queryString": []any{},
 		"headersSize": -1,
-		"bodySize":    len(e.RequestBody),
+		"bodySize":    harBodySize(e.RequestBody, e.RequestTruncated),
 	}
 
 	if e.RequestBody != "" {
@@ -72,10 +72,14 @@ func harRequest(e *TrafficEntry) map[string]any {
 		if e.RequestHeaders != nil {
 			contentType = e.RequestHeaders.Get("Content-Type")
 		}
-		req["postData"] = map[string]any{
+		postData := map[string]any{
 			"mimeType": contentType,
 			"text":     e.RequestBody,
 		}
+		if e.RequestTruncated {
+			postData["comment"] = harTruncatedComment
+		}
+		req["postData"] = postData
 	}
 
 	return req
@@ -87,21 +91,35 @@ func harResponse(e *TrafficEntry) map[string]any {
 		contentType = e.ResponseHeaders.Get("Content-Type")
 	}
 
+	content := map[string]any{
+		"size":     harBodySize(e.ResponseBody, e.ResponseTruncated),
+		"mimeType": contentType,
+		"text":     e.ResponseBody,
+	}
+	if e.ResponseTruncated {
+		content["comment"] = harTruncatedComment
+	}
 	return map[string]any{
 		"status":      e.StatusCode,
 		"statusText":  http.StatusText(e.StatusCode),
 		"httpVersion": "HTTP/1.1",
 		"cookies":     []any{},
 		"headers":     harHeaders(e.ResponseHeaders),
-		"content": map[string]any{
-			"size":     len(e.ResponseBody),
-			"mimeType": contentType,
-			"text":     e.ResponseBody,
-		},
+		"content":     content,
 		"redirectURL": "",
 		"headersSize": -1,
-		"bodySize":    len(e.ResponseBody),
+		"bodySize":    harBodySize(e.ResponseBody, e.ResponseTruncated),
 	}
+}
+
+const harTruncatedComment = "The proxy kept only the start of this body."
+
+// HAR 1.2 sets bodySize to -1 when the size is not available.
+func harBodySize(body string, truncated bool) int {
+	if truncated {
+		return -1
+	}
+	return len(body)
 }
 
 func harHeaders(h http.Header) []map[string]string {

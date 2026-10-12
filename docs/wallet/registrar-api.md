@@ -365,7 +365,8 @@ In strict mode the wallet refuses the offer before it requests a token:
 
 ```json
 {
-  "error": "the issuer does not authenticate as the ARF requires: ARF RPRC_23 and ISSU_34b: the issuer's registration certificate does not list urn:example:badge:1 in provides_attestations"
+  "error": "invalid_request",
+  "error_description": "the issuer does not authenticate as the ARF requires: ARF RPRC_23 and ISSU_34b: the issuer's registration certificate does not list urn:example:badge:1 in provides_attestations"
 }
 ```
 

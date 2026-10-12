@@ -21,6 +21,8 @@ Use an https base URL. With an http base URL, the wallet serves its own issuer o
 
 The path prefix must not start with one of the wallet's own paths, such as `/api`, `/issuer` or `/decoder`. `wallet serve` refuses to start with such a base URL.
 
+The wallet binds `127.0.0.1`, which suits a proxy on the same host. A proxy on another host or in another container needs `--listen 0.0.0.0` (see [listen address](wallet/serve.md#listen-address)). The Docker image already binds every interface.
+
 ## Proxy routes
 
 Route all requests under the path prefix to the wallet. The proxy can strip the prefix or keep it. The wallet accepts both `/some/context/api/version` and `/api/version`.

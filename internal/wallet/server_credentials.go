@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
 	"github.com/eudi-dev/eudi-dev/v3/internal/httpsec"
 )
 
@@ -69,12 +70,12 @@ func (s *Server) handleCredentialDisplayImage(w http.ResponseWriter, r *http.Req
 func (s *Server) handleListCredentials(w http.ResponseWriter, r *http.Request) {
 	limit, err := intParam(r, "limit", 0)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid limit: " + err.Error()})
+		apierror.WriteStatus(w, http.StatusBadRequest, "invalid limit: "+err.Error())
 		return
 	}
 	offset, err := intParam(r, "offset", 0)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid offset: " + err.Error()})
+		apierror.WriteStatus(w, http.StatusBadRequest, "invalid offset: "+err.Error())
 		return
 	}
 
@@ -84,7 +85,7 @@ func (s *Server) handleListCredentials(w http.ResponseWriter, r *http.Request) {
 	}
 	data, err := json.Marshal(listing)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		apierror.WriteStatus(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	w.Header().Set("X-Total-Count", strconv.Itoa(total))
@@ -110,19 +111,19 @@ func intParam(r *http.Request, name string, fallback int) (int, error) {
 func (s *Server) handleImportCredential(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		http.Error(w, "reading body", http.StatusBadRequest)
+		apierror.WriteStatus(w, http.StatusBadRequest, "reading body")
 		return
 	}
 
 	raw := strings.TrimSpace(string(body))
 	if raw == "" {
-		http.Error(w, "empty body", http.StatusBadRequest)
+		apierror.WriteStatus(w, http.StatusBadRequest, "empty body")
 		return
 	}
 
 	summary, err := s.management().ImportCredential(raw)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		apierror.WriteStatus(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusCreated, withPublicImagePaths(r, summary))
@@ -131,11 +132,11 @@ func (s *Server) handleImportCredential(w http.ResponseWriter, r *http.Request) 
 func (s *Server) handleDeleteCredential(w http.ResponseWriter, r *http.Request) {
 	switch err := s.management().RemoveCredential(r.PathValue("id")); {
 	case errors.Is(err, ErrCredentialProtected):
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+		apierror.WriteStatus(w, http.StatusForbidden, err.Error())
 	case errors.Is(err, ErrCredentialNotFound):
-		http.Error(w, err.Error(), http.StatusNotFound)
+		apierror.WriteStatus(w, http.StatusNotFound, err.Error())
 	case err != nil:
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		apierror.WriteStatus(w, http.StatusInternalServerError, err.Error())
 	default:
 		w.WriteHeader(http.StatusNoContent)
 	}
@@ -146,19 +147,19 @@ func (s *Server) handleSetCredentialStatus(w http.ResponseWriter, r *http.Reques
 		Status int `json:"status"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "invalid JSON body", http.StatusBadRequest)
+		apierror.WriteStatus(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
 	entry, err := s.management().SetCredentialStatus(r.PathValue("id"), body.Status)
 	switch {
 	case errors.Is(err, ErrStatusProtected):
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+		apierror.WriteStatus(w, http.StatusForbidden, err.Error())
 	case errors.Is(err, ErrInvalidStatus):
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		apierror.WriteStatus(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, ErrNoStatusEntry):
-		http.Error(w, err.Error(), http.StatusNotFound)
+		apierror.WriteStatus(w, http.StatusNotFound, err.Error())
 	case err != nil:
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		apierror.WriteStatus(w, http.StatusInternalServerError, err.Error())
 	default:
 		writeJSON(w, http.StatusOK, entry)
 	}
@@ -167,7 +168,7 @@ func (s *Server) handleSetCredentialStatus(w http.ResponseWriter, r *http.Reques
 func (s *Server) handleRenewCredential(w http.ResponseWriter, r *http.Request) {
 	renewed, err := s.RenewCredential(r.PathValue("id"))
 	if err != nil {
-		writeAPIError(w, http.StatusBadRequest, apiErrorInvalidRequest, err.Error())
+		apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, withPublicImagePaths(r, CredentialSummary(*renewed)))

@@ -316,6 +316,7 @@ Every flag can also be set as `EUDI_DEV_<FLAG>`, with the flag name in upper cas
 | Flag                    | Default  | Description                                      |
 |-------------------------|----------|--------------------------------------------------|
 | `--port`                | `8085`   | Server port                                      |
+| `--listen`              | `$EUDI_DEV_LISTEN`, else `127.0.0.1` | IP address to bind. `0.0.0.0` opens the wallet to the network. See [listen address](#listen-address) |
 | `--auto-accept`         | `false`  | Approve presentations and credential offers without asking. Without it, only interactive channels (web invocation URLs, scheme dispatches, browser DC-API) show the consent dialog. API submissions (`POST /api/offers`, `/api/presentations`) always auto-accept because the API call counts as consent (opt in per request with `"interactive": true`). With `--demo` only the flag turns it on, `EUDI_DEV_AUTO_ACCEPT` does not |
 | `--credential`          | None     | Import credential from file (repeatable)         |
 | `--credentials`         | None     | Credentials to add on every start, from a YAML or JSON file, a directory of such files, or stdin (`-`). See [startup credentials](#startup-credentials) |
@@ -340,7 +341,7 @@ Every flag can also be set as `EUDI_DEV_<FLAG>`, with the flag name in upper cas
 | `--preferred-format`    | None     | Preferred credential format when multiple match: `dc+sd-jwt`, `mso_mdoc`, or `jwt_vc_json`. Change it at runtime with `PUT /api/config/preferred-format` |
 | `--status-list`         | `false`  | Embed status list references in generated credentials |
 | `--base-url`            | None     | Public URL of the wallet, optionally with a path prefix (see [reverse proxy setup](../reverse-proxy.md)). An https base URL is used as the issuer URL (external TLS terminator). An http base URL derives a self-signed HTTPS issuer URL on port+1. Existing persisted issuer URLs are reused unless this flag is set |
-| `--docker`              | `false`  | Use `host.docker.internal` instead of `localhost` when deriving new HTTP and HTTPS wallet endpoint URLs |
+| `--docker`              | `false`  | Use `host.docker.internal` instead of `localhost` when deriving new HTTP and HTTPS wallet endpoint URLs. The server then binds `0.0.0.0` unless `--listen` says otherwise |
 | `--vci-client-id`       | Wallet origin | Client ID for OID4VCI authorization code flows |
 | `--vci-redirect-uri`    | Wallet origin + `/callback` | Redirect URI for OID4VCI authorization code flows |
 | `--vci-version`         | `1.0`    | OpenID4VCI feature level of the wallet as a client: `1.0` (the published version) or `1.1` (also uses 1.1 draft features when the issuer supports them). See [OpenID4VCI feature level](issuing.md#openid4vci-feature-level) |
@@ -592,6 +593,19 @@ Requests to local hosts always bypass the proxy. A local host is `localhost`, an
 The wallet verifies the issuer or verifier certificate through the proxy too. If your proxy intercepts TLS traffic, add its CA with `--tls-ca` or disable verification with `--tls-verify=false`.
 
 A running wallet uses its startup proxy settings. `wallet accept` and `wallet scan` therefore reject proxy flags when they forward a request to a running wallet. Set them on `wallet serve` instead.
+
+## Listen address
+
+The wallet, the decoder and the proxy have no authentication. So they bind `127.0.0.1` by default and only this machine reaches them. `--listen` picks another IP address. `0.0.0.0` binds every interface, IPv6 included where the system supports it. `::1` binds IPv6 loopback only. `localhost` stands for `127.0.0.1`.
+
+```bash
+eudi wallet serve --listen 0.0.0.0     # reachable from the network
+EUDI_DEV_LISTEN=0.0.0.0 eudi decoder
+```
+
+The flag wins over `EUDI_DEV_LISTEN`. The [Docker image](../docker.md) sets the variable to `0.0.0.0`, so published ports reach every server in the container. `--docker` also binds `0.0.0.0` when neither the flag nor the variable is set. On Linux, `host.docker.internal` reaches the host on the Docker bridge, not on loopback. The wallet and the proxy print a note when they bind more than loopback.
+
+The printed URLs stay on `localhost` for a loopback or wildcard address. A server bound to one other address prints that address. The wallet then needs a `--base-url` with that address too, because it builds its own URLs on `localhost` otherwise.
 
 ## Outbound address limits
 

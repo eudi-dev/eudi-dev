@@ -16,15 +16,19 @@ package cmd
 
 import (
 	"encoding/pem"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/spf13/pflag"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/config"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v3/internal/remote"
 	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
 )
 
@@ -309,5 +313,30 @@ func TestWalletServeStopsOnABadCatalogueEntry(t *testing.T) {
 	err = rootCmd.Execute()
 	if err == nil || !strings.Contains(err.Error(), catalog) || !strings.Contains(err.Error(), `"Diploma"`) {
 		t.Fatalf("error = %v, want one naming the file and the entry", err)
+	}
+}
+
+// A container with a read-only home still serves. Only the instance
+// registration fails there, and wallet serve leaves out the warning for it.
+func TestReadOnlyHomeRecognizesARegistrationTheHomeRefuses(t *testing.T) {
+	home := t.TempDir()
+	if err := os.Chmod(home, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(home, 0o700) })
+	t.Setenv(config.HomeEnvVar, home)
+
+	err := remote.RegisterInstance(remote.Instance{PID: os.Getpid(), Port: 1})
+	if err == nil {
+		t.Skip("the home is writable, as for root")
+	}
+	if !readOnlyHome(err) {
+		t.Errorf("readOnlyHome(%v) = false, want true", err)
+	}
+	if !readOnlyHome(fmt.Errorf("registering: %w", syscall.EROFS)) {
+		t.Error("a read-only file system does not count")
+	}
+	if readOnlyHome(fmt.Errorf("registering: %w", syscall.ENOSPC)) {
+		t.Error("a full disk counts as a read-only home")
 	}
 }

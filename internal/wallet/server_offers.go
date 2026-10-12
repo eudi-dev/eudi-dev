@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
@@ -83,6 +84,20 @@ func (s *Server) trackPendingOffer(p *pendingOffer) {
 	s.pendingOffers[p.ID] = p
 }
 
+// waitingSignIns counts the offers whose flow still waits for the user to
+// sign in at the issuer.
+func (s *Server) waitingSignIns() int {
+	s.offerMu.Lock()
+	defer s.offerMu.Unlock()
+	waiting := 0
+	for _, p := range s.pendingOffers {
+		if _, _, done := p.outcome(); !done {
+			waiting++
+		}
+	}
+	return waiting
+}
+
 func (s *Server) lookupPendingOffer(id string) *pendingOffer {
 	s.offerMu.Lock()
 	defer s.offerMu.Unlock()
@@ -93,6 +108,11 @@ func (s *Server) lookupPendingOffer(id string) *pendingOffer {
 // continue the flow in the background. The issuer's redirect to /callback resumes
 // issuance. The caller opens the URL in their browser.
 func (s *Server) runOffer(uri string, opts OfferOptions) (*IssuanceResult, *pendingOffer, error) {
+	// A flow that waits for sign-in holds its goroutine up to
+	// config.AuthorizationCallbackWait.
+	if s.waitingSignIns() >= s.wallet.Consents().MaxPending() {
+		return nil, nil, consent.ErrTooManyPending
+	}
 	// A subscriber lets the flow return the sign-in URL when interaction is
 	// required. Other flows run at the same time, so it takes only the prompt
 	// of this one.
@@ -165,7 +185,7 @@ func (s *Server) writeAuthorizationRequired(w http.ResponseWriter, p *pendingOff
 func (s *Server) handleOfferStatus(w http.ResponseWriter, r *http.Request) {
 	p := s.lookupPendingOffer(r.PathValue("id"))
 	if p == nil {
-		writeAPIError(w, http.StatusNotFound, apiErrorNotFound, "unknown offer")
+		apierror.Write(w, http.StatusNotFound, apierror.NotFound, "unknown offer")
 		return
 	}
 	result, err, done := p.outcome()
@@ -196,15 +216,11 @@ func (s *Server) handleOfferStatus(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleAuthorizationCodeCallback(w http.ResponseWriter, r *http.Request) {
 	values := r.URL.Query()
 	if values.Get("state") == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{
-			"error": "missing state in authorization callback",
-		})
+		apierror.WriteStatus(w, http.StatusBadRequest, "missing state in authorization callback")
 		return
 	}
 	if !s.wallet.Consents().CompleteAuthorizationCodeCallback(values) {
-		writeJSON(w, http.StatusNotFound, map[string]string{
-			"error": "no pending authorization-code flow for callback state",
-		})
+		apierror.WriteStatus(w, http.StatusNotFound, "no pending authorization-code flow for callback state")
 		return
 	}
 	// The callback resumes issuance on the server. Send the browser back to the wallet
@@ -221,7 +237,7 @@ func (s *Server) handleOfferAPI(w http.ResponseWriter, r *http.Request) {
 		ConfigurationID string `json:"credential_configuration_id,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeAPIError(w, http.StatusBadRequest, apiErrorInvalidRequest, "invalid JSON body: "+err.Error())
+		apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, "invalid JSON body: "+err.Error())
 		return
 	}
 
@@ -255,12 +271,15 @@ func (s *Server) processOfferURI(w http.ResponseWriter, uri string, opts OfferOp
 				Detail:  err.Error(),
 			})
 			s.triggerUIRequest("")
-			writeAPIError(w, http.StatusBadRequest, apiErrorInvalidRequest, err.Error())
+			apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, err.Error())
 			return
 		}
 
+		if err := s.wallet.Consents().Create(consentReq); err != nil {
+			s.refuseBusy(w, err)
+			return
+		}
 		s.log("  Mode:          interactive (waiting for consent)")
-		s.wallet.Consents().Create(consentReq)
 		s.triggerUIRequest(consentReq.ID)
 		if s.onConsentRequest != nil {
 			s.onConsentRequest(consentReq)
@@ -312,9 +331,14 @@ func (s *Server) awaitOfferConsent(w http.ResponseWriter, consentReq *consent.Re
 		// Show consent for any presentation requested by the issuer during this
 		// interactive flow.
 		result, pending, err := s.runOffer(consentReq.OfferURI, opts)
+		if errors.Is(err, consent.ErrTooManyPending) {
+			consentReq.SubmissionCh <- consent.SubmissionResult{Error: err.Error(), StatusCode: http.StatusServiceUnavailable}
+			s.refuseBusy(w, err)
+			return
+		}
 		if err != nil {
 			consentReq.SubmissionCh <- consent.SubmissionResult{Error: err.Error(), StatusCode: http.StatusBadRequest}
-			writeAPIError(w, http.StatusBadRequest, apiErrorInvalidRequest, err.Error())
+			apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, err.Error())
 			return
 		}
 
@@ -348,11 +372,15 @@ func (s *Server) awaitOfferConsent(w http.ResponseWriter, consentReq *consent.Re
 
 func (s *Server) processOfferDirectly(w http.ResponseWriter, uri string, opts OfferOptions, browserRedirect bool) {
 	result, pending, err := s.runOffer(uri, opts)
+	if errors.Is(err, consent.ErrTooManyPending) {
+		s.refuseBusy(w, err)
+		return
+	}
 	if err != nil {
 		if !s.wallet.AutoAcceptSetting() {
 			s.triggerUIRequest("")
 		}
-		writeAPIError(w, http.StatusBadRequest, apiErrorInvalidRequest, err.Error())
+		apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, err.Error())
 		return
 	}
 

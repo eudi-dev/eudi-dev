@@ -17,8 +17,10 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -29,6 +31,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
 	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
+	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
 	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
@@ -394,77 +397,44 @@ func TestResolveIssueClaims_MissingFile(t *testing.T) {
 }
 
 func TestIssueSDJWT_EndToEnd(t *testing.T) {
-	buf := new(bytes.Buffer)
-	rootCmd.SetOut(buf)
-
-	issueClaims = ""
-	issueKeyPath = ""
-	issueOmit = nil
-	issuePID = false
-	issueIssuer = "https://issuer.example"
-	issueVCT = "urn:eudi:pid:1"
-	issueExpires = "24h"
-
-	rootCmd.SetArgs([]string{"issue", "sdjwt"})
-	if err := rootCmd.Execute(); err != nil {
-		t.Fatalf("issue sdjwt: %v", err)
+	token := issuedSDJWT(t, "issue", "sdjwt")
+	if token.Payload["iss"] != mock.DefaultIssuer || token.Payload["vct"] != mock.DefaultPIDVCT {
+		t.Errorf("iss %v, vct %v, want the defaults", token.Payload["iss"], token.Payload["vct"])
 	}
+	requireExpiresIn(t, token.Payload["exp"], credtemplate.DefaultExp)
 }
 
 func TestIssueSDJWT_WithPID(t *testing.T) {
-	buf := new(bytes.Buffer)
-	rootCmd.SetOut(buf)
-
-	issueClaims = ""
-	issueKeyPath = ""
-	issueOmit = nil
-
-	rootCmd.SetArgs([]string{"issue", "sdjwt", "--pid"})
-	if err := rootCmd.Execute(); err != nil {
-		t.Fatalf("issue sdjwt --pid: %v", err)
-	}
+	token := issuedSDJWT(t, "issue", "sdjwt", "--pid")
+	requireClaims(t, token.ResolvedClaims, "given_name", "family_name", "birthdate")
 }
 
 // A JWT VC carries the PID claim set plainly, so --pid applies to `issue jwt`
 // too.
+// A JWT VC carries the PID claim set plainly, so --pid applies to `issue jwt`
+// too.
 func TestIssueJWT_WithPID(t *testing.T) {
-	buf := new(bytes.Buffer)
-	rootCmd.SetOut(buf)
-
-	issueClaims = ""
-	issueKeyPath = ""
-	issueOmit = nil
-
-	rootCmd.SetArgs([]string{"issue", "jwt", "--pid"})
-	if err := rootCmd.Execute(); err != nil {
-		t.Fatalf("issue jwt --pid: %v", err)
+	_, payload, _, err := format.ParseJWTParts(issuedCredential(t, "issue", "jwt", "--pid"))
+	if err != nil {
+		t.Fatalf("parsing the issued JWT: %v", err)
 	}
+	requireClaims(t, payload, "given_name", "family_name", "birthdate")
 }
 
 func TestIssueSDJWT_WithPIDAndOmit(t *testing.T) {
-	buf := new(bytes.Buffer)
-	rootCmd.SetOut(buf)
-
-	issueClaims = ""
-	issueKeyPath = ""
-
-	rootCmd.SetArgs([]string{"issue", "sdjwt", "--pid", "--omit", "place_of_birth,sex"})
-	if err := rootCmd.Execute(); err != nil {
-		t.Fatalf("issue sdjwt --pid --omit: %v", err)
+	token := issuedSDJWT(t, "issue", "sdjwt", "--pid", "--omit", "place_of_birth,sex")
+	requireClaims(t, token.ResolvedClaims, "given_name", "family_name")
+	for _, name := range []string{"place_of_birth", "sex"} {
+		if _, ok := token.ResolvedClaims[name]; ok {
+			t.Errorf("the credential has the omitted claim %s", name)
+		}
 	}
 }
 
 func TestIssueSDJWT_WithCustomClaims(t *testing.T) {
-	buf := new(bytes.Buffer)
-	rootCmd.SetOut(buf)
-
-	issueKeyPath = ""
-	issueOmit = nil
-	issuePID = false
-
-	rootCmd.SetArgs([]string{"issue", "sdjwt", "--claims", `{"custom":"claim"}`})
-	if err := rootCmd.Execute(); err != nil {
-		t.Fatalf("issue sdjwt --claims: %v", err)
+	token := issuedSDJWT(t, "issue", "sdjwt", "--claims", `{"custom":"claim"}`)
+	if token.ResolvedClaims["custom"] != "claim" {
+		t.Errorf("custom = %v, want claim", token.ResolvedClaims["custom"])
 	}
 }
 
@@ -635,18 +605,11 @@ func TestIssueSDJWTToWallet_PersistsTrustMetadataFlags(t *testing.T) {
 }
 
 func TestIssueSDJWT_WithCustomIssuerVCTExp(t *testing.T) {
-	buf := new(bytes.Buffer)
-	rootCmd.SetOut(buf)
-
-	issueClaims = ""
-	issueKeyPath = ""
-	issueOmit = nil
-	issuePID = false
-
-	rootCmd.SetArgs([]string{"issue", "sdjwt", "--iss", "https://custom.example", "--vct", "custom:type", "--exp", "1h"})
-	if err := rootCmd.Execute(); err != nil {
-		t.Fatalf("issue sdjwt with custom flags: %v", err)
+	token := issuedSDJWT(t, "issue", "sdjwt", "--iss", "https://custom.example", "--vct", "custom:type", "--exp", "1h")
+	if token.Payload["iss"] != "https://custom.example" || token.Payload["vct"] != "custom:type" {
+		t.Errorf("iss %v, vct %v", token.Payload["iss"], token.Payload["vct"])
 	}
+	requireExpiresIn(t, token.Payload["exp"], time.Hour)
 }
 
 func TestIssueSDJWT_WithKeyFile(t *testing.T) {
@@ -674,19 +637,9 @@ func TestIssueSDJWT_WithKeyFile(t *testing.T) {
 		t.Fatalf("writing key file: %v", err)
 	}
 
-	buf := new(bytes.Buffer)
-	rootCmd.SetOut(buf)
-
-	issueClaims = ""
-	issueOmit = nil
-	issuePID = false
-	issueIssuer = "https://issuer.example"
-	issueVCT = "urn:eudi:pid:1"
-	issueExpires = "24h"
-
-	rootCmd.SetArgs([]string{"issue", "sdjwt", "--key", keyFile})
-	if err := rootCmd.Execute(); err != nil {
-		t.Fatalf("issue sdjwt --key: %v", err)
+	token := issuedSDJWT(t, "issue", "sdjwt", "--key", keyFile)
+	if result := sdjwt.Verify(token, &key.PublicKey); !result.SignatureValid {
+		t.Errorf("the credential does not verify with the key from --key: %v", result.Errors)
 	}
 }
 
@@ -706,54 +659,26 @@ func TestIssueSDJWT_InvalidExpDuration(t *testing.T) {
 }
 
 func TestIssueMDOC_EndToEnd(t *testing.T) {
-	buf := new(bytes.Buffer)
-	rootCmd.SetOut(buf)
-
-	issueClaims = ""
-	issueKeyPath = ""
-	issueOmit = nil
-	issuePID = false
-	issueExpires = "720h"
-	issueNBF = ""
-	issueDocType = "eu.europa.ec.eudi.pid.1"
-	issueNamespace = "eu.europa.ec.eudi.pid.1"
-
-	rootCmd.SetArgs([]string{"issue", "mdoc"})
-	if err := rootCmd.Execute(); err != nil {
-		t.Fatalf("issue mdoc: %v", err)
+	doc := issuedMDOC(t, "issue", "mdoc")
+	if doc.DocType != credtemplate.DefaultDocType {
+		t.Errorf("docType %s, want the default", doc.DocType)
 	}
+	validity := doc.IssuerAuth.MSO.ValidityInfo
+	if validity == nil || validity.ValidUntil == nil {
+		t.Fatal("the MSO has no validUntil")
+	}
+	requireExpiresIn(t, float64(validity.ValidUntil.Unix()), credtemplate.DefaultExp)
 }
 
 func TestIssueMDOC_WithPID(t *testing.T) {
-	buf := new(bytes.Buffer)
-	rootCmd.SetOut(buf)
-
-	issueClaims = ""
-	issueKeyPath = ""
-	issueOmit = nil
-	issueExpires = "720h"
-	issueNBF = ""
-
-	rootCmd.SetArgs([]string{"issue", "mdoc", "--pid"})
-	if err := rootCmd.Execute(); err != nil {
-		t.Fatalf("issue mdoc --pid: %v", err)
-	}
+	doc := issuedMDOC(t, "issue", "mdoc", "--pid")
+	requireClaims(t, mdocElements(doc, "eu.europa.ec.eudi.pid.1"), "given_name", "family_name", "birth_date")
 }
 
 func TestIssueMDOC_WithCustomDocType(t *testing.T) {
-	buf := new(bytes.Buffer)
-	rootCmd.SetOut(buf)
-
-	issueClaims = ""
-	issueKeyPath = ""
-	issueOmit = nil
-	issuePID = false
-	issueExpires = "720h"
-	issueNBF = ""
-
-	rootCmd.SetArgs([]string{"issue", "mdoc", "--doc-type", "com.example.test", "--namespace", "com.example.test"})
-	if err := rootCmd.Execute(); err != nil {
-		t.Fatalf("issue mdoc with custom doc-type: %v", err)
+	doc := issuedMDOC(t, "issue", "mdoc", "--doc-type", "com.example.test", "--namespace", "com.example.test")
+	if doc.DocType != "com.example.test" || len(doc.NameSpaces["com.example.test"]) == 0 {
+		t.Errorf("docType %s with namespaces %v, want com.example.test for both", doc.DocType, slices.Collect(maps.Keys(doc.NameSpaces)))
 	}
 }
 
@@ -764,20 +689,9 @@ func TestIssueMDOC_WithClaimsFile(t *testing.T) {
 		t.Fatalf("writing claims file: %v", err)
 	}
 
-	buf := new(bytes.Buffer)
-	rootCmd.SetOut(buf)
-
-	issueKeyPath = ""
-	issueOmit = nil
-	issuePID = false
-	issueExpires = "720h"
-	issueNBF = ""
-	issueDocType = "eu.europa.ec.eudi.pid.1"
-	issueNamespace = "eu.europa.ec.eudi.pid.1"
-
-	rootCmd.SetArgs([]string{"issue", "mdoc", "--claims", "@" + claimsFile})
-	if err := rootCmd.Execute(); err != nil {
-		t.Fatalf("issue mdoc --claims @file: %v", err)
+	doc := issuedMDOC(t, "issue", "mdoc", "--claims", "@"+claimsFile)
+	if got := mdocElements(doc, "eu.europa.ec.eudi.pid.1")["test"]; got != "value" {
+		t.Errorf("test = %v, want the value from the claims file", got)
 	}
 }
 
@@ -1189,4 +1103,68 @@ func predefinedClaims(name string) map[string]any {
 		panic("no predefined template " + name)
 	}
 	return t.Claims
+}
+
+// issuedCredential runs an issue command from the flag defaults and returns
+// the credential it prints.
+func issuedCredential(t *testing.T, args ...string) string {
+	t.Helper()
+	resetFlags(rootCmd)
+	t.Cleanup(func() { resetFlags(rootCmd) })
+	out := captureStdout(t, func() {
+		rootCmd.SetArgs(args)
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("%s: %v", strings.Join(args, " "), err)
+		}
+	})
+	return strings.TrimSpace(out)
+}
+
+func issuedSDJWT(t *testing.T, args ...string) *sdjwt.Token {
+	t.Helper()
+	token, err := sdjwt.Parse(issuedCredential(t, args...))
+	if err != nil {
+		t.Fatalf("parsing the issued SD-JWT: %v", err)
+	}
+	return token
+}
+
+func issuedMDOC(t *testing.T, args ...string) *mdoc.Document {
+	t.Helper()
+	doc, err := mdoc.Parse(issuedCredential(t, args...))
+	if err != nil {
+		t.Fatalf("parsing the issued mdoc: %v", err)
+	}
+	return doc
+}
+
+func mdocElements(doc *mdoc.Document, namespace string) map[string]any {
+	elements := map[string]any{}
+	for _, item := range doc.NameSpaces[namespace] {
+		elements[item.ElementIdentifier] = item.ElementValue
+	}
+	return elements
+}
+
+func requireClaims(t *testing.T, claims map[string]any, names ...string) {
+	t.Helper()
+	for _, name := range names {
+		if _, ok := claims[name]; !ok {
+			t.Errorf("the credential lacks %s", name)
+		}
+	}
+}
+
+// requireExpiresIn checks an expiry in seconds since the epoch against now
+// plus validity.
+func requireExpiresIn(t *testing.T, exp any, validity time.Duration) {
+	t.Helper()
+	seconds, ok := exp.(float64)
+	if !ok {
+		t.Fatalf("expiry %v is no number", exp)
+	}
+	want := time.Now().Add(validity)
+	if got := time.Unix(int64(seconds), 0); got.Sub(want).Abs() > time.Minute {
+		t.Errorf("expires %s, want about %s", got, want)
+	}
 }

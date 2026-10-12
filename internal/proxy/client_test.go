@@ -90,6 +90,35 @@ func TestDashboardClientReportsAnUnreachableProxy(t *testing.T) {
 	}
 }
 
+// A stream has no overall deadline, but a dashboard that never answers must
+// not hold `proxy logs --follow` forever.
+func TestDashboardClientStopsWaitingForAResponseHead(t *testing.T) {
+	previous := entriesTimeout
+	entriesTimeout = 100 * time.Millisecond
+	t.Cleanup(func() { entriesTimeout = previous })
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-release
+	}))
+	defer srv.Close()
+	defer close(release)
+
+	client, _ := NewDashboardClient(srv.URL)
+	done := make(chan error, 1)
+	go func() {
+		_, err := client.Stream(context.Background())
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("a silent dashboard opened a stream")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the client still waits for a dashboard that never answers")
+	}
+}
+
 // The subscription is active when Stream returns. A client that reads the
 // recorded traffic afterwards misses no entry.
 func TestDashboardClientStreamSubscribesBeforeItReturns(t *testing.T) {

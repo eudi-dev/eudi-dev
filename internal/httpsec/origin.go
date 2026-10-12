@@ -18,6 +18,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
 )
 
 // GuardAPI rejects requests under /api/ that carry a foreign Origin. CORS only
@@ -39,9 +41,7 @@ func GuardAPIExcept(next http.Handler, crossOriginByContract []string, ownOrigin
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/api/") && !exempt[r.URL.Path] && isCrossOrigin(r, allowed) {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusForbidden)
-			w.Write([]byte(`{"error":"cross-origin API requests are not allowed"}` + "\n"))
+			apierror.WriteStatus(w, http.StatusForbidden, "cross-origin API requests are not allowed")
 			return
 		}
 		next.ServeHTTP(w, r)

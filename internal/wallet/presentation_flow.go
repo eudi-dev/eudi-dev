@@ -129,18 +129,21 @@ func (w *Wallet) evaluatePresentationRequest(authReq *oid4vp.Request, entry pres
 
 // askPresentationConsent shows the consent dialog and waits for the
 // decision. answered is false after the timeout. The caller reports the
-// submission on the request's SubmissionCh.
-func (w *Wallet) askPresentationConsent(typ, owner, asking string, authReq *oid4vp.Request, outcome presentationOutcome, timeout time.Duration, shown func(*consent.Request)) (consentReq *consent.Request, matches []consent.Match, approved, answered bool) {
+// submission on the request's SubmissionCh. An error means the dialog was not
+// shown, because too many requests wait for consent.
+func (w *Wallet) askPresentationConsent(typ, owner, asking string, authReq *oid4vp.Request, outcome presentationOutcome, timeout time.Duration, shown func(*consent.Request)) (consentReq *consent.Request, matches []consent.Match, approved, answered bool, err error) {
 	consentReq = newPresentationConsent(typ, owner, asking, authReq, outcome.matches, outcome.options)
-	w.Consents().Create(consentReq)
+	if err := w.Consents().Create(consentReq); err != nil {
+		return nil, nil, false, false, err
+	}
 	if shown != nil {
 		shown(consentReq)
 	}
 	result, answered := w.awaitConsent(consentReq, timeout)
 	if !answered || !result.Approved {
-		return consentReq, nil, false, answered
+		return consentReq, nil, false, answered, nil
 	}
-	return consentReq, w.consentedMatches(consentReq, outcome.matches, result), true, true
+	return consentReq, w.consentedMatches(consentReq, outcome.matches, result), true, true, nil
 }
 
 // preparePresentation creates the vp_token and the id_token the request asks

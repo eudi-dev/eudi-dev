@@ -24,6 +24,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/config"
+	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/storage"
 	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
 )
@@ -127,14 +128,16 @@ func TestFlagEnvRefusesAnInvalidValue(t *testing.T) {
 	}
 }
 
-// The state directory, storage, seed and private network variables keep their
-// own handling, which every command shares.
+// The state directory, storage, seed, private network, listen and remote
+// timeout variables keep their own handling, which every command shares.
 func TestFlagEnvKnowsTheDirectVariables(t *testing.T) {
 	clearFlagEnv(t)
 	t.Setenv(config.HomeEnvVar, t.TempDir())
 	t.Setenv(storage.EnvVar, storage.KindMemory)
 	t.Setenv(wallet.SeedEnvVar, "")
 	t.Setenv(allowPrivateNetworksEnv, "true")
+	t.Setenv(listenEnv, "0.0.0.0")
+	t.Setenv(format.RemoteTimeoutEnv, "2m")
 	cmd, _ := parsedServeCmd(t)
 
 	if err := applyFlagEnv(cmd.Flags()); err != nil {

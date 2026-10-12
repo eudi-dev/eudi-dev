@@ -35,21 +35,27 @@ import (
 // DefaultRemoteTimeout stops an unresponsive issuer or verifier from stalling a flow.
 const DefaultRemoteTimeout = 15 * time.Second
 
-// remoteTimeoutEnv allows longer waits for a slow peer, such as a conformance suite
+// RemoteTimeoutEnv allows longer waits for a slow peer, such as a conformance suite
 // on the same host.
-const remoteTimeoutEnv = "EUDI_REMOTE_TIMEOUT"
+const RemoteTimeoutEnv = "EUDI_DEV_REMOTE_TIMEOUT"
 
-var remoteTimeout = resolveRemoteTimeout(os.Getenv(remoteTimeoutEnv))
+// oldRemoteTimeoutEnv is the name eudi-dev 2 read. It only draws a warning.
+const oldRemoteTimeoutEnv = "EUDI_REMOTE_TIMEOUT"
+
+var remoteTimeout = resolveRemoteTimeout(os.Getenv(RemoteTimeoutEnv), os.Getenv(oldRemoteTimeoutEnv))
 
 // An invalid or nonpositive duration keeps the default, so a timeout always applies.
-func resolveRemoteTimeout(raw string) time.Duration {
+func resolveRemoteTimeout(raw, old string) time.Duration {
+	if strings.TrimSpace(old) != "" {
+		log.Printf("[HTTP] ignoring %s, which is %s in 3.0", oldRemoteTimeoutEnv, RemoteTimeoutEnv)
+	}
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return DefaultRemoteTimeout
 	}
 	value, err := time.ParseDuration(raw)
 	if err != nil || value <= 0 {
-		log.Printf("[HTTP] ignoring %s=%q (%v), using %s", remoteTimeoutEnv, raw, err, DefaultRemoteTimeout)
+		log.Printf("[HTTP] ignoring %s=%q (%v), using %s", RemoteTimeoutEnv, raw, err, DefaultRemoteTimeout)
 		return DefaultRemoteTimeout
 	}
 	return value

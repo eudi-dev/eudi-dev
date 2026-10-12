@@ -56,6 +56,33 @@ func TestMovedCommandsNameTheirReplacementAndRunNothing(t *testing.T) {
 	}
 }
 
+func TestRenamedFlagsNameTheirReplacement(t *testing.T) {
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"issue", "sdjwt", "--trust-profile", "pid"}, "unknown flag --trust-profile: renamed to --category in 3.0"},
+		{[]string{"issue", "mdoc", "--trust-list-type=x"}, "unknown flag --trust-list-type: renamed to --trusted-list-type in 3.0"},
+		{[]string{"issue", "sdjwt", "--trust-entity-name", "x"}, "unknown flag --trust-entity-name: renamed to --trusted-entity-name in 3.0"},
+		{[]string{"validate", "--trust-list", "list.jwt", "x"}, "unknown flag --trust-list: renamed to --trusted-list in 3.0"},
+		{[]string{"wallet", "serve", "--demo-verifier-trust-anchor", "ca.pem"}, "unknown flag --demo-verifier-trust-anchor: renamed to --demo-verifier-issuer-ca in 3.0"},
+		{[]string{"decode", "--format", "trustlist", "x"}, "--format trustlist: renamed to --format trusted-list in 3.0"},
+		// A renamed flag on a command that never had it stays unknown.
+		{[]string{"validate", "--trust-profile", "pid", "x"}, "unknown flag: --trust-profile"},
+		{[]string{"issue", "sdjwt", "--no-such-flag"}, "unknown flag: --no-such-flag"},
+	} {
+		t.Run(strings.Join(tc.args, " "), func(t *testing.T) {
+			resetRemoteTestState(t)
+			useLocalTestWallet(t)
+			t.Cleanup(func() { resetFlags(rootCmd) })
+			rootCmd.SetArgs(tc.args)
+			if err := rootCmd.Execute(); err == nil || err.Error() != tc.want {
+				t.Fatalf("err = %v, want %q", err, tc.want)
+			}
+		})
+	}
+}
+
 func TestMovedCommandsAreReachableWithTheWalletFlags(t *testing.T) {
 	for _, path := range [][]string{
 		{"decoder"},

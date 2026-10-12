@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
@@ -37,7 +38,7 @@ func (s *Server) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 		values = oid4vc.URIQueryValues(r.URL)
 	} else {
 		if parseErr := r.ParseForm(); parseErr != nil {
-			writeAPIError(w, http.StatusBadRequest, apiErrorInvalidRequest, "invalid form data: "+parseErr.Error())
+			apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, "invalid form data: "+parseErr.Error())
 			return
 		}
 		values = r.Form
@@ -47,7 +48,7 @@ func (s *Server) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Report parsing failures to the caller. Do not send a response to an invalid
 		// request's destination (RFC 6749 §4.1.2.1, adopted by OpenID4VP §8.5).
-		writeAPIError(w, http.StatusBadRequest, oid4vp.ParseErrorCode(err), "invalid authorization request: "+err.Error())
+		apierror.Write(w, http.StatusBadRequest, oid4vp.ParseErrorCode(err), "invalid authorization request: "+err.Error())
 		return
 	}
 
@@ -69,7 +70,7 @@ func (s *Server) handlePresentationAPI(w http.ResponseWriter, r *http.Request) {
 		SessionTranscript string `json:"session_transcript,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeAPIError(w, http.StatusBadRequest, apiErrorInvalidRequest, "invalid JSON body: "+err.Error())
+		apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, "invalid JSON body: "+err.Error())
 		return
 	}
 
@@ -83,7 +84,7 @@ func (s *Server) handlePresentationAPI(w http.ResponseWriter, r *http.Request) {
 	switch transcript {
 	case "", oid4vp.SessionTranscriptOID4VP, oid4vp.SessionTranscriptISO:
 	default:
-		writeAPIError(w, http.StatusBadRequest, apiErrorInvalidRequest, fmt.Sprintf("invalid session transcript %q", body.SessionTranscript))
+		apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, fmt.Sprintf("invalid session transcript %q", body.SessionTranscript))
 		return
 	}
 	parsed, err := oid4vp.ParseAuthorizationRequestWithOptions(body.URI, s.parseOpts)
@@ -102,7 +103,7 @@ func (s *Server) handlePresentationAPI(w http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		s.triggerUIRequest("")
-		writeAPIError(w, http.StatusBadRequest, oid4vp.ParseErrorCode(err), err.Error())
+		apierror.Write(w, http.StatusBadRequest, oid4vp.ParseErrorCode(err), err.Error())
 		return
 	}
 

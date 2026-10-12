@@ -32,7 +32,7 @@ import (
 // child in its own session, waits until its HTTP endpoint responds, and
 // returns while the child keeps serving. The child appears in
 // `wallet ps` through the normal instance registration.
-func spawnDetachedServe(cmd *cobra.Command, port int, register, noRegister bool) error {
+func spawnDetachedServe(cmd *cobra.Command, url string, register, noRegister bool) error {
 	exe, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("locating executable: %w", err)
@@ -83,7 +83,6 @@ func spawnDetachedServe(cmd *cobra.Command, port int, register, noRegister bool)
 	exited := make(chan error, 1)
 	go func() { exited <- child.Wait() }()
 
-	url := fmt.Sprintf("http://localhost:%d", port)
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 	timeout := time.After(15 * time.Second)

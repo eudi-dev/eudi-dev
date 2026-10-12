@@ -23,6 +23,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/config"
+	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/storage"
 	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
 )
@@ -31,7 +32,7 @@ const flagEnvPrefix = "EUDI_DEV_"
 
 // directEnvVars are read by every command that uses them, eudi decoder
 // included, so applyFlagEnv leaves them alone.
-var directEnvVars = []string{config.HomeEnvVar, storage.EnvVar, wallet.SeedEnvVar, allowPrivateNetworksEnv}
+var directEnvVars = []string{config.HomeEnvVar, storage.EnvVar, wallet.SeedEnvVar, allowPrivateNetworksEnv, listenEnv, format.RemoteTimeoutEnv}
 
 func flagEnvVar(flag string) string {
 	return flagEnvPrefix + strings.ToUpper(strings.ReplaceAll(flag, "-", "_"))
