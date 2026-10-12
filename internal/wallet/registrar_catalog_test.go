@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"slices"
 	"strings"
@@ -235,5 +236,60 @@ func TestTheCatalogueServesItsSchemaOptions(t *testing.T) {
 		if resp := serverRequest(t, srv, "POST", "/api/catalog/attestations", mustJSON(t, entry)); resp.Code != http.StatusCreated {
 			t.Errorf("an entry with %s and %s answers %d: %s", level.Value, registrar.BindingTypes[i].Value, resp.Code, resp.Body.String())
 		}
+	}
+}
+
+// GET /schemas/{schemaId} returns one SchemaMeta in a signed response (TS11
+// v1.0 §5.3.1).
+func TestTheCatalogueServesOneSchema(t *testing.T) {
+	srv, _ := registrarServer(t)
+	resp := serverRequest(t, srv, "POST", "/api/catalog/attestations", mustJSON(t, diplomaCatalogEntry()))
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("POST: %d %s", resp.Code, resp.Body.String())
+	}
+	var added registrar.CatalogAttestation
+	if err := json.Unmarshal(resp.Body.Bytes(), &added); err != nil {
+		t.Fatal(err)
+	}
+
+	signed := serverRequest(t, srv, "GET", "/api/catalog/schemas/"+added.Schema.ID, "")
+	if signed.Code != http.StatusOK || signed.Header().Get("Content-Type") != "application/jwt" {
+		t.Fatalf("GET /schemas/{id}: %d %s", signed.Code, signed.Header().Get("Content-Type"))
+	}
+	var payload struct {
+		Iss  string                      `json:"iss"`
+		Data registrar.AttestationSchema `json:"data"`
+	}
+	decodeCompactJWTPayload(t, signed.Body.String(), &payload)
+	if payload.Iss == "" || payload.Data.ID != added.Schema.ID || !reflect.DeepEqual(payload.Data.SupportedFormats, added.Schema.SupportedFormats) {
+		t.Errorf("payload %+v, want the added schema", payload)
+	}
+
+	req := httptest.NewRequest("GET", "/api/catalog/schemas/"+added.Schema.ID, nil)
+	req.Header.Set("Accept", "application/json")
+	plain := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(plain, req)
+	if body := decodeJSON(t, plain); body["data"].(map[string]any)["id"] != added.Schema.ID {
+		t.Errorf("GET /schemas/{id} as JSON: %v", body)
+	}
+
+	if missing := serverRequest(t, srv, "GET", "/api/catalog/schemas/no-such-schema", ""); missing.Code != http.StatusNotFound {
+		t.Errorf("an unknown schema answers %d, want 404", missing.Code)
+	}
+}
+
+// The UI reads the credential categories from the registrar.
+func TestTheCatalogueServesItsCategories(t *testing.T) {
+	srv := newTestServer(t, false)
+	resp := serverRequest(t, srv, "GET", "/api/catalog/categories", "")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("GET /api/catalog/categories: %d", resp.Code)
+	}
+	var categories []registrar.Category
+	if err := json.Unmarshal(resp.Body.Bytes(), &categories); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(categories, registrar.Categories()) {
+		t.Errorf("categories %+v, want %+v", categories, registrar.Categories())
 	}
 }

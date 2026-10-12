@@ -263,3 +263,68 @@ func TestAnOfferOutsideTheCatalogueWarns(t *testing.T) {
 		t.Errorf("last log entry %+v, want a catalogue warning", last)
 	}
 }
+
+// The revocation service of the trusted list that anchors an external
+// credential anchors that credential's status list.
+func TestExternalCredentialStatusIsAnchoredByItsTrustedList(t *testing.T) {
+	const vct = "urn:example:diploma:1"
+	var issuerHandler http.Handler
+	issuerSite := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) { issuerHandler.ServeHTTP(rw, r) }))
+	defer issuerSite.Close()
+	issuer := generateTestWallet(t)
+	issuer.BaseURL = issuerSite.URL
+	issuerHandler = NewServer(issuer, 0, nil).Handler()
+	issued, err := issuer.IssueCredential(IssueOptions{Format: "sdjwt", VCT: vct, Claims: map[string]any{"degree": "MSc"}, Category: credtemplate.CategoryEAA})
+	if err != nil {
+		t.Fatal(err)
+	}
+	group, _ := issuer.TrustedLists().FindGroup(credtemplate.CategoryEAA, "", "")
+	list, err := issuer.TrustedLists().SignedGroupList(issuer.BaseURL, group, "/api/trustlists/"+group.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	listSite := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) { _, _ = rw.Write([]byte(list)) }))
+	defer listSite.Close()
+
+	for _, tc := range []struct {
+		name     string
+		anchored bool
+	}{
+		{"a catalogue entry links the issuer's list", true},
+		{"no catalogue entry for the type", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w := generateTestWallet(t)
+			if tc.anchored {
+				w.TrustSettings.ListCAPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: issuer.Signer().TrustAnchor().Raw})
+				isLOTE := true
+				if _, err := w.Registrar().AddCatalogAttestation(registrar.CatalogAttestation{
+					Name:        "Diploma",
+					Category:    credtemplate.CategoryEAA,
+					Credentials: []registrar.CatalogCredential{{Format: "dc+sd-jwt", Type: vct}},
+					Schema:      registrar.AttestationSchema{TrustedAuthorities: []registrar.TrustAuthority{{FrameworkType: "etsi_tl", Value: listSite.URL, IsLOTE: &isLOTE}}},
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if got := len(w.StatusListAnchors(issued.Raw)) > 0; got != tc.anchored {
+				t.Fatalf("status list anchors found = %v, want %v", got, tc.anchored)
+			}
+			imported, err := w.ImportCredential(issued.Raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp := serverRequest(t, NewServer(w, 0, nil), http.MethodGet, "/api/credentials/"+imported.ID+"/status", "")
+			if resp.Code != http.StatusOK {
+				t.Fatalf("status check: %d %s", resp.Code, resp.Body.String())
+			}
+			status := decodeJSON(t, resp)
+			if status["managed"] != false || status["source"] != "remote" || status["status"] != float64(0) {
+				t.Errorf("status = %v, want the issuer's valid entry", status)
+			}
+			if status["trustAnchored"] != tc.anchored {
+				t.Errorf("trustAnchored = %v, want %v", status["trustAnchored"], tc.anchored)
+			}
+		})
+	}
+}

@@ -21,6 +21,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"math/big"
 	"testing"
@@ -105,28 +106,28 @@ func TestParseJWK_ECCurves(t *testing.T) {
 // A parser that trims or mispads a coordinate with a leading zero byte
 // produces a different key.
 func TestParseJWK_ECLeadingZeroCoordinate(t *testing.T) {
-	for attempt := 0; attempt < 200; attempt++ {
-		key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-		if err != nil {
-			t.Fatal(err)
-		}
-		x, _, err := format.ECPublicCoords(&key.PublicKey)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if x[0] != 0 { // not a leading zero byte
-			continue
-		}
-		parsed, err := ParseJWK(ecJWK(t, &key.PublicKey, "P-256"))
-		if err != nil {
-			t.Fatalf("ParseJWK: %v", err)
-		}
-		if !parsed.(*ecdsa.PublicKey).Equal(&key.PublicKey) {
-			t.Fatal("a key with a short X coordinate did not round trip")
-		}
-		return
+	// The public key of the private scalar 379, whose X coordinate starts
+	// with a zero byte.
+	point, err := hex.DecodeString("04" +
+		"005543894af3d00ed7d740abdbd75c96b06877b787db5f70eea78b90a8d7c00a" +
+		"bb4c85a3d8ea29efaafa24406912dd84d5b14dc32bf656ef6c6bd58a5d943f92")
+	if err != nil {
+		t.Fatal(err)
 	}
-	t.Skip("no short coordinate generated in 200 attempts")
+	key, err := ecdsa.ParseUncompressedPublicKey(elliptic.P256(), point)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if x, _, err := format.ECPublicCoords(key); err != nil || len(x) != 32 || x[0] != 0 {
+		t.Fatalf("X = %x, %v, want 32 bytes with a leading zero", x, err)
+	}
+	parsed, err := ParseJWK(ecJWK(t, key, "P-256"))
+	if err != nil {
+		t.Fatalf("ParseJWK: %v", err)
+	}
+	if !parsed.(*ecdsa.PublicKey).Equal(key) {
+		t.Fatal("a key with a short X coordinate did not round trip")
+	}
 }
 
 func TestParseJWK_RSARoundTrip(t *testing.T) {

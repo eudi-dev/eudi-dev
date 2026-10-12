@@ -777,6 +777,43 @@ test.describe("Credential Issuing via UI", () => {
     await expect(card).toHaveCount(0);
   });
 
+  test("marks a credential that is not valid yet", async ({ page }) => {
+    const issued = await jsonPost(`${WALLET_URL}/api/issue`, {
+      format: "sdjwt",
+      vct: "urn:example:e2e-future",
+      claims: { given_name: "ERIKA" },
+      nbf: "48h",
+    });
+    expect(issued.status).toBe(201);
+    const id = issued.body.id;
+
+    await page.goto(WALLET_URL);
+    const card = page.locator(`#credential-${id}`);
+    await expect(card).toHaveAttribute("data-expiry", "not-yet-valid");
+    await expect(page.locator(`#expiry-${id}`)).toHaveText("Not yet valid");
+    await expect(page.locator(`#expiry-${id}`)).toHaveAttribute("title", /^Valid from /);
+
+    await page.locator(`#delete-${id}`).click();
+    await expect(card).toHaveCount(0);
+  });
+
+  test("the footer labels a prerelease build", async ({ page }) => {
+    let version = "3.0.0-beta.4";
+    await page.route("**/api/config", async (route) => {
+      const response = await route.fetch();
+      await route.fulfill({ response, json: { ...(await response.json()), version } });
+    });
+    await page.goto(WALLET_URL);
+    await expect(page.locator("#footer-version")).toHaveText("eudi-dev 3.0.0-beta.4");
+    await expect(page.locator("#footer-prerelease")).toBeVisible();
+    await expect(page.locator("#footer-prerelease")).toHaveText("Beta");
+
+    version = "3.0.0";
+    await page.reload();
+    await expect(page.locator("#footer-version")).toHaveText("eudi-dev 3.0.0");
+    await expect(page.locator("#footer-prerelease")).toBeHidden();
+  });
+
   test("the header opens the templates, also from the phone menu", async ({ page }) => {
     await page.goto(WALLET_URL);
     await page.locator("#templates-link").click();
@@ -1126,6 +1163,10 @@ test.describe("Credential Issuing via UI", () => {
     await expect(page.locator("#trust-group-external")).toHaveCount(0);
     await provider.locator(".trust-remove").click();
     await expect(provider).toHaveCount(0);
+
+    const after = await (await request.get(`${WALLET_URL}/api/trust`)).json();
+    expect((after.entities || []).filter((e) => e.name === "E2E provider")).toEqual([]);
+    expect((after.lists || []).filter((l) => l.url === `${WALLET_URL}/api/trustlists/pid`)).toEqual([]);
   });
 });
 
@@ -1293,6 +1334,88 @@ test.describe("Transaction code in the consent dialog", () => {
     await page.goto(`${WALLET_URL}/?focus=overview&request=${await waitForPendingRequest()}`);
     await expect(page.locator("#consent-approve")).toBeVisible();
     await expect(page.locator("#offer-tx-code-input")).toHaveCount(0);
+  });
+});
+
+test.describe("Offer dialog descriptions", () => {
+  const longDescription =
+    "A diploma that the university issues after the final examination. " +
+    "It names the degree, the field of study, the grade and the date of the examination. " +
+    "Employers and other universities ask for it when you apply.";
+  let issuer;
+  let issuerURL;
+
+  test.beforeAll(async () => {
+    issuer = http.createServer((req, res) => {
+      if (req.url !== "/.well-known/openid-credential-issuer") {
+        res.writeHead(404).end();
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "application/json" }).end(
+        JSON.stringify({
+          credential_issuer: issuerURL,
+          credential_endpoint: issuerURL + "/credential",
+          credential_configurations_supported: {
+            "long-config": {
+              format: "dc+sd-jwt",
+              vct: "urn:example:e2e-diploma",
+              credential_metadata: { display: [{ name: "Diploma", description: longDescription }] },
+            },
+            "short-config": {
+              format: "dc+sd-jwt",
+              vct: "urn:example:e2e-badge",
+              credential_metadata: { display: [{ name: "Badge", description: "A badge." }] },
+            },
+          },
+        })
+      );
+    });
+    await new Promise((resolve) => issuer.listen(0, "127.0.0.1", resolve));
+    issuerURL = `http://127.0.0.1:${issuer.address().port}`;
+  });
+
+  test.afterAll(async () => {
+    await denyPendingRequests();
+    await new Promise((resolve) => issuer.close(resolve));
+  });
+
+  test("a long description opens behind More and a short one has no button", async ({ page }) => {
+    await denyPendingRequests();
+    // This POST waits for the consent decision, so it is not awaited.
+    jsonPost(`${WALLET_URL}/api/offers`, {
+      uri:
+        "openid-credential-offer://?credential_offer=" +
+        encodeURIComponent(
+          JSON.stringify({
+            credential_issuer: issuerURL,
+            credential_configuration_ids: ["long-config", "short-config"],
+            grants: { "urn:ietf:params:oauth:grant-type:pre-authorized_code": { "pre-authorized_code": "code" } },
+          })
+        ),
+      interactive: true,
+    }).catch(() => {});
+
+    await page.setViewportSize({ width: 390, height: 800 });
+    await page.goto(`${WALLET_URL}/?focus=overview&request=${await waitForPendingRequest()}`);
+    const description = page.locator("#offer-description-long-config");
+    const toggle = page.locator("#offer-description-long-config-toggle");
+    await expect(description).toContainText("final examination");
+    await expect(toggle).toBeVisible();
+    await expect(toggle).toHaveText("More");
+    const collapsed = await description.evaluate((el) => el.clientHeight);
+
+    await toggle.click();
+    await expect(toggle).toHaveText("Less");
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await expect(description).toHaveClass(/offer-description-open/);
+    expect(await description.evaluate((el) => el.clientHeight)).toBeGreaterThan(collapsed);
+
+    await toggle.click();
+    await expect(toggle).toHaveText("More");
+    await expect(page.locator("#offer-description-short-config")).toHaveText("A badge.");
+    await expect(page.locator("#offer-description-short-config-toggle")).toBeHidden();
+
+    await page.locator("#consent-deny").click();
   });
 });
 

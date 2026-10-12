@@ -22,7 +22,10 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"sort"
 	"strings"
@@ -164,6 +167,8 @@ type parityCase struct {
 	method  string
 	observe func(t *testing.T, svc walletService) any
 	skip    string
+	// seed prepares each wallet after the PID baseline.
+	seed func(t *testing.T, w *wallet.Wallet)
 }
 
 // Select by format because issuance timestamps can order independently created wallets
@@ -269,7 +274,14 @@ func parityCases() []parityCase {
 			}
 			return keysOf(imported)
 		}},
-		{method: "RenewCredential", skip: "renewing needs a live issuer to exchange a refresh token with. internal/wallet covers the operation against a stub"},
+		{method: "RenewCredential", seed: renewableSDJWTs, observe: func(t *testing.T, s walletService) any {
+			id := credentialID(t, s, "dc+sd-jwt")
+			renewed, err := s.RenewCredential(id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return []any{renewed["id"] == id, keysOf(renewed)}
+		}},
 		{method: "RemoveCredential", observe: func(t *testing.T, s walletService) any {
 			id := importedCredential(t, s)
 			before, err := s.Credentials()
@@ -612,7 +624,12 @@ func TestWalletServiceBackendsAgree(t *testing.T) {
 		}
 		t.Run(c.method, func(t *testing.T) {
 			resetRemoteTestState(t)
-			localSvc, remoteSvc := parityWallets(t, seedPID)
+			localSvc, remoteSvc := parityWallets(t, func(w *wallet.Wallet) {
+				seedPID(w)
+				if c.seed != nil {
+					c.seed(t, w)
+				}
+			})
 
 			localObs := c.observe(t, localSvc)
 			remoteObs := c.observe(t, remoteSvc)
@@ -675,6 +692,50 @@ func docKeys(t *testing.T, docs []map[string]any) any {
 		byFormat[format] = keys
 	}
 	return byFormat
+}
+
+// renewableSDJWTs gives every SD-JWT credential a refresh token from a stub
+// issuer. The issuer reissues the stored credential, which keeps it bound to
+// the wallet's holder key.
+func renewableSDJWTs(t *testing.T, w *wallet.Wallet) {
+	t.Helper()
+	reissue := map[string]string{}
+	var issuerURL string
+	issuer := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rw.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/.well-known/openid-credential-issuer":
+			_ = json.NewEncoder(rw).Encode(map[string]any{
+				"credential_issuer":   issuerURL,
+				"credential_endpoint": issuerURL + "/credential",
+				"nonce_endpoint":      issuerURL + "/nonce",
+			})
+		case "/nonce":
+			_ = json.NewEncoder(rw).Encode(map[string]any{"c_nonce": "renewal-nonce"})
+		case "/token":
+			_ = r.ParseForm()
+			_ = json.NewEncoder(rw).Encode(map[string]any{"access_token": r.PostForm.Get("refresh_token"), "token_type": "Bearer"})
+		case "/credential":
+			raw := reissue[strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")]
+			_ = json.NewEncoder(rw).Encode(map[string]any{"credentials": []any{map[string]any{"credential": raw}}})
+		default:
+			http.NotFound(rw, r)
+		}
+	}))
+	t.Cleanup(issuer.Close)
+	issuerURL = issuer.URL
+	for i := range w.Credentials {
+		cred := &w.Credentials[i]
+		if cred.Format != "dc+sd-jwt" {
+			continue
+		}
+		reissue[cred.ID] = cred.Raw
+		cred.Renewal = &wallet.CredentialRenewal{
+			RefreshToken: cred.ID, Issuer: issuer.URL,
+			TokenEndpoint: issuer.URL + "/token", CredentialEndpoint: issuer.URL + "/credential",
+			ConfigurationID: "pid",
+		}
+	}
 }
 
 func seedPID(w *wallet.Wallet) {

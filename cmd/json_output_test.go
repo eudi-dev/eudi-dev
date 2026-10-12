@@ -16,8 +16,11 @@ package cmd
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -210,5 +213,43 @@ func TestRemoteFlowErrorFailsRefusedFlows(t *testing.T) {
 		if err := remoteFlowError(tc.result); (err != nil) != tc.wantErr {
 			t.Errorf("%v: err = %v, want an error %v", tc.result, err, tc.wantErr)
 		}
+	}
+}
+
+func TestTrustAndCatalogCommandsPrintJSON(t *testing.T) {
+	resetRemoteTestState(t)
+	ca := filepath.Join(t.TempDir(), "ca.pem")
+	if err := os.WriteFile(ca, testCAPEM(t), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	entity := runJSON(t, "trust", "add-ca", "--list", "eaa", "--name", "Diploma Provider", "--ca", ca)
+	id, _ := entity["id"].(string)
+	if id == "" || entity["list"] != "eaa" {
+		t.Fatalf("trust add-ca: %v", entity)
+	}
+	if doc := runJSON(t, "trust", "rm-ca", id); doc["removed"] != id {
+		t.Errorf("trust rm-ca: %v", doc)
+	}
+
+	// The wallet keeps a list it cannot read yet and names the reason.
+	unreadable := httptest.NewServer(http.NotFoundHandler())
+	defer unreadable.Close()
+	listURL := unreadable.URL + "/lists/eaa"
+	if link := runJSON(t, "trust", "add-list", listURL); link["url"] != listURL || link["error"] == nil {
+		t.Errorf("trust add-list: %v", link)
+	}
+	if doc := runJSON(t, "trust", "rm-list", listURL); doc["removed"] != listURL {
+		t.Errorf("trust rm-list: %v", doc)
+	}
+
+	var entries []map[string]any
+	runJSONInto(t, &entries, "catalog", "list")
+	var names []string
+	for _, entry := range entries {
+		name, _ := entry["name"].(string)
+		names = append(names, name)
+	}
+	if !slices.Contains(names, "EUDI PID") {
+		t.Errorf("catalog list printed %v, want the PID template entry", names)
 	}
 }

@@ -31,12 +31,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
 	"github.com/eudi-dev/eudi-dev/v3/internal/statuslist"
 	"github.com/eudi-dev/eudi-dev/v3/internal/validate"
+	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
 )
 
 func generateCACert(t *testing.T) (*x509.Certificate, *ecdsa.PrivateKey, []byte) {
@@ -672,5 +674,86 @@ func TestValidateCreatesNoWallet(t *testing.T) {
 	}
 	if exists, err := store.Exists(); err != nil || exists {
 		t.Errorf("Exists = %v, %v after validate, want no wallet", exists, err)
+	}
+}
+
+// storedPIDWallet saves a wallet with its PID baseline in store and returns
+// the raw SD-JWT VC PID.
+func storedPIDWallet(t *testing.T, store *wallet.WalletStore) string {
+	t.Helper()
+	w, err := store.LoadOrCreate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.GenerateProtectedDefaults(); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Save(w); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range w.GetCredentials() {
+		if c.Format == "dc+sd-jwt" && c.VCT == credtype.PIDVCT {
+			return c.Raw
+		}
+	}
+	t.Fatal("the wallet holds no SD-JWT VC PID")
+	return ""
+}
+
+// With a stored wallet in the default directory, validate checks the credential against the trusted
+// lists of its catalogue entry and reports the result under "trust".
+func TestValidateReportsCatalogueTrust(t *testing.T) {
+	resetRemoteTestState(t)
+	store, err := openStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	own := storedPIDWallet(t, store)
+	foreign := storedPIDWallet(t, wallet.NewWalletStore(t.TempDir()))
+
+	for _, tc := range []struct {
+		name     string
+		raw      string
+		anchored bool
+	}{
+		{"a PID of the wallet's own provider", own, true},
+		{"a PID of another provider", foreign, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			credFile := filepath.Join(t.TempDir(), "pid.txt")
+			if err := os.WriteFile(credFile, []byte(tc.raw), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			doc := runJSON(t, "validate", credFile)
+			trust, ok := doc["trust"].(map[string]any)
+			if !ok {
+				t.Fatalf("validate --json printed no trust object: %v", doc)
+			}
+			if trust["category"] != "pid" {
+				t.Errorf("trust = %v, want the PID category", trust)
+			}
+			if anchored := trust["anchored_by"] != nil; anchored != tc.anchored {
+				t.Errorf("trust = %v, anchored = %v, want %v", trust, anchored, tc.anchored)
+			}
+			if findings, _ := trust["findings"].([]any); tc.anchored == (len(findings) > 0) {
+				t.Errorf("trust findings = %v, want findings only for the unanchored PID", findings)
+			}
+		})
+	}
+
+	credFile := filepath.Join(t.TempDir(), "pid.txt")
+	if err := os.WriteFile(credFile, []byte(own), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { resetFlags(rootCmd) })
+	resetFlags(rootCmd)
+	text := captureStdout(t, func() {
+		rootCmd.SetArgs([]string{"validate", "--haip", credFile})
+		if err := rootCmd.Execute(); err != nil {
+			t.Errorf("validate: %v", err)
+		}
+	})
+	if !strings.Contains(text, "✓ Trust:") || !strings.Contains(text, "HAIP 1.0") {
+		t.Errorf("validate printed %q, want the trust line and the HAIP section", text)
 	}
 }

@@ -774,3 +774,67 @@ func TestInteractiveAuthorizationAuthViaWebNeedsAnHTTPSRedirectURI(t *testing.T)
 		t.Errorf("interaction_types_supported = %q, want the presentation type alone", got)
 	}
 }
+
+// first-party-apps §5.2.2.1.1: redirect_to_web asks the client to finish the
+// authorization in a browser. With a request_uri the wallet opens that pushed
+// request. Without one it starts its own authorization request. Either way
+// the code comes through the redirect, so the token request repeats the
+// redirect URI (RFC 6749 §4.1.3).
+func TestInteractiveAuthorizationRedirectToWeb(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		requestURI string
+	}{
+		{"with a request_uri", "urn:ietf:params:oauth:request_uri:web-1"},
+		{"without a request_uri", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w := newInteractiveWallet(t)
+			issuer := newInteractiveIssuer(t, w)
+			issuer.challengeError = map[string]any{"error": errorRedirectToWeb}
+			if tc.requestURI != "" {
+				issuer.challengeError["request_uri"] = tc.requestURI
+			}
+			issuer.authorizeRedirect = "code=web-code"
+			w.VCIRedirectURI = "https://wallet.example/callback"
+
+			result, err := w.ProcessCredentialOffer(interactiveOfferURI(issuer.url))
+			if err != nil {
+				t.Fatalf("ProcessCredentialOffer() error = %v", err)
+			}
+			if result.CredentialID == "" {
+				t.Fatal("expected an imported credential")
+			}
+			if got := issuer.authorizeQuery.Get("request_uri"); got != tc.requestURI {
+				t.Errorf("authorization request request_uri = %q, want %q", got, tc.requestURI)
+			}
+			if tc.requestURI == "" && issuer.authorizeQuery.Get("redirect_uri") != w.VCIRedirectURI {
+				t.Errorf("the wallet's own authorization request carries %v, want its redirect URI", issuer.authorizeQuery)
+			}
+			if got := issuer.tokenForm.Get("code"); got != "web-code" {
+				t.Errorf("token request code = %q, want the code from the redirect", got)
+			}
+			if got := issuer.tokenForm.Get("redirect_uri"); got != w.VCIRedirectURI {
+				t.Errorf("token request redirect_uri = %q, want %q", got, w.VCIRedirectURI)
+			}
+			assertWalletLogEvent(t, w.GetLog(), "interactive_authorization_redirect_to_web")
+		})
+	}
+}
+
+// The browser sign-in needs a callback, so redirect_to_web without
+// --vci-redirect-uri ends the flow.
+func TestInteractiveAuthorizationRedirectToWebNeedsARedirectURI(t *testing.T) {
+	w := newInteractiveWallet(t)
+	issuer := newInteractiveIssuer(t, w)
+	issuer.challengeError = map[string]any{"error": errorRedirectToWeb, "request_uri": "urn:ietf:params:oauth:request_uri:web-1"}
+	issuer.authorizeRedirect = "code=web-code"
+
+	_, err := w.ProcessCredentialOffer(interactiveOfferURI(issuer.url))
+	if err == nil || !strings.Contains(err.Error(), "--vci-redirect-uri") {
+		t.Fatalf("err = %v, want it to ask for --vci-redirect-uri", err)
+	}
+	if issuer.authorizeQuery != nil {
+		t.Errorf("the wallet opened the authorization endpoint with %v", issuer.authorizeQuery)
+	}
+}

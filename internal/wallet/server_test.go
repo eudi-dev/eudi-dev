@@ -3215,3 +3215,47 @@ func (s *Server) reloadFromStore() error {
 	defer s.unlockStore()
 	return s.reloadLocked(false)
 }
+
+// Every instance of a list stays fetchable under its sequence number.
+func TestTrustListHistoryAPI(t *testing.T) {
+	w := generateTestWallet(t)
+	w.IssuerURL = "https://localhost:8443"
+	srv := NewServer(w, 0, nil)
+
+	current := serverRequest(t, srv, "GET", "/api/trustlists/eaa", "")
+	if current.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", current.Code, current.Body.String())
+	}
+
+	resp := serverRequest(t, srv, "GET", "/api/trustlists/eaa/history", "")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+	instances, _ := decodeJSON(t, resp)["instances"].([]any)
+	if len(instances) != 1 {
+		t.Fatalf("instances = %v, want the one instance served", instances)
+	}
+	instance := instances[0].(map[string]any)
+	if instance["sequence"] != float64(1) || instance["url"] != "https://localhost:8443/api/trustlists/eaa/history/1" {
+		t.Errorf("instance = %v, want sequence 1 under the list's history URL", instance)
+	}
+
+	resp = serverRequest(t, srv, "GET", "/api/trustlists/eaa/history/1", "")
+	if resp.Code != http.StatusOK || resp.Header().Get("Content-Type") != "application/jwt" {
+		t.Fatalf("history/1: %d %s", resp.Code, resp.Header().Get("Content-Type"))
+	}
+	if resp.Body.String() != current.Body.String() {
+		t.Error("history/1 differs from the list served as the current instance")
+	}
+
+	for _, path := range []string{
+		"/api/trustlists/eaa/history/2",
+		"/api/trustlists/eaa/history/0",
+		"/api/trustlists/eaa/history/latest",
+		"/api/trustlists/no-such-list/history",
+	} {
+		if resp := serverRequest(t, srv, "GET", path, ""); resp.Code != http.StatusNotFound {
+			t.Errorf("GET %s: %d, want 404", path, resp.Code)
+		}
+	}
+}

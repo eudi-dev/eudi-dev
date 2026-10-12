@@ -141,6 +141,17 @@ async function credentialCount(request) {
   return Number(res.headers()["x-total-count"]);
 }
 
+// certificateURIs lists the URIs among the subject alternative names of a PEM
+// certificate.
+function certificateURIs(pem) {
+  const text = execSync("openssl x509 -noout -ext subjectAltName", { input: pem }).toString();
+  return [...text.matchAll(/URI:([^,\s]+)/g)].map((m) => m[1]);
+}
+
+function jwtPayload(jwt) {
+  return JSON.parse(Buffer.from(jwt.split(".")[1], "base64url").toString());
+}
+
 async function approveConsent(page) {
   await expect(page.locator("#consent-overlay")).toHaveClass(/active/, { timeout: 15_000 });
   await page.locator("#consent-approve").click();
@@ -235,6 +246,69 @@ for (const mode of ["rewrite", "rewrite-header", "keep"]) {
           timeout: 15_000,
         })
         .toBe("completed");
+    });
+
+    test("a registered relying party's certificates link under the prefix", async ({ request }) => {
+      const csr = execSync(
+        "openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -keyout /dev/null -subj /",
+        { stdio: ["ignore", "pipe", "ignore"] }
+      ).toString();
+      const enrolled = await request.post(PUBLIC + "/api/registrar/enrolments", {
+        data: {
+          relyingParty: {
+            tradeName: `Prefix Shop ${mode}`,
+            services: [
+              {
+                intendedUses: [
+                  {
+                    purpose: [{ lang: "en", content: "Age check" }],
+                    credentials: [
+                      { format: "dc+sd-jwt", meta: { vct_values: ["urn:eudi:pid:1"] }, claims: [{ path: ["age_over_18"] }] },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+          access: { csr },
+          registration: {},
+        },
+      });
+      expect(enrolled.ok(), await enrolled.text()).toBe(true);
+      const { access, registration } = await enrolled.json();
+
+      const claims = jwtPayload(registration.registrationCertificate);
+      const urls = [
+        claims.status.status_list.uri,
+        claims.registry_uri,
+        claims.privacy_policy,
+        claims.support_uri,
+        claims.supervisory_authority.uri,
+        ...certificateURIs(access.certificate),
+      ];
+      expect(urls).toContain(PUBLIC + "/api/registrar/status-list");
+      expect(urls).toContain(PUBLIC + "/support");
+      for (const url of urls) {
+        expect(url.startsWith(PUBLIC + "/"), url).toBe(true);
+        expect((await request.get(url)).status(), url).toBe(200);
+      }
+    });
+
+    test("the catalogue serves its schemas under the prefix", async ({ request }) => {
+      const entries = await request.get(PUBLIC + "/api/catalog/attestations").then((r) => r.json());
+      const pid = entries.find((e) => e.name === "EUDI PID");
+      expect(pid).toBeDefined();
+      const schema = await request.get(`${PUBLIC}/api/catalog/schemas/${pid.schema.id}`, {
+        headers: { Accept: "application/json" },
+      });
+      expect(schema.ok()).toBe(true);
+      const body = await schema.json();
+      expect(body.iss.startsWith(PUBLIC)).toBe(true);
+      expect(body.data.schemaURIs.length).toBeGreaterThan(0);
+      for (const { uri } of body.data.schemaURIs) {
+        expect(uri.startsWith(PUBLIC + "/"), uri).toBe(true);
+        expect((await request.get(uri)).status(), uri).toBe(200);
+      }
     });
 
     test("the decoder opens under the prefix", async ({ page }) => {

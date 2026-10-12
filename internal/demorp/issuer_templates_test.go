@@ -303,7 +303,7 @@ func TestAStrictWalletRefusesACredentialOutsideItsTrustedList(t *testing.T) {
 	created := postJSONTo(t, ts.URL+"/issuer/api/offers?credential=badge", "")
 	schemeURI, _ := created["scheme_uri"].(string)
 	result := postJSONTo(t, ts.URL+"/api/offers", `{"uri":`+jsonString(schemeURI)+`}`)
-	if msg, _ := result["error"].(string); !strings.Contains(msg, "ARF ISSU_10") {
+	if msg, _ := result["error_description"].(string); !strings.Contains(msg, "ARF ISSU_10") {
 		t.Errorf("result %v, want a refusal citing ISSU_10", result)
 	}
 	if got := len(w.GetCredentials()); got != before {

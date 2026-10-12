@@ -1333,7 +1333,7 @@ func TestIssuanceHAIPAcceptsPreAuthorizedOffer(t *testing.T) {
 		url.QueryEscape(`{"credential_issuer":"`+legacy.URL+`","credential_configuration_ids":["legacy"],"grants":{"urn:ietf:params:oauth:grant-type:pre-authorized_code":{"pre-authorized_code":"abc"}}}`)
 
 	result := postJSONTo(t, ts.URL+"/api/offers", `{"uri":`+jsonString(offerURI)+`}`)
-	errText, _ := result["error"].(string)
+	errText, _ := result["error_description"].(string)
 	// The test issuer's token endpoint refuses the grant. That is the expected
 	// failure, and HAIP enforcement must not cause it.
 	if strings.Contains(errText, "HAIP") {
