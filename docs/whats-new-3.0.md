@@ -2,7 +2,7 @@
 
 eudi-dev 3.0 lets you test the trust side of the EUDI Wallet ecosystem. Register your verifier or issuer, get real certificates for it and let the wallet check them the way the ARF describes. The [changelog](../CHANGELOG.md) lists every change, and [upgrading from 2.x](upgrading.md) lists what you have to change.
 
-Want a quick look first? Open [eudi-test.dev](https://eudi-test.dev) and take the tour.
+Want a quick look first? Open [eudi-test.dev](https://eudi-test.dev).
 
 ## Test your verifier with registered certificates
 

@@ -415,6 +415,20 @@ test.describe("Verification panel", () => {
 });
 
 test.describe("Cross-highlighting (right → left)", () => {
+  test("hovering one disclosure highlights only its part of the input", async ({ page }) => {
+    await page.goto("/");
+    await page.locator("#input").fill(TEST_SDJWT);
+    await expect(page.locator(".disclosure-item")).toHaveCount(2, { timeout: 3000 });
+
+    await page.locator('.disclosure-item[data-disc-index="0"]').hover();
+    await expect(page.locator('#raw-view [data-section="disc-0"]')).toHaveClass(/highlight/);
+    await expect(page.locator('#raw-view [data-section="disc-1"]')).not.toHaveClass(/highlight/);
+
+    await page.locator('.disclosure-item[data-disc-index="1"]').hover();
+    await expect(page.locator('#raw-view [data-section="disc-1"]')).toHaveClass(/highlight/);
+    await expect(page.locator('#raw-view [data-section="disc-0"]')).not.toHaveClass(/highlight/);
+  });
+
   test("hovering output section highlights input span", async ({ page }) => {
     await page.goto("/");
     await page.locator("#input").fill(TEST_JWT);

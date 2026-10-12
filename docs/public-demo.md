@@ -198,8 +198,6 @@ Pass `--imprint-file` with an HTML snippet containing the operator's name, addre
 
 Pass `--news-file` with an HTML snippet. The wallet opens it on a visitor's first visit and again after the file changes. It needs `--demo`.
 
-The news dialog has a **Take the tour** button next to **Close**. That tour shows the new features of the release.
-
 An image next to the snippet, such as `<img src="overview.png">`, is embedded in the page, because the wallet loads images only from itself. Images can be PNG, JPEG, GIF, WebP or SVG, up to 2 MiB each. A paragraph with `class="lead"` stands out as the summary.
 
 The example stack mounts the `news` folder, and `./deploy.sh push` copies it to the host. The overview image is rendered from `3.0.0-beta.source.html`.

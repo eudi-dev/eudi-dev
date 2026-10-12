@@ -767,15 +767,18 @@
 
       disc.querySelectorAll(".disclosure-item[data-disc-index]").forEach((item) => {
         const idx = item.getAttribute("data-disc-index");
+        // The Disclosures section highlights every disclosure. A single
+        // disclosure under the pointer highlights only itself.
+        const discSpans = () => rawView.querySelectorAll('[data-section^="disc-"]');
         item.addEventListener("mouseenter", () => {
           item.classList.add("highlight");
-          const span = rawView.querySelector('[data-section="disc-' + idx + '"]');
-          if (span) span.classList.add("highlight");
+          discSpans().forEach((s) => s.classList.toggle("highlight", s.getAttribute("data-section") === "disc-" + idx));
         });
         item.addEventListener("mouseleave", () => {
           item.classList.remove("highlight");
-          const span = rawView.querySelector('[data-section="disc-' + idx + '"]');
-          if (span) span.classList.remove("highlight");
+          const section = disc.closest(".section");
+          const inSection = !!section && section.matches(":hover");
+          discSpans().forEach((s) => s.classList.toggle("highlight", inSection));
         });
       });
     }
