@@ -212,7 +212,7 @@ The optional `display` object sets the card appearance of credentials issued fro
 The two image fields (`logo`, `background_image`) take one of three sources:
 
 - a `data:` URI, embedded directly
-- an `https://` URL, fetched once at issuance
+- an `http://` or `https://` URL, fetched once at issuance
 - `embedded:<file>`, a bundled image such as `embedded:images/logo.svg`. A bare file name means a file under `images/`
 
 A fetched image is stored in the wallet's size-limited cache and is embedded as a `data:` URI on the issued credential.

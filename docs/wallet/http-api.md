@@ -449,7 +449,7 @@ curl -H 'Accept: application/statuslist+jwt' http://localhost:8085/api/statuslis
 curl -H 'Accept: application/statuslist+cwt' http://localhost:8085/api/statuslist --output statuslist.cwt
 ```
 
-The wallet and `eudi validate` read both forms. When they resolve a credential's status reference, they request both media types and parse the format the server returns.
+The wallet and `eudi validate` read both forms. When they resolve a credential's status reference, they request both media types and parse the returned format.
 
 `GET /api/crl` serves the root CA's DER certificate revocation list (`application/pkix-crl`). `GET /api/crl/providers/{role}/{country}` serves a provider CA's CRL. Generated signing certificates point to their provider's CRL. Certificates signed directly by the root, such as the status and trusted list signers, use `/api/crl`. These lists are empty and freshly signed with a week of validity. Credential revocation uses the status list.
 

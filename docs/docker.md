@@ -26,7 +26,7 @@ docker run -i ghcr.io/eudi-dev/eudi-dev validate --trusted-list https://example.
 
 The image sets `EUDI_DEV_PORT=8085`, `EUDI_DEV_AUTO_ACCEPT=true` and `EUDI_DEV_PID=true`. Set `EUDI_DEV_AUTO_ACCEPT=false` for a wallet that asks before it presents or accepts a credential. These defaults also apply when you pass your own `wallet serve` command. With `--demo` the wallet ignores `EUDI_DEV_AUTO_ACCEPT` and approves without asking only when `--auto-accept` is on the command line.
 
-`wallet serve` refuses to start when an `EUDI_DEV_` variable matches no flag, so a typo does not go unnoticed. `EUDI_DEV_HOME`, `EUDI_DEV_STORAGE`, `EUDI_DEV_SEED`, `EUDI_DEV_ALLOW_PRIVATE_NETWORKS`, `EUDI_DEV_LISTEN` and `EUDI_DEV_REMOTE_TIMEOUT` keep their own meaning. `EUDI_DEV_REMOTE_TIMEOUT` sets how long the wallet waits for an issuer or verifier, as a Go duration such as `45s`. The default is `15s`.
+`wallet serve` refuses to start when an `EUDI_DEV_` variable matches no flag. `EUDI_DEV_HOME`, `EUDI_DEV_STORAGE`, `EUDI_DEV_SEED`, `EUDI_DEV_ALLOW_PRIVATE_NETWORKS`, `EUDI_DEV_LISTEN` and `EUDI_DEV_REMOTE_TIMEOUT` keep their own meaning. `EUDI_DEV_REMOTE_TIMEOUT` sets how long the wallet waits for an issuer or verifier, as a Go duration such as `45s`. The default is `15s`.
 
 The image sets `EUDI_DEV_LISTEN=0.0.0.0`. The wallet, the decoder and the proxy in the container then bind every interface, so published ports reach them. Outside a container they bind `127.0.0.1` by default (see [listen address](wallet/serve.md#listen-address)).
 

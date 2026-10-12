@@ -456,7 +456,7 @@ Open **Registrar**, then **Attestation catalogue** (`#registrar-catalog-link`). 
 | Control | Selector |
 |---|---|
 | Search | `#registrar-catalog-search` |
-| Filters | `#registrar-catalog-filter-category-<category>`, `-los-<level>`, `-source-<source>` (with `aria-pressed`), `#registrar-catalog-filter-clear` |
+| Filters | `#registrar-catalog-filter-category-<category>`, `-los-<level>`, `-binding-<value>`, `-source-<source>` (with `aria-pressed`), `#registrar-catalog-filter-clear` |
 | No match | `#registrar-catalog-empty` |
 | Add an attestation | `#registrar-catalog-add`, form fields `#registrar-catalog-name`, `#registrar-catalog-category`, `#registrar-catalog-format-<n>-type`, `#registrar-catalog-save` |
 
@@ -544,7 +544,7 @@ const res = await fetch(`${WALLET}/verifier/api/requests`, {
 const { transaction_id, wallet_url } = await res.json();
 ```
 
-Errors have the same shape on every endpoint (see [errors](wallet/http-api.md#errors)):
+Errors of the wallet, registrar, catalogue and decoder API have one shape (see [errors](wallet/http-api.md#errors)):
 
 ```json
 {"error": "invalid_request", "error_description": "invalid JSON body: invalid character 'n' looking for beginning of value"}

@@ -40,7 +40,7 @@ examples/      Keycloak and web-wallet integration examples
 | `oid4vc` | OID4VP and OID4VCI request and offer parsing |
 | `oid4vp` | The wallet side of OpenID4VP 1.0: request checks (client identifier, client metadata, verifier_info, HAIP), browser API requests and response delivery |
 | `output` | Terminal output formatting |
-| `provider` | The wallet's provider keys and certificates: the trusted list of each credential category, the signing key and CA of each list, the access and registrar CAs, and the sequenced lists signed with them |
+| `provider` | The wallet's provider keys and certificates: the trusted list of each credential category, the signing key and CA of each list, the access and registrar CAs, and the sequenced list instances |
 | `proxy` | Reverse proxy, traffic classifier, dashboard |
 | `publicpath` | The path prefix of the base URL behind a reverse proxy (ADR-0019) |
 | `qr` | QR scanning from file or screen |

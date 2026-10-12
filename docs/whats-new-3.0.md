@@ -2,7 +2,7 @@
 
 eudi-dev 3.0.0 lets you test the trust side of the EUDI Wallet ecosystem. Register your verifier or issuer, use its certificates and see what the wallet checks.
 
-This page covers the highlights. For all changes, see the [changelog](../CHANGELOG.md). Coming from 2.x? See [upgrading from 2.x](upgrading.md).
+This page covers the highlights. For all changes, see the [changelog](../CHANGELOG.md). Upgrading from 2.x is described in [upgrading from 2.x](upgrading.md).
 
 Want a quick look first? Open [eudi-test.dev](https://eudi-test.dev).
 
