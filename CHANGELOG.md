@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.8.0] - 2026-10-12
 
+### Changed
+
+- **New look.** The wallet, decoder, proxy dashboard and demo pages use a graphite palette in dark and light, system type and rounded controls. Credential data, IDs and code stay in monospace.
+
 ### Fixed
 
 - **TLS settings in the demo issuer and verifier.** Their credential checks use the wallet's TLS and proxy settings, so `--tls-verify=false`, `--tls-ca` and the proxy flags also apply to status lists.

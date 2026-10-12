@@ -8,57 +8,72 @@
   <meta name="description" content="Demo credential issuer of the EUDI Dev Wallet: issues a Demo Event Ticket over OpenID4VCI to any test wallet.">
   <style>
     :root {
-      --bg: #1a1b26; --bg-surface: #24283b; --text: #c0caf5; --text-dim: #8b93b8;
-      --border: #3b4261; --accent: #7aa2f7; --green: #9ece6a; --yellow: #e0af68;
+      --bg: #0e0f12; --bg-surface: #16181c; --bg-btn: #23262c; --bg-btn-hover: #31353d;
+      --bg-input: #121418; --bg-track: #0f1114; --bg-segment: #2c3240; --text-segment: #ffffff;
+      --shadow-segment: none; --text: #f1f2f4; --text-dim: #a3a8b1; --border: #2c3037;
+      --border-subtle: #1f2227; --accent: #8fb4ff; --on-accent: #0e0f12; --link: #9dbcff;
+      --danger: #ff9b8f; --pink: #f0a3c6;
+      --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+      --font-mono: "SF Mono", "Cascadia Code", "Fira Code", Menlo, Consolas, monospace;
     }
     @media (prefers-color-scheme: light) {
       :root {
-        --bg: #f5f5f5; --bg-surface: #ffffff; --text: #343b58; --text-dim: #6b6f7b;
-        --border: #d0d0d0; --accent: #2569d6; --green: #587539; --yellow: #8c6c3e;
+        --bg: #f2f3f5; --bg-surface: #ffffff; --bg-btn: #eceef2; --bg-btn-hover: #dde1e7;
+        --bg-input: #ffffff; --bg-track: #eceef2; --bg-segment: #ffffff; --text-segment: #15171a;
+        --shadow-segment: 0 1px 3px rgba(20, 30, 60, 0.18); --text: #15171a; --text-dim: #5a606a;
+        --border: #d5d8de; --border-subtle: #e4e6ea; --accent: #1f4fd1; --on-accent: #ffffff;
+        --link: #1f4fd1; --danger: #b3261e; --pink: #a3245f;
       }
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: "SF Mono", "Cascadia Code", "Fira Code", Menlo, Consolas, monospace;
-      background: var(--bg); color: var(--text); min-height: 100vh; padding: 40px 20px;
+      font-family: var(--font-sans); font-size: 14px; line-height: 1.5;
+      background: var(--bg); color: var(--text); min-height: 100vh; padding: 40px 16px;
     }
     .card { max-width: 640px; margin: 0 auto; background: var(--bg-surface);
-      border: 1px solid var(--border); border-radius: 8px; padding: 24px; }
-    h1 { font-size: 16px; color: var(--accent); margin-bottom: 4px; }
+      border: 1px solid var(--border-subtle); border-radius: 24px; padding: 26px; }
+    h1 { font-size: 20px; font-weight: 700; color: var(--text); margin-bottom: 0; }
     .page-header { display: flex; gap: 14px; align-items: center; margin-bottom: 18px; }
-    .page-logo { width: 38px; height: 42px; flex-shrink: 0; }
-    .subtitle { font-size: 12px; color: var(--text-dim); margin-bottom: 16px; }
-    p { font-size: 12px; line-height: 1.6; color: var(--text-dim); margin-bottom: 12px; }
-    .btn { font: inherit; font-size: 12px; padding: 8px 16px; border: 1px solid var(--border);
-      border-radius: 4px; background: var(--bg); color: var(--text); cursor: pointer; }
-    .btn.primary { border-color: var(--accent); color: var(--accent); }
-    .result { margin-top: 16px; display: none; }
-    .label { font-size: 11px; color: var(--text-dim); margin: 10px 0 4px; }
-    pre { font: inherit; font-size: 11px; background: var(--bg); border: 1px solid var(--border);
-      border-radius: 4px; padding: 8px; overflow-x: auto; user-select: all; white-space: pre-wrap; word-break: break-all; }
-    a { color: var(--accent); }
-    .links { margin-top: 20px; font-size: 11px; color: var(--text-dim); }
-    .links a { margin-right: 12px; }
-    .disclaimer { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);
-      font-size: 10px; line-height: 1.5; color: var(--text-dim); }
-    .error { color: #f7768e; font-size: 12px; margin-top: 12px; }
+    .page-logo { width: 40px; height: 44px; flex-shrink: 0; }
+    .subtitle { font-size: 14px; color: var(--text-dim); margin-bottom: 16px; }
+    p { font-size: 14px; line-height: 1.5; color: var(--text); margin-bottom: 18px; }
+    code { font-family: var(--font-mono); font-size: 0.92em; }
+    .btn { font: inherit; font-size: 14px; font-weight: 500; height: 40px; padding: 0 18px; border: 0;
+      border-radius: 20px; background: var(--bg-btn); color: var(--text); cursor: pointer; }
+    .btn:hover { background: var(--bg-btn-hover); }
+    .btn.primary { height: 48px; padding: 0 28px; border-radius: 24px; font-size: 15px; font-weight: 700;
+      background: var(--accent); color: var(--on-accent); }
+    .btn.primary:hover { opacity: 0.9; }
+    .btn:focus-visible, .toggle-option:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .result { margin-top: 18px; display: none; }
+    .result > p { margin-top: 12px; color: var(--text-dim); font-size: 13px; }
+    .label { font-size: 13px; font-weight: 600; color: var(--text-dim); margin: 12px 0 6px; }
+    pre { font-family: var(--font-mono); font-size: 12px; background: var(--bg-input); border: 1px solid var(--border);
+      border-radius: 12px; padding: 10px 12px; overflow-x: auto; user-select: all; white-space: pre-wrap; word-break: break-all; }
+    a { color: var(--link); }
+    .links { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 18px; font-size: 13px; color: var(--text-dim); }
+    .disclaimer { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border);
+      font-size: 12px; line-height: 1.5; color: var(--text-dim); }
+    .error { color: var(--danger); font-size: 13px; margin-top: 12px; }
     /* A row sets its own display, which outranks the hidden attribute. */
     [hidden] { display: none !important; }
-    .grant-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
-    .grant-label { font-size: 11px; color: var(--text-dim); }
-    .toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
-    .toggle-option { font: inherit; font-size: 12px; padding: 6px 12px; border: 0; background: var(--bg);
-      color: var(--text-dim); cursor: pointer; }
-    .toggle-option + .toggle-option { border-left: 1px solid var(--border); }
-    .toggle-option.selected { background: var(--accent); color: #fff; }
-    .grant-hint { font-size: 11px; margin-bottom: 12px; }
+    .grant-row { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-bottom: 6px; }
+    .grant-label { font-size: 14px; font-weight: 600; color: var(--text); }
+    .toggle { display: inline-flex; flex-wrap: wrap; gap: 4px; max-width: 100%; padding: 4px;
+      background: var(--bg-track); border-radius: 20px; }
+    .toggle-option { font: inherit; font-size: 14px; font-weight: 500; height: 34px; padding: 0 16px; border: 0;
+      border-radius: 17px; background: transparent; color: var(--text-dim); cursor: pointer; }
+    .toggle-option:hover { color: var(--text); }
+    .toggle-option.selected { background: var(--bg-segment); color: var(--text-segment); font-weight: 600;
+      box-shadow: var(--shadow-segment); }
+    p.grant-hint { font-size: 13px; color: var(--text-dim); margin-bottom: 18px; }
     /* The arrow is drawn with gradients so it takes the theme color. */
-    select { font: inherit; font-size: 12px; padding: 6px 28px 6px 10px; border: 1px solid var(--border);
-      border-radius: 4px; color: var(--text); cursor: pointer; appearance: none; -webkit-appearance: none;
-      max-width: 100%; min-width: 0;
-      background: linear-gradient(45deg, transparent 50%, var(--text-dim) 50%) calc(100% - 15px) 50% / 5px 5px no-repeat,
-        linear-gradient(135deg, var(--text-dim) 50%, transparent 50%) calc(100% - 10px) 50% / 5px 5px no-repeat,
-        var(--bg); }
+    select { font: inherit; font-size: 14px; height: 44px; padding: 0 36px 0 14px; border: 1px solid var(--border);
+      border-radius: 14px; color: var(--text); cursor: pointer; appearance: none; -webkit-appearance: none;
+      width: 100%; max-width: 100%; min-width: 0;
+      background: linear-gradient(45deg, transparent 50%, var(--text-dim) 50%) calc(100% - 19px) 50% / 5px 5px no-repeat,
+        linear-gradient(135deg, var(--text-dim) 50%, transparent 50%) calc(100% - 14px) 50% / 5px 5px no-repeat,
+        var(--bg-input); }
     select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
     select option { background: var(--bg-surface); color: var(--text); }
     .sponsor-info {
@@ -68,9 +83,9 @@
       justify-content: flex-start;
       margin-top: 14px;
       gap: 4px 8px;
-      padding: 3px 0;
+      padding: 0;
       color: var(--text-dim);
-      font-size: 11px;
+      font-size: 13px;
       line-height: 1.5;
     }
 
@@ -80,8 +95,8 @@
       gap: 6px;
       min-height: 28px;
       padding: 4px 6px;
-      border-radius: 4px;
-      color: var(--accent);
+      border-radius: 999px;
+      color: var(--link);
       text-decoration: none;
     }
 
@@ -98,12 +113,9 @@
       width: 14px;
       height: 14px;
       flex-shrink: 0;
-      color: #de87ad;
+      color: var(--pink);
     }
 
-    @media (prefers-color-scheme: light) {
-      .sponsor-info svg { color: #a63367; }
-    }
   </style>
 </head>
 <body>

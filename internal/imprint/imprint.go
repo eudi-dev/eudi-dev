@@ -35,8 +35,9 @@ const pageTemplate = `<!doctype html>
 <meta name="color-scheme" content="light dark">
 <title>Imprint</title>
 <style>
-  body { font-family: system-ui, sans-serif; line-height: 1.6; max-width: 42rem; margin: 2rem auto; padding: 0 1rem; }
-  @media (prefers-color-scheme: dark) { body { background: #1a1b26; color: #c0caf5; } a { color: #7aa2f7; } }
+  body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; line-height: 1.6; max-width: 42rem; margin: 2rem auto; padding: 0 1rem; background: #f2f3f5; color: #15171a; }
+  a { color: #1f4fd1; }
+  @media (prefers-color-scheme: dark) { body { background: #0e0f12; color: #f1f2f4; } a { color: #9dbcff; } }
   hr { margin: 2rem 0; opacity: 0.4; }
   .disclaimer { font-size: 0.85rem; opacity: 0.8; }
 </style>

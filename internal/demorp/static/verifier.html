@@ -8,80 +8,103 @@
   <meta name="description" content="Demo verifier of the EUDI Dev Wallet: requests and cryptographically verifies PID and ticket presentations over OpenID4VP.">
   <style>
     :root {
-      --bg: #1a1b26; --bg-surface: #24283b; --text: #c0caf5; --text-dim: #8b93b8;
-      --border: #3b4261; --accent: #7aa2f7; --green: #9ece6a; --red: #f7768e; --yellow: #e0af68;
+      --bg: #0e0f12; --bg-surface: #16181c; --bg-btn: #23262c; --bg-btn-hover: #31353d;
+      --bg-input: #121418; --bg-raised: #22252b; --bg-track: #0f1114; --bg-segment: #2c3240;
+      --text-segment: #ffffff; --shadow-segment: none; --text: #f1f2f4; --text-dim: #a3a8b1;
+      --border: #2c3037; --border-subtle: #1f2227; --accent: #8fb4ff; --on-accent: #0e0f12;
+      --link: #9dbcff; --ok-fg: #9fdcae; --danger: #ff9b8f; --green: #9fdcae; --yellow: #f0c674;
+      --pink: #f0a3c6; --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+      --font-mono: "SF Mono", "Cascadia Code", "Fira Code", Menlo, Consolas, monospace;
     }
     @media (prefers-color-scheme: light) {
       :root {
-        --bg: #f5f5f5; --bg-surface: #ffffff; --text: #343b58; --text-dim: #6b6f7b;
-        --border: #d0d0d0; --accent: #2569d6; --green: #587539; --red: #c64343; --yellow: #8c6c3e;
+        --bg: #f2f3f5; --bg-surface: #ffffff; --bg-btn: #eceef2; --bg-btn-hover: #dde1e7;
+        --bg-input: #ffffff; --bg-raised: #f3f4f7; --bg-track: #eceef2; --bg-segment: #ffffff;
+        --text-segment: #15171a; --shadow-segment: 0 1px 3px rgba(20, 30, 60, 0.18); --text: #15171a;
+        --text-dim: #5a606a; --border: #d5d8de; --border-subtle: #e4e6ea; --accent: #1f4fd1;
+        --on-accent: #ffffff; --link: #1f4fd1; --ok-fg: #17602e; --danger: #b3261e; --green: #17602e;
+        --yellow: #7a5600; --pink: #a3245f;
       }
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: "SF Mono", "Cascadia Code", "Fira Code", Menlo, Consolas, monospace;
-      background: var(--bg); color: var(--text); min-height: 100vh; padding: 40px 20px;
+      font-family: var(--font-sans); font-size: 14px; line-height: 1.5;
+      background: var(--bg); color: var(--text); min-height: 100vh; padding: 40px 16px;
     }
     .card { max-width: 640px; margin: 0 auto; background: var(--bg-surface);
-      border: 1px solid var(--border); border-radius: 8px; padding: 24px; }
-    h1 { font-size: 16px; color: var(--accent); margin-bottom: 4px; }
+      border: 1px solid var(--border-subtle); border-radius: 24px; padding: 26px; }
+    h1 { font-size: 20px; font-weight: 700; color: var(--text); margin-bottom: 0; }
     .page-header { display: flex; gap: 14px; align-items: center; margin-bottom: 18px; }
-    .page-logo { width: 38px; height: 42px; flex-shrink: 0; }
-    .subtitle { font-size: 12px; color: var(--text-dim); margin-bottom: 16px; }
-    p { font-size: 12px; line-height: 1.6; color: var(--text-dim); margin-bottom: 12px; }
-    .btn { font: inherit; font-size: 12px; padding: 8px 16px; border: 1px solid var(--border);
-      border-radius: 4px; background: var(--bg); color: var(--text); cursor: pointer; margin-right: 8px; }
-    .btn.primary { border-color: var(--accent); color: var(--accent); }
-    .result { margin-top: 16px; display: none; }
-    .label { font-size: 11px; color: var(--text-dim); margin: 10px 0 4px; }
-    pre { font: inherit; font-size: 11px; background: var(--bg); border: 1px solid var(--border);
-      border-radius: 4px; padding: 8px; overflow-x: auto; user-select: all; white-space: pre-wrap; word-break: break-all; }
-    a { color: var(--accent); }
-    .links { margin-top: 20px; font-size: 11px; color: var(--text-dim); }
-    .links a { margin-right: 12px; }
-    .disclaimer { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);
-      font-size: 10px; line-height: 1.5; color: var(--text-dim); }
-    .status { font-size: 13px; font-weight: 600; margin: 12px 0 6px; }
-    .status.verified { color: var(--green); }
-    .status.failed { color: var(--red); }
+    .page-logo { width: 40px; height: 44px; flex-shrink: 0; }
+    .subtitle { font-size: 14px; color: var(--text-dim); margin-bottom: 16px; }
+    p { font-size: 14px; line-height: 1.5; color: var(--text); margin-bottom: 18px; }
+    code { font-family: var(--font-mono); font-size: 0.92em; }
+    .btn { font: inherit; font-size: 14px; font-weight: 500; height: 40px; padding: 0 18px; border: 0;
+      border-radius: 20px; background: var(--bg-btn); color: var(--text); cursor: pointer; margin-right: 8px; }
+    .btn:hover { background: var(--bg-btn-hover); }
+    .btn.primary { height: 48px; padding: 0 28px; border-radius: 24px; font-size: 15px; font-weight: 700;
+      background: var(--accent); color: var(--on-accent); }
+    .btn.primary:hover { opacity: 0.9; }
+    .btn:focus-visible, .toggle-option:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .result { margin-top: 18px; display: none; }
+    .label { display: block; font-size: 13px; font-weight: 600; color: var(--text-dim); margin: 12px 0 6px; }
+    pre { font-family: var(--font-mono); font-size: 12px; background: var(--bg-input); border: 1px solid var(--border);
+      border-radius: 12px; padding: 10px 12px; overflow-x: auto; user-select: all; white-space: pre-wrap; word-break: break-all; }
+    a { color: var(--link); }
+    .links { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 18px; font-size: 13px; color: var(--text-dim); }
+    .disclaimer { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border);
+      font-size: 12px; line-height: 1.5; color: var(--text-dim); }
+    .status { font-size: 15px; font-weight: 700; margin: 12px 0 6px; overflow-wrap: anywhere; }
+    .status.verified { color: var(--ok-fg); }
+    .status.failed { color: var(--danger); }
     .status.pending { color: var(--yellow); }
     .status.expired { color: var(--text-dim); }
-    .check { font-size: 11px; line-height: 1.7; }
+    .check { font-size: 13px; line-height: 1.7; }
     .check .ok { color: var(--green); }
-    .check .fail { color: var(--red); }
-    .check .warn { color: var(--yellow, #e0af68); }
-    table { border-collapse: collapse; width: 100%; font-size: 12px; margin-top: 6px; }
-    td { border: 1px solid var(--border); padding: 4px 8px; vertical-align: top; }
-    td:first-child { color: var(--text-dim); white-space: nowrap; }
+    .check .fail { color: var(--danger); }
+    .check .warn { color: var(--yellow); }
+    table { border-collapse: collapse; width: 100%; font-size: 13px; margin-top: 6px; }
+    td { border-bottom: 1px solid var(--border); padding: 6px 8px; vertical-align: top; }
+    td:first-child { font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); white-space: nowrap; padding-left: 0; }
     td:last-child { overflow-wrap: anywhere; }
-    .claim-json { white-space: pre-wrap; }
+    .claim-json { font-family: var(--font-mono); font-size: 12px; white-space: pre-wrap; }
     /* A row sets its own display, which outranks the hidden attribute. */
     [hidden] { display: none !important; }
-    .format-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
-    .format-label { font-size: 11px; color: var(--text-dim); }
-    /* The 1px gap shows the border color between options, also when they wrap. */
-    .toggle { display: inline-flex; flex-wrap: wrap; gap: 1px; max-width: 100%; background: var(--border);
-      border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
-    .toggle-option { font: inherit; font-size: 12px; padding: 6px 12px; border: 0; background: var(--bg);
-      color: var(--text-dim); cursor: pointer; flex-grow: 1; }
-    .toggle-option.selected { background: var(--accent); color: #fff; }
-    .format-hint { font-size: 11px; margin-bottom: 12px; }
-    #custom-panel { margin-bottom: 12px; }
-    .cred { border: 1px solid var(--border); border-radius: 6px; padding: 12px; margin-bottom: 10px; }
+    .format-row { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-bottom: 6px; }
+    .format-label { font-size: 14px; font-weight: 600; color: var(--text); }
+    .toggle { display: inline-flex; flex-wrap: wrap; gap: 4px; max-width: 100%; padding: 4px;
+      background: var(--bg-track); border-radius: 20px; }
+    .toggle-option { font: inherit; font-size: 14px; font-weight: 500; height: 34px; padding: 0 16px; border: 0;
+      border-radius: 17px; background: transparent; color: var(--text-dim); cursor: pointer; }
+    .toggle-option:hover { color: var(--text); }
+    .toggle-option.selected { background: var(--bg-segment); color: var(--text-segment); font-weight: 600;
+      box-shadow: var(--shadow-segment); }
+    .toggle-option:disabled { opacity: 0.45; cursor: not-allowed; }
+    /* The credential choice reads as a set of chips, the other choices as segmented controls. */
+    #credential-toggle { gap: 6px; padding: 0; background: none; border-radius: 0; }
+    #credential-toggle .toggle-option { height: 36px; border: 1px solid var(--border); border-radius: 18px; color: var(--text); }
+    #credential-toggle .toggle-option.selected { background: var(--accent); border-color: var(--accent);
+      color: var(--on-accent); box-shadow: none; }
+    p.format-hint { font-size: 13px; color: var(--text-dim); margin-bottom: 18px; }
+    .format-row:has(> #credential-toggle), #multiple-row { margin-bottom: 18px; }
+    #custom-panel { margin-bottom: 18px; }
+    .cred { border-radius: 16px; padding: 14px; margin-bottom: 10px; background: var(--bg-raised); }
     .cred-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
     .cred input[type="text"], #client-id-input, textarea {
-      font: inherit; font-size: 11px; background: var(--bg); color: var(--text);
-      border: 1px solid var(--border); border-radius: 4px; padding: 6px 8px; }
+      font-family: var(--font-mono); font-size: 12px; background: var(--bg-input); color: var(--text);
+      border: 1px solid var(--border); border-radius: 18px; padding: 8px 14px; }
     .cred .type-input, #client-id-input { flex: 1; min-width: 160px; }
-    .multiple-option { display: inline-flex; align-items: flex-start; gap: 4px; font-size: 12px; }
+    #client-id-row { flex-direction: row; align-items: center; flex-wrap: wrap; }
+    .multiple-option { display: inline-flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 500; }
+    .multiple-option input { width: 18px; height: 18px; accent-color: var(--accent); }
     .claim-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
     .claim-row input { flex: 1; }
-    .btn.small { font-size: 11px; padding: 4px 8px; margin: 0; }
-    .btn.icon { padding: 4px 9px; color: var(--red); border-color: var(--border); }
-    .claims-label { font-size: 11px; color: var(--text-dim); margin: 8px 0 4px; }
-    details.advanced { margin-top: 8px; }
-    details.advanced summary { font-size: 11px; color: var(--text-dim); cursor: pointer; }
-    textarea { width: 100%; min-height: 68px; margin-bottom: 6px; resize: vertical; white-space: pre; }
+    .btn.small { font-size: 13px; height: 32px; padding: 0 14px; margin: 0; }
+    .btn.icon { height: 32px; padding: 0 12px; background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+    .claims-label { font-size: 13px; font-weight: 600; color: var(--text-dim); margin: 8px 0 4px; }
+    details.advanced { margin-top: 12px; }
+    details.advanced summary { font-size: 13px; color: var(--text-dim); cursor: pointer; }
+    textarea { width: 100%; min-height: 68px; margin-bottom: 6px; resize: vertical; white-space: pre; border-radius: 14px; }
     .sponsor-info {
       display: flex;
       flex-wrap: wrap;
@@ -89,9 +112,9 @@
       justify-content: flex-start;
       margin-top: 14px;
       gap: 4px 8px;
-      padding: 3px 0;
+      padding: 0;
       color: var(--text-dim);
-      font-size: 11px;
+      font-size: 13px;
       line-height: 1.5;
     }
 
@@ -101,8 +124,8 @@
       gap: 6px;
       min-height: 28px;
       padding: 4px 6px;
-      border-radius: 4px;
-      color: var(--accent);
+      border-radius: 999px;
+      color: var(--link);
       text-decoration: none;
     }
 
@@ -119,12 +142,9 @@
       width: 14px;
       height: 14px;
       flex-shrink: 0;
-      color: #de87ad;
+      color: var(--pink);
     }
 
-    @media (prefers-color-scheme: light) {
-      .sponsor-info svg { color: #a63367; }
-    }
   </style>
 </head>
 <body>
