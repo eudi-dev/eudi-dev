@@ -870,9 +870,9 @@ var loginPageTemplate = template.Must(template.New("login").Parse(`<!DOCTYPE htm
 <title>EUDI Test Demo Issuer</title>
 <style>
 :root {
-  --bg: #0e0f12; --bg-surface: #16181c; --bg-input: #121418; --bg-raised: #22252b;
-  --text: #f1f2f4; --text-dim: #a3a8b1; --border: #2c3037; --border-subtle: #1f2227;
-  --accent: #8fb4ff; --on-accent: #0e0f12; --danger: #ff9b8f;
+  --bg: #17191e; --bg-surface: #21242a; --bg-input: #1c1f24; --bg-raised: #383d45;
+  --text: #eceef1; --text-dim: #a9afb9; --border: #383d45; --border-subtle: #2a2e35;
+  --accent: #8fb4ff; --on-accent: #17191e; --danger: #ff9b8f;
   --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "SF Mono", "Cascadia Code", "Fira Code", Menlo, Consolas, monospace;
 }
