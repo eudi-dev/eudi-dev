@@ -231,7 +231,7 @@ func TestTrustAndCatalogCommandsPrintJSON(t *testing.T) {
 		t.Errorf("trust rm-ca: %v", doc)
 	}
 
-	// The wallet keeps a list it cannot read yet and names the reason.
+	// The wallet keeps an unreadable list and reports the reason.
 	unreadable := httptest.NewServer(http.NotFoundHandler())
 	defer unreadable.Close()
 	listURL := unreadable.URL + "/lists/eaa"

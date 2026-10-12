@@ -2225,7 +2225,7 @@ textarea.form-input {
   margin-bottom: 12px;
 }
 
-/* Chrome adds an arrow to fields with suggestions, which lists all of them. */
+/* Chrome adds an arrow to fields with suggestions. Clicking it lists all of them. */
 .registrar-search::-webkit-calendar-picker-indicator {
   display: none !important;
 }
@@ -2372,7 +2372,7 @@ textarea.form-input {
   overflow-wrap: anywhere;
 }
 
-/* The dialog title names the certificate type. */
+/* The dialog title shows the certificate type. */
 .registrar-cert-body .registrar-use {
   margin-top: 0;
   padding-top: 0;
@@ -2536,7 +2536,7 @@ textarea.form-input {
   min-width: 0;
 }
 
-/* Format, type and Remove share the first line, the claims get the second. */
+/* Format, type and Remove share the first line. The claims get the second. */
 .registrar-credential {
   display: grid;
   grid-template-columns: 136px minmax(0, 1fr) auto;
@@ -2673,7 +2673,7 @@ textarea.form-input {
   line-height: 1.45;
 }
 @media (max-width: 480px) {
-  /* The title takes its own row, the status and actions share the next. */
+  /* The title takes its own row. The status and actions share the next. */
   .registrar-cert-line {
     grid-template-columns: auto minmax(0, 1fr);
     row-gap: 6px;

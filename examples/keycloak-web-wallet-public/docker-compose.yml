@@ -1,6 +1,6 @@
 # This example reuses the local web wallet setup with a public wallet. Keycloak must be
 # reachable from that wallet, so start.sh supplies an ngrok origin through
-# KEYCLOAK_PUBLIC_URL. The wallet uses publicly trusted HTTPS, which needs no additional
+# KEYCLOAK_PUBLIC_URL. The wallet uses publicly trusted HTTPS and needs no additional
 # TLS truststore.
 services:
   keycloak:

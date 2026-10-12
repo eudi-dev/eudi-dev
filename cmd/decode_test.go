@@ -25,8 +25,8 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 )
 
-// The text output reports the checks of the JSON output, such as a disclosure
-// the credential does not reference.
+// The text output reports the checks of the JSON output, such as an
+// unreferenced disclosure.
 func TestDecodeReportsTheValidationChecks(t *testing.T) {
 	key, err := mock.GenerateKey()
 	if err != nil {

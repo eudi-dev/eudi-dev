@@ -605,8 +605,8 @@ def fetch_wallet_materials(wallet_url: str, wallet_issuer_url: str, wallet_ca_ce
         context=ssl_context_for_ca(wallet_ca_cert),
     )
     keys = [key for key in issuer_meta.get("jwks", {}).get("keys", []) if isinstance(key, dict)]
-    # The wallet signs each credential category with its own key. The PID
-    # provider's key is the one the configs name.
+    # The wallet signs each credential category with its own key. The configs
+    # use the PID provider's key.
     pid_keys = [key for key in keys if signs_for_provider_role(key, "pid")]
     if len(pid_keys) != 1:
         raise RuntimeError(f"wallet issuer metadata did not expose exactly one PID provider JWK: {keys!r}")
@@ -698,8 +698,8 @@ def purge_issued_credentials(wallet_url: str, baseline_ids: set[str]) -> int:
         cred_id = credential.get("id")
         if not cred_id or cred_id in baseline_ids:
             continue
-        # Not wallet_request: a successful delete answers 204 with no body,
-        # which json.loads would reject.
+        # A successful delete answers 204 with no body. wallet_request would fail
+        # on it because json.loads rejects an empty body.
         url = wallet_url.rstrip("/") + f"/api/credentials/{cred_id}"
         try:
             req = urllib.request.Request(url, method="DELETE")
@@ -888,8 +888,8 @@ def vp_modules_for_scenario(scenario: PlanScenario) -> tuple[str, ...] | None:
         # encryption key, so there is no unusable-key scenario to test.
         modules.remove(VP_FINAL_MODULE_IGNORES_UNUSABLE_ENCRYPTION_KEY)
     if response_mode in {"direct_post", "dc_api"}:
-        # The alternate module unconditionally replaces the encrypted-response
-        # setup, which is absent for the unencrypted response modes.
+        # The alternate module always replaces the encrypted-response setup. The
+        # unencrypted response modes have no such setup.
         modules.remove(VP_FINAL_MODULE_ALTERNATE_HAPPY_FLOW)
     if client_id_prefix != "redirect_uri" and response_mode not in {"dc_api", "dc_api.jwt"}:
         modules.remove(VP_FINAL_MODULE_RESPONSE_URI_NOT_CLIENT_ID)
@@ -1073,14 +1073,14 @@ def tx_code_from_offer(request_url: str) -> str | None:
     match = TX_CODE_IN_DESCRIPTION.search(str(tx_code.get("description", "")))
     if match:
         return match.group(1)
-    # When no code is provided, send the declared length so the issuer tests a wrong code
-    # rather than a missing parameter.
+    # When no code is provided, send one of the declared length so the issuer tests a
+    # wrong code.
     length = tx_code.get("length")
     return "0" * length if isinstance(length, int) and 0 < length <= 12 else None
 
 
 def set_wallet_conformance(wallet_url: str, mode: str, requires_haip: bool) -> None:
-        # Changing validation mode requires management access, which demo mode rejects.
+        # Changing validation mode requires management access. Demo mode rejects it.
     try:
         wallet_request(wallet_url, "PUT", "/api/config/conformance", {"validation_mode": mode, "require_haip": bool(requires_haip)})
     except urllib.error.HTTPError as exc:

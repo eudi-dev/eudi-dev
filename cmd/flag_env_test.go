@@ -129,7 +129,7 @@ func TestFlagEnvRefusesAnInvalidValue(t *testing.T) {
 }
 
 // The state directory, storage, seed, private network, listen and remote
-// timeout variables keep their own handling, which every command shares.
+// timeout variables keep their own handling. Every command shares it.
 func TestFlagEnvKnowsTheDirectVariables(t *testing.T) {
 	clearFlagEnv(t)
 	t.Setenv(config.HomeEnvVar, t.TempDir())
@@ -172,7 +172,7 @@ func TestDetachedChildEnvDropsDetached(t *testing.T) {
 }
 
 // A public demo approves without asking only when --auto-accept is on the
-// command line. EUDI_DEV_AUTO_ACCEPT, which the image sets, applies to a wallet
+// command line. The image sets EUDI_DEV_AUTO_ACCEPT. It applies to a wallet
 // without --demo only.
 func TestDemoTakesAutoAcceptFromTheCommandLineOnly(t *testing.T) {
 	for _, tc := range []struct {

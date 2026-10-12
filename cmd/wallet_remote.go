@@ -103,7 +103,7 @@ var localStateFlags = []struct {
 }
 
 // refuseLocalStateFlags reports the local state flags set for a command that
-// manages the wallet at target. selector names the flag that chose target.
+// manages the wallet at target. selector is the flag that chose target.
 func refuseLocalStateFlags(target, selector string) error {
 	var set []string
 	for _, flag := range localStateFlags {

@@ -14,9 +14,9 @@
 
 package cmd
 
-// Dynamic shell completion for the values the CLI can know: template names,
-// credential IDs, and running wallet instances. Completions come from the
-// active remote wallet when one is configured.
+// Dynamic shell completion for template names, credential IDs and running
+// wallet instances. Completions come from the active remote wallet when one
+// is configured.
 
 import (
 	"fmt"

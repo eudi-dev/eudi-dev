@@ -65,7 +65,7 @@ func runDecoder(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// The decoder reads the catalogue of a stored wallet and creates none.
+	// The decoder reads the catalogue of a stored wallet. It never creates a wallet.
 	store, err := openStore()
 	if err != nil {
 		return err

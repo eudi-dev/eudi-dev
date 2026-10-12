@@ -37,15 +37,16 @@ func addAllowPrivateNetworksFlag(cmd *cobra.Command, target *bool, note string) 
 		"Let outbound requests reach private networks (RFC 1918, link local, CGNAT, unique local), for issuers and verifiers on a LAN, in Docker or in a cluster. Loopback is always reachable. "+note+"(default $"+allowPrivateNetworksEnv+")")
 }
 
-// installFetchPolicy limits where a server connects. Visitors hand a server
-// URLs: credential offers and request URIs to the wallet, trusted lists,
-// issuers and status lists to the decoder. So a server reaches public
-// addresses and loopback, where developers run issuer and verifier next to the
-// wallet. A public demo reaches public addresses only. --allow-private-networks
-// lifts the limit in both cases. Every server reaches the operator's
-// destinations at their exact address and port: its own origins, the
-// configured trusted lists and the forward proxy, which sees every proxied
-// destination in place of the server. It reports whether the limit is lifted.
+// installFetchPolicy limits where a server connects. Visitors give a server
+// URLs to fetch: credential offers and request URIs for the wallet, trusted
+// lists, issuers and status lists for the decoder. A server reaches public
+// addresses and loopback, because developers run issuers and verifiers next
+// to the wallet. A public demo reaches public addresses only.
+// --allow-private-networks lifts the limit in both cases. Every server can
+// reach the operator's destinations at their exact address and port. These
+// are its own origins, the configured trusted lists and the forward proxy.
+// The proxy sees every proxied destination in place of the server. It
+// reports whether the limit is lifted.
 func installFetchPolicy(cmd *cobra.Command, allowPrivate, demo bool, operatorURLs ...string) (bool, error) {
 	if !cmd.Flags().Changed(allowPrivateNetworksFlag) {
 		if raw := strings.TrimSpace(os.Getenv(allowPrivateNetworksEnv)); raw != "" {

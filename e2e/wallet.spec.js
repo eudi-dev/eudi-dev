@@ -230,8 +230,8 @@ test.describe("Wallet Dashboard", () => {
     await expect(meta).toContainText("type");
   });
 
-  // The wallet and the decoder it serves share one stored choice. Without
-  // one they follow the system.
+  // The wallet and its decoder share one stored choice. Without one they
+  // follow the system.
   test("has theme toggle button", async ({ page }) => {
     await page.emulateMedia({ colorScheme: "dark" });
     await page.goto(WALLET_URL);
@@ -553,7 +553,7 @@ test.describe("Credential Issuing via UI", () => {
 
     await page.locator("#issue-template").selectOption("german-pid-sdjwt");
     await expect(page.locator("#issue-vct")).toHaveValue("urn:eudi:pid:de:1");
-    // The template keeps the default expiry, which the placeholder names.
+    // The template keeps the default expiry. The placeholder shows it.
     await expect(page.locator("#issue-exp")).toHaveValue("");
     await expect(page.locator("#issue-claim-rows .claim-row")).toHaveCount(14);
     const keys = await page
@@ -2857,7 +2857,7 @@ test.describe("Registrar", () => {
   });
 
   test("the attestation catalogue lists the PID types and adds an attestation", async ({ page }) => {
-    // A retry starts without the entry an earlier attempt added.
+    // A retry starts without entries added by an earlier attempt.
     for (const entry of (await jsonGet(`${WALLET_URL}/api/catalog/attestations`)).body) {
       if (entry.name.toLowerCase() === "library card") {
         await fetch(`${WALLET_URL}/api/catalog/schemas/${encodeURIComponent(entry.schema.id)}`, { method: "DELETE" });

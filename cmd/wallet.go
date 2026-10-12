@@ -149,7 +149,7 @@ func openStore() (*wallet.WalletStore, error) {
 	return store, nil
 }
 
-// resolvedWalletDir returns the absolute --wallet-dir, which identifies the
+// resolvedWalletDir returns the absolute --wallet-dir. It identifies the
 // wallet to the instance registry on every backend.
 func resolvedWalletDir() string {
 	return wallet.ResolveWalletDir(walletDir)

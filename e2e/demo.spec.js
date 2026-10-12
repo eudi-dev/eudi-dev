@@ -1137,7 +1137,7 @@ test.describe("Consent credential selection", () => {
   });
 
   // ADR-0015: the pages lay out at phone width. A multiple result lists several claim
-  // sets, which must wrap inside the card.
+  // sets. They must wrap inside the card.
   test("the verifier page and a multiple result fit at phone width", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 800 });
     const req = await openPreparedConsent(page, { type: "pid", format: "sd-jwt", multiple: true });

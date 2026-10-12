@@ -1,5 +1,5 @@
-/* IBM Plex in the Latin1 subset IBM ships, under the SIL Open Font License
-   in fonts/LICENSE.txt. The unicode-range is the one IBM gives the subset, so
+/* IBM Plex in IBM's Latin1 subset, under the SIL Open Font License in
+   fonts/LICENSE.txt. The unicode-range matches IBM's range for the subset, so
    other characters come from the fallback fonts. */
 @font-face {
   font-family: "IBM Plex Sans";

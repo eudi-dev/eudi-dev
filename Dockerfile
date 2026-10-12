@@ -21,8 +21,8 @@ ENV EUDI_DEV_LISTEN=0.0.0.0
 # select file or Postgres storage and clear EUDI_DEV_SEED to generate random keys.
 ENV EUDI_DEV_STORAGE=memory
 ENV EUDI_DEV_SEED=eudi-dev
-# Verifiers under test run on the Docker host or in other containers, which are
-# private networks. A public demo sets the variable to false.
+# Verifiers under test run on the Docker host or in other containers. Both are
+# on private networks. A public demo sets the variable to false.
 ENV EUDI_DEV_ALLOW_PRIVATE_NETWORKS=true
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
   CMD wget -q --spider http://localhost:${EUDI_DEV_PORT}/healthz || exit 1

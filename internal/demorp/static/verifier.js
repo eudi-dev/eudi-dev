@@ -46,7 +46,7 @@ function checkItem(c, i) {
     kind = "skip";
     detail = c.skipped;
   }
-  // A passing type check names the typ value, which keeps its case.
+  // A passing type check shows the typ value. It keeps its case.
   if (!(kind === "ok" && /(^|: )type$/.test(c.name))) detail = sentence(detail);
   // The group heading shows the credential, so the name drops it.
   const group = c.credential || "";
@@ -217,7 +217,7 @@ let credential = "ticket";
 let vct = "";
 let ticketMode = "combined";
 
-// markSelected marks the options of a toggle group that isSelected accepts.
+// markSelected marks each option of a toggle group for which isSelected returns true.
 function markSelected(id, isSelected) {
   for (const option of document.querySelectorAll(`#${id} .toggle-option`)) {
     const selected = isSelected(option);
@@ -502,11 +502,11 @@ document.getElementById("create-request").addEventListener("click", async () => 
   startPolling(doc.transaction_id);
   });
 
-// The wallet redirects here with the response_code that reads the result
-// (OpenID4VP 1.0 §8.2).
+// The wallet redirects here with a response_code. The page reads the result
+// with it (OpenID4VP 1.0 §8.2).
 const responseCode = new URLSearchParams(location.search).get("response_code");
 
-// The redirect opens a fresh page. The controls show the request it answers.
+// The redirect opens a fresh page. The controls show the original request.
 let selectionRestored = !responseCode;
 function restoreSelection(request) {
   if (selectionRestored || !request) return;

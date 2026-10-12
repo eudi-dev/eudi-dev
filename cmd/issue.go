@@ -540,7 +540,7 @@ func printIssuedCredential(raw, id string) {
 
 // resolveStandaloneIssue applies the flags to their template. A flag the user
 // set wins over the template, and the template over the defaults. With --pid
-// and no --claims, --vct selects the built-in PID template, which serves only
+// and no --claims, --vct selects the built-in PID template. It serves only
 // as a claim set, so `issue jwt --pid` uses the SD-JWT PID claims.
 func resolveStandaloneIssue(cmd *cobra.Command, format string) (credtemplate.Resolved, error) {
 	overrides, err := parseClaimsArg(issueClaims)
@@ -590,7 +590,7 @@ func resolveStandaloneIssue(cmd *cobra.Command, format string) (credtemplate.Res
 }
 
 // parseClaimsArg reads a --claims value, a JSON object or @file. An empty
-// value is no claims.
+// value means no claims.
 func parseClaimsArg(arg string) (map[string]any, error) {
 	if arg == "" {
 		return nil, nil

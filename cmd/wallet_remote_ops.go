@@ -207,7 +207,7 @@ func credStatusLabel(cred map[string]any) string {
 		case hasValue && value == 1:
 			parts = append(parts, "revoked")
 		case hasValue && value == 2:
-			// draft-ietf-oauth-status-list §7.1 names 0x02 SUSPENDED.
+			// draft-ietf-oauth-status-list §7.1 defines 0x02 as SUSPENDED.
 			parts = append(parts, "suspended")
 		case hasValue:
 			parts = append(parts, fmt.Sprintf("status %d", int(value)))
@@ -374,8 +374,8 @@ func remoteAccept(c *remote.Client, uri, txCode, sessionTranscript string, inter
 }
 
 // enlistBrowser opens the wallet UI for a flow that waits for consent. The
-// client names the tab, so this tab receives the consent request on a shared
-// wallet.
+// client acts for the tab's owner token, so this tab receives the consent
+// request on a shared wallet.
 func enlistBrowser(c *remote.Client) {
 	if noOpen {
 		return

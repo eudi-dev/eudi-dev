@@ -695,7 +695,7 @@ func docKeys(t *testing.T, docs []map[string]any) any {
 }
 
 // renewableSDJWTs gives every SD-JWT credential a refresh token from a stub
-// issuer. The issuer reissues the stored credential, which keeps it bound to
+// issuer. The issuer reissues the stored credential, so it stays bound to
 // the wallet's holder key.
 func renewableSDJWTs(t *testing.T, w *wallet.Wallet) {
 	t.Helper()

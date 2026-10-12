@@ -28,8 +28,8 @@ services:
       interval: 2s
       timeout: 3s
       retries: 30
-    # The base URL is the ingress address visible to host clients. HTTPS uses port 8086,
-    # which nginx forwards unchanged.
+    # The base URL is the ingress address visible to host clients. HTTPS uses port 8086.
+    # nginx forwards it unchanged.
     command:
       - wallet
       - serve
@@ -58,7 +58,7 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     # INGRESS_PORT moves the HTTP host port. The HTTPS host port has to stay
-    # 8086, the port the wallets advertise.
+    # 8086 because the wallets advertise that port.
     ports:
       - "${INGRESS_PORT:-8080}:8080"
       - "8086:8081"

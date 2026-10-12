@@ -39,7 +39,7 @@ func addListenFlag(cmd *cobra.Command, target *string, note string) {
 		"IP address to bind. 127.0.0.1 keeps the server on this machine, 0.0.0.0 opens it to the network. "+note+"Also set by $"+listenEnv)
 }
 
-// resolveListenHost returns the address a server binds: --listen, else
+// resolveListenHost returns the bind address of a server: --listen, else
 // $EUDI_DEV_LISTEN, else 0.0.0.0 for --docker, else 127.0.0.1.
 func resolveListenHost(cmd *cobra.Command, value string, docker bool) (string, error) {
 	source := "--" + listenFlag

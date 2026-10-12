@@ -407,7 +407,7 @@ func addProvidedAttestations(cmd *cobra.Command, identifier string, entitlements
 		return err
 	}
 	changed := cloneParty(before)
-	// An issuer adds the types to the service it issues with already.
+	// An existing issuer adds the types to its current issuing service.
 	i := max(0, slices.IndexFunc(changed.Services, func(s registrar.WalletRelyingPartyService) bool { return len(s.ProvidesAttestations) > 0 }))
 	service := &changed.Services[i]
 	added := 0

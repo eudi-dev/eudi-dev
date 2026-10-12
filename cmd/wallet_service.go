@@ -34,8 +34,8 @@ type walletService interface {
 	URL() string
 	Credentials() ([]map[string]any, error)
 	Credential(id string) (map[string]any, error)
-	// DeferredIssuances are credentials an issuer accepted but has not handed
-	// over yet. They are not in the store, so they are listed separately.
+	// DeferredIssuances are credentials accepted by an issuer but not yet
+	// handed over. They are not in the store, so they are listed separately.
 	DeferredIssuances() ([]map[string]any, error)
 	ImportCredential(raw string) (map[string]any, error)
 	RenewCredential(id string) (map[string]any, error)
@@ -63,7 +63,7 @@ type walletService interface {
 	AddCatalogAttestation(entry registrar.CatalogAttestation) (registrar.CatalogAttestation, error)
 	DeleteCatalogAttestation(id string) error
 	TrustState() (trustedlists.Summary, error)
-	// TrustListIndex describes the lists the wallet signs, like /api/trustlists.
+	// TrustListIndex describes the trusted lists signed by the wallet, like /api/trustlists.
 	TrustListIndex() ([]map[string]any, error)
 	AddTrustedEntity(list, name, certificatesPEM string) (trustedlists.Entity, error)
 	RemoveTrustedEntity(id string) error

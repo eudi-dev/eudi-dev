@@ -32,7 +32,7 @@ services:
   wallet:
     build: ../..
     # File storage on the mounted volume with random keys. The user confirms
-    # each flow, which the image default skips.
+    # each flow. The image default skips that step.
     environment:
       EUDI_DEV_STORAGE: file
       EUDI_DEV_SEED: ""

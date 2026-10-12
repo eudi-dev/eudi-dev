@@ -17,9 +17,9 @@
 #   update    pull the latest image and restart (no file changes)
 #   preview [tag]   run a release on the preview host (default beta, the newest
 #             release including betas), leaving the main site as it is
-#   promote   move the main site to the release the preview host runs
+#   promote   move the main site to the preview host's release
 #   strict [tag]    run a release on the strict conformance host (default
-#             latest), the wallet the hosted OIDF suite tests for certification
+#             latest). The hosted OIDF suite tests this wallet for certification
 #   rollback [version]  put the previous release back (or a named one, e.g.
 #             v2.0.0). Without an argument it uses the release that was live
 #             before the last push or update
@@ -92,8 +92,8 @@ previous_version() {
   remote "cat .last-version 2>/dev/null" || true
 }
 
-# WALLET_TAG lives in the host's .env, which is where compose reads variables
-# for interpolation. Other variables in that file are left alone.
+# WALLET_TAG lives in the host's .env. Compose reads variables for
+# interpolation from that file. Other variables in it are left alone.
 set_wallet_tag() {
   local tag="$1"
   if [[ -z "${tag}" ]]; then
@@ -103,8 +103,8 @@ set_wallet_tag() {
   fi
 }
 
-# PREVIEW_TAG lives in the same host .env and pins the release the preview host
-# runs, independently of the main site's WALLET_TAG.
+# PREVIEW_TAG lives in the same host .env and pins the preview host's release,
+# independently of the main site's WALLET_TAG.
 set_preview_tag() {
   local tag="$1"
   remote "touch .env && sed -i.bak '/^PREVIEW_TAG=/d' .env && rm -f .env.bak && printf 'PREVIEW_TAG=%s\n' '${tag}' >> .env"
@@ -124,8 +124,8 @@ ensure_preview_volume() {
   remote "docker volume create eudi-demo_wallet-data-preview >/dev/null && docker run --rm -v eudi-demo_wallet-data-preview:/d alpine chown 1000:1000 /d >/dev/null"
 }
 
-# STRICT_TAG pins the release the strict conformance host runs, independently
-# of the main site and the preview host.
+# STRICT_TAG pins the strict conformance host's release, independently of the
+# main site and the preview host.
 set_strict_tag() {
   local tag="$1"
   remote "touch .env && sed -i.bak '/^STRICT_TAG=/d' .env && rm -f .env.bak && printf 'STRICT_TAG=%s\n' '${tag}' >> .env"
@@ -335,7 +335,7 @@ case "${COMMAND}" in
       echo
       echo "Top API calls (bots excluded):"
       echo "${api}" | head -10 | while read -r hits path; do printf '  %6s  %s\n' "${hits}" "${path}"; done
-      # Separate writes from reads, which mostly come from UI polling.
+      # Separate writes from reads. Most reads come from UI polling.
       writes="$(echo "${api}" | grep -E '^[0-9]+ +(POST|PUT|PATCH|DELETE)\b' || true)"
       if [[ -n "${writes}" ]]; then
         echo

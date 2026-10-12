@@ -540,7 +540,7 @@
     return CHECK_NAMES[name] || name.charAt(0).toUpperCase() + name.slice(1);
   }
 
-  // A passing type check names the typ value, which keeps its case.
+  // A passing type check shows the typ value. It keeps its case.
   function checkDetail(c) {
     const detail = c.detail || "";
     if (c.name === "type" && c.status === "pass") return detail;
@@ -551,8 +551,8 @@
     return n + " " + (n === 1 ? one : many);
   }
 
-  // The trust check and the status list signature check usually name the
-  // same trusted list. Each list appears once, on the first check naming it.
+  // The trust check and the status list signature check usually refer to the
+  // same trusted list. Each list appears once, on the first check that refers to it.
   function checkItems(checks) {
     const shown = new Set();
     return checks.map((c) => {

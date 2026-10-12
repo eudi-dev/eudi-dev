@@ -54,7 +54,7 @@ var renamedFlags = []struct {
 	{"wallet serve", "demo-verifier-trust-anchor", "demo-verifier-issuer-ca"},
 }
 
-// renamedFlagError names the new flag when a command gets a flag of
+// renamedFlagError points to the new flag when a command gets a flag of
 // eudi-dev 2. Every other parse error stays as it is.
 func renamedFlagError(cmd *cobra.Command, err error) error {
 	name, ok := strings.CutPrefix(err.Error(), "unknown flag: --")
@@ -72,7 +72,7 @@ func renamedFlagError(cmd *cobra.Command, err error) error {
 
 // addMovedCommands registers a hidden stub for every moved command and the
 // error for renamed flags. A stub parses nothing and runs nothing. It only
-// names the new command.
+// points to the new command.
 func addMovedCommands() {
 	rootCmd.SetFlagErrorFunc(renamedFlagError)
 	for _, moved := range movedCommands {

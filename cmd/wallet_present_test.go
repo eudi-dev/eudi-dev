@@ -83,8 +83,8 @@ func TestOneShotAcceptAppliesHAIPToPresentations(t *testing.T) {
 	}
 }
 
-// A presentation runs on the wallet of its wallet directory. A server that the
-// URL handler registered for another wallet does not take it over.
+// A presentation runs on the wallet of its wallet directory. A server
+// registered by the URL handler for another wallet does not take it over.
 func TestPresentationStaysWithItsWalletDirectory(t *testing.T) {
 	resetRemoteTestState(t)
 	var hits atomic.Int32

@@ -112,7 +112,7 @@ credentialSelect.addEventListener("change", () => {
 });
 
 // The page offers the configurations from the issuer metadata (the ticket and
-// one per template) and names them the way a wallet would.
+// one per template) and labels them the way a wallet would.
 fetch(".well-known/openid-credential-issuer")
   .then((resp) => resp.json())
   .then((metadata) => {

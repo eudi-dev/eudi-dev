@@ -58,8 +58,8 @@ func TestValidateFailsAnMDOCThatIsNotYetValid(t *testing.T) {
 	}
 }
 
-// A status list signed by a chain that no trusted list anchors is reported
-// as unanchored.
+// A status list is reported as unanchored when no trusted list anchors its
+// signing chain.
 func TestValidateMarksAnUnanchoredStatusListSignature(t *testing.T) {
 	key, err := mock.GenerateKey()
 	if err != nil {
@@ -99,8 +99,8 @@ func TestValidateMarksAnUnanchoredStatusListSignature(t *testing.T) {
 	}
 }
 
-// validate reports a status claim that is no Token Status List and does not
-// fail on it.
+// validate reports a status claim that is not a Token Status List and does
+// not fail on it.
 func TestValidateWarnsAboutAnotherStatusFormat(t *testing.T) {
 	jwt := unsignedTestJWT(t, map[string]any{"status": map[string]any{"type": "StatusList2021Entry"}, "exp": time.Now().Add(time.Hour).Unix()})
 	var runErr error
@@ -122,7 +122,7 @@ func TestValidateDetectsAJWTByItsEncoding(t *testing.T) {
 	}
 }
 
-// A DeviceResponse that names another docType than the signed MSO fails the
+// A DeviceResponse with a docType different from the signed MSO fails the
 // integrity check.
 func TestValidateFailsAnMDOCRelabelledByItsDeviceResponse(t *testing.T) {
 	caCert, caKey, _ := generateCACert(t)

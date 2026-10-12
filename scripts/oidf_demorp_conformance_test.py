@@ -196,8 +196,8 @@ class DemoLoginTests(unittest.TestCase):
             '<input type="hidden" name="request_uri" value="urn:ietf:params:oauth:request_uri:xyz">'
             "</form>"
         )
-        # What the suite's callback answers with: the implicit-submission page
-        # whose script POSTs the URL fragment to the submission endpoint.
+        # The suite's callback answers with an implicit-submission page. Its script
+        # POSTs the URL fragment to the submission endpoint.
         callback_page = "<script>xhr.open('POST', \"https://localhost:8443/test/a/alias/implicit/abc\", true);</script>"
         requests = []
 

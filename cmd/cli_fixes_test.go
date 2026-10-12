@@ -148,7 +148,7 @@ func TestLogEntriesAfterFollowsATrimmedLog(t *testing.T) {
 }
 
 // A registry entry can outlive its server. Its pid may then belong to another
-// program, which must not get the signal.
+// program. That program must not get the signal.
 func TestKillLeavesAReusedPidAlone(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("uses sleep and signal 0")

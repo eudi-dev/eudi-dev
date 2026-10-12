@@ -236,8 +236,8 @@ func serveConformance(cmd *cobra.Command, opts *walletServeOptions) (walletConfo
 }
 
 // servingConfigWarnings flags persisted serving config that cannot work in
-// the current environment and credentials whose embedded URLs this server
-// does not serve. Both situations come from serving config that changed
+// the current environment. It also flags credentials with embedded URLs not
+// served by this server. Both situations come from serving config that changed
 // after the URLs were persisted or issued.
 func servingConfigWarnings(w *wallet.Wallet, port int, docker bool) []string {
 	var warnings []string
@@ -310,7 +310,7 @@ func isLocalTestHostPort(hostport string) bool {
 }
 
 // serveBaseURL picks the base URL of wallet serve: --base-url, or else the
-// one a previous run stored (ADR-0019). --docker alone moves a derived origin
+// base URL stored by a previous run (ADR-0019). --docker alone moves a derived origin
 // to the Docker host name.
 func serveBaseURL(stored, flag string, flagSet, dockerSet bool) string {
 	switch {
@@ -795,8 +795,8 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	// so the metadata for the /issuer-mounted issuer lives at the
 	// server root.
 	srv.Handle("GET /.well-known/openid-credential-issuer/issuer", demoRP.IssuerMetadataHandler())
-	// Same for the authorization server metadata of the demo issuer,
-	// which is its own authorization server (RFC 8414 §3.1).
+	// Same for the authorization server metadata of the demo issuer. The
+	// issuer is its own authorization server (RFC 8414 §3.1).
 	srv.Handle("GET /.well-known/oauth-authorization-server/issuer", demoRP.AuthorizationServerMetadataHandler())
 	if err := srv.CheckBasePath(); err != nil {
 		return err

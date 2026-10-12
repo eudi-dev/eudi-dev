@@ -1,5 +1,5 @@
 // @ts-check
-// Helpers the specs share.
+// Shared helpers for the specs.
 
 // waitForServer polls url until the server answers without a server error.
 async function waitForServer(url, timeoutMs) {

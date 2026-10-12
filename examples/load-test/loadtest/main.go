@@ -224,7 +224,7 @@ func run(opts options) error {
 					if listed.ids[cred.id] {
 						continue
 					}
-					// Read again at once: a gap that closes is a delay, one
+					// Read again at once. A gap that closes is a delay. A gap
 					// that stays is a loss.
 					again, err := ingress.list()
 					if err != nil {

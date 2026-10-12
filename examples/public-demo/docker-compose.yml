@@ -1,5 +1,5 @@
 # Public demo deployment: Caddy terminates TLS for the public domain and
-# proxies to the wallet, which runs as a public demo (see docs/public-demo.md).
+# proxies to the wallet. The wallet runs as a public demo (see docs/public-demo.md).
 #
 # 1. Point your domain's DNS at this host.
 # 2. Replace eudi-test.dev in this file and in Caddyfile with your domain.
@@ -42,7 +42,7 @@ services:
     restart: unless-stopped
     logging: *logging
     # The demo persists: files on the mounted volume and its own random keys.
-    # Visitors confirm each browser flow, which the image default skips. The
+    # Visitors confirm each browser flow. The image default skips that step. The
     # image lets the wallet reach private networks. A public demo must not.
     environment:
       EUDI_DEV_STORAGE: file
@@ -86,7 +86,7 @@ services:
     restart: unless-stopped
     logging: *logging
     # The demo persists: files on the mounted volume and its own random keys.
-    # Visitors confirm each browser flow, which the image default skips. The
+    # Visitors confirm each browser flow. The image default skips that step. The
     # image lets the wallet reach private networks. A public demo must not.
     environment:
       EUDI_DEV_STORAGE: file
@@ -113,7 +113,7 @@ services:
       - --status-list
       - --imprint-file
       - /config/imprint.html
-      # The preview shows the news of the release it tries out.
+      # The preview shows the news of its own release.
       - --news-file
       - /config/news/news-3.0.0.html
     volumes:

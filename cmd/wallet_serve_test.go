@@ -243,8 +243,8 @@ func TestWalletServeRejectsBasePathOnWalletRoute(t *testing.T) {
 	}
 }
 
-// The local ports answer under every local host name. A credential that
-// names [::1] reaches the same server as one that names localhost.
+// The local ports answer under every local host name. A credential with
+// [::1] reaches the same server as one with localhost.
 func TestServingConfigWarningsAcceptEveryLocalHostName(t *testing.T) {
 	w := newServingTestWallet(t)
 	w.BaseURL = "http://[::1]:8085"
@@ -259,7 +259,7 @@ func TestServingConfigWarningsAcceptEveryLocalHostName(t *testing.T) {
 	}
 }
 
-// wallet serve keeps the base URL a previous run stored unless a flag
+// wallet serve keeps the base URL stored by a previous run unless a flag
 // replaces it (ADR-0019).
 func TestServeBaseURLKeepsTheStoredBaseURL(t *testing.T) {
 	for _, tc := range []struct {

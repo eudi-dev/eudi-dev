@@ -1077,7 +1077,7 @@
       document.getElementById(prefix + '-catalog-los').value = categoryLevel(category.value);
     });
   }
-  // The trusted list field stays empty when the entry names its category's
+  // The trusted list field stays empty when the entry uses its category's
   // list, so the list follows the category.
   const ownCategoryList = (trust, category) => trust && trust.value.endsWith('trustlists/' + category);
 
@@ -1377,8 +1377,8 @@
   const issueFormGrid = document.getElementById('issue-form-grid');
 
   // templateEditor is set while the issue dialog edits a template. source is
-  // the original template. The saved template keeps its fields that the
-  // builder doesn't show.
+  // the original template. The saved template keeps the fields hidden in the
+  // builder.
   let templateEditor = null;
 
   function setTemplateMode(editor) {
@@ -2634,7 +2634,7 @@
     }
 
 
-    // Debug mode sends a non-matching credential when the user picks it. Name every
+    // Debug mode sends a non-matching credential when the user picks it. List every
     // reason so the expected verifier error is clear.
     function mismatchNote(mc, id) {
       if (!mc || !mc.mismatches || mc.mismatches.length === 0) return '';
@@ -3058,8 +3058,8 @@
     });
   }
 
-  // The news of a public demo opens once per version of its content. A
-  // consent link opens no news, so it can't cover the request.
+  // The public demo news opens once per content version. A consent link
+  // never opens the news, so the news can't cover the request.
   const newsOverlay = document.getElementById('news-overlay');
   async function showNews(id) {
     const link = document.getElementById('news-link');
@@ -3086,7 +3086,7 @@
   });
 
   let demoMode = false;
-  // protectedParties are the registrations visitors of the public demo can't
+  // protectedParties are registrations that public demo visitors can't
   // change.
   let protectedParties = new Set();
   // Wait for configuration before deciding to open consent automatically. The public demo uses
@@ -3609,8 +3609,8 @@
     return ['verifier', 'issuer'].filter(role => roles.includes(role));
   }
 
-  // A provided attestation names its type, and a registered credential names it
-  // in its DCQL meta.
+  // A provided attestation has a type field. A registered credential has its
+  // type in its DCQL meta.
   function registeredCredentialType(credential) {
     const meta = credential.meta || {};
     return credential.type || meta.doctype_value || (meta.vct_values || [])[0] || credential.format;
@@ -3633,9 +3633,9 @@
     return claims.length > 0 ? type + ': ' + claims.join(', ') : type;
   }
 
-  // A registered credential is one line: its type, its format and how many
-  // claims it registers. The claims open on click, so a verifier that
-  // registers many credentials stays short.
+  // A registered credential is one line: its type, its format and its number
+  // of claims. The claims open on click, so the list stays short for a
+  // verifier with many credentials.
   function registeredCredentialItem(credential, id) {
     const type = registeredCredentialType(credential);
     const claims = registeredClaims(credential).join(', ');
@@ -4300,8 +4300,8 @@
     const targetName = registrarTarget ? (registrarTarget.tradeName || registrarTarget.identifier[0].identifier) : '';
     const addsIssuer = !!registrarTarget && registrarMode === 'issuer';
     const targetIssues = !!registrarTarget && !addsIssuer && relyingPartyRoles(registrarTarget).includes('issuer');
-    // Every open fills the purpose, credentials and attestation types for
-    // what it opens, so nothing of an earlier open carries over.
+    // Each open fills the purpose, credentials and attestation types again.
+    // Values from an earlier open don't carry over.
     document.getElementById('registrar-purpose').value = !registrarTarget ? 'Age check before checkout' : targetIssues ? 'Identity check before issuance' : '';
     registrarCredentials.innerHTML = '';
     addRegistrarCredential(FORMATS.SDJWT, 'urn:eudi:pid:1', targetIssues ? 'given_name, family_name' : 'age_equal_or_over.18');
@@ -4358,15 +4358,15 @@
       services.forEach((service, i) => registrarTargetService.appendChild(new Option(serviceLabel(service), String(i))));
       registrarTargetService.appendChild(new Option('A new service', NEW_SERVICE));
       // A service that has the role already keeps its entitlements. Otherwise
-      // the first service is the one its access certificate names.
+      // the first service is preselected. The access certificate identifies it.
       const same = services.findIndex(service => serviceRoles(service).includes(role));
       registrarTargetService.value = services.length === 0 ? NEW_SERVICE : String(Math.max(0, same));
     }
     document.getElementById('registrar-new-service-id').value = '';
     updateTargetService();
   }
-  // revokedByTarget lists the certificates that the added role revokes, as
-  // registration certificate requests that issue them again.
+  // revokedByTarget lists the certificates revoked by the added role. Each
+  // entry is a registration certificate request that issues one again.
   function revokedByTarget() {
     const service = targetService();
     if (!service || serviceRoles(service).includes(registrarAddedRole)) return [];

@@ -43,7 +43,7 @@ type dispatchOID4Opts struct {
 	autoAccept        bool
 	sessionTranscript string
 	txCode            string
-	// conformance is what the conformance flags set. conformanceFlags names
+	// conformance is what the conformance flags set. conformanceFlags lists
 	// the flags set on the command line. A running wallet refuses the ones
 	// that differ from its own settings.
 	conformance      walletConformance
@@ -90,10 +90,10 @@ func dispatchURI(uri string, opts dispatchOID4Opts) error {
 	}
 }
 
-// runPresent answers a presentation request on a local wallet server. The
-// request takes the flow of POST /api/presentations, the one every entry
-// point uses (ADR-0012). The server also serves the trusted list the verifier
-// reads and the consent dialog.
+// runPresent answers a presentation request on a local wallet server. Like
+// every entry point, the request runs the flow of POST /api/presentations
+// (ADR-0012). The server also serves the consent dialog and the trusted list
+// for the verifier.
 func runPresent(w *wallet.Wallet, store *wallet.WalletStore, uri, listenHost string, port int, docker bool) error {
 	setLocalPresentationIssuerURL(w, port, docker)
 	srv := wallet.NewServer(w, port, nil)
@@ -190,8 +190,8 @@ func presentationPortPairAvailable(port int) bool {
 	return portFree(port) && portFree(port+1)
 }
 
-// portFree checks the wildcard address the wallet server binds and the
-// loopback address. Either bind can succeed while another server holds the
+// portFree checks both the wildcard address used by the wallet server and
+// the loopback address. Either bind can succeed while another server holds the
 // other one.
 func portFree(port int) bool {
 	for _, host := range []string{"", "127.0.0.1"} {

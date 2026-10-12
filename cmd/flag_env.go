@@ -41,7 +41,7 @@ func flagEnvVar(flag string) string {
 // applyFlagEnv sets every flag missing from the command line from its
 // EUDI_DEV_<FLAG> variable. The value then counts as given on the command
 // line, so it also reaches a detached server as a flag. A repeatable flag
-// takes comma-separated values. A variable that names no flag is an error.
+// takes comma-separated values. A variable without a matching flag is an error.
 func applyFlagEnv(flags *pflag.FlagSet) error {
 	byVar := map[string]*pflag.Flag{}
 	flags.VisitAll(func(flag *pflag.Flag) {

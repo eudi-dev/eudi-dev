@@ -320,8 +320,8 @@ func TestWalletRegisterOptions_Defaults(t *testing.T) {
 	}
 }
 
-// wallet register replays its wallet serve flags to the server a link starts.
-// The root flags apply to register itself.
+// wallet register replays its wallet serve flags to the server started by a
+// link. The root flags apply to register itself.
 func TestWalletRegisterOptionsAppliesRootFlags(t *testing.T) {
 	t.Cleanup(func() {
 		jsonOutput, noColor, verbose = false, false, false
@@ -423,8 +423,7 @@ func TestSerializeWalletServeArgs_ExplicitBoolFalsePreserved(t *testing.T) {
 	}
 }
 
-// Every command that talks to a running wallet refuses --mode, not only accept
-// and scan.
+// Every command that talks to a running wallet refuses --mode.
 func TestEveryRemoteCommandRefusesMode(t *testing.T) {
 	resetRemoteTestState(t)
 	url, _ := startRemoteTestWallet(t)

@@ -73,7 +73,7 @@ func addConformanceFlags(cmd *cobra.Command) *conformanceFlags {
 	return f
 }
 
-// changed names the conformance flags set on the command line.
+// changed lists the conformance flags set on the command line.
 func (f *conformanceFlags) changed() []string {
 	var set []string
 	if walletFlags.Changed("mode") {
@@ -89,8 +89,8 @@ func (f *conformanceFlags) changed() []string {
 
 var conformanceFlagNames = []string{"haip", "arf", "relying-party-ca", "trusted-list-ca", "trusted-list", "key-attestation-level", "require-encrypted-request", "client-attestation", "vci-version"}
 
-// walletConformance is what the conformance flags set: the settings every
-// flow applies, and the trust inputs of the ARF checks.
+// walletConformance holds the values of the conformance flags: settings for
+// every flow and trust inputs for the ARF checks.
 type walletConformance struct {
 	settings wallet.ConformanceSettings
 	trust    trustedlists.Settings
@@ -244,8 +244,8 @@ func settingDifference(flag string, want walletConformance, cfg wallet.Conforman
 	return ""
 }
 
-// certificatesMissing counts the certificates of bundle that trusted, a list
-// of base64 DER certificates, lacks.
+// certificatesMissing counts the certificates in bundle that are missing
+// from trusted. trusted holds base64 DER certificates.
 func certificatesMissing(bundle []byte, trusted []string) int {
 	certs, err := keys.ParseCertificatesPEM(bundle)
 	if err != nil {
@@ -260,7 +260,7 @@ func certificatesMissing(bundle []byte, trusted []string) int {
 	return missing
 }
 
-// changedOutboundFlags names the wallet's outbound HTTP flags set on the
+// changedOutboundFlags lists the wallet's outbound HTTP flags set on the
 // command line.
 func changedOutboundFlags() []string {
 	var set []string

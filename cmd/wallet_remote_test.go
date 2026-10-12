@@ -133,7 +133,7 @@ func TestAutoRouteThroughInstanceForSameWalletDir(t *testing.T) {
 	url, _ := startRemoteTestWallet(t)
 
 	// The registry says this running server owns the local wallet dir. The
-	// registered pid must match the pid the server reports, otherwise
+	// registered pid must match the pid reported by the server. Otherwise
 	// discovery prunes the file as stale.
 	resolvedDir := wallet.NewWalletStore(walletDir).Dir
 	if err := remote.RegisterInstance(remote.Instance{

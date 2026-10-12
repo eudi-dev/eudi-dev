@@ -85,7 +85,7 @@ test.describe("Page load", () => {
     await expect(page.locator(".validity-banner")).toBeVisible();
   });
 
-  // Links put the credential in the fragment, which never reaches a proxy.
+  // Links put the credential in the fragment. The fragment never reaches a proxy.
   test("prefill via fragment", async ({ page }) => {
     await page.goto("/#credential=" + encodeURIComponent(TEST_JWT));
     await expect(page.locator("#format-badge")).toHaveText("JWT");
@@ -395,7 +395,7 @@ test.describe("Verification panel", () => {
     await expect(links).toHaveAttribute("title", listURL);
     await expect(page.locator('[data-check="trust"] .vg-detail')).toHaveText("German PID, trusted list pid \u2197");
     await expect(page.locator('[data-check="status list signature"] .vg-detail')).toHaveText("Signed by Status Signer");
-    // The decoder also sends a slower network validation, which may still be in route.fetch.
+    // The decoder also sends a slower network validation. It may still be in route.fetch.
     await page.unrouteAll({ behavior: "ignoreErrors" });
   });
 
@@ -718,8 +718,8 @@ test.describe("Decoding does not wait on the issuer", () => {
     await page.keyboard.press("ControlOrMeta+V");
 
     // A paste emits a paste and an input event. It must trigger one decode.
-    // Moving the clock past both decode delays starts every decode they
-    // schedule.
+    // Moving the clock past both decode delays starts every scheduled
+    // decode.
     await page.clock.runFor(1000);
     await expect(page.locator("#format-badge")).toHaveText("SD-JWT", { timeout: 3000 });
     await expect.poll(() => onlinePasses).toBe(1);

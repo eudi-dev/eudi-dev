@@ -103,8 +103,8 @@ test.describe("Docker Image", () => {
     }
   });
 
-  // The image sets EUDI_DEV_LISTEN=0.0.0.0, so every server in it answers
-  // on the published port, not only the wallet.
+  // The image sets EUDI_DEV_LISTEN=0.0.0.0, so the wallet and every other
+  // server in it answer on the published port.
   test("the decoder in the image answers on its published port", async () => {
     const name = `${CONTAINER_NAME}-decoder`;
     const hostPort = HOST_PORT + 3;

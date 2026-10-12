@@ -50,7 +50,7 @@ VCI_ISSUER_TEMPLATE = "scripts/test-configs-rp-against-op/vci-issuer-test-config
 VP_VERIFIER_TEMPLATE = "scripts/test-configs-rp-against-op/vp-verifier-test-config.json"
 
 # The issuer plans request the demo ticket. The verifier plans request the
-# country independent PID, which the suite holds as SD-JWT VC and mdoc.
+# country independent PID. The suite holds it as SD-JWT VC and mdoc.
 DEMO_CREDENTIAL_CONFIGURATION_ID = "demo-ticket"
 PID_VCT = "urn:eudi:pid:1"
 
@@ -87,7 +87,7 @@ class DemoScenario:
 VCI_ISSUER_MODULE_BATCH = "oid4vci-1_0-issuer-batch-issuance"
 
 # Exclude unsupported key attestation and credential encryption modules. They
-# would skip themselves, which run-test-plan records as failure.
+# would skip themselves, and run-test-plan records a skip as failure.
 VCI_ISSUER_MODULES = (
     "oid4vci-1_0-issuer-metadata-test",
     "oid4vci-1_0-issuer-metadata-test-signed",
@@ -170,8 +170,8 @@ def vp_modules_for_variant(variant: dict[str, str]) -> tuple[str, ...]:
         # fetch twice.
         modules.remove(VP_VERIFIER_MODULE_REQUEST_URI_FETCHED_TWICE)
     else:
-        # The demo serves request objects through GET. The POST module would skip, which
-        # the runner treats as failure.
+        # The demo serves request objects through GET. The POST module would skip, and
+        # the runner treats a skip as failure.
         modules.remove(VP_VERIFIER_MODULE_REQUEST_URI_METHOD_POST)
     return tuple(modules)
 
@@ -373,8 +373,8 @@ def create_vp_config(args: argparse.Namespace, suite_dir: Path, scenario: DemoSc
     config["alias"] = scenario_alias(args, scenario)
     config["description"] = f"oid4vc-dev demo verifier ({scenario.slug})"
     # The demo verifier signs its request objects with an access certificate
-    # from the relying party access CA, which HAIP requires the suite to be
-    # given as the trust anchor.
+    # from the relying party access CA. HAIP requires the suite to get that CA
+    # as its trust anchor.
     config.setdefault("client", {})
     config["client"].pop("client_id", None)
     config["client"]["request_object_trust_anchor_pem"] = Path(args.access_ca_cert).read_text()
@@ -426,7 +426,7 @@ def submit_verifier_request(wallet_url: str, scenario: DemoScenario, alias: str)
 
 
 def unverified_opener() -> urllib.request.OpenerDirector:
-    # Local redirects cross the wallet and suite TLS origins, whose certificates are not
+    # Local redirects cross the wallet and suite TLS origins. Their certificates are not
     # in the system truststore.
     context = ssl._create_unverified_context()
     return urllib.request.build_opener(urllib.request.HTTPSHandler(context=context))

@@ -411,8 +411,6 @@ func TestIssueSDJWT_WithPID(t *testing.T) {
 
 // A JWT VC carries the PID claim set plainly, so --pid applies to `issue jwt`
 // too.
-// A JWT VC carries the PID claim set plainly, so --pid applies to `issue jwt`
-// too.
 func TestIssueJWT_WithPID(t *testing.T) {
 	_, payload, _, err := format.ParseJWTParts(issuedCredential(t, "issue", "jwt", "--pid"))
 	if err != nil {
@@ -1038,7 +1036,7 @@ func TestIssueSDJWT_TemplateUniqueClaims(t *testing.T) {
 	}
 }
 
-// --iss names the issuer of one credential. The stored issuer URL belongs to
+// --iss sets the issuer of one credential. The stored issuer URL belongs to
 // wallet serve (ADR-0019).
 func TestIssueToWalletKeepsTheStoredIssuerURL(t *testing.T) {
 	tmpDir := t.TempDir()
