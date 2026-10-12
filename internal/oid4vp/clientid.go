@@ -407,9 +407,12 @@ func validateRequestObject(clientID string, reqObj *oid4vc.RequestObjectJWT) str
 		return "OID4VP 1.0 §5.9.3: the client_id prefix requires a signed Request Object but the Request Object is unsigned (alg \"none\")"
 	}
 
-	// §5: "Wallets MUST NOT process Request Objects where the typ Header
-	// Parameter is not present", signed or not.
 	if typ == "" {
+		// unsignedRequestObjectAdvisory reports the missing typ of an
+		// unsigned Request Object without refusing it.
+		if alg == "none" {
+			return ""
+		}
 		return "OID4VP 1.0 §5: the Request Object is missing the required typ header 'oauth-authz-req+jwt'"
 	}
 	if !format.JOSETypeIs(typ, format.TypeRequestObject) {
@@ -421,6 +424,20 @@ func validateRequestObject(clientID string, reqObj *oid4vc.RequestObjectJWT) str
 	}
 
 	return ""
+}
+
+// unsignedRequestObjectAdvisory warns about an unsigned Request Object without
+// typ. OID4VP 1.0 §5 says "Wallets MUST NOT process Request Objects where the
+// typ Header Parameter is not present", yet the wallet processes such an
+// object even in strict mode. The OIDF conformance suite (release-v5.3.2)
+// sends its unsigned request_uri objects with only {"alg":"none"}, and an
+// unsigned object carries no signature that typ could protect against
+// cross-JWT confusion.
+func unsignedRequestObjectAdvisory(reqObj *oid4vc.RequestObjectJWT) string {
+	if reqObj == nil || jsonutil.GetString(reqObj.Header, "alg") != "none" || jsonutil.GetString(reqObj.Header, "typ") != "" {
+		return ""
+	}
+	return "OID4VP 1.0 §5: the unsigned Request Object has no typ header 'oauth-authz-req+jwt'. The wallet processes it anyway"
 }
 
 // verifyAlgMatchesCert checks that the JWT "alg" header fits the key type of

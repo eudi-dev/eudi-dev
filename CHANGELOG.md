@@ -72,6 +72,7 @@ Version 3.0.0 adds a registrar, ARF checks, a catalogue of attestations and a tr
 
 ### Changed
 
+- **Unsigned request objects without `typ`.** The wallet warns about a missing `typ` in an unsigned Request Object but still processes it, also in strict mode. OID4VP 1.0 §5 requires `typ`, but the OIDF conformance suite sends its unsigned request objects without one (see [spec compliance](docs/spec-compliance.md)).
 - **Unbound credentials and signed metadata without `iat` in debug mode.** Debug mode presents an unbound credential to a query that requires holder binding and marks it. It reads signed issuer metadata without `iat` or past `exp` with a finding. Strict mode refuses both (OpenID4VP 1.0 §6.1, OpenID4VCI 1.0 §12.2.3).
 - **Strict `--arf` refusals.** An issuer that fails the checks is refused before the consent dialog. An authenticated verifier gets `access_denied` on `/authorize`, over the Digital Credentials API and from `wallet accept`.
 - **HAIP checks of received credentials.** With `--haip` every received SD-JWT VC follows HAIP 1.0 §6.1.1, on every issuance path and for every copy of a batch.

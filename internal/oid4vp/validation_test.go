@@ -117,12 +117,18 @@ func TestAClientIDPrefixGivesOneFinding(t *testing.T) {
 	}
 }
 
-// OID4VP 1.0 §5: "Wallets MUST NOT process Request Objects where the typ Header
-// Parameter is not present". That holds for an unsigned Request Object too.
-func TestUnsignedRequestObjectNeedsTyp(t *testing.T) {
-	reqObj := &oid4vc.RequestObjectJWT{Header: map[string]any{"alg": "none"}, Payload: map[string]any{}}
-	if finding := validateRequestObject("redirect_uri:https://verifier.example/cb", reqObj); !strings.Contains(finding, "typ") {
-		t.Errorf("finding = %q, want the missing typ", finding)
+// An unsigned Request Object without typ gets a warning, also in strict mode.
+func TestUnsignedRequestObjectWithoutTypIsAWarning(t *testing.T) {
+	params := &Request{
+		AuthorizationRequest: oid4vc.AuthorizationRequest{ClientID: "redirect_uri:https://verifier.example/r", ResponseType: "vp_token", ResponseMode: "direct_post", Nonce: "n", ResponseURI: "https://verifier.example/r", DCQLQuery: sdjwtVCTQuery("urn:example:x")},
+	}
+	params.RequestObject = &oid4vc.RequestObjectJWT{Raw: "eyJhbGciOiJub25lIn0.e30.", Header: map[string]any{"alg": "none"}, Payload: map[string]any{}}
+	findings, err := ValidateAuthorizationRequest(Checks{Strict: true}, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 1 || !strings.Contains(findings[0], "no typ header") {
+		t.Errorf("findings = %v, want the missing typ warning", findings)
 	}
 }
 

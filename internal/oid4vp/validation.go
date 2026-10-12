@@ -75,9 +75,12 @@ func validatePresentationRequestCore(checks Checks, params *Request, payload map
 	}
 	findings = append(findings, authorizationFindings(params, payload)...)
 	var advisories []string
+	if advisory := unsignedRequestObjectAdvisory(reqObj); advisory != "" {
+		advisories = append(advisories, advisory)
+	}
 	if checks.HAIP {
 		findings = append(findings, validateHAIPCompliance(params, reqObj)...)
-		advisories = haipAdvisories(params)
+		advisories = append(advisories, haipAdvisories(params)...)
 	}
 	var arfFindings []string
 	if checks.ARF {
