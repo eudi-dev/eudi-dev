@@ -39,6 +39,9 @@ type Store interface {
 	// Read returns the blob at key. A missing key returns an error that
 	// satisfies errors.Is(err, fs.ErrNotExist).
 	Read(key string) ([]byte, error)
+	// ReadBlob returns the blob at key with the stamp of exactly that content. A
+	// missing key returns an error that satisfies errors.Is(err, fs.ErrNotExist).
+	ReadBlob(key string) (Blob, error)
 	// Write replaces the blob at key atomically. A concurrent reader sees the
 	// old or the new content. Only the file backend applies perm. Write returns
 	// the blob's new stamp.
@@ -153,7 +156,8 @@ type failingStore struct {
 	err error
 }
 
-func (f failingStore) Read(string) ([]byte, error) { return nil, f.err }
+func (f failingStore) Read(string) ([]byte, error)   { return nil, f.err }
+func (f failingStore) ReadBlob(string) (Blob, error) { return Blob{}, f.err }
 func (f failingStore) Write(string, []byte, fs.FileMode) (Stamp, error) {
 	return Stamp{}, f.err
 }

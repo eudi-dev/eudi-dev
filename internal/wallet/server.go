@@ -427,22 +427,21 @@ func (s *Server) reloadLocked(withLog bool) error {
 		return store.loadSections(s.wallet, changed)
 	}
 
-	stamp, err := store.WalletStamp()
-	exists := err == nil
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+	stored, err := store.readWallet()
+	if err != nil {
 		return err
 	}
-	if exists && stamp == s.lastWalletStamp {
+	if stored != nil && stored.Stamp == s.lastWalletStamp {
 		return nil
 	}
 
-	reloaded, err := store.LoadOrCreate()
+	reloaded, err := store.load(stored)
 	if err != nil {
 		return err
 	}
 	s.applyPersistedWalletState(reloaded)
-	if exists {
-		s.lastWalletStamp = stamp
+	if stored != nil {
+		s.lastWalletStamp = stored.Stamp
 	}
 	return nil
 }

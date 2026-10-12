@@ -60,6 +60,20 @@ func (s *memoryStore) Read(key string) ([]byte, error) {
 	return append([]byte(nil), blob.data...), nil
 }
 
+func (s *memoryStore) ReadBlob(key string) (Blob, error) {
+	key, err := cleanKey(key)
+	if err != nil {
+		return Blob{}, err
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	blob, ok := s.blobs[key]
+	if !ok {
+		return Blob{}, notExist("read", key)
+	}
+	return Blob{Data: append([]byte(nil), blob.data...), Stamp: blob.stamp()}, nil
+}
+
 func (s *memoryStore) Write(key string, data []byte, _ fs.FileMode) (Stamp, error) {
 	key, err := cleanKey(key)
 	if err != nil {

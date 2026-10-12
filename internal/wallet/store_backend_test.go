@@ -18,6 +18,7 @@ import (
 	"crypto/ecdsa"
 	"io/fs"
 	"net/http"
+	"path"
 	"path/filepath"
 	"sync/atomic"
 	"testing"
@@ -273,6 +274,82 @@ type readCounter struct {
 func (c *readCounter) Read(key string) ([]byte, error) {
 	c.reads.Add(1)
 	return c.Store.Read(key)
+}
+
+func (c *readCounter) ReadBlob(key string) (storage.Blob, error) {
+	c.reads.Add(1)
+	return c.Store.ReadBlob(key)
+}
+
+// walletFileReads counts the reads of wallet.json. A file Stat reads the
+// content to hash it, so it counts as a read.
+type walletFileReads struct {
+	storage.Store
+	reads atomic.Int64
+}
+
+func (c *walletFileReads) count(key string) {
+	if path.Base(key) == "wallet.json" {
+		c.reads.Add(1)
+	}
+}
+
+func (c *walletFileReads) Read(key string) ([]byte, error) {
+	c.count(key)
+	return c.Store.Read(key)
+}
+
+func (c *walletFileReads) ReadBlob(key string) (storage.Blob, error) {
+	c.count(key)
+	return c.Store.ReadBlob(key)
+}
+
+func (c *walletFileReads) Stat(key string) (storage.Stamp, error) {
+	c.count(key)
+	return c.Store.Stat(key)
+}
+
+// A server on the file backend reads wallet.json once when another process
+// changed it, and once to see that it did not change.
+func TestFileBackendReloadReadsTheWalletOnce(t *testing.T) {
+	dir := t.TempDir()
+	backend := &walletFileReads{Store: storage.NewFile(dir)}
+	store := NewWalletStoreOn(filepath.Join(dir, "wallet"), backend)
+	w, err := store.LoadOrCreate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := NewServer(w, 0, nil)
+	srv.SetStore(store)
+
+	other := NewWalletStoreOn(filepath.Join(dir, "wallet"), backend)
+	o, err := other.LoadOrCreate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	importTestCredential(t, o, "Elsewhere")
+	if err := other.Save(o); err != nil {
+		t.Fatal(err)
+	}
+
+	backend.reads.Store(0)
+	if err := srv.reloadFromStore(); err != nil {
+		t.Fatal(err)
+	}
+	if reads := backend.reads.Load(); reads != 1 {
+		t.Fatalf("reloading a changed wallet read wallet.json %d times", reads)
+	}
+	if creds := w.GetCredentials(); len(creds) != 1 || creds[0].VCT != "Elsewhere" {
+		t.Fatalf("the reload loaded %d credentials", len(creds))
+	}
+
+	backend.reads.Store(0)
+	if err := srv.reloadFromStore(); err != nil {
+		t.Fatal(err)
+	}
+	if reads := backend.reads.Load(); reads != 1 {
+		t.Fatalf("checking an unchanged wallet read wallet.json %d times", reads)
+	}
 }
 
 // --arf takes the anchors of access certificates, registration certificates

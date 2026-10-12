@@ -58,6 +58,14 @@ func (s *fileStore) Read(key string) ([]byte, error) {
 	return os.ReadFile(s.path(key))
 }
 
+func (s *fileStore) ReadBlob(key string) (Blob, error) {
+	data, err := s.Read(key)
+	if err != nil {
+		return Blob{}, err
+	}
+	return Blob{Data: data, Stamp: contentStamp(data)}, nil
+}
+
 // Write creates a missing directory with 0755 for a world-readable blob and
 // 0700 otherwise. The file is written beside the target and renamed into
 // place, so a concurrent reader never sees a partial file. The sync before

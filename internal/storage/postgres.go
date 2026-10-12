@@ -124,6 +124,26 @@ func (s *postgresStore) Read(key string) ([]byte, error) {
 	return data, nil
 }
 
+func (s *postgresStore) ReadBlob(key string) (Blob, error) {
+	key, err := cleanKey(key)
+	if err != nil {
+		return Blob{}, err
+	}
+	if err := s.prepare(); err != nil {
+		return Blob{}, err
+	}
+	var data []byte
+	var version int64
+	err = s.db.QueryRow(`SELECT data, version FROM `+postgresTable+` WHERE key = $1`, key).Scan(&data, &version)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Blob{}, notExist("read", key)
+	}
+	if err != nil {
+		return Blob{}, fmt.Errorf("reading %s: %w", key, err)
+	}
+	return Blob{Data: data, Stamp: postgresStamp(version, int64(len(data)))}, nil
+}
+
 func (s *postgresStore) Write(key string, data []byte, _ fs.FileMode) (Stamp, error) {
 	key, err := cleanKey(key)
 	if err != nil {

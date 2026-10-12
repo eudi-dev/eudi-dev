@@ -48,6 +48,33 @@ func scope(t *testing.T) string {
 	return strings.ReplaceAll(t.Name(), "/", "-") + "-" + strconv.Itoa(os.Getpid())
 }
 
+// A reader that caches a parse keeps the stamp ReadBlob returns, so the stamp
+// must be the one Write and Stat report for that content.
+func TestStore_ReadBlobReturnsTheStampOfItsContent(t *testing.T) {
+	for kind, store := range backends(t) {
+		t.Run(kind, func(t *testing.T) {
+			key := scope(t) + "/wallet/wallet.json"
+			defer store.Delete(key)
+
+			if _, err := store.ReadBlob(key); !errors.Is(err, fs.ErrNotExist) {
+				t.Fatalf("missing key: got %v, want fs.ErrNotExist", err)
+			}
+			written, err := store.Write(key, []byte("content"), 0o600)
+			if err != nil {
+				t.Fatal(err)
+			}
+			blob, err := store.ReadBlob(key)
+			if err != nil || string(blob.Data) != "content" {
+				t.Fatalf("ReadBlob = %q, %v", blob.Data, err)
+			}
+			stat, _ := store.Stat(key)
+			if blob.Stamp != written || blob.Stamp != stat {
+				t.Fatalf("ReadBlob stamp %+v, Write %+v, Stat %+v", blob.Stamp, written, stat)
+			}
+		})
+	}
+}
+
 func TestStore_ReadWriteDeleteRoundTrip(t *testing.T) {
 	for kind, store := range backends(t) {
 		t.Run(kind, func(t *testing.T) {

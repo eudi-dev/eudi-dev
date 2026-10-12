@@ -381,6 +381,30 @@ func (s *WalletStore) logCleanMarkerKey() string { return s.key("wallet-log-clea
 
 // LoadOrCreate loads the stored wallet. It generates keys that are missing.
 func (s *WalletStore) LoadOrCreate() (*Wallet, error) {
+	if s.entityMode() {
+		return s.load(nil)
+	}
+	stored, err := s.readWallet()
+	if err != nil {
+		return nil, err
+	}
+	return s.load(stored)
+}
+
+// readWallet returns nil when the wallet has never been saved.
+func (s *WalletStore) readWallet() (*storage.Blob, error) {
+	blob, err := s.backend.ReadBlob(s.walletKey())
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("reading wallet.json: %w", err)
+	}
+	return &blob, nil
+}
+
+// load parses stored as wallet.json on the file backend. Entity backends ignore it.
+func (s *WalletStore) load(stored *storage.Blob) (*Wallet, error) {
 	holderKey, issuerKey, err := s.LoadOrCreateKeys()
 	if err != nil {
 		return nil, err
@@ -406,16 +430,12 @@ func (s *WalletStore) LoadOrCreate() (*Wallet, error) {
 		return w, nil
 	}
 
-	data, err := s.backend.Read(s.walletKey())
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return w, nil
-		}
-		return nil, fmt.Errorf("reading wallet.json: %w", err)
+	if stored == nil {
+		return w, nil
 	}
 
 	var wj walletJSON
-	if err := json.Unmarshal(data, &wj); err != nil {
+	if err := json.Unmarshal(stored.Data, &wj); err != nil {
 		return nil, fmt.Errorf("parsing wallet.json: %w", err)
 	}
 

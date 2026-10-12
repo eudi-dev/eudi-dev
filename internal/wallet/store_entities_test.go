@@ -479,6 +479,13 @@ func (c *countingStore) Read(key string) ([]byte, error) {
 	return c.Store.Read(key)
 }
 
+func (c *countingStore) ReadBlob(key string) (storage.Blob, error) {
+	if strings.Contains(key, "/"+credentialsSection+"/") {
+		c.reads.Add(1)
+	}
+	return c.Store.ReadBlob(key)
+}
+
 func (c *countingStore) ReadAll(prefix string) (map[string]storage.Blob, error) {
 	blobs, err := c.Store.ReadAll(prefix)
 	for key := range blobs {

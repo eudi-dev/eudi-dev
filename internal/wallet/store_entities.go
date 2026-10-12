@@ -250,7 +250,7 @@ func (s *WalletStore) refreshSection(section string, known, updated stateSnapsho
 		changed = slices.DeleteFunc(changed, func(key string) bool { _, ok := blobs[key]; return ok })
 	}
 	for _, key := range changed {
-		data, err := s.backend.Read(key)
+		blob, err := s.backend.ReadBlob(key)
 		if errors.Is(err, fs.ErrNotExist) {
 			delete(updated, key)
 			continue
@@ -258,7 +258,7 @@ func (s *WalletStore) refreshSection(section string, known, updated stateSnapsho
 		if err != nil {
 			return fmt.Errorf("reading wallet state: %w", err)
 		}
-		updated[key] = storage.Blob{Data: data, Stamp: stamps[key]}
+		updated[key] = blob
 	}
 	return nil
 }

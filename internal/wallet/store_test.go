@@ -734,7 +734,10 @@ func TestFileBackendKeepsLogEntriesAcrossConcurrentReloads(t *testing.T) {
 
 // The server's own save does not make the next request parse the file again.
 func TestFileBackendSkipsReloadingItsOwnSave(t *testing.T) {
-	store := NewWalletStore(t.TempDir())
+	store, err := OpenWalletStore(t.TempDir(), storage.KindFile)
+	if err != nil {
+		t.Fatal(err)
+	}
 	w, err := store.LoadOrCreate()
 	if err != nil {
 		t.Fatal(err)
