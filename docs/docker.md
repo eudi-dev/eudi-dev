@@ -63,7 +63,7 @@ For a full deployment (TLS termination, rate limiting, usage statistics, persist
 
 ## Storage
 
-The image defaults to `EUDI_DEV_STORAGE=memory` and `EUDI_DEV_SEED=eudi-dev`. It needs no volume, database or writable filesystem. With `--read-only`, the server runs and logs a warning because it cannot register the wallet instance.
+The image defaults to `EUDI_DEV_STORAGE=memory` and `EUDI_DEV_SEED=eudi-dev`. It needs no volume, database or writable filesystem. With `--read-only`, `wallet ps` does not list the instance.
 
 Pass `-e EUDI_DEV_STORAGE=...` (or `--storage` on the command) to select another backend:
 

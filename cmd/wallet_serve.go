@@ -18,6 +18,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log"
 	"net"
 	"net/http"
@@ -820,7 +821,7 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 		URL:       fmt.Sprintf("http://localhost:%d", opts.Port),
 		WalletDir: store.Dir,
 		StartedAt: time.Now(),
-	}); err != nil {
+	}); err != nil && !readOnlyHome(err) {
 		fmt.Fprintf(os.Stderr, "warning: registering wallet instance: %v\n", err)
 	}
 	defer remote.UnregisterInstance(processID)
@@ -829,6 +830,13 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 	defer signal.Stop(signals)
 	return serveWallet(srv, signals)
+}
+
+// readOnlyHome reports a home directory the wallet cannot write, such as a
+// container with a read-only root filesystem. Memory and database storage run
+// there, and only `wallet ps` misses the instance.
+func readOnlyHome(err error) bool {
+	return errors.Is(err, syscall.EROFS) || errors.Is(err, fs.ErrPermission)
 }
 
 // serveWallet serves until a signal or POST /api/shutdown. Both stop the
