@@ -694,6 +694,7 @@
       });
 
       const result = await resp.json();
+      if (followVerifierRedirect(result)) return;
       if (result.error) {
         alert('Error: ' + result.error);
       } else {
@@ -1804,14 +1805,22 @@
     }
   }
 
-  function showSubmissionResult(result) {
-    if (result.redirect_uri && !result.error) {
-      if (navigable(result.redirect_uri)) {
-        window.location.href = result.redirect_uri;
-        return;
-      }
+  // OpenID4VP 1.0 §8.2: the wallet follows a redirect_uri from the verifier, both after
+  // an Authorization Response and after an Authorization Error Response.
+  function followVerifierRedirect(result) {
+    if (!result.redirect_uri) return false;
+    if (!navigable(result.redirect_uri)) {
       console.error('refusing to navigate to', result.redirect_uri);
+      return false;
     }
+    // The page navigates away, so only the console keeps the error.
+    if (result.error) console.warn('wallet error before the redirect:', result.error);
+    window.location.href = result.redirect_uri;
+    return true;
+  }
+
+  function showSubmissionResult(result) {
+    if (!result.error && followVerifierRedirect(result)) return;
 
     consentOverlay.classList.add('active');
 
@@ -2433,11 +2442,12 @@
       consentSubmitting = true;
       try {
         const resp = await fetch(approveURL(req.id, '/deny'), { method: 'POST' });
+        const result = await resp.json().catch(() => ({}));
         if (!resp.ok) {
-          const result = await resp.json().catch(() => ({}));
           showErrorDialog('This request could not be denied', result.error || 'The wallet refused the answer.');
           return;
         }
+        if (followVerifierRedirect(result)) return;
       } catch (e) {
         console.error('Deny failed:', e);
       } finally {

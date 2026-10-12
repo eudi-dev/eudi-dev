@@ -1598,3 +1598,68 @@ for (const scenario of ["different token", "repeated receipt", "failed fetch"]) 
     await expect(page.getByTestId("log-decoder-link")).toHaveCount(2);
   });
 }
+
+// OpenID4VP 1.0 §8.2: the response_uri may answer an Authorization Response or an
+// Authorization Error Response with a redirect_uri, and the wallet sends the user
+// agent there.
+test.describe("Verifier redirect after the answer", () => {
+  let verifier;
+  let verifierURL;
+
+  test.beforeAll(async () => {
+    verifier = http.createServer((req, res) => {
+      if (req.method === "POST" && req.url === "/response") {
+        req.resume();
+        req.on("end", () => {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ redirect_uri: `${verifierURL}/after` }));
+        });
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "text/html" });
+      res.end("<title>Verifier</title><h1>Back at the verifier</h1>");
+    });
+    await new Promise((resolve) => verifier.listen(0, "127.0.0.1", resolve));
+    verifierURL = `http://127.0.0.1:${verifier.address().port}`;
+  });
+
+  test.afterAll(() => verifier.close());
+
+  function requestQuery() {
+    return new URLSearchParams({
+      client_id: "https://verifier.example",
+      response_type: "vp_token",
+      response_mode: "direct_post",
+      nonce: "nonce-" + Date.now(),
+      state: "state",
+      response_uri: `${verifierURL}/response`,
+      dcql_query: JSON.stringify({
+        credentials: [{
+          id: "pid",
+          format: "dc+sd-jwt",
+          meta: { vct_values: ["urn:eudi:pid:1"] },
+          claims: [{ path: ["given_name"] }],
+        }],
+      }),
+    }).toString();
+  }
+
+  for (const answer of ["consent-approve", "consent-deny"]) {
+    test(`${answer} on a browser request follows the verifier's redirect_uri`, async ({ page }) => {
+      await page.goto(`${WALLET_URL}/authorize?${requestQuery()}`);
+      await expect(page.locator("#consent-overlay")).toHaveClass(/active/);
+      await page.locator(`#${answer}`).click();
+      await page.waitForURL(`${verifierURL}/after`);
+      await expect(page.locator("h1")).toHaveText("Back at the verifier");
+    });
+  }
+
+  test("a denied pasted request follows the verifier's redirect_uri", async ({ page }) => {
+    await page.goto(WALLET_URL);
+    await page.locator("#offer-input").fill(`openid4vp://?${requestQuery()}`);
+    await page.locator("#process-btn").click();
+    await expect(page.locator("#consent-overlay")).toHaveClass(/active/);
+    await page.locator("#consent-deny").click();
+    await page.waitForURL(`${verifierURL}/after`);
+  });
+});

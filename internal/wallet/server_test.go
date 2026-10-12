@@ -1374,87 +1374,107 @@ func TestConsentFlow_ApproveAndDeny(t *testing.T) {
 	}
 }
 
+// OpenID4VP 1.0 §8.2: the verifier can answer the Authorization Error Response with a
+// redirect_uri, and the wallet sends the user agent there.
 func TestConsentFlow_Deny(t *testing.T) {
-	srv := newTestServer(t, false)
-	var receivedBody string
-	verifier := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		receivedBody = string(body)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"redirect_uri":"https://verifier.example/done"}`))
-	}))
-	defer verifier.Close()
+	tests := []struct {
+		name         string
+		verifierBody string
+		wantRedirect any
+	}{
+		{name: "verifier redirect", verifierBody: `{"redirect_uri":"https://verifier.example/after"}`, wantRedirect: "https://verifier.example/after"},
+		{name: "no redirect", verifierBody: `{}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := newTestServer(t, false)
+			var receivedBody string
+			verifier := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body, _ := io.ReadAll(r.Body)
+				receivedBody = string(body)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(tt.verifierBody))
+			}))
+			defer verifier.Close()
 
-	dcqlQuery := map[string]any{
-		"credentials": []any{
-			map[string]any{
-				"id":     "pid",
-				"format": "dc+sd-jwt",
-				"meta": map[string]any{
-					"vct_values": []any{mock.DefaultPIDVCT},
+			dcqlQuery := map[string]any{
+				"credentials": []any{
+					map[string]any{
+						"id":     "pid",
+						"format": "dc+sd-jwt",
+						"meta": map[string]any{
+							"vct_values": []any{mock.DefaultPIDVCT},
+						},
+						"claims": []any{
+							map[string]any{"path": []any{"given_name"}},
+						},
+					},
 				},
-				"claims": []any{
-					map[string]any{"path": []any{"given_name"}},
-				},
-			},
-		},
-	}
-	dcqlJSON, _ := json.Marshal(dcqlQuery)
+			}
+			dcqlJSON, _ := json.Marshal(dcqlQuery)
 
-	params := url.Values{
-		"client_id":     {"https://verifier.example"},
-		"response_type": {"vp_token"},
-		"nonce":         {"nonce"},
-		"state":         {"state"},
-		"response_uri":  {verifier.URL},
-		"dcql_query":    {string(dcqlJSON)},
-	}
+			params := url.Values{
+				"client_id":     {"https://verifier.example"},
+				"response_type": {"vp_token"},
+				"nonce":         {"nonce"},
+				"state":         {"state"},
+				"response_uri":  {verifier.URL},
+				"dcql_query":    {string(dcqlJSON)},
+			}
 
-	resultCh := make(chan *httptest.ResponseRecorder, 1)
-	go func() {
-		req := httptest.NewRequest("GET", "/authorize?"+params.Encode(), nil)
-		w := httptest.NewRecorder()
-		srv.mux.ServeHTTP(w, req)
-		resultCh <- w
-	}()
+			resultCh := make(chan *httptest.ResponseRecorder, 1)
+			go func() {
+				req := httptest.NewRequest("GET", "/authorize?"+params.Encode(), nil)
+				w := httptest.NewRecorder()
+				srv.mux.ServeHTTP(w, req)
+				resultCh <- w
+			}()
 
-	var reqID string
-	for i := 0; i < 100; i++ {
-		time.Sleep(10 * time.Millisecond)
-		pending := srv.wallet.GetPendingRequests()
-		if len(pending) > 0 {
-			reqID = pending[0].ID
-			break
-		}
-	}
+			var reqID string
+			for i := 0; i < 100; i++ {
+				time.Sleep(10 * time.Millisecond)
+				pending := srv.wallet.GetPendingRequests()
+				if len(pending) > 0 {
+					reqID = pending[0].ID
+					break
+				}
+			}
 
-	if reqID == "" {
-		t.Fatal("no pending consent request found")
-	}
+			if reqID == "" {
+				t.Fatal("no pending consent request found")
+			}
 
-	denyReq := httptest.NewRequest("POST", "/api/requests/"+reqID+"/deny", nil)
-	denyRec := httptest.NewRecorder()
-	srv.mux.ServeHTTP(denyRec, denyReq)
+			denyReq := httptest.NewRequest("POST", "/api/requests/"+reqID+"/deny", nil)
+			denyRec := httptest.NewRecorder()
+			srv.mux.ServeHTTP(denyRec, denyReq)
 
-	if denyRec.Code != http.StatusOK {
-		t.Fatalf("deny failed: %d", denyRec.Code)
-	}
-	denyResult := decodeJSON(t, denyRec)
-	if denyResult["status"] != "denied" {
-		t.Fatalf("expected deny API status 'denied', got %v", denyResult["status"])
-	}
+			if denyRec.Code != http.StatusOK {
+				t.Fatalf("deny failed: %d", denyRec.Code)
+			}
+			denyResult := decodeJSON(t, denyRec)
+			if denyResult["status"] != "denied" {
+				t.Fatalf("expected deny API status 'denied', got %v", denyResult["status"])
+			}
+			if denyResult["redirect_uri"] != tt.wantRedirect {
+				t.Errorf("deny API redirect_uri = %v, want %v", denyResult["redirect_uri"], tt.wantRedirect)
+			}
 
-	w := <-resultCh
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected authorize flow to complete with 200, got %d: %s", w.Code, w.Body.String())
-	}
-	if receivedBody == "" {
-		t.Fatal("verifier did not receive denied error response")
-	}
-	result := decodeJSON(t, w)
-	if result["status"] != "denied" {
-		t.Errorf("expected status 'denied', got %v", result["status"])
+			w := <-resultCh
+			if w.Code != http.StatusOK {
+				t.Fatalf("expected authorize flow to complete with 200, got %d: %s", w.Code, w.Body.String())
+			}
+			if receivedBody == "" {
+				t.Fatal("verifier did not receive denied error response")
+			}
+			result := decodeJSON(t, w)
+			if result["status"] != "denied" {
+				t.Errorf("expected status 'denied', got %v", result["status"])
+			}
+			if result["redirect_uri"] != tt.wantRedirect {
+				t.Errorf("authorize redirect_uri = %v, want %v", result["redirect_uri"], tt.wantRedirect)
+			}
+		})
 	}
 }
 

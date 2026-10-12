@@ -5,13 +5,21 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.1] - 2026-10-12
+
+Backports from 3.0.0.
+
+### Fixed
+
+- **Redirect after a denial.** When the user denies a presentation and the verifier answers the error response with a `redirect_uri`, the wallet follows it (OpenID4VP 1.0 §8.2).
+
 ## [2.8.0] - 2026-10-12
 
 Backports from 3.0.0.
 
 ### Changed
 
-- **New look.** The wallet, decoder, proxy dashboard and demo pages use a graphite palette in dark and light, system type and rounded controls. Credential data, IDs and code stay in monospace.
+- **New design.** The wallet, decoder, proxy dashboard and demo pages have a cleaner, more professional design in dark and light.
 
 ### Fixed
 
