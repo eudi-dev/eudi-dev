@@ -2,6 +2,23 @@
 
 Reproduce these runs with the [wallet conformance runner](./conformance-run.md).
 
+## Run of 2026-10-12 (3.0.0-beta.4)
+
+The beta was checked against suite `release-v5.3.2` (revision `11999aa`) in strict mode. The full wallet matrix ran with file storage. The demo issuer and verifier ran all nine plans.
+
+| Target | Configurations | Modules | `PASSED` | `REVIEW` | `WARNING` | `FAILED` |
+|---|---:|---:|---:|---:|---:|---:|
+| Wallet, file | 78 | 750 | 536 | 188 | 26 | 0 |
+| Demo issuer and verifier | 9 | 111 | 67 | 36 | 8 | 0 |
+
+No module failed. Release-v5.3.2 adds `fapi2-security-profile-final-client-test-happy-path-no-mtls-endpoint-aliases` to the six HAIP issuance plans, and all six passed. The 26 wallet warnings are the IACA path length advisory described for 2.5.0. The 8 demo warnings are the metadata warnings described for the run of 2026-10-08.
+
+The suite sends its unsigned `request_uri` request objects without `typ`. OpenID4VP 1.0 §5 tells wallets not to process them. The wallet now warns about the missing `typ` and processes the object, also in strict mode, so these 8 plans pass (see [spec compliance](spec-compliance.md)).
+
+One suite metadata request took 60 seconds while the machine was under load. The harness sent the same offer again, and the pending deferred requests of the first attempt interrupted three modules, as in the run of 2026-10-09. The suite stopped the run, and the remaining 5 plans ran again on their own. The numbers above contain only completed modules.
+
+The full Go race suite and all 256 browser tests passed. Vet and lint also passed.
+
 ## Run of 2026-10-10 (3.0.0-beta.3)
 
 The beta was checked against suite `release-v5.3.1` (revision `440eec8`) in strict mode. The full wallet matrix ran with file storage. The demo issuer and verifier ran all nine plans.
