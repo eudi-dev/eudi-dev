@@ -19,6 +19,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -118,8 +119,12 @@ func spawnDetachedServe(cmd *cobra.Command, port int, register, noRegister bool)
 
 // detachedChildEnv is the environment of the detached server. The seed is a
 // secret, so it reaches the child here and never through its command line.
+// The child runs in the foreground, so it must not see EUDI_DEV_DETACHED.
 func detachedChildEnv(seed string) []string {
-	env := os.Environ()
+	detached := flagEnvVar("detached") + "="
+	env := slices.DeleteFunc(os.Environ(), func(entry string) bool {
+		return strings.HasPrefix(entry, detached)
+	})
 	if seed != "" {
 		env = append(env, wallet.SeedEnvVar+"="+seed)
 	}

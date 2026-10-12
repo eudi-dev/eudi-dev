@@ -6,7 +6,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 
-const PORT = 18931;
+const PORT = 18945;
 const BASE = `http://localhost:${PORT}`;
 let walletProcess;
 

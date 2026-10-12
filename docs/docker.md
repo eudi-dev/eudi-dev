@@ -18,6 +18,26 @@ echo "eyJhbGci..." | docker run -i ghcr.io/eudi-dev/eudi-dev decode
 docker run -i ghcr.io/eudi-dev/eudi-dev validate --trust-list https://example.com/trustlist.jwt < credential.txt
 ```
 
+## Configuration by environment
+
+`wallet serve` reads every flag from an environment variable. The name is `EUDI_DEV_` plus the flag name in upper case, with underscores for dashes. `--port` becomes `EUDI_DEV_PORT` and `--base-url` becomes `EUDI_DEV_BASE_URL`. A flag on the command line wins over the variable. The variable wins over the flag default and over the defaults of `--demo`. A repeatable flag takes comma-separated values, such as `EUDI_DEV_CREDENTIAL=one.json,two.json`. An empty variable is ignored.
+
+`wallet serve` refuses to start when an `EUDI_DEV_` variable names no flag, so a typo does not go unnoticed. `EUDI_DEV_HOME`, `EUDI_DEV_STORAGE` and `EUDI_DEV_SEED` keep their own meaning.
+
+The image sets `EUDI_DEV_PORT=8085`. Its default command passes `--auto-accept` and `--pid`. Change the port with `EUDI_DEV_PORT` rather than `--port`, so the health check follows it. The HTTPS issuer runs on the next port. With host networking, the wallet then needs no port mapping and no command:
+
+```yaml
+services:
+  wallet:
+    image: ghcr.io/eudi-dev/eudi-dev:latest
+    network_mode: host
+    environment:
+      EUDI_DEV_PORT: "9000"
+      EUDI_DEV_BASE_URL: http://localhost:9000
+```
+
+The wallet answers on `http://localhost:9000` and its issuer on `https://localhost:9001`.
+
 ## Demo profile
 
 The container also runs the demo profile of the public instance at [eudi-test.dev](https://eudi-test.dev):

@@ -5,6 +5,13 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.2] - 2026-10-12
+
+### Added
+
+- **Environment configuration.** Every `wallet serve` flag can be set as `EUDI_DEV_<FLAG>`, such as `EUDI_DEV_PORT` or `EUDI_DEV_BASE_URL`. A flag on the command line wins. An unknown `EUDI_DEV_` variable stops the server, so a typo does not go unnoticed. The image sets `EUDI_DEV_PORT=8085`, so `-e EUDI_DEV_PORT=9000` moves the wallet and its health check without a custom command (see [configuration by environment](docs/docker.md#configuration-by-environment)).
+- **Local addresses in demo mode.** `--allow-private-networks` lets `--demo` reach private networks and loopback, for a demo on a local machine or a test network. `wallet serve` warns at start. A public host keeps it off, which is the default (see [outbound connections](docs/public-demo.md#outbound-connections)).
+
 ## [2.7.1] - 2026-10-12
 
 ### Changed

@@ -14,12 +14,13 @@ COPY --from=build /app/eudi /usr/local/bin/
 # Legacy binary name
 RUN ln -s /usr/local/bin/eudi /usr/local/bin/oid4vc-dev
 USER app
-ENV PORT=8085
+# wallet serve reads each flag from EUDI_DEV_<FLAG>. A flag on the command wins.
+ENV EUDI_DEV_PORT=8085
 # Memory storage and a public seed give each restart the same keys. For persistence,
 # select file or Postgres storage and clear EUDI_DEV_SEED to generate random keys.
 ENV EUDI_DEV_STORAGE=memory
 ENV EUDI_DEV_SEED=eudi-dev
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
-  CMD wget -q --spider http://localhost:${PORT}/healthz || exit 1
+  CMD wget -q --spider http://localhost:${PORT:-$EUDI_DEV_PORT}/healthz || exit 1
 ENTRYPOINT ["eudi"]
-CMD ["wallet", "serve", "--auto-accept", "--pid", "--port", "8085"]
+CMD ["wallet", "serve", "--auto-accept", "--pid"]

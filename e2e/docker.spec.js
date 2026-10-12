@@ -106,6 +106,35 @@ test.describe("Docker Image", () => {
     expect(res.body.split(".").length).toBe(3);
   });
 
+  test("EUDI_DEV_PORT moves the wallet to another port", async () => {
+    const name = `${CONTAINER_NAME}-port`;
+    const hostPort = HOST_PORT + 2;
+    try {
+      execSync(`docker rm -f ${name}`, { stdio: "pipe" });
+    } catch {}
+    execSync(
+      `docker run -d --name ${name} -p ${hostPort}:9100 -e EUDI_DEV_PORT=9100 ${DOCKER_IMAGE}`,
+      { stdio: "pipe" }
+    );
+    try {
+      await waitForServer(`http://localhost:${hostPort}`, 30_000);
+      const res = await httpGet(`http://localhost:${hostPort}/healthz`);
+      expect(res.status).toBe(200);
+    } finally {
+      execSync(`docker rm -f ${name}`, { stdio: "pipe" });
+    }
+  });
+
+  test("an unknown EUDI_DEV_ variable stops the wallet", () => {
+    let output = "";
+    try {
+      execSync(`docker run --rm -e EUDI_DEV_PROT=9100 ${DOCKER_IMAGE}`, { stdio: "pipe" });
+    } catch (err) {
+      output = err.stderr.toString();
+    }
+    expect(output).toContain("EUDI_DEV_PROT");
+  });
+
   test("version is set", () => {
     const output = execSync(
       `docker run --rm ${DOCKER_IMAGE} version`

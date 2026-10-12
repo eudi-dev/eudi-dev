@@ -73,6 +73,7 @@ type walletServeOptions struct {
 	ServeTLS                bool
 	DemoVerifierTrust       []string
 	LogFormat               string
+	AllowPrivateNetworks    bool
 }
 
 func walletServeCmd() *cobra.Command {
@@ -99,7 +100,17 @@ Capabilities:
   - Browser-based consent UI for incoming requests
 
 Use --register to also register OS URL scheme handlers (openid4vp://, eudi-openid4vp://, haip-vp://, openid-credential-offer://, haip-vci://, eu-eaa-offer://)
-so the wallet automatically receives incoming protocol requests.`,
+so the wallet automatically receives incoming protocol requests.
+
+Every flag can also be set as EUDI_DEV_<FLAG>, such as EUDI_DEV_BASE_URL for --base-url. A flag on the command line wins.`,
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			if err := applyFlagEnv(cmd.Flags()); err != nil {
+				return err
+			}
+			// The root command applies --no-color before the environment is read.
+			applyNoColor()
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runWalletServe(cmd, &opts)
 		},
@@ -127,13 +138,14 @@ so the wallet automatically receives incoming protocol requests.`,
 	cmd.Flags().StringVar(&opts.DemoIssuerClientAuth, "demo-issuer-client-auth", string(demorp.ClientAuthRequired), "What the demo issuer's authorization server demands at its PAR and token endpoints: 'required' (HAIP 1.0 §4.4.1, the default) or 'optional' (also serves wallets that send no wallet attestation, for testing against them)")
 	cmd.Flags().StringVar(&opts.VCIClientID, "vci-client-id", "", "Client ID the wallet should use for OID4VCI authorization-code flows")
 	cmd.Flags().StringVar(&opts.VCIRedirectURI, "vci-redirect-uri", "", "Redirect URI the wallet should use for OID4VCI authorization-code flows")
-	cmd.Flags().BoolVar(&opts.Demo, "demo", false, "Public demo profile: implies --pid, --mode debug, --haip and --vci-version 1.1 (all overridable), disables process/filesystem endpoints, blocks fetches to internal networks")
+	cmd.Flags().BoolVar(&opts.Demo, "demo", false, "Public demo profile: implies --pid, --mode debug, --haip and --vci-version 1.1 (all overridable), disables process/filesystem endpoints, blocks fetches to internal networks unless --allow-private-networks is set")
+	cmd.Flags().BoolVar(&opts.AllowPrivateNetworks, "allow-private-networks", false, "Let --demo reach private networks and loopback, for a demo on a local machine or test network. Without --demo the wallet reaches every address, so the flag changes nothing")
 	cmd.Flags().StringVar(&opts.DemoReset, "demo-reset", "1h", "When to restore the clean demo baseline: an interval (24h), a daily wall-clock time (00:00), or one with a timezone (\"00:00 Europe/Berlin\"). 0 disables. Requires --demo")
 	cmd.Flags().StringVar(&opts.ImprintFile, "imprint-file", "", "HTML snippet with the site operator's legal notice, served at /imprint (required for public EU hosting)")
 	cmd.Flags().StringVar(&opts.NewsFile, "news-file", "", "HTML snippet with news for visitors of a public demo, shown once in a popup and again from the footer link. Requires --demo")
 	cmd.Flags().BoolVar(&opts.ServeTLS, "serve-tls", false, "Serve an https --base-url locally with the wallet's own TLS certificate instead of expecting an external TLS terminator in front (the HTTP port stays bound as well)")
 	cmd.Flags().StringArrayVar(&opts.DemoVerifierTrust, "demo-verifier-trust-anchor", nil, "CA certificate PEM file the demo verifier accepts issuer chains under, next to the wallet's own CA (repeatable). For presentations issued outside this wallet, such as an OIDF conformance suite run")
-	cmd.Flags().StringVar(&opts.LogFormat, "log-format", os.Getenv(serverlog.EnvVar), "Console output format: 'text' (the default) or 'json' (one JSON record per line on stdout, for log collectors) (default $"+serverlog.EnvVar+")")
+	cmd.Flags().StringVar(&opts.LogFormat, "log-format", "", "Console output format: 'text' (the default) or 'json' (one JSON record per line on stdout, for log collectors)")
 	cmd.Flags().BoolVarP(&opts.Detached, "detached", "d", false, "Run the server as a background process and return once it responds. Output goes to <wallet-dir>/serve.log")
 	return cmd, &opts
 }
@@ -281,43 +293,39 @@ func runningInDocker() bool {
 
 func serializeWalletServeArgs(cmd *cobra.Command) ([]string, error) {
 	args := []string{}
-	var err error
 	// The flag set holds the persistent flags of the parents too. The seed
 	// is a secret and travels in the environment.
-	appendFlag := func(flags *pflag.FlagSet, flag *pflag.Flag) {
-		if err != nil {
-			return
-		}
+	cmd.Flags().Visit(func(flag *pflag.Flag) {
 		switch flag.Name {
 		case "register", "no-register", "detached", "seed":
 			return
 		}
-		switch flag.Value.Type() {
-		case "bool":
+		if values, ok := flag.Value.(pflag.SliceValue); ok {
+			for _, value := range values.GetSlice() {
+				args = append(args, "--"+flag.Name, value)
+			}
+			return
+		}
+		if flag.Value.Type() == "bool" {
 			// Use --name=value to preserve explicit false values such as --haip=false
 			// when starting the child.
 			args = append(args, "--"+flag.Name+"="+flag.Value.String())
-		case "stringSlice", "stringArray":
-			values, getErr := flags.GetStringSlice(flag.Name)
-			if getErr != nil {
-				err = getErr
-				return
-			}
-			for _, value := range values {
-				args = append(args, "--"+flag.Name, value)
-			}
-		default:
-			args = append(args, "--"+flag.Name, flag.Value.String())
+			return
 		}
-	}
-
-	cmd.Flags().Visit(func(flag *pflag.Flag) {
-		appendFlag(cmd.Flags(), flag)
+		args = append(args, "--"+flag.Name, flag.Value.String())
 	})
-	if err != nil {
-		return nil, err
-	}
 	return args, nil
+}
+
+// demoFetchPolicy limits the outbound connections of a public demo to public
+// addresses. The demo must still reach its own issuer and verifier, so the
+// origins stay allowed at their exact address and port. Outside --demo, and
+// with --allow-private-networks, the wallet reaches every address.
+func demoFetchPolicy(opts *walletServeOptions, ownOrigins ...string) format.FetchPolicy {
+	if !opts.Demo || opts.AllowPrivateNetworks {
+		return nil
+	}
+	return format.AllowOwnOrigins(format.BlockPrivateAddresses, ownOrigins...)
 }
 
 // parseDemoReset interprets the --demo-reset value: a duration ("24h", "0"),
@@ -519,16 +527,9 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 		w.ServingOrigin = base
 	}
 
-	if opts.Demo {
-		// Install the address exceptions after resolving the serving URLs. The demo
-		// must reach its own issuer and verifier while other private addresses stay
-		// blocked.
-		format.SetFetchPolicy(format.AllowOwnOrigins(
-			format.BlockPrivateAddresses,
-			w.BaseURL,
-			w.IssuerURL,
-			fmt.Sprintf("http://localhost:%d", opts.Port),
-		))
+	// Install the address exceptions after resolving the serving URLs.
+	if policy := demoFetchPolicy(opts, w.BaseURL, w.IssuerURL, fmt.Sprintf("http://localhost:%d", opts.Port)); policy != nil {
+		format.SetFetchPolicy(policy)
 	}
 
 	if opts.PID {
@@ -597,6 +598,9 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	}
 	if store.SeedSource() == wallet.BuiltInSeedSource && (opts.Demo || store.Backend().Kind() != storage.KindMemory) {
 		fmt.Fprintln(os.Stderr, "warning: the keys derive from the public seed eudi-dev. Anyone can derive this wallet's CA. Set EUDI_DEV_SEED to a secret, or to an empty value for random keys.")
+	}
+	if opts.Demo && opts.AllowPrivateNetworks {
+		fmt.Fprintln(os.Stderr, "warning: --allow-private-networks lets the public demo reach local and private addresses. Keep it off on a public host.")
 	}
 	fmt.Printf("  Validation:  %s\n", w.ValidationMode)
 	if opts.Demo {

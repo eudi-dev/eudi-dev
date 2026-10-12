@@ -26,6 +26,8 @@ Demo mode returns `403` for shutdown, template writes, error injection, log clea
 
 Visitor URLs are restricted to public network addresses. The wallet checks resolved addresses when connecting and rejects loopback, private, link local, CGNAT and unique local ranges, including cloud metadata endpoints. Its own advertised origins are exempt at their exact address and port so the bundled issuer and verifier can communicate with the wallet.
 
+`--allow-private-networks` (or `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=true`) lifts this limit. The demo then reaches private networks and loopback, such as a verifier on your machine or in a test network. `wallet serve` warns at start that the demo can reach local and private addresses. A host that visitors on the internet use keeps the flag off, which is the default.
+
 ### Validation
 
 Demo mode checks OpenID4VP and issuance against HAIP 1.0. In debug mode, violations appear as warnings in the activity log and the flow continues. The UI shows the active settings under **Conformance**.

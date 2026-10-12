@@ -30,8 +30,6 @@ import (
 	"github.com/fatih/color"
 )
 
-const EnvVar = "EUDI_DEV_LOG_FORMAT"
-
 const (
 	FormatText = "text"
 	FormatJSON = "json"

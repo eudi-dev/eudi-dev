@@ -170,3 +170,34 @@ func newTestServeWallet(t *testing.T) *wallet.Wallet {
 	}
 	return wallet.New(holderKey, issuerKey, false)
 }
+
+// A public demo reaches public addresses only. --allow-private-networks opens
+// local and private addresses for a demo on a local machine. Without --demo
+// the wallet reaches every address.
+func TestDemoFetchPolicy(t *testing.T) {
+	tests := []struct {
+		name        string
+		args        []string
+		wantBlocked bool
+	}{
+		{name: "demo blocks loopback", args: []string{"--demo"}, wantBlocked: true},
+		{name: "demo with allow-private-networks reaches loopback", args: []string{"--demo", "--allow-private-networks"}},
+		{name: "plain serve reaches loopback", args: nil},
+		{name: "allow-private-networks without demo changes nothing", args: []string{"--allow-private-networks"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd, opts := walletServeCmdWithOptions()
+			if err := cmd.ParseFlags(tc.args); err != nil {
+				t.Fatal(err)
+			}
+			policy := demoFetchPolicy(opts)
+			for _, address := range []string{"127.0.0.1:8085", "192.168.1.10:443"} {
+				blocked := policy != nil && policy("tcp4", address) != nil
+				if blocked != tc.wantBlocked {
+					t.Fatalf("connection to %s blocked = %v, want %v", address, blocked, tc.wantBlocked)
+				}
+			}
+		})
+	}
+}

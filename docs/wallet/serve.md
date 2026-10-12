@@ -196,7 +196,10 @@ eudi wallet serve --pid --credential extra.txt
 eudi wallet serve --register           # also register URL scheme handlers using the current interactive/auto-accept mode
 eudi wallet serve --register --port 9000
 eudi wallet serve -d                   # run in the background (stop with `eudi wallet kill`)
+EUDI_DEV_PORT=9000 EUDI_DEV_AUTO_ACCEPT=true eudi wallet serve
 ```
+
+Every flag can also be set as `EUDI_DEV_<FLAG>`, with the flag name in upper case and underscores for dashes. A flag on the command line wins. A repeatable flag takes comma-separated values. An `EUDI_DEV_` variable that names no flag stops the server at start (see [configuration by environment](../docker.md#configuration-by-environment)).
 
 | Flag                    | Default  | Description                                      |
 |-------------------------|----------|--------------------------------------------------|
@@ -230,6 +233,7 @@ eudi wallet serve -d                   # run in the background (stop with `eudi 
 | `--adhoc-display-images` | `false` | Fetch HTTPS display images on demand instead of storing them. The issuer sees each render. See [display images](#display-images) |
 | `--require-encrypted-request` | `false` | Refuse an unencrypted Request Object. The wallet always sends an encryption key in `wallet_metadata`, so this requires the Verifier to use it |
 | `--demo`                | `false`  | Public demo profile: implies `--pid`, `--mode debug`, `--haip` and `--vci-version 1.1` (all overridable), disables process and filesystem endpoints, blocks fetches to internal networks. Browser flows keep the consent dialog, API flows auto-accept (see [public demo hosting](../public-demo.md)) |
+| `--allow-private-networks` | `false` | Let `--demo` reach private networks and loopback, for a demo on a local machine or a test network. `wallet serve` then warns at start. Without `--demo` the wallet reaches every address, so the flag changes nothing (see [outbound connections](../public-demo.md#outbound-connections)) |
 | `--demo-issuer-client-auth` | `required` | Client authentication the built-in demo issuer's authorization server requires at its PAR and token endpoints: `required` (HAIP 1.0 §4.4.1) or `optional`, which also accepts wallets that send no wallet attestation (see [public demo hosting](../public-demo.md)) |
 | `--demo-verifier-trust-anchor` | None | CA certificate PEM file the demo verifier trusts for issuer chains, in addition to the wallet's own CA (repeatable). For presentations issued outside this wallet, such as an OIDF conformance suite run |
 | `--serve-tls`           | `false`  | Serve an https `--base-url` locally with the wallet's own TLS certificate instead of expecting an external TLS terminator. Requires an https base URL with an explicit port. The wallet also keeps listening on the HTTP port |
