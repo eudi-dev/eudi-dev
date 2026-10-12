@@ -1,10 +1,12 @@
-# Upgrading from 2.x to 3.0
+# Upgrading from 2.x to 3.0.0
 
-This page lists what you have to change when you move from eudi-dev 2.x to 3.0. Old commands and flags fail and tell you the new name. The [changelog](../CHANGELOG.md) has every change, and [What's new in 3.0](whats-new-3.0.md) shows the new features.
+Moving from eudi-dev 2.x to 3.0.0? These are the changes that can break your setup. Old commands and flags fail and tell you the new name.
+
+For the new features, see [What's new in 3.0.0](whats-new-3.0.md). For all changes, see the [changelog](../CHANGELOG.md).
 
 ## Install and state
 
-| 2.x | 3.0 |
+| 2.x | 3.0.0 |
 |---|---|
 | `go install github.com/dominikschlosser/eudi-dev/v2@latest` | `go install github.com/eudi-dev/eudi-dev/v3@latest` |
 | `ghcr.io/dominikschlosser/eudi-dev` | `ghcr.io/eudi-dev/eudi-dev` |
@@ -16,7 +18,7 @@ Move an old state directory with `mv ~/.oid4vc-dev ~/.eudi-dev`. A wallet from 2
 
 ## Listen address
 
-The wallet, the decoder and the proxy listen on `127.0.0.1` by default. Before 3.0 they listened on every interface.
+The wallet, the decoder and the proxy listen on `127.0.0.1` by default. Before 3.0.0 they listened on every interface.
 
 - The Docker image sets `EUDI_DEV_LISTEN=0.0.0.0`. Deployments that use the image, in Docker, Kubernetes, the Helm chart or Testcontainers, need no change.
 - `--docker` also listens on every interface.
@@ -24,7 +26,7 @@ The wallet, the decoder and the proxy listen on `127.0.0.1` by default. Before 3
 
 ## Commands
 
-| 2.x | 3.0 |
+| 2.x | 3.0.0 |
 |---|---|
 | `eudi serve` | `eudi decoder` |
 | `eudi wallet registrar` | `eudi registrar` |
@@ -39,7 +41,7 @@ The wallet, the decoder and the proxy listen on `127.0.0.1` by default. Before 3
 
 ## Flags and variables
 
-| 2.x | 3.0 |
+| 2.x | 3.0.0 |
 |---|---|
 | `issue --trust-profile` | `issue --category` (`pid`, `qeaa`, `pub-eaa`, `eaa` or `unlisted`) |
 | `issue --trust-list-type` | `issue --trusted-list-type` |

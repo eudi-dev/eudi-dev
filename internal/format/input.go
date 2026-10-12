@@ -47,7 +47,7 @@ var remoteTimeout = resolveRemoteTimeout(os.Getenv(RemoteTimeoutEnv), os.Getenv(
 // An invalid or nonpositive duration keeps the default, so a timeout always applies.
 func resolveRemoteTimeout(raw, old string) time.Duration {
 	if strings.TrimSpace(old) != "" {
-		log.Printf("[HTTP] ignoring %s, which is %s in 3.0", oldRemoteTimeoutEnv, RemoteTimeoutEnv)
+		log.Printf("[HTTP] ignoring %s. Since 3.0.0 the variable is %s", oldRemoteTimeoutEnv, RemoteTimeoutEnv)
 	}
 	raw = strings.TrimSpace(raw)
 	if raw == "" {

@@ -117,7 +117,7 @@ func runDecode(cmd *cobra.Command, args []string) error {
 	var detected format.CredentialFormat
 	if decodeFormat != "" {
 		if strings.EqualFold(decodeFormat, "trustlist") {
-			return fmt.Errorf("--format trustlist: renamed to --format trusted-list in 3.0")
+			return fmt.Errorf("--format trustlist: renamed to --format trusted-list in 3.0.0")
 		}
 		f, ok := formatAliases[strings.ToLower(decodeFormat)]
 		if !ok {

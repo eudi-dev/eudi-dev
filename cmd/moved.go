@@ -64,7 +64,7 @@ func renamedFlagError(cmd *cobra.Command, err error) error {
 	path := strings.TrimPrefix(cmd.CommandPath(), binaryName()+" ") + " "
 	for _, renamed := range renamedFlags {
 		if renamed.old == name && strings.HasPrefix(path, renamed.command+" ") {
-			return fmt.Errorf("unknown flag --%s: renamed to --%s in 3.0", renamed.old, renamed.new)
+			return fmt.Errorf("unknown flag --%s: renamed to --%s in 3.0.0", renamed.old, renamed.new)
 		}
 	}
 	return err

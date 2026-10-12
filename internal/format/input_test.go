@@ -305,7 +305,7 @@ func TestOldRemoteTimeoutVariableOnlyWarns(t *testing.T) {
 	if got := resolveRemoteTimeout("", "2m"); got != DefaultRemoteTimeout {
 		t.Errorf("timeout = %s, want the default %s", got, DefaultRemoteTimeout)
 	}
-	if !strings.Contains(logged.String(), "ignoring EUDI_REMOTE_TIMEOUT, which is EUDI_DEV_REMOTE_TIMEOUT in 3.0") {
+	if !strings.Contains(logged.String(), "ignoring EUDI_REMOTE_TIMEOUT. Since 3.0.0 the variable is EUDI_DEV_REMOTE_TIMEOUT") {
 		t.Errorf("logged %q, want a warning naming the new variable", logged.String())
 	}
 }
