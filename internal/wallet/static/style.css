@@ -2952,6 +2952,35 @@ textarea.form-input {
   color: var(--link);
 }
 
+.news-content .news-features {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 0 0 14px;
+}
+
+.news-content .news-features > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  background: var(--bg-surface);
+}
+
+.news-content .news-features span {
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+@media (max-width: 600px) {
+  .news-content .news-features {
+    grid-template-columns: 1fr;
+  }
+}
+
 .news-content .lead {
   font-size: 15px;
   color: var(--text);

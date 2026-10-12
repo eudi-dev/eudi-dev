@@ -1,7 +1,6 @@
 (function () {
   'use strict';
 
-  const DONE_KEY = 'eudi-dev-tour-done';
   const MARGIN = 16;
   const GAP = 12;
   const PAD = 6;
@@ -180,10 +179,7 @@
     place();
   }
 
-  let tour = 'overview';
-
   function start(name, focusAfter) {
-    tour = name;
     steps = TOURS[name].filter((step) => resolve(step));
     if (steps.length === 0) return;
     returnFocus = focusAfter || null;
@@ -205,16 +201,8 @@
     if (visible(target)) target.focus();
   }
 
-  function finish() {
-    if (tour === 'news') {
-      try { localStorage.setItem(DONE_KEY, '1'); } catch (e) { /* Storage may be unavailable in private browsing. */ }
-      byId('news-tour').hidden = true;
-    }
-    close();
-  }
-
   next.addEventListener('click', () => {
-    if (index === steps.length - 1) finish();
+    if (index === steps.length - 1) close();
     else show(index + 1);
   });
   back.addEventListener('click', () => { if (index > 0) show(index - 1); });
@@ -250,5 +238,4 @@
     byId('news-close').click();
     start('news', byId('news-link'));
   });
-  try { if (localStorage.getItem(DONE_KEY) === '1') byId('news-tour').hidden = true; } catch (e) { /* Storage may be unavailable in private browsing. */ }
 })();

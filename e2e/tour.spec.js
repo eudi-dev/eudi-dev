@@ -113,8 +113,6 @@ test("the tour starts from How to use and steps through every use case", async (
     await page.locator("#tour-next").click();
   }
   await expect(page.locator("#tour")).toBeHidden();
-  // Only the news tour hides the news button once taken.
-  expect(await page.evaluate(() => localStorage.getItem("eudi-dev-tour-done"))).toBeNull();
 });
 
 test("the spotlight covers the element each step is about", async ({ page }) => {
@@ -140,7 +138,6 @@ test("Escape closes the tour and returns focus to How to use", async ({ page }) 
   await page.keyboard.press("Escape");
   await expect(page.locator("#tour")).toBeHidden();
   await expect(page.locator("#how-to-use-link")).toBeFocused();
-  expect(await page.evaluate(() => localStorage.getItem("eudi-dev-tour-done"))).toBeNull();
 });
 
 test("Tab stays inside the tour card", async ({ page }) => {
@@ -193,7 +190,7 @@ test("the tour renders in the light and the dark theme", async ({ browser }) => 
   expect(backgrounds.dark).toBe("rgb(36, 39, 45)");
 });
 
-test("the news tour shows the new features until it was taken", async ({ page }) => {
+test("the news tour shows the new features and can be taken again", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("demo-banner-dismissed", "1"));
   await page.goto(BASE);
   await expect(page.locator("#news-overlay")).toHaveClass(/active/);
@@ -209,5 +206,5 @@ test("the news tour shows the new features until it was taken", async ({ page })
 
   await page.locator("#news-link").click();
   await expect(page.locator("#news-overlay")).toHaveClass(/active/);
-  await expect(page.locator("#news-tour")).toBeHidden();
+  await expect(page.locator("#news-tour")).toBeVisible();
 });
