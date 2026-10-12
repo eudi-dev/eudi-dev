@@ -1,6 +1,6 @@
 # Every server limits outbound addresses
 
-[ADR 0004](0004-outbound-fetches-are-policed-at-dial-time.md) checks outbound addresses when connecting. Only the public demo used that check. Yet every server fetches URLs from its visitors: `wallet serve` reads credential offers and request URIs, and the decoder of both servers reads the trusted lists, issuer metadata and status lists that an input names. A wallet in a cluster or on a shared host could then reach cloud metadata or internal services for any visitor.
+[ADR 0004](0004-outbound-fetches-are-policed-at-dial-time.md) checks outbound addresses when connecting. Every server fetches URLs supplied by its visitors: `wallet serve` reads credential offers and request URIs, and the decoder of both servers reads trusted lists, issuer metadata and status lists referenced in its input. Without a limit, a wallet in a cluster or on a shared host could reach cloud metadata or internal services for any visitor.
 
 ## Decision
 
@@ -14,7 +14,7 @@ Every policy exempts the operator's destinations at their exact address and port
 
 ## Consequences
 
-A wallet that talks to an issuer on a private network needs the flag. The refusal names it.
+A wallet that talks to an issuer on a private network needs the flag. The error message mentions it.
 
 A proxied request connects to the proxy only, so the proxy decides where that request goes.
 

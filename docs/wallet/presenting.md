@@ -21,7 +21,7 @@ When a verifier responds to a presentation with a `redirect_uri`, the wallet pri
 
 `debug` mode matches DCQL queries loosely to help troubleshoot verifier queries. A credential that matches the requested format and metadata and at least one requested claim counts as a match with a warning, even when other required claim paths are missing. `strict` mode requires every claim path.
 
-An `etsi_tl` entry in `trusted_authorities` names a trusted list. The wallet reads it like its own trusted lists. The list must be signed by a trusted list operator and be current, and its issuance services anchor the credential. If the wallet can't read or verify the list, it logs a warning and the list matches no credential. The other entries still count. `debug` mode offers an unmatched credential as untrusted.
+An `etsi_tl` entry in `trusted_authorities` identifies a trusted list. The wallet reads it like its own trusted lists. The list must be current and signed by a trusted list operator. Its issuance services anchor the credential. If the wallet can't read or verify the list, it logs a warning and the list matches no credential. The other entries still count. `debug` mode offers an unmatched credential as untrusted.
 
 The wallet presents a `jwt_vc_json` credential without a Verifiable Presentation, so it can't prove holder binding. Such a credential answers only a query with `require_cryptographic_holder_binding: false` (OpenID4VP 1.0 Appendix B.1).
 
@@ -42,7 +42,7 @@ eudi wallet accept 'openid-credential-offer://...' --tx-code 123456
 | `--mode`                | `debug`  | Validation mode: `debug` or `strict`             |
 | `--session-transcript`  | `oid4vp` | mdoc session transcript mode: `oid4vp` or `iso`  |
 | `--tx-code`             | None     | Transaction code for OID4VCI pre-authorized code flow |
-| `--docker`              | `false`  | Serve the trust and status lists under `host.docker.internal` for verifiers in a container. The server then binds `0.0.0.0` unless `--listen` says otherwise |
+| `--docker`              | `false`  | Serve the trust and status lists under `host.docker.internal` for verifiers in a container. The server then binds `0.0.0.0` unless `--listen` sets another address |
 | `--listen`              | `$EUDI_DEV_LISTEN`, else `127.0.0.1` | IP address the local server binds (see [listen address](serve.md#listen-address)) |
 | `--key-attestation-level` | Issuer requirements | Test claims for key storage and user authentication: issuer requirements (default), `none`, or a level such as `iso_18045_high`. See [key attestation claims](serve.md#key-attestation-claims) |
 | `--haip`                | `false`  | Check incoming presentations and credential offers against HAIP 1.0. `--mode` sets how violations are handled: strict refuses the flow, debug reports them and continues |
@@ -60,7 +60,7 @@ For sign-in, `wallet accept` prints the authorization URL. It opens the URL only
 
 Strict mode verifies HTTPS certificates. Debug mode skips verification by default. For local flows, `--tls-verify=true|false` overrides either default and `--tls-ca dev-ca.pem` adds trusted CA certificates. See [HTTPS certificate verification](serve.md#https-certificate-verification).
 
-When `accept` or `scan` forwards a flow to a running wallet, that wallet uses its own settings for every step of the flow. A conformance flag with the running wallet's own value changes nothing. A CA or list the wallet already trusts changes nothing either. A flag that differs returns an error that names the wallet's value. The TLS CA and proxy flags always return an error, because the wallet doesn't report them. Set the settings on `wallet serve`, change them in its Conformance panel, or put CAs and lists on its trusted lists with [`trust`](serve.md#trusted-lists).
+When `accept` or `scan` forwards a flow to a running wallet, that wallet uses its own settings for every step of the flow. A conformance flag with the running wallet's own value changes nothing. A CA or list the wallet already trusts changes nothing either. A flag with a different value fails and shows the wallet's value. The TLS CA and proxy flags always return an error, because the wallet doesn't report them. Set the settings on `wallet serve`, change them in its Conformance panel, or put CAs and lists on its trusted lists with [`trust`](serve.md#trusted-lists).
 
 ## `wallet scan`
 
@@ -126,10 +126,10 @@ For **presentations** (OID4VP `direct_post.jwt` and Browser API `dc_api.jwt`) th
 - `response_mode` must be `direct_post.jwt` (§5.1) or `dc_api.jwt` (§5.2)
 - A request object must use the `x509_hash:` Client Identifier Prefix (§5), and its Request Object signature must verify against a certificate whose SHA-256 is the prefix value
 - The certificate signing the request must not be self-signed, and the trust anchor must not be included in the `x5c` header (§5)
-- A request sent by redirect must carry a signed request object (JAR) delivered through `request_uri` (§5.1). An unsigned request is accepted only over the Digital Credentials API, where §5.2 requires wallet support for it
+- A request sent by redirect must carry a signed request object (JAR) delivered through `request_uri` (§5.1). An unsigned request is accepted only over the Digital Credentials API. §5.2 requires wallets to support it there
 - The query must use DCQL (§5)
 - The Verifier's client metadata must list both `A128GCM` and `A256GCM` in `encrypted_response_enc_values_supported` (§5)
-- A signed Digital Credentials API request must list the caller origin in `expected_origins` (OpenID4VP Appendix A.2, which §5.2 incorporates)
+- A signed Digital Credentials API request must list the caller origin in `expected_origins` (OpenID4VP Appendix A.2, incorporated by §5.2)
 - The request object signing algorithm must be `ES256`
 
 In `--mode strict` a non-compliant request is refused with HTTP 400. `POST /api/presentations` then returns `{"error": "<code>", "error_description": "<failed checks>"}`, with an OpenID4VP 1.0 §8.5 error code such as `invalid_request`. In `--mode debug` the same findings are logged as warnings and the flow continues.
@@ -166,7 +166,7 @@ The wallet checks that:
 - the request is signed with an access certificate in `x5c` (RPA_03)
 - the access certificate chains to a trusted access certificate authority (RPA_04)
 - the request carries exactly one registration certificate in `verifier_info` (RPRC_19)
-- the registration certificate is signed by a trusted registrar (RPRC_02a), names the relying party and the service of the access certificate (RPRC_17a), has a valid signature and `typ`, contains all claims required by ETSI TS 119 475 and is not expired (RPRC_17)
+- the registration certificate is signed by a trusted registrar (RPRC_02a), identifies the relying party and the service of the access certificate (RPRC_17a), has a valid signature and `typ`, contains all claims required by ETSI TS 119 475 and is not expired (RPRC_17)
 - the registrar has not revoked the registration certificate (RPRC_17). Its status list must be readable and chain to a trusted registrar (RPACANot_03b)
 - the request asks only for credentials and claims registered in that certificate (RPRC_21)
 
@@ -178,7 +178,7 @@ The [registrar API walkthrough](registrar-api.md) shows both outcomes with real 
 
 A request object is signed with an access certificate. Consent shows purposes and privacy policies only from registration certificates bound to that access certificate. A request without a request object shows none.
 
-The wallet takes its trust anchors from [trusted lists](serve.md#trusted-lists) only. An access certificate must chain to a CA on an access certificate provider list (`access-ca`, ETSI TS 119 602 V1.1.1 Annex F). The wallet's own list names the relying party access CA of its [registrar](registrar.md). The demo issuer and the demo verifier get their access certificates from that CA too. A registration certificate and its status list must chain to a CA on a registration certificate provider list (`registrar`, Annex G). The wallet's own list names the registrar CA. The relying party access CA signs any visitor's CSR, so it is not on the `registrar` list.
+The wallet takes its trust anchors from [trusted lists](serve.md#trusted-lists) only. An access certificate must chain to a CA on an access certificate provider list (`access-ca`, ETSI TS 119 602 V1.1.1 Annex F). The wallet's own list contains the relying party access CA of its [registrar](registrar.md). The demo issuer and the demo verifier get their access certificates from that CA too. A registration certificate and its status list must chain to a CA on a registration certificate provider list (`registrar`, Annex G). The wallet's own list contains the registrar CA. The relying party access CA signs any visitor's CSR, so it is not on the `registrar` list.
 
-For the CAs of another ecosystem, such as a member state's sandbox, use `trust add-ca --list access-ca` and `--list registrar`, or `--relying-party-ca`, which puts the CAs on both lists. An external list on the list of trusted lists works too. See [ADR 0023](../adr/0023-trust-anchors-come-from-trusted-lists.md).
+For the CAs of another ecosystem, such as a member state's sandbox, use `trust add-ca --list access-ca` and `--list registrar`, or `--relying-party-ca` (it puts the CAs on both lists). An external list on the list of trusted lists works too. See [ADR 0023](../adr/0023-trust-anchors-come-from-trusted-lists.md).
 

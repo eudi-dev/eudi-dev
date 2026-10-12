@@ -17,11 +17,11 @@ eudi wallet serve --base-url https://example.com/some/context
 
 The wallet builds all of its URLs from this value: the issuer identifier, the endpoints in its metadata, the links in credential offers and presentation requests, and the status list and trusted list URLs. Many of these URLs appear in signed credentials and metadata, so request headers do not change them.
 
-Use an https base URL. With an http base URL, the wallet serves its own issuer on a separate HTTPS port (the wallet port plus one), which your proxy does not cover.
+Use an https base URL. With an http base URL, the wallet serves its own issuer on a separate HTTPS port (the wallet port plus one). Your proxy does not cover that port.
 
 The path prefix must not start with one of the wallet's own paths, such as `/api`, `/issuer` or `/decoder`. `wallet serve` refuses to start with such a base URL.
 
-The wallet binds `127.0.0.1`, which suits a proxy on the same host. A proxy on another host or in another container needs `--listen 0.0.0.0` (see [listen address](wallet/serve.md#listen-address)). The Docker image already binds every interface.
+By default the wallet binds `127.0.0.1`. That works for a proxy on the same host. A proxy on another host or in another container needs `--listen 0.0.0.0` (see [listen address](wallet/serve.md#listen-address)). The Docker image already binds every interface.
 
 ## Proxy routes
 

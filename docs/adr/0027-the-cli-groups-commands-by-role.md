@@ -1,6 +1,6 @@
 # The CLI groups commands by role
 
-The registrar, the attestation catalogue and the trusted lists started as subcommands of `wallet`. Verifiers and issuers use them as much as the wallet does, and developers did not look for them under `wallet`. The decoder ran as `serve`, which read like the wallet server.
+The registrar, the attestation catalogue and the trusted lists started as subcommands of `wallet`. Verifiers and issuers use them as much as the wallet does, and developers did not look for them under `wallet`. The decoder ran as `serve`. That name read like the wallet server.
 
 ## Decision
 
@@ -8,7 +8,7 @@ Each role has its own top-level command:
 
 - `registrar` for relying party registrations and their certificates
 - `catalog` for the attestation catalogue
-- `trust` for the wallet's trusted lists, the CAs and lists a user adds, and the wallet CA
+- `trust` for the wallet's trusted lists, user-added CAs and lists, and the wallet CA
 - `decoder` for the decoder web UI
 - `wallet` for the holder: its credentials, its server and its flows
 

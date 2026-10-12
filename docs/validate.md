@@ -85,7 +85,7 @@ When the wallet's attestation catalogue has an entry for the credential type, `v
 
 `validate` and `eudi decoder` read the stored wallet when it exists. Neither creates one. The lists from `wallet serve --trusted-list` and the operators from `--trusted-list-ca` count only in the decoder of the running wallet. Fetches use the HTTP client of the wallet. In the decoder of the running wallet, that client follows `--tls-ca` and the proxy flags of `wallet serve`.
 
-The decoder fetches the trusted lists, issuer metadata and status lists named in the input. So `eudi decoder` and the decoder of `wallet serve` reach public addresses and loopback only. Start the server with `--allow-private-networks`, or set `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=true`, for issuers on a private network (see [outbound address limits](wallet/serve.md#outbound-address-limits)). The `validate` command has no limit.
+The decoder fetches the trusted lists, issuer metadata and status lists referenced in the input. So `eudi decoder` and the decoder of `wallet serve` reach public addresses and loopback only. Start the server with `--allow-private-networks`, or set `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=true`, for issuers on a private network (see [outbound address limits](wallet/serve.md#outbound-address-limits)). The `validate` command has no limit.
 
 Trusted list validation covers certificate trust and service listing. Provider class and attestation-type entitlement come from signed Credential Issuer metadata (`/.well-known/openid-credential-issuer`, `issuer_info`) and registrar data. A wallet keeps one trusted list per credential category. `/api/trustlist` serves the PID list and `/api/trustlists` lists every list. In containers, use the index entry's relative `path` instead of its advertised URL.
 
@@ -105,7 +105,7 @@ eudi validate --trusted-list https://bmi.usercontent.opencode.de/eudi-wallet/tes
 
 ## Exit code
 
-The exit code is non-zero when the `type`, `expiry`, `integrity`, `signature` or `status` check fails. `--allow-expired` ignores the `expiry` check. The catalogue trust and the HAIP findings leave the exit code alone.
+The exit code is non-zero when the `type`, `expiry`, `integrity`, `signature` or `status` check fails. `--allow-expired` ignores the `expiry` check. The catalogue trust and the HAIP findings don't change the exit code.
 
 ## JSON output
 

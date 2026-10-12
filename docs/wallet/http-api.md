@@ -6,7 +6,7 @@ A running `wallet serve` instance exposes this API. [Remote CLI commands](#remot
 
 ## Endpoints
 
-> **No authentication.** Anyone who can reach the port can control the wallet and read its credentials. Use it for local development and isolated test networks with test data. Public deployments should use [`--demo`](../public-demo.md), which disables administrative operations, restricts outbound connections and resets state periodically. The remaining data and endpoints are public.
+> **No authentication.** Anyone who can reach the port can control the wallet and read its credentials. Use it for local development and isolated test networks with test data. Public deployments should use [`--demo`](../public-demo.md). It disables administrative operations, restricts outbound connections and resets state periodically. The remaining data and endpoints are public.
 
 > **Path prefix.** If `--base-url` includes a path prefix, such as `https://example.com/some/context`, prepend it to every path on this page (`/some/context/api/credentials`). Links in responses, such as credential image URLs, already include it. See [reverse proxy setup](../reverse-proxy.md).
 
@@ -57,7 +57,7 @@ A flow that waits for the consent dialog or for a sign-in at the issuer holds th
 
 ### Presentations and offers
 
-These endpoints run the OID4VP and OID4VCI flows. `wallet accept`, `wallet scan` and the remote URL handler call them. A client that sets `X-Eudi-Owner` owns the consent requests the call creates (see [consent ownership](#consent-ownership)).
+These endpoints run the OID4VP and OID4VCI flows. `wallet accept`, `wallet scan` and the remote URL handler call them. A client that sets `X-Eudi-Owner` owns the consent requests created by the call (see [consent ownership](#consent-ownership)).
 
 | Method | Path | Description | CLI equivalent |
 |--------|------|-------------|----------------|
@@ -72,7 +72,7 @@ These endpoints run the OID4VP and OID4VCI flows. `wallet accept`, `wallet scan`
 | `POST` | `/api/credentials/{id}/refresh` | Renew a credential with its refresh token (see [credential renewal](issuing.md#credential-renewal)) | `wallet refresh <id>` |
 | `GET` | `/api/version` | Release and build of the server | None |
 
-The [deferred issuance](#deferred-issuance) endpoints follow up on an offer that the issuer deferred.
+The [deferred issuance](#deferred-issuance) endpoints follow up on a deferred offer.
 
 #### Presentation requests
 
@@ -85,7 +85,7 @@ The [deferred issuance](#deferred-issuance) endpoints follow up on an offer that
 | `auto_accept` | bool | Approve without the dialog, also when `interactive` is set |
 | `session_transcript` | string | mdoc session transcript for this request: `oid4vp` or `iso`. Default is the server setting `--session-transcript` |
 
-A submitted presentation answers `200` with `status` `submitted`, the verifier's `response` (`status_code`, `body` and `redirect_uri`), the `vp_token_keys` and the debug mode `findings`. A `redirect_uri` from the verifier also appears at the top level. When no credential matches, the wallet sends the verifier an error response and answers `200` with `status` `no_match` and the error it sent. A refusal answers `200` with `status` `refused` and the error the wallet sent to the verifier. A denied consent answers `200` with `status` `denied`. See [presenting](presenting.md) for the strict and ARF rules.
+A submitted presentation answers `200` with `status` `submitted`, the verifier's `response` (`status_code`, `body` and `redirect_uri`), the `vp_token_keys` and the debug mode `findings`. A `redirect_uri` from the verifier also appears at the top level. When no credential matches, the wallet sends the verifier an error response and answers `200` with `status` `no_match` and that error. A refusal answers `200` with `status` `refused` and the error sent to the verifier. A denied consent answers `200` with `status` `denied`. See [presenting](presenting.md) for the strict and ARF rules.
 
 ```bash
 curl -X POST http://localhost:8085/api/presentations \
@@ -93,7 +93,7 @@ curl -X POST http://localhost:8085/api/presentations \
   -d '{"uri": "openid4vp://?client_id=...&request_uri=...", "session_transcript": "iso"}'
 ```
 
-`POST /api/dc-api` takes the argument of `navigator.credentials.get()`: `{"digital": {"requests": [{"protocol": "...", "data": {...}}]}}`. The protocol is one of the OpenID4VP Digital Credentials API protocols. The answer is the result the API would hand to the page: `{"protocol": "...", "data": {...}}`. Verifier pages call this endpoint from their own origin, so it accepts cross-origin requests.
+`POST /api/dc-api` takes the argument of `navigator.credentials.get()`: `{"digital": {"requests": [{"protocol": "...", "data": {...}}]}}`. The protocol is one of the OpenID4VP Digital Credentials API protocols. The answer is the API result for the page: `{"protocol": "...", "data": {...}}`. Verifier pages call this endpoint from their own origin, so it accepts cross-origin requests.
 
 #### Credential offers
 
@@ -321,7 +321,7 @@ The next OID4VP authorization request returns the configured error:
 }
 ```
 
-Strict mode with `--arf` answers the same way when it refuses a request only because of ARF findings and the verifier signed the request with a trusted access certificate. The wallet sends the verifier `access_denied` (OpenID4VP 1.0 §8.5, RFC 6749 §4.1.2.1), and the API answers with `"status": "refused"`. The `error_description` starts with "The request does not meet the ARF registration rules" and names the findings. A request without an access certificate gets HTTP 400 like any invalid request, and the verifier gets no answer (see [presenting](presenting.md)).
+Strict mode with `--arf` answers the same way when it refuses a request only because of ARF findings and the verifier signed the request with a trusted access certificate. The wallet sends the verifier `access_denied` (OpenID4VP 1.0 §8.5, RFC 6749 §4.1.2.1), and the API answers with `"status": "refused"`. The `error_description` starts with "The request does not meet the ARF registration rules" and lists the findings. A request without an access certificate gets HTTP 400 like any invalid request, and the verifier gets no answer (see [presenting](presenting.md)).
 
 **Clear override without consuming:**
 
@@ -357,7 +357,7 @@ curl -X PUT http://localhost:8085/api/config/preferred-format \
 | Method | Path                           | Body                    | Description                    |
 |--------|--------------------------------|-------------------------|--------------------------------|
 | `GET`  | `/api/config`                  | None                    | Full instance introspection document (see [Introspection](#introspection)) |
-| `GET`  | `/api/news`                    | None                    | The news of a public demo as `{"id", "html"}`, 404 without `--news-file`. `/api/config` names its `news_id` |
+| `GET`  | `/api/news`                    | None                    | The news of a public demo as `{"id", "html"}`, 404 without `--news-file`. `/api/config` reports its `news_id` |
 | `PUT`  | `/api/config/preferred-format` | `{"format": "dc+sd-jwt"}`  | Prefer SD-JWT when multiple match |
 | `PUT`  | `/api/config/preferred-format` | `{"format": "mso_mdoc"}`   | Prefer mdoc when multiple match   |
 | `PUT`  | `/api/config/preferred-format` | `{"format": "jwt_vc_json"}` | Prefer JWT VC when multiple match |
@@ -595,7 +595,7 @@ Use `--remote local` to bypass routing and access storage directly. While a serv
 
 A running or remote wallet keeps its own store. A command that manages it refuses `--storage`, `--templates-dir` and `--seed`. A remote target from `--remote` or `wallet use` also refuses `--wallet-dir`. Add `--remote local` to use the local store with these flags.
 
-A routed command uses the settings of the running wallet for every step of a flow, including a credential collected later. So it refuses a conformance flag whose value differs from the running wallet's, such as `--mode strict` on a wallet in debug mode. A flag with the wallet's own value passes. So does a `--relying-party-ca`, `--trusted-list-ca` or `--trusted-list` the wallet already trusts. Set the mode, HAIP, ARF and key attestation level on `wallet serve` or with `PUT /api/config/conformance`. Put CAs and lists on the wallet's trusted lists with `trust`. `trust add-ca --list trusted-list-ca` adds the CA of a list operator. The outbound flags `--tls-verify`, `--tls-ca` and the proxy flags follow the same rule on every routed command.
+A routed command uses the settings of the running wallet for every step of a flow, including a credential collected later. It refuses a conformance flag with a different value, such as `--mode strict` on a wallet in debug mode. A flag with the wallet's own value passes. A `--relying-party-ca`, `--trusted-list-ca` or `--trusted-list` value already trusted by the wallet passes too. Set the mode, HAIP, ARF and key attestation level on `wallet serve` or with `PUT /api/config/conformance`. Put CAs and lists on the wallet's trusted lists with `trust`. `trust add-ca --list trusted-list-ca` adds the CA of a list operator. The outbound flags `--tls-verify`, `--tls-ca` and the proxy flags follow the same rule on every routed command.
 
 The running wallet answers on its own address and signs with its own issuer. So `wallet accept` and `wallet scan` refuse `--port` and `--docker`, and `issue --wallet` refuses `--iss` and a `--key` without `--cert`.
 
@@ -624,7 +624,7 @@ The response includes `port`, `build_id`, `version`, `storage`, `seeded_keys`, `
 
 Local instances also report `pid`, `wallet_dir` and `templates_dir`. The public demo hides those fields and adds a `demo` object. `POST /api/shutdown` sends its response before stopping the instance. Requests in flight finish first, like on Ctrl-C.
 
-`PUT /api/config/conformance` changes the settings it names. It takes the names that `GET /api/config` reports: `validation_mode`, `require_haip`, `require_arf`, `require_encrypted_request`, `vci_version`, `key_attestation_level`, `force_client_attestation` and `tls_verify_override`. It refuses any other name. It accepts these values for `tls_verify_override`:
+`PUT /api/config/conformance` changes the settings given in its body. It takes the setting names reported by `GET /api/config`: `validation_mode`, `require_haip`, `require_arf`, `require_encrypted_request`, `vci_version`, `key_attestation_level`, `force_client_attestation` and `tls_verify_override`. It refuses any other name. It accepts these values for `tls_verify_override`:
 
 | Value | HTTPS certificate verification |
 |---|---|
@@ -633,6 +633,6 @@ Local instances also report `pid`, `wallet_dir` and `templates_dir`. The public 
 | `null` | Follow the mode default: strict verifies, debug skips |
 | Omitted | Keep the current setting |
 
-`GET /api/config` and the conformance response return the effective `tls_verify` value. They also return `tls_verify_override`, which is `null` when verification follows the mode default.
+`GET /api/config` and the conformance response return the effective `tls_verify` value. They also return `tls_verify_override` (`null` when verification follows the mode default).
 
 `DELETE /api/config/conformance` restores startup settings. Demo wallets reject changes. Add CA certificates at startup with `--tls-ca`.

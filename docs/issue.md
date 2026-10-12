@@ -35,7 +35,7 @@ eudi issue mdoc  | eudi decode
 
 ## Flags
 
-A flag described as "With `--wallet`" is refused without `--wallet`, because a bare credential has no wallet to store it.
+Flags marked "With `--wallet`" are refused without `--wallet`.
 
 Flags shared by all three subcommands:
 
@@ -119,7 +119,7 @@ Without `--claims`, a minimal PID-like claim set is used (given_name, family_nam
 
 `--template` supplies the claim set and defaults for type, namespace, and expiry. Explicit flags override the template. `--claims` overrides individual top level claims. `--omit` removes claims from the result. See [templates](templates.md) for the file format and the `templates` commands.
 
-Every SD-JWT claim is selectively disclosable by default. `--always-disclosed` (or the template's `always_disclosed` list) embeds the named claims plainly in the signed payload, so they cannot be withheld during presentation. Nested subclaims use dotted paths (`address.country`). `_sd`, `_sd_alg` and `...` are reserved by RFC 9901 and rejected as claim names. See [always disclosed claims](templates.md#always-disclosed-claims) for the registered claims that are always plain and for the mdoc and jwt behavior.
+Every SD-JWT claim is selectively disclosable by default. `--always-disclosed` (or the template's `always_disclosed` list) embeds the listed claims plainly in the signed payload, so they cannot be withheld during presentation. Nested subclaims use dotted paths (`address.country`). `_sd`, `_sd_alg` and `...` are reserved by RFC 9901 and rejected as claim names. See [always disclosed claims](templates.md#always-disclosed-claims) for the registered claims that are always plain and for the mdoc and jwt behavior.
 
 ## Wallet registration metadata
 
@@ -127,7 +127,7 @@ With `--wallet`, the issuer key and certificate depend on the supplied flags:
 
 - By default, the wallet uses the key and the certificate of the credential's category. A provider intermediate CA signs this certificate. If the configured root has a path length of zero, the root signs it directly.
 - `--key` supplies another issuer key. The wallet creates a certificate for it under the shared CA. Only the local store does this. A running wallet server signs with its own issuer key and URL, so it refuses `--key` without `--cert` and `--iss`.
-- `--key` with `--cert` uses the supplied key and chain. The category and the registration metadata flags are ignored. The wallet didn't sign the credential, so its type is on none of the wallet's lists.
+- `--key` with `--cert` uses the supplied key and chain. The category and the registration metadata flags are ignored. The wallet did not sign the credential, so its type is not on any wallet list.
 
 A supplied chain that includes its self-signed root produces a warning in debug mode and is rejected in strict mode. Otherwise the wallet stores the credential and registers its type. That registration supplies metadata for:
 

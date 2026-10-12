@@ -22,7 +22,7 @@ cd examples/keycloak-web-wallet
 `start.sh` downloads the verifier extension, exports the wallet CA for Keycloak's truststore, starts everything, configures the verifier's wallet links, and runs both headless demos. Then open the **demo UI** at <http://localhost:9090>:
 
 - **Issuance**: create an offer, open its wallet link and approve it in the wallet UI. The wallet imports the membership credential. The app also shows the equivalent custom-scheme URI.
-- **Verification**: choose "Login with wallet", follow Keycloak's wallet link and approve the PID presentation. The browser returns through Keycloak to the app's `/callback`, which displays the ID-token claims.
+- **Verification**: choose "Login with wallet", follow Keycloak's wallet link and approve the PID presentation. The browser returns through Keycloak to the app's `/callback`. The app shows the ID-token claims.
 - **Logout**: end the Keycloak session so the next login requires the wallet again. This uses OIDC RP-initiated logout through `end_session_endpoint`. The `wallet-mock` client allows the return URL through `post.logout.redirect.uris`.
 
 Browser flows open the wallet UI and wait for consent. The headless scripts request interactive handling explicitly and approve through the consent API.

@@ -39,13 +39,13 @@ Regenerating a PID replaces the existing mdoc PID with the same doctype and name
 
 `issue ... --pid` and `wallet serve --pid` use these templates. They use the pair of the country-independent PID (`pid-*`) by default. With `--vct` they use the SD-JWT template of that type and the mdoc template with the PID doctype and the same display name. A user template for another PID type, such as `urn:eudi:pid:fr:1`, works the same way. A type without templates gets the EUDI PID claims under that type. A user template saved under the same name overrides the predefined one everywhere. Deleting the override restores the original.
 
-With `--demo` the wallet holds the PIDs whose predefined templates set `baseline`. These are the EUDI PID and the German PID, which extends it. `--pid` alone issues the EUDI PID. An override of a baseline template changes the content of that baseline PID.
+With `--demo` the wallet holds a PID for each predefined template that sets `baseline`. These are the EUDI PID and the German PID (an extension of the EUDI PID). `--pid` alone issues the EUDI PID. An override of a baseline template changes the content of that baseline PID.
 
 ## Template files and storage
 
 Predefined templates are compiled into the binary as template files, together with the images and portraits they reference. User templates are JSON or YAML documents under the wallet's `templates/` prefix in the selected storage backend. With file storage, the default directory is `~/.eudi-dev/wallet/templates/`, or `<dir>/templates/` with `--wallet-dir <dir>`. The extensions `.json`, `.template`, `.yaml` and `.yml` are recognized. A `.yaml` or `.yml` file is YAML. The others are JSON. The template name is its `name` field. Without one, it is the file name without its extension.
 
-Each name has one file. Two files such as `employee-card.json` and `employee-card.yaml` are an error that names both files. The wallet saves templates as JSON. A template saved under the name of a YAML file replaces that file with a JSON file. Deleting a template deletes its file in either format.
+Each name has one file. Two files such as `employee-card.json` and `employee-card.yaml` cause an error, and the error lists both files. The wallet saves templates as JSON. A template saved under the name of a YAML file replaces that file with a JSON file. Deleting a template deletes its file in either format.
 
 `--templates-dir` points the wallet, the issue commands, and the `templates` commands at another directory, for example a folder in your project or a container mount.
 
@@ -111,7 +111,7 @@ All fields except `claims` are optional:
 
 Claims are JSON values. For an mdoc, a whole number becomes a CBOR integer, and a base64 `data:` URI becomes a byte string. This is how a template gives an mdoc its `portrait`. An SD-JWT keeps the `data:` URI as text, as the `picture` claim of the EUDI PID does.
 
-A string `embedded:<file>` names a file of the built-in defaults, such as `embedded:portraits/dutch.jpg`. The wallet replaces it with a `data:` URI of that file when it loads the template. Every template can use it. The defaults hold these portraits:
+A string `embedded:<file>` refers to a file in the built-in defaults, such as `embedded:portraits/dutch.jpg`. The wallet replaces it with a `data:` URI of that file when it loads the template. Every template can use it. The defaults hold these portraits:
 
 | File | Used by |
 |------|---------|
@@ -326,7 +326,7 @@ The predefined templates are always in the [attestation catalogue](wallet/regist
 {"name": "Employee card", "category": "eaa", "schema": {"rulebookURI": "https://example.com/rulebook", "attestationLoS": "iso_18045_basic", "bindingType": "key", "trustedAuthorities": [{"frameworkType": "etsi_tl", "value": "https://example.com/trusted-list", "isLOTE": true}]}}
 ```
 
-The entry gets the template's format, type and claims. An empty name becomes the template's display name or its name. The entry's category defaults to the template's category, else `eaa`. The template then takes the entry's category. A user template without a category and without a catalogue entry issues EAAs. Only an SD-JWT VC template with a `vct` or an mdoc template with a `doctype` can be added. The wallet checks the entry before it saves anything. If the entry is invalid or its name is taken, it saves neither the template nor the entry, and `POST /api/issue` doesn't issue the credential. Deleting the template keeps the entry. Delete the entry in the catalogue.
+The entry gets the template's format, type and claims. An empty name becomes the template's display name or its name. The entry's category defaults to the template's category, else `eaa`. The template then takes the entry's category. A user template without a category and without a catalogue entry issues EAAs. Only an SD-JWT VC template with a `vct` or an mdoc template with a `doctype` can be added. The wallet checks the entry before it saves anything. If the entry is invalid or its name is taken, it saves neither the template nor the entry, and `POST /api/issue` doesn't issue the credential. Deleting the template keeps the entry. To remove the entry, delete it in the catalogue.
 
 ```bash
 # Import a template and issue from it
@@ -341,7 +341,7 @@ curl -X POST http://localhost:8085/api/issue \
 
 ### Catalogue entry in a template file
 
-A JSON or YAML template file in the template directory can carry a `catalog` object. It takes the same fields as the `catalog` object of `PUT /api/templates/{name}`. The template then makes up its own catalogue entry, like a predefined template:
+A JSON or YAML template file in the template directory can carry a `catalog` object. It takes the same fields as the `catalog` object of `PUT /api/templates/{name}`. The template then gets its own catalogue entry, like a predefined template:
 
 ```json
 {
@@ -352,9 +352,9 @@ A JSON or YAML template file in the template directory can carry a `catalog` obj
 }
 ```
 
-The entry follows the template file. It is there while the file is, and changes when the file changes. Its id derives from its name, so it stays the same across restarts. The catalogue API can't change it. `wallet serve` checks these objects at startup. An invalid object, or one that takes the name or a type of another entry, stops the start with the name of the template.
+The entry exists as long as the template file and changes with it. Its id derives from its name, so it stays the same across restarts. The catalogue API can't change it. `wallet serve` checks these objects at startup. If an object is invalid or reuses the name or a type of another entry, the start fails and reports the template name.
 
-`GET /api/templates/{name}` shows the `catalog` object. Saving such a template keeps it. A save with a `catalog` object replaces it. A predefined template can carry one too and then takes its fields for its entry.
+`GET /api/templates/{name}` shows the `catalog` object. Saving such a template keeps it. A save with a `catalog` object replaces it. A predefined template can carry one too. Its entry then uses those fields.
 
 `templates import` and a `PUT` to a template without its own `catalog` object treat the object as a request and add an entry, as described above.
 

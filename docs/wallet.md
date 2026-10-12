@@ -239,7 +239,7 @@ See [the wallet HTTP API](wallet/http-api.md) for every endpoint and for remote 
 
 ## Shared flags
 
-All wallet subcommands accept `--wallet-dir` to override the storage directory, `--templates-dir` to override the credential template directory (see [templates](templates.md)), `--storage` to choose the storage backend and `--seed` to derive the generated keys (see [seeded keys](#seeded-keys)). These flags shape the local store, so a command that manages a running or remote wallet refuses them (see [automatic routing](wallet/http-api.md#automatic-routing-single-writer)):
+All wallet subcommands accept `--wallet-dir` to override the storage directory, `--templates-dir` to override the credential template directory (see [templates](templates.md)), `--storage` to choose the storage backend and `--seed` to derive the generated keys (see [seeded keys](#seeded-keys)). These flags configure the local store. Commands that manage a running or remote wallet reject them (see [automatic routing](wallet/http-api.md#automatic-routing-single-writer)):
 
 ```bash
 eudi wallet list --wallet-dir /tmp/test-wallet

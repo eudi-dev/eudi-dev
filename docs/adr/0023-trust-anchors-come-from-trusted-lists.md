@@ -17,16 +17,16 @@ An issuance service anchors issued certificates and credentials. A revocation se
 
 The registrar has two CAs of its own. Neither chains to the wallet CA:
 
-- The relying party access CA signs every access certificate, including those of the demo issuer and the demo verifier. The `access-ca` list names it.
-- The registrar CA signs the registrar's signing certificate. The `registrar` list names it. The relying party access CA is not on that list, because it signs any visitor's CSR.
+- The relying party access CA signs every access certificate, including those of the demo issuer and the demo verifier. The `access-ca` list contains it.
+- The registrar CA signs the registrar's signing certificate. The `registrar` list contains it. The relying party access CA is not on that list, because it signs any visitor's CSR.
 
 The demo issuer and the demo verifier register with the registrar and get their certificates through the same code as any relying party. So a test against them exercises the same checks as a test against another party.
 
-A list of trusted lists at `/api/trustlists/lists` points to all of these lists and to added external lists (§6.3.13). Each pointer names the location and the signer certificate, with the list type, the scheme operator name, the scheme territory and the MIME type as qualifiers. The wallet follows the pointers of an external list of trusted lists one level deep. A pointed-to list must be signed by a certificate of its pointer.
+A list of trusted lists at `/api/trustlists/lists` points to all of these lists and to added external lists (§6.3.13). Each pointer gives the location and the signer certificate, with the list type, the scheme operator name, the scheme territory and the MIME type as qualifiers. The wallet follows the pointers of an external list of trusted lists one level deep. A pointed-to list must be signed by a certificate of its pointer.
 
 The user adds trust in two ways, with `trust`, the trust API or the UI:
 
-- A provider on one of the wallet's own lists. The wallet signs the list with the provider's CA on it as an issuance and a revocation service.
+- A provider on one of the wallet's own lists. The wallet adds the provider's CA as an issuance and a revocation service and signs the list again.
 - An external list on the list of trusted lists. Its signer must chain to a trusted list operator: the wallet CA, a CA from `--trusted-list-ca` or a CA added with `trust add-ca --list trusted-list-ca`.
 
 `--relying-party-ca` puts its CAs on the `access-ca` and `registrar` lists. `--trusted-list` adds external lists at startup.

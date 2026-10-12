@@ -4,7 +4,7 @@ The wallet ships with predefined credential templates and their images, the cred
 
 ## Decision
 
-The built-in defaults are files embedded in `internal/defaults`. Each file uses the format an operator uses for the same data:
+The built-in defaults are files embedded in `internal/defaults`. Each file uses the same format as the operator's data:
 
 - `templates/` holds template files. The parser for user templates reads them.
 - `images/` and `portraits/` hold the images of these templates. A template references one as `embedded:<path>`.

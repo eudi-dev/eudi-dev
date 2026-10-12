@@ -34,9 +34,9 @@ Postgres writes are atomic per row. A wallet save spans several statements and i
 
 Use the file or memory backend for one wallet server. A server using file storage checks the content hash of the wallet file while handling requests. Use Postgres to share persisted state across servers. Pending browser flows and demo issuer/verifier requests remain in memory, so requests in one flow must reach the same server. Each server also keeps fetched external trusted lists in memory for 5 minutes.
 
-Servers that share a database must start with the same `--relying-party-ca` and `--trusted-list` flags. These flags are part of the signed `access-ca`, `registrar` and list of trusted lists content. Servers with different flags sign different content and keep replacing each other's list instance, so its sequence number grows on every request.
+Servers that share a database must start with the same `--relying-party-ca` and `--trusted-list` flags. These flags change the signed content of `access-ca`, `registrar` and the list of trusted lists. Servers with different flags sign different content and keep replacing each other's list instance, so its sequence number grows on every request.
 
-File compare-and-swap operations use a lock shared by processes for signing keys, certificates and counters. A wallet save still writes one `wallet.json`, so this does not make file storage suitable for multiple wallet servers.
+For signing keys, certificates and counters, file compare-and-swap operations use a lock shared across processes. A wallet save still writes one `wallet.json`, so this does not make file storage suitable for multiple wallet servers.
 
 The keys, the CA and every credential are stored in the clear on every backend ([ADR-0003](0003-keys-and-credentials-are-stored-unencrypted.md)). Anyone with access to the stored CA key can sign certificates trusted by verifiers that use this CA.
 

@@ -19,7 +19,7 @@ A credential type that contains everything another type defines and adds more. F
 _Avoid_: Subtype, derived type, inherited credential, trust relationship
 
 **Attestation**:
-Always qualify this word. It has three unrelated meanings: a **client attestation** (the wallet proving itself to an issuer), a **verifier attestation** (a verifier proving itself to the wallet), and an **issued attestation** (the wallet's record of an issued credential type. The wallet's trusted lists name these types). EUDI documents also use "attestation" as a synonym for credential.
+Always qualify this word. It has three unrelated meanings: a **client attestation** (the wallet proving itself to an issuer), a **verifier attestation** (a verifier proving itself to the wallet), and an **issued attestation** (the wallet's record of an issued credential type, as listed on the wallet's trusted lists). EUDI documents also use "attestation" as a synonym for credential.
 
 **Template**:
 A named, reusable set of claims and issuance settings. The wallet issues credentials from it. A template is not a credential and not a credential type.
@@ -61,10 +61,10 @@ A signed JWT from the registrar (ETSI TS 119 475). A verifier's certificate list
 A list of attestation types (EC TS11 catalogue of attestations). Each entry has a credential category and links a schema for each format, a rulebook and a trusted list, by default the list of its category. Every predefined credential template has an entry, and so does a template file with a `catalog` object. The operator pre-registers further entries with `wallet serve --catalog`.
 
 **Relying party access CA**:
-Signs the access certificates from the wallet's registrar, including those of the demo issuer and the demo verifier. It is a root of its own, separate from the wallet CA. The wallet's `access-ca` list names it.
+Signs the access certificates from the wallet's registrar, including those of the demo issuer and the demo verifier. It is a root of its own, separate from the wallet CA. It is on the wallet's `access-ca` list.
 
 **Registrar CA**:
-Signs the registrar's signing certificate, which signs registration certificates and their status list. It is a root of its own. The wallet's `registrar` list names it.
+Signs the registrar's signing certificate. That certificate signs registration certificates and their status list. The registrar CA is a root of its own. It is on the wallet's `registrar` list.
 
 **Visitor**:
 A person who uses a shared wallet, such as the public demo, through its web UI. Visitors share the whole wallet state. A **visitor template** is a template saved by a visitor. Visitors can change only visitor templates, and a demo reset deletes them. The operator's templates (those present at startup) stay fixed. The **visitor rules** (`VisitorRules`) set what visitors can store.
@@ -107,7 +107,7 @@ _Avoid_: Refresh (for the credential operation)
 ### Trust and status
 
 **Trusted list**:
-A signed list that names providers and their certificates. ETSI TS 119 602 calls it a **list of trusted entities** (LoTE). A wallet or verifier checks that a certificate chains to a certificate on the list for that kind of certificate. This wallet publishes one list per credential category ([ADR-0022](docs/adr/0022-one-trusted-list-per-credential-category.md)) and the lists `wallet-provider`, `access-ca` and `registrar`. It takes every trust anchor from trusted lists ([ADR-0023](docs/adr/0023-trust-anchors-come-from-trusted-lists.md)). A trusted list operator signs a list. Go identifiers use the short form `TrustList`.
+A signed list of providers and their certificates. ETSI TS 119 602 calls it a **list of trusted entities** (LoTE). A wallet or verifier checks that a certificate chains to a certificate on the list for that kind of certificate. This wallet publishes one list per credential category ([ADR-0022](docs/adr/0022-one-trusted-list-per-credential-category.md)) and the lists `wallet-provider`, `access-ca` and `registrar`. It takes every trust anchor from trusted lists ([ADR-0023](docs/adr/0023-trust-anchors-come-from-trusted-lists.md)). A trusted list operator signs a list. Go identifiers use the short form `TrustList`.
 _Avoid_: Trust list (in prose), trust profile
 
 **List of trusted lists**:
@@ -118,11 +118,11 @@ The kind of attestation: `pid`, `qeaa`, `pub-eaa` or `eaa` (ARF ISSU_07 to ISSU_
 _Avoid_: Trust profile
 
 **Provider role**:
-A signer of this wallet with its own key and provider CA under the wallet CA. The roles are the four credential categories, `wallet` (the wallet provider, whose list is `wallet-provider`), `unlisted` (unlisted credentials) and `tl-<8 hex>` (a custom trusted list).
+A signer of this wallet with its own key and provider CA under the wallet CA. The roles are the four credential categories, `wallet` (the wallet provider, with the list `wallet-provider`), `unlisted` (unlisted credentials) and `tl-<8 hex>` (a custom trusted list).
 _Avoid_: Trust profile (for the role)
 
 **Status list**:
-The published bitstring a verifier fetches to check whether a credential is still valid. The wallet manages the entries on its own list and reads the lists of other issuers.
+A published bitstring. Verifiers fetch it to check whether a credential is still valid. The wallet manages the entries on its own list and reads the lists of other issuers.
 
 **Revocation**:
 Marking a credential invalid on a status list. Revocation informs verifiers. The wallet can still present a revoked credential.

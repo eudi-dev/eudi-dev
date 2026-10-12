@@ -20,7 +20,7 @@ Browser flows ask for consent. API submissions provide consent directly. A demo 
 
 ### Administrative operations
 
-The public demo returns `403` for shutdown, error injection, log clearing and changes to format, consent or conformance settings. Visitors can save templates. They can't change or delete the predefined templates or the operator's templates (those present at startup). They also can't change the demo issuer and demo verifier registrations, request certificates for them, or delete the catalogue entries of the predefined templates. The template and issue endpoints answer `403` to a visitor's own images. Only the images bundled with the wallet are accepted. Images from issuer metadata are fetched once and stored, so the cards show them without loading anything from the issuer. The demo ignores `--adhoc-display-images`. A demo keeps at most 50 visitor templates, and a reset deletes them. Configuration responses omit host paths and the process ID.
+The public demo returns `403` for shutdown, error injection, log clearing and changes to format, consent or conformance settings. Visitors can save templates. They can't change or delete the predefined templates or the operator's templates (those present at startup). They also can't change the demo issuer and demo verifier registrations, request certificates for them, or delete the catalogue entries of the predefined templates. The template and issue endpoints reject uploaded images with `403`. Only the images bundled with the wallet are accepted. Images from issuer metadata are fetched once and stored, so the cards show them without loading anything from the issuer. The demo ignores `--adhoc-display-images`. A demo keeps at most 50 visitor templates, and a reset deletes them. Configuration responses omit host paths and the process ID.
 
 ### Outbound connections
 
@@ -71,7 +71,7 @@ Pages opened by the CLI or URL handler keep the supplied browser ID in `sessionS
 
 Every wallet server includes an issuer at `/issuer` and a verifier at `/verifier`. The issuer offers a Demo Event Ticket through pre-authorized and authorization code flows. The verifier requests the ticket or a PID through OpenID4VP.
 
-The verifier signs requests delivered from `/verifier/request/{id}` with its access certificate, identifies itself with `x509_hash:` and receives encrypted `direct_post.jwt` responses. It is registered with the wallet's registrar for the credentials of the wallet's templates and sends its registration certificate with each request. A request can also go out without the registration certificate, or with your own key, access certificate and `verifier_info`. Each request has its own encryption key and accepts one verified response. A response that does not verify shows its failure and leaves the request open. So does an error response, such as the one a wallet sends after Deny. The verifier answers it with a `redirect_uri` back to its page, which shows the error. Offers and requests expire after ten minutes and are kept only in memory.
+The verifier signs requests delivered from `/verifier/request/{id}` with its access certificate, identifies itself with `x509_hash:` and receives encrypted `direct_post.jwt` responses. It is registered with the wallet's registrar for the credentials of the wallet's templates and sends its registration certificate with each request. A request can also go out without the registration certificate, or with your own key, access certificate and `verifier_info`. Each request has its own encryption key and accepts one verified response. A response that does not verify shows its failure and leaves the request open. An error response (for example after Deny) also leaves it open. The verifier answers it with a `redirect_uri` back to its page, and the page shows the error. Offers and requests expire after ten minutes and are kept only in memory.
 
 By default, a PID request accepts either an SD-JWT VC or an mdoc. The ticket is always an SD-JWT VC. With **multiple**, the wallet may send several credentials for each query, such as two stored PIDs.
 
@@ -96,7 +96,7 @@ To include a ticket, set `ticket` in the same request:
 
 All four baseline credentials are protected. The UI, the API and the CLI refuse to delete or revoke them. Visitor credentials can be deleted. Removing baseline protection requires direct access to `wallet.json`.
 
-All visitors share credentials, registered relying parties, trusted lists and the activity log. Anyone can issue credentials, delete unprotected credentials, register, revoke and delete relying parties, and read the log. Anyone can also put providers and external lists on the wallet's [trusted lists](wallet/serve.md#trusted-lists). These entries then anchor the `--arf` checks for every visitor. The demo holds at most 20 added providers and 5 added lists. It keeps the newest 500 credentials and 100 deferred issuances, besides the protected PIDs. At most 30 consent dialogs and 30 sign-ins wait at once (see [waiting flows](wallet/http-api.md#waiting-flows)). Errors of unowned flows are not shown. Use test data only.
+All visitors share credentials, registered relying parties, trusted lists and the activity log. Anyone can issue credentials, delete unprotected credentials, register, revoke and delete relying parties, and read the log. Anyone can also put providers and external lists on the wallet's [trusted lists](wallet/serve.md#trusted-lists). These entries then anchor the `--arf` checks for every visitor. The demo holds at most 20 added providers and 5 added lists. It keeps the newest 500 credentials and 100 deferred issuances, besides the protected PIDs. At most 30 consent dialogs and 30 sign-ins wait at once (see [waiting flows](wallet/http-api.md#waiting-flows)). Errors from flows started in another browser are not shown. Use test data only.
 
 ## Rate limits
 
@@ -132,7 +132,7 @@ If the issuer requires client registration, register those two values. Use diffe
 
 ## Demo issuer as an authorization server
 
-The demo issuer is also its own authorization server. Its metadata at `/.well-known/oauth-authorization-server/issuer` advertises PAR, PKCE S256, DPoP and ABCA draft-10 methods `attest_jwt_client_auth` and `attest_jwt_client_auth_dpop`. Its endpoints are `/issuer/par`, `/issuer/authorize` and `/issuer/token`. When the wallet runs with `--vci-version 1.1`, which `--demo` implies, the metadata also advertises `POST /issuer/authorize-challenge`. This is the Authorization Challenge Endpoint of OpenID4VCI 1.1 §6, which runs [interactive authorization](wallet/issuing.md#interactive-authorization).
+The demo issuer is also its own authorization server. Its metadata at `/.well-known/oauth-authorization-server/issuer` advertises PAR, PKCE S256, DPoP and ABCA draft-10 methods `attest_jwt_client_auth` and `attest_jwt_client_auth_dpop`. Its endpoints are `/issuer/par`, `/issuer/authorize` and `/issuer/token`. With `--vci-version 1.1` (set by `--demo`), the metadata also advertises `POST /issuer/authorize-challenge`. It is the Authorization Challenge Endpoint of OpenID4VCI 1.1 §6 and runs [interactive authorization](wallet/issuing.md#interactive-authorization).
 
 It accepts the attestation claims defined by ABCA draft-07, draft-08 and draft-10. A valid attestation for a supported draft other than the configured version produces a warning ([ADR-0014](adr/0014-pinned-draft-versions-stay-supported-alongside-the-latest.md)).
 
@@ -140,11 +140,11 @@ Client authentication is required on the token endpoint for both grants (HAIP 1.
 
 The challenge for the key proof comes from the Nonce Endpoint defined in OpenID4VCI 1.0 §7. The issuer serves it at `POST /issuer/nonce` and advertises it as `nonce_endpoint` in its Credential Issuer metadata. If a proof uses a stale nonce, the issuer returns `invalid_nonce`. The wallet fetches a fresh nonce and retries.
 
-An offer set to "Deferred" on the issuer page, or created with `POST /issuer/api/offers?deferred=true`, is issued deferred. The credential endpoint answers `202` with a `transaction_id`. The wallet then collects the credentials at `POST /issuer/deferred_credential`, which the Credential Issuer metadata advertises as `deferred_credential_endpoint`. The credentials are ready after five seconds. Only the access token that started the issuance can collect them.
+An offer set to "Deferred" on the issuer page, or created with `POST /issuer/api/offers?deferred=true`, is issued deferred. The credential endpoint answers `202` with a `transaction_id`. The wallet then collects the credentials at `POST /issuer/deferred_credential`. The Credential Issuer metadata advertises this endpoint as `deferred_credential_endpoint`. The credentials are ready after five seconds. Only the access token that started the issuance can collect them.
 
 Sign in with **alice / alice**, the only account. The issuer stores no user data, and the session ends with the flow.
 
-The user signs in while redeeming the offer, not when it is created. The wallet runs the pushed authorization request, and the authorization endpoint asks the user to authenticate. The credential is bound to the account that completed that login.
+The user signs in when the wallet redeems the offer. The wallet runs the pushed authorization request, and the authorization endpoint asks the user to authenticate. The credential is bound to the account that completed that login.
 
 The hosted wallet returns the authorization URL to the caller:
 
@@ -161,7 +161,7 @@ The access token is bound to the DPoP key. The credential request must prove pos
 
 ### Wallets from other providers
 
-The demo issuer trusts the providers on the wallet provider lists of the wallet's [list of trusted lists](wallet/serve.md#trusted-lists). That is the wallet's own `wallet-provider` list at `/api/trustlists/wallet-provider`, providers added with `trust add-ca --list wallet-provider`, and external wallet provider lists. It also accepts attestations from other providers when their signature verifies against the included leaf certificate.
+The demo issuer trusts the wallet providers in the wallet's [list of trusted lists](wallet/serve.md#trusted-lists). These come from the wallet's own `wallet-provider` list at `/api/trustlists/wallet-provider`, from `trust add-ca --list wallet-provider`, and from external wallet provider lists. It also accepts attestations from other providers when their signature verifies against the included leaf certificate.
 
 The ticket records the result in `wallet_attestation`: `trusted` for a chain to a trusted wallet provider, `untrusted` for another signer, or `none` when authentication was optional and omitted.
 
@@ -186,7 +186,7 @@ These endpoints publish the trust material:
 
 Pin the CA through an out-of-band exchange. It is self-signed and persists across restarts and resets. Signing certificates can be renewed without changing that anchor.
 
-Trusted lists are grouped by provider role. Each category has its own signing key and provider CA. The `pid`, `qeaa`, `pub-eaa` and `eaa` lists publish the credential signing certificates of their category and their provider CAs. The `wallet-provider` list publishes wallet provider certificates. The `access-ca` list names the relying party access CA and the `registrar` list the registrar CA. A separate list operator signs the lists. Their sequence numbers and retained history let clients test trust updates.
+Trusted lists are grouped by provider role. Each category has its own signing key and provider CA. The `pid`, `qeaa`, `pub-eaa` and `eaa` lists publish the credential signing certificates of their category and their provider CAs. The `wallet-provider` list publishes wallet provider certificates. The `access-ca` list contains the relying party access CA and the `registrar` list contains the registrar CA. A separate list operator signs the lists. Their sequence numbers and retained history let clients test trust updates.
 
 The issuer metadata endpoints return JSON by default and a JWT signed with the access certificate key when the `Accept` header prefers `application/jwt`. They include a registration certificate from the registrar. Its identifier, legal name and country match the access certificate. The demo issuer and the demo verifier are registered with the registrar like any relying party. Visitors can't change these two registrations or their certificates. See [test certificates](test-certificates.md) for the exact profiles and versions.
 
@@ -216,7 +216,7 @@ ENV
 ./deploy.sh setup     # first deployment: Docker, stack, volume ownership, start
 ./deploy.sh push      # after editing Caddyfile, compose file or imprint
 ./deploy.sh update    # pull the released image and restart
-./deploy.sh rollback  # put the release that was live before that back
+./deploy.sh rollback  # restore the previous release
 ./deploy.sh status    # container status plus the version the site reports
 ./deploy.sh verify    # check that every public endpoint answers
 ./deploy.sh logs      # follow the wallet log

@@ -59,12 +59,12 @@ Every `wallet serve` flag can now be set as `EUDI_DEV_<FLAG>`. An unknown `EUDI_
 - Every error of the wallet, registrar, catalogue and decoder API is `{"error": "<code>", "error_description": "<message>"}`. Plain text errors are gone. Protocol endpoints keep the error format of their spec.
 - `trust_profile` is now `category` in `POST /api/issue`. The trust fields use "trusted list" names too.
 - The `local` list and provider role are now `eaa`. Use `/api/trustlists/eaa`, `/api/certificates/providers/eaa/...` and `/api/crl/providers/eaa/...`.
-- `POST /api/decode` is gone. Use `POST /api/validate`, which takes the same `input`.
+- `POST /api/decode` is gone. Use `POST /api/validate`. It takes the same `input`.
 - `POST /api/generate-pid` is gone. Use `POST /api/issue` with a PID template, or start the wallet with `--pid`.
 - `PUT /api/config/conformance` takes the setting names of `GET /api/config`, such as `validation_mode` and `require_arf`.
 - `POST /api/issue` no longer returns `signing_override`.
 - `GET /api/registrar/wrp` returns the TS05 v1.5 format.
-- The demo verifier returns a result for `GET /verifier/api/requests/{key}` only when `key` is the `transaction_id` or the `response_code`. Poll with the `transaction_id` the request returned.
+- The demo verifier returns a result for `GET /verifier/api/requests/{key}` only when `key` is the `transaction_id` or the `response_code`. Poll with the `transaction_id` returned when you create the request.
 
 ## Outbound connections
 
@@ -76,7 +76,7 @@ Some services that passed with 2.x now get findings. Debug mode still finishes t
 
 - An expired request object, a wrong `aud` or an expired signer certificate is a finding.
 - A malformed `dcql_query` is refused in strict mode.
-- An authorization server's `issuer` and the RFC 9207 `iss` must match exactly, also in the trailing slash.
+- An authorization server's `issuer` and the RFC 9207 `iss` must match exactly, including a trailing slash.
 - A request with `response_mode=fragment` needs a `redirect_uri`.
 - `validate` exits non-zero for an SD-JWT VC without `typ` `dc+sd-jwt`, a digest mismatch or a credential that is not valid yet.
 

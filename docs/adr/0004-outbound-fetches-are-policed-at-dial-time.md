@@ -8,6 +8,6 @@ The address check runs in a `net.Dialer.Control` hook (`internal/format/policy.g
 
 ## Consequences
 
-Every HTTP client in the toolkit must be built through `format.NewHTTPClient`, or it bypasses the policy. `format.HTTPClient` returns the shared client built that way. The wallet sends every request of its flows through `Wallet.HTTPClient`.
+Every HTTP client in the toolkit must be built through `format.NewHTTPClient`, or it bypasses the policy. `format.HTTPClient` returns the shared client built that way. The wallet sends all flow requests through `Wallet.HTTPClient`.
 
-A demo wallet also has to reach its own endpoints, which resolve to loopback. `AllowOwnOrigins` exempts the operator-configured URLs by exact resolved address and port. A visitor-supplied URL that happens to point at loopback is still blocked.
+A demo wallet also has to reach its own endpoints. These resolve to loopback. `AllowOwnOrigins` exempts the operator-configured URLs by exact resolved address and port. A visitor-supplied URL that happens to point at loopback is still blocked.

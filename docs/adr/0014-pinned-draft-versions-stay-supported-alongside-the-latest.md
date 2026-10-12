@@ -2,7 +2,7 @@
 
 The EUDI Architecture and Reference Framework determines which specifications the toolkit supports ([ADR-0013](0013-only-the-eudi-stack-is-supported.md)). Some of those specifications reference particular drafts of their dependencies. The toolkit keeps supporting these pinned drafts when it adds newer versions.
 
-OAuth 2.0 Attestation-Based Client Authentication (ABCA) is an example. OpenID4VCI 1.0 pins draft-07 and requires implementations to prefer pinned references (§14.7). The OpenID4VCI 1.1 editor draft pins draft-08, which removed `iss` from the client attestation and its proof of possession. Draft-10 adds combined DPoP authentication and metadata for negotiating proof methods.
+OAuth 2.0 Attestation-Based Client Authentication (ABCA) is an example. OpenID4VCI 1.0 pins draft-07 and requires implementations to prefer pinned references (§14.7). The OpenID4VCI 1.1 editor draft pins draft-08. Draft-08 removed `iss` from the client attestation and its proof of possession. Draft-10 adds combined DPoP authentication and metadata for negotiating proof methods.
 
 ## Compatibility rules
 
@@ -14,6 +14,6 @@ New authentication methods are negotiated through server metadata. A server offe
 
 ## Consequences
 
-When a dependency publishes a new draft, its relationship to the ARF references is reviewed and conformance is checked before adopting changed behavior ([ADR-0010](0010-spec-conformance-is-checked-before-and-after-every-change.md)). The shared protocol flow handles version selection and compatibility warnings.
+When a dependency publishes a new draft, review how it relates to the ARF references and check conformance before adopting changed behavior ([ADR-0010](0010-spec-conformance-is-checked-before-and-after-every-change.md)). The shared protocol flow handles version selection and compatibility warnings.
 
 Issuers following draft-07 reject an attestation without `iss` or a proof without `nbf` and `exp`. Sending only the draft-08 claims would break those issuers.

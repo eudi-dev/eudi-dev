@@ -40,7 +40,7 @@ The proxy checks the rules from top to bottom. The first match sets the badge.
 | VCI token request      | POST to a path ending in `/token` |
 | VCI credential request | POST to a path ending in `/credential` or `/credentials` |
 
-When no rule matches, a request to an endpoint that earlier traffic advertised gets the badge of that endpoint. Metadata, authorization requests and request objects advertise endpoints.
+When no rule matches, a request to an endpoint advertised in earlier traffic gets that endpoint's badge. Metadata, authorization requests and request objects advertise endpoints.
 
 By default only OID4VP/VCI traffic is shown. Other requests (favicon, health checks) are proxied but hidden. `--all-traffic` shows everything.
 

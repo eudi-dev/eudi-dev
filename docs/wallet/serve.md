@@ -13,7 +13,7 @@ The server exposes:
 - Web UI for credential management and consent
 - OID4VP authorization endpoint (`/authorize`)
 - OID4VCI credential offer endpoint (`/credential-offer`). Accepts `credential_offer` / `credential_offer_uri` query parameters. Offer links can use the wallet URL in place of a custom scheme (see [Invoking the wallet by URL](presenting.md#wallet-invocation-by-url))
-- Trusted list endpoint (`/api/trustlist`), which serves the PID list or the list for a `vct` or `doctype`. Use this URL as `--trusted-list` when validating PID credentials issued by the wallet
+- Trusted list endpoint (`/api/trustlist`). It serves the PID list or the list for a `vct` or `doctype`. Use this URL as `--trusted-list` when validating PID credentials issued by the wallet
 - Trusted list index endpoint (`/api/trustlists`) with one JWT endpoint per list
 - HTTPS wallet endpoints on the wallet's effective issuer URL, including `/.well-known/jwt-vc-issuer`, `/.well-known/openid-credential-issuer`, `/api/trustlist`, `/api/trustlists`, `/api/statuslist`, and `/api/registrar/wrp`
 - A management API mirroring the wallet CLI (list, show, import, remove and issue credentials, export certificates). It has no authentication (see [HTTP API](http-api.md))
@@ -54,7 +54,7 @@ A batch import is one entry with the ID of every stored copy. Encrypted exchange
 
 Verifiers check wallet-issued credentials against the wallet CA. Issuers use it to check wallet and key attestations.
 
-The default local issuer URL is `https://localhost:8086`, on `<port+1>` relative to the wallet's HTTP port. An HTTPS `--base-url`, such as `https://eudi-test.dev`, becomes the issuer URL. Issuer metadata, trusted lists and status lists are then served from the public origin behind an external TLS terminator (see [public demo hosting](../public-demo.md)).
+The default local issuer URL is `https://localhost:8086` (the wallet's HTTP port plus one). An HTTPS `--base-url`, such as `https://eudi-test.dev`, becomes the issuer URL. Issuer metadata, trusted lists and status lists are then served from the public origin behind an external TLS terminator (see [public demo hosting](../public-demo.md)).
 
 To serve the wallet under a path prefix on a shared host, include the prefix in the base URL, such as `https://example.com/some/context`. See [reverse proxy setup](../reverse-proxy.md) for the proxy setup.
 
@@ -78,9 +78,9 @@ The wallet publishes lists of trusted entities (ETSI TS 119 602). It takes every
 | `access-ca` | Providers of access certificates | `http://uri.etsi.org/19602/LoTEType/EUWRPACProvidersList` (Annex F) |
 | `registrar` | Providers of registration certificates | `http://uri.etsi.org/19602/LoTEType/EUWRPRCProvidersList` (Annex G) |
 
-TS 119 602 registers no list type for QEAA or other EAA providers (QEAA providers are on TS 119 612 trusted lists). Annex C.1 lets a scheme operator create its own URIs, and §6.3.3 asks for one type per profile. So the `qeaa` and `eaa` lists have types of their own, with the service types `https://eudi-test.dev/SvcType/QEAA/Issuance`, `.../QEAA/Revocation`, `.../EAA/Issuance` and `.../EAA/Revocation`. These URIs name the list profile. They are the same on every deployment, regardless of the base URL. A wallet state from eudi-dev 2 stores `http://uri.etsi.org/19602/LoTEType/local` for its EAA list, and the wallet reads that as the `eaa` list.
+TS 119 602 registers no list type for QEAA or other EAA providers (QEAA providers are on TS 119 612 trusted lists). Annex C.1 lets a scheme operator create its own URIs, and §6.3.3 asks for one type per profile. So the `qeaa` and `eaa` lists have types of their own, with the service types `https://eudi-test.dev/SvcType/QEAA/Issuance`, `.../QEAA/Revocation`, `.../EAA/Issuance` and `.../EAA/Revocation`. These URIs identify the list profile. They are the same on every deployment, regardless of the base URL. A wallet state from eudi-dev 2 stores `http://uri.etsi.org/19602/LoTEType/local` for its EAA list, and the wallet reads that as the `eaa` list.
 
-The `access-ca` list names the relying party access CA of the [registrar](registrar.md) and the `registrar` list names the registrar CA. CAs from `--relying-party-ca` are on both lists.
+The `access-ca` list contains the relying party access CA of the [registrar](registrar.md). The `registrar` list contains the registrar CA. CAs from `--relying-party-ca` are on both lists.
 
 #### Credential categories
 
@@ -97,14 +97,14 @@ A credential gets its category in this order:
 
 The category `unlisted` keeps a credential off every list. Its signer has its own provider role (`unlisted`) and provider CA. Use it to test how a verifier handles an issuer without a trust anchor.
 
-The wallet also keeps an issued-attestation registry. It lists the type of each credential issued by the wallet, with its category and trusted list data. The trusted lists name these types:
+The wallet also keeps an issued-attestation registry. It lists the type of each credential issued by the wallet, with its category and trusted list data. The trusted lists include these types:
 
 - `wallet serve --pid` registers the PID types
 - `issue ... --wallet` registers the type of the issued credential
 
 An imported credential and a credential signed with your own `--key` and `--cert` are on none of the wallet's lists, because the wallet did not sign them.
 
-Each trusted list publishes its service's signing certificates, provider CAs and status signing certificates. With a configured root of path length zero, the list names only the signing certificates. A separate list operator key under the wallet CA signs the list. An unchanged list keeps its signed instance until it expires. Changed content or expiry increments the sequence number. Previous instances are available at the list's `/history` endpoint. Every list except `pub-eaa` points to itself. Tables D.1 to G.1 require that for the lists of Annexes D to G, and Table H.1 forbids pointers. The `pub-eaa` list keeps its history. A service it no longer names stays on it with the status withdrawn (Table H.3).
+Each trusted list publishes its service's signing certificates, provider CAs and status signing certificates. With a configured root of path length zero, the list contains only the signing certificates. A separate list operator key under the wallet CA signs the list. An unchanged list keeps its signed instance until it expires. Changed content or expiry increments the sequence number. Previous instances are available at the list's `/history` endpoint. Every list except `pub-eaa` points to itself. Tables D.1 to G.1 require that for the lists of Annexes D to G, and Table H.1 forbids pointers. The `pub-eaa` list keeps its history. A removed service stays on it with the status withdrawn (Table H.3).
 
 Wallet and key attestations use a separate wallet provider key. Their `x5c` contains the leaf and any intermediate certificates, with the self-signed root omitted. Issuers can pin the root from `/api/certificates/ca` or use `/api/trustlists/wallet-provider`.
 
@@ -191,14 +191,14 @@ The wallet keeps a fetched external list for 5 minutes, or until its `NextUpdate
 
 The wallet follows the pointers of an external list of this type, one level deep. A pointed-to list must be signed by a certificate of its pointer (§6.3.13). `GET /api/trust` shows such a list with `via`. To trust all lists of another eudi-dev wallet at once, add its `/api/trustlists/lists`. That list is signed under the other wallet's CA. Start this wallet with `--trusted-list-ca` set to that CA.
 
-`wallet serve` reuses persisted issuer and status list URLs unless `--base-url` or `--docker` overrides them. Credentials generated earlier then keep resolving against the same endpoints. Issuance with `issue ... --wallet` follows the same rule. They print a note when no server serves the embedded URLs.
+`wallet serve` reuses persisted issuer and status list URLs unless `--base-url` or `--docker` overrides them. Credentials generated earlier then keep resolving against the same endpoints. Issuance with `issue ... --wallet` follows the same rule. Both print a note when no running server serves the embedded URLs.
 
-The startup banner warns about a persisted Docker hostname outside Docker. It also warns about stored credentials with issuer or status list URLs that this server does not serve. Those credentials fail validation and status checks until they are issued again.
+The startup banner warns about a persisted Docker hostname outside Docker. It also warns about stored credentials whose issuer or status list URLs are not served by this server. Those credentials fail validation and status checks until they are issued again.
 
 Each list is served at `/api/trustlists/{id}`:
 
 - `pid`, `qeaa`, `pub-eaa` and `eaa` for the categories
-- `wallet-provider` for the Wallet Provider list, which issuers use to verify the wallet attestation
+- `wallet-provider` for the Wallet Provider list (issuers verify the wallet attestation against it)
 - `access-ca` and `registrar` for the providers of relying party certificates
 - `lists` for the list of trusted lists
 - `tl-<8 hex digits>` for a credential type with its own trusted list fields, such as `--trusted-list-type`
@@ -232,7 +232,7 @@ Clients that call the wallet through Docker port mappings, reverse proxies, or T
 `/api/trustlist` selects a list by credential type:
 
 - without parameters it returns the PID list
-- `vct` and `doctype` select the list that names a credential type
+- `vct` and `doctype` select the list for a credential type
 
 Examples:
 
@@ -288,13 +288,13 @@ eudi wallet serve -d                   # run in the background (stop with `eudi 
 EUDI_DEV_PORT=9000 EUDI_DEV_AUTO_ACCEPT=true eudi wallet serve
 ```
 
-Every flag can also be set as `EUDI_DEV_<FLAG>`, with the flag name in upper case and underscores for dashes. A flag on the command line wins. A repeatable flag takes comma-separated values. An `EUDI_DEV_` variable that names no flag stops the server at start (see [configuration by environment](../docker.md#configuration-by-environment)).
+Every flag can also be set as `EUDI_DEV_<FLAG>`, with the flag name in upper case and underscores for dashes. A flag on the command line wins. A repeatable flag takes comma-separated values. An `EUDI_DEV_` variable that matches no flag stops the server at start (see [configuration by environment](../docker.md#configuration-by-environment)).
 
 | Flag                    | Default  | Description                                      |
 |-------------------------|----------|--------------------------------------------------|
 | `--port`                | `8085`   | Server port                                      |
 | `--listen`              | `$EUDI_DEV_LISTEN`, else `127.0.0.1` | IP address to bind. `0.0.0.0` opens the wallet to the network. See [listen address](#listen-address) |
-| `--auto-accept`         | `false`  | Approve presentations and credential offers without asking. Without it, only interactive channels (web invocation URLs, scheme dispatches, browser DC-API) show the consent dialog. API submissions (`POST /api/offers`, `/api/presentations`) always auto-accept because the API call counts as consent (opt in per request with `"interactive": true`). With `--demo` only the flag turns it on, `EUDI_DEV_AUTO_ACCEPT` does not |
+| `--auto-accept`         | `false`  | Approve presentations and credential offers without asking. Without it, only interactive channels (web invocation URLs, scheme dispatches, browser DC-API) show the consent dialog. API submissions (`POST /api/offers`, `/api/presentations`) always auto-accept because the API call counts as consent (opt in per request with `"interactive": true`). With `--demo` only the flag turns it on (not `EUDI_DEV_AUTO_ACCEPT`) |
 | `--credential`          | None     | Import credential from file (repeatable)         |
 | `--credentials`         | None     | Credentials to add on every start, from a YAML or JSON file, a directory of such files, or stdin (`-`). See [startup credentials](#startup-credentials) |
 | `--catalog`             | None     | Attestation types to pre-register in the catalogue on every start, from a YAML or JSON file, a directory of such files, or stdin (`-`). See [pre-registered catalogue entries](#pre-registered-catalogue-entries) |
@@ -318,7 +318,7 @@ Every flag can also be set as `EUDI_DEV_<FLAG>`, with the flag name in upper cas
 | `--preferred-format`    | None     | Preferred credential format when multiple match: `dc+sd-jwt`, `mso_mdoc`, or `jwt_vc_json`. Change it at runtime with `PUT /api/config/preferred-format` |
 | `--status-list`         | `false`  | Embed status list references in generated credentials |
 | `--base-url`            | None     | Public URL of the wallet, optionally with a path prefix (see [reverse proxy setup](../reverse-proxy.md)). An https base URL is used as the issuer URL (external TLS terminator). An http base URL derives a self-signed HTTPS issuer URL on port+1. Existing persisted issuer URLs are reused unless this flag is set |
-| `--docker`              | `false`  | Use `host.docker.internal` instead of `localhost` when deriving new HTTP and HTTPS wallet endpoint URLs. The server then binds `0.0.0.0` unless `--listen` says otherwise |
+| `--docker`              | `false`  | Use `host.docker.internal` instead of `localhost` when deriving new HTTP and HTTPS wallet endpoint URLs. The server then binds `0.0.0.0` unless `--listen` sets another address |
 | `--vci-client-id`       | Wallet origin | Client ID for OID4VCI authorization code flows |
 | `--vci-redirect-uri`    | Wallet origin + `/callback` | Redirect URI for OID4VCI authorization code flows |
 | `--vci-version`         | `1.0`    | OpenID4VCI feature level of the wallet as a client: `1.0` (the published version) or `1.1` (also uses 1.1 draft features when the issuer supports them). See [OpenID4VCI feature level](issuing.md#openid4vci-feature-level) |
@@ -331,7 +331,7 @@ Every flag can also be set as `EUDI_DEV_<FLAG>`, with the flag name in upper cas
 | `--adhoc-display-images` | `false` | Fetch HTTPS display images on demand instead of storing them. The issuer sees each render. See [display images](#display-images) |
 | `--require-encrypted-request` | `false` | Refuse an unencrypted Request Object. The wallet always sends an encryption key in `wallet_metadata`, so this requires the Verifier to use it |
 | `--demo`                | `false`  | Public demo profile: implies `--pid`, `--mode debug`, `--haip`, `--arf` and `--vci-version 1.1` (all overridable), disables process and filesystem endpoints, blocks fetches to loopback and private networks unless `--allow-private-networks` is given. Browser flows keep the consent dialog unless `--auto-accept` is on the command line. API flows auto-accept (see [public demo hosting](../public-demo.md)) |
-| `--demo-issuer-client-auth` | `required` | Client authentication required by the authorization server of the built-in demo issuer at its PAR and token endpoints: `required` (HAIP 1.0 §4.4.1) or `optional`, which also accepts wallets that send no wallet attestation (see [public demo hosting](../public-demo.md)) |
+| `--demo-issuer-client-auth` | `required` | Client authentication required by the authorization server of the built-in demo issuer at its PAR and token endpoints: `required` (HAIP 1.0 §4.4.1) or `optional` (also accepts wallets without a wallet attestation). See [public demo hosting](../public-demo.md) |
 | `--demo-verifier-issuer-ca` | None | PEM file with extra issuer CA certificates for the demo verifier, in addition to the providers on the wallet's trusted lists. The flag is repeatable. Use it for credentials issued outside this wallet, such as in an OIDF conformance suite run |
 | `--serve-tls`           | `false`  | Serve an https `--base-url` locally with the wallet's own TLS certificate instead of expecting an external TLS terminator. Requires an https base URL with an explicit port. The wallet also keeps listening on the HTTP port |
 | `--demo-reset`          | `1h`     | Schedule for restoring the demo baseline: an interval (`24h`), a daily wall-clock time (`00:00`), or one with a timezone (`"00:00 Europe/Berlin"`). `0` disables. Requires `--demo` |
@@ -415,9 +415,9 @@ eudi wallet serve --demo --pid=false --credentials demo-credentials.yaml
 | `schema` | TS11 SchemaMeta fields: `rulebookURI`, `attestationLoS`, `bindingType`, `version` and `trustedAuthorities`. The defaults are those of `eudi catalog add` |
 | `issuerCA` | PEM file with the CA of your issuer, relative to the catalogue file. The wallet puts it on the trusted list of the category, like `catalog add --issuer-ca`. It can't go with `trustedAuthorities` |
 
-The wallet checks every entry before it starts. A bad entry, or one that takes the name or a type of another entry, stops the start. The message names the file and the entry.
+The wallet checks every entry before it starts. An invalid entry stops the start. So does an entry that reuses the name or a type of another entry. The error message shows the file and the entry.
 
-Each start loads the file again. An entry keeps its id, so a restart adds no duplicates. A changed entry is updated. An entry you remove from the file leaves the catalogue at the next start. The wallet marks these entries as pre-registered and removes only those. Entries added through the UI, the API or `eudi catalog add` stay. A CA that `issuerCA` added stays on its list when you remove the entry. Remove it with `eudi trust rm-ca`.
+Each start loads the file again. An entry keeps its id, so a restart adds no duplicates. A changed entry is updated. An entry removed from the file leaves the catalogue at the next start. The wallet marks these entries as pre-registered and removes only those. Entries added through the UI, the API or `eudi catalog add` stay. A CA added through `issuerCA` stays on its list when you remove the entry. Remove it with `eudi trust rm-ca`.
 
 Outside the demo you can change or delete a pre-registered entry. The next start restores it from the file. With `--demo` visitors can't change or delete these entries, and a demo reset restores them with their CAs.
 
@@ -437,7 +437,7 @@ Data URIs, template images and HTTP URLs are stored in both modes. Storing HTTP 
 
 Prints a trusted list of the wallet (ETSI TS 119 602) as a signed JWT. It contains the signing certificates, provider CAs and status signing certificates of the selected list. Verifiers use its provider CAs to validate the `x5c` or `x5chain` embedded in credentials. Issuer authorization data such as provider entitlements and `providesAttestations` comes from signed `/.well-known/openid-credential-issuer` metadata and `/api/registrar/wrp`. See [test certificates](../test-certificates.md).
 
-Without arguments it prints the PID list, like `/api/trustlist`. A list ID, `--vct` or `--doctype` selects another list. The IDs are `pid`, `qeaa`, `pub-eaa`, `eaa`, `wallet-provider`, `access-ca`, `registrar` and the `tl-` IDs of custom lists. `trust list` shows all lists of the wallet. `trust show lists` prints the list of trusted lists, which is also at `/api/trustlists/lists`.
+Without arguments it prints the PID list, like `/api/trustlist`. A list ID, `--vct` or `--doctype` selects another list. The IDs are `pid`, `qeaa`, `pub-eaa`, `eaa`, `wallet-provider`, `access-ca`, `registrar` and the `tl-` IDs of custom lists. `trust list` shows all lists of the wallet. `trust show lists` prints the list of trusted lists (also at `/api/trustlists/lists`).
 
 Pipe the output to a file or pass it to `validate --trusted-list`. `--url` prints only the URL for a running wallet server.
 
@@ -586,15 +586,15 @@ The printed URLs stay on `localhost` for a loopback or wildcard address. A serve
 
 ## Outbound address limits
 
-Visitors hand the wallet URLs: credential offers, request URIs and the URLs inside them. So the wallet connects only to public addresses and to loopback by default. Loopback covers the usual setup with wallet, issuer and verifier on one machine. The wallet refuses private (RFC 1918), link local, CGNAT, unique local, unspecified and multicast addresses. Link local includes cloud metadata endpoints. The check runs on the resolved address of every connection, redirects included.
+Visitors give the wallet URLs (credential offers, request URIs and the URLs inside them). So the wallet connects only to public addresses and to loopback by default. Loopback covers the usual setup with wallet, issuer and verifier on one machine. The wallet refuses private (RFC 1918), link local, CGNAT, unique local, unspecified and multicast addresses. Link local includes cloud metadata endpoints. The check runs on the resolved address of every connection, redirects included.
 
 Some destinations come from the operator, so the wallet always reaches them at their exact address and port. These are the wallet's own origins, the `--trusted-list` URLs and the forward proxy.
 
 Issuers and verifiers on a LAN, in Docker or in a cluster sit on private networks. Start the wallet with `--allow-private-networks` to reach them, or set `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=true`. The flag wins over the variable. The [Docker image](../docker.md) sets the variable.
 
-A proxied request connects to the proxy only, which then reaches the destination. Only the proxy decides which addresses that request reaches.
+A proxied request connects only to the proxy. The proxy then connects to the destination. Only the proxy decides which addresses that request reaches.
 
-`--demo` connects to public addresses and the operator's destinations only. `--allow-private-networks` or the variable lets a demo reach private networks and loopback too. The wallet then prints a warning at start, because any visitor can make it call local and internal services. A demo that faces the internet sets `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=false` (see [public demo hosting](../public-demo.md#outbound-connections)).
+`--demo` connects to public addresses and the operator's destinations only. `--allow-private-networks` or the variable lets a demo reach private networks and loopback too. The wallet then prints a warning at start, because any visitor can make it call local and internal services. An internet-facing demo sets `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=false` (see [public demo hosting](../public-demo.md#outbound-connections)).
 
 ## JSON logs
 

@@ -10,11 +10,11 @@ Each category has its own signing key, its own provider CA under the wallet CA a
 
 - `pid` uses the PID provider list type of ETSI TS 119 602 V1.1.1 Annex D
 - `pub-eaa` uses the PuB-EAA provider list type of Annex H
-- `qeaa` uses `https://eudi-test.dev/LoTEType/QEAAProvidersList` and `eaa` uses `https://eudi-test.dev/LoTEType/EAAProvidersList`. TS 119 602 has no list type for them. Annex C.1 lets a scheme operator create its own URIs, and §6.3.3 asks for one type per profile. The URIs name the profile, so every deployment uses them. Real QEAA providers are on TS 119 612 trusted lists.
+- `qeaa` uses `https://eudi-test.dev/LoTEType/QEAAProvidersList` and `eaa` uses `https://eudi-test.dev/LoTEType/EAAProvidersList`. TS 119 602 has no list type for them. Annex C.1 lets a scheme operator create its own URIs, and §6.3.3 asks for one type per profile. The URIs identify the profile, so every deployment uses them. Real QEAA providers are on TS 119 612 trusted lists.
 
-A list publishes its signers and their provider CA, so it anchors the credentials of its category and no others. A catalogue entry links the list of its category unless it names another one.
+A list publishes its signers and their provider CA, so it anchors the credentials of its category and no others. A catalogue entry links the list of its category unless it links another one.
 
-The category `unlisted` keeps a credential off every list. Its signer has its own key and provider CA, and no list names them. It tests how a verifier handles an issuer without a trust anchor. An imported credential and a credential signed with your own key and chain are on no list either, because the wallet did not sign them.
+The category `unlisted` keeps a credential off every list. Its signer has its own key and provider CA, and no list contains them. It tests how a verifier handles an issuer without a trust anchor. An imported credential and a credential signed with your own key and chain are on no list either, because the wallet did not sign them.
 
 The demo issuer and the demo verifier are ordinary registrations at the wallet's registrar. The demo issuer is registered for its credential types, except unlisted ones, with the entitlement of each category. The demo verifier has its own access certificate, so it is a separate relying party.
 

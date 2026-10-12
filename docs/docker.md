@@ -11,7 +11,7 @@ docker run -p 8085:8085 -p 8086:8086 ghcr.io/eudi-dev/eudi-dev
 
 The default command `wallet serve` starts a headless wallet. It holds PID credentials and approves every request. It stores state in memory and derives keys from a fixed seed. Each start uses the same keys and CA without a volume (see [Storage](#storage)). Stopping the container discards credentials issued or imported during the run.
 
-The image sets `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=true`, so the wallet reaches verifiers on the Docker host and in other containers. Set `-e EUDI_DEV_ALLOW_PRIVATE_NETWORKS=false` for a wallet that visitors on the internet use. It then reaches public addresses and loopback only. With `--demo` it reaches public addresses only (see [outbound address limits](wallet/serve.md#outbound-address-limits)). The variable also applies to `--demo`, so a public demo needs it set to `false`.
+The image sets `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=true`, so the wallet reaches verifiers on the Docker host and in other containers. Set `-e EUDI_DEV_ALLOW_PRIVATE_NETWORKS=false` for a wallet open to internet visitors. It then reaches public addresses and loopback only. With `--demo` it reaches public addresses only (see [outbound address limits](wallet/serve.md#outbound-address-limits)). The variable also applies to `--demo`, so a public demo needs it set to `false`.
 
 Override the command to use any CLI feature:
 
@@ -46,7 +46,7 @@ The wallet answers on `http://localhost:9000` and its issuer on `https://localho
 
 ### Pre-registered catalogue entries
 
-`EUDI_DEV_CATALOG` names a file or directory with attestation types for the catalogue (see [pre-registered catalogue entries](wallet/serve.md#pre-registered-catalogue-entries)). Each start loads it again. In Kubernetes, mount the entries from a ConfigMap:
+`EUDI_DEV_CATALOG` points to a file or directory with attestation types for the catalogue (see [pre-registered catalogue entries](wallet/serve.md#pre-registered-catalogue-entries)). Each start loads it again. In Kubernetes, mount the entries from a ConfigMap:
 
 ```yaml
 apiVersion: v1
@@ -147,7 +147,7 @@ Set `-e EUDI_DEV_LOG_FORMAT=json` to write one JSON record per line for a log co
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
 | `/authorize` | GET/POST | OID4VP authorization endpoint, accepting the standard OID4VP query parameters (`client_id`, `response_type`, `dcql_query`, `nonce`, `state`, `response_uri`, `response_mode`, `request_uri`) |
-| `/api/trustlist` | GET | The PID trusted list, or the list for a `vct` or `doctype` query parameter. The parameter matches only a credential type that the wallet issued or holds. Another type returns `404` |
+| `/api/trustlist` | GET | The PID trusted list, or the list for a `vct` or `doctype` query parameter. The parameter matches only credential types issued or held by the wallet. Another type returns `404` |
 | `/api/trustlists` | GET | JSON index of the wallet's trusted lists. Each entry includes a relative `path` plus optional `advertised_url` and its alias `url` |
 | `/api/trustlists/<id>` | GET | One trusted list (ETSI TS 119 602) as a signed JWT. The IDs are `pid`, `qeaa`, `pub-eaa`, `eaa`, `wallet-provider`, `access-ca`, `registrar`, `lists` (the list of trusted lists) and `tl-` IDs for custom lists |
 | `/api/trust` | GET | The providers and external lists added to the trusted lists. See [trusted lists](wallet/serve.md#trusted-lists) |

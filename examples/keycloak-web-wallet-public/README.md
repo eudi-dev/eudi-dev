@@ -21,7 +21,7 @@ cd examples/keycloak-web-wallet-public
 Then open the demo UI at <http://localhost:9090>:
 
 - **Issuance**: create an offer, open its wallet link and approve it in the wallet UI. The wallet imports the membership credential.
-- **Verification**: choose "Login with wallet". Keycloak opens through the tunnel and offers a wallet link. Approve the PID presentation in the wallet UI. The browser returns to the app, which displays the ID-token claims.
+- **Verification**: choose "Login with wallet". Keycloak opens through the tunnel and offers a wallet link. Approve the PID presentation in the wallet UI. The browser returns to the app. The app shows the ID-token claims.
 
 Stop everything with `docker compose down` and `kill $(cat .ngrok.pid)`.
 

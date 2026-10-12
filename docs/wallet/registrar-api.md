@@ -211,7 +211,7 @@ jq -n --arg uri "openid4vp://authorize?client_id=$(jq -rn --arg v "$CLIENT_ID" '
   curl -s -X POST localhost:8085/api/presentations -H 'Content-Type: application/json' -d @-
 ```
 
-The access certificate chains to the relying party access CA, which is on the wallet's `access-ca` list. The registration certificate chains to the registrar CA on the wallet's `registrar` list. The request asks only for registered claims. The wallet therefore presents the PID and posts the response to `response_uri`:
+The access certificate chains to the relying party access CA on the wallet's `access-ca` list. The registration certificate chains to the registrar CA on the wallet's `registrar` list. The request asks only for registered claims. The wallet therefore presents the PID and posts the response to `response_uri`:
 
 ```json
 {
@@ -291,7 +291,7 @@ The service in the answer:
 
 ### 2. Certificates
 
-The access certificate request works as for a verifier. The registration certificate request names the service instead of an intended use:
+The access certificate request works as for a verifier. The registration certificate request gives the service instead of an intended use:
 
 ```bash
 ID=NLTEST.4D1BB6AFA1D92DE9
@@ -430,7 +430,7 @@ PAYLOAD=$(jq -cn --arg client_id "$CLIENT_ID" --argjson verifier_info "$(jq -r .
 REQUEST=$(sign_es256 issuer.key "$HEADER" "$PAYLOAD")
 ```
 
-The wallet checks this request like any other verifier request. The access certificate and the registration certificate name the same relying party (RPRC_17a), so the wallet presents the PID.
+The wallet checks this request like any other verifier request. The access certificate and the registration certificate identify the same relying party (RPRC_17a), so the wallet presents the PID.
 
 ## Certificates from another registrar
 
@@ -441,7 +441,7 @@ eudi trust add-ca --list access-ca --name "My Registrar Access CA" --ca my-acces
 eudi trust add-ca --list registrar --name "My Registrar" --ca my-registrar-ca.pem
 ```
 
-Or over the API, which answers `201` with the entity and its `id`:
+Or use the API. It answers `201` with the entity and its `id`:
 
 ```bash
 jq -n --rawfile ca my-registrar-ca.pem '{list: "registrar", name: "My Registrar", certificates: $ca}' |

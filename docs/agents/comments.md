@@ -7,7 +7,7 @@ Keep a comment only when it adds information that the code cannot show.
 ## Write one for
 
 - A citation: the spec section and the sentence a rule comes from, so the next reader can check it.
-- A constraint the code cannot show: an ordering another party imposes, a value that has to outlast a round trip, a measured limit.
+- A constraint the code cannot show: an ordering imposed by another party, a value that has to outlast a round trip, a measured limit.
 - A non-obvious decision: why the obvious approach does not work here.
 
 ## Do not write one for

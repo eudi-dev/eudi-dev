@@ -22,7 +22,7 @@ The local headless flow (`eudi wallet accept` with no wallet server running) has
 
 ## Consequences
 
-The CLI has one entry point, `acceptOID4URI`. It decides between local and remote, and nothing before it reads the URI. The server has one per protocol, `POST /api/offers` and `POST /api/presentations`, which the handler, the UI and scripts all call. A new entry point calls one of them.
+The CLI has one entry point, `acceptOID4URI`. It decides between local and remote, and nothing before it reads the URI. The server has one per protocol (`POST /api/offers` and `POST /api/presentations`). The handler, the UI and scripts all call them. A new entry point calls one of them.
 
 `TestRemoteAcceptLeavesTheOfferForTheWallet` checks that remote routing leaves the offer fetch to the wallet. Entry point tests cover routing and interaction. Shared flow tests cover protocol behavior.
 

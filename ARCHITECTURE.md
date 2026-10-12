@@ -40,11 +40,11 @@ examples/      Keycloak and web-wallet integration examples
 | `oid4vc` | OID4VP and OID4VCI request and offer parsing |
 | `oid4vp` | The wallet side of OpenID4VP 1.0: request checks (client identifier, client metadata, verifier_info, HAIP), browser API requests and response delivery |
 | `output` | Terminal output formatting |
-| `provider` | The wallet's provider keys and certificates: the trusted list of each credential category, the signing key and CA of each list, the access and registrar CAs, and the sequenced lists they sign |
+| `provider` | The wallet's provider keys and certificates: the trusted list of each credential category, the signing key and CA of each list, the access and registrar CAs, and the sequenced lists signed with them |
 | `proxy` | Reverse proxy, traffic classifier, dashboard |
 | `publicpath` | The path prefix of the base URL behind a reverse proxy (ADR-0019) |
 | `qr` | QR scanning from file or screen |
-| `regcert` | Checks of registration certificates (ETSI TS 119 475) and their binding to access certificates, for the verifiers and issuers the wallet talks to |
+| `regcert` | Checks of the registration certificates of verifiers and issuers (ETSI TS 119 475) and their binding to access certificates |
 | `registrar` | Relying party registrar (TS05 v1.5): registrations, access certificates (ETSI TS 119 411-8), registration certificates (ETSI TS 119 475), their status list, and the catalogue of attestations (EC TS11) |
 | `remote` | Remote wallet control (REST client, instance discovery) |
 | `sdjwt` | SD-JWT parsing, disclosure resolution, verification |
@@ -52,7 +52,7 @@ examples/      Keycloak and web-wallet integration examples
 | `statuslist` | Token Status List encoding and decoding, in JWT and CWT form |
 | `storage` | Blob storage backed by files, memory or Postgres (ADR-0016) |
 | `testenv` | Test isolation from the developer's eudi-dev home |
-| `trustedlists` | The wallet's set of trusted lists (ADR-0022, ADR-0023): its own list per credential category, the providers and lists users add, the external lists it reads and the anchors they give |
+| `trustedlists` | The wallet's set of trusted lists (ADR-0022, ADR-0023): its own list per credential category, user-added providers and lists, and external lists with their anchors |
 | `urlhandler` | Registration of the wallet as the operating system handler for OID4VP and OID4VCI URL schemes |
 | `validate` | The credential checks shared by `validate` and the web decoder: type, validity, digests, signature, catalogue trust, revocation and HAIP |
 | `validity` | Time claims against the current time, with one clock skew rule |
