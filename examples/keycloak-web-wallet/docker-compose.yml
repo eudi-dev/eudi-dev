@@ -31,10 +31,12 @@ services:
 
   wallet:
     build: ../..
-    # Files on the mounted volume, random keys.
+    # Files on the mounted volume, random keys. Presentations and offers wait for
+    # consent in the wallet UI.
     environment:
       EUDI_DEV_STORAGE: file
       EUDI_DEV_SEED: ""
+      EUDI_DEV_AUTO_ACCEPT: "false"
     network_mode: "service:keycloak"
     depends_on:
       - keycloak

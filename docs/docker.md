@@ -24,7 +24,11 @@ docker run -i ghcr.io/eudi-dev/eudi-dev validate --trust-list https://example.co
 
 `wallet serve` refuses to start when an `EUDI_DEV_` variable names no flag, so a typo does not go unnoticed. `EUDI_DEV_HOME`, `EUDI_DEV_STORAGE` and `EUDI_DEV_SEED` keep their own meaning.
 
-The image sets `EUDI_DEV_PORT=8085`. Its default command passes `--auto-accept` and `--pid`. Change the port with `EUDI_DEV_PORT` rather than `--port`, so the health check follows it. The HTTPS issuer runs on the next port. With host networking, the wallet then needs no port mapping and no command:
+The image sets `EUDI_DEV_PORT=8085`, `EUDI_DEV_AUTO_ACCEPT=true` and `EUDI_DEV_PID=true`. Its default command is `wallet serve`. A custom command keeps these defaults. Set `EUDI_DEV_AUTO_ACCEPT=false` for a wallet that asks for consent, or `EUDI_DEV_PID=false` for one without PIDs.
+
+With `--demo`, the wallet auto-accepts only when `--auto-accept` is on the command line and ignores `EUDI_DEV_AUTO_ACCEPT`.
+
+Change the port with `EUDI_DEV_PORT` rather than `--port`, so the health check follows it. The HTTPS issuer runs on the next port. With host networking, the wallet then needs no port mapping and no command:
 
 ```yaml
 services:
@@ -98,7 +102,7 @@ Set `-e EUDI_DEV_LOG_FORMAT=json` to write one JSON record per line for a log co
 
 ## How it works
 
-1. The container starts with `--pid` (two preloaded EUDI PID credentials, one SD-JWT and one mdoc) and `--auto-accept` (presents matching credentials without user consent)
+1. The container starts with `EUDI_DEV_PID=true` (two preloaded EUDI PID credentials, one SD-JWT and one mdoc) and `EUDI_DEV_AUTO_ACCEPT=true` (presents matching credentials without user consent)
 2. Your verifier sends an OID4VP authorization request to the wallet's `/authorize` endpoint
 3. The wallet evaluates the DCQL query, finds matching credentials, creates a VP token, and POSTs it to your verifier's `response_uri`
 
@@ -207,12 +211,12 @@ walletURL, _ := wallet.Endpoint(ctx, "http")
 
 ## Custom PID claims
 
-The default CMD loads two EUDI PID credentials (SD-JWT + mdoc) with the EUDI PID Rulebook attributes (`given_name`, `family_name`, `birth_date`, `place_of_birth`, `nationality`, etc.). To customize them, mount a folder of [credential templates](templates.md) that overrides the predefined PID templates (or adds your own):
+The image defaults load two EUDI PID credentials (SD-JWT + mdoc) with the EUDI PID Rulebook attributes (`given_name`, `family_name`, `birth_date`, `place_of_birth`, `nationality`, etc.). To customize them, mount a folder of [credential templates](templates.md) that overrides the predefined PID templates (or adds your own):
 
 ```bash
 # my-templates/pid-sdjwt.json overrides the pre-defined PID template
 docker run -p 8085:8085 -v ./my-templates:/templates ghcr.io/eudi-dev/eudi-dev \
-  wallet serve --auto-accept --pid --port 8085 --templates-dir /templates
+  wallet serve --templates-dir /templates
 ```
 
 You can also generate customized PIDs into a mounted data directory first. Mount the parent of `wallet/` so the shared CA persists with the credentials. Select the file backend and an empty seed so the persisted CA is private:
@@ -221,8 +225,7 @@ You can also generate customized PIDs into a mounted data directory first. Mount
 docker run --rm -v wallet-data:/home/app/.eudi-dev -e EUDI_DEV_STORAGE=file -e EUDI_DEV_SEED= ghcr.io/eudi-dev/eudi-dev \
   issue sdjwt --wallet --template german-pid-sdjwt --claims '{"given_name":"MAX","family_name":"POWER"}'
 
-docker run -p 8085:8085 -v wallet-data:/home/app/.eudi-dev -e EUDI_DEV_STORAGE=file -e EUDI_DEV_SEED= ghcr.io/eudi-dev/eudi-dev \
-  wallet serve --auto-accept --port 8085
+docker run -p 8085:8085 -v wallet-data:/home/app/.eudi-dev -e EUDI_DEV_STORAGE=file -e EUDI_DEV_SEED= -e EUDI_DEV_PID=false ghcr.io/eudi-dev/eudi-dev
 ```
 
 ## Testing API
@@ -293,8 +296,8 @@ eudi wallet serve --pid --auto-accept --docker
 services:
   wallet:
     image: ghcr.io/eudi-dev/eudi-dev:latest
-    command: ["wallet", "serve", "--auto-accept", "--pid", "--port", "8085",
-              "--base-url", "http://wallet:8085"]
+    environment:
+      EUDI_DEV_BASE_URL: http://wallet:8085
     ports:
       - "8085:8085"
       - "8086:8086"

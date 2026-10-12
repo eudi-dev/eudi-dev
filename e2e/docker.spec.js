@@ -125,6 +125,36 @@ test.describe("Docker Image", () => {
     }
   });
 
+  // The image sets auto-accept and PIDs in its environment, so they reach a
+  // custom command too. A demo auto-accepts only with --auto-accept.
+  for (const [index, { name, args, autoAccept }] of [
+    { name: "a custom command keeps auto-accept", args: "wallet serve --port 8085", autoAccept: true },
+    { name: "EUDI_DEV_AUTO_ACCEPT=false asks for consent", args: "-e EUDI_DEV_AUTO_ACCEPT=false", autoAccept: false },
+    { name: "a demo ignores EUDI_DEV_AUTO_ACCEPT", args: "-e EUDI_DEV_DEMO=true -e EUDI_DEV_ALLOW_PRIVATE_NETWORKS=true", autoAccept: false },
+  ].entries()) {
+    test(`image environment: ${name}`, async () => {
+      const container = `${CONTAINER_NAME}-env-${index}`;
+      const hostPort = HOST_PORT + 3 + index;
+      try {
+        execSync(`docker rm -f ${container}`, { stdio: "pipe" });
+      } catch {}
+      const [options, command] = args.startsWith("-e") ? [args, ""] : ["", args];
+      execSync(
+        `docker run -d --name ${container} -p ${hostPort}:8085 ${options} ${DOCKER_IMAGE} ${command}`,
+        { stdio: "pipe" }
+      );
+      try {
+        await waitForServer(`http://localhost:${hostPort}`, 30_000);
+        const config = JSON.parse((await httpGet(`http://localhost:${hostPort}/api/config`)).body);
+        expect(config.auto_accept).toBe(autoAccept);
+        const creds = JSON.parse((await httpGet(`http://localhost:${hostPort}/api/credentials`)).body);
+        expect(creds.length).toBeGreaterThan(0);
+      } finally {
+        execSync(`docker rm -f ${container}`, { stdio: "pipe" });
+      }
+    });
+  }
+
   test("an unknown EUDI_DEV_ variable stops the wallet", () => {
     let output = "";
     try {

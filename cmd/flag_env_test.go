@@ -204,3 +204,49 @@ func TestDetachedChildEnvDropsDetached(t *testing.T) {
 		t.Fatalf("child environment keeps EUDI_DEV_DETACHED or lost EUDI_DEV_PORT")
 	}
 }
+
+// A public demo auto-accepts only with --auto-accept on the command line. The
+// image sets EUDI_DEV_AUTO_ACCEPT=true, and a demo built on it asks for
+// consent.
+func TestDemoAutoAcceptNeedsTheFlag(t *testing.T) {
+	tests := []struct {
+		name           string
+		env            map[string]string
+		args           []string
+		wantAutoAccept bool
+		wantWarning    bool
+	}{
+		{name: "environment under demo", env: map[string]string{"EUDI_DEV_AUTO_ACCEPT": "true"}, args: []string{"--demo"}},
+		{name: "environment under demo from the environment", env: map[string]string{"EUDI_DEV_AUTO_ACCEPT": "true", "EUDI_DEV_DEMO": "true"}},
+		{name: "flag under demo", args: []string{"--demo", "--auto-accept"}, wantAutoAccept: true, wantWarning: true},
+		{name: "flag under demo from the environment", env: map[string]string{"EUDI_DEV_DEMO": "true"}, args: []string{"--auto-accept"}, wantAutoAccept: true, wantWarning: true},
+		{name: "environment without demo", env: map[string]string{"EUDI_DEV_AUTO_ACCEPT": "true"}, wantAutoAccept: true},
+		{name: "environment false", env: map[string]string{"EUDI_DEV_AUTO_ACCEPT": "false"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			clearFlagEnv(t)
+			for name, value := range tc.env {
+				t.Setenv(name, value)
+			}
+			cmd, opts := parsedServeCmd(t, tc.args...)
+			if err := applyServeFlagEnv(cmd, opts); err != nil {
+				t.Fatal(err)
+			}
+			if opts.AutoAccept != tc.wantAutoAccept {
+				t.Fatalf("auto-accept = %v, want %v", opts.AutoAccept, tc.wantAutoAccept)
+			}
+			// A detached server receives the changed flags, so an ignored
+			// value must not count as changed.
+			if opts.Demo && cmd.Flags().Changed("auto-accept") != tc.wantAutoAccept {
+				t.Fatalf("auto-accept changed = %v, want %v", cmd.Flags().Changed("auto-accept"), tc.wantAutoAccept)
+			}
+			warned := slices.ContainsFunc(demoWarnings(opts), func(w string) bool {
+				return strings.HasPrefix(w, "--auto-accept")
+			})
+			if warned != tc.wantWarning {
+				t.Fatalf("auto-accept warning = %v, want %v", warned, tc.wantWarning)
+			}
+		})
+	}
+}

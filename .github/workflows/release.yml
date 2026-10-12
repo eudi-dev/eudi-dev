@@ -10,8 +10,44 @@ permissions:
   packages: write
 
 jobs:
+  # A tag with a suffix, such as v3.0.0-beta.1, is a prerelease. latest goes
+  # to the newest stable release and beta to the newest release of all, so a
+  # maintenance release of an older line moves neither.
+  channels:
+    runs-on: ubuntu-latest
+    outputs:
+      prerelease: ${{ steps.channels.outputs.prerelease }}
+      latest: ${{ steps.channels.outputs.latest }}
+      beta: ${{ steps.channels.outputs.beta }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Pick the release channels
+        id: channels
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          # versionsort.suffix sorts v3.0.0-beta.1 before v3.0.0.
+          newest() {
+            git -c versionsort.suffix=- tag --list 'v*' --sort=-v:refname | grep -E "$1" | head -1
+          }
+          prerelease=false
+          [[ "${tag}" == *-* ]] && prerelease=true
+          latest=false
+          [[ "${prerelease}" == false && "$(newest '^v[0-9]+\.[0-9]+\.[0-9]+$')" == "${tag}" ]] && latest=true
+          beta=false
+          [[ "$(newest '^v[0-9]')" == "${tag}" ]] && beta=true
+          {
+            echo "prerelease=${prerelease}"
+            echo "latest=${latest}"
+            echo "beta=${beta}"
+          } >> "$GITHUB_OUTPUT"
+          echo "${tag}: prerelease=${prerelease} latest=${latest} beta=${beta}"
+
   release:
     runs-on: ubuntu-latest
+    needs: channels
     steps:
       - uses: actions/checkout@v4
         with:
@@ -43,7 +79,7 @@ jobs:
               output="${output}.exe"
             fi
             echo "Building ${GOOS}/${GOARCH}..."
-            GOOS=$GOOS GOARCH=$GOARCH go build -ldflags "$LDFLAGS" -o "dist/${output}" .
+            CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build -ldflags "$LDFLAGS" -o "dist/${output}" .
           done
 
       - name: Create checksums
@@ -55,13 +91,14 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          make_latest: ${{ startsWith(github.ref_name, 'v2.3.') && 'false' || 'true' }}
-          prerelease: ${{ startsWith(github.ref_name, 'v2.3.') }}
+          make_latest: ${{ needs.channels.outputs.latest }}
+          prerelease: ${{ needs.channels.outputs.prerelease }}
           files: |
             dist/*
 
   docker:
     runs-on: ubuntu-latest
+    needs: channels
     steps:
       - uses: actions/checkout@v4
 
@@ -88,14 +125,15 @@ jobs:
           platforms: linux/amd64,linux/arm64
           build-args: VERSION=${{ steps.version.outputs.tag }}
           tags: |
-            ${{ !startsWith(github.ref_name, 'v2.3.') && 'ghcr.io/eudi-dev/eudi-dev:latest' || '' }}
+            ${{ needs.channels.outputs.latest == 'true' && 'ghcr.io/eudi-dev/eudi-dev:latest' || '' }}
+            ${{ needs.channels.outputs.beta == 'true' && 'ghcr.io/eudi-dev/eudi-dev:beta' || '' }}
             ghcr.io/eudi-dev/eudi-dev:${{ steps.version.outputs.tag }}
 
   homebrew:
-    # The tap follows the current release rather than 2.3.x maintenance releases.
-    if: ${{ !startsWith(github.ref_name, 'v2.3.') }}
+    # The tap installs the newest stable release only.
+    if: ${{ needs.channels.outputs.latest == 'true' }}
     runs-on: ubuntu-latest
-    needs: release
+    needs: [channels, release]
     steps:
       - name: Update Homebrew tap
         env:

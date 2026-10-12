@@ -104,7 +104,7 @@ so the wallet automatically receives incoming protocol requests.
 
 Every flag can also be set as EUDI_DEV_<FLAG>, such as EUDI_DEV_BASE_URL for --base-url. A flag on the command line wins.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			if err := applyFlagEnv(cmd.Flags()); err != nil {
+			if err := applyServeFlagEnv(cmd, &opts); err != nil {
 				return err
 			}
 			// The root command applies --no-color before the environment is read.
@@ -117,7 +117,7 @@ Every flag can also be set as EUDI_DEV_<FLAG>, such as EUDI_DEV_BASE_URL for --b
 	}
 
 	cmd.Flags().IntVar(&opts.Port, "port", config.DefaultWalletPort, "Wallet server port")
-	cmd.Flags().BoolVar(&opts.AutoAccept, "auto-accept", false, "Headless mode: auto-accept presentations and credential offers")
+	cmd.Flags().BoolVar(&opts.AutoAccept, "auto-accept", false, "Headless mode: auto-accept presentations and credential offers. With --demo it counts only on the command line and EUDI_DEV_AUTO_ACCEPT is ignored")
 	cmd.Flags().StringSliceVar(&opts.CredFiles, "credential", nil, "Import credential from file (repeatable)")
 	cmd.Flags().BoolVar(&opts.PID, "pid", false, "Auto-generate default EUDI PID credentials (SD-JWT + mdoc)")
 	cmd.Flags().StringVar(&opts.KeyPath, "key", "", "Holder private key file (PEM/JWK). Uses the stored key or auto-generates one if omitted")
@@ -138,7 +138,7 @@ Every flag can also be set as EUDI_DEV_<FLAG>, such as EUDI_DEV_BASE_URL for --b
 	cmd.Flags().StringVar(&opts.DemoIssuerClientAuth, "demo-issuer-client-auth", string(demorp.ClientAuthRequired), "What the demo issuer's authorization server demands at its PAR and token endpoints: 'required' (HAIP 1.0 §4.4.1, the default) or 'optional' (also serves wallets that send no wallet attestation, for testing against them)")
 	cmd.Flags().StringVar(&opts.VCIClientID, "vci-client-id", "", "Client ID the wallet should use for OID4VCI authorization-code flows")
 	cmd.Flags().StringVar(&opts.VCIRedirectURI, "vci-redirect-uri", "", "Redirect URI the wallet should use for OID4VCI authorization-code flows")
-	cmd.Flags().BoolVar(&opts.Demo, "demo", false, "Public demo profile: implies --pid, --mode debug, --haip and --vci-version 1.1 (all overridable), disables process/filesystem endpoints, blocks fetches to internal networks unless --allow-private-networks is set")
+	cmd.Flags().BoolVar(&opts.Demo, "demo", false, "Public demo profile: implies --pid, --mode debug, --haip and --vci-version 1.1 (all overridable), disables process/filesystem endpoints, blocks fetches to internal networks unless --allow-private-networks is set. Auto-accepts only with --auto-accept on the command line")
 	cmd.Flags().BoolVar(&opts.AllowPrivateNetworks, "allow-private-networks", false, "Let --demo reach private networks and loopback, for a demo on a local machine or test network. Without --demo the wallet reaches every address, so the flag changes nothing")
 	cmd.Flags().StringVar(&opts.DemoReset, "demo-reset", "1h", "When to restore the clean demo baseline: an interval (24h), a daily wall-clock time (00:00), or one with a timezone (\"00:00 Europe/Berlin\"). 0 disables. Requires --demo")
 	cmd.Flags().StringVar(&opts.ImprintFile, "imprint-file", "", "HTML snippet with the site operator's legal notice, served at /imprint (required for public EU hosting)")
@@ -194,6 +194,37 @@ func loadVerifierTrustAnchors(paths []string) ([]*x509.Certificate, error) {
 		}
 	}
 	return anchors, nil
+}
+
+// applyServeFlagEnv sets the flags missing from the command line from the
+// environment. A public demo auto-accepts only when --auto-accept is on the
+// command line, so the image default EUDI_DEV_AUTO_ACCEPT=true keeps a demo
+// asking for consent.
+func applyServeFlagEnv(cmd *cobra.Command, opts *walletServeOptions) error {
+	autoAcceptGiven := cmd.Flags().Changed("auto-accept")
+	if err := applyFlagEnv(cmd.Flags()); err != nil {
+		return err
+	}
+	if opts.Demo && !autoAcceptGiven {
+		opts.AutoAccept = false
+		cmd.Flags().Lookup("auto-accept").Changed = false
+	}
+	return nil
+}
+
+// demoWarnings names the demo settings that do not belong on a public host.
+func demoWarnings(opts *walletServeOptions) []string {
+	if !opts.Demo {
+		return nil
+	}
+	var warnings []string
+	if opts.AllowPrivateNetworks {
+		warnings = append(warnings, "--allow-private-networks lets the public demo reach local and private addresses. Keep it off on a public host.")
+	}
+	if opts.AutoAccept {
+		warnings = append(warnings, "--auto-accept lets the public demo accept every presentation and credential offer without consent. Keep it off on a public host.")
+	}
+	return warnings
 }
 
 // Apply demo defaults only where the user has not supplied an explicit flag.
@@ -599,16 +630,19 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	if store.SeedSource() == wallet.BuiltInSeedSource && (opts.Demo || store.Backend().Kind() != storage.KindMemory) {
 		fmt.Fprintln(os.Stderr, "warning: the keys derive from the public seed eudi-dev. Anyone can derive this wallet's CA. Set EUDI_DEV_SEED to a secret, or to an empty value for random keys.")
 	}
-	if opts.Demo && opts.AllowPrivateNetworks {
-		fmt.Fprintln(os.Stderr, "warning: --allow-private-networks lets the public demo reach local and private addresses. Keep it off on a public host.")
+	for _, warning := range demoWarnings(opts) {
+		fmt.Fprintln(os.Stderr, "warning: "+warning)
 	}
 	fmt.Printf("  Validation:  %s\n", w.ValidationMode)
 	if opts.Demo {
+		details := []string{"admin API disabled"}
 		if schedule := demoResetDescription(demoOpts); schedule != "" {
-			fmt.Printf("  Mode:        public demo (admin API disabled, %s)\n", schedule)
-		} else {
-			fmt.Printf("  Mode:        public demo (admin API disabled)\n")
+			details = append(details, schedule)
 		}
+		if w.AutoAccept {
+			details = append(details, "auto-accept")
+		}
+		fmt.Printf("  Mode:        public demo (%s)\n", strings.Join(details, ", "))
 	} else if w.AutoAccept {
 		fmt.Printf("  Mode:        auto-accept\n")
 	} else {

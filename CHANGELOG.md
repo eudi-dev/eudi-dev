@@ -5,6 +5,14 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.3] - 2026-10-12
+
+### Changed
+
+- **Image defaults as environment.** The image sets `EUDI_DEV_AUTO_ACCEPT=true` and `EUDI_DEV_PID=true`, and its command is plain `wallet serve`. A custom command keeps auto-accept and the PIDs. Set `EUDI_DEV_AUTO_ACCEPT=false` for a wallet that asks for consent (see [configuration by environment](docs/docker.md#configuration-by-environment)).
+- **Demo auto-accept needs the flag.** `--demo` auto-accepts only with `--auto-accept` on the command line and ignores `EUDI_DEV_AUTO_ACCEPT`. With the flag, `wallet serve` warns at start.
+- **Static Linux binaries.** Release binaries are built without cgo, so the Linux builds run on any distribution.
+
 ## [2.7.2] - 2026-10-12
 
 ### Added

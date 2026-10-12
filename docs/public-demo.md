@@ -18,6 +18,8 @@ The server starts without opening a browser and loads protected PID credentials 
 
 Browser flows ask for consent. API submissions provide consent directly. Each consent dialog appears in the browser session that started the flow. Requests without a browser ID appear in a shared banner where any visitor can answer them.
 
+The demo auto-accepts only with `--auto-accept` on the command line. It ignores `EUDI_DEV_AUTO_ACCEPT`, so the image default keeps the consent dialog. With `--auto-accept`, `wallet serve` warns at start and shows auto-accept in its Mode line.
+
 ### Administrative operations
 
 Demo mode returns `403` for shutdown, template writes, error injection, log clearing and changes to format, consent or conformance settings. The issue endpoint also rejects template saving and visitor-supplied images. Template images still apply. Configuration responses omit host paths and the process ID.
