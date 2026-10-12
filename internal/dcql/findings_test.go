@@ -58,16 +58,16 @@ func TestQueryFindingsChecksTheNestedQueries(t *testing.T) {
 		}, ""},
 		{"claim without path", map[string]any{"credentials": []any{credentialQuery("pid", map[string]any{
 			"claims": []any{map[string]any{"id": "given"}},
-		})}}, "has no path"},
+		})}}, "needs a path"},
 		{"claim with an empty path", map[string]any{"credentials": []any{credentialQuery("pid", map[string]any{
 			"claims": []any{map[string]any{"path": []any{}}},
-		})}}, "has no path"},
+		})}}, "needs a path"},
 		{"duplicate claim id", map[string]any{"credentials": []any{credentialQuery("pid", map[string]any{
 			"claims": []any{map[string]any{"id": "x", "path": []any{"a"}}, map[string]any{"id": "x", "path": []any{"b"}}},
 		})}}, `claim id "x" is present more than once`},
 		{"claim id with a space", map[string]any{"credentials": []any{credentialQuery("pid", map[string]any{
 			"claims": []any{map[string]any{"id": "given name", "path": []any{"a"}}},
-		})}}, "alphanumeric"},
+		})}}, "letters, digits, underscores or hyphens"},
 		{"empty claims", map[string]any{"credentials": []any{credentialQuery("pid", map[string]any{
 			"claims": []any{},
 		})}}, "claims that are not a non-empty array"},

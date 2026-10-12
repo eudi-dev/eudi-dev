@@ -475,7 +475,7 @@ func verifySuppliedX5CChain(certs []*x509.Certificate) string {
 	now := time.Now()
 	for i, cert := range certs {
 		if now.Before(cert.NotBefore) || now.After(cert.NotAfter) {
-			return fmt.Sprintf("RFC 5280 §4.1.2.5: the Request Object x5c certificate at position %d (subject %q) is valid from %s to %s, which excludes the current time",
+			return fmt.Sprintf("RFC 5280 §4.1.2.5: the Request Object x5c certificate at position %d (subject %q) is valid from %s to %s, so it is not valid now",
 				i+1, cert.Subject.String(), cert.NotBefore.UTC().Format(time.RFC3339), cert.NotAfter.UTC().Format(time.RFC3339))
 		}
 	}

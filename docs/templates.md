@@ -105,7 +105,7 @@ All fields except `claims` are optional:
 | `display` | Card appearance for credentials issued from the template (`name`, `description`, `background_color`, `text_color`, `logo`, `logo_alt_text`, `background_image`) and display names of its claims (`claims`). Image fields take `embedded:<file>`, a data URI or an http(s) URL (see [card appearance](#card-appearance-display)). The predefined PID templates set it |
 | `catalog` | The template's own entry in the attestation catalogue, with the fields of a catalogue request. Its category is the template's category. See [catalogue entry in a template file](#catalogue-entry-in-a-template-file) |
 | `predefined` | Set on predefined templates in listings and exports. Ignored on import |
-| `visitor` | Set by the wallet on a template that a visitor of the public demo saved. Visitors can change and delete these templates, and a demo reset removes them |
+| `visitor` | Set on templates saved by visitors of the public demo. Visitors can change and delete these templates, and a demo reset removes them |
 
 ## Claim values
 

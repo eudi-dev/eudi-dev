@@ -556,7 +556,7 @@ eudi wallet unregister             # Remove URL handlers
 
 | Flag            | Default | Effect on the handler                                                   |
 |-----------------|---------|-------------------------------------------------------------------------|
-| `--port`        | `8085`  | Port of the running wallet that the handler tries before it falls back to the CLI |
+| `--port`        | `8085`  | Port of the running wallet. The handler tries it first and then falls back to the CLI |
 | `--auto-accept` | `false` | Handle incoming URLs without opening the wallet UI                      |
 
 ## HTTPS certificate verification

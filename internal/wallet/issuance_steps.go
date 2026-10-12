@@ -350,7 +350,7 @@ func (w *Wallet) issueWithToken(s issuanceSession, tokenForm url.Values) (*Issua
 		// credentials.
 		if err := w.reportDeviation(deviation{
 			action: "issuance", event: "credential_response_deviation",
-			detail:  "OpenID4VCI 1.0 §8.3: the credential response carries both credentials and transaction_id, which exclude each other",
+			detail:  "OpenID4VCI 1.0 §8.3: the credential response carries both credentials and transaction_id. Only one of them is allowed",
 			details: map[string]any{"transaction_id": transactionID},
 		}); err != nil {
 			return nil, err

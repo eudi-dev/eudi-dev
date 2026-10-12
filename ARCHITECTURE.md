@@ -18,7 +18,7 @@ examples/      Keycloak and web-wallet integration examples
 |---|---|
 | `apierror` | The JSON error object of the HTTP APIs (RFC 6749 §5.2 shape) |
 | `certchain` | Certificate chains of JOSE (x5c) and COSE (x5chain) messages and their verification against trust anchors |
-| `config` | Defaults (ports, timeouts) and the product names that certificates and trusted lists carry |
+| `config` | Defaults (ports, timeouts) and the product names written into certificates and trusted lists |
 | `consent` | Consent requests, the credential options of a presentation, the selection logic and the in-memory runtime of pending requests (ADR-0011) |
 | `credtemplate` | Credential templates, predefined and user-supplied |
 | `credtype` | The EUDI credential type identifiers and which type extends which |

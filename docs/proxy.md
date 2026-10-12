@@ -56,7 +56,7 @@ By default only OID4VP/VCI traffic is shown. Other requests (favicon, health che
 
 ## Bodies and streams
 
-The proxy forwards every body in full. It keeps the first MiB of each request and response body for the terminal, the dashboard and the HAR export. A longer body is marked `requestTruncated` or `responseTruncated` in `--json`. In a response it keeps whole, the proxy replaces the host of the target with its own. A longer response passes through unchanged.
+The proxy forwards every body in full. It keeps the first MiB of each request and response body for the terminal, the dashboard and the HAR export. A longer body is marked `requestTruncated` or `responseTruncated` in `--json`. When the proxy keeps the whole response, it replaces the target host with its own. A longer response passes through unchanged.
 
 Event streams pass through as each event arrives. Event streams and long polls stay open past the server's write timeout, because each write gets a new deadline.
 
