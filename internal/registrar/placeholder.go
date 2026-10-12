@@ -73,8 +73,8 @@ var placeholderTemplate = template.Must(template.New("placeholder").Parse(`<!doc
 <title>{{.Title}} · eudi-dev test registrar</title>
 <style>
 :root {
-  --bg: #0e0f12; --surface: #16181c; --text: #f1f2f4; --dim: #a3a8b1;
-  --border: #1f2227; --accent: #9dbcff; --warn-bg: #2a2213; --warn-fg: #f3e3bd;
+  --bg: #17191e; --surface: #21242a; --text: #eceef1; --dim: #a9afb9;
+  --border: #2a2e35; --accent: #9dbcff; --warn-bg: #33291a; --warn-fg: #f3e3bd;
 }
 @media (prefers-color-scheme: light) {
   :root {
