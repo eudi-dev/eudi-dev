@@ -607,9 +607,13 @@ func TestRehydrate_MDoc(t *testing.T) {
 }
 
 func TestRehydrate_EmptyRaw(t *testing.T) {
-	cred := StoredCredential{ID: "test-id"}
+	stored := StoredCredential{ID: "test-id", Format: "dc+sd-jwt", Claims: map[string]any{"name": "Test"}}
+	cred := stored
 	if err := cred.Rehydrate(); err != nil {
 		t.Errorf("expected no error for empty raw, got %v", err)
+	}
+	if cred.ID != stored.ID || cred.Format != stored.Format || len(cred.Claims) != 1 || cred.Claims["name"] != "Test" || cred.NameSpaces != nil {
+		t.Errorf("rehydrated %+v, want the stored fields kept", cred)
 	}
 }
 

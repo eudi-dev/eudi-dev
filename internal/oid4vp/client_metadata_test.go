@@ -76,8 +76,14 @@ func TestValidateClientMetadata_AcceptsNumericMDocAlgValuesSupported(t *testing.
 		},
 	}
 
-	if err := validateClientMetadata(reqObj.Payload["client_metadata"].(map[string]any)); err != nil {
+	metadata := reqObj.Payload["client_metadata"].(map[string]any)
+	if err := validateClientMetadata(metadata); err != nil {
 		t.Fatalf("expected valid client_metadata, got %v", err)
+	}
+	mdoc := metadata["vp_formats_supported"].(map[string]any)["mso_mdoc"].(map[string]any)
+	mdoc["deviceauth_alg_values"] = []any{"ES256"}
+	if err := validateClientMetadata(metadata); err == nil || !contains(err.Error(), "deviceauth_alg_values") {
+		t.Fatalf("the same metadata with a named algorithm: %v, want deviceauth_alg_values refused", err)
 	}
 }
 

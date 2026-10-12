@@ -36,8 +36,12 @@ func TestValidateAuthorizationRequest_StrictRejectsMissingNonce(t *testing.T) {
 func TestValidateAuthorizationRequest_DebugAllowsMissingNonce(t *testing.T) {
 	params := &Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ClientID: "redirect_uri:https://verifier.example/response", ResponseType: "vp_token", ResponseMode: "direct_post", ResponseURI: "https://verifier.example/response"}}
 
-	if _, err := ValidateAuthorizationRequest(Checks{}, params); err != nil {
+	findings, err := ValidateAuthorizationRequest(Checks{}, params)
+	if err != nil {
 		t.Fatalf("expected debug mode to allow missing nonce, got %v", err)
+	}
+	if !strings.Contains(strings.Join(findings, "\n"), "OID4VP 1.0 §5.2: nonce is required") {
+		t.Errorf("findings %q, want the missing nonce reported", findings)
 	}
 }
 

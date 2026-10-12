@@ -15,6 +15,7 @@
 package mdoc
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/fxamacker/cbor/v2"
@@ -94,6 +95,25 @@ func TestParseIssuerSigned_FirstOccurrenceWins(t *testing.T) {
 	}
 }
 
+// assertTestIssuerAuth checks the parsed fields of the COSE_Sign1 of the
+// parseIssuerAuth tests, and that go-cose reads RawCOSE as the same message.
+func assertTestIssuerAuth(t *testing.T, ia *IssuerAuth) {
+	t.Helper()
+	if fmt.Sprint(ia.ProtectedHeader) != "map[1:-7]" {
+		t.Errorf("protected header %v, want alg -7", ia.ProtectedHeader)
+	}
+	if string(ia.Payload) != "payload" || len(ia.Signature) != 64 {
+		t.Errorf("payload %q and %d signature bytes, want the payload and 64 bytes", ia.Payload, len(ia.Signature))
+	}
+	var msg cose.Sign1Message
+	if err := msg.UnmarshalCBOR(ia.RawCOSE); err != nil {
+		t.Fatalf("go-cose cannot read RawCOSE: %v", err)
+	}
+	if alg, err := msg.Headers.Protected.Algorithm(); err != nil || alg != cose.AlgorithmES256 || string(msg.Payload) != "payload" {
+		t.Errorf("go-cose read alg %v (%v) and payload %q, want ES256 and the payload", alg, err, msg.Payload)
+	}
+}
+
 func TestParseIssuerAuth_TaggedInput(t *testing.T) {
 	coseArr := []any{
 		[]byte{0xa1, 0x01, 0x26}, // protected: {1: -7} (ES256)
@@ -109,10 +129,7 @@ func TestParseIssuerAuth_TaggedInput(t *testing.T) {
 		t.Fatalf("parseIssuerAuth(tagged) error: %v", err)
 	}
 
-	var msg cose.Sign1Message
-	if err := msg.UnmarshalCBOR(ia.RawCOSE); err != nil {
-		t.Errorf("go-cose UnmarshalCBOR failed on RawCOSE: %v", err)
-	}
+	assertTestIssuerAuth(t, ia)
 }
 
 func TestParseIssuerAuth_UntaggedArrayInput(t *testing.T) {
@@ -129,11 +146,7 @@ func TestParseIssuerAuth_UntaggedArrayInput(t *testing.T) {
 		t.Fatalf("parseIssuerAuth([]any) error: %v", err)
 	}
 
-	// go-cose needs Tag 18 on RawCOSE.
-	var msg cose.Sign1Message
-	if err := msg.UnmarshalCBOR(ia.RawCOSE); err != nil {
-		t.Errorf("go-cose UnmarshalCBOR failed on RawCOSE from []any input: %v", err)
-	}
+	assertTestIssuerAuth(t, ia)
 }
 
 func TestParseIssuerAuth_BytesInput(t *testing.T) {
@@ -154,10 +167,7 @@ func TestParseIssuerAuth_BytesInput(t *testing.T) {
 		t.Fatalf("parseIssuerAuth([]byte) error: %v", err)
 	}
 
-	var msg cose.Sign1Message
-	if err := msg.UnmarshalCBOR(ia.RawCOSE); err != nil {
-		t.Errorf("go-cose UnmarshalCBOR failed on RawCOSE from []byte input: %v", err)
-	}
+	assertTestIssuerAuth(t, ia)
 }
 
 func TestParseIssuerAuth_UntaggedBytesInput(t *testing.T) {
@@ -177,10 +187,7 @@ func TestParseIssuerAuth_UntaggedBytesInput(t *testing.T) {
 		t.Fatalf("parseIssuerAuth(untagged []byte) error: %v", err)
 	}
 
-	var msg cose.Sign1Message
-	if err := msg.UnmarshalCBOR(ia.RawCOSE); err != nil {
-		t.Errorf("go-cose UnmarshalCBOR failed on RawCOSE from untagged []byte input: %v", err)
-	}
+	assertTestIssuerAuth(t, ia)
 }
 
 func TestParseIssuerSignedItem_RawCBORContainsTag24(t *testing.T) {

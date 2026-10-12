@@ -395,6 +395,8 @@ test.describe("Verification panel", () => {
     await expect(links).toHaveAttribute("title", listURL);
     await expect(page.locator('[data-check="trust"] .vg-detail')).toHaveText("German PID, trusted list pid \u2197");
     await expect(page.locator('[data-check="status list signature"] .vg-detail')).toHaveText("Signed by Status Signer");
+    // The decoder also sends a slower network validation, which may still be in route.fetch.
+    await page.unrouteAll({ behavior: "ignoreErrors" });
   });
 
   test("puts the check name above its detail on a phone", async ({ page }) => {

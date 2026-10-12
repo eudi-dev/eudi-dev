@@ -374,13 +374,18 @@ func TestNewClientTrimsTheBaseURL(t *testing.T) {
 
 // A 204 with no body is a success.
 func TestClientAcceptsAnEmptySuccessBody(t *testing.T) {
+	var request string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		request = r.Method + " " + r.URL.Path
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer srv.Close()
 
 	if err := NewClient(srv.URL).RemoveCredential("abc"); err != nil {
 		t.Errorf("RemoveCredential: %v", err)
+	}
+	if request != "DELETE /api/credentials/abc" {
+		t.Errorf("sent %q, want DELETE /api/credentials/abc", request)
 	}
 }
 

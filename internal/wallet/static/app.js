@@ -3313,6 +3313,8 @@
 
   const TRUSTED_LIST_CA = 'trusted-list-ca';
   let trustEntityLists = [];
+  // The provider popup lists the entity lists of the latest trust state.
+  let trustLoaded = Promise.resolve();
 
   function trustRemoveButton(id, label, data) {
     const button = document.createElement('button');
@@ -3502,7 +3504,8 @@
     trustOverlay.classList.add('active');
     document.getElementById(opener).focus();
   }
-  document.getElementById('trust-add-provider').addEventListener('click', () => {
+  document.getElementById('trust-add-provider').addEventListener('click', async () => {
+    await trustLoaded;
     const select = document.getElementById('trust-entity-list');
     select.innerHTML = trustEntityLists.map(id => '<option value="' + escHtml(id) + '" id="trust-entity-list-' + domID(id) + '">' +
       escHtml(id === TRUSTED_LIST_CA ? TRUSTED_LIST_CA + ' (CA of a list operator, for external lists)' : id) + '</option>').join('');
@@ -3536,7 +3539,7 @@
   document.getElementById('trust-link').addEventListener('click', (event) => {
     event.preventDefault();
     document.getElementById('trust-error').textContent = '';
-    loadTrustLists();
+    trustLoaded = loadTrustLists();
     trustOverlay.classList.add('active');
     document.getElementById('trust-title').focus();
   });
