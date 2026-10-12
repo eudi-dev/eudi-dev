@@ -17,6 +17,7 @@ package web
 import (
 	"crypto"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -42,6 +43,9 @@ type ValidateOpts struct {
 	// WalletStore provides the CA and issuer key for locally issued credentials. Nil
 	// selects the default wallet.
 	WalletStore *wallet.WalletStore
+	// HTTPClient fetches status lists, trusted lists and issuer metadata. Nil
+	// selects the shared developer client.
+	HTTPClient *http.Client
 }
 
 // Validate adds a validation object to the decoded result.
@@ -231,7 +235,7 @@ func checkSDJWTSignature(token *sdjwt.Token, opts ValidateOpts) CheckResult {
 		return offlineSDJWTSignature(token, pubKeys, tlCerts, opts)
 	}
 
-	result, source, err := validate.VerifyJWTSignature(token, pubKeys, tlCerts)
+	result, source, err := validate.VerifyJWTSignature(token, pubKeys, tlCerts, opts.HTTPClient)
 	if err != nil {
 		if len(pubKeys) == 0 && len(tlCerts) == 0 {
 			if localResult, localSource := verifyWithLocalWalletIssuerKey(token, opts.WalletStore); localResult != nil {
@@ -465,7 +469,7 @@ func checkSDJWTStatus(token *sdjwt.Token, opts ValidateOpts) []CheckResult {
 	if err != nil {
 		return []CheckResult{{Name: "status", Status: "fail", Detail: err.Error()}}
 	}
-	return checkStatusRef(ref, tlCerts)
+	return checkStatusRef(ref, tlCerts, opts.HTTPClient)
 }
 
 func checkMDOCStatus(doc *mdoc.Document, opts ValidateOpts) []CheckResult {
@@ -484,7 +488,7 @@ func checkMDOCStatus(doc *mdoc.Document, opts ValidateOpts) []CheckResult {
 	if err != nil {
 		return []CheckResult{{Name: "status", Status: "fail", Detail: err.Error()}}
 	}
-	return checkStatusRef(ref, tlCerts)
+	return checkStatusRef(ref, tlCerts, opts.HTTPClient)
 }
 
 // A credential without a status reference needs no network check. A reference stays
@@ -516,7 +520,7 @@ func statusCheckNotRun(ref *statuslist.StatusRef, opts ValidateOpts) (CheckResul
 }
 
 // The credential status is reported apart from trust in the status list signature.
-func checkStatusRef(ref *statuslist.StatusRef, tlCerts []trustlist.CertInfo) []CheckResult {
+func checkStatusRef(ref *statuslist.StatusRef, tlCerts []trustlist.CertInfo, client *http.Client) []CheckResult {
 	if ref == nil {
 		return []CheckResult{{Name: "status", Status: "skipped", Detail: "No status list reference in credential"}}
 	}
@@ -524,7 +528,7 @@ func checkStatusRef(ref *statuslist.StatusRef, tlCerts []trustlist.CertInfo) []C
 		return []CheckResult{{Name: "status", Status: "fail", Detail: fmt.Sprintf("Malformed status list reference: %s", ref.Invalid)}}
 	}
 
-	checkOpts := statuslist.CheckOptions{}
+	checkOpts := statuslist.CheckOptions{HTTPClient: client}
 	for _, ci := range tlCerts {
 		if len(ci.Raw) > 0 {
 			checkOpts.TrustListCerts = append(checkOpts.TrustListCerts, statuslist.TrustCert{Raw: ci.Raw})
@@ -580,7 +584,7 @@ func resolveKeys(opts ValidateOpts) ([]crypto.PublicKey, []trustlist.CertInfo, e
 
 	if opts.TrustListURL != "" && !opts.Offline {
 		// The URL is caller-supplied, and ReadRemoteInput cannot read local files.
-		tlRaw, err := format.ReadRemoteInput(opts.TrustListURL)
+		tlRaw, err := format.ReadRemoteInput(opts.TrustListURL, opts.HTTPClient)
 		if err != nil {
 			return nil, nil, fmt.Errorf("fetching trust list: %w", err)
 		}

@@ -5,6 +5,14 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.3] - 2026-10-12
+
+Backports from 3.0.0.
+
+### Fixed
+
+- **TLS settings in the decoder.** The decoder of `wallet serve` fetches status lists, trusted lists and issuer metadata with the wallet's TLS and proxy settings, so `--tls-verify=false` and `--tls-ca` apply there too.
+
 ## [2.8.2] - 2026-10-12
 
 Backports from 3.0.0.

@@ -38,6 +38,9 @@ type MuxOptions struct {
 	// WalletStore provides the CA and issuer key for local verification. Nil selects
 	// the default wallet.
 	WalletStore *wallet.WalletStore
+	// HTTPClient returns the client for the outbound fetches of a validation. Nil
+	// selects the shared developer client.
+	HTTPClient func() *http.Client
 }
 
 func ListenAndServe(port int, opts MuxOptions) error {
@@ -58,8 +61,8 @@ func NewMux(credential string) http.Handler {
 func NewMuxWithOptions(opts MuxOptions) http.Handler {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("POST /api/decode", handleDecode)
-	mux.HandleFunc("POST /api/validate", handleValidate(opts.WalletStore))
+	mux.HandleFunc("POST /api/decode", handleDecode(opts.HTTPClient))
+	mux.HandleFunc("POST /api/validate", handleValidate(opts.WalletStore, opts.HTTPClient))
 	mux.HandleFunc("GET /api/prefill", handlePrefill(opts.Credential))
 	mux.HandleFunc("GET /api/credentials/{id}", handleCredentialByID(opts.CredentialByID))
 	mux.HandleFunc("GET /api/meta", func(w http.ResponseWriter, r *http.Request) {
@@ -124,30 +127,39 @@ type decodeRequest struct {
 	Input string `json:"input"`
 }
 
-func handleDecode(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBody)
+func handleDecode(httpClient func() *http.Client) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBody)
 
-	var req decodeRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
-		return
+		var req decodeRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+
+		if req.Input == "" {
+			writeError(w, http.StatusBadRequest, "input is required")
+			return
+		}
+
+		result, err := Validate(req.Input, ValidateOpts{HTTPClient: outboundClient(httpClient)})
+		if err != nil {
+			writeError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		enc := json.NewEncoder(w)
+		enc.SetEscapeHTML(false)
+		enc.Encode(result)
 	}
+}
 
-	if req.Input == "" {
-		writeError(w, http.StatusBadRequest, "input is required")
-		return
+func outboundClient(httpClient func() *http.Client) *http.Client {
+	if httpClient == nil {
+		return nil
 	}
-
-	result, err := Decode(req.Input)
-	if err != nil {
-		writeError(w, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	enc := json.NewEncoder(w)
-	enc.SetEscapeHTML(false)
-	enc.Encode(result)
+	return httpClient()
 }
 
 type validateRequest struct {
@@ -159,7 +171,7 @@ type validateRequest struct {
 	Offline      bool   `json:"offline"`
 }
 
-func handleValidate(store *wallet.WalletStore) http.HandlerFunc {
+func handleValidate(store *wallet.WalletStore, httpClient func() *http.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBody)
 
@@ -181,6 +193,7 @@ func handleValidate(store *wallet.WalletStore) http.HandlerFunc {
 			CheckStatus:  req.CheckStatus,
 			Offline:      req.Offline,
 			WalletStore:  store,
+			HTTPClient:   outboundClient(httpClient),
 		})
 		if err != nil {
 			writeError(w, http.StatusUnprocessableEntity, err.Error())
