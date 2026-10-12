@@ -14,17 +14,25 @@ let newsID;
 
 const TITLES = [
   "Paste an offer or request",
+  "Issue a credential yourself",
   "Try the demo issuer and verifier",
   "Check your credentials",
   "Follow every exchange",
   "Set up trust",
   "Register your verifier or issuer",
   "Choose how strict the wallet is",
-  "Issue your own credential types",
+  "Define your own credential types",
   "Decode a credential",
 ];
 // The header links behind these steps collapse into the menu on a phone.
-const NAV_STEPS = TITLES.slice(4);
+const NAV_STEPS = TITLES.slice(5);
+const NEWS_TITLES = [
+  "Register your verifier or issuer",
+  "Browse attestation types",
+  "Check against the ARF",
+  "Bring your own trust",
+  "Follow the registrar walkthrough",
+];
 
 test.describe.configure({ mode: "serial" });
 
@@ -105,7 +113,8 @@ test("the tour starts from How to use and steps through every use case", async (
     await page.locator("#tour-next").click();
   }
   await expect(page.locator("#tour")).toBeHidden();
-  expect(await page.evaluate(() => localStorage.getItem("eudi-dev-tour-done"))).toBe("1");
+  // Only the news tour hides the news button once taken.
+  expect(await page.evaluate(() => localStorage.getItem("eudi-dev-tour-done"))).toBeNull();
 });
 
 test("the spotlight covers the element each step is about", async ({ page }) => {
@@ -113,7 +122,7 @@ test("the spotlight covers the element each step is about", async ({ page }) => 
   await openWallet(page);
   await startFromHowTo(page);
   // The activity drawer can be taller than the window, so only its head has to be covered.
-  const targets = [".actions-bar", "#actions-hint", ".credential-card", "#activity-toggle",
+  const targets = ["#offer-input", "#issue-btn", "#actions-hint", ".credential-card", "#activity-toggle",
     "#trust-link", "#registrar-menu-toggle", "#conformance-link", "#templates-link", "#decoder-link"];
   for (const selector of targets) {
     await expect.poll(() => spotCovers(page, selector)).toBe(true);
@@ -184,14 +193,17 @@ test("the tour renders in the light and the dark theme", async ({ browser }) => 
   expect(backgrounds.dark).toBe("rgb(36, 39, 45)");
 });
 
-test("the news offer the tour until it was taken", async ({ page }) => {
+test("the news tour shows the new features until it was taken", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("demo-banner-dismissed", "1"));
   await page.goto(BASE);
   await expect(page.locator("#news-overlay")).toHaveClass(/active/);
   await page.locator("#news-tour").click();
   await expect(page.locator("#news-overlay")).not.toHaveClass(/active/);
-  await expect(page.locator("#tour-title")).toHaveText(TITLES[0]);
-  for (let i = 0; i < TITLES.length; i++) await page.locator("#tour-next").click();
+  for (const [i, title] of NEWS_TITLES.entries()) {
+    await expect(page.locator("#tour-title")).toHaveText(title);
+    await expect(page.locator("#tour-step")).toHaveText(`Step ${i + 1} of ${NEWS_TITLES.length}`);
+    await page.locator("#tour-next").click();
+  }
   await expect(page.locator("#tour")).toBeHidden();
   await expect(page.locator("#news-link")).toBeFocused();
 

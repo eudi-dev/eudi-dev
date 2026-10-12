@@ -42,7 +42,7 @@ API clients receive the alternatives in `credential_options`. In debug mode each
 
 A credential issued in the web UI can reference the wallet's own status list when configured, a custom URI and index, or no status list. The UI can revoke and activate credentials on the wallet's own status list. For an external status list it fetches the list on request.
 
-For a first look, open **How to use** and choose **Take the tour**. The tour points at one part of the page at a time and says what you can do there: paste an offer or request, try the demo issuer and verifier, check your credentials, follow the activity log, set up trust, register your verifier or issuer, choose how strict the wallet is, define templates and decode a credential. On a narrow screen it points at the menu for links that live there. Use the arrow keys to move between steps and Escape to leave.
+For a first look, open **How to use** and choose **Take the tour**. The tour points at one part of the page at a time and says what you can do there: paste an offer or request, issue a credential yourself, try the demo issuer and verifier, check your credentials, follow the activity log, set up trust, register your verifier or issuer, choose how strict the wallet is, define templates and decode a credential. On a narrow screen it points at the menu for links that live there. Use the arrow keys to move between steps and Escape to leave.
 
 UI controls have stable IDs and data attributes for browser automation. Credential cards expose `data-credential-id`, `data-format`, `data-vct`, `data-doctype` and `data-status`. For example, select a PID with `.credential-card[data-vct="urn:eudi:pid:1"]`.
 

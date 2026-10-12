@@ -12,57 +12,93 @@
 
   // A header link collapses into the menu on narrow screens. Its step then
   // points at the menu button.
-  const STEPS = [
-    {
-      target: () => document.querySelector('.actions-bar'),
-      title: 'Paste an offer or request',
-      text: () => 'Paste a credential offer or a presentation request link and press Process. You can also import a credential or issue one yourself.',
-    },
-    {
-      target: () => byId('actions-hint'),
-      title: 'Try the demo issuer and verifier',
-      text: () => 'No offer at hand? Get a credential from the demo issuer. Then present it to the demo verifier.',
-    },
-    {
-      target: () => byId('credentials').querySelector('.credential-card') || byId('credentials'),
-      title: 'Check your credentials',
-      text: () => byId('credentials').querySelector('.credential-card')
-        ? 'Badges show the status, expiry, signature and key binding of each credential. Use About for its description and Show to decode it.'
-        : 'Credentials you receive show up here. Badges on each card show status, expiry, signature and key binding.',
-    },
-    {
-      target: () => byId('activity-drawer'),
-      title: 'Follow every exchange',
-      text: () => 'Every request and response shows up in the activity log. Open a signed one in the decoder to check its header, payload and signature.',
-    },
-    {
-      nav: 'trust-link',
-      title: 'Set up trust',
-      text: () => 'Download the trusted lists and CA certificates of this wallet. Configure them in your issuer or verifier.',
-    },
-    {
-      nav: 'registrar-menu-toggle',
-      title: 'Register your verifier or issuer',
-      text: () => 'Register your verifier or issuer to get an access certificate and a registration certificate. The attestation catalogue describes each credential type.',
-    },
-    {
-      nav: 'conformance-link',
-      title: 'Choose how strict the wallet is',
-      text: () => demo()
-        ? 'See which checks this demo runs, such as strict mode, HAIP and ARF. Run your own wallet to change them.'
-        : 'Pick debug mode to see what your issuer or verifier gets wrong, or strict mode to refuse it. You also switch HAIP and ARF checks on here.',
-    },
-    {
-      nav: 'templates-link',
-      title: 'Issue your own credential types',
-      text: () => 'Define a template with a type, claims and display. Then issue it with Issue credential.',
-    },
-    {
-      nav: 'decoder-link',
-      title: 'Decode a credential',
-      text: () => 'Paste an SD-JWT, mdoc or JWT to see its contents and check its signature.',
-    },
-  ];
+  const TOURS = {
+    overview: [
+      {
+        target: () => byId('offer-input'),
+        title: 'Paste an offer or request',
+        text: () => 'Paste a credential offer or a presentation request link and press Process.',
+      },
+      {
+        target: () => byId('issue-btn'),
+        title: 'Issue a credential yourself',
+        text: () => 'Issue a credential with any type, claims and signing key. Import credential adds one you already have.',
+      },
+      {
+        target: () => byId('actions-hint'),
+        title: 'Try the demo issuer and verifier',
+        text: () => 'No offer at hand? Get a credential from the demo issuer. Then present it to the demo verifier.',
+      },
+      {
+        target: () => byId('credentials').querySelector('.credential-card') || byId('credentials'),
+        title: 'Check your credentials',
+        text: () => byId('credentials').querySelector('.credential-card')
+          ? 'Badges show the status, expiry, signature and key binding of each credential. Use About for its description and Show to decode it.'
+          : 'Credentials you receive show up here. Badges on each card show status, expiry, signature and key binding.',
+      },
+      {
+        target: () => byId('activity-drawer'),
+        title: 'Follow every exchange',
+        text: () => 'Every request and response shows up in the activity log. Open a signed one in the decoder to check its header, payload and signature.',
+      },
+      {
+        nav: 'trust-link',
+        title: 'Set up trust',
+        text: () => 'Download the trusted lists and CA certificates of this wallet. Configure them in your issuer or verifier.',
+      },
+      {
+        nav: 'registrar-menu-toggle',
+        title: 'Register your verifier or issuer',
+        text: () => 'Register your verifier or issuer to get an access certificate and a registration certificate. The attestation catalogue describes each credential type.',
+      },
+      {
+        nav: 'conformance-link',
+        title: 'Choose how strict the wallet is',
+        text: () => demo()
+          ? 'See which checks this demo runs, such as strict mode, HAIP and ARF. Run your own wallet to change them.'
+          : 'Pick debug mode to see what your issuer or verifier gets wrong, or strict mode to refuse it. You also switch HAIP and ARF checks on here.',
+      },
+      {
+        nav: 'templates-link',
+        title: 'Define your own credential types',
+        text: () => 'Define a template with a type, claims and display. Then issue it with Issue credential.',
+      },
+      {
+        nav: 'decoder-link',
+        title: 'Decode a credential',
+        text: () => 'Paste an SD-JWT, mdoc or JWT to see its contents and check its signature.',
+      },
+    ],
+    news: [
+      {
+        nav: 'registrar-menu-toggle',
+        title: 'Register your verifier or issuer',
+        text: () => 'Open Relying parties to register your service. You get an access certificate and a registration certificate. The wallet tells you when your request asks for more than you registered.',
+      },
+      {
+        nav: 'registrar-menu-toggle',
+        title: 'Browse attestation types',
+        text: () => 'The Attestation catalogue lists each credential type with its schemas, rulebook and trusted list.',
+      },
+      {
+        nav: 'conformance-link',
+        title: 'Check against the ARF',
+        text: () => demo()
+          ? 'This demo checks access and registration certificates as the ARF describes. The consent dialog lists every failed check.'
+          : 'Switch on the ARF checks to test access and registration certificates. In debug mode the consent dialog lists every failed check.',
+      },
+      {
+        nav: 'trust-link',
+        title: 'Bring your own trust',
+        text: () => 'Put your issuer\'s CA on one of the wallet\'s trusted lists, or add a list of your own.',
+      },
+      {
+        nav: 'how-to-use-link',
+        title: 'Follow the registrar walkthrough',
+        text: () => 'The Registrar tab shows every step with curl, from the registration to a signed request.',
+      },
+    ],
+  };
 
   function resolve(step) {
     if (!step.nav) {
@@ -144,8 +180,11 @@
     place();
   }
 
-  function start(focusAfter) {
-    steps = STEPS.filter((step) => resolve(step));
+  let tour = 'overview';
+
+  function start(name, focusAfter) {
+    tour = name;
+    steps = TOURS[name].filter((step) => resolve(step));
     if (steps.length === 0) return;
     returnFocus = focusAfter || null;
     const links = byId('header-links');
@@ -167,8 +206,10 @@
   }
 
   function finish() {
-    try { localStorage.setItem(DONE_KEY, '1'); } catch (e) { /* Storage may be unavailable in private browsing. */ }
-    byId('news-tour').hidden = true;
+    if (tour === 'news') {
+      try { localStorage.setItem(DONE_KEY, '1'); } catch (e) { /* Storage may be unavailable in private browsing. */ }
+      byId('news-tour').hidden = true;
+    }
     close();
   }
 
@@ -203,11 +244,11 @@
 
   byId('howto-tour').addEventListener('click', () => {
     byId('howto-close').click();
-    start(byId('how-to-use-link'));
+    start('overview', byId('how-to-use-link'));
   });
   byId('news-tour').addEventListener('click', () => {
     byId('news-close').click();
-    start(byId('news-link'));
+    start('news', byId('news-link'));
   });
   try { if (localStorage.getItem(DONE_KEY) === '1') byId('news-tour').hidden = true; } catch (e) { /* Storage may be unavailable in private browsing. */ }
 })();
