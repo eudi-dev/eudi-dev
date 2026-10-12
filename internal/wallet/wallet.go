@@ -1402,8 +1402,10 @@ type VisitorRules struct {
 	// visitor template. Visitors can change only those. The operator's
 	// templates, the built-in ones included, stay fixed.
 	VisitorTemplates bool
-	// BundledImagesOnly keeps only the images bundled with the wallet,
-	// because visitors can't upload images.
+	// BundledImagesOnly limits the images of visitor templates and issued
+	// credentials to the art bundled with the wallet. Images from issuer
+	// metadata are always fetched and stored. No card then loads from the
+	// issuer.
 	BundledImagesOnly bool
 	// OwnSigningKeys refuses a signing key override, so every credential the
 	// wallet issues names one of its own providers.

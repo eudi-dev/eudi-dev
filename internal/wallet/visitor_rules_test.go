@@ -25,6 +25,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
@@ -39,31 +40,73 @@ func pngDataURI(t *testing.T) string {
 	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(buf.Bytes())
 }
 
-// Every visitor of the public demo sees the cards of the others. A card
-// keeps only the art bundled with the wallet. Images from issuer metadata are
-// dropped, and an image a visitor chose is refused.
-func TestPublicDemoKeepsOnlyBundledDisplayImages(t *testing.T) {
+// The public demo keeps an issuer's card images like any wallet. It stores
+// them, so no card loads from the issuer.
+func TestPublicDemoKeepsIssuerImages(t *testing.T) {
 	srv := newDemoTestServer(t)
+	srv.wallet.AdhocDisplayImages = true
+	images := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write(tinyPNG)
+	}))
+	defer images.Close()
+
+	metadata := map[string]any{"credential_configurations_supported": map[string]any{
+		"badge": map[string]any{"credential_metadata": map[string]any{"display": []any{map[string]any{
+			"name":             "Badge",
+			"logo":             map[string]any{"uri": images.URL + "/logo.png", "alt_text": "Badge"},
+			"background_image": map[string]any{"uri": pngDataURI(t)},
+		}}}},
+	}}
+	d := srv.wallet.resolveCredentialDisplay(metadata, "badge")
+	if d == nil || !strings.HasPrefix(d.LogoURI, "data:image/png;base64,") || !strings.HasPrefix(d.BackgroundURI, "data:image/png;base64,") {
+		t.Fatalf("the issuer's card images were not stored: %+v", d)
+	}
+	if got := srv.wallet.embedDisplayImage(images.URL+"/issuer.png", "issuer_logo"); !strings.HasPrefix(got, "data:image/png;base64,") {
+		t.Errorf("the issuer logo for consent was not kept: %.40q", got)
+	}
+	if got := srv.wallet.cacheDisplayImage("https://issuer.example/logo.png", "logo"); got == "https://issuer.example/logo.png" {
+		t.Error("the public demo linked an issuer image instead of storing it")
+	}
+
+	operatorLogo := pngDataURI(t)
+	if _, err := credtemplate.Save(srv.wallet.Templates, credtemplate.Template{
+		Name: "operator-badge", Format: "sdjwt", VCT: "urn:example:operator-badge:1", Claims: map[string]any{"a": "b"},
+		Display: &credtemplate.TemplateDisplay{Name: "Operator Badge", Logo: operatorLogo},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	issued, err := srv.management().Issue(IssueAPIRequest{Format: "sdjwt", Template: "operator-badge"})
+	if err != nil {
+		t.Fatalf("issuing from the operator's template: %v", err)
+	}
+	id, _ := issued["id"].(string)
+	if c, ok := srv.wallet.GetCredential(id); !ok || c.Display == nil || c.Display.LogoURI != operatorLogo {
+		t.Errorf("the operator's template art was not kept: %+v", c.Display)
+	}
+}
+
+// Every visitor of the public demo sees the cards of the others. A visitor
+// can only choose images bundled with the wallet.
+func TestPublicDemoRefusesVisitorImages(t *testing.T) {
+	srv := newDemoTestServer(t)
+	var limit *VisitorLimitError
+	if _, err := srv.management().Issue(IssueAPIRequest{Format: "sdjwt", VCT: "urn:test:art", Claims: map[string]any{"a": "b"}, Display: &IssueDisplay{Name: "Art", Logo: pngDataURI(t)}}); !errors.As(err, &limit) {
+		t.Errorf("issuing with an uploaded logo: %v, want a visitor limit", err)
+	}
+	if _, err := srv.management().SaveTemplate(credtemplate.Template{
+		Name: "visitor-art", Format: "sdjwt", Claims: map[string]any{"a": "b"},
+		Display: &credtemplate.TemplateDisplay{BackgroundImage: pngDataURI(t)},
+	}, nil); !errors.As(err, &limit) {
+		t.Errorf("saving a template with an uploaded image: %v, want a visitor limit", err)
+	}
 	bundled, err := staticFiles.ReadFile("static/logo.svg")
 	if err != nil {
 		t.Fatal(err)
 	}
 	bundledURI := "data:image/svg+xml;base64," + base64.StdEncoding.EncodeToString(bundled)
-
-	if got := srv.wallet.cacheDisplayImage(bundledURI, "logo"); got != bundledURI {
-		t.Errorf("the bundled art was not kept: %.40q", got)
-	}
-	if got := srv.wallet.cacheDisplayImage(pngDataURI(t), "logo"); got != "" {
-		t.Errorf("an issuer's own image was kept: %.40q", got)
-	}
-	if got := srv.wallet.embedDisplayImage(pngDataURI(t), "logo"); got != "" {
-		t.Errorf("an issuer's own logo was kept for consent: %.40q", got)
-	}
-
-	// A visitor who uploads an image learns why the card has none.
-	var limit *VisitorLimitError
-	if _, err := srv.management().Issue(IssueAPIRequest{Format: "sdjwt", VCT: "urn:test:art", Claims: map[string]any{"a": "b"}, Display: &IssueDisplay{Name: "Art", Logo: pngDataURI(t)}}); !errors.As(err, &limit) {
-		t.Errorf("issuing with an uploaded logo: %v, want a visitor limit", err)
+	if _, err := srv.management().Issue(IssueAPIRequest{Format: "sdjwt", VCT: "urn:test:art", Claims: map[string]any{"a": "b"}, Display: &IssueDisplay{Name: "Art", Logo: bundledURI}}); err != nil {
+		t.Errorf("issuing with the bundled logo: %v", err)
 	}
 }
 

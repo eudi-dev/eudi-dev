@@ -473,10 +473,6 @@ func (w *Wallet) fetchAndEmbedDisplayImage(uri, field string) string {
 // shrinks them to card size otherwise. Dimensions are checked first because
 // a small file can declare huge dimensions.
 func (w *Wallet) encodeDisplayImage(body []byte, mediaType, field, uri string) string {
-	if w.visitorRules().BundledImagesOnly && !bundledImageDigests()[sha256.Sum256(body)] {
-		w.rejectDisplayImage(field, uri, "the public demo shows only the art bundled with the wallet")
-		return ""
-	}
 	if mediaType == "image/svg+xml" {
 		return w.keepVectorImage(body, field, uri)
 	}

@@ -456,7 +456,7 @@ These claims describe simulated protection levels. Keys are stored unencrypted. 
 
 By default, the wallet fetches display images once and stores them. `--adhoc-display-images` keeps HTTPS logo and background URLs from issuer metadata and fetches them on each card render. The wallet stores no HTTPS image.
 
-Data URIs, template images and HTTP URLs are stored in both modes. Storing HTTP images avoids mixed content on an HTTPS page. `GET /api/config` reports the setting as `adhoc_display_images`.
+Data URIs, template images and HTTP URLs are stored in both modes. Storing HTTP images avoids mixed content on an HTTPS page. `GET /api/config` reports the setting as `adhoc_display_images`. A public demo stores every image.
 
 ## `trust show`
 
