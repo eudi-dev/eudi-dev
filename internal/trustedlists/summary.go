@@ -38,7 +38,7 @@ type Summary struct {
 
 // Link is an external list. Configured comes from --trusted-list and can't
 // be removed through the API. Error says why the wallet can't use the list.
-// Via names the list of trusted lists that points to it.
+// Via is the list of trusted lists that points to it.
 type Link struct {
 	URL        string `json:"url"`
 	Configured bool   `json:"configured,omitempty"`

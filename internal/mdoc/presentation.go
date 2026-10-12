@@ -87,8 +87,8 @@ func VerifyDeviceAuth(doc *Document, sessionTranscript []byte) error {
 
 	// DeviceAuthentication = ["DeviceAuthentication", SessionTranscript,
 	// DocType, DeviceNameSpacesBytes]. The payload is Tag24 of its CBOR. The
-	// holder signed the session transcript and the namespaces bytes verbatim,
-	// and re-encoding breaks an mdoc handover that carries a map or a tag.
+	// holder signed the session transcript and the namespaces bytes verbatim.
+	// Re-encoding breaks an mdoc handover with a map or a tag inside.
 	if len(doc.DeviceSigned.RawNameSpaces) == 0 {
 		return fmt.Errorf("deviceSigned carries no nameSpaces")
 	}
@@ -173,8 +173,8 @@ func coseInt(v any) int64 {
 	return 0
 }
 
-// DigestHasher returns the hash function named by an MSO digestAlgorithm. A
-// missing algorithm reads as SHA-256.
+// DigestHasher returns the hash function for an MSO digestAlgorithm. A
+// missing algorithm means SHA-256.
 func DigestHasher(alg string) (func([]byte) []byte, error) {
 	switch alg {
 	case "", "SHA-256":

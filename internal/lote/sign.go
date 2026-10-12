@@ -27,7 +27,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
 )
 
-// The list types that ETSI TS 119 602 V1.1.1 defines in Annexes D to H.
+// List types defined in ETSI TS 119 602 V1.1.1 Annexes D to H.
 const (
 	PIDProvidersListType              = "http://uri.etsi.org/19602/LoTEType/EUPIDProvidersList"
 	WalletProvidersListType           = "http://uri.etsi.org/19602/LoTEType/EUWalletProvidersList"
@@ -46,8 +46,8 @@ const (
 )
 
 // Scheme is the scheme of a list (ETSI TS 119 602 V1.1.1 §6.3.3, §6.3.8 to
-// §6.3.10) and the types of its services (§6.6.1), with the names a list
-// gives its operator's entity and services.
+// §6.3.10) and the types of its services (§6.6.1). It also holds the names
+// of the operator's entity and services.
 type Scheme struct {
 	LoTEType                    string `json:"trusted_list_type,omitempty"`
 	StatusDeterminationApproach string `json:"status_determination_approach,omitempty"`
@@ -82,7 +82,7 @@ func (s *Scheme) fields() []*string {
 		&s.IssuanceServiceType, &s.RevocationServiceType, &s.IssuanceServiceName, &s.RevocationServiceName}
 }
 
-// Options describe a list that Sign builds. Path is the path of the
+// Options describe a list for Sign. Path is the path of the
 // list under Issuer. The operator's own provider, ProviderName, comes first
 // with the issuance and revocation certificates. Without issuance certificates
 // it lists the signer's certificate for both services. Country is the country
@@ -113,7 +113,7 @@ type Entity struct {
 	Issuance, Revocation []string
 }
 
-// UpdateInterval is the time to the NextUpdate of a list Sign builds.
+// UpdateInterval is the time until the NextUpdate of a list built by Sign.
 const UpdateInterval = 24 * time.Hour
 
 // Sign builds a list of trusted entities and signs it with the key of
@@ -207,7 +207,7 @@ func SignList(signingKey *ecdsa.PrivateKey, signer *x509.Certificate, issuedAt t
 }
 
 // PointerEntry is an OtherLoTEPointer of ETSI TS 119 602 V1.1.1 §6.3.13. It
-// names the list's location, the certificate of its signer and the qualifiers
+// holds the list's location, the certificate of its signer and the qualifiers
 // of §6.3.13 c).
 func PointerEntry(location, loteType, operatorName, territory, signer string) map[string]any {
 	return map[string]any{
@@ -224,11 +224,11 @@ func PointerEntry(location, loteType, operatorName, territory, signer string) ma
 
 // The listed provider is test data. ETSI TS 119 602 V1.1.1 Tables D.2, E.2
 // and H.2 ask for its registration identifier as trade name and for a contact
-// email and phone. A PID or PuB-EAA provider also names its Member State with
-// a URI, and a PuB-EAA provider the law it is established under.
+// email and phone. A PID or PuB-EAA provider also identifies its Member State
+// with a URI. A PuB-EAA provider also gives the law it is established under.
 //
-// The trade name is the official registration identifier the entity's
-// certificates carry, in the semantics of ETSI EN 319 412-1 LEG-5.1.4 (ETSI
+// The trade name is the official registration identifier in the entity's
+// certificates, in the semantics of ETSI EN 319 412-1 LEG-5.1.4 (ETSI
 // TS 119 602 V1.1.1 §6.5.2 and the TE trade name rows of Annexes D to H). An
 // entity without one has none.
 func trustedEntityInformation(opts Options, entity Entity) map[string]any {

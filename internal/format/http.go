@@ -97,7 +97,7 @@ func TLSRoots(pem []byte) (*x509.CertPool, error) {
 }
 
 // IsWebURL reports whether rawURL is an absolute http or https URL with a host.
-// url.Parse also accepts javascript: and data: URLs, which must never reach a
+// url.Parse also accepts javascript: and data: URLs. These must never reach a
 // link or a browser.
 func IsWebURL(rawURL string) bool {
 	u, err := url.Parse(strings.TrimSpace(rawURL))
@@ -132,7 +132,7 @@ func SameOrigin(u, other *url.URL) bool {
 }
 
 // ValidateAbsoluteURI accepts an empty value or an absolute http or https
-// URI. field names the value in the error. Only HTTP and HTTPS redirects are
+// URI. The error identifies the value by field. Only HTTP and HTTPS redirects are
 // safe. url.Parse also treats javascript: and data: URLs as absolute, and
 // navigating to them could run script on the wallet's origin.
 func ValidateAbsoluteURI(field, raw string) error {

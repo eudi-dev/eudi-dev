@@ -377,8 +377,9 @@ func TestHandleValidate_SDJWTValidExpiry(t *testing.T) {
 	}
 }
 
-// The revocation service of the wallet's trusted list that anchors a
-// credential anchors its status list (ETSI TS 119 602 V1.1.1 Table D.3).
+// When one of the wallet's trusted lists anchors a credential, the revocation
+// service of that list anchors the credential's status list (ETSI TS 119 602
+// V1.1.1 Table D.3).
 func TestTheDecoderAnchorsAStatusListInTheRevocationServiceOfItsList(t *testing.T) {
 	store := wallet.NewWalletStore(t.TempDir())
 	w, err := store.LoadOrCreate()

@@ -25,8 +25,8 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/validity"
 )
 
-// ErrSignatureInvalid is the error Verify records for a signature that does
-// not verify with the key.
+// ErrSignatureInvalid is recorded by Verify when the signature does not verify
+// with the key.
 const ErrSignatureInvalid = "signature verification failed"
 
 // VerifyResult uses the camelCase keys of the validate --json document.

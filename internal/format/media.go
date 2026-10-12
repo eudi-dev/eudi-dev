@@ -29,7 +29,7 @@ var imageMediaTypes = map[string]string{
 }
 
 // ImageMediaType returns the media type of an image file by its extension.
-// It reports false for a name that is no image the wallet shows.
+// It reports false when the wallet does not show that file type.
 func ImageMediaType(name string) (string, bool) {
 	mediaType, ok := imageMediaTypes[strings.ToLower(path.Ext(name))]
 	return mediaType, ok

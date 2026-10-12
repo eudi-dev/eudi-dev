@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package certchain reads the certificate chains that JOSE and COSE messages
-// carry and verifies them against trust anchors.
+// Package certchain reads certificate chains from JOSE and COSE messages and
+// verifies them against trust anchors.
 package certchain
 
 import (

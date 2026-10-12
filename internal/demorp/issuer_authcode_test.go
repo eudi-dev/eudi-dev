@@ -222,7 +222,7 @@ func dpopProofForToken(t *testing.T, key *ecdsa.PrivateKey, method, htu, accessT
 
 // pushAuthorizationRequest pushes a minimal but complete authorization request
 // with the client authentication from the headers. A nil dpopKey pushes
-// without a DPoP proof, which RFC 9449 §10.1 leaves to the client.
+// without a DPoP proof. RFC 9449 §10.1 leaves that to the client.
 func pushAuthorizationRequest(t *testing.T, h http.Handler, clientID string, dpopKey *ecdsa.PrivateKey, challenge string, headers map[string]string) *httptest.ResponseRecorder {
 	t.Helper()
 	form := url.Values{
@@ -486,8 +486,8 @@ func TestAWrongDemoAccountIsABadRequest(t *testing.T) {
 }
 
 // OpenID4VCI 1.0 §12.3: pre-authorized_grant_anonymous_access_supported says
-// whether a Token Request with a Pre-Authorized Code may omit client_id,
-// which only the optional mode accepts.
+// whether a Token Request with a Pre-Authorized Code may omit client_id. Only
+// the optional mode accepts that.
 func TestTheMetadataSaysWhetherAPreAuthorizedCodeNeedsAClient(t *testing.T) {
 	d, _, _ := newDemoRP(t)
 	if got := d.authorizationServerMetadata()["pre-authorized_grant_anonymous_access_supported"]; got != false {
@@ -502,7 +502,7 @@ func TestTheMetadataSaysWhetherAPreAuthorizedCodeNeedsAClient(t *testing.T) {
 // A token endpoint refusal is a 400: RFC 6749 §5.2 responds "with an HTTP 400
 // (Bad Request) status code (unless specified otherwise)", and reserves 401
 // for a client that "attempted to authenticate via the Authorization request
-// header field", which the attestation headers are not. Attestation-based
+// header field". The attestation headers are not that field. Attestation-based
 // client authentication delegates its error responses to that section
 // (draft-ietf-oauth-attestation-based-client-auth-10 §7.4).
 func TestTokenEndpointRefusesABrokenAttestationWith400(t *testing.T) {

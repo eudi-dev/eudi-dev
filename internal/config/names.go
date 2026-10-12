@@ -14,7 +14,7 @@
 
 package config
 
-// Names that the binary shows and writes into its certificates and trusted
+// Names shown by the binary and written into its certificates and trusted
 // lists.
 const (
 	ProductName        = "EUDI Dev"

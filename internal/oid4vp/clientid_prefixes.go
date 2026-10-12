@@ -23,8 +23,8 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 )
 
-// clientIDPrefix is what the wallet does with one Client Identifier Prefix of
-// OID4VP 1.0 §5.9.3.
+// clientIDPrefix describes how the wallet handles one Client Identifier Prefix
+// of OID4VP 1.0 §5.9.3.
 type clientIDPrefix struct {
 	// verify checks the rest of the client_id against the request. It returns
 	// a finding, or "" when they match.
@@ -89,7 +89,8 @@ var clientIDPrefixes = map[string]clientIDPrefix{
 	},
 	// §5.9.3: "The Wallet MUST NOT accept this Client Identifier Prefix in
 	// requests." The prefix marks the audience of a Digital Credentials API
-	// presentation, which the wallet derives from the platform's origin.
+	// presentation. The wallet derives that audience from the platform's
+	// origin.
 	"origin": {
 		verify: func(string, *oid4vc.RequestObjectJWT, string, string) string {
 			return "OID4VP 1.0 §5.9.3: origin: is a reserved Client Identifier Prefix and MUST NOT be accepted in a request"

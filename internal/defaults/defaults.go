@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package defaults holds the built-in data of eudi-dev as files, in the
-// formats an operator uses for their own: credential templates under
+// Package defaults holds the built-in data of eudi-dev as files. They use the
+// same formats as an operator's own files: credential templates under
 // templates/, the images and portraits they reference, the credential
 // categories and the registrations of the demo issuer and demo verifier.
 package defaults
@@ -45,7 +45,7 @@ func ReadFile(name string) ([]byte, error) {
 	return files.ReadFile(name)
 }
 
-// Resolve reads the file that an "embedded:<path>" reference names. A bare
+// Resolve reads the file of an "embedded:<path>" reference. A bare
 // file name is an image, so "embedded:logo.svg" is images/logo.svg.
 func Resolve(ref string) (contentType string, data []byte, ok bool) {
 	name, found := strings.CutPrefix(strings.TrimSpace(ref), EmbeddedPrefix)

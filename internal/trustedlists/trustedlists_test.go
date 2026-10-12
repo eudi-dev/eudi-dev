@@ -78,8 +78,8 @@ func newTestTrust(t *testing.T) (*Set, *testEnv) {
 	return New(&sync.RWMutex{}, &Additions{}, &ListCache{}, env.settings, env), env
 }
 
-// Any visitor can name a list URL, so the list cache stays bounded. The
-// bound leaves room for the lists the wallet reads itself.
+// Any visitor can put a list URL into a request, so the list cache stays
+// bounded. The bound leaves room for the lists read by the wallet itself.
 func TestTheTrustedListCacheIsBounded(t *testing.T) {
 	tr, _ := newTestTrust(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {

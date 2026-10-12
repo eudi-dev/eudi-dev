@@ -51,9 +51,9 @@ func NewKeys(backend storage.Store, prefix string, seed mock.Seed) *Keys {
 	return &Keys{backend: backend, prefix: prefix, seed: seed}
 }
 
-// ListedCertificates returns the base64 DER certificates a trusted list
-// names for a signer: every stored current certificate of the leaf's subject
-// and key, each with the CA below root that issued it.
+// ListedCertificates returns the base64 DER certificates listed for a signer
+// in a trusted list: every stored current certificate of the leaf's subject
+// and key, each with its issuing CA below root.
 func (s *Keys) ListedCertificates(leaf, root *x509.Certificate) ([]string, error) {
 	blobs, err := s.backend.ReadAll(path.Join(s.prefix, "certificates"))
 	if err != nil {
@@ -81,7 +81,7 @@ func (s *Keys) ListedCertificates(leaf, root *x509.Certificate) ([]string, error
 		}
 		published = append(published, base64.StdEncoding.EncodeToString(cert.Raw))
 		// The root anchors every role. A root with path length zero signs the
-		// leaves directly, so the list then names only the leaves.
+		// leaves directly, so the list then holds only the leaves.
 		for _, parent := range certificates {
 			if parent.IsCA && !parent.Equal(root) && cert.CheckSignatureFrom(parent) == nil {
 				published = append(published, base64.StdEncoding.EncodeToString(parent.Raw))
@@ -142,8 +142,8 @@ func caKeyName(role, country string) string {
 const legacyEAARole = "local"
 
 // caRole returns the role of the CA that signs for the role in the country.
-// The EAA list keeps the CA of an eudi-dev 2 wallet, so the EAAs that wallet
-// issued stay anchored on it.
+// The EAA list keeps the CA of an eudi-dev 2 wallet, so EAAs issued by that
+// wallet stay anchored.
 func (s *Keys) caRole(role, country string) (string, error) {
 	if role != credtemplate.CategoryEAA {
 		return role, nil
@@ -160,8 +160,8 @@ func (s *Keys) caRole(role, country string) (string, error) {
 	return role, nil
 }
 
-// storedCA returns the stored CA certificate of key under root that expires
-// last, or nil when none is valid beyond RenewBefore.
+// storedCA returns the stored CA certificate of key under root with the
+// latest expiry, or nil when none is valid beyond RenewBefore.
 func (s *Keys) storedCA(key *ecdsa.PrivateKey, root *x509.Certificate) (*x509.Certificate, error) {
 	blobs, err := s.backend.ReadAll(path.Join(s.prefix, "certificates"))
 	if err != nil {
@@ -203,7 +203,7 @@ func (s *Keys) ProviderCA(rootKey *ecdsa.PrivateKey, root *x509.Certificate, iss
 	}
 	if role == legacyEAARole {
 		// The issuer name of an eudi-dev 2 EAA is the subject of the CA
-		// certificate eudi-dev 2 stored. RFC 5280 §6.1.3 chains by name, so
+		// certificate stored by eudi-dev 2. RFC 5280 §6.1.3 chains by name, so
 		// the wallet keeps that certificate until it is due for renewal.
 		if cert, err := s.storedCA(key, root); err != nil || cert != nil {
 			return key, cert, err
@@ -312,9 +312,9 @@ func (s *Keys) CachedCertificate(identity []byte, ca *x509.Certificate, pub *ecd
 	return nil, fmt.Errorf("storing the signing certificate failed after repeated conflicts")
 }
 
-// readVersioned reads one blob and the version a WriteIf expects. The
-// version is read first, so a write in between fails the WriteIf and the
-// caller tries again.
+// readVersioned reads one blob and its version for WriteIf. The version is
+// read first, so a write in between fails the WriteIf and the caller tries
+// again.
 func readVersioned(backend storage.Store, key string) (data []byte, version string, exists bool, err error) {
 	stamp, err := backend.Stat(key)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -352,8 +352,8 @@ func (s *Keys) retainedCertificateKey(fingerprint string) string {
 	return path.Join(s.prefix, "certificate-der", fingerprint+".der")
 }
 
-// RetainedCertificate returns the DER of a certificate that Keys issued or
-// loaded, by the hex SHA-256 of its DER.
+// RetainedCertificate returns the DER of a certificate issued or loaded by
+// Keys, looked up by the hex SHA-256 of its DER.
 func (s *Keys) RetainedCertificate(fingerprint string) ([]byte, error) {
 	return s.backend.Read(s.retainedCertificateKey(fingerprint))
 }

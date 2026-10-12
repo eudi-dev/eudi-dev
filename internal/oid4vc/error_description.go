@@ -16,8 +16,8 @@ package oid4vc
 
 import "strings"
 
-// ErrorDescription fits a message into the characters RFC 6749 §4.1.2.1 and
-// §5.2 allow in error_description: "Values for the error_description parameter
+// ErrorDescription limits a message to the characters allowed in
+// error_description by RFC 6749 §4.1.2.1 and §5.2: "Values for the error_description parameter
 // MUST NOT include characters outside the set %x20-21 / %x23-5B / %x5D-7E."
 // Quotes become apostrophes, a section sign becomes "section", a backslash a
 // slash, and any other character outside the set a space.

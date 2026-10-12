@@ -84,8 +84,8 @@ func TestCheckMDOCIntegrity_DigestMismatch(t *testing.T) {
 	}
 }
 
-// The issuer signature covers only the MSO, so an element in a namespace the
-// MSO does not list has no issuer behind it.
+// The issuer signature covers only the MSO, so an element in a namespace
+// missing from the MSO has no issuer behind it.
 func TestCheckMDOCIntegrity_ElementOutsideTheMSO(t *testing.T) {
 	rawCBOR := []byte{0xa4, 0x01, 0x02, 0x03, 0x04}
 	hash := sha256.Sum256(rawCBOR)

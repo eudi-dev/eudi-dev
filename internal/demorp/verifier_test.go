@@ -29,7 +29,8 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/jwe"
 )
 
-// transactionOf is the transaction_id that the page creating the request got.
+// transactionOf returns the transaction_id given to the page that created the
+// request.
 func transactionOf(t *testing.T, d *DemoRP, requestID string) string {
 	t.Helper()
 	d.mu.Lock()
@@ -55,9 +56,9 @@ func postResponseForm(t *testing.T, d *DemoRP, requestID string, form url.Values
 }
 
 // OpenID4VP 1.0 §8.2 requires "a fresh, cryptographically random value" in
-// the redirect_uri, which "is used to ensure only the receiver of the
-// redirect can fetch and process the Authorization Response". The request id
-// is in the QR code, so it reads no result. The transaction_id of the
+// the redirect_uri. It "is used to ensure only the receiver of the redirect
+// can fetch and process the Authorization Response". The request id is in the
+// QR code, so it does not give access to the result. The transaction_id of the
 // creating page and the response_code of the redirect do (§13.3).
 func TestOnlyTheTransactionIDAndTheResponseCodeReadTheResult(t *testing.T) {
 	d, _, holderKey := newDemoRP(t)
@@ -89,8 +90,8 @@ func TestOnlyTheTransactionIDAndTheResponseCodeReadTheResult(t *testing.T) {
 	}
 }
 
-// The wallet redirects to a fresh page. The result names the page's choice,
-// so the page shows the controls of the request it answers.
+// The wallet redirects to a fresh page. The result carries the page's choice,
+// so the page shows the controls of the answered request.
 func TestTheResultNamesThePagesChoice(t *testing.T) {
 	d, _, _ := newDemoRP(t)
 	id, _ := startVerificationWith(t, d.VerifierHandler(), `{"type":"pid","format":"sd-jwt","vct":"urn:eudi:pid:de:1","multiple":true}`)

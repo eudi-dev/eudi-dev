@@ -34,8 +34,8 @@ func requestWithClaims(alg, responseMode string, claims map[string]any) *Request
 	}}
 }
 
-// RFC 7519 §4.1.4 rejects a JWT after its exp, within the clock skew that
-// OID4VP 1.0 §12 allows. OID4VP 1.0 §5.8: the aud of a Request Object "MUST be
+// RFC 7519 §4.1.4 rejects a JWT after its exp, within the clock skew allowed
+// by OID4VP 1.0 §12. OID4VP 1.0 §5.8: the aud of a Request Object "MUST be
 // "https://self-issued.me/v2", when Static Discovery metadata is used", and
 // the wallet publishes no metadata for dynamic discovery.
 func TestRequestObjectExpAndAud(t *testing.T) {

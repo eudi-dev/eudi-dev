@@ -32,7 +32,7 @@ const (
 	MediaTypeCWT = "application/statuslist+cwt"
 )
 
-// TypJWT is the value the JWT header must carry. Section 5.1: "typ: REQUIRED.
+// TypJWT is the required typ of the JWT header. Section 5.1: "typ: REQUIRED.
 // The JWT type MUST be statuslist+jwt."
 const TypJWT = "statuslist+jwt"
 
@@ -75,7 +75,7 @@ type StatusResult struct {
 	StatusName   string `json:"statusName"`
 	IsValid      bool   `json:"isValid"`
 	BitsPerEntry int    `json:"bitsPerEntry"`
-	// Format is the representation the Status Provider served, "jwt" or "cwt".
+	// Format is the representation served by the Status Provider, "jwt" or "cwt".
 	Format string `json:"format"`
 	// Subject is the sub (or CWT claim 2) of the Status List Token.
 	Subject string `json:"subject,omitempty"`

@@ -539,8 +539,8 @@ func (h *Server) keepsOperatorEntries() bool {
 	return h.KeepOperatorEntries != nil && h.KeepOperatorEntries()
 }
 
-// handleCatalogAttestations lists the catalogue with the names and credential
-// types the UI shows. TS11 has no such method, because its SchemaMeta leaves
+// handleCatalogAttestations lists the catalogue with names and credential
+// types for the UI. TS11 has no such method, because its SchemaMeta leaves
 // them to the format-specific schemas.
 func (h *Server) handleCatalogAttestations(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, h.Registrar().CatalogAttestations())
@@ -553,7 +553,7 @@ func (h *Server) handleCatalogCategories(w http.ResponseWriter, _ *http.Request)
 }
 
 // handleCatalogSchemaOptions lists the levels of security and holder bindings
-// a catalogue entry can name, with their labels.
+// for a catalogue entry, with their labels.
 func (h *Server) handleCatalogSchemaOptions(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"attestationLoS": AttestationLevels, "bindingType": BindingTypes})
 }

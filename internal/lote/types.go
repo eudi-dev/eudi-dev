@@ -24,8 +24,8 @@ type List struct {
 	Header     map[string]any
 	SchemeInfo *SchemeInfo
 	Entities   []TrustedEntity
-	// Findings name the entities, services and certificates that Parse could
-	// not read and left out.
+	// Findings list the entities, services and certificates that Parse could
+	// not read. Parse leaves them out of the list.
 	Findings []string
 }
 

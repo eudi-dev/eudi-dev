@@ -34,8 +34,8 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
 )
 
-// JWE algorithm and encryption identifiers of RFC 7518 that the wallet and
-// the demo verifier name.
+// JWE algorithm and encryption identifiers of RFC 7518, as used by the wallet
+// and the demo verifier.
 const (
 	AlgECDHES  = "ECDH-ES"
 	EncA128GCM = "A128GCM"
@@ -250,8 +250,8 @@ func EncKeyBitLen(enc string) (int, error) {
 }
 
 // ParsePublicKeyJWK reads a P-256 public key from a JWK map, such as an epk
-// header. It uses the toolkit's JWK decoding, which includes the go-jose
-// off-curve check.
+// header. It uses the toolkit's JWK decoding with the go-jose off-curve
+// check.
 func ParsePublicKeyJWK(m map[string]any) (*ecdh.PublicKey, error) {
 	if crv, _ := m["crv"].(string); crv != "P-256" {
 		return nil, fmt.Errorf("unsupported curve: %s", crv)

@@ -55,15 +55,15 @@ const (
 
 type requestState struct {
 	// id is the request-id of OpenID4VP 1.0 §13.3. It is the state of the
-	// request and names it in the request and response URIs, so anyone who
-	// sees the QR code knows it.
+	// request and identifies it in the request and response URIs, so anyone
+	// who sees the QR code knows it.
 	id string
 	// transactionID is the transaction-id of §13.3. Only the page that created
-	// the request gets it, and it reads the result with it.
+	// the request gets it. The page reads the result with it.
 	transactionID string
 	// responseCode is the "fresh, cryptographically random value" that §8.2
-	// requires in the redirect_uri after the response. It reads the result on
-	// the device that the wallet redirects.
+	// requires in the redirect_uri after the response. The device redirected
+	// by the wallet reads the result with it.
 	responseCode string
 	// queries and sets are the DCQL query. The request sends them and the
 	// response is checked against them.
@@ -107,7 +107,7 @@ func (d *DemoRP) VerifierHandler() http.Handler {
 	mux.HandleFunc("GET /api/requests/{key}", d.handleRequestStatus)
 	mux.HandleFunc("GET /request/{id}", d.handleRequestObject)
 	mux.HandleFunc("POST /response/{id}", d.handlePresentationResponse)
-	// GuardAPI covers only /api/, which the page calls. Wallets on other
+	// GuardAPI covers only the page's calls to /api/. Wallets on other
 	// origins call the protocol endpoints.
 	return httpsec.GuardAPI(limitBodies(mux), d.baseURL())
 }
@@ -136,8 +136,8 @@ type createRequestBody struct {
 	// Format is "sd-jwt", "mdoc" or "both" (the default) for a PID request.
 	// The ticket exists only as an SD-JWT VC.
 	Format string `json:"format"`
-	// VCT is the requested PID type. Empty means urn:eudi:pid:1, which every
-	// PID answers. A national type such as urn:eudi:pid:de:1 is answered only
+	// VCT is the requested PID type. Empty means urn:eudi:pid:1. Every PID
+	// answers it. A national type such as urn:eudi:pid:de:1 is answered only
 	// by a credential of that type.
 	VCT string `json:"vct"`
 	// Ticket adds the demo ticket to a PID request. "combined" puts PID and
@@ -215,7 +215,7 @@ type credentialQuery struct {
 	multiple bool
 	// trustedAuthorities is the trusted_authorities value, if any.
 	trustedAuthorities []map[string]any
-	// resultKey names the entry of the verified claims. An empty key puts the
+	// resultKey is the key of this entry in the verified claims. An empty key puts the
 	// claims of a single presentation at the top level.
 	resultKey string
 }
@@ -373,7 +373,7 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 		claims = d.ticketClaimNames()
 	case "pid":
 		// An explicit format tests how a wallet handles a request for a format
-		// it does not hold.
+		// that it does not hold.
 		wantSDJWT, wantMDOC, err := normalizePIDFormat(body.Format)
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
@@ -555,8 +555,8 @@ func (d *DemoRP) finalizeRequest(w http.ResponseWriter, req *requestState, respo
 	writeCreatedRequest(w, req, base+"/authorize?"+params, "openid4vp://?"+params)
 }
 
-// writeCreatedRequest hands the creating page the transaction_id that reads
-// the result.
+// writeCreatedRequest returns the transaction_id to the page that created the
+// request. The page reads the result with it.
 func writeCreatedRequest(w http.ResponseWriter, req *requestState, walletURL, schemeURI string) {
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"id":             req.id,
@@ -966,7 +966,8 @@ func writeAnswered(w http.ResponseWriter) {
 }
 
 // answerResponse answers a processed response with the redirect_uri of
-// OpenID4VP 1.0 §8.2. Its response_code reads the result.
+// OpenID4VP 1.0 §8.2. The redirected page reads the result with its
+// response_code.
 func (d *DemoRP) answerResponse(w http.ResponseWriter, req *requestState) {
 	code := randToken()
 	d.mu.Lock()
@@ -1347,7 +1348,7 @@ func (d *DemoRP) verifyMDOCPresentation(req *requestState, presentation, docType
 		return nil, err
 	}
 
-	// Paths name the namespace first, so an element of another namespace
+	// Paths start with the namespace, so an element of another namespace
 	// doesn't answer them.
 	claims := map[string]any{}
 	byNamespace := map[string]any{}
@@ -1384,7 +1385,7 @@ func encryptionJWKThumbprint(key *ecdsa.PrivateKey) []byte {
 // checklist keeps each check result for the UI.
 type checklist struct {
 	entries []map[string]any
-	// group names the credential query the next checks belong to.
+	// group is the credential query for the next checks.
 	group string
 }
 

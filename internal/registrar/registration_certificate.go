@@ -77,8 +77,8 @@ type RegistrationCertificateContent struct {
 	// IntendedUseIdentifier is the registered intended use (ETSI TS 119 475
 	// V1.2.1 Table 9).
 	IntendedUseIdentifier string
-	// ProvidesAttestations are the attestation types a provider issues (ETSI TS
-	// 119 475 V1.2.1 Table 8).
+	// ProvidesAttestations are the attestation types issued by a provider (ETSI
+	// TS 119 475 V1.2.1 Table 8).
 	ProvidesAttestations []ProvidedAttestation
 	Validity             string
 	// StatusIndex is the certificate's entry in the registrar's status list.
@@ -173,7 +173,7 @@ func (r *Registrar) CurrentRegistrationCertificate(req RegistrationCertificateRe
 	return result, false, err
 }
 
-// CertificateRequests names every registration certificate of a relying
+// CertificateRequests lists every registration certificate of a relying
 // party: one per attestation provider service (ARF RPRC_13) and one per
 // intended use (ARF RPRC_09).
 func CertificateRequests(rp WalletRelyingParty) []RegistrationCertificateRequest {
@@ -224,7 +224,7 @@ func certificateResult(key certificateKey, signed string) (*RegistrationCertific
 	return &RegistrationCertificateResult{RegistrationCertificate: signed, IssuerInfo: info}, nil
 }
 
-// providerService returns the provider service a certificate is for. Without a
+// providerService returns the provider service of a certificate. Without a
 // service identifier the relying party must have exactly one.
 func providerService(rp WalletRelyingParty, serviceIdentifier string) (WalletRelyingPartyService, error) {
 	if serviceIdentifier != "" {
@@ -248,7 +248,7 @@ func providerService(rp WalletRelyingParty, serviceIdentifier string) (WalletRel
 }
 
 // issueCertificate reserves a status entry, signs the certificate and revokes
-// the one it replaces.
+// the replaced one.
 func (r *Registrar) issueCertificate(rp WalletRelyingParty, key certificateKey, content RegistrationCertificateContent, credentials []map[string]any, validityValue string) (string, error) {
 	content.Validity = validityValue
 	validity, err := registrationValidity(validityValue)
@@ -294,7 +294,7 @@ func IssuerInfoValue(registrationCertificate string) (string, error) {
 // element "shall include the registration certificate" (ETSI TS 119 472-2
 // OIDFVP-HAIP-COMMON-REQ-RO-13 as adapted by CIR (EU) 2026/1731 Annex XII).
 // RO-16 makes the data "the base64url encoding of the serialized RP
-// registration certificate", which for a JWT is its compact serialization
+// registration certificate". For a JWT that is its compact serialization
 // (RFC 7519 §1). Base64url omits the padding (RFC 7515 §2).
 func VerifierInfoValue(registrationCertificate string) (string, error) {
 	data := base64.RawURLEncoding.EncodeToString([]byte(registrationCertificate))
@@ -321,9 +321,9 @@ func registrationContent(rp WalletRelyingParty, service WalletRelyingPartyServic
 		LegalName:         rp.LegalPerson.LegalName[0],
 		Country:           rp.Country,
 		Description:       service.SrvDescription,
-		// ARF Reg_01a registers the data of EC TS6, which keeps the
-		// entitlements per service (TS6 v1.2.2 row 12, TS05 v1.5 §2.4.1). ETSI
-		// TS 119 475 V1.2.1 Annex B.2.1 keeps them per relying party.
+		// ARF Reg_01a registers the data of EC TS6. TS6 keeps the entitlements
+		// per service (TS6 v1.2.2 row 12, TS05 v1.5 §2.4.1). ETSI TS 119 475
+		// V1.2.1 Annex B.2.1 keeps them per relying party.
 		Entitlements:          service.Entitlements,
 		RegistryURI:           rp.RegistryURI,
 		PrivacyPolicy:         privacyPolicyURI(use),
@@ -334,8 +334,8 @@ func registrationContent(rp WalletRelyingParty, service WalletRelyingPartyServic
 }
 
 // supervisoryAuthorityClaim carries the authority's contacts in the subfields
-// of ETSI TS 119 475 V1.2.1 Table 7, and its name and country, which ARF
-// RPRC_12 requires as well.
+// of ETSI TS 119 475 V1.2.1 Table 7. It also carries the name and country, as
+// ARF RPRC_12 requires.
 func supervisoryAuthorityClaim(a SupervisoryAuthority) map[string]any {
 	claim := map[string]any{"name": a.Name, "country": a.Country}
 	for field, values := range map[string][]string{"email": a.Email, "phone": a.Phone, "uri": a.FormURI} {
@@ -398,7 +398,7 @@ func RegistrationCertificateClaimsFor(base string, req RegistrationCertificateCo
 		"support_uri":           jsonutil.FirstNonEmpty(req.SupportURI, base+"/support"),
 		"supervisory_authority": supervisoryAuthorityClaim(req.SupervisoryAuthority),
 		// ETSI TS 119 475 V1.2.1 GEN-6.2.6.1-03 asks for a unique identifier
-		// of the certificate, which a JWT carries as jti (RFC 7519 §4.1.7).
+		// of the certificate. A JWT carries it as jti (RFC 7519 §4.1.7).
 		"jti": uuid.NewString(),
 		"iat": now.Unix(),
 		"exp": now.Add(validity).Unix(),

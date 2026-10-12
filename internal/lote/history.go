@@ -27,15 +27,15 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 )
 
-// PubEAAWithdrawnStatus marks a service the provider may no longer use (ETSI
-// TS 119 602 V1.1.1 Table H.3).
+// PubEAAWithdrawnStatus marks a withdrawn service (ETSI TS 119 602 V1.1.1
+// Table H.3).
 const PubEAAWithdrawnStatus = "http://uri.etsi.org/19602/PubEAAProvidersList/SvcStatus/withdrawn"
 
-// keepPubEAAHistory dates the services of a Pub-EAA providers list and keeps
-// the services of the previous list that this one no longer names. The list
-// keeps its history forever (ETSI TS 119 602 V1.1.1 Table H.1 and §6.3.12),
-// so a removed service stays with the status withdrawn (Table H.3) and its
-// earlier status in ServiceHistory (§6.4.4).
+// keepPubEAAHistory dates the services of a Pub-EAA providers list. It also
+// keeps the services of the previous list that are missing from this one. The
+// list keeps its history forever (ETSI TS 119 602 V1.1.1 Table H.1 and
+// §6.3.12), so a removed service stays with the status withdrawn (Table H.3)
+// and its earlier status in ServiceHistory (§6.4.4).
 func keepPubEAAHistory(previous string, built []map[string]any, issued time.Time) ([]any, error) {
 	entities, err := jsonArray(built)
 	if err != nil {
@@ -87,8 +87,8 @@ func keepPubEAAHistory(previous string, built []map[string]any, issued time.Time
 	return entities, nil
 }
 
-// withdraw turns a notified service into a withdrawn one. Its history names
-// the key by X509SKI and carries no certificate (Table H.3).
+// withdraw turns a notified service into a withdrawn one. Its history
+// identifies the key by X509SKI and carries no certificate (Table H.3).
 func withdraw(info map[string]any, stamp string) map[string]any {
 	earlier := map[string]any{
 		"ServiceName":        info["ServiceName"],
@@ -119,7 +119,8 @@ func previousTrustedEntities(previous string) []map[string]any {
 	return objects(list["TrustedEntitiesList"])
 }
 
-// jsonArray gives the entities Sign builds the types of a decoded list.
+// jsonArray converts the entities built by Sign to the Go types of a decoded
+// list.
 func jsonArray(value any) ([]any, error) {
 	encoded, err := json.Marshal(value)
 	if err != nil {

@@ -109,8 +109,7 @@ var (
 	frameworkTypes = []string{"aki", "etsi_tl", "openid_federation"}
 )
 
-// SchemaOption is one value of a catalogue schema field, with the label the
-// UI shows.
+// SchemaOption is one value of a catalogue schema field, with its UI label.
 type SchemaOption struct {
 	Value string `json:"value"`
 	Label string `json:"label"`
@@ -236,10 +235,10 @@ func catalogClash(entry, existing CatalogAttestation) error {
 	return nil
 }
 
-// SetOperatorCatalog makes entries the entries of the operator's catalogue
-// file. The id of an entry derives from its name, so an entry keeps its id
-// across restarts. The entries of an earlier file that entries leaves out
-// are removed. It reports whether the stored catalogue changed.
+// SetOperatorCatalog stores entries as the operator's catalogue file. The id
+// of an entry derives from its name, so an entry keeps its id across
+// restarts. Entries of an earlier file missing from entries are removed. It
+// reports whether the stored catalogue changed.
 func (r *Registrar) SetOperatorCatalog(entries []CatalogAttestation) (bool, error) {
 	base := r.env.RegistrarBase()
 	fromTemplates := r.templateCatalog(base)
@@ -434,7 +433,7 @@ func removedTemplateTypesIn(catalog []CatalogAttestation) removedTemplateTypes {
 	return removed
 }
 
-// hides reports whether a template entry names a removed type.
+// hides reports whether a template entry has a removed type.
 func (removed removedTemplateTypes) hides(entry CatalogAttestation) bool {
 	return slices.ContainsFunc(entry.Credentials, func(c CatalogCredential) bool { return removed.types[c.Format+" "+c.Type] })
 }
@@ -624,8 +623,8 @@ func (r *Registrar) templateCatalog(base string) []CatalogAttestation {
 }
 
 // ownedEntryClash reports whether the catalog object of a template repeats
-// the name or a type of an entry the catalogue keeps first: a predefined
-// entry, or an earlier template entry.
+// the name or a type of an entry with priority: a predefined entry, or an
+// earlier template entry.
 func ownedEntryClash(built []templateCatalogEntry, i int) error {
 	if len(built[i].owners) == 0 {
 		return nil
@@ -711,8 +710,8 @@ func (r *Registrar) buildTemplateCatalog(templates []credtemplate.Template, base
 
 // templateEntry builds the entry of one template in one format. A template
 // with a catalog object takes its fields with the rules of a catalogue
-// request (TemplateCatalogAttestation). ok is false for a template without a
-// type, which has no entry.
+// request (TemplateCatalogAttestation). A template without a type has no
+// entry, and ok is false.
 func templateEntry(t credtemplate.Template, base string) (entry CatalogAttestation, ok bool, err error) {
 	credential, ok := templateCatalogCredential(t)
 	if t.Catalog == nil {

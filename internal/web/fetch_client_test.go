@@ -32,7 +32,7 @@ import (
 
 // verifyingWallet checks TLS certificates on every request. With ca it trusts
 // that CA as well. Without a wallet, a loopback request skips verification,
-// so only the wallet's client refuses a certificate it does not trust.
+// so only the wallet's client refuses an untrusted certificate.
 func verifyingWallet(t *testing.T, ca *httptest.Server) *wallet.Wallet {
 	t.Helper()
 	holderKey, _ := mock.GenerateKey()

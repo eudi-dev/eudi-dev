@@ -66,8 +66,8 @@ func TestClientMetadataAcceptsWellFormedFields(t *testing.T) {
 	}
 }
 
-// A signed request carries its client_metadata in the Request Object, which
-// replaces the outer parameters (RFC 9101 §6.3).
+// A signed request carries its client_metadata in the Request Object. The
+// Request Object replaces the outer parameters (RFC 9101 §6.3).
 func TestClientMetadataComesFromTheRequestObject(t *testing.T) {
 	innerKey := map[string]any{"kty": "EC", "crv": "P-256", "x": "aW4", "y": "aW4", "alg": "ECDH-ES", "kid": "inner"}
 	reqObj := &oid4vc.RequestObjectJWT{Payload: map[string]any{"client_metadata": map[string]any{

@@ -86,8 +86,9 @@ func mustCertificate(t *testing.T, info CertInfo) *x509.Certificate {
 	return cert
 }
 
-// An entity's trade name is the registration identifier its own certificates
-// carry, and an entity without one has none (ETSI TS 119 602 V1.1.1 §6.5.2).
+// An entity's trade name is the registration identifier from its own
+// certificates. An entity without one has no trade name (ETSI TS 119 602
+// V1.1.1 §6.5.2).
 func TestAListedEntityTakesTheTradeNameOfItsCertificates(t *testing.T) {
 	caKey, err := mock.GenerateKey()
 	if err != nil {
@@ -137,10 +138,10 @@ func TestTheSchemeNameAndOperatorAddressFollowTheirForms(t *testing.T) {
 }
 
 // ETSI TS 119 602 V1.1.1 Table H.1 keeps the history of a Pub-EAA providers
-// list forever. A service the next list no longer names stays with the status
-// withdrawn (Table H.3) and its earlier status in ServiceHistory (§6.4.4),
-// whose digital identity is an X509SKI only. Every service holds one public
-// key.
+// list forever. A service missing from the next list stays with the status
+// withdrawn (Table H.3) and its earlier status in ServiceHistory (§6.4.4).
+// The digital identity in that history is an X509SKI only. Every service
+// holds one public key.
 func TestAPubEAAListKeepsTheServicesItWithdraws(t *testing.T) {
 	certificate := func() string {
 		key, err := mock.GenerateKey()

@@ -36,8 +36,8 @@ func requestVerifierInfo(authReq *Request) map[string]any {
 	return payload
 }
 
-// ConsentRegistration returns the purposes and privacy policy links the consent
-// dialog shows (ARF RPA_10). It uses only registration certificates bound to
+// ConsentRegistration returns the purposes and privacy policy links for the
+// consent dialog (ARF RPA_10). It uses only registration certificates bound to
 // the access certificate that signed the request, because OpenID4VP 1.0 §5.1
 // requires the wallet to "validate the signature and ensure binding" of
 // information it uses from verifier_info.

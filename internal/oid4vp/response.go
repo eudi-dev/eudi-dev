@@ -90,7 +90,8 @@ func (e *VerifierResponseError) Unwrap() error { return e.err }
 // Body is the response body of the verifier.
 func (e *VerifierResponseError) Body() string { return e.body }
 
-// SubmitDirectPostJWT exposes a supplied CEK in X-Debug-JWE-CEK for proxy debugging.
+// SubmitDirectPostJWT posts an encrypted response to responseURI. A supplied
+// CEK goes into the X-Debug-JWE-CEK header for proxy debugging.
 func SubmitDirectPostJWT(responseURI string, responseJWT string, cek []byte, clients ...*http.Client) (*DirectPostResult, error) {
 	form := url.Values{}
 	form.Set("response", responseJWT)

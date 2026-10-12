@@ -30,8 +30,8 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
 )
 
-// OpenID4VP 1.0 §B.1.1: a W3C credential query names its types in
-// type_values, a set of alternatives that each list types in any order. A
+// OpenID4VP 1.0 §B.1.1: a W3C credential query lists its types in
+// type_values. Each alternative in that set lists types in any order. A
 // registered alternative covers the same set (ARF RPRC_21).
 func TestOverAskingComparesTheTypeValuesOfW3CCredentials(t *testing.T) {
 	cert := map[string]any{"credentials": []any{map[string]any{
@@ -54,9 +54,10 @@ func TestOverAskingComparesTheTypeValuesOfW3CCredentials(t *testing.T) {
 	}
 }
 
-// ARF RPRC_17a: the registration certificate names the same relying party and
-// the same service as the access certificate, which carries the service in
-// organizationalUnit (ETSI TS 119 411-8 V1.1.1 GEN-6.6.1-08).
+// ARF RPRC_17a: the registration certificate identifies the same relying
+// party and the same service as the access certificate. The access
+// certificate carries the service in organizationalUnit (ETSI TS 119 411-8
+// V1.1.1 GEN-6.6.1-08).
 func TestTheBindingComparesTheRelyingPartyAndTheService(t *testing.T) {
 	access := &x509.Certificate{Subject: pkix.Name{
 		OrganizationalUnit: []string{"shop"},
@@ -212,7 +213,7 @@ func TestProvidesNeedsTheFormatAndAType(t *testing.T) {
 	}
 }
 
-// ARF RPRC_12: the registration certificate of a relying party names its
+// ARF RPRC_12: the registration certificate of a relying party lists its
 // data protection authority and the authority's country, besides a contact.
 func TestTheSupervisoryAuthorityNeedsANameAndACountry(t *testing.T) {
 	cert := conformantRegistrationCert()

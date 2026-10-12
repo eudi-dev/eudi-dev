@@ -125,8 +125,8 @@ func TestQueryFindingsChecksTheNestedQueries(t *testing.T) {
 	}
 }
 
-// A well-formed trusted authority of a type this wallet does not implement,
-// such as openid_federation, is no finding.
+// A well-formed trusted authority of an unimplemented type, such as
+// openid_federation, is no finding.
 func TestQueryFindingsAcceptsAnUnknownTrustedAuthorityType(t *testing.T) {
 	query := map[string]any{"credentials": []any{credentialQuery("pid", map[string]any{
 		"trusted_authorities": []any{map[string]any{"type": "openid_federation", "values": []any{"https://trust.example"}}},

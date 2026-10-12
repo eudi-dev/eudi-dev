@@ -44,7 +44,7 @@ type deferredTicket struct {
 
 // writeIssuancePending answers a credential request or a deferred credential
 // request whose credentials are not ready. OpenID4VCI 1.0 §8.3 and §9.2 require
-// HTTP 202 with transaction_id and interval, which is "REQUIRED if
+// HTTP 202 with transaction_id and interval. interval is "REQUIRED if
 // transaction_id is present".
 func writeIssuancePending(w http.ResponseWriter, transactionID string) {
 	writeJSON(w, http.StatusAccepted, map[string]any{

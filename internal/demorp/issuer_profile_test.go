@@ -117,12 +117,12 @@ func TestIssuerProfileMetadata(t *testing.T) {
 }
 
 // The identity check of the demo issuer carries the registration certificate
-// of its intended use. It names the subject of the access certificate (ETSI
+// of its intended use. It contains the subject of the access certificate (ETSI
 // TS 119 475 V1.2.1 §5.1.1) and its trade name (ARF RPRC_06).
 func TestDemoRegistrationMatchesAccessCertificate(t *testing.T) {
 	_, w, _ := newDemoRP(t)
-	// The registrar publishes under the issuer URL, which differs from the
-	// base URL without --base-url.
+	// The registrar publishes under the issuer URL. Without --base-url it
+	// differs from the base URL.
 	w.IssuerURL = "https://localhost:9999"
 	if _, err := w.RegisterMissingDemoParties(); err != nil {
 		t.Fatal(err)

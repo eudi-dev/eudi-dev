@@ -53,7 +53,7 @@ func StartSubprocess(args []string, scanner *OutputScanner, out io.Writer) (*Sub
 	cmd.Env = os.Environ()
 	setProcAttr(cmd)
 
-	// The streams go through pipes the proxy owns, so cmd.Wait honours
+	// The streams go through pipes owned by the proxy, so cmd.Wait honours
 	// WaitDelay. A grandchild that left the process group may keep the
 	// service's output open after the service exits.
 	stdout, stdoutW := io.Pipe()

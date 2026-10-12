@@ -52,7 +52,7 @@ type Credential struct {
 	IssuedAt time.Time
 }
 
-// Options are the wallet settings a query is evaluated with.
+// Options holds the wallet settings for evaluating a query.
 type Options struct {
 	// Strict answers only with matching credentials. Otherwise debug mode
 	// also offers credentials that do not match, so verifiers can be tested
@@ -624,7 +624,7 @@ func matchesTypeValues(types []string, typeValues []any) bool {
 // typeExpandsTo reports whether a credential type equals a fully expanded type.
 // The wallet does no JSON-LD processing. The W3C credential contexts define
 // each type term as an IRI ending in #term, so a term matches an IRI with that
-// fragment. B.1.1 keeps a type no context defines as the relative IRI itself.
+// fragment. B.1.1 keeps an undefined type as the relative IRI itself.
 func typeExpandsTo(credentialType, iri string) bool {
 	if credentialType == iri {
 		return true
@@ -648,9 +648,9 @@ func w3cCredentialTypes(payload map[string]any) []string {
 	return nil
 }
 
-// requiresHolderBinding reads require_cryptographic_holder_binding, which
+// requiresHolderBinding reads require_cryptographic_holder_binding. It
 // defaults to true (OpenID4VP 1.0 §6.1). The Verifier then expects a
-// Cryptographic Holder Binding proof, which an unbound credential cannot give.
+// Cryptographic Holder Binding proof. An unbound credential cannot give one.
 func requiresHolderBinding(cqMap map[string]any) bool {
 	required, ok := cqMap["require_cryptographic_holder_binding"].(bool)
 	return !ok || required

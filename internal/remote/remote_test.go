@@ -269,7 +269,7 @@ func TestDiscoverDedupesStaleRegistryFilesOnSamePort(t *testing.T) {
 	live, port := versionServer(t, self)
 
 	// The current server reused the port of an exited one, so both registry
-	// files name it. Discovery removes the entry of the exited process.
+	// files list it. Discovery removes the entry of the exited process.
 	if err := RegisterInstance(Instance{PID: dead, Port: port, URL: live.URL, StartedAt: time.Now()}); err != nil {
 		t.Fatal(err)
 	}

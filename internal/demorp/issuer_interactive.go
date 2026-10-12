@@ -136,8 +136,8 @@ func (d *DemoRP) startInteractiveAuthorization(w http.ResponseWriter, r *http.Re
 	}
 
 	// Use auth_via_web if the wallet supports it (OpenID4VCI 1.1 §6.2.1.2).
-	// Other wallets get redirect_to_web from first-party-apps §5.2.2.1.1,
-	// which needs no advertised interaction type.
+	// Other wallets get redirect_to_web from first-party-apps §5.2.2.1.1.
+	// It needs no advertised interaction type.
 	offered := r.PostFormValue("interaction_types_supported")
 	if grant.settings.authorization == authorizationBrowser {
 		if offersInteractionType(offered, interactionTypeAuthViaWeb) {
@@ -239,7 +239,7 @@ func (d *DemoRP) continueInteractiveAuthorization(w http.ResponseWriter, r *http
 	writeJSON(w, http.StatusOK, map[string]any{"authorization_code": code})
 }
 
-// takeInteractiveSession finds the session that an Intermediate Request names.
+// takeInteractiveSession finds the session of an Intermediate Request.
 // It checks the client and the DPoP key under the same lock that takes the
 // session out, so a session yields at most one authorization code. The error
 // codes are those of first-party-apps §5.2.2.1.
@@ -290,7 +290,7 @@ func (d *DemoRP) pushChallengeAuthRequest(grant authGrant) *authRequestState {
 // startAuthViaWebInteraction answers with the browser interaction of
 // §6.2.1.2. The wallet uses the request_uri for an authorization request
 // (RFC 9126 §4). The redirect from the authorization endpoint completes the
-// authorization with a code, which the token endpoint redeems with the
+// authorization with a code. The token endpoint redeems it with the
 // code_verifier. §6.2.1.2: "the Authorization Server MUST omit auth_session
 // parameter in the response".
 func (d *DemoRP) startAuthViaWebInteraction(w http.ResponseWriter, grant authGrant) {
@@ -330,7 +330,7 @@ func (d *DemoRP) redirectChallengeToWeb(w http.ResponseWriter, grant authGrant) 
 
 // newInteractivePIDRequest asks for a PID in either format, bound to the
 // Authorization Challenge Endpoint. verifyPresentation accepts only
-// credentials under the issuer CA, so trusted_authorities names that CA and
+// credentials under the issuer CA, so trusted_authorities lists that CA and
 // the wallet can pick a matching credential.
 func (d *DemoRP) newInteractivePIDRequest() *requestState {
 	var authorities []map[string]any
@@ -411,7 +411,7 @@ func offersInteractionType(list, want string) bool {
 	return false
 }
 
-// requestedClaims are the presented claims the identity check asks for. The
+// requestedClaims are the presented claims requested by the identity check. The
 // issued credential takes them over its template, and nothing else of the
 // presented credential, such as its vct.
 func requestedClaims(claims map[string]any, names []string) map[string]any {

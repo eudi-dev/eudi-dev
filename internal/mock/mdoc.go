@@ -160,11 +160,11 @@ type MDOCConfig struct {
 	// KeepTrustAnchor embeds the chain as given, including a terminal
 	// self-signed root.
 	KeepTrustAnchor bool
-	// OmitValidityInfo drops the MSO validityInfo, which ISO 18013-5 requires.
+	// OmitValidityInfo drops the MSO validityInfo required by ISO 18013-5.
 	// Tests use it to check verifiers.
 	OmitValidityInfo bool
-	// OmitDigestAlgorithm drops the MSO digestAlgorithm, which ISO 18013-5
-	// requires. The digests still use SHA-256.
+	// OmitDigestAlgorithm drops the MSO digestAlgorithm required by ISO
+	// 18013-5. The digests still use SHA-256.
 	OmitDigestAlgorithm bool
 }
 

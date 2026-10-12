@@ -32,8 +32,8 @@ const RegistrationStatusListPath = "/api/registrar/status-list"
 // compresses to a few hundred bytes.
 const minRegistrationStatusListSize = 1 << 17
 
-// maxCertificatesPerRelyingParty bounds the certificates of one relying party
-// that the registrar has not replaced.
+// maxCertificatesPerRelyingParty bounds the unreplaced certificates of one
+// relying party.
 const maxCertificatesPerRelyingParty = 100
 
 var (
@@ -93,8 +93,8 @@ func statusKey(s RegistrationStatus) certificateKey {
 	return certificateKey{service: s.Service}
 }
 
-// registrationStatusListSize is the size of the status list with adding more
-// entries in it. An index belongs to one certificate for good, even after
+// registrationStatusListSize is the size of the status list after adding
+// more entries. An index belongs to one certificate for good, even after
 // it expires (ETSI TS 119 475 V1.2.1 GEN-6.2.6.1-05: "The value of idx shall
 // be unique for each WRPRC issued by the same issuer"). The list doubles
 // whenever it is half full, so a random index is found in a few tries. Token
@@ -196,7 +196,7 @@ const (
 )
 
 // supersedeRegistrationsLocked permanently revokes every current certificate
-// that reasonFor gives a reason. The caller holds r.mu.
+// for which reasonFor returns a reason. The caller holds r.mu.
 func (r *Registrar) supersedeRegistrationsLocked(reasonFor func(RegistrationStatus) string) {
 	for i := range r.state.RegistrationStatuses {
 		s := &r.state.RegistrationStatuses[i]
@@ -339,8 +339,8 @@ func scopeFilter(rp WalletRelyingParty, scope RegistrationScope) (func(Registrat
 	}, nil
 }
 
-// registeredIdentifier resolves any identifier of a relying party to the one
-// its status entries carry. An unknown identifier stays as it is.
+// registeredIdentifier resolves any identifier of a relying party to the
+// identifier stored in its status entries. An unknown identifier stays as it is.
 func (r *Registrar) registeredIdentifier(identifier string) string {
 	if rp, ok := r.RelyingParty(identifier); ok {
 		return rp.Identifier[0].Identifier

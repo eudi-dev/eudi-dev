@@ -125,8 +125,8 @@ func TestVerifyRefusesTheNoneAlgorithm(t *testing.T) {
 	}
 }
 
-// An HMAC token must not be checked as an HMAC against a key the caller
-// treats as a public key.
+// Verify must refuse an HMAC token. The caller passes a public key, and it
+// must never serve as an HMAC secret.
 func TestVerifyRefusesASymmetricAlgorithm(t *testing.T) {
 	secret := []byte("0123456789abcdef0123456789abcdef")
 	signer, err := josev4.NewSigner(josev4.SigningKey{Algorithm: josev4.HS256, Key: secret}, nil)

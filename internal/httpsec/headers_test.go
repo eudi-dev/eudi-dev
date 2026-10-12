@@ -56,8 +56,8 @@ func TestHeaders(t *testing.T) {
 	}
 }
 
-// --adhoc-display-images keeps an issuer's https image URL, which the card
-// then loads from the issuer.
+// --adhoc-display-images keeps an issuer's https image URL. The card then
+// loads the image from the issuer.
 func TestHeadersWithRemoteImagesLoadsHTTPSImages(t *testing.T) {
 	resp := httptest.NewRecorder()
 	HeadersWithRemoteImages(http.NotFoundHandler()).ServeHTTP(resp, httptest.NewRequest("GET", "/", nil))

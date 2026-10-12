@@ -48,7 +48,7 @@ func TestVerifyValueDigests(t *testing.T) {
 	}{
 		{name: "the digest the issuer signed", signed: correct[:], wantOK: true},
 		{name: "a different digest", signed: differs[:], wantOK: false},
-		// A prefix of the right digest matches every byte it has.
+		// A prefix of the right digest matches on all of its bytes.
 		{name: "a truncated digest", signed: correct[:16], wantOK: false},
 		{name: "an empty digest", signed: []byte{}, wantOK: false},
 		{name: "a digest with trailing bytes", signed: append(correct[:], 0x00), wantOK: false},

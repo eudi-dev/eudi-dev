@@ -32,8 +32,7 @@ type Check struct {
 	// Status is Pass, Fail, Warning or Skipped.
 	Status string `json:"status"`
 	Detail string `json:"detail"`
-	// NeedsNetwork marks a skipped check that an offline validation could not
-	// run.
+	// NeedsNetwork marks a check skipped because the validation ran offline.
 	NeedsNetwork bool `json:"needsNetwork,omitempty"`
 	// Anchor is the trusted list service behind a passing trust or status
 	// list signature check.
@@ -93,7 +92,7 @@ type Result struct {
 	Checks []Check
 
 	// SDJWTVerify or MDOCVerify is the signature verification behind the
-	// signature check, and SignatureSource names the key that verified it.
+	// signature check. SignatureSource identifies the verifying key.
 	SDJWTVerify     *sdjwt.VerifyResult
 	MDOCVerify      *mdoc.VerifyResult
 	SignatureSource string

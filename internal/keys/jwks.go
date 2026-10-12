@@ -124,7 +124,7 @@ func PublicJWK(pub crypto.PublicKey) (map[string]any, error) {
 
 // Thumbprint returns the RFC 7638 JWK Thumbprint with SHA-256. Section 3.2
 // hashes only the required members, in lexicographic order and without
-// whitespace, which json.Marshal of a map produces.
+// whitespace. json.Marshal of a map produces exactly that.
 func Thumbprint(jwk map[string]any) ([]byte, error) {
 	kty, _ := jwk["kty"].(string)
 	var required []string

@@ -19,7 +19,7 @@ import (
 	"crypto/elliptic"
 	"crypto/hkdf"
 	"crypto/rand"
-	"crypto/sha1" //nolint:gosec // ISO/IEC 18013-5 Annex B mandates SHA-1 for the subject key identifier, a name, not a security primitive
+	"crypto/sha1" //nolint:gosec // ISO/IEC 18013-5 Annex B mandates SHA-1 for the subject key identifier (a key label with no security role)
 	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -50,7 +50,7 @@ func SigningCertificateURL(issuer string, cert *x509.Certificate, extension stri
 // DefaultCertificateCountry is the subject countryName of a generated certificate
 // when the credential has no issuing country. ISO/IEC 18013-5 Table B.3 requires
 // the document signer certificate's countryName to equal the credential's
-// issuing_country element, so it matches the default PID claim sets.
+// issuing_country element. This default matches the default PID claim sets.
 const DefaultCertificateCountry = "NL"
 
 // issuerContactURI is the contact of the operator of a generated CA. ISO/IEC
@@ -114,7 +114,7 @@ func subjectKeyIdentifier(pub *ecdsa.PublicKey) ([]byte, error) {
 	if _, err := asn1.Unmarshal(spki, &wrapper); err != nil {
 		return nil, fmt.Errorf("parsing subject public key info: %w", err)
 	}
-	sum := sha1.Sum(wrapper.PublicKey.Bytes) //nolint:gosec // the RFC 5280 §4.2.1.2 method 1 key identifier every Annex B profile requires
+	sum := sha1.Sum(wrapper.PublicKey.Bytes) //nolint:gosec // every Annex B profile requires the RFC 5280 §4.2.1.2 method 1 key identifier
 	return sum[:], nil
 }
 
@@ -265,7 +265,7 @@ type LeafCertOptions struct {
 	URIs           []*url.URL
 	IPAddresses    []net.IP
 	EmailAddresses []string
-	// OrganizationalUnit names one service of the organization (ARF Reg_33,
+	// OrganizationalUnit is one service of the organization (ARF Reg_33,
 	// ETSI TS 119 411-8 GEN-6.6.1-08). Empty leaves it out.
 	OrganizationalUnit string
 	// OrganizationIdentifier is the subject organizationIdentifier (OID

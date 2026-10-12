@@ -276,7 +276,7 @@ func serveStatusList(t *testing.T, c issuerChain, bits []byte) (*httptest.Server
 	return srv, &requests
 }
 
-// A status list whose chain no trusted list anchors gets a warning on its
+// A status list with an unanchored chain gets a warning on its
 // signature. With the revocation service of a supplied list it passes.
 func TestTheStatusListSignatureNeedsATrustAnchor(t *testing.T) {
 	c := newIssuerChain(t)

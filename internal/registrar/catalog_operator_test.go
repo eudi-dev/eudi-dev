@@ -222,8 +222,8 @@ func TestATemplateCatalogObjectMakesUpAnEntry(t *testing.T) {
 	}
 }
 
-// CheckTemplateCatalog names the template whose catalog object the catalogue
-// can't take. The catalogue leaves an invalid object out.
+// CheckTemplateCatalog reports the template with an unusable catalog object.
+// The catalogue leaves an invalid object out.
 func TestCheckTemplateCatalogNamesTheTemplate(t *testing.T) {
 	for _, tc := range []struct {
 		name    string

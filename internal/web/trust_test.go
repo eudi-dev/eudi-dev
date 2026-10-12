@@ -79,8 +79,8 @@ func TestTheDecoderSkipsTheTrustCheckForATypeOutsideTheCatalogue(t *testing.T) {
 	}
 }
 
-// Trust comes only from an existing wallet. The decoder reads a store that
-// holds no wallet as no catalogue and leaves it empty.
+// Trust comes only from an existing wallet. A store without a wallet gives
+// the decoder no catalogue, and the decoder leaves the store empty.
 func TestTheDecoderCreatesNoWallet(t *testing.T) {
 	store := wallet.NewWalletStore(t.TempDir())
 	key, _ := mock.GenerateKey()

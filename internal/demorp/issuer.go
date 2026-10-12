@@ -95,7 +95,7 @@ type offerState struct {
 // issueToken.
 type tokenState struct {
 	offerSettings
-	// holderClaims name the holder: the names of the account that signed in,
+	// holderClaims identify the holder: the names of the account that signed in,
 	// or the requested claims of the credential presented to authorize the
 	// issuance (OpenID4VCI 1.1 §6). A pre-authorized code leaves them empty.
 	holderClaims map[string]any
@@ -113,7 +113,7 @@ type tokenState struct {
 // offerSettings are the choices of the demo issuer page for one offer.
 type offerSettings struct {
 	// configIDs are the credential configurations in the offer. An offer
-	// that names none issues the ticket (offerConfigurationIDs).
+	// without any issues the ticket (offerConfigurationIDs).
 	configIDs []string
 	// withStatus adds a reference to the wallet status list so the
 	// credential can be revoked.
@@ -153,7 +153,7 @@ func (d *DemoRP) IssuerHandler() http.Handler {
 	mux.HandleFunc("POST /authorize-challenge", d.handleAuthorizationChallenge)
 	mux.HandleFunc("POST /authorize", d.handleAuthorizeSubmit)
 	mux.HandleFunc("GET /.well-known/oauth-authorization-server", d.AuthorizationServerMetadataHandler())
-	// GuardAPI covers only /api/, which the page calls. Wallets on other
+	// GuardAPI covers only the page's calls to /api/. Wallets on other
 	// origins call the protocol endpoints.
 	return httpsec.GuardAPI(limitBodies(mux), d.baseURL())
 }
@@ -185,7 +185,7 @@ type pageData struct {
 	NationalPIDs             []nationalPID
 }
 
-// nationalPID is a PID type that extends the EUDI PID, as the verifier page
+// nationalPID is a PID type that extends the EUDI PID. The verifier page
 // offers it.
 type nationalPID struct {
 	ID, VCT, Label string
@@ -491,7 +491,7 @@ func writeTokenResponse(w http.ResponseWriter, token string, granted tokenState)
 }
 
 // accessTokenError refuses the access token of a request. scheme is the
-// scheme the request used, or empty for a request without an access token.
+// request's scheme, or empty for a request without an access token.
 type accessTokenError struct {
 	scheme      string
 	code        string
@@ -554,8 +554,8 @@ func (d *DemoRP) authorizeAccessToken(r *http.Request, endpoint string) (string,
 		}
 		return token, copied, nil
 	}
-	// RFC 9449 §7.1: a request with the DPoP scheme carries a valid proof
-	// whose key matches the key the access token is bound to.
+	// RFC 9449 §7.1: a request with the DPoP scheme carries a valid proof.
+	// Its key must be the key bound to the access token.
 	presented, err := d.verifyDPoPProof(r, d.issuerID()+endpoint, token)
 	if err != nil {
 		return refuse("invalid_dpop_proof", err.Error())
@@ -571,7 +571,7 @@ func (d *DemoRP) authorizeAccessToken(r *http.Request, endpoint string) (string,
 }
 
 // credentialRequest is a Credential Request as defined in OpenID4VCI 1.0 §8.2.
-// The key proofs are under proofs, which holds "exactly one parameter named as
+// The key proofs are under proofs. It holds "exactly one parameter named as
 // the proof type in Appendix F, the value set for this parameter is a
 // non-empty array".
 type credentialRequest struct {
@@ -606,7 +606,7 @@ func (req credentialRequest) jwtProofs() ([]string, map[string]string) {
 
 // refuseResponseEncryption refuses a request for an encrypted response. The
 // metadata has no credential_response_encryption, and OpenID4VCI 1.0
-// §8.3.1.2 answers encryption parameters the issuer cannot use with
+// §8.3.1.2 answers unusable encryption parameters with
 // invalid_encryption_parameters.
 func refuseResponseEncryption(w http.ResponseWriter, parameter json.RawMessage) bool {
 	if len(parameter) == 0 || string(parameter) == "null" {
@@ -702,8 +702,8 @@ func (d *DemoRP) signBatch(holderKeys []*ecdsa.PublicKey, granted ticketGrant) (
 // returned from the Token Response [...] MUST NOT be used otherwise" and
 // excludes credential_configuration_id. It returns the configuration to issue.
 // The error codes are those of §8.3.1.2. A configuration of this issuer that
-// the token does not cover is an authorization error of §8.3.1.1, which
-// answers as RFC 6750 §3.1 does with insufficient_scope.
+// the token does not cover is an authorization error of §8.3.1.1. It gets
+// insufficient_scope, as in RFC 6750 §3.1.
 func (d *DemoRP) requestedConfiguration(req credentialRequest, granted tokenState) (string, map[string]string) {
 	if req.CredentialIdentifier != "" && req.CredentialConfigurationID != "" {
 		return "", oauthError("invalid_credential_request",
@@ -752,7 +752,7 @@ func (d *DemoRP) handleNonce(w http.ResponseWriter, r *http.Request) {
 
 // newNonce issues a challenge that carries its expiry and a MAC under the
 // issuer's nonce key. Visitors share the Nonce Endpoint, so the issuer keeps
-// no list of nonces that one client could fill and push the others out of.
+// no list of nonces. One client could fill such a list and push the others out.
 func (d *DemoRP) newNonce(expires time.Time) string {
 	value := binary.BigEndian.AppendUint64(nil, uint64(expires.Unix())) //nolint:gosec // Expiry times are after 1970.
 	value = append(value, randomBytes(16)...)
@@ -841,7 +841,7 @@ func (d *DemoRP) verifyProofJWT(raw string) (*ecdsa.PublicKey, *proofError) {
 	return holderKey, nil
 }
 
-// proofKeyMaterial reads the key that a proof is bound to. Appendix F.1
+// proofKeyMaterial reads the key bound to a proof. Appendix F.1
 // allows exactly one of jwk, kid and x5c. A kid is a DID URL, and this issuer
 // can't resolve DIDs, so the error says that kid is unsupported.
 func proofKeyMaterial(header map[string]any) (*ecdsa.PublicKey, *proofError) {
@@ -883,8 +883,8 @@ func proofKeyMaterial(header map[string]any) (*ecdsa.PublicKey, *proofError) {
 	}
 }
 
-// proofKeyFromX5C takes the key out of the first certificate of an x5c header,
-// which Appendix F.1 defines as "at least one certificate where the first
+// proofKeyFromX5C takes the key out of the first certificate of an x5c header.
+// Appendix F.1 defines x5c as "at least one certificate where the first
 // certificate contains the key that the Credential is to be bound to".
 func proofKeyFromX5C(raw any) (*ecdsa.PublicKey, error) {
 	certs, err := certchain.FromX5C(raw)

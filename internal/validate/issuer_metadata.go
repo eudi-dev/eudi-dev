@@ -346,7 +346,7 @@ func jwkSetKeys(set map[string]any) ([]any, error) {
 }
 
 // findIssuerMetadataJWKs returns the JWKs whose kid matches, or every JWK
-// when the token names no kid.
+// when the token has no kid.
 func findIssuerMetadataJWKs(doc map[string]any, kid string, clients ...*http.Client) ([]map[string]any, error) {
 	keysRaw, err := issuerMetadataJWKSet(doc, clients...)
 	if err != nil {

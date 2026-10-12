@@ -32,10 +32,10 @@ type Enrolment struct {
 	Registration *EnrolmentRegistration `json:"registration,omitempty"`
 }
 
-// EnrolmentRegistration names the registration certificate of an enrolment.
+// EnrolmentRegistration describes the registration certificate of an enrolment.
 type EnrolmentRegistration struct {
 	// Provider asks for the provider certificate of the service. Otherwise the
-	// certificate covers the intended use that the enrolment adds.
+	// certificate covers the intended use added by the enrolment.
 	Provider          bool   `json:"provider,omitempty"`
 	ServiceIdentifier string `json:"serviceIdentifier,omitempty"`
 	Validity          string `json:"validity,omitempty"`
@@ -107,8 +107,8 @@ func (r *Registrar) enrolmentCandidate(rp WalletRelyingParty, update bool) (Wall
 	return candidate, &before, err
 }
 
-// enrolmentRequests checks the certificates an enrolment asks for against the
-// registration it would store, and returns the requests for them.
+// enrolmentRequests checks the requested certificates against the registration
+// to be stored and returns the requests for them.
 func enrolmentRequests(candidate WalletRelyingParty, before *WalletRelyingParty, e Enrolment) (*AccessCertificateRequest, *RegistrationCertificateRequest, error) {
 	identifier := candidate.Identifier[0].Identifier
 	var access *AccessCertificateRequest

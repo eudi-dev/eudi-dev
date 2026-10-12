@@ -64,7 +64,7 @@ func headers(next http.Handler, imgSrc string) http.Handler {
 	})
 }
 
-// ServeImage writes an image that a visitor or an issuer supplied. Opened on
+// ServeImage writes an image supplied by a visitor or an issuer. Opened on
 // its own, an SVG could run scripts on this origin, so the image gets a
 // sandboxed policy of its own. Its content ETag lets the browser revalidate
 // an image that changed under the same URL.

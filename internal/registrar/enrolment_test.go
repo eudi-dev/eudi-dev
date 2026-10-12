@@ -113,8 +113,8 @@ func TestEnrolCertifiesTheAddedIntendedUse(t *testing.T) {
 	}
 }
 
-// A failed update changes nothing: the certificates of an intended use it
-// would change stay valid. A DNS name is checked before the update, and a
+// A failed update changes nothing. The certificates of an affected intended
+// use stay valid. A DNS name is checked before the update, and a
 // signer that fails afterwards puts everything back.
 func TestFailedEnrolmentKeepsTheCertificates(t *testing.T) {
 	w := generateTestWallet(t)

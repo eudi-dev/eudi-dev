@@ -45,8 +45,8 @@ var definedRequestParameters = map[string]bool{
 	"wallet_nonce":       true,
 }
 
-// definedRequestObjectMembers adds the members a signed request object may
-// also carry: the RFC 7519 registered claims used by JAR.
+// definedRequestObjectMembers adds the RFC 7519 registered claims used by JAR.
+// A signed request object may carry them too.
 var definedRequestObjectMembers = func() map[string]bool {
 	merged := map[string]bool{}
 	for _, name := range jws.RegisteredClaims {
@@ -58,8 +58,8 @@ var definedRequestObjectMembers = func() map[string]bool {
 	return merged
 }()
 
-// UndefinedRequestParameterFindings names the request parameters that no
-// specification defines. RFC 6749 §3.1 requires ignoring unrecognized
+// UndefinedRequestParameterFindings reports request parameters without a
+// definition in any specification. RFC 6749 §3.1 requires ignoring unrecognized
 // parameters, so they are warnings even in strict mode.
 func UndefinedRequestParameterFindings(params *Request) []string {
 	if params == nil {
@@ -100,9 +100,9 @@ func UndefinedRequestParameterFindings(params *Request) []string {
 	return findings
 }
 
-// UndefinedResponseMembers names the members of a successful verifier
-// response besides redirect_uri, the only one OID4VP 1.0 §8.2 defines.
-// Non-2xx responses use OAuth error members instead.
+// UndefinedResponseMembers returns the members of a successful verifier
+// response other than redirect_uri. OID4VP 1.0 §8.2 defines only
+// redirect_uri. Non-2xx responses use OAuth error members instead.
 func UndefinedResponseMembers(result *DirectPostResult) []string {
 	if result == nil || result.StatusCode < 200 || result.StatusCode >= 300 {
 		return nil

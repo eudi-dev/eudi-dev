@@ -561,7 +561,7 @@ func unixClaim(v any) *time.Time {
 	return &t
 }
 
-// maxBitstringBytes bounds the memory an untrusted status list can use.
+// maxBitstringBytes limits the memory used by an untrusted status list.
 const maxBitstringBytes = 16 << 20
 
 // zlibDecompress limits the output size. It reports a raw DEFLATE stream without the

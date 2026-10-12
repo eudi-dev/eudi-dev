@@ -87,8 +87,8 @@ func (d *Dashboard) Handler() http.Handler {
 	index, _ := fs.ReadFile(sub, "index.html")
 	mux.Handle("/", publicpath.ServeIndex(index, http.FileServer(http.FS(webui.Overlay(sub)))))
 
-	// The dashboard shows captured traffic, which is untrusted input, so it
-	// sends the security headers.
+	// Captured traffic is untrusted input, so the dashboard sends the
+	// security headers.
 	return publicpath.Wrap(publicpath.Options{
 		BaseURL: d.baseURL,
 		OnMismatch: func(observed string) {

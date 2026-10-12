@@ -261,8 +261,8 @@ func TestVerifyAcceptsESP256(t *testing.T) {
 	}
 }
 
-// esp256Signer produces the ES256 signature under the ESP256 label, which
-// go-cose does not know.
+// esp256Signer produces an ES256 signature under the ESP256 label. go-cose
+// does not know that label.
 type esp256Signer struct{ cose.Signer }
 
 func (esp256Signer) Algorithm() cose.Algorithm { return AlgorithmESP256 }

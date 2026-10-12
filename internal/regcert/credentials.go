@@ -83,7 +83,7 @@ func registeredFor(registered []Credential, format, credentialType string) []Cre
 	return out
 }
 
-// Credential is a credential type that a registration certificate registers.
+// Credential is a credential type registered in a registration certificate.
 // An entry without a claim list declares no attributes (ETSI TS 119 475 V1.2.1
 // Annex B.2.9), so ARF RPRC_21 counts every requested claim as over-asking.
 type Credential struct {
@@ -147,7 +147,7 @@ func describeClaim(format string, types []string, path []any) string {
 	return fmt.Sprintf("%s of %s", claim, label)
 }
 
-// TypeName names a credential type in a finding.
+// TypeName returns the name of a credential type for a finding.
 func TypeName(format string, types []string) string {
 	if len(types) > 0 {
 		return types[0]

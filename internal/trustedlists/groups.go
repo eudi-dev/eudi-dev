@@ -29,8 +29,8 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
 )
 
-// Group is one of the wallet's own lists: its ID, its scheme and the
-// credential types it carries.
+// Group is one of the wallet's own lists with its ID, its scheme and its
+// credential types.
 type Group struct {
 	ID    string
 	List  provider.List
@@ -62,8 +62,8 @@ type indexEntry struct {
 	URL                   string                           `json:"url,omitempty"`
 }
 
-// SignedGroupList returns the current list of the group that the issuer
-// publishes at path.
+// SignedGroupList returns the current list of the group, published by the
+// issuer at path.
 func (t *Set) SignedGroupList(issuer string, group Group, path string) (string, error) {
 	signer := t.env.Signer()
 	if !signer.HasCA() {
@@ -144,9 +144,9 @@ func (t *Set) SignedGroupList(issuer string, group Group, path string) (string, 
 
 // pidCountries lists the issuing countries of the PID templates and the
 // default country. A PID is signed under a provider CA of its issuing
-// country, so the PID list names the CA of each.
+// country, so the PID list holds the CA of each country.
 func (t *Set) pidCountries() []string {
-	// List returns every readable template with its error.
+	// List still returns the readable templates when it reports an error.
 	templates, _ := credtemplate.List(t.env.TemplateLocation())
 	var others []string
 	for _, tmpl := range templates {
@@ -241,7 +241,7 @@ func (t *Set) FindGroup(id, vct, docType string) (Group, bool) {
 	return t.DefaultGroup(), true
 }
 
-// IndexEntries describes the wallet's own lists as the issuer publishes them.
+// IndexEntries describes the wallet's own lists as published by the issuer.
 func (t *Set) IndexEntries(issuer string) []indexEntry {
 	groups := t.Groups()
 	defaultGroup := t.DefaultGroup()

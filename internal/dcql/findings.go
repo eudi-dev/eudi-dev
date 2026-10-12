@@ -166,8 +166,8 @@ func claimFindings(label string, cqMap map[string]any) []string {
 }
 
 // trustedAuthorityFindings checks trusted_authorities of one credential query
-// against §6.1 and §6.1.1. Other specifications may define more types, so a
-// type this wallet does not implement is no finding.
+// against §6.1 and §6.1.1. Other specifications may define more types, so an
+// unimplemented type is no finding.
 func trustedAuthorityFindings(label string, cqMap map[string]any) []string {
 	raw, present := cqMap["trusted_authorities"]
 	if !present {

@@ -139,7 +139,7 @@ type Policy struct {
 const privacyPolicyType = "http://data.europa.eu/eudi/policy/privacy-policy"
 
 // normalizeSupervisoryAuthority fills in a test authority with a contact when
-// the registration names none. TS05 v1.5 §2.4.7 makes name and country
+// the registration has none. TS05 v1.5 §2.4.7 makes name and country
 // mandatory and expects at least one contact.
 func normalizeSupervisoryAuthority(a *SupervisoryAuthority, country, base string) error {
 	if len(a.Email) == 0 && len(a.Phone) == 0 && len(a.FormURI) == 0 {
@@ -252,7 +252,7 @@ func (r *Registrar) UpdateRelyingParty(rp WalletRelyingParty) (WalletRelyingPart
 }
 
 // normalizeUpdate checks an update of the stored registration and fills in
-// the values the registrar assigns. The first identifier never changes,
+// the values assigned by the registrar. The first identifier never changes,
 // because the issued certificates and their status entries contain it.
 func normalizeUpdate(rp *WalletRelyingParty, stored WalletRelyingParty, base string, category func(format, typ string) string) error {
 	rp.Identifier = append([]Identifier{stored.Identifier[0]}, rp.Identifier...)
@@ -355,8 +355,8 @@ func relyingPartyIndex(parties []WalletRelyingParty, identifier string) int {
 	return slices.IndexFunc(parties, func(rp WalletRelyingParty) bool { return HasIdentifier(rp, identifier) })
 }
 
-// checkIdentifiersFreeLocked refuses a registration whose identifiers name
-// another party. Identifiers compare by their semantics identifier. skip is
+// checkIdentifiersFreeLocked refuses a registration whose identifiers belong
+// to another party. Identifiers compare by their semantics identifier. skip is
 // the index of the party itself on an update, or -1. Callers hold r.mu.
 func (r *Registrar) checkIdentifiersFreeLocked(rp WalletRelyingParty, skip int) error {
 	for _, key := range identifierKeys(rp) {
@@ -391,8 +391,8 @@ func (r *Registrar) attestationCategories() func(format, typ string) string {
 	return func(format, typ string) string { return categories[format+" "+typ] }
 }
 
-// normalizeRelyingParty checks a registration and fills in the values the
-// registrar assigns. For an update, before is the stored registration.
+// normalizeRelyingParty checks a registration and fills in the values
+// assigned by the registrar. For an update, before is the stored registration.
 // category returns the catalogue category of an attestation type.
 func normalizeRelyingParty(rp *WalletRelyingParty, base string, before *WalletRelyingParty, category func(format, typ string) string) error {
 	rp.TradeName = strings.TrimSpace(rp.TradeName)
@@ -422,7 +422,7 @@ func normalizeRelyingParty(rp *WalletRelyingParty, base string, before *WalletRe
 	}
 	if rp.Country == "" {
 		// ETSI TS 119 475 V1.2.1 B.2.2 takes an ISO 3166-1 code. The EUID and
-		// VAT prefix of Greece is EL, and a LEI names no country (ETSI EN 319
+		// VAT prefix of Greece is EL, and a LEI has no country (ETSI EN 319
 		// 412-1 V1.6.1 LEG-5.1.4-03 uses XG).
 		switch prefix := semantic[3:5]; prefix {
 		case "XG":
@@ -433,7 +433,7 @@ func normalizeRelyingParty(rp *WalletRelyingParty, base string, before *WalletRe
 			rp.Country = prefix
 		}
 	}
-	// Every identifier maps to a semantics identifier, and one that names the
+	// Every identifier maps to a semantics identifier. An identifier of the
 	// same party as an earlier one is dropped.
 	seen := map[string]bool{}
 	identifiers := rp.Identifier[:0]
@@ -502,7 +502,7 @@ func normalizeRelyingParty(rp *WalletRelyingParty, base string, before *WalletRe
 
 // Size limits keep a public demo's registrar small between resets. They apply
 // to registrations from the API. The wallet's own demo registrations list
-// every type it issues.
+// every type issued by the wallet.
 const (
 	maxRegistrationItems = 20
 	maxRegisteredClaims  = 100
@@ -661,7 +661,7 @@ func sameCertificateContent(before, after WalletRelyingParty, key certificateKey
 		reflect.DeepEqual(beforeUse.Credentials, afterUse.Credentials)
 }
 
-// supersedeReason names what an update changed in the certificate for key, or
+// supersedeReason returns what an update changed in the certificate for key, or
 // returns "" when the certificate content stays the same. A certificate lists
 // the entitlements of its service (TS6 v1.2.2 row 12), so a service that gains
 // the other role changes the certificates of both roles.
@@ -728,7 +728,7 @@ func findIntendedUse(rp WalletRelyingParty, serviceIdentifier, intendedUseIdenti
 }
 
 // findService returns the service with the identifier. An empty identifier
-// names the party's only service.
+// selects the party's only service.
 func findService(rp WalletRelyingParty, serviceIdentifier string) (WalletRelyingPartyService, error) {
 	if serviceIdentifier == "" {
 		if len(rp.Services) != 1 {

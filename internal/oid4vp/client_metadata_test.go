@@ -87,7 +87,7 @@ func TestValidateClientMetadata_AcceptsNumericMDocAlgValuesSupported(t *testing.
 	}
 }
 
-// OID4VP 1.0 Appendix B.3.4 names the SD-JWT algorithm members of
+// OID4VP 1.0 Appendix B.3.4 defines the SD-JWT algorithm members of
 // vp_formats_supported. §5.1: "Other metadata parameters MUST be ignored".
 func TestValidateClientMetadataChecksTheOID4VPMemberNames(t *testing.T) {
 	err := validateClientMetadata(map[string]any{

@@ -48,8 +48,8 @@ func scope(t *testing.T) string {
 	return strings.ReplaceAll(t.Name(), "/", "-") + "-" + strconv.Itoa(os.Getpid())
 }
 
-// A reader that caches a parse keeps the stamp ReadBlob returns, so the stamp
-// must be the one Write and Stat report for that content.
+// A reader that caches a parse keeps the stamp from ReadBlob. Write and Stat
+// must report the same stamp for that content.
 func TestStore_ReadBlobReturnsTheStampOfItsContent(t *testing.T) {
 	for kind, store := range backends(t) {
 		t.Run(kind, func(t *testing.T) {
@@ -470,7 +470,7 @@ func TestStore_ExistsReportsABlob(t *testing.T) {
 }
 
 // An existence check on the file backend reads the file's metadata only, so
-// it answers for a blob it may not read.
+// it also answers for an unreadable blob.
 func TestFile_ExistsReadsNoContent(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("root reads files regardless of their mode")

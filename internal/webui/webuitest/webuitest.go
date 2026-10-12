@@ -32,7 +32,7 @@ var (
 )
 
 // CheckFonts loads the page at path the way a browser does and fetches every
-// font its stylesheet names. With a prefix, h sits behind a proxy that strips
+// font in its stylesheet. With a prefix, h sits behind a proxy that strips
 // the prefix and sends it as X-Forwarded-Prefix.
 func CheckFonts(t *testing.T, h http.Handler, prefix, path string) {
 	t.Helper()

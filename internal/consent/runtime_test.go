@@ -224,7 +224,7 @@ func TestStoredErrorsStayBounded(t *testing.T) {
 	}
 }
 
-// An answered request no longer waits, so it frees its place under the cap.
+// An answered request stops waiting and frees its place under the cap.
 func TestCreateRefusesRequestsBeyondTheCap(t *testing.T) {
 	rt := NewRuntime()
 	rt.SetMaxPending(1)

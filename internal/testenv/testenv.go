@@ -34,7 +34,7 @@ import (
 // Main runs the tests of a package with a temporary home directory. The
 // default wallet, its templates and the active remote wallet live under the
 // home directory, so tests that reach them must not see the real one.
-// EUDI_DEV_HOME is cleared because it would restore it.
+// EUDI_DEV_HOME is cleared because it would point back to the real home.
 //
 // Postgres keys are relative to the home directory, so every test process
 // and every earlier run would share the default wallet. A Postgres

@@ -37,7 +37,7 @@ const (
 	legacyIssuanceServiceType = "http://uri.etsi.org/19602/SvcType/Issuance"
 	legacyRevocationService   = "http://uri.etsi.org/19602/SvcType/Revocation"
 
-	// The service names of a custom list without names of its own.
+	// Default service names for a custom list without its own names.
 	defaultIssuanceServiceName   = "Issuance Service"
 	defaultRevocationServiceName = "Revocation Service"
 
@@ -67,9 +67,9 @@ func (spec IssuedAttestationSpec) List() List {
 	return List{Category: spec.Category, Scheme: spec.Scheme}
 }
 
-// List is one of the wallet's own trusted lists. Category is the credential
-// category whose providers a category list names. It is empty for the other
-// lists.
+// List is one of the wallet's own trusted lists. For a category list,
+// Category is the credential category of its providers. It is empty for the
+// other lists.
 type List struct {
 	Category string
 	lote.Scheme
@@ -279,8 +279,8 @@ func WalletProviderList() List {
 	}}
 }
 
-// listKey names the fields in the order that derives the ID of a custom
-// list, which names its stored signing key.
+// listKey joins the fields that derive the ID of a custom list. The ID also
+// identifies the stored signing key of the list.
 func listKey(list List) string {
 	parts := []string{
 		list.Category,

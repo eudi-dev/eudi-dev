@@ -295,8 +295,9 @@ func (s *Server) modifyResponse(resp *http.Response) error {
 // references in it. It reports whether it kept only the first
 // maxCapturedBody bytes. An event stream passes through unread because it
 // ends only when the connection does. A body in an encoding the proxy cannot
-// decode passes through unchanged because a text rewrite would corrupt it. So
-// does the rest of a body over the limit, which the proxy never holds whole.
+// decode passes through unchanged because a text rewrite would corrupt it.
+// The rest of a body over the limit also passes through unchanged. The proxy
+// never holds such a body whole.
 func (s *Server) captureResponseBody(resp *http.Response) (string, bool, error) {
 	if resp.Body == nil || isEventStream(resp.Header) {
 		return "", false, nil

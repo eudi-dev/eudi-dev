@@ -106,8 +106,8 @@ func TestMissingResponseModeIsAFinding(t *testing.T) {
 	}
 }
 
-// One prefix table answers every prefix question, so a reserved or
-// unsupported prefix gives one finding.
+// All prefix checks read one prefix table, so a reserved or unsupported
+// prefix gives one finding.
 func TestAClientIDPrefixGivesOneFinding(t *testing.T) {
 	for _, clientID := range []string{"origin:https://verifier.example", "openid_federation:https://verifier.example"} {
 		params := &Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ClientID: clientID, ResponseType: "vp_token", ResponseMode: "direct_post", Nonce: "n", ResponseURI: "https://verifier.example/r", DCQLQuery: sdjwtVCTQuery("urn:example:x")}}

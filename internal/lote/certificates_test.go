@@ -151,8 +151,8 @@ func TestParseReadsEntitiesServicesAndCertificates(t *testing.T) {
 	}
 }
 
-// An unreadable list entry leaves the valid trust anchors in place, and each
-// one is named in a finding.
+// An unreadable list entry leaves the valid trust anchors in place. Each
+// unreadable entry gets its own finding.
 func TestParseReportsUnreadableEntries(t *testing.T) {
 	good := certB64(t, "Good CA")
 

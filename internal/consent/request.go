@@ -75,8 +75,8 @@ type Request struct {
 	// Keep the offer shown at consent in case its URL cannot be fetched again after
 	// approval.
 	ResolvedOffer *oid4vc.CredentialOffer
-	// True when the Request Object signature verifies against the key material it
-	// carries. This does not establish trust in the verifier.
+	// True when the Request Object signature verifies against its own key
+	// material. This does not establish trust in the verifier.
 	ClientAuthSigned bool
 	// Empty when ClientAuthSigned is true. Otherwise explains why verification was
 	// unavailable or failed.

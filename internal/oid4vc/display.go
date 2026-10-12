@@ -15,7 +15,7 @@
 package oid4vc
 
 // CredentialDisplay is an OpenID4VCI 1.0 §12.2.4 display entry in the flat
-// form a wallet stores with a credential, so the card renders without
+// form stored with a credential in the wallet, so the card renders without
 // contacting the issuer. An image field holds a data URI or an "asset:"
 // reference fetched once at issuance. With --adhoc-display-images it holds the
 // issuer's https URL instead.

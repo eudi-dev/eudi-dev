@@ -70,8 +70,8 @@ type TrafficEntry struct {
 	URL            string      `json:"url"`
 	RequestHeaders http.Header `json:"requestHeaders"`
 	RequestBody    string      `json:"requestBody,omitempty"`
-	// RequestTruncated and ResponseTruncated mark a body the proxy kept only
-	// the start of.
+	// RequestTruncated and ResponseTruncated mark a truncated body. The proxy
+	// kept only its start.
 	RequestTruncated  bool           `json:"requestTruncated,omitempty"`
 	StatusCode        int            `json:"statusCode"`
 	ResponseHeaders   http.Header    `json:"responseHeaders"`

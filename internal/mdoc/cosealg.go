@@ -24,12 +24,12 @@ import (
 )
 
 // AlgorithmESP256 is ECDSA using P-256 and SHA-256 (RFC 9864 §2.1). HAIP 1.0
-// §7 names it with -7 as the COSE identifiers of the mandatory ECDSA P-256
+// §7 lists it and -7 as the COSE identifiers of the mandatory ECDSA P-256
 // suite.
 const AlgorithmESP256 cose.Algorithm = -9
 
-// coseAlgorithms names the COSE algorithms by IANA value. verifiable marks the
-// ones a signature check accepts.
+// coseAlgorithms maps IANA values to COSE algorithm names. verifiable marks the
+// algorithms accepted for signature checks.
 var coseAlgorithms = map[cose.Algorithm]struct {
 	name       string
 	verifiable bool
@@ -55,7 +55,7 @@ func COSEAlgorithmName(alg cose.Algorithm) string {
 	return fmt.Sprintf("unknown(%d)", int64(alg))
 }
 
-// NewCOSEVerifier returns a verifier for a COSE algorithm this toolkit accepts.
+// NewCOSEVerifier returns a verifier for an accepted COSE algorithm.
 func NewCOSEVerifier(alg cose.Algorithm, key crypto.PublicKey) (cose.Verifier, error) {
 	if !coseAlgorithms[alg].verifiable {
 		return nil, fmt.Errorf("unsupported COSE algorithm %s", COSEAlgorithmName(alg))
@@ -63,7 +63,7 @@ func NewCOSEVerifier(alg cose.Algorithm, key crypto.PublicKey) (cose.Verifier, e
 	if alg != AlgorithmESP256 {
 		return cose.NewVerifier(alg, key)
 	}
-	// go-cose has no ESP256. It computes the same signature as ES256, which
+	// go-cose has no ESP256. ESP256 computes the same signature as ES256. ES256
 	// leaves the curve open, so the key must be on P-256.
 	ec, ok := key.(*ecdsa.PublicKey)
 	if !ok || ec.Curve != elliptic.P256() {
@@ -78,6 +78,6 @@ func NewCOSEVerifier(alg cose.Algorithm, key crypto.PublicKey) (cose.Verifier, e
 
 type esp256Verifier struct{ cose.Verifier }
 
-// Algorithm matches the protected header, which go-cose compares before it
-// verifies.
+// Algorithm must match the protected header. go-cose compares the two before
+// it verifies.
 func (esp256Verifier) Algorithm() cose.Algorithm { return AlgorithmESP256 }

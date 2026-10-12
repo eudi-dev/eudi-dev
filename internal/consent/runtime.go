@@ -206,8 +206,8 @@ func (rt *Runtime) SubscribeErrors() (<-chan Error, func()) {
 	}
 }
 
-// SubscribeAuthorization delivers the issuer sign-in prompts that accept
-// takes, between authorization and token exchange. Hosted wallets deliver the
+// SubscribeAuthorization delivers issuer sign-in prompts accepted by accept,
+// between authorization and token exchange. Hosted wallets deliver the
 // URL to the existing browser tab. Local wallets can open it directly.
 func (rt *Runtime) SubscribeAuthorization(accept func(AuthorizationPrompt) bool) (<-chan AuthorizationPrompt, func()) {
 	ch := make(chan AuthorizationPrompt, 4)
@@ -231,8 +231,8 @@ func (rt *Runtime) SubscribeAuthorization(accept func(AuthorizationPrompt) bool)
 	}
 }
 
-// NotifyAuthorization reports whether a subscriber that takes the prompt
-// received it: the caller of its flow or the browser that owns it.
+// NotifyAuthorization reports whether a matching subscriber received the
+// prompt. That is the caller of its flow or the flow's owning browser.
 func (rt *Runtime) NotifyAuthorization(prompt AuthorizationPrompt) bool {
 	rt.mu.Lock()
 	subs := make([]chan AuthorizationPrompt, 0, len(rt.authSubscribers))
@@ -364,8 +364,8 @@ func (rt *Runtime) NotifyStateChanged() {
 }
 
 // AuthorizationPrompt uses Owner to identify the browser handling issuance. Empty means
-// the initiating client supplied no browser ID. Flow names the issuance the
-// prompt belongs to.
+// the initiating client supplied no browser ID. Flow identifies the
+// prompt's issuance.
 type AuthorizationPrompt struct {
 	URL   string
 	Owner string
@@ -428,7 +428,7 @@ func NewRuntime() *Runtime {
 	}
 }
 
-// Error is a failed flow that the UI of the browser that owns it shows.
+// Error is a failed flow. The UI of the owning browser shows it.
 type Error struct {
 	Message string `json:"message"`
 	Detail  string `json:"detail,omitempty"`

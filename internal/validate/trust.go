@@ -45,8 +45,7 @@ type Trust struct {
 	// Err is why the supplied trust could not be read. The signature and
 	// status checks fail with it.
 	Err error
-	// Findings name the parts of the supplied trusted lists that could not be
-	// read.
+	// Findings list the unreadable parts of the supplied trusted lists.
 	Findings []string
 
 	// Catalogue is the wallet whose attestation catalogue is consulted. Nil
@@ -107,9 +106,9 @@ type CatalogueAnchoring struct {
 	// AnchoredBy is the list whose issuance service anchors the credential.
 	AnchoredBy string   `json:"anchored_by,omitempty"`
 	Findings   []string `json:"findings,omitempty"`
-	// Warnings name lists of an EAA entry that give no anchors. ARF ISSU_10
-	// asks for the check of an EAA only when the wallet has its anchors, so
-	// they are no findings.
+	// Warnings list the lists of an EAA entry without anchors. ARF ISSU_10
+	// asks to check an EAA only when the wallet has its anchors, so these are
+	// no findings.
 	Warnings []string `json:"warnings,omitempty"`
 	// IssuanceAnchors and StatusAnchors are the certificates of the issuance
 	// and revocation services of that list. The revocation service anchors

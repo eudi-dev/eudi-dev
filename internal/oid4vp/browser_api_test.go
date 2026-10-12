@@ -174,7 +174,7 @@ func multiSignedRequest(t *testing.T, payload map[string]any, headers []map[stri
 	return map[string]any{"request": map[string]any{"payload": encodedPayload, "signatures": signatures}}
 }
 
-// Appendix A.3.2.2: each signature names its client in the protected header.
+// Appendix A.3.2.2: each signature carries its client_id in the protected header.
 // The wallet takes the first signature it can verify.
 func TestMultiSignedBrowserRequestPicksTheVerifiedSignature(t *testing.T) {
 	key, certB64, _ := testCertWithKeyDER([]string{"verifier.example"})

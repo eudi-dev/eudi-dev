@@ -106,8 +106,8 @@ func TestParseJWK_ECCurves(t *testing.T) {
 // A parser that trims or mispads a coordinate with a leading zero byte
 // produces a different key.
 func TestParseJWK_ECLeadingZeroCoordinate(t *testing.T) {
-	// The public key of the private scalar 379, whose X coordinate starts
-	// with a zero byte.
+	// The public key of the private scalar 379. Its X coordinate starts with
+	// a zero byte.
 	point, err := hex.DecodeString("04" +
 		"005543894af3d00ed7d740abdbd75c96b06877b787db5f70eea78b90a8d7c00a" +
 		"bb4c85a3d8ea29efaafa24406912dd84d5b14dc32bf656ef6c6bd58a5d943f92")

@@ -45,7 +45,7 @@ func TestECPublicCoords_MatchesFieldAccess(t *testing.T) {
 	for _, c := range curves {
 		t.Run(c.name, func(t *testing.T) {
 			size := (c.curve.Params().BitSize + 7) / 8
-			// 500 keys include coordinates with a leading zero byte, which big.Int.Bytes() omits.
+			// 500 keys include coordinates with a leading zero byte. big.Int.Bytes() omits that byte.
 			for i := 0; i < 500; i++ {
 				key, err := ecdsa.GenerateKey(c.curve, rand.Reader)
 				if err != nil {

@@ -32,8 +32,8 @@ var DefaultClaims = map[string]any{
 	"birthdate":   "1978-02-12",
 }
 
-// Issuance defaults for a value that neither the request nor the template
-// sets.
+// Issuance defaults apply when neither the request nor the template sets a
+// value.
 const (
 	DefaultExp     = 720 * time.Hour
 	DefaultDocType = credtype.PIDDocType
@@ -65,8 +65,7 @@ type Resolved struct {
 	// Format is "sdjwt", "jwt" or "mdoc".
 	Format string
 	Claims map[string]any
-	// AlwaysDisclosed is empty for a jwt credential, whose claims are all
-	// plain.
+	// AlwaysDisclosed is empty for a jwt credential. All its claims are plain.
 	AlwaysDisclosed []string
 	VCT             string
 	DocType         string

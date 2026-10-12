@@ -15,8 +15,8 @@
 package dcql
 
 // SelectClaims processes a claims path pointer against a JSON-based credential
-// as OID4VP 1.0 §7.1.1 defines it. ok is false where processing aborts with an
-// error, which includes an empty selection.
+// as OID4VP 1.0 §7.1.1 defines it. ok is false when processing aborts with an
+// error. An empty selection also aborts.
 func SelectClaims(root map[string]any, path []any) (selected []any, ok bool) {
 	if len(path) == 0 {
 		return nil, false

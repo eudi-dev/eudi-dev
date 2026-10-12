@@ -261,7 +261,7 @@ func GenerateStatusListCWT(bitstring []byte, signingKey *ecdsa.PrivateKey, cfg S
 	msg.Payload = payload
 
 	// RFC 9360 §2: "The end-entity certificate MUST be integrity protected by
-	// COSE", which x5chain in the protected header does.
+	// COSE". Putting x5chain in the protected header does that.
 	if chain := certchain.WithoutSelfSignedAnchor(cfg.CertChain); len(chain) > 0 {
 		if len(chain) == 1 {
 			msg.Headers.Protected[int64(coseHeaderX5Chain)] = chain[0].Raw

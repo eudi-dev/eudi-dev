@@ -105,10 +105,10 @@ type authGrant struct {
 	// redirectURI and state go with a code delivered by redirect.
 	redirectURI string
 	state       string
-	// issuerState names the offer whose settings the flow issues. A flow
-	// started by scope has none.
+	// issuerState identifies the offer. The flow issues with its settings. A
+	// flow started by scope has none.
 	issuerState string
-	// dpopJKT is the DPoP key the code is bound to (RFC 9449 §10), if any.
+	// dpopJKT is the DPoP key bound to the code (RFC 9449 §10), if any.
 	dpopJKT  string
 	settings offerSettings
 	// withDetails records that the request used authorization_details, so the
@@ -117,10 +117,10 @@ type authGrant struct {
 }
 
 // resolveAuthGrant resolves what an authorization flow issues: the settings
-// of the offer that issuer_state names, else the configurations that the
-// authorization_details and the scope name (OpenID4VCI 1.0 §5.1.1, §5.1.2).
+// of the offer given by issuer_state, else the configurations listed in
+// authorization_details and scope (OpenID4VCI 1.0 §5.1.1, §5.1.2).
 // authorization_details next to an issuer_state narrow the offer. A request
-// that names none gets the ticket, the default scope of this server (RFC 6749
+// without any gets the ticket, the default scope of this server (RFC 6749
 // §3.3). It returns the OAuth error of an unknown name.
 func (d *DemoRP) resolveAuthGrant(grant authGrant, scope, authorizationDetails string) (authGrant, map[string]string) {
 	detailIDs, errResp := parseAuthorizationDetails(authorizationDetails)
@@ -205,11 +205,11 @@ type authRequestState struct {
 	// debug panel.
 	clientAttestation    string
 	clientAttestationPoP string
-	// codeIssued reports that the request yielded its authorization code,
-	// which spends the request_uri.
+	// codeIssued reports that the request yielded its authorization code.
+	// The request_uri is then spent.
 	codeIssued bool
 	codeUsed   bool
-	// holderClaims name the holder of the code: the account's names after
+	// holderClaims identify the holder of the code: the account's names after
 	// the sign-in, or the requested claims of a presented credential.
 	holderClaims map[string]any
 	expires      time.Time
@@ -707,8 +707,7 @@ func jwkThumbprint(key *ecdsa.PublicKey) (string, error) {
 	return format.EncodeBase64URL(sum), nil
 }
 
-// firstUseOfJTI records the jti of an accepted proof for the scope it is
-// valid in. The proof's iat is inside the freshness window, so the jti is kept
+// firstUseOfJTI records the jti of an accepted proof for its scope. The proof's iat is inside the freshness window, so the jti is kept
 // until the window closes. RFC 9449 §11.1 suggests storing "only a hash
 // thereof" against memory exhaustion.
 // A full cache refuses new proofs. Forgetting a live jti would let its proof

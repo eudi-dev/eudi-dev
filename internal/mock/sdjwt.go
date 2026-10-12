@@ -38,9 +38,9 @@ type SDJWTConfig struct {
 	Issuer            string
 	VCT               string
 	ExpiresIn         time.Duration
-	// IssuedAt overrides the issuance time of iat, which exp counts from. An
-	// issuer of several copies rounds it, so the copies are not linkable by the
-	// issuance second (RFC 9901 §10.1). Nil issues at now.
+	// IssuedAt overrides the iat issuance time. exp counts from it. An issuer
+	// of several copies rounds it, so the copies are not linkable by the
+	// issuance second (RFC 9901 §10.1). Nil uses the current time.
 	IssuedAt      *time.Time
 	NotBefore     *time.Time // optional: sets nbf claim
 	Claims        map[string]any
@@ -202,7 +202,7 @@ var forcePlainClaims = func() map[string]bool {
 	return claims
 }()
 
-// checkClaimName refuses the keys RFC 9901 reserves. A disclosure name "MUST
+// checkClaimName refuses keys reserved by RFC 9901. A disclosure name "MUST
 // NOT be _sd, ..., or a claim name existing in the object as a permanently
 // disclosed claim" (§4.2.1). §4.1.1 reserves _sd_alg for the top level.
 func checkClaimName(name string) error {

@@ -33,7 +33,7 @@ import (
 )
 
 // Root is the wallet's own signing material: the issuer key, the CA key and
-// the chain [leaf, CA] the CA issued for the issuer key.
+// the chain [leaf, CA] for the issuer key.
 type Root struct {
 	IssuerKey *ecdsa.PrivateKey
 	CAKey     *ecdsa.PrivateKey
@@ -58,7 +58,7 @@ func NewSigner(keys *Keys, env Env) *Signer {
 	return &Signer{keys: keys, env: env}
 }
 
-// Keys are the keys and certificates the signer stores.
+// Keys returns the signer's stored keys and certificates.
 func (s *Signer) Keys() *Keys {
 	return s.keys
 }
@@ -222,7 +222,7 @@ func (s *Signer) RelyingPartyAccessCA() (*ecdsa.PrivateKey, *x509.Certificate, e
 
 // RegistrarCA is the root of the registrar's signing certificate. It is a
 // separate root like the relying party access CA, so the list of registration
-// certificate providers names only the registrar (ETSI TS 119 602 V1.1.1
+// certificate providers holds only the registrar (ETSI TS 119 602 V1.1.1
 // Annex G).
 func (s *Signer) RegistrarCA() (*ecdsa.PrivateKey, *x509.Certificate, error) {
 	return s.keys.selfSignedCA("registrar-ca", "EUDI Dev Test Registrar CA")

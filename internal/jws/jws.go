@@ -26,7 +26,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 )
 
-// AlgES256 is the JWS algorithm of every signature this tool makes.
+// AlgES256 is the JWS algorithm of all signatures made by this tool.
 const AlgES256 = "ES256"
 
 // RegisteredClaims are the registered claim names of RFC 7519 §4.1.

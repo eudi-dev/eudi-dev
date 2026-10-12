@@ -37,7 +37,7 @@ func (b memoryBlob) stamp() Stamp {
 	return Stamp{Version: strconv.FormatUint(b.version, 10), Size: int64(len(b.data))}
 }
 
-// processMemory is the memory store that every opener in the process shares.
+// processMemory is the memory store shared by every opener in the process.
 var processMemory = NewMemory()
 
 // NewMemory returns a new empty memory store. Tests use it for isolation from

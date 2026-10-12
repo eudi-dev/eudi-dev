@@ -206,7 +206,7 @@ func activeQueries(options *CredentialOptions, setChoices []int) []string {
 	return ids
 }
 
-// chosenOption is the option the user chose for set i, or its default.
+// chosenOption returns the user's option for set i, or its default.
 func chosenOption(set SetOptions, i int, setChoices []int) int {
 	if i < len(setChoices) {
 		return setChoices[i]

@@ -51,7 +51,7 @@ func resignCredential(t *testing.T, d *DemoRP, credential string, edit func(payl
 
 // RFC 9901 §7.3 and OpenID4VP 1.0 §B.3.6: a presentation of a holder-bound
 // credential carries a key binding JWT of type kb+jwt, signed with the
-// cnf.jwk key, whose sd_hash covers the presentation.
+// cnf.jwk key. Its sd_hash covers the presentation.
 func TestVerifierChecksTheKeyBinding(t *testing.T) {
 	d, _, holderKey := newDemoRP(t)
 	req := &requestState{id: "req", clientID: "x509_hash:verifier", nonce: "the-nonce"}

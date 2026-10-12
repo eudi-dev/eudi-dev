@@ -210,7 +210,7 @@ func TestATokenRequestCannotWidenTheGrant(t *testing.T) {
 }
 
 // authorization_details in the authorization request reach the token
-// response of the code they lead to (OpenID4VCI 1.0 §6.2). Next to an
+// response for the resulting code (OpenID4VCI 1.0 §6.2). Next to an
 // issuer_state they narrow the offer.
 func TestAuthorizationDetailsOfTheAuthorizationRequestReachTheToken(t *testing.T) {
 	d, _, _ := newDemoRP(t)
@@ -423,7 +423,7 @@ func TestSameHTU(t *testing.T) {
 }
 
 // RFC 9449 §7.1: a request with the DPoP scheme carries a valid proof, and
-// its key is the key the access token is bound to. An access token without a
+// its key is the key bound to the access token. An access token without a
 // DPoP key matches no proof.
 func TestTheDPoPSchemeNeedsAProofOfTheBoundKey(t *testing.T) {
 	d, _, _ := newDemoRP(t)
@@ -479,7 +479,7 @@ func TestACredentialRequestCarriesOneProofType(t *testing.T) {
 }
 
 // The metadata publishes no credential_response_encryption. OpenID4VCI 1.0
-// §8.3.1.2 answers encryption parameters the issuer cannot use with
+// §8.3.1.2 answers unusable encryption parameters with
 // invalid_encryption_parameters, and the Deferred Credential Request takes the
 // parameter "as defined in Section 8.2" (§9.1).
 func TestARequestForAnEncryptedResponseIsRefused(t *testing.T) {

@@ -39,8 +39,8 @@ type MuxOptions struct {
 	// WalletStore is a stored wallet. When it exists, its attestation
 	// catalogue anchors credentials. The decoder never creates a wallet.
 	WalletStore *wallet.WalletStore
-	// Wallet is the running wallet. Its trusted lists include the ones from
-	// the flags of wallet serve, which the store doesn't keep.
+	// Wallet is the running wallet. Its trusted lists include those from the
+	// flags of wallet serve. The store doesn't keep them.
 	Wallet *wallet.Wallet
 }
 

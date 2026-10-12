@@ -26,8 +26,8 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/config"
 )
 
-// The pages of every server, with the stylesheets and scripts they define
-// their own variables in.
+// The pages of every server, with the stylesheets and scripts that define
+// page variables.
 var pages = map[string][]string{
 	"wallet":      {"../wallet/static/index.html", "../wallet/static/style.css", "../wallet/static/app.js"},
 	"decoder":     {"../web/static/index.html", "../web/static/style.css", "../web/static/app.js"},
@@ -42,7 +42,7 @@ var pages = map[string][]string{
 var (
 	// A script defines a variable with style.setProperty('--name', value).
 	definition = regexp.MustCompile(`(--[a-z0-9-]+)(?:\s*:|',)`)
-	// A name that ends in a dash is the prefix of one that a script builds.
+	// A name ending in a dash is a prefix. A script completes it at runtime.
 	use = regexp.MustCompile(`var\((--[a-z0-9-]*[a-z0-9])\b[^-]`)
 )
 
@@ -75,7 +75,7 @@ func TestTheLightThemeSetsEveryColourToken(t *testing.T) {
 	}
 }
 
-// Every page uses only variables that tokens.css or the page itself defines,
+// Every page uses only variables defined in tokens.css or in the page itself,
 // because a browser drops a declaration with an undefined variable. No page
 // sets a shared token again, so the pages can't drift apart.
 func TestThePagesUseTheSharedTokens(t *testing.T) {

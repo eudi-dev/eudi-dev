@@ -89,7 +89,7 @@ func TestGuardAPI(t *testing.T) {
 }
 
 // The port is part of an origin. Another service on the same host is a foreign
-// origin, which is common on a developer machine.
+// origin. This is common on a developer machine.
 func TestGuardAPIComparesPorts(t *testing.T) {
 	for _, origin := range []string{"http://localhost:3000", "http://localhost"} {
 		hit := false

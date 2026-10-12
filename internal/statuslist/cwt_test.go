@@ -312,13 +312,13 @@ func signCWTWithType(t *testing.T, key *ecdsa.PrivateKey, uri string, typ any) [
 	return signCWT(t, signer, uri, typ)
 }
 
-// esp256Signer produces the ES256 signature under the ESP256 label, which
-// go-cose does not know.
+// esp256Signer labels an ES256 signature with ESP256. go-cose does not know
+// this label.
 type esp256Signer struct{ cose.Signer }
 
 func (esp256Signer) Algorithm() cose.Algorithm { return mdoc.AlgorithmESP256 }
 
-// HAIP 1.0 §7 names -9 next to -7 for ECDSA with P-256 and SHA-256.
+// HAIP 1.0 §7 lists -9 next to -7 for ECDSA with P-256 and SHA-256.
 func TestCheck_AcceptsAnESP256CWT(t *testing.T) {
 	key := mustGenerateKey(t)
 	es256, err := cose.NewSigner(cose.AlgorithmES256, key)

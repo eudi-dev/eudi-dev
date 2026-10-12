@@ -58,8 +58,8 @@ func loadSpecVectors(t *testing.T) []specVector {
 	return vectors
 }
 
-// TestSpecTestVectors_JSONEncoding reads every index the appendix lists from
-// the JSON encoding of each vector. Other indices must read as VALID ("All
+// TestSpecTestVectors_JSONEncoding reads every index listed in the appendix
+// from the JSON encoding of each vector. Other indices must read as VALID ("All
 // values that are not mentioned for the examples below can be assumed to be 0
 // (VALID)").
 func TestSpecTestVectors_JSONEncoding(t *testing.T) {

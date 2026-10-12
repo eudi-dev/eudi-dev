@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package trustedlists holds the wallet's trusted lists (ADR-0022, ADR-0023): the
-// lists it signs itself, the providers and lists users add, the external
-// lists it reads, and the trust anchors they give.
+// Package trustedlists holds the wallet's trusted lists (ADR-0022, ADR-0023):
+// the lists signed by the wallet itself, the providers and lists added by
+// users, the external lists read by the wallet, and their trust anchors.
 package trustedlists
 
 import (
@@ -36,14 +36,14 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
 )
 
-// Additions are the providers and lists users added through `trust` or the
+// Additions are the providers and lists added by users through `trust` or the
 // API. The wallet embeds them, so they are saved with the wallet.
 type Additions struct {
 	TrustedEntities   []Entity `json:"trusted_entities,omitempty"`
 	AddedTrustedLists []string `json:"trusted_lists,omitempty"`
 }
 
-// Clone copies the lists, so the copy and a change independently.
+// Clone copies the lists, so the copy and the original change independently.
 func (a Additions) Clone() Additions {
 	return Additions{TrustedEntities: slices.Clone(a.TrustedEntities), AddedTrustedLists: slices.Clone(a.AddedTrustedLists)}
 }
@@ -62,22 +62,22 @@ type Settings struct {
 // Env gives the trusted lists access to the wallet that holds them.
 type Env interface {
 	Signer() *provider.Signer
-	// IssuedAttestationSpecs are the credential types the wallet issues.
+	// IssuedAttestationSpecs are the credential types issued by the wallet.
 	IssuedAttestationSpecs() []provider.IssuedAttestationSpec
 	TemplateLocation() credtemplate.Location
 	// IssuerURL is where the wallet publishes its own lists.
 	IssuerURL() string
-	// RegistrarBase is the base URL that the wallet's own lists are under.
+	// RegistrarBase is the base URL of the wallet's own lists.
 	RegistrarBase() string
 	HTTPClient() *http.Client
 	// Strict reports strict validation mode.
 	Strict() bool
-	// ListedProviderName names the wallet's own provider on its lists.
+	// ListedProviderName is the name of the wallet's own provider on its lists.
 	ListedProviderName() string
 }
 
 // Set works on the Additions stored in a wallet while holding the lock of
-// that wallet. settings is a copy the wallet made when it created the Set.
+// that wallet. settings is a copy taken when the wallet created the Set.
 type Set struct {
 	mu        *sync.RWMutex
 	additions *Additions
@@ -114,7 +114,7 @@ type Entity struct {
 	Certificates []string `json:"certificates"`
 }
 
-// ErrNotFound reports a trusted entity or list that the wallet does not have.
+// ErrNotFound reports a trusted entity or list missing from the wallet.
 var ErrNotFound = errors.New("not on the wallet's trusted lists")
 
 // ErrFull reports that the wallet holds as many added providers or lists as
@@ -220,10 +220,11 @@ func (t *Set) listEntities(listID string) []lote.Entity {
 	return out
 }
 
-// ListCAs are the CAs --arf trusts for the signer of a trusted list. The
-// wallet's list operator key, certified by the wallet CA, signs the wallet's
-// own lists, like the seal of the Commission on the lists it compiles (ARF
-// TLPub_07). --trusted-list-ca and the trusted-list-ca entities add others.
+// ListCAs are the CAs trusted under --arf for the signer of a trusted list.
+// The wallet's list operator key, certified by the wallet CA, signs the
+// wallet's own lists. The Commission seals its compiled lists the same way
+// (ARF TLPub_07). --trusted-list-ca and the trusted-list-ca entities add
+// others.
 func (t *Set) ListCAs() ([]*x509.Certificate, error) {
 	var cas []*x509.Certificate
 	if anchor := t.env.Signer().TrustAnchor(); anchor != nil {

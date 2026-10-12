@@ -54,8 +54,8 @@ func SemanticIdentifier(id Identifier, country string) (string, error) {
 		if !euidPattern.MatchString(value) {
 			return "", fmt.Errorf("identifier %q is not an EUID such as NLTEST.1A2B3C4D (country code and register, dot, registration number)", value)
 		}
-		// The EUID's country prefix is EL for Greece, which access
-		// certificates use too (ETSI TS 119 411-8 V1.1.1 GEN-6.6.1-05).
+		// The EUID's country prefix for Greece is EL. Access certificates use
+		// it too (ETSI TS 119 411-8 V1.1.1 GEN-6.6.1-05).
 		return "NTR" + value[:2] + "-" + value, nil
 	case LEIIdentifierType:
 		if !leiPattern.MatchString(value) {
@@ -90,7 +90,7 @@ func SemanticIdentifier(id Identifier, country string) (string, error) {
 }
 
 // identifierKeys are the semantics identifiers of all of a relying party's
-// identifiers. Two identifiers with the same key name the same party, such
+// identifiers. Two identifiers with the same key identify the same party, such
 // as a VATIN and a TIN that both map to VATBE-0876866142.
 func identifierKeys(rp WalletRelyingParty) []string {
 	keys := make([]string, 0, len(rp.Identifier))
@@ -103,7 +103,7 @@ func identifierKeys(rp WalletRelyingParty) []string {
 }
 
 // semanticIdentifier is the semantics identifier of a relying party's first
-// identifier, which its certificates carry.
+// identifier. Its certificates carry this value.
 func semanticIdentifier(rp WalletRelyingParty) string {
 	if len(rp.Identifier) == 0 {
 		return ""
@@ -123,10 +123,10 @@ func NewEUID(country string) string {
 
 var semanticPattern = regexp.MustCompile(`^(NTR|LEI|VAT|EOR|EXC)([A-Z]{2})-(.+)$`)
 
-// typedIdentifier gives an identifier without a type the type its value
-// shows. A semantics identifier, as an access certificate carries it, maps
-// back to the registered value. Any other value is an EUID. VAT maps to a
-// VATIN, the more common of the two types that use it.
+// typedIdentifier derives the type of an untyped identifier from its value.
+// A semantics identifier from an access certificate maps back to the
+// registered value. Any other value is an EUID. VAT maps to a VATIN, the more
+// common of the two types with that prefix.
 func typedIdentifier(value string) Identifier {
 	m := semanticPattern.FindStringSubmatch(value)
 	if m == nil {

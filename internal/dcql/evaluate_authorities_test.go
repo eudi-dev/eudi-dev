@@ -28,7 +28,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 )
 
-// authorityChain returns a CA and a leaf it signed. The leaf carries an
+// authorityChain returns a CA and a leaf signed by it. The leaf carries an
 // authority key identifier. An "aki" trusted authority matches on it.
 func authorityChain(t *testing.T) (ca, leaf *x509.Certificate, leafKey *ecdsa.PrivateKey, aki []byte) {
 	t.Helper()

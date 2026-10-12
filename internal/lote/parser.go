@@ -269,8 +269,8 @@ func Anchors(tl *List, kind string, now time.Time) ([]*x509.Certificate, error) 
 	return Certificates(ServiceCertificates(tl, kind))
 }
 
-// Service kinds of ServiceCertificates. ETSI TS 119 602 V1.1.1 names the
-// service types of each list with these suffixes, such as
+// Service kinds of ServiceCertificates. In ETSI TS 119 602 V1.1.1 the service
+// types of each list end in these suffixes, such as
 // http://uri.etsi.org/19602/SvcType/PID/Issuance and .../PID/Revocation.
 const (
 	IssuanceServices   = "Issuance"
@@ -280,7 +280,7 @@ const (
 // ServiceCertificates returns the certificates of the services of one kind:
 // the issuance services anchor credentials, the revocation services their
 // status lists (ETSI TS 119 602 V1.1.1 Table D.3). Withdrawn services don't
-// count. In a list whose services name neither kind, every service counts.
+// count. If no service of a list has either kind, every service counts.
 func ServiceCertificates(tl *List, kind string) []CertInfo {
 	typed := false
 	for _, entity := range tl.Entities {

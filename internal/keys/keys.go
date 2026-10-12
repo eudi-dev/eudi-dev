@@ -84,7 +84,7 @@ func parsePEMPrivateBlock(block *pem.Block) (crypto.PrivateKey, error) {
 
 // ParseJWKPrivate reads a private key from a JWK document. It repairs short EC
 // coordinates because a private JWK is the operator's own key file. Public keys
-// from peers go through ParseJWK, which follows the spec strictly.
+// from peers go through ParseJWK. It follows the spec strictly.
 func ParseJWKPrivate(data []byte) (crypto.PrivateKey, error) {
 	var jwk josev4.JSONWebKey
 	if err := jwk.UnmarshalJSON(padECCoordinates(data)); err != nil {

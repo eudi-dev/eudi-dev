@@ -25,9 +25,9 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 )
 
-// Checks are the checks a wallet applies to a request. Strict refuses a
-// request with findings, and otherwise the findings become warnings. HAIP and
-// ARF add the checks of those profiles.
+// Checks selects how a wallet checks a request. Strict refuses a request with
+// findings. Otherwise the findings become warnings. HAIP and ARF add the
+// checks of those profiles.
 type Checks struct {
 	Strict bool
 	HAIP   bool
@@ -51,7 +51,7 @@ func ValidateAuthorizationRequest(checks Checks, params *Request) ([]string, err
 // ARFRefusal is a strict refusal on ARF findings alone. The relying party
 // signed the request with a trusted access certificate, so its client
 // identifier is valid and the wallet answers it with access_denied (RFC 6749
-// §4.1.2.1, which OpenID4VP 1.0 §8.5 applies).
+// §4.1.2.1, applied by OpenID4VP 1.0 §8.5).
 type ARFRefusal struct {
 	Findings []string
 }
@@ -149,8 +149,8 @@ func authorizationFindings(params *Request, payload map[string]any) []string {
 	return findings
 }
 
-// expectedOriginsFinding compares expected_origins with the origin the request
-// came from, using simple string comparison.
+// expectedOriginsFinding compares expected_origins with the request's origin,
+// using simple string comparison.
 func expectedOriginsFinding(params *Request, payload map[string]any) string {
 	origin := params.RequestOrigin
 	if origin == "" {

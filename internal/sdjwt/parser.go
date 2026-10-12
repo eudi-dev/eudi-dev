@@ -29,8 +29,8 @@ import (
 // 9901 §7.1, where every MUST-reject condition is an error: "If any step
 // fails, the SD-JWT is not valid, and processing MUST be aborted."
 //
-// It covers steps 3 to 5, which turn Disclosures into claims. Verify checks
-// the Issuer-signed JWT signature.
+// It covers steps 3 to 5. These steps turn Disclosures into claims. Verify
+// checks the Issuer-signed JWT signature.
 func Parse(raw string) (*Token, error) {
 	token, err := ParseLenient(raw)
 	if err != nil {
@@ -249,9 +249,9 @@ func parseDisclosure(raw string, sdAlg string) (*Disclosure, error) {
 	return disc, nil
 }
 
-// defaultSDAlg is the hash algorithm RFC 9901 §4.1.1 prescribes when the
-// payload carries no _sd_alg: "If the _sd_alg claim is not present at the top
-// level, a default value of sha-256 MUST be used."
+// defaultSDAlg applies when the payload carries no _sd_alg. RFC 9901 §4.1.1:
+// "If the _sd_alg claim is not present at the top level, a default value of
+// sha-256 MUST be used."
 const defaultSDAlg = "sha-256"
 
 // hashForSDAlg maps an _sd_alg value to its hash. RFC 9901 §4.1.1: "This claim

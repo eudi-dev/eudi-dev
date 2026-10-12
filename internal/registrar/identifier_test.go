@@ -48,7 +48,7 @@ func TestTheSemanticsIdentifierFollowsTheIdentifierType(t *testing.T) {
 // ETSI TS 119 475 V1.2.1 B.2.2: the country is an ISO 3166-1 alpha-2 code. A
 // registration without one takes it from an identifier that carries a
 // country. The EUID and VAT prefix EL is Greece, GR in ISO 3166-1. A LEI
-// carries no country (XG), so its registration names the country.
+// carries no country (XG), so its registration states the country.
 func TestTheCountryOfARegistrationIsAnISOCode(t *testing.T) {
 	w := generateTestWallet(t)
 	for _, id := range []Identifier{{Type: EUIDIdentifierType, Identifier: "ELGEMI.123456789"}, {Type: VATINIdentifierType, Identifier: "EL123456789"}} {
@@ -101,8 +101,8 @@ func TestAnUntypedIdentifierTakesTheTypeItsValueShows(t *testing.T) {
 	}
 }
 
-// A VATIN and a TIN that map to the same semantics identifier name the same
-// party, so the second registration is refused.
+// A VATIN and a TIN that map to the same semantics identifier identify the
+// same party, so the second registration is refused.
 func TestIdentifiersCompareByTheirSemanticsIdentifier(t *testing.T) {
 	w := generateTestWallet(t)
 	if _, err := w.RegisterRelyingParty(WalletRelyingParty{TradeName: "VAT Shop", Country: "NL", Identifier: []Identifier{{Type: VATINIdentifierType, Identifier: "NL123456789"}}}); err != nil {
@@ -132,8 +132,8 @@ func TestAnUpdateThroughTheSemanticsIdentifierKeepsOneIdentifier(t *testing.T) {
 	}
 }
 
-// An empty service identifier names a party's only service. With several,
-// the caller names one.
+// An empty service identifier selects a party's only service. With several
+// services, the caller must choose one.
 func TestAnEmptyServiceIdentifierNamesTheOnlyService(t *testing.T) {
 	one := WalletRelyingParty{Identifier: []Identifier{{Identifier: "NLTEST.1"}}, Services: []WalletRelyingPartyService{{ServiceIdentifier: "web"}}}
 	if service, err := findService(one, ""); err != nil || service.ServiceIdentifier != "web" {

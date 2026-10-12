@@ -35,7 +35,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/storage"
 )
 
-// DefaultTrustListPath serves the PID list for clients that know a single
+// DefaultTrustListPath serves the PID list for clients that support only one
 // trusted list.
 const DefaultTrustListPath = "/api/trustlist"
 
@@ -60,7 +60,7 @@ func (s *Keys) archiveTrustList(dir string, list storedTrustList) error {
 	return err
 }
 
-// TrustList returns the current list that key signs under ca with the
+// TrustList returns the current list signed by key under ca with the
 // options. Unset options take the wallet's defaults. A list without a type
 // is an EAA list.
 func (s *Keys) TrustList(key *ecdsa.PrivateKey, ca *x509.Certificate, opts lote.Options) (string, error) {
@@ -93,11 +93,11 @@ func SignTrustList(signingKey *ecdsa.PrivateKey, caCert *x509.Certificate, opts 
 	return lote.Sign(signingKey, caCert, opts)
 }
 
-// SequencedList returns the current list that the issuer publishes at
-// listPath. It signs a new one with the next sequence number when the content
-// changed or the list reached its next update (ETSI TS 119 602 V1.1.1 §6.3.2
-// and §6.3.15). sign gets the issue time, which sets the next update, and the
-// list it replaces.
+// SequencedList returns the issuer's current list at listPath. It signs a new
+// one with the next sequence number when the content changed or the list
+// reached its next update (ETSI TS 119 602 V1.1.1 §6.3.2 and §6.3.15). sign
+// gets the issue time and the replaced list. The issue time sets the next
+// update.
 func (s *Keys) SequencedList(issuer, listPath string, ca *x509.Certificate, content []byte, sign func(sequence int, issued time.Time, previous string) (string, error)) (string, error) {
 	return s.sequencedList(s.trustListDir(issuer, listPath), ca, content, sign)
 }
@@ -121,7 +121,7 @@ func (s *Keys) sequencedList(dir string, ca *x509.Certificate, content []byte, s
 			if current.Identity == identity && time.Now().Before(current.NextUpdate) {
 				return current.JWT, nil
 			}
-			// The history keeps every list the wallet published.
+			// The history keeps every list published by the wallet.
 			if err := s.archiveTrustList(dir, current); err != nil {
 				return "", err
 			}
@@ -151,14 +151,14 @@ func (s *Keys) sequencedList(dir string, ca *x509.Certificate, content []byte, s
 	return "", fmt.Errorf("trusted list changed concurrently too often")
 }
 
-// TrustListHistory returns a list the issuer published at listPath, by its
+// TrustListHistory returns a list published by the issuer at listPath, by its
 // sequence number.
 func (s *Keys) TrustListHistory(issuer, listPath string, sequence int) ([]byte, error) {
 	return s.backend.Read(path.Join(s.trustListDir(issuer, listPath), "history", strconv.Itoa(sequence)+".jwt"))
 }
 
-// TrustListSequences returns the sequence numbers of the lists the issuer
-// published at listPath, in ascending order.
+// TrustListSequences returns the sequence numbers of the lists published by
+// the issuer at listPath, in ascending order.
 func (s *Keys) TrustListSequences(issuer, listPath string) ([]int, error) {
 	files, err := s.backend.List(path.Join(s.trustListDir(issuer, listPath), "history"))
 	if err != nil {

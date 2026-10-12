@@ -32,8 +32,8 @@ var protocolClaims = func() map[string]bool {
 }()
 
 // IsProtocolClaim reports whether a top-level claim of an SD-JWT VC carries
-// protocol data instead of data about the subject. Claim counts, the claims a
-// generated query asks for and the claims a verifier shows leave them out.
+// protocol data instead of data about the subject. Claim counts, generated
+// queries and the verifier's claim view leave these claims out.
 func IsProtocolClaim(name string) bool {
 	return protocolClaims[name]
 }

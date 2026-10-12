@@ -21,8 +21,8 @@ import (
 
 // CredentialTypes reads the types of a DCQL meta object. SD-JWT VC uses
 // vct_values and mdoc doctype_value. A W3C credential lists alternative type
-// sets in type_values (OpenID4VP 1.0 §B.1.1). Each set becomes one type, its
-// sorted members joined by spaces, which an IRI cannot contain.
+// sets in type_values (OpenID4VP 1.0 §B.1.1). Each set becomes one type: its
+// sorted members joined by spaces. An IRI cannot contain a space.
 func CredentialTypes(meta any) []string {
 	m, ok := meta.(map[string]any)
 	if !ok {

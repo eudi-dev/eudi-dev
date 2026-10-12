@@ -138,8 +138,8 @@ func TestVerifyJWTSignature_UsesIssuerMetadataWithoutKid(t *testing.T) {
 	}
 }
 
-// A JWK Set may hold keys of types the wallet does not use. The lookup skips
-// them and verifies with the others.
+// A JWK Set may hold keys of unsupported types. The lookup skips them and
+// verifies with the others.
 func TestVerifyJWTSignature_SkipsAnUnusableIssuerMetadataKey(t *testing.T) {
 	key, err := mock.GenerateKey()
 	if err != nil {

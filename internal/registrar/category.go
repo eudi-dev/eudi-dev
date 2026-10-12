@@ -39,7 +39,7 @@ type Category struct {
 	// test wallet treats QEAAs and PuB-EAAs the same way. The level of other
 	// EAAs depends on their rulebook.
 	AttestationLoS string `json:"attestationLoS"`
-	// ETSIAnnex names the annex of ETSI TS 119 602 V1.1.1 that defines the
+	// ETSIAnnex is the annex of ETSI TS 119 602 V1.1.1 that defines the
 	// list type. The standard defines list types for PID providers (Annex D)
 	// and PuB-EAA providers (Annex H) and none for QEAA or other EAA
 	// providers. Annex C.1 has a scheme operator create its own URIs, and
@@ -91,8 +91,8 @@ func CategoryOfEntitlement(entitlement string) (string, bool) {
 	return "", false
 }
 
-// CategoryOfListType returns the category whose providers a trusted list of
-// that type lists.
+// CategoryOfListType returns the category of the providers listed in a
+// trusted list of that type.
 func CategoryOfListType(listType string) (string, bool) {
 	for _, c := range categories {
 		if c.LoTEType == listType {

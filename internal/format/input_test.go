@@ -156,7 +156,7 @@ func TestHTTPClientForURLHostDockerInternalFallback(t *testing.T) {
 	port := srv.URL[strings.LastIndex(srv.URL, ":")+1:]
 
 	// host.docker.internal does not resolve on most hosts. The client must
-	// fall back to localhost, which serves the same endpoint.
+	// fall back to localhost. It serves the same endpoint.
 	url := "http://host.docker.internal:" + port + "/"
 	client := HTTPClient()
 	resp, err := client.Get(url)
@@ -297,7 +297,7 @@ func TestResolveRemoteTimeout(t *testing.T) {
 	}
 }
 
-// The eudi-dev 2 variable no longer sets the timeout, and a warning says so.
+// The eudi-dev 2 variable does not set the timeout. A warning says so.
 func TestOldRemoteTimeoutVariableOnlyWarns(t *testing.T) {
 	var logged bytes.Buffer
 	log.SetOutput(&logged)

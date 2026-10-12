@@ -117,9 +117,9 @@ func TestPredefinedGermanPIDTemplates(t *testing.T) {
 }
 
 // IT-Wallet 1.4.7 §11.2.1 lists the user attributes of the PID (no address)
-// and the metadata attributes REQUIRED for a PID, which stay out of the
-// selective disclosures. §11.1.2.1 makes its sub opaque and unique per
-// credential.
+// and the metadata attributes REQUIRED for a PID. The metadata attributes
+// stay out of the selective disclosures. §11.1.2.1 makes its sub opaque and
+// unique per credential.
 func TestPredefinedItalianPIDTemplates(t *testing.T) {
 	first, err := Load("italian-pid-sdjwt", FileLocation(t.TempDir()))
 	if err != nil {

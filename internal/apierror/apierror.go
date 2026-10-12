@@ -23,8 +23,8 @@ import (
 )
 
 // Error codes. invalid_request and server_error come from RFC 6749 §5.2,
-// temporarily_unavailable from RFC 6749 §4.1.2.1. The others name the HTTP
-// condition.
+// temporarily_unavailable from RFC 6749 §4.1.2.1. The others describe the
+// HTTP condition.
 const (
 	InvalidRequest         = "invalid_request"
 	Forbidden              = "forbidden"

@@ -121,8 +121,8 @@ func holderJWK(t *testing.T, key *ecdsa.PrivateKey) map[string]any {
 	return jwk
 }
 
-// The demo pages and the issuer metadata show the names the demo parties are
-// registered under.
+// The demo pages and the issuer metadata show the registered names of the
+// demo parties.
 func TestDemoPagesShowTheRegisteredNames(t *testing.T) {
 	d, _, _ := newDemoRP(t)
 	for _, tc := range []struct {
@@ -580,7 +580,7 @@ func TestVerifierRejectsWrongNonce(t *testing.T) {
 func serveStatusList(t *testing.T, d *DemoRP, w *wallet.Wallet) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(nil)
-	// The revocation service of the wallet's lists names the status list signer.
+	// The revocation service in the wallet's lists contains the status list signer.
 	key, chain, err := w.Signer().StatusList()
 	if err != nil {
 		t.Fatalf("status list signer: %v", err)
@@ -1011,8 +1011,8 @@ func TestVerifierWarnsWhenTheCredentialChainCarriesTheTrustAnchor(t *testing.T) 
 	id, params := startVerification(t, h, "pid")
 
 	caCert := d.wallet.CertChain[len(d.wallet.CertChain)-1]
-	// The credential chains to the wallet root, which the demo verifier
-	// trusts as a configured issuer CA here.
+	// The credential chains to the wallet root. Here the demo verifier trusts
+	// it as a configured issuer CA.
 	d.SetVerifierTrustAnchors([]*x509.Certificate{caCert})
 	leaf, err := mock.GenerateLeafCertWithOptions(d.wallet.CAKey, caCert, &d.wallet.IssuerKey.PublicKey, mock.LeafCertOptions{})
 	if err != nil {
@@ -1826,8 +1826,8 @@ func TestAuthorizationCodeOfferKeepsTheStatusChoice(t *testing.T) {
 	}
 }
 
-// An authorization flow issues what its offer, its scope or its
-// authorization_details name (OpenID4VCI 1.0 §5.1.1, §5.1.2). Without any,
+// An authorization flow issues the configurations from its offer, its scope or
+// its authorization_details (OpenID4VCI 1.0 §5.1.1, §5.1.2). Without any,
 // it issues the ticket, this server's default scope (RFC 6749 §3.3).
 func TestAnAuthorizationFlowIssuesWhatItsRequestNames(t *testing.T) {
 	d, _, _ := newDemoRP(t)
@@ -1958,7 +1958,7 @@ func TestVerifierPIDRequestAsksForTheChosenFormats(t *testing.T) {
 				t.Errorf("requested formats = %v, want %v", formats, tc.wantFormats)
 			}
 			// Two credentials without a credential set would mean the wallet
-			// has to present both, which no wallet holding one format can do.
+			// has to present both. A wallet holding one format can't do that.
 			if _, hasSets := dcql["credential_sets"]; hasSets != tc.wantSets {
 				t.Errorf("credential_sets present = %v, want %v", hasSets, tc.wantSets)
 			}
@@ -2329,9 +2329,9 @@ func TestVerifierRequestCarriesASuppliedIdentity(t *testing.T) {
 	}
 }
 
-// The two ticket shapes a PID request can carry: "combined" puts the ticket
-// into one option next to the SD-JWT PID, "optional" adds a set the wallet
-// may skip. Both list the ticket as its own credential query.
+// A PID request carries the ticket in one of two shapes. "combined" puts the
+// ticket into one option next to the SD-JWT PID. "optional" adds a set that the
+// wallet may skip. Both list the ticket as its own credential query.
 func TestVerifierTicketRequestShapes(t *testing.T) {
 	d, _, _ := newDemoRP(t)
 	h := d.VerifierHandler()

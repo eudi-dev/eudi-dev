@@ -36,13 +36,13 @@ import (
 )
 
 // verifyRequestObjectSignature verifies the Request Object JWS with the key
-// that the Client Identifier Prefix names (OID4VP 1.0 §5.9.3).
+// given by the Client Identifier Prefix (OID4VP 1.0 §5.9.3).
 //
 // The x509 prefixes (x509_san_dns:, x509_hash:) carry the signing certificate
 // in the x5c header. The signature is checked against the leaf, and the chain
 // is checked for consistency. verifier_attestation: takes the key from the cnf
-// claim of the Verifier Attestation JWT. Every other prefix takes it from a
-// source this wallet does not resolve, so the signature stays unverified.
+// claim of the Verifier Attestation JWT. This wallet does not resolve the key
+// of any other prefix, so the signature stays unverified.
 func verifyRequestObjectSignature(clientID string, reqObj *oid4vc.RequestObjectJWT) string {
 	if reqObj == nil {
 		return ""
@@ -400,8 +400,8 @@ func validateRequestObject(clientID string, reqObj *oid4vc.RequestObjectJWT) str
 	alg := jsonutil.GetString(reqObj.Header, "alg")
 	typ := jsonutil.GetString(reqObj.Header, "typ")
 
-	// An unsigned ("alg": "none") Request Object fails every prefix that
-	// OID4VP 1.0 requires to be signed. verifyRequestObjectSignature has
+	// An unsigned ("alg": "none") Request Object fails every prefix with a
+	// signing requirement in OID4VP 1.0. verifyRequestObjectSignature has
 	// nothing to verify for alg=none, so this check catches it.
 	if alg == "none" && prefixRequiresSigning(clientID) {
 		return "OID4VP 1.0 §5.9.3: the client_id prefix requires a signed Request Object but the Request Object is unsigned (alg \"none\")"
@@ -430,9 +430,9 @@ func validateRequestObject(clientID string, reqObj *oid4vc.RequestObjectJWT) str
 // typ. OID4VP 1.0 §5 says "Wallets MUST NOT process Request Objects where the
 // typ Header Parameter is not present", yet the wallet processes such an
 // object even in strict mode. The OIDF conformance suite (release-v5.3.2)
-// sends its unsigned request_uri objects with only {"alg":"none"}, and an
-// unsigned object carries no signature that typ could protect against
-// cross-JWT confusion.
+// sends its unsigned request_uri objects with only {"alg":"none"}. typ
+// protects a signature against cross-JWT confusion, and an unsigned object
+// has no signature.
 func unsignedRequestObjectAdvisory(reqObj *oid4vc.RequestObjectJWT) string {
 	if reqObj == nil || jsonutil.GetString(reqObj.Header, "alg") != "none" || jsonutil.GetString(reqObj.Header, "typ") != "" {
 		return ""

@@ -106,7 +106,7 @@ func (p *processor) object(obj map[string]any, top bool) map[string]any {
 	return result
 }
 
-// disclose inserts into result the claims that the "_sd" array of obj discloses.
+// disclose inserts the claims disclosed by the "_sd" array of obj into result.
 func (p *processor) disclose(obj map[string]any, result map[string]any) {
 	rawSD, present := obj["_sd"]
 	if !present {

@@ -49,12 +49,12 @@ type Instance struct {
 type DiscoveredInstance struct {
 	Instance
 	BuildID string `json:"build_id,omitempty"`
-	// Version is the release the instance reports on /api/version. Older
+	// Version is the release reported on /api/version. Older
 	// instances report none.
 	Version string `json:"version,omitempty"`
 	// Source is "registry" for an instance file, "process" for a process scan
 	// match without an instance file, or "active" for the remote target set by
-	// "wallet use" that local discovery cannot see.
+	// "wallet use". Local discovery cannot see that target.
 	Source string `json:"source"`
 }
 
@@ -227,7 +227,7 @@ func Discover(timeout time.Duration) []DiscoveredInstance {
 	return found
 }
 
-// processAlive reports whether pid names a running process. On Unix, signal 0
+// processAlive reports whether pid belongs to a running process. On Unix, signal 0
 // tests for the process without delivering anything. EPERM means it runs under
 // another user. On Windows, FindProcess opens the process and fails once it
 // has exited.

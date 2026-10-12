@@ -263,7 +263,7 @@ func TestCategoryListTypesAreTheETSITypes(t *testing.T) {
 	}
 }
 
-// The category table names every category of the templates in their order,
+// The category table lists every category of the templates in their order,
 // and each list type and entitlement leads back to its category.
 func TestCategoryTableWorksBothWays(t *testing.T) {
 	var ids []string

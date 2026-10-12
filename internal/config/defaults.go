@@ -40,8 +40,8 @@ const (
 	// covers server response writes, remote CLI requests and consent approval waits.
 	SlowRequestTimeout = 2 * time.Minute
 
-	// Timeouts of the HTTP servers. A server that waits for sign-in or
-	// consent writes with SlowRequestTimeout.
+	// Timeouts of the HTTP servers. Servers that wait for sign-in or consent
+	// use SlowRequestTimeout for writes.
 	ServerReadTimeout  = 30 * time.Second
 	ServerWriteTimeout = 60 * time.Second
 	ServerIdleTimeout  = 120 * time.Second
@@ -61,7 +61,7 @@ const (
 
 const HomeEnvVar = "EUDI_DEV_HOME"
 
-// The state directory and its variable of eudi-dev 2.
+// State directory and environment variable of eudi-dev 2.
 const (
 	legacyHomeEnvVar = "OID4VC_DEV_HOME"
 	legacyHomeDir    = ".oid4vc-dev"

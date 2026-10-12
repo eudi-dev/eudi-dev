@@ -131,7 +131,7 @@ func TestCredential_SignatureSkippedNoKey(t *testing.T) {
 }
 
 // Supplied trust is the only trust source. Without a key or an issuance
-// service, the certificate a credential carries cannot verify it.
+// service, the credential's own certificate cannot verify it.
 func TestCredential_SuppliedTrustWithoutAnchorsFailsTheSignature(t *testing.T) {
 	key, err := mock.GenerateKey()
 	if err != nil {

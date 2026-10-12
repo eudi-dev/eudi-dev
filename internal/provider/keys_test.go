@@ -38,9 +38,9 @@ func (c *readAllCounter) ReadAll(prefix string) (map[string]storage.Blob, error)
 	return c.Store.ReadAll(prefix)
 }
 
-// The stored next update is the one the list carries (ETSI TS 119 602 V1.1.1
-// §6.3.15), and a new Pub-EAA providers list keeps the services of the list
-// it replaces (Table H.1).
+// The stored next update matches the NextUpdate of the list (ETSI TS 119 602
+// V1.1.1 §6.3.15). A new Pub-EAA providers list keeps the services of the
+// replaced list (Table H.1).
 func TestATrustListBuildsOnTheListItReplaces(t *testing.T) {
 	key, err := mock.GenerateKey()
 	if err != nil {
@@ -87,7 +87,7 @@ func TestATrustListBuildsOnTheListItReplaces(t *testing.T) {
 }
 
 // The history of a trusted list only grows. Serving the current list and a
-// stored signing certificate reads one blob each, not the whole directory.
+// stored signing certificate reads only one blob each.
 func TestSigningStoreReadsOnlyTheCurrentBlob(t *testing.T) {
 	caKey, err := mock.GenerateKey()
 	if err != nil {

@@ -85,7 +85,7 @@ func customNationalities(t *testing.T, status map[string]any) []any {
 }
 
 // createCustom creates a request, lets the wallet answer it and returns the
-// transaction_id that reads the result.
+// transaction_id for reading the result.
 func createCustom(t *testing.T, ts *httptest.Server, body string) string {
 	t.Helper()
 	created := postJSONTo(t, ts.URL+"/verifier/api/requests", body)

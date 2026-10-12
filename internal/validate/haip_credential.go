@@ -41,7 +41,7 @@ func NonStatusListFormat(claims map[string]any) string {
 
 // HAIPCredentialFindings checks a credential's issuer key against HAIP 1.0
 // §6.1.1. It checks the signing certificate chain and reports a DID key
-// reference, which this profile cannot resolve.
+// reference. This profile cannot resolve DIDs.
 func HAIPCredentialFindings(header, payload map[string]any) []string {
 	var findings []string
 	kid, _ := header["kid"].(string)
@@ -105,6 +105,6 @@ func SelfSignedCertificate(cert *x509.Certificate) bool {
 		return false
 	}
 	// CheckSignatureFrom rejects a non-CA certificate before it checks the signature.
-	// It would miss a self-signed end-entity leaf, which HAIP §6.1.1 targets.
+	// It would miss a self-signed end-entity leaf. HAIP §6.1.1 targets that case.
 	return cert.CheckSignature(cert.SignatureAlgorithm, cert.RawTBSCertificate, cert.Signature) == nil
 }

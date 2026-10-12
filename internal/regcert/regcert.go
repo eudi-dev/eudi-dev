@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package regcert checks registration certificates (ETSI TS 119 475) and
-// their binding to access certificates, for the verifiers and issuers a
-// wallet talks to (ARF Topic 44).
+// Package regcert checks the registration certificates (ETSI TS 119 475) of
+// verifiers and issuers and their binding to access certificates (ARF Topic
+// 44).
 package regcert
 
 import (
@@ -135,7 +135,7 @@ func Purposes(certs []map[string]any) (purposes, privacyPolicies []string) {
 	return purposes, privacyPolicies
 }
 
-// Bound reports whether a registration certificate names the relying party of
+// Bound reports whether a registration certificate identifies the relying party of
 // the access certificate. ETSI TS 119 475 V1.2.1 GEN-5.1.1-03 links the two
 // "solely on the matching identifier" when other attributes, such as
 // organizational units, differ.
@@ -144,9 +144,9 @@ func Bound(cert map[string]any, access *x509.Certificate) bool {
 	return identifier != "" && identifier == certchain.OrganizationIdentifier(access)
 }
 
-// accessIdentifier is the identifier the access certificate must carry. An
-// intermediary's access certificate names the intermediary, which the
-// registration certificate carries in act.sub (ETSI TS 119 475 V1.2.1
+// accessIdentifier returns the identifier required in the access certificate.
+// An intermediary's access certificate identifies the intermediary. The
+// registration certificate carries it in act.sub (ETSI TS 119 475 V1.2.1
 // GEN-5.2.4-09).
 func accessIdentifier(cert map[string]any) (identifier string, intermediated bool) {
 	if act, ok := cert["act"].(map[string]any); ok && jsonutil.Text(act["sub"]) != "" {
@@ -220,7 +220,7 @@ func ContentFindings(cert map[string]any) []string {
 // (GEN-5.2.4-01). Every registered relying party has them, verifier or
 // provider. Not every registry entry has an infoURI, so info_uri is optional.
 // The ARF asks a relying party for the contacts (RPRC_11, RPRC_12). For a
-// provider they are Table 7 fields. The caller names the rules to cite.
+// provider they are Table 7 fields. The caller passes the rules to cite.
 func partyFindings(cert map[string]any, miss func(field, rule string), supportRule, supervisoryRule string) {
 	const table7 = "ETSI TS 119 475 V1.2.1 GEN-5.2.4-01"
 	if jsonutil.Text(cert["country"]) == "" {
@@ -268,7 +268,7 @@ func validityFindings(cert map[string]any, rule string) []string {
 
 // Provides reports whether a listed attestation has the format and one of
 // the types. A listed entry without a type matches nothing, because
-// provides_attestations lists the types that a provider may issue (ARF
+// provides_attestations lists the types a provider is allowed to issue (ARF
 // RPRC_15).
 func Provides(provided []Credential, format string, types []string) bool {
 	return slices.ContainsFunc(provided, func(p Credential) bool {

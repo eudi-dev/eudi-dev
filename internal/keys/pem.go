@@ -22,7 +22,7 @@ import (
 )
 
 // ParseECKeyPEM reads an EC private key in PKCS #8 or SEC 1 form. The label
-// names the key in errors.
+// identifies the key in errors.
 func ParseECKeyPEM(data []byte, label string) (*ecdsa.PrivateKey, error) {
 	block, _ := pem.Decode(data)
 	if block == nil {
@@ -45,7 +45,7 @@ func ParseECKeyPEM(data []byte, label string) (*ecdsa.PrivateKey, error) {
 }
 
 // ParseCertificatePEM reads the first certificate of PEM data. The label
-// names the certificate in errors.
+// identifies the certificate in errors.
 func ParseCertificatePEM(data []byte, label string) (*x509.Certificate, error) {
 	block, _ := pem.Decode(data)
 	if block == nil {

@@ -39,7 +39,7 @@ const DefaultRemoteTimeout = 15 * time.Second
 // on the same host.
 const RemoteTimeoutEnv = "EUDI_DEV_REMOTE_TIMEOUT"
 
-// oldRemoteTimeoutEnv is the name eudi-dev 2 read. It only draws a warning.
+// oldRemoteTimeoutEnv is the eudi-dev 2 variable. It only triggers a warning.
 const oldRemoteTimeoutEnv = "EUDI_REMOTE_TIMEOUT"
 
 var remoteTimeout = resolveRemoteTimeout(os.Getenv(RemoteTimeoutEnv), os.Getenv(oldRemoteTimeoutEnv))

@@ -21,7 +21,7 @@ import (
 	josev4 "github.com/go-jose/go-jose/v4"
 )
 
-// SupportedAlgorithms are the signature algorithms this toolkit verifies. Every
+// SupportedAlgorithms lists the signature algorithms accepted by Verify. Every
 // parse receives this list, so a token cannot choose how it is checked.
 var SupportedAlgorithms = []josev4.SignatureAlgorithm{
 	josev4.ES256, josev4.ES384, josev4.ES512,

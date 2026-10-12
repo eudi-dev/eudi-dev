@@ -253,9 +253,9 @@ func TestTheStatusListShowsTheVerifierInfoOfAStoredCertificate(t *testing.T) {
 	}
 }
 
-// A superseded certificate names what changed. A certificate lists the
+// A superseded certificate records what changed. A certificate lists the
 // entitlements of its service (TS6 v1.1 row 12), so a service that gains the
-// other role supersedes the certificates of the role it had.
+// other role supersedes the certificates of its earlier role.
 func TestASupersededCertificateNamesWhatChanged(t *testing.T) {
 	reg := generateTestWallet(t)
 	verifier := registerTestRelyingParty(t, reg)

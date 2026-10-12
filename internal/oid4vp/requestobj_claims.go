@@ -25,7 +25,7 @@ import (
 // SelfIssuedAudience is the Request Object aud of OID4VP 1.0 §5.8: "the aud
 // claim MUST be "https://self-issued.me/v2", when Static Discovery metadata
 // is used." The wallet publishes no metadata with an issuer, so a Verifier
-// cannot discover it dynamically and this is the only audience it accepts.
+// cannot discover one dynamically. The wallet accepts only this audience.
 const SelfIssuedAudience = "https://self-issued.me/v2"
 
 // requestObjectClaimFindings checks the exp and aud claims of a Request
@@ -47,8 +47,8 @@ func requestObjectClaimFindings(params *Request) []string {
 			findings = append(findings, fmt.Sprintf("RFC 7519 §4.1.4: the Request Object expired at %s", time.Unix(int64(exp), 0).UTC().Format(time.RFC3339)))
 		}
 	}
-	// OpenID4VCI 1.1 §6.2.1.1 sends the request to the wallet during issuance,
-	// where §5.8 names no audience.
+	// OpenID4VCI 1.1 §6.2.1.1 sends the request to the wallet during
+	// issuance. §5.8 defines no audience for that case.
 	if raw, present := reqObj.Payload["aud"]; present && !IsInteractiveAuthorizationResponseMode(params.ResponseMode) {
 		if !slices.Contains(jsonutil.Strings(audienceValues(raw)), SelfIssuedAudience) {
 			findings = append(findings, fmt.Sprintf("OID4VP 1.0 §5.8: the Request Object aud must be %q, got %v", SelfIssuedAudience, raw))

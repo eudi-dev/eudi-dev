@@ -37,7 +37,7 @@ import (
 type Client struct {
 	BaseURL string
 	HTTP    *http.Client
-	// owner identifies the browser the client acts for. The client sets it
+	// owner identifies the client's browser. The client sets it
 	// when it opens a wallet UI page for a flow.
 	owner string
 }
@@ -91,8 +91,8 @@ func (c *Client) doWithTimeout(timeout time.Duration, method, path string, body 
 	}
 	// The registrar API signs its answers unless the client asks for JSON.
 	req.Header.Set("Accept", "application/json")
-	// The server tells a named client from an outdated URL handler, which
-	// sends no name.
+	// The name lets the server tell this client from an outdated URL handler.
+	// The handler sends no name.
 	req.Header.Set(config.ClientHeader, "eudi-cli/"+version)
 	if c.owner != "" {
 		req.Header.Set(config.OwnerHeader, c.owner)
@@ -153,8 +153,7 @@ func (c *Client) ServerConfig() (map[string]any, error) {
 	return out, err
 }
 
-// Conformance decodes the conformance settings that GET /api/config reports
-// into out.
+// Conformance decodes the conformance settings from GET /api/config into out.
 func (c *Client) Conformance(out any) error {
 	return c.do(http.MethodGet, apiPath("config"), nil, out)
 }
@@ -274,7 +273,7 @@ func (c *Client) DeleteRelyingParty(identifier string) error {
 	return c.do(http.MethodDelete, apiPath("registrar", "wrp", identifier), nil, nil)
 }
 
-// TrustState reads the providers and external lists that users added to the
+// TrustState reads the user-added providers and external lists of the
 // wallet's trusted lists.
 func (c *Client) TrustState(out any) error {
 	return c.do(http.MethodGet, apiPath("trust"), nil, out)
@@ -391,7 +390,7 @@ func (c *Client) Present(uri string, interactive bool, sessionTranscript string)
 
 // AcceptOffer sends a credential offer URI to the remote wallet. A
 // pre-authorized grant with a transaction code needs txCode. An empty txCode
-// is omitted so the wallet keeps the code it already holds. With interactive
+// is omitted so the wallet keeps its stored code. With interactive
 // set, the wallet shows its consent dialog.
 func (c *Client) AcceptOffer(uri, txCode string, interactive bool) (map[string]any, error) {
 	var out map[string]any

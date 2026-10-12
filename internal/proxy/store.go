@@ -102,7 +102,7 @@ func (s *Store) evictOldest() {
 		return
 	}
 	for _, key := range s.flowKeys[flowID] {
-		// A later entry can move a key to the flow it joined.
+		// A later entry can move a key to its own flow.
 		if s.flows[key] == flowID {
 			delete(s.flows, key)
 		}

@@ -21,7 +21,7 @@ import (
 )
 
 // ParseJWTParts decodes a JWS Compact Serialization without verifying it. An
-// undecodable signature gives nil, which no key verifies.
+// undecodable signature gives nil. No key verifies nil.
 func ParseJWTParts(raw string) (header, payload map[string]any, sig []byte, err error) {
 	parts := strings.Split(strings.TrimSpace(raw), ".")
 	if len(parts) != 3 {
@@ -51,7 +51,7 @@ func ParseJWTParts(raw string) (header, payload map[string]any, sig []byte, err 
 	return header, payload, sig, nil
 }
 
-// JWT typ values that both a producer and a checker in this tool use.
+// JWT typ values used by both a producer and a checker in this tool.
 const (
 	// TypeKeyProof is the jwt key proof of OpenID4VCI 1.0.
 	TypeKeyProof = "openid4vci-proof+jwt"
@@ -66,8 +66,8 @@ const (
 	MediaTypeRequestObject = "application/" + TypeRequestObject
 )
 
-// JOSETypeIs reports whether a typ header parameter names the media type
-// want. RFC 7515 §4.1.9: "all media type values, subtype values, and parameter
+// JOSETypeIs reports whether a typ header parameter is the media type want.
+// RFC 7515 §4.1.9: "all media type values, subtype values, and parameter
 // names are case insensitive" and "A recipient using the media type value MUST
 // treat it as if "application/" were prepended to any "typ" value not
 // containing a '/'."

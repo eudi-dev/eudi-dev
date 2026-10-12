@@ -128,7 +128,7 @@ func (v run) trustCheck(c catalogueState, r *Result) Check {
 	return check
 }
 
-// emptyTrust fails the signature when the supplied trust names no key and no
+// emptyTrust fails the signature when the supplied trust has no key and no
 // issuance service. Supplied trust is the only trust source, so the embedded
 // certificate cannot stand in for it.
 func (v run) emptyTrust() (Check, bool) {
@@ -193,7 +193,7 @@ func (v run) jwtSignature(token *sdjwt.Token, c catalogueState, r *Result) Check
 }
 
 // validVia is the detail of a passing signature. A chain to a trust anchor
-// needs no source. The trust check names the anchor.
+// needs no source. The trust check reports the anchor.
 func validVia(alg, source string) string {
 	if source == SourceX5CChain {
 		return "Valid, " + alg
@@ -288,7 +288,7 @@ func (v run) mdocSignature(doc *mdoc.Document, c catalogueState, r *Result) Chec
 // status reads the credential's status. The credential status and the trust
 // in the status list signature are separate checks. The revocation service
 // of the trusted list anchors the status list (ETSI TS 119 602 V1.1.1 Table
-// D.3): of the supplied list, or of the catalogue list that anchors the
+// D.3). That list is the supplied list or the catalogue list anchoring the
 // credential.
 func (v run) status(claims map[string]any, prefer string, c catalogueState, r *Result) []Check {
 	if nonStandard := NonStatusListFormat(claims); nonStandard != "" {

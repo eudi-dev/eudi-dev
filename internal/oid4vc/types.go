@@ -52,7 +52,7 @@ func (g OfferGrants) RequiresTxCode() bool {
 }
 
 // TxCodeHint describes the expected Transaction Code for the End-User. The
-// issuer's description wins. Otherwise it names the length and input mode.
+// issuer's description wins. Otherwise it states the length and input mode.
 func (g OfferGrants) TxCodeHint() string {
 	if description, _ := g.TxCode["description"].(string); strings.TrimSpace(description) != "" {
 		return strings.TrimSpace(description)
@@ -85,7 +85,7 @@ type AuthorizationRequest struct {
 	ResponseURI      string
 	Scope            string
 	RequestURIMethod string // "get" (default) or "post" per OID4VP 1.0 §5.10
-	// RequestURI is the request_uri the request object was fetched from. It is
+	// RequestURI is the request_uri used to fetch the request object. It is
 	// empty for inline parameters or an inline object. HAIP 1.0 §5.1 requires
 	// delivery by request_uri.
 	RequestURI     string

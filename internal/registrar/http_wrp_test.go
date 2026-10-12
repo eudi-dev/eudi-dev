@@ -31,8 +31,8 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 )
 
-// testAPI serves the registrar API of a test wallet through the routes the
-// wallet server registers.
+// testAPI serves the registrar API of a test wallet through the wallet
+// server's routes.
 type testAPI struct {
 	*testWallet
 	h       *Server
@@ -180,7 +180,7 @@ func TestTheWRPAPIRefusesBadRegistrations(t *testing.T) {
 	wantError(t, api.do(http.MethodPost, "/api/registrar/wrp", WalletRelyingParty{TradeName: "Copy", Identifier: taken}, ""), http.StatusConflict, apierror.Conflict, "already registered")
 }
 
-// Size limits apply to every list of a registration that the API takes.
+// Size limits apply to every list of a registration sent to the API.
 func TestTheRegistrationSizeIsLimited(t *testing.T) {
 	use := func(credentials []RegisteredCredential) []IntendedUse {
 		return []IntendedUse{{Credentials: credentials}}
@@ -206,8 +206,8 @@ func TestTheRegistrationSizeIsLimited(t *testing.T) {
 	}
 }
 
-// The public demo's own registrations stay as they are, whichever identifier
-// a request names them by.
+// The public demo's own registrations can't be changed through any of their
+// identifiers.
 func TestProtectedRegistrationsRefuseChanges(t *testing.T) {
 	api := newTestAPI(t)
 	demo := registerTestRelyingParty(t, api.testWallet)

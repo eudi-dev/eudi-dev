@@ -25,7 +25,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/jwe"
 )
 
-// GenerateWalletNonce provides replay protection through wallet_nonce (OID4VP 1.0 §5.10).
+// GenerateWalletNonce returns a fresh wallet_nonce for replay protection (OID4VP 1.0 §5.10).
 func GenerateWalletNonce() (string, error) {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {

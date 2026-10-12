@@ -401,7 +401,7 @@ func postFormWithHeaders(t *testing.T, h http.Handler, target string, form url.V
 
 // A message valid under another supported ABCA draft is accepted and the
 // difference is logged.
-// OpenID4VCI 1.0 pins draft-07, which requires iss in both JWTs. These helpers use the
+// OpenID4VCI 1.0 pins draft-07. It requires iss in both JWTs. These helpers use the
 // draft-08 and draft-10 form without iss.
 func TestCrossDraftShapeWarnsButAccepts(t *testing.T) {
 	t.Run("draft-08 shape at a draft-07 configuration", func(t *testing.T) {

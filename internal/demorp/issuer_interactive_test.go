@@ -34,7 +34,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
 )
 
-// httpsWalletCallback is an https redirect URI, which auth_via_web requires
+// httpsWalletCallback is an https redirect URI. auth_via_web requires one
 // (OpenID4VCI 1.1 §6.2.1.2).
 const httpsWalletCallback = "https://wallet.example/callback"
 
@@ -582,7 +582,7 @@ func startInteractiveSession(t *testing.T, d *DemoRP, provider walletProvider, c
 }
 
 // The query's aki must match the issued credential's AuthorityKeyId so the wallet can
-// select a credential that this issuer trusts.
+// select a credential trusted by this issuer.
 func TestInteractiveRequestPinsTheIssuerCA(t *testing.T) {
 	d, _, _ := newDemoRP(t)
 

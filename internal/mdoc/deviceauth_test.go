@@ -185,7 +185,7 @@ func TestVerifyDeviceAuthRejectsAReplayedResponse(t *testing.T) {
 func TestVerifyDeviceAuthRejectsAnotherHoldersKey(t *testing.T) {
 	transcript := transcriptFor(t, "nonce")
 	doc := signedDoc(t, testKey(t), transcript)
-	// The MSO now holds another holder's device key.
+	// Put another holder's device key into the MSO.
 	doc.IssuerAuth.MSO.DeviceKeyCBOR = deviceKeyCBOR(t, &testKey(t).PublicKey)
 
 	if err := VerifyDeviceAuth(doc, transcript); err == nil {
@@ -340,8 +340,8 @@ func TestDeviceKeyErrors(t *testing.T) {
 	}
 }
 
-// The device signature covers the DeviceNameSpacesBytes as received, and its
-// protected header names the algorithm.
+// The device signature covers the DeviceNameSpacesBytes as received. Its
+// protected header carries the algorithm.
 func TestVerifyDeviceAuthUsesTheReceivedNameSpacesAndAlgorithm(t *testing.T) {
 	p384, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
 	if err != nil {

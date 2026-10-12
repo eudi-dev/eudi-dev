@@ -39,8 +39,8 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/validate"
 )
 
-// CheckList reads an external list before it is added. Strict mode refuses a
-// list the wallet can't read. Debug mode reports why in the link.
+// CheckList reads an external list before it is added. Strict mode refuses an
+// unreadable list. Debug mode reports the reason in the link.
 func (t *Set) CheckList(rawURL string) (Link, error) {
 	rawURL = strings.TrimSpace(rawURL)
 	if !format.IsWebURL(rawURL) {
@@ -59,8 +59,8 @@ func (t *Set) CheckList(rawURL string) (Link, error) {
 	return link, nil
 }
 
-// cacheBound keeps every list the wallet reads itself in the cache, together
-// with the lists they point to.
+// cacheBound keeps every list read by the wallet itself in the cache,
+// together with the lists they point to.
 func (t *Set) cacheBound() int {
 	configured := len(t.settings.ConfiguredLists)
 	t.mu.RLock()
@@ -68,8 +68,8 @@ func (t *Set) cacheBound() int {
 	return (configured+len(t.additions.AddedTrustedLists))*(1+maxFollowedPointers) + requestedListSlots
 }
 
-// ListRoom reports whether the wallet can add the list. A list it already has
-// always fits.
+// ListRoom reports whether the wallet can add the list. A list already held by
+// the wallet always fits.
 func (t *Set) ListRoom(rawURL string) error {
 	limit := t.settings.MaxLists
 	t.mu.RLock()
@@ -111,8 +111,8 @@ func (t *Set) RemoveList(rawURL string) error {
 	return nil
 }
 
-// externalLists are the external lists on the list of trusted lists: the ones
-// from --trusted-list and the ones users added.
+// externalLists are the external lists on the list of trusted lists: those
+// from --trusted-list and those added by users.
 func (t *Set) externalLists() []string {
 	out := slices.Clone(t.settings.ConfiguredLists)
 	t.mu.RLock()
@@ -137,16 +137,16 @@ func (t *Set) OwnListURL(id string) string {
 const (
 	listCacheTTL       = 5 * time.Minute
 	failedListCacheTTL = time.Minute
-	// requestedListSlots is the room in the list cache for lists that
-	// requests name, besides the lists the wallet reads itself. Any visitor
-	// can name a list URL.
+	// requestedListSlots is the room in the list cache for lists from
+	// requests. Lists read by the wallet itself come on top. Any visitor can
+	// put a list URL into a request.
 	requestedListSlots = 16
-	// maxFollowedPointers caps the lists the wallet reads from one external
-	// list of trusted lists.
+	// maxFollowedPointers caps how many lists the wallet reads from one
+	// external list of trusted lists.
 	maxFollowedPointers = 20
 )
 
-// ListCache holds the external lists a wallet fetched. It lives as long as
+// ListCache holds the external lists fetched by a wallet. It lives as long as
 // the wallet in memory and is never saved.
 type ListCache struct {
 	mu      sync.Mutex
@@ -268,7 +268,7 @@ func (t *Set) readListSignedBy(rawURL string, signers []*x509.Certificate) (*lot
 
 // VerifyListSigner checks the JAdES signature of a trusted list (ETSI TS 119
 // 602 V1.1.1 Annexes D.4 to H.4) and that its signer chains to one of the
-// certificates: a trusted list operator, or the signer named by a pointer. The
+// certificates: a trusted list operator, or the signer given in a pointer. The
 // ARF has the wallet accept the provider trust anchors because of the list's
 // signature (PPNot_05, TLPub_05, TLPub_07).
 func VerifyListSigner(raw string, operators []*x509.Certificate) error {
@@ -299,7 +299,7 @@ func (t *Set) listURLs() []string {
 		own[group.ID] = true
 	}
 	for _, u := range t.externalLists() {
-		// An external URL can name one of the wallet's own lists.
+		// An external URL can point to one of the wallet's own lists.
 		if id, ok := t.ownListID(u); !ok || !own[id] {
 			urls = append(urls, u)
 		}
@@ -472,20 +472,20 @@ func (t *Set) CredentialProviderAnchors(kind string) []*x509.Certificate {
 }
 
 // WalletProviderAnchors are the issuance certificates of the wallet provider
-// lists, which anchor wallet and key attestations (ETSI TS 119 602 V1.1.1
+// lists. They anchor wallet and key attestations (ETSI TS 119 602 V1.1.1
 // Annex E).
 func (t *Set) WalletProviderAnchors() []*x509.Certificate {
 	return AnchorsOf(t.Lists(), lote.WalletProvidersListType, lote.IssuanceServices)
 }
 
-// RelyingPartyCAs are the anchors --arf trusts for access certificates: the
+// RelyingPartyCAs are the anchors for access certificates under --arf: the
 // issuance services of the lists of access certificate providers (ARF RPA_04
 // and PPNot_06, ETSI TS 119 602 V1.1.1 Annex F).
 func (t *Set) RelyingPartyCAs() []*x509.Certificate {
 	return AnchorsOf(t.Lists(), lote.AccessCertProvidersListType, lote.IssuanceServices)
 }
 
-// RegistrarCAs are the anchors --arf trusts for registration certificates:
+// RegistrarCAs are the anchors for registration certificates under --arf:
 // the issuance services of the lists of registration certificate providers
 // (ARF RPRC_02a and RPACANot_04, ETSI TS 119 602 V1.1.1 Annex G).
 func (t *Set) RegistrarCAs() []*x509.Certificate {

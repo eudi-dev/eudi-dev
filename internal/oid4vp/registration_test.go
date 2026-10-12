@@ -108,7 +108,7 @@ func registrationClaims(sub string) map[string]any {
 }
 
 // registration returns a verifier_info entry with a registration certificate
-// that the registrar signed. ETSI TS 119 472-2 RO-16 base64url-encodes it.
+// signed by the registrar. ETSI TS 119 472-2 RO-16 base64url-encodes it.
 func (f arfFixture) registration(t *testing.T, claims map[string]any) map[string]any {
 	t.Helper()
 	header := map[string]any{"alg": "ES256", "typ": registrar.RegistrationCertificateTyp, "x5c": []any{base64.StdEncoding.EncodeToString(f.registrarCA.Raw)}}
@@ -146,8 +146,8 @@ func (f arfFixture) request(t *testing.T, verifierInfo ...map[string]any) *Reque
 }
 
 // ARF RPA_10 shows the registered purposes. OpenID4VP 1.0 §5.1 requires the
-// wallet to "validate the signature and ensure binding" of verifier_info it
-// uses.
+// wallet to "validate the signature and ensure binding" of verifier_info in
+// use.
 func TestConsentShowsTheBoundRegistration(t *testing.T) {
 	f := newARFFixture(t)
 	params := f.request(t, f.registration(t, registrationClaims(relyingPartyID)))

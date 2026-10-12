@@ -55,8 +55,8 @@ func TestAnEudiDev2ListTypeMovesToTheListOfItsCategory(t *testing.T) {
 	}
 }
 
-// A spec that names the list type of a category belongs to that category and
-// gets the defaults of its list.
+// A spec with the list type of a category belongs to that category and gets
+// the defaults of its list.
 func TestASpecWithACategoryListTypeGetsThatCategory(t *testing.T) {
 	for _, category := range credtemplate.Categories {
 		want := CategoryList(category)

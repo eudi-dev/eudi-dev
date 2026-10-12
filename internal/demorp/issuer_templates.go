@@ -79,8 +79,8 @@ func configurationOf(tpl credtemplate.Template) (templateConfiguration, bool) {
 	return cfg, true
 }
 
-// warnUnreadableTemplates logs a change in the templates the issuer can't
-// read. Every metadata request lists the templates.
+// warnUnreadableTemplates logs when the set of unreadable templates changes.
+// Every metadata request lists the templates.
 func (d *DemoRP) warnUnreadableTemplates(err error) {
 	var message string
 	if err != nil {
@@ -95,8 +95,8 @@ func (d *DemoRP) warnUnreadableTemplates(err error) {
 	}
 }
 
-// templateConfiguration reads the one template a credential request names.
-// An id that looks like a path names no template, since Load would read it
+// templateConfiguration reads the template for the id in a credential request.
+// An id that looks like a path matches no template, since Load would read it
 // from disk.
 func (d *DemoRP) templateConfiguration(id string) (templateConfiguration, bool) {
 	if id == "" || strings.ContainsAny(id, `/\`) {

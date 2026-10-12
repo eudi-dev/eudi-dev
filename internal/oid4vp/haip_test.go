@@ -36,8 +36,8 @@ import (
 func TestHAIPEnforcesTheRequestSignature(t *testing.T) {
 	t.Run("a signature that does not verify", func(t *testing.T) {
 		params, reqObj := haipCompliantParams(t)
-		// Keep the header and client_id, swap the payload for another one, so
-		// the signature no longer covers what is presented.
+		// Keep the header and client_id and swap the payload, so the signature
+		// does not cover the presented payload.
 		parts := strings.Split(reqObj.Raw, ".")
 		parts[1] = base64.RawURLEncoding.EncodeToString([]byte(`{"client_id":"x509_hash:tampered"}`))
 		reqObj.Raw = strings.Join(parts, ".")
@@ -327,7 +327,7 @@ func containsSubstring(values []string, want string) bool {
 	return false
 }
 
-// authorityChain returns a CA and a leaf it signed. The leaf carries an
+// authorityChain returns a CA and a leaf signed by it. The leaf carries an
 // authority key identifier. An "aki" trusted authority matches on it.
 func authorityChain(t *testing.T) (ca, leaf *x509.Certificate, leafKey *ecdsa.PrivateKey, aki []byte) {
 	t.Helper()

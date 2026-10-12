@@ -71,7 +71,7 @@ func (c *readCounter) Read(key string) ([]byte, error) {
 	return c.Store.Read(key)
 }
 
-// A credential request names one configuration, so the issuer reads that
+// A credential request identifies one configuration, so the issuer reads that
 // template and not every stored one.
 func TestACredentialRequestReadsOneTemplate(t *testing.T) {
 	d, w, _ := newDemoRP(t)
@@ -227,8 +227,8 @@ func TestOfferOfTemplatesIssuesThem(t *testing.T) {
 // The issuer refuses an offer for an unknown configuration. OpenID4VCI 1.0
 // §8.3.1.2 answers a credential request for one with
 // unknown_credential_configuration. A configuration of this issuer that the
-// access token does not cover is an authorization error of §8.3.1.1, which
-// RFC 6750 §3.1 calls insufficient_scope.
+// access token does not cover is an authorization error of §8.3.1.1. RFC 6750
+// §3.1 calls it insufficient_scope.
 func TestOfferRefusesUnknownConfigurations(t *testing.T) {
 	d, _, _ := newDemoRP(t)
 	code, doc := doJSON(t, d.IssuerHandler(), "POST", "/api/offers?credential=no-such-template", "", nil)

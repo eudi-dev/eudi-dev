@@ -85,8 +85,8 @@ type Template struct {
 	Catalog json.RawMessage `json:"catalog,omitempty"`
 	// Predefined marks the built-in templates. Template files can't set it.
 	Predefined bool `json:"predefined,omitempty"`
-	// Visitor marks a template that a visitor of a public demo saved. The
-	// operator's templates are the others.
+	// Visitor marks a template saved by a visitor of a public demo. All other
+	// templates belong to the operator.
 	Visitor bool `json:"visitor,omitempty"`
 }
 
@@ -139,7 +139,7 @@ const (
 	CategoryEAA    = "eaa"
 )
 
-// Categories lists the credential categories in the order the UI shows them.
+// Categories lists the credential categories in UI display order.
 var Categories = []string{CategoryPID, CategoryQEAA, CategoryPubEAA, CategoryEAA}
 
 // CheckCategory accepts an empty category or one of Categories.
@@ -211,12 +211,12 @@ func Predefined(name string) (Template, bool) {
 // PID doctype under the same display name. A predefined template wins over a
 // user template of the same type. ok reports whether such templates exist.
 // For any other type it returns the names of the predefined templates of the
-// country-independent PID, which a user template may replace.
+// country-independent PID. A user template may replace them.
 func PIDTemplateNames(vct string, loc Location) (sdjwt, mdoc string, ok bool) {
 	if vct == "" {
 		vct = credtype.PIDVCT
 	}
-	// List returns every readable template with its error.
+	// List still returns the readable templates when it reports an error.
 	templates, _ := List(loc)
 	slices.SortStableFunc(templates, func(a, b Template) int {
 		switch {
@@ -295,12 +295,11 @@ func (t *Template) WithUniqueClaims(claims map[string]any) map[string]any {
 	return fresh
 }
 
-// List returns all templates: predefined templates plus user templates from
-// loc (the default directory for the zero Location). A user template with the
-// same name as a built-in replaces it. The result is sorted by name.
-// List returns the predefined templates and every readable stored template.
-// It reports the templates it can't read as an error and still returns the
-// others, so a caller that only reads them can go on with what it got.
+// List returns the predefined templates and the user templates from loc (the
+// default directory for the zero Location). A user template replaces a
+// built-in template with the same name. The result is sorted by name.
+// Unreadable templates are reported as an error, and the readable ones are
+// still returned.
 func List(loc Location) ([]Template, error) {
 	loc = loc.orDefault()
 
@@ -448,7 +447,7 @@ func Delete(loc Location, name string) error {
 	return fmt.Errorf("template %q %w in %s", name, ErrNotFound, loc)
 }
 
-// storedFile returns the file name of the stored template name. It refuses
+// storedFile returns the file name of a stored template. It refuses
 // two files of one name, such as x.json and x.yaml, because either could be
 // the template.
 func storedFile(loc Location, name string) (string, error) {
