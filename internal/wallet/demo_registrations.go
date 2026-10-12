@@ -129,31 +129,76 @@ func (w *Wallet) demoAccessSigningMaterial(keyName string, registration registra
 	return key, []*x509.Certificate{leaf, ca}, nil
 }
 
+// demoSync says how the wallet treats the demo registrations.
+type demoSync int
+
+const (
+	// demoOverwrite registers both parties as the wallet builds them.
+	demoOverwrite demoSync = iota
+	// demoRegisterMissing registers a missing party and keeps the user's
+	// changes to an existing one.
+	demoRegisterMissing
+	// demoFollowTemplates keeps the user's changes to an existing party and
+	// registers no missing one.
+	demoFollowTemplates
+)
+
 // EnsureDemoRegistrations registers the demo issuer and the demo verifier, or
 // updates them to the wallet's templates, and makes sure both have a current
 // certificate for each of their registered uses. It reports whether the
 // registrar state changed.
 func (w *Wallet) EnsureDemoRegistrations() (bool, error) {
-	return w.registerDemoParties(true)
+	return w.registerDemoParties(demoOverwrite)
 }
 
 // RegisterMissingDemoParties registers the demo issuer and verifier when the
-// registrar has no registration for them, and keeps an existing one. Both get
-// a current certificate for each of their registered uses.
+// registrar has no registration for them, and keeps an existing one with the
+// user's changes. Both get a current certificate for each of their
+// registered uses.
 func (w *Wallet) RegisterMissingDemoParties() (bool, error) {
-	return w.registerDemoParties(false)
+	return w.registerDemoParties(demoRegisterMissing)
 }
 
-func (w *Wallet) registerDemoParties(overwrite bool) (bool, error) {
+// FollowDemoTemplates updates the registrations of the demo parties that
+// exist to the wallet's templates and keeps the user's other changes.
+func (w *Wallet) FollowDemoTemplates() (bool, error) {
+	return w.registerDemoParties(demoFollowTemplates)
+}
+
+func (w *Wallet) registerDemoParties(sync demoSync) (bool, error) {
 	changed := false
-	for _, build := range []demoRegistration{w.demoIssuerRegistration, w.demoVerifierRegistration} {
-		updated, err := w.ensureDemoRegistration(build, overwrite)
+	for _, party := range []demoParty{
+		{w.demoIssuerRegistration, followIssuedTypes},
+		{w.demoVerifierRegistration, nil},
+	} {
+		updated, err := w.ensureDemoRegistration(party, sync)
 		if err != nil {
 			return changed, err
 		}
 		changed = changed || updated
 	}
 	return changed, nil
+}
+
+// demoParty builds the registration of a demo party. follow copies the parts
+// that the wallet derives from its templates into a registration the user
+// keeps.
+type demoParty struct {
+	build  demoRegistration
+	follow func(kept *registrar.WalletRelyingParty, built registrar.WalletRelyingParty)
+}
+
+// followIssuedTypes registers the demo issuer for the types it offers, so its
+// registration certificate lists each of them (ARF RPRC_23 and ISSU_34b).
+func followIssuedTypes(kept *registrar.WalletRelyingParty, built registrar.WalletRelyingParty) {
+	for i, service := range kept.Services {
+		for _, b := range built.Services {
+			if b.ServiceIdentifier == service.ServiceIdentifier {
+				kept.Services[i].ProvidesAttestations = b.ProvidesAttestations
+				kept.Services[i].Entitlements = b.Entitlements
+			}
+		}
+	}
 }
 
 // DemoIssuerInfo is the issuer_info of the demo issuer (ETSI TS 119 472-3
@@ -217,23 +262,32 @@ func (w *Wallet) demoCertificate(build demoRegistration, req registrar.Registrat
 	return result, err
 }
 
-func (w *Wallet) ensureDemoRegistration(build demoRegistration, overwrite bool) (bool, error) {
+func (w *Wallet) ensureDemoRegistration(party demoParty, sync demoSync) (bool, error) {
 	w.demoRegistrationMu.Lock()
 	defer w.demoRegistrationMu.Unlock()
-	rp, err := build()
+	rp, err := party.build()
 	if err != nil {
 		return false, err
 	}
+	id := rp.Identifier[0].Identifier
 	var updated bool
-	if stored, exists := w.Registrar().RelyingParty(rp.Identifier[0].Identifier); exists && !overwrite {
-		updated, err = w.rebaseDemoParty(stored)
-		rp = stored
-	} else {
-		_, updated, err = w.Registrar().EnsureRelyingParty(rp)
+	if stored, exists := w.Registrar().RelyingParty(id); exists && sync != demoOverwrite {
+		if updated, err = w.rebaseDemoParty(stored); err != nil {
+			return false, err
+		}
+		built := rp
+		rp, _ = w.Registrar().RelyingParty(id)
+		if party.follow != nil {
+			party.follow(&rp, built)
+		}
+	} else if !exists && sync == demoFollowTemplates {
+		return false, nil
 	}
+	_, changed, err := w.Registrar().EnsureRelyingParty(rp)
 	if err != nil {
-		return false, err
+		return updated, err
 	}
+	updated = updated || changed
 	for _, req := range registrar.CertificateRequests(rp) {
 		_, issued, err := w.Registrar().CurrentRegistrationCertificate(req)
 		if err != nil {

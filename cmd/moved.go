@@ -21,17 +21,22 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// movedCommands map a command path of eudi-dev 2 to the command that replaces it.
-var movedCommands = []struct{ old, new string }{
-	{"serve", "decoder"},
-	{"wallet registrar", "registrar"},
-	{"wallet catalog", "catalog"},
-	{"wallet trust", "trust"},
-	{"wallet trust-list", "trust show"},
-	{"wallet trusted-list", "trust show"},
-	{"wallet ca-cert", "trust ca-cert"},
-	{"wallet present", "wallet accept"},
-	{"wallet listen", "wallet serve --register"},
+// movedCommands map a command path of eudi-dev 2 to the commands that replace it.
+var movedCommands = []struct {
+	old string
+	new []string
+}{
+	{"serve", []string{"decoder"}},
+	{"wallet registrar", []string{"registrar"}},
+	{"wallet catalog", []string{"catalog"}},
+	{"wallet trust", []string{"trust"}},
+	{"wallet trust-list", []string{"trust show"}},
+	{"wallet trusted-list", []string{"trust show"}},
+	{"wallet ca-cert", []string{"trust ca-cert"}},
+	{"wallet present", []string{"wallet accept"}},
+	{"wallet listen", []string{"wallet serve --register"}},
+	{"wallet generate-pid", []string{"issue sdjwt --wallet --pid", "issue mdoc --wallet --pid"}},
+	{"wallet instances", []string{"wallet ps"}},
 }
 
 // addMovedCommands registers a hidden stub for every moved command. A stub
@@ -43,7 +48,11 @@ func addMovedCommands() {
 		if len(path) == 2 {
 			parent = walletCmd
 		}
-		err := errors.New(binaryName() + " " + moved.old + " is now " + binaryName() + " " + moved.new)
+		replacements := make([]string, len(moved.new))
+		for i, cmd := range moved.new {
+			replacements[i] = binaryName() + " " + cmd
+		}
+		err := errors.New(binaryName() + " " + moved.old + " is now " + strings.Join(replacements, " and "))
 		parent.AddCommand(&cobra.Command{
 			Use:                path[len(path)-1],
 			Hidden:             true,

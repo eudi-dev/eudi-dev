@@ -14,7 +14,7 @@ Each role has its own top-level command:
 
 `trust show [list]` prints one trusted list. The list is a positional argument, and `lists` selects the list of trusted lists.
 
-Each old command path stays as a hidden command in `cmd/moved.go`. It fails with a message that names the new path. Version 3.0.0 removes the deprecated commands (`wallet generate-pid`, `wallet instances`) without a pointer.
+Each old command path stays as a hidden command in `cmd/moved.go`. It fails with a message that names the new path. The removed commands `wallet generate-pid` and `wallet instances` get the same message. A command that groups subcommands prints its help when called alone and fails on an unknown subcommand.
 
 ## Consequences
 

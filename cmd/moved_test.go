@@ -37,6 +37,8 @@ func TestMovedCommandsNameTheirReplacementAndRunNothing(t *testing.T) {
 		{[]string{"wallet", "ca-cert", "--out", "ca.pem"}, "eudi wallet ca-cert is now eudi trust ca-cert"},
 		{[]string{"wallet", "present", "openid4vp://?x"}, "eudi wallet present is now eudi wallet accept"},
 		{[]string{"wallet", "listen"}, "eudi wallet listen is now eudi wallet serve --register"},
+		{[]string{"wallet", "generate-pid", "--claims", "{}"}, "eudi wallet generate-pid is now eudi issue sdjwt --wallet --pid and eudi issue mdoc --wallet --pid"},
+		{[]string{"wallet", "instances", "list"}, "eudi wallet instances is now eudi wallet ps"},
 	} {
 		t.Run(strings.Join(tc.args, " "), func(t *testing.T) {
 			resetRemoteTestState(t)
@@ -122,5 +124,57 @@ func TestMovedCommandsComplete(t *testing.T) {
 	}
 	if out := complete("trust", "show", ""); !strings.Contains(out, "lists\t") || !strings.Contains(out, "access-ca\t") {
 		t.Errorf("trust show completes %q", out)
+	}
+}
+
+// Every command that groups subcommands fails on an unknown subcommand, so a
+// script with a wrong path exits 1. proxy takes the command it runs as
+// arguments.
+func TestGroupCommandsRejectUnknownSubcommands(t *testing.T) {
+	var groups []*cobra.Command
+	var walk func(*cobra.Command)
+	walk = func(c *cobra.Command) {
+		for _, sub := range c.Commands() {
+			if sub.HasSubCommands() && sub != proxyCmd {
+				groups = append(groups, sub)
+			}
+			walk(sub)
+		}
+	}
+	walk(rootCmd)
+	for _, group := range groups {
+		path := strings.Fields(group.CommandPath())[1:]
+		t.Run(strings.Join(path, " "), func(t *testing.T) {
+			resetRemoteTestState(t)
+			useLocalTestWallet(t)
+			t.Cleanup(func() { resetFlags(rootCmd) })
+			rootCmd.SetArgs(append(path, "bogus"))
+			want := `unknown command "bogus" for "` + group.CommandPath() + `"`
+			if err := rootCmd.Execute(); err == nil || err.Error() != want {
+				t.Errorf("err = %v, want %q", err, want)
+			}
+		})
+	}
+}
+
+func TestBareGroupCommandsPrintHelp(t *testing.T) {
+	for _, path := range []string{"wallet", "issue", "registrar", "templates", "completion"} {
+		t.Run(path, func(t *testing.T) {
+			resetRemoteTestState(t)
+			useLocalTestWallet(t)
+			var out bytes.Buffer
+			rootCmd.SetOut(&out)
+			t.Cleanup(func() {
+				resetFlags(rootCmd)
+				rootCmd.SetOut(nil)
+			})
+			rootCmd.SetArgs([]string{path})
+			if err := rootCmd.Execute(); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(out.String(), "Available Commands:") {
+				t.Errorf("printed %q, want the help", out.String())
+			}
+		})
 	}
 }

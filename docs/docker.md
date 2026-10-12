@@ -24,7 +24,7 @@ docker run -i ghcr.io/eudi-dev/eudi-dev validate --trusted-list https://example.
 
 `wallet serve` reads every flag from an environment variable. The name is `EUDI_DEV_` plus the flag name in upper case, with underscores for dashes. `--port` becomes `EUDI_DEV_PORT` and `--base-url` becomes `EUDI_DEV_BASE_URL`. A flag on the command line wins over the variable, and the variable wins over the flag default. A repeatable flag takes comma-separated values, such as `EUDI_DEV_TRUSTED_LIST=https://a.example/list,https://b.example/list`.
 
-The image sets `EUDI_DEV_PORT=8085`, `EUDI_DEV_AUTO_ACCEPT=true` and `EUDI_DEV_PID=true`. Set `EUDI_DEV_AUTO_ACCEPT=false` for a wallet that asks before it presents or accepts a credential. These defaults also apply when you pass your own `wallet serve` command.
+The image sets `EUDI_DEV_PORT=8085`, `EUDI_DEV_AUTO_ACCEPT=true` and `EUDI_DEV_PID=true`. Set `EUDI_DEV_AUTO_ACCEPT=false` for a wallet that asks before it presents or accepts a credential. These defaults also apply when you pass your own `wallet serve` command. With `--demo` the wallet ignores `EUDI_DEV_AUTO_ACCEPT` and approves without asking only when `--auto-accept` is on the command line.
 
 `wallet serve` refuses to start when an `EUDI_DEV_` variable names no flag, so a typo does not go unnoticed. `EUDI_DEV_HOME`, `EUDI_DEV_STORAGE`, `EUDI_DEV_SEED` and `EUDI_DEV_ALLOW_PRIVATE_NETWORKS` keep their own meaning.
 
@@ -49,11 +49,11 @@ The container also runs the demo profile of the public instance at [eudi-test.de
 ```bash
 docker run -d --name eudi-demo -p 8085:8085 -p 8086:8086 \
   -v wallet-data:/home/app/.eudi-dev -e EUDI_DEV_STORAGE=file -e EUDI_DEV_SEED= \
-  -e EUDI_DEV_DEMO=true -e EUDI_DEV_AUTO_ACCEPT=false -e EUDI_DEV_BASE_URL=http://localhost:8085 \
+  -e EUDI_DEV_DEMO=true -e EUDI_DEV_ALLOW_PRIVATE_NETWORKS=false -e EUDI_DEV_BASE_URL=http://localhost:8085 \
   ghcr.io/eudi-dev/eudi-dev:latest
 ```
 
-The demo persists its state in files on the volume and generates its own keys, so its CA stays private and stable across restarts. Visitors confirm each browser flow, because `EUDI_DEV_AUTO_ACCEPT=false` turns off the image default.
+The demo persists its state in files on the volume and generates its own keys, so its CA stays private and stable across restarts. Visitors confirm each browser flow, because a demo ignores the image default `EUDI_DEV_AUTO_ACCEPT=true`. `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=false` keeps visitors away from the host and its networks.
 
 `--demo` turns on `--pid` (four PID credentials), `--mode debug`, `--haip`, `--arf` and `--vci-version 1.1`. It disables administrative operations and resets the wallet hourly. Change the schedule with `--demo-reset`.
 

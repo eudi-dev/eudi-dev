@@ -310,3 +310,47 @@ func TestAStrictWalletRefusesACredentialOutsideItsTrustedList(t *testing.T) {
 		t.Errorf("credentials %d, want %d (nothing stored)", got, before)
 	}
 }
+
+// The demo issuer offers every template, so its registration certificate
+// lists a template saved while the wallet runs and one saved while it was
+// stopped (ARF RPRC_23 and ISSU_34b).
+func TestTheDemoIssuerPassesTheARFChecksForATemplateAddedLater(t *testing.T) {
+	w := newIssuanceWallet(t)
+	w.RequireARF = true
+	w.ValidationMode = wallet.ValidationModeStrict
+	_, ts := serveDemoStack(t, w)
+
+	req, err := http.NewRequest(http.MethodPut, ts.URL+"/api/templates/club-card", strings.NewReader(`{"format":"sdjwt","vct":"urn:example:club-card:1","claims":{"member":"yes"}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("saving a template = %d", resp.StatusCode)
+	}
+	if _, err := credtemplate.Save(w.Templates, credtemplate.Template{Name: "gym-card", Format: "sdjwt", VCT: "urn:example:gym-card:1", Claims: map[string]any{"member": "yes"}}); err != nil {
+		t.Fatal(err)
+	}
+	// A restart registers the demo parties again.
+	if _, err := w.RegisterMissingDemoParties(); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, id := range []string{"club-card", "gym-card"} {
+		created := postJSONTo(t, ts.URL+"/issuer/api/offers?credential="+id, "")
+		schemeURI, _ := created["scheme_uri"].(string)
+		result := postJSONTo(t, ts.URL+"/api/offers", `{"uri":`+jsonString(schemeURI)+`}`)
+		if result["error"] != nil {
+			t.Fatalf("accepting the %s offer failed: %v", id, result["error"])
+		}
+	}
+	for _, entry := range w.GetLog() {
+		if strings.Contains(entry.Detail, "RPRC_23") {
+			t.Errorf("ARF finding: %s", entry.Detail)
+		}
+	}
+}

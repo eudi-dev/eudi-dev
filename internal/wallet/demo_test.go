@@ -786,8 +786,9 @@ func providesAttestation(rp registrar.WalletRelyingParty, typ string) bool {
 	return false
 }
 
-// A local wallet registers the demo issuer and verifier once. After that they
-// are the user's to change, like any other registration.
+// A local wallet registers the demo issuer and verifier at startup. After that
+// they are the user's to change, like any other registration. The demo issuer
+// stays registered for the types it offers.
 func TestALocalWalletKeepsYourChangesToTheDemoRegistrations(t *testing.T) {
 	srv := newTestServer(t, true)
 	srv.wallet.IssuerURL = "https://localhost:8443"
@@ -810,7 +811,7 @@ func TestALocalWalletKeepsYourChangesToTheDemoRegistrations(t *testing.T) {
 		t.Fatalf("delete = %d: %s", w.Code, w.Body)
 	}
 
-	// Saving a template and serving the issuer metadata leave both changes.
+	// Saving a template and serving the issuer metadata keep both changes.
 	if w := serverRequest(t, srv, "PUT", "/api/templates/badge", `{"format":"sdjwt","vct":"urn:example:badge:1","claims":{}}`); w.Code != http.StatusOK {
 		t.Fatalf("saving a template = %d: %s", w.Code, w.Body)
 	}
@@ -821,8 +822,8 @@ func TestALocalWalletKeepsYourChangesToTheDemoRegistrations(t *testing.T) {
 		t.Errorf("DemoVerifierInfo after the delete = %v, %v, want none", info, err)
 	}
 	issuer, _ = srv.wallet.Registrar().RelyingParty(demoIdentifier(demoIssuer))
-	if issuer.TradeName != "My demo issuer" || providesAttestation(issuer, "urn:example:badge:1") {
-		t.Errorf("demo issuer = %q providing the badge %t, want the edit kept and no new type", issuer.TradeName, providesAttestation(issuer, "urn:example:badge:1"))
+	if issuer.TradeName != "My demo issuer" || !providesAttestation(issuer, "urn:example:badge:1") {
+		t.Errorf("demo issuer = %q providing the badge %t, want the edit kept and the new type", issuer.TradeName, providesAttestation(issuer, "urn:example:badge:1"))
 	}
 
 	// A restart registers the deleted verifier again and keeps the edit.

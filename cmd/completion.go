@@ -32,6 +32,8 @@ func completionCmd() *cobra.Command {
 		Long: "Generates the completion script for a shell. Use `completion install` to add it to your shell " +
 			"init automatically. Completion covers subcommands, flags, and known values (template names, " +
 			"credential IDs, running wallet instances).",
+		Args: cobra.NoArgs,
+		RunE: showHelp,
 	}
 
 	cmd.AddCommand(&cobra.Command{

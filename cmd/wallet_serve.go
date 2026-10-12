@@ -111,7 +111,7 @@ so the wallet automatically receives incoming protocol requests.
 
 Every flag can also be set as EUDI_DEV_<FLAG>, such as EUDI_DEV_BASE_URL for --base-url. A flag on the command line wins.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			if err := applyFlagEnv(cmd.Flags()); err != nil {
+			if err := applyServeEnv(cmd.Flags(), &opts); err != nil {
 				return err
 			}
 			// The root command applies --no-color before the environment is read.
@@ -127,7 +127,7 @@ Every flag can also be set as EUDI_DEV_<FLAG>, such as EUDI_DEV_BASE_URL for --b
 	}
 
 	cmd.Flags().IntVar(&opts.Port, "port", config.DefaultWalletPort, "Wallet server port")
-	cmd.Flags().BoolVar(&opts.AutoAccept, "auto-accept", false, "Approve presentations and credential offers without asking")
+	cmd.Flags().BoolVar(&opts.AutoAccept, "auto-accept", false, "Approve presentations and credential offers without asking. --demo ignores $EUDI_DEV_AUTO_ACCEPT and takes this flag from the command line only")
 	cmd.Flags().StringSliceVar(&opts.CredFiles, "credential", nil, "Import credential from file (repeatable)")
 	cmd.Flags().StringVar(&opts.CredentialsFile, "credentials", "", "Credentials to issue or import on every start and after a demo reset: a YAML or JSON file, a directory of such files, or '-' for stdin")
 	cmd.Flags().BoolVar(&opts.PID, "pid", false, "Auto-generate default EUDI PID credentials (SD-JWT + mdoc)")
@@ -145,7 +145,7 @@ Every flag can also be set as EUDI_DEV_<FLAG>, such as EUDI_DEV_BASE_URL for --b
 	cmd.Flags().StringVar(&opts.DemoIssuerClientAuth, "demo-issuer-client-auth", string(demorp.ClientAuthRequired), "What the demo issuer's authorization server demands at its PAR and token endpoints: 'required' (HAIP 1.0 §4.4.1, the default) or 'optional' (also serves wallets that send no wallet attestation, for testing against them)")
 	cmd.Flags().StringVar(&opts.VCIClientID, "vci-client-id", "", "Client ID the wallet should use for OID4VCI authorization-code flows")
 	cmd.Flags().StringVar(&opts.VCIRedirectURI, "vci-redirect-uri", "", "Redirect URI the wallet should use for OID4VCI authorization-code flows")
-	cmd.Flags().BoolVar(&opts.Demo, "demo", false, "Public demo profile: implies --pid, --mode debug, --haip, --arf and --vci-version 1.1 (all overridable), disables process/filesystem endpoints, blocks fetches to loopback and private networks unless --allow-private-networks is given")
+	cmd.Flags().BoolVar(&opts.Demo, "demo", false, "Public demo profile: implies --pid, --mode debug, --haip, --arf and --vci-version 1.1 (all overridable), disables process/filesystem endpoints, blocks fetches to loopback and private networks unless --allow-private-networks is given, ignores $EUDI_DEV_AUTO_ACCEPT")
 	addAllowPrivateNetworksFlag(cmd, &opts.AllowPrivateNetworks, "With --demo it also opens loopback, which a host that faces the internet should keep closed. ")
 	cmd.Flags().StringVar(&opts.DemoReset, "demo-reset", "1h", "When to restore the clean demo baseline: an interval (24h), a daily wall-clock time (00:00), or one with a timezone (\"00:00 Europe/Berlin\"). 0 disables. Requires --demo")
 	cmd.Flags().StringVar(&opts.ImprintFile, "imprint-file", "", "HTML snippet with the site operator's legal notice, served at /imprint (required for public EU hosting)")
@@ -155,6 +155,25 @@ Every flag can also be set as EUDI_DEV_<FLAG>, such as EUDI_DEV_BASE_URL for --b
 	cmd.Flags().StringVar(&opts.LogFormat, "log-format", "", "Console output format: 'text' (the default) or 'json' (one JSON record per line on stdout, for log collectors)")
 	cmd.Flags().BoolVarP(&opts.Detached, "detached", "d", false, "Run the server as a background process and return once it responds. Output goes to <wallet-dir>/serve.log")
 	return cmd, &opts
+}
+
+// applyServeEnv sets the serve flags from the environment. A public demo
+// approves without asking only when --auto-accept is on the command line. The
+// image sets EUDI_DEV_AUTO_ACCEPT=true for local use, so the variable does not
+// reach a demo.
+func applyServeEnv(flags *pflag.FlagSet, opts *walletServeOptions) error {
+	autoAcceptGiven := flags.Changed("auto-accept")
+	if err := applyFlagEnv(flags); err != nil {
+		return err
+	}
+	if opts.Demo && !autoAcceptGiven {
+		flag := flags.Lookup("auto-accept")
+		if err := flag.Value.Set(flag.DefValue); err != nil {
+			return err
+		}
+		flag.Changed = false
+	}
+	return nil
 }
 
 func validateServeTLSBaseURL(baseURL string) error {
@@ -327,6 +346,43 @@ func serializeWalletServeArgs(cmd *cobra.Command) ([]string, error) {
 		args = append(args, "--"+flag.Name, flag.Value.String())
 	})
 	return args, nil
+}
+
+// credentialBannerLines lists the credentials as the UI does: one line per
+// batch, with the subject attributes counted.
+func credentialBannerLines(w *wallet.Wallet) []string {
+	var lines []string
+	for _, c := range w.ListedCredentials() {
+		summary := w.CredentialSummaryWithBatch(c)
+		details := fmt.Sprintf("%d claims", credClaimCount(summary))
+		if size, ok := docNumber(summary, "batch_size"); ok && size >= 2 {
+			details += fmt.Sprintf(", %d copies", int(size))
+		}
+		lines = append(lines, fmt.Sprintf("[%s] %s (%s)", c.Format, credLabel(c), details))
+	}
+	return lines
+}
+
+func demoWarnings(reachesPrivateNetworks, autoAccept bool) []string {
+	var warnings []string
+	if reachesPrivateNetworks {
+		warnings = append(warnings, fmt.Sprintf("--%s lets this public demo reach loopback and private networks. Any visitor can make it send requests to local and internal services. Set %s=false on a host that faces the internet.", allowPrivateNetworksFlag, allowPrivateNetworksEnv))
+	}
+	if autoAccept {
+		warnings = append(warnings, "--auto-accept lets this public demo present and accept credentials without asking. Visitors see no consent screen.")
+	}
+	return warnings
+}
+
+func demoModeDescription(autoAccept bool, resetSchedule string) string {
+	details := []string{"admin API disabled"}
+	if autoAccept {
+		details = append(details, "auto-accept")
+	}
+	if resetSchedule != "" {
+		details = append(details, resetSchedule)
+	}
+	return "public demo (" + strings.Join(details, ", ") + ")"
 }
 
 // parseDemoReset interprets the --demo-reset value: a duration ("24h", "0"),
@@ -554,71 +610,70 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 
 	cyan.Printf("%s %s\n", config.WalletName, Version)
 	dim.Println("───────────────────────────────────────")
-	fmt.Printf("  Server:      http://localhost:%d\n", opts.Port)
+	fmt.Printf("  Server:        http://localhost:%d\n", opts.Port)
 	if publicHTTPURL != fmt.Sprintf("http://localhost:%d", opts.Port) {
-		dim.Printf("               %s\n", publicHTTPURL)
+		dim.Printf("                 %s\n", publicHTTPURL)
 	}
 	if issuerViaBaseURL {
-		fmt.Printf("  Issuer:      %s (served via base URL, external TLS)\n", httpsURL)
-		fmt.Printf("  Authorize:   %s/authorize\n", publicHTTPURL)
+		fmt.Printf("  Issuer:        %s (served via base URL, external TLS)\n", httpsURL)
+		fmt.Printf("  Authorize:     %s/authorize\n", publicHTTPURL)
 		fmt.Printf("  Trusted list:  %s/api/trustlist\n", publicHTTPURL)
 		fmt.Printf("  Trusted lists: %s%s\n", publicHTTPURL, provider.TrustedListsPath)
 	} else {
-		fmt.Printf("  HTTPS:       %s\n", httpsURL)
-		fmt.Printf("  Authorize:   %s/authorize\n", publicHTTPURL)
-		dim.Printf("               %s/authorize\n", httpsURL)
+		fmt.Printf("  HTTPS:         %s\n", httpsURL)
+		fmt.Printf("  Authorize:     %s/authorize\n", publicHTTPURL)
+		dim.Printf("                 %s/authorize\n", httpsURL)
 		fmt.Printf("  Trusted list:  %s/api/trustlist\n", publicHTTPURL)
-		dim.Printf("               %s/api/trustlist\n", httpsURL)
+		dim.Printf("                 %s/api/trustlist\n", httpsURL)
 		fmt.Printf("  Trusted lists: %s%s\n", publicHTTPURL, provider.TrustedListsPath)
-		dim.Printf("               %s%s\n", httpsURL, provider.TrustedListsPath)
+		dim.Printf("                 %s%s\n", httpsURL, provider.TrustedListsPath)
 	}
-	fmt.Printf("  Metadata:    %s/.well-known/jwt-vc-issuer\n", httpsURL)
-	fmt.Printf("  Credentials: %d loaded\n", len(w.GetCredentials()))
-	fmt.Printf("  Storage:     %s\n", store.Location())
+	fmt.Printf("  Metadata:      %s/.well-known/jwt-vc-issuer\n", httpsURL)
+	credentialLines := credentialBannerLines(w)
+	fmt.Printf("  Credentials:   %d loaded\n", len(credentialLines))
+	fmt.Printf("  Storage:       %s\n", store.Location())
 	if source := store.SeedSource(); source != "" {
-		fmt.Printf("  Keys:        derived from the %s\n", source)
+		fmt.Printf("  Keys:          derived from the %s\n", source)
 	}
 	if store.SeedSource() == wallet.BuiltInSeedSource && (opts.Demo || store.Backend().Kind() != storage.KindMemory) {
 		fmt.Fprintln(os.Stderr, "warning: the keys derive from the public seed eudi-dev. Anyone can derive this wallet's CA. Set EUDI_DEV_SEED to a secret, or to an empty value for random keys.")
 	}
-	if opts.Demo && reachesPrivateNetworks {
-		fmt.Fprintf(os.Stderr, "warning: --%s lets this public demo reach loopback and private networks. Any visitor can make it send requests to local and internal services. Set %s=false on a host that faces the internet.\n", allowPrivateNetworksFlag, allowPrivateNetworksEnv)
-	}
-	fmt.Printf("  Validation:  %s\n", w.ValidationMode)
 	if opts.Demo {
-		if schedule := demoResetDescription(demoOpts); schedule != "" {
-			fmt.Printf("  Mode:        public demo (admin API disabled, %s)\n", schedule)
-		} else {
-			fmt.Printf("  Mode:        public demo (admin API disabled)\n")
+		for _, warning := range demoWarnings(reachesPrivateNetworks, w.AutoAccept) {
+			fmt.Fprintln(os.Stderr, "warning: "+warning)
 		}
-	} else if w.AutoAccept {
-		fmt.Printf("  Mode:        auto-accept\n")
-	} else {
-		fmt.Printf("  Mode:        interactive (consent UI)\n")
 	}
-	fmt.Printf("  Transcript:  %s\n", w.SessionTranscript)
+	fmt.Printf("  Validation:    %s\n", w.ValidationMode)
+	if opts.Demo {
+		fmt.Printf("  Mode:          %s\n", demoModeDescription(w.AutoAccept, demoResetDescription(demoOpts)))
+	} else if w.AutoAccept {
+		fmt.Printf("  Mode:          auto-accept\n")
+	} else {
+		fmt.Printf("  Mode:          interactive (consent UI)\n")
+	}
+	fmt.Printf("  Transcript:    %s\n", w.SessionTranscript)
 	if w.VCIFeatureVersion() == wallet.VCIVersion11 {
-		fmt.Printf("  OID4VCI:     1.1 draft features used where an issuer offers them\n")
+		fmt.Printf("  OID4VCI:       1.1 draft features used where an issuer offers them\n")
 	}
 	if w.PreferredFormat != "" {
-		fmt.Printf("  Preferred:   %s\n", w.PreferredFormat)
+		fmt.Printf("  Preferred:     %s\n", w.PreferredFormat)
 	}
 	if w.BaseURL != "" {
-		fmt.Printf("  Status List: %s/api/statuslist\n", publicHTTPURL)
-		dim.Printf("               %s/api/statuslist\n", httpsURL)
+		fmt.Printf("  Status List:   %s/api/statuslist\n", publicHTTPURL)
+		dim.Printf("                 %s/api/statuslist\n", httpsURL)
 	}
 	if w.RequireEncryptedRequest {
-		fmt.Printf("  Encrypted:   request object encryption required\n")
+		fmt.Printf("  Encrypted:     request object encryption required\n")
 	}
 	if w.RequireHAIP {
-		fmt.Printf("  HAIP:        enforced (presentations: x509_hash, direct_post.jwt, DCQL, signed request object, P-256 response encryption)\n")
-		fmt.Printf("               enforced (issuance needs an https issuer, authorization code offers also PAR, PKCE S256, DPoP and client auth)\n")
+		fmt.Printf("  HAIP:          enforced (presentations: x509_hash, direct_post.jwt, DCQL, signed request object, P-256 response encryption)\n")
+		fmt.Printf("                 enforced (issuance needs an https issuer, authorization code offers also PAR, PKCE S256, DPoP and client auth)\n")
 	}
 	if w.RequireARF {
-		fmt.Printf("  ARF:         checked (access and registration certificates of verifiers and issuers, over-asking, revocation)\n")
+		fmt.Printf("  ARF:           checked (access and registration certificates of verifiers and issuers, over-asking, revocation)\n")
 	}
 	for _, warning := range servingConfigWarnings(w, opts.Port, opts.Docker) {
-		yellow.Printf("  Warning:     %s\n", warning)
+		yellow.Printf("  Warning:       %s\n", warning)
 	}
 
 	if opts.Register && !opts.NoRegister {
@@ -631,20 +686,20 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 			AutoAccept:   w.AutoAccept,
 			ServeArgs:    serveArgs,
 		}); err != nil {
-			yellow.Printf("  Register:    skipped (%s)\n", err)
+			yellow.Printf("  Register:      skipped (%s)\n", err)
 		} else if reg.Registered {
-			fmt.Printf("  Register:    URL scheme handlers registered\n")
+			fmt.Printf("  Register:      URL scheme handlers registered\n")
 		} else {
-			yellow.Printf("  Register:    not supported on this platform (use 'wallet accept <uri>' for copied links)\n")
+			yellow.Printf("  Register:      not supported on this platform (use 'wallet accept <uri>' for copied links)\n")
 		}
 	}
 
 	dim.Println("───────────────────────────────────────")
 	fmt.Println()
 
-	if len(w.GetCredentials()) > 0 {
-		for _, c := range w.GetCredentials() {
-			fmt.Printf("  [%s] %s (%d claims)\n", c.Format, credLabel(c), len(c.Claims))
+	if len(credentialLines) > 0 {
+		for _, line := range credentialLines {
+			fmt.Println("  " + line)
 		}
 		fmt.Println()
 	}

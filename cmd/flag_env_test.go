@@ -167,3 +167,61 @@ func TestDetachedChildEnvDropsDetached(t *testing.T) {
 		t.Fatalf("child environment keeps EUDI_DEV_DETACHED or lost EUDI_DEV_PORT")
 	}
 }
+
+// A public demo approves without asking only when --auto-accept is on the
+// command line. EUDI_DEV_AUTO_ACCEPT, which the image sets, applies to a wallet
+// without --demo only.
+func TestDemoTakesAutoAcceptFromTheCommandLineOnly(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		env  map[string]string
+		args []string
+		want bool
+	}{
+		{"env without demo", map[string]string{"EUDI_DEV_AUTO_ACCEPT": "true"}, nil, true},
+		{"env with demo flag", map[string]string{"EUDI_DEV_AUTO_ACCEPT": "true"}, []string{"--demo"}, false},
+		{"env with demo env", map[string]string{"EUDI_DEV_AUTO_ACCEPT": "true", "EUDI_DEV_DEMO": "true"}, nil, false},
+		{"flag with demo env", map[string]string{"EUDI_DEV_DEMO": "true"}, []string{"--auto-accept"}, true},
+		{"flag with demo flag", nil, []string{"--demo", "--auto-accept"}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			clearFlagEnv(t)
+			for name, value := range tc.env {
+				t.Setenv(name, value)
+			}
+			cmd, opts := parsedServeCmd(t, tc.args...)
+			if err := applyServeEnv(cmd.Flags(), opts); err != nil {
+				t.Fatal(err)
+			}
+			if opts.AutoAccept != tc.want {
+				t.Fatalf("auto-accept = %v, want %v", opts.AutoAccept, tc.want)
+			}
+			args, err := serializeWalletServeArgs(cmd)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if slices.Contains(args, "--auto-accept=true") != tc.want {
+				t.Fatalf("detached arguments %#v, want --auto-accept %v", args, tc.want)
+			}
+		})
+	}
+}
+
+func TestDemoModeLineNamesAutoAccept(t *testing.T) {
+	if got, want := demoModeDescription(true, "resets every 1h0m0s"), "public demo (admin API disabled, auto-accept, resets every 1h0m0s)"; got != want {
+		t.Errorf("mode = %q, want %q", got, want)
+	}
+	if got, want := demoModeDescription(false, ""), "public demo (admin API disabled)"; got != want {
+		t.Errorf("mode = %q, want %q", got, want)
+	}
+}
+
+func TestDemoWarnsAboutAutoAccept(t *testing.T) {
+	warnings := demoWarnings(false, true)
+	if len(warnings) != 1 || !strings.HasPrefix(warnings[0], "--auto-accept ") {
+		t.Errorf("warnings = %q, want one about --auto-accept", warnings)
+	}
+	if warnings := demoWarnings(false, false); len(warnings) != 0 {
+		t.Errorf("warnings = %q, want none", warnings)
+	}
+}

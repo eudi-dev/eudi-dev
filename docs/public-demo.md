@@ -16,7 +16,7 @@ eudi wallet serve --demo --base-url https://eudi-test.dev \
 
 The server starts without opening a browser and loads protected PID credentials from the bundled templates. User templates with the same names, including those in `--templates-dir`, override the baseline used at startup and reset.
 
-Browser flows ask for consent. API submissions provide consent directly. Each consent dialog appears in the browser session that started the flow. Requests without a browser ID appear in a shared banner where any visitor can answer them.
+Browser flows ask for consent. API submissions provide consent directly. A demo approves browser flows without asking only with `--auto-accept` on the command line. It ignores `EUDI_DEV_AUTO_ACCEPT` and warns at start when the flag is given. Each consent dialog appears in the browser session that started the flow. Requests without a browser ID appear in a shared banner where any visitor can answer them.
 
 ### Administrative operations
 

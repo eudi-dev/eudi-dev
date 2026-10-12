@@ -193,7 +193,7 @@ The demo issuer and the demo verifier are registered like any other relying part
 
 Their names, identifiers, descriptions and intended uses are TS05 relying party files in [`internal/defaults/registrations/`](../../internal/defaults/registrations/). The wallet adds the parts that depend on its templates: the types the issuer provides, its entitlements and the credentials of the verifier's intended use. The demo pages show the names of these files, and the identity check asks for the claims registered for its intended use.
 
-The wallet registers both at startup if they are missing. After that a local wallet leaves them alone, also when the templates change. You can change or delete them like any other registration. Without its registration the demo issuer publishes no `issuer_info` and the demo verifier sends no `verifier_info`. A restart on another port or base URL moves both registrations to the new URL.
+The wallet registers both at startup if they are missing. You can change or delete them like any other registration. A local wallet keeps your changes. It only keeps the types the issuer provides and its entitlements in line with the templates and the catalogue, so the issuer's registration certificate lists every type it offers. A deleted registration stays deleted until the next start. Without its registration the demo issuer publishes no `issuer_info` and the demo verifier sends no `verifier_info`. A restart on another port or base URL moves both registrations to the new URL.
 
 On a public demo, visitors can't change either registration or its certificates. The wallet updates both when the templates or the catalogue change, and after every reset.
 

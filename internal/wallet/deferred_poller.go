@@ -42,20 +42,16 @@ func (s *Server) backgroundTasks() []backgroundTask {
 	}
 }
 
-// syncDemoRegistrations keeps the demo issuer and verifier of a public demo
-// registered for the wallet's templates and catalogue. Visitors can't change
-// them. A local wallet registers them once and leaves them to the user.
+// syncDemoRegistrations keeps the demo issuer and verifier registered for the
+// wallet's templates and catalogue. On a public demo visitors can't change
+// them. A local wallet keeps the user's changes and registers no party the
+// user deleted.
 func (s *Server) syncDemoRegistrations() error {
-	if s.demo == nil {
-		return nil
+	sync := s.wallet.FollowDemoTemplates
+	if s.demo != nil {
+		sync = s.wallet.EnsureDemoRegistrations
 	}
-	var err error
-	s.saveMutation(func() bool {
-		var changed bool
-		changed, err = s.wallet.EnsureDemoRegistrations()
-		return changed
-	})
-	return err
+	return s.saveDemoRegistrations(sync)
 }
 
 // registerDemoParties registers the demo issuer and verifier at startup. A
@@ -65,10 +61,14 @@ func (s *Server) registerDemoParties() error {
 	if s.demo != nil {
 		return s.syncDemoRegistrations()
 	}
+	return s.saveDemoRegistrations(s.wallet.RegisterMissingDemoParties)
+}
+
+func (s *Server) saveDemoRegistrations(sync func() (bool, error)) error {
 	var err error
 	s.saveMutation(func() bool {
 		var changed bool
-		changed, err = s.wallet.RegisterMissingDemoParties()
+		changed, err = sync()
 		return changed
 	})
 	return err

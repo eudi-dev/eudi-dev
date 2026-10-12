@@ -84,6 +84,8 @@ var issueCmd = &cobra.Command{
 		"By default it prints a bare credential signed with an ephemeral key (or --key/--cert) to stdout and touches no wallet. " +
 		"With --wallet it issues with the managed wallet's issuer key instead and imports the credential there: into the local store, " +
 		"the remote instance selected by `wallet use`, or a running server for the same wallet directory.",
+	Args: cobra.NoArgs,
+	RunE: showHelp,
 }
 
 var issueSDJWTCmd = &cobra.Command{

@@ -42,6 +42,8 @@ access certificates (ETSI TS 119 411-8) and registration certificates (ETSI TS
 A verifier registers intended uses and gets a registration certificate for each.
 An issuer registers as an attestation provider and lists its attestation types.
 It gets one registration certificate for its service.`,
+		Args: cobra.NoArgs,
+		RunE: showHelp,
 	}
 	cmd.AddCommand(partiesCmd("verifiers"), partiesCmd("issuers"), accessCertCmd(), registrationCertCmd(), registrarStatusCmd(true), registrarStatusCmd(false))
 	return cmd

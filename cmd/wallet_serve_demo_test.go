@@ -15,6 +15,7 @@
 package cmd
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
@@ -161,4 +162,18 @@ func newTestServeWallet(t *testing.T) *wallet.Wallet {
 		t.Fatalf("generating issuer key: %v", err)
 	}
 	return wallet.New(holderKey, issuerKey, false)
+}
+
+// The startup banner lists the credentials as the UI does: one line per batch
+// and only the subject attributes counted.
+func TestTheBannerListsCredentialsLikeTheUI(t *testing.T) {
+	w := newTestServeWallet(t)
+	claims := map[string]any{"given_name": "Erika", "family_name": "Mustermann"}
+	if _, err := w.IssueCredential(wallet.IssueOptions{Format: "sdjwt", VCT: "urn:example:badge:1", Claims: claims, BatchSize: 3}); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"[dc+sd-jwt] urn:example:badge:1 (2 claims, 3 copies)"}
+	if got := credentialBannerLines(w); !slices.Equal(got, want) {
+		t.Errorf("banner lines %q, want %q", got, want)
+	}
 }

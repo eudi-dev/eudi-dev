@@ -54,6 +54,12 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Verbose output")
 }
 
+// showHelp runs a command that only groups subcommands. With cobra.NoArgs as
+// its Args, an unknown subcommand fails instead of printing the help.
+func showHelp(cmd *cobra.Command, _ []string) error {
+	return cmd.Help()
+}
+
 func applyNoColor() {
 	if noColor {
 		color.NoColor = true

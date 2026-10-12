@@ -63,6 +63,8 @@ var walletCmd = &cobra.Command{
 	Long: "Stateful wallet, persisted to files by default. Supports credential management, OID4VP presentations, OID4VCI issuance, " +
 		"QR scanning, and URL scheme registration. The management commands operate on the local store, on the remote " +
 		"instance selected by `wallet use` or --remote, or through a running server for the same wallet directory.",
+	Args: cobra.NoArgs,
+	RunE: showHelp,
 }
 
 // walletFlags select and configure the wallet a command works on. The wallet
