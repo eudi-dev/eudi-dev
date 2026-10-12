@@ -160,8 +160,8 @@ test.describe("Demo mode sponsor link", () => {
   for (const pagePath of ["/", "/issuer/", "/verifier/", "/decoder/"]) {
     test(`is shown on ${pagePath}`, async ({ page }) => {
       await page.goto(`${BASE}${pagePath}`);
-      await expect(page.locator("#sponsor-info")).toBeVisible();
-      await expect(page.locator("#sponsor-info a")).toHaveAttribute(
+      await expect(page.locator("#sponsor-link")).toBeVisible();
+      await expect(page.locator("#sponsor-link")).toHaveAttribute(
         "href",
         "https://github.com/sponsors/dominikschlosser"
       );

@@ -12,20 +12,23 @@
 </head>
 <body>
   <header>
-    <div class="header-left">
-      <div class="header-brand">
-        <img src="logo.svg" alt="" class="header-logo" id="header-logo">
-        <h1 id="header-title">EUDI Dev Decoder</h1>
-      </div>
-      <span class="header-links" id="header-links">
-        <a href="../" id="wallet-link" hidden>Wallet</a>
-        <a href="#" id="get-cli-link">Get the CLI</a>
-        <a href="https://github.com/eudi-dev/eudi-dev" id="github-link" target="_blank" rel="noopener">GitHub</a>
-      </span>
+    <div class="header-brand">
+      <img src="logo.svg" alt="" class="header-logo" id="header-logo">
+      <h1 id="header-title">EUDI Dev Decoder</h1>
     </div>
     <div class="header-right">
-      <button id="share-btn" class="btn" title="Copy shareable link">Share</button>
-      <button id="clear-btn" class="btn" title="Clear">Clear</button>
+      <div class="header-menu" id="header-menu">
+        <span class="header-links" id="header-links">
+          <a href="../" id="wallet-link" hidden>Wallet</a>
+          <a href="#" id="get-cli-link">Get the CLI</a>
+          <a href="https://github.com/eudi-dev/eudi-dev" id="github-link" target="_blank" rel="noopener">GitHub</a>
+        </span>
+        <span class="header-actions" id="header-actions">
+          <button id="share-btn" class="btn" title="Copy shareable link">Share</button>
+          <button id="clear-btn" class="btn" title="Clear">Clear</button>
+        </span>
+      </div>
+      <button class="btn header-menu-toggle" id="header-menu-toggle" aria-expanded="false" aria-controls="header-menu" aria-label="Menu">☰ Menu</button>
       <button id="theme-btn" class="btn" title="Toggle theme" data-theme-toggle>Theme</button>
     </div>
   </header>
@@ -48,17 +51,12 @@
       </div>
     </div>
   </main>
-  <footer class="shortcut-hint">
-    <div class="sponsor-info" id="sponsor-info" hidden>
-      <span id="sponsor-text">Enjoying eudi-dev?</span>
-      <a href="https://github.com/sponsors/dominikschlosser" id="sponsor-link" target="_blank" rel="noopener">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/></svg>
-        Support its development
-      </a>
-    </div>
-    <div class="footer-links">
-      <span id="footer-version"></span>
-      <a href="#" id="imprint-link" hidden>Imprint</a>
+  <footer class="shortcut-hint site-footer">
+    <div class="footer-row">
+      <span id="footer-version" class="footer-version"></span>
+      <span id="footer-prerelease" class="footer-prerelease" hidden></span>
+      <a href="imprint" id="imprint-link" hidden>Imprint</a>
+      <a href="https://github.com/sponsors/dominikschlosser" id="sponsor-link" class="footer-sponsor" target="_blank" rel="noopener" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/></svg>Sponsor</a>
     </div>
     <div class="footer-disclaimer" id="footer-disclaimer">Unofficial, independent open source project. Not affiliated with or endorsed by the European Commission or the European Union.</div>
   </footer>
@@ -83,6 +81,7 @@
     </div>
   </div>
 
+  <script src="footer.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

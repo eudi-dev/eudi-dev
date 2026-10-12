@@ -8,6 +8,7 @@
   <meta name="description" content="Demo verifier of the EUDI Dev Wallet: requests and cryptographically verifies PID and ticket presentations over OpenID4VP.">
   <link rel="stylesheet" href="tokens.css">
   <script src="theme.js"></script>
+  <script src="footer.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -35,8 +36,7 @@
       border-radius: 12px; padding: 10px 12px; overflow-x: auto; user-select: all; white-space: pre-wrap; word-break: break-all; }
     a { color: var(--link); }
     .links { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 18px; font-size: 13px; color: var(--text-dim); }
-    .disclaimer { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border);
-      font-size: 12px; line-height: 1.5; color: var(--text-dim); }
+    .page-footer { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
     .status { font-size: 15px; font-weight: 700; margin: 12px 0 6px; overflow-wrap: anywhere; }
     .status.verified { color: var(--ok-fg); }
     .status.failed, .status.declined { color: var(--danger); }
@@ -93,44 +93,11 @@
     .claims-label { font-size: 13px; font-weight: 600; color: var(--text-dim); margin: 8px 0 4px; }
     .identity-panel { margin-bottom: 18px; }
     textarea { width: 100%; min-height: 68px; margin-bottom: 6px; resize: vertical; white-space: pre; border-radius: 14px; }
-    .sponsor-info {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: flex-start;
-      margin-top: 14px;
-      gap: 4px 8px;
-      padding: 0;
-      color: var(--text-dim);
-      font-size: 13px;
-      line-height: 1.5;
-    }
-
-    .sponsor-info a {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      min-height: 28px;
-      padding: 4px 6px;
-      border-radius: 999px;
-      color: var(--link);
-      text-decoration: none;
-    }
-
-    .sponsor-info a:hover {
-      text-decoration: underline;
-    }
-
-    .sponsor-info a:focus-visible {
-      outline: 2px solid var(--accent);
-      outline-offset: 2px;
-    }
-
-    .sponsor-info svg {
-      width: 14px;
-      height: 14px;
-      flex-shrink: 0;
-      color: var(--pink);
+    /* Narrow screens give segmented controls the full width. Long labels stack. */
+    @media (max-width: 480px) {
+      .toggle:not(#credential-toggle) { display: flex; width: 100%; }
+      .toggle:not(#credential-toggle) .toggle-option { flex: 1 1 auto; }
+      #identity-toggle { flex-direction: column; }
     }
   </style>
 </head>
@@ -227,18 +194,16 @@
       <a href="../" id="wallet-ui-link">Wallet</a>
       <a href="../issuer/" id="issuer-link">Demo issuer</a>
       <a href="../decoder/" id="decoder-link">Decoder</a>
-      <a href="../imprint" id="imprint-link" hidden>Imprint</a>
     </div>
-    <footer>
-      <div class="sponsor-info" id="sponsor-info" hidden>
-        <span id="sponsor-text">Enjoying eudi-dev?</span>
-        <a href="https://github.com/sponsors/dominikschlosser" id="sponsor-link" target="_blank" rel="noopener">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/></svg>
-          Support its development
-        </a>
+    <footer class="site-footer page-footer">
+      <div class="footer-row">
+        <span id="footer-version" class="footer-version"></span>
+        <span id="footer-prerelease" class="footer-prerelease" hidden></span>
+        <a href="../imprint" id="imprint-link" hidden>Imprint</a>
+        <a href="https://github.com/sponsors/dominikschlosser" id="sponsor-link" class="footer-sponsor" target="_blank" rel="noopener" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/></svg>Sponsor</a>
       </div>
+      <div class="footer-disclaimer" id="disclaimer">Unofficial, independent open source project. Not affiliated with or endorsed by the European Commission or the European Union.</div>
     </footer>
-    <div class="disclaimer" id="disclaimer">Unofficial, independent open source project. Not affiliated with or endorsed by the European Commission or the European Union.</div>
   </div>
   <script src="../claim-path.js"></script>
   <script src="verifier.js"></script>

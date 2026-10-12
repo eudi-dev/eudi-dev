@@ -192,7 +192,7 @@ func (s *Server) awaitPresentationConsent(w http.ResponseWriter, authReq *oid4vp
 
 // answerConsentTimeout ends a consent request that nobody answered in time.
 func (s *Server) answerConsentTimeout(w http.ResponseWriter, action string, req *consent.Request) {
-	s.wallet.AddLog(action, "Consent timeout", false)
+	s.wallet.AddLog(action, "Consent timed out", false)
 	req.SubmissionCh <- consent.SubmissionResult{Error: "consent timeout", StatusCode: http.StatusRequestTimeout}
 	writeAPIError(w, http.StatusRequestTimeout, apiErrorConsentTimeout, "consent timeout")
 }

@@ -329,7 +329,8 @@ header h1 {
   padding: 2px 7px;
   border-radius: 5px;
   backdrop-filter: blur(3px);
-  background: rgba(0, 0, 0, 0.5);
+  /* White text stays above 4.5:1 even on white card art. */
+  background: rgba(0, 0, 0, 0.62);
   color: #fff;
 }
 
@@ -623,86 +624,7 @@ header h1 {
 
 .app-footer {
   flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
   padding: 10px 16px 12px;
-  font-size: 12px;
-  color: var(--text-dim);
-}
-.app-footer a {
-  color: var(--text-dim);
-}
-.app-footer a:hover {
-  color: var(--text);
-}
-.footer-row {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: center;
-  gap: 2px 16px;
-}
-
-.footer-prerelease {
-  padding: 0 8px;
-  border-radius: 10px;
-  background: var(--info-bg);
-  color: var(--info-fg);
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-#footer-version {
-  font-family: var(--font-mono);
-  color: var(--text);
-}
-
-.footer-disclaimer {
-  font-size: 12px;
-  color: var(--text-dim);
-  text-align: center;
-}
-
-.sponsor-info {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 4px 8px;
-  padding: 0;
-  color: var(--text-dim);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.sponsor-info a {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 28px;
-  padding: 4px 6px;
-  border-radius: 999px;
-  color: var(--link);
-  text-decoration: none;
-}
-
-.sponsor-info a:hover {
-  text-decoration: underline;
-}
-
-.sponsor-info a:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.sponsor-info svg {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-  color: var(--pink);
 }
 
 #demo-note {
@@ -1424,6 +1346,14 @@ textarea.form-input {
   padding: 0;
   overflow: visible;
 }
+/* On narrow screens the text wraps and grows taller than the card art. Top
+   alignment keeps the format badge level with the art. */
+@media (max-width: 600px) {
+  .consent-credential .credential-card,
+  .candidate .credential-card {
+    align-items: flex-start;
+  }
+}
 .consent-credential .card-face,
 .candidate .card-face {
   width: 84px;
@@ -1674,6 +1604,10 @@ textarea.form-input {
   cursor: default;
 }
 
+.candidate.fixed {
+  cursor: default;
+}
+
 .candidate-row {
   display: flex;
   align-items: center;
@@ -1737,6 +1671,12 @@ textarea.form-input {
 
 .consent-buttons .btn-primary {
   padding: 10px 26px;
+}
+
+.error-more > summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-dim);
 }
 
 .error-detail {
@@ -1972,6 +1912,28 @@ textarea.form-input {
 .log-status.success { color: var(--green); }
 .log-status.failure { color: var(--danger); }
 .log-status.warning { color: var(--yellow); white-space: nowrap; }
+
+/* Narrow screens put the detail on its own line below time, kind and status. */
+@media (max-width: 600px) {
+  .log-header {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+  .log-status {
+    margin-left: auto;
+  }
+  .log-detail {
+    order: 1;
+    flex-basis: 100%;
+    padding-left: 20px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+  }
+}
 
 .empty-state {
   display: flex;

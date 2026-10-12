@@ -40,7 +40,8 @@ const pageTemplate = `<!doctype html>
   body { font-family: var(--font-sans); line-height: 1.6; max-width: 42rem; margin: 2rem auto; padding: 0 1rem; background: var(--bg); color: var(--text); }
   a { color: var(--link); }
   hr { margin: 2rem 0; opacity: 0.4; }
-  .disclaimer { font-size: 0.85rem; opacity: 0.8; }
+  .disclaimer { font-size: 0.85rem; color: var(--text-dim); }
+  .page-footer { margin: 2rem 0; }
 </style>
 </head>
 <body>
@@ -48,6 +49,14 @@ const pageTemplate = `<!doctype html>
 %s
 <hr>
 <p class="disclaimer">%s</p>
+<footer class="site-footer page-footer">
+  <div class="footer-row">
+    <span id="footer-version" class="footer-version"></span>
+    <span id="footer-prerelease" class="footer-prerelease" hidden></span>
+    <a href="https://github.com/sponsors/dominikschlosser" id="sponsor-link" class="footer-sponsor" target="_blank" rel="noopener" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/></svg>Sponsor</a>
+  </div>
+</footer>
+<script src="footer.js" data-config="api/config api/meta"></script>
 </body>
 </html>
 `

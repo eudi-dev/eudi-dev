@@ -132,8 +132,7 @@ fetch(".well-known/openid-credential-issuer")
 fetch("../api/config")
   .then((resp) => resp.json())
   .then((config) => {
-    if (config.imprint) document.getElementById("imprint-link").hidden = false;
-    if (config.demo && config.demo.enabled) document.getElementById("sponsor-info").hidden = false;
+    window.eudiFooter(config);
     if (config.status_list_url) {
       document.getElementById("status-row").hidden = false;
       document.getElementById("status-hint").hidden = false;

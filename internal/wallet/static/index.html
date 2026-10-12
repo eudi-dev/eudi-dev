@@ -61,7 +61,7 @@
     <div>
       <div class="section-title" id="actions-title">Actions</div>
       <div class="actions-bar">
-        <input type="text" id="offer-input" aria-label="Offer or request URI" placeholder="Paste OID4VCI offer URI or OID4VP request URI…">
+        <input type="text" id="offer-input" aria-label="Offer or request URI" placeholder="Paste an offer or request URI…">
         <button class="btn btn-primary" id="process-btn">Process</button>
         <button class="btn" id="import-btn">Import credential</button>
         <button class="btn" id="issue-btn">Issue credential</button>
@@ -119,19 +119,13 @@
     </div>
   </div>
 
-  <footer class="app-footer">
-    <div class="sponsor-info" id="sponsor-info" hidden>
-      <span id="sponsor-text">Enjoying eudi-dev?</span>
-      <a href="https://github.com/sponsors/dominikschlosser" target="_blank" rel="noopener" id="sponsor-link">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/></svg>
-        Support its development
-      </a>
-    </div>
+  <footer class="app-footer site-footer">
     <div class="footer-row">
-      <span id="footer-version"></span>
-      <span id="footer-prerelease" class="footer-prerelease" title="A prerelease for testing. It is not stable yet." hidden></span>
+      <span id="footer-version" class="footer-version"></span>
+      <span id="footer-prerelease" class="footer-prerelease" hidden></span>
       <a href="imprint" id="imprint-link" hidden>Imprint</a>
       <a href="#" id="news-link" hidden>News</a>
+      <a href="https://github.com/sponsors/dominikschlosser" id="sponsor-link" class="footer-sponsor" target="_blank" rel="noopener" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/></svg>Sponsor</a>
       <span id="demo-note" hidden></span>
     </div>
     <div class="footer-disclaimer" id="footer-disclaimer">Unofficial, independent open source project. Not affiliated with or endorsed by the European Commission or the European Union.</div>
@@ -796,6 +790,7 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
     </div>
   </div>
 
+  <script src="footer.js"></script>
   <script src="csr.js"></script>
   <script src="claim-path.js"></script>
   <script src="app.js"></script>

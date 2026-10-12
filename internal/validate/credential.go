@@ -131,9 +131,10 @@ func Credential(raw string, trust Trust, opts Options) (*Result, error) {
 		}
 		return SDJWT(token, trust, opts), nil
 	case format.FormatJWT:
+		// sdjwt reports a broken JWT part as "parsing JWT" already.
 		token, err := sdjwt.Inspect(raw)
 		if err != nil {
-			return nil, fmt.Errorf("parsing JWT: %w", err)
+			return nil, err
 		}
 		return JWT(token, trust, opts), nil
 	case format.FormatMDOC:

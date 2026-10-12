@@ -1531,6 +1531,17 @@
       .catch(() => {});
   }
 
+  const menuToggle = document.getElementById("header-menu-toggle");
+  const headerMenu = document.getElementById("header-menu");
+  function setMenuOpen(open) {
+    headerMenu.classList.toggle("open", open);
+    menuToggle.setAttribute("aria-expanded", String(open));
+  }
+  menuToggle.addEventListener("click", () => setMenuOpen(!headerMenu.classList.contains("open")));
+  headerMenu.addEventListener("click", (event) => {
+    if (event.target.closest("a, button")) setMenuOpen(false);
+  });
+
   const cliOverlay = document.getElementById("cli-overlay");
   document.getElementById("get-cli-link").addEventListener("click", (event) => {
     event.preventDefault();
@@ -1543,20 +1554,13 @@
   fetch(basePath + "api/meta")
     .then((res) => res.json())
     .then((meta) => {
-      if (meta.version) {
-        document.getElementById("footer-version").textContent = "eudi-dev " + meta.version;
-      }
-      if (meta.imprint) {
-        const link = document.getElementById("imprint-link");
-        link.href = basePath + "imprint";
-        link.hidden = false;
-      }
+      document.getElementById("imprint-link").href = basePath + "imprint";
+      window.eudiFooter(meta);
       if (meta.wallet) {
         const walletLink = document.getElementById("wallet-link");
         walletLink.textContent = "Wallet";
         walletLink.hidden = false;
       }
-      document.getElementById("sponsor-info").hidden = !meta.demo;
       if (meta.demo) {
         document.getElementById("demo-note").hidden = false;
       }

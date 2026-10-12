@@ -292,7 +292,6 @@ func (d *DemoRP) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 		Attestation:    request.clientAttestation,
 		AttestationPoP: request.clientAttestationPoP,
 		Title:          "Sign in",
-		Explanation:    "Your wallet is collecting a Demo Event Ticket. Sign in to approve it.",
 	})
 }
 
@@ -1003,11 +1002,10 @@ func (c *clientAuthentication) ticketClaim() string {
 }
 
 type loginPageData struct {
-	Action      string
-	RequestURI  string
-	Title       string
-	Explanation string
-	Error       string
+	Action     string
+	RequestURI string
+	Title      string
+	Error      string
 	// ClientID, Attestation and AttestationPoP are shown in the debug panel.
 	// Attestation and AttestationPoP are raw compact JWTs. They are empty for
 	// an unauthenticated client.
@@ -1048,12 +1046,13 @@ input { font:inherit; font-size:14px; width:100%; height:42px; padding:0 18px; b
 .debug .field code { display:block; font-family:var(--font-mono); font-size:12px; color:var(--text); word-break:break-all; max-height:120px; overflow:auto; padding:8px 10px; background:var(--bg-input); border:1px solid var(--border); border-radius:10px; }
 .debug .empty { font-size:12px; color:var(--text-dim); margin-top:8px; }
 .error { color:var(--danger); font-size:13px; margin-top:12px; }
+.page-footer { margin-top:14px; }
 </style>
 </head>
 <body>
 <div class="card">
   <h1 id="login-title">{{.Title}}</h1>
-  <p id="login-explanation">{{.Explanation}}</p>
+  <p id="login-explanation">Your wallet is collecting a Demo Event Ticket. Sign in to approve it.</p>
   <details class="debug" id="login-debug">
     <summary id="login-debug-summary">Client authentication (debug)</summary>
     <div class="body">
@@ -1071,19 +1070,26 @@ input { font:inherit; font-size:14px; width:100%; height:42px; padding:0 18px; b
     <input id="password" name="password" type="password" value="alice" autocomplete="off">
     <button class="btn" id="login-submit" type="submit">Sign in</button>
   </form>
-  {{if .Error}}<div class="error" id="login-error">{{.Error}}</div>{{end}}
+  {{if .Error}}<div class="error" id="login-error" role="alert">{{.Error}}</div>{{end}}
   <div class="note" id="login-note">
     Demo only. One hardcoded account, alice / alice. No user data is stored, everything issued here is test data.
   </div>
+  <footer class="site-footer page-footer">
+    <div class="footer-row">
+      <span id="footer-version" class="footer-version"></span>
+      <span id="footer-prerelease" class="footer-prerelease" hidden></span>
+      <a href="../imprint" id="imprint-link" hidden>Imprint</a>
+      <a href="https://github.com/sponsors/dominikschlosser" id="sponsor-link" class="footer-sponsor" target="_blank" rel="noopener" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/></svg>Sponsor</a>
+    </div>
+    <div class="footer-disclaimer" id="disclaimer">Unofficial, independent open source project. Not affiliated with or endorsed by the European Commission or the European Union.</div>
+  </footer>
 </div>
+<script src="footer.js" data-config="../api/config"></script>
 </body>
 </html>
 `))
 
 func renderLoginPage(w http.ResponseWriter, data loginPageData) {
-	if data.Explanation == "" {
-		data.Explanation = "Sign in with the demo account."
-	}
 	// The login page has its own policy so the post-login redirect to the
 	// client redirect_uri is allowed.
 	w.Header().Set("Content-Security-Policy", loginContentSecurityPolicy(data.RedirectURI))

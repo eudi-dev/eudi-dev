@@ -61,6 +61,7 @@
 /* The colour tokens of every eudi-dev page. theme.js sets data-theme="light"
    for the light theme. */
 :root {
+  color-scheme: dark;
   --bg: #17191e;
   --bg-header: #1a1d22;
   --bg-surface: #21242a;
@@ -108,6 +109,7 @@
 }
 
 [data-theme="light"] {
+  color-scheme: light;
   --bg: #f2f3f5;
   --bg-header: #ffffff;
   --bg-surface: #ffffff;
@@ -170,4 +172,57 @@
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-dim);
+}
+
+/* The footer of every eudi-dev page. footer.js fills it. */
+.site-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  text-align: center;
+}
+.site-footer a {
+  color: var(--text-dim);
+}
+.site-footer a:hover {
+  color: var(--text);
+}
+.site-footer [hidden] {
+  display: none;
+}
+.footer-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 2px 16px;
+}
+.footer-version {
+  font-family: var(--font-mono);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.footer-prerelease {
+  padding: 0 8px;
+  border-radius: 10px;
+  background: var(--info-bg);
+  color: var(--info-fg);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.footer-sponsor {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.footer-sponsor svg {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  color: var(--pink);
 }

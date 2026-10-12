@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package webui holds the files that every eudi-dev page shares: the colour
-// tokens, the theme script and the fonts. Each server serves them next to its
+// tokens, the theme and footer scripts and the fonts. Each server serves them next to its
 // pages.
 package webui
 
@@ -26,12 +26,12 @@ import (
 	"strings"
 )
 
-//go:embed tokens.css theme.js fonts/*.woff2 fonts/LICENSE.txt
+//go:embed tokens.css theme.js footer.js fonts/*.woff2 fonts/LICENSE.txt
 var files embed.FS
 
 // Roots are the first path segments of the shared files. A page links the
 // files by relative paths, so they resolve below any path prefix.
-var Roots = []string{"tokens.css", "theme.js", "fonts"}
+var Roots = []string{"tokens.css", "theme.js", "footer.js", "fonts"}
 
 func init() {
 	// Go's built-in type table has no entry for woff2.
@@ -61,5 +61,6 @@ func Mount(mux *http.ServeMux) {
 	})
 	mux.Handle("GET /tokens.css", h)
 	mux.Handle("GET /theme.js", h)
+	mux.Handle("GET /footer.js", h)
 	mux.Handle("GET /fonts/", h)
 }

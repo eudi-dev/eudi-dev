@@ -551,7 +551,7 @@ func TestPresentationAPI_InvalidURIWithRequestScopedOptionsShowsErrorOnMainWalle
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode /api/error: %v", err)
 	}
-	if got.Message != "Failed to parse authorization request" {
+	if got.Message != "Not an OpenID4VCI offer or OpenID4VP request" {
 		t.Fatalf("unexpected error message: %#v", got)
 	}
 
@@ -562,7 +562,7 @@ func TestPresentationAPI_InvalidURIWithRequestScopedOptionsShowsErrorOnMainWalle
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode second /api/error: %v", err)
 	}
-	if got.Message != "Failed to parse authorization request" {
+	if got.Message != "Not an OpenID4VCI offer or OpenID4VP request" {
 		t.Fatalf("expected error to remain until dismissed, got %#v", got)
 	}
 

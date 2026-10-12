@@ -30,6 +30,10 @@ import (
 // post. OpenID4VP 1.0 §8.5 answers it with invalid_request_uri_method.
 var ErrUnsupportedRequestURIMethod = errors.New("unsupported request_uri_method")
 
+// ErrUnrecognizedInput is input that is neither a credential offer nor an
+// authorization request in any supported encoding.
+var ErrUnrecognizedInput = errors.New("not an OpenID4VCI offer or OpenID4VP request")
+
 func Parse(raw string) (RequestType, any, error) {
 	return ParseWithOptions(raw, ParseOptions{})
 }
@@ -56,7 +60,7 @@ func ParseWithOptions(raw string, opts ParseOptions) (RequestType, any, error) {
 		return parseJSONInput(raw)
 	}
 
-	return 0, nil, fmt.Errorf("unable to detect OpenID4VCI/VP format: not a recognized URI, URL, JWT, or JSON")
+	return 0, nil, fmt.Errorf("%w: expected a URI, URL, JWT or JSON object", ErrUnrecognizedInput)
 }
 
 // URIQueryValues parses a request URI's query with RFC 3986 semantics.

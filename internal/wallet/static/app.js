@@ -2098,6 +2098,26 @@
     showErrorDialog(err.message, err.detail);
   }
 
+  // Go errors wrap their causes as "context: context: cause". The last part says
+  // what went wrong. A very short last part reads better with the one before it,
+  // as in "lookup example.invalid: no such host".
+  function errorCause(detail) {
+    const parts = String(detail).split(': ');
+    if (parts.length < 2) return '';
+    let cause = parts[parts.length - 1];
+    if (cause.length < 20) cause = parts[parts.length - 2] + ': ' + cause;
+    return cause.charAt(0).toUpperCase() + cause.slice(1);
+  }
+
+  // A wrapped error shows its cause. The full chain stays one click away.
+  function errorDetailHtml(detail, id) {
+    const cause = errorCause(detail);
+    if (!cause) return '<pre class="error-detail" id="' + id + '">' + escHtml(detail) + '</pre>';
+    return '<div class="dialog-message error-cause" id="' + id + '-cause">' + escHtml(cause) + '</div>' +
+      '<details class="error-more" id="' + id + '-more"><summary id="' + id + '-more-toggle">Technical details</summary>' +
+      '<pre class="error-detail" id="' + id + '">' + escHtml(detail) + '</pre></details>';
+  }
+
   function showErrorDialog(message, detail) {
     consentRequestOpen = false;
     consentOverlay.classList.add('active');
@@ -2106,7 +2126,7 @@
       '<div class="dialog-message" id="error-message">' + escHtml(message) + '</div>';
 
     if (detail) {
-      html += '<pre class="error-detail" id="error-detail">' + escHtml(detail) + '</pre>';
+      html += errorDetailHtml(detail, 'error-detail');
     }
 
     html += '<div class="consent-buttons">' +
@@ -2258,8 +2278,8 @@
     }
 
     if (details.resolve_error) {
-      html += '<p class="dialog-hint" id="offer-resolve-error">Could not retrieve the offer. ' +
-        'Showing only its issuer. Approve to retry.</p>';
+      html += '<p class="dialog-message" id="offer-resolve-error">The wallet could not fetch the offer, so it does not know the issuer yet. Approve to try again.</p>' +
+        errorDetailHtml(details.resolve_error, 'offer-resolve-error-detail');
       return html;
     }
 
@@ -2458,8 +2478,8 @@
       let name, cid, chip = '', logoHtml = '';
       if (isIssuance) {
         const d = req.offer_details || {};
-        name = d.issuer_name || '';
-        cid = d.issuer || req.client_id || '';
+        name = d.resolve_error ? 'Offer not fetched' : (d.issuer_name || '');
+        cid = d.resolve_error ? (d.offer_uri || req.client_id || '') : (d.issuer || req.client_id || '');
         if (d.issuer_logo) {
           logoHtml = '<img class="who-logo" id="consent-who-logo" src="' + escHtml(d.issuer_logo) + '" alt="' + escHtml((name || 'Issuer') + ' logo') + '">';
         }
@@ -2617,7 +2637,8 @@
         'No credential matches <span class="query-chip" id="consent-unanswered-' + domID(qid) + '-query">' + escHtml(qid) + '</span>. ' +
         'Debug mode can send a non-matching one. Choose it under Edit.</div>';
     }
-    function candidateRowHtml(qid, c, i, multi) {
+    // A query with one possible answer shows its credential without a selector.
+    function candidateRowHtml(qid, c, i, multi, selectable) {
       const picked = selection.picks[qid].includes(c.credential_id);
       const nonMatching = !!(c.mismatches && c.mismatches.length);
       // Full credential details are needed to show claims beyond those requested.
@@ -2626,9 +2647,11 @@
         id: c.credential_id, format: c.format, vct: c.vct, doctype: c.doctype, claims: c.claims,
       }, 'candidate-' + escHtml(qid) + '-');
       const rowID = 'consent-candidate-' + escHtml(qid) + '-' + c.credential_id;
-      return '<div class="candidate' + (picked ? ' selected' : '') + (nonMatching ? ' nonmatching' : '') + '" id="consent-candidate-' + domID(qid) + '-' + c.credential_id + '" data-query="' + escHtml(qid) + '" data-cred="' + c.credential_id + '"' + (nonMatching ? ' data-non-matching="true"' : '') + ' tabindex="0" role="' + (multi ? 'checkbox' : 'radio') + '" aria-checked="' + picked + '" aria-label="' + escHtml(c.vct || c.doctype || c.format) + '">' +
+      const label = escHtml(c.vct || c.doctype || c.format);
+      return '<div class="candidate' + (picked ? ' selected' : '') + (nonMatching ? ' nonmatching' : '') + (selectable ? '' : ' fixed') + '" id="consent-candidate-' + domID(qid) + '-' + c.credential_id + '" data-query="' + escHtml(qid) + '" data-cred="' + c.credential_id + '"' + (nonMatching ? ' data-non-matching="true"' : '') +
+          (selectable ? ' tabindex="0" role="' + (multi ? 'checkbox' : 'radio') + '" aria-checked="' + picked + '" aria-label="' + label + '"' : '') + '>' +
         '<div class="candidate-row">' +
-          '<input type="' + (multi ? 'checkbox' : 'radio') + '" id="' + rowID + '-input" name="consent-pick-' + escHtml(qid) + '"' + (picked ? ' checked' : '') + ' tabindex="-1" aria-hidden="true">' +
+          (selectable ? '<input type="' + (multi ? 'checkbox' : 'radio') + '" id="' + rowID + '-input" name="consent-pick-' + escHtml(qid) + '"' + (picked ? ' checked' : '') + ' tabindex="-1" aria-hidden="true" aria-label="' + label + '">' : '') +
           '<div class="credential-card' + (detail && detail.batch ? ' batch' : '') + '">' + body.html + '</div>' +
           '<div class="candidate-actions">' +
             (!nonMatching && (multi || i === 0) ? '<span class="auto-chip" id="' + rowID + '-auto">auto</span>' : '') +
@@ -2677,16 +2700,17 @@
         const q = queryById(qid);
         // A query that sets multiple accepts any number of its candidates, at least one.
         const multi = !!q.multiple;
+        const others = q.non_matching || [];
+        const selectable = multi || q.candidates.length + others.length > 1;
         html += '<div class="consent-credential" id="consent-query-' + domID(qid) + '" data-query-id="' + domID(qid) + '"' +
-          (multi ? ' data-multiple="true" role="group" aria-label="Credentials answering ' : ' role="radiogroup" aria-label="Credential answering ') + escHtml(qid) + '">' +
+          (multi ? ' data-multiple="true" role="group" aria-label="Credentials answering ' : (selectable ? ' role="radiogroup"' : ' role="group"') + ' aria-label="Credential answering ') + escHtml(qid) + '">' +
           '<div class="consent-credential-header" id="consent-query-' + domID(qid) + '-header">' +
             '<span class="query-id-label" id="consent-query-' + domID(qid) + '-label">' + escHtml(qid) + '</span>' +
             '<span class="candidate-count" id="consent-query-' + domID(qid) + '-count">' + (q.candidates.length === 0 ? 'no credential matches' : q.candidates.length +
               (q.candidates.length === 1 ? ' credential matches' : ' of your credentials match')) +
               (multi ? ' · send one or more' : '') + '</span>' +
           '</div>';
-        q.candidates.forEach((c, i) => { html += candidateRowHtml(qid, c, i, multi); });
-        const others = q.non_matching || [];
+        q.candidates.forEach((c, i) => { html += candidateRowHtml(qid, c, i, multi, selectable); });
         if (others.length > 0) {
           // A picked non-matching credential, or no matching one, keeps the rows open.
           const forced = others.some(c => selection.picks[qid].includes(c.credential_id)) || q.candidates.length === 0;
@@ -2698,7 +2722,7 @@
             html += '<button type="button" class="link-btn consent-nonmatching-toggle" id="consent-show-nonmatching-' + domID(qid) + '" data-query="' + escHtml(qid) + '" aria-expanded="' + open + '">' +
               (open ? 'Hide ' : 'Show ') + nonMatchingLabel(others.length) + '</button>';
           }
-          if (open) others.forEach((c, i) => { html += candidateRowHtml(qid, c, i, multi); });
+          if (open) others.forEach((c, i) => { html += candidateRowHtml(qid, c, i, multi, selectable); });
         }
         html += '</div>';
       });
@@ -2739,7 +2763,7 @@
           renderDialog();
         });
       });
-      consentDialog.querySelectorAll('.candidate').forEach(el => {
+      consentDialog.querySelectorAll('.candidate:not(.fixed)').forEach(el => {
         const choose = () => {
           const qid = el.dataset.query;
           const picks = selection.picks[qid];
@@ -3078,19 +3102,8 @@
     try {
       const resp = await fetch('api/config');
       const config = await resp.json();
-      if (config.version) {
-        window.EUDI_VERSION = config.version;
-        document.getElementById('footer-version').textContent = 'eudi-dev ' + config.version;
-        const prerelease = /-(alpha|beta|rc)\b/i.exec(config.version);
-        if (prerelease) {
-          const label = document.getElementById('footer-prerelease');
-          label.textContent = { alpha: 'Alpha', beta: 'Beta', rc: 'Release candidate' }[prerelease[1].toLowerCase()];
-          label.hidden = false;
-        }
-      }
-      if (config.imprint) {
-        document.getElementById('imprint-link').hidden = false;
-      }
+      if (config.version) window.EUDI_VERSION = config.version;
+      window.eudiFooter(config);
       if (config.news_id) {
         showNews(config.news_id);
       }
@@ -3103,7 +3116,6 @@
       applyFormDefaults(config.form_defaults || {});
       demoMode = !!(config.demo && config.demo.enabled);
       protectedParties = new Set(config.protected_relying_parties || []);
-      document.getElementById('sponsor-info').hidden = !demoMode;
       renderAutoAccept(!!config.auto_accept);
       renderConformance(config);
       ['conf-mode-select', 'conf-tls-select', 'conf-haip-input', 'conf-arf-input', 'conf-encrypted-input', 'conf-vci-version-select', 'conf-key-attestation-select'].forEach((id) => {

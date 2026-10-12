@@ -16,6 +16,7 @@ package wallet
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -88,10 +89,16 @@ func (s *Server) handlePresentationAPI(w http.ResponseWriter, r *http.Request) {
 	parsed, err := oid4vp.ParseAuthorizationRequestWithOptions(body.URI, s.parseOpts)
 	if err != nil {
 		s.log("  ERROR: %v", err)
-		s.wallet.AddLog("presentation", fmt.Sprintf("Failed to parse request: %v", err), false)
+		message := "Failed to parse authorization request"
+		if errors.Is(err, oid4vc.ErrUnrecognizedInput) {
+			message = "Not an OpenID4VCI offer or OpenID4VP request"
+			s.wallet.AddLog("input", message, false)
+		} else {
+			s.wallet.AddLog("presentation", fmt.Sprintf("Failed to parse request: %v", err), false)
+		}
 		s.wallet.Consents().NotifyError(consent.Error{
 			Owner:   requestOwner(r),
-			Message: "Failed to parse authorization request",
+			Message: message,
 			Detail:  err.Error(),
 		})
 		s.triggerUIRequest("")

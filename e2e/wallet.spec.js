@@ -130,7 +130,7 @@ test.describe("Sponsor link outside demo mode", () => {
       await (await configLoaded).finished();
       // The page applies the config one task after the response arrives.
       await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 0)));
-      await expect(page.locator("#sponsor-info")).toBeHidden();
+      await expect(page.locator("#sponsor-link")).toBeHidden();
     });
   }
 });
