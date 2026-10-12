@@ -23,6 +23,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -902,14 +903,36 @@ func (d *DemoRP) handlePresentationResponse(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	vpToken, err := decryptResponse(req, r.PostForm)
+	response, err := authorizationResponse(req, r.PostForm)
+	if err != nil {
+		d.finishRequest(req, nil, nil, err)
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid_request"})
+		return
+	}
+	// §8.2: the Response URI answers 200 once it "has successfully processed
+	// the Authorization Response or Authorization Error Response". The page
+	// that created the request shows the error, so the wallet gets no
+	// redirect_uri.
+	if refusal, _ := response["error"].(string); refusal != "" {
+		message := "the wallet answered with the error " + refusal
+		if description, _ := response["error_description"].(string); description != "" {
+			message += ": " + description
+		}
+		d.finishRequest(req, nil, nil, errors.New(message))
+		writeJSON(w, http.StatusOK, map[string]string{})
+		return
+	}
+	vpToken, err := json.Marshal(response["vp_token"])
+	if err == nil && response["vp_token"] == nil {
+		err = fmt.Errorf("the response carried no vp_token")
+	}
 	if err != nil {
 		d.finishRequest(req, nil, nil, err)
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid_request"})
 		return
 	}
 
-	claims, checks, err := d.verifyPresentation(req, vpToken)
+	claims, checks, err := d.verifyPresentation(req, string(vpToken))
 	d.finishRequest(req, claims, checks, err)
 
 	writeJSON(w, http.StatusOK, map[string]string{
@@ -917,44 +940,37 @@ func (d *DemoRP) handlePresentationResponse(w http.ResponseWriter, r *http.Reque
 	})
 }
 
-// decryptResponse decrypts a direct_post.jwt response and returns the
-// vp_token. It checks the state inside the JWE, so a response for one request
-// cannot be posted to another.
-func decryptResponse(req *requestState, form url.Values) (string, error) {
-	encrypted := strings.TrimSpace(form.Get("response"))
-	if encrypted == "" {
-		return "", fmt.Errorf("the response carried no encrypted response parameter (direct_post.jwt was requested)")
+// authorizationResponse reads the parameters of a direct_post.jwt response.
+// OpenID4VP 1.0 §8.3.1 lets a wallet that cannot encrypt "send an error
+// response without encryption as per Section 8.2". It checks the state, so a
+// response for one request cannot be posted to another.
+func authorizationResponse(req *requestState, form url.Values) (map[string]any, error) {
+	params := map[string]any{}
+	switch encrypted := strings.TrimSpace(form.Get("response")); {
+	case encrypted != "":
+		if req.encKey == nil {
+			return nil, fmt.Errorf("this request has no response encryption key")
+		}
+		plaintext, err := wallet.DecryptCompactJWE(encrypted, req.encKey)
+		if err != nil {
+			return nil, fmt.Errorf("decrypting the response: %w", err)
+		}
+		if err := json.Unmarshal([]byte(plaintext), &params); err != nil {
+			return nil, fmt.Errorf("parsing the decrypted response: %w", err)
+		}
+	case form.Get("error") != "":
+		for _, name := range []string{"error", "error_description", "state"} {
+			if value := form.Get(name); value != "" {
+				params[name] = value
+			}
+		}
+	default:
+		return nil, fmt.Errorf("the response carried no encrypted response parameter (direct_post.jwt was requested)")
 	}
-	if req.encKey == nil {
-		return "", fmt.Errorf("this request has no response encryption key")
+	if state, _ := params["state"].(string); state != "" && state != req.id {
+		return nil, fmt.Errorf("the response is for a different request")
 	}
-
-	plaintext, err := wallet.DecryptCompactJWE(encrypted, req.encKey)
-	if err != nil {
-		return "", fmt.Errorf("decrypting the response: %w", err)
-	}
-
-	var payload struct {
-		VPToken any    `json:"vp_token"`
-		State   string `json:"state"`
-	}
-	if err := json.Unmarshal([]byte(plaintext), &payload); err != nil {
-		return "", fmt.Errorf("parsing the decrypted response: %w", err)
-	}
-	if payload.State != "" && payload.State != req.id {
-		return "", fmt.Errorf("the decrypted response is for a different request")
-	}
-	if payload.VPToken == nil {
-		return "", fmt.Errorf("the decrypted response carried no vp_token")
-	}
-
-	// verifyPresentation parses vp_token itself, so it is encoded again as
-	// received.
-	raw, err := json.Marshal(payload.VPToken)
-	if err != nil {
-		return "", fmt.Errorf("re-encoding the vp_token: %w", err)
-	}
-	return string(raw), nil
+	return params, nil
 }
 
 func (d *DemoRP) recordPresentation(req *requestState, presentation string) {

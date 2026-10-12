@@ -978,6 +978,75 @@ func TestVerifierWarnsWhenTheCredentialChainCarriesTheTrustAnchor(t *testing.T) 
 	}
 }
 
+// OpenID4VP 1.0 §8.2: the Response URI answers 200 to an Authorization Error
+// Response. The request fails with the wallet's error so the page shows it.
+func TestVerifierRecordsTheWalletErrorResponse(t *testing.T) {
+	for name, post := range map[string]func(t *testing.T, h http.Handler, id string) int{
+		"encrypted": func(t *testing.T, h http.Handler, id string) int {
+			pub, kid := responseEncryptionKey(t, fetchRequestObject(t, h, "/request/"+id))
+			body, err := json.Marshal(map[string]string{
+				"error":             "access_denied",
+				"error_description": "User denied presentation",
+				"state":             id,
+			})
+			if err != nil {
+				t.Fatalf("building error payload: %v", err)
+			}
+			jwe, _, err := wallet.EncryptJWE(body, pub, kid, "ECDH-ES", "A128GCM", nil, nil)
+			if err != nil {
+				t.Fatalf("encrypting error response: %v", err)
+			}
+			return postResponseForm(t, h, id, url.Values{"response": {jwe}})
+		},
+		// §8.3.1: "If a Wallet is unable to generate an encrypted response, it
+		// MAY send an error response without encryption as per Section 8.2."
+		"unencrypted": func(t *testing.T, h http.Handler, id string) int {
+			return postResponseForm(t, h, id, url.Values{
+				"error":             {"access_denied"},
+				"error_description": {"User denied presentation"},
+				"state":             {id},
+			})
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			d, _, _ := newDemoRP(t)
+			h := d.VerifierHandler()
+			id, _ := startVerification(t, h, "ticket")
+
+			if code := post(t, h, id); code != http.StatusOK {
+				t.Fatalf("error response = %d, want 200", code)
+			}
+			_, status := doJSON(t, h, "GET", "/api/requests/"+id, "", nil)
+			want := "the wallet answered with the error access_denied: User denied presentation"
+			if status["status"] != "failed" || status["error"] != want {
+				t.Fatalf("request = %v %v, want failed with %q", status["status"], status["error"], want)
+			}
+		})
+	}
+}
+
+// A response that is neither encrypted nor an error response is malformed.
+func TestVerifierRejectsAMalformedResponse(t *testing.T) {
+	d, _, _ := newDemoRP(t)
+	h := d.VerifierHandler()
+	id, _ := startVerification(t, h, "ticket")
+
+	if code := postResponseForm(t, h, id, url.Values{"vp_token": {"{}"}}); code != http.StatusBadRequest {
+		t.Fatalf("malformed response = %d, want 400", code)
+	}
+	_, status := doJSON(t, h, "GET", "/api/requests/"+id, "", nil)
+	if status["status"] != "failed" {
+		t.Fatalf("request status = %v, want failed", status["status"])
+	}
+}
+
+func postResponseForm(t *testing.T, h http.Handler, id string, form url.Values) int {
+	t.Helper()
+	code, _ := doJSON(t, h, "POST", "/response/"+id, form.Encode(),
+		map[string]string{"Content-Type": "application/x-www-form-urlencoded"})
+	return code
+}
+
 // Consume verification requests after use so captured responses cannot be replayed.
 func TestVerifierRejectsReplay(t *testing.T) {
 	d, _, holderKey := newDemoRP(t)

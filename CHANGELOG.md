@@ -5,6 +5,12 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.4] - 2026-10-12
+
+### Fixed
+
+- **Demo verifier error responses.** The demo verifier accepts a wallet's error response, such as `access_denied` when the user declines, and shows that error. It answered `invalid_request` before.
+
 ## [2.7.3] - 2026-10-12
 
 ### Changed

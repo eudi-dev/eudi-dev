@@ -219,6 +219,15 @@ test.describe("Demo mode consent visibility", () => {
     await expect(page.locator("#consent-overlay")).toHaveClass(/active/);
     await expect(page.locator("#consent-approve")).toBeVisible();
     await page.locator("#consent-deny").click();
+
+    // The wallet answers the denial with an OpenID4VP error response, which
+    // the demo verifier records.
+    await expect
+      .poll(async () => (await fetch(`${BASE}/verifier/api/requests/${req.id}`)).json())
+      .toMatchObject({
+        status: "failed",
+        error: "the wallet answered with the error access_denied: User denied presentation",
+      });
   });
 
   test("the verifier's registered purpose is shown in the consent dialog", async ({
