@@ -68,10 +68,12 @@ func audienceValues(raw any) any {
 
 // missingAudienceAdvisory warns about a signed Request Object without aud.
 // RFC 9101 §4: a signed Request Object "SHOULD contain the Claims iss
-// (issuer) and aud (audience)". §5.8 only constrains the value.
+// (issuer) and aud (audience)". §5.8 only constrains the value. The signed
+// Digital Credentials API example of OID4VP 1.0 Appendix A.3.2.1 has no aud,
+// so those requests get no warning.
 func missingAudienceAdvisory(params *Request) string {
 	reqObj := params.RequestObject
-	if reqObj == nil || reqObj.Payload == nil || IsInteractiveAuthorizationResponseMode(params.ResponseMode) {
+	if reqObj == nil || reqObj.Payload == nil || IsInteractiveAuthorizationResponseMode(params.ResponseMode) || IsDCAPIResponseMode(params.ResponseMode) {
 		return ""
 	}
 	if alg := jsonutil.GetString(reqObj.Header, "alg"); alg == "" || alg == "none" {

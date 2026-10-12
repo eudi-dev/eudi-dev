@@ -101,7 +101,7 @@ func claimFindings(label string, cqMap map[string]any) []string {
 	rawSets, hasSets := cqMap["claim_sets"]
 	if !hasClaims {
 		if hasSets {
-			return []string{fmt.Sprintf("OID4VP 1.0 §6.1: the credential query %q has claim_sets without claims", label)}
+			return []string{fmt.Sprintf("OID4VP 1.0 §6.4.1: the credential query %q has claim_sets without claims", label)}
 		}
 		return nil
 	}

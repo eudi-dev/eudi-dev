@@ -79,8 +79,8 @@ func (w *Wallet) evaluatePresentationRequest(authReq *oid4vp.Request, entry pres
 		w.Consents().NotifyError(consent.Error{Owner: entry.owner, Message: "Authorization request validation failed", Detail: err.Error()})
 		return presentationOutcome{invalid: err, invalidCode: oid4vp.RefusalCode(authReq)}
 	}
-	// An error response would need the same encryption, so the verifier gets
-	// no answer and the caller gets invalid_request.
+	// OID4VP 1.0 §8.3.1 lets the wallet send an unencrypted error response
+	// here ("MAY"). The wallet answers only its caller, with invalid_request.
 	if err := w.responseEncryptionError(authReq); err != nil {
 		w.AddLog(entry.action, err.Error(), false)
 		w.Consents().NotifyError(consent.Error{Owner: entry.owner, Message: "The response cannot be encrypted", Detail: err.Error()})

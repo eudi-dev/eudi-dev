@@ -469,13 +469,13 @@ func verifyAlgMatchesCert(reqObj *oid4vc.RequestObjectJWT) string {
 }
 
 // verifySuppliedX5CChain checks the validity period of every certificate in
-// x5c (RFC 5280 §4.1.2.5) and that each one certifies the one before it. A
+// x5c (RFC 5280 §6.1.3 (a)(2)) and that each one certifies the one before it. A
 // single certificate has no chain, so only its validity period applies.
 func verifySuppliedX5CChain(certs []*x509.Certificate) string {
 	now := time.Now()
 	for i, cert := range certs {
 		if now.Before(cert.NotBefore) || now.After(cert.NotAfter) {
-			return fmt.Sprintf("RFC 5280 §4.1.2.5: the Request Object x5c certificate at position %d (subject %q) is valid from %s to %s, so it is not valid now",
+			return fmt.Sprintf("RFC 5280 §6.1.3 (a)(2): the Request Object x5c certificate at position %d (subject %q) is valid from %s to %s, so it is not valid now",
 				i+1, cert.Subject.String(), cert.NotBefore.UTC().Format(time.RFC3339), cert.NotAfter.UTC().Format(time.RFC3339))
 		}
 	}

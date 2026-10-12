@@ -152,7 +152,7 @@ func singleCertRequest(t *testing.T, notBefore, notAfter time.Time) *Request {
 	}}
 }
 
-// RFC 5280 §4.1.2.5: a certificate is valid only from notBefore to notAfter.
+// RFC 5280 §6.1.3 (a)(2): a certificate is valid only from notBefore to notAfter.
 // That holds for a signer alone in x5c as much as for a chain.
 func TestX5CSignerMustBeWithinItsValidityPeriod(t *testing.T) {
 	now := time.Now()
@@ -170,10 +170,10 @@ func TestX5CSignerMustBeWithinItsValidityPeriod(t *testing.T) {
 			if err != nil {
 				t.Fatalf("debug mode refused the request: %v", err)
 			}
-			if !containsSubstring(findings, "RFC 5280 §4.1.2.5") {
+			if !containsSubstring(findings, "RFC 5280 §6.1.3 (a)(2)") {
 				t.Errorf("findings %v, want the validity period", findings)
 			}
-			if _, err := ValidateAuthorizationRequest(Checks{Strict: true}, req); err == nil || !strings.Contains(err.Error(), "RFC 5280 §4.1.2.5") {
+			if _, err := ValidateAuthorizationRequest(Checks{Strict: true}, req); err == nil || !strings.Contains(err.Error(), "RFC 5280 §6.1.3 (a)(2)") {
 				t.Errorf("strict mode: err = %v, want a refusal for the validity period", err)
 			}
 			if signed, _ := ClientAuthState(req); signed {
