@@ -641,6 +641,7 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
       <div class="consent-title" id="import-title">Import credential</div>
       <label class="dialog-hint" for="import-textarea" id="import-hint">SD-JWT VC, JWT VC or mdoc</label>
       <textarea id="import-textarea" class="form-input form-textarea import-textarea"></textarea>
+      <div class="form-error" id="import-error" role="alert"></div>
       <div class="consent-buttons">
         <button class="btn" id="import-cancel">Cancel</button>
         <button class="btn btn-primary" id="import-submit">Import</button>

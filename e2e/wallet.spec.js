@@ -1230,7 +1230,6 @@ test.describe("Stored XSS", () => {
 
 test("EUDI offer scheme reports missing offer parameters through issuance", async ({ page }) => {
   await page.goto(WALLET_URL);
-  page.on("dialog", (dialog) => dialog.dismiss());
   await page.locator("#offer-input").fill("eu-eaa-offer://");
   const responsePromise = page.waitForResponse((response) =>
     response.request().method() === "POST" &&
@@ -1243,6 +1242,22 @@ test("EUDI offer scheme reports missing offer parameters through issuance", asyn
   const body = await response.json();
   expect(body.error).toBe("invalid_request");
   expect(body.error_description).toContain("credential_offer");
+  await expect(page.locator("#consent-overlay")).toHaveClass(/active/);
+  await expect(page.locator("#error-message")).toContainText("credential_offer");
+});
+
+test("a credential that can't be imported shows the reason in the import dialog", async ({ page }) => {
+  await page.goto(WALLET_URL);
+  await page.locator("#import-btn").click();
+  await expect(page.locator("#import-overlay")).toHaveClass(/active/);
+  await page.locator("#import-textarea").fill("not a credential");
+  await page.locator("#import-submit").click();
+  await expect(page.locator("#import-error")).toContainText("Import failed");
+  await expect(page.locator("#import-overlay")).toHaveClass(/active/);
+
+  await page.locator("#import-cancel").click();
+  await page.locator("#import-btn").click();
+  await expect(page.locator("#import-error")).toBeEmpty();
 });
 
 test.describe("Mobile layout", () => {
@@ -1920,8 +1935,7 @@ test.describe("Verifier redirect after an error response", () => {
   test("a request nothing matches continues at the verifier", async ({ page, request }) => {
     await request.put(`${WALLET_URL}/api/config/conformance`, { data: { validation_mode: "strict", require_haip: false } });
     try {
-      page.on("dialog", (dialog) => dialog.dismiss());
-      await page.goto(WALLET_URL);
+          await page.goto(WALLET_URL);
       await page.locator("#offer-input").fill(requestFor("urn:nobody:holds:this"));
       await page.locator("#process-btn").click();
 

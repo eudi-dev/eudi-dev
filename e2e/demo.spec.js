@@ -444,7 +444,6 @@ test.describe("Demo mode consent visibility", () => {
   test("the tab that started the failing flow does see the error", async ({
     page,
   }) => {
-    page.on("dialog", (d) => d.dismiss().catch(() => {}));
     await page.goto(`${BASE}/?focus=overview`);
 
     await page
@@ -546,9 +545,6 @@ test.describe("Demo mode consent visibility", () => {
   test("the Process button opens the consent dialog for a pasted request", async ({ page }) => {
     await page.goto(BASE);
     await expect(page.locator("#demo-note")).toBeVisible();
-
-    // Late submission errors can race page teardown and fail the worker.
-    page.on("dialog", (d) => d.dismiss().catch(() => {}));
 
     const req = await createVerificationRequest();
     await page.locator("#offer-input").fill(req.schemeURI);
@@ -757,7 +753,8 @@ test.describe("Verifier request types", () => {
     await expect(page.locator("#consent-overlay")).toHaveClass(/active/);
 
     await denyAtVerifier(page);
-    await expect(page.locator("#status")).toHaveText(/^✗ The wallet declined: access_denied/, { timeout: 15000 });
+    await expect(page.locator("#status")).toHaveAttribute("data-status", "declined", { timeout: 15000 });
+    await expect(page.locator("#status")).toHaveText(/^✗ The wallet declined: access_denied/);
     await expect(page.locator("#credential-pid")).toHaveAttribute("aria-checked", "true");
   });
 
@@ -770,7 +767,7 @@ test.describe("Verifier request types", () => {
     const uri = await page.locator("#scheme-uri").textContent();
     expect((await postJSON("/api/presentations", { uri })).status).toBe(200);
 
-    await expect(page.locator("#status")).toHaveText(/^✓ Presentation verified/, { timeout: 15000 });
+    await expect(page.locator("#status")).toHaveAttribute("data-status", "verified", { timeout: 15000 });
     await page.locator("#checks-passed-summary").click();
     const groups = page.locator("#checks-passed .check-group");
     expect(await groups.count()).toBeGreaterThanOrEqual(2);

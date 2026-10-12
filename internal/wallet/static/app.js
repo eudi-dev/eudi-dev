@@ -663,13 +663,13 @@
       });
       if (!resp.ok) {
         const result = await resp.json().catch(() => ({}));
-        alert('Setting status failed: ' + apiErrorText(result, resp));
+        showErrorDialog('Setting the status failed.', apiErrorText(result, resp));
         return;
       }
       await loadCredentials();
       await loadLog();
     } catch (e) {
-      alert('Setting status failed: ' + e.message);
+      showErrorDialog('Setting the status failed.', e.message);
     }
   }
 
@@ -734,23 +734,26 @@
       const result = await resp.json();
       if (followVerifierRedirect(result)) return;
       if (result.error) {
-        alert('Error: ' + (result.error_description || result.error));
+        showErrorDialog(result.error_description || result.error);
       } else {
         offerInput.value = '';
         await loadCredentials();
         await loadLog();
       }
     } catch (e) {
-      alert('Request failed: ' + e.message);
+      showErrorDialog('The request failed.', e.message);
     } finally {
       processBtn.disabled = false;
       processBtn.textContent = 'Process';
     }
   });
 
+  const importError = document.getElementById('import-error');
+
   importBtn.addEventListener('click', () => {
     importOverlay.classList.add('active');
     importTextarea.value = '';
+    importError.textContent = '';
     importTextarea.focus();
   });
 
@@ -769,13 +772,13 @@
       });
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
-        alert('Import failed: ' + apiErrorText(err, resp));
+        importError.textContent = 'Import failed: ' + apiErrorText(err, resp);
         return;
       }
       importOverlay.classList.remove('active');
       await loadCredentials();
     } catch (e) {
-      alert('Import failed: ' + e.message);
+      importError.textContent = 'Import failed: ' + e.message;
     }
   });
 

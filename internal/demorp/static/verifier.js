@@ -87,6 +87,7 @@ function renderResult(doc) {
   const warnings = items.filter((it) => it.kind === "warn");
   const status = document.getElementById("status");
   status.className = "status " + doc.status;
+  status.dataset.status = doc.status;
   if (doc.status === "verified") {
     let text = "✓ Presentation verified, " + passed.length + (passed.length === 1 ? " check passed" : " checks passed");
     if (warnings.length) text += ", " + warnings.length + (warnings.length === 1 ? " warning" : " warnings");
