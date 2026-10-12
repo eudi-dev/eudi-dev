@@ -398,7 +398,7 @@ func parityCases() []parityCase {
 				t.Fatal(err)
 			}
 			stored := result.RelyingParty
-			return []any{len(stored.Services[0].IntendedUses), stored.Services[0].ProvidesAttestations[0].Type, strings.Contains(result.Registration.IssuerInfo, "registrar_dataset")}
+			return []any{len(stored.Services[0].IntendedUses), stored.Services[0].ProvidesAttestations[0].Type, strings.Contains(result.Registration.IssuerInfo, "registration_cert")}
 		}},
 		{method: "RegistrationCertificateViews", observe: func(t *testing.T, s walletService) any {
 			rp := registerParityRelyingParty(t, s)

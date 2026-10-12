@@ -142,7 +142,7 @@ func (r *Registrar) IssueRegistrationCertificate(req RegistrationCertificateRequ
 	if err != nil {
 		return nil, err
 	}
-	return certificateResult(rp, key, signed)
+	return certificateResult(key, signed)
 }
 
 // CurrentRegistrationCertificate returns the newest certificate for the
@@ -169,7 +169,7 @@ func (r *Registrar) CurrentRegistrationCertificate(req RegistrationCertificateRe
 		result, err := r.IssueRegistrationCertificate(req)
 		return result, err == nil, err
 	}
-	result, err := certificateResult(rp, key, current)
+	result, err := certificateResult(key, current)
 	return result, false, err
 }
 
@@ -209,17 +209,15 @@ func (r *Registrar) certificateSubject(req RegistrationCertificateRequest) (Wall
 
 // certificateResult wraps a verifier's certificate in verifier_info and a
 // provider's certificate in issuer_info (ARF RPRC_22).
-func certificateResult(rp WalletRelyingParty, key certificateKey, signed string) (*RegistrationCertificateResult, error) {
+func certificateResult(key certificateKey, signed string) (*RegistrationCertificateResult, error) {
 	if key.intendedUse != "" {
-		service, use, _ := findIntendedUse(rp, "", key.intendedUse)
-		info, err := VerifierInfoValue(verifierRegistrarDataset(rp, service, use), signed)
+		info, err := VerifierInfoValue(signed)
 		if err != nil {
 			return nil, err
 		}
 		return &RegistrationCertificateResult{RegistrationCertificate: signed, VerifierInfo: info}, nil
 	}
-	service, _ := serviceByIdentifier(rp, key.service)
-	info, err := IssuerInfoValue(RegistrarDatasetFor(rp, service), signed)
+	info, err := IssuerInfoValue(signed)
 	if err != nil {
 		return nil, err
 	}
@@ -284,45 +282,23 @@ func ProviderCertificateContent(rp WalletRelyingParty, service WalletRelyingPart
 	return content
 }
 
-// RegistrarDatasetFor is the registrar_dataset entry of issuer_info (ETSI TS 119
-// 472-3 V1.1.1 §4.2.3). It sits next to the registration certificate.
-func RegistrarDatasetFor(rp WalletRelyingParty, service WalletRelyingPartyService) RegistrarDataset {
-	return RegistrarDataset{
-		Identifier:           rp.Identifier,
-		SrvDescription:       service.SrvDescription.Strings(),
-		RegistryURI:          rp.RegistryURI,
-		ProvidesAttestations: service.ProvidesAttestations,
-	}
+// IssuerInfoValue builds the issuer_info array. One element "shall contain the
+// PID/EAA Provider's registration certificate" (ETSI TS 119 472-3 V1.1.1
+// ISS-MDATA-REG_CERT-4.2.3-04 as adapted by CIR (EU) 2026/1731 Annex XI), and
+// its data "shall be the registration certificate" itself (-06).
+func IssuerInfoValue(registrationCertificate string) (string, error) {
+	return infoValue("issuer_info", IssuerInfoEntry{Format: "registration_cert", Data: registrationCertificate})
 }
 
-// IssuerInfoValue builds the issuer_info array of ETSI TS 119 472-3 V1.1.1
-// §4.2.3: the registrar dataset and the registration certificate, whose data
-// "shall be the registration certificate" itself (ISS-MDATA-REG_CERT-4.2.3-06).
-func IssuerInfoValue(dataset RegistrarDataset, registrationCertificate string) (string, error) {
-	return infoValue("issuer_info", IssuerInfoEntry{Format: "registrar_dataset", Data: dataset}, IssuerInfoEntry{Format: "registration_cert", Data: registrationCertificate})
-}
-
-// verifierRegistrarDataset is the registrar_dataset entry of verifier_info
-// (ETSI TS 119 472-2 V1.3.1 §6.3.2.2) for an intended use.
-func verifierRegistrarDataset(rp WalletRelyingParty, service WalletRelyingPartyService, use IntendedUse) VerifierRegistrarDataset {
-	return VerifierRegistrarDataset{
-		Identifier:            rp.Identifier,
-		SrvDescription:        service.SrvDescription.Strings(),
-		RegistryURI:           rp.RegistryURI,
-		IntendedUseIdentifier: use.IntendedUseIdentifier,
-		Purpose:               use.Purpose,
-		PolicyURI:             privacyPolicyURI(use),
-	}
-}
-
-// VerifierInfoValue builds the verifier_info array of OpenID4VP 1.0 §5.1 as
-// ETSI TS 119 472-2 V1.3.1 §6.3.2.2 profiles it: the registration certificate
-// and the registrar dataset. RO-16 makes the data "the base64url encoding of
-// the serialized RP registration certificate", which for a JWT is its compact
-// serialization (RFC 7519 §1). Base64url omits the padding (RFC 7515 §2).
-func VerifierInfoValue(dataset VerifierRegistrarDataset, registrationCertificate string) (string, error) {
+// VerifierInfoValue builds the verifier_info array of OpenID4VP 1.0 §5.1. One
+// element "shall include the registration certificate" (ETSI TS 119 472-2
+// OIDFVP-HAIP-COMMON-REQ-RO-13 as adapted by CIR (EU) 2026/1731 Annex XII).
+// RO-16 makes the data "the base64url encoding of the serialized RP
+// registration certificate", which for a JWT is its compact serialization
+// (RFC 7519 §1). Base64url omits the padding (RFC 7515 §2).
+func VerifierInfoValue(registrationCertificate string) (string, error) {
 	data := base64.RawURLEncoding.EncodeToString([]byte(registrationCertificate))
-	return infoValue("verifier_info", IssuerInfoEntry{Format: "registration_cert", Data: data}, IssuerInfoEntry{Format: "registrar_dataset", Data: dataset})
+	return infoValue("verifier_info", IssuerInfoEntry{Format: "registration_cert", Data: data})
 }
 
 func infoValue(name string, entries ...IssuerInfoEntry) (string, error) {

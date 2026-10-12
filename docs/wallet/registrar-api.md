@@ -146,22 +146,11 @@ curl -s -X POST localhost:8085/api/registrar/registration-certificates -H 'Conte
 ```json
 {
   "registrationCertificate": "eyJhbGciOiJFUzI1NiIsImlh...",
-  "verifierInfo": "[{\"format\":\"registration_cert\",\"data\":\"ZXlKaGJHY2lPaUpGVXpJ...\"},{\"format\":\"registrar_dataset\",\"data\":{...}}]"
+  "verifierInfo": "[{\"format\":\"registration_cert\",\"data\":\"ZXlKaGJHY2lPaUpGVXpJ...\"}]"
 }
 ```
 
-`verifierInfo` is a JSON string. Its content is the value of the `verifier_info` request parameter (OpenID4VP 1.0 §5.1). It has two elements. The `registration_cert` holds the base64url encoding of the certificate (ETSI TS 119 472-2 V1.3.1 RO-16). The `registrar_dataset` holds the registered data of the intended use (ETSI TS 119 472-2 V1.3.1 §6.3.2.2):
-
-```json
-{
-  "identifier": [{ "identifier": "NLTEST.79AA013C47925C7B", "type": "http://data.europa.eu/eudi/id/EUID" }],
-  "srvDescription": [{ "lang": "en", "content": "Example Shop" }],
-  "registryURI": "https://localhost:8086/api/registrar/wrp/NLTEST.79AA013C47925C7B",
-  "intendedUseIdentifier": "age-check",
-  "purpose": [{ "lang": "en", "content": "Check that you are of age" }],
-  "policyURI": "https://localhost:8086/privacy-policy"
-}
-```
+`verifierInfo` is a JSON string. Its content is the value of the `verifier_info` request parameter (OpenID4VP 1.0 §5.1). It has one `registration_cert` element (ETSI TS 119 472-2 RO-13 as adapted by CIR (EU) 2026/1731 Annex XII). Its data is the base64url encoding of the certificate (RO-16).
 
 The payload of the certificate (ETSI TS 119 475 V1.2.1, typ `rc-wrp+jwt`) looks like this:
 
@@ -316,21 +305,10 @@ curl -s -X POST localhost:8085/api/registrar/registration-certificates -H 'Conte
   -d "{\"identifier\": \"$ID\", \"serviceIdentifier\": \"diplomas\"}" > issuer-registration.json
 ```
 
-The answer has `registrationCertificate` and `issuerInfo`. `issuerInfo` is a JSON string with the `issuer_info` array (ETSI TS 119 472-3 V1.1.1 §4.2.3):
+The answer has `registrationCertificate` and `issuerInfo`. `issuerInfo` is a JSON string with the `issuer_info` array. It has one `registration_cert` element with the plain JWT (ETSI TS 119 472-3 V1.1.1 ISS-MDATA-REG_CERT-4.2.3-04 as adapted by CIR (EU) 2026/1731 Annex XI):
 
 ```json
-[
-  {
-    "format": "registrar_dataset",
-    "data": {
-      "identifier": [{ "identifier": "NLTEST.4D1BB6AFA1D92DE9", "type": "http://data.europa.eu/eudi/id/EUID" }],
-      "srvDescription": [{ "lang": "en", "content": "Example University" }],
-      "registryURI": "https://localhost:8086/api/registrar/wrp/NLTEST.4D1BB6AFA1D92DE9",
-      "providesAttestations": [{ "format": "dc+sd-jwt", "type": "urn:example:diploma:1" }]
-    }
-  },
-  { "format": "registration_cert", "data": "eyJhbGciOiJFUzI1NiIsImlh..." }
-]
+[{ "format": "registration_cert", "data": "eyJhbGciOiJFUzI1NiIsImlh..." }]
 ```
 
 The certificate has `entitlements` and `provides_attestations` instead of an intended use:

@@ -166,7 +166,7 @@ These endpoints are available on both wallet ports.
 | `POST` | `/api/trust/lists` | Put an external list on the list of trusted lists: `url` |
 | `DELETE` | `/api/trust/lists?url=<url>` | Take an external list off |
 
-Issuer metadata is JSON by default. An `Accept` header that ranks `application/jwt` above `application/json` selects metadata signed with the access certificate key. Its `issuer_info` holds the registrar dataset and the registration certificate of the [demo issuer](registrar.md#demo-issuer-and-verifier). If you revoke that certificate in the registrar, the next metadata carries a new one.
+Issuer metadata is JSON by default. An `Accept` header that ranks `application/jwt` above `application/json` selects metadata signed with the access certificate key. Its `issuer_info` holds the registration certificate of the [demo issuer](registrar.md#demo-issuer-and-verifier). If you revoke that certificate in the registrar, the next metadata carries a new one.
 
 Trusted lists contain service certificates and provider CAs. A separate list operator key signs them. History preserves each published JWT. Changed content or an expired instance advances the sequence number. See [trusted lists](serve.md#trusted-lists) for the list IDs, added providers and lists, and discovery.
 

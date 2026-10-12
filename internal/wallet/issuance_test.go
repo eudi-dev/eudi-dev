@@ -30,6 +30,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vc"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/regcert"
 )
 
 func TestResolveCredentialIdentifier_FromAuthDetails(t *testing.T) {
@@ -483,30 +484,17 @@ func TestParseIssuerMetadataResponse_SignedJWT(t *testing.T) {
 		t.Fatalf("expected credential_issuer %s, got %v", w.IssuerURL, metadata["credential_issuer"])
 	}
 
-	issuerInfo, ok := metadata["issuer_info"].([]any)
-	if !ok || len(issuerInfo) != 2 {
-		t.Fatalf("expected two issuer_info entries, got %v", metadata["issuer_info"])
+	registrations, problems := regcert.Verify(regcert.InfoEntries(metadata, "issuer_info"))
+	if len(registrations) != 1 || len(problems) != 0 {
+		t.Fatalf("issuer_info %v, want one registration certificate (problems %v)", metadata["issuer_info"], problems)
 	}
-	entry, ok := issuerInfo[0].(map[string]any)
-	if !ok {
-		t.Fatalf("expected issuer_info object, got %T", issuerInfo[0])
+	cert := registrations[0].Claims
+	if want := "NTRNL-" + ownProviderIdentifier(t, w); cert["sub"] != want {
+		t.Fatalf("registration certificate sub %v, want %s", cert["sub"], want)
 	}
-	if entry["format"] != "registrar_dataset" {
-		t.Fatalf("expected registrar_dataset issuer_info, got %v", entry["format"])
-	}
-	record, ok := entry["data"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected issuer_info data object, got %T", entry["data"])
-	}
-	if want := w.IssuerURL + "/api/registrar/wrp/" + ownProviderIdentifier(t, w); record["registryURI"] != want {
-		t.Fatalf("expected registryURI %s, got %v", want, record["registryURI"])
-	}
-	provided := map[string]bool{}
-	for _, entry := range record["providesAttestations"].([]any) {
-		provided[entry.(map[string]any)["type"].(string)] = true
-	}
-	if !provided[mock.DefaultPIDVCT] || !provided[mock.PIDNamespace] {
-		t.Fatalf("providesAttestations %v, want the PID types", record["providesAttestations"])
+	provided := regcert.ProvidedAttestations(cert)
+	if !regcert.Provides(provided, "dc+sd-jwt", []string{mock.DefaultPIDVCT}) || !regcert.Provides(provided, "mso_mdoc", []string{mock.PIDNamespace}) {
+		t.Fatalf("provides_attestations %v, want the PID types", cert["provides_attestations"])
 	}
 }
 

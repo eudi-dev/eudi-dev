@@ -25,15 +25,10 @@ func TestIssuerProfileMetadata(t *testing.T) {
 		t.Fatal(code)
 	}
 	info, ok := unsigned["issuer_info"].([]any)
-	if !ok || len(info) != 2 {
-		t.Fatal("issuer metadata has no registrar information")
+	if !ok || len(info) != 1 {
+		t.Fatalf("issuer_info %v, want the registration certificate", unsigned["issuer_info"])
 	}
-	dataset := info[0].(map[string]any)["data"].(map[string]any)
-	identifier := dataset["identifier"].([]any)[0].(map[string]any)["identifier"]
-	if dataset["registryURI"] != w.RegistrarBase()+"/api/registrar/wrp/"+identifier.(string) {
-		t.Errorf("registrar URL = %v", dataset["registryURI"])
-	}
-	registration := info[1].(map[string]any)
+	registration := info[0].(map[string]any)
 	if registration["format"] != "registration_cert" {
 		t.Fatal("issuer metadata has no registration certificate")
 	}
@@ -55,6 +50,9 @@ func TestIssuerProfileMetadata(t *testing.T) {
 	}
 	if registered["sub"] != "NTRNL-NLTEST.00000000" || registered["provides_attestations"] == nil {
 		t.Fatal("registration certificate does not identify the provider and its credentials")
+	}
+	if want := w.RegistrarBase() + "/api/registrar/wrp/NLTEST.00000000"; registered["registry_uri"] != want {
+		t.Errorf("registry_uri %v, want %s", registered["registry_uri"], want)
 	}
 	configs := unsigned["credential_configurations_supported"].(map[string]any)
 	for id, config := range configs {

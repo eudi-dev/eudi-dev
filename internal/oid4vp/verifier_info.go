@@ -89,7 +89,7 @@ func ARFFindings(authReq *Request) []string {
 	}
 	switch count := len(registrations) + len(problems); {
 	case count == 0:
-		findings = append(findings, "ARF RPRC_17 and RPRC_19: the request carries no registration certificate (typ rc-wrp+jwt) in verifier_info")
+		findings = append(findings, "ARF RPRC_17 and RPRC_19 and ETSI TS 119 472-2 OIDFVP-HAIP-COMMON-REQ-RO-13 as adapted by CIR (EU) 2026/1731 Annex XII: the request carries no registration certificate (typ rc-wrp+jwt) in verifier_info")
 	case count > 1:
 		findings = append(findings, fmt.Sprintf("ARF RPRC_19: the request carries %d registration certificates. It must carry exactly one", count))
 	}

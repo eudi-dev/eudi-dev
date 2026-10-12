@@ -265,8 +265,8 @@ func (r *Registrar) RegistrationCertificateViews(identifier string) []Registrati
 	views := make([]RegistrationStatusView, 0, len(statuses))
 	for _, s := range statuses {
 		view := RegistrationStatusView{RegistrationStatus: s}
-		if rp, ok := r.RelyingParty(s.Identifier); ok && s.Certificate != "" {
-			if result, err := certificateResult(rp, statusKey(s), s.Certificate); err == nil {
+		if s.Certificate != "" {
+			if result, err := certificateResult(statusKey(s), s.Certificate); err == nil {
 				view.VerifierInfo, view.IssuerInfo = result.VerifierInfo, result.IssuerInfo
 			}
 		}

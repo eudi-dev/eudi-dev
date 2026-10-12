@@ -157,7 +157,7 @@ func (w *Wallet) registerDemoParties(overwrite bool) (bool, error) {
 }
 
 // DemoIssuerInfo is the issuer_info of the demo issuer (ETSI TS 119 472-3
-// V1.1.1 §4.2.3): its registrar dataset and its registration certificate.
+// V1.1.1 §4.2.3): its registration certificate.
 func (w *Wallet) DemoIssuerInfo() ([]any, error) {
 	result, err := w.demoCertificate(w.demoIssuerRegistration, registrar.RegistrationCertificateRequest{ServiceIdentifier: demoIssuer().Services[0].ServiceIdentifier})
 	if err != nil || result == nil {

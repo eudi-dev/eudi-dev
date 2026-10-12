@@ -77,13 +77,28 @@ func arfIssuerFindings(checking *Wallet, metadata map[string]any, chain []*x509.
 	return checking.issuerARFCheck(metadata, chain, []string{"offered"})
 }
 
+// One element of issuer_info contains the registration certificate (ETSI TS
+// 119 472-3 V1.1.1 ISS-MDATA-REG_CERT-4.2.3-04 as adapted by CIR (EU)
+// 2026/1731 Annex XI). The wallet ignores other elements, such as a
+// registrar_dataset.
 func TestARFAcceptsARegisteredIssuer(t *testing.T) {
 	w := generateTestWallet(t)
 	rp := registerTestIssuer(t, w, registrar.NonQEAAProviderEntitlement)
 	key, chain := issueTestAccessCertificate(t, w, rp.Identifier[0].Identifier)
-	metadata, signer := signedTestIssuerMetadata(t, key, chain, "dc+sd-jwt", testDiplomaVCT, issueTestIssuerInfo(t, w, rp).IssuerInfo)
-	if got := arfIssuerFindings(w, metadata, signer); len(got) != 0 {
-		t.Fatalf("findings %v", got)
+	info := issueTestIssuerInfo(t, w, rp).IssuerInfo
+	var entries []map[string]any
+	if err := json.Unmarshal([]byte(info), &entries); err != nil {
+		t.Fatal(err)
+	}
+	withDataset, err := json.Marshal(append(entries, map[string]any{"format": "registrar_dataset", "data": map[string]any{"registryURI": "https://registrar.example"}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, info := range map[string]string{"registration_cert only": info, "with a registrar_dataset": string(withDataset)} {
+		metadata, signer := signedTestIssuerMetadata(t, key, chain, "dc+sd-jwt", testDiplomaVCT, info)
+		if got := arfIssuerFindings(w, metadata, signer); len(got) != 0 {
+			t.Errorf("%s: findings %v", name, got)
+		}
 	}
 }
 
@@ -107,7 +122,7 @@ func TestARFChecksHowAnIssuerAuthenticates(t *testing.T) {
 		{"no registration certificate", func() []string {
 			metadata, chain := signedTestIssuerMetadata(t, eaaKey, eaaChain, "dc+sd-jwt", testDiplomaVCT, "")
 			return arfIssuerFindings(w, metadata, chain)
-		}, "ARF RPRC_22a: the issuer metadata carries no registration certificate"},
+		}, "ARF RPRC_22a and ETSI TS 119 472-3 V1.1.1 ISS-MDATA-REG_CERT-4.2.3-04 as adapted by CIR (EU) 2026/1731 Annex XI: the issuer metadata carries no registration certificate"},
 		{"an unregistered attestation type", func() []string {
 			metadata, chain := signedTestIssuerMetadata(t, eaaKey, eaaChain, "dc+sd-jwt", "urn:example:other", eaaInfo)
 			return arfIssuerFindings(w, metadata, chain)
@@ -158,7 +173,7 @@ func TestARFRefusesAnIssuerRegistrationFromTheAccessCA(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	info, err := registrar.IssuerInfoValue(registrar.RegistrarDatasetFor(rp, rp.Services[0]), forged)
+	info, err := registrar.IssuerInfoValue(forged)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -301,10 +316,9 @@ func TestSignedMetadataIsServedWhenPreferred(t *testing.T) {
 	}
 }
 
-// issuer_info holds the registration certificate as registration_cert and a
-// registrar_dataset with the provider's registration information (ETSI TS
-// 119 472-3 V1.1.1 §4.2.3).
-func TestIssuerInfoNeedsBothElements(t *testing.T) {
+// The registration certificate in issuer_info has the format
+// registration_cert (ETSI TS 119 472-3 V1.1.1 ISS-MDATA-REG_CERT-4.2.3-05).
+func TestIssuerInfoNamesTheRegistrationCertificateFormat(t *testing.T) {
 	w := generateTestWallet(t)
 	rp := registerTestIssuer(t, w, registrar.NonQEAAProviderEntitlement)
 	result := issueTestIssuerInfo(t, w, rp)
@@ -312,25 +326,9 @@ func TestIssuerInfoNeedsBothElements(t *testing.T) {
 	if got := issuerInfoShapeFindings(entries); len(got) != 0 {
 		t.Fatalf("findings %v for the registrar's issuer_info, want none", got)
 	}
-	certificate := entries[1]
-	certificate["format"] = "jwt"
-	for name, tc := range map[string]struct {
-		entries []map[string]any
-		want    []string
-	}{
-		"no registrar_dataset":   {[]map[string]any{entries[1]}, []string{"4.2.3-05", "4.2.3-07"}},
-		"dataset not an object":  {[]map[string]any{{"format": "registrar_dataset", "data": "identifier"}}, []string{"4.2.3-09"}},
-		"empty members":          {[]map[string]any{{"format": "registrar_dataset", "data": map[string]any{"identifier": "", "srvDescription": []any{}, "registryURI": "https://registrar.example", "providesAttestations": []any{}}}}, []string{"4.2.3-10", "4.2.3-11", "4.2.3-13"}},
-		"no registryURI or more": {[]map[string]any{{"format": "registrar_dataset", "data": map[string]any{"identifier": []any{}}}}, []string{"4.2.3-11", "4.2.3-12", "4.2.3-13"}},
-	} {
-		t.Run(name, func(t *testing.T) {
-			got := issuerInfoShapeFindings(tc.entries)
-			for _, want := range tc.want {
-				if !containsSubstring(got, want) {
-					t.Errorf("findings %v, want %s", got, want)
-				}
-			}
-		})
+	entries[0]["format"] = "jwt"
+	if got := issuerInfoShapeFindings(entries); !containsSubstring(got, "4.2.3-05") {
+		t.Errorf("findings %v, want 4.2.3-05", got)
 	}
 }
 

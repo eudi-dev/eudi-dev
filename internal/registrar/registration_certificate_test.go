@@ -57,41 +57,22 @@ func issueTestRegistrationCertificate(t *testing.T, w *testWallet, rp WalletRely
 	return result
 }
 
-// ETSI TS 119 472-2 V1.3.1 §6.3.2.2: verifier_info carries the base64url
-// encoding of the compact registration certificate (RO-16) and a
-// registrar_dataset with the registered data of the intended use (RO-04 to
-// RO-11). The status list shows the same value.
-func TestVerifierInfoCarriesTheRegistrarDataset(t *testing.T) {
+// verifier_info carries the registration certificate (ETSI TS 119 472-2
+// OIDFVP-HAIP-COMMON-REQ-RO-13 as adapted by CIR (EU) 2026/1731 Annex XII) as
+// the base64url encoding of the compact JWT (RO-16). The status list shows the
+// same value.
+func TestVerifierInfoCarriesTheRegistrationCertificate(t *testing.T) {
 	w := generateTestWallet(t)
 	rp := registerTestRelyingParty(t, w)
 	result := issueTestRegistrationCertificate(t, w, rp)
-	use := rp.Services[0].IntendedUses[0]
 
-	var info []struct {
-		Format string          `json:"format"`
-		Data   json.RawMessage `json:"data"`
+	var info []IssuerInfoEntry
+	if err := json.Unmarshal([]byte(result.VerifierInfo), &info); err != nil {
+		t.Fatalf("verifier_info %s: %v", result.VerifierInfo, err)
 	}
-	if err := json.Unmarshal([]byte(result.VerifierInfo), &info); err != nil || len(info) != 2 {
-		t.Fatalf("verifier_info %s (%v), want two elements", result.VerifierInfo, err)
-	}
-	var certificate string
-	var dataset VerifierRegistrarDataset
-	if info[0].Format != "registration_cert" || json.Unmarshal(info[0].Data, &certificate) != nil || certificate != base64.RawURLEncoding.EncodeToString([]byte(result.RegistrationCertificate)) {
-		t.Errorf("first element %s %s, want the registration certificate", info[0].Format, info[0].Data)
-	}
-	if info[1].Format != "registrar_dataset" || json.Unmarshal(info[1].Data, &dataset) != nil {
-		t.Fatalf("second element %s %s, want the registrar dataset", info[1].Format, info[1].Data)
-	}
-	want := VerifierRegistrarDataset{
-		Identifier:            rp.Identifier,
-		SrvDescription:        []MultiLangString{{Lang: "en", Content: "Example Shop"}},
-		RegistryURI:           rp.RegistryURI,
-		IntendedUseIdentifier: use.IntendedUseIdentifier,
-		Purpose:               use.Purpose,
-		PolicyURI:             "https://wallet.example/privacy-policy",
-	}
-	if !reflect.DeepEqual(dataset, want) {
-		t.Errorf("registrar dataset %+v, want %+v", dataset, want)
+	want := []IssuerInfoEntry{{Format: "registration_cert", Data: base64.RawURLEncoding.EncodeToString([]byte(result.RegistrationCertificate))}}
+	if !reflect.DeepEqual(info, want) {
+		t.Errorf("verifier_info %+v, want %+v", info, want)
 	}
 	views := w.RegistrationCertificateViews(rp.Identifier[0].Identifier)
 	if len(views) != 1 || views[0].VerifierInfo != result.VerifierInfo {

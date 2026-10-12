@@ -72,15 +72,6 @@ func (d *ServiceDescription) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// Strings lists every localised description.
-func (d ServiceDescription) Strings() []MultiLangString {
-	var out []MultiLangString
-	for _, group := range d {
-		out = append(out, group...)
-	}
-	return out
-}
-
 // SupervisoryAuthority is a supervisory authority record of TS05.
 type SupervisoryAuthority struct {
 	Name    string   `json:"name"`
@@ -105,27 +96,6 @@ func (a ProvidedAttestation) certificateClaim() map[string]any {
 		return map[string]any{"format": a.Format, "meta": map[string]any{"doctype_value": a.Type}}
 	}
 	return map[string]any{"format": a.Format, "meta": map[string]any{"vct_values": []string{a.Type}}}
-}
-
-// RegistrarDataset is the registrar_dataset element of issuer_info. ETSI TS
-// 119 472-3 V1.1.1 ISS-MDATA-REG_CERT-4.2.3-10 to -13 require these four
-// members. The entitlements are in the registration certificate.
-type RegistrarDataset struct {
-	Identifier           []Identifier          `json:"identifier"`
-	SrvDescription       []MultiLangString     `json:"srvDescription"`
-	RegistryURI          string                `json:"registryURI"`
-	ProvidesAttestations []ProvidedAttestation `json:"providesAttestations"`
-}
-
-// VerifierRegistrarDataset is the registrar_dataset element of verifier_info.
-// ETSI TS 119 472-2 V1.3.1 §6.3.2.2 RO-06 to RO-11 require these members.
-type VerifierRegistrarDataset struct {
-	Identifier            []Identifier      `json:"identifier"`
-	SrvDescription        []MultiLangString `json:"srvDescription"`
-	RegistryURI           string            `json:"registryURI"`
-	IntendedUseIdentifier string            `json:"intendedUseIdentifier"`
-	Purpose               []MultiLangString `json:"purpose"`
-	PolicyURI             string            `json:"policyURI"`
 }
 
 // registeredEntitlements are the entitlements of ETSI TS 119 475 V1.2.1 Annex

@@ -31,7 +31,7 @@ func TestARFRequiresAnAccessCertificate(t *testing.T) {
 // verifier_info optional. RPRC_17 has the wallet warn the user without one.
 func TestARFRequiresARegistrationCertificate(t *testing.T) {
 	findings := ARFFindings(&Request{RequestPayload: map[string]any{"dcql_query": map[string]any{}}})
-	if !containsSubstring(findings, "ARF RPRC_17 and RPRC_19: the request carries no registration certificate") {
+	if !containsSubstring(findings, "ARF RPRC_17 and RPRC_19 and ETSI TS 119 472-2 OIDFVP-HAIP-COMMON-REQ-RO-13 as adapted by CIR (EU) 2026/1731 Annex XII: the request carries no registration certificate") {
 		t.Errorf("findings %v, want the RPRC_17 and RPRC_19 finding", findings)
 	}
 }

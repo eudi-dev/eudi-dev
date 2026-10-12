@@ -153,7 +153,7 @@ func issuerARFFindings(a issuerAuthentication) []string {
 	}
 	if len(registrations) == 0 {
 		if len(problems) == 0 {
-			findings = append(findings, "ARF RPRC_22a: the issuer metadata carries no registration certificate (an issuer_info entry with typ rc-wrp+jwt, ETSI TS 119 472-3 V1.1.1 §4.2.3)")
+			findings = append(findings, "ARF RPRC_22a and ETSI TS 119 472-3 V1.1.1 ISS-MDATA-REG_CERT-4.2.3-04 as adapted by CIR (EU) 2026/1731 Annex XI: the issuer metadata carries no registration certificate (an issuer_info entry with typ rc-wrp+jwt)")
 		}
 		return findings
 	}
@@ -253,47 +253,20 @@ func (w *Wallet) reportARFFindings(issuer string, findings []string, refusal str
 	})
 }
 
-// issuerInfoShapeFindings checks the elements of issuer_info (ETSI TS 119
-// 472-3 V1.1.1 §4.2.3): the registration certificate has the format
-// registration_cert, and a registrar_dataset element holds the identifier,
-// srvDescription, registryURI and providesAttestations of the provider.
+// issuerInfoShapeFindings checks that the registration certificate in
+// issuer_info has the format registration_cert (ETSI TS 119 472-3 V1.1.1
+// ISS-MDATA-REG_CERT-4.2.3-05). CIR (EU) 2026/1731 Annex XI voids -07 to -13,
+// so other elements carry no requirements.
 func issuerInfoShapeFindings(entries []map[string]any) []string {
-	const rule = "ETSI TS 119 472-3 V1.1.1 ISS-MDATA-REG_CERT-4.2.3-"
 	var findings []string
-	var dataset map[string]any
-	hasDataset := false
 	for _, entry := range entries {
 		entryFormat, _ := entry["format"].(string)
-		if entryFormat == "registrar_dataset" {
-			hasDataset = true
-			dataset, _ = entry["data"].(map[string]any)
-			continue
-		}
 		data, _ := entry["data"].(string)
 		if header, _, _, err := format.ParseJWTParts(data); err == nil && entryFormat != "registration_cert" {
 			if typ, _ := header["typ"].(string); format.JOSETypeIs(typ, registrar.RegistrationCertificateTyp) {
-				findings = append(findings, fmt.Sprintf("%s05: the issuer_info element with the registration certificate has the format %q, not registration_cert", rule, entryFormat))
+				findings = append(findings, fmt.Sprintf("ETSI TS 119 472-3 V1.1.1 ISS-MDATA-REG_CERT-4.2.3-05: the issuer_info element with the registration certificate has the format %q, not registration_cert", entryFormat))
 			}
 		}
 	}
-	if len(entries) == 0 {
-		return findings
-	}
-	if !hasDataset {
-		return append(findings, rule+"07: issuer_info has no registrar_dataset element with the provider's registration information")
-	}
-	if len(dataset) == 0 {
-		return append(findings, rule+"09: the data of the registrar_dataset element is not a non-empty JSON object")
-	}
-	for i, member := range []string{"identifier", "srvDescription", "registryURI", "providesAttestations"} {
-		if value, ok := dataset[member]; !ok || value == nil || value == "" || isEmptyList(value) {
-			findings = append(findings, fmt.Sprintf("%s%d: the registrar_dataset has no %s", rule, 10+i, member))
-		}
-	}
 	return findings
-}
-
-func isEmptyList(value any) bool {
-	list, ok := value.([]any)
-	return ok && len(list) == 0
 }

@@ -71,17 +71,11 @@ func TestAnIssuerGetsOneCertificateForItsService(t *testing.T) {
 	if err := json.Unmarshal([]byte(result.IssuerInfo), &info); err != nil {
 		t.Fatal(err)
 	}
-	// ETSI TS 119 472-3 V1.1.1 §4.2.3: a registrar_dataset with identifier,
-	// srvDescription, registryURI and providesAttestations, and the registration
-	// certificate in a registration_cert entry.
-	if len(info) != 2 || info[0].Format != "registrar_dataset" || info[1].Format != "registration_cert" || info[1].Data != result.RegistrationCertificate {
+	// ETSI TS 119 472-3 V1.1.1 ISS-MDATA-REG_CERT-4.2.3-04 as adapted by CIR
+	// (EU) 2026/1731 Annex XI: issuer_info carries the registration
+	// certificate in a registration_cert entry (-05, -06).
+	if len(info) != 1 || info[0].Format != "registration_cert" || info[0].Data != result.RegistrationCertificate {
 		t.Fatalf("issuer_info %+v", info)
-	}
-	dataset, _ := info[0].Data.(map[string]any)
-	for _, field := range []string{"identifier", "srvDescription", "registryURI", "providesAttestations"} {
-		if dataset[field] == nil {
-			t.Errorf("registrar_dataset has no %s: %v", field, dataset)
-		}
 	}
 
 	registrations, problems := regcert.Verify(regcert.InfoEntries(map[string]any{"issuer_info": result.IssuerInfo}, "issuer_info"))

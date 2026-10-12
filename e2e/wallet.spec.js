@@ -94,6 +94,11 @@ async function jsonGet(url) {
   });
 }
 
+function registrationCertificateClaims(issuerInfo) {
+  const jwt = issuerInfo.find((e) => e.format === "registration_cert").data;
+  return JSON.parse(Buffer.from(jwt.split(".")[1], "base64url").toString());
+}
+
 // Each test starts without pending requests.
 async function denyPendingRequests() {
   const pending = await jsonGet(`${WALLET_URL}/api/requests`);
@@ -2372,10 +2377,10 @@ test.describe("Registrar", () => {
     await expect(page.locator("#registrar-client-ids-block")).toBeHidden();
     await expect(page.locator("#registrar-verifier-info-block")).toBeHidden();
     await expect(page.locator("#registrar-pem-label")).toHaveText("Signing key and access certificate chain");
-    // ETSI TS 119 472-3 §4.2.3: the registrar dataset and the registration certificate.
+    // ETSI TS 119 472-3 V1.1.1 ISS-MDATA-REG_CERT-4.2.3-04 as adapted by CIR (EU) 2026/1731 Annex XI.
     const issuerInfo = JSON.parse(await page.locator("#registrar-issuer-info").inputValue());
-    expect(issuerInfo.map((e) => e.format)).toEqual(["registrar_dataset", "registration_cert"]);
-    expect(issuerInfo[0].data.providesAttestations).toEqual([{ format: "dc+sd-jwt", type: "urn:example:diploma:1" }]);
+    expect(issuerInfo.map((e) => e.format)).toEqual(["registration_cert"]);
+    expect(registrationCertificateClaims(issuerInfo).provides_attestations).toEqual([{ format: "dc+sd-jwt", meta: { vct_values: ["urn:example:diploma:1"] } }]);
 
     // The verifier dialog gets its own fields and defaults back.
     await page.locator("#registrar-close").click();
@@ -2420,7 +2425,7 @@ test.describe("Registrar", () => {
     await expect(page.locator(service + "-status")).toHaveText("No certificate");
 
     await page.locator(service + "-issue").click();
-    await expect(page.locator(service + "-issuer-info")).toHaveValue(/registrar_dataset.*registration_cert/);
+    await expect(page.locator(service + "-issuer-info")).toHaveValue(/registration_cert/);
     await expect(page.locator(service + "-status")).toHaveText("Active");
     await page.locator(service + "-revoke").click();
     await expect(page.locator(service + "-status")).toHaveText("Revoked");
@@ -2456,7 +2461,7 @@ test.describe("Registrar", () => {
     await page.locator("#registrar-submit").click();
     await expect(page.locator("#registrar-submit")).toHaveText("✓ Added");
     const issuerInfo = JSON.parse(await page.locator("#registrar-issuer-info").inputValue());
-    expect(issuerInfo.map((e) => e.format)).toEqual(["registrar_dataset", "registration_cert"]);
+    expect(issuerInfo.map((e) => e.format)).toEqual(["registration_cert"]);
 
     await page.locator("#registrar-close").click();
     await expect(page.locator(card + "-role-issuer")).toBeVisible();
@@ -2470,7 +2475,7 @@ test.describe("Registrar", () => {
     await page.locator("#registrar-menu-toggle").click();
     await page.locator("#registrar-parties-link").click();
     await page.locator(card + "-service-default-details").click();
-    await expect(page.locator(card + "-service-default-issuer-info")).toHaveValue(/registrar_dataset.*registration_cert/);
+    await expect(page.locator(card + "-service-default-issuer-info")).toHaveValue(/registration_cert/);
 
     // Editing the types issues a new certificate for the changed list.
     await page.locator(card + "-service-default-edit").click();
@@ -2482,7 +2487,7 @@ test.describe("Registrar", () => {
     await page.locator("#registrar-submit").click();
     await expect(page.locator("#registrar-submit")).toHaveText("✓ Saved");
     const edited = JSON.parse(await page.locator("#registrar-issuer-info").inputValue());
-    expect(edited[0].data.providesAttestations.map((a) => a.type)).toEqual(["urn:example:ticket:1", "urn:example:ticket:2"]);
+    expect(registrationCertificateClaims(edited).provides_attestations.map((a) => a.meta.vct_values[0])).toEqual(["urn:example:ticket:1", "urn:example:ticket:2"]);
     await page.locator("#registrar-close").click();
     await expect(page.locator(card + "-service-default-summary-status")).toHaveText("Active");
     await fetch(`${WALLET_URL}/api/registrar/wrp/${encodeURIComponent(body.identifier[0].identifier)}`, { method: "DELETE" });

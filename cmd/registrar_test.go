@@ -23,6 +23,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/dominikschlosser/eudi-dev/v3/internal/regcert"
 )
 
 // registration-cert needs no intended use ID when the relying party has only
@@ -102,7 +104,7 @@ func TestRegistrarRegistersAnIssuer(t *testing.T) {
 	// The issuer's only certificate target is its service, so no flag is needed.
 	var issuerInfo []map[string]any
 	if out := run("registration-cert", "--identifier", identifier[1]); json.Unmarshal([]byte(out), &issuerInfo) != nil ||
-		len(issuerInfo) != 2 || issuerInfo[0]["format"] != "registrar_dataset" || issuerInfo[1]["format"] != "registration_cert" {
+		len(issuerInfo) != 1 || issuerInfo[0]["format"] != "registration_cert" {
 		t.Fatalf("output %q, want the issuer_info value", out)
 	}
 	if out := run("registration-cert", "--identifier", identifier[1], "--service-id", "diplomas", "--provider", "--jwt"); strings.Count(out, ".") != 2 {
@@ -179,7 +181,7 @@ func TestRegistrarAddsTheOtherRoleToARegistration(t *testing.T) {
 
 	var issuerInfo []map[string]any
 	issued := run("issuers", "add", "--to", identifier, "--attestation", "dc+sd-jwt:urn:example:ticket:1")
-	if json.Unmarshal([]byte(issued), &issuerInfo) != nil || len(issuerInfo) != 2 || issuerInfo[1]["format"] != "registration_cert" {
+	if json.Unmarshal([]byte(issued), &issuerInfo) != nil || len(issuerInfo) != 1 || issuerInfo[0]["format"] != "registration_cert" {
 		t.Fatalf("issuers add --to printed %q, want the issuer_info value", issued)
 	}
 	if current := run("registration-cert", "--identifier", identifier, "--provider"); current != issued {
@@ -188,8 +190,12 @@ func TestRegistrarAddsTheOtherRoleToARegistration(t *testing.T) {
 
 	// An issuer lists further types next to its others, with a new certificate.
 	extended := run("issuers", "add", "--to", identifier, "--attestation", "dc+sd-jwt:urn:example:ticket:2")
-	if extended == issued || !strings.Contains(extended, "urn:example:ticket:1") || !strings.Contains(extended, "urn:example:ticket:2") {
-		t.Fatalf("issuers add --to on an issuer printed %q, want a new issuer_info with both types", extended)
+	registrations, _ := regcert.Verify(regcert.InfoEntries(map[string]any{"issuer_info": extended}, "issuer_info"))
+	if extended == issued || len(registrations) != 1 {
+		t.Fatalf("issuers add --to on an issuer printed %q, want a new issuer_info", extended)
+	}
+	if provided := regcert.ProvidedAttestations(registrations[0].Claims); !regcert.Provides(provided, "dc+sd-jwt", []string{"urn:example:ticket:1"}) || !regcert.Provides(provided, "dc+sd-jwt", []string{"urn:example:ticket:2"}) {
+		t.Fatalf("provides_attestations %v, want both types", registrations[0].Claims["provides_attestations"])
 	}
 
 	var verifierInfo []map[string]any

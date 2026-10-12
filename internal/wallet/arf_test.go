@@ -156,9 +156,9 @@ func TestAnExpiredAccessCertificate(t *testing.T) {
 	}
 }
 
-// A registration certificate is enough for the wallet. ETSI TS 119 472-2
-// RO-01 to RO-11 bind the relying party, so verifier_info needs no
-// registrar_dataset, and the wallet ignores entries of other formats.
+// One element of verifier_info includes the registration certificate (ETSI TS
+// 119 472-2 OIDFVP-HAIP-COMMON-REQ-RO-13 as adapted by CIR (EU) 2026/1731
+// Annex XII). The wallet ignores other elements, such as a registrar_dataset.
 func TestVerifierInfoNeedsOnlyARegistrationCertificate(t *testing.T) {
 	w := generateTestWallet(t)
 	key, chain, verifierInfo := registeredVerifier(t, w)
@@ -175,8 +175,9 @@ func TestVerifierInfoNeedsOnlyARegistrationCertificate(t *testing.T) {
 	if len(certOnly) != 1 {
 		t.Fatalf("verifier_info %s carries %d registration_cert entries, want 1", verifierInfo, len(certOnly))
 	}
+	withDataset := append(append([]map[string]any{}, certOnly...), map[string]any{"format": "registrar_dataset", "data": map[string]any{"intendedUseIdentifier": "ignored"}})
 	withUnknown := append(append([]map[string]any{}, certOnly...), map[string]any{"format": "x-unknown", "data": map[string]any{"note": "ignored"}})
-	for name, info := range map[string][]map[string]any{"registration_cert only": certOnly, "with an unknown format": withUnknown} {
+	for name, info := range map[string][]map[string]any{"registration_cert only": certOnly, "with a registrar_dataset": withDataset, "with an unknown format": withUnknown} {
 		encoded, err := json.Marshal(info)
 		if err != nil {
 			t.Fatal(err)

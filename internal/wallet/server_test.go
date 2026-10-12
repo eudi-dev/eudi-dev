@@ -41,11 +41,13 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/credtype"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/format"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/jsonutil"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/jwe"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/lote"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/oid4vp"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/provider"
+	"github.com/dominikschlosser/eudi-dev/v3/internal/regcert"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/registrar"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/sdjwt"
 	"github.com/dominikschlosser/eudi-dev/v3/internal/validate"
@@ -2041,47 +2043,32 @@ func TestOpenIDCredentialIssuerMetadata_SignedJWTContainsIssuerInfo(t *testing.T
 		t.Fatalf("expected 2 credential configurations, got %d", len(configs))
 	}
 
+	// ETSI TS 119 472-3 V1.1.1 ISS-MDATA-REG_CERT-4.2.3-04 as adapted by CIR
+	// (EU) 2026/1731 Annex XI: issuer_info carries the registration
+	// certificate.
 	issuerInfo, ok := payload["issuer_info"].([]any)
-	if !ok || len(issuerInfo) != 2 {
-		t.Fatalf("expected two issuer_info entries, got %v", payload["issuer_info"])
+	if !ok || len(issuerInfo) != 1 {
+		t.Fatalf("expected one issuer_info entry, got %v", payload["issuer_info"])
 	}
 	entry, ok := issuerInfo[0].(map[string]any)
-	if !ok {
-		t.Fatalf("expected issuer_info object, got %T", issuerInfo[0])
-	}
-	if entry["format"] != "registrar_dataset" {
-		t.Fatalf("expected registrar_dataset issuer_info, got %v", entry["format"])
-	}
-	record, ok := entry["data"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected issuer_info data object, got %T", entry["data"])
-	}
-	if want := w.IssuerURL + "/api/registrar/wrp/" + ownProviderIdentifier(t, w); record["registryURI"] != want {
-		t.Fatalf("expected registryURI %s, got %v", want, record["registryURI"])
+	if !ok || entry["format"] != "registration_cert" {
+		t.Fatalf("expected a registration_cert issuer_info entry, got %v", issuerInfo[0])
 	}
 	// The templates make the demo issuer a PID provider and, for the ticket,
 	// an EAA provider. Its identity check makes it a service provider (ARF
 	// RPRC_05).
-	var dataset registrar.RegistrarDataset
-	if err := json.Unmarshal([]byte(mustJSON(t, record)), &dataset); err != nil {
-		t.Fatal(err)
+	var certificate map[string]any
+	decodeCompactJWTPayload(t, entry["data"].(string), &certificate)
+	var entitlements []string
+	for _, e := range certificate["entitlements"].([]any) {
+		entitlements = append(entitlements, e.(string))
 	}
-	var certificate struct {
-		Entitlements []string `json:"entitlements"`
+	if want := []string{registrar.NonQEAAProviderEntitlement, registrar.PIDProviderEntitlement, registrar.ServiceProviderEntitlement}; !slices.Equal(entitlements, want) {
+		t.Fatalf("entitlements %v, want %v", entitlements, want)
 	}
-	decodeCompactJWTPayload(t, issuerInfo[1].(map[string]any)["data"].(string), &certificate)
-	if want := []string{registrar.NonQEAAProviderEntitlement, registrar.PIDProviderEntitlement, registrar.ServiceProviderEntitlement}; !slices.Equal(certificate.Entitlements, want) {
-		t.Fatalf("entitlements %v, want %v", certificate.Entitlements, want)
-	}
-	var vcts, docTypes []string
-	for _, att := range dataset.ProvidesAttestations {
-		vcts = append(vcts, att.Type)
-		if att.Format == "mso_mdoc" {
-			docTypes = append(docTypes, att.Type)
-		}
-	}
-	if !slices.Contains(vcts, mock.DefaultPIDVCT) || !slices.Contains(vcts, credtype.DemoTicketVCT) || !slices.Contains(docTypes, mock.PIDNamespace) {
-		t.Fatalf("provided attestations %v, want the PID types and the ticket", dataset.ProvidesAttestations)
+	provided := regcert.ProvidedAttestations(certificate)
+	if !regcert.Provides(provided, "dc+sd-jwt", []string{mock.DefaultPIDVCT}) || !regcert.Provides(provided, "dc+sd-jwt", []string{credtype.DemoTicketVCT}) || !regcert.Provides(provided, "mso_mdoc", []string{mock.PIDNamespace}) {
+		t.Fatalf("provides_attestations %v, want the PID types and the ticket", certificate["provides_attestations"])
 	}
 }
 
@@ -2136,27 +2123,16 @@ func TestAnEAATypeIsRegisteredAndListedAsAnEAA(t *testing.T) {
 	if metaResp.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", metaResp.Code, metaResp.Body.String())
 	}
-	var metadata struct {
-		IssuerInfo []struct {
-			Data json.RawMessage `json:"data"`
-		} `json:"issuer_info"`
-	}
+	var metadata map[string]any
 	decodeCompactJWTPayload(t, metaResp.Body.String(), &metadata)
-	var dataset registrar.RegistrarDataset
-	var certificate struct {
-		Entitlements []string `json:"entitlements"`
+	registrations, _ := regcert.Verify(regcert.InfoEntries(metadata, "issuer_info"))
+	if len(registrations) != 1 {
+		t.Fatalf("issuer_info %v, want the registration certificate", metadata["issuer_info"])
 	}
-	var registration string
-	if len(metadata.IssuerInfo) != 2 || json.Unmarshal(metadata.IssuerInfo[0].Data, &dataset) != nil || json.Unmarshal(metadata.IssuerInfo[1].Data, &registration) != nil {
-		t.Fatalf("issuer_info %s, want the dataset and the certificate", metaResp.Body.String())
-	}
-	var types []string
-	for _, att := range dataset.ProvidesAttestations {
-		types = append(types, att.Type)
-	}
-	decodeCompactJWTPayload(t, registration, &certificate)
-	if !slices.Contains(certificate.Entitlements, registrar.NonQEAAProviderEntitlement) || !slices.Contains(types, "urn:test:employee:1") || !slices.Contains(types, "org.iso.23220.photoid.1") {
-		t.Fatalf("dataset %+v, want both types with the EAA entitlement", dataset)
+	cert := registrations[0].Claims
+	provided := regcert.ProvidedAttestations(cert)
+	if !slices.Contains(jsonutil.List(cert["entitlements"]), any(registrar.NonQEAAProviderEntitlement)) || !regcert.Provides(provided, "dc+sd-jwt", []string{"urn:test:employee:1"}) || !regcert.Provides(provided, "mso_mdoc", []string{"org.iso.23220.photoid.1"}) {
+		t.Fatalf("registration certificate %v, want both types with the EAA entitlement", cert)
 	}
 
 	trustListResp := serverRequest(t, srv, "GET", "/api/trustlist?vct="+url.QueryEscape("urn:test:employee:1"), "")
