@@ -7,11 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.7.4] - 2026-10-12
 
+Backports from 3.0.0.
+
 ### Fixed
 
 - **Demo verifier error responses.** The demo verifier accepts a wallet's error response, such as `access_denied` when the user declines, and shows that error. It answered `invalid_request` before.
 
 ## [2.7.3] - 2026-10-12
+
+Backports from 3.0.0.
 
 ### Changed
 
@@ -20,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Static Linux binaries.** Release binaries are built without cgo, so the Linux builds run on any distribution.
 
 ## [2.7.2] - 2026-10-12
+
+Backports from 3.0.0.
 
 ### Added
 
