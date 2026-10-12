@@ -73,32 +73,32 @@ var placeholderTemplate = template.Must(template.New("placeholder").Parse(`<!doc
 <title>{{.Title}} · eudi-dev test registrar</title>
 <style>
 :root {
-  --bg: #1a1b26; --surface: #24283b; --text: #c0caf5; --dim: #8b93b8;
-  --border: #3b4261; --accent: #7aa2f7; --yellow: #e0af68;
+  --bg: #0e0f12; --surface: #16181c; --text: #f1f2f4; --dim: #a3a8b1;
+  --border: #1f2227; --accent: #9dbcff; --warn-bg: #2a2213; --warn-fg: #f3e3bd;
 }
 @media (prefers-color-scheme: light) {
   :root {
-    --bg: #f5f5f5; --surface: #ffffff; --text: #343b58; --dim: #6b6f7b;
-    --border: #d0d0d0; --accent: #2569d6; --yellow: #8c6c3e;
+    --bg: #f2f3f5; --surface: #ffffff; --text: #15171a; --dim: #5a606a;
+    --border: #e4e6ea; --accent: #1f4fd1; --warn-bg: #fff3d6; --warn-fg: #4a3a10;
   }
 }
 * { box-sizing: border-box; }
 body {
   margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
   padding: 24px 16px; background: var(--bg); color: var(--text);
-  font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font: 15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 main {
   width: 100%; max-width: 560px; background: var(--surface); border: 1px solid var(--border);
-  border-radius: 12px; padding: 32px; box-shadow: 0 8px 30px rgba(0, 0, 0, .18);
+  border-radius: 24px; padding: 32px;
 }
 .kind {
-  margin: 0; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--accent);
+  margin: 0; font-size: 13px; font-weight: 600; color: var(--accent);
 }
 h1 { margin: 6px 0 16px; font-size: 26px; line-height: 1.25; }
 .badge {
-  display: inline-block; margin-bottom: 20px; padding: 3px 10px; border: 1px solid var(--yellow);
-  border-radius: 999px; color: var(--yellow); font-size: 12px; font-weight: 600;
+  display: inline-block; margin-bottom: 20px; padding: 1px 10px; background: var(--warn-bg);
+  border-radius: 10px; color: var(--warn-fg); font-size: 12px; font-weight: 600;
 }
 p { margin: 0 0 12px; }
 footer {

@@ -950,22 +950,23 @@ var loginPageTemplate = template.Must(template.New("login").Parse(`<!DOCTYPE htm
 <script src="theme.js"></script>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
-body { font-family:var(--font-mono); background:var(--bg); color:var(--text); min-height:100vh; padding:40px 20px; }
-.card { max-width:520px; margin:0 auto; background:var(--bg-surface); border:1px solid var(--border); border-radius:8px; padding:24px; }
-h1 { font-size:16px; color:var(--accent); margin-bottom:10px; }
-p { font-size:12px; line-height:1.6; color:var(--text-dim); margin-bottom:14px; }
-label { display:block; font-size:11px; color:var(--text-dim); margin:10px 0 4px; }
-input { font:inherit; font-size:12px; width:100%; padding:8px; background:var(--bg); color:var(--text); border:1px solid var(--border); border-radius:4px; }
-.btn { font:inherit; font-size:12px; margin-top:16px; padding:8px 16px; border:1px solid var(--accent); border-radius:4px; background:var(--bg); color:var(--accent); cursor:pointer; }
-.note { margin-top:16px; padding-top:12px; border-top:1px solid var(--border); font-size:10px; line-height:1.5; color:var(--text-dim); }
-.debug { margin-bottom:14px; border:1px solid var(--border); border-radius:4px; }
-.debug summary { font-size:11px; color:var(--text-dim); padding:8px 10px; cursor:pointer; }
-.debug .body { padding:0 10px 8px; }
+body { font-family:var(--font-sans); font-size:14px; line-height:1.5; background:var(--bg); color:var(--text); min-height:100vh; padding:40px 16px; }
+.card { max-width:520px; margin:0 auto; background:var(--bg-surface); border:1px solid var(--border-subtle); border-radius:24px; padding:26px; }
+h1 { font-size:20px; font-weight:700; color:var(--text); margin-bottom:10px; }
+p { font-size:14px; line-height:1.5; color:var(--text-dim); margin-bottom:14px; }
+label { display:block; font-size:14px; font-weight:600; color:var(--text); margin:12px 0 6px; }
+input { font:inherit; font-size:14px; width:100%; height:42px; padding:0 18px; background:var(--bg-input); color:var(--text); border:1px solid var(--border); border-radius:21px; }
+.btn { font:inherit; font-size:15px; font-weight:700; margin-top:18px; height:48px; padding:0 28px; border:0; border-radius:24px; background:var(--accent); color:var(--on-accent); cursor:pointer; }
+.btn:hover { opacity:0.9; }
+.note { margin-top:18px; padding-top:14px; border-top:1px solid var(--border); font-size:12px; line-height:1.5; color:var(--text-dim); }
+.debug { margin-bottom:14px; border-radius:14px; background:var(--bg-raised); }
+.debug summary { font-size:13px; color:var(--text-dim); padding:10px 14px; cursor:pointer; }
+.debug .body { padding:0 14px 12px; }
 .debug .field { margin-top:8px; }
-.debug .field span { display:block; font-size:10px; color:var(--text-dim); margin-bottom:2px; }
-.debug .field code { display:block; font-size:11px; color:var(--text); word-break:break-all; max-height:120px; overflow:auto; padding:6px 8px; background:var(--bg); border:1px solid var(--border); border-radius:4px; }
-.debug .empty { font-size:10px; color:var(--text-dim); margin-top:8px; }
-.error { color:var(--red); font-size:12px; margin-top:12px; }
+.debug .field span { display:block; font-family:var(--font-mono); font-size:12px; color:var(--text-dim); margin-bottom:2px; }
+.debug .field code { display:block; font-family:var(--font-mono); font-size:12px; color:var(--text); word-break:break-all; max-height:120px; overflow:auto; padding:8px 10px; background:var(--bg-input); border:1px solid var(--border); border-radius:10px; }
+.debug .empty { font-size:12px; color:var(--text-dim); margin-top:8px; }
+.error { color:var(--danger); font-size:13px; margin-top:12px; }
 </style>
 </head>
 <body>

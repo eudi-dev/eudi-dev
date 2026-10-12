@@ -1,36 +1,113 @@
 /* The colour tokens of every eudi-dev page. theme.js sets data-theme="light"
    for the light theme. */
 :root {
-  --bg: #1a1b26;
-  --bg-surface: #24283b;
-  --bg-hover: #2f3350;
-  --text: #c0caf5;
-  --text-dim: #8b93b8;
-  --border: #3b4261;
-  --accent: #7aa2f7;
-  --cyan: #7dcfff;
-  --green: #9ece6a;
-  --yellow: #e0af68;
-  --red: #f7768e;
-  --orange: #ff9e64;
-  --purple: #bb9af7;
-  --pink: #de87ad;
+  --bg: #0e0f12;
+  --bg-header: #0e0f12;
+  --bg-surface: #16181c;
+  --bg-hover: #23262c;
+  --bg-btn: #23262c;
+  --bg-btn-hover: #31353d;
+  --bg-btn-dialog: #2a2e35;
+  --bg-input: #121418;
+  --bg-dialog: #1a1c21;
+  --bg-raised: #22252b;
+  --bg-track: #0f1114;
+  --bg-segment: #2c3240;
+  --text-segment: #ffffff;
+  --shadow-segment: none;
+  --scrim: rgba(5, 6, 8, 0.66);
+  --shadow-card: 0 6px 14px rgba(0, 0, 0, 0.5);
+  --shadow-dialog: 0 24px 60px rgba(0, 0, 0, 0.45);
+  --text: #f1f2f4;
+  --text-dim: #a3a8b1;
+  --border: #2c3037;
+  --border-subtle: #1f2227;
+  --border-dialog: #30343b;
+  --accent: #8fb4ff;
+  --on-accent: #0e0f12;
+  --link: #9dbcff;
+  --info-bg: #1d2a48;
+  --info-fg: #b9cdfa;
+  --ok-bg: #16321f;
+  --ok-fg: #9fdcae;
+  --neutral-bg: #23262c;
+  --neutral-fg: #c9ccd2;
+  --warn-bg: #2a2213;
+  --warn-fg: #f3e3bd;
+  --danger-bg: #3a1d1b;
+  --danger: #ff9b8f;
+  --cyan: #8bd3ea;
+  --green: #9fdcae;
+  --yellow: #f0c674;
+  --red: #ff9b8f;
+  --orange: #f5a97f;
+  --purple: #c4a7f5;
+  --pink: #f0a3c6;
+  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "SF Mono", "Cascadia Code", "Fira Code", Menlo, Consolas, monospace;
 }
 
 [data-theme="light"] {
-  --bg: #f5f5f5;
+  --bg: #f2f3f5;
+  --bg-header: #ffffff;
   --bg-surface: #ffffff;
-  --bg-hover: #e8e8e8;
-  --text: #343b58;
-  --text-dim: #6b6f7b;
-  --border: #d0d0d0;
-  --accent: #2569d6;
-  --cyan: #007197;
-  --green: #587539;
-  --yellow: #8c6c3e;
-  --red: #c64343;
-  --orange: #965027;
-  --purple: #7847bd;
-  --pink: #a63367;
+  --bg-hover: #eceef2;
+  --bg-btn: #eceef2;
+  --bg-btn-hover: #dde1e7;
+  --bg-btn-dialog: #e6e9ee;
+  --bg-input: #ffffff;
+  --bg-dialog: #ffffff;
+  --bg-raised: #f3f4f7;
+  --bg-track: #eceef2;
+  --bg-segment: #ffffff;
+  --text-segment: #15171a;
+  --shadow-segment: 0 1px 3px rgba(20, 30, 60, 0.18);
+  --scrim: rgba(20, 24, 32, 0.42);
+  --shadow-card: 0 4px 10px rgba(20, 30, 60, 0.18);
+  --shadow-dialog: 0 24px 60px rgba(20, 30, 60, 0.22);
+  --text: #15171a;
+  --text-dim: #5a606a;
+  --border: #d5d8de;
+  --border-subtle: #e4e6ea;
+  --border-dialog: #dfe2e7;
+  --accent: #1f4fd1;
+  --on-accent: #ffffff;
+  --link: #1f4fd1;
+  --info-bg: #e8eefc;
+  --info-fg: #1a3a8f;
+  --ok-bg: #e3f4e8;
+  --ok-fg: #17602e;
+  --neutral-bg: #eef0f3;
+  --neutral-fg: #3e434a;
+  --warn-bg: #fff3d6;
+  --warn-fg: #4a3a10;
+  --danger-bg: #fbe9e7;
+  --danger: #b3261e;
+  --cyan: #0a6a87;
+  --green: #17602e;
+  --yellow: #7a5600;
+  --red: #b3261e;
+  --orange: #9a4a12;
+  --purple: #6b3fb8;
+  --pink: #a3245f;
+}
+
+/* Every page draws thin scrollbars in the theme colours. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-dim);
 }

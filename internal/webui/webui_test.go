@@ -62,11 +62,11 @@ func tokens(t *testing.T) (dark, light []string) {
 	return dark, light
 }
 
-// Both themes set every colour token.
+// Both themes set every colour token. The fonts are the same in both.
 func TestTheLightThemeSetsEveryColourToken(t *testing.T) {
 	dark, light := tokens(t)
 	for _, name := range dark {
-		if name != "--font-mono" && !slices.Contains(light, name) {
+		if !strings.HasPrefix(name, "--font-") && !slices.Contains(light, name) {
 			t.Errorf("the light theme does not set %s", name)
 		}
 	}
