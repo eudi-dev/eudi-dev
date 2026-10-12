@@ -12,7 +12,7 @@ With `--arf` (the public demo has it on) the wallet checks both certificates and
 
 ## Test your issuer the same way
 
-Register your issuer with the attestation types it issues. Sign your issuer metadata with the access certificate key and publish the registration certificate in `issuer_info`. The wallet checks both before it accepts a credential.
+Register your issuer and its attestation types. Sign your issuer metadata with the access certificate key and publish the registration certificate in `issuer_info`. The wallet checks both before it accepts a credential.
 
 ## See why a flow failed
 

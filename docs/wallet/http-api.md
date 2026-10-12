@@ -30,7 +30,7 @@ Protected baseline credentials cannot be deleted or revoked through the API. Ind
 
 ### Errors
 
-Every endpoint under `/api` rejects a call with the same JSON error object. The registrar and the decoder do too. It has the shape of an OAuth 2.0 error response (RFC 6749 §5.2). `error` is a code for programs. `error_description` says what went wrong.
+Every endpoint under `/api` answers errors with the same JSON object. So do the registrar and the decoder. It has the shape of an OAuth 2.0 error response (RFC 6749 §5.2). `error` is a code for programs. `error_description` says what went wrong.
 
 ```json
 {"error": "invalid_request", "error_description": "invalid JSON body: invalid character 'n' looking for beginning of value"}
@@ -38,18 +38,18 @@ Every endpoint under `/api` rejects a call with the same JSON error object. The 
 
 | Status | `error` | Cause |
 |--------|---------|-------|
-| `400`, `422` | `invalid_request` | A malformed body or parameter, a request or offer the wallet cannot use, an invalid selection. A strict refusal of a presentation request carries the OpenID4VP 1.0 §8.5 error code instead |
-| `403` | `forbidden` | A cross-origin request, a protected credential or template, or an endpoint the public demo disables |
+| `400`, `422` | `invalid_request` | A malformed body or parameter, an unusable request or offer, or an invalid selection. A strict refusal of a presentation request carries the OpenID4VP 1.0 §8.5 error code instead |
+| `403` | `forbidden` | A cross-origin request, a protected credential or template, or an endpoint disabled on the public demo |
 | `404` | `not_found` | An unknown credential, template, request, offer, deferred credential or registration |
 | `408` | `consent_timeout` | Nobody answered the consent dialog in time |
 | `409` | `conflict` | The request timed out or was answered already, or a registration changed meanwhile |
-| `501` | `not_implemented` | A feature the wallet does not offer, such as historical status lists |
-| `503` | `temporarily_unavailable` | The wallet lacks what the endpoint needs, such as a store. Or too many flows wait for the user, see [waiting flows](#waiting-flows) |
+| `501` | `not_implemented` | An unsupported feature, such as historical status lists |
+| `503` | `temporarily_unavailable` | A required part, such as the store, is missing. Or too many flows wait for the user, see [waiting flows](#waiting-flows) |
 | `500`, `502` | `server_error` | The wallet could not build or deliver the response |
 
 Some errors carry more members. A failed check of an external status list adds its `uri` and `idx`.
 
-The endpoints that a verifier or issuer calls answer as their specification says. Status lists, trusted lists and certificates answer with the same error object when they fail. `/readyz` answers `503` with `status` and `error` (see [health probes](#health-probes)).
+Protocol endpoints for verifiers and issuers answer as their specification defines. Status lists, trusted lists and certificates answer with the same error object when they fail. `/readyz` answers `503` with `status` and `error` (see [health probes](#health-probes)).
 
 ### Waiting flows
 

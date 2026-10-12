@@ -998,7 +998,7 @@ func authorizationResponse(req *requestState, form url.Values) (map[string]any, 
 		// is obtained from the encrypted_response_enc_values_supported
 		// parameter of client metadata".
 		if !slices.Contains(responseEncValues, header.Enc) {
-			return nil, fmt.Errorf("the response is encrypted with %s, the request offered %s", header.Enc, strings.Join(responseEncValues, " and "))
+			return nil, fmt.Errorf("the response is encrypted with %s, but the request offered %s", header.Enc, strings.Join(responseEncValues, " and "))
 		}
 		ecdhKey, err := req.encKey.ECDH()
 		if err != nil {

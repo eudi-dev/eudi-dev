@@ -155,7 +155,7 @@ The flow waits for the issuer to redirect to `/callback`. The wallet then resume
 
 The callback is matched by `state` alone, so the sign-in can happen in any browser with access to the wallet. `eudi wallet accept` can therefore complete an authorization code offer against the hosted demo. The CLI opens the URL locally and polls `GET /api/offers/{offer_id}` until it reports `completed` or `failed`.
 
-By default, PAR and token requests both require a wallet attestation. The issuer verifies its signature and the possession proof, including `sub`, `aud` and expiry. It refuses a possession proof whose `jti` it has seen before. It accepts either a separate `OAuth-Client-Attestation-PoP` JWT or a DPoP proof signed by the attested key (`attest_jwt_client_auth_dpop`).
+By default, PAR and token requests both require a wallet attestation. The issuer verifies its signature and the possession proof, including `sub`, `aud` and expiry. It refuses a possession proof with a reused `jti`. It accepts either a separate `OAuth-Client-Attestation-PoP` JWT or a DPoP proof signed by the attested key (`attest_jwt_client_auth_dpop`).
 
 The access token is bound to the DPoP key. The credential request must prove possession of that key again. The issuer does not encrypt credential responses and refuses a request for an encrypted one with `invalid_encryption_parameters`. The ticket includes the signed-in account name, so a skipped login shows in the result.
 

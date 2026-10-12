@@ -102,7 +102,7 @@ func (w *Wallet) evaluatePresentationRequest(authReq *oid4vp.Request, entry pres
 	// OID4VP 1.0 §5.5 leaves the scope values to the Wallet, and this wallet
 	// defines none. §8.5 answers an unknown one with invalid_scope.
 	if authReq.DCQLQuery == nil && strings.TrimSpace(authReq.Scope) != "" {
-		description := fmt.Sprintf("scope %q names no DCQL query this wallet supports", authReq.Scope)
+		description := fmt.Sprintf("the wallet supports no scope %q", authReq.Scope)
 		w.AddLog(entry.action, description, false)
 		w.Consents().NotifyError(consent.Error{Owner: entry.owner, Message: "Unsupported scope", Detail: description})
 		return presentationOutcome{refusal: &presentationRefusal{status: "refused", code: oid4vp.ErrorInvalidScope, description: description}}

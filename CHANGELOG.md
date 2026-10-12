@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Highlights
 
-Version 3.0.0 adds a registrar, ARF checks, a catalogue of attestations and a trust model built on trusted lists.
+Version 3.0.0 adds a registrar, ARF checks, a catalogue of attestations and a trust model built on trusted lists. It includes every change of 2.7.0 to 2.8.4. [What's new in 3.0](docs/whats-new-3.0.md) shows what you can do with it, and [upgrading from 2.x](docs/upgrading.md) lists what to change.
 
 - **Registrar for verifiers and issuers.** Register a verifier or an issuer and get its access and registration certificates, ready for `verifier_info` or `issuer_info` (see [registrar](docs/wallet/registrar.md) and the [registrar walkthrough](docs/wallet/registrar-api.md)).
 - **ARF checks.** `--arf` checks how verifiers and issuers authenticate, the way `--haip` checks HAIP (see [presenting](docs/wallet/presenting.md#arf-checks) and [issuing](docs/wallet/issuing.md#arf-checks)).
@@ -50,6 +50,13 @@ Version 3.0.0 adds a registrar, ARF checks, a catalogue of attestations and a tr
 - **Trusted lists in `validate`.** `validate --trusted-list` fails on a list without `NextUpdate` or past it. Only the issuance services of a list anchor the credential.
 - **`POST /api/decode` removed.** Use `POST /api/validate`. It takes the same `input` and returns the decoded credential with its checks.
 - **Image configured by environment.** The image no longer reads `PORT`. Its default command is `wallet serve`, with the defaults in `EUDI_DEV_PORT=8085`, `EUDI_DEV_AUTO_ACCEPT=true` and `EUDI_DEV_PID=true`. A custom `wallet serve` command gets these defaults too. Set `EUDI_DEV_AUTO_ACCEPT=false` for a wallet that asks for consent. A demo ignores `EUDI_DEV_AUTO_ACCEPT` and auto-accepts only with `--auto-accept` on the command line, which it warns about at start (see [Docker](docs/docker.md#configuration-by-environment)).
+- **Listen address.** The wallet, the decoder and the proxy listen on `127.0.0.1` unless `--listen` or `EUDI_DEV_LISTEN` sets another address. The Docker image and `--docker` listen on every interface (see [upgrading](docs/upgrading.md#listen-address)).
+- **One API error shape.** Every error of the wallet, registrar, catalogue and decoder API is `{"error": "<code>", "error_description": "<message>"}`. Protocol endpoints keep the format of their spec.
+- **`EUDI_DEV_REMOTE_TIMEOUT`.** It replaces `EUDI_REMOTE_TIMEOUT`, which is ignored with a warning.
+- **Demo verifier results.** `GET /verifier/api/requests/{key}` returns the result only for the `transaction_id` or the `response_code`.
+- **`signing_override` removed.** `POST /api/issue` no longer returns it.
+- **Request object checks.** The wallet checks `exp`, `aud` and the validity period of every `x5c` certificate, also of a single signer certificate. Strict mode refuses an expired request object or a wrong `aud`.
+- **Malformed offers.** The wallet refuses an offer with both `credential_offer` and `credential_offer_uri`, and a pre-authorized grant without `pre-authorized_code` (OpenID4VCI 1.0 §4.1).
 
 ### Added
 
@@ -73,6 +80,9 @@ Version 3.0.0 adds a registrar, ARF checks, a catalogue of attestations and a tr
 - **One registration for both roles.** **+ Add verifier registration certificate** lets an issuer ask for a PID before it issues, like the demo issuer. **+ Add issuer registration certificate** lets a verifier issue as well. The party stays one registration with both roles. Deleting a certificate removes it from the registration and revokes it. In the CLI, `verifiers add --to` and `issuers add --to` add the other role or more types, and `registration-cert` prints the current certificate (`--new` issues a new one). See the [registrar walkthrough](docs/wallet/registrar-api.md#5-pid-request-before-issuance).
 - **Not yet valid credentials.** A credential card shows **Not yet valid** before its `nbf` or `validFrom`.
 - **Environment configuration.** Every `wallet serve` flag can be set as `EUDI_DEV_<FLAG>`, such as `EUDI_DEV_PORT` or `EUDI_DEV_BASE_URL`. A flag on the command line wins. An unknown `EUDI_DEV_` variable stops the server, so a typo does not go unnoticed (see [configuration by environment](docs/docker.md#configuration-by-environment)).
+- **Guided tour.** **Take the tour** in **How to use** and in the news shows the main parts of the wallet.
+- **Renamed flags.** An old flag name fails and tells you the new one.
+- **Signed responses in the decoder.** Every signed response in the activity log opens in the decoder.
 
 ### Changed
 
@@ -92,6 +102,15 @@ Version 3.0.0 adds a registrar, ARF checks, a catalogue of attestations and a tr
 - **Check results.** The decoder and the demo verifier show one verdict with short check details. Warnings get their own group, and the decoder names the anchoring trusted list once with a link. The demo verifier folds the passed checks.
 - **UI texts.** Shorter hints in the wallet, the decoder and the demo pages, sentence case in every dialog title and labels for every input. The consent dialog names the registered relying party. The proxy writes its traffic classes in sentence case, also in `classLabel` of `--json`. The issuer CA field of the catalogue says which trusted list gets the CA, and saving over another template asks first.
 - **More findings.** Batch copies that bind no proof key, an `expected_origins` mismatch in interactive authorization and an unreadable `trusted_authorities` list are findings: strict mode refuses, debug mode warns.
+- **Readable errors.** Wallet error dialogs show a short cause and keep the full error under **Technical details**. Pasting something that is not an offer or a request shows a clear message.
+- **Claim names in the offer dialog.** The offer dialog lists the claims by their display name from the issuer metadata. Templates set these names in `display.claims`.
+- **One footer.** Every page shows the version, the release channel, the imprint and a sponsor link in one line.
+- **Decoder hover.** Hovering a section highlights its part of the input without scrolling.
+- **Phone layout.** Activity entries wrap, segmented controls fit and the decoder header collapses into a menu.
+- **Demo verifier after Deny.** The demo verifier sends the wallet back to its page and shows the refusal. An error response leaves the request open.
+- **Demo issuer checks.** The demo issuer checks the DPoP proof of every DPoP request and matches `htu` after normalising it. It refuses a replayed attestation PoP, `credential_response_encryption`, a second proof type and a PAR `request_uri`. A configuration outside the access token gets `insufficient_scope`.
+- **PIDs under `--arf`.** The demo verifier accepts a PID only from the PID provider list.
+- **Waiting flows.** The wallet refuses new interactive flows with 503 `temporarily_unavailable` while 100 consents or sign-ins wait, or 30 on a public demo.
 
 ### Fixed
 
@@ -125,6 +144,15 @@ Version 3.0.0 adds a registrar, ARF checks, a catalogue of attestations and a tr
 - **DNS names of `x509_san_dns`.** The wallet compares the client identifier with the certificate's DNS names case-insensitively (RFC 5280 §4.2.1.6).
 - **Graceful shutdown.** `POST /api/shutdown` stops `wallet serve` like Ctrl-C.
 - **Card images in the demo issuer metadata.** The issuer metadata lists the logo and card image of each template (see [templates](docs/templates.md)).
+- **Unencryptable responses.** If the wallet cannot encrypt the response, it refuses the request with `invalid_request` before the consent dialog (OpenID4VP 1.0 §8.3).
+- **Credential responses with `transaction_id`.** A response that carries both `credentials` and `transaction_id` is a finding (OpenID4VCI 1.0 §8.3).
+- **Scope requests.** A presentation request with only an unknown `scope` gets `invalid_scope`.
+- **DCQL checks.** The wallet checks claims, `claim_sets`, `trusted_authorities` and `credential_sets` against OpenID4VP 1.0 §6.
+- **mdoc checks.** An mdoc without `validUntil` fails the expiry check, and a DeviceResponse with a status other than 0 fails the integrity check. The demo verifier refuses more than one document.
+- **Status list dates.** A fractional `exp`, `iat` or `nbf` is read correctly.
+- **Proxy streams.** The proxy keeps event streams and long polls open past its write timeout. It keeps the first MiB of each body for the dashboard.
+- **Sign-in page.** The demo sign-in page keeps its intro after a wrong password.
+- **Accessibility.** Native controls follow the theme, the decoder input shows its focus, and small badges have enough contrast.
 
 ## [2.8.4] - 2026-10-12
 

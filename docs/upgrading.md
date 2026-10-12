@@ -1,6 +1,6 @@
 # Upgrading from 2.x to 3.0
 
-This page lists what you have to change when you move from eudi-dev 2.x to 3.0. Old commands and flags fail with a message that names the new one, so a script that breaks tells you how to fix it. The [changelog](../CHANGELOG.md) has every change, and [What's new in 3.0](whats-new-3.0.md) shows the new features.
+This page lists what you have to change when you move from eudi-dev 2.x to 3.0. Old commands and flags fail and tell you the new name. The [changelog](../CHANGELOG.md) has every change, and [What's new in 3.0](whats-new-3.0.md) shows the new features.
 
 ## Install and state
 

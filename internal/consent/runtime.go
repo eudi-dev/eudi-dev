@@ -34,7 +34,7 @@ const DefaultMaxPending = 100
 
 // ErrTooManyPending refuses a flow while the maximum number of flows waits
 // for the user.
-var ErrTooManyPending = errors.New("too many flows wait for the user, try again later")
+var ErrTooManyPending = errors.New("too many flows are waiting for the user. Try again later")
 
 // SetMaxPending sets how many requests may wait for an answer at once.
 func (rt *Runtime) SetMaxPending(n int) {

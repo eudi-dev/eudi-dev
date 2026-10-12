@@ -515,7 +515,7 @@ func (h *Server) handleDeleteCatalogSchema(w http.ResponseWriter, r *http.Reques
 	if h.keepsOperatorEntries() {
 		id := r.PathValue("id")
 		if h.Registrar().IsTemplateCatalogID(id) {
-			apierror.WriteStatus(w, http.StatusForbidden, "the entries of the templates are part of the public demo, and visitors can't delete them")
+			apierror.WriteStatus(w, http.StatusForbidden, "template entries belong to the public demo, and visitors can't delete them")
 			return
 		}
 		if h.Registrar().IsOperatorCatalogID(id) {

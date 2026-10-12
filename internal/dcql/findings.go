@@ -121,7 +121,7 @@ func claimFindings(label string, cqMap map[string]any) []string {
 		}
 		// §6.3: path is REQUIRED and "MUST be a non-empty array".
 		if path, ok := claim["path"].([]any); !ok || len(path) == 0 {
-			findings = append(findings, fmt.Sprintf("OID4VP 1.0 §6.3: claim %d of the credential query %q has no path, which must be a non-empty array", i, label))
+			findings = append(findings, fmt.Sprintf("OID4VP 1.0 §6.3: claim %d of the credential query %q needs a path as a non-empty array", i, label))
 		}
 		// §6.3: id is "REQUIRED if claim_sets is present in the Credential
 		// Query". "Within the particular claims array, the same id MUST NOT be
@@ -133,7 +133,7 @@ func claimFindings(label string, cqMap map[string]any) []string {
 			findings = append(findings, fmt.Sprintf("OID4VP 1.0 §6.3: claim %d of the credential query %q needs an id, because the query has claim_sets", i, label))
 		case !hasID:
 		case !isIdentifier(id):
-			findings = append(findings, fmt.Sprintf("OID4VP 1.0 §6.3: claim %d of the credential query %q has the id %v, which must be a non-empty string of alphanumeric, underscore or hyphen characters", i, label, rawID))
+			findings = append(findings, fmt.Sprintf("OID4VP 1.0 §6.3: claim %d of the credential query %q has the id %v. A claim id must be a non-empty string of letters, digits, underscores or hyphens", i, label, rawID))
 		case ids[id]:
 			findings = append(findings, fmt.Sprintf("OID4VP 1.0 §6.3: the claim id %q is present more than once in the credential query %q", id, label))
 		default:
@@ -158,7 +158,7 @@ func claimFindings(label string, cqMap map[string]any) []string {
 		}
 		for _, ref := range set {
 			if id, _ := ref.(string); !ids[id] {
-				findings = append(findings, fmt.Sprintf("OID4VP 1.0 §6.1: claim_sets[%d] of the credential query %q references %v, which is no claim id of that query", i, label, ref))
+				findings = append(findings, fmt.Sprintf("OID4VP 1.0 §6.1: claim_sets[%d] of the credential query %q references %v, but that query has no such claim id", i, label, ref))
 			}
 		}
 	}

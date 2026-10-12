@@ -14,7 +14,7 @@ Each role has its own top-level command:
 
 `trust show [list]` prints one trusted list. The list is a positional argument, and `lists` selects the list of trusted lists.
 
-Each old command path stays as a hidden command in `cmd/moved.go`. It fails with a message that names the new path. The removed commands `wallet generate-pid` and `wallet instances` get the same message. A flag renamed in 3.0, such as `validate --trust-list`, fails with a message that names the new flag. A command that groups subcommands prints its help when called alone and fails on an unknown subcommand.
+Each old command path stays as a hidden command in `cmd/moved.go`. It fails and tells you the new path. The removed commands `wallet generate-pid` and `wallet instances` get the same message. An old flag name, such as `validate --trust-list`, fails and tells you the new one. A command that groups subcommands prints its help when called alone and fails on an unknown subcommand.
 
 ## Consequences
 
