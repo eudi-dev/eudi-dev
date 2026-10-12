@@ -75,7 +75,7 @@ Version 3.0.0 adds a registrar, ARF checks, a catalogue of attestations and a tr
 
 ### Changed
 
-- **New look.** The wallet, decoder, proxy dashboard, demo pages and registrar use a graphite palette in dark and light, system type and rounded controls. Credential data, IDs and code stay in monospace.
+- **New design.** The wallet, decoder, proxy dashboard, demo pages and registrar have a cleaner, more professional design in dark and light.
 - **Unsigned request objects without `typ`.** The wallet warns about a missing `typ` in an unsigned Request Object but still processes it, also in strict mode. OID4VP 1.0 §5 requires `typ`, but the OIDF conformance suite sends its unsigned request objects without one (see [spec compliance](docs/spec-compliance.md)).
 - **Unbound credentials and signed metadata without `iat` in debug mode.** Debug mode presents an unbound credential to a query that requires holder binding and marks it. It reads signed issuer metadata without `iat` or past `exp` with a finding. Strict mode refuses both (OpenID4VP 1.0 §6.1, OpenID4VCI 1.0 §12.2.3).
 - **Strict `--arf` refusals.** An issuer that fails the checks is refused before the consent dialog. An authenticated verifier gets `access_denied` on `/authorize`, over the Digital Credentials API and from `wallet accept`.
@@ -125,13 +125,37 @@ Version 3.0.0 adds a registrar, ARF checks, a catalogue of attestations and a tr
 - **Graceful shutdown.** `POST /api/shutdown` stops `wallet serve` like Ctrl-C.
 - **Card images in the demo issuer metadata.** The issuer metadata lists the logo and card image of each template (see [templates](docs/templates.md)).
 
+## [2.8.3] - 2026-10-12
+
+Backports from 3.0.0.
+
+### Fixed
+
+- **TLS settings in the decoder.** The decoder of `wallet serve` fetches status lists, trusted lists and issuer metadata with the wallet's TLS and proxy settings, so `--tls-verify=false` and `--tls-ca` apply there too.
+
+## [2.8.2] - 2026-10-12
+
+Backports from 3.0.0.
+
+### Changed
+
+- **Lighter dark theme.** The dark theme uses a dim graphite instead of near black.
+
+## [2.8.1] - 2026-10-12
+
+Backports from 3.0.0.
+
+### Fixed
+
+- **Redirect after a denial.** When the user denies a presentation and the verifier answers the error response with a `redirect_uri`, the wallet follows it (OpenID4VP 1.0 §8.2).
+
 ## [2.8.0] - 2026-10-12
 
 Backports from 3.0.0.
 
 ### Changed
 
-- **New look.** The wallet, decoder, proxy dashboard and demo pages use a graphite palette in dark and light, system type and rounded controls. Credential data, IDs and code stay in monospace.
+- **New design.** The wallet, decoder, proxy dashboard and demo pages have a cleaner, more professional design in dark and light.
 
 ### Fixed
 
