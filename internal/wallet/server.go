@@ -34,6 +34,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v2/internal/oid4vc"
 	"github.com/eudi-dev/eudi-dev/v2/internal/publicpath"
 	"github.com/eudi-dev/eudi-dev/v2/internal/storage"
+	"github.com/eudi-dev/eudi-dev/v2/internal/webui"
 )
 
 type Server struct {
@@ -235,8 +236,9 @@ func (s *Server) setupRoutes() {
 			s.routeRoots[entry.Name()] = true
 		}
 	}
+	s.routeRoots[webui.Root] = true
 	index, _ := fs.ReadFile(sub, "index.html")
-	s.route("/", noStaleCache(s.withBrowserSession(publicpath.ServeIndex(index, http.FileServer(http.FS(sub))))))
+	s.route("/", noStaleCache(s.withBrowserSession(publicpath.ServeIndex(index, http.FileServer(http.FS(webui.Overlay(sub)))))))
 }
 
 func (s *Server) route(pattern string, h http.Handler) {

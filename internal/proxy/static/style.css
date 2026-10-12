@@ -41,8 +41,8 @@
   --orange: #f5a97f;
   --purple: #c4a7f5;
   --pink: #f0a3c6;
-  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "SF Mono", "Cascadia Code", "Fira Code", Menlo, Consolas, monospace;
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 
 [data-theme="light"] {

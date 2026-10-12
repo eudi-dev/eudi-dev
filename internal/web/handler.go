@@ -23,6 +23,7 @@ import (
 
 	"github.com/eudi-dev/eudi-dev/v2/internal/httpsec"
 	"github.com/eudi-dev/eudi-dev/v2/internal/wallet"
+	"github.com/eudi-dev/eudi-dev/v2/internal/webui"
 )
 
 const maxRequestBody = 1 << 20 // 1MB
@@ -86,7 +87,7 @@ func NewMuxWithOptions(opts MuxOptions) http.Handler {
 	// Embedded files have no modification time for cache validation. Browsers must
 	// revalidate, so they never mix assets from different releases.
 	sub, _ := fs.Sub(staticFiles, "static")
-	mux.Handle("/", noStaleCache(http.FileServer(http.FS(sub))))
+	mux.Handle("/", noStaleCache(http.FileServer(http.FS(webui.Overlay(sub)))))
 
 	// Decoder links can carry attacker-selected credentials. The guard sits inside the
 	// handler, so mounted routes are checked after their prefix is stripped.

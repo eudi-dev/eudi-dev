@@ -25,6 +25,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v2/internal/httpsec"
 	"github.com/eudi-dev/eudi-dev/v2/internal/publicpath"
 	"github.com/eudi-dev/eudi-dev/v2/internal/web"
+	"github.com/eudi-dev/eudi-dev/v2/internal/webui"
 )
 
 // streamKeepaliveInterval is how often an idle event stream sends a comment
@@ -60,7 +61,7 @@ func (d *Dashboard) SetBaseURL(raw string) error {
 }
 
 func dashboardRoots() map[string]bool {
-	roots := map[string]bool{"api": true, "decode": true}
+	roots := map[string]bool{"api": true, "decode": true, webui.Root: true}
 	if entries, err := fs.ReadDir(staticFiles, "static"); err == nil {
 		for _, entry := range entries {
 			roots[entry.Name()] = true
@@ -81,7 +82,7 @@ func (d *Dashboard) Handler() http.Handler {
 
 	sub, _ := fs.Sub(staticFiles, "static")
 	index, _ := fs.ReadFile(sub, "index.html")
-	mux.Handle("/", publicpath.ServeIndex(index, http.FileServer(http.FS(sub))))
+	mux.Handle("/", publicpath.ServeIndex(index, http.FileServer(http.FS(webui.Overlay(sub)))))
 
 	// Captured traffic is untrusted input.
 	return publicpath.Wrap(publicpath.Options{

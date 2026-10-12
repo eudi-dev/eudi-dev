@@ -39,6 +39,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v2/internal/trustlist"
 	"github.com/eudi-dev/eudi-dev/v2/internal/validate"
 	"github.com/eudi-dev/eudi-dev/v2/internal/wallet"
+	"github.com/eudi-dev/eudi-dev/v2/internal/webui"
 )
 
 // The German PID extends the base SD-JWT PID type. It answers a request for
@@ -110,6 +111,7 @@ func (d *DemoRP) VerifierHandler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", d.serveStatic("static/verifier.html"))
 	mux.HandleFunc("GET /verifier.js", d.serveStatic("static/verifier.js"))
+	webui.Mount(mux)
 	mux.HandleFunc("POST /api/requests", d.handleCreateRequest)
 	mux.HandleFunc("GET /api/requests/{id}", d.handleRequestStatus)
 	mux.HandleFunc("GET /request/{id}", d.handleRequestObject)

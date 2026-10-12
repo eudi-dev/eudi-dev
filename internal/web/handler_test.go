@@ -24,6 +24,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/eudi-dev/eudi-dev/v2/internal/webui/webuitest"
 )
 
 func apiPost(t *testing.T, body string) *httptest.ResponseRecorder {
@@ -781,4 +783,9 @@ func TestCredentialByIDWithoutAWallet(t *testing.T) {
 	if detail, _ := decodeResponse(t, w)["error"].(string); !strings.Contains(detail, "not attached to a wallet") {
 		t.Errorf("error = %q, want it to name the missing wallet", detail)
 	}
+}
+
+// The decoder page loads the bundled fonts.
+func TestDecoderPageLoadsTheFonts(t *testing.T) {
+	webuitest.CheckFonts(t, NewMux(""), "", "/")
 }

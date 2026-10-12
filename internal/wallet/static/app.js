@@ -53,6 +53,14 @@
   // runs under a path prefix.
   const appBase = new URL('.', document.baseURI);
 
+  // The main area reserves a scrollbar gutter whose width depends on the browser and OS.
+  // The activity drawer below it takes the same right margin so both line up.
+  const mainArea = document.querySelector('.main');
+  if (mainArea) {
+    const gutter = mainArea.offsetWidth - mainArea.clientWidth;
+    document.documentElement.style.setProperty('--main-gutter', gutter + 'px');
+  }
+
   const CLIENT_NAME = 'eudi-ui';
   const CLIENT_HEADER = 'X-Eudi-Client';
   const OWNER_HEADER = 'X-Eudi-Owner';

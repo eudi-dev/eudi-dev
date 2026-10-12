@@ -348,3 +348,5 @@ The official listings link to the certification submissions and test results. Th
 ## License
 
 Apache-2.0
+
+**Fonts:** The web pages use IBM Plex Sans and IBM Plex Mono by IBM. They are bundled unmodified under the SIL Open Font License 1.1. See [internal/webui/fonts](internal/webui/fonts).

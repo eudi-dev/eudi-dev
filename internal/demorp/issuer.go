@@ -31,6 +31,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v2/internal/httpsec"
 	"github.com/eudi-dev/eudi-dev/v2/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v2/internal/wallet"
+	"github.com/eudi-dev/eudi-dev/v2/internal/webui"
 )
 
 //go:embed static
@@ -138,6 +139,7 @@ func (d *DemoRP) IssuerHandler() http.Handler {
 	// The script is a separate file because the wallet Content-Security-Policy
 	// has no script-src 'unsafe-inline'.
 	mux.HandleFunc("GET /issuer.js", d.serveStatic("static/issuer.js"))
+	webui.Mount(mux)
 	mux.HandleFunc("POST /api/offers", d.handleCreateOffer)
 	mux.HandleFunc("GET /offer/{id}", d.handleOfferByReference)
 	mux.HandleFunc("POST /token", d.handleToken)

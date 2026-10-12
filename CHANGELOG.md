@@ -5,6 +5,18 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.4] - 2026-10-12
+
+Backports from 3.0.0.
+
+### Changed
+
+- **Type.** Every page uses IBM Plex Sans and IBM Plex Mono, bundled in the binary under the SIL Open Font License.
+
+### Fixed
+
+- **Activity width.** The activity panel lines up with the credential list.
+
 ## [2.8.3] - 2026-10-12
 
 Backports from 3.0.0.

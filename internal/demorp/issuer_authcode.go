@@ -868,13 +868,14 @@ var loginPageTemplate = template.Must(template.New("login").Parse(`<!DOCTYPE htm
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" type="image/svg+xml" href="../favicon.svg?v=2">
 <title>EUDI Test Demo Issuer</title>
+<link rel="stylesheet" href="fonts/plex.css">
 <style>
 :root {
   --bg: #17191e; --bg-surface: #21242a; --bg-input: #1c1f24; --bg-raised: #383d45;
   --text: #eceef1; --text-dim: #a9afb9; --border: #383d45; --border-subtle: #2a2e35;
   --accent: #8fb4ff; --on-accent: #17191e; --danger: #ff9b8f;
-  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "SF Mono", "Cascadia Code", "Fira Code", Menlo, Consolas, monospace;
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 @media (prefers-color-scheme: light) {
   :root {
