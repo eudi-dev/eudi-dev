@@ -105,7 +105,7 @@ Version 3.0.0 adds a registrar, ARF checks, a catalogue of attestations and a tr
 - **Readable errors.** Wallet error dialogs show a short cause and keep the full error under **Technical details**. Pasting something that is not an offer or a request shows a clear message.
 - **Claim names in the offer dialog.** The offer dialog lists the claims by their display name from the issuer metadata. Templates set these names in `display.claims`.
 - **One footer.** Every page shows the version, the release channel, the imprint and a sponsor link in one line.
-- **Decoder hover.** Hovering a section highlights its part of the input without scrolling. A single disclosure highlights only its own part.
+- **Decoder hover.** Hovering a section highlights its part of the input without scrolling.
 - **Phone layout.** Activity entries wrap, segmented controls fit and the decoder header collapses into a menu.
 - **Demo verifier after Deny.** The demo verifier sends the wallet back to its page and shows the refusal. An error response leaves the request open.
 - **Demo issuer checks.** The demo issuer checks the DPoP proof of every DPoP request and matches `htu` after normalising it. It refuses a replayed attestation PoP, `credential_response_encryption`, a second proof type and a PAR `request_uri`. A configuration outside the access token gets `insufficient_scope`.

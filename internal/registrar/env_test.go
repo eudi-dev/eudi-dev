@@ -41,8 +41,9 @@ type testEnv struct {
 	accessCAKey    *ecdsa.PrivateKey
 	accessCA       *x509.Certificate
 	templates      credtemplate.Location
-	// signErr makes the registrar signer fail.
+	// signErr makes the registrar signer fail, accessCAErr the access CA.
 	signErr           error
+	accessCAErr       error
 	maxRelyingParties int
 }
 
@@ -51,7 +52,7 @@ func (e *testEnv) RegistrarSigningMaterial() (*ecdsa.PrivateKey, []*x509.Certifi
 	return e.registrarKey, e.registrarChain, e.signErr
 }
 func (e *testEnv) RelyingPartyAccessCA() (*ecdsa.PrivateKey, *x509.Certificate, error) {
-	return e.accessCAKey, e.accessCA, nil
+	return e.accessCAKey, e.accessCA, e.accessCAErr
 }
 func (e *testEnv) TemplateLocation() credtemplate.Location { return e.templates }
 func (e *testEnv) MaxRelyingParties() int                  { return e.maxRelyingParties }
