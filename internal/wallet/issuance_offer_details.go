@@ -122,7 +122,7 @@ func (w *Wallet) describeConfiguration(metadata map[string]any, id string) conse
 		out.Name, _ = entry["name"].(string)
 		out.Description, _ = entry["description"].(string)
 	}
-	out.Claims = configurationClaimNames(credentialMetadata["claims"])
+	out.Claims, out.ClaimDisplayNames = configurationClaims(credentialMetadata["claims"])
 	out.Display = w.resolveCredentialDisplay(metadata, id)
 	return out
 }
@@ -138,13 +138,27 @@ func firstDisplayEntry(raw any) (map[string]any, bool) {
 	return entry, ok
 }
 
-// configurationClaimNames lists the claim names of a configuration. OID4VCI
-// 1.0 uses an array of objects with a "path". Earlier drafts used a nested
-// object keyed by claim name. Issuers still publish both.
-func configurationClaimNames(raw any) []string {
+// configurationClaims lists the claim paths of a configuration and the
+// display names of its claims. A display name is the name of the claim's first
+// display entry. OID4VCI 1.0 uses an array of objects with a "path". Earlier
+// drafts used a nested object keyed by claim name. Issuers still publish both.
+func configurationClaims(raw any) (paths []string, displayNames map[string]string) {
+	addDisplayName := func(path string, claim map[string]any) {
+		entry, ok := firstDisplayEntry(claim["display"])
+		if !ok {
+			return
+		}
+		name, _ := entry["name"].(string)
+		if name = boundDisplayText(name, maxDisplayNameRunes); name == "" {
+			return
+		}
+		if displayNames == nil {
+			displayNames = map[string]string{}
+		}
+		displayNames[path] = name
+	}
 	switch claims := raw.(type) {
 	case []any:
-		var names []string
 		for _, entry := range claims {
 			claim, ok := entry.(map[string]any)
 			if !ok {
@@ -154,16 +168,18 @@ func configurationClaimNames(raw any) []string {
 			if !ok || len(path) == 0 {
 				continue
 			}
-			names = append(names, dcql.ClaimPathString(path))
+			name := dcql.ClaimPathString(path)
+			paths = append(paths, name)
+			addDisplayName(name, claim)
 		}
-		return names
 	case map[string]any:
-		names := make([]string, 0, len(claims))
-		for name := range claims {
-			names = append(names, name)
+		for name, entry := range claims {
+			paths = append(paths, name)
+			if claim, ok := entry.(map[string]any); ok {
+				addDisplayName(name, claim)
+			}
 		}
-		sort.Strings(names)
-		return names
+		sort.Strings(paths)
 	}
-	return nil
+	return paths, displayNames
 }

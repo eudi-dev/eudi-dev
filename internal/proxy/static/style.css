@@ -30,17 +30,23 @@ header {
   flex-shrink: 0;
 }
 
-/* The logo's aspect ratio is 46:51. A square box adds padding. */
+/* The logo's aspect ratio is 42:47. A square box adds padding. */
 .header-logo {
-  width: 26px;
-  height: 29px;
+  width: 24px;
+  height: 27px;
   flex-shrink: 0;
 }
 
 .header-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+}
+
+/* IBM Plex Sans at 13px draws its glyphs about 1px above the middle of the
+   line box. The nudge puts the buttons on the title's center line. */
+header .btn {
+  padding: 8px 14px 6px;
 }
 
 header h1 {

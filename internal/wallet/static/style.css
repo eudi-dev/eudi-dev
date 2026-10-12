@@ -50,10 +50,10 @@ header h1 {
   white-space: nowrap;
 }
 
-/* Match the logo's 46:51 aspect ratio to avoid padding from a square box. */
+/* Match the logo's 42:47 aspect ratio to avoid padding from a square box. */
 .header-logo {
-  width: 26px;
-  height: 29px;
+  width: 24px;
+  height: 27px;
   flex-shrink: 0;
 }
 
@@ -73,6 +73,17 @@ header h1 {
   font-size: 13px;
 }
 
+/* IBM Plex Sans at 13px draws its glyphs about 1px above the middle of the
+   line box. The nudge puts the links and buttons on the title's center line. */
+.header-links {
+  position: relative;
+  top: 1px;
+}
+
+header .btn {
+  padding: 8px 14px 6px;
+}
+
 .header-menu-toggle {
   display: none;
   background: none;
@@ -82,7 +93,7 @@ header h1 {
   font: inherit;
   font-size: 13px;
   height: 34px;
-  padding: 0 14px;
+  padding: 1px 14px 0;
   cursor: pointer;
 }
 
@@ -1414,7 +1425,7 @@ textarea.form-input {
   gap: 10px;
   padding: 10px 12px;
   font-size: 14px;
-  border-bottom: 1px solid var(--border-dialog);
+  border-bottom: 1px solid var(--border-raised);
   cursor: pointer;
 }
 .consent-claim:last-child { border-bottom: none; }
@@ -1474,9 +1485,14 @@ textarea.form-input {
 .consent-findings[open] summary::after { content: "Hide"; }
 
 .consent-findings ul {
-  margin: 0 0 8px;
-  padding: 0 12px 0 28px;
+  margin: 0;
+  padding: 2px 14px 12px 32px;
+  line-height: 1.5;
   overflow-wrap: anywhere;
+}
+
+.consent-findings li + li {
+  margin-top: 6px;
 }
 
 /* Show warnings without hover so they remain accessible on touch screens. */
@@ -1491,7 +1507,9 @@ textarea.form-input {
   color: var(--text-dim);
 }
 .offer-claims .consent-claim { cursor: default; }
-.offer-claims .consent-claim-name { flex: 1 1 auto; }
+.offer-claims .consent-claim-name { flex: 1 1 auto; color: var(--text); }
+.offer-claim-label { flex: 1 1 auto; min-width: 0; color: var(--text); font-weight: 500; overflow-wrap: anywhere; }
+.offer-claims .offer-claim-labeled .consent-claim-name { flex: 0 1 auto; max-width: 55%; font-size: 12px; color: var(--text-dim); text-align: right; }
 .offer-description {
   font-size: 13px;
   color: var(--text-dim);

@@ -262,6 +262,9 @@ type OfferedCredential struct {
 	Name        string   `json:"name,omitempty"`
 	Description string   `json:"description,omitempty"`
 	Claims      []string `json:"claims,omitempty"`
+	// ClaimDisplayNames maps a path in Claims to the claim's display name
+	// from the issuer metadata. A claim without a display name has no entry.
+	ClaimDisplayNames map[string]string `json:"claim_display_names,omitempty"`
 	// Display images get the same address checks as images of issued
 	// credentials. --adhoc-display-images can keep HTTPS URLs for the browser.
 	Display *oid4vc.CredentialDisplay `json:"display,omitempty"`

@@ -264,16 +264,10 @@
     if (sec.startsWith("disc-")) {
       const idx = sec.replace("disc-", "");
       const item = outputEl.querySelector('.disclosure-item[data-disc-index="' + idx + '"]');
-      if (item) {
-        item.classList.add("highlight");
-        item.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      }
+      if (item) item.classList.add("highlight");
     } else {
       const target = outputEl.querySelector('.section[data-section="' + sec + '"]');
-      if (target) {
-        target.classList.add("highlight");
-        target.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      }
+      if (target) target.classList.add("highlight");
     }
   }
 
@@ -776,10 +770,7 @@
         item.addEventListener("mouseenter", () => {
           item.classList.add("highlight");
           const span = rawView.querySelector('[data-section="disc-' + idx + '"]');
-          if (span) {
-            span.classList.add("highlight");
-            span.scrollIntoView({ behavior: "smooth", block: "nearest" });
-          }
+          if (span) span.classList.add("highlight");
         });
         item.addEventListener("mouseleave", () => {
           item.classList.remove("highlight");
@@ -1113,13 +1104,9 @@
         if (sectionId === "disclosures") {
           const spans = rawView.querySelectorAll('[data-section^="disc-"]');
           spans.forEach((s) => s.classList.add("highlight"));
-          if (spans.length) spans[0].scrollIntoView({ behavior: "smooth", block: "nearest" });
         } else {
           const span = rawView.querySelector('[data-section="' + sectionId + '"]');
-          if (span) {
-            span.classList.add("highlight");
-            span.scrollIntoView({ behavior: "smooth", block: "nearest" });
-          }
+          if (span) span.classList.add("highlight");
         }
       });
       section.addEventListener("mouseleave", () => {

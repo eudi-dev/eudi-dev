@@ -70,6 +70,22 @@ func TestIssuerDisplayMetadata(t *testing.T) {
 		t.Errorf("ticket logo uri = %q", uri)
 	}
 
+	// The configuration's claims carry the template's display names.
+	claims, _ := credMeta["claims"].([]any)
+	var seatName string
+	for _, raw := range claims {
+		claim, _ := raw.(map[string]any)
+		if path, _ := claim["path"].([]any); len(path) == 1 && path[0] == "seat" {
+			claimDisplay, _ := claim["display"].([]any)
+			if len(claimDisplay) > 0 {
+				seatName, _ = claimDisplay[0].(map[string]any)["name"].(string)
+			}
+		}
+	}
+	if seatName != "Seat" {
+		t.Errorf("seat display name = %q, want Seat", seatName)
+	}
+
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, httptest.NewRequest("GET", "/logo.svg", nil))
 	if rec.Code != http.StatusOK {

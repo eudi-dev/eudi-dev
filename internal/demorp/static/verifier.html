@@ -18,8 +18,9 @@
     .card { max-width: 640px; margin: 0 auto; background: var(--bg-surface);
       border: 1px solid var(--border-subtle); border-radius: 24px; padding: 26px; }
     h1 { font-size: 20px; font-weight: 700; color: var(--text); margin-bottom: 0; }
-    .page-header { display: flex; gap: 14px; align-items: center; margin-bottom: 18px; }
-    .page-logo { width: 40px; height: 44px; flex-shrink: 0; }
+    .page-header { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 18px; }
+    /* The logo centers on the title and the first subtitle line, also when the subtitle wraps. */
+    .page-logo { width: 36px; height: 40px; flex-shrink: 0; margin-top: 5.5px; }
     .subtitle { font-size: 14px; color: var(--text-dim); margin-bottom: 16px; }
     p { font-size: 14px; line-height: 1.5; color: var(--text); margin-bottom: 18px; }
     code { font-family: var(--font-mono); font-size: 0.92em; }

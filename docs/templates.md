@@ -102,7 +102,7 @@ All fields except `claims` are optional:
 | `rulebook` | URL of the rulebook or specification of the credential type. The [attestation catalogue](#attestation-catalogue) links it |
 | `baseline` | Marks a PID that the demo profile holds. Only predefined templates use it |
 | `category` | `pid`, `qeaa`, `pub-eaa` or `eaa`. Credentials from the template are on the [trusted list](wallet/serve.md#trusted-lists) of this category. Without one, the template's catalogue entry gives the category, else the credentials are EAAs. The predefined PID templates are `pid` and the demo ticket is `eaa` |
-| `display` | Card appearance for credentials issued from the template (`name`, `description`, `background_color`, `text_color`, `logo`, `logo_alt_text`, `background_image`). Image fields take `embedded:<file>`, a data URI or an http(s) URL (see [card appearance](#card-appearance-display)). The predefined PID templates set it |
+| `display` | Card appearance for credentials issued from the template (`name`, `description`, `background_color`, `text_color`, `logo`, `logo_alt_text`, `background_image`) and display names of its claims (`claims`). Image fields take `embedded:<file>`, a data URI or an http(s) URL (see [card appearance](#card-appearance-display)). The predefined PID templates set it |
 | `catalog` | The template's own entry in the attestation catalogue, with the fields of a catalogue request. Its category is the template's category. See [catalogue entry in a template file](#catalogue-entry-in-a-template-file) |
 | `predefined` | Set on predefined templates in listings and exports. Ignored on import |
 | `visitor` | Set by the wallet on a template that a visitor of the public demo saved. Visitors can change and delete these templates, and a demo reset removes them |
@@ -207,6 +207,7 @@ The optional `display` object sets the card appearance of credentials issued fro
 | `logo` | Card logo image (see image sources below) |
 | `logo_alt_text` | Alt text for the logo image |
 | `background_image` | Full card background image behind the name (see image sources below) |
+| `claims` | Display names of the top-level claims, keyed by claim name, such as `{"seat": "Seat"}`. The demo issuer publishes them in its issuer metadata |
 
 The two image fields (`logo`, `background_image`) take one of three sources:
 

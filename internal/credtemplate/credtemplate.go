@@ -99,6 +99,8 @@ type TemplateDisplay struct {
 	Logo            string `json:"logo,omitempty"`
 	LogoAltText     string `json:"logo_alt_text,omitempty"`
 	BackgroundImage string `json:"background_image,omitempty"`
+	// Claims maps a top-level claim name to its display name.
+	Claims map[string]string `json:"claims,omitempty"`
 }
 
 var templateExtensions = []string{".json", ".template", ".yaml", ".yml"}

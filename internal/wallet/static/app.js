@@ -2233,9 +2233,14 @@
     if (cred.claims && cred.claims.length > 0) {
       claims = '<div class="cl-hd" id="' + prefix + '-claims-title">↗ You will receive<span class="cl-count" id="' + prefix + '-claims-count">' + cred.claims.length +
           ' claim' + (cred.claims.length === 1 ? '' : 's') + '</span></div>' +
-        '<div class="consent-claims offer-claims" id="' + prefix + '-claims">' + cred.claims.map((claim, i) =>
-          '<div class="consent-claim"><span class="consent-claim-name mono" id="' + prefix + '-claim-' + i + '">' + escHtml(claim).replace(/\./g, '.<wbr>') + '</span></div>'
-        ).join('') + '</div>';
+        '<div class="consent-claims offer-claims" id="' + prefix + '-claims">' + cred.claims.map((claim, i) => {
+          const row = prefix + '-claim-' + i;
+          const label = (cred.claim_display_names || {})[claim];
+          const path = '<span class="consent-claim-name mono" id="' + row + '">' + escHtml(claim).replace(/\./g, '.<wbr>') + '</span>';
+          return label
+            ? '<div class="consent-claim offer-claim-labeled"><span class="offer-claim-label" id="' + row + '-label">' + escHtml(label) + '</span>' + path + '</div>'
+            : '<div class="consent-claim">' + path + '</div>';
+        }).join('') + '</div>';
     }
     return '<div class="consent-credential" id="' + prefix + '" data-config-id="' + domID(cred.id) + '">' + card + claims + '</div>';
   }

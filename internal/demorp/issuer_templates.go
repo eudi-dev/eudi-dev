@@ -216,8 +216,8 @@ func (d *DemoRP) handleTemplateImage(w http.ResponseWriter, r *http.Request) {
 	httpsec.ServeImage(w, r, contentType, data)
 }
 
-// templateClaimPaths lists the top-level claims of the template. For an mdoc
-// each path starts with the namespace.
+// templateClaimPaths lists the top-level claims of the template with their
+// display names. For an mdoc each path starts with the namespace.
 func templateClaimPaths(cfg templateConfiguration) []map[string]any {
 	names := make([]string, 0, len(cfg.template.Claims))
 	for name := range cfg.template.Claims {
@@ -234,7 +234,11 @@ func templateClaimPaths(cfg templateConfiguration) []map[string]any {
 			}
 			path = []string{namespace, name}
 		}
-		paths = append(paths, map[string]any{"path": path})
+		claim := map[string]any{"path": path}
+		if tpl := cfg.template.Display; tpl != nil && tpl.Claims[name] != "" {
+			claim["display"] = []map[string]any{{"name": tpl.Claims[name], "locale": "en-US"}}
+		}
+		paths = append(paths, claim)
 	}
 	// Only tickets issued after wallet attestation have this claim.
 	if cfg.id == ticketConfigurationID {

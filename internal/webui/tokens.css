@@ -84,6 +84,7 @@
   --border: #383d45;
   --border-subtle: #2a2e35;
   --border-dialog: #3a3f47;
+  --border-raised: #24272d;
   --accent: #8fb4ff;
   --on-accent: #17191e;
   --link: #9dbcff;
@@ -132,6 +133,7 @@
   --border: #d5d8de;
   --border-subtle: #e4e6ea;
   --border-dialog: #dfe2e7;
+  --border-raised: #dde0e6;
   --accent: #1f4fd1;
   --on-accent: #ffffff;
   --link: #1f4fd1;

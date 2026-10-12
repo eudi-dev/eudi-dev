@@ -17,6 +17,13 @@
     "background_color": "#0f766e",
     "text_color": "#ffffff",
     "logo": "embedded:images/logo.svg",
-    "logo_alt_text": "eudi-dev logo"
+    "logo_alt_text": "eudi-dev logo",
+    "claims": {
+      "event": "Event",
+      "family_name": "Family name",
+      "given_name": "Given name",
+      "seat": "Seat",
+      "tier": "Ticket tier"
+    }
   }
 }

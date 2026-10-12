@@ -283,6 +283,12 @@ test.describe("Demo mode consent visibility", () => {
     for (const claim of ["event", "tier", "seat", "given_name", "family_name"]) {
       await expect(dialog.locator(".consent-claim-name", { hasText: claim })).toHaveCount(1);
     }
+    // Claims show the display names from the issuer metadata, with the path
+    // next to them.
+    const seat = dialog.locator(".consent-claim", { has: page.locator(".consent-claim-name", { hasText: /^seat$/ }) });
+    await expect(seat.locator(".offer-claim-label")).toHaveText("Seat");
+    const tier = dialog.locator(".consent-claim", { has: page.locator(".consent-claim-name", { hasText: /^tier$/ }) });
+    await expect(tier.locator(".offer-claim-label")).toHaveText("Ticket tier");
 
     await page.locator("#consent-deny").click();
     await expect(page.locator("#consent-overlay")).not.toHaveClass(/active/);
