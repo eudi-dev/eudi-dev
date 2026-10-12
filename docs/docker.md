@@ -11,7 +11,7 @@ docker run -p 8085:8085 -p 8086:8086 ghcr.io/eudi-dev/eudi-dev
 
 The default command `wallet serve` starts a headless wallet. It holds PID credentials and approves every request. It stores state in memory and derives keys from a fixed seed. Each start uses the same keys and CA without a volume (see [Storage](#storage)). Stopping the container discards credentials issued or imported during the run.
 
-The image sets `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=true`, so the wallet reaches verifiers on the Docker host and in other containers. Set `-e EUDI_DEV_ALLOW_PRIVATE_NETWORKS=false` for a wallet that visitors on the internet use. It then reaches public addresses and loopback only (see [outbound address limits](wallet/serve.md#outbound-address-limits)).
+The image sets `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=true`, so the wallet reaches verifiers on the Docker host and in other containers. Set `-e EUDI_DEV_ALLOW_PRIVATE_NETWORKS=false` for a wallet that visitors on the internet use. It then reaches public addresses and loopback only. With `--demo` it reaches public addresses only (see [outbound address limits](wallet/serve.md#outbound-address-limits)). The variable also applies to `--demo`, so a public demo needs it set to `false`.
 
 Override the command to use any CLI feature:
 

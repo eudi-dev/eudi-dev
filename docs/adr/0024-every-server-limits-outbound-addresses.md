@@ -8,7 +8,7 @@
 
 `--allow-private-networks` or `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=true` lifts the limit for issuers and verifiers on a LAN, in Docker or in a cluster. The Docker image sets the variable, because its verifiers under test run on the Docker host or in other containers.
 
-`--demo` also refuses loopback. It ignores the variable and refuses the flag.
+`--demo` also refuses loopback. The flag and the variable lift its limit too, loopback included. `wallet serve` then warns at start that the public demo reaches local and private addresses. A public demo sets `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=false` to keep the limit in the Docker image.
 
 Every policy exempts the operator's destinations at their exact address and port: the server's own origins, the `--trusted-list` URLs and the forward proxy.
 

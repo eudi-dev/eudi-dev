@@ -29,9 +29,8 @@ import (
 
 const flagEnvPrefix = "EUDI_DEV_"
 
-// directEnvVars are read by every command that uses them, so applyFlagEnv
-// leaves them alone. EUDI_DEV_ALLOW_PRIVATE_NETWORKS stays out of the flag
-// because --demo refuses the flag and ignores the variable.
+// directEnvVars are read by every command that uses them, eudi decoder
+// included, so applyFlagEnv leaves them alone.
 var directEnvVars = []string{config.HomeEnvVar, storage.EnvVar, wallet.SeedEnvVar, allowPrivateNetworksEnv}
 
 func flagEnvVar(flag string) string {

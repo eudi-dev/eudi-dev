@@ -58,7 +58,7 @@ func runDecoder(cmd *cobra.Command, args []string) error {
 		}
 		credential = raw
 	}
-	if err := installFetchPolicy(cmd, decoderAllowPrivateNetworks, false, format.ProxyURLs(format.ProxySettings{})...); err != nil {
+	if _, err := installFetchPolicy(cmd, decoderAllowPrivateNetworks, false, format.ProxyURLs(format.ProxySettings{})...); err != nil {
 		return err
 	}
 

@@ -141,7 +141,7 @@ func TestFlagEnvKnowsTheDirectVariables(t *testing.T) {
 		t.Fatal(err)
 	}
 	if cmd.Flags().Changed(allowPrivateNetworksFlag) {
-		t.Fatalf("$%s set --%s, which --demo refuses", allowPrivateNetworksEnv, allowPrivateNetworksFlag)
+		t.Fatalf("$%s set --%s, which installFetchPolicy reads itself", allowPrivateNetworksEnv, allowPrivateNetworksFlag)
 	}
 }
 

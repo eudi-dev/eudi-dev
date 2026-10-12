@@ -16,6 +16,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -65,7 +66,7 @@ func policyCommand(t *testing.T, args ...string) (*cobra.Command, *bool) {
 func TestServersBlockPrivateNetworksAndReachLoopbackByDefault(t *testing.T) {
 	t.Setenv(allowPrivateNetworksEnv, "")
 	cmd, allow := policyCommand(t)
-	if err := installFetchPolicy(cmd, *allow, false); err != nil {
+	if _, err := installFetchPolicy(cmd, *allow, false); err != nil {
 		t.Fatal(err)
 	}
 	if err := privateFetchError(t); err == nil || !strings.Contains(err.Error(), "--allow-private-networks") {
@@ -76,56 +77,81 @@ func TestServersBlockPrivateNetworksAndReachLoopbackByDefault(t *testing.T) {
 	}
 }
 
+// The flag and the variable lift the limit with and without --demo. On a demo
+// they open loopback as well.
 func TestAllowPrivateNetworksLiftsTheLimit(t *testing.T) {
-	for name, setup := range map[string]func(t *testing.T) []string{
+	setups := map[string]func(t *testing.T) []string{
 		"flag": func(t *testing.T) []string {
 			t.Setenv(allowPrivateNetworksEnv, "")
 			return []string{"--allow-private-networks"}
 		},
 		"variable": func(t *testing.T) []string { t.Setenv(allowPrivateNetworksEnv, "true"); return nil },
-	} {
-		t.Run(name, func(t *testing.T) {
-			cmd, allow := policyCommand(t, setup(t)...)
-			if err := installFetchPolicy(cmd, *allow, false); err != nil {
-				t.Fatal(err)
-			}
-			if err := privateFetchError(t); err != nil && strings.Contains(err.Error(), "not allowed") {
-				t.Errorf("a private address is still refused: %v", err)
-			}
-		})
+	}
+	for _, demo := range []bool{false, true} {
+		for name, setup := range setups {
+			t.Run(fmt.Sprintf("%s demo=%t", name, demo), func(t *testing.T) {
+				cmd, allow := policyCommand(t, setup(t)...)
+				lifted, err := installFetchPolicy(cmd, *allow, demo)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !lifted {
+					t.Error("installFetchPolicy reported the limit as active")
+				}
+				if err := privateFetchError(t); err != nil && strings.Contains(err.Error(), "not allowed") {
+					t.Errorf("a private address is still refused: %v", err)
+				}
+				if err := loopbackFetchError(t); err != nil {
+					t.Errorf("loopback is not reachable: %v", err)
+				}
+			})
+		}
 	}
 }
 
 func TestDemoReachesPublicAddressesAndItsOwnOrigins(t *testing.T) {
-	t.Setenv(allowPrivateNetworksEnv, "true")
+	t.Setenv(allowPrivateNetworksEnv, "")
 	own := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	defer own.Close()
 	cmd, allow := policyCommand(t)
-	if err := installFetchPolicy(cmd, *allow, true, own.URL); err != nil {
+	lifted, err := installFetchPolicy(cmd, *allow, true, own.URL)
+	if err != nil {
 		t.Fatal(err)
 	}
+	if lifted {
+		t.Error("installFetchPolicy reported the limit as lifted")
+	}
+	assertDemoLimit(t)
+	if _, err := format.FetchURL(own.URL); err != nil {
+		t.Errorf("the demo cannot reach its own origin: %v", err)
+	}
+}
+
+// The flag wins over the variable, so a public demo in the Docker image keeps
+// the limit with --allow-private-networks=false.
+func TestDemoKeepsTheLimitWhenTheFlagIsFalse(t *testing.T) {
+	t.Setenv(allowPrivateNetworksEnv, "true")
+	cmd, allow := policyCommand(t, "--allow-private-networks=false")
+	if _, err := installFetchPolicy(cmd, *allow, true); err != nil {
+		t.Fatal(err)
+	}
+	assertDemoLimit(t)
+}
+
+func assertDemoLimit(t *testing.T) {
+	t.Helper()
 	if err := loopbackFetchError(t); err == nil {
 		t.Error("the demo reached another loopback service")
 	}
 	if err := privateFetchError(t); err == nil || !strings.Contains(err.Error(), "not allowed") {
 		t.Errorf("the demo did not refuse a private address: %v", err)
 	}
-	if _, err := format.FetchURL(own.URL); err != nil {
-		t.Errorf("the demo cannot reach its own origin: %v", err)
-	}
-}
-
-func TestDemoRefusesTheExplicitFlag(t *testing.T) {
-	cmd, allow := policyCommand(t, "--allow-private-networks")
-	if err := installFetchPolicy(cmd, *allow, true); err == nil {
-		t.Fatal("--demo accepted --allow-private-networks")
-	}
 }
 
 func TestAllowPrivateNetworksVariableMustBeABoolean(t *testing.T) {
 	t.Setenv(allowPrivateNetworksEnv, "sometimes")
 	cmd, allow := policyCommand(t)
-	if err := installFetchPolicy(cmd, *allow, false); err == nil {
+	if _, err := installFetchPolicy(cmd, *allow, false); err == nil {
 		t.Fatal("an invalid variable was accepted")
 	}
 }

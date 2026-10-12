@@ -41,34 +41,31 @@ func addAllowPrivateNetworksFlag(cmd *cobra.Command, target *bool, note string) 
 // URLs: credential offers and request URIs to the wallet, trusted lists,
 // issuers and status lists to the decoder. So a server reaches public
 // addresses and loopback, where developers run issuer and verifier next to the
-// wallet. --allow-private-networks lifts the limit. A public demo reaches
-// public addresses only. Every server reaches the operator's destinations at
-// their exact address and port: its own origins, the configured trusted lists
-// and the forward proxy, which sees every proxied destination in place of the
-// server.
-func installFetchPolicy(cmd *cobra.Command, allowPrivate, demo bool, operatorURLs ...string) error {
+// wallet. A public demo reaches public addresses only. --allow-private-networks
+// lifts the limit in both cases. Every server reaches the operator's
+// destinations at their exact address and port: its own origins, the
+// configured trusted lists and the forward proxy, which sees every proxied
+// destination in place of the server. It reports whether the limit is lifted.
+func installFetchPolicy(cmd *cobra.Command, allowPrivate, demo bool, operatorURLs ...string) (bool, error) {
 	if !cmd.Flags().Changed(allowPrivateNetworksFlag) {
 		if raw := strings.TrimSpace(os.Getenv(allowPrivateNetworksEnv)); raw != "" {
 			value, err := strconv.ParseBool(raw)
 			if err != nil {
-				return fmt.Errorf("%s=%q is not a boolean", allowPrivateNetworksEnv, raw)
+				return false, fmt.Errorf("%s=%q is not a boolean", allowPrivateNetworksEnv, raw)
 			}
 			allowPrivate = value
 		}
 	}
-	if demo && allowPrivate && cmd.Flags().Changed(allowPrivateNetworksFlag) {
-		return fmt.Errorf("--%s does not apply to --demo, which reaches public addresses only", allowPrivateNetworksFlag)
-	}
-	if allowPrivate && !demo {
+	if allowPrivate {
 		format.SetFetchPolicy(nil)
-		return nil
+		return true, nil
 	}
 	policy := format.BlockPrivateAddresses
 	if !demo {
 		policy = format.AllowLoopback(policy)
 	}
 	format.SetFetchPolicy(format.AllowOwnOrigins(withFlagHint(policy, demo), operatorURLs...))
-	return nil
+	return false, nil
 }
 
 func withFlagHint(policy format.FetchPolicy, demo bool) format.FetchPolicy {

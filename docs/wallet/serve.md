@@ -333,7 +333,7 @@ Every flag can also be set as `EUDI_DEV_<FLAG>`, with the flag name in upper cas
 | `--http-proxy` | `$HTTP_PROXY` | Forward proxy for outbound `http://` requests |
 | `--https-proxy` | `$HTTPS_PROXY` | Forward proxy for outbound `https://` requests |
 | `--no-proxy` | `$NO_PROXY` | Hosts, domains and CIDRs that bypass the proxy |
-| `--allow-private-networks` | `$EUDI_DEV_ALLOW_PRIVATE_NETWORKS`, else `false` | Let outbound requests reach private networks. See [outbound address limits](#outbound-address-limits) |
+| `--allow-private-networks` | `$EUDI_DEV_ALLOW_PRIVATE_NETWORKS`, else `false` | Let outbound requests reach private networks. With `--demo` it also opens loopback. See [outbound address limits](#outbound-address-limits) |
 | `--key-attestation-level` | Issuer requirements | Test claims for key storage and user authentication: issuer requirements (default), `none`, or a level such as `iso_18045_high`. Change it in the Conformance panel. See [key attestation claims](#key-attestation-claims) |
 | `--preferred-format`    | None     | Preferred credential format when multiple match: `dc+sd-jwt`, `mso_mdoc`, or `jwt_vc_json`. Change it at runtime with `PUT /api/config/preferred-format` |
 | `--status-list`         | `false`  | Embed status list references in generated credentials |
@@ -350,7 +350,7 @@ Every flag can also be set as `EUDI_DEV_<FLAG>`, with the flag name in upper cas
 | `--client-attestation`  | `false`  | Send the wallet attestation on OID4VCI token requests even when the issuer does not advertise `attest_jwt_client_auth` (see [wallet attestation](issuing.md#wallet-attestation)) |
 | `--adhoc-display-images` | `false` | Fetch HTTPS display images on demand instead of storing them. The issuer sees each render. See [display images](#display-images) |
 | `--require-encrypted-request` | `false` | Refuse an unencrypted Request Object. The wallet always sends an encryption key in `wallet_metadata`, so this requires the Verifier to use it |
-| `--demo`                | `false`  | Public demo profile: implies `--pid`, `--mode debug`, `--haip`, `--arf` and `--vci-version 1.1` (all overridable), disables process and filesystem endpoints, blocks fetches to loopback and private networks. Browser flows keep the consent dialog, API flows auto-accept (see [public demo hosting](../public-demo.md)) |
+| `--demo`                | `false`  | Public demo profile: implies `--pid`, `--mode debug`, `--haip`, `--arf` and `--vci-version 1.1` (all overridable), disables process and filesystem endpoints, blocks fetches to loopback and private networks unless `--allow-private-networks` is given. Browser flows keep the consent dialog, API flows auto-accept (see [public demo hosting](../public-demo.md)) |
 | `--demo-issuer-client-auth` | `required` | Client authentication required by the authorization server of the built-in demo issuer at its PAR and token endpoints: `required` (HAIP 1.0 §4.4.1) or `optional`, which also accepts wallets that send no wallet attestation (see [public demo hosting](../public-demo.md)) |
 | `--demo-verifier-issuer-ca` | None | PEM file with extra issuer CA certificates for the demo verifier, in addition to the providers on the wallet's trusted lists. The flag is repeatable. Use it for credentials issued outside this wallet, such as in an OIDF conformance suite run |
 | `--serve-tls`           | `false`  | Serve an https `--base-url` locally with the wallet's own TLS certificate instead of expecting an external TLS terminator. Requires an https base URL with an explicit port. The wallet also keeps listening on the HTTP port |
@@ -561,7 +561,7 @@ Issuers and verifiers on a LAN, in Docker or in a cluster sit on private network
 
 A proxied request connects to the proxy only, which then reaches the destination. Only the proxy decides which addresses that request reaches.
 
-`--demo` connects to public addresses and the operator's destinations only. It ignores the variable and refuses the flag.
+`--demo` connects to public addresses and the operator's destinations only. `--allow-private-networks` or the variable lets a demo reach private networks and loopback too. The wallet then prints a warning at start, because any visitor can make it call local and internal services. A demo that faces the internet sets `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=false` (see [public demo hosting](../public-demo.md#outbound-connections)).
 
 ## JSON logs
 

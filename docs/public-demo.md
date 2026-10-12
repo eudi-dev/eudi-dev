@@ -26,7 +26,9 @@ The public demo returns `403` for shutdown, error injection, log clearing and ch
 
 Visitor URLs are restricted to public network addresses. The wallet checks resolved addresses when connecting and rejects loopback, private, link local, CGNAT and unique local ranges, including cloud metadata endpoints. The operator's destinations are exempt at their exact address and port: the wallet's own advertised origins, the `--trusted-list` URLs and the forward proxy. The bundled issuer and verifier connect to the wallet through these origins.
 
-A wallet without `--demo` also allows loopback, and `--allow-private-networks` lifts the limit (see [outbound address limits](wallet/serve.md#outbound-address-limits)). A demo ignores `EUDI_DEV_ALLOW_PRIVATE_NETWORKS` and refuses the flag.
+A wallet without `--demo` also allows loopback. `--allow-private-networks` or `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=true` lifts the limit, with and without `--demo` (see [outbound address limits](wallet/serve.md#outbound-address-limits)). A demo with the limit lifted reaches loopback and private networks. Any visitor could then use it to call services on the host or in its network. The wallet warns about this at start.
+
+The Docker image sets `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=true`. A public demo must set it to `false`, as the services `wallet` and `wallet-preview` in `examples/public-demo/docker-compose.yml` do.
 
 ### Validation
 

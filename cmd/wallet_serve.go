@@ -145,8 +145,8 @@ Every flag can also be set as EUDI_DEV_<FLAG>, such as EUDI_DEV_BASE_URL for --b
 	cmd.Flags().StringVar(&opts.DemoIssuerClientAuth, "demo-issuer-client-auth", string(demorp.ClientAuthRequired), "What the demo issuer's authorization server demands at its PAR and token endpoints: 'required' (HAIP 1.0 §4.4.1, the default) or 'optional' (also serves wallets that send no wallet attestation, for testing against them)")
 	cmd.Flags().StringVar(&opts.VCIClientID, "vci-client-id", "", "Client ID the wallet should use for OID4VCI authorization-code flows")
 	cmd.Flags().StringVar(&opts.VCIRedirectURI, "vci-redirect-uri", "", "Redirect URI the wallet should use for OID4VCI authorization-code flows")
-	cmd.Flags().BoolVar(&opts.Demo, "demo", false, "Public demo profile: implies --pid, --mode debug, --haip, --arf and --vci-version 1.1 (all overridable), disables process/filesystem endpoints, blocks fetches to loopback and private networks")
-	addAllowPrivateNetworksFlag(cmd, &opts.AllowPrivateNetworks, "--demo refuses the flag and ignores $"+allowPrivateNetworksEnv+". ")
+	cmd.Flags().BoolVar(&opts.Demo, "demo", false, "Public demo profile: implies --pid, --mode debug, --haip, --arf and --vci-version 1.1 (all overridable), disables process/filesystem endpoints, blocks fetches to loopback and private networks unless --allow-private-networks is given")
+	addAllowPrivateNetworksFlag(cmd, &opts.AllowPrivateNetworks, "With --demo it also opens loopback, which a host that faces the internet should keep closed. ")
 	cmd.Flags().StringVar(&opts.DemoReset, "demo-reset", "1h", "When to restore the clean demo baseline: an interval (24h), a daily wall-clock time (00:00), or one with a timezone (\"00:00 Europe/Berlin\"). 0 disables. Requires --demo")
 	cmd.Flags().StringVar(&opts.ImprintFile, "imprint-file", "", "HTML snippet with the site operator's legal notice, served at /imprint (required for public EU hosting)")
 	cmd.Flags().StringVar(&opts.NewsFile, "news-file", "", "HTML snippet with news for visitors of a public demo, shown once in a popup and again from the footer link. Requires --demo")
@@ -493,7 +493,8 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	// The serving URLs are resolved, so the policy can exempt them.
 	operatorURLs := append([]string{w.BaseURL, w.IssuerURL, fmt.Sprintf("http://localhost:%d", opts.Port)}, w.TrustSettings.ConfiguredLists...)
 	operatorURLs = append(operatorURLs, format.ProxyURLs(format.ProxySettings{HTTPProxy: walletHTTPProxy, HTTPSProxy: walletHTTPSProxy})...)
-	if err := installFetchPolicy(cmd, opts.AllowPrivateNetworks, opts.Demo, operatorURLs...); err != nil {
+	reachesPrivateNetworks, err := installFetchPolicy(cmd, opts.AllowPrivateNetworks, opts.Demo, operatorURLs...)
+	if err != nil {
 		return err
 	}
 
@@ -579,6 +580,9 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	}
 	if store.SeedSource() == wallet.BuiltInSeedSource && (opts.Demo || store.Backend().Kind() != storage.KindMemory) {
 		fmt.Fprintln(os.Stderr, "warning: the keys derive from the public seed eudi-dev. Anyone can derive this wallet's CA. Set EUDI_DEV_SEED to a secret, or to an empty value for random keys.")
+	}
+	if opts.Demo && reachesPrivateNetworks {
+		fmt.Fprintf(os.Stderr, "warning: --%s lets this public demo reach loopback and private networks. Any visitor can make it send requests to local and internal services. Set %s=false on a host that faces the internet.\n", allowPrivateNetworksFlag, allowPrivateNetworksEnv)
 	}
 	fmt.Printf("  Validation:  %s\n", w.ValidationMode)
 	if opts.Demo {
