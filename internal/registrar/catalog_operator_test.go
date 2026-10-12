@@ -275,3 +275,32 @@ func TestCheckTemplateCatalogBeforeSaving(t *testing.T) {
 		t.Errorf("error %v, want the broken template", err)
 	}
 }
+
+// A template file can reach the template directory without
+// CheckTemplateCatalog. Its catalog object then leaves the predefined entries
+// as they are, and each type keeps one entry.
+func TestATemplateCatalogObjectKeepsThePredefinedEntries(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		catalog string
+	}{
+		{"the PID's type under another name", `{"name":"Other"}`},
+		{"the name of the PID entry", `{"name":"EUDI PID"}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w := generateTestWallet(t)
+			saveTestTemplate(t, w, credtemplate.Template{Name: "a-member", Format: "sdjwt", VCT: mock.DefaultPIDVCT, Claims: map[string]any{"name": "Erika"}}, tc.catalog)
+			var listing []string
+			for _, e := range w.CatalogAttestations() {
+				for _, c := range e.Credentials {
+					if c.Format == "dc+sd-jwt" && c.Type == mock.DefaultPIDVCT {
+						listing = append(listing, e.Name)
+					}
+				}
+			}
+			if !slices.Equal(listing, []string{"EUDI PID"}) {
+				t.Errorf("entries for %s: %v, want only the predefined EUDI PID", mock.DefaultPIDVCT, listing)
+			}
+		})
+	}
+}

@@ -609,11 +609,36 @@ func (r *Registrar) templateCatalog(base string) []CatalogAttestation {
 		log.Printf("[Registrar] WARNING: the catalogue leaves out templates it can't read: %v", err)
 	}
 	built, _ := r.buildTemplateCatalog(templates, base)
-	entries := make([]CatalogAttestation, len(built))
+	entries := make([]CatalogAttestation, 0, len(built))
+	// A template file can reach the directory without CheckTemplateCatalog. Its
+	// catalog object then must not list a type or name a second time, because
+	// the wallet finds the trusted list of a credential by its one entry.
 	for i, b := range built {
-		entries[i] = b.entry
+		if clash := ownedEntryClash(built, i); clash != nil {
+			log.Printf("[Registrar] WARNING: the catalogue leaves out the entry of template %q: %v", b.owners[0], clash)
+			continue
+		}
+		entries = append(entries, b.entry)
 	}
 	return entries
+}
+
+// ownedEntryClash reports whether the catalog object of a template repeats
+// the name or a type of an entry the catalogue keeps first: a predefined
+// entry, or an earlier template entry.
+func ownedEntryClash(built []templateCatalogEntry, i int) error {
+	if len(built[i].owners) == 0 {
+		return nil
+	}
+	for j, other := range built {
+		if j == i || (len(other.owners) > 0 && j > i) {
+			continue
+		}
+		if err := catalogClash(built[i].entry, other.entry); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // templateCatalogEntry is a template entry with the templates whose catalog
@@ -633,7 +658,15 @@ type templateCatalogProblem struct {
 // buildTemplateCatalog builds the entries of templates, sorted by name.
 func (r *Registrar) buildTemplateCatalog(templates []credtemplate.Template, base string) (built []templateCatalogEntry, problems []templateCatalogProblem) {
 	index := map[string]int{}
-	for _, t := range templates {
+	// Predefined templates come first, so a user template can't take over
+	// their entries.
+	ordered := slices.Clone(templates)
+	sort.SliceStable(ordered, func(a, b int) bool {
+		_, pa := credtemplate.Predefined(ordered[a].Name)
+		_, pb := credtemplate.Predefined(ordered[b].Name)
+		return pa && !pb
+	})
+	for _, t := range ordered {
 		_, predefined := credtemplate.Predefined(t.Name)
 		if !predefined && t.Catalog == nil {
 			continue
