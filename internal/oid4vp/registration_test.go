@@ -222,7 +222,10 @@ func TestARFFindingsNeedTrustAnchors(t *testing.T) {
 	params.RelyingPartyCAs, params.RegistrarCAs = nil, nil
 	findings := ARFFindings(params)
 	for _, want := range []string{
-		`ARF RPA_04: the access certificate "CN=Verifier,OU=age-check,2.5.4.97=LEIEU-TEST" does not chain to a trusted access certificate authority`,
+		// Go versions print the organizationIdentifier (2.5.4.97) of the
+		// subject differently, so the check leaves it out.
+		`ARF RPA_04: the access certificate "CN=Verifier,OU=age-check,`,
+		"does not chain to a trusted access certificate authority",
 		"ARF RPRC_02a: the registration certificate of Test Verifier does not chain to a trusted registrar",
 	} {
 		if !containsSubstring(findings, want) {
