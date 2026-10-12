@@ -109,10 +109,13 @@ Set `-e EUDI_DEV_LOG_FORMAT=json` to write one JSON record per line for a log co
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
 | `/authorize` | GET/POST | OID4VP authorization endpoint, accepting the standard OID4VP query parameters (`client_id`, `response_type`, `dcql_query`, `nonce`, `state`, `response_uri`, `response_mode`, `request_uri`) |
-| `/api/trustlist` | GET | The PID trusted list, or the list for a `vct` or `doctype` query parameter |
+| `/api/trustlist` | GET | The PID trusted list, or the list for a `vct` or `doctype` query parameter. The parameter matches only a credential type that the wallet issued or holds. Another type returns `404` |
 | `/api/trustlists` | GET | JSON index of the wallet's trusted lists. Each entry includes a relative `path` plus optional `advertised_url` and its alias `url` |
 | `/api/trustlists/<id>` | GET | One trusted list (ETSI TS 119 602) as a signed JWT. The IDs are `pid`, `qeaa`, `pub-eaa`, `eaa`, `wallet-provider`, `access-ca`, `registrar`, `lists` (the list of trusted lists) and `tl-` IDs for custom lists |
-| `/api/trust` | GET/POST/DELETE | The providers and external lists added to the trusted lists. See [trusted lists](wallet/serve.md#trusted-lists) |
+| `/api/trust` | GET | The providers and external lists added to the trusted lists. See [trusted lists](wallet/serve.md#trusted-lists) |
+| `/api/trust/entities` | POST | Put a provider on one of the lists |
+| `/api/trust/entities/<id>` | DELETE | Take a provider off its list |
+| `/api/trust/lists` | POST/DELETE | Put an external list on the list of trusted lists, or take it off with `?url=<url>`. See the [HTTP API reference](wallet/http-api.md#issuer-metadata-and-trusted-lists) |
 | `https://<wallet>:8086/.well-known/openid-credential-issuer` | GET | Issuer metadata with a registration certificate in `issuer_info`. JSON by default, JWT signed with the access certificate key when the `Accept` header prefers `application/jwt` |
 | `https://<wallet>:8086/.well-known/jwt-vc-issuer` | GET | JWT VC issuer metadata for wallet-issued SD-JWTs. Lists one JWK with its certificate chain per category list, per custom list and for unlisted credentials |
 | `/api/registrar/wrp` | GET | Searches the registered relying parties (TS05 v1.5) in registration order, including the demo issuer and the demo verifier. The registrar signs the answer. Filters include `identifier`, `entitlement` and `providedattestation` |

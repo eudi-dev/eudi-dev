@@ -56,6 +56,11 @@ func TestStandaloneIssueRefusesWalletOnlyFlags(t *testing.T) {
 	if err := rootCmd.Execute(); err == nil || !strings.Contains(err.Error(), "--batch, --display-name apply only with --wallet") {
 		t.Fatalf("standalone issue: %v, want a refusal", err)
 	}
+	resetFlags(rootCmd)
+	rootCmd.SetArgs([]string{"issue", "sdjwt", "--display-name", "Diploma"})
+	if err := rootCmd.Execute(); err == nil || !strings.Contains(err.Error(), "--display-name applies only with --wallet") {
+		t.Fatalf("standalone issue with one wallet flag: %v, want a refusal", err)
+	}
 }
 
 func TestOmitClaims_RemovesSpecifiedClaims(t *testing.T) {

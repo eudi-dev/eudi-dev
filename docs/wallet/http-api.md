@@ -28,6 +28,94 @@ To approve or deny a request through `POST /api/requests/{id}/approve` or `/deny
 
 Protected baseline credentials cannot be deleted or revoked through the API. Individual operations return `403`. Deleting all credentials preserves protected entries and reports `kept_protected`. The public demo marks its generated PIDs as protected. Changing the flag requires direct access to stored state, such as editing `wallet.json` on the file backend.
 
+### Presentations and offers
+
+These endpoints run the OID4VP and OID4VCI flows. `wallet accept`, `wallet scan` and the remote URL handler call them. A client that sets `X-Eudi-Owner` owns the consent requests the call creates (see [consent ownership](#consent-ownership)).
+
+| Method | Path | Description | CLI equivalent |
+|--------|------|-------------|----------------|
+| `POST` | `/api/presentations` | Answer an OID4VP authorization request | `wallet accept <uri>` |
+| `POST` | `/api/dc-api` | Answer a Digital Credentials API request | None |
+| `POST` | `/api/offers` | Accept an OID4VCI credential offer | `wallet accept <uri>` |
+| `GET` | `/api/offers/{id}` | State of an offer that waits for the issuer's sign-in | None |
+| `GET` | `/api/requests` | Pending consent requests of the caller | None |
+| `GET` | `/api/requests/stream` | Server-sent events for consent requests | None |
+| `POST` | `/api/requests/{id}/approve` | Approve a consent request | None |
+| `POST` | `/api/requests/{id}/deny` | Deny a consent request | None |
+| `POST` | `/api/credentials/{id}/refresh` | Renew a credential with its refresh token (see [credential renewal](issuing.md#credential-renewal)) | `wallet refresh <id>` |
+| `GET` | `/api/version` | Release and build of the server | None |
+
+The [deferred issuance](#deferred-issuance) endpoints follow up on an offer that the issuer deferred.
+
+#### Presentation requests
+
+`POST /api/presentations` takes a JSON body:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `uri` | string | The authorization request, such as `openid4vp://?client_id=...&request_uri=...`. Required |
+| `interactive` | bool | Show the consent dialog and wait for an answer. Without it the API call counts as consent |
+| `auto_accept` | bool | Approve without the dialog, also when `interactive` is set |
+| `session_transcript` | string | mdoc session transcript for this request: `oid4vp` or `iso`. Default is the server setting `--session-transcript` |
+
+A submitted presentation answers `200` with `status` `submitted`, the verifier's `response` (`status_code`, `body` and `redirect_uri`), the `vp_token_keys` and the debug mode `findings`. A `redirect_uri` from the verifier also appears at the top level. When no credential matches, the wallet sends the verifier an error response and answers `200` with `status` `no_match`. A refusal answers `200` with `status` `refused` and the error the wallet sent to the verifier. A denied consent answers `200` with `status` `denied`. See [presenting](presenting.md) for the strict and ARF rules.
+
+```bash
+curl -X POST http://localhost:8085/api/presentations \
+  -H 'Content-Type: application/json' \
+  -d '{"uri": "openid4vp://?client_id=...&request_uri=...", "session_transcript": "iso"}'
+```
+
+`POST /api/dc-api` takes the argument of `navigator.credentials.get()`: `{"digital": {"requests": [{"protocol": "...", "data": {...}}]}}`. The protocol is one of the OpenID4VP Digital Credentials API protocols. The answer is the result the API would hand to the page: `{"protocol": "...", "data": {...}}`. Verifier pages call this endpoint from their own origin, so it accepts cross-origin requests.
+
+#### Credential offers
+
+`POST /api/offers` takes a JSON body:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `uri` | string | The credential offer, such as `openid-credential-offer://?credential_offer_uri=...`. Required |
+| `tx_code` | string | Transaction code of a pre-authorized code offer |
+| `credential_configuration_id` | string | The configuration to request when the offer lists several. Default is the first |
+| `interactive` | bool | Show the consent dialog and wait for an answer |
+
+The wallet answers `200` with the issued credential: `credential_id`, `format`, `issuer`, the `verification_status` and `findings`. A deferred credential answers `202` with `pending`, `transaction_id` and `retry_interval`. An offer that needs a sign-in at the issuer answers `202` with `status` `authorization_required`, the `authorization_url` and an `offer_id`. Poll `GET /api/offers/{offer_id}` until its `status` is `completed`, `deferred` or `failed` (see [sign-in during issuance](issuing.md#sign-in-during-issuance)).
+
+#### Consent requests
+
+`GET /api/requests` lists the pending consent requests. Each has `id`, `type` (`presentation`, `issuance` or `issuance_presentation`), `client_id`, `matched_credentials`, `credential_options` and `mine`. `GET /api/requests/stream` sends a `consent` event for each new request, `wallet-error` for a failed flow, `state` when the stored state changes, and `authorize` with the sign-in `url` of an issuer.
+
+`POST /api/requests/{id}/approve` takes an optional JSON body:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `picks` | object | Credential ID per DCQL query ID. An array of IDs for a query that allows several |
+| `set_choices` | array | Index of the chosen option for each `credential_sets` entry |
+| `claim_sets` | object | Index of the chosen `claim_sets` entry per query ID |
+| `selected_claims` | object | Claim paths to disclose per credential ID |
+| `tx_code` | string | Transaction code of an offer |
+| `credential_configuration_id` | string | The configuration to request from an offer |
+
+Approval answers `200` with `status` `approved`, the verifier's `redirect_uri` and `status_code`, and an `error` when the submission failed. A deferred credential reports `status` `pending` with `transaction_id` and `retry_interval`. `POST /api/requests/{id}/deny` answers `200` with `status` `denied` and the verifier's `redirect_uri`. A request that timed out or was answered already returns `409`.
+
+`GET /api/version` returns `version`, `build_id` and, outside the public demo, the `pid` of the server process.
+
+#### Errors
+
+A flow endpoint rejects a call with an error object like an OAuth 2.0 error response (RFC 6749 §5.2):
+
+```json
+{"error": "invalid_request", "error_description": "invalid JSON body: invalid character 'n' looking for beginning of value"}
+```
+
+| Status | `error` | Cause |
+|--------|---------|-------|
+| `400` | `invalid_request` | A malformed body, a request or offer the wallet cannot use, an invalid selection. A strict refusal carries the OpenID4VP 1.0 §8.5 error code instead |
+| `404` | `not_found` | An unknown request, offer or deferred credential |
+| `408` | `consent_timeout` | Nobody answered the consent dialog in time |
+| `409` | `conflict` | The request timed out or was answered already |
+| `500`, `502` | `server_error` | The wallet could not build or deliver the response |
+
 ### Credential management
 
 | Method   | Path                    | Body                  | Description                                        | CLI equivalent        |
@@ -392,6 +480,10 @@ The UI fetches this on page load, so it reports failures that occurred while no 
 |----------|--------------|-----------------------------------------------------|
 | `GET`    | `/api/error` | The last error (`message` and `detail`), or `null` |
 | `DELETE` | `/api/error` | Clear it                                            |
+
+### Decoder
+
+The wallet serves the [decoder](../decoder.md) at `/decoder`. Its validation API is `POST /decoder/api/validate` (see [validation API](../decoder.md#validation-api)).
 
 ### Health probes
 

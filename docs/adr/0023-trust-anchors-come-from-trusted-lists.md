@@ -27,7 +27,7 @@ A list of trusted lists at `/api/trustlists/lists` points to all of these lists 
 The user adds trust in two ways, with `trust`, the trust API or the UI:
 
 - A provider on one of the wallet's own lists. The wallet signs the list with the provider's CA on it as an issuance and a revocation service.
-- An external list on the list of trusted lists. Its signer must chain to a trusted list operator: the wallet CA or a CA from `--trusted-list-ca`.
+- An external list on the list of trusted lists. Its signer must chain to a trusted list operator: the wallet CA, a CA from `--trusted-list-ca` or a CA added with `trust add-ca --list trusted-list-ca`.
 
 `--relying-party-ca` puts its CAs on the `access-ca` and `registrar` lists. `--trusted-list` adds external lists at startup.
 

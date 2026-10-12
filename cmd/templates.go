@@ -46,8 +46,8 @@ var templatesCmd = &cobra.Command{
 	Use:   "templates",
 	Short: "Manage credential templates",
 	Long: "Manage credential templates: named, reusable claim sets with per-format defaults. " +
-		"The predefined PID templates and the demo ticket are built in (see `templates list`). User templates are JSON files " +
-		"in the wallet directory's templates/ subdirectory. Use them with `issue <format> --template <name>`.",
+		"The predefined PID templates and the demo ticket are built in (see `templates list`). User templates are stored " +
+		"with the wallet state (templates/ in the wallet directory on the file backend). Use them with `issue <format> --template <name>`.",
 	Args: cobra.NoArgs,
 	RunE: showHelp,
 }

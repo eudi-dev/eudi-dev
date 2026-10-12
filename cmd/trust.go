@@ -42,9 +42,11 @@ registration certificate providers (registrar). A list of trusted lists at
 show prints one of these lists. ca-cert prints the wallet CA that signs them.
 
 add-ca puts the CA of your own issuer or registrar on one of the wallet's lists.
+add-ca --list trusted-list-ca adds the CA of a trusted list operator. The
+wallet doesn't publish that list.
 add-list puts an external list on the list of trusted lists. Its signer has to
-chain to the wallet CA or to a CA from wallet serve --trusted-list-ca. A list
-reached through a list of trusted lists is checked against the signer
+chain to the wallet CA, to a CA from wallet serve --trusted-list-ca or to a CA
+added with add-ca --list trusted-list-ca. A list reached through a list of trusted lists is checked against the signer
 certificate in its pointer.
 
 Without a subcommand, or with list, it lists the wallet's lists and what you
@@ -298,9 +300,12 @@ func trustAddCACmd() *cobra.Command {
 		Long: `Puts the CA certificates of a PEM file on one of the wallet's lists. The wallet
 signs the list with the CA on it, so with --arf the CA anchors the checks of
 that list: a credential of the category, an access certificate (access-ca) or
-a registration certificate and its status list (registrar).`,
+a registration certificate and its status list (registrar). The list
+trusted-list-ca holds the CAs of trusted list operators. The wallet doesn't
+publish it and accepts external lists signed under its CAs.`,
 		Example: `  eudi trust add-ca --list pid --name "Example PID Provider" --ca pid-ca.pem
-  eudi trust add-ca --list registrar --ca registrar-ca.pem`,
+  eudi trust add-ca --list registrar --ca registrar-ca.pem
+  eudi trust add-ca --list trusted-list-ca --ca lists-ca.pem`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			data, err := os.ReadFile(caFile)
@@ -355,7 +360,8 @@ func trustAddListCmd() *cobra.Command {
 		Long: `Puts an external list of trusted entities (ETSI TS 119 602) on the wallet's list
 of trusted lists. With --arf its providers anchor the checks of its list type,
 for example a PID provider list for received PIDs. Its signer has to chain to
-the wallet CA or to a CA from wallet serve --trusted-list-ca.`,
+the wallet CA, to a CA from wallet serve --trusted-list-ca or to a CA added
+with trust add-ca --list trusted-list-ca.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			svc, err := managedWallet()

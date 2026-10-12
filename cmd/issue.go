@@ -207,8 +207,11 @@ func refuseWalletOnlyFlags(cmd *cobra.Command) error {
 			set = append(set, "--"+name)
 		}
 	}
-	if len(set) == 0 {
+	switch len(set) {
+	case 0:
 		return nil
+	case 1:
+		return fmt.Errorf("%s applies only with --wallet", set[0])
 	}
 	return fmt.Errorf("%s apply only with --wallet", strings.Join(set, ", "))
 }

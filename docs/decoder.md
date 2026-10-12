@@ -23,3 +23,42 @@ The decoder fetches the trusted lists, issuer metadata and status lists named in
 | `--port` | `8080` | Port to listen on |
 | `--imprint-file` | None | HTML snippet with the operator's legal notice, served at `/imprint` |
 | `--allow-private-networks` | `$EUDI_DEV_ALLOW_PRIVATE_NETWORKS`, else `false` | Let outbound requests reach private networks |
+
+## Validation API
+
+`POST /api/validate` decodes and validates one credential. It is the call behind the decoder UI. A running wallet serves it at `/decoder/api/validate`. The body is JSON with these fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `input` | string | The credential: an SD-JWT VC, a JWT VC, or an mdoc in base64url or hex. Required |
+| `key` | string | Issuer public key in PEM or JWK form that checks the signature |
+| `trustListURL` | string | URL of a trusted list that anchors the issuer |
+| `trustListRaw` | string | A trusted list JWT that anchors the issuer |
+| `checkStatus` | bool | Fetch the status list of a credential with a status reference |
+| `offline` | bool | Skip the checks that need the network. They come back as `skipped` with `needsNetwork: true` |
+
+The response is the decoded credential with a `validation` object. Its `checks` array lists one entry per check with `name`, `status` (`pass`, `fail`, `warning` or `skipped`) and `detail`. A passing trust or status list check also names its `anchor`: the `list_url` and `service` of the trusted list entry, and the catalogue `entry` that links the list.
+
+```bash
+curl -X POST http://localhost:8080/api/validate \
+  -H 'Content-Type: application/json' \
+  -d '{"input": "eyJhbGciOi...", "offline": true}'
+```
+
+```json
+{
+  "format": "dc+sd-jwt",
+  "header": {"alg": "ES256", "typ": "dc+sd-jwt"},
+  "payload": {"vct": "urn:eudi:pid:1"},
+  "disclosures": [],
+  "resolvedClaims": {},
+  "validation": {
+    "checks": [
+      {"name": "expiry", "status": "pass", "detail": "expires in 29 days"},
+      {"name": "signature", "status": "skipped", "detail": "Needs an issuer key that is only reachable over the network", "needsNetwork": true}
+    ]
+  }
+}
+```
+
+A body without `input` returns `400`. Input that does not decode returns `422`. Both carry an `error` message. The API refuses requests with a foreign `Origin` header with `403`.
