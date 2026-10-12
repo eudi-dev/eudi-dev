@@ -193,7 +193,7 @@ The template endpoints use the same storage backend as the `templates` CLI comma
 |----------|-------------|
 | `GET /api/templates` | List all templates (predefined and user), including claims |
 | `GET /api/templates/{name}` | Get one template |
-| `PUT /api/templates/{name}` | Create or replace a user template. The body is a full template document. This endpoint also imports shared templates. A `catalog` object also adds the template to the attestation catalogue (see [templates](../templates.md#attestation-catalogue)) |
+| `PUT /api/templates/{name}` | Create or replace a user template. The body is a full template document. This endpoint also imports shared templates. A `catalog` object also adds the template to the attestation catalogue (see [templates](../templates.md#attestation-catalogue)). For a template with its own `catalog` object, the object replaces that one (see [catalogue entry in a template file](../templates.md#catalogue-entry-in-a-template-file)) |
 | `DELETE /api/templates/{name}` | Delete a user template. Deleting an override of a predefined template restores the predefined version |
 
 ```bash
@@ -283,7 +283,7 @@ These endpoints are available on both wallet ports. Anyone with access to the wa
 | `GET` | `/api/catalog/schemas` | Catalogue of attestations (EC TS11 v1.0), signed and paged |
 | `GET`, `PUT`, `DELETE` | `/api/catalog/schemas/{id}` | One attestation schema |
 | `GET` | `/api/catalog/schemas/{id}/{format}` | The schema behind a schema URI |
-| `GET`, `POST` | `/api/catalog/attestations` | List the catalogue with names, types and the `category` of each entry (`GET`) or add an entry (`POST`) |
+| `GET`, `POST` | `/api/catalog/attestations` | List the catalogue with names, types and the `category` of each entry (`GET`) or add an entry (`POST`). `template` marks an entry of a template and `operator` an entry of [`wallet serve --catalog`](serve.md#pre-registered-catalogue-entries) |
 | `GET` | `/api/catalog/categories` | The credential categories with their label, entitlement, trust rule and level of security |
 | `GET` | `/api/catalog/schema-options` | The levels of security (`attestationLoS`) and holder bindings (`bindingType`) of a catalogue entry, with their labels |
 | `GET` | `/privacy-policy`, `/support`, `/supervisory-authority`, `/rulebook` | Placeholder pages for the default privacy policy, support, supervisory authority and rulebook URLs |

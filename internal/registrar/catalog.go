@@ -21,6 +21,7 @@ import (
 	"log"
 	"maps"
 	"net/url"
+	"reflect"
 	"regexp"
 	"slices"
 	"sort"
@@ -75,6 +76,9 @@ type CatalogAttestation struct {
 	// Template marks an entry built from a credential template. Editing the
 	// template changes the entry. The catalogue API can't change it.
 	Template bool `json:"template,omitempty"`
+	// Operator marks an entry of the operator's catalogue file (wallet serve
+	// --catalog). Every start and every demo reset load the file again.
+	Operator bool `json:"operator,omitempty"`
 	// Removed marks the deleted entry of a predefined template. The catalogue
 	// derives that entry from the template, so the stored catalogue keeps
 	// only this marker with its id.
@@ -98,7 +102,7 @@ const (
 
 var (
 	errCatalogNotFound = errors.New("attestation not in the catalogue")
-	errCatalogTemplate = errors.New("this entry belongs to a predefined credential template and can't be changed")
+	errCatalogTemplate = errors.New("this entry belongs to a credential template and can't be changed here. Change the template instead")
 	errCatalogFull     = errors.New("the catalogue holds the maximum number of attestations")
 	semanticVersion    = regexp.MustCompile(`^\d+\.\d+(\.\d+)?$`)
 
@@ -170,7 +174,7 @@ func (r *Registrar) CatalogAttestation(id string) (CatalogAttestation, bool) {
 func (r *Registrar) AddCatalogAttestation(entry CatalogAttestation) (CatalogAttestation, error) {
 	base := r.env.RegistrarBase()
 	entry = cloneCatalogAttestation(entry)
-	entry.Template = false
+	entry.Template, entry.Operator = false, false
 	entry.Schema.ID = uuid.NewString()
 	if err := normalizeCatalogAttestation(&entry, base); err != nil {
 		return CatalogAttestation{}, err
@@ -178,7 +182,7 @@ func (r *Registrar) AddCatalogAttestation(entry CatalogAttestation) (CatalogAtte
 	fromTemplates := r.templateCatalog(base)
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if err := r.checkNewCatalogEntryLocked(entry, fromTemplates); err != nil {
+	if err := checkNewCatalogEntry(entry, fromTemplates, r.state.Catalog); err != nil {
 		return CatalogAttestation{}, err
 	}
 	r.state.Catalog = append(r.state.Catalog, entry)
@@ -196,32 +200,120 @@ func (r *Registrar) CheckCatalogAttestation(entry CatalogAttestation) error {
 	fromTemplates := r.templateCatalog(base)
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	return r.checkNewCatalogEntryLocked(entry, fromTemplates)
+	return checkNewCatalogEntry(entry, fromTemplates, r.state.Catalog)
 }
 
-// checkNewCatalogEntryLocked keeps names and types unique. The wallet finds
-// the trusted list of a received credential by its type.
-func (r *Registrar) checkNewCatalogEntryLocked(entry CatalogAttestation, fromTemplates []CatalogAttestation) error {
-	removed := r.removedTemplateTypesLocked()
-	for _, existing := range append(fromTemplates, r.state.Catalog...) {
+// checkNewCatalogEntry keeps names and types unique. The wallet finds the
+// trusted list of a received credential by its type.
+func checkNewCatalogEntry(entry CatalogAttestation, fromTemplates, stored []CatalogAttestation) error {
+	removed := removedTemplateTypesIn(stored)
+	for _, existing := range slices.Concat(fromTemplates, stored) {
 		if existing.Removed || (existing.Template && removed.hides(existing)) {
 			continue
 		}
-		if strings.EqualFold(existing.Name, entry.Name) {
-			return fmt.Errorf("the catalogue already lists %q", existing.Name)
-		}
-		for _, c := range entry.Credentials {
-			if slices.ContainsFunc(existing.Credentials, func(e CatalogCredential) bool { return e.Format == c.Format && e.Type == c.Type }) {
-				return fmt.Errorf("the catalogue already lists %s (%s) under %q", c.Type, c.Format, existing.Name)
-			}
+		if err := catalogClash(entry, existing); err != nil {
+			return err
 		}
 	}
 	// The markers of removed template entries don't take a place.
-	added := len(r.state.Catalog) - removed.markers
+	added := len(stored) - removed.markers
 	if added >= maxCatalogEntries {
 		return errCatalogFull
 	}
 	return nil
+}
+
+// catalogClash reports whether entry takes the name or a type of existing.
+func catalogClash(entry, existing CatalogAttestation) error {
+	if strings.EqualFold(existing.Name, entry.Name) {
+		return fmt.Errorf("the catalogue already lists %q", existing.Name)
+	}
+	for _, c := range entry.Credentials {
+		if slices.ContainsFunc(existing.Credentials, func(e CatalogCredential) bool { return e.Format == c.Format && e.Type == c.Type }) {
+			return fmt.Errorf("the catalogue already lists %s (%s) under %q", c.Type, c.Format, existing.Name)
+		}
+	}
+	return nil
+}
+
+// SetOperatorCatalog makes entries the entries of the operator's catalogue
+// file. The id of an entry derives from its name, so an entry keeps its id
+// across restarts. The entries of an earlier file that entries leaves out
+// are removed. It reports whether the stored catalogue changed.
+func (r *Registrar) SetOperatorCatalog(entries []CatalogAttestation) (bool, error) {
+	base := r.env.RegistrarBase()
+	fromTemplates := r.templateCatalog(base)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	others := slices.DeleteFunc(slices.Clone(r.state.Catalog), func(e CatalogAttestation) bool { return e.Operator })
+	byID := map[string]CatalogAttestation{}
+	var order []string
+	for i, entry := range entries {
+		entry = cloneCatalogAttestation(entry)
+		entry.Template, entry.Removed, entry.Operator = false, false, true
+		if err := normalizeCatalogAttestation(&entry, base); err != nil {
+			return false, &CatalogEntryError{Index: i, Err: err}
+		}
+		entry.Schema.ID = catalogEntryID(entry.Name)
+		if err := checkNewCatalogEntry(entry, fromTemplates, others); err != nil {
+			return false, &CatalogEntryError{Index: i, Err: err}
+		}
+		others = append(others, entry)
+		byID[entry.Schema.ID] = entry
+		order = append(order, entry.Schema.ID)
+	}
+	// An entry that stays keeps its place, so an unchanged file leaves the
+	// stored catalogue as it is.
+	var catalog []CatalogAttestation
+	for _, e := range r.state.Catalog {
+		if !e.Operator {
+			catalog = append(catalog, e)
+			continue
+		}
+		if updated, ok := byID[e.Schema.ID]; ok {
+			catalog = append(catalog, updated)
+			delete(byID, e.Schema.ID)
+		}
+	}
+	for _, id := range order {
+		if entry, ok := byID[id]; ok {
+			catalog = append(catalog, entry)
+		}
+	}
+	changed := len(r.state.Catalog)+len(catalog) > 0 && !reflect.DeepEqual(r.state.Catalog, catalog)
+	r.state.Catalog = catalog
+	return changed, nil
+}
+
+// CatalogEntryError is the refusal of one entry of a list.
+type CatalogEntryError struct {
+	Index int
+	Err   error
+}
+
+func (e *CatalogEntryError) Error() string { return fmt.Sprintf("entry %d: %v", e.Index+1, e.Err) }
+
+func (e *CatalogEntryError) Unwrap() error { return e.Err }
+
+// CheckCatalogEntry reports whether entry fits the TS11 data model, as
+// AddCatalogAttestation checks it. It does not compare it with other entries.
+func CheckCatalogEntry(entry CatalogAttestation) error {
+	entry = cloneCatalogAttestation(entry)
+	return normalizeCatalogAttestation(&entry, "https://wallet.invalid")
+}
+
+// IsOperatorCatalogID reports whether an entry comes from the operator's
+// catalogue file.
+func (r *Registrar) IsOperatorCatalogID(id string) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return slices.ContainsFunc(r.state.Catalog, func(e CatalogAttestation) bool { return e.Operator && e.Schema.ID == id })
+}
+
+// catalogEntryID derives the id of a template entry or an operator entry from
+// its name.
+func catalogEntryID(name string) string {
+	return uuid.NewSHA1(templateCatalogNamespace, []byte(name)).String()
 }
 
 // TemplateCatalogEntry builds the catalogue entry for template t from the
@@ -325,8 +417,12 @@ type removedTemplateTypes struct {
 }
 
 func (r *Registrar) removedTemplateTypesLocked() removedTemplateTypes {
+	return removedTemplateTypesIn(r.state.Catalog)
+}
+
+func removedTemplateTypesIn(catalog []CatalogAttestation) removedTemplateTypes {
 	removed := removedTemplateTypes{types: map[string]bool{}}
-	for _, e := range r.state.Catalog {
+	for _, e := range catalog {
 		if !e.Removed {
 			continue
 		}
@@ -500,59 +596,173 @@ func cloneCatalogAttestation(entry CatalogAttestation) CatalogAttestation {
 // name keeps the repository's first location.
 var templateCatalogNamespace = uuid.NewSHA1(uuid.NameSpaceURL, []byte("https://github.com/dominikschlosser/eudi-dev/catalog"))
 
-// templateCatalog lists the attestations of the predefined credential
-// templates, including a user template that replaces one. Other user templates
-// are added only on request and are then added entries. Templates with the
-// same display name are one attestation in two formats. The template's
-// category sets the entry's category and level of security.
+// templateCatalog lists the attestations of the credential templates: each
+// predefined template, including a user template that replaces one, and each
+// template that carries a catalog object. Other user templates are added only
+// on request and are then added entries. Templates with the same entry name
+// are one attestation in two formats. The template's category sets the
+// entry's category and level of security. It leaves out the catalog objects
+// that CheckTemplateCatalog refuses.
 func (r *Registrar) templateCatalog(base string) []CatalogAttestation {
 	templates, err := credtemplate.List(r.env.TemplateLocation())
 	if err != nil {
 		log.Printf("[Registrar] WARNING: the catalogue leaves out templates it can't read: %v", err)
 	}
-	var entries []CatalogAttestation
+	built, _ := r.buildTemplateCatalog(templates, base)
+	entries := make([]CatalogAttestation, len(built))
+	for i, b := range built {
+		entries[i] = b.entry
+	}
+	return entries
+}
+
+// templateCatalogEntry is a template entry with the templates whose catalog
+// objects make it up.
+type templateCatalogEntry struct {
+	entry  CatalogAttestation
+	owners []string
+}
+
+// templateCatalogProblem is a catalog object of a template that the
+// catalogue can't take.
+type templateCatalogProblem struct {
+	template string
+	err      error
+}
+
+// buildTemplateCatalog builds the entries of templates, sorted by name.
+func (r *Registrar) buildTemplateCatalog(templates []credtemplate.Template, base string) (built []templateCatalogEntry, problems []templateCatalogProblem) {
 	index := map[string]int{}
 	for _, t := range templates {
-		if _, ok := credtemplate.Predefined(t.Name); !ok {
+		_, predefined := credtemplate.Predefined(t.Name)
+		if !predefined && t.Catalog == nil {
 			continue
 		}
-		credential, ok := templateCatalogCredential(t)
+		entry, ok, err := templateEntry(t, base)
+		if err != nil {
+			problems = append(problems, templateCatalogProblem{t.Name, err})
+			continue
+		}
 		if !ok {
 			continue
+		}
+		credential := entry.Credentials[0]
+		i, ok := index[entry.Name]
+		if ok && slices.ContainsFunc(built[i].entry.Credentials, func(c CatalogCredential) bool { return c.Format == credential.Format }) {
+			if t.Catalog != nil {
+				problems = append(problems, templateCatalogProblem{t.Name, fmt.Errorf("another template already makes up %q in %s", entry.Name, credential.Format)})
+			}
+			continue
+		}
+		if !ok {
+			index[entry.Name] = len(built)
+			built = append(built, templateCatalogEntry{entry: entry})
+			i = len(built) - 1
+		} else {
+			built[i].entry.Credentials = append(built[i].entry.Credentials, credential)
+		}
+		if t.Catalog != nil {
+			built[i].owners = append(built[i].owners, t.Name)
+		}
+	}
+	for i := range built {
+		credentials := built[i].entry.Credentials
+		sort.Slice(credentials, func(a, b int) bool { return credentials[a].Format < credentials[b].Format })
+		built[i].entry = r.completed(built[i].entry, base)
+	}
+	sort.SliceStable(built, func(a, b int) bool {
+		return strings.ToLower(built[a].entry.Name) < strings.ToLower(built[b].entry.Name)
+	})
+	return built, problems
+}
+
+// templateEntry builds the entry of one template in one format. A template
+// with a catalog object takes its fields with the rules of a catalogue
+// request (TemplateCatalogAttestation). ok is false for a template without a
+// type, which has no entry.
+func templateEntry(t credtemplate.Template, base string) (entry CatalogAttestation, ok bool, err error) {
+	credential, ok := templateCatalogCredential(t)
+	if t.Catalog == nil {
+		if !ok {
+			return CatalogAttestation{}, false, nil
 		}
 		name := t.Name
 		if t.Display != nil && t.Display.Name != "" {
 			name = t.Display.Name
 		}
-		i, ok := index[name]
-		if ok && slices.ContainsFunc(entries[i].Credentials, func(c CatalogCredential) bool { return c.Format == credential.Format }) {
+		entry = CatalogAttestation{
+			Name:        name,
+			Category:    jsonutil.FirstNonEmpty(t.Category, credtemplate.CategoryEAA),
+			Credentials: []CatalogCredential{credential},
+			Schema: AttestationSchema{
+				Version:     "1.0.0",
+				RulebookURI: jsonutil.FirstNonEmpty(t.Rulebook, base+"/rulebook"),
+				BindingType: "key",
+			},
+		}
+		entry.Schema.AttestationLoS = CategoryOf(entry.Category).AttestationLoS
+	} else {
+		var requested CatalogAttestation
+		if err := json.Unmarshal(t.Catalog, &requested); err != nil {
+			return CatalogAttestation{}, false, fmt.Errorf("catalog: %w", err)
+		}
+		if entry, err = TemplateCatalogAttestation(t, requested); err != nil {
+			return CatalogAttestation{}, false, err
+		}
+		entry.Schema.RulebookURI = jsonutil.FirstNonEmpty(entry.Schema.RulebookURI, t.Rulebook)
+		if err := normalizeCatalogAttestation(&entry, base); err != nil {
+			return CatalogAttestation{}, false, err
+		}
+	}
+	entry.Template, entry.Operator, entry.Removed = true, false, false
+	entry.Schema.ID = catalogEntryID(entry.Name)
+	return entry, true, nil
+}
+
+// CheckTemplateCatalog reports the catalog objects of templates that the
+// catalogue can't take: an invalid one, or one whose entry takes the name or
+// a type of another entry. With replace set, it checks the templates as they
+// are after saving replace and reports only the problems of replace.
+func (r *Registrar) CheckTemplateCatalog(replace *credtemplate.Template) error {
+	base := r.env.RegistrarBase()
+	templates, _ := credtemplate.List(r.env.TemplateLocation())
+	if replace != nil {
+		templates = slices.DeleteFunc(templates, func(t credtemplate.Template) bool { return t.Name == replace.Name })
+		templates = append(templates, *replace)
+		sort.SliceStable(templates, func(a, b int) bool { return templates[a].Name < templates[b].Name })
+	}
+	built, problems := r.buildTemplateCatalog(templates, base)
+	r.mu.RLock()
+	stored := slices.Clone(r.state.Catalog)
+	r.mu.RUnlock()
+	removed := removedTemplateTypesIn(stored)
+	for i, b := range built {
+		if len(b.owners) == 0 || removed.hides(b.entry) {
 			continue
 		}
-		if !ok {
-			entry := CatalogAttestation{
-				Name:     name,
-				Category: jsonutil.FirstNonEmpty(t.Category, credtemplate.CategoryEAA),
-				Template: true,
-				Schema: AttestationSchema{
-					ID:          uuid.NewSHA1(templateCatalogNamespace, []byte(name)).String(),
-					Version:     "1.0.0",
-					RulebookURI: jsonutil.FirstNonEmpty(t.Rulebook, base+"/rulebook"),
-					BindingType: "key",
-				},
+		var others []CatalogAttestation
+		for j, other := range built {
+			if j != i && !removed.hides(other.entry) {
+				others = append(others, other.entry)
 			}
-			entry.Schema.AttestationLoS = CategoryOf(entry.Category).AttestationLoS
-			index[name] = len(entries)
-			entries = append(entries, entry)
-			i = len(entries) - 1
 		}
-		entries[i].Credentials = append(entries[i].Credentials, credential)
+		for _, other := range append(others, stored...) {
+			if other.Removed {
+				continue
+			}
+			if err := catalogClash(b.entry, other); err != nil {
+				problems = append(problems, templateCatalogProblem{b.owners[0], err})
+				break
+			}
+		}
 	}
-	for i := range entries {
-		sort.Slice(entries[i].Credentials, func(a, b int) bool { return entries[i].Credentials[a].Format < entries[i].Credentials[b].Format })
-		entries[i] = r.completed(entries[i], base)
+	var errs []error
+	for _, p := range problems {
+		if replace == nil || p.template == replace.Name {
+			errs = append(errs, fmt.Errorf("template %q: %w", p.template, p.err))
+		}
 	}
-	sort.SliceStable(entries, func(a, b int) bool { return strings.ToLower(entries[a].Name) < strings.ToLower(entries[b].Name) })
-	return entries
+	return errors.Join(errs...)
 }
 
 // templateCatalogCredential lists a template's claims as paths. An SD-JWT

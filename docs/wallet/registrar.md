@@ -215,6 +215,10 @@ Every predefined credential template is in the catalogue. Templates with the sam
 
 To add a user template, tick "Add the template to the attestation catalogue" when you save it (see [templates](../templates.md#attestation-catalogue)). You can delete that entry like any other added type.
 
+A template file can carry its own entry in a `catalog` field (see [templates](../templates.md#catalogue-entry-in-a-template-file)). That entry follows the template like the entry of a predefined template.
+
+To pre-register attestation types at startup, pass a file of entries to `wallet serve --catalog` (see [pre-registered catalogue entries](serve.md#pre-registered-catalogue-entries)). Each start loads the file again, so the entries survive restarts and demo resets. On a public demo visitors can't change or delete them.
+
 You can add other attestation types and delete them again. An added type needs a unique name and at least one format with its `vct` or doctype. Without a rulebook URL it links a placeholder page at `<issuer URL>/rulebook`. The category defaults to `eaa` and the holder binding to `key`.
 
 Each entry has a category: `pid`, `qeaa`, `pub-eaa` or `eaa`. The wallet signs credentials of the type under the provider CA of that category, so they chain to the category's [trusted list](serve.md#trusted-lists). Without trusted authorities of its own, the entry links that list. The level of security defaults to `iso_18045_high`, and to `iso_18045_basic` for `eaa`. Rulebooks and trusted lists are http or https URLs. A demo reset deletes the added types.

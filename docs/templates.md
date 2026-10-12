@@ -85,6 +85,7 @@ All fields except `claims` are optional:
 | `baseline` | Marks a PID that the demo profile holds. Only predefined templates use it |
 | `category` | `pid`, `qeaa`, `pub-eaa` or `eaa`. Credentials from the template are on the [trusted list](wallet/serve.md#trusted-lists) of this category. Without one, the template's catalogue entry gives the category, else the credentials are EAAs. The predefined PID templates are `pid` and the demo ticket is `eaa` |
 | `display` | Card appearance for credentials issued from the template (`name`, `description`, `background_color`, `text_color`, `logo`, `logo_alt_text`, `background_image`). Image fields take a data URI or an http(s) URL. The predefined PID templates set it |
+| `catalog` | The template's own entry in the attestation catalogue, with the fields of a catalogue request. Its category is the template's category. See [catalogue entry in a template file](#catalogue-entry-in-a-template-file) |
 | `predefined` | Set on predefined templates in listings and exports. Ignored on import |
 
 ## Claim values
@@ -250,6 +251,25 @@ curl -X POST http://localhost:8085/api/issue \
   -H 'Content-Type: application/json' \
   -d '{"template": "employee-card", "claims": {"employee_id": "E-42"}}'
 ```
+
+### Catalogue entry in a template file
+
+A template file in the template directory can carry a `catalog` object. It takes the same fields as the `catalog` object of `PUT /api/templates/{name}`. The template then makes up its own catalogue entry, like a predefined template:
+
+```json
+{
+  "format": "sdjwt",
+  "vct": "urn:example:employee",
+  "claims": {"employee_id": "E-1"},
+  "catalog": {"name": "Employee card", "category": "eaa", "schema": {"rulebookURI": "https://example.com/rulebook"}}
+}
+```
+
+The entry follows the template file. It is there while the file is, and changes when the file changes. Its id derives from its name, so it stays the same across restarts. The catalogue API can't change it. `wallet serve` checks these objects at startup. An invalid object, or one that takes the name or a type of another entry, stops the start with the name of the template.
+
+`GET /api/templates/{name}` shows the `catalog` object. Saving such a template keeps it. A save with a `catalog` object replaces it. A predefined template can carry one too and then takes its fields for its entry.
+
+`templates import` and a `PUT` to a template without its own `catalog` object treat the object as a request and add an entry, as described above.
 
 ## Wallet UI
 

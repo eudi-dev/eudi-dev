@@ -38,8 +38,9 @@ of security and the trusted list of its issuers.
 
 Every predefined credential template is in the catalogue. To add a user
 template, tick "Add the template to the attestation catalogue" when you save
-it. You can also add other attestation types. When you register a
-verifier or an issuer in the web UI, the type fields suggest these types.
+it. You can also add other attestation types, or pre-register them from a
+file with wallet serve --catalog. When you register a verifier or an issuer
+in the web UI, the type fields suggest these types.
 
 Without a subcommand, or with list, it lists the catalogue.`,
 		Args: cobra.NoArgs,
@@ -69,6 +70,9 @@ func listCatalog(cmd *cobra.Command, args []string) error {
 			name := e.Name
 			if e.Template {
 				name += " (template)"
+			}
+			if e.Operator {
+				name += " (pre-registered)"
 			}
 			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", e.Schema.ID, name, e.Category, strings.Join(types, " "), e.Schema.AttestationLoS)
 		}

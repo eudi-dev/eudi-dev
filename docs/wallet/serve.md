@@ -319,6 +319,7 @@ Every flag can also be set as `EUDI_DEV_<FLAG>`, with the flag name in upper cas
 | `--auto-accept`         | `false`  | Approve presentations and credential offers without asking. Without it, only interactive channels (web invocation URLs, scheme dispatches, browser DC-API) show the consent dialog. API submissions (`POST /api/offers`, `/api/presentations`) always auto-accept because the API call counts as consent (opt in per request with `"interactive": true`). With `--demo` only the flag turns it on, `EUDI_DEV_AUTO_ACCEPT` does not |
 | `--credential`          | None     | Import credential from file (repeatable)         |
 | `--credentials`         | None     | Credentials to add on every start, from a YAML or JSON file, a directory of such files, or stdin (`-`). See [startup credentials](#startup-credentials) |
+| `--catalog`             | None     | Attestation types to pre-register in the catalogue on every start, from a YAML or JSON file, a directory of such files, or stdin (`-`). See [pre-registered catalogue entries](#pre-registered-catalogue-entries) |
 | `--pid`                 | `false`  | Generate default EUDI PID credentials on start   |
 | `--key`                 | None     | Override holder key (PEM/JWK)                    |
 | `--issuer-key`          | None     | Issuer key for generated PIDs (PEM/JWK)          |
@@ -402,6 +403,44 @@ With `--demo` the startup credentials are part of the baseline, so a demo reset 
 ```bash
 eudi wallet serve --demo --pid=false --credentials demo-credentials.yaml
 ```
+
+## Pre-registered catalogue entries
+
+`--catalog` adds attestation types to the [attestation catalogue](registrar.md#attestation-catalogue) on every start. It reads a YAML or JSON file, every `.yaml`, `.yml` and `.json` file of a directory (in name order), or stdin with `-`. A file holds one entry or a list of entries. An entry has the shape that `POST /api/catalog/attestations` takes.
+
+```yaml
+- name: University diploma
+  category: qeaa
+  credentials:
+    - format: dc+sd-jwt
+      type: urn:example:diploma:1
+      claims: [[degree], [graduation_date]]
+    - format: mso_mdoc
+      type: org.example.diploma.1
+      claims: [[org.example.diploma.1, degree]]
+  schema:
+    rulebookURI: https://university.example/rulebook
+    attestationLoS: iso_18045_moderate
+  issuerCA: university-ca.pem
+- name: Library card
+  credentials:
+    - format: dc+sd-jwt
+      type: urn:example:library:1
+```
+
+| Field | Description |
+|-------|-------------|
+| `name` | Name of the attestation type. Unique in the catalogue. The entry's id derives from it |
+| `category` | `pid`, `qeaa`, `pub-eaa` or `eaa` (default `eaa`) |
+| `credentials` | One `dc+sd-jwt` and one `mso_mdoc` format at most, each with its `type` (vct or doctype) and optional claim paths |
+| `schema` | TS11 SchemaMeta fields: `rulebookURI`, `attestationLoS`, `bindingType`, `version` and `trustedAuthorities`. The defaults are those of `eudi catalog add` |
+| `issuerCA` | PEM file with the CA of your issuer, relative to the catalogue file. The wallet puts it on the trusted list of the category, like `catalog add --issuer-ca`. It can't go with `trustedAuthorities` |
+
+The wallet checks every entry before it starts. A bad entry, or one that takes the name or a type of another entry, stops the start. The message names the file and the entry.
+
+Each start loads the file again. An entry keeps its id, so a restart adds no duplicates. A changed entry is updated. An entry you remove from the file leaves the catalogue at the next start. The wallet marks these entries as pre-registered and removes only those. Entries added through the UI, the API or `eudi catalog add` stay. A CA that `issuerCA` added stays on its list when you remove the entry. Remove it with `eudi trust rm-ca`.
+
+Outside the demo you can change or delete a pre-registered entry. The next start restores it from the file. With `--demo` visitors can't change or delete these entries, and a demo reset restores them with their CAs.
 
 ## Key attestation claims
 

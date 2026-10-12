@@ -251,19 +251,15 @@ func (m *Management) Template(name string) (*credtemplate.Template, error) {
 	return credtemplate.Load(name, m.wallet.Templates)
 }
 
-// SaveTemplate stores a template and, if entry is set, adds it to the
-// catalogue as a new entry.
+// SaveTemplate stores a template with the catalogue entry that entry
+// requests (see Wallet.TemplateCatalogRequest).
 func (m *Management) SaveTemplate(tpl credtemplate.Template, entry *registrar.CatalogAttestation) (string, error) {
-	if entry != nil {
-		checked, err := m.wallet.Registrar().TemplateCatalogEntry(tpl, *entry)
-		if err != nil {
-			return "", err
-		}
-		tpl.Category = checked.Category
-		entry = &checked
+	entry, err := m.wallet.TemplateCatalogRequest(&tpl, entry)
+	if err != nil {
+		return "", err
 	}
 	var path string
-	err := m.commit(func() error {
+	err = m.commit(func() error {
 		var err error
 		path, err = m.wallet.SaveTemplate(tpl, entry)
 		return err

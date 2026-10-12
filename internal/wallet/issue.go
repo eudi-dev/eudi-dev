@@ -19,6 +19,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -187,15 +188,12 @@ func (w *Wallet) IssueCredential(opts IssueOptions) (result *IssueResult, err er
 	// The template and its catalogue entry are checked before the credential
 	// is issued, so a bad entry stores nothing.
 	var saved *credtemplate.Template
-	var catalogEntry registrar.CatalogAttestation
+	var catalogEntry *registrar.CatalogAttestation
 	if name := strings.TrimSpace(opts.SaveTemplate); name != "" {
 		t := resolved.Template(name)
 		saved = &t
-		if opts.Catalog != nil {
-			if catalogEntry, err = w.Registrar().TemplateCatalogEntry(*saved, *opts.Catalog); err != nil {
-				return nil, err
-			}
-			saved.Category = catalogEntry.Category
+		if catalogEntry, err = w.TemplateCatalogRequest(saved, opts.Catalog); err != nil {
+			return nil, err
 		}
 	} else if opts.Catalog != nil {
 		return nil, fmt.Errorf("adding to the catalogue needs a template name")
@@ -322,11 +320,7 @@ func (w *Wallet) IssueCredential(opts IssueOptions) (result *IssueResult, err er
 		StatusRegistered: registerStatus,
 	}
 	if saved != nil {
-		var entry *registrar.CatalogAttestation
-		if opts.Catalog != nil {
-			entry = &catalogEntry
-		}
-		if result.TemplatePath, err = w.SaveTemplate(*saved, entry); err != nil {
+		if result.TemplatePath, err = w.SaveTemplate(*saved, catalogEntry); err != nil {
 			return nil, err
 		}
 	}
@@ -535,6 +529,103 @@ func (w *Wallet) SaveTemplate(tpl credtemplate.Template, entry *registrar.Catalo
 		return "", fmt.Errorf("saving template: %w", err)
 	}
 	return path, nil
+}
+
+// TemplateCatalogRequest prepares the catalogue entry of a template to save.
+// A template that replaces one with its own catalog object keeps that object,
+// and request replaces it. Otherwise request becomes an added entry, which
+// the returned entry carries for SaveTemplate. A catalog object on tpl
+// itself, as an imported template file has, counts as the request.
+func (w *Wallet) TemplateCatalogRequest(tpl *credtemplate.Template, request *registrar.CatalogAttestation) (*registrar.CatalogAttestation, error) {
+	if request == nil && tpl.Catalog != nil {
+		request = &registrar.CatalogAttestation{}
+		if err := json.Unmarshal(tpl.Catalog, request); err != nil {
+			return nil, fmt.Errorf("catalog: %w", err)
+		}
+	}
+	tpl.Catalog = nil
+	if replaced := w.storedTemplate(tpl.Name); replaced != nil && replaced.Catalog != nil {
+		tpl.Catalog = replaced.Catalog
+		if request != nil {
+			encoded, err := compactJSON(request)
+			if err != nil {
+				return nil, err
+			}
+			tpl.Catalog = encoded
+		}
+		if err := tpl.TakeCatalogCategory(); err != nil {
+			return nil, err
+		}
+		return nil, w.Registrar().CheckTemplateCatalog(tpl)
+	}
+	if request == nil {
+		return nil, nil
+	}
+	checked, err := w.Registrar().TemplateCatalogEntry(*tpl, *request)
+	if err != nil {
+		return nil, err
+	}
+	tpl.Category = checked.Category
+	return &checked, nil
+}
+
+// storedTemplate is the template of that name, or nil.
+func (w *Wallet) storedTemplate(name string) *credtemplate.Template {
+	name = strings.TrimSpace(name)
+	if !credtemplate.IsBareName(name) {
+		return nil
+	}
+	tpl, err := credtemplate.Load(name, w.Templates)
+	if err != nil {
+		return nil
+	}
+	return tpl
+}
+
+// compactJSON encodes v without its empty fields, so a stored catalog object
+// holds only what the request set.
+func compactJSON(v any) (json.RawMessage, error) {
+	encoded, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	var doc any
+	if err := json.Unmarshal(encoded, &doc); err != nil {
+		return nil, err
+	}
+	return json.Marshal(dropEmpty(doc))
+}
+
+func dropEmpty(v any) any {
+	switch value := v.(type) {
+	case map[string]any:
+		for key, field := range value {
+			if field = dropEmpty(field); isEmptyJSON(field) {
+				delete(value, key)
+			} else {
+				value[key] = field
+			}
+		}
+	case []any:
+		for i := range value {
+			value[i] = dropEmpty(value[i])
+		}
+	}
+	return v
+}
+
+func isEmptyJSON(v any) bool {
+	switch value := v.(type) {
+	case nil:
+		return true
+	case string:
+		return value == ""
+	case map[string]any:
+		return len(value) == 0
+	case []any:
+		return len(value) == 0
+	}
+	return false
 }
 
 // CredentialCategory is the category of the template, or else of the

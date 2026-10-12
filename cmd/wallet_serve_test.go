@@ -278,3 +278,36 @@ func TestServeBaseURLKeepsTheStoredBaseURL(t *testing.T) {
 		t.Fatalf("origin from the stored base URL: %+v %v", origin, err)
 	}
 }
+
+// EUDI_DEV_CATALOG sets --catalog, and a bad entry stops the start with the
+// file and the entry in the message.
+func TestWalletServeStopsOnABadCatalogueEntry(t *testing.T) {
+	serveCmd, _, err := rootCmd.Find([]string{"wallet", "serve"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Earlier tests leave flag values on the shared command.
+	serveCmd.Flags().VisitAll(func(f *pflag.Flag) {
+		if slice, ok := f.Value.(pflag.SliceValue); ok {
+			_ = slice.Replace(nil)
+		} else {
+			_ = f.Value.Set(f.DefValue)
+		}
+		f.Changed = false
+	})
+	clearFlagEnv(t)
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	walletDir = ""
+	catalog := filepath.Join(tmpDir, "catalog.yaml")
+	if err := os.WriteFile(catalog, []byte("name: Diploma\ncredentials: [{format: jwt_vc_json, type: urn:example:diploma:1}]\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("EUDI_DEV_CATALOG", catalog)
+
+	rootCmd.SetArgs([]string{"wallet", "serve", "--wallet-dir", filepath.Join(tmpDir, "wallet"), "--no-register"})
+	err = rootCmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), catalog) || !strings.Contains(err.Error(), `"Diploma"`) {
+		t.Fatalf("error = %v, want one naming the file and the entry", err)
+	}
+}

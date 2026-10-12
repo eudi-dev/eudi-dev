@@ -42,6 +42,42 @@ services:
 
 The wallet answers on `http://localhost:9000` and its issuer on `https://localhost:9001`.
 
+### Pre-registered catalogue entries
+
+`EUDI_DEV_CATALOG` names a file or directory with attestation types for the catalogue (see [pre-registered catalogue entries](wallet/serve.md#pre-registered-catalogue-entries)). Each start loads it again. In Kubernetes, mount the entries from a ConfigMap:
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wallet-catalog
+data:
+  diploma.yaml: |
+    name: University diploma
+    category: qeaa
+    credentials:
+      - format: dc+sd-jwt
+        type: urn:example:diploma:1
+---
+# In the Deployment's pod template
+containers:
+  - name: wallet
+    image: ghcr.io/eudi-dev/eudi-dev:latest
+    env:
+      - name: EUDI_DEV_CATALOG
+        value: /etc/eudi-dev/catalog
+    volumeMounts:
+      - name: catalog
+        mountPath: /etc/eudi-dev/catalog
+        readOnly: true
+volumes:
+  - name: catalog
+    configMap:
+      name: wallet-catalog
+```
+
+The wallet reads the `.yaml`, `.yml` and `.json` files of the directory and skips the other entries of the mount.
+
 ## Demo profile
 
 The container also runs the demo profile of the public instance at [eudi-test.dev](https://eudi-test.dev):

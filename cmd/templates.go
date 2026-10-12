@@ -132,6 +132,10 @@ var templatesSaveCmd = &cobra.Command{
 				return err
 			}
 			tpl = *from
+			// The copy would claim the catalogue entry of the template it copies.
+			if from.Name != args[0] {
+				tpl.Catalog = nil
+			}
 		}
 		tpl.Name = args[0]
 

@@ -58,7 +58,7 @@ Identifies a relying party (ETSI TS 119 411-8). A verifier signs its request obj
 A signed JWT from the registrar (ETSI TS 119 475). A verifier's certificate lists one intended use, and the verifier sends it in `verifier_info`. An issuer's certificate lists the attestation types of its service, and the issuer publishes it in `issuer_info`.
 
 **Attestation catalogue**:
-A list of attestation types (EC TS11 catalogue of attestations). Each entry has a credential category and links a schema for each format, a rulebook and a trusted list, by default the list of its category. Every predefined credential template has an entry.
+A list of attestation types (EC TS11 catalogue of attestations). Each entry has a credential category and links a schema for each format, a rulebook and a trusted list, by default the list of its category. Every predefined credential template has an entry, and so does a template file with a `catalog` object. The operator pre-registers further entries with `wallet serve --catalog`.
 
 **Relying party access CA**:
 Signs the access certificates from the wallet's registrar, including those of the demo issuer and the demo verifier. It is a root of its own, separate from the wallet CA. The wallet's `access-ca` list names it.

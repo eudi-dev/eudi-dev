@@ -19,6 +19,7 @@
 package credtemplate
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -78,6 +79,10 @@ type Template struct {
 	// this template. Image fields take "embedded:<file>", a data URI or an
 	// https URL.
 	Display *TemplateDisplay `json:"display,omitempty"`
+	// Catalog is the template's own entry in the attestation catalogue, in the
+	// shape of a catalogue request. The registrar reads it, and its category
+	// is the template's category.
+	Catalog json.RawMessage `json:"catalog,omitempty"`
 	// Predefined marks the built-in templates. Template files can't set it.
 	Predefined bool `json:"predefined,omitempty"`
 	// Visitor marks a template that a visitor of a public demo saved. The
@@ -465,12 +470,34 @@ func parse(data []byte, file string) (*Template, error) {
 		base := path.Base(filepath.ToSlash(file))
 		t.Name = strings.TrimSuffix(base, path.Ext(base))
 	}
+	if err := t.TakeCatalogCategory(); err != nil {
+		return nil, fmt.Errorf("template %s: %w", file, err)
+	}
 	t.Predefined = false
 	t.Claims = resolveEmbedded(t.Claims).(map[string]any)
 	if t.Category == CategoryPID {
 		fillPIDDates(t.Claims, time.Now())
 	}
 	return &t, nil
+}
+
+// TakeCatalogCategory checks that Catalog is an object and gives the template
+// the category of its catalogue entry.
+func (t *Template) TakeCatalogCategory() error {
+	if t.Catalog == nil || string(bytes.TrimSpace(t.Catalog)) == "null" {
+		t.Catalog = nil
+		return nil
+	}
+	var catalog struct {
+		Category string `json:"category"`
+	}
+	if err := json.Unmarshal(t.Catalog, &catalog); err != nil {
+		return fmt.Errorf("catalog must be an object with the fields of a catalogue entry: %w", err)
+	}
+	if catalog.Category != "" {
+		t.Category = catalog.Category
+	}
+	return nil
 }
 
 // resolveEmbedded turns every "embedded:<file>" string into a data URI of

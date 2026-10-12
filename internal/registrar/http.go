@@ -42,9 +42,10 @@ type Server struct {
 	// Protected reports whether clients may not change a registration or its
 	// certificates.
 	Protected func(rp WalletRelyingParty) bool
-	// KeepTemplateEntries reports whether clients may not delete the
-	// catalogue entries of the predefined templates.
-	KeepTemplateEntries func() bool
+	// KeepOperatorEntries reports whether clients may not delete the
+	// catalogue entries of the templates, and may not change or delete the
+	// entries of the operator's catalogue file.
+	KeepOperatorEntries func() bool
 }
 
 // refuseProtected resolves any form of the identifier to its registration,
@@ -491,6 +492,10 @@ func (h *Server) handleUpdateCatalogSchema(w http.ResponseWriter, r *http.Reques
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid attestation schema: " + err.Error()})
 		return
 	}
+	if h.keepsOperatorEntries() && h.Registrar().IsOperatorCatalogID(r.PathValue("id")) {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "the operator of the public demo set up this entry, and visitors can't change it"})
+		return
+	}
 	var updated CatalogAttestation
 	var err error
 	h.Mutate(func() bool {
@@ -506,9 +511,16 @@ func (h *Server) handleUpdateCatalogSchema(w http.ResponseWriter, r *http.Reques
 
 // handleDeleteCatalogSchema deletes an attestation schema (TS11 v1.0 §5.3.3).
 func (h *Server) handleDeleteCatalogSchema(w http.ResponseWriter, r *http.Request) {
-	if h.KeepTemplateEntries != nil && h.KeepTemplateEntries() && h.Registrar().IsTemplateCatalogID(r.PathValue("id")) {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "the entries of the predefined templates are part of the public demo, and visitors can't delete them"})
-		return
+	if h.keepsOperatorEntries() {
+		id := r.PathValue("id")
+		if h.Registrar().IsTemplateCatalogID(id) {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "the entries of the templates are part of the public demo, and visitors can't delete them"})
+			return
+		}
+		if h.Registrar().IsOperatorCatalogID(id) {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "the operator of the public demo set up this entry, and visitors can't delete it"})
+			return
+		}
 	}
 	var err error
 	h.Mutate(func() bool {
@@ -520,6 +532,10 @@ func (h *Server) handleDeleteCatalogSchema(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Server) keepsOperatorEntries() bool {
+	return h.KeepOperatorEntries != nil && h.KeepOperatorEntries()
 }
 
 // handleCatalogAttestations lists the catalogue with the names and credential

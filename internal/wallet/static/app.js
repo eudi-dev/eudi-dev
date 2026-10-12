@@ -4852,7 +4852,7 @@
     category: entry => entry.category,
     los: entry => (entry.schema || {}).attestationLoS,
     binding: entry => (entry.schema || {}).bindingType,
-    source: entry => entry.template ? 'template' : 'added',
+    source: entry => entry.template ? 'template' : entry.operator ? 'operator' : 'added',
   };
   function renderCatalogFilters() {
     const box = document.getElementById('registrar-catalog-filters');
@@ -4860,7 +4860,7 @@
       ['category', 'Category', categories.map(c => [c.id, c.label])],
       ['los', 'Level of security', schemaOptions.attestationLoS.map(o => [o.value, o.label])],
       ['binding', 'Holder binding', schemaOptions.bindingType.map(o => [o.value, o.label])],
-      ['source', 'Source', [['template', 'From a template'], ['added', 'Added here']]],
+      ['source', 'Source', [['template', 'From a template'], ['operator', 'Pre-registered'], ['added', 'Added here']]],
     ];
     box.innerHTML = '';
     groups.forEach(([group, label, options]) => {
@@ -4917,13 +4917,14 @@
       card.innerHTML =
         '<div class="registrar-party-head" id="' + prefix + '-head">' +
           '<span class="registrar-party-name" id="' + prefix + '-name">' + escHtml(entry.name) + '</span>' +
-          (entry.template && demoMode ? '' : '<span class="registrar-party-actions"><button type="button" class="btn btn-danger btn-sm" id="' + prefix + '-delete">Delete</button></span>') +
+          ((entry.template || entry.operator) && demoMode ? '' : '<span class="registrar-party-actions"><button type="button" class="btn btn-danger btn-sm" id="' + prefix + '-delete">Delete</button></span>') +
         '</div>' +
         '<div class="cred-pills registrar-pills" id="' + prefix + '-pills">' +
           '<span class="status-badge catalog-badge" id="' + prefix + '-category" title="Selects the signer and the trusted list">Category: ' + escHtml(categoryLabel(entry.category)) + '</span>' +
           '<span class="status-badge catalog-badge" id="' + prefix + '-los" title="Level of security (TS11 attestationLoS)">Level of security: ' + escHtml(optionLabel('attestationLoS', schema.attestationLoS)) + '</span>' +
           '<span class="status-badge catalog-badge" id="' + prefix + '-binding" title="How the attestation is bound to its holder (TS11 bindingType)">' + escHtml(optionLabel('bindingType', schema.bindingType)) + '</span>' +
           (entry.template ? '<span class="status-badge catalog-badge" id="' + prefix + '-template" title="Change the credential template to change this entry.">From a template</span>' : '') +
+          (entry.operator ? '<span class="status-badge catalog-badge" id="' + prefix + '-operator" title="The wallet loads this entry from its catalogue file on every start.">Pre-registered</span>' : '') +
           '<code class="registrar-party-identifier" id="' + prefix + '-id">' + escHtml(schema.id) + '</code>' +
           '<code class="registrar-party-identifier registrar-catalog-version" id="' + prefix + '-version">v' + escHtml(schema.version) + '</code>' +
         '</div>' +

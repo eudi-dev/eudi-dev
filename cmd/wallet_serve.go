@@ -57,6 +57,7 @@ type walletServeOptions struct {
 	AutoAccept            bool
 	CredFiles             []string
 	CredentialsFile       string
+	CatalogFile           string
 	PID                   bool
 	KeyPath               string
 	IssuerKey             string
@@ -131,6 +132,7 @@ Every flag can also be set as EUDI_DEV_<FLAG>, such as EUDI_DEV_BASE_URL for --b
 	cmd.Flags().BoolVar(&opts.AutoAccept, "auto-accept", false, "Approve presentations and credential offers without asking. --demo ignores $EUDI_DEV_AUTO_ACCEPT and takes this flag from the command line only")
 	cmd.Flags().StringSliceVar(&opts.CredFiles, "credential", nil, "Import credential from file (repeatable)")
 	cmd.Flags().StringVar(&opts.CredentialsFile, "credentials", "", "Credentials to issue or import on every start and after a demo reset: a YAML or JSON file, a directory of such files, or '-' for stdin")
+	cmd.Flags().StringVar(&opts.CatalogFile, "catalog", "", "Attestation types to pre-register in the catalogue on every start and after a demo reset: a YAML or JSON file, a directory of such files, or '-' for stdin")
 	cmd.Flags().BoolVar(&opts.PID, "pid", false, "Auto-generate default EUDI PID credentials (SD-JWT + mdoc)")
 	cmd.Flags().StringVar(&opts.KeyPath, "key", "", "Holder private key file (PEM/JWK). Uses the stored key or auto-generates one if omitted")
 	cmd.Flags().StringVar(&opts.IssuerKey, "issuer-key", "", "Issuer key for generated PIDs (PEM/JWK)")
@@ -427,6 +429,12 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	if opts.Detached && opts.CredentialsFile == "-" {
 		return fmt.Errorf("a detached server has no stdin, so it can't read --credentials -")
 	}
+	if opts.Detached && opts.CatalogFile == "-" {
+		return fmt.Errorf("a detached server has no stdin, so it can't read --catalog -")
+	}
+	if opts.CredentialsFile == "-" && opts.CatalogFile == "-" {
+		return fmt.Errorf("--credentials and --catalog can't both read stdin")
+	}
 	if opts.Detached {
 		return spawnDetachedServe(cmd, opts.Port, opts.Register, opts.NoRegister)
 	}
@@ -562,9 +570,27 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 			return fmt.Errorf("reading the credentials file: %w", err)
 		}
 	}
-	// baseline adds the startup credentials. A demo reset runs it again. On a
-	// demo, startup credentials are protected unless an entry says otherwise.
+	var catalogFile *wallet.CatalogFile
+	if opts.CatalogFile != "" {
+		catalogFile, err = wallet.LoadCatalogFile(opts.CatalogFile)
+		if err != nil {
+			return fmt.Errorf("reading the catalogue file: %w", err)
+		}
+	}
+	if err := w.Registrar().CheckTemplateCatalog(nil); err != nil {
+		return fmt.Errorf("the catalogue entries of the templates: %w", err)
+	}
+	// baseline adds the catalogue entries and the startup credentials. A demo
+	// reset runs it again. On a demo, startup credentials are protected unless
+	// an entry says otherwise. The catalogue comes first, because a
+	// credential takes its category from its catalogue entry.
+	catalogChanged := false
 	baseline := func() error {
+		changed, err := w.ApplyCatalogFile(catalogFile)
+		if err != nil {
+			return fmt.Errorf("pre-registering the catalogue entries: %w", err)
+		}
+		catalogChanged = catalogChanged || changed
 		if opts.PID {
 			generate := func() error { return w.GenerateDefaultCredentials(nil, "") }
 			if opts.Demo {
@@ -584,7 +610,7 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	if err := baseline(); err != nil {
 		return err
 	}
-	if opts.PID || startupFile != nil {
+	if opts.PID || startupFile != nil || catalogChanged {
 		if err := store.Save(w); err != nil {
 			return fmt.Errorf("saving wallet: %w", err)
 		}
