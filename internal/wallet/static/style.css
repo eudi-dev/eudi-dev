@@ -797,9 +797,37 @@ label.dialog-hint {
   outline-offset: 1px;
 }
 
-select.form-input,
 textarea.form-input {
   border-radius: 14px;
+}
+
+/* The arrow is drawn with gradients so it takes the theme colour, like the
+   demo pages. */
+select.form-input,
+select.conf-input {
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: 32px;
+  padding: 6px 34px 6px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  background:
+    linear-gradient(45deg, transparent 50%, var(--text-dim) 50%) calc(100% - 19px) 50% / 5px 5px no-repeat,
+    linear-gradient(135deg, var(--text-dim) 50%, transparent 50%) calc(100% - 14px) 50% / 5px 5px no-repeat,
+    var(--bg-input);
+}
+
+select.form-input:disabled,
+select.conf-input:disabled {
+  cursor: default;
+  background: var(--bg-input);
+  padding-right: 14px;
+}
+
+select.form-input option,
+select.conf-input option {
+  background: var(--bg-surface);
+  color: var(--text);
 }
 
 textarea.form-input {
@@ -875,11 +903,36 @@ textarea.form-input {
   background: var(--bg-input);
   cursor: pointer;
 }
+/* The chosen file ends up in the URL field next to it, so the picker shows
+   only its button. */
 .form-file {
   flex: 0 0 auto;
-  font-size: 11px;
-  color: var(--text-dim);
-  max-width: 96px;
+  font-size: 0;
+  width: auto;
+}
+
+.form-file::file-selector-button {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  height: 32px;
+  margin: 0;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--bg-btn);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.form-file::file-selector-button:hover {
+  background: var(--bg-btn-hover);
+}
+
+.form-file:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 999px;
 }
 
 .claims-editor {
