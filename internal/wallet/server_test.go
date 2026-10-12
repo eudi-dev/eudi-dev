@@ -180,6 +180,36 @@ func TestListCredentials(t *testing.T) {
 	}
 }
 
+// An unanswered consent ends with HTTP 408 for the caller, and the approve
+// API that waits on the submission learns the same.
+func TestAnswerConsentTimeout(t *testing.T) {
+	srv := newTestServer(t, false)
+	req := consent.NewRequest(consent.TypePresentation, "")
+	rec := httptest.NewRecorder()
+	srv.answerConsentTimeout(rec, "presentation", req)
+
+	if rec.Code != http.StatusRequestTimeout {
+		t.Fatalf("status %d, want 408", rec.Code)
+	}
+	var body map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body["error"] != apiErrorConsentTimeout {
+		t.Errorf("error = %q, want %q", body["error"], apiErrorConsentTimeout)
+	}
+	select {
+	case result := <-req.SubmissionCh:
+		if result.StatusCode != http.StatusRequestTimeout {
+			t.Errorf("submission status %d, want 408", result.StatusCode)
+		}
+	default:
+		t.Fatal("the submission channel received no result")
+	}
+}
+
+// OID4VP 1.0 §8.5 answers transaction data the wallet does not support with
+// invalid_transaction_data.
 func TestAuthorize_StrictRejectsTransactionData(t *testing.T) {
 	srv := newStrictTestServer(t, true)
 	req := httptest.NewRequest("GET", "/authorize?client_id=https://verifier.example&response_type=vp_token&transaction_data=%5B%5D", nil)
@@ -189,8 +219,15 @@ func TestAuthorize_StrictRejectsTransactionData(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
 	}
-	if !strings.Contains(w.Body.String(), "transaction_data") {
-		t.Fatalf("expected transaction_data error, got %s", w.Body.String())
+	var body map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decoding %s: %v", w.Body, err)
+	}
+	if body["error"] != oid4vp.ErrorInvalidTransactionData {
+		t.Errorf("error = %v, want invalid_transaction_data", body["error"])
+	}
+	if description, _ := body["error_description"].(string); !strings.Contains(description, "transaction_data") {
+		t.Errorf("error_description = %q, want it to name transaction_data", description)
 	}
 }
 

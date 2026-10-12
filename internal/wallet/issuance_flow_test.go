@@ -17,6 +17,7 @@ package wallet
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 )
 
 type mockIssuerOpts struct {
@@ -1566,6 +1568,17 @@ func TestIssuanceConsentDescribesTheOffer(t *testing.T) {
 
 	if _, ok := consent.NewRuntime().DocFor(req, nil)["offer_details"]; !ok {
 		t.Error("offer_details missing from the marshalled consent request")
+	}
+}
+
+// OpenID4VCI 1.0 §4.1 allows either credential_offer or credential_offer_uri.
+// The wallet refuses an offer with both before the consent dialog.
+func TestIssuanceConsentRefusesAnOfferWithBothParameters(t *testing.T) {
+	offer := url.QueryEscape(`{"credential_issuer":"https://issuer.example","credential_configuration_ids":["pid"]}`)
+	uri := "openid-credential-offer://?credential_offer=" + offer + "&credential_offer_uri=" + url.QueryEscape("https://issuer.example/offer")
+	req, _, err := generateTestWallet(t).prepareIssuanceConsentRequest(uri, "")
+	if req != nil || !errors.Is(err, oid4vc.ErrInvalidCredentialOffer) {
+		t.Fatalf("consent request %+v, err %v, want the invalid offer refused", req, err)
 	}
 }
 

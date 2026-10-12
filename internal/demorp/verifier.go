@@ -517,7 +517,7 @@ func (d *DemoRP) finalizeRequest(w http.ResponseWriter, req *requestState, respo
 	now := time.Now()
 	claims := map[string]any{
 		"iss":             req.clientID,
-		"aud":             "https://self-issued.me/v2",
+		"aud":             oid4vp.SelfIssuedAudience,
 		"iat":             now.Unix(),
 		"exp":             req.expires.Unix(),
 		"client_id":       req.clientID,

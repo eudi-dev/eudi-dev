@@ -137,7 +137,7 @@ For **issuance**, HAIP §6.1.1 checks every received credential. That covers eve
 
 The credential issuer must use HTTPS. Plain HTTP is allowed on a local host: `localhost`, any address in `127.0.0.0/8`, `::1` or `host.docker.internal`. Authorization code flows also require the authorization server to support that grant and offer PAR when using the authorization endpoint.
 
-PKCE and DPoP metadata is checked when present. A server advertising PKCE without `S256`, or DPoP without `ES256`, violates the profile. Omitted metadata is accepted because the referenced OAuth specifications make these fields optional and FAPI 2.0 constrains server behavior. Client authentication metadata is not checked.
+PKCE metadata is checked when present. A server advertising PKCE without `S256` violates the profile. The profile leaves the DPoP signing algorithms open, because §7 does not list DPoP proofs among the uses that require `ES256`. Omitted metadata is accepted because the referenced OAuth specifications make these fields optional and FAPI 2.0 constrains server behavior. Client authentication metadata is not checked.
 
 For pre-authorized offers, only the HTTPS transport rule applies to this part of validation. HAIP §4 requires support for authorization code issuance but scopes PAR to use of the authorization endpoint.
 

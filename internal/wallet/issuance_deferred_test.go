@@ -265,6 +265,70 @@ func TestDeferringCredentialResponseFollowsSection83(t *testing.T) {
 	}
 }
 
+// OpenID4VCI 1.0 §8.3: credentials "MUST NOT be used if the transaction_id
+// parameter is present". Strict mode refuses such a response. Debug mode
+// reports it and stores the issued credential.
+func TestCredentialResponseWithCredentialsAndTransactionID(t *testing.T) {
+	for _, mode := range []ValidationMode{ValidationModeDebug, ValidationModeStrict} {
+		t.Run(string(mode), func(t *testing.T) {
+			w := generateTestWallet(t)
+			w.ValidationMode = mode
+			credential := generateTestCredential(t, w)
+			var serverURL string
+			srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				switch {
+				case strings.HasSuffix(r.URL.Path, "/.well-known/openid-credential-issuer"):
+					writeTestJSON(rw, map[string]any{
+						"credential_issuer":            serverURL,
+						"credential_endpoint":          serverURL + "/credential",
+						"deferred_credential_endpoint": serverURL + "/deferred",
+						"token_endpoint":               serverURL + "/token",
+						"credential_configurations_supported": map[string]any{
+							"test-config": map[string]any{"format": "dc+sd-jwt", "vct": "TestIssuedCred"},
+						},
+					})
+				case strings.HasSuffix(r.URL.Path, "/token"):
+					writeTestJSON(rw, map[string]any{"access_token": "t", "token_type": "Bearer"})
+				case strings.HasSuffix(r.URL.Path, "/credential"):
+					writeTestJSON(rw, map[string]any{
+						"credentials":    []any{map[string]any{"credential": credential}},
+						"transaction_id": "test-transaction",
+					})
+				default:
+					rw.WriteHeader(http.StatusNotFound)
+				}
+			}))
+			defer srv.Close()
+			serverURL = srv.URL
+
+			offer, _ := json.Marshal(map[string]any{
+				"credential_issuer":            serverURL,
+				"credential_configuration_ids": []string{"test-config"},
+				"grants":                       map[string]any{preAuthorizedCodeGrant: map[string]any{"pre-authorized_code": "c"}},
+			})
+			result, err := w.ProcessCredentialOffer("openid-credential-offer://?credential_offer=" + url.QueryEscape(string(offer)))
+			if mode == ValidationModeStrict {
+				if err == nil || !strings.Contains(err.Error(), "both credentials and transaction_id") {
+					t.Errorf("err %v, want the §8.3 refusal", err)
+				}
+				return
+			}
+			if err != nil || result.Pending {
+				t.Fatalf("debug result %+v, %v, want the credential stored", result, err)
+			}
+			if got := len(w.GetCredentials()); got != 1 {
+				t.Errorf("wallet holds %d credentials, want the issued one", got)
+			}
+			if got := len(w.DeferredIssuanceList()); got != 0 {
+				t.Errorf("wallet holds %d pending issuances, want none", got)
+			}
+			if !hasWarningContaining(w, "both credentials and transaction_id") {
+				t.Error("debug mode did not report the deviation")
+			}
+		})
+	}
+}
+
 func TestProcessCredentialOffer_DeferredIsRecordedNotWaitedOut(t *testing.T) {
 	w := generateTestWallet(t)
 	// The offer flow leaves polling to the background collector.

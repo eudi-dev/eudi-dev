@@ -146,6 +146,24 @@ func extractEncryptionKey(mode ValidationMode, reqObj *oid4vc.RequestObjectJWT, 
 	}
 }
 
+// responseEncryptionError reports a request whose response the wallet cannot
+// encrypt. OID4VP 1.0 §8.3 encrypts the response to a key in
+// client_metadata.jwks with an enc from encrypted_response_enc_values_supported.
+// The wallet checks both before consent, so the user never approves a
+// presentation it cannot deliver.
+func (w *Wallet) responseEncryptionError(params *oid4vp.Request) error {
+	if !responseModeEncrypts(params.ResponseMode) {
+		return nil
+	}
+	if _, err := extractEncryptionKey(w.Mode(), params.RequestObject, params.ClientMetadata); err != nil {
+		return fmt.Errorf("response_mode %s: %w", params.ResponseMode, err)
+	}
+	if _, err := responseEncAlgorithm(params.RequestObject, params.ClientMetadata); err != nil {
+		return fmt.Errorf("response_mode %s: %w. OID4VP 1.0 §8.3 requires one for an encrypted response", params.ResponseMode, err)
+	}
+	return nil
+}
+
 func joinFindings(findings ...string) string {
 	out := ""
 	for _, f := range findings {

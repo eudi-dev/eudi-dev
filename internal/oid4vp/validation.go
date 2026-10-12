@@ -73,9 +73,13 @@ func validatePresentationRequestCore(checks Checks, params *Request, payload map
 	if finding := verifyRequestObjectSignature(clientID, reqObj); finding != "" {
 		findings = append(findings, finding)
 	}
+	findings = append(findings, requestObjectClaimFindings(params)...)
 	findings = append(findings, authorizationFindings(params, payload)...)
 	var advisories []string
 	if advisory := unsignedRequestObjectAdvisory(reqObj); advisory != "" {
+		advisories = append(advisories, advisory)
+	}
+	if advisory := missingAudienceAdvisory(params); advisory != "" {
 		advisories = append(advisories, advisory)
 	}
 	if checks.HAIP {

@@ -20,11 +20,12 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 )
 
-// OpenID4VP 1.0 §8.5 defines these error codes. invalid_request and
-// access_denied come from OAuth 2.0.
+// OpenID4VP 1.0 §8.5 defines these error codes. invalid_request,
+// access_denied and invalid_scope come from OAuth 2.0.
 const (
 	ErrorInvalidRequest          = "invalid_request"
 	ErrorAccessDenied            = "access_denied"
+	ErrorInvalidScope            = "invalid_scope"
 	ErrorVPFormatsNotSupported   = "vp_formats_not_supported"
 	ErrorInvalidRequestURIMethod = "invalid_request_uri_method"
 	ErrorInvalidTransactionData  = "invalid_transaction_data"

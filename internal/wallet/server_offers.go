@@ -16,6 +16,7 @@ package wallet
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -396,7 +397,7 @@ func (w *Wallet) prepareIssuanceConsentRequest(raw, owner string) (_ *consent.Re
 	reqType, parsed, err := oid4vc.ParseWithOptions(trimmed, oid4vc.ParseOptions{HTTPClient: w.HTTPClient()})
 	if err != nil {
 		// If the offer cannot be fetched, show its host in the consent dialog.
-		if offerURI := extractCredentialOfferURI(trimmed); offerURI != "" {
+		if offerURI := extractCredentialOfferURI(trimmed); offerURI != "" && !errors.Is(err, oid4vc.ErrInvalidCredentialOffer) {
 			req.ClientID = credentialOfferIssuerDisplay(offerURI)
 			req.OfferDetails = &consent.OfferDetails{
 				Issuer:       req.ClientID,

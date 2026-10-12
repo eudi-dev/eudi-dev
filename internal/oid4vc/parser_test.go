@@ -17,6 +17,7 @@ package oid4vc
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/url"
 	"strings"
 	"testing"
@@ -473,6 +474,26 @@ func TestParseVPJSONWithDCQLQuery(t *testing.T) {
 	ar := result.(*AuthorizationRequest)
 	if ar.DCQLQuery == nil {
 		t.Fatal("expected dcql_query")
+	}
+}
+
+// OpenID4VCI 1.0 §4.1: the offer carries "either credential_offer or
+// credential_offer_uri". §4.1.1 marks pre-authorized_code REQUIRED in the
+// pre-authorized grant.
+func TestParseRefusesAnAmbiguousOffer(t *testing.T) {
+	inline := url.QueryEscape(`{"credential_issuer":"https://issuer.example","credential_configuration_ids":["pid"]}`)
+	noCode := url.QueryEscape(`{"credential_issuer":"https://issuer.example","credential_configuration_ids":["pid"],` +
+		`"grants":{"urn:ietf:params:oauth:grant-type:pre-authorized_code":{"tx_code":{}},"authorization_code":{}}}`)
+	for name, tt := range map[string]struct{ uri, want string }{
+		"both parameters":                     {"openid-credential-offer://?credential_offer=" + inline + "&credential_offer_uri=" + url.QueryEscape("https://issuer.example/offer"), "§4.1 "},
+		"pre-authorized grant without a code": {"openid-credential-offer://?credential_offer=" + noCode, "§4.1.1"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, _, err := Parse(tt.uri)
+			if !errors.Is(err, ErrInvalidCredentialOffer) || !strings.Contains(err.Error(), tt.want) {
+				t.Errorf("err = %v, want an invalid offer citing %s", err, tt.want)
+			}
+		})
 	}
 }
 

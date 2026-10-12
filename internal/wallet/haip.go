@@ -34,8 +34,10 @@ import (
 //
 //   - always: the credential issuer MUST be an https origin
 //   - authorization code offers: the authorization server MUST support the
-//     flow, offer pushed authorization requests, support PKCE with S256,
-//     and support DPoP
+//     flow, offer pushed authorization requests and support PKCE with S256
+//
+// HAIP 1.0 §7 lists what ES256 must validate, and DPoP proofs are not on the
+// list. dpop_signing_alg_values_supported is not a profile check.
 func ValidateHAIPIssuanceCompliance(offer *oid4vc.CredentialOffer, oauthMeta map[string]any) []string {
 	var violations []string
 	if offer == nil {
@@ -68,9 +70,8 @@ func ValidateHAIPIssuanceCompliance(offer *oid4vc.CredentialOffer, oauthMeta map
 	if !hasPAR && interactiveAuthorizationEndpoint(oauthMeta) == "" {
 		violations = append(violations, "HAIP 1.0 §4: the authorization server must support pushed authorization requests")
 	}
-	// Both metadata fields are optional, so a missing list says nothing about
-	// PKCE or DPoP support. A list that is present and lacks them is a
-	// violation.
+	// The metadata field is optional, so a missing list says nothing about
+	// PKCE support. A list that is present and lacks S256 is a violation.
 	if _, declared := oauthMeta["code_challenge_methods_supported"]; declared &&
 		!metadataListContains(oauthMeta, "code_challenge_methods_supported", "S256") {
 		violations = append(violations, "HAIP 1.0 §4: the authorization server advertises PKCE without S256")

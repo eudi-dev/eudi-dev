@@ -19,7 +19,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync/atomic"
 	"testing"
+
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
 )
 
 // ADR-0012: /authorize and POST /api/presentations run the same checks.
@@ -42,6 +45,43 @@ func TestAuthorizeAndThePresentationAPIRefuseTheSameRequest(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// OID4VP 1.0 §5.5 makes a scope value "an alias for a well-defined DCQL
+// query". This wallet defines none, so §8.5 answers with invalid_scope, and
+// the verifier receives that error.
+func TestUnknownScopeIsAnsweredWithInvalidScope(t *testing.T) {
+	var received atomic.Value
+	verifier := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err == nil {
+			received.Store(r.PostForm.Get("error"))
+		}
+		rw.Header().Set("Content-Type", "application/json")
+		_, _ = rw.Write([]byte(`{}`))
+	}))
+	defer verifier.Close()
+
+	srv := newTestServer(t, false)
+	query := url.Values{
+		"client_id":     {"redirect_uri:" + verifier.URL},
+		"response_type": {"vp_token"},
+		"response_mode": {"direct_post"},
+		"response_uri":  {verifier.URL},
+		"nonce":         {"n"},
+		"scope":         {"com.example.unknown_query"},
+	}
+	rec := httptest.NewRecorder()
+	srv.mux.ServeHTTP(rec, httptest.NewRequest("GET", "/authorize?"+query.Encode(), nil))
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("response %d %s: %v", rec.Code, rec.Body, err)
+	}
+	if body["error"] != oid4vp.ErrorInvalidScope {
+		t.Errorf("wallet answered %v, want invalid_scope", body)
+	}
+	if got, _ := received.Load().(string); got != oid4vp.ErrorInvalidScope {
+		t.Errorf("verifier received error %q, want invalid_scope", got)
 	}
 }
 

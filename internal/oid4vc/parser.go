@@ -34,6 +34,10 @@ var ErrUnsupportedRequestURIMethod = errors.New("unsupported request_uri_method"
 // authorization request in any supported encoding.
 var ErrUnrecognizedInput = errors.New("not an OpenID4VCI offer or OpenID4VP request")
 
+// ErrInvalidCredentialOffer is an offer that breaks OpenID4VCI 1.0 §4.1. The
+// wallet cannot tell which credentials or which grant the issuer means.
+var ErrInvalidCredentialOffer = errors.New("invalid credential offer")
+
 func Parse(raw string) (RequestType, any, error) {
 	return ParseWithOptions(raw, ParseOptions{})
 }
@@ -138,6 +142,11 @@ func parseHTTPURL(raw string, opts ParseOptions) (RequestType, any, error) {
 func parseVCIParams(q url.Values, opts ParseOptions) (RequestType, any, error) {
 	var offerJSON []byte
 
+	// §4.1: "The Credential Offer contains a single URI query parameter,
+	// either credential_offer or credential_offer_uri".
+	if q.Has("credential_offer") && q.Has("credential_offer_uri") {
+		return TypeVCI, nil, fmt.Errorf("%w: OpenID4VCI 1.0 §4.1 allows either credential_offer or credential_offer_uri, and the offer carries both", ErrInvalidCredentialOffer)
+	}
 	if inline := q.Get("credential_offer"); inline != "" {
 		offerJSON = []byte(inline)
 	} else if uri := q.Get("credential_offer_uri"); uri != "" {
@@ -174,6 +183,10 @@ func parseVCIJSON(data []byte) (RequestType, any, error) {
 	if grants := jsonutil.GetMap(m, "grants"); grants != nil {
 		if preAuth := jsonutil.GetMap(grants, "urn:ietf:params:oauth:grant-type:pre-authorized_code"); preAuth != nil {
 			offer.Grants.PreAuthorizedCode = jsonutil.GetString(preAuth, "pre-authorized_code")
+			// §4.1.1 marks pre-authorized_code REQUIRED in this grant.
+			if offer.Grants.PreAuthorizedCode == "" {
+				return TypeVCI, nil, fmt.Errorf("%w: OpenID4VCI 1.0 §4.1.1: the pre-authorized_code grant has no pre-authorized_code", ErrInvalidCredentialOffer)
+			}
 			if txCode := jsonutil.GetMap(preAuth, "tx_code"); txCode != nil {
 				offer.Grants.TxCode = txCode
 			}

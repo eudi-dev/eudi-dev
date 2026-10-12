@@ -343,7 +343,21 @@ func (w *Wallet) issueWithToken(s issuanceSession, tokenForm url.Values) (*Issua
 
 	display := w.resolveCredentialDisplay(s.metadata, renewal.ConfigurationID)
 	credFormat := resolveCredentialFormat(s.metadata, renewal.ConfigurationID)
-	if transactionID, _ := credResp["transaction_id"].(string); transactionID != "" {
+	transactionID, _ := credResp["transaction_id"].(string)
+	if _, issued := credResp["credentials"]; issued && transactionID != "" {
+		// OpenID4VCI 1.0 §8.3: credentials "MUST NOT be used if the
+		// transaction_id parameter is present". Debug mode keeps the issued
+		// credentials.
+		if err := w.reportDeviation(deviation{
+			action: "issuance", event: "credential_response_deviation",
+			detail:  "OpenID4VCI 1.0 §8.3: the credential response carries both credentials and transaction_id, which exclude each other",
+			details: map[string]any{"transaction_id": transactionID},
+		}); err != nil {
+			return nil, err
+		}
+		transactionID = ""
+	}
+	if transactionID != "" {
 		pending, err := newDeferredIssuance(deferredTransaction{
 			transactionID: transactionID,
 			interval:      deferredInterval(credResp),

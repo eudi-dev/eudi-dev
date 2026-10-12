@@ -123,3 +123,89 @@ func TestX5CChainMustCertifyTheLeaf(t *testing.T) {
 		t.Errorf("strict mode: err = %v, want a refusal for the inconsistent x5c chain", err)
 	}
 }
+
+// singleCertRequest returns an x509_san_dns:example.com request signed by a
+// self-signed leaf with the given validity period, alone in x5c.
+func singleCertRequest(t *testing.T, notBefore, notAfter time.Time) *Request {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(12),
+		Subject:      pkix.Name{CommonName: "verifier"},
+		NotBefore:    notBefore,
+		NotAfter:     notAfter,
+		DNSNames:     []string{"example.com"},
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const clientID = "x509_san_dns:example.com"
+	header := map[string]any{"alg": "ES256", "typ": "oauth-authz-req+jwt", "x5c": []any{base64.StdEncoding.EncodeToString(der)}}
+	reqObj := signedRequestObject(t, header, map[string]any{"client_id": clientID, "nonce": "n-1"}, key)
+	return &Request{AuthorizationRequest: oid4vc.AuthorizationRequest{
+		ClientID: clientID, ResponseType: "vp_token", ResponseMode: "direct_post",
+		ResponseURI: "https://example.com/response", Nonce: "n-1", RequestObject: reqObj,
+	}}
+}
+
+// RFC 5280 §4.1.2.5: a certificate is valid only from notBefore to notAfter.
+// That holds for a signer alone in x5c as much as for a chain.
+func TestX5CSignerMustBeWithinItsValidityPeriod(t *testing.T) {
+	now := time.Now()
+	valid := singleCertRequest(t, now.Add(-time.Hour), now.Add(time.Hour))
+	if finding := verifyRequestObjectSignature(valid.ClientID, valid.RequestObject); finding != "" {
+		t.Fatalf("a valid signer drew the finding %q", finding)
+	}
+
+	for name, req := range map[string]*Request{
+		"expired":       singleCertRequest(t, now.Add(-2*time.Hour), now.Add(-time.Hour)),
+		"not yet valid": singleCertRequest(t, now.Add(time.Hour), now.Add(2*time.Hour)),
+	} {
+		t.Run(name, func(t *testing.T) {
+			findings, err := ValidateAuthorizationRequest(Checks{}, req)
+			if err != nil {
+				t.Fatalf("debug mode refused the request: %v", err)
+			}
+			if !containsSubstring(findings, "RFC 5280 §4.1.2.5") {
+				t.Errorf("findings %v, want the validity period", findings)
+			}
+			if _, err := ValidateAuthorizationRequest(Checks{Strict: true}, req); err == nil || !strings.Contains(err.Error(), "RFC 5280 §4.1.2.5") {
+				t.Errorf("strict mode: err = %v, want a refusal for the validity period", err)
+			}
+			if signed, _ := ClientAuthState(req); signed {
+				t.Error("consent would show a verified signer")
+			}
+		})
+	}
+}
+
+// The validity period applies to every certificate of the chain, so an
+// expired CA behind a valid leaf is a finding too.
+func TestX5CChainChecksTheValidityOfEveryCertificate(t *testing.T) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(13), Subject: pkix.Name{CommonName: "expired CA"},
+		NotBefore: time.Now().Add(-2 * time.Hour), NotAfter: time.Now().Add(-time.Hour),
+		IsCA: true, BasicConstraintsValid: true, KeyUsage: x509.KeyUsageCertSign,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ca, err := x509.ParseCertificate(der)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := x5cSignedRequest(t, key, ca, ca)
+	finding := verifyRequestObjectSignature(req.ClientID, req.RequestObject)
+	if !strings.Contains(finding, "position 2") || !strings.Contains(finding, "expired CA") {
+		t.Errorf("finding = %q, want the expired CA at position 2", finding)
+	}
+}

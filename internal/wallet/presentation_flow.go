@@ -79,6 +79,13 @@ func (w *Wallet) evaluatePresentationRequest(authReq *oid4vp.Request, entry pres
 		w.Consents().NotifyError(consent.Error{Owner: entry.owner, Message: "Authorization request validation failed", Detail: err.Error()})
 		return presentationOutcome{invalid: err, invalidCode: oid4vp.RefusalCode(authReq)}
 	}
+	// An error response would need the same encryption, so the verifier gets
+	// no answer and the caller gets invalid_request.
+	if err := w.responseEncryptionError(authReq); err != nil {
+		w.AddLog(entry.action, err.Error(), false)
+		w.Consents().NotifyError(consent.Error{Owner: entry.owner, Message: "The response cannot be encrypted", Detail: err.Error()})
+		return presentationOutcome{invalid: err, invalidCode: oid4vp.ErrorInvalidRequest}
+	}
 	// The override answers only a valid request.
 	if override := w.Consents().ConsumeNextError(); override != nil {
 		w.AddLog(entry.action, fmt.Sprintf("Returned error override: %s", override.Error), false)
@@ -91,6 +98,14 @@ func (w *Wallet) evaluatePresentationRequest(authReq *oid4vp.Request, entry pres
 
 	if !oid4vp.ResponseTypeRequiresVP(authReq.ResponseType) {
 		return presentationOutcome{}
+	}
+	// OID4VP 1.0 §5.5 leaves the scope values to the Wallet, and this wallet
+	// defines none. §8.5 answers an unknown one with invalid_scope.
+	if authReq.DCQLQuery == nil && strings.TrimSpace(authReq.Scope) != "" {
+		description := fmt.Sprintf("scope %q names no DCQL query this wallet supports", authReq.Scope)
+		w.AddLog(entry.action, description, false)
+		w.Consents().NotifyError(consent.Error{Owner: entry.owner, Message: "Unsupported scope", Detail: description})
+		return presentationOutcome{refusal: &presentationRefusal{status: "refused", code: oid4vp.ErrorInvalidScope, description: description}}
 	}
 	var outcome presentationOutcome
 	if authReq.DCQLQuery != nil {

@@ -19,8 +19,65 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 )
+
+// OID4VCI 1.0 §12.2.4: encryption_required says "whether the Credential
+// Issuer requires the additional encryption on top of TLS for the Credential
+// Requests". Without a usable key the wallet cannot meet that requirement, so
+// it stops. An issuer that does not require encryption gets a plain request.
+func TestCredentialRequestEncryptionNeedsAUsableKey(t *testing.T) {
+	key, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	usable := testEncJWK(t, &key.PublicKey)
+	usable["kid"] = "issuer-enc"
+	signing := testEncJWK(t, &key.PublicKey)
+	signing["kid"], signing["use"] = "issuer-sig", "sig"
+	withoutKid := testEncJWK(t, &key.PublicKey)
+
+	metadata := func(required bool, jwk map[string]any) map[string]any {
+		return map[string]any{"credential_request_encryption": map[string]any{
+			"jwks":                 map[string]any{"keys": []any{jwk}},
+			"enc_values_supported": []any{"A128GCM"},
+			"encryption_required":  required,
+		}}
+	}
+	for _, tt := range []struct {
+		name     string
+		metadata map[string]any
+		wantErr  string
+		wantKid  string
+	}{
+		{"usable key", metadata(true, usable), "", "issuer-enc"},
+		{"required with only a signing key", metadata(true, signing), "no usable ECDH-ES encryption key", ""},
+		{"required with a key without kid", metadata(true, withoutKid), "no usable ECDH-ES encryption key", ""},
+		{"optional with a key without kid", metadata(false, withoutKid), "", ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			params, err := selectCredentialRequestEncryption(ValidationModeStrict, tt.metadata)
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("err = %v, want %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			switch {
+			case tt.wantKid == "" && params != nil:
+				t.Errorf("params %+v, want an unencrypted request", params)
+			case tt.wantKid != "" && (params == nil || params.kid != tt.wantKid):
+				t.Errorf("params %+v, want the key %q", params, tt.wantKid)
+			}
+		})
+	}
+}
 
 // plaintextCredentialIssuer answers every credential request with the given
 // plaintext JSON body and status.
