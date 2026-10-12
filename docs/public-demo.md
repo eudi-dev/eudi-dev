@@ -61,7 +61,7 @@ Every response includes these headers:
 
 The demo uses the `eudi_session` cookie to associate consent requests with a browser. It is an opaque session value with `HttpOnly`, `SameSite=Lax` and, for HTTPS connections, `Secure`. The activity log remains shared.
 
-Pages opened by the CLI or URL handler keep the supplied browser ID in `sessionStorage`. Theme preferences, dismissed banner state and the news a visitor has seen use `localStorage`. They store only UI state. There is no third-party tracking. Describe this storage in the deployment's privacy notice.
+Pages opened by the CLI or URL handler keep the supplied browser ID in `sessionStorage`. Theme preferences, dismissed banner state, the news a visitor has seen and whether they finished the tour use `localStorage`. They store only UI state. There is no third-party tracking. Describe this storage in the deployment's privacy notice.
 
 ## robots.txt and security.txt
 
@@ -197,6 +197,8 @@ Pass `--imprint-file` with an HTML snippet containing the operator's name, addre
 ## News
 
 Pass `--news-file` with an HTML snippet. The wallet opens it on a visitor's first visit and again after the file changes. It needs `--demo`.
+
+The news dialog has a **Take the tour** button next to **Close**. It goes away once the visitor finishes the tour.
 
 An image next to the snippet, such as `<img src="overview.png">`, is embedded in the page, because the wallet loads images only from itself. Images can be PNG, JPEG, GIF, WebP or SVG, up to 2 MiB each. A paragraph with `class="lead"` stands out as the summary.
 

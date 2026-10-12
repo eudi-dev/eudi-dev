@@ -2941,3 +2941,108 @@ textarea.form-input {
   padding: 12px 14px;
   background: var(--bg-raised);
 }
+
+/* The guided tour. The spot's shadow dims everything around the target. */
+.tour {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+}
+
+.tour-spot {
+  position: fixed;
+  border-radius: 14px;
+  box-shadow: 0 0 0 200vmax var(--scrim);
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+  pointer-events: none;
+  transition: top 0.2s ease, left 0.2s ease, width 0.2s ease, height 0.2s ease;
+}
+
+.tour-card {
+  position: fixed;
+  width: min(360px, calc(100vw - 32px));
+  background: var(--bg-dialog);
+  border: 1px solid var(--border-dialog);
+  border-radius: 18px;
+  box-shadow: var(--shadow-dialog);
+  padding: 14px 18px 16px;
+  transition: top 0.2s ease, left 0.2s ease;
+}
+
+.tour-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tour-step {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.tour-close {
+  width: 30px;
+  height: 30px;
+  margin-right: -8px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tour-close:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.tour-close:focus-visible {
+  outline: 2px solid var(--accent);
+}
+
+.tour-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 2px 0 6px;
+}
+
+.tour-text {
+  color: var(--text-dim);
+}
+
+.tour-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.tour-card .btn:not(.btn-primary) {
+  background: var(--bg-btn-dialog);
+}
+
+#news-tour {
+  margin-right: auto;
+}
+
+.howto-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.howto-head .btn {
+  flex: 0 0 auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-spot,
+  .tour-card {
+    transition: none;
+  }
+}

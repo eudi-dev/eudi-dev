@@ -135,14 +135,36 @@
     <div class="consent-dialog news-dialog" id="news-dialog" role="dialog" aria-modal="true" aria-label="News">
       <div class="news-content" id="news-content"></div>
       <div class="consent-buttons">
+        <button class="btn" id="news-tour">Take the tour</button>
         <button class="btn" id="news-close">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="tour" id="tour" hidden>
+    <div class="tour-spot" id="tour-spot"></div>
+    <div class="tour-card" id="tour-card" role="dialog" aria-modal="true" aria-labelledby="tour-title" aria-describedby="tour-text">
+      <div class="tour-head">
+        <span class="tour-step" id="tour-step"></span>
+        <button type="button" class="tour-close" id="tour-close" aria-label="Close the tour">&times;</button>
+      </div>
+      <div aria-live="polite" id="tour-body">
+        <h2 class="tour-title" id="tour-title"></h2>
+        <p class="tour-text" id="tour-text"></p>
+      </div>
+      <div class="tour-buttons">
+        <button type="button" class="btn" id="tour-back">Back</button>
+        <button type="button" class="btn btn-primary" id="tour-next">Next</button>
       </div>
     </div>
   </div>
 
   <div class="consent-overlay" id="howto-overlay">
     <div class="consent-dialog" id="howto-dialog">
-      <div class="consent-title" id="howto-title">How to use this wallet</div>
+      <div class="howto-head">
+        <div class="consent-title" id="howto-title">How to use this wallet</div>
+        <button type="button" class="btn btn-sm" id="howto-tour">Take the tour</button>
+      </div>
       <div class="howto-tabs" id="howto-tabs" role="tablist" aria-label="How to use">
         <button type="button" class="howto-tab active" role="tab" id="howto-tab-basics" aria-selected="true" aria-controls="howto-panel-basics">Issuance and presentation</button>
         <button type="button" class="howto-tab" role="tab" id="howto-tab-registrar" aria-selected="false" aria-controls="howto-panel-registrar" tabindex="-1">Registrar</button>
@@ -794,5 +816,6 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
   <script src="csr.js"></script>
   <script src="claim-path.js"></script>
   <script src="app.js"></script>
+  <script src="tour.js"></script>
 </body>
 </html>
