@@ -523,7 +523,7 @@ func TestPostgres_PrefixIndexExists(t *testing.T) {
 		t.Fatal(err)
 	}
 	var n int
-	if err := pg.db.QueryRow(`SELECT count(*) FROM pg_indexes WHERE indexname = $1`, postgresTable+"_prefix").Scan(&n); err != nil {
+	if err := pg.db.QueryRow(`SELECT count(*) FROM pg_indexes WHERE schemaname = current_schema() AND indexname = $1`, postgresTable+"_prefix").Scan(&n); err != nil {
 		t.Fatal(err)
 	}
 	if n != 1 {
