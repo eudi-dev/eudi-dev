@@ -118,6 +118,13 @@ Version 3.0.0 adds a registrar, ARF checks, a catalogue of attestations and a tr
 - **Graceful shutdown.** `POST /api/shutdown` stops `wallet serve` like Ctrl-C.
 - **Card images in the demo issuer metadata.** The issuer metadata lists the logo and card image of each template (see [templates](docs/templates.md)).
 
+## [2.7.2] - 2026-10-12
+
+### Added
+
+- **Environment configuration.** Every `wallet serve` flag can be set as `EUDI_DEV_<FLAG>`, such as `EUDI_DEV_PORT` or `EUDI_DEV_BASE_URL`. A flag on the command line wins. An unknown `EUDI_DEV_` variable stops the server, so a typo does not go unnoticed. The image sets `EUDI_DEV_PORT=8085`, so `-e EUDI_DEV_PORT=9000` moves the wallet and its health check without a custom command (see [configuration by environment](docs/docker.md#configuration-by-environment)).
+- **Local addresses in demo mode.** `--allow-private-networks` lets `--demo` reach private networks and loopback, for a demo on a local machine or a test network. `wallet serve` warns at start. A public host keeps it off, which is the default (see [outbound connections](docs/public-demo.md#outbound-connections)).
+
 ## [2.7.1] - 2026-10-12
 
 ### Changed
