@@ -107,7 +107,17 @@ Capabilities:
   - Activity log
 
 Use --register to also register OS URL scheme handlers (openid4vp://, eudi-openid4vp://, haip-vp://, openid-credential-offer://, haip-vci://, eu-eaa-offer://)
-so the wallet automatically receives incoming protocol requests.`,
+so the wallet automatically receives incoming protocol requests.
+
+Every flag can also be set as EUDI_DEV_<FLAG>, such as EUDI_DEV_BASE_URL for --base-url. A flag on the command line wins.`,
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			if err := applyFlagEnv(cmd.Flags()); err != nil {
+				return err
+			}
+			// The root command applies --no-color before the environment is read.
+			applyNoColor()
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := rejectJSON("wallet serve runs until stopped. Use --log-format json for JSON log records"); err != nil {
 				return err
@@ -142,7 +152,7 @@ so the wallet automatically receives incoming protocol requests.`,
 	cmd.Flags().StringVar(&opts.NewsFile, "news-file", "", "HTML snippet with news for visitors of a public demo, shown once in a popup and again from the footer link. Requires --demo")
 	cmd.Flags().BoolVar(&opts.ServeTLS, "serve-tls", false, "Serve an https --base-url locally with the wallet's own TLS certificate instead of expecting an external TLS terminator in front (the HTTP port stays bound as well)")
 	cmd.Flags().StringArrayVar(&opts.DemoVerifierIssuerCAs, "demo-verifier-issuer-ca", nil, "PEM file with extra issuer CA certificates for the demo verifier, in addition to the providers on the wallet's trusted lists (repeatable). Use it for credentials issued outside this wallet, such as in an OIDF conformance suite run")
-	cmd.Flags().StringVar(&opts.LogFormat, "log-format", os.Getenv(serverlog.EnvVar), "Console output format: 'text' (the default) or 'json' (one JSON record per line on stdout, for log collectors) (default $"+serverlog.EnvVar+")")
+	cmd.Flags().StringVar(&opts.LogFormat, "log-format", "", "Console output format: 'text' (the default) or 'json' (one JSON record per line on stdout, for log collectors)")
 	cmd.Flags().BoolVarP(&opts.Detached, "detached", "d", false, "Run the server as a background process and return once it responds. Output goes to <wallet-dir>/serve.log")
 	return cmd, &opts
 }

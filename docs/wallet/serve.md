@@ -308,7 +308,10 @@ eudi wallet serve --pid --credential extra.txt
 eudi wallet serve --register           # also register URL scheme handlers using the current interactive/auto-accept mode
 eudi wallet serve --register --port 9000
 eudi wallet serve -d                   # run in the background (stop with `eudi wallet kill`)
+EUDI_DEV_PORT=9000 EUDI_DEV_AUTO_ACCEPT=true eudi wallet serve
 ```
+
+Every flag can also be set as `EUDI_DEV_<FLAG>`, with the flag name in upper case and underscores for dashes. A flag on the command line wins. A repeatable flag takes comma-separated values. An `EUDI_DEV_` variable that names no flag stops the server at start (see [configuration by environment](../docker.md#configuration-by-environment)).
 
 | Flag                    | Default  | Description                                      |
 |-------------------------|----------|--------------------------------------------------|
@@ -353,7 +356,7 @@ eudi wallet serve -d                   # run in the background (stop with `eudi 
 | `--serve-tls`           | `false`  | Serve an https `--base-url` locally with the wallet's own TLS certificate instead of expecting an external TLS terminator. Requires an https base URL with an explicit port. The wallet also keeps listening on the HTTP port |
 | `--demo-reset`          | `1h`     | Schedule for restoring the demo baseline: an interval (`24h`), a daily wall-clock time (`00:00`), or one with a timezone (`"00:00 Europe/Berlin"`). `0` disables. Requires `--demo` |
 | `--imprint-file`        | None     | HTML snippet with the operator's legal notice, served at `/imprint` |
-| `--log-format`          | `text`   | Console output format: `text` or `json` (one JSON record per line). `$EUDI_DEV_LOG_FORMAT` when set (see [JSON logs](#json-logs)) |
+| `--log-format`          | `text`   | Console output format: `text` or `json` (one JSON record per line). See [JSON logs](#json-logs) |
 | `--news-file`           | None     | HTML snippet with news for visitors, shown once in a popup and linked from the footer. Requires `--demo` |
 | `-d, --detached`        | `false`  | Run the server as a background process and return once it responds. Output goes to `<wallet-dir>/serve.log`. Stop it with `wallet kill` |
 

@@ -117,7 +117,7 @@ func OpenWalletStore(dir, spec string) (*WalletStore, error) {
 // An explicit wallet directory or state directory counts as a requested location when
 // resolving auto storage.
 func storageOptions(dir string) storage.Options {
-	requested := dir != "" || os.Getenv("EUDI_DEV_HOME") != ""
+	requested := dir != "" || os.Getenv(config.HomeEnvVar) != ""
 	return storage.Options{Root: filepath.Dir(ResolveWalletDir(dir)), RootRequested: requested}
 }
 

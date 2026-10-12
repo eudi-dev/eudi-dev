@@ -12,7 +12,8 @@ FROM alpine:3.21
 RUN adduser -D -h /home/app app && mkdir /home/app/.eudi-dev && chown app /home/app/.eudi-dev
 COPY --from=build /app/eudi /usr/local/bin/
 USER app
-ENV PORT=8085
+# wallet serve reads each flag from EUDI_DEV_<FLAG>. A flag on the command wins.
+ENV EUDI_DEV_PORT=8085 EUDI_DEV_AUTO_ACCEPT=true EUDI_DEV_PID=true
 # Memory storage and a public seed give each restart the same keys. For persistence,
 # select file or Postgres storage and clear EUDI_DEV_SEED to generate random keys.
 ENV EUDI_DEV_STORAGE=memory
@@ -21,6 +22,6 @@ ENV EUDI_DEV_SEED=eudi-dev
 # private networks. --demo still reaches public addresses only.
 ENV EUDI_DEV_ALLOW_PRIVATE_NETWORKS=true
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
-  CMD wget -q --spider http://localhost:${PORT}/healthz || exit 1
+  CMD wget -q --spider http://localhost:${EUDI_DEV_PORT}/healthz || exit 1
 ENTRYPOINT ["eudi"]
-CMD ["wallet", "serve", "--auto-accept", "--pid", "--port", "8085"]
+CMD ["wallet", "serve"]

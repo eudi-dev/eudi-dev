@@ -9,7 +9,7 @@ docker pull ghcr.io/eudi-dev/eudi-dev:latest
 docker run -p 8085:8085 -p 8086:8086 ghcr.io/eudi-dev/eudi-dev
 ```
 
-The default command starts a headless wallet with PID credentials. It stores state in memory and derives keys from a fixed seed. Each start uses the same keys and CA without a volume (see [Storage](#storage)). Stopping the container discards credentials issued or imported during the run.
+The default command `wallet serve` starts a headless wallet. It holds PID credentials and approves every request. It stores state in memory and derives keys from a fixed seed. Each start uses the same keys and CA without a volume (see [Storage](#storage)). Stopping the container discards credentials issued or imported during the run.
 
 The image sets `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=true`, so the wallet reaches verifiers on the Docker host and in other containers. Set `-e EUDI_DEV_ALLOW_PRIVATE_NETWORKS=false` for a wallet that visitors on the internet use. It then reaches public addresses and loopback only (see [outbound address limits](wallet/serve.md#outbound-address-limits)).
 
@@ -20,6 +20,28 @@ echo "eyJhbGci..." | docker run -i ghcr.io/eudi-dev/eudi-dev decode
 docker run -i ghcr.io/eudi-dev/eudi-dev validate --trusted-list https://example.com/trustlist.jwt < credential.txt
 ```
 
+## Configuration by environment
+
+`wallet serve` reads every flag from an environment variable. The name is `EUDI_DEV_` plus the flag name in upper case, with underscores for dashes. `--port` becomes `EUDI_DEV_PORT` and `--base-url` becomes `EUDI_DEV_BASE_URL`. A flag on the command line wins over the variable, and the variable wins over the flag default. A repeatable flag takes comma-separated values, such as `EUDI_DEV_TRUSTED_LIST=https://a.example/list,https://b.example/list`.
+
+The image sets `EUDI_DEV_PORT=8085`, `EUDI_DEV_AUTO_ACCEPT=true` and `EUDI_DEV_PID=true`. Set `EUDI_DEV_AUTO_ACCEPT=false` for a wallet that asks before it presents or accepts a credential. These defaults also apply when you pass your own `wallet serve` command.
+
+`wallet serve` refuses to start when an `EUDI_DEV_` variable names no flag, so a typo does not go unnoticed. `EUDI_DEV_HOME`, `EUDI_DEV_STORAGE`, `EUDI_DEV_SEED` and `EUDI_DEV_ALLOW_PRIVATE_NETWORKS` keep their own meaning.
+
+The HTTPS issuer runs on the port after `EUDI_DEV_PORT`. Change the port with `EUDI_DEV_PORT` rather than `--port`, so the health check follows it. With host networking, the wallet then needs no port mapping and no command:
+
+```yaml
+services:
+  wallet:
+    image: ghcr.io/eudi-dev/eudi-dev:latest
+    network_mode: host
+    environment:
+      EUDI_DEV_PORT: "9000"
+      EUDI_DEV_BASE_URL: http://localhost:9000
+```
+
+The wallet answers on `http://localhost:9000` and its issuer on `https://localhost:9001`.
+
 ## Demo profile
 
 The container also runs the demo profile of the public instance at [eudi-test.dev](https://eudi-test.dev):
@@ -27,11 +49,11 @@ The container also runs the demo profile of the public instance at [eudi-test.de
 ```bash
 docker run -d --name eudi-demo -p 8085:8085 -p 8086:8086 \
   -v wallet-data:/home/app/.eudi-dev -e EUDI_DEV_STORAGE=file -e EUDI_DEV_SEED= \
-  ghcr.io/eudi-dev/eudi-dev:latest \
-  wallet serve --demo --port 8085 --base-url http://localhost:8085
+  -e EUDI_DEV_DEMO=true -e EUDI_DEV_AUTO_ACCEPT=false -e EUDI_DEV_BASE_URL=http://localhost:8085 \
+  ghcr.io/eudi-dev/eudi-dev:latest
 ```
 
-The demo persists its state in files on the volume and generates its own keys, so its CA stays private and stable across restarts.
+The demo persists its state in files on the volume and generates its own keys, so its CA stays private and stable across restarts. Visitors confirm each browser flow, because `EUDI_DEV_AUTO_ACCEPT=false` turns off the image default.
 
 `--demo` turns on `--pid` (four PID credentials), `--mode debug`, `--haip`, `--arf` and `--vci-version 1.1`. It disables administrative operations and resets the wallet hourly. Change the schedule with `--demo-reset`.
 
@@ -78,7 +100,7 @@ Set `-e EUDI_DEV_LOG_FORMAT=json` to write one JSON record per line for a log co
 
 ## Flow
 
-1. The container starts with `--pid` (two preloaded EUDI PID credentials, one SD-JWT and one mdoc) and `--auto-accept` (presents matching credentials without user consent)
+1. The container starts with `EUDI_DEV_PID=true` (two preloaded EUDI PID credentials, one SD-JWT and one mdoc) and `EUDI_DEV_AUTO_ACCEPT=true` (presents matching credentials without user consent)
 2. Your verifier sends an OID4VP authorization request to the wallet's `/authorize` endpoint
 3. The wallet evaluates the DCQL query, finds matching credentials, creates a VP token, and POSTs it to your verifier's `response_uri`
 
@@ -192,8 +214,7 @@ To customize the PID claims, mount a folder of [credential templates](templates.
 
 ```bash
 # my-templates/pid-sdjwt.json overrides the predefined PID template
-docker run -p 8085:8085 -v ./my-templates:/templates ghcr.io/eudi-dev/eudi-dev \
-  wallet serve --auto-accept --pid --port 8085 --templates-dir /templates
+docker run -p 8085:8085 -v ./my-templates:/templates -e EUDI_DEV_TEMPLATES_DIR=/templates ghcr.io/eudi-dev/eudi-dev
 ```
 
 Or generate customized PIDs into a mounted data directory first. Mount the parent of `wallet/` to persist the shared CA with the credentials. Select the file backend and an empty seed for a private persisted CA:
@@ -202,8 +223,7 @@ Or generate customized PIDs into a mounted data directory first. Mount the paren
 docker run --rm -v wallet-data:/home/app/.eudi-dev -e EUDI_DEV_STORAGE=file -e EUDI_DEV_SEED= ghcr.io/eudi-dev/eudi-dev \
   issue sdjwt --wallet --template german-pid-sdjwt --claims '{"given_name":"MAX","family_name":"POWER"}'
 
-docker run -p 8085:8085 -v wallet-data:/home/app/.eudi-dev -e EUDI_DEV_STORAGE=file -e EUDI_DEV_SEED= ghcr.io/eudi-dev/eudi-dev \
-  wallet serve --auto-accept --port 8085
+docker run -p 8085:8085 -v wallet-data:/home/app/.eudi-dev -e EUDI_DEV_STORAGE=file -e EUDI_DEV_SEED= -e EUDI_DEV_PID=false ghcr.io/eudi-dev/eudi-dev
 ```
 
 ## Testing API
@@ -272,8 +292,8 @@ eudi wallet serve --pid --auto-accept --docker
 services:
   wallet:
     image: ghcr.io/eudi-dev/eudi-dev:latest
-    command: ["wallet", "serve", "--auto-accept", "--pid", "--port", "8085",
-              "--base-url", "http://wallet:8085"]
+    environment:
+      EUDI_DEV_BASE_URL: http://wallet:8085
     ports:
       - "8085:8085"
       - "8086:8086"

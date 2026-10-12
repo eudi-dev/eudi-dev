@@ -49,6 +49,7 @@ Version 3.0.0 adds a registrar, ARF checks, a catalogue of attestations and a tr
 - **Malformed DCQL in strict mode.** Strict mode refuses a malformed `dcql_query` with `invalid_request`.
 - **Trusted lists in `validate`.** `validate --trusted-list` fails on a list without `NextUpdate` or past it. Only the issuance services of a list anchor the credential.
 - **`POST /api/decode` removed.** Use `POST /api/validate`. It takes the same `input` and returns the decoded credential with its checks.
+- **Image configured by environment.** The image no longer reads `PORT`. Its default command is `wallet serve`, with the defaults in `EUDI_DEV_PORT=8085`, `EUDI_DEV_AUTO_ACCEPT=true` and `EUDI_DEV_PID=true`. A custom `wallet serve` command gets these defaults too. Set `EUDI_DEV_AUTO_ACCEPT=false` for a wallet that asks for consent (see [Docker](docs/docker.md#configuration-by-environment)).
 
 ### Added
 
@@ -69,6 +70,7 @@ Version 3.0.0 adds a registrar, ARF checks, a catalogue of attestations and a tr
 - **Configuration choice for offers.** `credential_configuration_id` on `POST /api/offers` and on the approve request picks one configuration of a multi-configuration offer (see [issuing](docs/wallet/issuing.md)).
 - **One registration for both roles.** **+ Add verifier registration certificate** lets an issuer ask for a PID before it issues, like the demo issuer. **+ Add issuer registration certificate** lets a verifier issue as well. The party stays one registration with both roles. Deleting a certificate removes it from the registration and revokes it. In the CLI, `verifiers add --to` and `issuers add --to` add the other role or more types, and `registration-cert` prints the current certificate (`--new` issues a new one). See the [registrar walkthrough](docs/wallet/registrar-api.md#5-pid-request-before-issuance).
 - **Not yet valid credentials.** A credential card shows **Not yet valid** before its `nbf` or `validFrom`.
+- **Environment configuration.** Every `wallet serve` flag can be set as `EUDI_DEV_<FLAG>`, such as `EUDI_DEV_PORT` or `EUDI_DEV_BASE_URL`. A flag on the command line wins. An unknown `EUDI_DEV_` variable stops the server, so a typo does not go unnoticed (see [configuration by environment](docs/docker.md#configuration-by-environment)).
 
 ### Changed
 

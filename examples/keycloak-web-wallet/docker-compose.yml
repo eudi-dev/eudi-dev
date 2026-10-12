@@ -31,10 +31,12 @@ services:
 
   wallet:
     build: ../..
-    # File storage on the mounted volume with random keys.
+    # File storage on the mounted volume with random keys. The user confirms
+    # each flow, which the image default skips.
     environment:
       EUDI_DEV_STORAGE: file
       EUDI_DEV_SEED: ""
+      EUDI_DEV_AUTO_ACCEPT: "false"
     network_mode: "service:keycloak"
     depends_on:
       - keycloak

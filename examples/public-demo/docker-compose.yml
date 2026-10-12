@@ -42,9 +42,11 @@ services:
     restart: unless-stopped
     logging: *logging
     # The demo persists: files on the mounted volume and its own random keys.
+    # Visitors confirm each browser flow, which the image default skips.
     environment:
       EUDI_DEV_STORAGE: file
       EUDI_DEV_SEED: ""
+      EUDI_DEV_AUTO_ACCEPT: "false"
     # No published ports: only Caddy reaches the wallet.
     command:
       - wallet
@@ -82,9 +84,11 @@ services:
     restart: unless-stopped
     logging: *logging
     # The demo persists: files on the mounted volume and its own random keys.
+    # Visitors confirm each browser flow, which the image default skips.
     environment:
       EUDI_DEV_STORAGE: file
       EUDI_DEV_SEED: ""
+      EUDI_DEV_AUTO_ACCEPT: "false"
     # Only ./deploy.sh preview starts it. A production up or push leaves it
     # alone.
     profiles: ["preview"]
