@@ -252,7 +252,7 @@ walletURL, _ := wallet.Endpoint(ctx, "http")
 To customize the PID claims, mount a folder of [credential templates](templates.md) that overrides the predefined PID templates or adds your own:
 
 ```bash
-# my-templates/pid-sdjwt.json overrides the predefined PID template
+# my-templates/pid-sdjwt.json or pid-sdjwt.yaml overrides the predefined PID template
 docker run -p 8085:8085 -v ./my-templates:/templates -e EUDI_DEV_TEMPLATES_DIR=/templates ghcr.io/eudi-dev/eudi-dev
 ```
 

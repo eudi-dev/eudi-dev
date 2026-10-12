@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	"go.yaml.in/yaml/v3"
+	"github.com/eudi-dev/eudi-dev/v3/internal/yamljson"
 )
 
 // CredentialsFile lists credentials the wallet adds on every start. An entry
@@ -125,16 +125,7 @@ func parseCredentialsSource(name string, data []byte) (*CredentialsFile, error) 
 // decoding, so entries use the template JSON field names and claims get the
 // same value types as an issue API request.
 func ParseCredentialsFile(data []byte) (*CredentialsFile, error) {
-	var root yaml.Node
-	if err := yaml.Unmarshal(data, &root); err != nil {
-		return nil, err
-	}
-	keepClaimStrings(&root)
-	var document any
-	if err := root.Decode(&document); err != nil {
-		return nil, err
-	}
-	encoded, err := json.Marshal(document)
+	encoded, err := yamljson.Convert(data, yamljson.KeepStrings)
 	if err != nil {
 		return nil, err
 	}
@@ -237,24 +228,5 @@ func (w *Wallet) setProtected(id string, protected bool) {
 		if w.Credentials[i].ID == id {
 			w.Credentials[i].Protected = protected
 		}
-	}
-}
-
-// keepClaimStrings keeps dates and mapping keys as strings. YAML reads a
-// birthdate as a timestamp and the age_equal_or_over keys as numbers, but
-// the claims need the text as written.
-func keepClaimStrings(node *yaml.Node) {
-	if node.Kind == yaml.ScalarNode && node.Tag == "!!timestamp" {
-		node.Tag = "!!str"
-	}
-	if node.Kind == yaml.MappingNode {
-		for i := 0; i < len(node.Content); i += 2 {
-			if node.Content[i].Kind == yaml.ScalarNode {
-				node.Content[i].Tag = "!!str"
-			}
-		}
-	}
-	for _, child := range node.Content {
-		keepClaimStrings(child)
 	}
 }

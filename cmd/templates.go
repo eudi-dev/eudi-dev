@@ -15,7 +15,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -127,7 +126,13 @@ var templatesSaveCmd = &cobra.Command{
 
 		var tpl credtemplate.Template
 		if templateFrom != "" {
-			from, err := svc.Template(templateFrom)
+			var from *credtemplate.Template
+			if credtemplate.IsBareName(templateFrom) {
+				from, err = svc.Template(templateFrom)
+			} else {
+				// A remote wallet takes only names, so a template file is read here.
+				from, err = credtemplate.Load(templateFrom, credtemplate.Location{})
+			}
 			if err != nil {
 				return err
 			}
@@ -185,12 +190,15 @@ var templatesSaveCmd = &cobra.Command{
 
 var templatesImportCmd = &cobra.Command{
 	Use:   "import <file|json|->",
-	Short: "Import a credential template from a JSON file, a JSON string, or stdin (-)",
-	Args:  cobra.ExactArgs(1),
+	Short: "Import a credential template from a JSON or YAML file, a JSON string, or stdin (-)",
+	Long: "Imports a credential template. A file ending in .yaml or .yml is YAML, and any other file is JSON. " +
+		"On stdin, input starting with { is JSON and other input is YAML.",
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var data []byte
 		var err error
 		arg := args[0]
+		file := ""
 		switch {
 		case arg == "-":
 			data, err = io.ReadAll(os.Stdin)
@@ -204,18 +212,19 @@ var templatesImportCmd = &cobra.Command{
 			if err != nil {
 				return fmt.Errorf("reading template file: %w", err)
 			}
+			file = arg
 		}
 
-		var tpl credtemplate.Template
-		if err := json.Unmarshal(data, &tpl); err != nil {
-			return fmt.Errorf("parsing template JSON: %w", err)
+		tpl, err := credtemplate.Decode(data, file)
+		if err != nil {
+			return fmt.Errorf("parsing template: %w", err)
 		}
 		if templateImportName != "" {
 			tpl.Name = templateImportName
 		}
-		if strings.TrimSpace(tpl.Name) == "" && !strings.HasPrefix(strings.TrimSpace(arg), "{") && arg != "-" {
-			base := filepath.Base(arg)
-			tpl.Name = strings.TrimSuffix(strings.TrimSuffix(base, ".json"), ".template")
+		if strings.TrimSpace(tpl.Name) == "" && file != "" {
+			base := filepath.Base(file)
+			tpl.Name = strings.TrimSuffix(base, filepath.Ext(base))
 		}
 
 		svc, err := managedWallet()
@@ -266,7 +275,7 @@ func init() {
 	templatesCmd.AddCommand(templatesImportCmd)
 	templatesCmd.AddCommand(templatesDeleteCmd)
 
-	templatesSaveCmd.Flags().StringVar(&templateFrom, "from", "", "Copy this template (name or file) as the starting point")
+	templatesSaveCmd.Flags().StringVar(&templateFrom, "from", "", "Copy this template (name, or JSON or YAML file) as the starting point")
 	templatesSaveCmd.Flags().StringVar(&templateFormat, "format", "", "Credential format: sdjwt, jwt, or mdoc (empty: any)")
 	templatesSaveCmd.Flags().StringVar(&templateVCT, "vct", "", "Verifiable Credential Type (sdjwt/jwt)")
 	templatesSaveCmd.Flags().StringVar(&templateDocType, "doc-type", "", "Document type (mdoc)")

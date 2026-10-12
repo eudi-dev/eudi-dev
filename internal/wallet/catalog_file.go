@@ -25,12 +25,11 @@ import (
 	"slices"
 	"strings"
 
-	"go.yaml.in/yaml/v3"
-
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
 	"github.com/eudi-dev/eudi-dev/v3/internal/trustedlists"
+	"github.com/eudi-dev/eudi-dev/v3/internal/yamljson"
 )
 
 // CatalogFile holds the attestation types the operator pre-registers in the
@@ -102,21 +101,12 @@ func LoadCatalogFile(path string) (*CatalogFile, error) {
 // parseCatalogSource reads the entries of one file and the issuer CAs they
 // name. dir resolves a relative IssuerCA path.
 func parseCatalogSource(name, dir string, data []byte) ([]CatalogFileEntry, error) {
-	var root yaml.Node
-	if err := yaml.Unmarshal(data, &root); err != nil {
-		return nil, fmt.Errorf("%s: %w", name, err)
-	}
-	keepVersionStrings(&root)
-	var document any
-	if err := root.Decode(&document); err != nil {
-		return nil, fmt.Errorf("%s: %w", name, err)
-	}
-	if _, single := document.(map[string]any); single {
-		document = []any{document}
-	}
-	encoded, err := json.Marshal(document)
+	encoded, err := yamljson.Convert(data, yamljson.KeepVersionStrings)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", name, err)
+	}
+	if bytes.HasPrefix(encoded, []byte{'{'}) {
+		encoded = slices.Concat([]byte{'['}, encoded, []byte{']'})
 	}
 	decoder := json.NewDecoder(bytes.NewReader(encoded))
 	decoder.DisallowUnknownFields()
@@ -148,21 +138,6 @@ func parseCatalogSource(name, dir string, data []byte) ([]CatalogFileEntry, erro
 		}
 	}
 	return entries, nil
-}
-
-// keepVersionStrings keeps a version such as 1.0 as text. YAML reads it as a
-// number.
-func keepVersionStrings(node *yaml.Node) {
-	if node.Kind == yaml.MappingNode {
-		for i := 0; i+1 < len(node.Content); i += 2 {
-			if node.Content[i].Value == "version" && node.Content[i+1].Kind == yaml.ScalarNode {
-				node.Content[i+1].Tag = "!!str"
-			}
-		}
-	}
-	for _, child := range node.Content {
-		keepVersionStrings(child)
-	}
 }
 
 func (e CatalogFileEntry) label(i int) string {

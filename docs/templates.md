@@ -43,7 +43,9 @@ With `--demo` the wallet holds the PIDs whose predefined templates set `baseline
 
 ## Template files and storage
 
-Predefined templates are compiled into the binary as template files, together with the images and portraits they reference. User templates are JSON documents under the wallet's `templates/` prefix in the selected storage backend. With file storage, the default directory is `~/.eudi-dev/wallet/templates/`, or `<dir>/templates/` with `--wallet-dir <dir>`. Both `.json` and `.template` extensions are recognized. The template name is its `name` field. Without one, it is the file name without its extension.
+Predefined templates are compiled into the binary as template files, together with the images and portraits they reference. User templates are JSON or YAML documents under the wallet's `templates/` prefix in the selected storage backend. With file storage, the default directory is `~/.eudi-dev/wallet/templates/`, or `<dir>/templates/` with `--wallet-dir <dir>`. The extensions `.json`, `.template`, `.yaml` and `.yml` are recognized. A `.yaml` or `.yml` file is YAML. The others are JSON. The template name is its `name` field. Without one, it is the file name without its extension.
+
+Each name has one file. Two files such as `employee-card.json` and `employee-card.yaml` are an error that names both files. The wallet saves templates as JSON. A template saved under the name of a YAML file replaces that file with a JSON file. Deleting a template deletes its file in either format.
 
 `--templates-dir` points the wallet, the issue commands, and the `templates` commands at another directory, for example a folder in your project or a container mount.
 
@@ -66,6 +68,22 @@ eudi templates list --templates-dir ./my-templates
   },
   "always_disclosed": ["department", "address.country"]
 }
+```
+
+The same template in YAML:
+
+```yaml
+description: Employee badge for verifier testing
+format: sdjwt
+vct: urn:example:employee
+exp: 720h
+claims:
+  employee_id: E-1
+  department: IT
+  address:
+    country: DE
+    locality: KÖLN
+always_disclosed: [department, address.country]
 ```
 
 All fields except `claims` are optional:
@@ -107,9 +125,73 @@ A template fills some empty claims when it issues:
 - In a template of category `pid`, an empty `date_of_issuance` or `issuance_date` becomes the date of issuance. An empty `date_of_expiry` or `expiry_date` becomes the date five years later. A date that is set stays.
 - A claim listed in `unique_claims` gets a new random value in every credential. The Italian PID lists `sub` with an empty value.
 
-A template reference (`--template`, `--from`) with a path separator or a `.json` or `.template` extension loads that file. Any other value is looked up in the template directory (both extensions), then among the predefined templates.
+A template reference (`--template`, `--from`) with a path separator or a template file extension loads that file. Any other value is looked up in the template directory (all four extensions), then among the predefined templates.
 
 `wallet serve --credentials` issues credentials from templates on every start (see [startup credentials](wallet/serve.md#startup-credentials)).
+
+## YAML template files
+
+A YAML template has the same fields as a JSON template. The wallet converts it to JSON and reads it like a JSON file, so both give the same template. This example uses most fields:
+
+```yaml
+name: employee-card
+description: Employee badge for verifier testing
+format: sdjwt
+vct: urn:example:employee
+exp: 720h
+category: eaa
+rulebook: https://example.com/rulebook
+claims:
+  employee_id: E-1
+  sub: ""
+  postal_code: "01234"
+  birthdate: 1990-01-01
+  address:
+    country: DE
+    locality: KÖLN
+  age_equal_or_over:
+    18: true
+always_disclosed: [employee_id, address.country]
+unique_claims: [sub]
+display:
+  name: Acme Employee
+  background_color: "#0f766e"
+  text_color: "#ffffff"
+  logo: embedded:images/logo.svg
+  logo_alt_text: Acme logo
+catalog:
+  name: Employee card
+  category: eaa
+  schema:
+    version: 1.2.0
+    rulebookURI: https://example.com/rulebook
+```
+
+An mdoc template writes a claim of another namespace as `namespace:element`. YAML reads such a key as written:
+
+```yaml
+format: mdoc
+doctype: eu.europa.ec.eudi.pid.1
+namespace: eu.europa.ec.eudi.pid.1
+claims:
+  family_name: MUSTERMANN
+  birth_date: 1964-08-12
+  eu.europa.ec.eudi.pid.de.1:birth_name: GABLER
+```
+
+Unquoted values follow YAML typing, with a few rules that keep a template the same as its JSON form:
+
+| YAML value | Claim value |
+|------------|-------------|
+| `true`, `false` | A boolean |
+| `yes`, `no`, `on`, `off` | Text |
+| `42`, `-7`, `2.5` | A number |
+| `01234`, `0x1F` | Text as written. Quote a postal code anyway |
+| `1990-01-01`, `2026-10-12T10:00:00Z` | Text as written, like a date in a JSON template |
+| `null`, `~` | `null` |
+| A mapping key such as `18` | Text, as in JSON |
+
+Quote a value that must stay text, such as `"true"` or `"42"`. Quote a color such as `"#0f766e"`, since `#` starts a comment.
 
 ## Card appearance (display)
 
@@ -193,8 +275,9 @@ eudi templates save employee-card --format sdjwt --vct urn:example:employee --cl
 # Customize a predefined template (the copy overrides it when saved under the same name)
 eudi templates save german-pid-sdjwt --from german-pid-sdjwt --vct urn:custom:pid
 
-# Import a shared template (file, JSON string, or - for stdin)
+# Import a shared template (JSON or YAML file, JSON string, or - for stdin)
 eudi templates import shared-template.json
+eudi templates import shared-template.yaml
 eudi templates import '{"format":"sdjwt","claims":{"a":1}}' --name my-cred
 eudi templates show employee-card > share-me.json
 
@@ -202,13 +285,15 @@ eudi templates show employee-card > share-me.json
 eudi templates delete employee-card
 ```
 
+`templates import` reads a `.yaml` or `.yml` file as YAML and any other file as JSON. On stdin, input that starts with `{` is JSON and other input is YAML. `templates show` prints JSON whatever the source format.
+
 All `templates` subcommands accept `--wallet-dir` to target a non-default wallet store. With `--remote <url>` (or after `wallet use <url>`), list, show, save, import, and delete operate on a remote instance's template store through its REST API. See [remote control](wallet/http-api.md#remote-control).
 
 ### `templates save`
 
 | Flag | Description |
 |------|-------------|
-| `--from` | Copy this template (name or file) as the starting point |
+| `--from` | Copy this template (name, or JSON or YAML file) as the starting point |
 | `--format` | `sdjwt`, `jwt`, or `mdoc` (empty means any) |
 | `--vct` | Credential type (sdjwt/jwt) |
 | `--doc-type` | Document type (mdoc) |
@@ -254,7 +339,7 @@ curl -X POST http://localhost:8085/api/issue \
 
 ### Catalogue entry in a template file
 
-A template file in the template directory can carry a `catalog` object. It takes the same fields as the `catalog` object of `PUT /api/templates/{name}`. The template then makes up its own catalogue entry, like a predefined template:
+A JSON or YAML template file in the template directory can carry a `catalog` object. It takes the same fields as the `catalog` object of `PUT /api/templates/{name}`. The template then makes up its own catalogue entry, like a predefined template:
 
 ```json
 {

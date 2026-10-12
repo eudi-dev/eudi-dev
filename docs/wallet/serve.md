@@ -320,6 +320,7 @@ Every flag can also be set as `EUDI_DEV_<FLAG>`, with the flag name in upper cas
 | `--credential`          | None     | Import credential from file (repeatable)         |
 | `--credentials`         | None     | Credentials to add on every start, from a YAML or JSON file, a directory of such files, or stdin (`-`). See [startup credentials](#startup-credentials) |
 | `--catalog`             | None     | Attestation types to pre-register in the catalogue on every start, from a YAML or JSON file, a directory of such files, or stdin (`-`). See [pre-registered catalogue entries](#pre-registered-catalogue-entries) |
+| `--templates-dir`       | `<wallet-dir>/templates/` | Credential template directory. Template files are JSON or YAML. See [template files](../templates.md#template-files-and-storage) |
 | `--pid`                 | `false`  | Generate default EUDI PID credentials on start   |
 | `--key`                 | None     | Override holder key (PEM/JWK)                    |
 | `--issuer-key`          | None     | Issuer key for generated PIDs (PEM/JWK)          |

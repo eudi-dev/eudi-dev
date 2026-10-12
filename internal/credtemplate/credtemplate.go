@@ -39,6 +39,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/defaults"
 	"github.com/eudi-dev/eudi-dev/v3/internal/storage"
+	"github.com/eudi-dev/eudi-dev/v3/internal/yamljson"
 )
 
 // Template describes a reusable credential template. All fields except Claims
@@ -100,7 +101,7 @@ type TemplateDisplay struct {
 	BackgroundImage string `json:"background_image,omitempty"`
 }
 
-var templateExtensions = []string{".json", ".template"}
+var templateExtensions = []string{".json", ".template", ".yaml", ".yml"}
 
 // Location is a prefix inside a store that holds user templates. The zero
 // Location is the default wallet's template directory.
@@ -312,8 +313,22 @@ func List(loc Location) ([]Template, error) {
 	if err != nil {
 		errs = append(errs, fmt.Errorf("reading template directory: %w", err))
 	}
+	files := make(map[string][]string)
+	for _, name := range stored {
+		if hasTemplateExtension(name) {
+			base := strings.TrimSuffix(name, path.Ext(name))
+			files[base] = append(files[base], name)
+		}
+	}
 	for _, name := range stored {
 		if !hasTemplateExtension(name) {
+			continue
+		}
+		same := files[strings.TrimSuffix(name, path.Ext(name))]
+		if len(same) > 1 {
+			if name == same[0] {
+				errs = append(errs, clashError(loc, same))
+			}
 			continue
 		}
 		t, err := loadStored(loc, name)
@@ -351,11 +366,12 @@ func Load(nameOrPath string, loc Location) (*Template, error) {
 		return loadFile(nameOrPath)
 	}
 
-	for _, ext := range templateExtensions {
-		tpl, err := loadStored(loc, nameOrPath+ext)
-		if err == nil || !errors.Is(err, fs.ErrNotExist) {
-			return tpl, err
-		}
+	file, err := storedFile(loc, nameOrPath)
+	if err == nil {
+		return loadStored(loc, file)
+	}
+	if !errors.Is(err, fs.ErrNotExist) {
+		return nil, err
 	}
 
 	if t, ok := Predefined(nameOrPath); ok {
@@ -391,6 +407,20 @@ func Save(loc Location, t Template) (string, error) {
 	if _, err := loc.Store.Write(key, append(data, '\n'), 0o644); err != nil {
 		return "", fmt.Errorf("writing template: %w", err)
 	}
+	// The saved JSON file replaces a file of the same name in another format.
+	for _, ext := range templateExtensions {
+		if ext == ".json" {
+			continue
+		}
+		other := loc.key(name + ext)
+		exists, err := loc.Store.Exists(other)
+		if err == nil && exists {
+			err = loc.Store.Delete(other)
+		}
+		if err != nil {
+			return "", fmt.Errorf("replacing template %s: %w", loc.Store.Locate(other), err)
+		}
+	}
 	return loc.Store.Locate(key), nil
 }
 
@@ -404,20 +434,49 @@ func Delete(loc Location, name string) error {
 	if name != filepath.Base(name) {
 		return fmt.Errorf("invalid template name %q", name)
 	}
-	for _, ext := range templateExtensions {
-		key := loc.key(name + ext)
-		exists, err := loc.Store.Exists(key)
-		if err != nil {
-			return fmt.Errorf("reading template %q: %w", name, err)
-		}
-		if exists {
-			return loc.Store.Delete(key)
-		}
+	file, err := storedFile(loc, name)
+	if err == nil {
+		return loc.Store.Delete(loc.key(file))
+	}
+	if !errors.Is(err, fs.ErrNotExist) {
+		return err
 	}
 	if _, ok := Predefined(name); ok {
 		return fmt.Errorf("template %q is predefined and cannot be deleted", name)
 	}
 	return fmt.Errorf("template %q %w in %s", name, ErrNotFound, loc)
+}
+
+// storedFile returns the file name of the stored template name. It refuses
+// two files of one name, such as x.json and x.yaml, because either could be
+// the template.
+func storedFile(loc Location, name string) (string, error) {
+	var found []string
+	for _, ext := range templateExtensions {
+		exists, err := loc.Store.Exists(loc.key(name + ext))
+		if err != nil {
+			return "", fmt.Errorf("reading template %q: %w", name, err)
+		}
+		if exists {
+			found = append(found, name+ext)
+		}
+	}
+	switch len(found) {
+	case 0:
+		return "", fs.ErrNotExist
+	case 1:
+		return found[0], nil
+	}
+	return "", clashError(loc, found)
+}
+
+func clashError(loc Location, files []string) error {
+	located := make([]string, len(files))
+	for i, file := range files {
+		located[i] = loc.Store.Locate(loc.key(file))
+	}
+	name := strings.TrimSuffix(files[0], path.Ext(files[0]))
+	return fmt.Errorf("template %q has more than one file: %s. Remove all but one", name, strings.Join(located, " and "))
 }
 
 func hasTemplateExtension(name string) bool {
@@ -458,9 +517,30 @@ func loadStored(loc Location, name string) (*Template, error) {
 	return parse(data, loc.Store.Locate(key))
 }
 
-func parse(data []byte, file string) (*Template, error) {
+// Decode reads a template as it is written, in JSON or YAML. A file name
+// ending in .yaml or .yml is YAML, and any other file name is JSON. Without a
+// file name, data starting with "{" is JSON and other data is YAML. YAML
+// becomes JSON first, so both formats go through the same decoder.
+func Decode(data []byte, file string) (Template, error) {
+	yamlData := strings.HasSuffix(file, ".yaml") || strings.HasSuffix(file, ".yml")
+	if file == "" {
+		yamlData = !bytes.HasPrefix(bytes.TrimSpace(data), []byte("{"))
+	}
+	if yamlData {
+		var err error
+		data, err = yamljson.Convert(data, yamljson.KeepStrings)
+		if err != nil {
+			return Template{}, err
+		}
+	}
 	var t Template
-	if err := json.Unmarshal(data, &t); err != nil {
+	err := json.Unmarshal(data, &t)
+	return t, err
+}
+
+func parse(data []byte, file string) (*Template, error) {
+	t, err := Decode(data, file)
+	if err != nil {
 		return nil, fmt.Errorf("parsing template %s: %w", file, err)
 	}
 	if _, err := NormalizeFormat(t.Format); err != nil {

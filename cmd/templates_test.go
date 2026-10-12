@@ -212,3 +212,76 @@ func TestTemplatesDirFlagOverridesWalletDir(t *testing.T) {
 		t.Fatal("expected custom template to be invisible without --templates-dir")
 	}
 }
+
+const yamlTemplate = `format: sdjwt
+vct: urn:example:member
+claims:
+  member_id: M-1
+  postal_code: "01234"
+always_disclosed: [member_id]
+`
+
+func writeYAMLTemplate(t *testing.T, path string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(yamlTemplate), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestIssueFromYAMLTemplateFile(t *testing.T) {
+	dir := resetTemplateTestState(t)
+	src := filepath.Join(t.TempDir(), "member.yaml")
+	writeYAMLTemplate(t, src)
+
+	rootCmd.SetArgs([]string{"issue", "sdjwt", "--template", src, "--save-template", "member-copy", "--wallet-dir", dir})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("issue sdjwt --template file.yaml: %v", err)
+	}
+	saved, err := credtemplate.Load("member-copy", wallet.NewWalletStore(dir).Templates())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.VCT != "urn:example:member" || saved.Claims["postal_code"] != "01234" {
+		t.Errorf("unexpected template: %+v", saved)
+	}
+}
+
+func TestTemplatesSaveFromAndImportYAMLFile(t *testing.T) {
+	dir := resetTemplateTestState(t)
+	src := filepath.Join(t.TempDir(), "member.yml")
+	writeYAMLTemplate(t, src)
+
+	t.Cleanup(func() { templateFrom = "" })
+	rootCmd.SetArgs([]string{"templates", "save", "copied", "--from", src, "--wallet-dir", dir})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("templates save --from file.yml: %v", err)
+	}
+	rootCmd.SetArgs([]string{"templates", "import", src, "--wallet-dir", dir})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("templates import file.yml: %v", err)
+	}
+	for _, name := range []string{"copied", "member"} {
+		tpl, err := credtemplate.Load(name, wallet.NewWalletStore(dir).Templates())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if tpl.VCT != "urn:example:member" || tpl.Claims["postal_code"] != "01234" || len(tpl.AlwaysDisclosed) != 1 {
+			t.Errorf("template %s: %+v", name, tpl)
+		}
+	}
+}
+
+func TestTemplatesDeleteRemovesYAMLFile(t *testing.T) {
+	resetTemplateTestState(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "member.yaml")
+	writeYAMLTemplate(t, path)
+
+	rootCmd.SetArgs([]string{"templates", "delete", "member", "--templates-dir", dir})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("templates delete: %v", err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Errorf("member.yaml still exists: %v", err)
+	}
+}
