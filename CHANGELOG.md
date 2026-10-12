@@ -23,7 +23,7 @@ Version 3.0.0 adds a registrar, ARF checks, a catalogue of attestations and a tr
 - **New home in the eudi-dev organization.** The repository moved to [github.com/eudi-dev/eudi-dev](https://github.com/eudi-dev/eudi-dev). The Go module path is `github.com/eudi-dev/eudi-dev/v3`, so install with `go install github.com/eudi-dev/eudi-dev/v3@latest`. The image is `ghcr.io/eudi-dev/eudi-dev`, and Homebrew installs from `eudi-dev/tap/eudi-dev`. The old image keeps its published tags. If you installed from `dominikschlosser/tap`, run `brew upgrade eudi-dev/tap/eudi-dev` once to trust and use the new tap. Old GitHub links redirect.
 - **Command layout.** `registrar`, `catalog`, `trust` and `decoder` (formerly `serve`) are top-level commands. `wallet trust-list --id <list>` is `trust show <list>`, and `trust show lists` prints the list of trusted lists. An old command path fails with a message that names the new one (see [ADR 0027](docs/adr/0027-the-cli-groups-commands-by-role.md)).
 - **Deprecated commands removed.** `wallet generate-pid` and `POST /api/generate-pid` are gone. Issue PIDs with `issue sdjwt --wallet --pid` and `issue mdoc --wallet --pid`, or start the wallet with `wallet serve --pid`. `wallet instances` is gone. Use `wallet ps`. `--demo-verifier-trust-anchor` is now `--demo-verifier-issuer-ca`.
-- **Former name oid4vc-dev.** The `oid4vc-dev` command alias, the `ghcr.io/dominikschlosser/oid4vc-dev` image, `OID4VC_DEV_HOME` and the `~/.oid4vc-dev` directory are gone. Use `eudi`, `ghcr.io/eudi-dev/eudi-dev`, `EUDI_DEV_HOME` and `~/.eudi-dev`. Move an old state directory with `mv ~/.oid4vc-dev ~/.eudi-dev`.
+- **Former name oid4vc-dev.** The `oid4vc-dev` command alias, the `ghcr.io/dominikschlosser/oid4vc-dev` image, `OID4VC_DEV_HOME` and the `~/.oid4vc-dev` directory are gone. Use `eudi`, `ghcr.io/eudi-dev/eudi-dev`, `EUDI_DEV_HOME` and `~/.eudi-dev`. Move an old state directory with `mv ~/.oid4vc-dev ~/.eudi-dev`. The CLI warns when it finds the old directory or `OID4VC_DEV_HOME`.
 - **`--category` replaces `--trust-profile`.** `issue --category` and the API field `category` replace `--trust-profile` and `trust_profile`. They take `pid`, `qeaa`, `pub-eaa`, `eaa` or `unlisted`. A credential without a category is an EAA. `unlisted` keeps it off every list (see [ADR 0022](docs/adr/0022-one-trusted-list-per-credential-category.md)).
 - **Trusted lists.** Each category signs with its own key and has its own list. Only PIDs are signed with `issuer.pem`. The `local` list is renamed to `eaa`, so `/api/trustlists/local` is now `/api/trustlists/eaa`. `wallet serve --issuer-key` signs only PIDs too. The QEAA list, the EAA list and the list of trusted lists use the types `https://eudi-test.dev/LoTEType/QEAAProvidersList`, `EAAProvidersList` and `ListOfTrustedLists` instead of the unregistered `http://uri.etsi.org/19602/LoTEType/local`. A wallet from eudi-dev 2 migrates its stored types.
 - **Trust anchors of the ARF checks.** Access certificates anchor only through the access certificate provider list, and registration certificates only through the registrar list. The wallet CA anchors neither. The registrar signs under its own registrar CA, and the CAs from `--relying-party-ca` are on both lists (see [ADR 0023](docs/adr/0023-trust-anchors-come-from-trusted-lists.md)).
@@ -35,9 +35,9 @@ Version 3.0.0 adds a registrar, ARF checks, a catalogue of attestations and a tr
 - **Relying party identifiers.** A registration holds an identifier of a type of ETSI TS 119 475 clause B.2.5. The registrar assigns an EUID such as `NLTEST.1A2B3C4D5E6F7A8B`. Certificates and trusted lists carry its semantics identifier, such as `NTRNL-NLTEST.1A2B3C4D5E6F7A8B` (Table 2). The demo issuer is `NLTEST.00000000` and the demo verifier `NLTEST.00000001` (see [registrar](docs/wallet/registrar.md)).
 - **`issuer_info` and `verifier_info`.** Both carry only the registration certificate. The wallet no longer reports a missing `registrar_dataset`, because CIR (EU) 2026/1731 Annexes XI and XII void those requirements.
 - **JSON output.** `validate`, `wallet deferred check`, `wallet list` and one-shot `wallet accept` print a different `--json` document (see [ADR 0020](docs/adr/0020-cli-output-can-be-automated.md)).
-- **"Trusted list" in CLI names.** `validate --trust-list` is `--trusted-list`, `issue --trust-list-type` and `--trust-entity-name` are `--trusted-list-type` and `--trusted-entity-name`, and `decode --format trustlist` is `trusted-list`, which is also the format in its `--json` output.
+- **"Trusted list" in CLI names.** `validate --trust-list` is `--trusted-list`, `issue --trust-list-type` and `--trust-entity-name` are `--trusted-list-type` and `--trusted-entity-name`, and `decode --format trustlist` is `trusted-list`, which is also the format in its `--json` output. The trust fields of `POST /api/issue` are `trusted_list_type` and `trusted_entity_name`, and the old names are refused.
 - **Conformance settings API.** `PUT /api/config/conformance` takes the setting names of `GET /api/config`, such as `validation_mode` and `require_arf`, and refuses other names (see [HTTP API](docs/wallet/http-api.md)).
-- **Presentation API errors.** `POST /api/presentations` refuses an invalid request with `{"error": "<code>", "error_description": "<message>"}` (see [presenting](docs/wallet/presenting.md)).
+- **Flow API errors.** The presentation, offer, consent, refresh and deferred endpoints answer every error with `{"error": "<code>", "error_description": "<message>"}` A `no_match` answer carries the error code the verifier received, and empty fields are left out. `/authorize` and `/credential-offer` answer request errors with the same object (see [HTTP API](docs/wallet/http-api.md#presentations-and-offers)).
 - **Outbound addresses.** `decoder` and `wallet serve` reach public addresses, loopback and their own URLs only. `--demo` reaches public addresses and its own URLs only. `--allow-private-networks` or `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=true` lets them reach private networks, and with `--demo` loopback too. The Docker image sets the variable, so a public demo sets it to `false` (see [outbound address limits](docs/wallet/serve.md#outbound-address-limits)).
 - **Exit codes.** `wallet accept` and `wallet scan` exit non-zero when a flow fails or is denied. `validate` also exits non-zero when the `typ` of an SD-JWT VC is not `dc+sd-jwt`, when a digest doesn't match, or when the credential is not valid yet. `--allow-expired` skips both validity checks.
 - **`--json` on servers.** Most commands print one JSON document with `--json`. `decoder`, `wallet serve` and `completion` refuse it. `wallet serve --log-format json` writes JSON logs (see [ADR 0020](docs/adr/0020-cli-output-can-be-automated.md)).
@@ -49,7 +49,7 @@ Version 3.0.0 adds a registrar, ARF checks, a catalogue of attestations and a tr
 - **Malformed DCQL in strict mode.** Strict mode refuses a malformed `dcql_query` with `invalid_request`.
 - **Trusted lists in `validate`.** `validate --trusted-list` fails on a list without `NextUpdate` or past it. Only the issuance services of a list anchor the credential.
 - **`POST /api/decode` removed.** Use `POST /api/validate`. It takes the same `input` and returns the decoded credential with its checks.
-- **Image configured by environment.** The image no longer reads `PORT`. Its default command is `wallet serve`, with the defaults in `EUDI_DEV_PORT=8085`, `EUDI_DEV_AUTO_ACCEPT=true` and `EUDI_DEV_PID=true`. A custom `wallet serve` command gets these defaults too. Set `EUDI_DEV_AUTO_ACCEPT=false` for a wallet that asks for consent (see [Docker](docs/docker.md#configuration-by-environment)).
+- **Image configured by environment.** The image no longer reads `PORT`. Its default command is `wallet serve`, with the defaults in `EUDI_DEV_PORT=8085`, `EUDI_DEV_AUTO_ACCEPT=true` and `EUDI_DEV_PID=true`. A custom `wallet serve` command gets these defaults too. Set `EUDI_DEV_AUTO_ACCEPT=false` for a wallet that asks for consent. A demo ignores `EUDI_DEV_AUTO_ACCEPT` and auto-accepts only with `--auto-accept` on the command line, which it warns about at start (see [Docker](docs/docker.md#configuration-by-environment)).
 
 ### Added
 
@@ -74,6 +74,7 @@ Version 3.0.0 adds a registrar, ARF checks, a catalogue of attestations and a tr
 
 ### Changed
 
+- **New look.** The wallet, decoder, proxy dashboard, demo pages and registrar use a graphite palette in dark and light, system type and rounded controls. Credential data, IDs and code stay in monospace.
 - **Unsigned request objects without `typ`.** The wallet warns about a missing `typ` in an unsigned Request Object but still processes it, also in strict mode. OID4VP 1.0 §5 requires `typ`, but the OIDF conformance suite sends its unsigned request objects without one (see [spec compliance](docs/spec-compliance.md)).
 - **Unbound credentials and signed metadata without `iat` in debug mode.** Debug mode presents an unbound credential to a query that requires holder binding and marks it. It reads signed issuer metadata without `iat` or past `exp` with a finding. Strict mode refuses both (OpenID4VP 1.0 §6.1, OpenID4VCI 1.0 §12.2.3).
 - **Strict `--arf` refusals.** An issuer that fails the checks is refused before the consent dialog. An authenticated verifier gets `access_denied` on `/authorize`, over the Digital Credentials API and from `wallet accept`.
@@ -92,6 +93,11 @@ Version 3.0.0 adds a registrar, ARF checks, a catalogue of attestations and a tr
 
 ### Fixed
 
+- **Error codes.** The demo issuer refuses failed client authentication at PAR and at the challenge endpoint with 400, like the token endpoint (RFC 6749 §5.2). A deferred request without `transaction_id` gets `invalid_credential_request`. The wallet repeats a request only after `use_dpop_nonce` (RFC 9449 §8), stops deferred polling after a coded refusal and sends `invalid_request_uri_method` for an unsupported `request_uri_method` (OpenID4VP 1.0 §8.5).
+- **Upgrade from 2.7.** EAAs that a 2.7 wallet issued stay anchored on the `eaa` list. The wallet keeps the 2.7 provider CA and serves it and its CRL under the old URLs.
+- **Unknown subcommands.** `wallet`, `issue`, `registrar`, `templates` and `completion` refuse an unknown subcommand with exit code 1. `wallet generate-pid` and `wallet instances` name their replacements.
+- **Demo issuer registration.** On a local wallet the demo issuer stays registered for every template it offers, so a template added later passes the ARF checks.
+- **Static Linux binaries.** Release binaries are built without cgo and run on any Linux distribution.
 - **Registration certificate checks.** The wallet checks the fields of ETSI TS 119 475 V1.2.1 Table 7 and the shape of `issuer_info` (ETSI TS 119 472-3 V1.1.1 §4.2.3).
 - **Imported PIDs.** Importing a PID leaves the wallet's own PID types on the PID list.
 - **Renewals and deferred credentials.** A renewal checks the issuer before it uses the refresh token. In strict mode a deferred request waits for usable issuer metadata and stays encrypted.
@@ -118,7 +124,40 @@ Version 3.0.0 adds a registrar, ARF checks, a catalogue of attestations and a tr
 - **Graceful shutdown.** `POST /api/shutdown` stops `wallet serve` like Ctrl-C.
 - **Card images in the demo issuer metadata.** The issuer metadata lists the logo and card image of each template (see [templates](docs/templates.md)).
 
+## [2.8.0] - 2026-10-12
+
+Backports from 3.0.0.
+
+### Changed
+
+- **New look.** The wallet, decoder, proxy dashboard and demo pages use a graphite palette in dark and light, system type and rounded controls. Credential data, IDs and code stay in monospace.
+
+### Fixed
+
+- **TLS settings in the demo issuer and verifier.** Their credential checks use the wallet's TLS and proxy settings, so `--tls-verify=false`, `--tls-ca` and the proxy flags also apply to status lists.
+- **Event streams under a path prefix.** The wallet writes each response header once, so a base URL with a path no longer logs `superfluous response.WriteHeader call`.
+
+## [2.7.4] - 2026-10-12
+
+Backports from 3.0.0.
+
+### Fixed
+
+- **Demo verifier error responses.** The demo verifier accepts a wallet's error response, such as `access_denied` when the user declines, and shows that error. It answered `invalid_request` before.
+
+## [2.7.3] - 2026-10-12
+
+Backports from 3.0.0.
+
+### Changed
+
+- **Image defaults as environment.** The image sets `EUDI_DEV_AUTO_ACCEPT=true` and `EUDI_DEV_PID=true`, and its command is plain `wallet serve`. A custom command keeps auto-accept and the PIDs. Set `EUDI_DEV_AUTO_ACCEPT=false` for a wallet that asks for consent (see [configuration by environment](docs/docker.md#configuration-by-environment)).
+- **Demo auto-accept needs the flag.** `--demo` auto-accepts only with `--auto-accept` on the command line and ignores `EUDI_DEV_AUTO_ACCEPT`. With the flag, `wallet serve` warns at start.
+- **Static Linux binaries.** Release binaries are built without cgo, so the Linux builds run on any distribution.
+
 ## [2.7.2] - 2026-10-12
+
+Backports from 3.0.0.
 
 ### Added
 
