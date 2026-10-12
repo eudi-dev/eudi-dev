@@ -104,6 +104,8 @@ Version 3.0.0 adds a registrar, ARF checks, a catalogue of attestations and a tr
 - **More findings.** Batch copies that bind no proof key, an `expected_origins` mismatch in interactive authorization and an unreadable `trusted_authorities` list are findings: strict mode refuses, debug mode warns.
 - **Readable errors.** Wallet error dialogs show a short cause and keep the full error under **Technical details**. Pasting something that is not an offer or a request shows a clear message.
 - **Claim names in the offer dialog.** The offer dialog lists the claims by their display name from the issuer metadata. Templates set these names in `display.claims`.
+- **Errors in the page.** Process, import and status changes show their errors in the wallet page instead of a browser alert.
+- **UI automation guide.** [UI automation](docs/ui-automation.md) shows the elements of each process, the API calls that skip the UI and the matching end-to-end tests.
 - **One footer.** Every page shows the version, the release channel, the imprint and a sponsor link in one line.
 - **Decoder hover.** Hovering a section highlights its part of the input without scrolling.
 - **Phone layout.** Activity entries wrap, segmented controls fit and the decoder header collapses into a menu.
