@@ -80,6 +80,13 @@ def parse_args() -> argparse.Namespace:
         help="Pass through to the official OIDF runner, e.g. 2 or 2:6 or 1:6,2:6",
         default=None,
     )
+    parser.add_argument(
+        "--skip-variant",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help="Leave out the plans whose variant has this value, e.g. request_method=request_uri_unsigned (repeatable)",
+    )
     return parser.parse_args()
 
 
@@ -1392,6 +1399,11 @@ def main() -> int:
         # the local suite or hosted demo service.
         scenarios = [scenario for scenario in scenarios if scenario.requires_haip]
         print("[runner] production certification service: running the certifiable HAIP plans only", flush=True)
+    for skip in args.skip_variant:
+        key, _, value = skip.partition("=")
+        kept = [scenario for scenario in scenarios if scenario.variant.get(key) != value]
+        print(f"[runner] left out {len(scenarios) - len(kept)} plan(s) with {key}={value}", flush=True)
+        scenarios = kept
     config_jobs = [(scenario, create_config(args, suite_dir, results_dir, scenario, materials)) for scenario in scenarios]
     config_variants = {config_path.name: scenario.variant for scenario, config_path in config_jobs}
 

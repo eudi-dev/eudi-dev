@@ -199,6 +199,7 @@ RUN_STATUS=0
   --vci-redirect-uri "$OIDF_VCI_REDIRECT_URI" \
   --results-dir "$RESULTS_DIR" \
   --runner-log "$RUNNER_LOG" \
+  ${OIDF_SKIP_VARIANTS:+$(for v in $OIDF_SKIP_VARIANTS; do printf -- '--skip-variant %s ' "$v"; done)} \
   "$@" || RUN_STATUS=$?
 
 # Runs after a failed run too: a run that was killed leaves the most behind.

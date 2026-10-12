@@ -158,6 +158,7 @@ Set `OIDF_TLS_VERIFY=true|false` to override this default. Use `OIDF_TLS_CA=/pat
 - `OIDF_VCI_ALIAS`: convenience alias used by the default `OIDF_VCI_REDIRECT_URI`
 - `OIDF_SUITE_URL`: override the suite tarball URL. Defaults to the latest upstream release archive
 - `OIDF_VP_MODULES`: comma separated module names to run instead of each VP plan's own list, for targeted reproductions (a plan with one module of interest). Do not use it for certification runs
+- `OIDF_SKIP_VARIANTS`: space separated `key=value` plan variants to leave out, such as `credential_format=iso_mdl` or `request_method=request_uri_unsigned`. Use it to run a part of the matrix, or to leave out plans that only time out. Do not use it for certification runs
 - `OIDF_MODULE_IDLE_TIMEOUT`: seconds without `run-test-plan.py` output before the harness cancels the stuck modules on the suite (the suite records each as a failure and the plan continues). If the run still produces no output after the cancel, the harness terminates it. Defaults to `180`, set `0` to disable
 - `OIDF_REQUEST_TIMEOUT`: seconds the monitor waits for a suite API response. Defaults to `20`, set `60` on a loaded machine
 - `EUDI_REMOTE_TIMEOUT`: how long the wallet waits for a counterparty, as a Go duration (`45s`, `2m`). The wrapper sets `120s` because the suite can take tens of seconds to answer under load (the wallet's own default is `15s`). An unparseable value is ignored
