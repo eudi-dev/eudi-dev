@@ -86,7 +86,7 @@ Version 3.0.0 adds a registrar, ARF checks, a catalogue of attestations and a tr
 
 ### Changed
 
-- **New design.** The wallet, decoder, proxy dashboard, demo pages and registrar have a new design in dark and light.
+- **New design.** The wallet, decoder, proxy dashboard, demo pages and registrar have a cleaner, more professional design in dark and light.
 - **Unsigned request objects without `typ`.** The wallet processes an unsigned Request Object without `typ` and warns, also in strict mode. OID4VP 1.0 §5 requires `typ`, but the OIDF conformance suite leaves it out (see [spec compliance](docs/spec-compliance.md)).
 - **Unbound credentials and signed metadata without `iat` in debug mode.** Debug mode presents an unbound credential to a query that requires holder binding and marks it. It reads signed issuer metadata without `iat` or past `exp` with a finding. Strict mode refuses both (OpenID4VP 1.0 §6.1, OpenID4VCI 1.0 §12.2.3).
 - **Strict `--arf` refusals.** An issuer that fails the checks is refused before the consent dialog. An authenticated verifier gets `access_denied` on `/authorize`, over the Digital Credentials API and from `wallet accept`.
