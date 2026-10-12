@@ -15,6 +15,7 @@
 package wallet
 
 import (
+	"crypto/x509"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -316,6 +317,16 @@ func TestCertificateExportAPI(t *testing.T) {
 				t.Fatalf("expected 400 for unsupported format, got %d", resp.Code)
 			}
 		})
+	}
+
+	// Access certificates link this DER certificate as their issuer.
+	resp := serverRequest(t, srv, http.MethodGet, "/api/certificates/relying-party-access-ca.der", "")
+	if resp.Code != http.StatusOK || resp.Header().Get("Content-Type") != "application/pkix-cert" {
+		t.Fatalf("got %d %q", resp.Code, resp.Header().Get("Content-Type"))
+	}
+	ca, err := x509.ParseCertificate(resp.Body.Bytes())
+	if err != nil || !ca.IsCA {
+		t.Fatalf("not the CA certificate: %v", err)
 	}
 }
 

@@ -31,6 +31,10 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 )
 
+// AccessCACertificatePath serves the DER certificate of the relying party
+// access CA. Access certificates link it as their issuer certificate.
+const AccessCACertificatePath = "/api/certificates/relying-party-access-ca.der"
+
 // AccessCertificateRequest asks the wallet's access certificate authority for
 // an access certificate of a registered relying party (ETSI TS 119 411-8). The
 // relying party keeps its private key and sends only a PKCS#10 CSR. The
@@ -149,6 +153,9 @@ func (r *Registrar) AccessCertificateFor(rp WalletRelyingParty, serviceIdentifie
 		EmailAddresses:         emails,
 		DNSNames:               dnsNames,
 		Validity:               validity,
+		// CIR (EU) 2025/848 Annex IV point 3(k) asks for the location of the
+		// issuer certificate (authorityInformationAccess caIssuers).
+		IssuingCertificateURL: []string{strings.TrimRight(r.env.RegistrarBase(), "/") + AccessCACertificatePath},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("%w: signing the access certificate: %w", errRegistrarSigning, err)

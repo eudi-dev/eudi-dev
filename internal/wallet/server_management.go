@@ -353,6 +353,16 @@ func (s *Server) handleRelyingPartyAccessCA(w http.ResponseWriter, r *http.Reque
 	writeCertificateExport(w, r, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: ca.Raw}))
 }
 
+func (s *Server) handleRelyingPartyAccessCADER(w http.ResponseWriter, r *http.Request) {
+	_, ca, err := s.wallet.Signer().RelyingPartyAccessCA()
+	if err != nil {
+		apierror.WriteStatus(w, http.StatusInternalServerError, "loading the relying party access CA: "+err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "application/pkix-cert")
+	w.Write(ca.Raw)
+}
+
 func (s *Server) handleRegistrarCA(w http.ResponseWriter, r *http.Request) {
 	_, ca, err := s.wallet.Signer().RegistrarCA()
 	if err != nil {

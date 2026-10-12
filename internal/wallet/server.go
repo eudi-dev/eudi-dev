@@ -193,6 +193,7 @@ func (s *Server) setupRoutes() {
 	s.routeFunc("GET /api/certificates/tls", s.handleTLSCertificate)
 	s.routeFunc("GET /api/certificates/registrar", s.handleRegistrarCertificate)
 	s.routeFunc("GET /api/certificates/relying-party-access-ca", s.handleRelyingPartyAccessCA)
+	s.routeFunc("GET "+registrar.AccessCACertificatePath, s.handleRelyingPartyAccessCADER)
 	s.routeFunc("GET /api/certificates/registrar-ca", s.handleRegistrarCA)
 
 	s.routeFunc("GET /api/requests", s.withFreshStore(s.handleListRequests))

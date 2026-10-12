@@ -24,6 +24,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 
@@ -241,6 +242,9 @@ func TestTheAccessCertificateAPI(t *testing.T) {
 	subject, legalName, country := AccessCertificateSubject(cert)
 	if subject != "NTRDE-"+id || legalName != "Example Shop GmbH" || country != "DE" || cert.Subject.CommonName != "Example Shop" || cert.Subject.OrganizationalUnit[0] != "checkout" {
 		t.Errorf("subject %q %q %q, %+v", subject, legalName, country, cert.Subject)
+	}
+	if want := []string{strings.TrimRight(api.env.base, "/") + AccessCACertificatePath}; !slices.Equal(cert.IssuingCertificateURL, want) {
+		t.Errorf("caIssuers %v, want %v", cert.IssuingCertificateURL, want)
 	}
 	if got := cert.NotAfter.Sub(cert.NotBefore).Hours(); got > 721 || got < 719 {
 		t.Errorf("valid for %.0fh, want 720h", got)

@@ -229,6 +229,7 @@ The CA and TLS endpoints return PEM by default. `?format=jwks` returns the publi
 | `GET`  | `/api/certificates/tls?format=jwks` | HTTPS leaf certificate as JWKS                       | `wallet tls-cert --jwks` |
 | `GET` | `/api/certificates/registrar` | Registrar signing certificate (PEM, `?format=jwks` for JWKS) | |
 | `GET` | `/api/certificates/relying-party-access-ca` | Relying party access CA. It signs the access certificates of registered relying parties (PEM, `?format=jwks` for JWKS) | |
+| `GET` | `/api/certificates/relying-party-access-ca.der` | The same CA in DER. Access certificates link it as their issuer certificate | |
 | `GET` | `/api/certificates/registrar-ca` | Registrar CA. It signs the registrar signing certificate (PEM) | |
 | `GET` | `/api/certificates/ca.der` | Root CA certificate as DER | |
 | `GET` | `/api/certificates/providers/{role}/{country}.der` | Provider CA certificate as DER | |
