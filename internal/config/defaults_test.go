@@ -15,7 +15,9 @@
 package config
 
 import (
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -30,5 +32,46 @@ func TestBaseDirResolution(t *testing.T) {
 	t.Setenv("EUDI_DEV_HOME", "/tmp/new-home")
 	if got := BaseDir(); got != "/tmp/new-home" {
 		t.Errorf("new env: expected /tmp/new-home, got %s", got)
+	}
+}
+
+// A user of eudi-dev 2 learns how to keep their state, because BaseDir
+// reads neither OID4VC_DEV_HOME nor ~/.oid4vc-dev.
+func TestLegacyHomeWarnings(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("EUDI_DEV_HOME", "")
+	t.Setenv("OID4VC_DEV_HOME", "")
+
+	if got := LegacyHomeWarnings(); len(got) != 0 {
+		t.Fatalf("fresh home: expected no warnings, got %q", got)
+	}
+
+	if err := os.Mkdir(filepath.Join(home, ".oid4vc-dev"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	got := LegacyHomeWarnings()
+	if len(got) != 1 || !strings.Contains(got[0], "mv ~/.oid4vc-dev ~/.eudi-dev") {
+		t.Fatalf("legacy directory: expected the mv hint, got %q", got)
+	}
+
+	t.Setenv("OID4VC_DEV_HOME", "/tmp/old-home")
+	got = LegacyHomeWarnings()
+	if len(got) != 2 || !strings.Contains(got[0], "EUDI_DEV_HOME=/tmp/old-home") {
+		t.Fatalf("legacy variable: expected the EUDI_DEV_HOME hint, got %q", got)
+	}
+
+	if err := os.Mkdir(filepath.Join(home, ".eudi-dev"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("OID4VC_DEV_HOME", "")
+	if got := LegacyHomeWarnings(); len(got) != 0 {
+		t.Fatalf("migrated home: expected no warnings, got %q", got)
+	}
+
+	t.Setenv("OID4VC_DEV_HOME", "/tmp/old-home")
+	t.Setenv("EUDI_DEV_HOME", "/tmp/new-home")
+	if got := LegacyHomeWarnings(); len(got) != 0 {
+		t.Fatalf("EUDI_DEV_HOME set: expected no warnings, got %q", got)
 	}
 }

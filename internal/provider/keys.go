@@ -28,6 +28,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/storage"
@@ -121,12 +122,65 @@ func (s *Keys) Key(name string) (*ecdsa.PrivateKey, error) {
 // hasProviderCA reports whether the provider CA of the role and country
 // exists. It returns an error that wraps fs.ErrNotExist when it doesn't.
 func (s *Keys) hasProviderCA(role, country string) error {
-	_, err := s.backend.Stat(path.Join(s.prefix, "signing-keys", caKeyName(role, country)+".pem"))
+	role, err := s.caRole(role, country)
+	if err != nil {
+		return err
+	}
+	_, err = s.backend.Stat(s.caKeyPath(role, country))
 	return err
+}
+
+func (s *Keys) caKeyPath(role, country string) string {
+	return path.Join(s.prefix, "signing-keys", caKeyName(role, country)+".pem")
 }
 
 func caKeyName(role, country string) string {
 	return role + "-ca-" + country
+}
+
+// legacyEAARole is the provider CA of the EAA list of an eudi-dev 2 wallet.
+const legacyEAARole = "local"
+
+// caRole returns the role of the CA that signs for the role in the country.
+// The EAA list keeps the CA of an eudi-dev 2 wallet, so the EAAs that wallet
+// issued stay anchored on it.
+func (s *Keys) caRole(role, country string) (string, error) {
+	if role != credtemplate.CategoryEAA {
+		return role, nil
+	}
+	for _, candidate := range []string{credtemplate.CategoryEAA, legacyEAARole} {
+		_, err := s.backend.Stat(s.caKeyPath(candidate, country))
+		if err == nil {
+			return candidate, nil
+		}
+		if !errors.Is(err, fs.ErrNotExist) {
+			return "", err
+		}
+	}
+	return role, nil
+}
+
+// storedCA returns the stored CA certificate of key under root that expires
+// last, or nil when none is valid beyond RenewBefore.
+func (s *Keys) storedCA(key *ecdsa.PrivateKey, root *x509.Certificate) (*x509.Certificate, error) {
+	blobs, err := s.backend.ReadAll(path.Join(s.prefix, "certificates"))
+	if err != nil {
+		return nil, err
+	}
+	var found *x509.Certificate
+	for _, blob := range blobs {
+		cert, err := keys.ParseCertificatePEM(blob.Data, "signing")
+		if err != nil {
+			return nil, err
+		}
+		if !cert.IsCA || !key.PublicKey.Equal(cert.PublicKey) || cert.CheckSignatureFrom(root) != nil || !time.Now().Add(RenewBefore).Before(cert.NotAfter) {
+			continue
+		}
+		if found == nil || cert.NotAfter.After(found.NotAfter) {
+			found = cert
+		}
+	}
+	return found, nil
 }
 
 // ProviderCA returns the CA under root that issues the signing certificates
@@ -139,9 +193,21 @@ func (s *Keys) ProviderCA(rootKey *ecdsa.PrivateKey, root *x509.Certificate, iss
 	if country == "" {
 		country = mock.DefaultCertificateCountry
 	}
+	role, err := s.caRole(role, country)
+	if err != nil {
+		return nil, nil, err
+	}
 	key, err := s.Key(caKeyName(role, country))
 	if err != nil {
 		return nil, nil, err
+	}
+	if role == legacyEAARole {
+		// The issuer name of an eudi-dev 2 EAA is the subject of the CA
+		// certificate eudi-dev 2 stored. RFC 5280 §6.1.3 chains by name, so
+		// the wallet keeps that certificate until it is due for renewal.
+		if cert, err := s.storedCA(key, root); err != nil || cert != nil {
+			return key, cert, err
+		}
 	}
 	cert, err := s.Certificate(rootKey, root, &key.PublicKey, mock.LeafCertOptions{
 		CommonName:            "EUDI Dev Test " + role + " CA " + country,

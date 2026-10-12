@@ -161,7 +161,7 @@ var customRolePattern = regexp.MustCompile(`^tl-[0-9a-f]{8}$`)
 
 // isRole accepts the roles that Role returns.
 func isRole(role string) bool {
-	return slices.Contains(credtemplate.Categories, role) || role == unlistedRole ||
+	return slices.Contains(credtemplate.Categories, role) || role == unlistedRole || role == legacyEAARole ||
 		role == string(mock.WalletProviderCertificate) || customRolePattern.MatchString(role)
 }
 

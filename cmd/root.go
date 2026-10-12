@@ -20,6 +20,8 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+
+	"github.com/eudi-dev/eudi-dev/v3/internal/config"
 )
 
 var (
@@ -38,6 +40,9 @@ var rootCmd = &cobra.Command{
 	Long:  "A local-first CLI tool for decoding, validating, and testing verifiable credentials. Supports SD-JWT, mdoc (mso_mdoc), OID4VP/OID4VCI flows, ETSI trusted lists, and includes a testing wallet.",
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		applyNoColor()
+		for _, warning := range config.LegacyHomeWarnings() {
+			fmt.Fprintln(os.Stderr, warning)
+		}
 	},
 	SilenceUsage:  true,
 	SilenceErrors: true,

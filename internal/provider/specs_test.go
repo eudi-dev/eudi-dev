@@ -32,6 +32,8 @@ func TestAnEudiDev2ListTypeMovesToTheListOfItsCategory(t *testing.T) {
 			IssuanceServiceType:   legacyIssuanceServiceType,
 			RevocationServiceType: legacyRevocationService,
 			EntityName:            "EUDI Dev Wallet Issuer",
+			IssuanceServiceName:   "Issuance Service",
+			RevocationServiceName: "Revocation Service",
 		},
 	}
 	for _, tc := range []struct {
@@ -47,7 +49,7 @@ func TestAnEudiDev2ListTypeMovesToTheListOfItsCategory(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got.LoTEType != tc.want.LoTEType || got.IssuanceServiceType != tc.want.IssuanceServiceType || got.RevocationServiceType != tc.want.RevocationServiceType || got.EntityName != tc.want.EntityName {
+		if got.List() != tc.want {
 			t.Errorf("category %q: got %+v, want the list of %s", tc.category, got, tc.want.Category)
 		}
 	}

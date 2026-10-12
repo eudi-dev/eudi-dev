@@ -16,6 +16,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -60,6 +61,12 @@ const (
 
 const HomeEnvVar = "EUDI_DEV_HOME"
 
+// The state directory and its variable of eudi-dev 2.
+const (
+	legacyHomeEnvVar = "OID4VC_DEV_HOME"
+	legacyHomeDir    = ".oid4vc-dev"
+)
+
 // BaseDir returns the tool's state directory: EUDI_DEV_HOME when set, else
 // ~/.eudi-dev.
 func BaseDir() string {
@@ -71,4 +78,28 @@ func BaseDir() string {
 		home = "."
 	}
 	return filepath.Join(home, ".eudi-dev")
+}
+
+// LegacyHomeWarnings tells a user of eudi-dev 2 how to keep their state.
+// eudi-dev 2 read OID4VC_DEV_HOME and fell back to ~/.oid4vc-dev. BaseDir
+// reads neither.
+func LegacyHomeWarnings() []string {
+	if os.Getenv(HomeEnvVar) != "" {
+		return nil
+	}
+	var warnings []string
+	if legacy := os.Getenv(legacyHomeEnvVar); legacy != "" {
+		warnings = append(warnings, fmt.Sprintf("Warning: %s is ignored. Set %s=%s to keep using that directory.", legacyHomeEnvVar, HomeEnvVar, legacy))
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return warnings
+	}
+	if _, err := os.Stat(filepath.Join(home, legacyHomeDir)); err != nil {
+		return warnings
+	}
+	if _, err := os.Stat(BaseDir()); err == nil {
+		return warnings
+	}
+	return append(warnings, fmt.Sprintf("Warning: eudi-dev keeps its state in ~/.eudi-dev and does not read ~/%s. Run `mv ~/%s ~/.eudi-dev` to keep your wallet.", legacyHomeDir, legacyHomeDir))
 }

@@ -1,0 +1,11 @@
+{
+  "name": "membership",
+  "format": "sdjwt",
+  "vct": "urn:test:membership:1",
+  "exp": "87600h",
+  "claims": {
+    "given_name": "Erika",
+    "issuing_country": "NL",
+    "member_id": "M-1001"
+  }
+}

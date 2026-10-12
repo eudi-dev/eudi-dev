@@ -37,6 +37,10 @@ const (
 	legacyIssuanceServiceType = "http://uri.etsi.org/19602/SvcType/Issuance"
 	legacyRevocationService   = "http://uri.etsi.org/19602/SvcType/Revocation"
 
+	// The service names of a custom list without names of its own.
+	defaultIssuanceServiceName   = "Issuance Service"
+	defaultRevocationServiceName = "Revocation Service"
+
 	// An issuer that checks a wallet or key attestation looks for a Wallet
 	// Provider list. The wallet publishes one next to its credential lists.
 	// The URIs come from ETSI TS 119 602.
@@ -108,6 +112,12 @@ func NormalizeIssuedAttestationSpec(spec IssuedAttestationSpec, category string)
 		if spec.EntityName == config.WalletIssuerName {
 			spec.EntityName = ""
 		}
+		if spec.IssuanceServiceName == defaultIssuanceServiceName {
+			spec.IssuanceServiceName = ""
+		}
+		if spec.RevocationServiceName == defaultRevocationServiceName {
+			spec.RevocationServiceName = ""
+		}
 	}
 	if spec.LoTEType == lote.WalletProvidersListType {
 		return IssuedAttestationSpec{}, fmt.Errorf("the wallet provider list holds wallet and key attestations, not credentials")
@@ -127,8 +137,8 @@ func NormalizeIssuedAttestationSpec(spec IssuedAttestationSpec, category string)
 	}
 	if spec.LoTEType != "" {
 		spec.EntityName = jsonutil.FirstNonEmpty(spec.EntityName, config.WalletIssuerName)
-		spec.IssuanceServiceName = jsonutil.FirstNonEmpty(spec.IssuanceServiceName, "Issuance Service")
-		spec.RevocationServiceName = jsonutil.FirstNonEmpty(spec.RevocationServiceName, "Revocation Service")
+		spec.IssuanceServiceName = jsonutil.FirstNonEmpty(spec.IssuanceServiceName, defaultIssuanceServiceName)
+		spec.RevocationServiceName = jsonutil.FirstNonEmpty(spec.RevocationServiceName, defaultRevocationServiceName)
 	}
 	return spec, nil
 }
