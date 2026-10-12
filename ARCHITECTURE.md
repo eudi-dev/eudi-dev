@@ -17,7 +17,7 @@ examples/      Keycloak and web-wallet integration examples
 | Package | Responsibility |
 |---|---|
 | `certchain` | Certificate chains of JOSE (x5c) and COSE (x5chain) messages and their verification against trust anchors |
-| `config` | Defaults (ports, timeouts) |
+| `config` | Defaults (ports, timeouts) and the product names that certificates and trusted lists carry |
 | `consent` | Consent requests, the credential options of a presentation, the selection logic and the in-memory runtime of pending requests (ADR-0011) |
 | `credtemplate` | Credential templates, predefined and user-supplied |
 | `credtype` | The EUDI credential type identifiers and which type extends which |
@@ -28,7 +28,7 @@ examples/      Keycloak and web-wallet integration examples
 | `httpsec` | Browser security headers and the cross-origin guard (ADR-0002) |
 | `imprint` | Operator-supplied legal notice page |
 | `jsonutil` | Type-safe accessors for `map[string]any` and JSON values |
-| `jwe` | Compact JWE decryption (ECDH-ES, Concat KDF, AES-GCM) |
+| `jwe` | Compact JWE encryption (ECDH-ES, RSA-OAEP) and decryption (ECDH-ES, Concat KDF, AES-GCM) |
 | `jws` | JWS signing (ES256) and verification (ES, RS and PS families), shared by signer and verifier (ADR-0008) |
 | `keys` | PEM and JWK key loading and conversion |
 | `lote` | Lists of trusted entities (ETSI TS 119 602): parsing, signing and the certificates of their services |
@@ -58,6 +58,7 @@ examples/      Keycloak and web-wallet integration examples
 | `wallet` | Wallet state (persisted through `storage`), HTTP server, presentation and issuance flows, the issuer role and the ARF checks of issuers and credentials |
 | `web` | Decoder and validator web UI |
 | `webui` | Files every page shares: colour tokens and the theme script |
+| `yamljson` | YAML to JSON conversion, so a YAML template, catalogue or credentials file decodes like its JSON form |
 
 ## Flows
 

@@ -132,13 +132,15 @@ If the issuer requires client registration, register those two values. Use diffe
 
 ## Demo issuer as an authorization server
 
-The demo issuer is also its own authorization server. Its metadata at `/.well-known/oauth-authorization-server/issuer` advertises PAR, PKCE S256, DPoP and ABCA draft-10 methods `attest_jwt_client_auth` and `attest_jwt_client_auth_dpop`. Its endpoints are `/issuer/par`, `/issuer/authorize` and `/issuer/token`.
+The demo issuer is also its own authorization server. Its metadata at `/.well-known/oauth-authorization-server/issuer` advertises PAR, PKCE S256, DPoP and ABCA draft-10 methods `attest_jwt_client_auth` and `attest_jwt_client_auth_dpop`. Its endpoints are `/issuer/par`, `/issuer/authorize` and `/issuer/token`. When the wallet runs with `--vci-version 1.1`, which `--demo` implies, the metadata also advertises `POST /issuer/authorize-challenge`. This is the Authorization Challenge Endpoint of OpenID4VCI 1.1 §6, which runs [interactive authorization](wallet/issuing.md#interactive-authorization).
 
 It accepts the attestation claims defined by ABCA draft-07, draft-08 and draft-10. A valid attestation for a supported draft other than the configured version produces a warning ([ADR-0014](adr/0014-pinned-draft-versions-stay-supported-alongside-the-latest.md)).
 
 Client authentication is required on the token endpoint for both grants (HAIP 1.0 §4.4.1). `--demo-issuer-client-auth optional` also permits clients without an attestation. The authorization server then also advertises and accepts `none`. It still verifies any attestation that is sent.
 
 The challenge for the key proof comes from the Nonce Endpoint defined in OpenID4VCI 1.0 §7. The issuer serves it at `POST /issuer/nonce` and advertises it as `nonce_endpoint` in its Credential Issuer metadata. If a proof uses a stale nonce, the issuer returns `invalid_nonce`. The wallet fetches a fresh nonce and retries.
+
+An offer set to "Deferred" on the issuer page, or created with `POST /issuer/api/offers?deferred=true`, is issued deferred. The credential endpoint answers `202` with a `transaction_id`. The wallet then collects the credentials at `POST /issuer/deferred_credential`, which the Credential Issuer metadata advertises as `deferred_credential_endpoint`. The credentials are ready after five seconds. Only the access token that started the issuance can collect them.
 
 Sign in with **alice / alice**, the only account. The issuer stores no user data, and the session ends with the flow.
 

@@ -2,7 +2,7 @@
 
 This public reference set contains the wallet root CA, the provider intermediates, the relying party access CA, the registrar CA and the signing certificates described in [test certificates](test-certificates.md#certificate-contents). Each entry has the complete PEM certificate and its decoded X.509 contents (serial number, validity, public key, extensions and signature).
 
-The certificates are generated with the wallet signing APIs at source revision [`54d089706e31`](https://github.com/dominikschlosser/eudi-dev/tree/54d089706e314c897150c30f7464213b235dbf7e). The reference issuer is `https://eudi-test.dev`, the country is `NL`, and the trusted list operator is `EUDI Dev Wallet`. The names and registration identifiers are fictional. The public certificates carry no official trust.
+The certificates are generated with the wallet signing APIs at source revision [`b550ccc2b066`](https://github.com/eudi-dev/eudi-dev/tree/b550ccc2b06603fb29e871ffbbaeba6796834f02). The reference issuer is `https://eudi-test.dev`, the country is `NL`, and the trusted list operator is `EUDI Dev Wallet`. The names and registration identifiers are fictional. The public certificates carry no official trust.
 
 The decoded values below are from these reference PEM files. A running wallet, including the public demo, has its own keys, serial numbers, timestamps and signatures. The [profile tables](test-certificates.md#certificate-contents) describe the certificate profiles and configurable values. The [localhost special case](test-certificates.md#localhost-special-case) lists the local issuer URL and its certificate URLs.
 
@@ -27,22 +27,22 @@ Certificate:
     Data:
         Version: 3 (0x2)
         Serial Number:
-            2b:fa:89:f8:38:2e:4b:fe:bf:c7:94:bb:81:4a:d4:f2
+            20:62:d3:99:03:97:69:08:09:86:63:f2:10:f7:2a:b6
         Signature Algorithm: ecdsa-with-SHA256
         Issuer: C=NL, O=EUDI Dev Test CA, CN=EUDI Dev Wallet CA
         Validity
-            Not Before: Oct  9 19:52:14 2026 GMT
-            Not After : Oct  6 20:52:14 2036 GMT
+            Not Before: Oct 12 20:02:26 2026 GMT
+            Not After : Oct  9 21:02:26 2036 GMT
         Subject: C=NL, O=EUDI Dev Test CA, CN=EUDI Dev Wallet CA
         Subject Public Key Info:
             Public Key Algorithm: id-ecPublicKey
                 Public-Key: (256 bit)
                 pub:
-                    04:00:77:4b:42:ec:57:fb:07:b6:e5:78:a4:e1:0e:
-                    ca:b5:2c:be:92:07:11:60:39:16:a1:28:32:51:70:
-                    9b:75:f3:79:b8:bf:03:ac:b2:84:67:55:7e:91:5c:
-                    ca:ae:c9:2a:7d:8b:6e:44:17:90:65:bc:40:22:b0:
-                    4a:41:af:43:ec
+                    04:0e:27:17:7c:21:5b:fd:60:93:08:d6:b0:4f:11:
+                    85:6d:08:41:26:f2:ae:83:03:94:df:02:a6:86:09:
+                    ff:d8:20:17:03:d9:f8:87:f7:16:ac:49:5e:7e:57:
+                    1c:ea:e4:93:05:ce:90:9b:3d:fd:81:e6:04:49:28:
+                    ef:bf:84:3b:f7
                 ASN1 OID: prime256v1
                 NIST CURVE: P-256
         X509v3 extensions:
@@ -51,15 +51,15 @@ Certificate:
             X509v3 Basic Constraints: critical
                 CA:TRUE, pathlen:1
             X509v3 Subject Key Identifier: 
-                65:1C:24:DD:AE:DD:4F:27:60:1D:88:CF:DB:71:32:91:DF:D1:3F:34
+                E0:AE:4D:AD:EE:7D:45:9B:7E:02:E4:2C:82:EA:BA:F2:D8:FE:F9:6E
             X509v3 Issuer Alternative Name: 
-                URI:https://github.com/dominikschlosser/eudi-dev
+                URI:https://github.com/eudi-dev/eudi-dev
     Signature Algorithm: ecdsa-with-SHA256
     Signature Value:
-        30:46:02:21:00:b5:78:23:cd:e4:34:24:be:fd:c7:34:0a:54:
-        c2:cf:56:c7:17:17:1c:b3:f0:75:75:18:a5:7c:82:92:69:57:
-        0e:02:21:00:c1:d5:c2:59:ed:f1:43:9c:71:a4:86:81:66:61:
-        03:e7:83:f9:0f:06:17:a8:e5:80:82:d5:2a:31:07:02:c2:90
+        30:45:02:21:00:f3:ce:ee:7a:c9:d7:5d:67:3a:0b:ad:74:cf:
+        29:41:e7:5c:1a:d0:e0:5a:2a:e0:91:6a:18:7b:02:a2:6b:61:
+        08:02:20:0e:73:02:13:b5:da:9e:2c:43:11:bb:b9:89:fe:22:
+        fd:5b:95:80:a0:2c:ab:6e:95:81:73:f3:3a:ee:f0:7d:74
 ```
 
 </details>
@@ -76,22 +76,22 @@ Certificate:
     Data:
         Version: 3 (0x2)
         Serial Number:
-            96:67:a7:1c:04:0b:a2:f6:c4:f2:99:65:8c:e2:88:2a
+            f4:06:3c:9e:44:d7:b7:a3:37:d4:ed:02:e4:ba:24:c9
         Signature Algorithm: ecdsa-with-SHA256
         Issuer: C=NL, O=EUDI Dev Test CA, CN=EUDI Dev Wallet CA
         Validity
-            Not Before: Oct  9 19:52:14 2026 GMT
-            Not After : Oct  8 20:52:14 2031 GMT
+            Not Before: Oct 12 20:02:26 2026 GMT
+            Not After : Oct 11 21:02:26 2031 GMT
         Subject: C=NL, O=EUDI Dev Test Provider, CN=EUDI Dev Test pid CA NL, organizationIdentifier=NTRNL-NLTEST.00000000
         Subject Public Key Info:
             Public Key Algorithm: id-ecPublicKey
                 Public-Key: (256 bit)
                 pub:
-                    04:5b:88:d5:88:a4:3a:56:4e:99:08:5e:b8:06:ab:
-                    c2:3f:14:83:4b:99:a4:44:7e:5b:16:ba:5d:f1:47:
-                    5b:b4:85:c8:ee:2f:45:ac:b8:5b:5c:36:c2:c3:c1:
-                    bf:7a:b5:2b:a1:19:31:8d:dd:43:7d:39:1a:a9:66:
-                    a1:ed:9f:09:2e
+                    04:e7:c8:c5:4a:8b:ee:fe:48:d7:1c:db:a3:f8:21:
+                    0c:5f:5a:8b:76:56:a8:32:7e:a6:6c:0f:a6:43:96:
+                    a5:51:39:ca:c3:30:4a:8b:13:70:7b:81:e1:d9:5a:
+                    75:4f:6c:9f:47:9b:97:af:43:16:28:e5:24:0d:ce:
+                    b2:e5:dd:bb:df
                 ASN1 OID: prime256v1
                 NIST CURVE: P-256
         X509v3 extensions:
@@ -100,9 +100,9 @@ Certificate:
             X509v3 Basic Constraints: critical
                 CA:TRUE, pathlen:0
             X509v3 Subject Key Identifier: 
-                7A:2A:83:1E:6D:C2:D5:5E:9F:FC:16:37:B6:8B:ED:D5:BA:ED:22:D6
+                9D:21:65:E9:1F:8A:A5:F4:5A:93:3C:A3:E8:0D:24:8E:80:93:A5:E4
             X509v3 Authority Key Identifier: 
-                65:1C:24:DD:AE:DD:4F:27:60:1D:88:CF:DB:71:32:91:DF:D1:3F:34
+                E0:AE:4D:AD:EE:7D:45:9B:7E:02:E4:2C:82:EA:BA:F2:D8:FE:F9:6E
             Authority Information Access: 
                 CA Issuers - URI:https://eudi-test.dev/api/certificates/ca.der
             X509v3 CRL Distribution Points: 
@@ -110,13 +110,13 @@ Certificate:
                   URI:https://eudi-test.dev/api/crl
 
             X509v3 Issuer Alternative Name: 
-                URI:https://github.com/dominikschlosser/eudi-dev
+                URI:https://github.com/eudi-dev/eudi-dev
     Signature Algorithm: ecdsa-with-SHA256
     Signature Value:
-        30:45:02:20:47:c1:53:d6:80:b4:f2:22:28:50:a4:4b:0e:75:
-        7c:31:b2:1f:96:e0:cb:44:c6:22:b9:95:d3:f4:3c:ff:a4:c5:
-        02:21:00:f3:1f:5f:79:5a:24:40:e0:7f:31:c6:ba:64:b1:db:
-        dd:b1:6a:d4:6d:14:76:a0:b0:57:a5:8c:fd:db:9a:b7:a6
+        30:46:02:21:00:aa:8c:7c:2a:34:41:28:8e:f1:42:9e:e9:aa:
+        2b:0c:b7:9f:87:20:85:25:61:f1:45:99:a8:ab:61:18:bd:d4:
+        07:02:21:00:b4:aa:e8:9d:68:d7:ad:06:c1:64:82:cd:97:97:
+        76:bb:1e:27:3d:01:5b:f6:32:f9:6a:39:b8:12:90:6a:75:30
 ```
 
 </details>
@@ -133,22 +133,22 @@ Certificate:
     Data:
         Version: 3 (0x2)
         Serial Number:
-            ff:4c:70:0c:f8:73:57:3b:b0:8f:6b:e5:55:37:92:6a
+            64:fa:0a:67:c8:43:0a:39:0b:bf:1e:8d:76:dc:f5:1f
         Signature Algorithm: ecdsa-with-SHA256
         Issuer: C=NL, O=EUDI Dev Test CA, CN=EUDI Dev Wallet CA
         Validity
-            Not Before: Oct  9 19:52:14 2026 GMT
-            Not After : Oct  8 20:52:14 2031 GMT
+            Not Before: Oct 12 20:03:18 2026 GMT
+            Not After : Oct 11 21:03:18 2031 GMT
         Subject: C=NL, O=EUDI Dev Test Provider, CN=EUDI Dev Test wallet CA NL, organizationIdentifier=NTRNL-NLTEST.00000000
         Subject Public Key Info:
             Public Key Algorithm: id-ecPublicKey
                 Public-Key: (256 bit)
                 pub:
-                    04:a2:6b:aa:5e:32:25:c2:f1:12:53:ad:0c:b1:db:
-                    9f:85:6d:b7:a2:73:a7:78:42:d9:a3:21:44:5d:7a:
-                    78:25:16:41:93:cd:f2:76:c9:79:ba:0a:9c:9c:77:
-                    98:dd:62:5a:17:81:ff:28:dc:fc:1a:0a:f3:a3:2c:
-                    e2:72:90:12:a3
+                    04:9f:ec:86:62:bf:71:3b:ad:f4:34:d6:8b:d7:71:
+                    24:6c:76:cb:f4:8d:06:a9:b4:d8:98:1d:34:7d:a1:
+                    fd:cb:3b:b5:e2:47:06:f8:b6:a1:26:59:6c:ef:09:
+                    29:09:6d:ab:8b:92:e8:9e:6f:d9:18:10:58:58:8f:
+                    3d:3a:dd:34:03
                 ASN1 OID: prime256v1
                 NIST CURVE: P-256
         X509v3 extensions:
@@ -157,9 +157,9 @@ Certificate:
             X509v3 Basic Constraints: critical
                 CA:TRUE, pathlen:0
             X509v3 Subject Key Identifier: 
-                AC:D1:00:F9:E9:54:14:78:A3:B0:67:BC:59:8D:DF:49:AC:C5:10:F5
+                77:5F:3D:AC:11:17:22:8F:B3:77:05:A8:44:CE:03:45:7E:D8:74:83
             X509v3 Authority Key Identifier: 
-                65:1C:24:DD:AE:DD:4F:27:60:1D:88:CF:DB:71:32:91:DF:D1:3F:34
+                E0:AE:4D:AD:EE:7D:45:9B:7E:02:E4:2C:82:EA:BA:F2:D8:FE:F9:6E
             Authority Information Access: 
                 CA Issuers - URI:https://eudi-test.dev/api/certificates/ca.der
             X509v3 CRL Distribution Points: 
@@ -167,13 +167,13 @@ Certificate:
                   URI:https://eudi-test.dev/api/crl
 
             X509v3 Issuer Alternative Name: 
-                URI:https://github.com/dominikschlosser/eudi-dev
+                URI:https://github.com/eudi-dev/eudi-dev
     Signature Algorithm: ecdsa-with-SHA256
     Signature Value:
-        30:44:02:20:3e:ba:20:e8:5a:f8:05:16:1d:33:37:5b:ce:9a:
-        91:49:4a:f2:39:8a:0f:02:2a:c0:d2:e3:4e:5f:2f:8d:56:ce:
-        02:20:20:d8:b0:ec:46:f2:b3:15:91:50:80:44:d8:c4:96:2b:
-        9d:3e:8f:09:29:0a:78:28:63:c2:99:f0:78:5e:ec:1d
+        30:46:02:21:00:a3:7e:65:ec:96:83:89:29:28:51:76:f8:75:
+        db:58:f9:e2:1f:d5:a8:37:77:dc:0e:a2:f6:be:4f:b3:f9:ae:
+        99:02:21:00:ce:1f:d8:2f:1c:b8:47:21:00:24:54:c8:e6:a0:
+        2d:2d:30:a5:08:1f:dd:5a:23:5c:91:57:5a:11:69:df:66:88
 ```
 
 </details>
@@ -190,22 +190,22 @@ Certificate:
     Data:
         Version: 3 (0x2)
         Serial Number:
-            15:db:e4:6b:65:ef:84:7f:5c:2d:30:2b:e4:19:51:23
+            97:ea:a4:04:02:8c:56:bd:77:dc:32:e6:85:27:5e:b6
         Signature Algorithm: ecdsa-with-SHA256
         Issuer: C=NL, O=EUDI Dev Test CA, CN=EUDI Dev Wallet CA
         Validity
-            Not Before: Oct  9 19:52:14 2026 GMT
-            Not After : Oct  8 20:52:14 2031 GMT
+            Not Before: Oct 12 20:03:18 2026 GMT
+            Not After : Oct 11 21:03:18 2031 GMT
         Subject: C=NL, O=EUDI Dev Test Provider, CN=EUDI Dev Test eaa CA NL, organizationIdentifier=NTRNL-NLTEST.00000000
         Subject Public Key Info:
             Public Key Algorithm: id-ecPublicKey
                 Public-Key: (256 bit)
                 pub:
-                    04:7e:c2:33:28:1c:44:b3:1d:cd:a3:42:c9:87:1b:
-                    41:b3:26:b6:9f:2b:ae:99:5c:14:c9:ad:d1:46:b4:
-                    91:89:2e:c6:bf:c9:de:78:3b:45:3c:cc:a1:28:57:
-                    55:ff:78:41:a8:66:08:58:ca:bf:7d:5e:4c:a6:15:
-                    c5:d4:c1:29:5b
+                    04:b2:3b:2a:5b:04:31:79:de:e1:ef:42:7b:2c:6c:
+                    da:63:79:49:68:b0:6b:63:df:52:f5:d3:fb:ff:2a:
+                    0c:15:5a:d2:ba:df:70:ab:0f:5b:03:c4:66:59:5b:
+                    56:3d:f7:18:91:fb:de:88:c8:14:28:80:c3:a7:69:
+                    94:90:fb:90:f6
                 ASN1 OID: prime256v1
                 NIST CURVE: P-256
         X509v3 extensions:
@@ -214,9 +214,9 @@ Certificate:
             X509v3 Basic Constraints: critical
                 CA:TRUE, pathlen:0
             X509v3 Subject Key Identifier: 
-                28:44:CC:EA:91:15:89:9E:EF:4C:2F:68:F7:72:AF:BA:F7:8B:97:2E
+                57:72:6A:A7:1B:C4:11:E1:8B:EA:45:21:BC:10:3E:0C:53:81:3F:6F
             X509v3 Authority Key Identifier: 
-                65:1C:24:DD:AE:DD:4F:27:60:1D:88:CF:DB:71:32:91:DF:D1:3F:34
+                E0:AE:4D:AD:EE:7D:45:9B:7E:02:E4:2C:82:EA:BA:F2:D8:FE:F9:6E
             Authority Information Access: 
                 CA Issuers - URI:https://eudi-test.dev/api/certificates/ca.der
             X509v3 CRL Distribution Points: 
@@ -224,13 +224,13 @@ Certificate:
                   URI:https://eudi-test.dev/api/crl
 
             X509v3 Issuer Alternative Name: 
-                URI:https://github.com/dominikschlosser/eudi-dev
+                URI:https://github.com/eudi-dev/eudi-dev
     Signature Algorithm: ecdsa-with-SHA256
     Signature Value:
-        30:45:02:21:00:b1:f6:83:54:d1:8a:7a:bd:d7:66:46:f8:71:
-        04:02:0e:82:6a:a5:90:eb:77:fb:ff:fe:a1:19:ec:59:62:b8:
-        a4:02:20:3e:54:f7:b0:7d:f0:6e:24:dd:78:a7:cb:b1:44:c8:
-        92:91:d0:72:5c:71:aa:e7:23:ae:90:1e:0b:51:66:ed:8a
+        30:46:02:21:00:9c:48:30:b0:13:ff:91:28:ae:f9:24:af:51:
+        14:91:fe:e9:95:81:ad:44:3e:e1:e1:6e:96:67:79:ae:9e:7a:
+        22:02:21:00:a3:a5:cf:86:e4:5c:44:c4:5a:af:e9:42:1b:77:
+        01:38:d4:12:c5:45:e4:e6:f6:4a:b8:3d:e5:46:fd:84:fc:50
 ```
 
 </details>
@@ -247,22 +247,22 @@ Certificate:
     Data:
         Version: 3 (0x2)
         Serial Number:
-            49:8c:73:6c:00:0a:39:23:21:b3:14:5f:1b:e6:c7:f8
+            e1:36:48:e7:52:21:91:8d:aa:5b:6d:f8:de:93:cf:aa
         Signature Algorithm: ecdsa-with-SHA256
         Issuer: C=NL, O=EUDI Dev Test CA, CN=EUDI Dev Test Relying Party Access CA
         Validity
-            Not Before: Oct  9 19:52:14 2026 GMT
-            Not After : Oct  6 20:52:14 2036 GMT
+            Not Before: Oct 12 20:02:52 2026 GMT
+            Not After : Oct  9 21:02:52 2036 GMT
         Subject: C=NL, O=EUDI Dev Test CA, CN=EUDI Dev Test Relying Party Access CA
         Subject Public Key Info:
             Public Key Algorithm: id-ecPublicKey
                 Public-Key: (256 bit)
                 pub:
-                    04:30:af:9c:0d:45:7a:e9:e0:06:96:42:f2:e4:5f:
-                    d3:29:13:da:35:15:96:bd:f0:10:89:35:4c:00:a3:
-                    b6:f4:6e:65:c6:a3:7e:66:36:cb:6d:6c:9d:d6:f4:
-                    42:aa:fc:04:86:6a:2e:03:da:68:b8:77:07:3e:d3:
-                    df:71:18:80:b0
+                    04:17:11:e0:2a:8e:8e:e5:14:9d:1c:09:b8:c0:b8:
+                    12:ba:24:97:e2:30:8b:a5:ad:40:46:47:4c:91:e0:
+                    68:91:51:31:f2:b3:5e:55:2d:75:ee:aa:4b:8a:3e:
+                    19:d7:90:f6:0d:bd:ae:98:3a:86:6e:7e:8d:c6:08:
+                    33:42:23:ce:b9
                 ASN1 OID: prime256v1
                 NIST CURVE: P-256
         X509v3 extensions:
@@ -271,15 +271,15 @@ Certificate:
             X509v3 Basic Constraints: critical
                 CA:TRUE, pathlen:0
             X509v3 Subject Key Identifier: 
-                AB:AC:15:30:D1:11:02:85:3B:C7:CB:A0:72:AA:01:B7:E0:54:CD:D4
+                B0:9C:5B:3F:3A:8D:A5:3B:7B:E7:D1:C2:63:93:1E:29:A6:35:16:51
             X509v3 Issuer Alternative Name: 
-                URI:https://github.com/dominikschlosser/eudi-dev
+                URI:https://github.com/eudi-dev/eudi-dev
     Signature Algorithm: ecdsa-with-SHA256
     Signature Value:
-        30:45:02:20:3e:17:ee:02:ca:fd:4c:79:be:55:28:ce:8f:3d:
-        9a:e8:01:f5:e4:cc:97:3f:e3:d5:15:a2:8e:37:94:6b:dd:25:
-        02:21:00:8a:96:f5:22:9b:11:97:b2:80:db:a4:0e:7b:96:51:
-        b2:46:41:8a:4c:48:d3:4f:dd:ab:48:9a:92:15:93:f2:01
+        30:45:02:21:00:e9:8a:e9:49:d7:58:30:50:98:46:44:14:c7:
+        ce:05:5d:04:46:1e:fc:aa:f5:76:1c:4b:53:0e:3b:33:78:64:
+        f7:02:20:39:4d:32:fe:d3:80:4d:b2:be:55:f3:4f:67:65:e2:
+        c3:03:a5:99:92:5f:ba:84:f2:aa:ea:70:1f:bc:6a:fa:0c
 ```
 
 </details>
@@ -296,22 +296,22 @@ Certificate:
     Data:
         Version: 3 (0x2)
         Serial Number:
-            0e:e7:f0:c2:a1:6d:11:8c:d1:8f:f7:60:5f:c2:2b:4f
+            fe:dd:82:22:4b:85:a6:b6:b3:71:86:1b:25:b0:7d:d0
         Signature Algorithm: ecdsa-with-SHA256
         Issuer: C=NL, O=EUDI Dev Test CA, CN=EUDI Dev Test Registrar CA
         Validity
-            Not Before: Oct  9 19:52:14 2026 GMT
-            Not After : Oct  6 20:52:14 2036 GMT
+            Not Before: Oct 12 20:02:26 2026 GMT
+            Not After : Oct  9 21:02:26 2036 GMT
         Subject: C=NL, O=EUDI Dev Test CA, CN=EUDI Dev Test Registrar CA
         Subject Public Key Info:
             Public Key Algorithm: id-ecPublicKey
                 Public-Key: (256 bit)
                 pub:
-                    04:f6:39:80:f2:85:6b:23:cb:91:c9:9f:77:f6:82:
-                    db:16:2f:0d:ea:6f:75:c6:f8:7d:1f:df:ab:8e:21:
-                    7f:51:99:b7:3d:c6:fc:da:30:fc:8f:e6:00:45:f0:
-                    04:52:42:60:3d:d1:9b:e9:3e:3b:30:75:19:11:cf:
-                    df:4e:56:f3:0e
+                    04:d6:7f:43:a7:81:46:40:1c:94:fe:37:89:45:f6:
+                    90:ef:21:e5:9e:11:10:01:d1:2d:3b:42:f6:38:93:
+                    51:38:6a:91:d7:03:35:ef:f2:8d:1e:ef:9b:a0:b2:
+                    c9:b1:9c:b5:26:d8:03:55:1b:ae:e7:1c:4c:a3:13:
+                    76:5d:dc:a2:93
                 ASN1 OID: prime256v1
                 NIST CURVE: P-256
         X509v3 extensions:
@@ -320,15 +320,15 @@ Certificate:
             X509v3 Basic Constraints: critical
                 CA:TRUE, pathlen:0
             X509v3 Subject Key Identifier: 
-                40:99:CE:90:9A:17:FB:EF:A0:51:10:B3:B1:BC:A0:BD:2F:B4:9A:B7
+                0C:14:F7:E6:27:05:7B:11:84:2D:58:D0:51:64:1A:CB:B6:5C:9C:67
             X509v3 Issuer Alternative Name: 
-                URI:https://github.com/dominikschlosser/eudi-dev
+                URI:https://github.com/eudi-dev/eudi-dev
     Signature Algorithm: ecdsa-with-SHA256
     Signature Value:
-        30:46:02:21:00:e2:54:34:45:34:04:cd:7b:7c:05:40:dd:33:
-        8b:9f:c9:09:9d:eb:9f:6e:85:66:27:f1:35:d8:92:76:91:6b:
-        6d:02:21:00:c2:3e:47:fc:64:8a:89:fd:dd:a0:1a:fb:22:42:
-        cb:a6:2f:6e:31:80:5c:b6:de:bc:28:5a:82:83:03:2e:6c:8f
+        30:44:02:20:14:20:57:ab:50:c6:6d:2b:5c:4b:b4:c3:50:d7:
+        d6:4e:dd:75:22:c3:69:09:e8:d4:5c:e6:bb:d2:23:80:b2:fd:
+        02:20:24:06:fb:d1:ba:d3:b7:b5:9f:b3:ca:8d:4c:37:f9:be:
+        1d:f8:c3:6e:f9:1d:c2:c4:2e:29:32:35:60:c8:a7:78
 ```
 
 </details>
@@ -345,31 +345,31 @@ Certificate:
     Data:
         Version: 3 (0x2)
         Serial Number:
-            bf:e1:43:b0:cf:02:75:d3:11:fc:8d:09:22:1d:62:0b
+            eb:9e:db:a4:67:f6:2d:60:eb:de:e1:3d:89:26:7d:ef
         Signature Algorithm: ecdsa-with-SHA256
         Issuer: C=NL, O=EUDI Dev Test Provider, CN=EUDI Dev Test pid CA NL, organizationIdentifier=NTRNL-NLTEST.00000000
         Validity
-            Not Before: Oct  9 19:52:14 2026 GMT
-            Not After : Oct  9 20:52:14 2027 GMT
+            Not Before: Oct 12 20:02:26 2026 GMT
+            Not After : Oct 12 21:02:26 2027 GMT
         Subject: C=NL, O=EUDI Dev Test Provider, CN=EUDI Dev Wallet PID Provider (pid), organizationIdentifier=NTRNL-NLTEST.00000000
         Subject Public Key Info:
             Public Key Algorithm: id-ecPublicKey
                 Public-Key: (256 bit)
                 pub:
-                    04:c5:ab:a5:72:52:73:56:ea:c5:c6:bd:97:01:f4:
-                    46:54:bb:c1:29:32:10:e5:76:5a:92:1e:39:ad:11:
-                    e5:23:99:46:07:46:77:cd:cd:3b:6c:06:22:c3:35:
-                    d6:1d:c5:70:22:69:8e:08:ca:f1:0e:8e:22:b3:d4:
-                    e9:15:f6:31:04
+                    04:f0:f7:54:c6:85:95:1a:f9:7b:0f:be:86:91:26:
+                    49:3c:4f:da:9d:47:8f:99:0e:ab:55:ba:35:41:67:
+                    5b:49:a7:cc:fb:03:6d:e9:57:d5:10:01:8b:3d:10:
+                    f5:7e:3d:1e:23:35:e0:6e:4f:8b:43:fa:8d:af:8c:
+                    e7:77:e8:30:26
                 ASN1 OID: prime256v1
                 NIST CURVE: P-256
         X509v3 extensions:
             X509v3 Key Usage: critical
                 Digital Signature
             X509v3 Subject Key Identifier: 
-                02:82:58:EB:FB:F4:D5:AE:40:91:BF:EA:36:03:C0:64:4F:C4:7C:18
+                F0:BA:F1:7B:5A:F0:53:F5:E8:2C:19:3E:5C:D0:64:AD:E5:59:13:1E
             X509v3 Authority Key Identifier: 
-                7A:2A:83:1E:6D:C2:D5:5E:9F:FC:16:37:B6:8B:ED:D5:BA:ED:22:D6
+                9D:21:65:E9:1F:8A:A5:F4:5A:93:3C:A3:E8:0D:24:8E:80:93:A5:E4
             Authority Information Access: 
                 CA Issuers - URI:https://eudi-test.dev/api/certificates/providers/pid/NL.der
             X509v3 Subject Alternative Name: 
@@ -379,17 +379,17 @@ Certificate:
                   URI:https://eudi-test.dev/api/crl/providers/pid/NL
 
             X509v3 Issuer Alternative Name: 
-                URI:https://github.com/dominikschlosser/eudi-dev
+                URI:https://github.com/eudi-dev/eudi-dev
             X509v3 Extended Key Usage: critical
                 1.0.18013.5.1.2
             qcStatements: 
                 0.0......F..0.......N..
     Signature Algorithm: ecdsa-with-SHA256
     Signature Value:
-        30:46:02:21:00:c8:22:c6:fc:bf:36:51:d2:9e:e1:29:9a:ed:
-        7b:94:5c:72:11:df:55:ed:c3:c2:57:7d:26:c1:96:89:cc:20:
-        d1:02:21:00:c4:84:94:09:da:bd:6d:c2:1b:40:a3:7b:7a:4f:
-        ff:7c:c4:49:c8:b2:a7:32:c3:11:2c:61:d6:bb:78:cb:79:0d
+        30:44:02:20:65:80:03:3f:93:d7:b4:c1:19:fa:d7:a1:bd:f6:
+        41:f4:d5:a3:46:c2:09:f1:ba:82:e3:c5:1a:48:dc:30:7a:ed:
+        02:20:49:a1:28:f3:cc:1e:e2:bc:77:a8:8e:39:c0:95:3b:3d:
+        b9:3e:ae:9d:47:9e:39:c2:60:b8:79:bb:82:25:cd:df
 ```
 
 QCStatements extension value:
@@ -417,31 +417,31 @@ Certificate:
     Data:
         Version: 3 (0x2)
         Serial Number:
-            b8:28:8a:04:1e:de:57:20:90:f6:6e:59:50:8f:cd:04
+            d0:6d:95:be:df:b1:c0:8a:d5:d1:ba:3c:1d:4e:78:07
         Signature Algorithm: ecdsa-with-SHA256
         Issuer: C=NL, O=EUDI Dev Test Provider, CN=EUDI Dev Test wallet CA NL, organizationIdentifier=NTRNL-NLTEST.00000000
         Validity
-            Not Before: Oct  9 19:52:14 2026 GMT
-            Not After : Oct  9 20:52:14 2027 GMT
+            Not Before: Oct 12 20:03:18 2026 GMT
+            Not After : Oct 12 21:03:18 2027 GMT
         Subject: C=NL, O=EUDI Dev Test Provider, CN=EUDI Dev Wallet Provider (wallet-provider), organizationIdentifier=NTRNL-NLTEST.00000000
         Subject Public Key Info:
             Public Key Algorithm: id-ecPublicKey
                 Public-Key: (256 bit)
                 pub:
-                    04:c1:78:c3:bb:bc:65:a1:10:f9:9e:27:89:14:aa:
-                    47:da:20:2b:fe:50:3f:1c:cb:ed:18:c8:96:e9:35:
-                    00:12:83:59:cc:ff:01:c0:21:ae:97:e1:75:91:9f:
-                    c6:52:1d:00:88:22:d4:92:55:e6:4d:d9:c6:e2:fa:
-                    db:fd:33:5c:a2
+                    04:05:b4:01:3c:79:5c:6d:aa:24:29:3d:11:3d:20:
+                    85:42:5e:c9:a0:07:c7:5b:45:60:84:ae:30:b9:fb:
+                    1d:61:1d:ac:61:bf:76:72:28:58:a4:6c:12:10:fe:
+                    1e:37:62:b9:2c:df:ee:8c:7a:3f:d5:95:c4:57:fd:
+                    62:09:e7:49:85
                 ASN1 OID: prime256v1
                 NIST CURVE: P-256
         X509v3 extensions:
             X509v3 Key Usage: critical
                 Digital Signature
             X509v3 Subject Key Identifier: 
-                74:22:00:8D:8A:55:B0:4F:CE:BF:29:DE:AD:E3:58:33:CA:74:0C:17
+                3B:8F:E7:D1:F4:A3:0C:14:AE:5A:DA:59:0F:54:E4:6C:28:0C:25:48
             X509v3 Authority Key Identifier: 
-                AC:D1:00:F9:E9:54:14:78:A3:B0:67:BC:59:8D:DF:49:AC:C5:10:F5
+                77:5F:3D:AC:11:17:22:8F:B3:77:05:A8:44:CE:03:45:7E:D8:74:83
             Authority Information Access: 
                 CA Issuers - URI:https://eudi-test.dev/api/certificates/providers/wallet/NL.der
             X509v3 Subject Alternative Name: 
@@ -451,15 +451,15 @@ Certificate:
                   URI:https://eudi-test.dev/api/crl/providers/wallet/NL
 
             X509v3 Issuer Alternative Name: 
-                URI:https://github.com/dominikschlosser/eudi-dev
+                URI:https://github.com/eudi-dev/eudi-dev
             qcStatements: 
                 0.0......F..0.......N..
     Signature Algorithm: ecdsa-with-SHA256
     Signature Value:
-        30:44:02:20:7b:f7:dd:dd:76:4d:09:74:2b:76:e9:1c:ac:6f:
-        ff:89:a5:71:fd:18:94:cf:ff:20:94:15:04:4b:55:85:4b:e3:
-        02:20:05:14:be:21:b7:39:76:b6:e0:6c:3a:0e:b2:a9:2b:4e:
-        a3:ab:95:2b:7f:95:c4:cd:40:69:85:73:46:67:3b:3d
+        30:45:02:21:00:e0:87:ae:c9:08:e9:54:e2:69:6f:6d:68:af:
+        2e:dd:d9:fc:e2:d3:0a:ab:a6:31:78:e1:6a:d0:8b:ee:93:7f:
+        aa:02:20:05:3b:d0:ea:eb:df:0b:eb:ec:15:f6:80:4a:df:fd:
+        33:d5:40:3f:51:93:39:8c:3b:ab:0d:be:3b:fd:02:e4:33
 ```
 
 QCStatements extension value:
@@ -487,31 +487,31 @@ Certificate:
     Data:
         Version: 3 (0x2)
         Serial Number:
-            4d:28:3e:8e:20:c6:01:b1:8b:2a:01:49:50:91:93:4b
+            52:2e:fa:38:6f:70:a5:85:65:73:e3:a3:09:65:b2:07
         Signature Algorithm: ecdsa-with-SHA256
         Issuer: C=NL, O=EUDI Dev Test Provider, CN=EUDI Dev Test eaa CA NL, organizationIdentifier=NTRNL-NLTEST.00000000
         Validity
-            Not Before: Oct  9 19:52:14 2026 GMT
-            Not After : Oct  9 20:52:14 2027 GMT
+            Not Before: Oct 12 20:03:18 2026 GMT
+            Not After : Oct 12 21:03:18 2027 GMT
         Subject: C=NL, O=EUDI Dev Test Provider, CN=EUDI Dev Wallet EAA Provider (eaa), organizationIdentifier=NTRNL-NLTEST.00000000
         Subject Public Key Info:
             Public Key Algorithm: id-ecPublicKey
                 Public-Key: (256 bit)
                 pub:
-                    04:36:46:33:e1:83:5e:ad:39:5e:e2:f9:15:6b:94:
-                    f9:b8:ec:44:73:0e:fe:c4:c6:93:94:1e:17:81:ec:
-                    1a:5f:b7:2e:e3:c1:ac:ff:3a:4b:5c:2b:c6:c9:d5:
-                    67:05:8c:27:9c:97:8e:2c:ac:a8:34:32:ea:f7:ec:
-                    1c:30:c1:3a:53
+                    04:72:84:38:03:2f:ba:4e:ff:1d:b1:4f:a9:0d:0c:
+                    31:e2:f3:d1:ac:83:9d:49:db:ac:7d:a9:98:ff:9d:
+                    87:c2:c5:d1:89:18:41:d7:27:fd:d5:9e:3e:01:aa:
+                    32:00:6f:53:c4:4b:90:5b:e8:c7:6e:b0:a8:bd:34:
+                    59:7b:89:07:55
                 ASN1 OID: prime256v1
                 NIST CURVE: P-256
         X509v3 extensions:
             X509v3 Key Usage: critical
                 Digital Signature
             X509v3 Subject Key Identifier: 
-                F6:B4:C6:4D:EC:99:EC:E3:21:26:06:38:38:EA:02:F0:D8:40:C2:67
+                93:B2:B4:21:29:BC:E2:F5:2D:25:6E:F6:AA:91:D9:EC:28:0B:79:FE
             X509v3 Authority Key Identifier: 
-                28:44:CC:EA:91:15:89:9E:EF:4C:2F:68:F7:72:AF:BA:F7:8B:97:2E
+                57:72:6A:A7:1B:C4:11:E1:8B:EA:45:21:BC:10:3E:0C:53:81:3F:6F
             Authority Information Access: 
                 CA Issuers - URI:https://eudi-test.dev/api/certificates/providers/eaa/NL.der
             X509v3 Subject Alternative Name: 
@@ -521,15 +521,15 @@ Certificate:
                   URI:https://eudi-test.dev/api/crl/providers/eaa/NL
 
             X509v3 Issuer Alternative Name: 
-                URI:https://github.com/dominikschlosser/eudi-dev
+                URI:https://github.com/eudi-dev/eudi-dev
             X509v3 Extended Key Usage: critical
                 1.0.18013.5.1.2
     Signature Algorithm: ecdsa-with-SHA256
     Signature Value:
-        30:45:02:20:52:8a:c7:46:f9:6a:fc:23:0e:a1:ec:88:f8:92:
-        c7:fe:94:58:56:73:89:80:97:37:7d:f5:31:b5:b3:9c:59:18:
-        02:21:00:e3:4e:d0:28:2d:b4:99:da:b6:a0:2a:34:8f:06:c8:
-        d2:75:37:24:75:5a:3d:97:e9:83:0a:68:f4:b2:ec:82:29
+        30:45:02:21:00:99:cd:de:e1:43:46:1b:6f:04:c5:1d:7a:7a:
+        a3:e4:59:15:f6:94:98:3d:7f:5b:4a:d1:86:ab:ff:7a:c4:9d:
+        79:02:20:5b:70:27:72:22:f5:09:d1:47:02:0d:87:9b:78:f4:
+        78:05:9e:b5:a8:b5:ca:57:e4:f2:38:d7:f7:ca:bb:91:d0
 ```
 
 </details>
@@ -546,22 +546,22 @@ Certificate:
     Data:
         Version: 3 (0x2)
         Serial Number:
-            6c:88:22:65:82:3a:27:f6:f0:67:70:be:81:ac:2e:22
+            de:7b:15:04:12:f4:77:41:37:0a:e2:df:f0:dc:e5:25
         Signature Algorithm: ecdsa-with-SHA256
         Issuer: C=NL, O=EUDI Dev Test CA, CN=EUDI Dev Test Relying Party Access CA
         Validity
-            Not Before: Oct  9 19:52:14 2026 GMT
-            Not After : Oct  9 20:52:14 2027 GMT
+            Not Before: Oct 12 20:03:22 2026 GMT
+            Not After : Oct 12 21:03:22 2027 GMT
         Subject: C=NL, O=EUDI Dev Test Provider, OU=issuance, CN=EUDI Dev Demo Issuer, organizationIdentifier=NTRNL-NLTEST.00000000
         Subject Public Key Info:
             Public Key Algorithm: id-ecPublicKey
                 Public-Key: (256 bit)
                 pub:
-                    04:10:cf:0b:83:7f:98:bf:c5:d3:57:6b:f8:9c:1e:
-                    0a:45:0c:f5:76:f7:80:8b:c5:a8:b7:55:56:8b:13:
-                    db:79:99:eb:7a:e7:05:32:06:83:da:ad:c4:66:45:
-                    47:86:3d:5d:83:9e:dc:2a:72:65:dc:4d:ff:be:5a:
-                    57:37:1f:e6:e3
+                    04:16:ce:4e:f6:b7:ae:35:23:4f:d3:2e:a7:a0:9e:
+                    03:bb:41:0e:48:95:aa:bb:3b:55:d9:28:a4:52:c5:
+                    e1:1a:e8:c6:f6:84:63:83:80:24:05:81:5f:73:e5:
+                    1a:6a:fc:45:8d:72:c9:6a:46:1d:a7:9e:96:d7:ea:
+                    c8:61:2f:29:b8
                 ASN1 OID: prime256v1
                 NIST CURVE: P-256
         X509v3 extensions:
@@ -570,22 +570,22 @@ Certificate:
             X509v3 Basic Constraints: critical
                 CA:FALSE
             X509v3 Subject Key Identifier: 
-                38:CF:FC:06:C1:36:B2:CD:9E:81:8A:9D:4E:87:F5:67:FE:A7:80:73
+                F1:63:91:8F:CA:51:EE:EB:FE:99:A2:63:3F:F9:3E:74:BD:D9:25:CD
             X509v3 Authority Key Identifier: 
-                AB:AC:15:30:D1:11:02:85:3B:C7:CB:A0:72:AA:01:B7:E0:54:CD:D4
+                B0:9C:5B:3F:3A:8D:A5:3B:7B:E7:D1:C2:63:93:1E:29:A6:35:16:51
             X509v3 Subject Alternative Name: 
                 DNS:eudi-test.dev, URI:https://eudi-test.dev/support
             X509v3 Issuer Alternative Name: 
-                URI:https://github.com/dominikschlosser/eudi-dev
+                URI:https://github.com/eudi-dev/eudi-dev
             X509v3 Certificate Policies: 
                 Policy: 0.4.0.194118.1.2
-                  CPS: https://github.com/dominikschlosser/eudi-dev/blob/main/docs/test-certificates.md
+                  CPS: https://github.com/eudi-dev/eudi-dev/blob/main/docs/test-certificates.md
     Signature Algorithm: ecdsa-with-SHA256
     Signature Value:
-        30:45:02:21:00:d7:2c:f7:1e:e9:f6:e2:e0:5d:ff:93:12:e3:
-        9b:13:32:1d:73:87:44:09:1f:fd:49:bc:d8:b3:ba:9a:be:6f:
-        f0:02:20:78:7f:31:7b:fb:4e:6b:f2:13:2d:16:6e:6a:ae:b9:
-        2e:59:20:bc:48:20:6c:db:e6:34:1d:28:dd:0e:91:d4:d6
+        30:44:02:20:09:f5:f4:21:19:54:58:d7:4e:c9:3d:2e:a7:66:
+        56:8d:7f:e1:d2:d2:8d:53:e9:ee:74:1c:11:f9:17:2c:85:83:
+        02:20:10:ba:ca:10:61:c8:eb:9b:45:07:02:7b:37:46:52:b0:
+        a0:ee:22:2b:2a:e4:91:1d:ff:25:20:67:e8:f4:75:be
 ```
 
 </details>
@@ -602,22 +602,22 @@ Certificate:
     Data:
         Version: 3 (0x2)
         Serial Number:
-            55:10:9d:0d:65:d9:07:66:74:e2:c4:01:12:23:b5:9e
+            f6:67:16:e6:15:61:67:62:1b:29:15:64:dd:5c:16:46
         Signature Algorithm: ecdsa-with-SHA256
         Issuer: C=NL, O=EUDI Dev Test CA, CN=EUDI Dev Test Relying Party Access CA
         Validity
-            Not Before: Oct  9 19:52:14 2026 GMT
-            Not After : Oct  9 20:52:14 2027 GMT
+            Not Before: Oct 12 20:03:29 2026 GMT
+            Not After : Oct 12 21:03:29 2027 GMT
         Subject: C=NL, O=EUDI Dev Test Verifier, OU=verification, CN=EUDI Dev Demo Verifier, organizationIdentifier=NTRNL-NLTEST.00000001
         Subject Public Key Info:
             Public Key Algorithm: id-ecPublicKey
                 Public-Key: (256 bit)
                 pub:
-                    04:fd:60:5d:35:b2:cc:3e:f6:e6:97:94:62:41:d5:
-                    42:be:d6:69:5a:78:13:6e:0e:c9:06:b1:6d:69:5b:
-                    84:60:97:bb:8c:59:00:dc:72:07:67:e5:5c:eb:34:
-                    07:29:8b:57:cf:37:d7:2d:0b:32:79:10:14:95:49:
-                    ff:8c:74:73:38
+                    04:1a:4e:42:e2:4b:6d:07:48:80:6c:bb:3a:44:62:
+                    51:11:59:14:7e:1b:bf:ea:5b:b2:c3:d7:73:2d:ff:
+                    2f:d9:f7:25:0d:13:0b:89:af:2f:6c:08:78:d9:a7:
+                    18:8a:bb:99:d5:68:e5:68:c0:56:9d:4b:9d:c8:74:
+                    31:2d:19:a6:97
                 ASN1 OID: prime256v1
                 NIST CURVE: P-256
         X509v3 extensions:
@@ -626,22 +626,22 @@ Certificate:
             X509v3 Basic Constraints: critical
                 CA:FALSE
             X509v3 Subject Key Identifier: 
-                38:5D:C5:57:B1:4E:0A:CF:59:EB:B8:A0:2F:69:F2:7F:10:94:D4:FC
+                1C:C0:13:3C:E3:16:3E:1E:E6:91:B5:62:C3:E5:30:6A:12:8A:B6:97
             X509v3 Authority Key Identifier: 
-                AB:AC:15:30:D1:11:02:85:3B:C7:CB:A0:72:AA:01:B7:E0:54:CD:D4
+                B0:9C:5B:3F:3A:8D:A5:3B:7B:E7:D1:C2:63:93:1E:29:A6:35:16:51
             X509v3 Subject Alternative Name: 
                 DNS:eudi-test.dev, URI:https://eudi-test.dev/support
             X509v3 Issuer Alternative Name: 
-                URI:https://github.com/dominikschlosser/eudi-dev
+                URI:https://github.com/eudi-dev/eudi-dev
             X509v3 Certificate Policies: 
                 Policy: 0.4.0.194118.1.2
-                  CPS: https://github.com/dominikschlosser/eudi-dev/blob/main/docs/test-certificates.md
+                  CPS: https://github.com/eudi-dev/eudi-dev/blob/main/docs/test-certificates.md
     Signature Algorithm: ecdsa-with-SHA256
     Signature Value:
-        30:46:02:21:00:cc:0f:de:d8:0d:51:f7:75:d1:12:a0:a8:09:
-        b3:b4:63:37:b4:15:53:78:1c:c1:1f:a6:1c:79:53:9f:6a:eb:
-        a6:02:21:00:b2:1c:5e:76:77:4d:28:24:28:f7:92:cc:cf:9b:
-        42:bb:13:eb:00:55:32:11:56:16:01:37:3e:80:3b:8f:fb:23
+        30:44:02:20:22:98:9b:a5:6d:e9:71:ff:b5:33:0e:21:ca:86:
+        46:40:0e:43:a1:7d:43:be:6f:b9:5a:ce:1b:3a:53:1d:41:23:
+        02:20:45:32:b1:95:14:dc:21:77:90:22:8d:70:15:85:20:c7:
+        c1:98:c3:94:af:a4:68:93:d7:1c:02:a1:5c:c5:1e:a2
 ```
 
 </details>
@@ -658,39 +658,39 @@ Certificate:
     Data:
         Version: 3 (0x2)
         Serial Number:
-            a8:3e:cd:4f:be:97:47:ba:73:62:3a:a2:7f:65:d8:99
+            95:a2:a4:3e:c3:66:d6:9f:d9:a3:ea:f1:91:94:a8:31
         Signature Algorithm: ecdsa-with-SHA256
         Issuer: C=NL, O=EUDI Dev Test CA, CN=EUDI Dev Test Registrar CA
         Validity
-            Not Before: Oct  9 19:52:14 2026 GMT
-            Not After : Oct  9 20:52:14 2027 GMT
+            Not Before: Oct 12 20:02:26 2026 GMT
+            Not After : Oct 12 21:02:26 2027 GMT
         Subject: C=NL, O=EUDI Dev Test Provider, CN=EUDI Dev Test Registrar, organizationIdentifier=NTRNL-NLTEST.00000000
         Subject Public Key Info:
             Public Key Algorithm: id-ecPublicKey
                 Public-Key: (256 bit)
                 pub:
-                    04:b3:36:46:c1:b2:3a:fa:24:57:22:5e:d6:bb:90:
-                    6e:5d:a2:1a:8a:39:9e:e0:14:9c:d7:0e:a0:91:06:
-                    89:88:78:d8:58:ef:b2:4d:af:15:75:94:10:b7:7e:
-                    6b:43:b2:ca:e6:a7:3b:b3:8b:32:7e:70:13:59:6f:
-                    33:5c:38:5d:6a
+                    04:53:b8:cf:53:0d:1a:1f:ac:c3:46:af:44:bf:09:
+                    9c:f8:70:9e:24:ca:97:92:c0:2d:fb:f5:57:09:81:
+                    09:4f:47:b1:55:63:5d:79:96:49:a9:ca:97:df:d2:
+                    25:3f:56:f2:4c:d8:c8:13:55:d6:34:61:1f:72:17:
+                    88:c3:ff:e3:1e
                 ASN1 OID: prime256v1
                 NIST CURVE: P-256
         X509v3 extensions:
             X509v3 Key Usage: critical
                 Digital Signature
             X509v3 Subject Key Identifier: 
-                3C:6D:0E:21:03:47:15:9F:6B:C6:9E:B5:0B:B7:4B:74:EA:8F:AA:09
+                0D:2B:44:A4:D6:10:D5:42:27:9A:A7:31:16:8F:D6:23:43:45:4B:38
             X509v3 Authority Key Identifier: 
-                40:99:CE:90:9A:17:FB:EF:A0:51:10:B3:B1:BC:A0:BD:2F:B4:9A:B7
+                0C:14:F7:E6:27:05:7B:11:84:2D:58:D0:51:64:1A:CB:B6:5C:9C:67
             X509v3 Issuer Alternative Name: 
-                URI:https://github.com/dominikschlosser/eudi-dev
+                URI:https://github.com/eudi-dev/eudi-dev
     Signature Algorithm: ecdsa-with-SHA256
     Signature Value:
-        30:45:02:20:28:98:05:0a:9f:a6:a1:b5:01:dc:4f:e2:c9:c7:
-        6c:80:b8:cb:b4:f8:e8:e3:df:d1:c3:38:3e:1b:8a:0a:de:da:
-        02:21:00:8a:12:2f:ca:6f:bf:5d:0f:8d:1b:94:0e:6c:5e:cf:
-        45:7b:5c:37:f6:a6:a7:ed:16:5e:e3:a1:3e:92:33:ea:4c
+        30:46:02:21:00:80:ab:9a:1e:99:08:66:cd:4f:70:bd:91:b0:
+        34:6d:4d:13:34:21:6e:01:38:32:e5:06:aa:3c:e7:bb:a9:fc:
+        60:02:21:00:ec:43:2a:31:75:30:6c:25:54:bd:6d:3f:fd:14:
+        6b:7a:60:e1:2b:a2:14:07:e3:36:a8:8c:8a:3d:de:c1:6d:d0
 ```
 
 </details>
@@ -707,43 +707,43 @@ Certificate:
     Data:
         Version: 3 (0x2)
         Serial Number:
-            20:3e:6b:0e:5d:b7:d4:cd:89:d9:01:aa:fb:07:81:b3
+            63:1a:df:4c:ef:13:5a:a2:fd:63:95:88:1c:3a:4f:21
         Signature Algorithm: ecdsa-with-SHA256
         Issuer: C=NL, O=EUDI Dev Test CA, CN=EUDI Dev Wallet CA
         Validity
-            Not Before: Oct  9 19:52:14 2026 GMT
-            Not After : Oct  9 20:52:14 2027 GMT
+            Not Before: Oct 12 20:03:07 2026 GMT
+            Not After : Oct 12 21:03:07 2027 GMT
         Subject: C=NL, O=EUDI Dev Test Provider, CN=EUDI Dev Status List Signer, organizationIdentifier=NTRNL-NLTEST.00000000
         Subject Public Key Info:
             Public Key Algorithm: id-ecPublicKey
                 Public-Key: (256 bit)
                 pub:
-                    04:78:e2:60:d9:b6:7f:b3:11:16:ad:85:4b:fa:d9:
-                    0c:ce:54:24:15:b3:36:8b:0a:cb:3e:f2:38:a1:d8:
-                    c1:00:4f:42:11:23:f2:ef:87:1a:d0:37:bc:03:5f:
-                    5e:a2:da:45:cc:d6:db:4e:6c:0c:17:0c:45:52:6b:
-                    da:28:26:f7:7e
+                    04:0e:82:1b:f8:ca:17:21:64:bc:21:2d:24:ff:be:
+                    c4:7f:cb:76:81:80:e2:d7:c5:57:95:88:96:f8:f9:
+                    af:c9:bb:24:c9:d0:a7:28:68:20:ca:9c:24:ab:16:
+                    4b:18:c4:ce:e6:7b:12:1e:e5:69:df:f5:c1:4f:4f:
+                    84:6b:79:e6:ec
                 ASN1 OID: prime256v1
                 NIST CURVE: P-256
         X509v3 extensions:
             X509v3 Key Usage: critical
                 Digital Signature
             X509v3 Subject Key Identifier: 
-                C7:07:BB:30:5F:35:19:2B:89:17:03:BB:7C:51:EA:EA:0A:A2:2D:67
+                72:A0:3A:82:BC:9D:9A:81:82:11:67:F2:3E:D1:DB:82:34:68:4E:28
             X509v3 Authority Key Identifier: 
-                65:1C:24:DD:AE:DD:4F:27:60:1D:88:CF:DB:71:32:91:DF:D1:3F:34
+                E0:AE:4D:AD:EE:7D:45:9B:7E:02:E4:2C:82:EA:BA:F2:D8:FE:F9:6E
             X509v3 CRL Distribution Points: 
                 Full Name:
                   URI:https://eudi-test.dev/api/crl
 
             X509v3 Issuer Alternative Name: 
-                URI:https://github.com/dominikschlosser/eudi-dev
+                URI:https://github.com/eudi-dev/eudi-dev
     Signature Algorithm: ecdsa-with-SHA256
     Signature Value:
-        30:45:02:21:00:92:9c:29:50:ac:9c:1e:ae:9b:d3:29:84:77:
-        f9:28:eb:fa:c8:78:bd:1b:be:70:95:16:6f:72:83:12:a8:3e:
-        b1:02:20:4b:17:79:f9:34:f7:ac:f5:0b:f2:a3:25:61:0e:0e:
-        12:8a:e6:81:c9:26:00:aa:4d:5b:d5:20:2b:b5:f9:35:ad
+        30:46:02:21:00:92:a8:bb:76:6b:f4:b8:18:45:5c:e0:95:b5:
+        7c:69:42:b7:7f:f4:de:43:42:d2:c0:8b:50:1e:fe:40:66:73:
+        c6:02:21:00:d9:c0:04:dc:fc:aa:de:5f:f0:41:09:6c:06:8b:
+        95:75:14:65:b1:c0:67:60:7c:bc:b9:ea:ae:00:1d:13:80:6d
 ```
 
 </details>
@@ -760,31 +760,31 @@ Certificate:
     Data:
         Version: 3 (0x2)
         Serial Number:
-            4e:50:a5:74:9b:a2:8c:cf:58:4d:b4:71:8b:72:1f:4e
+            49:1b:c4:aa:38:b4:d2:ae:85:ad:03:91:42:a8:dd:12
         Signature Algorithm: ecdsa-with-SHA256
         Issuer: C=NL, O=EUDI Dev Test CA, CN=EUDI Dev Wallet CA
         Validity
-            Not Before: Oct  9 19:52:14 2026 GMT
-            Not After : Oct  9 20:52:14 2027 GMT
+            Not Before: Oct 12 20:03:07 2026 GMT
+            Not After : Oct 12 21:03:07 2027 GMT
         Subject: C=NL, O=EUDI Dev Wallet, CN=EUDI Dev Test List Operator, organizationIdentifier=NTRNL-NLTEST.00000000
         Subject Public Key Info:
             Public Key Algorithm: id-ecPublicKey
                 Public-Key: (256 bit)
                 pub:
-                    04:b9:ff:0c:46:5f:16:27:ef:1b:87:c3:f0:3f:4b:
-                    b8:42:f8:3c:f1:72:9b:a7:ae:88:78:6d:33:5c:62:
-                    a2:2a:d3:ad:a1:0f:42:2c:06:18:38:37:7c:a9:61:
-                    98:e5:5b:72:d9:ce:f6:6a:ee:c2:b8:2d:72:3d:f1:
-                    4d:60:7d:e8:95
+                    04:0f:1f:1f:de:9f:ef:0f:dc:42:cb:1c:87:83:1f:
+                    32:8f:92:09:0d:78:9e:cc:c6:3d:83:e2:f6:d6:22:
+                    db:6b:d9:c0:97:cd:4d:0e:1d:93:ec:fa:b2:65:98:
+                    b9:12:3a:97:c7:9f:78:e7:b1:16:00:bd:92:96:90:
+                    0d:b9:5e:93:b1
                 ASN1 OID: prime256v1
                 NIST CURVE: P-256
         X509v3 extensions:
             X509v3 Key Usage: critical
                 Digital Signature
             X509v3 Subject Key Identifier: 
-                3C:76:78:F1:08:A3:6B:35:E1:01:8B:AD:F2:16:F0:6B:45:29:7C:8D
+                D8:02:18:09:57:9B:88:13:EB:D4:02:49:9B:91:60:6A:24:7D:99:42
             X509v3 Authority Key Identifier: 
-                65:1C:24:DD:AE:DD:4F:27:60:1D:88:CF:DB:71:32:91:DF:D1:3F:34
+                E0:AE:4D:AD:EE:7D:45:9B:7E:02:E4:2C:82:EA:BA:F2:D8:FE:F9:6E
             Authority Information Access: 
                 CA Issuers - URI:https://eudi-test.dev/api/certificates/ca.der
             X509v3 Subject Alternative Name: 
@@ -794,13 +794,13 @@ Certificate:
                   URI:https://eudi-test.dev/api/crl
 
             X509v3 Issuer Alternative Name: 
-                URI:https://github.com/dominikschlosser/eudi-dev
+                URI:https://github.com/eudi-dev/eudi-dev
     Signature Algorithm: ecdsa-with-SHA256
     Signature Value:
-        30:46:02:21:00:cf:8a:0e:62:e1:cf:92:6f:5b:85:29:74:45:
-        ef:f7:38:35:fe:82:5d:a6:c0:54:ba:93:33:47:5e:6f:a5:ec:
-        32:02:21:00:a6:6c:d5:b4:be:e0:d5:8b:14:33:d7:b5:67:1a:
-        d5:3e:36:df:1f:52:df:b4:3d:50:70:64:0f:9b:c8:0b:3a:d8
+        30:44:02:20:60:28:d5:46:a0:89:11:27:2b:10:13:ab:cd:03:
+        05:df:02:cf:d8:21:32:f9:65:0e:b7:bc:93:2c:51:dc:a9:02:
+        02:20:6d:68:79:87:c4:7b:3d:09:68:97:39:64:50:36:b1:33:
+        6f:1f:c4:a9:f5:a5:f2:1e:bc:18:12:9a:b3:fa:1b:82
 ```
 
 </details>

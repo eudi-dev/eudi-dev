@@ -148,7 +148,7 @@ Selective disclosure is RFC 9901. The credential profile on top of it is `draft-
 | Disclosure digest integrity check | Implemented | Checks that each disclosure hash appears in an `_sd` array |
 | `kid` header on generated SD-JWTs | Implemented | Deterministic RFC 7638 thumbprint of the signing key |
 | X.509 trust-chain based issuer key publication | Implemented | Generated SD-JWTs carry the leaf and intermediate certificates in `x5c` and omit the root. Wallet trusted lists publish the service certificates and provider CAs |
-| SD-JWT VC `typ` header | Implemented | Generated credentials carry `dc+sd-jwt`. The parser also accepts `vc+sd-jwt` and reports it as a deviation. Strict mode refuses it |
+| SD-JWT VC `typ` header | Implemented | Generated credentials carry `dc+sd-jwt`. A credential with `vc+sd-jwt` still decodes, but it fails the type check. `validate`, the web validator and the demo verifier reject it in both modes. The wallet stores it with a warning in debug mode and refuses it in strict mode |
 | Credentials with no selectively disclosable claims | Implemented | `_sd` is omitted from the payload and the serialization ends in a single tilde (SD-JWT VC §2.2.2.5 and RFC 9901 §4) |
 | Registered claims that cannot be selectively disclosed | Enforced | `iss`, `nbf`, `exp`, `cnf`, `vct`, `vct#integrity`, `aka_vcts` and `status` are embedded plainly in generated credentials (SD-JWT VC §2.2.2.3). `iat` is plain too because the generator sets it |
 | `aka_vcts` claim | Implemented | Read when matching a credential against a requested type (§2.2.2.2). Written into issued credentials whose type extends another. Never treated as evidence of issuer authorization (§7.7) |

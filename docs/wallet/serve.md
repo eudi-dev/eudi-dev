@@ -549,10 +549,12 @@ eudi wallet register --port 9000   # Use custom listener port
 eudi wallet unregister             # Remove URL handlers
 ```
 
-| Flag            | Default | Description                                                    |
-|-----------------|---------|----------------------------------------------------------------|
-| `--port`        | `8085`  | Listener port for handler script to try before falling back to CLI |
-| `--auto-accept` | `false` | Handle incoming URLs silently without opening the wallet UI    |
+`wallet register` has no flags of its own. It takes `wallet serve` flags, stores them and replays them as `wallet serve ...` when a clicked link has to start the wallet. The handler script also reads two of them:
+
+| Flag            | Default | Effect on the handler                                                   |
+|-----------------|---------|-------------------------------------------------------------------------|
+| `--port`        | `8085`  | Port of the running wallet that the handler tries before it falls back to the CLI |
+| `--auto-accept` | `false` | Handle incoming URLs without opening the wallet UI                      |
 
 ## HTTPS certificate verification
 

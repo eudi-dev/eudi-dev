@@ -94,6 +94,20 @@ The output matches the proxy's terminal output, with decode links to its dashboa
 
 A proxy started without `--all-traffic` records only OID4VP/VCI requests, so `logs` shows only those.
 
+## Dashboard API
+
+The dashboard serves the recorded traffic as JSON. `eudi proxy logs` reads these routes.
+
+| Route | Response |
+|-------|----------|
+| `GET /api/entries` | All recorded entries as a JSON array. The `X-Entries-Limit` header gives how many entries the proxy keeps |
+| `GET /api/stream` | New entries as server-sent events, one JSON entry per `data:` line |
+| `GET /api/har` | All recorded entries as a HAR file, downloaded as `eudi-dev.har`. The dashboard's HAR export uses it |
+
+```bash
+curl -o traffic.har http://localhost:9091/api/har
+```
+
 ## Example output
 
 ```
