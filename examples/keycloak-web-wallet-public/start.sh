@@ -49,6 +49,7 @@ resolve_port() { # resolve_port VAR DEFAULT
   fi
   CLAIMED_PORTS+="${port} "
   printf -v "${var}" '%s' "${port}"
+  # shellcheck disable=SC2163 # var holds the name of the variable to export
   export "${var}"
 }
 

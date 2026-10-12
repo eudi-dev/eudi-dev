@@ -106,7 +106,7 @@ jobs:
       - name: Filter coverage
         if: matrix.storage.name == 'file'
         run: |
-          grep -v -E '/(cmd/|main\.go:|internal/output/printer\.go:|internal/proxy/(subprocess|terminal|dashboard)\.go:|internal/wallet/(register_darwin|server)\.go:|internal/qr/screen\.go:|internal/format/input\.go:|internal/web/handler\.go:)' coverage.out > coverage-filtered.out || true
+          grep -v -E '/(cmd/|main\.go:|internal/output/printer\.go:|internal/proxy/(subprocess|terminal|dashboard)\.go:|internal/wallet/server\.go:|internal/urlhandler/register_darwin\.go:|internal/qr/screen\.go:|internal/format/input\.go:|internal/web/handler\.go:)' coverage.out > coverage-filtered.out || true
 
       - name: Upload coverage
         if: matrix.storage.name == 'file'

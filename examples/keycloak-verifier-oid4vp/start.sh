@@ -98,7 +98,8 @@ if [[ "${public_mode}" == "true" ]]; then
     echo "Using ngrok hostname from sandbox certificate SAN: ${detected_domain}"
     keycloak_ngrok_domain="${detected_domain}"
   fi
-  export KEYCLOAK_BASE_URL="$(example_start_ngrok_tunnel "keycloak-verifier-oid4vp" 8080 "${keycloak_ngrok_domain}")"
+  KEYCLOAK_BASE_URL="$(example_start_ngrok_tunnel "keycloak-verifier-oid4vp" 8080 "${keycloak_ngrok_domain}")"
+  export KEYCLOAK_BASE_URL
   export BASE_URL="${KEYCLOAK_BASE_URL}"
   ngrok_override="${SCRIPT_DIR}/docker-compose.ngrok.override.yml"
   example_write_keycloak_public_override "${ngrok_override}" "${KEYCLOAK_BASE_URL}"

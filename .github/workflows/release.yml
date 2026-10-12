@@ -79,7 +79,7 @@ jobs:
               output="${output}.exe"
             fi
             echo "Building ${GOOS}/${GOARCH}..."
-            GOOS=$GOOS GOARCH=$GOARCH go build -ldflags "$LDFLAGS" -o "dist/${output}" .
+            CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build -ldflags "$LDFLAGS" -o "dist/${output}" .
           done
 
       - name: Create checksums

@@ -37,6 +37,8 @@ services:
       EUDI_DEV_STORAGE: file
       EUDI_DEV_SEED: ""
       EUDI_DEV_AUTO_ACCEPT: "false"
+      # The image health check probes this port.
+      EUDI_DEV_PORT: "${WALLET_PORT:-9085}"
     network_mode: "service:keycloak"
     depends_on:
       - keycloak
@@ -44,8 +46,6 @@ services:
       - wallet
       - serve
       - --pid
-      - --port
-      - "${WALLET_PORT:-9085}"
       - --base-url
       - http://localhost:${WALLET_PORT:-9085}
     volumes:

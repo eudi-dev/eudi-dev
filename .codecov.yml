@@ -20,7 +20,7 @@ ignore:
   - "internal/proxy/subprocess.*"
   - "internal/proxy/terminal.go"
   - "internal/proxy/dashboard.go"
-  - "internal/wallet/register_darwin.go"
+  - "internal/urlhandler/register_darwin.go"
   - "internal/wallet/server.go"
   - "internal/qr/screen.go"
   - "internal/format/input.go"

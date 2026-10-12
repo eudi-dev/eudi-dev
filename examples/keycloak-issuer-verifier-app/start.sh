@@ -2,7 +2,6 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 WALLET_PORT="${OID4VC_WALLET_PORT:-8087}"
 APP_PORT="${APP_PORT:-8090}"

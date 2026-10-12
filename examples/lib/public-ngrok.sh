@@ -119,8 +119,8 @@ example_load_env_files() {
 
   for env_file in "$@"; do
     if [[ -f "${env_file}" ]]; then
-      # shellcheck disable=SC1090
       set -a
+      # shellcheck source=/dev/null
       source "${env_file}"
       set +a
     fi
