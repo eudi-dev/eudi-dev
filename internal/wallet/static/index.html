@@ -160,7 +160,7 @@
         <pre id="howto-offer-endpoint"><span class="howto-origin" id="howto-offer-origin"></span>/credential-offer?credential_offer_uri=&hellip;</pre>
         <div class="cli-install-label" id="howto-request-label">Send an authorization request (OpenID4VP)</div>
         <pre id="howto-request-endpoint"><span class="howto-origin" id="howto-request-origin"></span>/authorize?client_id=&hellip;&amp;request_uri=&hellip;</pre>
-        <div class="cli-install-label" id="howto-trustlist-label">Trusted list (verifiers trusting this wallet's credentials)</div>
+        <div class="cli-install-label" id="howto-trustlist-label">Trusted list for verifiers that accept this wallet's credentials</div>
         <pre id="howto-trustlist-endpoint"><span class="howto-origin" id="howto-trustlist-origin"></span>/api/trustlist</pre>
       </div>
       <p class="dialog-hint" id="howto-scheme-hint">To open a custom-scheme link in a browser, replace everything before the <code>?</code> with the matching endpoint URL. Keep the query parameters.</p>
@@ -254,7 +254,7 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
 
       <div class="trust-section" id="trust-lists-section">
         <div class="trust-section-title" id="trust-lists-title">Trusted lists</div>
-        <p class="trust-section-hint" id="trust-lists-hint">Trusted lists this wallet signs (ETSI TS 119 602). The <a id="trust-lists-of-lists-link" href="api/trustlists/lists">list of trusted lists</a> points to all of them.</p>
+        <p class="trust-section-hint" id="trust-lists-hint">Trusted lists signed by this wallet (ETSI TS 119 602). The <a id="trust-lists-of-lists-link" href="api/trustlists/lists">list of trusted lists</a> links to all of them.</p>
         <div class="cert-links" id="trust-list-links"></div>
         <div class="registrar-add-row" id="trust-add-row">
           <button type="button" class="btn btn-sm" id="trust-add-provider">+ Add provider CA</button>
@@ -565,7 +565,7 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
           <div class="registrar-credentials" id="registrar-catalog-formats" role="group" aria-labelledby="registrar-catalog-formats-label"></div>
           <button type="button" class="btn btn-sm registrar-add" id="registrar-catalog-add-format">+ Add format</button>
 
-          <label class="form-label" for="registrar-catalog-category" title="Credentials of the type are signed under the provider CA of this category. Its trusted list is the default." id="registrar-catalog-category-label">Category</label>
+          <label class="form-label" for="registrar-catalog-category" title="Credentials of this type are signed by the provider CA of the category. That CA's trusted list is the default." id="registrar-catalog-category-label">Category</label>
           <select id="registrar-catalog-category" class="form-input"><option value="eaa" selected>EAA</option></select>
 
           <label class="form-label" for="registrar-catalog-rulebook" id="registrar-catalog-rulebook-label">Rulebook</label>
@@ -713,7 +713,7 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
           <input type="text" id="issue-display-name" class="form-input" placeholder="e.g. Employee Badge">
 
           <label class="form-label" for="issue-display-description" id="issue-display-description-label">Description</label>
-          <input type="text" id="issue-display-description" class="form-input" placeholder="Shown behind the card's About control">
+          <input type="text" id="issue-display-description" class="form-input" placeholder="Shown under About on the card">
 
           <label class="form-label" for="issue-bg-color" id="issue-bg-color-label">Background color</label>
           <div class="form-color-row" id="issue-bg-color-row">
@@ -759,7 +759,7 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
             <label class="form-label" for="issue-catalog-name" id="issue-catalog-name-label">Attestation name</label>
             <input type="text" id="issue-catalog-name" class="form-input" placeholder="Name in the catalogue">
 
-            <label class="form-label" for="issue-catalog-category" title="Credentials of the type are signed under the provider CA of this category. Its trusted list is the default." id="issue-catalog-category-label">Category</label>
+            <label class="form-label" for="issue-catalog-category" title="Credentials of this type are signed by the provider CA of the category. That CA's trusted list is the default." id="issue-catalog-category-label">Category</label>
             <select id="issue-catalog-category" class="form-input"><option value="eaa" selected>EAA</option></select>
 
             <label class="form-label" for="issue-catalog-rulebook" id="issue-catalog-rulebook-label">Rulebook</label>

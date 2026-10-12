@@ -766,7 +766,7 @@
       });
       disc.insertBefore(
         renderNote(
-          "Each disclosure matches a digest that the issuer signed.",
+          "Each disclosure matches a digest signed by the issuer.",
           discBase + "-note"),
         disc.firstChild);
       appendSection("Disclosures (" + data.disclosures.length + ")", disc, data.disclosures, "disclosures", discBase);

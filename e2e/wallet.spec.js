@@ -1744,6 +1744,24 @@ for (const shape of ["encrypted JSON", "JSON", "object", "legacy details", "defe
   });
 }
 
+test("a signed response in the activity log opens in the decoder", async ({ page }) => {
+  const token = activityJWT("signed-metadata");
+  await page.route("**/api/log*", route => route.fulfill({ json: [
+    { time: "2026-10-01T08:00:00Z", action: "issuance", detail: "Issuer metadata response from https://issuer.example", success: true,
+      details: { event: "issuer_metadata_response" }, payload: { label: "Response", body: token } },
+    { time: "2026-10-01T08:00:01Z", action: "issuance", detail: "Token response", success: true,
+      details: { event: "token_response" }, payload: { label: "Response", body: JSON.stringify({ access_token: "opaque" }) } },
+  ] }));
+  await page.goto(WALLET_URL);
+  const metadata = page.locator('[data-testid="log-entry"][data-event="issuer_metadata_response"]');
+  await metadata.getByTestId("log-entry-toggle").click();
+  await expect(metadata.getByTestId("log-decoder-link")).toHaveJSProperty("href", WALLET_URL + "/decoder/#credential=" + encodeURIComponent(token));
+  const tokenResponse = page.locator('[data-testid="log-entry"][data-event="token_response"]');
+  await tokenResponse.getByTestId("log-entry-toggle").click();
+  await expect(tokenResponse.locator(".log-payload > pre")).toBeVisible();
+  await expect(tokenResponse.getByTestId("log-decoder-link")).toHaveCount(0);
+});
+
 for (const shape of ["object", "JSON"]) {
   test(`batch import activity opens every stored credential from ${shape}`, async ({ page }) => {
     const subjects = ["first-import", "second-import", "third-import"];
@@ -2676,7 +2694,7 @@ test.describe("Registrar", () => {
     await expect(page.locator(card + "-add-use")).toHaveText("+ Add verifier registration certificate");
     await page.locator(card + "-add-use").click();
     await expect(page.locator("#registrar-title")).toHaveText("Add a verifier registration certificate to Checking University");
-    await expect(page.locator("#registrar-target-hint")).toContainText("Lets the issuer request credentials");
+    await expect(page.locator("#registrar-target-hint")).toContainText("Lets the issuer ask for credentials");
     await expect(page.locator("#registrar-purpose")).toHaveValue("Identity check before issuance");
     await expect(page.locator("#registrar-credentials [data-field=\"claims\"]").first()).toHaveValue("given_name, family_name");
     await page.locator("#registrar-purpose").fill("Checks who you are before a diploma is issued");

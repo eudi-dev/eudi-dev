@@ -1831,7 +1831,14 @@
     } else if (copies) {
       detail += copies;
     }
+    if (!decoderInput && !credentials.length && !presentations.length && !payload?.encrypted && isCompactJWT(payload?.body)) {
+      decoderInput = payload.body.trim();
+    }
     return { payload, detail, details, presentations, credentials, decoderInput };
+  }
+
+  function isCompactJWT(value) {
+    return typeof value === 'string' && /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*(~[A-Za-z0-9_.~-]*)?$/.test(value.trim());
   }
 
   function logPayloadText(value) {
@@ -1932,8 +1939,8 @@
     // browser's requests.
     const claimed = pending.some((req) => req.mine);
     document.getElementById('pending-text').textContent = pending.length === 1
-      ? (claimed ? 'A request is waiting for consent.' : 'An unowned request is waiting for consent.')
-      : pending.length + (claimed ? ' requests are waiting for consent.' : ' unowned requests are waiting for consent.');
+      ? (claimed ? 'A request is waiting for consent.' : 'A request from outside this browser is waiting for consent.')
+      : pending.length + (claimed ? ' requests are waiting for consent.' : ' requests from outside this browser are waiting for consent.');
     banner.hidden = false;
   }
 
@@ -3760,7 +3767,7 @@
       '<button type="button" class="btn btn-danger btn-sm" id="' + servicePrefix + '-delete" title="Removes it from the registration and revokes it.">Delete</button>' +
     '</span>';
     row.innerHTML =
-      '<div class="registrar-use-kind" id="' + servicePrefix + '-kind" title="Attestation types this issuer may issue (ETSI TS 119 475). Published in issuer_info.">Issuer registration certificate</div>' +
+      '<div class="registrar-use-kind" id="' + servicePrefix + '-kind" title="Entitles the issuer to the attestation types below (ETSI TS 119 475). Published in issuer_info.">Issuer registration certificate</div>' +
       '<div class="registrar-use-head" id="' + servicePrefix + '-head">' +
         '<span class="registrar-use-purpose" id="' + servicePrefix + '-entitlement">' + escHtml(entitlements.join(', ') || 'Attestation provider') + '</span>' +
         actions +
@@ -4030,7 +4037,7 @@
         'Registers another purpose and issues its certificate.', 'verifier');
       if (!services.some(service => (service.providesAttestations || []).length > 0)) {
         addButton('-add-issuer', '+ Add issuer registration certificate',
-          'Registers the attestation types this party may issue.', 'issuer');
+          'Registers which attestation types this party may issue.', 'issuer');
       }
       if (!locked) card.appendChild(addRow);
       const remove = card.querySelector('#' + prefix + '-delete');
@@ -4284,7 +4291,7 @@
       : addsIssuer
       ? 'Lists the attestation types below. Publish it in issuer_info of the signed issuer metadata.'
       : targetIssues
-      ? 'Lets the issuer request credentials, such as a PID before it issues. Send it in verifier_info.'
+      ? 'Lets the issuer ask for credentials, such as a PID, before it issues. Send it in verifier_info.'
       : 'Registers another purpose. Send its certificate in verifier_info.';
     document.getElementById('registrar-title').textContent = registrarEditService
       ? 'Edit the attestation types of ' + targetName

@@ -562,7 +562,7 @@ test.describe("Demo mode consent visibility", () => {
     // unowned request, so the starter's request never reached this tab.
     const unowned = await createVerificationRequest();
     submitAsSchemeHandler("/api/presentations", unowned.schemeURI);
-    await expect(bystander.locator("#pending-text")).toHaveText("An unowned request is waiting for consent.");
+    await expect(bystander.locator("#pending-text")).toHaveText("A request from outside this browser is waiting for consent.");
     await expect(bystander.locator("#consent-overlay")).not.toHaveClass(/active/);
     await clearPending();
 

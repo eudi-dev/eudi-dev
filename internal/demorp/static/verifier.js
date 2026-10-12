@@ -175,9 +175,9 @@ document.addEventListener("visibilitychange", () => {
 
 // Only PID requests offer a format choice. The demo ticket is SD-JWT only.
 const FORMAT_HINTS = {
-  both: "The wallet answers with the format it holds.",
-  "sd-jwt": "Only an SD-JWT VC PID answers.",
-  mdoc: "Only an mdoc PID answers.",
+  both: "The wallet answers in either format.",
+  "sd-jwt": "Only an SD-JWT VC PID matches.",
+  mdoc: "Only an mdoc PID matches.",
 };
 
 // Both shapes use DCQL credential_sets (OpenID4VP 1.0 §6.2).
