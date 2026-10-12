@@ -176,3 +176,5 @@ This repository has its own [conformance results](docs/conformance-results.md) a
 ## License
 
 Apache-2.0
+
+**Fonts:** The web pages use IBM Plex Sans and IBM Plex Mono by IBM. They are bundled unmodified under the SIL Open Font License 1.1. See [internal/webui/fonts](internal/webui/fonts).

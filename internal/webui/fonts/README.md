@@ -1,0 +1,1 @@
+These are IBM Plex Sans and IBM Plex Mono in the Latin1 subset IBM ships. They come unmodified from the npm packages `@ibm/plex-sans` 1.1.0 and `@ibm/plex-mono` 2.5.0 (fonts/split/woff2). They are licensed under the SIL Open Font License 1.1 in LICENSE.txt.

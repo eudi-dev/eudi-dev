@@ -64,9 +64,8 @@ func TestLoadRejectsNonHTMLAndEmpty(t *testing.T) {
 	}
 }
 
-// The server's Content-Security-Policy blocks javascript: links, so the page
-// must run no script.
-func TestLoadPageRunsNoScript(t *testing.T) {
+// The server's Content-Security-Policy blocks javascript: links.
+func TestLoadPageUsesNoJavascriptLink(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "imprint.html")
 	if err := os.WriteFile(path, []byte("<h1>Imprint</h1>"), 0o644); err != nil {
 		t.Fatal(err)

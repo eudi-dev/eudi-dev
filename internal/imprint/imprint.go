@@ -34,10 +34,11 @@ const pageTemplate = `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>Imprint</title>
+<link rel="stylesheet" href="tokens.css">
+<script src="theme.js"></script>
 <style>
-  body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; line-height: 1.6; max-width: 42rem; margin: 2rem auto; padding: 0 1rem; background: #f2f3f5; color: #15171a; }
-  a { color: #1f4fd1; }
-  @media (prefers-color-scheme: dark) { body { background: #17191e; color: #eceef1; } a { color: #9dbcff; } }
+  body { font-family: var(--font-sans); line-height: 1.6; max-width: 42rem; margin: 2rem auto; padding: 0 1rem; background: var(--bg); color: var(--text); }
+  a { color: var(--link); }
   hr { margin: 2rem 0; opacity: 0.4; }
   .disclaimer { font-size: 0.85rem; opacity: 0.8; }
 </style>

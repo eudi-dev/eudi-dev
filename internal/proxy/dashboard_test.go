@@ -23,6 +23,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eudi-dev/eudi-dev/v3/internal/webui/webuitest"
 )
 
 func TestHandleHAR(t *testing.T) {
@@ -321,6 +323,19 @@ func TestDashboardRejectsBasePathOnItsRoutes(t *testing.T) {
 	for _, path := range []string{"/api", "/decode/x", "/app.js"} {
 		if err := NewDashboard(NewStore(10)).SetBaseURL("https://mydomain.de" + path); err == nil {
 			t.Errorf("base path %s accepted", path)
+		}
+	}
+}
+
+// The dashboard and its decoder load the bundled fonts, at the root and below
+// a path prefix.
+func TestDashboardPagesLoadTheFonts(t *testing.T) {
+	h := NewDashboard(NewStore(10)).Handler()
+	for _, prefix := range []string{"", "/eudi-proxy"} {
+		for _, page := range []string{"/", "/decode/"} {
+			t.Run(prefix+page, func(t *testing.T) {
+				webuitest.CheckFonts(t, h, prefix, page)
+			})
 		}
 	}
 }

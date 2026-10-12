@@ -257,7 +257,7 @@ func (s *Server) setupRoutes() {
 			s.routeRoots[entry.Name()] = true
 		}
 	}
-	for _, name := range webui.Names {
+	for _, name := range webui.Roots {
 		s.routeRoots[name] = true
 	}
 	index, _ := fs.ReadFile(sub, "index.html")

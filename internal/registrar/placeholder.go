@@ -71,29 +71,21 @@ var placeholderTemplate = template.Must(template.New("placeholder").Parse(`<!doc
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>{{.Title}} · eudi-dev test registrar</title>
+<link rel="stylesheet" href="tokens.css">
+<script src="theme.js"></script>
 <style>
-:root {
-  --bg: #17191e; --surface: #21242a; --text: #eceef1; --dim: #a9afb9;
-  --border: #2a2e35; --accent: #9dbcff; --warn-bg: #33291a; --warn-fg: #f3e3bd;
-}
-@media (prefers-color-scheme: light) {
-  :root {
-    --bg: #f2f3f5; --surface: #ffffff; --text: #15171a; --dim: #5a606a;
-    --border: #e4e6ea; --accent: #1f4fd1; --warn-bg: #fff3d6; --warn-fg: #4a3a10;
-  }
-}
 * { box-sizing: border-box; }
 body {
   margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
   padding: 24px 16px; background: var(--bg); color: var(--text);
-  font: 15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+  font: 15px/1.6 var(--font-sans);
 }
 main {
-  width: 100%; max-width: 560px; background: var(--surface); border: 1px solid var(--border);
+  width: 100%; max-width: 560px; background: var(--bg-surface); border: 1px solid var(--border-subtle);
   border-radius: 24px; padding: 32px;
 }
 .kind {
-  margin: 0; font-size: 13px; font-weight: 600; color: var(--accent);
+  margin: 0; font-size: 13px; font-weight: 600; color: var(--link);
 }
 h1 { margin: 6px 0 16px; font-size: 26px; line-height: 1.25; }
 .badge {
@@ -102,7 +94,7 @@ h1 { margin: 6px 0 16px; font-size: 26px; line-height: 1.25; }
 }
 p { margin: 0 0 12px; }
 footer {
-  margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--dim); font-size: 13px;
+  margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-subtle); color: var(--text-dim); font-size: 13px;
 }
 @media (max-width: 480px) { main { padding: 24px 20px; } h1 { font-size: 22px; } }
 </style>

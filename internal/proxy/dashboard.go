@@ -62,7 +62,7 @@ func (d *Dashboard) SetBaseURL(raw string) error {
 
 func dashboardRoots() map[string]bool {
 	roots := map[string]bool{"api": true, "decode": true}
-	for _, name := range webui.Names {
+	for _, name := range webui.Roots {
 		roots[name] = true
 	}
 	if entries, err := fs.ReadDir(staticFiles, "static"); err == nil {

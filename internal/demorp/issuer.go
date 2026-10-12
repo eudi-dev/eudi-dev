@@ -135,9 +135,7 @@ func (d *DemoRP) IssuerHandler() http.Handler {
 	// The script is a separate file because the wallet Content-Security-Policy
 	// has no script-src 'unsafe-inline'.
 	mux.HandleFunc("GET /issuer.js", d.serveStatic("static/issuer.js"))
-	for _, name := range webui.Names {
-		mux.HandleFunc("GET /"+name, webui.Handler(name))
-	}
+	webui.Mount(mux)
 	mux.HandleFunc("POST /api/offers", d.handleCreateOffer)
 	mux.HandleFunc("GET /offer/{id}", d.handleOfferByReference)
 	mux.HandleFunc("POST /token", d.handleToken)

@@ -29,16 +29,19 @@ import (
 // The pages of every server, with the stylesheets and scripts they define
 // their own variables in.
 var pages = map[string][]string{
-	"wallet":   {"../wallet/static/index.html", "../wallet/static/style.css", "../wallet/static/app.js"},
-	"decoder":  {"../web/static/index.html", "../web/static/style.css", "../web/static/app.js"},
-	"proxy":    {"../proxy/static/index.html", "../proxy/static/style.css", "../proxy/static/app.js"},
-	"issuer":   {"../demorp/static/issuer.html", "../demorp/static/issuer.js"},
-	"verifier": {"../demorp/static/verifier.html", "../demorp/static/verifier.js"},
-	"sign-in":  {"../demorp/issuer_authcode.go"},
+	"wallet":      {"../wallet/static/index.html", "../wallet/static/style.css", "../wallet/static/app.js"},
+	"decoder":     {"../web/static/index.html", "../web/static/style.css", "../web/static/app.js"},
+	"proxy":       {"../proxy/static/index.html", "../proxy/static/style.css", "../proxy/static/app.js"},
+	"issuer":      {"../demorp/static/issuer.html", "../demorp/static/issuer.js"},
+	"verifier":    {"../demorp/static/verifier.html", "../demorp/static/verifier.js"},
+	"sign-in":     {"../demorp/issuer_authcode.go"},
+	"placeholder": {"../registrar/placeholder.go"},
+	"imprint":     {"../imprint/imprint.go"},
 }
 
 var (
-	definition = regexp.MustCompile(`(--[a-z0-9-]+)\s*:`)
+	// A script defines a variable with style.setProperty('--name', value).
+	definition = regexp.MustCompile(`(--[a-z0-9-]+)(?:\s*:|',)`)
 	// A name that ends in a dash is the prefix of one that a script builds.
 	use = regexp.MustCompile(`var\((--[a-z0-9-]*[a-z0-9])\b[^-]`)
 )

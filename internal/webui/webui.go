@@ -13,21 +13,30 @@
 // limitations under the License.
 
 // Package webui holds the files that every eudi-dev page shares: the colour
-// tokens and the theme script. Each server serves them next to its pages.
+// tokens, the theme script and the fonts. Each server serves them next to its
+// pages.
 package webui
 
 import (
 	"embed"
 	"io/fs"
+	"mime"
 	"net/http"
 	"slices"
+	"strings"
 )
 
-//go:embed tokens.css theme.js
+//go:embed tokens.css theme.js fonts/*.woff2 fonts/LICENSE.txt
 var files embed.FS
 
-// Names are the shared files. A page links them by these relative names.
-var Names = []string{"tokens.css", "theme.js"}
+// Roots are the first path segments of the shared files. A page links the
+// files by relative paths, so they resolve below any path prefix.
+var Roots = []string{"tokens.css", "theme.js", "fonts"}
+
+func init() {
+	// Go's built-in type table has no entry for woff2.
+	_ = mime.AddExtensionType(".woff2", "font/woff2")
+}
 
 // Overlay serves the shared files over base.
 func Overlay(base fs.FS) fs.FS {
@@ -37,16 +46,20 @@ func Overlay(base fs.FS) fs.FS {
 type overlay struct{ base fs.FS }
 
 func (o overlay) Open(name string) (fs.File, error) {
-	if slices.Contains(Names, name) {
+	if root, _, _ := strings.Cut(name, "/"); slices.Contains(Roots, root) {
 		return files.Open(name)
 	}
 	return o.base.Open(name)
 }
 
-// Handler serves one shared file.
-func Handler(name string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+// Mount serves the shared files on mux.
+func Mount(mux *http.ServeMux) {
+	server := http.FileServerFS(files)
+	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-cache")
-		http.ServeFileFS(w, r, files, name)
-	}
+		server.ServeHTTP(w, r)
+	})
+	mux.Handle("GET /tokens.css", h)
+	mux.Handle("GET /theme.js", h)
+	mux.Handle("GET /fonts/", h)
 }

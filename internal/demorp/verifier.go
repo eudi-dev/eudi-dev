@@ -101,9 +101,7 @@ func (d *DemoRP) VerifierHandler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", d.servePage("static/verifier.html"))
 	mux.HandleFunc("GET /verifier.js", d.serveStatic("static/verifier.js"))
-	for _, name := range webui.Names {
-		mux.HandleFunc("GET /"+name, webui.Handler(name))
-	}
+	webui.Mount(mux)
 	mux.HandleFunc("POST /api/requests", d.handleCreateRequest)
 	mux.HandleFunc("GET /api/requests/{key}", d.handleRequestStatus)
 	mux.HandleFunc("GET /request/{id}", d.handleRequestObject)
