@@ -110,8 +110,8 @@ type OfferOptions struct {
 	// URI, for example for a consent dialog. The flow uses it only when reading
 	// the URI again fails.
 	ResolvedOffer *oid4vc.CredentialOffer
-	// ConfigurationID is the entry of credential_configuration_ids the user
-	// or the API caller chose. Empty requests the first entry.
+	// ConfigurationID is the entry of credential_configuration_ids chosen by
+	// the user or the API caller. Empty requests the first entry.
 	ConfigurationID string
 
 	// findings collects the debug findings of the flow for its result.
@@ -149,8 +149,8 @@ func (w *Wallet) resolveOffer(offerURI string, approved *oid4vc.CredentialOffer)
 	if strings.TrimSpace(offer.CredentialIssuer) == "" {
 		return w.keepApprovedOffer(offerURI, approved, fmt.Errorf("the response carried no credential_issuer"))
 	}
-	// An offer with a different issuer or different credentials is not the one
-	// the user approved.
+	// An offer with a different issuer or different credentials is not the
+	// approved offer.
 	if approved != nil && !sameCredentialOffer(approved, offer) {
 		w.addProtocolWarning("issuance", "credential_offer_changed",
 			fmt.Sprintf("The credential_offer_uri now offers %s rather than the %s this issuance was approved for, continuing with what was approved",
@@ -359,8 +359,8 @@ func (w *Wallet) processCredentialOffer(offerURI string, opts OfferOptions) (_ *
 	return w.issueWithToken(session, tokenForm)
 }
 
-// walletClientIdentifier is the client identifier the wallet attests for
-// itself: the configured OID4VCI client_id, or else its base URL.
+// walletClientIdentifier returns the client identifier in the wallet's own
+// attestation: the configured OID4VCI client_id, or else its base URL.
 func (w *Wallet) walletClientIdentifier() string {
 	if id := strings.TrimSpace(w.VCIClientID); id != "" {
 		return id
@@ -551,7 +551,7 @@ func parseIssuerMetadataDocument(body []byte, contentType, issuer string, onProb
 }
 
 // checkCredentialIssuerIdentifier checks that the metadata matches the
-// identifier it was fetched for.
+// identifier used to fetch it.
 //
 // OpenID4VCI 1.0 §12.2.4 on credential_issuer: "The value MUST be identical to
 // the Credential Issuer's identifier value into which the well-known URI string

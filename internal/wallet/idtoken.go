@@ -26,11 +26,11 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
 )
 
-// signedJWTLifetime is the lifetime of the short-lived JWTs the wallet signs:
+// signedJWTLifetime is the lifetime of short-lived JWTs signed by the wallet:
 // ID tokens, client attestations and their proofs of possession.
 const signedJWTLifetime = 5 * time.Minute
 
-// crlUpdateInterval is the time to the nextUpdate of a CRL the wallet signs.
+// crlUpdateInterval is the time to the nextUpdate of a CRL signed by the wallet.
 const crlUpdateInterval = 7 * 24 * time.Hour
 
 func (w *Wallet) createSelfIssuedIDToken(nonce, clientID string) (string, error) {

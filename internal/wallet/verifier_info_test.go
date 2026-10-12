@@ -61,8 +61,8 @@ func verifierInfoPayload(entries ...map[string]any) map[string]any {
 	return map[string]any{"verifier_info": list}
 }
 
-// purposesOf returns the purposes of the registration certificates in
-// verifier_info that verify, and the problems of the others.
+// purposesOf returns the purposes of the valid registration certificates in
+// verifier_info and the problems of the others.
 func purposesOf(payload map[string]any) ([]string, []string) {
 	certs, problems := verifiedRegistrationCertificates(payload)
 	purposes, _ := regcert.Purposes(certs)

@@ -76,7 +76,7 @@ func TestDenyOfAPastedRequestReturnsTheVerifierRedirect(t *testing.T) {
 
 	pending := waitForPendingRequest(t, srv.wallet)
 	denyRec := serverRequest(t, srv, "POST", "/api/requests/"+pending.ID+"/deny", "")
-	// The verifier accepted the error response, so the answer names only the
+	// The verifier accepted the error response, so the answer holds only the
 	// outcome and the redirect.
 	want := map[string]any{"status": "denied", "redirect_uri": verifierContinueURI}
 	if got := decodeJSON(t, denyRec); !reflect.DeepEqual(got, want) {

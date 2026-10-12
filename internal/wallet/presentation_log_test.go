@@ -25,8 +25,8 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
 )
 
-// The console names the transcript the presentation used, which a request can
-// choose for itself.
+// The console shows the presentation's transcript mode. A request can choose
+// its own.
 func TestMDocPresentationLogsItsOwnTranscript(t *testing.T) {
 	w := pidBaselineWallet(t)
 	w.SessionTranscript = oid4vp.SessionTranscriptOID4VP

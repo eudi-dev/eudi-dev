@@ -31,7 +31,7 @@ var (
 	ErrCredentialProtected = errors.New("credential is protected and can only be removed through the wallet file")
 	ErrStatusProtected     = errors.New("credential is protected and its status can only be changed through the wallet file")
 	ErrNoStatusEntry       = errors.New("credential has no status entry")
-	// ErrInvalidStatus follows draft-ietf-oauth-status-list §7, which limits
+	// ErrInvalidStatus follows draft-ietf-oauth-status-list §7. It limits
 	// status values to 0 through 255.
 	ErrInvalidStatus = errors.New("a status type takes a value from 0 to 255")
 )
@@ -194,7 +194,7 @@ func (m *Management) Issue(req IssueAPIRequest) (map[string]any, error) {
 
 // RenewCredential renews a credential with its refresh token. The wallet
 // stores the renewal and a rotated refresh token under the store lock. The
-// commit persists them for the local CLI, which has no server to save them.
+// commit persists them for the local CLI because it has no server to save them.
 // A failed renewal can still have rotated the refresh token, so the commit
 // runs either way.
 func (m *Management) RenewCredential(id string) (*StoredCredential, error) {
@@ -208,8 +208,8 @@ func (m *Management) RenewCredential(id string) (*StoredCredential, error) {
 	return renewed, nil
 }
 
-// DeferredIssuances omits the access token, a bearer secret only the wallet
-// uses.
+// DeferredIssuances omits the access token. It is a bearer secret for the
+// wallet only.
 func (m *Management) DeferredIssuances() []map[string]any {
 	pending := m.wallet.DeferredIssuanceList()
 	out := make([]map[string]any, 0, len(pending))
@@ -223,8 +223,8 @@ func (m *Management) Log() []LogEntry {
 	return m.wallet.GetLog()
 }
 
-// ClearLog also writes the clear marker, which removes the entries that other
-// servers append to a shared store.
+// ClearLog also writes the clear marker. The marker removes entries appended
+// to a shared store by other servers.
 func (m *Management) ClearLog() error {
 	if m.store != nil {
 		if err := m.store.writeLogCleanMarker(time.Now()); err != nil {
@@ -251,8 +251,8 @@ func (m *Management) Template(name string) (*credtemplate.Template, error) {
 	return credtemplate.Load(name, m.wallet.Templates)
 }
 
-// SaveTemplate stores a template with the catalogue entry that entry
-// requests (see Wallet.TemplateCatalogRequest).
+// SaveTemplate stores a template together with the catalogue entry requested
+// by entry (see Wallet.TemplateCatalogRequest).
 func (m *Management) SaveTemplate(tpl credtemplate.Template, entry *registrar.CatalogAttestation) (string, error) {
 	entry, err := m.wallet.TemplateCatalogRequest(&tpl, entry)
 	if err != nil {
@@ -310,8 +310,8 @@ func (m *Management) Registrar(op func(*registrar.Registrar) error) error {
 	return m.commit(func() error { return op(m.wallet.Registrar()) })
 }
 
-// Config is the document of GET /api/config. A server adds what only it
-// knows, such as its port.
+// Config is the document of GET /api/config. A server adds its own details,
+// such as its port.
 func (m *Management) Config() map[string]any {
 	w := m.wallet
 	doc := map[string]any{}

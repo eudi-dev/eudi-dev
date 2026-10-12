@@ -145,16 +145,16 @@ func TestNoMatchingCredentialsReturnsAccessDeniedToTheVerifier(t *testing.T) {
 	if local["status"] != "no_match" {
 		t.Fatalf("local status %v, want no_match", local["status"])
 	}
-	// The caller reads the code the verifier received in the same error
-	// object as every other refusal.
+	// The caller finds the verifier's error code in the same error object as
+	// for every other refusal.
 	if local["error"] != "access_denied" {
 		t.Fatalf("local error %v, want access_denied", local["error"])
 	}
 }
 
 // §8.5 vp_formats_not_supported: "The Wallet does not support any of the
-// formats requested by the Verifier". A query for a format the wallet cannot
-// present fails before any stored credential is checked. The cause is the
+// formats requested by the Verifier". A query for an unsupported format
+// fails before any stored credential is checked. The cause is the
 // format and has nothing to do with what the wallet holds.
 func TestAQueryForAnUnsupportedFormatReturnsVPFormatsNotSupported(t *testing.T) {
 	srv := newTestServer(t, true)

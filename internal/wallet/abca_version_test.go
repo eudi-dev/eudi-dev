@@ -186,7 +186,7 @@ func runABCAOffer(t *testing.T, w *Wallet, cfg abcaIssuerConfig) (*abcaCapture, 
 
 // TestAttestationShapeIsDraftUnion checks the emitted shape for each
 // OpenID4VCI version. The attestation and its PoP carry the union of the
-// claims of the supported drafts, which is the draft-07 shape. Draft-07
+// claims of the supported drafts. That union is the draft-07 shape. Draft-07
 // §5.1/§5.2 require iss in both JWTs and define nbf. Every draft allows extra
 // claims in these JWTs (§5.1 and §5.2 rule 1), so one shape verifies under all
 // of them.

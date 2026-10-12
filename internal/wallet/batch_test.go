@@ -500,8 +500,8 @@ func TestIssueAPICapsTheBatch(t *testing.T) {
 }
 
 // A renewal sends a proof per key, and the issuer may bind the renewed
-// credential to any of them (OID4VCI 1.0 §8.3). The credential keeps the key
-// it is bound to, so its presentations stay signed with that key.
+// credential to any of them (OID4VCI 1.0 §8.3). The credential keeps its bound
+// key, so its presentations stay signed with that key.
 func TestRenewalKeepsTheBindingKeyOfTheRenewedCredential(t *testing.T) {
 	w := generateTestWallet(t)
 	cred, err := w.ImportCredential(sdJWTBoundTo(t, w, &w.HolderKey.PublicKey))

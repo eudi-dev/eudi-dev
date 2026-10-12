@@ -25,7 +25,7 @@ import (
 )
 
 // Replace typ with the legacy value to test import parsing. This invalidates the
-// signature, which import does not check.
+// signature. Import does not check it.
 func legacyTypeCredential(t *testing.T, w *Wallet, typ string) string {
 	t.Helper()
 	raw, err := mock.GenerateSDJWT(mock.SDJWTConfig{

@@ -135,7 +135,7 @@ func TestLoadCatalogFileNamesTheFileAndEntryOfAnError(t *testing.T) {
 }
 
 // Every start applies the file again. Entries keep their ids, a changed
-// entry is updated, and an entry dropped from the file goes. Entries added
+// entry is updated, and an entry dropped from the file is removed. Entries added
 // through the API stay.
 func TestApplyCatalogFileIsIdempotentAndFollowsTheFile(t *testing.T) {
 	dir := t.TempDir()
@@ -353,8 +353,8 @@ func TestATemplateFileCarriesItsCatalogueEntry(t *testing.T) {
 	}
 }
 
-// An invalid catalog object, or one that takes the name of another entry,
-// stops the start with the template's name.
+// An invalid catalog object stops the start with the template's name. So does
+// a catalog object that reuses the name of another entry.
 func TestCheckTemplateCatalogNamesTheTemplate(t *testing.T) {
 	for name, catalog := range map[string]string{
 		"bad-los":   `{"name": "Bad level", "schema": {"attestationLoS": "iso_18045_extreme"}}`,

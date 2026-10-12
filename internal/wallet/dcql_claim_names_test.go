@@ -24,7 +24,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
 )
 
-// A claim name may contain any character, so a selector must name it without
+// A claim name may contain any character, so a selector must identify it without
 // ambiguity and read back to the same claims path.
 func TestSelectorRoundTripsClaimNamesWithSeparators(t *testing.T) {
 	for _, path := range [][]any{

@@ -135,9 +135,9 @@ func (w *Wallet) CheckCatalogueAnchoring(raw string) (anchoring CatalogueAnchori
 // and H).
 //
 // Several entries can list one type. Every national PID lists the mdoc doctype
-// eu.europa.ec.eudi.pid.1. Their lists together anchor the credential, and
-// the one entry that links the anchoring list names it. When several entries
-// match and no single one links that list, the result names none.
+// eu.europa.ec.eudi.pid.1. Their lists together anchor the credential. The
+// result holds the one entry linking the anchoring list. When several entries
+// match and none of them alone links that list, the result holds no entry.
 func (w *Wallet) catalogueAnchoring(cred StoredCredential) (CatalogueAnchoring, bool) {
 	entries := catalogueEntriesIn(w.Registrar().CatalogAttestations(), cred.Format, []string{cred.VCT, cred.DocType})
 	if len(entries) == 0 {
@@ -218,7 +218,7 @@ func listedIn(lists []trustedlists.List, url string) bool {
 	return slices.ContainsFunc(lists, func(l trustedlists.List) bool { return l.URL == url })
 }
 
-// entriesLinking returns the catalogue entries that name the trusted list.
+// entriesLinking returns the catalogue entries that link the trusted list.
 func entriesLinking(entries []registrar.CatalogAttestation, listURL string) []registrar.CatalogAttestation {
 	var out []registrar.CatalogAttestation
 	for _, entry := range entries {

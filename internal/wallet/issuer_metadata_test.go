@@ -32,8 +32,8 @@ func TestIssuerURLFromBaseURL(t *testing.T) {
 	}
 }
 
-// An issuer reached by IP address gets the address as an iPAddress SAN, which
-// is what a TLS client matches it against.
+// An issuer reached by IP address gets the address as an iPAddress SAN. A TLS
+// client matches the address against that SAN.
 func TestIssuerTLSCertificateNamesAnIPHostAsAnAddress(t *testing.T) {
 	certPEM, _, err := generateIssuerTLSCertificatePEMWithCA("192.0.2.7", nil, nil)
 	if err != nil {

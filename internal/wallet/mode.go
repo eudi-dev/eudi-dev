@@ -39,7 +39,7 @@ func ParseValidationMode(raw string) (ValidationMode, error) {
 	}
 }
 
-// specCitedSummary names the specifications the findings cite. A finding
+// specCitedSummary lists the specifications cited by the findings. A finding
 // starts with its citation, such as "OID4VP 1.0 §5.2:" or "ARF RPRC_19:".
 func specCitedSummary(subject string, findings []string) string {
 	var specs []string
@@ -55,8 +55,8 @@ func specCitedSummary(subject string, findings []string) string {
 }
 
 // citedSpecification is the citation before the first colon of a finding, up
-// to its first section or rule reference. A citation names a version or
-// standard number, or a reference, so plain prose before a colon is none.
+// to its first section or rule reference. A citation contains a version, a
+// standard number or a reference. Plain prose before a colon is no citation.
 func citedSpecification(finding string) string {
 	citation, _, found := strings.Cut(finding, ":")
 	if !found {

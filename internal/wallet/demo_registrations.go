@@ -34,8 +34,8 @@ import (
 
 // The demo issuer and the demo verifier are registered with the wallet's
 // registrar like any relying party. Their registrations are TS05 files in the
-// defaults tree with one service each. The wallet adds what depends on its
-// templates. Each party is identified by the organizationIdentifier of its
+// defaults tree with one service each. The wallet adds the parts derived from
+// its templates. Each party is identified by the organizationIdentifier of its
 // access certificate (ETSI TS 119 475 V1.2.1 §5.1.1).
 var (
 	demoIssuer   = demoRegistrationFile("demo-issuer.json")
@@ -67,8 +67,8 @@ func demoIdentifier(registration func() registrar.WalletRelyingParty) string {
 	return registration().Identifier[0].Identifier
 }
 
-// IdentityCheckClaims are the PID claims that the demo issuer's identity
-// check asks for, as registered for its intended use.
+// IdentityCheckClaims are the PID claims requested by the demo issuer's
+// identity check, as registered for its intended use.
 func IdentityCheckClaims() []string {
 	var claims []string
 	for _, c := range demoIssuer().Services[0].IntendedUses[0].Credentials {
@@ -159,8 +159,8 @@ func (w *Wallet) RegisterMissingDemoParties() (bool, error) {
 	return w.registerDemoParties(demoRegisterMissing)
 }
 
-// FollowDemoTemplates updates the registrations of the demo parties that
-// exist to the wallet's templates and keeps the user's other changes.
+// FollowDemoTemplates updates existing demo party registrations to the
+// wallet's templates and keeps the user's other changes.
 func (w *Wallet) FollowDemoTemplates() (bool, error) {
 	return w.registerDemoParties(demoFollowTemplates)
 }
@@ -180,9 +180,8 @@ func (w *Wallet) registerDemoParties(sync demoSync) (bool, error) {
 	return changed, nil
 }
 
-// demoParty builds the registration of a demo party. follow copies the parts
-// that the wallet derives from its templates into a registration the user
-// keeps.
+// demoParty builds the registration of a demo party. follow copies the
+// template-derived parts into the user's kept registration.
 type demoParty struct {
 	build  demoRegistration
 	follow func(kept *registrar.WalletRelyingParty, built registrar.WalletRelyingParty)
@@ -234,7 +233,7 @@ func (w *Wallet) DemoIdentityCheckVerifierInfo() ([]any, error) {
 
 type demoRegistration func() (registrar.WalletRelyingParty, error)
 
-// demoCertificate returns the current certificate that req names in a demo
+// demoCertificate returns the current certificate for req in a demo
 // registration and issues one when there is none or it expires soon. The
 // registration fills in the identifier. A deleted registration has no
 // certificate, and the result is nil. A running server saves a new
@@ -307,7 +306,7 @@ func decodeInfo(value, name string) ([]any, error) {
 }
 
 // demoIssuerRegistration registers the demo issuer as a provider of the
-// credential types it issues, with the entitlements of their categories (ETSI
+// its credential types, with the entitlements of their categories (ETSI
 // TS 119 475 V1.2.1 Table 8). A type gets its category from its template or
 // its catalogue entry. A type without one is an EAA, and an unlisted type is
 // left out. Its identity check asks for a PID before it issues, so it
@@ -397,7 +396,7 @@ func sortedUnique(values []string) []string {
 
 // rebaseDemoParty moves the URLs of a kept demo registration to the wallet's
 // current base URL, for a wallet that restarts on another port or base URL.
-// The registry URI shows the base the registration was made under.
+// The registry URI shows the base URL used at registration.
 func (w *Wallet) rebaseDemoParty(stored registrar.WalletRelyingParty) (bool, error) {
 	previous := strings.TrimSuffix(stored.RegistryURI, "/api/registrar/wrp/"+stored.Identifier[0].Identifier)
 	current := w.RegistrarBase()

@@ -47,7 +47,7 @@ func newBrowserSession(w http.ResponseWriter, r *http.Request, secure bool) stri
 		return ""
 	}
 	id := base64.RawURLEncoding.EncodeToString(raw)
-	//nolint:gosec // G124: Secure is set for TLS. Localhost also supports plain HTTP, which cannot use secure cookies.
+	//nolint:gosec // G124: Secure is set for TLS. Localhost also supports plain HTTP, and secure cookies need HTTPS.
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
 		Value:    id,

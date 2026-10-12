@@ -16,7 +16,7 @@ package wallet
 
 import "testing"
 
-// Plain http is secure on exactly the hosts the HTTP client treats as local.
+// Plain http is secure exactly on the hosts treated as local by the HTTP client.
 func TestSecureIssuerOriginOnLocalHosts(t *testing.T) {
 	for issuer, want := range map[string]bool{
 		"https://issuer.example":            true,

@@ -144,7 +144,7 @@ func TestAReactivatedRegistrationCertificateIsValid(t *testing.T) {
 	}
 }
 
-// Reloading wallet state that another process saved replaces the server's
+// Reloading wallet state saved by another process replaces the server's
 // registrar state.
 func TestAReloadTakesTheStoredRegistrar(t *testing.T) {
 	srv := newTestServer(t, true)

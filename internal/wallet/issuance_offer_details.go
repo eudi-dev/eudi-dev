@@ -141,7 +141,7 @@ func firstDisplayEntry(raw any) (map[string]any, bool) {
 // configurationClaims lists the claim paths of a configuration and the
 // display names of its claims. A display name is the name of the claim's first
 // display entry. OID4VCI 1.0 uses an array of objects with a "path". Earlier
-// drafts used a nested object keyed by claim name. Issuers still publish both.
+// drafts use a nested object keyed by claim name. Issuers publish both.
 func configurationClaims(raw any) (paths []string, displayNames map[string]string) {
 	addDisplayName := func(path string, claim map[string]any) {
 		entry, ok := firstDisplayEntry(claim["display"])

@@ -31,8 +31,8 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/trustedlists"
 )
 
-// CatalogFile holds the attestation types the operator pre-registers in the
-// catalogue (wallet serve --catalog).
+// CatalogFile holds the attestation types pre-registered by the operator in
+// the catalogue (wallet serve --catalog).
 type CatalogFile struct {
 	Entries []CatalogFileEntry
 }
@@ -97,8 +97,8 @@ func LoadCatalogFile(path string) (*CatalogFile, error) {
 	return checkCatalogNames(entries)
 }
 
-// parseCatalogSource reads the entries of one file and the issuer CAs they
-// name. dir resolves a relative IssuerCA path.
+// parseCatalogSource reads the entries of one file and their issuer CAs. dir
+// resolves a relative IssuerCA path.
 func parseCatalogSource(name, dir string, data []byte) ([]CatalogFileEntry, error) {
 	encoded, err := credtemplate.YAMLToJSON(data)
 	if err != nil {
@@ -146,7 +146,7 @@ func (e CatalogFileEntry) label(i int) string {
 	return fmt.Sprintf("entry %d", i+1)
 }
 
-// issuerEntity is the provider that IssuerCA adds to the list of the entry's
+// issuerEntity returns the provider for IssuerCA on the list of the entry's
 // category.
 func (e CatalogFileEntry) issuerEntity() (trustedlists.Entity, error) {
 	category := jsonutil.FirstNonEmpty(e.Category, credtemplate.CategoryEAA)

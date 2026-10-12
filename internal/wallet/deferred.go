@@ -31,7 +31,7 @@ type DeferredIssuance struct {
 	ID               string `json:"id"`
 	TransactionID    string `json:"transaction_id"`
 	DeferredEndpoint string `json:"deferred_endpoint"`
-	// CredentialRenewal names the issuer, its endpoints, the configuration and
+	// CredentialRenewal holds the issuer, its endpoints, the configuration and
 	// the client of the issuance. Collection refreshes the access token with
 	// it, and the collected credential keeps it for renewal.
 	CredentialRenewal
@@ -74,8 +74,8 @@ func (p *DeferredIssuance) Expired(now time.Time) bool {
 
 const deferredIssuanceMaxAge = 24 * time.Hour
 
-// deferredTransaction is a Credential Response that carries a transaction_id
-// (OID4VCI 1.0 §8.3) together with the issuance it answers.
+// deferredTransaction is a Credential Response with a transaction_id
+// (OID4VCI 1.0 §8.3), together with its issuance.
 type deferredTransaction struct {
 	transactionID string
 	interval      time.Duration

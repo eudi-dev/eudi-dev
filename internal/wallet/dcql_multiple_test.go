@@ -264,7 +264,7 @@ func TestCreateVPTokenMapMultiple(t *testing.T) {
 }
 
 // presentMultiple runs an interactive presentation of a multiple query, approves it
-// with body and returns the vp_token the verifier received.
+// with body and returns the vp_token received by the verifier.
 func presentMultiple(t *testing.T, body string) (int, map[string][]string) {
 	t.Helper()
 	w := pidBaselineWallet(t)

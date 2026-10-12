@@ -244,7 +244,7 @@ func TestEntities_ResetClearsTheStore(t *testing.T) {
 	}
 }
 
-// A save keeps a snapshot that a concurrent reload put in place. That snapshot
+// A save keeps a snapshot put in place by a concurrent reload. That snapshot
 // matches the in-memory state, so the next save does not treat reloaded changes
 // as deletions.
 func TestEntities_ReloadDuringSaveKeepsTheReloadedSnapshot(t *testing.T) {

@@ -65,11 +65,11 @@ type mockIssuerOpts struct {
 	// rejectFirstNonce answers the first credential request with the
 	// invalid_nonce error of §8.3.1.2.
 	rejectFirstNonce bool
-	// omitAccessToken drops access_token from the token response, which RFC
-	// 6749 §5.1 requires.
+	// omitAccessToken drops access_token from the token response. RFC 6749
+	// §5.1 requires it.
 	omitAccessToken bool
-	// omitTokenType drops token_type from the token response, which RFC 6749
-	// §5.1 also requires.
+	// omitTokenType drops token_type from the token response. RFC 6749 §5.1
+	// also requires it.
 	omitTokenType bool
 }
 
@@ -1143,8 +1143,8 @@ func TestProcessCredentialOffer_StrictRejectsAuthorizationServerIssuerMismatchBe
 }
 
 // RFC 9207 makes iss REQUIRED when the authorization server advertises
-// authorization_response_iss_parameter_supported. HAIP 1.0 §4 applies FAPI 2.0,
-// whose authorization server "shall return an iss parameter in the
+// authorization_response_iss_parameter_supported. HAIP 1.0 §4 applies FAPI 2.0.
+// There the authorization server "shall return an iss parameter in the
 // authorization response" (§5.3.2.2), advertised or not.
 func TestProcessCredentialOffer_StrictRejectsMissingAuthorizationResponseIssuerBeforeToken(t *testing.T) {
 	t.Run("advertised", func(t *testing.T) { refuseMissingAuthorizationResponseIssuer(t, false) })

@@ -770,7 +770,7 @@ func etsiTLQuery(listURLs ...any) map[string]any {
 	}
 }
 
-// walletSignedList is a trusted list that the wallet CA signs, so the wallet
+// walletSignedList is a trusted list signed by the wallet CA, so the wallet
 // trusts its operator. It lists anchor as the issuance service.
 func walletSignedList(t *testing.T, w *Wallet, anchor *x509.Certificate) string {
 	t.Helper()
@@ -806,7 +806,7 @@ func TestEvaluateDCQL_TrustedAuthorities_NoMatch(t *testing.T) {
 	assertUntrustedAuthorityBehavior(t, w, etsiTLQuery(ts.URL))
 }
 
-// The wallet reads its own lists in process, so a query can name them even
+// The wallet reads its own lists in process, so a query can reference them even
 // when no server publishes them.
 func TestEvaluateDCQL_TrustedAuthorities_WalletOwnList(t *testing.T) {
 	w := generateTestWalletWithPID(t)
@@ -817,7 +817,7 @@ func TestEvaluateDCQL_TrustedAuthorities_WalletOwnList(t *testing.T) {
 	}
 }
 
-// A trusted list the wallet cannot use matches nothing and draws a warning.
+// An unusable trusted list matches nothing and draws a warning.
 // Debug mode offers the credential as untrusted. Strict mode offers nothing.
 func TestEvaluateDCQL_TrustedAuthorities_UnusableList(t *testing.T) {
 	otherKey, _ := mock.GenerateKey()
@@ -843,7 +843,7 @@ func TestEvaluateDCQL_TrustedAuthorities_UnusableList(t *testing.T) {
 	}
 }
 
-// A verifier in Docker names the host as host.docker.internal. The wallet's
+// A verifier in Docker reaches the host as host.docker.internal. The wallet's
 // HTTP client reaches the same list through localhost.
 func TestEvaluateDCQL_TrustedAuthorities_DockerHostList(t *testing.T) {
 	w := generateTestWalletWithPID(t)
@@ -901,8 +901,8 @@ func TestEvaluateDCQL_TrustedAuthorities_AKIMatch(t *testing.T) {
 
 // OID4VP 1.0 §6.1.1: "A Credential is identified as a match to a Trusted
 // Authorities Query if it matches with one of the provided values in one of
-// the provided types." A trusted list the wallet cannot read matches nothing,
-// and the other entries still decide.
+// the provided types." An unreadable trusted list matches nothing, and the
+// other entries still decide.
 func TestEvaluateDCQL_TrustedAuthorities_UnreadableListMatchesNothing(t *testing.T) {
 	w := generateTestWalletWithPID(t)
 	w.ValidationMode = ValidationModeStrict
@@ -1147,7 +1147,7 @@ func TestEvaluateDCQL_CredentialSets_OptionalSetIsSkipped(t *testing.T) {
 		"credential_sets": []any{
 			map[string]any{"required": true, "options": []any{[]any{"pid_sdjwt"}}},
 			// The wallet holds no mDL, but the set is optional, so the query
-			// still succeeds with what it does hold.
+			// still succeeds.
 			map[string]any{"required": false, "options": []any{[]any{"mdl"}}},
 		},
 	}

@@ -47,8 +47,8 @@ func TestIssueRefusesTheStatusIndexOfAnotherCredential(t *testing.T) {
 	}
 }
 
-// The list covers only the indices the wallet assigned. A revocation on any
-// other index would report success and change nothing.
+// The list covers only assigned indices. A revocation on any other index would
+// report success and change nothing.
 func TestIssueRefusesAStatusIndexTheWalletDidNotAssign(t *testing.T) {
 	srv := newTestServerWithStatusList(t)
 	beyond := srv.wallet.statusIndexFor(srv.wallet.StatusListCounter + 5)
@@ -60,7 +60,7 @@ func TestIssueRefusesAStatusIndexTheWalletDidNotAssign(t *testing.T) {
 	}
 }
 
-// Naming the wallet's own list without an index takes a fresh index.
+// A reference to the wallet's own list without an index gets a fresh index.
 func TestIssueOnTheOwnStatusListAssignsAFreshIndex(t *testing.T) {
 	srv := newTestServerWithStatusList(t)
 	next := srv.wallet.statusIndexFor(srv.wallet.StatusListCounter)
@@ -75,7 +75,7 @@ func TestIssueOnTheOwnStatusListAssignsAFreshIndex(t *testing.T) {
 	}
 }
 
-// An imported credential that names the index of another credential on the
+// An imported credential that references the index of another credential on the
 // wallet's list does not take over that index.
 func TestImportDoesNotTakeOverTheStatusIndexOfAnotherCredential(t *testing.T) {
 	srv := newTestServerWithStatusList(t)
@@ -106,7 +106,7 @@ func TestImportDoesNotTakeOverTheStatusIndexOfAnotherCredential(t *testing.T) {
 
 // HAIP 1.0 §6.1: "Each Credential MUST have its own unique, unpredictable
 // status list index". Each wallet keys its own order, and the list stays at
-// most twice as long as the indices it assigned.
+// most twice as long as the number of assigned indices.
 func TestStatusIndicesAreUniqueAndUnpredictable(t *testing.T) {
 	const count = 300
 	sequences := make([][]int, 2)

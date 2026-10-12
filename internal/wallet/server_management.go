@@ -81,8 +81,8 @@ func (s *Server) handleGetCredentialStatus(w http.ResponseWriter, r *http.Reques
 	}
 
 	// For externally issued credentials, report whether the status issuer's key is
-	// trusted. A valid signature alone does not establish trust. The revocation
-	// service of the list that anchors the credential anchors its status list.
+	// trusted. A valid signature alone does not establish trust. The status list
+	// is anchored by a revocation service on the credential's anchoring list.
 	statusAnchors := s.wallet.StatusListAnchors(cred.Raw)
 	checkOpts := statuslist.CheckOptions{HTTPClient: s.wallet.HTTPClient(), Prefer: statuslist.FormatForCredential(cred.Format)}
 	for _, anchor := range statusAnchors {
@@ -253,8 +253,8 @@ func (s *Server) handleIssueCredential(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The API names templates of the wallet's template store. A path would
-	// read a file of the server.
+	// The API takes template names from the wallet's template store. A path
+	// would read a file on the server.
 	for _, name := range []string{req.Template, req.SaveAsTemplate, req.DisplayTemplate} {
 		if name = strings.TrimSpace(name); name != "" && !credtemplate.IsBareName(name) {
 			apierror.WriteStatus(w, http.StatusBadRequest, fmt.Sprintf("invalid template name %q", name))
@@ -272,7 +272,7 @@ func (s *Server) handleIssueCredential(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, withPublicImagePaths(r, summary))
 }
 
-// visitorLimitStatus answers 403 for a change the shared wallet refuses.
+// visitorLimitStatus answers 403 when the shared wallet refuses a change.
 func visitorLimitStatus(err error, otherwise int) int {
 	var limit *VisitorLimitError
 	if errors.As(err, &limit) {

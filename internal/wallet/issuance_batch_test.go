@@ -26,8 +26,8 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 )
 
-// primaryOf returns the primary credential a debug-mode wallet picks from a
-// response.
+// primaryOf returns the primary credential picked by a debug-mode wallet from
+// a response.
 func primaryOf(t *testing.T, resp map[string]any, keys []*ecdsa.PrivateKey) (string, error) {
 	t.Helper()
 	batch, err := generateTestWallet(t).sortBatch(resp, keys, ignoreFindings)
@@ -166,8 +166,8 @@ func TestSortBatchStrictRefusesACopyBoundToAnUnknownKey(t *testing.T) {
 	}
 }
 
-// Debug mode leaves a rejected copy out of the batch, and warns about it and
-// reports it as a finding.
+// Debug mode leaves a rejected copy out of the batch. It warns and reports a
+// finding.
 func TestSortBatchDebugWarnsAboutRejectedCopies(t *testing.T) {
 	holder, eph := testKey(t), testKey(t)
 	holderCred := fakeSDJWT(t, &holder.PublicKey)
@@ -204,12 +204,11 @@ func TestSortBatchDebugWarnsAboutRejectedCopies(t *testing.T) {
 	}
 }
 
-// A copy that the wallet cannot read is rejected like one bound to the wrong
-// key.
+// An unreadable copy is rejected like one bound to the wrong key.
 func TestSortBatchRejectsAnUnreadableCopy(t *testing.T) {
 	holder, eph := testKey(t), testKey(t)
 	// The header is not base64url, so the credential cannot be parsed. Its
-	// payload still names the proof key.
+	// payload still contains the proof key.
 	bound := fakeSDJWT(t, &eph.PublicKey)
 	unreadable := "!!!" + bound[strings.Index(bound, "."):]
 	resp := map[string]any{"credentials": []any{

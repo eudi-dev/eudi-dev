@@ -65,8 +65,8 @@ type Wallet struct {
 	// The wallet advertises this key even when RequireEncryptedRequest is false.
 	RequestEncryptionKey *ecdsa.PrivateKey
 	ConformanceSettings  `json:"-"`
-	// TrustSettings are the CAs and lists of the trust flags and the bounds
-	// of the providers and lists users add. With --arf the signer of a fetched
+	// TrustSettings holds the CAs and lists from the trust flags and the limits
+	// for providers and lists added by users. With --arf the signer of a fetched
 	// trusted list must chain to a CA of --trusted-list-ca or to the wallet CA.
 	TrustSettings trustedlists.Settings `json:"-"`
 	// Keeps HTTPS image URLs so the browser fetches them on demand. HTTP images,
@@ -79,7 +79,7 @@ type Wallet struct {
 	VCIRedirectURI     string `json:"-"`
 	// Callback URLs use this origin when BaseURL is unset.
 	ServingOrigin string `json:"-"`
-	// storedURLs holds the base and issuer URL that a save writes while
+	// storedURLs holds the base and issuer URL written by a save while
 	// OverrideURLs is in effect.
 	storedURLs *[2]string
 	// The zero value uses the default template directory.
@@ -92,8 +92,8 @@ type Wallet struct {
 	capacity Capacity
 	visitors VisitorRules
 	// saveMutation runs a change, such as a registrar change or a batch use
-	// count, and saves it. A server sets it to its saveMutation, which takes
-	// the store lock. Never call it while holding that lock.
+	// count, and saves it. A server sets it to its own saveMutation. That
+	// function takes the store lock, so never call it while holding that lock.
 	saveMutation func(change func() bool)
 	listCache    trustedlists.ListCache
 	outboundHTTP *http.Client
@@ -172,7 +172,7 @@ func (w *Wallet) EnsureRequestEncryptionKey() error {
 	return nil
 }
 
-// PersistedState is the wallet state the store saves. Load, save, reload and
+// PersistedState is the wallet state saved by the store. Load, save, reload and
 // reset each handle it as a whole.
 type PersistedState struct {
 	Credentials        []StoredCredential               `json:"credentials"`
@@ -200,10 +200,10 @@ func (p PersistedState) clone() PersistedState {
 	return c
 }
 
-// ConformanceSettings are the switches a test run changes at runtime. GET
-// /api/config reports them under these names, PUT /api/config/conformance
-// changes them with a ConformancePatch, and a server restores its startup
-// values on DELETE /api/config/conformance.
+// ConformanceSettings hold the switches for a test run. They can change at
+// runtime. GET /api/config reports them under these names. PUT
+// /api/config/conformance changes them with a ConformancePatch. DELETE
+// /api/config/conformance restores the server's startup values.
 type ConformanceSettings struct {
 	ValidationMode ValidationMode `json:"validation_mode"`
 	RequireHAIP    bool           `json:"require_haip"`
@@ -233,9 +233,9 @@ type ConformanceDocument struct {
 	TLSVerification bool `json:"tls_verify"`
 }
 
-// ConformancePatch changes the settings it names. Its names are those of
-// ConformanceSettings. TLSVerify set to null returns to the default of the
-// validation mode.
+// ConformancePatch changes the settings it contains. It uses the field names
+// of ConformanceSettings. Setting TLSVerify to null returns to the default of
+// the validation mode.
 type ConformancePatch struct {
 	ValidationMode          *string      `json:"validation_mode,omitempty"`
 	RequireHAIP             *bool        `json:"require_haip,omitempty"`
@@ -307,7 +307,7 @@ func (w *Wallet) UpdateConformance(p ConformancePatch) error {
 	return nil
 }
 
-// checks are the checks the settings apply to a presentation request.
+// checks returns the checks for a presentation request under these settings.
 func (c ConformanceSettings) checks() oid4vp.Checks {
 	return oid4vp.Checks{Strict: c.ValidationMode == ValidationModeStrict, HAIP: c.RequireHAIP, ARF: c.RequireARF}
 }
@@ -677,8 +677,8 @@ func (w *Wallet) ClearCredentials() int {
 	return w.deleteCredentialsLocked(func(c StoredCredential) bool { return !c.Protected })
 }
 
-// deleteCredentialsLocked removes the credentials drop selects together with
-// their entries on the wallet's own status list. The caller holds w.mu.
+// deleteCredentialsLocked removes the credentials selected by drop, together
+// with their entries on the wallet's own status list. The caller holds w.mu.
 func (w *Wallet) deleteCredentialsLocked(drop func(StoredCredential) bool) int {
 	before := len(w.Credentials)
 	w.Credentials = slices.DeleteFunc(w.Credentials, func(c StoredCredential) bool {
@@ -862,7 +862,7 @@ func (w *Wallet) restoreConformance(c ConformanceSettings) {
 	w.ConformanceSettings = c
 }
 
-// ConformanceDocument reports the settings every flow applies.
+// ConformanceDocument reports the settings applied by every flow.
 func (w *Wallet) ConformanceDocument() ConformanceDocument {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
@@ -873,8 +873,8 @@ func (w *Wallet) ConformanceDocument() ConformanceDocument {
 	return doc
 }
 
-// SetPreferredFormat sets the format a presentation prefers when several
-// match. The empty string means no preference.
+// SetPreferredFormat sets the preferred presentation format for when several
+// formats match. The empty string means no preference.
 func (w *Wallet) SetPreferredFormat(format string) error {
 	switch format {
 	case "", credtype.FormatSDJWT, credtype.FormatMDOC, credtype.FormatJWTVC:
@@ -1075,14 +1075,14 @@ func (w *Wallet) reportDeviation(d deviation) error {
 
 // The log is bounded because every reload reads it. logTrimSlack lets the log
 // grow a little so trimming copies once per batch of entries. An entry is
-// bounded too, because a remote party controls the bodies it records.
+// bounded too, because remote parties control the recorded bodies.
 const (
 	maxLogEntries    = 1000
 	logTrimSlack     = 256
 	maxLogEntryBytes = 64 << 10
 )
 
-// restoreLogEntries adds the entries the log lacks, in time order.
+// restoreLogEntries adds missing entries to the log, in time order.
 func (w *Wallet) restoreLogEntries(entries []LogEntry) {
 	if len(entries) == 0 {
 		return
@@ -1375,8 +1375,8 @@ func (w *Wallet) SetCapacity(c Capacity) {
 }
 
 // OverrideURLs serves this process under other base and issuer URLs. A save
-// keeps the stored URLs, which belong to the wallet server (ADR-0019). A
-// one-shot command uses it for the server it runs itself.
+// keeps the stored URLs. They belong to the wallet server (ADR-0019). One-shot
+// commands use it for their own server.
 func (w *Wallet) OverrideURLs(baseURL, issuerURL string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -1386,8 +1386,8 @@ func (w *Wallet) OverrideURLs(baseURL, issuerURL string) {
 	w.BaseURL, w.IssuerURL = baseURL, issuerURL
 }
 
-// savedURLsLocked returns the base and issuer URL a save writes. The caller
-// holds w.mu.
+// savedURLsLocked returns the base and issuer URL written by a save. The
+// caller holds w.mu.
 func (w *Wallet) savedURLsLocked() (baseURL, issuerURL string) {
 	if w.storedURLs != nil {
 		return w.storedURLs[0], w.storedURLs[1]
@@ -1407,8 +1407,8 @@ type VisitorRules struct {
 	// metadata are always fetched and stored. No card then loads from the
 	// issuer.
 	BundledImagesOnly bool
-	// OwnSigningKeys refuses a signing key override, so every credential the
-	// wallet issues names one of its own providers.
+	// OwnSigningKeys refuses a signing key override. Every credential issued
+	// by the wallet then refers to one of its own providers.
 	OwnSigningKeys bool
 }
 
@@ -1439,8 +1439,8 @@ func (w *Wallet) templateNameFixed(name string) bool {
 	return err == nil && w.TemplateFixed(*tpl)
 }
 
-// VisitorLimitError is a change that the capacity or the visitor rules of a
-// shared wallet refuse.
+// VisitorLimitError reports a change refused by the capacity or the visitor
+// rules of a shared wallet.
 type VisitorLimitError struct{ reason string }
 
 func (e *VisitorLimitError) Error() string { return e.reason }
@@ -1449,8 +1449,8 @@ func visitorLimit(format string, args ...any) error {
 	return &VisitorLimitError{reason: fmt.Sprintf(format, args...)}
 }
 
-// checkDisplayImages refuses images a visitor chose that are not bundled
-// with the wallet, so the visitor learns why the image is missing.
+// checkDisplayImages refuses visitor images that are not bundled with the
+// wallet. The visitor then learns why the image is missing.
 func (w *Wallet) checkDisplayImages(refs ...string) error {
 	for _, ref := range refs {
 		if !w.keepsTemplateImage(ref) {

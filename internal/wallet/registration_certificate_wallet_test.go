@@ -69,8 +69,8 @@ func TestACreatedRegistrationCertificatePassesTheWalletsChecks(t *testing.T) {
 	}
 }
 
-// ARF RPRC_17a: the registration certificate and the access certificate that
-// signs the request name the same relying party.
+// ARF RPRC_17a: the registration certificate and the request's access
+// certificate identify the same relying party.
 func TestTheRegistrationCertificateMatchesTheAccessCertificate(t *testing.T) {
 	w := generateTestWallet(t)
 	rp := registerTestRelyingParty(t, w)
@@ -99,7 +99,7 @@ func TestTheRegistrationCertificateMatchesTheAccessCertificate(t *testing.T) {
 	if got := regcert.BindingFindings(certs[0], demoChain[0], "ARF RPRC_17a"); len(got) == 0 || !strings.Contains(got[0], "RPRC_17a") {
 		t.Errorf("findings %v for another relying party's access certificate, want the RPRC_17a warning", got)
 	}
-	// An intermediary's certificate names the relying party in act.sub (ETSI
+	// An intermediary's certificate identifies the relying party in act.sub (ETSI
 	// TS 119 475 GEN-5.2.4-09).
 	intermediary := map[string]any{"sub": "LEIXG-INTERMEDIARY", "act": map[string]any{"sub": semanticIdentifier(t, rp)}}
 	if got := regcert.BindingFindings(intermediary, accessCert, "ARF RPRC_17a"); len(got) != 0 {
@@ -107,7 +107,7 @@ func TestTheRegistrationCertificateMatchesTheAccessCertificate(t *testing.T) {
 	}
 }
 
-// ARF RPRC_07a and RPRC_17a: a registration certificate names its service,
+// ARF RPRC_07a and RPRC_17a: a registration certificate identifies its service,
 // so it binds only to the access certificate of that service.
 func TestTheRegistrationCertificateBindsToTheAccessCertificateOfItsService(t *testing.T) {
 	w := generateTestWallet(t)
@@ -175,8 +175,8 @@ func TestTheConsentDialogLinksThePrivacyPolicy(t *testing.T) {
 	}
 }
 
-// The consent dialog names the relying party of the bound registration
-// certificate instead of the client identifier.
+// The consent dialog shows the relying party from the bound registration
+// certificate in place of the client identifier.
 func TestTheConsentDialogNamesTheRegisteredRelyingParty(t *testing.T) {
 	w := generateTestWallet(t)
 	key, chain, verifierInfo := registeredVerifier(t, w)

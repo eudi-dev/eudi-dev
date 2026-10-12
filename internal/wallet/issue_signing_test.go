@@ -79,7 +79,7 @@ func TestIssueWithSigningOverride(t *testing.T) {
 		t.Error("expected a warning about the self-signed root in the chain")
 	}
 
-	// The wallet's lists name the wallet CA, so the request's trust metadata
+	// The wallet's lists contain the wallet CA, so the request's trust metadata
 	// does not apply to the foreign chain.
 	for _, spec := range w.IssuedAttestations {
 		for _, e := range spec.Entitlements {
@@ -149,7 +149,7 @@ func TestDemoRefusesSigningOverride(t *testing.T) {
 	}
 }
 
-// authorityChain returns a CA and a leaf it signed. The leaf carries an
+// authorityChain returns a CA and a leaf signed by it. The leaf carries an
 // authority key identifier. An "aki" trusted authority matches on it.
 func authorityChain(t *testing.T) (ca, leaf *x509.Certificate, leafKey *ecdsa.PrivateKey, aki []byte) {
 	t.Helper()

@@ -78,7 +78,7 @@ func (w *Wallet) PrepareARFChecks(params *oid4vp.Request) {
 		return
 	}
 	params.StatusClient = w.RegistrationStatusClient()
-	// The three anchor sets come from the same lists, which are read once.
+	// Read the lists once for all three anchor sets.
 	lists := w.TrustedLists().Lists()
 	params.RelyingPartyCAs = trustedlists.AnchorsOf(lists, lote.AccessCertProvidersListType, lote.IssuanceServices)
 	params.RegistrarCAs = trustedlists.AnchorsOf(lists, lote.RegistrationCertProvidersListType, lote.IssuanceServices)

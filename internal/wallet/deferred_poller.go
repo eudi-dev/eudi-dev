@@ -44,8 +44,8 @@ func (s *Server) backgroundTasks() []backgroundTask {
 
 // syncDemoRegistrations keeps the demo issuer and verifier registered for the
 // wallet's templates and catalogue. On a public demo visitors can't change
-// them. A local wallet keeps the user's changes and registers no party the
-// user deleted.
+// them. A local wallet keeps the user's changes and does not register a
+// deleted party again.
 func (s *Server) syncDemoRegistrations() error {
 	sync := s.wallet.FollowDemoTemplates
 	if s.demo != nil {
@@ -218,8 +218,8 @@ func (s *Server) attemptDeferredCollection(pending DeferredIssuance) DeferredAtt
 
 	// §9.1 applies the encryption rules of the Credential Request to the
 	// Deferred Credential Request, and the issuer checks apply as for any
-	// credential request. The original flow is gone by now, so the metadata
-	// is fetched again. Collection waits for metadata it can use.
+	// credential request. The original flow has ended, so the wallet fetches
+	// the metadata again. Collection waits until usable metadata arrives.
 	metadata, signerChain, err := s.wallet.readIssuerMetadata(pending.Issuer, ignoreFindings)
 	if err != nil {
 		return s.rescheduleDeferred(pending, pending.Interval(), fmt.Sprintf("the issuer metadata can't be used: %v", err))
@@ -312,8 +312,8 @@ func isAuthorizationRejected(err error) bool {
 }
 
 // isRetryableDeferredError reports whether collection retries after err. A
-// transport failure or a server fault is retried. Final refusals and responses
-// the wallet refuses end collection.
+// transport failure or a server fault is retried. Final refusals and refused
+// responses end collection.
 func isRetryableDeferredError(err error) bool {
 	var refused finalDeferredError
 	if errors.As(err, &refused) {

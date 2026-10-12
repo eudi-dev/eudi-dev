@@ -406,7 +406,7 @@ func (s *Server) processOfferDirectly(w http.ResponseWriter, uri string, opts Of
 }
 
 // prepareIssuanceConsentRequest also writes the activity log entry of an offer
-// the wallet refuses before the dialog.
+// refused before the dialog.
 func (w *Wallet) prepareIssuanceConsentRequest(raw, owner string) (_ *consent.Request, _ string, err error) {
 	defer func() {
 		if err != nil {

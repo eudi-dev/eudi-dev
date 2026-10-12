@@ -65,7 +65,7 @@ type Server struct {
 	storeSyncMu sync.Mutex
 	// Skips reparsing an unchanged wallet file. Guarded by storeSyncMu.
 	lastWalletStamp storage.Stamp
-	// unsavedLog holds the entries the file backend has not saved yet. A
+	// unsavedLog holds log entries not yet saved by the file backend. A
 	// reload before the save drops them from the wallet, and the save puts
 	// them back.
 	unsavedLog      []LogEntry
@@ -82,8 +82,8 @@ type Server struct {
 	// retrieve it.
 	pendingOffers map[string]*pendingOffer
 	offerMu       sync.Mutex
-	// tlsMu guards issuerTLSCert, which a renewal replaces under a live
-	// listener.
+	// tlsMu guards issuerTLSCert. A renewal replaces it while the listener
+	// runs.
 	tlsMu       sync.RWMutex
 	version     string
 	imprintHTML []byte
@@ -308,7 +308,7 @@ func noStaleCache(h http.Handler) http.Handler {
 	})
 }
 
-// SetListenHost sets the IP address the HTTP and HTTPS listeners bind.
+// SetListenHost sets the IP address for the HTTP and HTTPS listeners.
 func (s *Server) SetListenHost(host string) {
 	s.listenHost = host
 }
@@ -459,9 +459,9 @@ func (s *Server) applyPersistedWalletState(reloaded *Wallet) {
 	s.wallet.adoptReloaded(reloaded, s.store.Load())
 }
 
-// Shutdown lets running requests finish for a moment, so the response to the
-// request that ended a one-shot flow (a deny with its redirect_uri) still
-// reaches the browser. Open event streams are then cut.
+// Shutdown lets running requests finish for a moment. The response that ends a
+// one-shot flow (a deny with its redirect_uri) then still reaches the browser.
+// Open event streams are cut after that.
 func (s *Server) Shutdown() {
 	s.stopDemoReset()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -530,7 +530,7 @@ func (s *Server) saveLocked() {
 		s.log("  ERROR: saving the wallet: %v", err)
 		return
 	}
-	// The next reload skips the file this save wrote.
+	// The next reload skips the file written by this save.
 	if !store.entityMode() {
 		if stamp, err := store.WalletStamp(); err == nil {
 			s.lastWalletStamp = stamp

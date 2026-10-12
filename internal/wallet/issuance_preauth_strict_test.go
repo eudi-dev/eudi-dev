@@ -335,9 +335,9 @@ func TestCredentialProofType(t *testing.T) {
 	}
 }
 
-// The key attestation claims the protection level that KeyAttestationLevel
-// selects. The activity log warns when that claim cannot be backed or omits a
-// required level.
+// The key attestation claims the protection level selected by
+// KeyAttestationLevel. The activity log warns when that claim cannot be backed
+// or omits a required level.
 func TestKeyAttestationClaims(t *testing.T) {
 	metadataRequiring := func(requirement map[string]any) map[string]any {
 		return map[string]any{"credential_configurations_supported": map[string]any{

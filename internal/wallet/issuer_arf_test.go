@@ -363,9 +363,9 @@ func TestStrictARFRefusesAnOfferBeforeTheConsentDialog(t *testing.T) {
 	}
 }
 
-// The wallet checks the issuer for the configuration it requests. A second
-// configuration of the offer that the issuer is not registered for does not
-// stop the issuance of the first, in strict mode either.
+// The wallet checks the issuer only for the requested configuration. The
+// issuer may lack a registration for a second configuration of the offer.
+// That does not stop the issuance of the first, in strict mode either.
 func TestStrictARFChecksTheChosenConfigurationOnly(t *testing.T) {
 	w := generateTestWallet(t)
 	rp := registerTestIssuer(t, w, registrar.NonQEAAProviderEntitlement)

@@ -123,9 +123,8 @@ func TestSetOptionsOnlyNonMatchingCredentialsAnswerFollowTheOthers(t *testing.T)
 	}
 }
 
-// In debug mode the consent dialog opens for an interactive request that no
-// credential matches, so the user can answer with a credential that does not
-// match.
+// In debug mode the consent dialog opens for an interactive request without a
+// matching credential, so the user can answer with a non-matching one.
 func TestDebugModeAsksWhenNothingMatches(t *testing.T) {
 	srv := newTestServer(t, false)
 	srv.wallet.ValidationMode = ValidationModeDebug

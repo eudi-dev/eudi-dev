@@ -108,8 +108,8 @@ func (w *Wallet) createVPToken(match consent.Match, params *oid4vp.Request, mdoc
 	}
 }
 
-// checkPresentableKeyBinding reports a credential whose key binding the wallet
-// cannot sign. RFC 9901 §4.3 requires the KB-JWT to be signed by the key in the
+// checkPresentableKeyBinding reports a credential when the wallet cannot sign
+// its key binding. RFC 9901 §4.3 requires the KB-JWT to be signed by the key in the
 // credential's cnf. ISO 18013-5 §9.1.3 requires DeviceSigned to use the MSO's
 // deviceKey. Strict mode stops before the nonce is used. Debug mode sends the
 // presentation and the verifier's refusal is the finding ([ADR-0001]). A plain
@@ -202,7 +202,7 @@ func (w *Wallet) createSDJWTPresentation(cred StoredCredential, selectedKeys []s
 	}
 
 	// sd_hash covers the SD-JWT without the KB-JWT. RFC 9901 §4.3 hashes it with
-	// the credential's own _sd_alg, which may be SHA-384 or SHA-512.
+	// the credential's own _sd_alg. That can be SHA-384 or SHA-512.
 	sdHashB64, err := sdjwt.SDHash(withoutKB, sdjwt.SDAlgFromPayload(payload))
 	if err != nil {
 		return "", fmt.Errorf("computing sd_hash: %w", err)
@@ -543,7 +543,7 @@ func collectAllNestedDisclosureDigests(value any, digestMap map[string]*sdjwt.Di
 			if obj, ok := item.(map[string]any); ok {
 				if _, ok := obj["..."].(string); ok {
 					// OID4VP 1.0 §7.1 selects array elements with a null or an
-					// index. §6.4 forbids sending a claim the path did not select.
+					// index. §6.4 forbids sending unselected claims.
 					// An unselected disclosable element stays undisclosed. A path
 					// that ends at the array discloses none of its elements.
 					continue

@@ -34,8 +34,8 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/validate"
 )
 
-// openV272Wallet opens a copy of the state directory that eudi-dev 2.7.2
-// wrote (testdata/v2.7.2-wallet/README.md).
+// openV272Wallet opens a copy of a state directory written by eudi-dev 2.7.2
+// (testdata/v2.7.2-wallet/README.md).
 func openV272Wallet(t *testing.T) *Wallet {
 	t.Helper()
 	home := t.TempDir()

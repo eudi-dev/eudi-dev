@@ -27,9 +27,9 @@ import (
 
 // presentationEntry describes the entry point a request came through.
 type presentationEntry struct {
-	// action files the activity log entries, such as presentation or issuance.
+	// action labels the activity log entries, such as presentation or issuance.
 	action string
-	// subject names the request in a findings summary.
+	// subject identifies the request in a findings summary.
 	subject string
 	// owner is the browser session that sees notifications and consent.
 	owner string
@@ -41,9 +41,9 @@ type presentationEntry struct {
 // presentationOutcome is what the shared presentation flow decided for a
 // request (ADR-0012). The entry point delivers it.
 type presentationOutcome struct {
-	// invalid is a request the wallet answers only to its caller. OpenID4VP
-	// 1.0 §8.5 applies RFC 6749 §4.1.2.1, which sends nothing to the
-	// destination of an invalid request.
+	// invalid is set for an invalid request. The wallet answers it only to its
+	// caller. OpenID4VP 1.0 §8.5 applies RFC 6749 §4.1.2.1. It sends nothing to
+	// the destination of an invalid request.
 	invalid     error
 	invalidCode string
 	// refusal is the Authorization Error Response for the verifier.
@@ -53,7 +53,7 @@ type presentationOutcome struct {
 }
 
 // presentationRefusal is an error the wallet sends to the verifier. status
-// names it in an API answer: refused, error or no_match.
+// identifies it in an API answer: refused, error or no_match.
 type presentationRefusal struct {
 	status, code, description string
 }
@@ -67,7 +67,7 @@ func (w *Wallet) evaluatePresentationRequest(authReq *oid4vp.Request, entry pres
 	if errors.As(err, &arf) {
 		w.AddLog(entry.action, err.Error(), false)
 		w.Consents().NotifyError(consent.Error{Owner: entry.owner, Message: "The request does not meet the ARF registration rules", Detail: err.Error()})
-		// The description names the findings, so the verifier under test sees
+		// The description lists the findings, so the verifier under test sees
 		// which rule its request breaks.
 		return presentationOutcome{refusal: &presentationRefusal{
 			status: "refused", code: oid4vp.ErrorAccessDenied,
@@ -146,8 +146,7 @@ func (w *Wallet) askPresentationConsent(typ, owner, asking string, authReq *oid4
 	return consentReq, w.consentedMatches(consentReq, outcome.matches, result), true, true, nil
 }
 
-// preparePresentation creates the vp_token and the id_token the request asks
-// for.
+// preparePresentation creates the vp_token and the requested id_token.
 func (w *Wallet) preparePresentation(authReq *oid4vp.Request, matches []consent.Match) (*preparedPresentation, error) {
 	prepared := &preparedPresentation{
 		ResponseURI: authReq.ResponseDestination(),
@@ -183,8 +182,8 @@ func (w *Wallet) preparePresentation(authReq *oid4vp.Request, matches []consent.
 // renewExpiring renews the matched credentials that are about to expire, so
 // headless CLI flows without the background poller present a fresh one. The
 // renewal calls the issuer, so it runs before the store lock is taken. A
-// failed renewal leaves the stored credential, which the verifier may still
-// accept.
+// failed renewal keeps the stored credential. The verifier may still accept
+// it.
 func (w *Wallet) renewExpiring(matches []consent.Match) {
 	manage := &Management{wallet: w, commit: func(change func() error) error {
 		var err error

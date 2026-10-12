@@ -62,8 +62,8 @@ func (s *Server) protectedRelyingParty(rp registrar.WalletRelyingParty) bool {
 	return s.demo != nil && (registrar.HasIdentifier(rp, demoIdentifier(demoIssuer)) || registrar.HasIdentifier(rp, demoIdentifier(demoVerifier)))
 }
 
-// protectedRelyingParties names the registrations the UI shows without
-// actions, by their first identifier.
+// protectedRelyingParties lists the registrations shown without actions in the
+// UI, by their first identifier.
 func (s *Server) protectedRelyingParties() []string {
 	protected := []string{}
 	for _, rp := range s.wallet.Registrar().RegisteredRelyingParties() {
@@ -130,8 +130,8 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// handleReady lists the wallet's keys, which needs a working storage backend
-// (a reachable database on the postgres backend).
+// handleReady lists the wallet's keys. This needs a working storage backend (a
+// reachable database on the postgres backend).
 func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 	if store := s.store.Load(); store != nil {
 		if _, err := store.backend.List(store.prefix); err != nil {
@@ -199,9 +199,9 @@ func (s *Server) handleClearLastError(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "cleared"})
 }
 
-// formDefaults are the limits and defaults that the UI forms take from the
-// server: the lengths of a credential display, the default country of a
-// registration and the validity of the certificates the registrar issues.
+// formDefaults are the server's limits and defaults for the UI forms: the
+// lengths of a credential display, the default country of a registration and
+// the validity of certificates issued by the registrar.
 func formDefaults() map[string]any {
 	return map[string]any{
 		"display_name_max":          maxDisplayNameRunes,
@@ -297,8 +297,8 @@ func (s *Server) handleSetAutoAccept(w http.ResponseWriter, r *http.Request) {
 }
 
 // Runtime conformance settings apply to every flow using this server. Demo mode keeps
-// HAIP with debug validation and rejects changes. A member the patch does not
-// define is refused, so a misspelled setting does not pass unnoticed.
+// HAIP with debug validation and rejects changes. An unknown member is refused,
+// so a misspelled setting does not pass unnoticed.
 func (s *Server) handleSetConformance(w http.ResponseWriter, r *http.Request) {
 	var patch ConformancePatch
 	decoder := json.NewDecoder(r.Body)

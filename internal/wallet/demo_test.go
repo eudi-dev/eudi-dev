@@ -743,7 +743,7 @@ func TestDemoCapsAddedTrustedLists(t *testing.T) {
 func TestDemoProtectsTheDemoRegistrations(t *testing.T) {
 	srv := newDemoTestServer(t)
 	// The protection holds for the registered EUID and for the semantics
-	// identifier the certificates carry.
+	// identifier in the certificates.
 	for _, identity := range []string{demoIdentifier(demoVerifier), "NTRNL-" + demoIdentifier(demoVerifier)} {
 		if w := serverRequest(t, srv, "DELETE", "/api/registrar/wrp/"+identity, ""); w.Code != http.StatusForbidden {
 			t.Errorf("delete %s = %d, want 403", identity, w.Code)
@@ -791,7 +791,7 @@ func providesAttestation(rp registrar.WalletRelyingParty, typ string) bool {
 
 // A local wallet registers the demo issuer and verifier at startup. After that
 // they are the user's to change, like any other registration. The demo issuer
-// stays registered for the types it offers.
+// stays registered for its credential types.
 func TestALocalWalletKeepsYourChangesToTheDemoRegistrations(t *testing.T) {
 	srv := newTestServer(t, true)
 	srv.wallet.IssuerURL = "https://localhost:8443"
@@ -902,7 +902,7 @@ func TestTheDemoIssuerOfAPublicDemoFollowsTheTemplates(t *testing.T) {
 	}
 }
 
-// A remote party controls the bodies the log records, so an entry is bounded.
+// A remote party controls the logged bodies, so an entry is bounded.
 func TestALogEntryIsBounded(t *testing.T) {
 	w := generateTestWallet(t)
 	body := strings.Repeat("x", 1<<20)
@@ -957,8 +957,8 @@ func TestASharedWalletMakesRoomForANewCredential(t *testing.T) {
 	}
 }
 
-// The issue API names templates of the wallet's store, so a path never reads
-// a file of the server.
+// The issue API refers to templates in the wallet's store, so a path never
+// reads a file of the server.
 func TestTheIssueAPITakesTemplateNamesOnly(t *testing.T) {
 	srv := newDemoTestServer(t)
 	for _, field := range []string{"template", "display_template", "save_as_template"} {

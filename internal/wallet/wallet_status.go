@@ -173,8 +173,8 @@ func (w *Wallet) statusIndexHeld(idx int) bool {
 	return false
 }
 
-// minStatusListBits sizes the smallest list at 128 entries, the 16 bytes
-// BuildStatusList writes at least.
+// minStatusListBits sizes the smallest list at 128 entries. BuildStatusList
+// writes at least 16 bytes.
 const minStatusListBits = 7
 
 // statusRange returns the power of two range that holds allocation or index
@@ -203,14 +203,14 @@ func (w *Wallet) statusIndexFor(n int) int {
 	return start + int(w.statusIndexKey().permute(width, uint64(n-start), false))
 }
 
-// statusAllocation is the allocation that statusIndexFor maps to idx.
+// statusAllocation is the inverse of statusIndexFor.
 func (w *Wallet) statusAllocation(idx int) int {
 	start, width := statusRange(idx)
 	return start + int(w.statusIndexKey().permute(width, uint64(idx-start), true))
 }
 
-// statusIndexKey keys the permutation with a secret every server of the
-// wallet shares. Without the issuer key the order stays unique.
+// statusIndexKey keys the permutation with a secret shared by every server
+// of the wallet. Without the issuer key the order stays unique.
 func (w *Wallet) statusIndexKey() statusPermutation {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
@@ -261,7 +261,7 @@ func (k statusPermutation) round(width, round int, half uint64) uint64 {
 
 // ownStatusIndex picks the index of a new credential on the wallet's own
 // status list. The wallet assigns the indices. A request can only take an
-// assigned index that no other credential holds, because a status change
+// assigned index if no other credential holds it, because a status change
 // applies to every credential on the index. Batch copies each take a fresh
 // index, because a shared index would link their presentations.
 func (w *Wallet) ownStatusIndex(requested *int, batch bool) (int, error) {
@@ -276,7 +276,7 @@ func (w *Wallet) ownStatusIndex(requested *int, batch bool) (int, error) {
 
 // statusIndexFree reports why credID cannot hold idx on the wallet's own
 // status list. Copies of one batch may share an index. The list covers only
-// the indices the wallet assigned.
+// the indices assigned by the wallet.
 func (w *Wallet) statusIndexFree(idx int, credID string) error {
 	allocation := -1
 	if idx >= 0 {

@@ -26,8 +26,8 @@ import (
 	"testing"
 )
 
-// stepIssuer is a credential issuer and authorization server that serves
-// every endpoint the issuance steps call and records what it receives.
+// stepIssuer is a credential issuer and authorization server. It serves every
+// endpoint called by the issuance steps and records each request.
 type stepIssuer struct {
 	url string
 
@@ -135,8 +135,8 @@ func (s *stepIssuer) offer(configs []string, grants map[string]any) string {
 	return "openid-credential-offer://?credential_offer=" + url.QueryEscape(string(encoded))
 }
 
-// An offer lists several configurations, and the wallet requests the one the
-// user or the API caller chose. Without a choice it requests the first.
+// An offer lists several configurations. The wallet requests the one chosen
+// by the user or the API caller. Without a choice it requests the first.
 func TestOfferIssuesTheChosenConfiguration(t *testing.T) {
 	for _, tc := range []struct {
 		chosen, want string
@@ -176,7 +176,7 @@ func TestOfferIssuesTheChosenConfiguration(t *testing.T) {
 }
 
 // The configuration picked in the consent dialog decides what is requested.
-// The approve API refuses one the offer does not list.
+// The approve API refuses a configuration missing from the offer.
 func TestIssuanceConsentCarriesTheChosenConfiguration(t *testing.T) {
 	w := generateTestWallet(t)
 	issuer := newStepIssuer(t, generateTestCredential(t, w))

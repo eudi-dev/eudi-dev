@@ -182,8 +182,8 @@ func TestListCredentials(t *testing.T) {
 	}
 }
 
-// An unanswered consent ends with HTTP 408 for the caller, and the approve
-// API that waits on the submission learns the same.
+// An unanswered consent ends with HTTP 408 for the caller. The approve API
+// waiting on the submission gets the same result.
 func TestAnswerConsentTimeout(t *testing.T) {
 	srv := newTestServer(t, false)
 	req := consent.NewRequest(consent.TypePresentation, "")
@@ -210,7 +210,7 @@ func TestAnswerConsentTimeout(t *testing.T) {
 	}
 }
 
-// OID4VP 1.0 §8.5 answers transaction data the wallet does not support with
+// OID4VP 1.0 §8.5 answers unsupported transaction data with
 // invalid_transaction_data.
 func TestAuthorize_StrictRejectsTransactionData(t *testing.T) {
 	srv := newStrictTestServer(t, true)
@@ -532,7 +532,7 @@ func TestAPIErrorsUseTheErrorObject(t *testing.T) {
 	}{
 		{"presentation malformed body", "POST", "/api/presentations", "not json", http.StatusBadRequest, "invalid_request", "invalid JSON body"},
 		{"presentation unparseable URI", "POST", "/api/presentations", `{"uri":"not-a-valid-uri"}`, http.StatusBadRequest, "invalid_request", ""},
-		// OpenID4VP 1.0 §8.5 names this refusal invalid_request_uri_method.
+		// OpenID4VP 1.0 §8.5 defines invalid_request_uri_method for this refusal.
 		{"presentation request_uri_method", "POST", "/api/presentations", `{"uri":"openid4vp://?client_id=x&request_uri=https%3A%2F%2Fverifier.example%2Fr&request_uri_method=PATCH"}`, http.StatusBadRequest, "invalid_request_uri_method", `unsupported request_uri_method "PATCH"`},
 		{"authorize request_uri_method", "GET", "/authorize?client_id=x&request_uri=https%3A%2F%2Fverifier.example%2Fr&request_uri_method=PATCH", "", http.StatusBadRequest, "invalid_request_uri_method", `unsupported request_uri_method "PATCH"`},
 		{"credential offer endpoint without an offer", "GET", "/credential-offer", "", http.StatusBadRequest, "invalid_request", "missing credential_offer"},
@@ -1844,7 +1844,7 @@ func TestTrustListAPI_ParseableByTrustlistParser(t *testing.T) {
 	}
 }
 
-// A PID is signed under a CA of its issuing country, so the PID list names
+// A PID is signed under a CA of its issuing country, so the PID list contains
 // the CA of every PID template's country.
 func TestThePIDListNamesTheCountryOfEveryPIDTemplate(t *testing.T) {
 	srv := newTestServer(t, false)

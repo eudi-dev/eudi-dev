@@ -28,8 +28,7 @@ import (
 const renewalMargin = time.Minute
 
 // CredentialValidity reads nbf and exp from a JWT payload, or validFrom and
-// validUntil from an mdoc MSO. A bound the credential does not state is the
-// zero time.
+// validUntil from an mdoc MSO. A missing bound is the zero time.
 func CredentialValidity(cred StoredCredential) (notBefore, expiry time.Time) {
 	switch cred.Format {
 	case credtype.FormatMDOC:

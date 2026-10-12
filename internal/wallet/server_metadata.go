@@ -190,8 +190,8 @@ func (s *Server) handleOpenIDCredentialIssuerMetadata(w http.ResponseWriter, r *
 
 // PrefersSignedIssuerMetadata reports whether Accept ranks application/jwt
 // above application/json. OpenID4VCI 1.0 §12.2.2 recommends answering with the
-// requested content type. With equal preference the issuer answers with the
-// unsigned form, which it must always support.
+// requested content type. The unsigned form is mandatory, so it wins on equal
+// preference.
 func PrefersSignedIssuerMetadata(accept string) bool {
 	jwt, json := 0.0, 0.0
 	for _, entry := range strings.Split(accept, ",") {

@@ -45,8 +45,8 @@ const (
 
 	// errorInsufficientAuthorization is the error of an Interaction Required
 	// Response (§6.2.1). It comes in the error member. The draft's prose says
-	// error_code once, while its examples, first-party-apps §5.2.2 and RFC 6749
-	// §5.2 all use error.
+	// error_code once. Its examples, first-party-apps §5.2.2 and RFC 6749 §5.2
+	// all use error.
 	errorInsufficientAuthorization = "insufficient_authorization"
 
 	// errorRedirectToWeb means the authorization server wants the exchange
@@ -55,9 +55,9 @@ const (
 )
 
 // redirectToWebError carries a redirect_to_web response back to the caller.
-// The caller runs the browser redirect flow. requestURI is the pushed request
-// the server offered. It is empty when the server offered none, and the wallet
-// then starts its own authorization request.
+// The caller runs the browser redirect flow. requestURI is the server's pushed
+// request. It is empty when the server offered none. The wallet then starts
+// its own authorization request.
 type redirectToWebError struct {
 	requestURI string
 }
@@ -107,10 +107,10 @@ func interactiveAuthorizationEndpoint(oauthMeta map[string]any) string {
 	return strings.TrimSpace(endpoint)
 }
 
-// interactionTypesSupported lists the types the wallet advertises in the
-// initial request (§6.1.1). §6.2.1 makes a wallet abort on a type it does not
-// support, so only types it can carry out are listed. The browser interaction
-// needs a redirect URI and an authorization endpoint.
+// interactionTypesSupported lists the interaction types for the initial
+// request (§6.1.1). §6.2.1 makes a wallet abort on an unsupported type, so the
+// list holds only supported types. The browser interaction needs a redirect
+// URI and an authorization endpoint.
 func (w *Wallet) interactionTypesSupported(setup authorizationCodeSetup) []string {
 	types := []string{interactionTypePresentation}
 	// §6.2.1.2: "the redirect URI MUST be an https URL as per Section 7.2 of
@@ -262,7 +262,7 @@ func (w *Wallet) postAuthorizationChallenge(endpoint string, form url.Values, se
 }
 
 // authorizationChallengeCode reads the Authorization Code Response of
-// first-party-apps §5.2.1, which carries the code in authorization_code.
+// first-party-apps §5.2.1. The code is in authorization_code.
 func (w *Wallet) authorizationChallengeCode(response map[string]any) (string, error) {
 	if code := jsonutil.GetString(response, "authorization_code"); code != "" {
 		return code, nil
@@ -313,7 +313,7 @@ func (w *Wallet) runAuthorizationInteraction(endpoint string, response map[strin
 }
 
 // runAuthViaWebInteraction performs the browser interaction of §6.2.1.2. The
-// server's response carries a request_uri, which "the Wallet MUST use ... to
+// server's response carries a request_uri, and "the Wallet MUST use ... to
 // build an Authorization Request as defined in Section 4 of RFC9126". The
 // wallet opens that URL in the user's browser and waits for the redirect. The
 // redirect carries the authorization code when the authorization is complete.
@@ -498,8 +498,8 @@ func (w *Wallet) parseInteractiveAuthorizationRequest(request map[string]any, en
 	return params, nil
 }
 
-// derivedOrigin is the origin of a URL as RFC 6454 §4 derives it (scheme,
-// host and port). §6.2.1.1: "the derived Origin from
+// derivedOrigin is the origin of a URL per RFC 6454 §4 (scheme, host and
+// port). §6.2.1.1: "the derived Origin from
 // https://example.com/authorize-challenge is https://example.com".
 func derivedOrigin(rawURL string) string {
 	parsed, err := url.Parse(strings.TrimSpace(rawURL))
@@ -509,8 +509,8 @@ func derivedOrigin(rawURL string) string {
 	return parsed.Scheme + "://" + parsed.Host
 }
 
-// awaitInteractivePresentationConsent asks the user to approve the
-// presentation the issuer requires for issuance. Consent to receive a
+// awaitInteractivePresentationConsent asks the user to approve a
+// presentation required by the issuer for issuance. Consent to receive a
 // credential does not cover disclosing one, so this is a separate prompt.
 func (w *Wallet) awaitInteractivePresentationConsent(endpoint string, authReq *oid4vp.Request, outcome presentationOutcome, consented bool, owner string) ([]consent.Match, bool, error) {
 	if w.AutoAcceptSetting() || consented {

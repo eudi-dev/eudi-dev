@@ -170,8 +170,8 @@ func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		SelectedClaims map[string][]string `json:"selected_claims"`
 		TxCode         string              `json:"tx_code"`
-		// ConfigurationID picks one of the credential configurations an
-		// issuance offer lists.
+		// ConfigurationID picks one of the credential configurations listed in
+		// an issuance offer.
 		ConfigurationID string `json:"credential_configuration_id"`
 		// References the credential options selected in the dialog.
 		Picks      map[string]consentPick `json:"picks"`

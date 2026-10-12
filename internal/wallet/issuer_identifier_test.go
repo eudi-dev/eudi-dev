@@ -24,7 +24,7 @@ import (
 )
 
 // RFC 8414 §3.3 requires the metadata issuer to be identical to the
-// identifier the metadata was fetched for.
+// identifier used to fetch the metadata.
 func TestValidateAuthorizationServerIssuerComparesExactly(t *testing.T) {
 	if err := validateAuthorizationServerIssuer("https://as.example", map[string]any{"issuer": "https://as.example"}); err != nil {
 		t.Fatalf("identical issuer refused: %v", err)

@@ -77,14 +77,14 @@ func (w *Wallet) processAuthorizationCodeOffer(offer *oid4vc.CredentialOffer, se
 	switch clientAuthMethod {
 	case "", unauthenticatedClientMethod, "private_key_jwt", "attest_jwt_client_auth", "attest_jwt_client_auth_dpop":
 	case unregisteredPublicClientMethod:
-		// RFC 8414 uses the IANA registry, which has "none" for an
+		// RFC 8414 uses the IANA registry. It registers "none" for an
 		// unauthenticated client. "public" is not registered.
 		if err := w.reportServerDeviation(fmt.Sprintf("authorization server advertises the unregistered token endpoint auth method %q. RFC 8414 takes these values from the OAuth Token Endpoint Authentication Methods registry, where an unauthenticated client is %q", unregisteredPublicClientMethod, unauthenticatedClientMethod)); err != nil {
 			return nil, err
 		}
 	default:
-		// Other methods need credentials this wallet does not have, such as a
-		// client secret.
+		// Other methods need credentials such as a client secret. The wallet
+		// has none.
 		return nil, fmt.Errorf("unsupported token endpoint auth method %q", clientAuthMethod)
 	}
 	dpopKey := w.dpopKeyForRenewal(session.renewal)
@@ -220,7 +220,7 @@ func (w *Wallet) processAuthorizationCodeOffer(offer *oid4vc.CredentialOffer, se
 type authorizationCodeSetup struct {
 	clientID    string
 	redirectURI string
-	// credentialRequest names the credential: scope or authorization_details.
+	// credentialRequest identifies the credential: scope or authorization_details.
 	credentialRequest url.Values
 	state             string
 	codeVerifier      string
@@ -344,7 +344,7 @@ func supportsDPoP(oauthMeta map[string]any) bool {
 }
 
 // authorizationCredentialRequest returns the authorization request parameter
-// that names the credential. OID4VCI 1.0 §12.2.4: "If scope is absent, the
+// that identifies the credential. OID4VCI 1.0 §12.2.4: "If scope is absent, the
 // only way to request the Credential is using authorization_details" (§5.1.1).
 func (w *Wallet) authorizationCredentialRequest(metadata map[string]any, configID string) (url.Values, error) {
 	if scope := resolveCredentialScope(metadata, configID); scope != "" {
@@ -595,7 +595,7 @@ func (a *clientAuthenticator) requestChallenge() (string, error) {
 
 // dpopChallenge returns the challenge for the DPoP proof in combined mode,
 // where that proof is the possession proof (draft-10 §5.2). It is empty with a
-// dedicated PoP, which carries the challenge itself.
+// dedicated PoP, because that PoP carries the challenge itself.
 //
 // Draft-10 §7.3 step 5: the challenge "MUST match the nonce payload claim of
 // the DPoP proof". Drafts -07 and -08 have no combined mode, so this is the
@@ -807,8 +807,8 @@ func createKeyAttestation(w *Wallet, metadata map[string]any, configID, cNonce s
 // key attestation (OpenID4VCI 1.0 Appendix D.2).
 var keyAttestationClaimNames = []string{"key_storage", "user_authentication"}
 
-// keyAttestationLevelValues are the values of those claims in Appendix D.2,
-// the ISO/IEC 18045 attack potentials that a catalogue entry also names.
+// keyAttestationLevelValues are the values of those claims in Appendix D.2.
+// They are the ISO/IEC 18045 attack potentials, also used by catalogue entries.
 var keyAttestationLevelValues = registrar.OptionValues(registrar.AttestationLevels)
 
 // ParseKeyAttestationLevel validates the --key-attestation-level setting. Valid
@@ -1031,8 +1031,8 @@ func responseMapLogDetails(endpoint, endpointName string, response map[string]an
 	return details
 }
 
-// checkTokenType reports a missing or unknown token_type, which RFC 6749 §5.1
-// requires. A missing type is taken as DPoP when a proof was sent and Bearer
+// checkTokenType reports a missing or unknown token_type. RFC 6749 §5.1
+// requires token_type. A missing type is taken as DPoP when a proof was sent and Bearer
 // otherwise. An unknown type is taken as Bearer.
 func (w *Wallet) checkTokenType(tokenResp map[string]any, sentDPoP bool) error {
 	tokenType, _ := tokenResp["token_type"].(string)
@@ -1854,8 +1854,8 @@ func canUseInteractiveAuthorizationCallback(w *Wallet, redirectURI string) bool 
 		return false
 	}
 	// A wallet started without --base-url still serves /callback. The serve
-	// command records the origin it answers on, and the default redirect URI
-	// comes from that origin.
+	// command records its listening origin, and the default redirect URI comes
+	// from that origin.
 	base := strings.TrimSpace(w.BaseURL)
 	if base == "" {
 		base = strings.TrimSpace(w.ServingOrigin)

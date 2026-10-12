@@ -36,8 +36,8 @@ func servedList(t *testing.T, srv *Server, path string) (*lote.List, string) {
 	return list, resp.Body.String()
 }
 
-// Each list the wallet publishes has its own URL, and the instance it serves
-// there is the first one of its history.
+// Each list published by the wallet has its own URL. That URL serves the first
+// instance in the list's history.
 func TestTrustListByIDServesEachList(t *testing.T) {
 	w := generateTestWallet(t)
 	w.IssuerURL = "https://wallet.example"

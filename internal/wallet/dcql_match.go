@@ -66,9 +66,9 @@ func (w *Wallet) PreferredFormatSetting() string {
 	return w.PreferredFormat
 }
 
-// trustedAuthorityAnchors reads the trusted lists that the credential queries
-// name. §6.1.1: a credential matches "one of the provided values in one of the
-// provided types". A list the wallet cannot use matches nothing.
+// trustedAuthorityAnchors reads the trusted lists referenced by the credential
+// queries. §6.1.1: a credential matches "one of the provided values in one of
+// the provided types". An unusable list matches nothing.
 func (w *Wallet) trustedAuthorityAnchors(query map[string]any) map[string][]*x509.Certificate {
 	anchors := map[string][]*x509.Certificate{}
 	credQueries, _ := query["credentials"].([]any)
@@ -83,8 +83,8 @@ func (w *Wallet) trustedAuthorityAnchors(query map[string]any) map[string][]*x50
 	return anchors
 }
 
-// etsiTrustedListAnchors reads the lists that the etsi_tl entries of
-// trusted_authorities name, the way the wallet reads its own trusted lists:
+// etsiTrustedListAnchors reads the lists referenced by the etsi_tl entries of
+// trusted_authorities. It reads them like the wallet's own trusted lists:
 // cached, signed by a trusted list operator and current. The issuance services
 // anchor credentials (ETSI TS 119 602 V1.1.1 Table D.3). Each list that gives
 // no anchors is a finding.

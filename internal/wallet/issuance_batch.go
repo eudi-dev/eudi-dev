@@ -29,9 +29,9 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 )
 
-// MaxBatchSize caps the copies of one batch: the proof keys the wallet sends
-// to an issuer, the copies it issues itself and the copies the demo issuer
-// signs in one request.
+// MaxBatchSize caps the copies of one batch. It applies to the proof keys
+// sent to an issuer, to copies issued by the wallet itself and to copies
+// signed by the demo issuer in one request.
 const MaxBatchSize = 8
 
 func advertisedBatchSize(metadata map[string]any) int {

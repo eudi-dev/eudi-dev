@@ -412,8 +412,8 @@ func queryWithoutMeta() map[string]any {
 	}
 }
 
-// In strict mode the findings are errors. A query without a member that §6.1
-// marks REQUIRED is an invalid_request.
+// In strict mode the findings are errors. A query missing a REQUIRED member
+// of §6.1 is an invalid_request.
 func TestStrictRefusesAQueryWithoutMeta(t *testing.T) {
 	w := generateTestWalletWithPID(t)
 	w.ValidationMode = ValidationModeStrict

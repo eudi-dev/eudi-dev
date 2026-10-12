@@ -24,8 +24,8 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
 )
 
-// applySelectedClaims discloses the claims the user selected per credential.
-// Strict mode discloses only claims the request asked for, so a selection can
+// applySelectedClaims discloses the user's selected claims for each credential.
+// Strict mode discloses only requested claims, so a selection can
 // withhold a claim but not add one. Debug mode sends the selection as it is.
 func (w *Wallet) applySelectedClaims(matches []consent.Match, selected map[string][]string) []consent.Match {
 	if selected == nil {
@@ -53,7 +53,7 @@ func (w *Wallet) applySelectedClaims(matches []consent.Match, selected map[strin
 }
 
 // newPresentationConsent is the consent request for a presentation. typ tells a
-// verifier's request from one an issuer makes during issuance.
+// verifier's request apart from an issuer's request during issuance.
 func newPresentationConsent(typ, owner, clientID string, authReq *oid4vp.Request, matches []consent.Match, options *consent.CredentialOptions) *consent.Request {
 	req := consent.NewRequest(typ, owner)
 	req.MatchedCreds = matches
@@ -69,7 +69,7 @@ func newPresentationConsent(typ, owner, clientID string, authReq *oid4vp.Request
 	return req
 }
 
-// consentedMatches applies the credentials and claims the user chose.
+// consentedMatches applies the user's chosen credentials and claims.
 func (w *Wallet) consentedMatches(req *consent.Request, matches []consent.Match, result consent.Result) []consent.Match {
 	return w.applySelectedClaims(consent.ApplySelection(req.CredentialOptions, matches, result), result.SelectedClaims)
 }

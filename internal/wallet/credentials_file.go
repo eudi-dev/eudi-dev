@@ -29,7 +29,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 )
 
-// CredentialsFile lists credentials the wallet adds on every start. An entry
+// CredentialsFile lists credentials added to the wallet on every start. An entry
 // either issues a credential from a template or imports a finished one.
 type CredentialsFile struct {
 	Credentials []CredentialsFileEntry `json:"credentials"`

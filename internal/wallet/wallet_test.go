@@ -980,7 +980,7 @@ func TestGenerateDefaultCredentials_VCTSelectsTheClaimSet(t *testing.T) {
 	if _, ok := sdjwt.Claims["source_document_type"]; !ok {
 		t.Error("the German PID was issued without its national claims")
 	}
-	// A credential can satisfy requests for a type it extends.
+	// The German PID also answers requests for the base PID type.
 	if !credtype.Answers(sdjwt.VCT, credtype.AkaVCTs(sdjwt.Claims), mock.DefaultPIDVCT) {
 		t.Errorf("the German PID does not answer for %q: aka_vcts=%v", mock.DefaultPIDVCT, sdjwt.Claims[credtype.AkaVCTsClaim])
 	}

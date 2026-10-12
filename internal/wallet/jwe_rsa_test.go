@@ -50,7 +50,7 @@ func ecEncJWK(t *testing.T, use string) map[string]any {
 }
 
 // OID4VP 1.0 allows an RSA-OAEP encryption key and HAIP does not. The wallet
-// answers such a verifier with a JWE it can decrypt with its RSA private key.
+// answers such a verifier with a JWE encrypted to its RSA key.
 func TestEncryptJWERSARoundTrip(t *testing.T) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {

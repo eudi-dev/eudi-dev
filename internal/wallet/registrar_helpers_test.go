@@ -77,8 +77,8 @@ func ownProviderIdentifier(t *testing.T, w *Wallet) string {
 	return identifier
 }
 
-// semanticIdentifier is the identifier the certificates of a registration
-// carry (ETSI TS 119 475 V1.2.1 GEN-5.1.3).
+// semanticIdentifier is the identifier in a registration's certificates (ETSI
+// TS 119 475 V1.2.1 GEN-5.1.3).
 func semanticIdentifier(t *testing.T, rp registrar.WalletRelyingParty) string {
 	t.Helper()
 	semantic, err := registrar.SemanticIdentifier(rp.Identifier[0], rp.Country)
@@ -125,9 +125,8 @@ func testAccessCSR(t *testing.T, key *ecdsa.PrivateKey) string {
 	return string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: der}))
 }
 
-// verifiedRegistrationCertificates returns the claims of the registration
-// certificates in verifier_info whose signature verifies, and the problems of
-// the others.
+// verifiedRegistrationCertificates returns the claims of the verified
+// registration certificates in verifier_info, and the problems of the others.
 func verifiedRegistrationCertificates(payload map[string]any) ([]map[string]any, []string) {
 	registrations, problems := regcert.Verify(regcert.InfoEntries(payload, "verifier_info"))
 	certs := make([]map[string]any, 0, len(registrations))

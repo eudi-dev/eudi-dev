@@ -391,7 +391,7 @@ func TestResolveCredentialEndpoint_FromMetadata(t *testing.T) {
 	}
 }
 
-// A required endpoint that the metadata omits or leaves empty is a deviation.
+// A required endpoint missing or empty in the metadata is a deviation.
 // Debug mode warns and uses the conventional path. Strict mode refuses.
 func TestResolveEndpoint_MissingOrEmptyIsADeviation(t *testing.T) {
 	for _, tc := range []struct {
@@ -755,7 +755,8 @@ func TestResolveTokenEndpoint_PrefersTheAuthorizationServerMetadata(t *testing.T
 }
 
 // Without any token_endpoint, debug mode assumes the conventional path on the
-// authorization server in use, not on the first one the issuer lists.
+// authorization server in use. That server need not be the first in the
+// issuer's list.
 func TestResolveTokenEndpoint_FallbackUsesTheChosenAuthorizationServer(t *testing.T) {
 	w := generateTestWallet(t)
 	metadata := map[string]any{"authorization_servers": []any{"https://as-one.example", "https://as-two.example/"}}

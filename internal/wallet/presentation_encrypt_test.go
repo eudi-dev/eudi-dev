@@ -54,8 +54,9 @@ func encryptedResponseRequest(clientMetadata map[string]any) *oid4vp.Request {
 }
 
 // OID4VP 1.0 §8.3 encrypts the response to a key in client_metadata.jwks with
-// an enc from encrypted_response_enc_values_supported. A request the wallet
-// cannot answer that way is an invalid_request before any consent.
+// an enc from encrypted_response_enc_values_supported. If the wallet cannot
+// encrypt the response that way, the request is an invalid_request before any
+// consent.
 func TestUnencryptableResponseIsRefusedBeforeConsent(t *testing.T) {
 	for _, tt := range []struct {
 		name     string

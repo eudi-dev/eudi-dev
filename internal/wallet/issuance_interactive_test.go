@@ -401,8 +401,8 @@ func TestInteractiveAuthorizationIsNotUsedAtFeatureLevel10(t *testing.T) {
 	}
 }
 
-// HAIP 1.0 profiles the channels a Verifier sends an Authorization Request
-// over. It does not cover a presentation inside an OpenID4VCI 1.1 §6 exchange,
+// HAIP 1.0 profiles the channels for a Verifier's Authorization Request. It
+// does not cover a presentation inside an OpenID4VCI 1.1 §6 exchange,
 // so a HAIP wallet in strict mode applies no HAIP channel rules to it.
 func TestInteractiveAuthorizationIsNotHeldToHAIPChannelRules(t *testing.T) {
 	w := newInteractiveWallet(t)
@@ -737,9 +737,9 @@ func TestInteractiveAuthorizationAuthViaWebContinuesWithAuthSession(t *testing.T
 	}
 }
 
-// A wallet without a redirect URI cannot complete the browser interaction. It
-// does not advertise it, since §6.2.1 would make it abort when asked, and it
-// refuses a server that asks anyway.
+// A wallet without a redirect URI cannot complete the browser interaction.
+// It does not advertise auth_via_web, because §6.2.1 would then require it to
+// abort. A server that asks for it anyway is refused.
 func TestInteractiveAuthorizationAuthViaWebIsNotOfferedWithoutARedirectURI(t *testing.T) {
 	w := newInteractiveWallet(t)
 	issuer := newInteractiveIssuer(t, w)

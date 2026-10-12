@@ -63,8 +63,8 @@ func TestSaveMutationFencesOutAReload(t *testing.T) {
 }
 
 // batchIssuer issues a batch bound to the proof keys of each credential
-// request. Its notification endpoint runs onNotify, which is called after
-// the wallet stored a credential response.
+// request. Its notification endpoint runs onNotify after the wallet stored a
+// credential response.
 func batchIssuer(t *testing.T, w *Wallet, onNotify func()) (*httptest.Server, string) {
 	t.Helper()
 	var serverURL string

@@ -330,7 +330,7 @@ func TestAnAddedRegistrarCAAnchorsCertificatesAndStatusLists(t *testing.T) {
 	}
 }
 
-// An unreachable list is fetched once a minute, not on every check.
+// An unreachable list is fetched at most once a minute.
 func TestAFailedListIsReusedForAMinute(t *testing.T) {
 	var fetches atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
@@ -370,7 +370,7 @@ func TestCapacityBoundsAddedProvidersAndLists(t *testing.T) {
 	}
 }
 
-// A stored trusted-list CA that no longer decodes is reported, so the wallet
+// A stored trusted-list CA that fails to decode is reported, so the wallet
 // doesn't trust fewer list operators without saying why.
 func TestTrustListCAsReportsAnUnreadableEntity(t *testing.T) {
 	w := generateTestWallet(t)

@@ -421,7 +421,7 @@ func (w *Wallet) cacheDisplayImage(uri, field string) string {
 }
 
 // embedDisplayImage ignores --adhoc-display-images. It is for the issuer
-// logo, which consent shows once and the wallet never stores.
+// logo. Consent shows the logo once and the wallet never stores it.
 func (w *Wallet) embedDisplayImage(uri, field string) string {
 	if uri == "" {
 		return ""
@@ -507,7 +507,7 @@ func (w *Wallet) keepVectorImage(body []byte, field, uri string) string {
 		w.rejectDisplayImage(field, uri, fmt.Sprintf("larger than the %dKB cap", maxDisplayImageBytes>>10))
 		return ""
 	}
-	// The SVG is only rendered through an <img> tag, which runs no scripts
+	// The SVG is only rendered through an <img> tag. An <img> runs no scripts
 	// and loads nothing external. Its endpoint also sends script-src 'self'.
 	return "data:image/svg+xml;base64," + base64.StdEncoding.EncodeToString(body)
 }

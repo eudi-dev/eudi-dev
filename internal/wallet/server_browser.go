@@ -64,8 +64,8 @@ func (s *Server) handleBrowserPresentationAPI(w http.ResponseWriter, r *http.Req
 
 	switch {
 	case outcome.invalid != nil:
-		// OpenID4VP 1.0 §8.5 follows RFC 6749 §4.1.2.1, which reports the error
-		// to the user without answering an invalid request.
+		// OpenID4VP 1.0 §8.5 follows RFC 6749 §4.1.2.1. The error goes to the
+		// user, and the invalid request gets no answer.
 		s.triggerUIRequest("")
 		writeJSON(w, http.StatusBadRequest, map[string]any{
 			"error":             outcome.invalidCode,

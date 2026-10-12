@@ -17,8 +17,8 @@ package wallet
 import "testing"
 
 // Every PID entry lists the mdoc doctype eu.europa.ec.eudi.pid.1 and links the
-// same PID list, so the anchoring of a PID mdoc names no entry. The SD-JWT VC
-// type names exactly one.
+// same PID list, so anchoring a PID mdoc identifies no single entry. The
+// SD-JWT VC type identifies exactly one.
 func TestCatalogueAnchoringNamesOnlyAnUnambiguousEntry(t *testing.T) {
 	w := generateTestWalletWithPID(t)
 	for _, c := range w.GetCredentials() {

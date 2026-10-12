@@ -117,7 +117,7 @@ func usesAuthorizationEndpoint(offer *oid4vc.CredentialOffer) bool {
 }
 
 // supportsAuthorizationCodeFlow reports whether the authorization server
-// advertises the authorization code flow, which HAIP 1.0 §4 requires. Metadata
+// advertises the authorization code flow. HAIP 1.0 §4 requires it. Metadata
 // without grant_types_supported defaults to authorization_code (RFC 8414), so
 // an authorization endpoint is enough.
 func supportsAuthorizationCodeFlow(oauthMeta map[string]any) bool {

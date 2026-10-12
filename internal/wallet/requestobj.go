@@ -49,7 +49,7 @@ func BuildWalletMetadata(w *Wallet, clientID string) map[string]any {
 		// OID4VP 1.0 §10.1 defaults to pre-registered when this field is absent.
 		// Listing the prefixes allows x509_hash.
 		"client_id_prefixes_supported": oid4vp.AdvertisedClientIDPrefixes(),
-		// OID4VP 1.0 §10 uses RFC 8414 metadata, which requires
+		// OID4VP 1.0 §10 uses RFC 8414 metadata. RFC 8414 requires
 		// response_types_supported. OpenID4VP returns vp_token (§5.6).
 		"response_types_supported": []string{"vp_token"},
 		// RFC 8414 defaults to query and fragment, so the wallet lists every
@@ -109,7 +109,7 @@ func MakeFetchRequestURI(w *Wallet, logFn func(string, ...any)) func(url, method
 }
 
 // fetchedRequestObject is a request_uri response before the wallet checks it.
-// walletNonce is the wallet_nonce the wallet sent, empty for GET.
+// walletNonce is the wallet_nonce sent by the wallet, empty for GET.
 type fetchedRequestObject struct {
 	method      string
 	contentType string

@@ -30,8 +30,8 @@ import (
 type redirectAuthCodeIssuer struct {
 	// configuration is the test-config credential configuration.
 	configuration map[string]any
-	// authorizationQuery is a query the authorization_endpoint carries in
-	// its metadata.
+	// authorizationQuery is a query string on the authorization_endpoint in
+	// the metadata.
 	authorizationQuery string
 	authMethods        []string
 	// asIssuer replaces the issuer of the authorization server metadata.
@@ -203,8 +203,8 @@ func TestClientAssertionIsFreshOnRetry(t *testing.T) {
 	}
 }
 
-// RFC 8414 §3.3: the metadata issuer "MUST be identical" to the identifier it
-// was fetched for. Debug mode reports a mismatch and continues. Strict mode
+// RFC 8414 §3.3: the metadata issuer "MUST be identical" to the identifier
+// used to fetch it. Debug mode reports a mismatch and continues. Strict mode
 // refuses.
 func TestAuthorizationServerIssuerMismatch(t *testing.T) {
 	configuration := map[string]any{"format": "dc+sd-jwt", "scope": "test-scope"}

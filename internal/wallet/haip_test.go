@@ -162,8 +162,8 @@ func TestHAIPIssuanceLeavesTheDPoPAlgorithmsOpen(t *testing.T) {
 	}
 }
 
-// HAIP 1.0 §4.1 applies to the issuer metadata whichever grant the offer
-// carries: a scope for every credential configuration, and a nonce_endpoint
+// HAIP 1.0 §4.1 applies to the issuer metadata for every grant type: a scope
+// for every credential configuration, and a nonce_endpoint
 // when a configuration requires key binding.
 func TestHAIPChecksTheIssuerMetadataForBothGrants(t *testing.T) {
 	config := map[string]any{"format": "dc+sd-jwt", "vct": "urn:test:credential", "cryptographic_binding_methods_supported": []any{"jwk"}}
@@ -235,7 +235,7 @@ func TestHAIPIssuanceAllowsLoopbackHTTP(t *testing.T) {
 // A pre-authorized code offer from an issuer that meets the profile must be
 // accepted. HAIP 1.0 §4 requires support for the authorization code flow and
 // has no rule for the pre-authorized code flow. It scopes PAR to "when using
-// the Authorization Endpoint", which this offer never reaches.
+// the Authorization Endpoint". This offer never reaches it.
 func TestHAIPIssuanceAcceptsCompliantPreAuthorizedOffer(t *testing.T) {
 	offer := &oid4vc.CredentialOffer{
 		CredentialIssuer: "https://issuer.example",

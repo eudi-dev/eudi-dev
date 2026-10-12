@@ -68,7 +68,7 @@ func (w *Wallet) importCredential(raw, group, bindingKeyPEM string) (*StoredCred
 }
 
 // mdoc identifies the signer through its COSE certificate chain. Only JWT formats can
-// name a DID issuer here.
+// have a DID issuer here.
 func credentialIssuerDID(raw string) string {
 	jwtPart := strings.TrimSpace(raw)
 	if idx := strings.Index(jwtPart, "~"); idx >= 0 {
@@ -107,10 +107,9 @@ func (w *Wallet) noteDIDIssuerKey(cred *StoredCredential) {
 	log.Printf("[Wallet] WARNING: %s", detail)
 }
 
-// Set the batch group and binding key before appending because clones forward
-// credentials at that point.
 // parseDetectedFormat parses a credential into a new wallet entry without
-// storing it.
+// storing it. It sets the batch group and binding key before the caller
+// appends the entry, because clones forward credentials at that point.
 func (w *Wallet) parseDetectedFormat(raw, group, bindingKeyPEM string) (StoredCredential, error) {
 	if strings.Contains(raw, "~") {
 		cred, err := w.parseSDJWTEntry(raw, group, bindingKeyPEM)

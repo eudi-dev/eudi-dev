@@ -47,8 +47,8 @@ func TestBuildWalletMetadata_Basic(t *testing.T) {
 	if rts, _ := meta["response_types_supported"].([]string); len(rts) != 1 || rts[0] != "vp_token" {
 		t.Errorf("response_types_supported = %v, want [vp_token]", meta["response_types_supported"])
 	}
-	// RFC 8414 defaults to query and fragment, so the wallet lists every mode it
-	// answers.
+	// RFC 8414 defaults to query and fragment, so the wallet lists all its
+	// supported modes.
 	if rms, _ := meta["response_modes_supported"].([]string); !slices.Equal(rms, []string{"direct_post", "direct_post.jwt", "dc_api", "dc_api.jwt", "fragment"}) {
 		t.Errorf("response_modes_supported = %v, want every mode the wallet answers", rms)
 	}

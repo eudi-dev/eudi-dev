@@ -140,8 +140,8 @@ func newRedirectFlowIssuer(t *testing.T, w *Wallet, withChallengeEndpoint bool) 
 			issuer.tokenCalled = true
 			body, _ := io.ReadAll(r.Body)
 			form, _ := url.ParseQuery(string(body))
-			// The redirect flow's token request carries the redirect_uri it
-			// authorized with (RFC 6749 §4.1.3).
+			// The redirect flow's token request carries the redirect_uri of the
+			// authorization request (RFC 6749 §4.1.3).
 			if got := form.Get("redirect_uri"); got != w.VCIRedirectURI {
 				t.Errorf("token request redirect_uri = %q, want %q", got, w.VCIRedirectURI)
 			}

@@ -378,7 +378,7 @@ func TestTheDemoPartiesHoldEveryCertificateFromTheStart(t *testing.T) {
 }
 
 // The demo issuer is the provider on the trusted lists, so its registration
-// names the organization that the default provider certificates carry.
+// has the organization of the default provider certificates.
 func TestTheDemoIssuerRegistrationMatchesTheProviderCertificates(t *testing.T) {
 	caKey, _ := mock.GenerateKey()
 	ca, err := mock.GenerateCACert(caKey)

@@ -60,8 +60,8 @@ type IssueOptions struct {
 	// into the SD-JWT payload in plain form. It adds to the template's list.
 	// An mdoc rejects it because every mdoc element is selectively disclosable.
 	AlwaysDisclosed []string
-	// SaveTemplate is the name of a user template that stores the resolved
-	// parameters after a successful issuance.
+	// SaveTemplate is the name of a user template. A successful issuance
+	// stores the resolved parameters in it.
 	SaveTemplate string
 	// Catalog adds the saved template to the attestation catalogue with these
 	// catalogue fields. It needs SaveTemplate.
@@ -104,8 +104,8 @@ type IssueOptions struct {
 	SigningKey       *ecdsa.PrivateKey
 	SigningCertChain []*x509.Certificate
 	// Unbound issues the credential without a holder key. An SD-JWT VC then
-	// has no cnf, which SD-JWT VC §2.2.2.3 makes optional. An mdoc has no MSO
-	// deviceKey, which ISO 18013-5 §9.1.2.4 makes mandatory. That malformed
+	// has no cnf (optional per SD-JWT VC §2.2.2.3). An mdoc has no MSO
+	// deviceKey, although ISO 18013-5 §9.1.2.4 makes it mandatory. Such an
 	// mdoc tests verifier rejection.
 	Unbound bool
 }
@@ -305,7 +305,7 @@ func (w *Wallet) IssueCredential(opts IssueOptions) (result *IssueResult, err er
 		}
 	}
 
-	// The wallet's lists name the wallet CA, so a credential signed with an
+	// The wallet's lists contain the wallet CA. A credential signed with an
 	// override chain is on none of them.
 	if opts.SigningKey == nil {
 		if err := w.RegisterIssuedAttestation(spec); err != nil {
@@ -398,7 +398,7 @@ func (w *Wallet) issueSigner(opts IssueOptions, resolved credtemplate.Resolved, 
 	}, nil
 }
 
-// HolderSigning describes a credential that the wallet's issuer signs for
+// HolderSigning describes a credential signed by the wallet's issuer for
 // another holder.
 type HolderSigning struct {
 	// Issuer is the iss claim. Empty uses the wallet's issuer URL.
@@ -533,9 +533,9 @@ func (w *Wallet) SaveTemplate(tpl credtemplate.Template, entry *registrar.Catalo
 
 // TemplateCatalogRequest prepares the catalogue entry of a template to save.
 // A template that replaces one with its own catalog object keeps that object,
-// and request replaces it. Otherwise request becomes an added entry, which
-// the returned entry carries for SaveTemplate. A catalog object on tpl
-// itself, as an imported template file has, counts as the request.
+// and request replaces it. Otherwise request becomes a new entry. The
+// returned entry passes it to SaveTemplate. A catalog object on tpl itself
+// (from an imported template file) counts as the request.
 func (w *Wallet) TemplateCatalogRequest(tpl *credtemplate.Template, request *registrar.CatalogAttestation) (*registrar.CatalogAttestation, error) {
 	if request == nil && tpl.Catalog != nil {
 		request = &registrar.CatalogAttestation{}

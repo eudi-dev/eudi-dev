@@ -203,15 +203,14 @@ func (s *Server) awaitPresentationConsent(w http.ResponseWriter, authReq *oid4vp
 	}
 }
 
-// refuseBusy answers a flow the wallet does not start because too many wait
-// for consent.
+// refuseBusy refuses a new flow when too many flows wait for consent.
 func (s *Server) refuseBusy(w http.ResponseWriter, err error) {
 	s.log("  REFUSED: %v", err)
 	w.Header().Set("Retry-After", strconv.Itoa(int(config.ConsentTimeout.Seconds())))
 	apierror.Write(w, http.StatusServiceUnavailable, apierror.TemporarilyUnavailable, err.Error())
 }
 
-// answerConsentTimeout ends a consent request that nobody answered in time.
+// answerConsentTimeout ends a consent request without an answer in time.
 func (s *Server) answerConsentTimeout(w http.ResponseWriter, action string, req *consent.Request) {
 	s.wallet.AddLog(action, "Consent timed out", false)
 	req.SubmissionCh <- consent.SubmissionResult{Error: "consent timeout", StatusCode: http.StatusRequestTimeout}

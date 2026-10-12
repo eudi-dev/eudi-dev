@@ -27,13 +27,13 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 )
 
-// ignoreFindings is the report of a flow that has no result to carry its
-// findings. The steps still log them.
+// ignoreFindings is the report for a flow without a result to carry findings.
+// The steps still log them.
 func ignoreFindings(...string) {}
 
 // chooseOfferConfiguration picks the credential configuration to request.
 // OID4VCI 1.0 §4.1.1 makes credential_configuration_ids a non-empty array.
-// chosen is the entry the user or the API caller picked. Without a choice the
+// chosen is the entry picked by the user or the API caller. Without a choice the
 // wallet requests the first entry.
 func chooseOfferConfiguration(offer *oid4vc.CredentialOffer, chosen string) (string, error) {
 	ids := offer.CredentialConfigurationIDs
@@ -72,9 +72,8 @@ func (w *Wallet) readIssuerMetadata(issuer string, report func(...string)) (map[
 	return metadata, signerChain, nil
 }
 
-// checkIssuer runs the issuer checks for the configurations the wallet is
-// about to request. The ARF has the wallet check the issuer before it
-// requests a credential. Strict mode refuses an ARF finding. Catalogue
+// checkIssuer runs the issuer checks for the requested configurations. The ARF
+// has the wallet check the issuer before it requests a credential. Strict mode refuses an ARF finding. Catalogue
 // findings only warn.
 func (w *Wallet) checkIssuer(issuer string, metadata map[string]any, signerChain []*x509.Certificate, configurations []string, report func(...string)) error {
 	if findings := w.issuerARFCheck(metadata, signerChain, configurations); len(findings) > 0 {
@@ -100,7 +99,7 @@ func (w *Wallet) loadIssuerMetadata(issuer string, configurations []string, repo
 	return metadata, nil
 }
 
-// accessGrant is a token response the wallet accepted (RFC 6749 §5.1).
+// accessGrant is an accepted token response (RFC 6749 §5.1).
 type accessGrant struct {
 	accessToken  string
 	authScheme   string
@@ -116,8 +115,8 @@ func (g *accessGrant) expiresAt(now time.Time) time.Time {
 	return now.Add(time.Duration(g.expiresIn) * time.Second)
 }
 
-// dpopKeyForRenewal returns the DPoP key of an issuance that bound its tokens
-// with DPoP, and nil otherwise.
+// dpopKeyForRenewal returns the DPoP key of an issuance with DPoP-bound
+// tokens, and nil otherwise.
 func (w *Wallet) dpopKeyForRenewal(r CredentialRenewal) *ecdsa.PrivateKey {
 	if r.UseDPoP {
 		return w.HolderKeyPair()
@@ -244,13 +243,13 @@ type credentialDelivery struct {
 	renewal   CredentialRenewal
 	display   *oid4vc.CredentialDisplay
 	proofKeys []*ecdsa.PrivateKey
-	// replaceID names the credential a renewal replaces. Without it the
+	// replaceID is the credential replaced by a renewal. Without it the
 	// credential is stored as a new one.
 	replaceID string
-	// deferredID names the deferred issuance the credential completes.
+	// deferredID is the deferred issuance completed by this credential.
 	deferredID string
 	access     resourceAccess
-	// logSummary opens the activity log line, as in "Imported credential".
+	// logSummary starts the activity log line, as in "Imported credential".
 	logSummary string
 	logDetails map[string]any
 	report     func(...string)
@@ -305,11 +304,11 @@ func (w *Wallet) storeIssuedCredential(credResp map[string]any, d credentialDeli
 	return &stored[0], batch.primary, nil
 }
 
-// issuanceSession is what the token and credential requests of one offer
-// share.
+// issuanceSession holds the state shared by the token and credential requests
+// of one offer.
 type issuanceSession struct {
 	metadata map[string]any
-	// renewal names the issuer, its endpoints, the configuration and the
+	// renewal holds the issuer, its endpoints, the configuration and the
 	// client of this issuance.
 	renewal CredentialRenewal
 	nonces  *dpopNonceState

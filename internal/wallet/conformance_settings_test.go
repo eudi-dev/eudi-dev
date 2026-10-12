@@ -19,8 +19,8 @@ import (
 	"testing"
 )
 
-// PUT /api/config/conformance takes the names GET /api/config reports, so
-// every reported setting can be changed.
+// PUT /api/config/conformance takes the setting names reported by
+// GET /api/config, so every reported setting can be changed.
 func TestConformancePatchUsesTheReportedNames(t *testing.T) {
 	srv := newTestServer(t, false)
 	resp := serverRequest(t, srv, http.MethodPut, "/api/config/conformance",
@@ -40,8 +40,8 @@ func TestConformancePatchUsesTheReportedNames(t *testing.T) {
 	}
 }
 
-// A name the patch does not define is refused, so a misspelled setting does
-// not pass unnoticed. So is a preferred format the wallet does not know.
+// An unknown setting name is refused, so a misspelled setting does not pass
+// unnoticed. An unknown preferred format is refused too.
 func TestConformanceSettingsRefuseUnknownValues(t *testing.T) {
 	srv := newTestServer(t, false)
 	if resp := serverRequest(t, srv, http.MethodPut, "/api/config/conformance", `{"haip":true}`); resp.Code != http.StatusBadRequest {

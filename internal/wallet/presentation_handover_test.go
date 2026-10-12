@@ -100,7 +100,7 @@ func decodeJWEHeader(t *testing.T, compact string) map[string]any {
 }
 
 // OID4VP 1.0 §8.3: "The JWE alg algorithm used MUST be equal to the alg value
-// of the chosen jwk." The wallet chooses a key whose alg it implements.
+// of the chosen jwk." The wallet picks a key with a supported alg.
 func TestEncryptedResponseUsesAKeyWhoseAlgTheWalletImplements(t *testing.T) {
 	w := generateTestWallet(t)
 	wrapping := ecEncJWK(t, "enc")

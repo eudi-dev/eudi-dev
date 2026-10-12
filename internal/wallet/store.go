@@ -579,7 +579,7 @@ func (s *WalletStore) LoadOrCreateKeys() (*ecdsa.PrivateKey, *ecdsa.PrivateKey, 
 
 // LoadOrCreateSharedCA creates the CA only while neither its key nor its certificate
 // exists. WriteIf lets one of several concurrent creators install its key. The others
-// wait for the certificate that the winner writes next.
+// wait for the winner to write the certificate.
 func (s *WalletStore) LoadOrCreateSharedCA() (*ecdsa.PrivateKey, *x509.Certificate, error) {
 	for attempt := 0; attempt < sharedCAWaitAttempts; attempt++ {
 		keyData, keyErr := s.backend.Read(s.sharedCAKeyPEM())

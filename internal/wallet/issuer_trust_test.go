@@ -264,8 +264,8 @@ func TestAnOfferOutsideTheCatalogueWarns(t *testing.T) {
 	}
 }
 
-// The revocation service of the trusted list that anchors an external
-// credential anchors that credential's status list.
+// A trusted list anchors an external credential. The revocation service of
+// that list anchors the credential's status list.
 func TestExternalCredentialStatusIsAnchoredByItsTrustedList(t *testing.T) {
 	const vct = "urn:example:diploma:1"
 	var issuerHandler http.Handler
