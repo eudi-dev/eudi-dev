@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -53,42 +52,13 @@ type CatalogFileEntry struct {
 // .json file of a directory in name order, or stdin for "-". A file holds one
 // entry or a list of entries.
 func LoadCatalogFile(path string) (*CatalogFile, error) {
-	if path == "-" {
-		data, err := io.ReadAll(os.Stdin)
-		if err != nil {
-			return nil, err
-		}
-		entries, err := parseCatalogSource("stdin", "", data)
-		if err != nil {
-			return nil, err
-		}
-		return checkCatalogNames(entries)
-	}
-	info, err := os.Stat(path)
+	sources, err := readStartupSources(path)
 	if err != nil {
 		return nil, err
 	}
-	files := []string{path}
-	if info.IsDir() {
-		dirEntries, err := os.ReadDir(path)
-		if err != nil {
-			return nil, err
-		}
-		files = nil
-		for _, entry := range dirEntries {
-			switch strings.ToLower(filepath.Ext(entry.Name())) {
-			case ".yaml", ".yml", ".json":
-				files = append(files, filepath.Join(path, entry.Name()))
-			}
-		}
-	}
 	var entries []CatalogFileEntry
-	for _, file := range files {
-		data, err := os.ReadFile(file)
-		if err != nil {
-			return nil, err
-		}
-		parsed, err := parseCatalogSource(file, filepath.Dir(file), data)
+	for _, source := range sources {
+		parsed, err := parseCatalogSource(source.name, source.dir, source.data)
 		if err != nil {
 			return nil, err
 		}

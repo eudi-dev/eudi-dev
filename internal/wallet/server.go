@@ -88,6 +88,9 @@ type Server struct {
 	version     string
 	imprintHTML []byte
 	news        *news.News
+	// operatorRelyingParties are the first identifiers of the registrations
+	// from --relying-parties.
+	operatorRelyingParties []string
 	// ShutdownFunc runs after POST /api/shutdown has responded. The serve command
 	// sets it to stop the server gracefully. When nil the process exits
 	// directly.

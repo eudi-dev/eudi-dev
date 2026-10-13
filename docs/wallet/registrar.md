@@ -30,7 +30,7 @@ Anyone with access to the wallet can register, change and delete relying parties
 
 An update can add identifiers. The first identifier never changes, because the issued certificates contain it.
 
-Registrations are part of the wallet state. With file or Postgres storage they survive a restart. With memory storage they are lost, but if the keys are [seeded](../wallet.md#seeded-keys), certificates issued before the restart still verify. The wallet checks only their signatures. A demo reset deletes all registrations.
+Registrations are part of the wallet state. With file or Postgres storage they survive a restart. With memory storage they are lost, but if the keys are [seeded](../wallet.md#seeded-keys), certificates issued before the restart still verify. The wallet checks only their signatures. A demo reset deletes all registrations. To register relying parties on every start, pass them to `wallet serve --relying-parties` (see [pre-registered relying parties](serve.md#pre-registered-relying-parties)).
 
 ## Issuers
 

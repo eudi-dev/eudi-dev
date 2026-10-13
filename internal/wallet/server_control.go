@@ -22,6 +22,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"slices"
 	"sync"
 	"time"
 
@@ -56,10 +57,23 @@ func (s *Server) SetImprint(page []byte) {
 	s.imprintHTML = page
 }
 
+// SetOperatorRelyingParties sets the registrations from --relying-parties,
+// by their first identifier.
+func (s *Server) SetOperatorRelyingParties(identifiers []string) {
+	s.operatorRelyingParties = identifiers
+}
+
 // protectedRelyingParty reports whether visitors of the public demo may not
-// change a registration. They share the demo issuer and verifier.
+// change a registration. They share the demo issuer and verifier and the
+// registrations of the operator.
 func (s *Server) protectedRelyingParty(rp registrar.WalletRelyingParty) bool {
-	return s.demo != nil && (registrar.HasIdentifier(rp, demoIdentifier(demoIssuer)) || registrar.HasIdentifier(rp, demoIdentifier(demoVerifier)))
+	if s.demo == nil {
+		return false
+	}
+	if registrar.HasIdentifier(rp, demoIdentifier(demoIssuer)) || registrar.HasIdentifier(rp, demoIdentifier(demoVerifier)) {
+		return true
+	}
+	return slices.ContainsFunc(s.operatorRelyingParties, func(id string) bool { return registrar.HasIdentifier(rp, id) })
 }
 
 // protectedRelyingParties lists the registrations shown without actions in the

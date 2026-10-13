@@ -298,6 +298,7 @@ Every flag can also be set as `EUDI_DEV_<FLAG>`, with the flag name in upper cas
 | `--credential`          | None     | Import credential from file (repeatable)         |
 | `--credentials`         | None     | Credentials to add on every start, from a YAML or JSON file, a directory of such files, or stdin (`-`). See [startup credentials](#startup-credentials) |
 | `--catalog`             | None     | Attestation types to pre-register in the catalogue on every start, from a YAML or JSON file, a directory of such files, or stdin (`-`). See [pre-registered catalogue entries](#pre-registered-catalogue-entries) |
+| `--relying-parties`     | None     | Relying parties to register with the wallet's registrar on every start, from a YAML or JSON file, a directory of such files, or stdin (`-`). See [pre-registered relying parties](#pre-registered-relying-parties) |
 | `--templates-dir`       | `<wallet-dir>/templates/` | Credential template directory. Template files are JSON or YAML. See [template files](../templates.md#template-files-and-storage) |
 | `--pid`                 | `false`  | Generate default EUDI PID credentials on start   |
 | `--key`                 | None     | Override holder key (PEM/JWK)                    |
@@ -420,6 +421,39 @@ The wallet checks every entry before it starts. An invalid entry stops the start
 Each start loads the file again. An entry keeps its id, so a restart adds no duplicates. A changed entry is updated. An entry removed from the file leaves the catalogue at the next start. The wallet marks these entries as pre-registered and removes only those. Entries added through the UI, the API or `eudi catalog add` stay. A CA added through `issuerCA` stays on its list when you remove the entry. Remove it with `eudi trust rm-ca`.
 
 Outside the demo you can change or delete a pre-registered entry. The next start restores it from the file. With `--demo` visitors can't change or delete these entries, and a demo reset restores them with their CAs.
+
+## Pre-registered relying parties
+
+`--relying-parties` registers verifiers and issuers with the wallet's [registrar](registrar.md) on every start. It reads files the same way as `--catalog`. A file holds one registration or a list. A registration has the shape that `POST /api/registrar/wrp` takes (see the [registrar API walkthrough](registrar-api.md)).
+
+```yaml
+identifier:
+  - identifier: NLTEST.00000042
+tradeName: Example Shop
+legalPerson:
+  legalName: ["Example Shop B.V."]
+services:
+  - serviceIdentifier: checkout
+    intendedUses:
+      - intendedUseIdentifier: age-check
+        purpose:
+          - lang: en
+            content: Check that you are of age
+        credentials:
+          - format: dc+sd-jwt
+            meta:
+              vct_values: [urn:eudi:pid:1]
+            claims:
+              - path: [birthdate]
+```
+
+The file must set the `identifier` of each party and the `intendedUseIdentifier` of each intended use. The certificates contain them, so they have to stay the same on every start. The registrar fills in the other defaults, as for an API request. An invalid registration stops the start, and the error message shows the file.
+
+With memory storage this keeps a verifier registered across restarts. Its certificates come from the registrar API as usual. With [seeded keys](../wallet.md#seeded-keys), certificates issued before a restart still verify.
+
+When the stored registration differs from the file, the next start replaces it with the file's version. A registration removed from the file stays registered. With `--demo` visitors can't change or delete these registrations, and a demo reset registers them again.
+
+As with every flag, the environment variable is `EUDI_DEV_RELYING_PARTIES`.
 
 ## Key attestation claims
 

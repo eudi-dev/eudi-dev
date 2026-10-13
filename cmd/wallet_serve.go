@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -59,6 +60,7 @@ type walletServeOptions struct {
 	CredFiles             []string
 	CredentialsFile       string
 	CatalogFile           string
+	RelyingPartiesFile    string
 	PID                   bool
 	KeyPath               string
 	IssuerKey             string
@@ -135,6 +137,7 @@ Every flag can also be set as EUDI_DEV_<FLAG>, such as EUDI_DEV_BASE_URL for --b
 	cmd.Flags().StringSliceVar(&opts.CredFiles, "credential", nil, "Import credential from file (repeatable)")
 	cmd.Flags().StringVar(&opts.CredentialsFile, "credentials", "", "Credentials to issue or import on every start and after a demo reset: a YAML or JSON file, a directory of such files, or '-' for stdin")
 	cmd.Flags().StringVar(&opts.CatalogFile, "catalog", "", "Attestation types to pre-register in the catalogue on every start and after a demo reset: a YAML or JSON file, a directory of such files, or '-' for stdin")
+	cmd.Flags().StringVar(&opts.RelyingPartiesFile, "relying-parties", "", "Relying parties to register with the wallet's registrar on every start and after a demo reset: a YAML or JSON file, a directory of such files, or '-' for stdin")
 	cmd.Flags().BoolVar(&opts.PID, "pid", false, "Auto-generate default EUDI PID credentials (SD-JWT + mdoc)")
 	cmd.Flags().StringVar(&opts.KeyPath, "key", "", "Holder private key file (PEM/JWK). Uses the stored key or auto-generates one if omitted")
 	cmd.Flags().StringVar(&opts.IssuerKey, "issuer-key", "", "Issuer key for generated PIDs (PEM/JWK)")
@@ -428,14 +431,18 @@ func demoResetDescription(opts wallet.DemoOptions) string {
 }
 
 func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
-	if opts.Detached && opts.CredentialsFile == "-" {
-		return fmt.Errorf("a detached server has no stdin, so it can't read --credentials -")
+	var stdinFlags []string
+	for flag, path := range map[string]string{"--credentials": opts.CredentialsFile, "--catalog": opts.CatalogFile, "--relying-parties": opts.RelyingPartiesFile} {
+		if path == "-" {
+			stdinFlags = append(stdinFlags, flag)
+		}
 	}
-	if opts.Detached && opts.CatalogFile == "-" {
-		return fmt.Errorf("a detached server has no stdin, so it can't read --catalog -")
+	slices.Sort(stdinFlags)
+	if opts.Detached && len(stdinFlags) > 0 {
+		return fmt.Errorf("a detached server has no stdin, so it can't read %s -", stdinFlags[0])
 	}
-	if opts.CredentialsFile == "-" && opts.CatalogFile == "-" {
-		return fmt.Errorf("--credentials and --catalog can't both read stdin")
+	if len(stdinFlags) > 1 {
+		return fmt.Errorf("only one of %s can read stdin", strings.Join(stdinFlags, ", "))
 	}
 	listenHost, err := resolveListenHost(cmd, opts.Listen, opts.Docker)
 	if err != nil {
@@ -584,20 +591,33 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 			return fmt.Errorf("reading the catalogue file: %w", err)
 		}
 	}
+	var relyingParties *wallet.RelyingPartiesFile
+	if opts.RelyingPartiesFile != "" {
+		relyingParties, err = wallet.LoadRelyingPartiesFile(opts.RelyingPartiesFile)
+		if err != nil {
+			return fmt.Errorf("reading the relying parties file: %w", err)
+		}
+	}
 	if err := w.Registrar().CheckTemplateCatalog(nil); err != nil {
 		return fmt.Errorf("the catalogue entries of the templates: %w", err)
 	}
-	// baseline adds the catalogue entries and the startup credentials. A demo
-	// reset runs it again. On a demo, startup credentials are protected unless
-	// an entry says otherwise. The catalogue comes first, because a
-	// credential takes its category from its catalogue entry.
-	catalogChanged := false
+	// baseline adds the catalogue entries, the relying parties and the startup
+	// credentials. A demo reset runs it again. On a demo, startup credentials
+	// are protected unless an entry says otherwise. The catalogue comes first,
+	// because a credential and a registration take their category from the
+	// catalogue entry.
+	registrarChanged := false
 	baseline := func() error {
 		changed, err := w.ApplyCatalogFile(catalogFile)
 		if err != nil {
 			return fmt.Errorf("pre-registering the catalogue entries: %w", err)
 		}
-		catalogChanged = catalogChanged || changed
+		registrarChanged = registrarChanged || changed
+		changed, err = w.ApplyRelyingPartiesFile(relyingParties)
+		if err != nil {
+			return fmt.Errorf("registering the relying parties: %w", err)
+		}
+		registrarChanged = registrarChanged || changed
 		if opts.PID {
 			generate := func() error { return w.GenerateDefaultCredentials(nil, "") }
 			if opts.Demo {
@@ -617,7 +637,7 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	if err := baseline(); err != nil {
 		return err
 	}
-	if opts.PID || startupFile != nil || catalogChanged {
+	if opts.PID || startupFile != nil || registrarChanged {
 		if err := store.Save(w); err != nil {
 			return fmt.Errorf("saving wallet: %w", err)
 		}
@@ -754,6 +774,7 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	srv.SetStore(store)
 	srv.SetVersion(Version)
 	srv.SetImprint(imprintHTML)
+	srv.SetOperatorRelyingParties(relyingParties.Identifiers())
 	if opts.NewsFile != "" {
 		n, err := news.Load(opts.NewsFile)
 		if err != nil {
