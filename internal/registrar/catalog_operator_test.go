@@ -97,6 +97,59 @@ func TestTheOperatorCatalogueNamesTheRefusedEntry(t *testing.T) {
 	}
 }
 
+// On a public demo a visitor can add an entry with a type from the operator's
+// file. At the next start the operator's entry replaces it.
+func TestTheOperatorCatalogueReplacesAClashingAddedEntry(t *testing.T) {
+	w := generateTestWallet(t)
+	if _, err := w.AddCatalogAttestation(operatorEntry("Visitor thing", "urn:example:library:1")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.SetOperatorCatalog([]CatalogAttestation{operatorEntry("Library card", "urn:example:library:1")}); err != nil {
+		t.Fatalf("SetOperatorCatalog: %v", err)
+	}
+	var names []string
+	for _, e := range w.Catalog {
+		names = append(names, e.Name)
+	}
+	if want := []string{"Library card"}; !slices.Equal(names, want) {
+		t.Errorf("stored catalogue %v, want %v", names, want)
+	}
+}
+
+// Entries added through the API decide the entitlements of registrations made
+// through the API. An operator party gets its entitlements only from the
+// operator's entries and the templates.
+func TestAddedEntriesDontDecideTheEntitlementsOfOperatorParties(t *testing.T) {
+	w := generateTestWallet(t)
+	visitor := operatorEntry("Visitor thing", "urn:example:library:1")
+	visitor.Category = "pid"
+	if _, err := w.AddCatalogAttestation(visitor); err != nil {
+		t.Fatal(err)
+	}
+	issuer := func(id string) WalletRelyingParty {
+		return WalletRelyingParty{
+			Identifier:  []Identifier{{Identifier: id}},
+			TradeName:   "Library",
+			LegalPerson: LegalPerson{LegalName: []string{"Library"}},
+			Services:    []WalletRelyingPartyService{{ProvidesAttestations: []ProvidedAttestation{{Format: "dc+sd-jwt", Type: "urn:example:library:1"}}}},
+		}
+	}
+	operator, _, err := w.EnsureRelyingParty(issuer("NLTEST.00000044"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(operator.Services[0].Entitlements, PIDProviderEntitlement) {
+		t.Errorf("operator party entitlements %v, want none from the added entry", operator.Services[0].Entitlements)
+	}
+	registered, err := w.RegisterRelyingParty(issuer("NLTEST.00000045"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(registered.Services[0].Entitlements, PIDProviderEntitlement) {
+		t.Errorf("API registration entitlements %v, want the added entry's category", registered.Services[0].Entitlements)
+	}
+}
+
 // CheckCatalogEntry checks the data model alone, and CheckCatalogAttestation
 // also compares the entry with the catalogue. Neither adds it.
 func TestCheckingACatalogueEntry(t *testing.T) {

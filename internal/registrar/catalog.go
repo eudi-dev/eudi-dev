@@ -237,16 +237,14 @@ func catalogClash(entry, existing CatalogAttestation) error {
 
 // SetOperatorCatalog stores entries as the operator's catalogue file. The id
 // of an entry derives from its name, so an entry keeps its id across
-// restarts. Entries of an earlier file missing from entries are removed. It
-// reports whether the stored catalogue changed.
+// restarts. Entries of an earlier file missing from entries are removed. An
+// entry added through the API is removed too when it takes the name or a type
+// of an operator entry. A visitor of a public demo then can't stop the start.
+// It reports whether the stored catalogue changed.
 func (r *Registrar) SetOperatorCatalog(entries []CatalogAttestation) (bool, error) {
 	base := r.env.RegistrarBase()
 	fromTemplates := r.templateCatalog(base)
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	others := slices.DeleteFunc(slices.Clone(r.state.Catalog), func(e CatalogAttestation) bool { return e.Operator })
-	byID := map[string]CatalogAttestation{}
-	var order []string
+	normalized := make([]CatalogAttestation, len(entries))
 	for i, entry := range entries {
 		entry = cloneCatalogAttestation(entry)
 		entry.Template, entry.Removed, entry.Operator = false, false, true
@@ -254,6 +252,26 @@ func (r *Registrar) SetOperatorCatalog(entries []CatalogAttestation) (bool, erro
 			return false, &CatalogEntryError{Index: i, Err: err}
 		}
 		entry.Schema.ID = catalogEntryID(entry.Name)
+		normalized[i] = entry
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	replaced := map[string]bool{}
+	var others []CatalogAttestation
+	for _, e := range r.state.Catalog {
+		if e.Operator {
+			continue
+		}
+		if !e.Removed && slices.ContainsFunc(normalized, func(o CatalogAttestation) bool { return catalogClash(o, e) != nil }) {
+			log.Printf("[Registrar] The operator's catalogue replaces the entry %q added through the API", e.Name)
+			replaced[e.Schema.ID] = true
+			continue
+		}
+		others = append(others, e)
+	}
+	byID := map[string]CatalogAttestation{}
+	var order []string
+	for i, entry := range normalized {
 		if err := checkNewCatalogEntry(entry, fromTemplates, others); err != nil {
 			return false, &CatalogEntryError{Index: i, Err: err}
 		}
@@ -266,7 +284,9 @@ func (r *Registrar) SetOperatorCatalog(entries []CatalogAttestation) (bool, erro
 	var catalog []CatalogAttestation
 	for _, e := range r.state.Catalog {
 		if !e.Operator {
-			catalog = append(catalog, e)
+			if !replaced[e.Schema.ID] {
+				catalog = append(catalog, e)
+			}
 			continue
 		}
 		if updated, ok := byID[e.Schema.ID]; ok {

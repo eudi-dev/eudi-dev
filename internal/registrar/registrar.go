@@ -180,12 +180,16 @@ var (
 // out, the registrar assigns the identifier and the intended use identifiers,
 // and sets the contact URLs under base.
 func (r *Registrar) RegisterRelyingParty(rp WalletRelyingParty) (WalletRelyingParty, error) {
+	return r.registerRelyingParty(rp, r.attestationCategories())
+}
+
+func (r *Registrar) registerRelyingParty(rp WalletRelyingParty, categories func(format, typ string) string) (WalletRelyingParty, error) {
 	base := r.env.RegistrarBase()
 	rp, err := cloneRelyingParty(rp)
 	if err != nil {
 		return WalletRelyingParty{}, err
 	}
-	if err := normalizeRelyingParty(&rp, base, nil, r.attestationCategories()); err != nil {
+	if err := normalizeRelyingParty(&rp, base, nil, categories); err != nil {
 		return WalletRelyingParty{}, err
 	}
 	limit := r.env.MaxRelyingParties()
@@ -215,6 +219,10 @@ func (r *Registrar) NormalizedRelyingParty(rp WalletRelyingParty) (WalletRelying
 // UpdateRelyingParty replaces the registration with the same identifier. New
 // intended uses get identifiers, and existing ones keep theirs.
 func (r *Registrar) UpdateRelyingParty(rp WalletRelyingParty) (WalletRelyingParty, error) {
+	return r.updateRelyingParty(rp, r.attestationCategories())
+}
+
+func (r *Registrar) updateRelyingParty(rp WalletRelyingParty, categories func(format, typ string) string) (WalletRelyingParty, error) {
 	base := r.env.RegistrarBase()
 	rp, err := cloneRelyingParty(rp)
 	if err != nil {
@@ -223,7 +231,6 @@ func (r *Registrar) UpdateRelyingParty(rp WalletRelyingParty) (WalletRelyingPart
 	if len(rp.Identifier) == 0 || strings.TrimSpace(rp.Identifier[0].Identifier) == "" {
 		return WalletRelyingParty{}, errUpdateWithoutIdentifier
 	}
-	categories := r.attestationCategories()
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	i := relyingPartyIndex(r.state.RelyingParties, rp.Identifier[0].Identifier)
@@ -261,22 +268,24 @@ func normalizeUpdate(rp *WalletRelyingParty, stored WalletRelyingParty, base str
 
 // EnsureRelyingParty registers rp, or updates the registration with its
 // first identifier when the content differs. It reports whether the
-// registration changed.
+// registration changed. rp comes from the operator, so only the operator's
+// catalogue entries and the templates decide its derived entitlements.
 func (r *Registrar) EnsureRelyingParty(rp WalletRelyingParty) (WalletRelyingParty, bool, error) {
 	base := r.env.RegistrarBase()
 	if len(rp.Identifier) == 0 {
 		return WalletRelyingParty{}, false, fmt.Errorf("the relying party needs an identifier")
 	}
+	categories := r.operatorAttestationCategories()
 	stored, ok := r.RelyingParty(rp.Identifier[0].Identifier)
 	if !ok {
-		registered, err := r.RegisterRelyingParty(rp)
+		registered, err := r.registerRelyingParty(rp, categories)
 		return registered, err == nil, err
 	}
 	wanted, err := cloneRelyingParty(rp)
 	if err != nil {
 		return WalletRelyingParty{}, false, err
 	}
-	if err := normalizeRelyingParty(&wanted, base, &stored, r.attestationCategories()); err != nil {
+	if err := normalizeRelyingParty(&wanted, base, &stored, categories); err != nil {
 		return WalletRelyingParty{}, false, err
 	}
 	if wanted, err = cloneRelyingParty(wanted); err != nil {
@@ -285,7 +294,7 @@ func (r *Registrar) EnsureRelyingParty(rp WalletRelyingParty) (WalletRelyingPart
 	if reflect.DeepEqual(wanted, stored) {
 		return stored, false, nil
 	}
-	updated, err := r.UpdateRelyingParty(rp)
+	updated, err := r.updateRelyingParty(rp, categories)
 	return updated, err == nil, err
 }
 
@@ -377,6 +386,22 @@ func HasIdentifier(rp WalletRelyingParty, identifier string) bool {
 		return false
 	}
 	return slices.Contains(identifierKeys(rp), identifier) || slices.ContainsFunc(rp.Identifier, func(id Identifier) bool { return id.Identifier == identifier })
+}
+
+// operatorAttestationCategories leaves out the catalogue entries added
+// through the API. Visitors of a public demo can add those. Call it before
+// taking r.mu.
+func (r *Registrar) operatorAttestationCategories() func(format, typ string) string {
+	categories := map[string]string{}
+	for _, entry := range r.CatalogAttestations() {
+		if !entry.Template && !entry.Operator {
+			continue
+		}
+		for _, c := range entry.Credentials {
+			categories[c.Format+" "+c.Type] = entry.Category
+		}
+	}
+	return func(format, typ string) string { return categories[format+" "+typ] }
 }
 
 // attestationCategories returns the catalogue category of each attestation

@@ -122,15 +122,28 @@ func TestLoadCatalogFileNamesTheFileAndEntryOfAnError(t *testing.T) {
 	if _, err := LoadCatalogFile(dup); err == nil || !strings.Contains(err.Error(), "a.yaml") || !strings.Contains(err.Error(), "b.yaml") {
 		t.Errorf("duplicate name: %v, want both files", err)
 	}
+}
 
+// On a public demo a visitor can add an entry with a type from the file. At the
+// next start the file's entry replaces it.
+func TestTheCatalogFileReplacesAClashingAddedEntry(t *testing.T) {
 	w := generateTestWallet(t)
 	w.Templates = credtemplate.FileLocation(t.TempDir())
 	if _, err := w.Registrar().AddCatalogAttestation(registrar.CatalogAttestation{Name: "Added diploma", Credentials: []registrar.CatalogCredential{{Format: "dc+sd-jwt", Type: "urn:example:diploma:1"}}}); err != nil {
 		t.Fatal(err)
 	}
-	clash := writeCatalogFile(t, t.TempDir(), "diploma.yaml", diplomaCatalogYAML)
-	if _, err := w.ApplyCatalogFile(loadCatalog(t, clash)); err == nil || !strings.Contains(err.Error(), clash) || !strings.Contains(err.Error(), "University diploma") {
-		t.Errorf("clash with an added entry: %v, want the file and the entry", err)
+	file := writeCatalogFile(t, t.TempDir(), "diploma.yaml", diplomaCatalogYAML)
+	if _, err := w.ApplyCatalogFile(loadCatalog(t, file)); err != nil {
+		t.Fatalf("ApplyCatalogFile: %v", err)
+	}
+	var names []string
+	for _, e := range w.Registrar().CatalogAttestations() {
+		if slices.ContainsFunc(e.Credentials, func(c registrar.CatalogCredential) bool { return c.Type == "urn:example:diploma:1" }) {
+			names = append(names, e.Name)
+		}
+	}
+	if !slices.Equal(names, []string{"University diploma"}) {
+		t.Errorf("entries for the type: %v, want the file's entry", names)
 	}
 }
 
