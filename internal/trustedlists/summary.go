@@ -18,6 +18,8 @@ import (
 	"encoding/base64"
 	"slices"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
+
 	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
 )
 
@@ -38,12 +40,16 @@ type Summary struct {
 
 // Link is an external list. Configured comes from --trusted-list and can't
 // be removed through the API. Error says why the wallet can't use the list.
-// Via is the list of trusted lists that points to it.
+// Via is the list of trusted lists that points to it. Type is its LoTEType
+// (ETSI TS 119 602 V1.1.1 §6.3.3), and Direct reports whether the wallet uses
+// a list of that type without a catalogue entry.
 type Link struct {
 	URL        string `json:"url"`
 	Configured bool   `json:"configured,omitempty"`
 	Via        string `json:"via,omitempty"`
 	Error      string `json:"error,omitempty"`
+	Type       string `json:"type,omitempty"`
+	Direct     bool   `json:"direct,omitempty"`
 }
 
 // Summary describes the wallet's trusted lists for the API.
@@ -68,6 +74,9 @@ func (t *Set) Summary() Summary {
 		link := Link{URL: tl.URL, Configured: slices.Contains(settings.ConfiguredLists, tl.URL), Via: tl.Via}
 		if tl.Err != nil {
 			link.Error = tl.Err.Error()
+		} else if tl.List != nil {
+			link.Type = tl.List.SchemeInfo.LoTEType
+			link.Direct = UsedDirectly(link.Type)
 		}
 		summary.Lists = append(summary.Lists, link)
 	}
@@ -84,4 +93,20 @@ func base64Certificates(bundle []byte) []string {
 		out[i] = base64.StdEncoding.EncodeToString(cert.Raw)
 	}
 	return out
+}
+
+// UsedDirectly reports whether the wallet uses a list of this type without a
+// catalogue entry. PID and PuB-EAA lists have a type of their own (ETSI TS
+// 119 602 V1.1.1 Annexes D and H), so a credential of those categories
+// anchors in them. The other lists anchor relying parties, wallets and
+// lists. A list of another type anchors credentials only when a catalogue
+// entry links it.
+func UsedDirectly(listType string) bool {
+	switch listType {
+	case lote.PIDProvidersListType, lote.PubEAAProvidersListType,
+		lote.WalletProvidersListType, lote.AccessCertProvidersListType, lote.RegistrationCertProvidersListType,
+		ListOfListsType:
+		return true
+	}
+	return false
 }

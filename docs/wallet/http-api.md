@@ -260,7 +260,7 @@ These endpoints are available on both wallet ports.
 | `GET` | `/api/trustlists/{id}/history` | Sequence numbers and URLs of the saved instances of the list `{id}` |
 | `GET` | `/api/trustlists/{id}/history/{sequence}` | One saved instance of the list `{id}` |
 | `GET` | `/api/trustlists/lists` | The [list of trusted lists](serve.md#list-of-trusted-lists) |
-| `GET` | `/api/trust` | Providers and external lists added to the trusted lists |
+| `GET` | `/api/trust` | Providers and external lists added to the trusted lists. Each external list has its `type` (LoTEType). `direct` is `true` for a type the wallet uses without a catalogue entry |
 | `POST` | `/api/trust/entities` | Put a provider on one of the lists: `list`, `name` and `certificates` (PEM) |
 | `DELETE` | `/api/trust/entities/{id}` | Take a provider off its list |
 | `POST` | `/api/trust/lists` | Put an external list on the list of trusted lists: `url` |

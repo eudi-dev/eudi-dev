@@ -336,7 +336,7 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
   <div class="consent-overlay" id="trust-provider-overlay">
     <div class="consent-dialog" role="dialog" aria-modal="true" aria-labelledby="trust-provider-title" id="trust-provider-dialog">
       <div class="consent-title" id="trust-provider-title" tabindex="-1">Add a provider CA</div>
-      <p class="dialog-hint" id="trust-provider-hint">Added to the chosen trusted list.</p>
+      <p class="dialog-hint" id="trust-provider-hint">For your own issuer, verifier or registrar. The wallet adds the CA to one of its lists.</p>
       <form id="trust-provider-form">
         <div class="form-grid">
           <label class="form-label" for="trust-entity-list" id="trust-entity-list-label">List</label>
@@ -358,7 +358,7 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
   <div class="consent-overlay" id="trust-external-overlay">
     <div class="consent-dialog" role="dialog" aria-modal="true" aria-labelledby="trust-external-title" id="trust-external-dialog">
       <div class="consent-title" id="trust-external-title" tabindex="-1">Add an external list</div>
-      <p class="dialog-hint" id="trust-external-hint">Signer must chain to the wallet CA or <code>trusted-list-ca</code>.</p>
+      <p class="dialog-hint" id="trust-external-hint">Use a trusted list published by someone else, such as a national list of PID providers. The wallet accepts it only if it trusts the CA that signed the list. <button type="button" class="link-button" id="trust-external-add-operator">Add that CA</button></p>
       <form id="trust-external-form">
         <div class="form-grid">
           <label class="form-label" for="trust-list-url" id="trust-list-url-label">URL</label>

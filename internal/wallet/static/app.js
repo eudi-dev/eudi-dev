@@ -3475,6 +3475,12 @@
           failure.id = item.id + '-error';
           failure.textContent = 'Not used: ' + l.error;
           text.appendChild(failure);
+        } else if (l.type && !l.direct) {
+          const note = document.createElement('span');
+          note.className = 'trust-item-hint';
+          note.id = item.id + '-catalogue-hint';
+          note.textContent = 'Used only through a catalogue entry that links it.';
+          text.appendChild(note);
         }
         item.appendChild(text);
         if (l.via || l.configured) {
@@ -3526,12 +3532,18 @@
     trustOverlay.classList.add('active');
     document.getElementById(opener).focus();
   }
-  document.getElementById('trust-add-provider').addEventListener('click', async () => {
+  async function openProviderPopup(list) {
     await trustLoaded;
     const select = document.getElementById('trust-entity-list');
     select.innerHTML = trustEntityLists.map(id => '<option value="' + escHtml(id) + '" id="trust-entity-list-' + domID(id) + '">' +
       escHtml(id === TRUSTED_LIST_CA ? TRUSTED_LIST_CA + ' (CA of a list operator, for external lists)' : id) + '</option>').join('');
+    if (list) select.value = list;
     openTrustPopup(trustProviderOverlay, 'trust-entity-list');
+  }
+  document.getElementById('trust-add-provider').addEventListener('click', () => openProviderPopup());
+  document.getElementById('trust-external-add-operator').addEventListener('click', () => {
+    trustExternalOverlay.classList.remove('active');
+    openProviderPopup(TRUSTED_LIST_CA);
   });
   document.getElementById('trust-add-list').addEventListener('click', () => openTrustPopup(trustExternalOverlay, 'trust-list-url'));
   document.getElementById('trust-provider-cancel').addEventListener('click', () => closeTrustPopup(trustProviderOverlay, 'trust-add-provider'));

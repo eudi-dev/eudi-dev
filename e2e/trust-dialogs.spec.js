@@ -128,3 +128,28 @@ test("an external list that cannot be read is listed with the reason it is not u
   const state = await (await request.get(`${BASE}/api/trust`)).json();
   expect((state.lists || []).map((l) => l.url)).toEqual([]);
 });
+
+test("an external list of a type without its own category asks for a catalogue link", async ({ page }) => {
+  await page.route("**/api/trust", async (route) => {
+    const response = await route.fetch();
+    const state = await response.json();
+    state.lists = [
+      { url: "https://lists.example/eaa", type: "https://lists.example/LoTEType/EAAProvidersList" },
+      { url: "https://lists.example/pid", type: "http://uri.etsi.org/19602/LoTEType/EUPIDProvidersList", direct: true },
+    ];
+    await route.fulfill({ response, json: state });
+  });
+  await openTrust(page);
+  await expect(page.locator("#trust-external-0-catalogue-hint")).toContainText("catalogue entry");
+  await expect(page.locator("#trust-external-1-catalogue-hint")).toHaveCount(0);
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+});
+
+test("the external list popup opens the provider popup for the operator's CA", async ({ page }) => {
+  await openTrust(page);
+  await page.locator("#trust-add-list").click();
+  await expect(page.locator("#trust-external-hint")).toContainText("published by someone else");
+  await page.locator("#trust-external-add-operator").click();
+  await expect(page.locator("#trust-provider-overlay")).toHaveClass(/active/);
+  await expect(page.locator("#trust-entity-list")).toHaveValue("trusted-list-ca");
+});
