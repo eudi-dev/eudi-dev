@@ -262,9 +262,19 @@ func (w *Wallet) createVPTokenMap(matches []consent.Match, params *oid4vp.Reques
 	for _, match := range matches {
 		// The mdoc path logs its own warning for a missing deviceKey.
 		if match.Unbound && match.Format != credtype.FormatMDOC {
-			w.addProtocolWarning("presentation", "unbound_credential",
-				fmt.Sprintf("Credential %s has no holder binding. Query %s requires one (OpenID4VP 1.0 §6.1). Debug mode presents it without key binding.", credTypeLabel(match), match.QueryID),
+			finding := fmt.Sprintf("Credential %s has no holder binding. Query %s requires one (OpenID4VP 1.0 §6.1). Debug mode presents it without key binding.", credTypeLabel(match), match.QueryID)
+			w.addProtocolWarning("presentation", "unbound_credential", finding,
 				map[string]any{"credential_id": match.CredentialID, "query_id": match.QueryID})
+			params.Findings = append(params.Findings, finding)
+		}
+		// OpenID4VP 1.0 §6.1: "Every Credential returned by the Wallet SHOULD
+		// match at least one of the conditions present in the corresponding
+		// trusted_authorities array".
+		if match.UntrustedAuthority {
+			finding := fmt.Sprintf("Credential %s matches none of the trusted_authorities of query %s (OpenID4VP 1.0 §6.1). Debug mode presents it anyway.", credTypeLabel(match), match.QueryID)
+			w.addProtocolWarning("presentation", "untrusted_authority", finding,
+				map[string]any{"credential_id": match.CredentialID, "query_id": match.QueryID})
+			params.Findings = append(params.Findings, finding)
 		}
 		tokenResult, err := w.createVPToken(match, params, mdocNonce)
 		if err != nil {
