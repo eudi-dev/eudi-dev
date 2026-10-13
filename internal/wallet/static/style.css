@@ -766,13 +766,15 @@ label.dialog-hint {
 }
 
 .template-editor-head {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   margin-bottom: 12px;
 }
 
 .template-editor-json {
   width: 100%;
   min-height: 320px;
-  margin-top: 8px;
 }
 
 .form-label {
@@ -1936,6 +1938,7 @@ textarea.form-input {
   margin: 0.4rem 0;
   padding: 0.6rem 0.75rem;
   background: var(--bg-input);
+  border: 1px solid var(--border);
   border-radius: 10px;
   font-family: var(--font-mono);
   font-size: 0.75rem;
@@ -2348,7 +2351,7 @@ textarea.form-input {
 .registrar-use {
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 1px solid var(--border-dialog);
+  border-top: 1px solid var(--border-raised);
 }
 
 .registrar-use-kind {
@@ -2365,7 +2368,7 @@ textarea.form-input {
   align-items: center;
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 1px solid var(--border-dialog);
+  border-top: 1px solid var(--border-raised);
 }
 
 .registrar-cert-line .registrar-use-kind {
@@ -2407,7 +2410,7 @@ textarea.form-input {
   gap: 8px;
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 1px solid var(--border-dialog);
+  border-top: 1px solid var(--border-raised);
 }
 
 /* A service label can be one long identifier. */
