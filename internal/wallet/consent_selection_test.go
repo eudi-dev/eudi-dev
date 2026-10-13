@@ -189,9 +189,7 @@ func TestApproveRejectsAnInvalidSelectionAndKeepsTheRequestPending(t *testing.T)
 	}
 }
 
-// Strict mode discloses only requested claims, so a selection can withhold a
-// claim but not add one. Debug mode sends the selection as it is.
-func TestASelectionAddsClaimsOnlyInDebugMode(t *testing.T) {
+func TestASelectionAddsClaimsInEveryMode(t *testing.T) {
 	for _, mode := range []ValidationMode{ValidationModeStrict, ValidationModeDebug} {
 		w := generateTestWallet(t)
 		if err := w.GenerateDefaultCredentials(nil, ""); err != nil {
@@ -201,8 +199,7 @@ func TestASelectionAddsClaimsOnlyInDebugMode(t *testing.T) {
 		cred := w.GetCredentials()[0]
 		matches := []consent.Match{{CredentialID: cred.ID, SelectedKeys: []string{"given_name"}}}
 		got := w.applySelectedClaims(matches, map[string][]string{cred.ID: {"given_name", "birthdate"}})
-		added := slices.Contains(got[0].SelectedKeys, "birthdate")
-		if added != (mode == ValidationModeDebug) {
+		if !slices.Contains(got[0].SelectedKeys, "birthdate") {
 			t.Errorf("%s: disclosed %v", mode, got[0].SelectedKeys)
 		}
 	}

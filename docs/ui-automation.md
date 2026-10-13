@@ -273,8 +273,8 @@ E2E tests: [`prefix.spec.js`](../e2e/prefix.spec.js), test *a demo verifier requ
 | Candidate | `#consent-candidate-<query id>-<credential id>`, a `.candidate` with `data-query` and `data-cred`. A picked one has the class `selected`. Under **multiple** it is a checkbox with `aria-checked` |
 | Option of a credential set | `#consent-set-<n>-option-<m>` (radio) |
 | Skip an optional set | `#consent-set-<n>-none` |
-| Claim set | `#consent-claim-set-<query id>` (select, debug mode) |
-| Non-matching credentials (debug mode) | `#consent-show-nonmatching-<query id>` opens the list. Rows have `data-non-matching="true"`. Reasons are in `consent-mismatch-<query id>-<credential id>` |
+| Claim set | `#consent-claim-set-<query id>` (select) |
+| Non-matching credentials | `#consent-show-nonmatching-<query id>` opens the list. Rows have `data-non-matching="true"`. Reasons are in `consent-mismatch-<query id>-<credential id>` |
 
 Under **multiple**, the last selected credential stays selected. While a non-matching credential is picked or none matches, the list stays open under `#consent-nonmatching-label-<query id>`.
 

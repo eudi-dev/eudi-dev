@@ -215,10 +215,6 @@ func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
 			apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, err.Error())
 			return
 		}
-		if s.wallet.Mode() == ValidationModeStrict && consent.DebugOnlySelection(pending.CredentialOptions, picks, body.ClaimSets) {
-			apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, "strict mode sends neither non-matching credentials nor another claim set")
-			return
-		}
 	}
 
 	req, ok := s.wallet.Consents().Resolve(id, consent.StatusApproved)

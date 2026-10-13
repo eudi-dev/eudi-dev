@@ -34,9 +34,15 @@ func nobodyQuery() map[string]any {
 	}}}
 }
 
-func TestDebugModeOffersNonMatchingCredentialsWithTheirReasons(t *testing.T) {
+func TestEveryModeOffersNonMatchingCredentialsWithTheirReasons(t *testing.T) {
+	for _, mode := range []ValidationMode{ValidationModeDebug, ValidationModeStrict} {
+		t.Run(string(mode), func(t *testing.T) { testOffersNonMatchingCredentialsWithTheirReasons(t, mode) })
+	}
+}
+
+func testOffersNonMatchingCredentialsWithTheirReasons(t *testing.T, mode ValidationMode) {
 	w := generateTestWalletWithPID(t)
-	w.ValidationMode = ValidationModeDebug
+	w.ValidationMode = mode
 	query := map[string]any{"credentials": []any{consentPIDQuery("pid", "dc+sd-jwt")}}
 
 	matches, options := evaluateDCQLWithOptions(t, w, query)
@@ -54,20 +60,6 @@ func TestDebugModeOffersNonMatchingCredentialsWithTheirReasons(t *testing.T) {
 	}
 	if !slices.Equal(others[0].Mismatches, want) {
 		t.Errorf("mismatches %q, want %q", others[0].Mismatches, want)
-	}
-}
-
-func TestStrictModeOffersNoNonMatchingCredentials(t *testing.T) {
-	w := generateTestWalletWithPID(t)
-	w.ValidationMode = ValidationModeStrict
-	query := map[string]any{"credentials": []any{consentPIDQuery("pid", "dc+sd-jwt")}}
-
-	_, options := evaluateDCQLWithOptions(t, w, query)
-	if len(options.Queries[0].NonMatching) != 0 {
-		t.Fatalf("strict mode offers %+v", options.Queries[0].NonMatching)
-	}
-	if matches, options := evaluateDCQLWithOptions(t, w, nobodyQuery()); matches != nil || options != nil {
-		t.Fatalf("strict mode returns matches %+v and options %+v for a query nothing matches", matches, options)
 	}
 }
 
@@ -123,13 +115,20 @@ func TestSetOptionsOnlyNonMatchingCredentialsAnswerFollowTheOthers(t *testing.T)
 	}
 }
 
-// In debug mode the consent dialog opens for an interactive request without a
-// matching credential, so the user can answer with a non-matching one.
-func TestDebugModeAsksWhenNothingMatches(t *testing.T) {
+// The consent dialog opens for an interactive request without a matching
+// credential, so the user can answer with a non-matching one.
+func TestEveryModeAsksWhenNothingMatches(t *testing.T) {
+	for _, mode := range []ValidationMode{ValidationModeDebug, ValidationModeStrict} {
+		t.Run(string(mode), func(t *testing.T) { testAsksWhenNothingMatches(t, mode) })
+	}
+}
+
+func testAsksWhenNothingMatches(t *testing.T, mode ValidationMode) {
 	srv := newTestServer(t, false)
-	srv.wallet.ValidationMode = ValidationModeDebug
+	srv.wallet.ValidationMode = mode
 	verifier := newCaptureVerifier(t)
 	params := unsatisfiableRequest(t, verifier.URL)
+	params.Set("client_id", "redirect_uri:"+verifier.URL)
 	body, err := json.Marshal(map[string]any{"uri": "openid4vp://authorize?" + params.Encode(), "interactive": true})
 	if err != nil {
 		t.Fatalf("marshaling body: %v", err)
@@ -163,13 +162,15 @@ func TestDebugModeAsksWhenNothingMatches(t *testing.T) {
 	}
 }
 
-func TestStrictModeRefusesWhenNothingMatches(t *testing.T) {
+// An API submission gets no dialog. When no credential matches, the wallet
+// refuses the request.
+func TestAnAPISubmissionIsRefusedWhenNothingMatches(t *testing.T) {
 	srv := newTestServer(t, false)
 	srv.wallet.ValidationMode = ValidationModeStrict
 	verifier := newCaptureVerifier(t)
 	params := unsatisfiableRequest(t, verifier.URL)
 	params.Set("client_id", "redirect_uri:"+verifier.URL)
-	body, err := json.Marshal(map[string]any{"uri": "openid4vp://authorize?" + params.Encode(), "interactive": true})
+	body, err := json.Marshal(map[string]any{"uri": "openid4vp://authorize?" + params.Encode()})
 	if err != nil {
 		t.Fatalf("marshaling body: %v", err)
 	}
@@ -210,33 +211,4 @@ func TestAnUnchangedConsentSkipsAnOptionalSetNothingMatches(t *testing.T) {
 	if len(got) != 1 || got[0].QueryID != "pid" {
 		t.Fatalf("selection %+v, want only the PID", got)
 	}
-}
-
-// A dialog opened in debug mode offers non-matching credentials. After a
-// switch to strict mode the wallet refuses to send one.
-func TestStrictModeRefusesANonMatchingPickFromAnEarlierDialog(t *testing.T) {
-	srv := newTestServer(t, false)
-	srv.wallet.ValidationMode = ValidationModeDebug
-	verifier := newCaptureVerifier(t)
-	params := unsatisfiableRequest(t, verifier.URL)
-	body, err := json.Marshal(map[string]any{"uri": "openid4vp://authorize?" + params.Encode(), "interactive": true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	done := make(chan struct{})
-	go func() {
-		serverRequest(t, srv, "POST", "/api/presentations", string(body))
-		close(done)
-	}()
-	pending := waitForPendingRequest(t, srv.wallet)
-	pick := pending.CredentialOptions.Queries[0].NonMatching[0].CredentialID
-
-	srv.wallet.mu.Lock()
-	srv.wallet.ValidationMode = ValidationModeStrict
-	srv.wallet.mu.Unlock()
-	if approve := serverRequest(t, srv, "POST", "/api/requests/"+pending.ID+"/approve", `{"picks":{"nothing":"`+pick+`"}}`); approve.Code != 400 {
-		t.Errorf("approve: %d %s, want 400", approve.Code, approve.Body.String())
-	}
-	serverRequest(t, srv, "POST", "/api/requests/"+pending.ID+"/deny", "")
-	<-done
 }

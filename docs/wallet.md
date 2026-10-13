@@ -7,6 +7,8 @@ The wallet has two validation modes. Both run the same checks. They differ in ho
 - `debug` (default) reports each finding and continues processing the request. In DCQL evaluation it keeps a credential match with a warning when some required claim paths are missing but other requested claims match
 - `strict` treats violations as errors and rejects the request
 
+The mode only affects what the wallet does automatically. In the consent dialog you can always pick a non-matching credential or another claim set, also in strict mode.
+
 Strict mode covers OpenID4VP 1.0, OpenID4VCI 1.0 and HAIP 1.0. Advisory findings are warnings in both modes. Two flags add more checks. `--haip` adds the HAIP 1.0 checks (see [HAIP 1.0 enforcement](wallet/presenting.md#haip-10-enforcement)). `--arf` adds the ARF checks of verifier and issuer certificates (see [ARF checks](wallet/presenting.md#arf-checks)). The mode decides what happens to their findings.
 
 For OpenID Foundation conformance work, see [docs/conformance.md](./conformance.md).

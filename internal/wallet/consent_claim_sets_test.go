@@ -45,9 +45,17 @@ func claimSetsQuery() map[string]any {
 	}
 }
 
-func TestDebugModeOffersEverySatisfiableClaimSet(t *testing.T) {
+// OpenID4VP 1.0 §6.4.1: "the Wallet SHOULD return the first option that it can
+// satisfy". The user can pick another one in every mode.
+func TestEveryModeOffersEverySatisfiableClaimSet(t *testing.T) {
+	for _, mode := range []ValidationMode{ValidationModeDebug, ValidationModeStrict} {
+		t.Run(string(mode), func(t *testing.T) { testOffersEverySatisfiableClaimSet(t, mode) })
+	}
+}
+
+func testOffersEverySatisfiableClaimSet(t *testing.T, mode ValidationMode) {
 	w := generateTestWalletWithPID(t)
-	w.ValidationMode = ValidationModeDebug
+	w.ValidationMode = mode
 
 	matches, options := evaluateDCQLWithOptions(t, w, claimSetsQuery())
 
@@ -63,19 +71,6 @@ func TestDebugModeOffersEverySatisfiableClaimSet(t *testing.T) {
 	}
 	if !slices.Equal(options.Queries[0].Candidates[0].ClaimSets[1].Keys, []string{"given_name", "birthdate"}) {
 		t.Errorf("claim sets %+v, want given_name and birthdate in the second", options.Queries[0].Candidates[0].ClaimSets)
-	}
-}
-
-// OpenID4VP 1.0 §6.4.1: "the Wallet SHOULD return the first option that it can
-// satisfy".
-func TestStrictModeOffersNoClaimSetChoice(t *testing.T) {
-	w := generateTestWalletWithPID(t)
-	w.ValidationMode = ValidationModeStrict
-
-	matches, options := evaluateDCQLWithOptions(t, w, claimSetsQuery())
-
-	if len(matches) != 1 || len(matches[0].ClaimSets) != 0 || len(options.Queries[0].Candidates[0].ClaimSets) != 0 {
-		t.Fatalf("strict mode offers claim sets: matches %+v, options %+v", matches, options.Queries[0])
 	}
 }
 

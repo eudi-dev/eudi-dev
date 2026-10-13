@@ -16,7 +16,6 @@ package wallet
 
 import (
 	"log"
-	"slices"
 	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
@@ -25,21 +24,14 @@ import (
 )
 
 // applySelectedClaims discloses the user's selected claims for each credential.
-// Strict mode discloses only requested claims, so a selection can
-// withhold a claim but not add one. Debug mode sends the selection as it is.
 func (w *Wallet) applySelectedClaims(matches []consent.Match, selected map[string][]string) []consent.Match {
 	if selected == nil {
 		return matches
 	}
-	strict := w.Mode() == ValidationModeStrict
 	for i, m := range matches {
 		keys, ok := selected[m.CredentialID]
 		if !ok {
 			continue
-		}
-		if strict {
-			requested := m.SelectedKeys
-			keys = slices.DeleteFunc(slices.Clone(keys), func(k string) bool { return !slices.Contains(requested, k) })
 		}
 		cred, ok := w.GetCredential(m.CredentialID)
 		if !ok {

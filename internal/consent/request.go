@@ -123,9 +123,9 @@ type Match struct {
 	// Strict mode requires all claims. Complete matches take precedence over partial
 	// matches.
 	MissingClaims []string `json:"missing_claims,omitempty"`
-	// Debug mode offers credentials that do not match the query. Mismatches says why.
+	// The consent dialog offers credentials that do not match the query. Mismatches says why.
 	Mismatches []string `json:"mismatches,omitempty"`
-	// Debug mode lists the matching claim_sets options when there is more than
+	// ClaimSets lists the matching claim_sets options when there is more than
 	// one. The first is the automatic selection.
 	ClaimSets []ClaimSet `json:"claim_sets,omitempty"`
 }

@@ -1963,177 +1963,188 @@ test.describe("Verifier redirect after an error response", () => {
     expect(page.url()).toBe(`${WALLET_URL}/`);
   });
 
-  // Debug mode asks the user instead (see the non-matching tests below), so the
-  // refusal goes out in strict mode.
-  test("a request nothing matches continues at the verifier", async ({ page, request }) => {
-    await request.put(`${WALLET_URL}/api/config/conformance`, { data: { validation_mode: "strict", require_haip: false } });
+  // With consent the dialog asks for a pick (see the non-matching tests below).
+  // Auto-accept refuses the request.
+  test("a request without a matching credential continues at the verifier", async ({ page, request }) => {
+    await request.put(`${WALLET_URL}/api/config/auto-accept`, { data: { enabled: true } });
     try {
-          await page.goto(WALLET_URL);
+      await page.goto(WALLET_URL);
       await page.locator("#offer-input").fill(requestFor("urn:nobody:holds:this"));
       await page.locator("#process-btn").click();
 
       await page.waitForURL(`${verifierURL}/continue`);
       expect(received.get("error")).toBe("access_denied");
     } finally {
-      await request.delete(`${WALLET_URL}/api/config/conformance`);
+      await request.put(`${WALLET_URL}/api/config/auto-accept`, { data: { enabled: false } });
     }
   });
 });
 
-// OpenID4VP 1.0 §6.4.1 lets the verifier list claim_sets in preference order.
-// Debug mode lets the user send another matching set.
-test.describe("Claim set choice in the consent dialog", () => {
-  let verifier;
-  let verifierURL;
-  let received;
+for (const mode of ["debug", "strict"]) {
+  // OpenID4VP 1.0 §6.4.1 lets the verifier list claim_sets in preference order.
+  // The user can send another matching set.
+  test.describe(`Claim set choice in the consent dialog in ${mode} mode`, () => {
+    let verifier;
+    let verifierURL;
+    let received;
 
-  test.beforeAll(async () => {
-    verifier = http.createServer((req, res) => {
-      let body = "";
-      req.on("data", (d) => (body += d));
-      req.on("end", () => {
-        received = new URLSearchParams(body);
-        res.setHeader("Content-Type", "application/json");
-        res.end("{}");
+    test.beforeAll(async () => {
+      verifier = http.createServer((req, res) => {
+        let body = "";
+        req.on("data", (d) => (body += d));
+        req.on("end", () => {
+          received = new URLSearchParams(body);
+          res.setHeader("Content-Type", "application/json");
+          res.end("{}");
+        });
       });
+      await new Promise((resolve) => verifier.listen(0, "127.0.0.1", resolve));
+      verifierURL = `http://127.0.0.1:${verifier.address().port}`;
     });
-    await new Promise((resolve) => verifier.listen(0, "127.0.0.1", resolve));
-    verifierURL = `http://127.0.0.1:${verifier.address().port}`;
-  });
 
-  test.afterAll(async () => {
-    await new Promise((resolve) => verifier.close(resolve));
-  });
-
-  test.beforeEach(async () => {
-    received = undefined;
-    await denyPendingRequests();
-  });
-
-  test("the chosen claim set reaches the verifier", async ({ page }) => {
-    const responseURI = `${verifierURL}/response`;
-    const uri = "openid4vp://authorize?" + new URLSearchParams({
-      client_id: `redirect_uri:${responseURI}`,
-      response_type: "vp_token",
-      response_mode: "direct_post",
-      response_uri: responseURI,
-      nonce: "n",
-      state: "s",
-      dcql_query: JSON.stringify({
-        credentials: [{
-          id: "pid",
-          format: "dc+sd-jwt",
-          meta: { vct_values: ["urn:eudi:pid:1"] },
-          claims: [
-            { id: "a", path: ["given_name"] },
-            { id: "b", path: ["family_name"] },
-            { id: "c", path: ["birthdate"] },
-          ],
-          claim_sets: [["a", "b"], ["a", "c"]],
-        }],
-      }),
+    test.afterAll(async () => {
+      await new Promise((resolve) => verifier.close(resolve));
     });
-    jsonPost(`${WALLET_URL}/api/presentations`, { uri, interactive: true }).catch(() => {});
-    await page.goto(`${WALLET_URL}/?request=${await waitForPendingRequest()}`);
-    const picker = page.locator("#consent-claim-set-pid");
-    await expect(picker).toBeVisible();
-    await expect(picker.locator("option")).toHaveText(["auto: given_name, family_name", "given_name, birthdate"]);
-    await picker.selectOption("1");
-    await expect(page.locator('.consent-claim input[data-claim="birthdate"]')).toBeChecked();
-    await page.locator("#consent-approve").click();
 
-    await expect.poll(() => received?.get("vp_token")).toBeTruthy();
-    const presentation = JSON.parse(received.get("vp_token")).pid[0];
-    const disclosed = presentation.split("~").slice(1, -1)
-      .map((d) => JSON.parse(Buffer.from(d, "base64url").toString())[1])
-      .sort();
-    expect(disclosed).toEqual(["birthdate", "given_name"]);
-  });
-});
+    test.beforeEach(async ({ request }) => {
+      received = undefined;
+      await denyPendingRequests();
+      await request.put(`${WALLET_URL}/api/config/conformance`, { data: { validation_mode: mode, require_haip: false } });
+    });
 
-// Debug mode offers the credentials that do not match a query, so a verifier can be
-// tested with a wrong answer.
-test.describe("Non-matching credentials in debug mode", () => {
-  let verifier;
-  let verifierURL;
-  let received;
+    test.afterEach(async ({ request }) => {
+      await request.delete(`${WALLET_URL}/api/config/conformance`);
+    });
 
-  test.beforeAll(async () => {
-    verifier = http.createServer((req, res) => {
-      let body = "";
-      req.on("data", (d) => (body += d));
-      req.on("end", () => {
-        received = new URLSearchParams(body);
-        res.setHeader("Content-Type", "application/json");
-        res.end("{}");
+    test("the chosen claim set reaches the verifier", async ({ page }) => {
+      const responseURI = `${verifierURL}/response`;
+      const uri = "openid4vp://authorize?" + new URLSearchParams({
+        client_id: `redirect_uri:${responseURI}`,
+        response_type: "vp_token",
+        response_mode: "direct_post",
+        response_uri: responseURI,
+        nonce: "n",
+        state: "s",
+        dcql_query: JSON.stringify({
+          credentials: [{
+            id: "pid",
+            format: "dc+sd-jwt",
+            meta: { vct_values: ["urn:eudi:pid:1"] },
+            claims: [
+              { id: "a", path: ["given_name"] },
+              { id: "b", path: ["family_name"] },
+              { id: "c", path: ["birthdate"] },
+            ],
+            claim_sets: [["a", "b"], ["a", "c"]],
+          }],
+        }),
       });
+      jsonPost(`${WALLET_URL}/api/presentations`, { uri, interactive: true }).catch(() => {});
+      await page.goto(`${WALLET_URL}/?request=${await waitForPendingRequest()}`);
+      const picker = page.locator("#consent-claim-set-pid");
+      await expect(picker).toBeVisible();
+      await expect(picker.locator("option")).toHaveText(["auto: given_name, family_name", "given_name, birthdate"]);
+      await picker.selectOption("1");
+      await expect(page.locator('.consent-claim input[data-claim="birthdate"]')).toBeChecked();
+      await page.locator("#consent-approve").click();
+
+      await expect.poll(() => received?.get("vp_token")).toBeTruthy();
+      const presentation = JSON.parse(received.get("vp_token")).pid[0];
+      const disclosed = presentation.split("~").slice(1, -1)
+        .map((d) => JSON.parse(Buffer.from(d, "base64url").toString())[1])
+        .sort();
+      expect(disclosed).toEqual(["birthdate", "given_name"]);
     });
-    await new Promise((resolve) => verifier.listen(0, "127.0.0.1", resolve));
-    verifierURL = `http://127.0.0.1:${verifier.address().port}`;
   });
 
-  test.afterAll(async () => {
-    await new Promise((resolve) => verifier.close(resolve));
-  });
+  // You can answer a verifier with a credential that does not match its query.
+  test.describe(`Non-matching credentials in ${mode} mode`, () => {
+    let verifier;
+    let verifierURL;
+    let received;
 
-  test.beforeEach(async () => {
-    received = undefined;
-    await denyPendingRequests();
-  });
-
-  async function openRequest(page, vct) {
-    const responseURI = `${verifierURL}/response`;
-    const uri = "openid4vp://authorize?" + new URLSearchParams({
-      client_id: `redirect_uri:${responseURI}`,
-      response_type: "vp_token",
-      response_mode: "direct_post",
-      response_uri: responseURI,
-      nonce: "n",
-      state: "s",
-      dcql_query: JSON.stringify({
-        credentials: [{ id: "pid", format: "dc+sd-jwt", meta: { vct_values: [vct] }, claims: [{ path: ["given_name"] }] }],
-      }),
+    test.beforeAll(async () => {
+      verifier = http.createServer((req, res) => {
+        let body = "";
+        req.on("data", (d) => (body += d));
+        req.on("end", () => {
+          received = new URLSearchParams(body);
+          res.setHeader("Content-Type", "application/json");
+          res.end("{}");
+        });
+      });
+      await new Promise((resolve) => verifier.listen(0, "127.0.0.1", resolve));
+      verifierURL = `http://127.0.0.1:${verifier.address().port}`;
     });
-    jsonPost(`${WALLET_URL}/api/presentations`, { uri, interactive: true }).catch(() => {});
-    await page.goto(`${WALLET_URL}/?request=${await waitForPendingRequest()}`);
-    await expect(page.locator("#consent-approve")).toBeVisible();
-  }
 
-  function presentedFormats() {
-    return JSON.parse(received.get("vp_token")).pid.map((t) => (t.includes("~") ? "dc+sd-jwt" : "mso_mdoc"));
-  }
+    test.afterAll(async () => {
+      await new Promise((resolve) => verifier.close(resolve));
+    });
 
-  test("a picked non-matching credential is sent with its reasons shown", async ({ page }) => {
-    await openRequest(page, "urn:eudi:pid:1");
-    await page.locator("#consent-edit-selection").click();
-    await page.locator("#consent-show-nonmatching-pid").click();
-    const other = page.locator('.candidate[data-non-matching="true"][data-query="pid"]').first();
-    await expect(other.locator(".consent-mismatch")).toContainText("the query asks for dc+sd-jwt");
-    await other.click();
-    await page.locator("#consent-selection-done").click();
-    await expect(page.locator(".consent-credential .consent-mismatch")).toBeVisible();
-    await page.locator("#consent-approve").click();
+    test.beforeEach(async ({ request }) => {
+      received = undefined;
+      await denyPendingRequests();
+      await request.put(`${WALLET_URL}/api/config/conformance`, { data: { validation_mode: mode, require_haip: false } });
+    });
 
-    await expect.poll(() => received?.get("vp_token")).toBeTruthy();
-    expect(presentedFormats()).toEqual(["mso_mdoc"]);
+    test.afterEach(async ({ request }) => {
+      await request.delete(`${WALLET_URL}/api/config/conformance`);
+    });
+
+    async function openRequest(page, vct) {
+      const responseURI = `${verifierURL}/response`;
+      const uri = "openid4vp://authorize?" + new URLSearchParams({
+        client_id: `redirect_uri:${responseURI}`,
+        response_type: "vp_token",
+        response_mode: "direct_post",
+        response_uri: responseURI,
+        nonce: "n",
+        state: "s",
+        dcql_query: JSON.stringify({
+          credentials: [{ id: "pid", format: "dc+sd-jwt", meta: { vct_values: [vct] }, claims: [{ path: ["given_name"] }] }],
+        }),
+      });
+      jsonPost(`${WALLET_URL}/api/presentations`, { uri, interactive: true }).catch(() => {});
+      await page.goto(`${WALLET_URL}/?request=${await waitForPendingRequest()}`);
+      await expect(page.locator("#consent-approve")).toBeVisible();
+    }
+
+    function presentedFormats() {
+      return JSON.parse(received.get("vp_token")).pid.map((t) => (t.includes("~") ? "dc+sd-jwt" : "mso_mdoc"));
+    }
+
+    test("a picked non-matching credential is sent with its reasons shown", async ({ page }) => {
+      await openRequest(page, "urn:eudi:pid:1");
+      await page.locator("#consent-edit-selection").click();
+      await page.locator("#consent-show-nonmatching-pid").click();
+      const other = page.locator('.candidate[data-non-matching="true"][data-query="pid"]').first();
+      await expect(other.locator(".consent-mismatch")).toContainText("the query asks for dc+sd-jwt");
+      await other.click();
+      await page.locator("#consent-selection-done").click();
+      await expect(page.locator(".consent-credential .consent-mismatch")).toBeVisible();
+      await page.locator("#consent-approve").click();
+
+      await expect.poll(() => received?.get("vp_token")).toBeTruthy();
+      expect(presentedFormats()).toEqual(["mso_mdoc"]);
+    });
+
+    test("a request without a matching credential waits for a pick", async ({ page }) => {
+      await openRequest(page, "urn:nobody:holds:this");
+      await expect(page.locator("#consent-unanswered-pid")).toBeVisible();
+      await expect(page.locator("#consent-approve")).toBeDisabled();
+      await expect(page.locator("#consent-approve")).toHaveAttribute("aria-describedby", "consent-unanswered-pid");
+
+      await page.locator("#consent-edit-selection").click();
+      await page.locator('.candidate[data-non-matching="true"][data-query="pid"]').first().click();
+      await page.locator("#consent-selection-done").click();
+      await expect(page.locator("#consent-approve")).toBeEnabled();
+      await page.locator("#consent-approve").click();
+
+      await expect.poll(() => received?.get("vp_token")).toBeTruthy();
+      expect(presentedFormats()).toHaveLength(1);
+    });
   });
-
-  test("a request nothing matches waits for a pick", async ({ page }) => {
-    await openRequest(page, "urn:nobody:holds:this");
-    await expect(page.locator("#consent-unanswered-pid")).toBeVisible();
-    await expect(page.locator("#consent-approve")).toBeDisabled();
-    await expect(page.locator("#consent-approve")).toHaveAttribute("aria-describedby", "consent-unanswered-pid");
-
-    await page.locator("#consent-edit-selection").click();
-    await page.locator('.candidate[data-non-matching="true"][data-query="pid"]').first().click();
-    await page.locator("#consent-selection-done").click();
-    await expect(page.locator("#consent-approve")).toBeEnabled();
-    await page.locator("#consent-approve").click();
-
-    await expect.poll(() => received?.get("vp_token")).toBeTruthy();
-    expect(presentedFormats()).toHaveLength(1);
-  });
-});
+}
 
 test.describe("ARF checks", () => {
   test.beforeEach(denyPendingRequests);

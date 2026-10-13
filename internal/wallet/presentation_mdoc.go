@@ -18,6 +18,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"fmt"
+	"log"
 
 	"github.com/fxamacker/cbor/v2"
 	"github.com/veraison/go-cose"
@@ -30,25 +31,18 @@ import (
 // An empty mdocNonce makes this document generate the nonce for its response.
 // Documents in a shared response receive the same nonce.
 func (w *Wallet) createMDocPresentation(cred StoredCredential, selectedKeys []string, params *oid4vp.Request, mdocNonce string, signingKey *ecdsa.PrivateKey) (VPTokenResult, error) {
-	// ISO 18013-5 §9.1.2.4 requires deviceKey in the MSO. Without it, the issuer has
-	// not bound the credential to the key used for DeviceSigned. Strict mode refuses
-	// the presentation. Debug mode still builds the response and warns, so the
-	// verifier can report the problem. See
-	// docs/adr/0001-debug-by-default-validation-with-opt-in-strict-mode.md.
+	// ISO 18013-5 §9.1.2.4 requires deviceKey in the MSO. In strict mode such an
+	// mdoc matches no query, so it only gets here when the user picked it. The
+	// wallet presents it with a warning.
 	if !credentialHolderBinding(cred.Raw).Bound {
 		detail := fmt.Sprintf(
 			"mdoc %s has no MSO deviceKey, which ISO 18013-5 §9.1.2.4 requires. The issuer signed no device key, so the verifier can't check DeviceSigned and should refuse this presentation.",
 			credentialLabel(cred))
-		details := map[string]any{
+		w.addProtocolWarning("presentation", "mdoc_names_no_device_key", detail, map[string]any{
 			"credential_id": cred.ID,
 			"doctype":       cred.DocType,
-		}
-		if err := w.reportDeviation(deviation{
-			action: "presentation", event: "mdoc_names_no_device_key", detail: detail, details: details,
-			refusal: fmt.Errorf("strict mode does not present mdoc %s without an MSO deviceKey (ISO 18013-5 §9.1.2.4)", credentialLabel(cred)),
-		}); err != nil {
-			return VPTokenResult{}, err
-		}
+		})
+		log.Printf("[Wallet] WARNING: %s", detail)
 	}
 
 	selected := make(map[string]bool, len(selectedKeys))

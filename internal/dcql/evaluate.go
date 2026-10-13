@@ -54,9 +54,9 @@ type Credential struct {
 
 // Options holds the wallet settings for evaluating a query.
 type Options struct {
-	// Strict answers only with matching credentials. Otherwise debug mode
-	// also offers credentials that do not match, so verifiers can be tested
-	// with wrong answers. They never become the automatic selection.
+	// Strict decides what matches. A credential that fails a strict rule
+	// counts as non-matching. The user can still pick it, but the wallet
+	// never picks it automatically.
 	Strict          bool
 	PreferredFormat string
 	// Anchors are the anchors of each etsi_tl trusted list by URL (§6.1.1.2).
@@ -79,14 +79,10 @@ func Evaluate(query map[string]any, credentials []Credential, opts Options) ([]c
 
 	log.Printf("[DCQL] Evaluating query: %d credential queries against %d stored credentials", len(credQueries), len(credentials))
 
-	var matches []consent.Match
-	// Debug mode offers credentials that do not match, so verifiers can be tested
-	// with wrong answers. They never become the automatic selection.
-	var nonMatching []consent.Match
+	var matches, nonMatching []consent.Match
 	debug := !opts.Strict
-	// Strict mode never presents an mdoc without deviceKey (ISO 18013-5 makes
-	// deviceKeyInfo mandatory), so in strict mode such an mdoc matches no
-	// query.
+	// ISO 18013-5 makes deviceKeyInfo mandatory, so in strict mode an mdoc
+	// without deviceKey matches no query.
 	strict := opts.Strict
 
 	for _, cq := range credQueries {
@@ -117,8 +113,8 @@ func Evaluate(query map[string]any, credentials []Credential, opts Options) ([]c
 				skipped["meta mismatch"]++
 				mismatches = append(mismatches, metaMismatch(cred, cqMap))
 			}
-			// Strict mode answers a query that requires binding only with a
-			// bound credential. Debug mode offers an unbound one too, flagged
+			// In strict mode only a bound credential matches a query that
+			// requires binding. In debug mode an unbound one matches too, flagged
 			// and after the bound ones.
 			unbound := false
 			switch {
@@ -130,7 +126,7 @@ func Evaluate(query map[string]any, credentials []Credential, opts Options) ([]c
 				mismatches = append(mismatches, "has no holder binding, and the query requires one")
 			case strict && cred.Format == credtype.FormatMDOC:
 				skipped["no deviceKey"]++
-				mismatches = append(mismatches, "is an mdoc without deviceKey, which strict mode does not present")
+				mismatches = append(mismatches, "is an mdoc without deviceKey (ISO 18013-5 requires one)")
 			}
 
 			selection := selectClaims(cred, cqMap)
@@ -147,44 +143,34 @@ func Evaluate(query map[string]any, credentials []Credential, opts Options) ([]c
 				skipped["no requested claims matched"]++
 				mismatches = append(mismatches, "satisfies none of the claim sets")
 			}
+			untrustedAuthority := len(mismatches) == 0 && len(taList) > 0 && !checkTrustedAuthorities(cred, taList, opts.Anchors)
+			if untrustedAuthority && strict {
+				skipped["not trusted by any trusted_authority"]++
+				mismatches = append(mismatches, "is not trusted by any of the trusted_authorities")
+			}
 			if len(mismatches) > 0 {
-				if debug {
-					nonMatching = append(nonMatching, consent.Match{
-						QueryID:      queryID,
-						CredentialID: cred.ID,
-						Format:       cred.Format,
-						VCT:          cred.VCT,
-						DocType:      cred.DocType,
-						Claims:       FilterClaims(cred, selection.selectedKeys),
-						SelectedKeys: selection.selectedKeys,
-						Mismatches:   mismatches,
-					})
-				}
+				nonMatching = append(nonMatching, consent.Match{
+					QueryID:      queryID,
+					CredentialID: cred.ID,
+					Format:       cred.Format,
+					VCT:          cred.VCT,
+					DocType:      cred.DocType,
+					Claims:       FilterClaims(cred, selection.selectedKeys),
+					SelectedKeys: selection.selectedKeys,
+					Mismatches:   mismatches,
+				})
 				continue
 			}
-
-			untrustedAuthority := false
-			if len(taList) > 0 {
-				if !checkTrustedAuthorities(cred, taList, opts.Anchors) {
-					if !debug {
-						skipped["not trusted by any trusted_authority"]++
-						continue
-					}
-					// Debug mode offers the credential anyway, flagged for the
-					// consent dialog.
-					untrustedAuthority = true
-					log.Printf("[DCQL] Warning: query=%s: credential %s (%s) is not trusted by any trusted_authority, offered in debug mode",
-						queryID, typeLabel, cred.Format)
-				}
+			if untrustedAuthority {
+				log.Printf("[DCQL] Warning: query=%s: credential %s (%s) is not trusted by any trusted_authority, offered in debug mode",
+					queryID, typeLabel, cred.Format)
 			}
 
 			// §6.4.1: "the Wallet SHOULD return the first option that it can
-			// satisfy". Debug mode lets the user choose another one.
+			// satisfy". The user can choose another one.
 			var claimSets []consent.ClaimSet
-			if debug {
-				if sets := satisfiableClaimSets(cred, cqMap); len(sets) > 1 {
-					claimSets = sets
-				}
+			if sets := satisfiableClaimSets(cred, cqMap); len(sets) > 1 {
+				claimSets = sets
 			}
 
 			if unbound {
@@ -717,7 +703,7 @@ func selectFromClaimSets(cred Credential, claimsQuery []any, claimSets []any) []
 }
 
 // satisfiableClaimSets lists the matching claim_sets options of a credential, in
-// the verifier's order. Debug mode offers them in the consent dialog.
+// the verifier's order. The consent dialog offers them.
 func satisfiableClaimSets(cred Credential, cqMap map[string]any) []consent.ClaimSet {
 	claimsQuery, _ := cqMap["claims"].([]any)
 	claimSets, _ := cqMap["claim_sets"].([]any)
