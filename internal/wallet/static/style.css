@@ -63,25 +63,30 @@ header h1 {
   gap: 28px;
 }
 
+/* Each text box ends at the cap height and the baseline, so centering the
+   boxes centers the letters, whatever the font size. */
+header h1,
+.header-links a,
+.header-submenu-toggle,
+header .btn,
+.header-menu-toggle {
+  text-box: trim-both cap alphabetic;
+}
+
 .header-left .header-logo + h1 {
   margin-left: -18px;
 }
 
 .header-links {
   display: flex;
+  align-items: center;
   gap: 16px;
   font-size: 13px;
 }
 
-/* IBM Plex Sans at 13px draws its glyphs about 1px above the middle of the
-   line box. The nudge puts the links and buttons on the title's center line. */
-.header-links {
-  position: relative;
-  top: 1px;
-}
-
 header .btn {
-  padding: 8px 14px 6px;
+  height: 34px;
+  padding: 0 14px;
 }
 
 .header-menu-toggle {
@@ -92,8 +97,9 @@ header .btn {
   color: var(--text);
   font: inherit;
   font-size: 13px;
+  font-weight: 500;
   height: 34px;
-  padding: 1px 14px 0;
+  padding: 0 14px;
   cursor: pointer;
 }
 
@@ -109,6 +115,8 @@ header .btn {
 
 .header-submenu-group {
   position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 .header-submenu-toggle {
@@ -1079,11 +1087,16 @@ textarea.form-input {
   cursor: help;
 }
 
+/* The text sets the baseline of a badge, and an icon centers on the text. */
 .cred-pills .status-badge {
   margin-left: 0;
   display: inline-flex;
   gap: 4px;
-  align-items: center;
+  align-items: baseline;
+}
+
+.cred-pills .status-badge svg {
+  align-self: center;
 }
 
 .catalog-badge {
@@ -1746,6 +1759,7 @@ textarea.form-input {
 
 .consent-buttons {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
   margin-top: 18px;
@@ -2063,8 +2077,7 @@ textarea.form-input {
   /* Position the mobile dropdown outside normal flow so opening it does not move the
      header. */
   .header-menu-toggle {
-    display: inline-flex;
-    align-items: center;
+    display: inline-block;
   }
 
   .header-links {
@@ -2074,6 +2087,7 @@ textarea.form-input {
     left: 0;
     right: 0;
     flex-direction: column;
+    align-items: stretch;
     gap: 14px;
     padding: 14px 24px;
     font-size: 14px;
@@ -2237,9 +2251,12 @@ textarea.form-input {
   margin: 12px 0;
 }
 
+/* The search text starts at the same edge as the text in the entries. The
+   field's border counts toward the inset. */
 .registrar-search {
   width: 100%;
   margin-bottom: 12px;
+  padding-inline: calc(var(--registrar-inset) - 1px);
 }
 
 /* Chrome adds an arrow to fields with suggestions. Clicking it lists all of them. */
@@ -2303,7 +2320,7 @@ textarea.form-input {
 
 .registrar-party {
   border-radius: 14px;
-  padding: 12px 14px;
+  padding: 12px var(--registrar-inset);
   background: var(--bg-raised);
   min-width: 0;
 }
@@ -2326,7 +2343,7 @@ textarea.form-input {
 .registrar-pills {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: baseline;
   gap: 6px;
   margin-top: 6px;
 }
@@ -2361,11 +2378,12 @@ textarea.form-input {
   color: var(--text-dim);
 }
 
+/* The title, the badge and the buttons share the baseline of their text. */
 .registrar-cert-line {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 2px 10px;
-  align-items: center;
+  align-items: baseline;
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px solid var(--border-raised);
@@ -2555,6 +2573,7 @@ textarea.form-input {
 }
 
 .registrar-dialog {
+  --registrar-inset: 14px;
   max-width: 720px;
 }
 

@@ -189,9 +189,11 @@
 }
 .site-footer a {
   color: var(--text-dim);
+  text-decoration: none;
 }
 .site-footer a:hover {
   color: var(--text);
+  text-decoration: underline;
 }
 .site-footer [hidden] {
   display: none;
@@ -200,11 +202,13 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  align-items: center;
+  align-items: baseline;
   gap: 2px 16px;
 }
+/* IBM Plex Mono looks larger than IBM Plex Sans at the same size. */
 .footer-version {
   font-family: var(--font-mono);
+  font-size: 11px;
   color: var(--text);
   overflow-wrap: anywhere;
 }
@@ -217,14 +221,16 @@
   font-weight: 600;
   text-transform: uppercase;
 }
+/* The text sets the baseline of the link. */
 .footer-sponsor {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: 4px;
 }
 .footer-sponsor svg {
-  width: 12px;
-  height: 12px;
+  align-self: center;
+  width: 10px;
+  height: 10px;
   flex-shrink: 0;
   color: var(--pink);
 }
