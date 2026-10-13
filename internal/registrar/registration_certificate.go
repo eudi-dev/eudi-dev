@@ -109,8 +109,7 @@ const (
 var errRegistrarSigning = errors.New("registrar signer")
 
 // The validity of a registration certificate. ETSI TS 119 475 GEN-5.2.4-08
-// allows at most 12 months. The default matches the access certificate, so
-// both certificates of a party expire together.
+// allows at most 12 months. The default is that maximum.
 const (
 	MaxRegistrationValidity     = 365 * 24 * time.Hour
 	DefaultRegistrationValidity = MaxRegistrationValidity
@@ -256,6 +255,14 @@ func (r *Registrar) issueCertificate(rp WalletRelyingParty, key certificateKey, 
 	validity, err := registrationValidity(validityValue)
 	if err != nil {
 		return "", err
+	}
+	// A registration certificate chains only while the registrar certificate in
+	// its x5c is valid. CurrentRegistrationCertificate then issues the next one.
+	if _, chain, err := r.env.RegistrarSigningMaterial(); err == nil && len(chain) > 0 {
+		if left := time.Until(chain[0].NotAfter).Truncate(time.Hour); left > 0 && left < validity {
+			validity = left
+			content.Validity = Hours(validity)
+		}
 	}
 	now := time.Now()
 	content.StatusListURI = r.RegistrationStatusListURL()

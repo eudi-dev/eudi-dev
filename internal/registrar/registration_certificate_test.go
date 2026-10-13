@@ -15,11 +15,13 @@
 package registrar
 
 import (
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 )
@@ -130,6 +132,37 @@ func TestTheCurrentCertificateLastsUntilTheRegistrationChanges(t *testing.T) {
 	}
 	if after := current(); after == first {
 		t.Error("the changed registration kept its old certificate")
+	}
+}
+
+// A registration certificate needs the registrar certificate in its x5c to
+// chain, so it ends no later than that certificate.
+func TestARegistrationCertificateEndsWithItsSigningCertificate(t *testing.T) {
+	w := generateTestWallet(t)
+	leaf, err := mock.GenerateLeafCertWithOptions(w.env.caKey, w.env.ca, &w.env.registrarKey.PublicKey,
+		mock.LeafCertOptions{CommonName: "Test Registrar", Role: mock.RegistrarCertificate, Validity: 30 * 24 * time.Hour})
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.env.registrarChain = []*x509.Certificate{leaf, w.env.ca}
+	rp := registerTestRelyingParty(t, w)
+	result, err := w.IssueRegistrationCertificate(RegistrationCertificateRequest{Identifier: rp.Identifier[0].Identifier, IntendedUseIdentifier: rp.Services[0].IntendedUses[0].IntendedUseIdentifier})
+	if err != nil {
+		t.Fatal(err)
+	}
+	parts := strings.Split(result.RegistrationCertificate, ".")
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var claims struct {
+		Exp int64 `json:"exp"`
+	}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		t.Fatal(err)
+	}
+	if exp := time.Unix(claims.Exp, 0); exp.After(leaf.NotAfter) || exp.Before(leaf.NotAfter.Add(-time.Hour)) {
+		t.Errorf("exp %s, want the end of the registrar certificate %s", exp, leaf.NotAfter)
 	}
 }
 
