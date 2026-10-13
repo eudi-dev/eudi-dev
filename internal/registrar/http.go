@@ -41,7 +41,7 @@ type Server struct {
 	// Mutate runs change and saves the wallet when change reports a change.
 	Mutate func(change func() bool)
 	// Protected reports whether clients may not change a registration or its
-	// certificates.
+	// registration certificates.
 	Protected func(rp WalletRelyingParty) bool
 	// KeepOperatorEntries reports whether clients may not delete the
 	// catalogue entries of the templates, and may not change or delete the
@@ -624,11 +624,6 @@ func (h *Server) handleIssueAccessCertificate(w http.ResponseWriter, r *http.Req
 	var req AccessCertificateRequest
 	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
 		apierror.WriteStatus(w, http.StatusBadRequest, "invalid request body: "+err.Error())
-		return
-	}
-	// An access certificate for a protected party's identifier would let its
-	// holder sign requests as that party.
-	if h.refuseProtected(w, req.Identifier) {
 		return
 	}
 	result, err := h.Registrar().IssueAccessCertificate(req)

@@ -206,8 +206,9 @@ func TestTheRegistrationSizeIsLimited(t *testing.T) {
 	}
 }
 
-// The public demo's own registrations can't be changed through any of their
-// identifiers.
+// The public demo's own registrations and their registration certificates
+// can't be changed through any of their identifiers. Issuing an access
+// certificate doesn't change the registration, so anyone may get one.
 func TestProtectedRegistrationsRefuseChanges(t *testing.T) {
 	api := newTestAPI(t)
 	demo := registerTestRelyingParty(t, api.testWallet)
@@ -234,7 +235,6 @@ func TestProtectedRegistrationsRefuseChanges(t *testing.T) {
 		{"enrolment update", http.MethodPut, "/api/registrar/enrolments", Enrolment{RelyingParty: renamed}},
 		{"registration certificate", http.MethodPost, "/api/registrar/registration-certificates", RegistrationCertificateRequest{Identifier: semantic, IntendedUseIdentifier: use}},
 		{"revocation", http.MethodPost, "/api/registrar/registration-certificates/status", map[string]any{"identifier": id, "revoked": true}},
-		{"access certificate", http.MethodPost, "/api/registrar/access-certificates", AccessCertificateRequest{Identifier: semantic, CSR: testAccessCSR(t, key)}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			wantError(t, api.do(tc.method, tc.target, tc.body, ""), http.StatusForbidden, apierror.Forbidden, "can't change it")
@@ -245,6 +245,9 @@ func TestProtectedRegistrationsRefuseChanges(t *testing.T) {
 	}
 	if after, _ := api.RelyingParty(id); after.TradeName != demo.TradeName {
 		t.Errorf("the protected registration changed to %+v", after)
+	}
+	if rec := api.do(http.MethodPost, "/api/registrar/access-certificates", AccessCertificateRequest{Identifier: semantic, CSR: testAccessCSR(t, key)}, ""); rec.Code != http.StatusCreated {
+		t.Errorf("access certificate for a protected registration: %d %s", rec.Code, rec.Body)
 	}
 	if rec := api.do(http.MethodDelete, "/api/registrar/wrp/"+other.Identifier[0].Identifier, nil, ""); rec.Code != http.StatusNoContent {
 		t.Errorf("deleting an unprotected registration: %d %s", rec.Code, rec.Body)

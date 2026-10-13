@@ -753,10 +753,9 @@ func TestDemoProtectsTheDemoRegistrations(t *testing.T) {
 		if w := serverRequest(t, srv, "PUT", "/api/registrar/wrp", body); w.Code != http.StatusForbidden {
 			t.Errorf("update %s = %d, want 403", identity, w.Code)
 		}
-		// An access certificate for the demo verifier's identifier would let a
-		// visitor sign requests as the demo verifier.
+		// A new registration certificate would revoke the demo verifier's
+		// current one.
 		for path, body := range map[string]string{
-			"/api/registrar/access-certificates":              `{"identifier":"` + identity + `","csr":"x"}`,
 			"/api/registrar/registration-certificates":        `{"identifier":"` + identity + `"}`,
 			"/api/registrar/registration-certificates/status": `{"identifier":"` + identity + `","revoked":true}`,
 		} {

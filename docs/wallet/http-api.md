@@ -621,7 +621,7 @@ Discovery includes local instances and the active remote target. A responding re
 
 The response includes `port`, `build_id`, `version`, `storage`, `seeded_keys`, `base_url`, `issuer_url`, `status_list_url`, `preferred_format`, `key_attestation_level`, `tls_verify`, `tls_verify_override`, `validation_mode`, `vci_version`, `auto_accept`, `session_transcript`, `require_haip`, `require_arf`, `require_encrypted_request`, `force_client_attestation`, `adhoc_display_images`, `tls_listener`, `imprint`, `credential_count`, `form_defaults`, `protected_relying_parties` and `news_id`.
 
-`form_defaults` holds the limits and defaults of the UI forms. `protected_relying_parties` lists the identifiers of the registrations that visitors can't change (the demo issuer and verifier on the public demo, empty otherwise). `news_id` identifies the current news of the public demo (empty without `--news-file`).
+`form_defaults` holds the limits and defaults of the UI forms. `protected_relying_parties` lists the identifiers of the registrations that visitors can't change (on the public demo: the demo issuer, the demo verifier and the parties from `--relying-parties`. Empty otherwise). `news_id` identifies the current news of the public demo (empty without `--news-file`).
 
 Local instances also report `pid`, `wallet_dir` and `templates_dir`. The public demo hides those fields and adds a `demo` object. `POST /api/shutdown` sends its response before stopping the instance. Requests in flight finish first, like on Ctrl-C.
 

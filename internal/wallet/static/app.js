@@ -4070,13 +4070,30 @@
         });
         addRow.appendChild(button);
       };
-      addButton('-add-use', '+ Add verifier registration certificate',
-        'Registers another purpose and issues its certificate.', 'verifier');
-      if (!services.some(service => (service.providesAttestations || []).length > 0)) {
-        addButton('-add-issuer', '+ Add issuer registration certificate',
-          'Registers which attestation types this party may issue.', 'issuer');
+      if (!locked) {
+        addButton('-add-use', '+ Add verifier registration certificate',
+          'Registers another purpose and issues its certificate.', 'verifier');
+        if (!services.some(service => (service.providesAttestations || []).length > 0)) {
+          addButton('-add-issuer', '+ Add issuer registration certificate',
+            'Registers which attestation types this party may issue.', 'issuer');
+        }
       }
-      if (!locked) card.appendChild(addRow);
+      // Issuing an access certificate doesn't change the registration, so
+      // protected parties offer it too.
+      services.forEach(service => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'btn btn-sm';
+        button.id = prefix + '-service-' + domID(service.serviceIdentifier || 'default') + '-access';
+        button.title = 'Signs an access certificate for your key.';
+        button.textContent = services.length > 1 ? 'Issue access certificate for ' + serviceLabelOf(rp, service) : 'Issue access certificate';
+        button.addEventListener('click', () => {
+          registrarPartiesOverlay.classList.remove('active');
+          openRegistrarDialog(rp, true, serviceRoles(service).includes('issuer') && !serviceRoles(service).includes('verifier') ? 'issuer' : 'verifier', null, service);
+        });
+        addRow.appendChild(button);
+      });
+      if (addRow.children.length > 0) card.appendChild(addRow);
       const remove = card.querySelector('#' + prefix + '-delete');
       if (remove) {
         remove.addEventListener('click', () =>
@@ -4237,7 +4254,9 @@
   let registrarMode = 'verifier';
   function showRegistered(done) {
     registrarSubmit.classList.toggle('registrar-registered', done);
-    if (registrarEditService) {
+    if (registrarAccessService) {
+      registrarSubmit.textContent = done ? '\u2713 Issued' : 'Issue access certificate';
+    } else if (registrarEditService) {
       registrarSubmit.textContent = done ? '\u2713 Saved' : 'Save and issue certificate';
     } else if (registrarTarget) {
       registrarSubmit.textContent = done ? '\u2713 Added' : 'Add certificate';
@@ -4301,9 +4320,13 @@
   // editService is the issuer service whose attestation types the dialog
   // edits, or null when it adds something.
   let registrarEditService = null;
-  function openRegistrarDialog(target, fromList, mode, editService) {
+  // registrarAccessService is set when the dialog only issues an access
+  // certificate for this service.
+  let registrarAccessService = null;
+  function openRegistrarDialog(target, fromList, mode, editService, accessService) {
     registrarTarget = target || null;
     registrarEditService = editService || null;
+    registrarAccessService = accessService || null;
     registrarFromList = !!fromList;
     applyRegistrarMode(mode || 'verifier');
     showRegistered(false);
@@ -4323,25 +4346,40 @@
     document.getElementById('registrar-entitlement').value = '';
     const targetHint = document.getElementById('registrar-target-hint');
     targetHint.hidden = !registrarTarget;
-    targetHint.textContent = registrarEditService
+    targetHint.textContent = registrarAccessService
+      ? 'The certificate carries the identity of this registration. Sign your request objects or issuer metadata with its key.'
+      : registrarEditService
       ? 'Issues a new certificate and revokes the old one.'
       : addsIssuer
       ? 'Lists the attestation types below. Publish it in issuer_info of the signed issuer metadata.'
       : targetIssues
       ? 'Lets the issuer ask for credentials, such as a PID, before it issues. Send it in verifier_info.'
       : 'Registers another purpose. Send its certificate in verifier_info.';
-    document.getElementById('registrar-title').textContent = registrarEditService
+    document.getElementById('registrar-title').textContent = registrarAccessService
+      ? 'Issue an access certificate for ' + serviceLabelOf(registrarTarget, registrarAccessService)
+      : registrarEditService
       ? 'Edit the attestation types of ' + targetName
       : registrarTarget
       ? 'Add ' + (addsIssuer ? 'an issuer' : 'a verifier') + ' registration certificate to ' + targetName
       : (registrarMode === 'issuer' ? 'Register an issuer' : 'Register a verifier');
     document.getElementById('registrar-party-section').hidden = !!registrarTarget;
+    const accessOnly = !!registrarAccessService;
+    if (accessOnly) {
+      document.getElementById('registrar-issuer-section').hidden = true;
+      document.getElementById('registrar-use-section').hidden = true;
+      document.getElementById('registrar-verifier-info-block').hidden = true;
+      document.getElementById('registrar-issuer-info-block').hidden = true;
+    }
+    document.getElementById('registrar-registration-validity-label').hidden = accessOnly;
+    document.getElementById('registrar-registration-validity').hidden = accessOnly;
     fillTargetServices(addsIssuer ? 'issuer' : 'verifier');
     document.getElementById('registrar-error').textContent = '';
     document.getElementById('registrar-result').hidden = true;
     offerReissue([]);
     registrarOverlay.classList.add('active');
-    if (addsIssuer) {
+    if (accessOnly) {
+      document.getElementById('registrar-csr').focus();
+    } else if (addsIssuer) {
       (registrarAttestations.querySelector('[data-field="type"]') || registrarSubmit).focus();
     } else {
       document.getElementById(registrarTarget ? 'registrar-purpose' : 'registrar-name').focus();
@@ -4357,12 +4395,15 @@
   const NEW_SERVICE = 'new';
   let registrarAddedRole = 'verifier';
   function serviceLabel(service) {
-    const name = service.serviceTradeName || registrarTarget.tradeName || 'Service';
+    return serviceLabelOf(registrarTarget, service);
+  }
+  function serviceLabelOf(rp, service) {
+    const name = service.serviceTradeName || rp.tradeName || 'Service';
     return service.serviceIdentifier ? name + ' (' + service.serviceIdentifier + ')' : name;
   }
   function fillTargetServices(role) {
     registrarAddedRole = role;
-    const adding = !!registrarTarget && !registrarEditService;
+    const adding = !!registrarTarget && !registrarEditService && !registrarAccessService;
     document.getElementById('registrar-target-section').hidden = !adding;
     registrarTargetService.innerHTML = '';
     if (adding) {
@@ -4393,15 +4434,16 @@
       .map(use => ({ identifier: identifier, serviceIdentifier: serviceIdentifier, intendedUseIdentifier: use.intendedUseIdentifier }));
   }
   function targetService() {
-    if (!registrarTarget || registrarEditService || registrarTargetService.value === NEW_SERVICE) return null;
+    if (!registrarTarget || registrarEditService || registrarAccessService || registrarTargetService.value === NEW_SERVICE) return null;
     return (registrarTarget.services || [])[Number(registrarTargetService.value)] || null;
   }
   function updateTargetService() {
-    const adding = !!registrarTarget && !registrarEditService;
+    const adding = !!registrarTarget && !registrarEditService && !registrarAccessService;
     const newService = adding && registrarTargetService.value === NEW_SERVICE;
+    const issuesAccess = !registrarTarget || newService || !!registrarAccessService;
     document.getElementById('registrar-new-service-section').hidden = !newService;
-    document.getElementById('registrar-access-section').hidden = !!registrarTarget && !newService;
-    document.getElementById('registrar-access-result').hidden = !!registrarTarget && !newService;
+    document.getElementById('registrar-access-section').hidden = !issuesAccess;
+    document.getElementById('registrar-access-result').hidden = !issuesAccess;
     const notice = document.getElementById('registrar-revocation-notice');
     const revoked = adding ? revokedByTarget() : [];
     const service = targetService();
@@ -4451,9 +4493,9 @@
     }
   });
 
-  // The access part of an enrolment for a new service. A key created in the
+  // The access certificate request for a service. A key created in the
   // browser is shown with the chain, because it exists nowhere else.
-  async function newServiceAccess(serviceIdentifier) {
+  async function accessRequest(serviceIdentifier) {
     let key = '';
     let csr = registrarValue('registrar-csr');
     if (!csr) ({ key, csr } = await window.eudiCreateKeyAndCSR());
@@ -4461,7 +4503,23 @@
     if (registrarAddedRole === 'verifier') access.dnsNames = registrarValue('registrar-dns').split(',').map(n => n.trim()).filter(Boolean);
     return { key, access };
   }
-  function showNewServiceAccess(key, access) {
+  async function issueAccessCertificate(submit) {
+    const identifier = registrarTarget.identifier[0].identifier;
+    submit.disabled = true;
+    try {
+      const { key, access } = await accessRequest(registrarAccessService.serviceIdentifier || '');
+      const issued = await registrarRequest('POST', 'api/registrar/access-certificates', Object.assign({ identifier: identifier }, access));
+      document.getElementById('registrar-result-identifier').textContent = identifier;
+      showAccessResult(key, issued);
+      showRegistrationResult();
+    } catch (e) {
+      showRegistrarError(e.message);
+    } finally {
+      submit.disabled = submit.classList.contains('registrar-registered');
+      if (!submit.disabled && document.activeElement === document.body) submit.focus();
+    }
+  }
+  function showAccessResult(key, access) {
     document.getElementById('registrar-client-ids').innerHTML = (access.clientIds || []).map((id, i) =>
       '<li><code id="registrar-client-id-' + i + '">' + escHtml(id) + '</code></li>').join('');
     document.getElementById('registrar-pem-label').textContent = key ? 'Signing key and access certificate chain' : 'Access certificate chain';
@@ -4589,6 +4647,10 @@
     const error = document.getElementById('registrar-error');
     const submit = document.getElementById('registrar-submit');
     error.textContent = '';
+    if (registrarAccessService) {
+      await issueAccessCertificate(submit);
+      return;
+    }
     if (registrarTarget) {
       await (registrarMode === 'issuer' ? addIssuerService(submit) : addIntendedUse(submit));
       return;
@@ -4785,7 +4847,7 @@
     const revoked = revokedByTarget();
     submit.disabled = true;
     try {
-      const { key, access } = target.added ? await newServiceAccess(target.service.serviceIdentifier) : {};
+      const { key, access } = target.added ? await accessRequest(target.service.serviceIdentifier) : {};
       const { relyingParty: saved, access: issued, registration } = await registrarRequest('PUT', 'api/registrar/enrolments', {
         relyingParty: target.updated,
         access: access,
@@ -4793,7 +4855,7 @@
       });
       registrarTarget = saved;
       document.getElementById('registrar-result-identifier').textContent = target.identifier;
-      if (issued) showNewServiceAccess(key, issued);
+      if (issued) showAccessResult(key, issued);
       document.getElementById('registrar-verifier-info').value = registration.verifierInfo;
       offerReissue(revoked);
       showRegistrationResult();
@@ -4832,7 +4894,7 @@
     const revoked = revokedByTarget();
     submit.disabled = true;
     try {
-      const { key, access } = target.added ? await newServiceAccess(service.serviceIdentifier) : {};
+      const { key, access } = target.added ? await accessRequest(service.serviceIdentifier) : {};
       const { relyingParty: saved, access: issued, registration } = await registrarRequest('PUT', 'api/registrar/enrolments', {
         relyingParty: updated,
         access: access,
@@ -4840,7 +4902,7 @@
       });
       registrarTarget = saved;
       document.getElementById('registrar-result-identifier').textContent = identifier;
-      if (issued) showNewServiceAccess(key, issued);
+      if (issued) showAccessResult(key, issued);
       document.getElementById('registrar-issuer-info').value = registration.issuerInfo;
       offerReissue(revoked);
       showRegistrationResult();

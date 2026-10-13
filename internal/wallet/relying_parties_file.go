@@ -121,9 +121,10 @@ func (f *RelyingPartiesFile) Identifiers() []string {
 	return ids
 }
 
-// ApplyRelyingPartiesFile registers the relying parties of file. A
-// registration that differs from the file is replaced, so the file wins over
-// changes made through the API. It reports whether the stored state changed.
+// ApplyRelyingPartiesFile registers the relying parties of file and issues
+// their registration certificates. A registration that differs from the file
+// is replaced, so the file wins over changes made through the API. Valid
+// certificates are kept. It reports whether the stored state changed.
 func (w *Wallet) ApplyRelyingPartiesFile(file *RelyingPartiesFile) (bool, error) {
 	if file == nil {
 		return false, nil
@@ -135,6 +136,13 @@ func (w *Wallet) ApplyRelyingPartiesFile(file *RelyingPartiesFile) (bool, error)
 			return changed, fmt.Errorf("%s: %s: %w", file.sources[i], relyingPartyLabel(rp, i), err)
 		}
 		changed = changed || updated
+		for _, req := range registrar.CertificateRequests(rp) {
+			_, issued, err := w.Registrar().CurrentRegistrationCertificate(req)
+			if err != nil {
+				return changed, fmt.Errorf("%s: %s: %w", file.sources[i], relyingPartyLabel(rp, i), err)
+			}
+			changed = changed || issued
+		}
 	}
 	return changed, nil
 }

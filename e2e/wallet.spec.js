@@ -2509,6 +2509,47 @@ test.describe("Registrar", () => {
     await expect(page.locator(card + " .registrar-cert-title").nth(1)).toHaveText("Second purpose");
   });
 
+  test("a registered relying party gets an access certificate for its service", async ({ page }) => {
+    const { body } = await jsonPost(`${WALLET_URL}/api/registrar/wrp`, {
+      tradeName: "Keyless Shop",
+      services: [{ intendedUses: [{
+        purpose: [{ lang: "en", content: "Only purpose" }],
+        credentials: [{ format: "dc+sd-jwt", meta: { vct_values: ["urn:eudi:pid:1"] }, claims: [{ path: ["given_name"] }] }],
+      }] }],
+    });
+    const card = "#registrar-party-" + domID(body.identifier[0].identifier);
+
+    await page.goto(WALLET_URL);
+    await page.locator("#registrar-menu-toggle").click();
+    await page.locator("#registrar-parties-link").click();
+    await page.locator(card + "-service-default-access").click();
+    await expect(page.locator("#registrar-title")).toHaveText("Issue an access certificate for Keyless Shop");
+    await expect(page.locator("#registrar-purpose")).toBeHidden();
+    await expect(page.locator("#registrar-target-service")).toBeHidden();
+    await expect(page.locator("#registrar-registration-validity")).toBeHidden();
+    await expect(page.locator("#registrar-csr")).toBeFocused();
+    await page.locator("#registrar-submit").click();
+    await expect(page.locator("#registrar-submit")).toHaveText("✓ Issued");
+    await expect(page.locator("#registrar-result-identifier")).toHaveText(body.identifier[0].identifier);
+    await expect(page.locator("#registrar-client-id-1")).toHaveText("x509_san_dns:verifier.example");
+    await expect(page.locator("#registrar-verifier-info")).toBeHidden();
+
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "eudi-registrar-"));
+    await expect(page.locator("#registrar-pem-label")).toHaveText("Signing key and access certificate chain");
+    fs.writeFileSync(path.join(dir, "verifier.pem"), await page.locator("#registrar-pem").inputValue());
+    expect(execSync("openssl x509 -in verifier.pem -noout -subject", { cwd: dir }).toString()).toContain("CN=Keyless Shop");
+    expect(execSync("openssl x509 -in verifier.pem -noout -pubkey", { cwd: dir }).toString())
+      .toBe(publicKeyOf(dir, "verifier.pem", "pkey"));
+
+    // The registration and its registration certificates don't change.
+    await page.locator("#registrar-close").click();
+    await expect(page.locator(card + " .registrar-cert-line")).toHaveCount(1);
+    await expect(page.locator(card + ' [id$="-summary-status"]')).toHaveText("No certificate");
+    await page.locator(card + "-add-use").click();
+    await expect(page.locator("#registrar-purpose")).toBeVisible();
+    await expect(page.locator("#registrar-registration-validity")).toBeVisible();
+  });
+
   test("the registrar submenu works at phone width", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 800 });
     await page.goto(WALLET_URL);

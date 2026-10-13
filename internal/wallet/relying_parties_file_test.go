@@ -20,6 +20,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
 )
 
 const shopRelyingPartyYAML = `identifier:
@@ -99,8 +101,8 @@ func TestLoadRelyingPartiesFileNeedsStableIdentifiers(t *testing.T) {
 	}
 }
 
-// Applying the file again keeps the registration and its certificates. A
-// change made through the API is replaced by the file.
+// Applying the file again keeps the registration and its certificates. The
+// file replaces a change made through the API and issues a new certificate.
 func TestApplyRelyingPartiesFileRegistersOnEveryStart(t *testing.T) {
 	srv := newTestServer(t, true)
 	file := loadRelyingParties(t, writeCatalogFile(t, t.TempDir(), "shop.yaml", shopRelyingPartyYAML))
@@ -111,6 +113,11 @@ func TestApplyRelyingPartiesFileRegistersOnEveryStart(t *testing.T) {
 	if changed, err := srv.wallet.ApplyRelyingPartiesFile(file); err != nil || changed {
 		t.Fatalf("second apply: changed %v, err %v", changed, err)
 	}
+	ageCheck := registrar.RegistrationCertificateRequest{Identifier: "NLTEST.00000042", IntendedUseIdentifier: "age-check"}
+	first, issued, err := srv.wallet.Registrar().CurrentRegistrationCertificate(ageCheck)
+	if err != nil || issued {
+		t.Fatalf("after apply: issued %v, err %v, want the certificate of the first apply", issued, err)
+	}
 	padded := loadRelyingParties(t, writeCatalogFile(t, t.TempDir(), "shop.yaml", strings.Replace(shopRelyingPartyYAML, "identifier: NLTEST.00000042", "identifier: \" NLTEST.00000042 \"", 1)))
 	if changed, err := srv.wallet.ApplyRelyingPartiesFile(padded); err != nil || changed {
 		t.Fatalf("apply with a padded identifier: changed %v, err %v", changed, err)
@@ -118,6 +125,7 @@ func TestApplyRelyingPartiesFileRegistersOnEveryStart(t *testing.T) {
 
 	stored, _ := srv.wallet.Registrar().RelyingParty("NLTEST.00000042")
 	stored.TradeName = "Renamed Shop"
+	stored.LegalPerson.LegalName = []string{"Renamed Shop B.V."}
 	if w := serverRequest(t, srv, "PUT", "/api/registrar/wrp", mustJSON(t, stored)); w.Code != http.StatusOK {
 		t.Fatalf("PUT = %d %s", w.Code, w.Body.String())
 	}
@@ -126,6 +134,10 @@ func TestApplyRelyingPartiesFileRegistersOnEveryStart(t *testing.T) {
 	}
 	if rp, _ := srv.wallet.Registrar().RelyingParty("NLTEST.00000042"); rp.TradeName != "Example Shop" {
 		t.Errorf("trade name = %q, want the file's", rp.TradeName)
+	}
+	current, issued, err := srv.wallet.Registrar().CurrentRegistrationCertificate(ageCheck)
+	if err != nil || issued || current.RegistrationCertificate == first.RegistrationCertificate {
+		t.Errorf("after the change: issued %v, err %v, want a new certificate from the apply", issued, err)
 	}
 }
 

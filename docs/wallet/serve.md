@@ -449,7 +449,7 @@ services:
 
 The file must set the `identifier` of each party and the `intendedUseIdentifier` of each intended use. The certificates contain them, so they have to stay the same on every start. The registrar fills in the other defaults, as for an API request. An invalid registration stops the start, and the error message shows the file.
 
-With memory storage this keeps a verifier registered across restarts. Its certificates come from the registrar API as usual. With [seeded keys](../wallet.md#seeded-keys), certificates issued before a restart still verify.
+With memory storage this keeps a verifier registered across restarts. Each start also issues a registration certificate for every intended use and every issuer service. Valid certificates are kept. The registration certificates show in the UI and in `GET /api/registrar/registration-certificates?identifier=<identifier>`. An access certificate needs the party's own key. Get it with **Issue access certificate** in the relying parties list or from the registrar API. With [seeded keys](../wallet.md#seeded-keys), certificates issued before a restart still verify.
 
 When the stored registration differs from the file, the next start replaces it with the file's version. A registration removed from the file stays registered. With `--demo` visitors can't change or delete these registrations, and a demo reset registers them again.
 

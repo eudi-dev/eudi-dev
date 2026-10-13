@@ -432,6 +432,7 @@ Open **Registrar** (`#registrar-menu-toggle`), then **Relying parties** (`#regis
 | Key and certificate chain | `#registrar-pem`. Without a CSR it holds the private key too |
 | `verifier_info` or `issuer_info` | `#registrar-verifier-info`, `#registrar-issuer-info` (JSON) |
 | Relying parties list | `#registrar-search`, `#registrar-filter-verifiers`, `#registrar-filter-issuers`, entries `#registrar-party-<identifier>` |
+| **Issue access certificate** of a service | `#registrar-party-<identifier>-service-<service>-access` (`default` without a service identifier) |
 
 ```js
 await page.goto(WALLET);

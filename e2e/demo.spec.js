@@ -1467,6 +1467,13 @@ test.describe("Demo mode hardening", () => {
     await expect(page.locator('#registrar-cert-body [id$="-verifier-info"]')).toHaveValue(/registration_cert/);
     await expect(page.locator("#registrar-cert-body button")).toHaveCount(1); // the copy button
     await page.locator("#registrar-cert-close").click();
+    // Issuing an access certificate doesn't change the registration, so
+    // visitors may get one.
+    await page.locator(card + ' [id$="-access"]').first().click();
+    await page.locator("#registrar-submit").click();
+    await expect(page.locator("#registrar-submit")).toHaveText("✓ Issued");
+    await expect(page.locator("#registrar-pem")).toHaveValue(/BEGIN CERTIFICATE/);
+    await page.locator("#registrar-close").click();
     await page.locator("#registrar-parties-close").click();
 
     await page.locator("#registrar-menu-toggle").click();
