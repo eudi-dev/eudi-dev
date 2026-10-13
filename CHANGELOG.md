@@ -5,6 +5,25 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.4] - 2026-10-13
+
+### Fixed
+
+- **Card descriptions.** The wallet keeps descriptions up to 1000 characters. The Italian and Dutch PIDs show their full description with a working specification link.
+- **Registration certificate validity.** A new registration certificate is valid for one year by default, like an access certificate. It ends no later than the registrar certificate in its `x5c`.
+- **Issuers in `--relying-parties`.** Each start also issues the registration certificate of an issuer service that lists only its attestation types.
+- **Catalogue and relying parties files.** An entry added through the API can no longer stop the start or change the entitlements of a party from `--relying-parties`. The entry from `--catalog` replaces an added entry with the same name or type.
+- **Access certificate dialog.** The dialog starts without the CSR and DNS names of the previous one.
+- **Interactive authorization.** When the wallet refuses a presentation during interactive authorization, its error response carries the `state` of the presentation request (RFC 6749 §4.1.2.1).
+- **Decoder.** A pasted base64url-encoded registration certificate, as found in `verifier_info`, decodes as a JWT. `eudi decode` and `eudi validate` read it too.
+- **Error dialog.** It takes the focus, closes with Escape and gives the focus back.
+- **Wallet error after a refused presentation.** When the browser follows the verifier's redirect, a wallet page opened later no longer shows the error. Without a redirect the browser lands on the wallet page and shows the error there.
+- **Relying parties list.** Long names and service identifiers wrap at phone width. In dark mode the lines between the sections of an entry are visible.
+- **Template dialog.** The template name and the Builder/JSON switch have space between them.
+- **Activity log.** In light mode, payloads such as the verifier's response have an outline.
+- **Choices in strict mode.** In the consent dialog you can pick a non-matching credential or another claim set, also in strict mode. Strict mode still decides what the wallet picks automatically.
+- **Presentation during issuance.** When the browser loses the open issuance request, for example on a phone switching apps, the presentation dialog stays open instead of showing "Approve request failed".
+
 ## [3.0.3] - 2026-10-13
 
 ### Fixed
