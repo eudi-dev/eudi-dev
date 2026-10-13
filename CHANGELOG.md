@@ -103,6 +103,8 @@ Version 3.0.0 adds a registrar, ARF checks, a catalogue of attestations and a tr
 - **Claim names in the offer dialog.** The offer dialog lists the claims by their display name from the issuer metadata. Templates set these names in `display.claims`.
 - **Errors in the page.** Process, import and status changes show their errors in the wallet page instead of a browser alert.
 - **UI automation guide.** [UI automation](docs/ui-automation.md) shows the elements of each process, the API calls that skip the UI and the matching end-to-end tests.
+- **Public demo limits.** One browser can have at most 3 consent dialogs and 3 sign-ins waiting, and the demo refuses credentials over 512 KB.
+- **Credential offers and addresses.** The wallet refuses an offer with more than 32 credential configurations and blocks more reserved network ranges.
 - **One footer.** Every page shows the version, the release channel, the imprint and a sponsor link in one line.
 - **Decoder hover.** Hovering a section highlights its part of the input without scrolling.
 - **Phone layout.** Activity entries wrap, segmented controls fit and the decoder header collapses into a menu.
