@@ -2055,8 +2055,8 @@
       }
     });
     es.addEventListener('open', () => {
-      // The server subscribes before the stream opens, and SSE events are not
-      // replayed. Requests created before this point come from this fetch.
+      // SSE events are not replayed. A request created between the page load
+      // and the opened stream comes from this fetch.
       document.body.dataset.requestStream = 'open';
       loadAppConfigPromise.then(loadPendingRequests);
     });
@@ -5217,5 +5217,8 @@
   loadCredentials();
   loadDeferred();
   loadLog();
+  // The pending requests load at once. A proxy can hold back the stream's
+  // response, and the consent dialog must not wait for it.
+  loadAppConfigPromise.then(loadPendingRequests);
   connectSSE();
 })();

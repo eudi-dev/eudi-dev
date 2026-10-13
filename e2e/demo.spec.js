@@ -413,6 +413,18 @@ test.describe("Demo mode consent visibility", () => {
     await expect(page).not.toHaveURL(/owner=/);
   });
 
+  // A proxy can hold back the event stream's response. The consent dialog of
+  // a request opened in this tab must not wait for it.
+  test("a request opened in this tab shows its dialog while the event stream hangs", async ({ page }) => {
+    await page.route("**/api/requests/stream*", () => {});
+    const req = await createVerificationRequest();
+    const started = Date.now();
+    await page.goto(req.walletURL);
+    await expect(page.locator("#consent-overlay")).toHaveClass(/active/, { timeout: 5000 });
+    expect(Date.now() - started).toBeLessThan(5000);
+    await expect(page.locator("body")).not.toHaveAttribute("data-request-stream", "open");
+  });
+
   test("an error from someone else's flow stays out of uninvolved tabs", async ({
     browser,
   }) => {
