@@ -3027,6 +3027,10 @@ func TestRequestStreamKeepalive(t *testing.T) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	if got := resp.Header.Get("X-Accel-Buffering"); got != "no" {
+		t.Errorf("X-Accel-Buffering = %q, want no, so proxies pass the events on at once", got)
+	}
+
 	// Two events check that the ticker continues after the first interval.
 	reader := bufio.NewReader(resp.Body)
 	seen := 0

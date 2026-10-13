@@ -79,6 +79,10 @@ func (s *Server) handleRequestStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
+	// nginx, and proxies that follow it, buffer a response unless told not
+	// to. A buffered stream delivers a consent request only with the next
+	// keepalive.
+	w.Header().Set("X-Accel-Buffering", "no")
 	flusher.Flush()
 
 	// Keepalives prevent proxies from dropping idle streams and causing repeated

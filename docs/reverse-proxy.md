@@ -54,6 +54,12 @@ The wallet reads the browser's host and scheme from `Forwarded` (RFC 7239), or f
 
 None of these headers affect the URLs in credentials, metadata or protocol messages. An `X-Forwarded-Prefix` value that isn't a plain path is ignored.
 
+## Event stream
+
+The wallet page receives consent requests, errors and state changes over a server-sent event stream at `/api/requests/stream`. The proxy must pass each event on at once. A proxy that buffers or compresses the stream holds a consent request back until the next keepalive, up to 20 seconds.
+
+The wallet sends `X-Accel-Buffering: no` with the stream, so nginx and proxies that follow this header don't buffer it. For any other proxy, turn off response buffering and compression for that path.
+
 ## Istio example
 
 ```yaml
