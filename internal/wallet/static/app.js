@@ -747,7 +747,8 @@
         await loadLog();
       }
     } catch (e) {
-      showErrorDialog('The request failed.', e.message);
+      // The flow goes on in the wallet. Its consent dialog stays open.
+      if (!consentRequestOpen) showErrorDialog('The request failed.', e.message);
     } finally {
       processBtn.disabled = false;
       processBtn.textContent = 'Process';
@@ -3016,6 +3017,7 @@
       } catch (e) {
         submitting = false;
         console.error('Approve failed:', e);
+        if (consentRequestID !== req.id) return;
         showErrorDialog('Approve request failed', e.message);
       } finally {
         consentSubmitting = false;

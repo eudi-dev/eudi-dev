@@ -676,6 +676,49 @@ test.describe("Demo issuer authorization choice", () => {
     await otherContext.close();
   });
 
+  // A phone drops open requests when the user switches apps. The issuance goes on in
+  // the wallet and waits for the presentation.
+  test("a lost issuance request keeps the presentation dialog open", async ({ browser }) => {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    const { body: offer } = await postJSON(
+      "/issuer/api/offers?grant=authorization_code&authorization=presentation",
+      {}
+    );
+    await page.goto(`${BASE}/`);
+    await page.evaluate(() => {
+      const send = window.fetch;
+      window.fetch = (url, opts) => {
+        if (!String(url).endsWith("/approve") || window.dropApproval) return send(url, opts);
+        send(url, opts).catch(() => {});
+        return new Promise((_, reject) => {
+          window.dropApproval = () => reject(new TypeError("Load failed"));
+        });
+      };
+    });
+
+    await page.fill("#offer-input", offer.scheme_uri);
+    await page.locator("#process-btn").click();
+    await page.waitForSelector("#consent-overlay.active", { timeout: 15_000 });
+    await page.locator("#consent-approve").click();
+    await expect(page.locator("#consent-dialog")).toContainText(/Presentation request/i, {
+      timeout: 15_000,
+    });
+
+    await page.evaluate(() => window.dropApproval());
+    await expect(page.locator("#error-title")).toHaveCount(0);
+    await expect(page.locator("#consent-dialog")).toContainText(/Presentation request/i);
+
+    await page.locator("#consent-approve").click();
+    await expect(
+      page.locator("#credentials .credential-card", { hasText: "Demo Event Ticket" })
+    ).toBeVisible({ timeout: 15_000 });
+    const pending = await page.evaluate(async () => (await fetch("api/requests")).json());
+    expect(pending).toEqual([]);
+
+    await context.close();
+  });
+
   test("an offer authorized by a sign-in asks for the browser instead", async ({ page }) => {
     const uri = await createIssuerOffer(page, {
       grant: "authorization_code",
