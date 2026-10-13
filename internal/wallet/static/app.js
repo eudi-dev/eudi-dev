@@ -131,6 +131,12 @@
   const importSubmit = document.getElementById('import-submit');
   const importTextarea = document.getElementById('import-textarea');
   const consentOverlay = document.getElementById('consent-overlay');
+  // A button that starts a request is disabled while it runs and loses the
+  // focus. The error dialog gives the focus back to it.
+  let lastPageFocus = null;
+  document.addEventListener('focusin', (event) => {
+    if (!event.target.closest('.consent-overlay')) lastPageFocus = event.target;
+  });
   const consentDialog = document.getElementById('consent-dialog');
 
   async function loadDeferred() {
@@ -2125,9 +2131,13 @@
 
   function showErrorDialog(message, detail) {
     consentRequestOpen = false;
+    const active = document.activeElement;
+    const opener = active && active !== document.body && !consentDialog.contains(active) ? active : lastPageFocus;
     consentOverlay.classList.add('active');
 
-    var html = '<div class="dialog-title" id="error-title" style="color:var(--red)">Error</div>' +
+    // The title takes the focus. A key typed for another field then can't
+    // dismiss an unread error.
+    var html = '<div class="dialog-title" id="error-title" tabindex="-1" style="color:var(--red)">Error</div>' +
       '<div class="dialog-message" id="error-message">' + escHtml(message) + '</div>';
 
     if (detail) {
@@ -2139,11 +2149,14 @@
     '</div>';
 
     consentDialog.innerHTML = html;
-    document.getElementById('error-dismiss').addEventListener('click', () => {
+    const dismiss = document.getElementById('error-dismiss');
+    dismiss.addEventListener('click', () => {
       closeConsentOverlay();
       fetch('api/error', { method: 'DELETE' }).catch(() => {});
       loadLog();
+      if (opener && opener.isConnected && opener.offsetParent !== null) opener.focus();
     });
+    document.getElementById('error-title').focus();
   }
 
   // Links and redirects built from data accept only web URLs. javascript: and data:
@@ -4212,11 +4225,16 @@
   });
 
   // The registrar dialogs are modal: Escape closes them and Tab stays inside.
+  // Escape presses closeButton. For a dialog that creates its buttons anew,
+  // closeButton is a function that returns the current one.
   function makeModal(overlay, closeButton) {
+    const closer = typeof closeButton === 'function' ? closeButton : () => closeButton;
     overlay.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
+        const close = closer();
+        if (!close) return;
         event.preventDefault();
-        closeButton.click();
+        close.click();
         return;
       }
       if (event.key !== 'Tab') return;
@@ -4240,6 +4258,9 @@
   makeModal(trustOverlay, document.getElementById('trust-close'));
   makeModal(trustProviderOverlay, document.getElementById('trust-provider-cancel'));
   makeModal(trustExternalOverlay, document.getElementById('trust-external-cancel'));
+  // Escape dismisses an error or a result. A consent request needs an explicit
+  // answer.
+  makeModal(consentOverlay, () => document.getElementById('error-dismiss') || document.getElementById('result-dismiss'));
 
   const registrarOverlay = document.getElementById('registrar-overlay');
   const registrarSubmit = document.getElementById('registrar-submit');
@@ -4292,6 +4313,7 @@
 
   // Each mode has its own example values. They replace the other mode's
   // values only where those are still unchanged.
+  const REGISTRAR_EXAMPLE_DNS = 'verifier.example';
   const REGISTRAR_DEFAULTS = {
     verifier: { 'registrar-name': 'Example Verifier', 'registrar-legal-name': 'Example Verifier B.V.', 'registrar-support-uri': 'https://verifier.example/support', 'registrar-service-id': 'checkout' },
     issuer: { 'registrar-name': 'Example University', 'registrar-legal-name': 'Example University', 'registrar-support-uri': 'https://university.example/support', 'registrar-service-id': 'diplomas' },
@@ -4370,6 +4392,10 @@
       document.getElementById('registrar-verifier-info-block').hidden = true;
       document.getElementById('registrar-issuer-info-block').hidden = true;
     }
+    // The key and the host names belong to one party, so they never carry
+    // over to the next dialog.
+    document.getElementById('registrar-csr').value = '';
+    document.getElementById('registrar-dns').value = accessOnly ? '' : REGISTRAR_EXAMPLE_DNS;
     document.getElementById('registrar-registration-validity-label').hidden = accessOnly;
     document.getElementById('registrar-registration-validity').hidden = accessOnly;
     fillTargetServices(addsIssuer ? 'issuer' : 'verifier');

@@ -1246,6 +1246,39 @@ test("EUDI offer scheme reports missing offer parameters through issuance", asyn
   await expect(page.locator("#error-message")).toContainText("credential_offer");
 });
 
+// The error dialog is modal: it takes the focus, keeps Tab inside, closes with
+// Escape and gives the focus back.
+test("the error dialog works with the keyboard", async ({ page }) => {
+  await page.goto(WALLET_URL);
+  await page.locator("#offer-input").fill("this is garbage");
+  await page.locator("#process-btn").click();
+  await expect(page.locator("#consent-overlay")).toHaveClass(/active/);
+  await expect(page.locator("#error-title")).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect.poll(() => page.evaluate(() => !!document.activeElement.closest("#consent-overlay"))).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#consent-overlay")).not.toHaveClass(/active/);
+  await expect(page.locator("#process-btn")).toBeFocused();
+});
+
+// An error from another flow arrives while the user types. A typed key must not
+// dismiss it unread, and the focus goes back to the field afterwards.
+test("a background error doesn't take keys typed elsewhere", async ({ page }) => {
+  await page.goto(WALLET_URL);
+  await page.locator("#offer-input").click();
+  await page.keyboard.type("abc");
+  await page.evaluate(() => fetch("api/offers", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ uri: "openid-credential-offer://?credential_offer=garbage" }),
+  }));
+  await expect(page.locator("#consent-overlay")).toHaveClass(/active/);
+  await page.keyboard.type(" more");
+  await expect(page.locator("#consent-overlay")).toHaveClass(/active/);
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#offer-input")).toBeFocused();
+});
+
 test("a credential that can't be imported shows the reason in the import dialog", async ({ page }) => {
   await page.goto(WALLET_URL);
   await page.locator("#import-btn").click();
@@ -2528,10 +2561,12 @@ test.describe("Registrar", () => {
     await expect(page.locator("#registrar-target-service")).toBeHidden();
     await expect(page.locator("#registrar-registration-validity")).toBeHidden();
     await expect(page.locator("#registrar-csr")).toBeFocused();
+    await expect(page.locator("#registrar-dns")).toHaveValue("");
+    await page.locator("#registrar-dns").fill("shop.example");
     await page.locator("#registrar-submit").click();
     await expect(page.locator("#registrar-submit")).toHaveText("✓ Issued");
     await expect(page.locator("#registrar-result-identifier")).toHaveText(body.identifier[0].identifier);
-    await expect(page.locator("#registrar-client-id-1")).toHaveText("x509_san_dns:verifier.example");
+    await expect(page.locator("#registrar-client-id-1")).toHaveText("x509_san_dns:shop.example");
     await expect(page.locator("#registrar-verifier-info")).toBeHidden();
 
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "eudi-registrar-"));
@@ -2548,6 +2583,16 @@ test.describe("Registrar", () => {
     await page.locator(card + "-add-use").click();
     await expect(page.locator("#registrar-purpose")).toBeVisible();
     await expect(page.locator("#registrar-registration-validity")).toBeVisible();
+
+    // The next dialog starts without the key and host names of this one.
+    await page.locator("#registrar-close").click();
+    await page.locator(card + "-service-default-access").click();
+    await page.locator("#registrar-csr").fill("-----BEGIN CERTIFICATE REQUEST-----");
+    await page.locator("#registrar-dns").fill("other.example");
+    await page.locator("#registrar-close").click();
+    await page.locator(card + "-service-default-access").click();
+    await expect(page.locator("#registrar-csr")).toHaveValue("");
+    await expect(page.locator("#registrar-dns")).toHaveValue("");
   });
 
   test("the registrar submenu works at phone width", async ({ page }) => {
@@ -2560,6 +2605,38 @@ test.describe("Registrar", () => {
     await expect(page.locator("#registrar-parties-overlay")).toBeVisible();
     await page.locator("#registrar-parties-register").click();
     await expect(page.locator("#registrar-overlay")).toBeVisible();
+  });
+
+  test("long names and service identifiers wrap inside the party card at phone width", async ({ page }) => {
+    const name = "Unbrokenpartyname" + "x".repeat(60);
+    await jsonPost(`${WALLET_URL}/api/registrar/wrp`, {
+      tradeName: name,
+      services: [
+        { serviceIdentifier: "first", intendedUses: [{
+          purpose: [{ lang: "en", content: "Purpose" }],
+          credentials: [{ format: "dc+sd-jwt", meta: { vct_values: ["urn:eudi:pid:1"] }, claims: [{ path: ["given_name"] }] }],
+        }] },
+        { serviceIdentifier: "s" + "y".repeat(70), serviceTradeName: "Second" },
+      ],
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(WALLET_URL);
+    await page.locator("#header-menu-toggle").click();
+    await page.locator("#registrar-menu-toggle").click();
+    await page.locator("#registrar-parties-link").click();
+    await page.locator("#registrar-search").fill("Unbrokenpartyname");
+    await expect(page.locator(".registrar-party")).toHaveCount(1);
+    const overflow = (selector) => page.evaluate((s) => {
+      const dialog = document.querySelector(s);
+      return dialog.scrollWidth - dialog.clientWidth;
+    }, selector);
+    expect(await overflow("#registrar-parties-dialog")).toBeLessThanOrEqual(0);
+
+    await page.locator('.registrar-party [id$="-access"]').last().click();
+    expect(await overflow("#registrar-dialog")).toBeLessThanOrEqual(0);
+    await page.locator("#registrar-close").click();
+    await page.locator('.registrar-party [id$="-details"]').first().click();
+    expect(await overflow("#registrar-cert-dialog")).toBeLessThanOrEqual(0);
   });
 
   test("registering an issuer issues its access certificate and issuer_info", async ({ page }) => {

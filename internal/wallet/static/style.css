@@ -1248,11 +1248,19 @@ textarea.form-input {
   font-weight: 700;
   color: var(--text);
   margin-bottom: 14px;
+  overflow-wrap: anywhere;
 }
 
 /* A title takes focus only so screen readers start reading the dialog there. */
-.consent-title:focus {
+.consent-title:focus,
+.dialog-title:focus {
   outline: none;
+}
+
+/* Names and identifiers of a registration can be long unbroken words. */
+#registrar-cert-party,
+.registrar-cert-body {
+  overflow-wrap: anywhere;
 }
 
 .who {
@@ -2308,6 +2316,8 @@ textarea.form-input {
 .registrar-party-name {
   font-size: 15px;
   font-weight: 700;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .registrar-pills {
@@ -2398,6 +2408,13 @@ textarea.form-input {
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px solid var(--border-dialog);
+}
+
+/* A service label can be one long identifier. */
+.registrar-add-row .btn {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: left;
 }
 
 .registrar-use-head {
