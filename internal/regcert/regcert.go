@@ -203,10 +203,10 @@ func ContentFindings(cert map[string]any) []string {
 	if !nonEmptyList(cert["entitlements"]) {
 		miss("entitlements (at least one)", "ETSI TS 119 475 V1.2.1 GEN-5.2.4-03")
 	}
+	// ARF RPRC_12 also asks for the authority's name and country. ETSI TS 119
+	// 475 V1.2.1 maps supervisory_authority only to email, phone and uri, so
+	// a registration certificate has no claim for them to check.
 	partyFindings(cert, miss, "ARF RPRC_11", "ARF RPRC_12")
-	if authority, _ := cert["supervisory_authority"].(map[string]any); jsonutil.Text(authority["name"]) == "" || jsonutil.Text(authority["country"]) == "" {
-		miss("supervisory_authority name and country", "ARF RPRC_12")
-	}
 	if !nonEmptyList(cert["credentials"]) {
 		miss("credentials (the registered attestations and attributes)", "ETSI TS 119 475 V1.2.1 GEN-5.2.4-06")
 	}

@@ -213,11 +213,15 @@ func TestProvidesNeedsTheFormatAndAType(t *testing.T) {
 	}
 }
 
-// ARF RPRC_12: the registration certificate of a relying party lists its
-// data protection authority and the authority's country, besides a contact.
-func TestTheSupervisoryAuthorityNeedsANameAndACountry(t *testing.T) {
+// ETSI TS 119 475 V1.2.1 maps supervisory_authority to email, phone and uri.
+// A contact is enough, and an authority without one is an ARF RPRC_12 finding.
+func TestTheSupervisoryAuthorityNeedsAContact(t *testing.T) {
 	cert := conformantRegistrationCert()
 	cert["supervisory_authority"] = map[string]any{"email": "dpa@example"}
+	if findings := ContentFindings(cert); len(findings) != 0 {
+		t.Errorf("findings %v, want none for an authority with an email", findings)
+	}
+	cert["supervisory_authority"] = map[string]any{}
 	if findings := ContentFindings(cert); len(findings) != 1 || !strings.Contains(findings[0], "RPRC_12") {
 		t.Errorf("findings %v, want the RPRC_12 finding", findings)
 	}
