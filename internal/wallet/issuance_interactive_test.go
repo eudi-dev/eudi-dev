@@ -28,6 +28,8 @@ import (
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
 )
 
 // interactiveIssuer is a test authorization server and credential issuer that
@@ -836,5 +838,22 @@ func TestInteractiveAuthorizationRedirectToWebNeedsARedirectURI(t *testing.T) {
 	}
 	if issuer.authorizeQuery != nil {
 		t.Errorf("the wallet opened the authorization endpoint with %v", issuer.authorizeQuery)
+	}
+}
+
+// RFC 6749 §4.1.2.1, applied by OpenID4VP 1.0 §8.5: the error response
+// carries the state of the request.
+func TestTheInteractiveErrorResponseKeepsTheState(t *testing.T) {
+	w := generateTestWallet(t)
+	form, err := w.interactionErrorResponse(&oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ResponseMode: "ia_post", State: "s-1"}}, oid4vp.ErrorAccessDenied, "declined")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var response map[string]any
+	if err := json.Unmarshal([]byte(form.Get("openid4vp_response")), &response); err != nil {
+		t.Fatal(err)
+	}
+	if response["state"] != "s-1" || response["error"] != oid4vp.ErrorAccessDenied {
+		t.Errorf("response = %v, want access_denied with state s-1", response)
 	}
 }

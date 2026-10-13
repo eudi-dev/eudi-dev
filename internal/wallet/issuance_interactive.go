@@ -418,7 +418,7 @@ func (w *Wallet) runPresentationInteraction(endpoint string, response map[string
 }
 
 func (w *Wallet) interactionErrorResponse(params *oid4vp.Request, errorCode, description string) (url.Values, error) {
-	envelope, err := w.buildAuthorizationErrorResponse(errorCode, description, "", params)
+	envelope, err := w.buildAuthorizationErrorResponse(errorCode, description, params.State, params)
 	if err != nil {
 		return nil, fmt.Errorf("building the error response for interactive authorization: %w", err)
 	}
