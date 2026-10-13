@@ -131,12 +131,14 @@ func (w *Wallet) ApplyRelyingPartiesFile(file *RelyingPartiesFile) (bool, error)
 	}
 	changed := false
 	for i, rp := range file.Parties {
-		_, updated, err := w.Registrar().EnsureRelyingParty(rp)
+		// The stored registration has the derived entitlements, such as the
+		// provider entitlement of an issuer service.
+		stored, updated, err := w.Registrar().EnsureRelyingParty(rp)
 		if err != nil {
 			return changed, fmt.Errorf("%s: %s: %w", file.sources[i], relyingPartyLabel(rp, i), err)
 		}
 		changed = changed || updated
-		for _, req := range registrar.CertificateRequests(rp) {
+		for _, req := range registrar.CertificateRequests(stored) {
 			_, issued, err := w.Registrar().CurrentRegistrationCertificate(req)
 			if err != nil {
 				return changed, fmt.Errorf("%s: %s: %w", file.sources[i], relyingPartyLabel(rp, i), err)

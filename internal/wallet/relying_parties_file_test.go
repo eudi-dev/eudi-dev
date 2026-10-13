@@ -141,6 +141,30 @@ func TestApplyRelyingPartiesFileRegistersOnEveryStart(t *testing.T) {
 	}
 }
 
+// An issuer service lists only its attestation types. The registrar derives
+// its provider entitlement, and the start issues its certificate.
+func TestApplyRelyingPartiesFileIssuesTheIssuerCertificate(t *testing.T) {
+	srv := newTestServer(t, true)
+	file := loadRelyingParties(t, writeCatalogFile(t, t.TempDir(), "library.yaml", `identifier:
+  - identifier: NLTEST.00000044
+tradeName: Example Library
+legalPerson:
+  legalName: ["Example Library"]
+services:
+  - serviceIdentifier: cards
+    providesAttestations:
+      - format: dc+sd-jwt
+        type: urn:example:library:1
+`))
+	if _, err := srv.wallet.ApplyRelyingPartiesFile(file); err != nil {
+		t.Fatal(err)
+	}
+	views := srv.wallet.Registrar().RegistrationCertificateViews("NLTEST.00000044")
+	if len(views) != 1 || views[0].IssuerInfo == "" {
+		t.Errorf("certificates = %+v, want the issuer certificate of the service", views)
+	}
+}
+
 // On a public demo visitors can't change the operator's registrations, and a
 // demo reset registers them again.
 func TestDemoProtectsTheOperatorsRelyingParties(t *testing.T) {
