@@ -246,8 +246,8 @@ func (d *DemoRP) authorizationServerMetadata() map[string]any {
 		// draft-ietf-oauth-attestation-based-client-auth-10 §8 requires these
 		// two from a server that supports the method. They are the only place
 		// a wallet learns the accepted signature algorithms.
-		"client_attestation_signing_alg_values_supported":     []string{jws.AlgES256},
-		"client_attestation_pop_signing_alg_values_supported": []string{jws.AlgES256},
+		"client_attestation_signing_alg_values_supported":     attestationAlgs,
+		"client_attestation_pop_signing_alg_values_supported": attestationAlgs,
 		// In optional mode, none means the client may omit the attestation.
 		"client_attestation_pop_methods_supported": popMethods,
 		// OpenID4VCI 1.0 §12.3: whether a Token Request with a Pre-Authorized
@@ -833,14 +833,14 @@ func (d *DemoRP) authenticateClient(r *http.Request, clientID, jkt string) (clie
 	if typ, _ := attestation.header["typ"].(string); !format.JOSETypeIs(typ, format.TypeClientAttestation) {
 		return clientAuthentication{}, attestationFailed("client attestation has typ %q, expected oauth-client-attestation+jwt", typ)
 	}
-	if alg, _ := attestation.header["alg"].(string); alg != jws.AlgES256 {
-		return clientAuthentication{}, attestationFailed("client attestation alg %q is not among the supported algorithms (ES256)", alg)
+	if alg, _ := attestation.header["alg"].(string); !slices.Contains(attestationAlgs, alg) {
+		return clientAuthentication{}, attestationFailed("client attestation alg %q is not among the supported algorithms (%s)", alg, strings.Join(attestationAlgs, ", "))
 	}
 	attester, err := d.attestationSigner(attestation.header)
 	if err != nil {
 		return clientAuthentication{}, attestationFailed("%v", err)
 	}
-	if !verifyES256(attester.key, attestation.signingInput, attestation.signature) {
+	if !jws.Valid(attestation.raw(), attester.key) {
 		return clientAuthentication{}, attestationFailed("client attestation signature does not verify with its certificate")
 	}
 	// §7.1: "If a client_id was provided, verify that it matches the sub claim
@@ -905,10 +905,10 @@ func (d *DemoRP) authenticateClient(r *http.Request, clientID, jkt string) (clie
 	if typ, _ := pop.header["typ"].(string); !format.JOSETypeIs(typ, format.TypeClientAttestationPoP) {
 		return clientAuthentication{}, attestationFailed("client attestation PoP has typ %q, expected oauth-client-attestation-pop+jwt", typ)
 	}
-	if alg, _ := pop.header["alg"].(string); alg != jws.AlgES256 {
-		return clientAuthentication{}, attestationFailed("client attestation PoP alg %q is not among the supported algorithms (ES256)", alg)
+	if alg, _ := pop.header["alg"].(string); !slices.Contains(attestationAlgs, alg) {
+		return clientAuthentication{}, attestationFailed("client attestation PoP alg %q is not among the supported algorithms (%s)", alg, strings.Join(attestationAlgs, ", "))
 	}
-	if !verifyES256(clientKey, pop.signingInput, pop.signature) {
+	if !jws.Valid(pop.raw(), clientKey) {
 		return clientAuthentication{}, attestationFailed("client attestation PoP is not signed by the attested key")
 	}
 	if aud, _ := pop.payload["aud"].(string); aud != d.issuerID() {

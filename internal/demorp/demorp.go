@@ -243,6 +243,16 @@ func parseCompactJWT(raw string) (*compactJWT, error) {
 	return &compactJWT{header: header, payload: payload, signature: sig, signingInput: raw[:strings.LastIndex(raw, ".")]}, nil
 }
 
+// attestationAlgs are the algorithms of wallet and key attestations. CIR (EU)
+// 2024/2979 Annex Ib SA-3 has an issuer support all of SA-1: ES256, ES384 and
+// ES512.
+var attestationAlgs = []string{jws.AlgES256, "ES384", "ES512"}
+
+// raw is the compact serialization of the JWT.
+func (j *compactJWT) raw() string {
+	return j.signingInput + "." + base64.RawURLEncoding.EncodeToString(j.signature)
+}
+
 // jws.Valid only accepts a compact JWT, so the signature is encoded again.
 func verifyES256(pub *ecdsa.PublicKey, signingInput string, sig []byte) bool {
 	if len(sig) != 64 {

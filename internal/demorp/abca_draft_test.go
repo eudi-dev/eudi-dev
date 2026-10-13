@@ -16,6 +16,9 @@ package demorp
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"log"
@@ -29,6 +32,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
+	jose "github.com/go-jose/go-jose/v4"
 )
 
 func captureLog(t *testing.T, fn func()) string {
@@ -294,8 +298,8 @@ func TestAttestationAlgRejected(t *testing.T) {
 		attestationAlg string
 		popAlg         string
 	}{
-		{"attestation", "ES384", "ES256"},
-		{"PoP", "ES256", "ES384"},
+		{"attestation", "RS256", "ES256"},
+		{"PoP", "ES256", "RS256"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			d, _, _ := newDemoRP(t)
@@ -333,10 +337,49 @@ func TestAttestationAlgRejected(t *testing.T) {
 			if rec.Code != http.StatusBadRequest {
 				t.Fatalf("status = %d, want 400 (%s)", rec.Code, rec.Body.String())
 			}
-			if !strings.Contains(rec.Body.String(), "ES384") {
+			if !strings.Contains(rec.Body.String(), "RS256") {
 				t.Errorf("body = %s, want the refused algorithm named", rec.Body.String())
 			}
 		})
+	}
+}
+
+// CIR (EU) 2024/2979 Annex Ib SA-3: the issuer supports ES256, ES384 and
+// ES512 for wallet attestations.
+func TestAnES384AttestationPoPIsAccepted(t *testing.T) {
+	d, _, _ := newDemoRP(t)
+	provider := foreignWalletProvider(t)
+	clientKey, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dpopKey, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	attestation := signES256(t, provider.key,
+		map[string]any{"alg": "ES256", "typ": "oauth-client-attestation+jwt", "x5c": []any{base64.StdEncoding.EncodeToString(provider.leaf.Raw)}},
+		map[string]any{"sub": "wallet", "iat": time.Now().Unix(), "exp": time.Now().Add(5 * time.Minute).Unix(), "cnf": map[string]any{"jwk": holderJWK(t, clientKey)}},
+	)
+	signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.ES384, Key: clientKey}, (&jose.SignerOptions{}).WithType("oauth-client-attestation-pop+jwt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, _ := json.Marshal(map[string]any{"aud": demoIssuerID, "iat": time.Now().Unix(), "jti": "pop-es384"})
+	signed, err := signer.Sign(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pop, err := signed.CompactSerialize()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := pushAuthorizationRequest(t, d.IssuerHandler(), "wallet", dpopKey, "abc", map[string]string{
+		"OAuth-Client-Attestation":     attestation,
+		"OAuth-Client-Attestation-PoP": pop,
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201 (%s)", rec.Code, rec.Body.String())
 	}
 }
 
