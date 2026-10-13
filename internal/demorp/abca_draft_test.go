@@ -29,10 +29,11 @@ import (
 	"testing"
 	"time"
 
+	jose "github.com/go-jose/go-jose/v4"
+
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
-	jose "github.com/go-jose/go-jose/v4"
 )
 
 func captureLog(t *testing.T, fn func()) string {
