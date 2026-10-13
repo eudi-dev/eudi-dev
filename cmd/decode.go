@@ -107,6 +107,9 @@ func runDecode(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	if jwt, ok := format.Base64URLEncodedJWT(raw); ok {
+		raw = jwt
+	}
 
 	opts := output.Options{
 		JSON:    jsonOutput,

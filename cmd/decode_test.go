@@ -61,3 +61,23 @@ func TestDecodeReportsTheValidationChecks(t *testing.T) {
 		t.Errorf("output lacks the failed integrity check:\n%s", out)
 	}
 }
+
+// A registration certificate copied from verifier_info is base64url encoded
+// (ETSI TS 119 472-2 RO-16). decode shows the JWT inside.
+func TestDecodeReadsABase64URLEncodedJWT(t *testing.T) {
+	jwt := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"ES256","typ":"rc-wrp+jwt"}`)) + "." +
+		base64.RawURLEncoding.EncodeToString([]byte(`{"sub":"NTRNL-NLTEST.00000042"}`)) + ".c2ln"
+	resetRemoteTestState(t)
+
+	var runErr error
+	out := captureStdout(t, func() {
+		rootCmd.SetArgs([]string{"decode", base64.RawURLEncoding.EncodeToString([]byte(jwt))})
+		runErr = rootCmd.Execute()
+	})
+	if runErr != nil {
+		t.Fatalf("decode: %v", runErr)
+	}
+	if !strings.Contains(out, "NTRNL-NLTEST.00000042") {
+		t.Errorf("output %q, want the payload of the JWT", out)
+	}
+}

@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"net/url"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc/scheme"
@@ -102,6 +103,33 @@ func DetectEncoding(input string) CredentialFormat {
 	}
 
 	return FormatUnknown
+}
+
+// Base64URLEncodedJWT returns the JWT inside a base64url-encoded value. ETSI
+// TS 119 472-2 OIDFVP-HAIP-COMMON-REQ-RO-16 puts "the base64url encoding of
+// the serialized RP registration certificate" in verifier_info, so a
+// registration certificate copied from there is encoded a second time.
+func Base64URLEncodedJWT(input string) (string, bool) {
+	input = strings.TrimSpace(input)
+	if input == "" || strings.ContainsFunc(input, func(r rune) bool {
+		return !(r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' || r == '_')
+	}) {
+		return "", false
+	}
+	b, err := DecodeBase64URL(input)
+	if err != nil || !utf8.Valid(b) {
+		return "", false
+	}
+	inner := strings.TrimSpace(string(b))
+	parts := strings.Split(inner, ".")
+	if len(parts) != 3 || parts[0] == "" || parts[1] == "" {
+		return "", false
+	}
+	var header map[string]any
+	if h, err := DecodeBase64URL(parts[0]); err != nil || json.Unmarshal(h, &header) != nil {
+		return "", false
+	}
+	return inner, true
 }
 
 func detectHTTPOID4(raw string) CredentialFormat {

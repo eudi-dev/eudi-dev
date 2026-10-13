@@ -122,6 +122,9 @@ func (r *Result) add(checks ...Check) {
 // Credential validates a raw SD-JWT VC, JWT or mdoc. It fails only when the
 // input is none of these. Every finding is a check of the result.
 func Credential(raw string, trust Trust, opts Options) (*Result, error) {
+	if jwt, ok := format.Base64URLEncodedJWT(raw); ok {
+		raw = jwt
+	}
 	switch format.DetectEncoding(raw) {
 	case format.FormatSDJWT:
 		token, err := sdjwt.Inspect(raw)

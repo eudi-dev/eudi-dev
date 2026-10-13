@@ -14,7 +14,10 @@
 
 package format
 
-import "testing"
+import (
+	"encoding/base64"
+	"testing"
+)
 
 func TestDetect_SDJWT(t *testing.T) {
 	tests := []struct {
@@ -268,6 +271,24 @@ func TestIsCBORStart(t *testing.T) {
 		got := isCBORStart(tt.b)
 		if got != tt.want {
 			t.Errorf("isCBORStart(0x%02x) = %v, want %v", tt.b, got, tt.want)
+		}
+	}
+}
+
+func TestBase64URLEncodedJWT(t *testing.T) {
+	jwt := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"ES256","typ":"rc-wrp+jwt"}`)) + "." +
+		base64.RawURLEncoding.EncodeToString([]byte(`{"sub":"x"}`)) + ".c2ln"
+	encoded := base64.RawURLEncoding.EncodeToString([]byte(jwt))
+	if got, ok := Base64URLEncodedJWT(encoded); !ok || got != jwt {
+		t.Errorf("encoded JWT: %q, %v, want the JWT", got, ok)
+	}
+	for name, input := range map[string]string{
+		"plain JWT":      jwt,
+		"base64url text": base64.RawURLEncoding.EncodeToString([]byte("not a token")),
+		"base64url CBOR": base64.RawURLEncoding.EncodeToString([]byte{0xa2, 0x01, 0x02}),
+	} {
+		if _, ok := Base64URLEncodedJWT(input); ok {
+			t.Errorf("%s: unwrapped, want no JWT", name)
 		}
 	}
 }

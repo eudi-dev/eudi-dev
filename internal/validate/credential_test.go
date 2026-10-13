@@ -408,3 +408,17 @@ func TestAnUnreadableWalletFailsTheTrustCheck(t *testing.T) {
 type errTest string
 
 func (e errTest) Error() string { return string(e) }
+
+// A registration certificate copied from verifier_info is base64url encoded
+// (ETSI TS 119 472-2 RO-16). Validation checks the JWT inside.
+func TestABase64URLEncodedJWTValidatesAsAJWT(t *testing.T) {
+	jwt := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"ES256","typ":"rc-wrp+jwt"}`)) + "." +
+		base64.RawURLEncoding.EncodeToString([]byte(`{"sub":"x"}`)) + ".c2ln"
+	result, err := Credential(base64.RawURLEncoding.EncodeToString([]byte(jwt)), Trust{}, Options{Offline: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Format != FormatJWT || result.SDJWT.Raw != jwt {
+		t.Errorf("format %s, want the JWT inside", result.Format)
+	}
+}

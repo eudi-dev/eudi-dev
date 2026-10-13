@@ -192,6 +192,15 @@ test.describe("JWT decoding", () => {
       "registration-cert"
     );
   });
+
+  test("a pasted base64url-encoded registration certificate decodes as a JWT", async ({ page }) => {
+    await page.goto("/");
+    await page.locator("#input").fill(Buffer.from(EMBEDDED_REGISTRATION_JWT).toString("base64url"));
+    await expect(page.locator("#format-badge")).toHaveText("JWT", { timeout: 3000 });
+    await expect(page.locator('#output .section[data-section="payload"]')).toContainText(
+      "registration-cert"
+    );
+  });
 });
 
 test.describe("SD-JWT decoding", () => {
