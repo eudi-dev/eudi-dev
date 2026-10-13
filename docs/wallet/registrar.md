@@ -342,7 +342,7 @@ With `--to`, both add the other role to a registered relying party instead. `ver
 | `registration-cert` | `--provider` | `false` | Use the issuer service instead of an intended use |
 | `registration-cert` | `--new` | `false` | Issue a new certificate and revoke the current one |
 | `registration-cert` | `--jwt` | `false` | Print the bare certificate instead of `verifier_info` or `issuer_info` |
-| `registration-cert` | `--validity` | `4320h` | Validity of a new certificate as a Go duration, at most `8760h` (ETSI TS 119 475 GEN-5.2.4-08) |
+| `registration-cert` | `--validity` | `8760h` | Validity of a new certificate as a Go duration, at most `8760h` (ETSI TS 119 475 GEN-5.2.4-08) |
 | `revoke`, `activate` | `--identifier` | None | Registered identifier (required) |
 | `revoke`, `activate` | `--intended-use` | All | Only change the certificates of this intended use |
 | `revoke`, `activate` | `--service-id` | All | Only change the certificates of this service |

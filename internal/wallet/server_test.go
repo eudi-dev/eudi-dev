@@ -3222,7 +3222,7 @@ func TestTheConfigServesTheFormDefaults(t *testing.T) {
 		"display_description_max":   float64(maxDisplayDescriptionRunes),
 		"display_alt_text_max":      float64(maxDisplayAltTextRunes),
 		"country":                   mock.DefaultCertificateCountry,
-		"registration_validity":     "4320h",
+		"registration_validity":     "8760h",
 		"registration_validity_max": "8760h",
 		"access_validity":           "8760h",
 		"access_validity_max":       "8760h",

@@ -108,10 +108,12 @@ const (
 // errRegistrarSigning marks a failure of the wallet's own signer (HTTP 500).
 var errRegistrarSigning = errors.New("registrar signer")
 
-// The validity of a registration certificate.
+// The validity of a registration certificate. ETSI TS 119 475 GEN-5.2.4-08
+// allows at most 12 months. The default matches the access certificate, so
+// both certificates of a party expire together.
 const (
-	DefaultRegistrationValidity = 6 * 30 * 24 * time.Hour
 	MaxRegistrationValidity     = 365 * 24 * time.Hour
+	DefaultRegistrationValidity = MaxRegistrationValidity
 )
 
 // Hours writes a validity as a Go duration in whole hours, such as 4320h.

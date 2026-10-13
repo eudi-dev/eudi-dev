@@ -218,7 +218,7 @@ func TestAStateCloneIsIndependent(t *testing.T) {
 }
 
 func TestHoursWritesWholeHours(t *testing.T) {
-	if got := Hours(DefaultRegistrationValidity); got != "4320h" {
+	if got := Hours(180 * 24 * time.Hour); got != "4320h" {
 		t.Errorf("Hours = %s, want 4320h", got)
 	}
 	if got := Hours(90 * time.Minute); got != "1h" {
