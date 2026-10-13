@@ -259,6 +259,18 @@ type credentialDelivery struct {
 // form. The credentials are stored and saved in one change under the store
 // lock, so a reload during the network calls of the flow keeps them.
 func (w *Wallet) storeIssuedCredential(credResp map[string]any, d credentialDelivery) (*StoredCredential, string, error) {
+	// OpenID4VCI 1.0 §11.1: the wallet tells the issuer whether it kept the
+	// credential (credential_accepted) or refused it (credential_failure).
+	stored, raw, err := w.storeReceivedCredential(credResp, d)
+	event := "credential_accepted"
+	if err != nil {
+		event = "credential_failure"
+	}
+	w.notifyCredential(event, d.metadata, credResp, d.access.accessToken, d.access.authScheme, d.access.dpopKey, d.access.nonce)
+	return stored, raw, err
+}
+
+func (w *Wallet) storeReceivedCredential(credResp map[string]any, d credentialDelivery) (*StoredCredential, string, error) {
 	issuer := d.renewal.Issuer
 	received, err := w.checkReceivedCredentials(credResp, issuer)
 	if err != nil {
@@ -300,7 +312,6 @@ func (w *Wallet) storeIssuedCredential(credResp map[string]any, d credentialDeli
 		w.noteDIDIssuerKey(&stored[i])
 	}
 
-	w.notifyCredentialAccepted(d.metadata, credResp, d.access.accessToken, d.access.authScheme, d.access.dpopKey, d.access.nonce)
 	return &stored[0], batch.primary, nil
 }
 

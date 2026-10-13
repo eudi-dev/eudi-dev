@@ -2051,6 +2051,34 @@ func TestReadNotificationRefusal(t *testing.T) {
 	}
 }
 
+// OpenID4VCI 1.0 §11.1: a credential the wallet refuses gets the event
+// credential_failure.
+func TestARefusedCredentialIsNotifiedAsAFailure(t *testing.T) {
+	w := generateTestWallet(t)
+	var body []byte
+	srv, offerURI := setupMockIssuer(t, w, mockIssuerOpts{
+		tokenCNonce:         "test-c-nonce",
+		refusesNotification: true,
+		credentialResponse: map[string]any{
+			"credentials":     []any{map[string]any{"credential": "not-a-credential"}},
+			"notification_id": "refused-1",
+		},
+		captureNotification: func(r *http.Request, raw []byte) { body = raw },
+	})
+	defer srv.Close()
+
+	if _, err := w.ProcessCredentialOffer(offerURI); err == nil {
+		t.Fatal("the wallet stored an unreadable credential")
+	}
+	var sent map[string]any
+	if err := json.Unmarshal(body, &sent); err != nil {
+		t.Fatalf("no notification sent: %v (%s)", err, body)
+	}
+	if sent["notification_id"] != "refused-1" || sent["event"] != "credential_failure" {
+		t.Errorf("notification %v, want credential_failure for refused-1", sent)
+	}
+}
+
 // TestDPoPTargetURI checks the htu claim of a DPoP proof. RFC 9449 §4.2 asks
 // for the target URI "without query and fragment parts".
 func TestDPoPTargetURI(t *testing.T) {

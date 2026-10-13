@@ -148,6 +148,7 @@ Version 3.0.0 adds a registrar, ARF checks, a catalogue of attestations and a tr
 - **Scope requests.** A presentation request with only an unknown `scope` gets `invalid_scope`.
 - **DCQL checks.** The wallet checks claims, `claim_sets`, `trusted_authorities` and `credential_sets` against OpenID4VP 1.0 §6.
 - **mdoc checks.** An mdoc without `validUntil` fails the expiry check, and a DeviceResponse with a status other than 0 fails the integrity check. The demo verifier refuses more than one document.
+- **Failure notifications.** The wallet sends `credential_failure` to the issuer's notification endpoint when it refuses a received credential (OpenID4VCI 1.0 §11.1).
 - **Status list dates.** A fractional `exp`, `iat` or `nbf` is read correctly.
 - **Proxy streams.** The proxy keeps event streams and long polls open past its write timeout. It keeps the first MiB of each body for the dashboard.
 - **Sign-in page.** The demo sign-in page keeps its intro after a wrong password.

@@ -1393,7 +1393,7 @@ func deferredIssuancePending(out map[string]any) (bool, time.Duration) {
 // Credential since the use of this Endpoint is not mandatory for the Wallet."
 // The credential is already stored, so an unanswered notification is only
 // logged.
-func (w *Wallet) notifyCredentialAccepted(metadata, credResp map[string]any, accessToken, authScheme string, dpopKey *ecdsa.PrivateKey, nonce *string) {
+func (w *Wallet) notifyCredential(event string, metadata, credResp map[string]any, accessToken, authScheme string, dpopKey *ecdsa.PrivateKey, nonce *string) {
 	notificationID, _ := credResp["notification_id"].(string)
 	notificationEndpoint, _ := metadata["notification_endpoint"].(string)
 	if notificationID == "" || notificationEndpoint == "" {
@@ -1405,9 +1405,9 @@ func (w *Wallet) notifyCredentialAccepted(metadata, credResp map[string]any, acc
 		"url":                notificationEndpoint,
 		"endpoint":           "notification",
 		"notification_id":    notificationID,
-		"notification_event": "credential_accepted",
-	}, &LogPayload{Label: "Request", Body: notificationRequestBody(notificationID)})
-	status, respBody, err := sendNotificationWithDPoP(notificationEndpoint, accessToken, authScheme, notificationID, dpopKey, nonce, w.HTTPClient())
+		"notification_event": event,
+	}, &LogPayload{Label: "Request", Body: notificationRequestBody(notificationID, event)})
+	status, respBody, err := sendNotificationWithDPoP(notificationEndpoint, accessToken, authScheme, notificationID, event, dpopKey, nonce, w.HTTPClient())
 	if err != nil {
 		w.addProtocolLog("issuance", "notification_response", fmt.Sprintf("Notification response from %s", notificationEndpoint), false, map[string]any{
 			"direction": "inbound",
@@ -1471,12 +1471,12 @@ func readNotificationRefusal(status int, body []byte) (string, string) {
 	}
 }
 
-func notificationRequestBody(notificationID string) map[string]any {
-	return map[string]any{"notification_id": notificationID, "event": "credential_accepted"}
+func notificationRequestBody(notificationID, event string) map[string]any {
+	return map[string]any{"notification_id": notificationID, "event": event}
 }
 
-func sendNotificationWithDPoP(endpoint, accessToken, authScheme, notificationID string, dpopKey *ecdsa.PrivateKey, nonce *string, client *http.Client) (int, []byte, error) {
-	body, err := json.Marshal(notificationRequestBody(notificationID))
+func sendNotificationWithDPoP(endpoint, accessToken, authScheme, notificationID, event string, dpopKey *ecdsa.PrivateKey, nonce *string, client *http.Client) (int, []byte, error) {
+	body, err := json.Marshal(notificationRequestBody(notificationID, event))
 	if err != nil {
 		return 0, nil, fmt.Errorf("marshaling notification request: %w", err)
 	}
