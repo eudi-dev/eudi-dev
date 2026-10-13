@@ -66,10 +66,17 @@ function checkHTML(it) {
 function groupedHTML(items, idPrefix) {
   const groups = [...new Set(items.map((it) => it.group))];
   if (groups.length < 2 && !groups[0]) return items.map(checkHTML).join("");
+  groups.sort((a, b) => (a === "" ? -1 : b === "" ? 1 : 0));
   return groups.map((g) => {
-    const head = g ? `<div class="check-group" id="${idPrefix}-${idPart(g)}">${esc(g)}</div>` : "";
+    const head = `<div class="check-group" id="${idPrefix}-${idPart(g || "response")}">${esc(g || "Response")}</div>`;
     return head + items.filter((it) => it.group === g).map(checkHTML).join("");
   }).join("");
+}
+
+// Failed checks and warnings show their credential in the name. A heading
+// above them would look as if it also held the folded passed checks below.
+function withCredential(it) {
+  return it.group ? { ...it, name: it.group + ": " + it.name } : it;
 }
 
 let lastRendered = "";
@@ -101,7 +108,7 @@ function renderResult(doc) {
   }
   const checks = document.getElementById("checks");
   const wasOpen = document.getElementById("checks-passed")?.open;
-  const shown = groupedHTML(items.filter((it) => it.kind !== "ok"), "checks-group-shown");
+  const shown = items.filter((it) => it.kind !== "ok").map(withCredential).map(checkHTML).join("");
   checks.innerHTML = shown + (passed.length
     ? `<details id="checks-passed"${wasOpen ? " open" : ""}><summary id="checks-passed-summary">${passed.length === 1 ? "1 check passed" : passed.length + " checks passed"}</summary>${groupedHTML(passed, "checks-group")}</details>`
     : "");

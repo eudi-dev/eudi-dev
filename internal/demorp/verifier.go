@@ -1086,10 +1086,14 @@ func (d *DemoRP) verifyPresentation(req *requestState, vpToken string) (map[stri
 
 	answered := map[string]bool{}
 	for id, presentations := range tokenDoc {
-		if !slices.ContainsFunc(req.queries, func(q credentialQuery) bool { return q.id == id }) {
+		i := slices.IndexFunc(req.queries, func(q credentialQuery) bool { return q.id == id })
+		if i < 0 {
 			return nil, log.entries, check("vp_token answers only requested queries", fmt.Errorf("the request has no credential query %q", id))
 		}
-		if err := check("vp_token entries hold presentations", errIf(len(presentations) == 0, "the vp_token entry %q is empty. OpenID4VP 1.0 §8.1 asks for an array of one or more presentations", id)); err != nil {
+		log.group = req.queries[i].label()
+		err := check("vp_token entries hold presentations", errIf(len(presentations) == 0, "the vp_token entry %q is empty. OpenID4VP 1.0 §8.1 asks for an array of one or more presentations", id))
+		log.group = ""
+		if err != nil {
 			return nil, log.entries, err
 		}
 		answered[id] = true

@@ -770,7 +770,8 @@ test.describe("Verifier request types", () => {
     await expect(page.locator("#status")).toHaveAttribute("data-status", "verified", { timeout: 15000 });
     await page.locator("#checks-passed-summary").click();
     const groups = page.locator("#checks-passed .check-group");
-    expect(await groups.count()).toBeGreaterThanOrEqual(2);
+    expect(await groups.count()).toBeGreaterThanOrEqual(3);
+    await expect(groups.first()).toHaveText("Response");
     await expect(groups.filter({ hasText: /^ticket$/ })).toHaveCount(1);
     await expect(page.locator("#checks-passed .check-item", { hasText: /^. ticket: / })).toHaveCount(0);
     // Polling continues while the request is open. The passed checks stay open.
