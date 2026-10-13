@@ -40,7 +40,7 @@ func TestApprovingAnOfferSurvivesASingleUseOfferURI(t *testing.T) {
 	})
 	defer srv.Close()
 
-	consentReq, _, err := generateTestWallet(t).prepareIssuanceConsentRequest(offerURI, "")
+	consentReq, _, err := generateTestWallet(t).prepareIssuanceConsentRequest(t.Context(), offerURI, "")
 	if err != nil {
 		t.Fatalf("preparing the consent request: %v", err)
 	}
@@ -99,7 +99,7 @@ func TestApproveRequestCompletesWhenTheIssuerServesTheOfferOnce(t *testing.T) {
 
 	server := NewServer(w, 0, nil)
 
-	consentReq, _, err := generateTestWallet(t).prepareIssuanceConsentRequest(offerURI, "")
+	consentReq, _, err := generateTestWallet(t).prepareIssuanceConsentRequest(t.Context(), offerURI, "")
 	if err != nil {
 		t.Fatalf("preparing the consent request: %v", err)
 	}
@@ -142,7 +142,7 @@ func TestASwappedOfferDoesNotReplaceTheApprovedOne(t *testing.T) {
 	})
 	defer srv.Close()
 
-	consentReq, _, err := generateTestWallet(t).prepareIssuanceConsentRequest(offerURI, "")
+	consentReq, _, err := generateTestWallet(t).prepareIssuanceConsentRequest(t.Context(), offerURI, "")
 	if err != nil {
 		t.Fatalf("preparing the consent request: %v", err)
 	}
@@ -179,7 +179,7 @@ func TestAnOfferRereadWithoutAnIssuerKeepsTheApprovedOne(t *testing.T) {
 	})
 	defer srv.Close()
 
-	consentReq, _, err := generateTestWallet(t).prepareIssuanceConsentRequest(offerURI, "")
+	consentReq, _, err := generateTestWallet(t).prepareIssuanceConsentRequest(t.Context(), offerURI, "")
 	if err != nil {
 		t.Fatalf("preparing the consent request: %v", err)
 	}
@@ -216,13 +216,13 @@ func TestUnattendedIssuanceCarriesNoApprovedOffer(t *testing.T) {
 
 	server := NewServer(w, 0, nil)
 	rec := httptest.NewRecorder()
-	server.processOfferURI(rec, offerURI, OfferOptions{}, false, true)
+	server.processOfferURI(t.Context(), rec, offerURI, OfferOptions{}, false, true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("the first, unattended run failed: %d %s", rec.Code, rec.Body.String())
 	}
 
 	rec = httptest.NewRecorder()
-	server.processOfferURI(rec, offerURI, OfferOptions{}, false, true)
+	server.processOfferURI(t.Context(), rec, offerURI, OfferOptions{}, false, true)
 	if rec.Code == http.StatusOK {
 		t.Fatalf("a spent offer was accepted without anyone approving it: %s", rec.Body.String())
 	}

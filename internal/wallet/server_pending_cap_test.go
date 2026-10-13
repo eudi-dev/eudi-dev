@@ -16,10 +16,12 @@ package wallet
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
@@ -95,5 +97,45 @@ func TestDemoLowersTheConsentCap(t *testing.T) {
 	}
 	if got := srv.wallet.Consents().MaxPending(); got != maxDemoPendingConsents {
 		t.Errorf("demo cap %d, want %d", got, maxDemoPendingConsents)
+	}
+	if got := srv.wallet.Consents().MaxPendingPerOwner(); got != maxDemoPendingConsentsPerOwner {
+		t.Errorf("demo cap per owner %d, want %d", got, maxDemoPendingConsentsPerOwner)
+	}
+}
+
+// One visitor cannot take every waiting slot. Requests without an owner share
+// one count, so the next unowned flow is refused while another owner still
+// gets a slot.
+func TestServerRefusesFlowsBeyondTheOwnerCap(t *testing.T) {
+	srv := newTestServer(t, false)
+	srv.wallet.Consents().SetMaxPendingPerOwner(1)
+	if err := srv.wallet.Consents().Create(consent.NewRequest(consent.TypePresentation, "")); err != nil {
+		t.Fatal(err)
+	}
+
+	query := pidAuthorizeQuery(t)
+	rec := httptest.NewRecorder()
+	srv.mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/authorize?"+query, nil))
+	requireBusy(t, "unowned presentation", rec)
+
+	if err := srv.wallet.Consents().Create(consent.NewRequest(consent.TypePresentation, "visitor")); err != nil {
+		t.Fatalf("another owner: %v", err)
+	}
+	if err := srv.wallet.Consents().Create(consent.NewRequest(consent.TypePresentation, "visitor")); !errors.Is(err, consent.ErrTooManyPending) {
+		t.Errorf("second request of the same owner: %v, want ErrTooManyPending", err)
+	}
+}
+
+// A flow that waits for sign-in at the issuer counts against its owner too.
+func TestRunOfferRefusesSignInsBeyondTheOwnerCap(t *testing.T) {
+	srv := newTestServer(t, false)
+	srv.wallet.Consents().SetMaxPendingPerOwner(1)
+	srv.trackPendingOffer(&pendingOffer{ID: "waiting", Owner: "visitor", CreatedAt: time.Now()})
+
+	if _, _, err := srv.runOffer("not an offer", OfferOptions{Owner: "visitor"}); !errors.Is(err, consent.ErrTooManyPending) {
+		t.Errorf("second sign-in of the same owner: %v, want ErrTooManyPending", err)
+	}
+	if _, _, err := srv.runOffer("not an offer", OfferOptions{Owner: "other"}); errors.Is(err, consent.ErrTooManyPending) {
+		t.Errorf("another owner was refused: %v", err)
 	}
 }

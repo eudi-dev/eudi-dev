@@ -38,6 +38,10 @@ var ErrUnrecognizedInput = errors.New("not an OpenID4VCI offer or OpenID4VP requ
 // wallet cannot tell which credentials or which grant the issuer means.
 var ErrInvalidCredentialOffer = errors.New("invalid credential offer")
 
+// MaxOfferedConfigurations is the most credential configurations one offer
+// may list.
+const MaxOfferedConfigurations = 32
+
 func Parse(raw string) (RequestType, any, error) {
 	return ParseWithOptions(raw, ParseOptions{})
 }
@@ -172,11 +176,19 @@ func parseVCIJSON(data []byte) (RequestType, any, error) {
 
 	offer.CredentialIssuer = jsonutil.GetString(m, "credential_issuer")
 
+	// OpenID4VCI 1.0 §4.1.1: credential_configuration_ids is "A non-empty
+	// array of unique strings". The wallet drops repeated ids and caps the
+	// count, because each id costs metadata lookups and image fetches.
 	if ids := jsonutil.GetArray(m, "credential_configuration_ids"); ids != nil {
+		seen := make(map[string]bool, len(ids))
 		for _, id := range ids {
-			if s, ok := id.(string); ok {
+			if s, ok := id.(string); ok && !seen[s] {
+				seen[s] = true
 				offer.CredentialConfigurationIDs = append(offer.CredentialConfigurationIDs, s)
 			}
+		}
+		if len(offer.CredentialConfigurationIDs) > MaxOfferedConfigurations {
+			return TypeVCI, nil, fmt.Errorf("%w: the offer lists %d credential configurations, and this wallet accepts at most %d", ErrInvalidCredentialOffer, len(offer.CredentialConfigurationIDs), MaxOfferedConfigurations)
 		}
 	}
 

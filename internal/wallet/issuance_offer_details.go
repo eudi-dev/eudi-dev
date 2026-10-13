@@ -15,6 +15,7 @@
 package wallet
 
 import (
+	"context"
 	"sort"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
@@ -26,7 +27,7 @@ import (
 // metadata cannot be fetched. refusal holds the ARF findings when every
 // offered configuration has some. The user picks one configuration, so an
 // offer with one acceptable configuration is still shown.
-func (w *Wallet) describeCredentialOffer(offer *oid4vc.CredentialOffer) (details *consent.OfferDetails, refusal []string) {
+func (w *Wallet) describeCredentialOffer(ctx context.Context, offer *oid4vc.CredentialOffer) (details *consent.OfferDetails, refusal []string) {
 	if offer == nil {
 		return nil, nil
 	}
@@ -46,6 +47,7 @@ func (w *Wallet) describeCredentialOffer(offer *oid4vc.CredentialOffer) (details
 
 	// The dialog lists the metadata problems. The flow reports them and, in
 	// strict mode, refuses.
+	images := newOfferImages(ctx)
 	var freshness []string
 	collect := func(problem string) error { freshness = append(freshness, problem); return nil }
 	metadata, signerChain, err := fetchIssuerMetadataDocument(w.HTTPClient(), offer.CredentialIssuer, w.ARFChecks(), collect)
@@ -53,7 +55,7 @@ func (w *Wallet) describeCredentialOffer(offer *oid4vc.CredentialOffer) (details
 		details.MetadataError = err.Error()
 	} else {
 		details.IssuerName, details.IssuerLogo = issuerDisplay(metadata)
-		details.IssuerLogo = w.embedDisplayImage(details.IssuerLogo, "issuer_logo")
+		details.IssuerLogo = w.embedDisplayImage(images, details.IssuerLogo, "issuer_logo")
 		details.ARFFindings = w.issuerARFCheck(metadata, signerChain, offer.CredentialConfigurationIDs)
 		refusal = details.ARFFindings
 		for _, id := range offer.CredentialConfigurationIDs {
@@ -65,7 +67,7 @@ func (w *Wallet) describeCredentialOffer(offer *oid4vc.CredentialOffer) (details
 	}
 
 	for _, id := range offer.CredentialConfigurationIDs {
-		details.Credentials = append(details.Credentials, w.describeConfiguration(metadata, id))
+		details.Credentials = append(details.Credentials, w.describeConfiguration(images, metadata, id))
 	}
 	return details, refusal
 }
@@ -105,7 +107,7 @@ func issuerDisplay(metadata map[string]any) (name, logo string) {
 
 // describeConfiguration keeps unknown configuration IDs, so consent still shows
 // everything offered.
-func (w *Wallet) describeConfiguration(metadata map[string]any, id string) consent.OfferedCredential {
+func (w *Wallet) describeConfiguration(images *offerImages, metadata map[string]any, id string) consent.OfferedCredential {
 	out := consent.OfferedCredential{ID: id}
 	configs, _ := metadata["credential_configurations_supported"].(map[string]any)
 	config, _ := configs[id].(map[string]any)
@@ -123,7 +125,7 @@ func (w *Wallet) describeConfiguration(metadata map[string]any, id string) conse
 		out.Description, _ = entry["description"].(string)
 	}
 	out.Claims, out.ClaimDisplayNames = configurationClaims(credentialMetadata["claims"])
-	out.Display = w.resolveCredentialDisplay(metadata, id)
+	out.Display = w.resolveCredentialDisplay(images, metadata, id)
 	return out
 }
 

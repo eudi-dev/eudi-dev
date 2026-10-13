@@ -4,7 +4,7 @@
 
 The wallet accepts a credential offer with [`wallet accept`](presenting.md#wallet-accept-uri), from the wallet UI, from a scanned QR, or at its `/credential-offer` URL.
 
-An offer can list several credential configurations. The wallet requests one of them. Pick it with `credential_configuration_id` in the body of `POST /api/offers` or `POST /api/requests/{id}/approve`. Without a choice the wallet requests the first.
+An offer can list several credential configurations. The wallet requests one of them. Pick it with `credential_configuration_id` in the body of `POST /api/offers` or `POST /api/requests/{id}/approve`. Without a choice the wallet requests the first. The wallet ignores repeated configuration IDs and refuses an offer with more than 32.
 
 ## Sign-in during issuance
 

@@ -176,8 +176,8 @@ func (m *Management) Issue(req IssueAPIRequest) (map[string]any, error) {
 			return nil, err
 		}
 		display := *opts.Display
-		display.Logo = m.wallet.cacheDisplayImage(strings.TrimSpace(display.Logo), "logo")
-		display.BackgroundImage = m.wallet.cacheDisplayImage(strings.TrimSpace(display.BackgroundImage), "background_image")
+		display.Logo = m.wallet.cacheDisplayImage(nil, strings.TrimSpace(display.Logo), "logo")
+		display.BackgroundImage = m.wallet.cacheDisplayImage(nil, strings.TrimSpace(display.BackgroundImage), "background_image")
 		opts.Display = &display
 	}
 	var summary map[string]any

@@ -58,14 +58,14 @@ func TestPublicDemoKeepsIssuerImages(t *testing.T) {
 			"background_image": map[string]any{"uri": pngDataURI(t)},
 		}}}},
 	}}
-	d := srv.wallet.resolveCredentialDisplay(metadata, "badge")
+	d := srv.wallet.resolveCredentialDisplay(nil, metadata, "badge")
 	if d == nil || !strings.HasPrefix(d.LogoURI, "data:image/png;base64,") || !strings.HasPrefix(d.BackgroundURI, "data:image/png;base64,") {
 		t.Fatalf("the issuer's card images were not stored: %+v", d)
 	}
-	if got := srv.wallet.embedDisplayImage(images.URL+"/issuer.png", "issuer_logo"); !strings.HasPrefix(got, "data:image/png;base64,") {
+	if got := srv.wallet.embedDisplayImage(nil, images.URL+"/issuer.png", "issuer_logo"); !strings.HasPrefix(got, "data:image/png;base64,") {
 		t.Errorf("the issuer logo for consent was not kept: %.40q", got)
 	}
-	if got := srv.wallet.cacheDisplayImage("https://issuer.example/logo.png", "logo"); got == "https://issuer.example/logo.png" {
+	if got := srv.wallet.cacheDisplayImage(nil, "https://issuer.example/logo.png", "logo"); got == "https://issuer.example/logo.png" {
 		t.Error("the public demo linked an issuer image instead of storing it")
 	}
 
@@ -113,7 +113,7 @@ func TestPublicDemoRefusesVisitorImages(t *testing.T) {
 // A wallet without visitors keeps any image the issuer sends.
 func TestOwnWalletKeepsIssuerImages(t *testing.T) {
 	w := generateTestWallet(t)
-	if got := w.cacheDisplayImage(pngDataURI(t), "logo"); got == "" {
+	if got := w.cacheDisplayImage(nil, pngDataURI(t), "logo"); got == "" {
 		t.Error("the issuer's image was dropped")
 	}
 }

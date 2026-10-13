@@ -340,7 +340,7 @@ func (w *Wallet) issueWithToken(s issuanceSession, tokenForm url.Values) (*Issua
 		return nil, err
 	}
 
-	display := w.resolveCredentialDisplay(s.metadata, renewal.ConfigurationID)
+	display := w.resolveCredentialDisplay(nil, s.metadata, renewal.ConfigurationID)
 	credFormat := resolveCredentialFormat(s.metadata, renewal.ConfigurationID)
 	transactionID, _ := credResp["transaction_id"].(string)
 	if _, issued := credResp["credentials"]; issued && transactionID != "" {

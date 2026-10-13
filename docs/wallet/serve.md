@@ -586,7 +586,7 @@ The printed URLs stay on `localhost` for a loopback or wildcard address. A serve
 
 ## Outbound address limits
 
-Visitors give the wallet URLs (credential offers, request URIs and the URLs inside them). So the wallet connects only to public addresses and to loopback by default. Loopback covers the usual setup with wallet, issuer and verifier on one machine. The wallet refuses private (RFC 1918), link local, CGNAT, unique local, unspecified and multicast addresses. Link local includes cloud metadata endpoints. The check runs on the resolved address of every connection, redirects included.
+Visitors give the wallet URLs (credential offers, request URIs and the URLs inside them). So the wallet connects only to public addresses and to loopback by default. Loopback covers the usual setup with wallet, issuer and verifier on one machine. The wallet refuses private (RFC 1918), link local, CGNAT, unique local, unspecified and multicast addresses. It also refuses the other special purpose ranges, such as reserved, documentation and benchmarking addresses, and the IPv6 ranges that embed an IPv4 address (NAT64, 6to4 and Teredo). Link local includes cloud metadata endpoints. The check runs on the resolved address of every connection, redirects included.
 
 Some destinations come from the operator, so the wallet always reaches them at their exact address and port. These are the wallet's own origins, the `--trusted-list` URLs and the forward proxy.
 

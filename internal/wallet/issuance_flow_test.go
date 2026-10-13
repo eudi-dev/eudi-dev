@@ -1526,7 +1526,7 @@ func TestIssuanceConsentDescribesTheOffer(t *testing.T) {
 	issuer, offerURI := setupMockIssuer(t, srv.wallet, mockIssuerOpts{})
 	defer issuer.Close()
 
-	req, _, err := generateTestWallet(t).prepareIssuanceConsentRequest(offerURI, "")
+	req, _, err := generateTestWallet(t).prepareIssuanceConsentRequest(t.Context(), offerURI, "")
 	if err != nil {
 		t.Fatalf("prepareIssuanceConsentRequest: %v", err)
 	}
@@ -1576,7 +1576,7 @@ func TestIssuanceConsentDescribesTheOffer(t *testing.T) {
 func TestIssuanceConsentRefusesAnOfferWithBothParameters(t *testing.T) {
 	offer := url.QueryEscape(`{"credential_issuer":"https://issuer.example","credential_configuration_ids":["pid"]}`)
 	uri := "openid-credential-offer://?credential_offer=" + offer + "&credential_offer_uri=" + url.QueryEscape("https://issuer.example/offer")
-	req, _, err := generateTestWallet(t).prepareIssuanceConsentRequest(uri, "")
+	req, _, err := generateTestWallet(t).prepareIssuanceConsentRequest(t.Context(), uri, "")
 	if req != nil || !errors.Is(err, oid4vc.ErrInvalidCredentialOffer) {
 		t.Fatalf("consent request %+v, err %v, want the invalid offer refused", req, err)
 	}
@@ -1593,7 +1593,7 @@ func TestIssuanceConsentResolvesOfferByReference(t *testing.T) {
 	})
 	defer issuer.Close()
 
-	req, _, err := generateTestWallet(t).prepareIssuanceConsentRequest(offerURI, "")
+	req, _, err := generateTestWallet(t).prepareIssuanceConsentRequest(t.Context(), offerURI, "")
 	if err != nil {
 		t.Fatalf("prepareIssuanceConsentRequest: %v", err)
 	}
@@ -1615,7 +1615,7 @@ func TestIssuanceConsentResolvesOfferByReference(t *testing.T) {
 // When the offer fetch fails, the consent dialog still shows the issuer host
 // and the failure.
 func TestIssuanceConsentSurvivesUnresolvableOfferURI(t *testing.T) {
-	req, _, err := generateTestWallet(t).prepareIssuanceConsentRequest("openid-credential-offer://?credential_offer_uri=https://issuer.invalid/offer/1", "")
+	req, _, err := generateTestWallet(t).prepareIssuanceConsentRequest(t.Context(), "openid-credential-offer://?credential_offer_uri=https://issuer.invalid/offer/1", "")
 	if err != nil {
 		t.Fatalf("prepareIssuanceConsentRequest: %v", err)
 	}
@@ -1630,7 +1630,7 @@ func TestIssuanceConsentSurvivesUnresolvableOfferURI(t *testing.T) {
 func TestIssuanceConsentSurvivesMissingIssuerMetadata(t *testing.T) {
 	offer := `{"credential_issuer":"https://issuer.invalid","credential_configuration_ids":["some-config"],` +
 		`"grants":{"urn:ietf:params:oauth:grant-type:pre-authorized_code":{"pre-authorized_code":"abc","tx_code":{"length":6,"input_mode":"numeric"}}}}`
-	req, _, err := generateTestWallet(t).prepareIssuanceConsentRequest("openid-credential-offer://?credential_offer="+url.QueryEscape(offer), "")
+	req, _, err := generateTestWallet(t).prepareIssuanceConsentRequest(t.Context(), "openid-credential-offer://?credential_offer="+url.QueryEscape(offer), "")
 	if err != nil {
 		t.Fatalf("prepareIssuanceConsentRequest: %v", err)
 	}

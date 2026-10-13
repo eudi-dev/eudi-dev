@@ -108,9 +108,12 @@ const (
 	maxDemoIssuedAttestations = 100
 	maxDemoTemplates          = 50
 	maxDemoRelyingParties     = 500
+	maxDemoCredentialBytes    = 512 << 10
 	// Each request that waits for consent holds a flow for up to
-	// config.ConsentTimeout.
-	maxDemoPendingConsents = 30
+	// config.ConsentTimeout. The cap per owner keeps one visitor from taking
+	// every slot.
+	maxDemoPendingConsents         = 30
+	maxDemoPendingConsentsPerOwner = 3
 )
 
 // SetDemo turns on the public demo profile. Templates that visitors save are
@@ -124,6 +127,7 @@ func (s *Server) SetDemo(opts DemoOptions) error {
 		IssuedAttestations: maxDemoIssuedAttestations,
 		Templates:          maxDemoTemplates,
 		RelyingParties:     maxDemoRelyingParties,
+		CredentialBytes:    maxDemoCredentialBytes,
 	})
 	// Added providers and lists are refused when full, because each one
 	// changes what every check trusts.
@@ -132,6 +136,7 @@ func (s *Server) SetDemo(opts DemoOptions) error {
 	s.wallet.mu.Unlock()
 	s.wallet.SetVisitorRules(VisitorRules{VisitorTemplates: true, BundledImagesOnly: true, OwnSigningKeys: true})
 	s.wallet.Consents().SetMaxPending(maxDemoPendingConsents)
+	s.wallet.Consents().SetMaxPendingPerOwner(maxDemoPendingConsentsPerOwner)
 	return nil
 }
 

@@ -707,34 +707,39 @@ func jwkThumbprint(key *ecdsa.PublicKey) (string, error) {
 	return format.EncodeBase64URL(sum), nil
 }
 
-// firstUseOfJTI records the jti of an accepted proof for its scope. The proof's iat is inside the freshness window, so the jti is kept
-// until the window closes. RFC 9449 §11.1 suggests storing "only a hash
-// thereof" against memory exhaustion.
-// A full cache refuses new proofs. Forgetting a live jti would let its proof
-// be replayed.
+// firstUseOfJTI records the jti of an accepted proof for its scope. The
+// proof's iat is inside the freshness window, so the jti is kept until the
+// window closes. RFC 9449 §11.1 suggests storing "only a hash thereof"
+// against memory exhaustion. A full cache evicts the entries that expire
+// first and then refuses every proof that expires no later than them.
 func (d *DemoRP) firstUseOfJTI(proofType, scope string, payload map[string]any) error {
 	jti, _ := payload["jti"].(string)
 	iat, _ := payload["iat"].(float64)
 	sum := sha256.Sum256([]byte(proofType + " " + scope + " " + jti))
 	seen := string(sum[:])
 
+	expires := time.Unix(int64(iat), 0).Add(freshnessWindow)
+
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	now := time.Now()
-	if expires, ok := d.seenJTIs[seen]; ok && now.Before(expires) {
+	if seenExpires, ok := d.seenJTIs[seen]; ok && now.Before(seenExpires) {
 		return fmt.Errorf("%s jti was already used at %s", proofType, scope)
 	}
+	if !expires.After(d.jtiFloor) {
+		return fmt.Errorf("%s is too old for the issuer's replay cache. Send a new proof", proofType)
+	}
 	if len(d.seenJTIs) >= maxSeenJTIs {
-		for key, expires := range d.seenJTIs {
-			if now.After(expires) {
+		for key, seenExpires := range d.seenJTIs {
+			if now.After(seenExpires) {
 				delete(d.seenJTIs, key)
 			}
 		}
 	}
-	if len(d.seenJTIs) >= maxSeenJTIs {
-		return fmt.Errorf("the issuer holds too many recent proofs. Retry in a few minutes")
+	if evicted := makeRoomUpTo(d.seenJTIs, maxSeenJTIs, func(e time.Time) time.Time { return e }); evicted.After(d.jtiFloor) {
+		d.jtiFloor = evicted
 	}
-	d.seenJTIs[seen] = time.Unix(int64(iat), 0).Add(freshnessWindow)
+	d.seenJTIs[seen] = expires
 	return nil
 }
 

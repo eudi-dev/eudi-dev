@@ -28,14 +28,15 @@ import (
 )
 
 // An asset: reference loads an image from storage. Newly issued credentials can still
-// contain an embedded data URI.
+// contain an embedded data URI. Only image/* content is served.
 func (s *Server) resolveDisplayImage(uri string) (contentType string, data []byte, ok bool) {
 	if strings.HasPrefix(uri, "asset:") {
 		store := s.store.Load()
 		if store == nil {
 			return "", nil, false
 		}
-		return store.ReadDisplayAsset(uri)
+		contentType, data, ok = store.ReadDisplayAsset(uri)
+		return contentType, data, ok && strings.HasPrefix(contentType, "image/")
 	}
 	return dataURIImage(uri)
 }

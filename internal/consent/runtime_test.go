@@ -239,3 +239,27 @@ func TestCreateRefusesRequestsBeyondTheCap(t *testing.T) {
 		t.Fatalf("after the first expired: %v", err)
 	}
 }
+
+// One visitor cannot take every waiting slot. Requests without an owner share
+// one count, and the total cap still applies.
+func TestCreateRefusesRequestsBeyondTheOwnerCap(t *testing.T) {
+	rt := NewRuntime()
+	rt.SetMaxPending(5)
+	rt.SetMaxPendingPerOwner(2)
+	for _, owner := range []string{"alice", "alice", "", ""} {
+		if err := rt.Create(NewRequest(TypePresentation, owner)); err != nil {
+			t.Fatalf("request of %q: %v", owner, err)
+		}
+	}
+	for _, owner := range []string{"alice", ""} {
+		if err := rt.Create(NewRequest(TypePresentation, owner)); !errors.Is(err, ErrTooManyPending) {
+			t.Errorf("third request of %q: %v, want ErrTooManyPending", owner, err)
+		}
+	}
+	if err := rt.Create(NewRequest(TypePresentation, "bob")); err != nil {
+		t.Fatalf("request of bob: %v", err)
+	}
+	if err := rt.Create(NewRequest(TypePresentation, "carol")); !errors.Is(err, ErrTooManyPending) {
+		t.Errorf("request past the total cap: %v, want ErrTooManyPending", err)
+	}
+}

@@ -109,11 +109,29 @@ func portNumber(port string) uint16 {
 	return uint16(n)
 }
 
+// extraBlockedPrefixes adds the special-purpose ranges of the IANA IPv4 and
+// IPv6 registries (RFC 6890) that the netip predicates do not cover.
 var extraBlockedPrefixes = []netip.Prefix{
-	netip.MustParsePrefix("100.64.0.0/10"), // CGNAT
-	netip.MustParsePrefix("fc00::/7"),      // IPv6 unique-local
-	// NAT64 (RFC 6052) embeds any IPv4 address, private ones too.
+	netip.MustParsePrefix("0.0.0.0/8"),       // "this network"
+	netip.MustParsePrefix("100.64.0.0/10"),   // CGNAT
+	netip.MustParsePrefix("192.0.0.0/24"),    // IETF protocol assignments
+	netip.MustParsePrefix("192.0.2.0/24"),    // documentation
+	netip.MustParsePrefix("198.18.0.0/15"),   // benchmarking
+	netip.MustParsePrefix("198.51.100.0/24"), // documentation
+	netip.MustParsePrefix("203.0.113.0/24"),  // documentation
+	netip.MustParsePrefix("240.0.0.0/4"),     // reserved, broadcast included
+	netip.MustParsePrefix("::/96"),           // IPv4-compatible (deprecated)
+	netip.MustParsePrefix("100::/64"),        // discard-only
+	netip.MustParsePrefix("2001::/32"),       // Teredo
+	netip.MustParsePrefix("2001:db8::/32"),   // documentation
+	netip.MustParsePrefix("3fff::/20"),       // documentation
+	netip.MustParsePrefix("fc00::/7"),        // unique-local
+	netip.MustParsePrefix("fec0::/10"),       // site-local (deprecated)
+	// NAT64 (RFC 6052, RFC 8215) and 6to4 (RFC 3056) embed any IPv4
+	// address, private ones too.
 	netip.MustParsePrefix("64:ff9b::/96"),
+	netip.MustParsePrefix("64:ff9b:1::/48"),
+	netip.MustParsePrefix("2002::/16"),
 }
 
 // AllowLoopback permits connections to loopback addresses and leaves every
@@ -129,7 +147,8 @@ func AllowLoopback(next FetchPolicy) FetchPolicy {
 
 // BlockPrivateAddresses is a FetchPolicy that rejects connections to
 // loopback, private (RFC 1918), link-local (including cloud metadata
-// endpoints), CGNAT, unique-local, NAT64, unspecified and multicast addresses.
+// endpoints), CGNAT, unique-local, NAT64, unspecified and multicast addresses,
+// and to the other special-purpose ranges in extraBlockedPrefixes.
 // A host that fetches visitor-supplied URLs and can reach internal networks
 // needs it.
 func BlockPrivateAddresses(network, address string) error {

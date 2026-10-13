@@ -18,6 +18,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -1075,4 +1076,37 @@ func TestCAReadsDoNotRaceWithAReload(t *testing.T) {
 		srv.renewIssuerTLSCertificateIfNeeded(time.Now())
 	}
 	<-done
+}
+
+// The public demo refuses a credential larger than the size cap. Every
+// predefined template, the PIDs with their portraits and the demo ticket
+// included, stays well below it.
+func TestDemoCapsTheCredentialSize(t *testing.T) {
+	srv := newDemoTestServer(t)
+	templates, err := credtemplate.List(srv.wallet.Templates)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tpl := range templates {
+		formats := []string{tpl.Format}
+		if tpl.Format == "" {
+			formats = []string{"sdjwt", "mdoc"}
+		}
+		for _, format := range formats {
+			issued, err := srv.wallet.IssueCredential(IssueOptions{Template: tpl.Name, Format: format})
+			if err != nil {
+				t.Errorf("issuing %s as %s: %v", tpl.Name, format, err)
+				continue
+			}
+			if size := len(issued.Raw); size > maxDemoCredentialBytes/4 {
+				t.Errorf("%s as %s has %d bytes, want well below the %d byte cap", tpl.Name, format, size, maxDemoCredentialBytes)
+			}
+		}
+	}
+
+	_, err = srv.wallet.ImportCredential("x~" + strings.Repeat("a", maxDemoCredentialBytes) + "~")
+	var limit *VisitorLimitError
+	if !errors.As(err, &limit) {
+		t.Fatalf("oversized credential: %v, want a VisitorLimitError", err)
+	}
 }

@@ -18,7 +18,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/url"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -386,6 +388,37 @@ func TestParseVCIMultipleCredentialConfigs(t *testing.T) {
 		if co.CredentialConfigurationIDs[i] != want {
 			t.Errorf("config[%d] = %s, want %s", i, co.CredentialConfigurationIDs[i], want)
 		}
+	}
+}
+
+// OpenID4VCI 1.0 §4.1.1 requires unique ids, so a repeated id is offered once.
+func TestParseVCIDeduplicatesConfigurationIDs(t *testing.T) {
+	raw := `{"credential_issuer":"https://issuer.example","credential_configuration_ids":["pid","mdl","pid","mdl"]}`
+	_, result, err := Parse(raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got := result.(*CredentialOffer).CredentialConfigurationIDs
+	if !reflect.DeepEqual(got, []string{"pid", "mdl"}) {
+		t.Errorf("CredentialConfigurationIDs = %v, want [pid mdl]", got)
+	}
+}
+
+// Each offered id makes the wallet resolve metadata and images, so the count
+// is capped.
+func TestParseVCIRefusesTooManyConfigurationIDs(t *testing.T) {
+	ids := make([]string, MaxOfferedConfigurations+1)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("config-%d", i)
+	}
+	raw, _ := json.Marshal(map[string]any{"credential_issuer": "https://issuer.example", "credential_configuration_ids": ids})
+	if _, _, err := Parse(string(raw)); !errors.Is(err, ErrInvalidCredentialOffer) {
+		t.Fatalf("err = %v, want ErrInvalidCredentialOffer", err)
+	}
+
+	raw, _ = json.Marshal(map[string]any{"credential_issuer": "https://issuer.example", "credential_configuration_ids": ids[:MaxOfferedConfigurations]})
+	if _, _, err := Parse(string(raw)); err != nil {
+		t.Fatalf("offer with %d ids: %v", MaxOfferedConfigurations, err)
 	}
 }
 

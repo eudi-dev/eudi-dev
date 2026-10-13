@@ -15,6 +15,7 @@
 package wallet
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -41,6 +42,7 @@ const pendingOfferTTL = 10 * time.Minute
 type pendingOffer struct {
 	ID        string
 	AuthURL   string
+	Owner     string
 	CreatedAt time.Time
 
 	mu     sync.Mutex
@@ -85,17 +87,19 @@ func (s *Server) trackPendingOffer(p *pendingOffer) {
 }
 
 // waitingSignIns counts the offers whose flow still waits for the user to
-// sign in at the issuer.
-func (s *Server) waitingSignIns() int {
+// sign in at the issuer, in total and for one owner.
+func (s *Server) waitingSignIns(owner string) (total, forOwner int) {
 	s.offerMu.Lock()
 	defer s.offerMu.Unlock()
-	waiting := 0
 	for _, p := range s.pendingOffers {
 		if _, _, done := p.outcome(); !done {
-			waiting++
+			total++
+			if p.Owner == owner {
+				forOwner++
+			}
 		}
 	}
-	return waiting
+	return total, forOwner
 }
 
 func (s *Server) lookupPendingOffer(id string) *pendingOffer {
@@ -110,13 +114,15 @@ func (s *Server) lookupPendingOffer(id string) *pendingOffer {
 func (s *Server) runOffer(uri string, opts OfferOptions) (*IssuanceResult, *pendingOffer, error) {
 	// A flow that waits for sign-in holds its goroutine up to
 	// config.AuthorizationCallbackWait.
-	if s.waitingSignIns() >= s.wallet.Consents().MaxPending() {
+	total, forOwner := s.waitingSignIns(opts.Owner)
+	perOwner := s.wallet.Consents().MaxPendingPerOwner()
+	if total >= s.wallet.Consents().MaxPending() || (perOwner > 0 && forOwner >= perOwner) {
 		return nil, nil, consent.ErrTooManyPending
 	}
 	// A subscriber lets the flow return the sign-in URL when interaction is
 	// required. Other flows run at the same time, so it takes only the prompt
 	// of this one.
-	p := &pendingOffer{ID: newConsentID(), CreatedAt: time.Now()}
+	p := &pendingOffer{ID: newConsentID(), Owner: opts.Owner, CreatedAt: time.Now()}
 	opts.Flow = p.ID
 	authCh, unsubscribe := s.wallet.Consents().SubscribeAuthorization(func(prompt consent.AuthorizationPrompt) bool {
 		return prompt.Flow == p.ID
@@ -248,7 +254,7 @@ func (s *Server) handleOfferAPI(w http.ResponseWriter, r *http.Request) {
 	if body.Interactive {
 		s.noteStaleClient(r)
 	}
-	s.processOfferURI(w, body.URI, OfferOptions{
+	s.processOfferURI(r.Context(), w, body.URI, OfferOptions{
 		TxCode:          body.TxCode,
 		Owner:           requestOwner(r),
 		ConfigurationID: body.ConfigurationID,
@@ -257,12 +263,12 @@ func (s *Server) handleOfferAPI(w http.ResponseWriter, r *http.Request) {
 
 // Browser submissions return to the wallet UI after import. API submissions provide
 // consent and run without a dialog.
-func (s *Server) processOfferURI(w http.ResponseWriter, uri string, opts OfferOptions, browserRedirect, apiInitiated bool) {
+func (s *Server) processOfferURI(ctx context.Context, w http.ResponseWriter, uri string, opts OfferOptions, browserRedirect, apiInitiated bool) {
 	s.log("Received credential offer")
 	s.log("  URI: %s", format.Truncate(uri, 120))
 
 	if !s.wallet.AutoAcceptSetting() && !apiInitiated {
-		consentReq, issuerDisplay, err := s.wallet.prepareIssuanceConsentRequest(uri, opts.Owner)
+		consentReq, issuerDisplay, err := s.wallet.prepareIssuanceConsentRequest(ctx, uri, opts.Owner)
 		if err != nil {
 			s.log("  ERROR: %v", err)
 			s.wallet.Consents().NotifyError(consent.Error{
@@ -407,7 +413,7 @@ func (s *Server) processOfferDirectly(w http.ResponseWriter, uri string, opts Of
 
 // prepareIssuanceConsentRequest also writes the activity log entry of an offer
 // refused before the dialog.
-func (w *Wallet) prepareIssuanceConsentRequest(raw, owner string) (_ *consent.Request, _ string, err error) {
+func (w *Wallet) prepareIssuanceConsentRequest(ctx context.Context, raw, owner string) (_ *consent.Request, _ string, err error) {
 	defer func() {
 		if err != nil {
 			w.addProtocolLog("issuance", "issuance_failed", fmt.Sprintf("The wallet refused the credential offer: %v", err), false, map[string]any{
@@ -446,7 +452,7 @@ func (w *Wallet) prepareIssuanceConsentRequest(raw, owner string) (_ *consent.Re
 	req.ClientID = offer.CredentialIssuer
 	req.OfferConfigs = append([]string(nil), offer.CredentialConfigurationIDs...)
 	var refusal []string
-	req.OfferDetails, refusal = w.describeCredentialOffer(offer)
+	req.OfferDetails, refusal = w.describeCredentialOffer(ctx, offer)
 	// Strict mode refuses an issuer that fails the ARF checks before the user
 	// is asked, as it refuses a verifier (RPRC_22a, ISSU_24a).
 	if len(refusal) > 0 && w.Mode() == ValidationModeStrict {

@@ -181,7 +181,7 @@ func TestIssuanceConsentCarriesTheChosenConfiguration(t *testing.T) {
 	w := generateTestWallet(t)
 	issuer := newStepIssuer(t, generateTestCredential(t, w))
 	server := NewServer(w, 0, nil)
-	consentReq, _, err := w.prepareIssuanceConsentRequest(issuer.preAuthorizedOffer("first", "second"), "")
+	consentReq, _, err := w.prepareIssuanceConsentRequest(t.Context(), issuer.preAuthorizedOffer("first", "second"), "")
 	if err != nil {
 		t.Fatalf("prepareIssuanceConsentRequest: %v", err)
 	}

@@ -1366,6 +1366,9 @@ type Capacity struct {
 	// RelyingParties bounds the registrar. A full registrar refuses a new
 	// registration.
 	RelyingParties int
+	// CredentialBytes bounds the raw size of one stored credential. A larger
+	// credential is refused.
+	CredentialBytes int
 }
 
 func (w *Wallet) SetCapacity(c Capacity) {

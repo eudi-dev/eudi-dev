@@ -88,6 +88,9 @@ type DemoRP struct {
 	// seenJTIs holds a hash of the jti of each accepted DPoP proof and
 	// attestation PoP with its scope until its iat leaves the freshness window.
 	seenJTIs map[string]time.Time
+	// jtiFloor is the latest expiry evicted from a full seenJTIs. A proof
+	// that expires no later could be a replay of an evicted one.
+	jtiFloor time.Time
 	// deferred holds accepted issuances that are not delivered yet, keyed by
 	// the transaction id. The wallet polls with that id.
 	deferred map[string]*deferredTicket
@@ -281,7 +284,13 @@ func writeJSON(w http.ResponseWriter, status int, doc any) {
 // for one more. Visitors share the maps, so a full map must not lock out
 // everyone else.
 func makeRoom[V any](m map[string]V, expires func(V) time.Time) {
-	for len(m) >= maxEntries {
+	makeRoomUpTo(m, maxEntries, expires)
+}
+
+// makeRoomUpTo is makeRoom for a map with its own limit. It returns the latest
+// expiry among the evicted entries.
+func makeRoomUpTo[V any](m map[string]V, limit int, expires func(V) time.Time) (evicted time.Time) {
+	for len(m) >= limit {
 		first, at := "", time.Time{}
 		for key, value := range m {
 			if e := expires(value); first == "" || e.Before(at) {
@@ -289,5 +298,7 @@ func makeRoom[V any](m map[string]V, expires func(V) time.Time) {
 			}
 		}
 		delete(m, first)
+		evicted = at
 	}
+	return evicted
 }

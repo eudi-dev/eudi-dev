@@ -24,7 +24,7 @@ The public demo returns `403` for shutdown, error injection, log clearing and ch
 
 ### Outbound connections
 
-Visitor URLs are restricted to public network addresses. The wallet checks resolved addresses when connecting and rejects loopback, private, link local, CGNAT and unique local ranges, including cloud metadata endpoints. The operator's destinations are exempt at their exact address and port: the wallet's own advertised origins, the `--trusted-list` URLs and the forward proxy. The bundled issuer and verifier connect to the wallet through these origins.
+Visitor URLs are restricted to public network addresses. The wallet checks resolved addresses when connecting and rejects loopback, private, link local, CGNAT and unique local ranges, including cloud metadata endpoints. It also rejects the reserved, documentation and benchmarking ranges and the IPv6 ranges that embed an IPv4 address (NAT64, 6to4 and Teredo). The operator's destinations are exempt at their exact address and port: the wallet's own advertised origins, the `--trusted-list` URLs and the forward proxy. The bundled issuer and verifier connect to the wallet through these origins.
 
 A wallet without `--demo` also allows loopback. `--allow-private-networks` or `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=true` lifts the limit, with and without `--demo` (see [outbound address limits](wallet/serve.md#outbound-address-limits)). A demo with the limit lifted reaches loopback and private networks. Any visitor could then use it to call services on the host or in its network. The wallet warns about this at start.
 
@@ -96,7 +96,7 @@ To include a ticket, set `ticket` in the same request:
 
 All four baseline credentials are protected. The UI, the API and the CLI refuse to delete or revoke them. Visitor credentials can be deleted. Removing baseline protection requires direct access to `wallet.json`.
 
-All visitors share credentials, registered relying parties, trusted lists and the activity log. Anyone can issue credentials, delete unprotected credentials, register, revoke and delete relying parties, and read the log. Anyone can also put providers and external lists on the wallet's [trusted lists](wallet/serve.md#trusted-lists). These entries then anchor the `--arf` checks for every visitor. The demo holds at most 20 added providers and 5 added lists. It keeps the newest 500 credentials and 100 deferred issuances, besides the protected PIDs. At most 30 consent dialogs and 30 sign-ins wait at once (see [waiting flows](wallet/http-api.md#waiting-flows)). Errors from flows started in another browser are not shown. Use test data only.
+All visitors share credentials, registered relying parties, trusted lists and the activity log. Anyone can issue credentials, delete unprotected credentials, register, revoke and delete relying parties, and read the log. Anyone can also put providers and external lists on the wallet's [trusted lists](wallet/serve.md#trusted-lists). These entries then anchor the `--arf` checks for every visitor. The demo holds at most 20 added providers and 5 added lists. It keeps the newest 500 credentials and 100 deferred issuances, besides the protected PIDs. At most 30 consent dialogs and 30 sign-ins wait at once, and at most 3 of each per browser. Requests without a browser ID share one count of 3 (see [waiting flows](wallet/http-api.md#waiting-flows)). The demo refuses a credential larger than 512 KB. Errors from flows started in another browser are not shown. Use test data only.
 
 ## Rate limits
 

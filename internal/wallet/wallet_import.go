@@ -111,6 +111,12 @@ func (w *Wallet) noteDIDIssuerKey(cred *StoredCredential) {
 // storing it. It sets the batch group and binding key before the caller
 // appends the entry, because clones forward credentials at that point.
 func (w *Wallet) parseDetectedFormat(raw, group, bindingKeyPEM string) (StoredCredential, error) {
+	w.mu.RLock()
+	limit := w.capacity.CredentialBytes
+	w.mu.RUnlock()
+	if limit > 0 && len(raw) > limit {
+		return StoredCredential{}, visitorLimit("the public demo stores credentials of up to %d KB. This one has %d KB", limit>>10, (len(raw)+1023)>>10)
+	}
 	if strings.Contains(raw, "~") {
 		cred, err := w.parseSDJWTEntry(raw, group, bindingKeyPEM)
 		if err != nil {

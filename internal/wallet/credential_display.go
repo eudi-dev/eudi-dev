@@ -16,6 +16,7 @@ package wallet
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
@@ -142,6 +143,8 @@ func displayImageRef(id, kind, uri string) string {
 	return "/api/credentials/" + id + "/display/" + kind
 }
 
+// dataURIImage decodes a base64 data URI with an image/* media type. The
+// wallet serves the result from its own origin, so it refuses anything else.
 func dataURIImage(uri string) (contentType string, data []byte, ok bool) {
 	if !strings.HasPrefix(uri, "data:") {
 		return "", nil, false
@@ -161,6 +164,9 @@ func dataURIImage(uri string) (contentType string, data []byte, ok bool) {
 	} else if meta != "" && !strings.Contains(meta, "=") {
 		contentType = strings.TrimSuffix(meta, ";base64")
 	}
+	if !strings.HasPrefix(contentType, "image/") {
+		return "", nil, false
+	}
 	decoded, err := base64.StdEncoding.DecodeString(strings.TrimSpace(payload))
 	if err != nil {
 		return "", nil, false
@@ -170,7 +176,7 @@ func dataURIImage(uri string) (contentType string, data []byte, ok bool) {
 
 // resolveCredentialDisplay uses the first §12.2.4 display entry of the
 // configuration. A display problem is a warning in every mode.
-func (w *Wallet) resolveCredentialDisplay(metadata map[string]any, configID string) *oid4vc.CredentialDisplay {
+func (w *Wallet) resolveCredentialDisplay(images *offerImages, metadata map[string]any, configID string) *oid4vc.CredentialDisplay {
 	configs, _ := metadata["credential_configurations_supported"].(map[string]any)
 	config, _ := configs[configID].(map[string]any)
 	credentialMetadata, _ := config["credential_metadata"].(map[string]any)
@@ -189,7 +195,7 @@ func (w *Wallet) resolveCredentialDisplay(metadata map[string]any, configID stri
 	d.TextColor = w.displayColor(entry, "text_color")
 	if logo, ok := entry["logo"].(map[string]any); ok {
 		uri, _ := logo["uri"].(string)
-		d.LogoURI = w.cacheDisplayImage(uri, "logo")
+		d.LogoURI = w.cacheDisplayImage(images, uri, "logo")
 		if d.LogoURI != "" {
 			altText, _ := logo["alt_text"].(string)
 			d.LogoAltText = boundDisplayText(altText, maxDisplayAltTextRunes)
@@ -197,7 +203,7 @@ func (w *Wallet) resolveCredentialDisplay(metadata map[string]any, configID stri
 	}
 	if background, ok := entry["background_image"].(map[string]any); ok {
 		uri, _ := background["uri"].(string)
-		d.BackgroundURI = w.cacheDisplayImage(uri, "background_image")
+		d.BackgroundURI = w.cacheDisplayImage(images, uri, "background_image")
 	}
 	w.checkDisplayContrast(d)
 	if *d == (oid4vc.CredentialDisplay{}) {
@@ -361,7 +367,7 @@ func (w *Wallet) templateImage(ref, field string) string {
 		}
 		return "data:" + contentType + ";base64," + base64.StdEncoding.EncodeToString(data)
 	}
-	return w.cacheDisplayImage(ref, field)
+	return w.cacheDisplayImage(nil, ref, field)
 }
 
 // issuedDisplay validates operator input like an issuer's display. It
@@ -372,9 +378,9 @@ func (w *Wallet) issuedDisplay(in IssueDisplay) *oid4vc.CredentialDisplay {
 		Description:     boundDisplayText(in.Description, maxDisplayDescriptionRunes),
 		BackgroundColor: w.displayColor(map[string]any{"background_color": in.BackgroundColor}, "background_color"),
 		TextColor:       w.displayColor(map[string]any{"text_color": in.TextColor}, "text_color"),
-		LogoURI:         w.cacheDisplayImage(strings.TrimSpace(in.Logo), "logo"),
+		LogoURI:         w.cacheDisplayImage(nil, strings.TrimSpace(in.Logo), "logo"),
 		LogoAltText:     boundDisplayText(in.LogoAltText, maxDisplayAltTextRunes),
-		BackgroundURI:   w.cacheDisplayImage(strings.TrimSpace(in.BackgroundImage), "background_image"),
+		BackgroundURI:   w.cacheDisplayImage(nil, strings.TrimSpace(in.BackgroundImage), "background_image"),
 	}
 	if d.Name == "" && d.Description == "" && d.BackgroundColor == "" &&
 		d.TextColor == "" && d.LogoURI == "" && d.BackgroundURI == "" {
@@ -398,49 +404,67 @@ func (w *Wallet) displayColor(entry map[string]any, field string) string {
 	return ""
 }
 
+// offerImages resolves each display image of one credential offer once. An
+// offer can list many configurations that share a logo. ctx ends the fetches
+// when the client goes away. A nil *offerImages resolves every image anew.
+type offerImages struct {
+	ctx      context.Context
+	resolved map[string]string
+}
+
+func newOfferImages(ctx context.Context) *offerImages {
+	return &offerImages{ctx: ctx, resolved: map[string]string{}}
+}
+
+func (images *offerImages) once(uri string, resolve func(context.Context) string) string {
+	if images == nil {
+		return resolve(context.Background())
+	}
+	if embedded, ok := images.resolved[uri]; ok {
+		return embedded
+	}
+	embedded := resolve(images.ctx)
+	images.resolved[uri] = embedded
+	return embedded
+}
+
 // cacheDisplayImage stores a §12.2.4 display image as a data URI. With
 // --adhoc-display-images an https URL stays for the browser to fetch.
-func (w *Wallet) cacheDisplayImage(uri, field string) string {
+func (w *Wallet) cacheDisplayImage(images *offerImages, uri, field string) string {
 	if uri == "" {
 		return ""
-	}
-	if strings.HasPrefix(uri, "data:") {
-		body, mediaType, ok := decodeImageDataURI(uri)
-		if !ok {
-			w.rejectDisplayImage(field, uri, "a data URI must carry a base64 image")
-			return ""
-		}
-		return w.encodeDisplayImage(body, mediaType, field, uri)
 	}
 	if w.AdhocDisplayImages && !w.visitorRules().BundledImagesOnly && strings.HasPrefix(uri, "https://") {
 		// Browsers block http images on https pages, so only https URLs stay.
 		// Each card view then reaches the issuer, so this mode is opt-in.
 		return uri
 	}
-	return w.fetchAndEmbedDisplayImage(uri, field)
+	return w.embedDisplayImage(images, uri, field)
 }
 
-// embedDisplayImage ignores --adhoc-display-images. It is for the issuer
-// logo. Consent shows the logo once and the wallet never stores it.
-func (w *Wallet) embedDisplayImage(uri, field string) string {
+// embedDisplayImage ignores --adhoc-display-images. The issuer logo uses it
+// directly because consent shows the logo once and the wallet never stores it.
+func (w *Wallet) embedDisplayImage(images *offerImages, uri, field string) string {
 	if uri == "" {
 		return ""
 	}
-	if strings.HasPrefix(uri, "data:") {
-		body, mediaType, ok := decodeImageDataURI(uri)
-		if !ok {
-			w.rejectDisplayImage(field, uri, "a data URI must carry a base64 image")
-			return ""
+	return images.once(uri, func(ctx context.Context) string {
+		if strings.HasPrefix(uri, "data:") {
+			body, mediaType, ok := decodeImageDataURI(uri)
+			if !ok {
+				w.rejectDisplayImage(field, uri, "a data URI must carry a base64 image")
+				return ""
+			}
+			return w.encodeDisplayImage(body, mediaType, field, uri)
 		}
-		return w.encodeDisplayImage(body, mediaType, field, uri)
-	}
-	return w.fetchAndEmbedDisplayImage(uri, field)
+		return w.fetchAndEmbedDisplayImage(ctx, uri, field)
+	})
 }
 
 // Image URLs come from untrusted issuer metadata, so the fetch address
 // policy blocks private destinations (ADR-0004).
-func (w *Wallet) fetchAndEmbedDisplayImage(uri, field string) string {
-	req, err := http.NewRequest("GET", uri, nil)
+func (w *Wallet) fetchAndEmbedDisplayImage(ctx context.Context, uri, field string) string {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri, nil)
 	if err != nil {
 		w.rejectDisplayImage(field, uri, err.Error())
 		return ""

@@ -266,7 +266,7 @@ func (s *Server) attemptDeferredCollection(pending DeferredIssuance) DeferredAtt
 	// empty, the display comes from the metadata fetched for this collection.
 	display := pending.Display
 	if display == nil {
-		display = s.wallet.resolveCredentialDisplay(metadata, pending.ConfigurationID)
+		display = s.wallet.resolveCredentialDisplay(nil, metadata, pending.ConfigurationID)
 	}
 	// §9.2 lets the Deferred Credential Response carry a notification_id of
 	// its own, defined in §8.3.

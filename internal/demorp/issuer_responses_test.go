@@ -552,35 +552,46 @@ func TestADPoPProofIsAcceptedOncePerTargetURI(t *testing.T) {
 }
 
 // RFC 9449 §11.1: a seen jti is declined while its proof would be accepted.
-// A full replay cache refuses new proofs instead of forgetting a live jti.
-func TestAFullDPoPReplayCacheKeepsEverySeenJTI(t *testing.T) {
+// A full replay cache evicts the proofs that expire first, so new proofs are
+// still accepted. A replay of an evicted proof is still refused.
+func TestAFullDPoPReplayCacheEvictsTheFirstExpiringJTI(t *testing.T) {
 	d, _, _ := newDemoRP(t)
 	key, err := mock.GenerateKey()
 	if err != nil {
 		t.Fatal(err)
 	}
-	send := func(jti string) map[string]string {
+	send := func(jti string, iat time.Time) map[string]string {
 		req := httptest.NewRequest(http.MethodPost, "/", nil)
 		req.Header.Set("DPoP", signES256(t, key,
 			map[string]any{"alg": "ES256", "typ": "dpop+jwt", "jwk": holderJWK(t, key)},
-			map[string]any{"htm": "POST", "htu": demoIssuerID + "/token", "iat": time.Now().Unix(), "jti": jti},
+			map[string]any{"htm": "POST", "htu": demoIssuerID + "/token", "iat": iat.Unix(), "jti": jti},
 		))
 		_, errResp := d.dpopKey(req, demoIssuerID+"/token")
 		return errResp
 	}
-	if errResp := send("first"); errResp != nil {
+	earlier := time.Now().Add(-time.Minute)
+	if errResp := send("first", earlier); errResp != nil {
 		t.Fatalf("first use: %v", errResp)
 	}
 	d.mu.Lock()
 	for i := len(d.seenJTIs); i < maxSeenJTIs; i++ {
-		d.seenJTIs[fmt.Sprint("other-", i)] = time.Now().Add(time.Hour)
+		d.seenJTIs[fmt.Sprint("other-", i)] = time.Now().Add(freshnessWindow)
 	}
 	d.mu.Unlock()
-	if errResp := send("second"); errResp == nil {
-		t.Error("a full replay cache took a new proof")
+	if errResp := send("second", time.Now()); errResp != nil {
+		t.Errorf("a full replay cache refused a new proof: %v", errResp)
 	}
-	if errResp := send("first"); errResp == nil {
-		t.Error("a replayed jti was accepted after the cache filled")
+	if errResp := send("first", earlier); errResp == nil {
+		t.Error("a replay of the evicted proof was accepted")
+	}
+	if errResp := send("second", time.Now()); errResp == nil {
+		t.Error("a replay of a cached proof was accepted")
+	}
+	d.mu.Lock()
+	held := len(d.seenJTIs)
+	d.mu.Unlock()
+	if held > maxSeenJTIs {
+		t.Errorf("the replay cache holds %d proofs, want at most %d", held, maxSeenJTIs)
 	}
 }
 

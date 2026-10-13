@@ -15,12 +15,15 @@
 package wallet
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
@@ -119,7 +122,7 @@ func TestApproveRequest_CarriesTxCodeIntoIssuance(t *testing.T) {
 		{"no code", "", "this offer requires a transaction code"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			consentReq, _, err := generateTestWallet(t).prepareIssuanceConsentRequest(offerURI, "")
+			consentReq, _, err := generateTestWallet(t).prepareIssuanceConsentRequest(t.Context(), offerURI, "")
 			if err != nil {
 				t.Fatalf("prepareIssuanceConsentRequest: %v", err)
 			}
@@ -185,7 +188,7 @@ func TestDescribeCredentialOfferEmbedsTheIssuerLogo(t *testing.T) {
 	defer srv.Close()
 	serverURL = srv.URL
 
-	details, _ := generateTestWallet(t).describeCredentialOffer(&oid4vc.CredentialOffer{CredentialIssuer: srv.URL})
+	details, _ := generateTestWallet(t).describeCredentialOffer(t.Context(), &oid4vc.CredentialOffer{CredentialIssuer: srv.URL})
 	if details.IssuerName != "Test Issuer" {
 		t.Errorf("issuer name = %q, want Test Issuer", details.IssuerName)
 	}
@@ -197,9 +200,73 @@ func TestDescribeCredentialOfferEmbedsTheIssuerLogo(t *testing.T) {
 	// embedded because it shows once at consent and is never stored.
 	adhoc := generateTestWallet(t)
 	adhoc.AdhocDisplayImages = true
-	adhocDetails, _ := adhoc.describeCredentialOffer(&oid4vc.CredentialOffer{CredentialIssuer: srv.URL})
+	adhocDetails, _ := adhoc.describeCredentialOffer(t.Context(), &oid4vc.CredentialOffer{CredentialIssuer: srv.URL})
 	if !strings.HasPrefix(adhocDetails.IssuerLogo, "data:image/") {
 		t.Errorf("issuer logo not embedded under adhoc mode, got %.30q", adhocDetails.IssuerLogo)
+	}
+}
+
+// An offer can list many configurations that share one logo. The wallet
+// fetches each image URL once per offer, and stops fetching when the client
+// goes away.
+func TestDescribeCredentialOfferFetchesEachImageOnce(t *testing.T) {
+	var serverURL string
+	var logoFetches atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/.well-known/openid-credential-issuer"):
+			logo := map[string]any{"uri": serverURL + "/logo.png"}
+			configs := map[string]any{}
+			for i := range 5 {
+				configs[fmt.Sprintf("config-%d", i)] = map[string]any{
+					"format": "dc+sd-jwt",
+					"vct":    "urn:example:vct",
+					"credential_metadata": map[string]any{
+						"display": []any{map[string]any{"name": "Card", "logo": logo, "background_image": logo}},
+					},
+				}
+			}
+			rw.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(rw).Encode(map[string]any{
+				"credential_issuer":                   serverURL,
+				"credential_endpoint":                 serverURL + "/credential",
+				"credential_configurations_supported": configs,
+				"display":                             []any{map[string]any{"name": "Test Issuer", "logo": logo}},
+			})
+		case strings.HasSuffix(r.URL.Path, "/logo.png"):
+			logoFetches.Add(1)
+			rw.Header().Set("Content-Type", "image/png")
+			rw.Write(tinyPNG)
+		default:
+			rw.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+	serverURL = srv.URL
+	offer := &oid4vc.CredentialOffer{
+		CredentialIssuer:           srv.URL,
+		CredentialConfigurationIDs: []string{"config-0", "config-1", "config-2", "config-3", "config-4"},
+	}
+
+	details, _ := generateTestWallet(t).describeCredentialOffer(t.Context(), offer)
+	if got := logoFetches.Load(); got != 1 {
+		t.Errorf("logo fetched %d times, want 1", got)
+	}
+	for _, credential := range details.Credentials {
+		if credential.Display == nil || !strings.HasPrefix(credential.Display.LogoURI, "data:image/png") {
+			t.Errorf("%s has no embedded logo", credential.ID)
+		}
+	}
+
+	logoFetches.Store(0)
+	gone, cancel := context.WithCancel(t.Context())
+	cancel()
+	details, _ = generateTestWallet(t).describeCredentialOffer(gone, offer)
+	if got := logoFetches.Load(); got != 0 {
+		t.Errorf("logo fetched %d times after the client went away, want 0", got)
+	}
+	if details.IssuerLogo != "" {
+		t.Errorf("issuer logo = %.30q, want none", details.IssuerLogo)
 	}
 }
 
@@ -238,7 +305,7 @@ func TestDescribeCredentialOffer_TxCodeShape(t *testing.T) {
 				CredentialIssuer: "https://issuer.invalid",
 				Grants:           oid4vc.OfferGrants{PreAuthorizedCode: "code", TxCode: tc.txCode},
 			}
-			details, _ := generateTestWallet(t).describeCredentialOffer(offer)
+			details, _ := generateTestWallet(t).describeCredentialOffer(t.Context(), offer)
 			if !details.TxCode {
 				t.Fatal("expected tx_code to be reported as required")
 			}

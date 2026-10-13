@@ -502,7 +502,7 @@ func TestCacheDisplayImage_BlocksInternalAddress(t *testing.T) {
 
 	// Loopback stands in for any internal target. The port is closed, so the
 	// policy has to refuse at dial time for the test to see a policy error.
-	got := w.cacheDisplayImage("http://127.0.0.1:9/internal.png", "logo")
+	got := w.cacheDisplayImage(nil, "http://127.0.0.1:9/internal.png", "logo")
 	if got != "" {
 		t.Errorf("a display image at an internal address was fetched: %.40q", got)
 	}
@@ -666,7 +666,7 @@ func TestResolveCredentialDisplayBoundsIssuerText(t *testing.T) {
 			},
 		},
 	}
-	d := w.resolveCredentialDisplay(metadata, "cfg")
+	d := w.resolveCredentialDisplay(nil, metadata, "cfg")
 	if d == nil {
 		t.Fatal("no display resolved")
 	}

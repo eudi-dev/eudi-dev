@@ -358,7 +358,7 @@ func TestStrictARFRefusesAnOfferBeforeTheConsentDialog(t *testing.T) {
 	srv, offerURI := setupMockIssuer(t, w, mockIssuerOpts{})
 	defer srv.Close()
 
-	if _, _, err := w.prepareIssuanceConsentRequest(offerURI, ""); err == nil || !strings.Contains(err.Error(), "RPRC_22a") {
+	if _, _, err := w.prepareIssuanceConsentRequest(t.Context(), offerURI, ""); err == nil || !strings.Contains(err.Error(), "RPRC_22a") {
 		t.Errorf("err %v, want the refusal before the dialog", err)
 	}
 }
@@ -416,7 +416,7 @@ func TestStrictARFChecksTheChosenConfigurationOnly(t *testing.T) {
 	offerURI := "openid-credential-offer://?credential_offer=" + url.QueryEscape(string(offer))
 	w.RequireARF = true
 	w.ValidationMode = ValidationModeStrict
-	if _, _, err := w.prepareIssuanceConsentRequest(offerURI, ""); err != nil {
+	if _, _, err := w.prepareIssuanceConsentRequest(t.Context(), offerURI, ""); err != nil {
 		t.Errorf("the consent dialog refused an offer with a registered configuration: %v", err)
 	}
 	result, err := w.ProcessCredentialOfferWithOptions(offerURI, OfferOptions{ConfigurationID: "diploma"})

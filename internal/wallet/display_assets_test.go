@@ -86,6 +86,32 @@ func TestDisplayImagesStoredAsAssetsBesideWallet(t *testing.T) {
 	}
 }
 
+// The wallet serves display images from its own origin, so it serves image/*
+// content only. A stored HTML page or unknown asset type is not served.
+func TestDisplayImageEndpointServesOnlyImages(t *testing.T) {
+	srv := newTestServer(t, true)
+	store := NewWalletStore(t.TempDir())
+	if _, err := store.LoadOrCreate(); err != nil {
+		t.Fatalf("initializing store: %v", err)
+	}
+	srv.SetStore(store)
+	if _, err := store.Backend().Write(store.assetKey("page.bin"), []byte("<script>alert(1)</script>"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	html := "data:text/html;base64," + base64.StdEncoding.EncodeToString([]byte("<script>alert(1)</script>"))
+	srv.wallet.PutCredential(StoredCredential{ID: "served", Display: &oid4vc.CredentialDisplay{LogoURI: tinyPNGDataURI, BackgroundURI: html}})
+	srv.wallet.PutCredential(StoredCredential{ID: "asset", Display: &oid4vc.CredentialDisplay{LogoURI: "asset:page.bin"}})
+
+	if got := serverRequest(t, srv, http.MethodGet, "/api/credentials/served/display/logo", ""); got.Code != http.StatusOK || got.Header().Get("Content-Type") != "image/png" {
+		t.Errorf("image: %d %q, want 200 image/png", got.Code, got.Header().Get("Content-Type"))
+	}
+	for _, path := range []string{"/api/credentials/served/display/background", "/api/credentials/asset/display/logo"} {
+		if got := serverRequest(t, srv, http.MethodGet, path, ""); got.Code != http.StatusNotFound {
+			t.Errorf("%s: %d %q, want 404", path, got.Code, got.Header().Get("Content-Type"))
+		}
+	}
+}
+
 // Identical image content produces one stored asset and one reference.
 func TestStoreDisplayAssetDedupes(t *testing.T) {
 	store := NewWalletStore(t.TempDir())
@@ -110,7 +136,7 @@ func TestAdhocDisplayImagesKeepsTheURL(t *testing.T) {
 	w.AdhocDisplayImages = true
 
 	url := "https://issuer.example/logo.png"
-	if got := w.cacheDisplayImage(url, "logo"); got != url {
+	if got := w.cacheDisplayImage(nil, url, "logo"); got != url {
 		t.Fatalf("ad-hoc mode should keep the URL unfetched, got %q", got)
 	}
 	if entry := findLogEntry(w.GetLog(), "credential_display_image_rejected"); entry != nil {
@@ -119,12 +145,12 @@ func TestAdhocDisplayImagesKeepsTheURL(t *testing.T) {
 	if ref := displayImageRef("some-id", "logo", url); ref != url {
 		t.Fatalf("the kept URL should pass through to the client, got %q", ref)
 	}
-	if got := w.cacheDisplayImage(tinyPNGDataURI, "logo"); !strings.HasPrefix(got, "data:") {
+	if got := w.cacheDisplayImage(nil, tinyPNGDataURI, "logo"); !strings.HasPrefix(got, "data:") {
 		t.Fatalf("a data URI image should still be embedded in ad-hoc mode, got %.20q", got)
 	}
 	// An http URL would be mixed content, so the wallet fetches it instead.
 	// The fetch fails against this unreachable host and returns "".
-	if got := w.cacheDisplayImage("http://issuer.example/logo.png", "logo"); got == "http://issuer.example/logo.png" {
+	if got := w.cacheDisplayImage(nil, "http://issuer.example/logo.png", "logo"); got == "http://issuer.example/logo.png" {
 		t.Fatal("an http image URL should not be kept ad-hoc")
 	}
 }

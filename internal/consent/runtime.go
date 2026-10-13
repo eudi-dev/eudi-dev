@@ -50,8 +50,26 @@ func (rt *Runtime) MaxPending() int {
 	return rt.maxPending
 }
 
+// SetMaxPendingPerOwner sets how many requests of one owner may wait for an
+// answer at once. Requests without an owner share one count. Zero means no
+// limit per owner.
+func (rt *Runtime) SetMaxPendingPerOwner(n int) {
+	rt.mu.Lock()
+	defer rt.mu.Unlock()
+	rt.maxPendingPerOwner = n
+}
+
+// MaxPendingPerOwner returns how many requests of one owner may wait for an
+// answer at once. Zero means no limit per owner.
+func (rt *Runtime) MaxPendingPerOwner() int {
+	rt.mu.RLock()
+	defer rt.mu.RUnlock()
+	return rt.maxPendingPerOwner
+}
+
 // Create registers a request that waits for an answer. It refuses one with
-// ErrTooManyPending when the maximum number already waits.
+// ErrTooManyPending when the maximum number already waits, in total or for
+// the request's owner.
 func (rt *Runtime) Create(req *Request) error {
 	rt.mu.Lock()
 	now := time.Now()
@@ -59,7 +77,7 @@ func (rt *Runtime) Create(req *Request) error {
 	if req.CreatedAt.IsZero() {
 		req.CreatedAt = now
 	}
-	pending := 0
+	pending, pendingForOwner := 0, 0
 	for id, r := range rt.requests {
 		age := now.Sub(r.CreatedAt)
 		if age > consentRequestMaxAge || (r.Status != StatusPending && age > resolvedConsentRetention) {
@@ -68,9 +86,12 @@ func (rt *Runtime) Create(req *Request) error {
 		}
 		if r.Status == StatusPending {
 			pending++
+			if r.Owner == req.Owner {
+				pendingForOwner++
+			}
 		}
 	}
-	if pending >= rt.maxPending {
+	if pending >= rt.maxPending || (rt.maxPendingPerOwner > 0 && pendingForOwner >= rt.maxPendingPerOwner) {
 		rt.mu.Unlock()
 		return ErrTooManyPending
 	}
@@ -399,20 +420,21 @@ type NextErrorOverride struct {
 // Runtime shares flow state between wallets using the same store directory in this
 // process.
 type Runtime struct {
-	mu                sync.RWMutex
-	requests          map[string]*Request
-	maxPending        int
-	nextError         *NextErrorOverride
-	subscribers       map[int64]chan *Request
-	subID             int64
-	errSubscribers    map[int64]chan Error
-	errSubID          int64
-	stateSubscribers  map[int64]chan struct{}
-	stateSubID        int64
-	authSubscribers   map[int64]authSubscriber
-	authSubID         int64
-	lastErrors        map[string]*storedError
-	authCodeCallbacks map[string]chan url.Values
+	mu                 sync.RWMutex
+	requests           map[string]*Request
+	maxPending         int
+	maxPendingPerOwner int
+	nextError          *NextErrorOverride
+	subscribers        map[int64]chan *Request
+	subID              int64
+	errSubscribers     map[int64]chan Error
+	errSubID           int64
+	stateSubscribers   map[int64]chan struct{}
+	stateSubID         int64
+	authSubscribers    map[int64]authSubscriber
+	authSubID          int64
+	lastErrors         map[string]*storedError
+	authCodeCallbacks  map[string]chan url.Values
 }
 
 func NewRuntime() *Runtime {

@@ -53,7 +53,7 @@ Protocol endpoints for verifiers and issuers answer as their specification defin
 
 ### Waiting flows
 
-A flow that waits for the consent dialog or for a sign-in at the issuer holds the wallet until it ends or times out. At most 100 consent dialogs and 100 sign-ins wait at once, 30 of each on a public demo. Beyond that the wallet refuses a new interactive presentation or offer with `503`, `temporarily_unavailable` and a `Retry-After` header. A waiting flow ends after five minutes at the latest.
+A flow that waits for the consent dialog or for a sign-in at the issuer holds the wallet until it ends or times out. At most 100 consent dialogs and 100 sign-ins wait at once, 30 of each on a public demo. On a public demo, one browser can also have at most 3 consent dialogs and 3 sign-ins waiting. The `X-Eudi-Owner` header or the session cookie identifies the browser. Requests with neither share one count. Beyond these limits the wallet refuses a new interactive presentation or offer with `503`, `temporarily_unavailable` and a `Retry-After` header. A waiting flow ends after five minutes at the latest.
 
 ### Presentations and offers
 

@@ -38,6 +38,23 @@ func TestBlockPrivateAddresses(t *testing.T) {
 		{"[fc00::1]:80", true},         // unique-local
 		{"[64:ff9b::a00:1]:80", true},  // NAT64 for 10.0.0.1
 		{"0.0.0.0:80", true},
+		{"0.1.2.3:80", true},
+		{"192.0.0.8:80", true},             // IETF protocol assignments
+		{"192.0.2.1:80", true},             // documentation
+		{"198.18.0.1:80", true},            // benchmarking
+		{"198.19.255.254:80", true},        // benchmarking
+		{"240.0.0.1:80", true},             // reserved
+		{"255.255.255.255:80", true},       // broadcast
+		{"[64:ff9b:1::a00:1]:80", true},    // local-use NAT64 for 10.0.0.1
+		{"[2002:a00:1::1]:80", true},       // 6to4 for 10.0.0.1
+		{"[2001:0:4136:e378::1]:80", true}, // Teredo
+		{"[2001:db8::1]:80", true},         // documentation
+		{"[3fff::1]:80", true},             // documentation
+		{"[::a00:1]:80", true},             // IPv4-compatible 10.0.0.1
+		{"[100::1]:80", true},              // discard-only
+		{"[fec0::1]:80", true},             // site-local
+		{"198.20.0.1:443", false},
+		{"[2001:4860:4860::8888]:443", false},
 		{"1.1.1.1:443", false},
 		{"93.184.216.34:443", false},
 		{"[2606:4700:4700::1111]:443", false},
