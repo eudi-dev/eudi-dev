@@ -242,7 +242,10 @@ func templateClaimPaths(cfg templateConfiguration) []map[string]any {
 	}
 	// Only tickets issued after wallet attestation have this claim.
 	if cfg.id == ticketConfigurationID {
-		paths = append(paths, map[string]any{"path": []string{"wallet_attestation"}})
+		paths = append(paths, map[string]any{
+			"path":    []string{"wallet_attestation"},
+			"display": []map[string]any{{"name": "Wallet attestation", "locale": "en-US"}},
+		})
 	}
 	return paths
 }

@@ -840,6 +840,12 @@ textarea.form-input {
   color: var(--text-dim);
 }
 
+/* A placeholder that doesn't fit ends in an ellipsis. */
+.form-input,
+#offer-input {
+  text-overflow: ellipsis;
+}
+
 .form-textarea {
   height: 72px;
   resize: vertical;
@@ -2363,7 +2369,9 @@ textarea.form-input {
 
 .registrar-cert-actions {
   display: inline-flex;
+  flex-wrap: wrap;
   gap: 6px;
+  max-width: 100%;
 }
 
 .registrar-cert-title {
@@ -2414,7 +2422,9 @@ textarea.form-input {
 .registrar-party-actions,
 .registrar-use-actions {
   display: inline-flex;
+  flex-wrap: wrap;
   gap: 6px;
+  max-width: 100%;
 }
 
 .registrar-use-credentials {
