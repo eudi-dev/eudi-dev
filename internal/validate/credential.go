@@ -162,14 +162,20 @@ func SDJWT(token *sdjwt.Token, trust Trust, opts Options) *Result {
 }
 
 // JWT validates a parsed JWT. The attestation catalogue lists SD-JWT VC and
-// mdoc types only, so a JWT gets no trust check.
+// mdoc types only. A wallet still anchors a registration certificate in its
+// lists of registration certificate providers. Any other JWT gets no trust
+// check.
 func JWT(token *sdjwt.Token, trust Trust, opts Options) *Result {
 	v := newRun(trust, opts)
 	r := &Result{Format: FormatJWT, SDJWT: token}
 	r.add(jwtValidity(token.Payload, v.now), Check{Name: CheckIntegrity, Status: Skipped, Detail: "Not applicable for plain JWT"})
 	r.add(v.trustedListCheck()...)
-	r.add(v.jwtSignature(token, catalogueState{}, r))
-	r.add(v.status(token.ResolvedClaims, statuslist.FormatJWT, catalogueState{}, r)...)
+	cat := v.catalogue(token.Raw)
+	r.add(v.jwtSignature(token, cat, r))
+	if cat.found {
+		r.add(v.trustCheck(cat, r))
+	}
+	r.add(v.status(token.ResolvedClaims, statuslist.FormatJWT, cat, r)...)
 	return r
 }
 

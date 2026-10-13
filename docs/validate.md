@@ -24,7 +24,7 @@ eudi validate credential.txt
 | `integrity` | The disclosure digests of an SD-JWT. Every disclosed element of an mdoc must match a value digest of the MSO. A DeviceResponse must report status 0 |
 | `trusted list` | Entries of the supplied trusted list that could not be read (only when there are some) |
 | `signature` | The issuer signature |
-| `trust` | Whether the trusted list of the credential's catalogue entry anchors it (SD-JWT VC and mdoc) |
+| `trust` | Whether the trusted list of the credential's catalogue entry anchors it (SD-JWT VC and mdoc), or the wallet's `registrar` list for a registration certificate |
 | `status` | The entry in the credential's status list |
 | `status list signature` | Whether a trusted list anchors the status list |
 | `haip` | The HAIP 1.0 rules for an SD-JWT VC (only with `--haip`) |
@@ -82,6 +82,8 @@ A trusted list past its `NextUpdate` is expired (ETSI TS 119 602 V1.1.1 §6.3.15
 ## Catalogue trust
 
 When the wallet's attestation catalogue has an entry for the credential type, `validate` and the web decoder also check whether one of the entry's trusted lists anchors the credential. The check reads the lists linked in the entry. For a PID or a PuB-EAA it also reads the lists of that type from the wallet's list of trusted lists, like the wallet does on issuance. `validate` adds the result as `trust` to `--json`. The result doesn't change the exit code. A type without a catalogue entry gets no trust check.
+
+A registration certificate (`typ` `rc-wrp+jwt`) has no catalogue entry. The wallet's lists of registration certificate providers anchor it instead, as they do for a presentation under `--arf`. The issuance service of such a list anchors the certificate, and its revocation service the status list.
 
 `validate` and `eudi decoder` read the stored wallet when it exists. Neither creates one. The lists from `wallet serve --trusted-list` and the operators from `--trusted-list-ca` count only in the decoder of the running wallet. Fetches use the HTTP client of the wallet. In the decoder of the running wallet, that client follows `--tls-ca` and the proxy flags of `wallet serve`.
 

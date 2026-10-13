@@ -1303,7 +1303,7 @@
     button.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      navigateToEmbeddedCredential(value);
+      navigateToEmbeddedCredential(info.text);
     });
     return button;
   }
@@ -1364,16 +1364,36 @@
     if (!text) return null;
 
     if (looksLikeSDJWT(text)) {
-      return { format: "sd-jwt", label: "SD-JWT" };
+      return { format: "sd-jwt", label: "SD-JWT", text };
     }
     if (looksLikeJWT(text)) {
-      return { format: "jwt", label: "JWT" };
+      return { format: "jwt", label: "JWT", text };
+    }
+    const inner = base64URLEncodedJWT(text);
+    if (inner) {
+      return { format: "jwt", label: "base64url-encoded JWT", text: inner };
     }
     if (looksLikeMDOC(text)) {
-      return { format: "mdoc", label: "mdoc" };
+      return { format: "mdoc", label: "mdoc", text };
     }
 
     return null;
+  }
+
+  // ETSI TS 119 472-2 OIDFVP-HAIP-COMMON-REQ-RO-16 puts "the base64url
+  // encoding of the serialized RP registration certificate" in verifier_info,
+  // so a JWT there is encoded a second time.
+  function base64URLEncodedJWT(text) {
+    if (!/^[A-Za-z0-9_-]+$/.test(text)) return null;
+    const bytes = decodeBase64URL(text);
+    if (!bytes) return null;
+    let decoded;
+    try {
+      decoded = new TextDecoder("utf-8", { fatal: true }).decode(bytes).trim();
+    } catch (_) {
+      return null;
+    }
+    return looksLikeJWT(decoded) ? decoded : null;
   }
 
   function looksLikeSDJWT(text) {

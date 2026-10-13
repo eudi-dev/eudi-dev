@@ -168,6 +168,30 @@ test.describe("JWT decoding", () => {
       "verifier_info"
     );
   });
+
+  test("a base64url-encoded registration certificate opens as a JWT", async ({ page }) => {
+    const request = makeJWT(
+      { alg: "none", typ: "JWT" },
+      {
+        client_id: "https://verifier.example",
+        verifier_info: [
+          {
+            format: "registration_cert",
+            data: Buffer.from(EMBEDDED_REGISTRATION_JWT).toString("base64url"),
+          },
+        ],
+      }
+    );
+    await page.goto("/");
+    await page.locator("#input").fill(request);
+    await expect(page.locator("#format-badge")).toHaveText("JWT", { timeout: 3000 });
+
+    await page.locator('.embedded-token[data-embedded-format="jwt"]').first().click();
+    await expect(page.locator("#input")).toHaveValue(EMBEDDED_REGISTRATION_JWT);
+    await expect(page.locator('#output .section[data-section="payload"]')).toContainText(
+      "registration-cert"
+    );
+  });
 });
 
 test.describe("SD-JWT decoding", () => {

@@ -122,6 +122,9 @@ func (w *Wallet) StatusListAnchors(raw string) []*x509.Certificate {
 // lists of its catalogue entry. found is false when the catalogue has no entry
 // for its type.
 func (w *Wallet) CheckCatalogueAnchoring(raw string) (anchoring CatalogueAnchoring, found bool) {
+	if anchoring, found := w.registrationCertificateAnchoring(raw); found {
+		return anchoring, true
+	}
 	return w.catalogueAnchoring(receivedCredential(raw))
 }
 
