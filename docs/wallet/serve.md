@@ -152,7 +152,7 @@ The HTTP API:
 | `POST` | `/api/trust/lists` | Add an external list: `url`. Answers `201` with the list |
 | `DELETE` | `/api/trust/lists?url=<url>` | Remove an external list |
 
-Each entry of `lists` has `url` and, where they apply, `configured` (from `--trusted-list`), `via` (the list of trusted lists that points to it) and `error` (why the wallet can't use it):
+Each entry of `lists` has `url` and, where they apply, `configured` (from `--trusted-list`), `via` (the list of trusted lists that points to it) and `error` (why the wallet can't use it). A readable list also has its `type` (LoTEType). `direct` is `true` when the wallet uses lists of that type without a catalogue entry. For example:
 
 ```json
 {
@@ -378,6 +378,8 @@ credentials:
 
 Every start adds the entries again. Template entries get fresh dates. A credential from an earlier start with the same `id` is replaced, so the wallet holds one copy of each entry. Its revocation status resets with each start.
 
+Only one of `--credentials`, `--catalog` and `--relying-parties` can read stdin. A detached server (`-d`) can't read stdin.
+
 With `--demo` the startup credentials are part of the baseline, so a demo reset restores them with the default PIDs. For a demo where visitors can delete every credential, set `protected: false` on the entries and turn off the default PIDs:
 
 ```bash
@@ -416,9 +418,9 @@ eudi wallet serve --demo --pid=false --credentials demo-credentials.yaml
 | `schema` | TS11 SchemaMeta fields: `rulebookURI`, `attestationLoS`, `bindingType`, `version` and `trustedAuthorities`. The defaults are those of `eudi catalog add` |
 | `issuerCA` | PEM file with the CA of your issuer, relative to the catalogue file. The wallet puts it on the trusted list of the category, like `catalog add --issuer-ca`. It can't go with `trustedAuthorities` |
 
-The wallet checks every entry before it starts. An invalid entry stops the start. So does an entry that reuses the name or a type of another entry. The error message shows the file and the entry.
+The wallet checks every entry before it starts. An invalid entry stops the start. So does an entry that reuses the name or a type of a template entry or of another entry in the files. The error message shows the file and the entry. An entry added through the UI, the API or `eudi catalog add` doesn't stop the start. The file's entry replaces it.
 
-Each start loads the file again. An entry keeps its id, so a restart adds no duplicates. A changed entry is updated. An entry removed from the file leaves the catalogue at the next start. The wallet marks these entries as pre-registered and removes only those. Entries added through the UI, the API or `eudi catalog add` stay. A CA added through `issuerCA` stays on its list when you remove the entry. Remove it with `eudi trust rm-ca`.
+Each start loads the file again. An entry keeps its id, so a restart adds no duplicates. A changed entry is updated. An entry removed from the file leaves the catalogue at the next start. The wallet marks these entries as pre-registered and removes only those. Entries added through the UI, the API or `eudi catalog add` stay. The only exception is an entry with the name or a type of an entry in the file. The file's entry replaces it. A CA added through `issuerCA` stays on its list when you remove the entry. Remove it with `eudi trust rm-ca`.
 
 Outside the demo you can change or delete a pre-registered entry. The next start restores it from the file. With `--demo` visitors can't change or delete these entries, and a demo reset restores them with their CAs.
 
@@ -449,9 +451,9 @@ services:
 
 The file must set the `identifier` of each party and the `intendedUseIdentifier` of each intended use. The certificates contain them, so they have to stay the same on every start. The registrar fills in the other defaults, as for an API request. An invalid registration stops the start, and the error message shows the file.
 
-With memory storage this keeps a verifier registered across restarts. Each start also issues a registration certificate for every intended use and every issuer service. Valid certificates are kept. The registration certificates show in the UI and in `GET /api/registrar/registration-certificates?identifier=<identifier>`. An access certificate needs the party's own key. Get it with **Issue access certificate** in the relying parties list or from the registrar API. With [seeded keys](../wallet.md#seeded-keys), certificates issued before a restart still verify.
+Each start registers the parties again, also with memory storage. Each start also issues a registration certificate for every intended use and every issuer service. With file or Postgres storage, valid certificates are kept. The registration certificates show in the UI and in `GET /api/registrar/registration-certificates?identifier=<identifier>`. An access certificate needs the party's own key. Get it with **Issue access certificate** in the relying parties list or from the registrar API. With [seeded keys](../wallet.md#seeded-keys), certificates issued before a restart still verify.
 
-When the stored registration differs from the file, the next start replaces it with the file's version. A registration removed from the file stays registered. With `--demo` visitors can't change or delete these registrations, and a demo reset registers them again.
+When the stored registration differs from the file, the next start replaces it with the file's version. A service that lists attestation types without a provider entitlement gets the entitlement of each type's category. The category comes from `--catalog` and the templates. A type outside them counts as a PID when its name says so, and as an EAA otherwise. Catalogue entries added by visitors don't change these entitlements. A registration removed from the file stays registered. With `--demo` visitors can't change or delete these registrations, and a demo reset registers them again.
 
 As with every flag, the environment variable is `EUDI_DEV_RELYING_PARTIES`.
 

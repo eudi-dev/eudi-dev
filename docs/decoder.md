@@ -12,7 +12,7 @@ Paste a credential to see its header, claims and disclosures. The decoder runs t
 
 ## Trust
 
-The decoder reads the attestation catalogue of the stored wallet when one exists. It never creates a wallet. It anchors a credential in the trusted lists of its catalogue entry, as described in [catalogue trust](validate.md#catalogue-trust). The decoder of a running wallet also uses the lists from `--trusted-list` and the list operators from `--trusted-list-ca`.
+The decoder reads the attestation catalogue of the stored wallet when one exists. It never creates a wallet. It anchors a credential in the trusted lists of its catalogue entry, as described in [catalogue trust](validate.md#catalogue-trust). A registration certificate has no catalogue entry. The decoder anchors it in the lists of registration certificate providers. A registration certificate copied from `verifier_info` is base64url encoded (ETSI TS 119 472-2 RO-16). The decoder, `eudi decode` and `eudi validate` decode it and read the JWT inside. The decoder of a running wallet also uses the lists from `--trusted-list` and the list operators from `--trusted-list-ca`.
 
 The decoder fetches the trusted lists, issuer metadata and status lists referenced in the input. It reaches public addresses and loopback only. `--allow-private-networks` (or `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=true`) lifts the limit for issuers on a private network (see [outbound address limits](wallet/serve.md#outbound-address-limits)).
 
@@ -31,7 +31,7 @@ The decoder fetches the trusted lists, issuer metadata and status lists referenc
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `input` | string | The credential: an SD-JWT VC, a JWT VC, or an mdoc in base64url or hex. Required |
+| `input` | string | The credential: an SD-JWT VC, a JWT, a base64url-encoded JWT, or an mdoc in base64url or hex. Required |
 | `key` | string | Issuer public key (PEM or JWK) for the signature check |
 | `trustListURL` | string | URL of a trusted list that anchors the issuer |
 | `trustListRaw` | string | A trusted list JWT that anchors the issuer |

@@ -24,7 +24,7 @@ eudi validate credential.txt
 | `integrity` | The disclosure digests of an SD-JWT. Every disclosed element of an mdoc must match a value digest of the MSO. A DeviceResponse must report status 0 |
 | `trusted list` | Entries of the supplied trusted list that could not be read (only when there are some) |
 | `signature` | The issuer signature |
-| `trust` | Whether the trusted list of the credential's catalogue entry anchors it (SD-JWT VC and mdoc), or the wallet's `registrar` list for a registration certificate |
+| `trust` | Whether a trusted list anchors the credential. An SD-JWT VC or an mdoc uses the list of its catalogue entry. A registration certificate uses the lists of registration certificate providers |
 | `status` | The entry in the credential's status list |
 | `status list signature` | Whether a trusted list anchors the status list |
 | `haip` | The HAIP 1.0 rules for an SD-JWT VC (only with `--haip`) |

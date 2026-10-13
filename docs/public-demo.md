@@ -20,7 +20,7 @@ Browser flows ask for consent. API submissions provide consent directly. A demo 
 
 ### Administrative operations
 
-The public demo returns `403` for shutdown, error injection, log clearing and changes to format, consent or conformance settings. Visitors can save templates. They can't change or delete the predefined templates or the operator's templates (those present at startup). They also can't change the registrations of the demo issuer, the demo verifier and the parties from `--relying-parties`, or issue and revoke their registration certificates. Anyone can get an access certificate for these parties. Visitors can't delete the catalogue entries of the predefined templates. The template and issue endpoints reject uploaded images with `403`. Only the images bundled with the wallet are accepted. Images from issuer metadata are fetched once and stored, so the cards show them without loading anything from the issuer. The demo ignores `--adhoc-display-images`. A demo keeps at most 50 visitor templates, and a reset deletes them. Configuration responses omit host paths and the process ID.
+The public demo returns `403` for shutdown, error injection, log clearing and changes to format, consent or conformance settings. Visitors can save templates. They can't change or delete the predefined templates or the operator's templates (those present at startup). The demo issuer, the demo verifier and the parties from `--relying-parties` are protected. Visitors can't change these registrations. They can't issue or revoke their registration certificates either. Anyone can get an access certificate for these parties. Visitors can't delete the catalogue entries of the predefined templates. The template and issue endpoints reject uploaded images with `403`. Only the images bundled with the wallet are accepted. Images from issuer metadata are fetched once and stored, so the cards show them without loading anything from the issuer. The demo ignores `--adhoc-display-images`. A demo keeps at most 50 visitor templates, and a reset deletes them. Configuration responses omit host paths and the process ID.
 
 ### Outbound connections
 
@@ -42,7 +42,7 @@ Use `--mode strict` to reject violations, or `--haip=false` and `--arf=false` to
 
 Resets run every hour by default. `--demo-reset` accepts an interval such as `24h`, a daily time such as `00:00`, or a time with a zone such as `"00:00 Europe/Berlin"`. `0` disables resets. Daily schedules follow local time, including daylight saving changes, and retain their schedule across restarts.
 
-A reset removes visitor credentials, registered relying parties and the providers and lists added to the trusted lists. It regenerates the protected PID baseline and clears the activity log. The CA, keys and URLs stay stable. The credential signing certificate is renewed.
+A reset removes visitor credentials, registered relying parties and the providers and lists added to the trusted lists. It then registers the demo issuer, the demo verifier and the parties from `--relying-parties` again. It regenerates the protected PID baseline and clears the activity log. The CA, keys and URLs stay stable. The credential signing certificate is renewed.
 
 ## Browser hardening
 
@@ -188,7 +188,7 @@ Pin the CA through an out-of-band exchange. It is self-signed and persists acros
 
 Trusted lists are grouped by provider role. Each category has its own signing key and provider CA. The `pid`, `qeaa`, `pub-eaa` and `eaa` lists publish the credential signing certificates of their category and their provider CAs. The `wallet-provider` list publishes wallet provider certificates. The `access-ca` list contains the relying party access CA and the `registrar` list contains the registrar CA. A separate list operator signs the lists. Their sequence numbers and retained history let clients test trust updates.
 
-The issuer metadata endpoints return JSON by default and a JWT signed with the access certificate key when the `Accept` header prefers `application/jwt`. They include a registration certificate from the registrar. Its identifier, legal name and country match the access certificate. The demo issuer and the demo verifier are registered with the registrar like any relying party. Visitors can't change these two registrations or their certificates. See [test certificates](test-certificates.md) for the exact profiles and versions.
+The issuer metadata endpoints return JSON by default and a JWT signed with the access certificate key when the `Accept` header prefers `application/jwt`. They include a registration certificate from the registrar. Its identifier, legal name and country match the access certificate. The demo issuer and the demo verifier are registered with the registrar like any relying party. Visitors can't change these registrations. They can't issue or revoke their registration certificates either. Anyone can get an access certificate for them. See [test certificates](test-certificates.md) for the exact profiles and versions.
 
 ## Imprint
 

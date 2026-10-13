@@ -475,6 +475,8 @@ E2E tests: [`wallet.spec.js`](../e2e/wallet.spec.js), tests *the attestation cat
 | Added providers of a list | `#trust-list-<list id>-added li` |
 | **+ Add external list** | `#trust-add-list`, then `#trust-list-url`, `#trust-list-add` |
 | External lists | `#trust-external-<n>-url`, `#trust-external-<n>-remove` |
+| **Add that CA** in the external list popup | `#trust-external-add-operator` (opens the provider popup with `trusted-list-ca`) |
+| Catalogue note of an external list | `#trust-external-<n>-catalogue-hint` |
 | Certificate links | `#ca-cert-pem-link`, `#signing-jwks-link`, `#access-ca-cert-pem-link` |
 
 API: `POST /api/trust/entities` and `POST /api/trust/lists` (see [issuer metadata and trusted lists](wallet/http-api.md#issuer-metadata-and-trusted-lists)).

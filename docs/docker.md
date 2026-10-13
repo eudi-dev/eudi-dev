@@ -80,6 +80,8 @@ volumes:
 
 The wallet reads the `.yaml`, `.yml` and `.json` files of the directory and skips the other entries of the mount.
 
+`EUDI_DEV_RELYING_PARTIES` works the same way for relying parties (see [pre-registered relying parties](wallet/serve.md#pre-registered-relying-parties)). Each start registers them and issues their registration certificates.
+
 ## Demo profile
 
 The container also runs the demo profile of the public instance at [eudi-test.dev](https://eudi-test.dev):

@@ -260,7 +260,7 @@ These endpoints are available on both wallet ports.
 | `GET` | `/api/trustlists/{id}/history` | Sequence numbers and URLs of the saved instances of the list `{id}` |
 | `GET` | `/api/trustlists/{id}/history/{sequence}` | One saved instance of the list `{id}` |
 | `GET` | `/api/trustlists/lists` | The [list of trusted lists](serve.md#list-of-trusted-lists) |
-| `GET` | `/api/trust` | Providers and external lists added to the trusted lists. Each external list has its `type` (LoTEType). `direct` is `true` for a type the wallet uses without a catalogue entry |
+| `GET` | `/api/trust` | Providers and external lists added to the trusted lists. A readable external list has its `type` (LoTEType). `direct` is `true` when the wallet uses lists of that type without a catalogue entry |
 | `POST` | `/api/trust/entities` | Put a provider on one of the lists: `list`, `name` and `certificates` (PEM) |
 | `DELETE` | `/api/trust/entities/{id}` | Take a provider off its list |
 | `POST` | `/api/trust/lists` | Put an external list on the list of trusted lists: `url` |
@@ -486,7 +486,7 @@ curl -X DELETE http://localhost:8085/api/log
 
 ### Last error
 
-The UI fetches this on page load, so it reports failures that occurred while no page was open. After a refused presentation, the wallet keeps no error when it sends the browser to the verifier's `redirect_uri`. The verifier's page shows the outcome, and open pages still show the error. `GET` always returns `200`, with `null` when there is no error.
+The UI fetches this on page load, so it reports failures that occurred while no page was open. When the wallet sends the browser to the verifier's `redirect_uri` after a refused presentation, it drops the error. The verifier's page shows the outcome. A wallet page that is already open still shows the error. `GET` always returns `200`, with `null` when there is no error.
 
 | Method   | Path         | Description                                        |
 |----------|--------------|-----------------------------------------------------|
@@ -621,7 +621,7 @@ Discovery includes local instances and the active remote target. A responding re
 
 The response includes `port`, `build_id`, `version`, `storage`, `seeded_keys`, `base_url`, `issuer_url`, `status_list_url`, `preferred_format`, `key_attestation_level`, `tls_verify`, `tls_verify_override`, `validation_mode`, `vci_version`, `auto_accept`, `session_transcript`, `require_haip`, `require_arf`, `require_encrypted_request`, `force_client_attestation`, `adhoc_display_images`, `tls_listener`, `imprint`, `credential_count`, `form_defaults`, `protected_relying_parties` and `news_id`.
 
-`form_defaults` holds the limits and defaults of the UI forms. `protected_relying_parties` lists the identifiers of the registrations that visitors can't change (on the public demo: the demo issuer, the demo verifier and the parties from `--relying-parties`. Empty otherwise). `news_id` identifies the current news of the public demo (empty without `--news-file`).
+`form_defaults` holds the limits and defaults of the UI forms. `protected_relying_parties` lists the registrations that visitors can't change. On the public demo these are the demo issuer, the demo verifier and the parties from `--relying-parties`. Otherwise the list is empty. `news_id` identifies the current news of the public demo (empty without `--news-file`).
 
 Local instances also report `pid`, `wallet_dir` and `templates_dir`. The public demo hides those fields and adds a `demo` object. `POST /api/shutdown` sends its response before stopping the instance. Requests in flight finish first, like on Ctrl-C.
 

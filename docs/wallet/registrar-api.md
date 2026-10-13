@@ -183,7 +183,7 @@ The payload of the certificate (ETSI TS 119 475 V1.2.1, typ `rc-wrp+jwt`) looks 
   "status": { "status_list": { "idx": 47187, "uri": "https://localhost:8086/api/registrar/status-list" } },
   "jti": "74f297f5-363e-482c-bb2f-33736e19b7ee",
   "iat": 1791563942,
-  "exp": 1807115942
+  "exp": 1823099942
 }
 ```
 

@@ -26,7 +26,7 @@ A registration's identifier has one of the types of ETSI TS 119 475 clause B.2.5
 
 An identifier without a type is read as an EUID, or as the semantics identifier of a certificate, such as `LEIXG-529900T8BM49AURSDO55`. Lookups accept both forms.
 
-Anyone with access to the wallet can register, change and delete relying parties and revoke their certificates. On a shared instance every visitor sees every registration and can delete it. A public demo keeps the demo issuer and verifier.
+Anyone with access to the wallet can register, change and delete relying parties and revoke their certificates. On a shared instance every visitor sees every registration and can delete it. A public demo keeps the demo issuer, the demo verifier and the parties from `--relying-parties`.
 
 An update can add identifiers. The first identifier never changes, because the issued certificates contain it.
 
@@ -124,7 +124,7 @@ Every element has an ID for automated tests:
 | Entitlements of the service | Not included | `entitlements` |
 | Attestation types (issuer) | Not included | `provides_attestations` |
 | Supervisory authority | Not included | `supervisory_authority` with the name, the country and the first email, phone and form URI (ETSI TS 119 475 V1.2.1 Table 7) |
-| Validity (registration certificate) | Not included | `iat` and `exp`, at most 12 months (GEN-5.2.4-08) |
+| Validity (registration certificate) | Not included | `iat` and `exp`, at most 12 months (GEN-5.2.4-08). A certificate ends no later than the registrar certificate in its `x5c` |
 | CSR | Public key | Not included |
 | DNS names (verifier) | DNS names in the subject alternative name | Not included |
 | Validity (access certificate) | Validity period, at most one year | Not included |
