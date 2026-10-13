@@ -2537,7 +2537,7 @@ test.describe("Registrar", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "eudi-registrar-"));
     await expect(page.locator("#registrar-pem-label")).toHaveText("Signing key and access certificate chain");
     fs.writeFileSync(path.join(dir, "verifier.pem"), await page.locator("#registrar-pem").inputValue());
-    expect(execSync("openssl x509 -in verifier.pem -noout -subject", { cwd: dir }).toString()).toContain("CN=Keyless Shop");
+    expect(execSync("openssl x509 -in verifier.pem -noout -subject", { cwd: dir }).toString()).toMatch(/CN ?= ?Keyless Shop/);
     expect(execSync("openssl x509 -in verifier.pem -noout -pubkey", { cwd: dir }).toString())
       .toBe(publicKeyOf(dir, "verifier.pem", "pkey"));
 
