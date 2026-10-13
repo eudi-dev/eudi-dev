@@ -136,7 +136,10 @@ wipe_local_suite_database() {
   [ "${OIDF_KEEP_SUITE_DB:-0}" = "1" ] && return 0
   command -v docker >/dev/null 2>&1 || return 0
 
-  container=${OIDF_SUITE_MONGO_CONTAINER:-$(docker ps --format '{{.Names}}' 2>/dev/null | grep -m1 -iE 'conformance.*mongo' || true)}
+  # The local suite reads mongodb://127.0.0.1:27017, so its database lives in
+  # the container that publishes that port. Other Mongo containers can match a
+  # name pattern too.
+  container=${OIDF_SUITE_MONGO_CONTAINER:-$(docker ps --filter publish=27017 --format '{{.Names}}' 2>/dev/null | head -n1)}
   [ -n "$container" ] || return 0
 
   for shell in mongosh mongo; do
