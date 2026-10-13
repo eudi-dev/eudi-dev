@@ -17,6 +17,7 @@ package wallet
 import (
 	"testing"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
 )
@@ -107,5 +108,18 @@ func TestEveryItalianPIDCopyHasItsOwnSubject(t *testing.T) {
 				t.Errorf("3 copies carry %d distinct sub values", len(seen))
 			}
 		})
+	}
+}
+
+// The wallet cuts a longer description. Every predefined description fits the
+// limit.
+func TestPredefinedDescriptionsFitTheDisplayLimit(t *testing.T) {
+	for _, tmpl := range credtemplate.PredefinedTemplates() {
+		if tmpl.Display == nil {
+			continue
+		}
+		if n := len([]rune(tmpl.Display.Description)); n > maxDisplayDescriptionRunes {
+			t.Errorf("%s: description has %d characters, the limit is %d", tmpl.Name, n, maxDisplayDescriptionRunes)
+		}
 	}
 }

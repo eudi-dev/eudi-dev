@@ -43,7 +43,7 @@ import (
 // its length is capped.
 const (
 	maxDisplayNameRunes        = 80
-	maxDisplayDescriptionRunes = 500
+	maxDisplayDescriptionRunes = 1000
 	maxDisplayLocaleRunes      = 35
 	maxDisplayAltTextRunes     = 120
 )

@@ -658,7 +658,7 @@ func TestResolveCredentialDisplayBoundsIssuerText(t *testing.T) {
 					"display": []any{
 						map[string]any{
 							"name":        strings.Repeat("N", 200),
-							"description": strings.Repeat("d", 999),
+							"description": strings.Repeat("d", maxDisplayDescriptionRunes+100),
 							"locale":      strings.Repeat("l", 99),
 						},
 					},
