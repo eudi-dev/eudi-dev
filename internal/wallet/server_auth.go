@@ -20,6 +20,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -72,6 +73,15 @@ func isBrowserNavigation(r *http.Request) bool {
 	return r.Method == http.MethodGet && strings.Contains(r.Header.Get("Accept"), "text/html")
 }
 
+// forgetRefusal drops the stored error of a refused request once the browser
+// follows the verifier's redirect_uri. The verifier's page then shows the
+// outcome. Errors stored before the request stay.
+func (s *Server) forgetRefusal(authReq *oid4vp.Request, redirectURI string, started time.Time) {
+	if authReq.BrowserRedirect && redirectURI != "" {
+		s.wallet.Consents().ForgetError(authReq.Session, started)
+	}
+}
+
 func redirectBrowser(w http.ResponseWriter, redirectURI string) {
 	if redirectURI == "" {
 		redirectURI = "/"
@@ -88,6 +98,7 @@ type preparedPresentation struct {
 }
 
 func (s *Server) handleAuthFlow(w http.ResponseWriter, authReq *oid4vp.Request) {
+	started := time.Now()
 	if authReq.Source == "" {
 		authReq.Source = "authorize"
 	}
@@ -109,6 +120,7 @@ func (s *Server) handleAuthFlow(w http.ResponseWriter, authReq *oid4vp.Request) 
 		s.triggerUIRequest("")
 		redirectURI := s.reportRefusalToVerifier(authReq, outcome.refusal.code, outcome.refusal.description)
 		if authReq.BrowserRedirect {
+			s.forgetRefusal(authReq, redirectURI, started)
 			redirectBrowser(w, redirectURI)
 			return
 		}
@@ -119,7 +131,8 @@ func (s *Server) handleAuthFlow(w http.ResponseWriter, authReq *oid4vp.Request) 
 		}, redirectURI))
 	case outcome.refusal != nil:
 		s.triggerUIRequest("")
-		s.submitAuthorizationError(w, authReq, outcome.refusal.status, outcome.refusal.code, outcome.refusal.description)
+		result := s.submitAuthorizationError(w, authReq, outcome.refusal.status, outcome.refusal.code, outcome.refusal.description)
+		s.forgetRefusal(authReq, result.RedirectURI, started)
 	case s.autoAccepts(authReq):
 		s.log("  Mode:          auto-accept")
 		s.autoAcceptPresentation(w, authReq, outcome.matches)

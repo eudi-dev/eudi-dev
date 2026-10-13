@@ -59,6 +59,27 @@ func TestDenyFollowsTheVerifierRedirect(t *testing.T) {
 	}
 }
 
+// Declining stores no error, so an error of another flow in the same browser
+// stays for the wallet page.
+func TestDenyKeepsTheErrorOfAnotherFlow(t *testing.T) {
+	srv := newTestServer(t, false)
+	verifier := newRedirectingVerifier(t, verifierContinueURI)
+
+	rec := browserGet(t, srv, presentationAuthorizePath(t, verifier.URL))
+	pending := waitForPendingRequest(t, srv.wallet)
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == sessionCookieName {
+			srv.wallet.Consents().NotifyError(consent.Error{Owner: c.Value, Message: "Another flow failed"})
+		}
+	}
+	if denyRec := browserAnswer(t, srv, rec, "/api/requests/"+pending.ID+"/deny", ""); denyRec.Code != http.StatusOK {
+		t.Fatalf("deny failed: %d %s", denyRec.Code, denyRec.Body.String())
+	}
+	if got := browserLastError(t, srv, rec); !strings.Contains(got, "Another flow failed") {
+		t.Errorf("wallet error %s, want the other flow's error", got)
+	}
+}
+
 // A request pasted into the wallet UI waits for consent in the same API call.
 func TestDenyOfAPastedRequestReturnsTheVerifierRedirect(t *testing.T) {
 	srv := newTestServer(t, false)
@@ -104,6 +125,21 @@ func TestNoMatchBrowserNavigationFollowsTheVerifierRedirect(t *testing.T) {
 	if got := rec.Header().Get("Location"); got != verifierContinueURI {
 		t.Fatalf("Location %q, want %s", got, verifierContinueURI)
 	}
+	// The verifier's page shows the refusal, so the wallet page doesn't.
+	if got := browserLastError(t, srv, rec); got != "null" {
+		t.Errorf("wallet error %s, want none", got)
+	}
+}
+
+func browserLastError(t *testing.T, srv *Server, redirect *httptest.ResponseRecorder) string {
+	t.Helper()
+	req := httptest.NewRequest("GET", "/api/error", nil)
+	for _, c := range redirect.Result().Cookies() {
+		req.AddCookie(c)
+	}
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+	return strings.TrimSpace(w.Body.String())
 }
 
 func TestNoMatchAPIResponseCarriesTheVerifierRedirect(t *testing.T) {
@@ -207,6 +243,9 @@ func TestNoMatchBrowserNavigationWithoutAVerifierRedirectLandsOnTheWalletUI(t *t
 	}
 	if got := rec.Header().Get("Location"); got != "/" {
 		t.Fatalf("Location %q, want the wallet UI", got)
+	}
+	if got := browserLastError(t, srv, rec); !strings.Contains(got, "No matching credentials") {
+		t.Errorf("wallet error %s, want the refusal", got)
 	}
 }
 

@@ -68,6 +68,31 @@ func TestRuntime_LastError(t *testing.T) {
 	}
 }
 
+// Forgetting one browser's error keeps the errors of the others and an error
+// stored before the flow started.
+func TestRuntime_ForgetError(t *testing.T) {
+	rt := NewRuntime()
+	rt.NotifyError(Error{Message: "older", Owner: "browser-1"})
+	time.Sleep(2 * time.Millisecond)
+	started := time.Now()
+	rt.ForgetError("browser-1", started)
+	if e := rt.PeekLastError([]string{"browser-1"}); e == nil || e.Message != "older" {
+		t.Errorf("browser-1 sees %+v, want the older error", e)
+	}
+
+	rt.NotifyError(Error{Message: "mine", Owner: "browser-1"})
+	rt.NotifyError(Error{Message: "theirs", Owner: "browser-2"})
+	rt.NotifyError(Error{Message: "unowned"})
+
+	rt.ForgetError("browser-1", started)
+	if e := rt.PeekLastError([]string{"browser-1"}); e == nil || e.Message != "unowned" {
+		t.Errorf("browser-1 sees %+v, want only the unowned error", e)
+	}
+	if e := rt.PeekLastError([]string{"browser-2"}); e == nil || e.Message != "theirs" {
+		t.Errorf("browser-2 sees %+v, want its own error", e)
+	}
+}
+
 func TestRuntime_SetAndConsumeNextError(t *testing.T) {
 	rt := NewRuntime()
 

@@ -486,7 +486,7 @@ curl -X DELETE http://localhost:8085/api/log
 
 ### Last error
 
-The UI fetches this on page load, so it reports failures that occurred while no page was open. `GET` always returns `200`, with `null` when there is no error.
+The UI fetches this on page load, so it reports failures that occurred while no page was open. After a refused presentation, the wallet keeps no error when it sends the browser to the verifier's `redirect_uri`. The verifier's page shows the outcome, and open pages still show the error. `GET` always returns `200`, with `null` when there is no error.
 
 | Method   | Path         | Description                                        |
 |----------|--------------|-----------------------------------------------------|

@@ -322,6 +322,19 @@ func (rt *Runtime) PeekLastError(owners []string) *Error {
 	return nil
 }
 
+// ForgetError drops the error of one browser session if it was stored at or
+// after since.
+func (rt *Runtime) ForgetError(owner string, since time.Time) {
+	if owner == "" {
+		return
+	}
+	rt.mu.Lock()
+	defer rt.mu.Unlock()
+	if stored := rt.lastErrors[owner]; stored != nil && !stored.at.Before(since) {
+		delete(rt.lastErrors, owner)
+	}
+}
+
 // ClearLastError clears the caller's own error and the unowned error. A new flow
 // then starts without an old failure on screen.
 func (rt *Runtime) ClearLastError(owners []string) {
