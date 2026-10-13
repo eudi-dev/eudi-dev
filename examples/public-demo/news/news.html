@@ -1,18 +1,12 @@
-<img src="3.0.0-beta.png" alt="eudi-dev 3.0.0 beta with a relying party registrar: register verifiers and issuers, get access and registration certificates, and let the wallet check them. Try it at preview.eudi-test.dev">
-<h2>eudi-dev 3.0.0 beta: a registrar for the test wallet</h2>
-<p class="lead">
-  Version 3.0.0 adds a relying party registrar. Register your verifier or issuer, get its certificates
-  and let the wallet check them the way the ARF describes.
-</p>
-<ul>
-  <li><strong>Register</strong> verifiers and issuers in the web UI, with the CLI or over the TS05 registry API.</li>
-  <li><strong>Access certificates</strong> (ETSI TS 119 411-8) for your own key, so your service can authenticate to the wallet.</li>
-  <li><strong>Registration certificates</strong> (ETSI TS 119 475) for <code>verifier_info</code> and <code>issuer_info</code>. The registrar can revoke them.</li>
-  <li><strong>ARF checks.</strong> With <code>--arf</code> the wallet checks both certificates and whether a verifier asks for more than it registered.</li>
-  <li><strong>Attestation catalogue.</strong> Attestation types with their schemas and rulebooks (EC TS11).</li>
-</ul>
+<img src="3.0.0.png" alt="eudi-dev 3.0.0. Test the trust side of the EUDI Wallet ecosystem.">
+<h2>What's new in eudi-dev 3.0.0</h2>
+<div class="news-features">
+  <div><strong>Registrar</strong><span>Register your verifier or issuer under <b>Registrar</b>. You get an access certificate and a registration certificate.</span></div>
+  <div><strong>ARF checks</strong><span>The wallet checks both certificates. It tells you when a verifier asks for more data than it registered.</span></div>
+  <div><strong>Trusted lists</strong><span>Add the CA of your issuer to a trusted list of the wallet, or add a list of your own.</span></div>
+  <div><strong>Attestation catalogue</strong><span>Look up each credential type with its schemas, rulebook and trusted list.</span></div>
+</div>
 <p>
-  Try the beta at <a href="https://preview.eudi-test.dev" target="_blank" rel="noopener">preview.eudi-test.dev</a>.
-  The <a href="https://github.com/eudi-dev/eudi-dev/blob/main/CHANGELOG.md" target="_blank" rel="noopener">changelog</a>
-  lists everything new. Please report problems on <a href="https://github.com/eudi-dev/eudi-dev/issues" target="_blank" rel="noopener">GitHub</a>.
+  The tour shows you where to find each feature. <a href="https://github.com/eudi-dev/eudi-dev/blob/main/docs/whats-new-3.0.md" target="_blank" rel="noopener">What's new in 3.0.0</a>
+  explains them in detail. Please report problems on <a href="https://github.com/eudi-dev/eudi-dev/issues" target="_blank" rel="noopener">GitHub</a>.
 </p>

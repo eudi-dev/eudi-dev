@@ -2,6 +2,19 @@
 
 Reproduce these runs with the [wallet conformance runner](./conformance-run.md).
 
+## Run of 2026-10-13 (3.0.0)
+
+The release was checked against suite `release-v5.3.2` (revision `11999aa`) in strict mode. The full wallet matrix ran with file storage on 3.0.0-rc.3. The demo issuer and verifier ran all nine plans on the release code.
+
+| Target | Configurations | Modules | `PASSED` | `REVIEW` | `WARNING` | `FAILED` |
+|---|---:|---:|---:|---:|---:|---:|
+| Wallet, file | 78 | 750 | 536 | 188 | 26 | 0 |
+| Demo issuer and verifier | 9 | 111 | 67 | 36 | 8 | 0 |
+
+No module failed and no module was interrupted. The counts match rc.1. The warnings are the same as in that run.
+
+The full Go race suite and all 290 browser tests passed. Vet and lint also passed.
+
 ## Run of 2026-10-12 (3.0.0-rc.1)
 
 The release candidate was checked against suite `release-v5.3.2` (revision `11999aa`) in strict mode. The full wallet matrix ran with file storage. The demo issuer and verifier ran all nine plans.

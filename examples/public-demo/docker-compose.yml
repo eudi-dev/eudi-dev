@@ -115,7 +115,7 @@ services:
       - /config/imprint.html
       # The preview shows the news of its own release.
       - --news-file
-      - /config/news/news-3.0.0.html
+      - /config/news/news.html
     volumes:
       - wallet-data-preview:/home/app/.eudi-dev
       - ./imprint.html:/config/imprint.html:ro
