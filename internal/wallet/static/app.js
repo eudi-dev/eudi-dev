@@ -828,7 +828,7 @@
 
   // The Always visible input stores all paths. Row checkboxes represent only its top level
   // claims.
-  function syncAlwaysDisclosedFromRows() {
+  function alwaysDisclosedFromRows() {
     const nested = alwaysDisclosedList().filter(p => p.indexOf('.') !== -1);
     const plain = [];
     issueClaimRows.querySelectorAll('.claim-row').forEach(row => {
@@ -836,7 +836,11 @@
       const sd = row.querySelector('input[id^="issue-claim-sd-"]').checked;
       if (key && !sd) plain.push(key);
     });
-    issueAlwaysDisclosed.value = plain.concat(nested).join(', ');
+    return plain.concat(nested);
+  }
+
+  function syncAlwaysDisclosedFromRows() {
+    issueAlwaysDisclosed.value = alwaysDisclosedFromRows().join(', ');
   }
 
   function syncRowsFromAlwaysDisclosed() {
@@ -1262,14 +1266,9 @@
   bindImageUpload('issue-logo-file', 'issue-logo');
   bindImageUpload('issue-bg-image-file', 'issue-bg-image');
 
-  issueForm.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    issueError.textContent = '';
-    if (templateEditor) {
-      await saveTemplateFromEditor();
-      return;
-    }
-
+  // issueRequestBody is the body of POST api/issue for the form's values. It
+  // throws an Error with a message for the form.
+  function issueRequestBody() {
     const body = { format: issueFormat.value };
     if (document.getElementById('issue-claims-mode-json').checked) {
       const claimsText = issueClaimsTextarea.value.trim();
@@ -1277,12 +1276,10 @@
         try {
           body.claims = JSON.parse(claimsText);
         } catch (e) {
-          issueError.textContent = 'Claims must be valid JSON: ' + e.message;
-          return;
+          throw new Error('Claims must be valid JSON: ' + e.message);
         }
       }
     } else {
-      syncAlwaysDisclosedFromRows();
       const claims = builderClaims();
       if (Object.keys(claims).length > 0) body.claims = claims;
     }
@@ -1308,22 +1305,15 @@
       if (idx) body.status_list_idx = parseInt(idx, 10);
     }
     if (issueFormat.value === 'sdjwt') {
-      const always = alwaysDisclosedList();
+      const always = document.getElementById('issue-claims-mode-json').checked ? alwaysDisclosedList() : alwaysDisclosedFromRows();
       if (always.length > 0) body.always_disclosed = always;
     }
     const saveTemplate = document.getElementById('issue-save-template').value.trim();
-    if (saveTemplate && !(await confirmTemplateName(saveTemplate))) return;
     if (saveTemplate) body.save_as_template = saveTemplate;
     const catalogProblem = issueCatalog.validate(saveTemplate);
-    if (catalogProblem) {
-      issueError.textContent = catalogProblem;
-      return;
-    }
+    if (catalogProblem) throw new Error(catalogProblem);
     const catalog = issueCatalog.entry(saveTemplate);
-    if (catalog && !saveTemplate) {
-      issueError.textContent = 'Enter a template name to add the template to the catalogue';
-      return;
-    }
+    if (catalog && !saveTemplate) throw new Error('Enter a template name to add the template to the catalogue');
     if (catalog) body.catalog = catalog;
     const signingKey = document.getElementById('issue-signing-key').value.trim();
     if (signingKey) body.signing_key = signingKey;
@@ -1349,6 +1339,26 @@
     // The server applies template display values beneath fields explicitly supplied by the
     // form.
     if (issueDisplayTemplate) body.display_template = issueDisplayTemplate;
+
+    return body;
+  }
+
+  issueForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    issueError.textContent = '';
+    if (templateEditor) {
+      await saveTemplateFromEditor();
+      return;
+    }
+
+    let body;
+    try {
+      body = issueRequestBody();
+    } catch (e) {
+      issueError.textContent = e.message;
+      return;
+    }
+    if (body.save_as_template && !(await confirmTemplateName(body.save_as_template))) return;
 
     issueSubmit.disabled = true;
     issueSubmit.textContent = 'Issuing…';
@@ -1430,10 +1440,10 @@
     if (document.getElementById('issue-claims-mode-json').checked) {
       doc.claims = JSON.parse(issueClaimsTextarea.value.trim() || '{}');
     } else {
-      syncAlwaysDisclosedFromRows();
       doc.claims = builderClaims();
     }
-    const always = doc.format === 'sdjwt' ? alwaysDisclosedList() : [];
+    const fromRows = !document.getElementById('issue-claims-mode-json').checked;
+    const always = doc.format !== 'sdjwt' ? [] : fromRows ? alwaysDisclosedFromRows() : alwaysDisclosedList();
     if (always.length > 0) doc.always_disclosed = always; else delete doc.always_disclosed;
     const display = {};
     const field = (id) => document.getElementById(id).value.trim();
@@ -1489,26 +1499,32 @@
   document.getElementById('template-editor-mode-builder').addEventListener('change', updateTemplateEditorMode);
   document.getElementById('template-editor-mode-json').addEventListener('change', updateTemplateEditorMode);
 
-  async function saveTemplateFromEditor() {
+  // templateSaveRequest is the name and document of PUT api/templates/{name}
+  // for the editor's values. It throws an Error with a message for the form.
+  function templateSaveRequest() {
     const name = templateEditorName.value.trim();
-    if (!name) {
-      issueError.textContent = 'Template name is required';
-      templateEditorName.focus();
-      return;
-    }
+    if (!name) throw new Error('Template name is required');
     let doc;
     try {
       doc = document.getElementById('template-editor-mode-json').checked ? templateFromJSON() : templateFromBuilder();
     } catch (e) {
-      issueError.textContent = 'Template must be valid JSON: ' + e.message;
-      return;
+      throw new Error('Template must be valid JSON: ' + e.message);
     }
     if (!document.getElementById('template-editor-mode-json').checked) {
       const problem = issueCatalog.validate((doc.display && doc.display.name) || name);
-      if (problem) {
-        issueError.textContent = problem;
-        return;
-      }
+      if (problem) throw new Error(problem);
+    }
+    return { name, doc };
+  }
+
+  async function saveTemplateFromEditor() {
+    let name, doc;
+    try {
+      ({ name, doc } = templateSaveRequest());
+    } catch (e) {
+      issueError.textContent = e.message;
+      if (!templateEditorName.value.trim()) templateEditorName.focus();
+      return;
     }
     if (!(await confirmTemplateName(name, templateEditor && templateEditor.source ? templateEditor.source.name : null))) return;
     issueSubmit.disabled = true;
@@ -1534,6 +1550,50 @@
       issueSubmit.disabled = false;
     }
   }
+
+  // issueCommand is the API and CLI command for issuing with the form's values.
+  function issueCommand(body) {
+    const flags = [['--wallet'], ['--remote', eudiDialogs.remoteURL()]];
+    if (body.claims) flags.push(['--claims', JSON.stringify(body.claims)]);
+    if (body.vct) flags.push(['--vct', body.vct]);
+    if (body.doctype) flags.push(['--doc-type', body.doctype]);
+    if (body.exp) flags.push(['--exp', body.exp]);
+    if (body.nbf) flags.push(['--nbf', body.nbf]);
+    if (body.batch) flags.push(['--batch', String(body.batch)]);
+    if (body.unbound) flags.push(['--unbound']);
+    if ('status_list_uri' in body) flags.push(['--status-list-uri', body.status_list_uri]);
+    if (body.status_list_idx !== undefined) flags.push(['--status-list-idx', String(body.status_list_idx)]);
+    if (body.always_disclosed) flags.push(['--always-disclosed', body.always_disclosed.join(',')]);
+    if (body.save_as_template) flags.push(['--save-template', body.save_as_template]);
+    const display = body.display || {};
+    for (const [field, flag] of [['name', '--display-name'], ['description', '--display-description'],
+      ['background_color', '--background-color'], ['text_color', '--text-color'], ['logo', '--logo'],
+      ['logo_alt_text', '--logo-alt'], ['background_image', '--background-image']]) {
+      if (display[field]) flags.push([flag, display[field]]);
+    }
+    const left = [];
+    if (body.catalog) left.push('the catalogue entry');
+    if (body.signing_key || body.signing_cert) left.push('the signing key and certificate (pass them as files with --key and --cert)');
+    if (body.display_template) left.push("the template's images");
+    return {
+      curl: eudiDialogs.curl('POST', 'api/issue', body),
+      cli: eudiDialogs.cli('eudi issue ' + body.format, flags),
+      cliNote: left.length ? 'The CLI command leaves out ' + left.join(' and ') + '. The curl command sends everything.' : '',
+    };
+  }
+
+  // templateCommand is the API and CLI command for saving the edited template.
+  function templateCommand() {
+    const { name, doc } = templateSaveRequest();
+    return {
+      curl: eudiDialogs.curl('PUT', 'api/templates/' + encodeURIComponent(name), doc),
+      cli: eudiDialogs.cli('eudi templates import -', [['--name', name], ['--remote', eudiDialogs.remoteURL()]]) +
+        " <<'EOF'\n" + JSON.stringify(doc, null, 2) + '\nEOF',
+    };
+  }
+
+  eudiDialogs.setCommand(document.getElementById('issue-dialog'), () =>
+    templateEditor ? templateCommand() : issueCommand(issueRequestBody()));
 
   async function renderTemplatesList() {
     let templates = [];
@@ -2095,6 +2155,7 @@
 
   // Closing a dialog makes any request it replaced available in the banner again.
   function closeConsentOverlay() {
+    eudiDialogs.setCommand(consentDialog, null);
     consentRequestOpen = false;
     consentRequestID = null;
     consentOverlay.classList.remove('active');
@@ -2131,6 +2192,7 @@
   }
 
   function showErrorDialog(message, detail) {
+    eudiDialogs.setCommand(consentDialog, null);
     consentRequestOpen = false;
     const active = document.activeElement;
     const opener = active && active !== document.body && !consentDialog.contains(active) ? active : lastPageFocus;
@@ -2188,6 +2250,7 @@
 
   function showSubmissionResult(result) {
     if (!result.error && followVerifierRedirect(result)) return;
+    eudiDialogs.setCommand(consentDialog, null);
 
     consentOverlay.classList.add('active');
 
@@ -2962,26 +3025,6 @@
       }
       if (txCodeField) txCodeField.classList.remove('input-error');
 
-      // Edit has no claim checkboxes. Read its tracked selection when alternatives are
-      // available.
-      const selected = {};
-      if (options) {
-        activeQueryIds().forEach(qid => {
-          activeCandidates(qid).forEach(c => {
-            selected[c.credential_id] = selection.claims[c.credential_id].slice();
-          });
-        });
-      } else {
-        consentDialog.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-          if (cb.checked) {
-            const credId = cb.dataset.cred;
-            const claim = cb.dataset.claim;
-            if (!selected[credId]) selected[credId] = [];
-            selected[credId].push(claim);
-          }
-        });
-      }
-
       const approveBtn = document.getElementById('consent-approve');
       const denyBtn = document.getElementById('consent-deny');
       submitting = true;
@@ -2992,23 +3035,7 @@
       denyBtn.disabled = true;
 
       try {
-        const txCodeInput = document.getElementById('offer-tx-code-input');
-        const approveBody = isIssuance
-          ? (txCodeInput ? { tx_code: txCodeInput.value.trim() } : {})
-          : { selected_claims: selected };
-        if (options) {
-          approveBody.picks = {};
-          activeQueryIds().forEach(qid => {
-            const ids = activeCandidates(qid).map(c => c.credential_id);
-            approveBody.picks[qid] = queryById(qid).multiple ? ids : ids[0];
-          });
-          approveBody.set_choices = selection.setChoices.slice();
-          const claimSets = {};
-          activeQueryIds().forEach(qid => {
-            if (selection.claimSets[qid] !== undefined) claimSets[qid] = selection.claimSets[qid];
-          });
-          if (Object.keys(claimSets).length > 0) approveBody.claim_sets = claimSets;
-        }
+        const approveBody = approveRequestBody();
         const resp = await fetch(approveURL(req.id, '/approve'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -3070,6 +3097,66 @@
     });
     }
 
+
+    // approveRequestBody is the body of POST api/requests/{id}/approve with the
+    // dialog's choices. Edit has no claim checkboxes, so with alternatives the
+    // tracked selection counts.
+    function approveRequestBody() {
+      if (isIssuance) {
+        const txCodeInput = document.getElementById('offer-tx-code-input');
+        return txCodeInput ? { tx_code: txCodeInput.value.trim() } : {};
+      }
+      const selected = {};
+      if (options) {
+        activeQueryIds().forEach(qid => {
+          activeCandidates(qid).forEach(c => {
+            selected[c.credential_id] = selection.claims[c.credential_id].slice();
+          });
+        });
+      } else {
+        consentDialog.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+          if (cb.checked) {
+            const credId = cb.dataset.cred;
+            const claim = cb.dataset.claim;
+            if (!selected[credId]) selected[credId] = [];
+            selected[credId].push(claim);
+          }
+        });
+      }
+      const body = { selected_claims: selected };
+      if (options) {
+        body.picks = {};
+        activeQueryIds().forEach(qid => {
+          const ids = activeCandidates(qid).map(c => c.credential_id);
+          body.picks[qid] = queryById(qid).multiple ? ids : ids[0];
+        });
+        body.set_choices = selection.setChoices.slice();
+        const claimSets = {};
+        activeQueryIds().forEach(qid => {
+          if (selection.claimSets[qid] !== undefined) claimSets[qid] = selection.claimSets[qid];
+        });
+        if (Object.keys(claimSets).length > 0) body.claim_sets = claimSets;
+      }
+      return body;
+    }
+
+    // The command answers the newest pending request of this type with the
+    // dialog's choices, so it works for the next request too. ?request= lets a
+    // caller without this browser's session answer it.
+    eudiDialogs.setCommand(consentDialog, () => {
+      const kind = { presentation: 'presentation request', issuance: 'credential offer', issuance_presentation: 'presentation request during issuance' }[req.type] || 'consent request';
+      const find = 'REQUEST_ID="${REQUEST_ID:-$(curl -sS ' + eudiDialogs.shellQuote(eudiDialogs.walletURL('api/requests')) +
+        " | jq -r '[.[] | select(.type == \"" + req.type + "\")] | sort_by(.created_at) | last | .id')}\"";
+      // The request URL holds the shell variable, so it is in double quotes.
+      const answer = (action, body) => eudiDialogs.curl('POST', 'api/requests/REQUEST_ID/' + action + '?request=REQUEST_ID', body)
+        .replace(/'([^']*REQUEST_ID[^']*)'/, (_, url) => '"' + url.replace(/REQUEST_ID/g, '$REQUEST_ID') + '"');
+      return {
+        curl: '# The newest pending ' + kind + '. Set REQUEST_ID to answer another one.\n' + find +
+          '\n\n# Approve\n' + answer('approve', approveRequestBody()) +
+          '\n\n# Deny\n' + answer('deny'),
+        note: 'The command needs jq. A request started in a browser belongs to that browser, so curl does not see it. Requests from API calls, the CLI and tests are visible to every caller. To answer this request, set REQUEST_ID=' + req.id + '.',
+      };
+    });
     renderDialog();
   }
 
@@ -4547,32 +4634,6 @@
     }
   });
 
-  // The access certificate request for a service. A key created in the
-  // browser is shown with the chain, because it exists nowhere else.
-  async function accessRequest(serviceIdentifier) {
-    let key = '';
-    let csr = registrarValue('registrar-csr');
-    if (!csr) ({ key, csr } = await window.eudiCreateKeyAndCSR());
-    const access = { serviceIdentifier: serviceIdentifier, csr: csr, validity: registrarValue('registrar-access-validity') };
-    if (registrarAddedRole === 'verifier') access.dnsNames = registrarValue('registrar-dns').split(',').map(n => n.trim()).filter(Boolean);
-    return { key, access };
-  }
-  async function issueAccessCertificate(submit) {
-    const identifier = registrarTarget.identifier[0].identifier;
-    submit.disabled = true;
-    try {
-      const { key, access } = await accessRequest(registrarAccessService.serviceIdentifier || '');
-      const issued = await registrarRequest('POST', 'api/registrar/access-certificates', Object.assign({ identifier: identifier }, access));
-      document.getElementById('registrar-result-identifier').textContent = identifier;
-      showAccessResult(key, issued);
-      showRegistrationResult();
-    } catch (e) {
-      showRegistrarError(e.message);
-    } finally {
-      submit.disabled = submit.classList.contains('registrar-registered');
-      if (!submit.disabled && document.activeElement === document.body) submit.focus();
-    }
-  }
   function showAccessResult(key, access) {
     document.getElementById('registrar-client-ids').innerHTML = (access.clientIds || []).map((id, i) =>
       '<li><code id="registrar-client-id-' + i + '">' + escHtml(id) + '</code></li>').join('');
@@ -4694,83 +4755,140 @@
     return credentials;
   }
 
+  // RegistrarProblem marks an unusable form value. field names the input to
+  // focus.
+  class RegistrarProblem extends Error {
+    constructor(message, field) {
+      super(message);
+      this.field = field;
+    }
+  }
+
+  function requireAttestations() {
+    const attestations = registrarAttestationList();
+    if (attestations.length === 0) throw new RegistrarProblem('Add at least one attestation.', 'attestation');
+    return attestations;
+  }
+
+  // accessCertificateRequest asks for the access certificate of a service. An
+  // empty csr makes the submit create a key in the browser.
+  function accessCertificateRequest(serviceIdentifier, withDNSNames) {
+    const access = { serviceIdentifier: serviceIdentifier, csr: registrarValue('registrar-csr'), validity: registrarValue('registrar-access-validity') };
+    if (withDNSNames) access.dnsNames = registrarValue('registrar-dns').split(',').map(n => n.trim()).filter(Boolean);
+    return access;
+  }
+
+  // registrarPlan builds the registrar dialog's request: method, path and body.
+  // access is the access certificate request inside the body. It throws a
+  // RegistrarProblem for an unusable form value.
+  function registrarPlan() {
+    if (registrarAccessService) {
+      const body = Object.assign({ identifier: registrarTarget.identifier[0].identifier },
+        accessCertificateRequest(registrarAccessService.serviceIdentifier || '', registrarAddedRole === 'verifier'));
+      return { kind: 'access', method: 'POST', path: 'api/registrar/access-certificates', body: body, access: body };
+    }
+    // Each registration certificate covers one intended use, so a new
+    // certificate needs a new intended use. A party that verifies can also
+    // issue. Its service gets the attestation types.
+    if (registrarTarget) {
+      const issuer = registrarMode === 'issuer';
+      const use = issuer ? null : intendedUseFromForm();
+      if (use && use.purpose.length === 0) throw new RegistrarProblem('The intended use needs a purpose.', 'registrar-purpose');
+      if (use && use.credentials.length === 0) throw new RegistrarProblem('Add at least one credential.', 'credential');
+      const attestations = issuer ? requireAttestations() : null;
+      const target = registrationTarget();
+      const service = target.service;
+      if (issuer) {
+        service.providesAttestations = attestations;
+        // Without provider entitlements the registrar derives them from the
+        // categories of the types, so changed types get matching entitlements.
+        if (registrarEditService) service.entitlements = withoutProviderEntitlements(service.entitlements);
+        const entitlement = document.getElementById('registrar-entitlement').value;
+        if (entitlement) service.entitlements = (service.entitlements || []).concat([entitlement]);
+      } else {
+        service.intendedUses = (service.intendedUses || []).concat([use]);
+      }
+      const access = target.added ? accessCertificateRequest(service.serviceIdentifier, registrarAddedRole === 'verifier') : undefined;
+      const registration = { serviceIdentifier: service.serviceIdentifier || '', validity: registrarValue('registrar-registration-validity') };
+      if (issuer) registration.provider = true;
+      return {
+        kind: 'add', identifier: target.identifier, method: 'PUT', path: 'api/registrar/enrolments',
+        body: { relyingParty: target.updated, access: access, registration: registration }, access: access,
+      };
+    }
+    // An issuer gets its access certificate and one registration certificate
+    // for its service (ARF RPRC_13). The issuer_info value carries the
+    // registration certificate in the issuer metadata (ETSI TS 119 472-3 V1.1.1
+    // §4.2.3).
+    const issuer = registrarMode === 'issuer';
+    if (!registrarValue('registrar-name')) throw new RegistrarProblem(issuer ? 'The issuer needs a name.' : 'The relying party needs a name.', 'registrar-name');
+    const serviceIdentifier = registrarValue('registrar-service-id');
+    const identifier = registrarValue('registrar-identifier');
+    const service = {
+      serviceTradeName: registrarValue('registrar-name'),
+      serviceIdentifier: serviceIdentifier,
+      supportURI: registrarValue('registrar-support-uri'),
+    };
+    if (issuer) {
+      service.entitlements = document.getElementById('registrar-entitlement').value ? [document.getElementById('registrar-entitlement').value] : [];
+      service.providesAttestations = requireAttestations();
+    } else {
+      const use = intendedUseFromForm();
+      if (use.purpose.length === 0) throw new RegistrarProblem('The intended use needs a purpose.', 'registrar-purpose');
+      if (use.credentials.length === 0) throw new RegistrarProblem('Add at least one credential.', 'credential');
+      service.intendedUses = [use];
+    }
+    const access = accessCertificateRequest(serviceIdentifier, !issuer);
+    const registration = { serviceIdentifier: serviceIdentifier, validity: registrarValue('registrar-registration-validity') };
+    if (issuer) registration.provider = true;
+    return {
+      kind: 'register', method: 'POST', path: 'api/registrar/enrolments', access: access,
+      body: {
+        relyingParty: {
+          identifier: identifier ? [{ identifier: identifier }] : [],
+          legalPerson: { legalName: registrarValue('registrar-legal-name') ? [registrarValue('registrar-legal-name')] : [] },
+          country: registrarValue('registrar-country'),
+          tradeName: registrarValue('registrar-name'),
+          services: [service],
+        },
+        access: access,
+        registration: registration,
+      },
+    };
+  }
+
+  // problemField finds the input for a RegistrarProblem. Without an
+  // attestation row, it adds one to focus.
+  function problemField(field) {
+    if (field === 'credential') return firstCredentialTypeField();
+    if (field === 'attestation') {
+      if (!registrarAttestations.querySelector('[data-field="type"]')) addRegistrarAttestation(FORMATS.SDJWT, '');
+      return registrarAttestations.querySelector('[data-field="type"]');
+    }
+    return field ? document.getElementById(field) : undefined;
+  }
+
   // Registering issues both certificates in one step. If a certificate fails,
-  // the registration is deleted again, so a retry starts clean.
+  // the registration is deleted again, so a retry starts clean. A key created
+  // in the browser is shown with the chain, because it exists nowhere else.
   document.getElementById('registrar-form').addEventListener('submit', async (event) => {
     event.preventDefault();
-    const error = document.getElementById('registrar-error');
     const submit = document.getElementById('registrar-submit');
-    error.textContent = '';
-    if (registrarAccessService) {
-      await issueAccessCertificate(submit);
+    document.getElementById('registrar-error').textContent = '';
+    let plan;
+    try {
+      plan = registrarPlan();
+    } catch (e) {
+      if (!(e instanceof RegistrarProblem)) throw e;
+      showRegistrarError(e.message, problemField(e.field));
       return;
     }
-    if (registrarTarget) {
-      await (registrarMode === 'issuer' ? addIssuerService(submit) : addIntendedUse(submit));
-      return;
-    }
-    if (registrarMode === 'issuer') {
-      await registerIssuer(submit);
-      return;
-    }
-    if (!registrarValue('registrar-name')) {
-      showRegistrarError('The relying party needs a name.', document.getElementById('registrar-name'));
-      return;
-    }
-    if (!registrarValue('registrar-purpose')) {
-      showRegistrarError('The intended use needs a purpose.', document.getElementById('registrar-purpose'));
-      return;
-    }
-    const credentials = registrarCredentialList();
-    if (credentials.length === 0) {
-      showRegistrarError('Add at least one credential.', firstCredentialTypeField());
-      return;
-    }
-    const serviceIdentifier = registrarValue('registrar-service-id');
-    const privacyPolicy = registrarValue('registrar-privacy-policy');
-    const supportURI = registrarValue('registrar-support-uri');
-    const identifier = registrarValue('registrar-identifier');
-    const relyingParty = {
-      identifier: identifier ? [{ identifier: identifier }] : [],
-      legalPerson: { legalName: registrarValue('registrar-legal-name') ? [registrarValue('registrar-legal-name')] : [] },
-      country: registrarValue('registrar-country'),
-      tradeName: registrarValue('registrar-name'),
-      services: [{
-        serviceTradeName: registrarValue('registrar-name'),
-        serviceIdentifier: serviceIdentifier,
-        supportURI: supportURI,
-        intendedUses: [{
-          purpose: registrarValue('registrar-purpose') ? [{ lang: 'en', content: registrarValue('registrar-purpose') }] : [],
-          privacyPolicy: privacyPolicy ? [{ policyURI: privacyPolicy }] : [],
-          credentials: credentials,
-        }],
-      }],
-    };
+    const revoked = plan.kind === 'add' ? revokedByTarget() : [];
     submit.disabled = true;
     try {
       let key = '';
-      let csr = registrarValue('registrar-csr');
-      if (!csr) ({ key, csr } = await window.eudiCreateKeyAndCSR());
-      const { relyingParty: registered, access, registration } = await registrarRequest('POST', 'api/registrar/enrolments', {
-        relyingParty: relyingParty,
-        access: {
-          serviceIdentifier: serviceIdentifier,
-          csr: csr,
-          dnsNames: registrarValue('registrar-dns').split(',').map(n => n.trim()).filter(Boolean),
-          validity: registrarValue('registrar-access-validity'),
-        },
-        registration: { serviceIdentifier: serviceIdentifier, validity: registrarValue('registrar-registration-validity') },
-      });
-      const assigned = registered.identifier[0].identifier;
-      document.getElementById('registrar-result-identifier').textContent = assigned;
-      document.getElementById('registrar-client-ids').innerHTML = (access.clientIds || []).map((id, i) =>
-        '<li><code id="registrar-client-id-' + i + '">' + escHtml(id) + '</code></li>').join('');
-      // A key created in the browser exists only in this box. With your own CSR
-      // you already have the key, so you only need the chain.
-      document.getElementById('registrar-pem-label').textContent = key ? 'Signing key and access certificate chain' : 'Access certificate chain';
-      document.getElementById('registrar-pem').value = key + access.chain;
-      document.getElementById('registrar-verifier-info').value = registration.verifierInfo;
-      showRegistrationResult();
+      if (plan.access && !plan.access.csr) ({ key, csr: plan.access.csr } = await window.eudiCreateKeyAndCSR());
+      showRegistrarResponse(plan, await registrarRequest(plan.method, plan.path, plan.body), key, revoked);
     } catch (e) {
       showRegistrarError(e.message);
     } finally {
@@ -4780,62 +4898,47 @@
     }
   });
 
-  // An issuer gets its access certificate and one registration certificate for
-  // its service (ARF RPRC_13). The issuer_info value carries the registration
-  // certificate in the issuer metadata (ETSI TS 119 472-3 V1.1.1 §4.2.3).
-  async function registerIssuer(submit) {
-    if (!registrarValue('registrar-name')) {
-      showRegistrarError('The issuer needs a name.', document.getElementById('registrar-name'));
-      return;
-    }
-    const attestations = registrarAttestationList();
-    if (attestations.length === 0) {
-      let field = registrarAttestations.querySelector('[data-field="type"]');
-      if (!field) {
-        addRegistrarAttestation(FORMATS.SDJWT, '');
-        field = registrarAttestations.querySelector('[data-field="type"]');
-      }
-      showRegistrarError('Add at least one attestation.', field);
-      return;
-    }
-    const serviceIdentifier = registrarValue('registrar-service-id');
-    const supportURI = registrarValue('registrar-support-uri');
-    const identifier = registrarValue('registrar-identifier');
-    const issuer = {
-      identifier: identifier ? [{ identifier: identifier }] : [],
-      legalPerson: { legalName: registrarValue('registrar-legal-name') ? [registrarValue('registrar-legal-name')] : [] },
-      country: registrarValue('registrar-country'),
-      tradeName: registrarValue('registrar-name'),
-      services: [{
-        serviceTradeName: registrarValue('registrar-name'),
-        serviceIdentifier: serviceIdentifier,
-        supportURI: supportURI,
-        entitlements: document.getElementById('registrar-entitlement').value ? [document.getElementById('registrar-entitlement').value] : [],
-        providesAttestations: attestations,
-      }],
+  const CSR_PLACEHOLDER = '<your certificate signing request in PEM>';
+  const CSR_NOTE = 'The dialog creates a key in the browser when the CSR field is empty. For the command, create a key and a CSR, for example with openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -keyout key.pem -out csr.pem -subj "/CN=example". Then replace the placeholder with the CSR.';
+
+  // registrarCommand is the API and CLI command for the registrar dialog. Only
+  // an access certificate on its own has a CLI command.
+  function registrarCommand() {
+    const plan = registrarPlan();
+    const body = JSON.parse(JSON.stringify(plan.body));
+    const access = plan.kind === 'access' ? body : body.access;
+    const needsCSR = Boolean(access && !access.csr);
+    if (needsCSR) access.csr = CSR_PLACEHOLDER;
+    const command = {
+      curl: eudiDialogs.curl(plan.method, plan.path, body, { Accept: 'application/json' }),
+      note: needsCSR ? CSR_NOTE : '',
     };
-    submit.disabled = true;
-    try {
-      let key = '';
-      let csr = registrarValue('registrar-csr');
-      if (!csr) ({ key, csr } = await window.eudiCreateKeyAndCSR());
-      const { relyingParty: registered, access, registration } = await registrarRequest('POST', 'api/registrar/enrolments', {
-        relyingParty: issuer,
-        access: { serviceIdentifier: serviceIdentifier, csr: csr, validity: registrarValue('registrar-access-validity') },
-        registration: { provider: true, serviceIdentifier: serviceIdentifier, validity: registrarValue('registrar-registration-validity') },
-      });
-      const assigned = registered.identifier[0].identifier;
-      document.getElementById('registrar-result-identifier').textContent = assigned;
-      document.getElementById('registrar-pem-label').textContent = key ? 'Signing key and access certificate chain' : 'Access certificate chain';
-      document.getElementById('registrar-pem').value = key + access.chain;
-      document.getElementById('registrar-issuer-info').value = registration.issuerInfo;
-      showRegistrationResult();
-    } catch (e) {
-      showRegistrarError(e.message);
-    } finally {
-      submit.disabled = submit.classList.contains('registrar-registered');
-      if (!submit.disabled && document.activeElement === document.body) submit.focus();
+    if (plan.kind === 'access') {
+      const flags = [['--identifier', body.identifier], ['--service-id', body.serviceIdentifier], ['--csr', needsCSR ? 'csr.pem' : '-']];
+      for (const name of body.dnsNames || []) flags.push(['--dns', name]);
+      if (body.validity) flags.push(['--validity', body.validity]);
+      flags.push(['--remote', eudiDialogs.remoteURL()]);
+      command.cli = eudiDialogs.cli('eudi registrar access-cert', flags) + (needsCSR ? '' : " <<'EOF'\n" + body.csr + '\nEOF');
+      command.cliNote = needsCSR ? CSR_NOTE : '';
     }
+    return command;
+  }
+  eudiDialogs.setCommand(document.getElementById('registrar-dialog'), registrarCommand);
+
+  function showRegistrarResponse(plan, result, key, revoked) {
+    if (plan.kind === 'access') {
+      document.getElementById('registrar-result-identifier').textContent = plan.body.identifier;
+      showAccessResult(key, result);
+      showRegistrationResult();
+      return;
+    }
+    if (plan.kind === 'add') registrarTarget = result.relyingParty;
+    document.getElementById('registrar-result-identifier').textContent = plan.identifier || result.relyingParty.identifier[0].identifier;
+    if (result.access) showAccessResult(key, result.access);
+    if (registrarMode === 'issuer') document.getElementById('registrar-issuer-info').value = result.registration.issuerInfo;
+    else document.getElementById('registrar-verifier-info').value = result.registration.verifierInfo;
+    if (plan.kind === 'add') offerReissue(revoked);
+    showRegistrationResult();
   }
 
   // The dialog scrolls to its end, so the result and the confirmed submit
@@ -4860,7 +4963,8 @@
 
   // registrationTarget copies the registration with the service that gets
   // the addition: the edited service, the chosen one, or a new one. added is
-  // true for a new service.
+  // true for a new service. It throws a RegistrarProblem for a new service
+  // without an identifier.
   function registrationTarget() {
     const identifier = registrarTarget.identifier[0].identifier;
     const updated = JSON.parse(JSON.stringify(registrarTarget));
@@ -4874,98 +4978,10 @@
     }
     const field = document.getElementById('registrar-new-service-id');
     const serviceIdentifier = field.value.trim();
-    if (!serviceIdentifier && updated.services.length > 0) {
-      showRegistrarError('The new service needs an identifier.', field);
-      return null;
-    }
+    if (!serviceIdentifier && updated.services.length > 0) throw new RegistrarProblem('The new service needs an identifier.', 'registrar-new-service-id');
     const service = { serviceTradeName: registrarTarget.tradeName, serviceIdentifier: serviceIdentifier };
     updated.services.push(service);
     return { identifier, updated, service, added: true };
-  }
-
-  // Each registration certificate covers one intended use, so a new certificate
-  // needs a new intended use.
-  async function addIntendedUse(submit) {
-    const use = intendedUseFromForm();
-    if (use.purpose.length === 0) {
-      showRegistrarError('The intended use needs a purpose.', document.getElementById('registrar-purpose'));
-      return;
-    }
-    if (use.credentials.length === 0) {
-      showRegistrarError('Add at least one credential.', firstCredentialTypeField());
-      return;
-    }
-    const target = registrationTarget();
-    if (!target) return;
-    target.service.intendedUses = (target.service.intendedUses || []).concat([use]);
-    const revoked = revokedByTarget();
-    submit.disabled = true;
-    try {
-      const { key, access } = target.added ? await accessRequest(target.service.serviceIdentifier) : {};
-      const { relyingParty: saved, access: issued, registration } = await registrarRequest('PUT', 'api/registrar/enrolments', {
-        relyingParty: target.updated,
-        access: access,
-        registration: { serviceIdentifier: target.service.serviceIdentifier || '', validity: registrarValue('registrar-registration-validity') },
-      });
-      registrarTarget = saved;
-      document.getElementById('registrar-result-identifier').textContent = target.identifier;
-      if (issued) showAccessResult(key, issued);
-      document.getElementById('registrar-verifier-info').value = registration.verifierInfo;
-      offerReissue(revoked);
-      showRegistrationResult();
-    } catch (e) {
-      showRegistrarError(e.message);
-    } finally {
-      submit.disabled = submit.classList.contains('registrar-registered');
-      // The disabled button dropped the focus while the request ran.
-      if (!submit.disabled && document.activeElement === document.body) submit.focus();
-    }
-  }
-
-  // A party that verifies can also issue. Its service gets the attestation
-  // types, and the registrar issues the issuer registration certificate for
-  // the service.
-  async function addIssuerService(submit) {
-    const attestations = registrarAttestationList();
-    if (attestations.length === 0) {
-      let field = registrarAttestations.querySelector('[data-field="type"]');
-      if (!field) {
-        addRegistrarAttestation(FORMATS.SDJWT, '');
-        field = registrarAttestations.querySelector('[data-field="type"]');
-      }
-      showRegistrarError('Add at least one attestation.', field);
-      return;
-    }
-    const target = registrationTarget();
-    if (!target) return;
-    const { identifier, updated, service } = target;
-    const entitlement = document.getElementById('registrar-entitlement').value;
-    service.providesAttestations = attestations;
-    // Without provider entitlements the registrar derives them from the
-    // categories of the types, so changed types get matching entitlements.
-    if (registrarEditService) service.entitlements = withoutProviderEntitlements(service.entitlements);
-    if (entitlement) service.entitlements = (service.entitlements || []).concat([entitlement]);
-    const revoked = revokedByTarget();
-    submit.disabled = true;
-    try {
-      const { key, access } = target.added ? await accessRequest(service.serviceIdentifier) : {};
-      const { relyingParty: saved, access: issued, registration } = await registrarRequest('PUT', 'api/registrar/enrolments', {
-        relyingParty: updated,
-        access: access,
-        registration: { provider: true, serviceIdentifier: service.serviceIdentifier || '', validity: registrarValue('registrar-registration-validity') },
-      });
-      registrarTarget = saved;
-      document.getElementById('registrar-result-identifier').textContent = identifier;
-      if (issued) showAccessResult(key, issued);
-      document.getElementById('registrar-issuer-info').value = registration.issuerInfo;
-      offerReissue(revoked);
-      showRegistrationResult();
-    } catch (e) {
-      showRegistrarError(e.message);
-    } finally {
-      submit.disabled = submit.classList.contains('registrar-registered');
-      if (!submit.disabled && document.activeElement === document.body) submit.focus();
-    }
   }
 
   document.getElementById('registrar-download-pem').addEventListener('click', () => {
@@ -5227,31 +5243,71 @@
     document.getElementById('registrar-catalog-add').focus();
   });
   makeModal(catalogAddOverlay, document.getElementById('registrar-catalog-cancel'));
-  catalogForm.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const error = document.getElementById('registrar-catalog-form-error');
-    error.textContent = '';
+  // catalogEntryRequest is the body of POST api/catalog/attestations for the
+  // form's values. typed keeps each row's claims as typed, for the CLI.
+  function catalogEntryRequest() {
     const credentials = [];
+    const typed = [];
     catalogFormats.querySelectorAll('.registrar-credential').forEach(row => {
       const format = row.querySelector('select').value;
       const type = row.querySelector('[data-field="type"]').value.trim();
       if (!type) return;
-      const claims = row.querySelector('[data-field="claims"]').value.split(',').map(c => c.trim()).filter(Boolean).map(claim => {
+      const names = row.querySelector('[data-field="claims"]').value.split(',').map(c => c.trim()).filter(Boolean);
+      const claims = names.map(claim => {
         if (format !== FORMATS.MDOC) return window.eudiParseClaimPath(claim);
         const at = claim.lastIndexOf(':');
         return at > 0 ? [claim.slice(0, at), claim.slice(at + 1)] : [type, claim];
       });
       credentials.push({ format: format, type: type, claims: claims });
+      typed.push({ format: format, type: type, claims: names });
     });
+    const body = {
+      name: document.getElementById('registrar-catalog-name').value.trim(),
+      category: document.getElementById('registrar-catalog-category').value,
+      credentials: credentials,
+      schema: catalogSchema('registrar'),
+    };
+    return { body, typed, issuerCA: document.getElementById('registrar-catalog-issuer-ca').value.trim() };
+  }
+
+  // catalogCommand is the API and CLI command for adding the catalogue entry.
+  // A pasted issuer CA goes on the category's trusted list in a second call.
+  function catalogCommand() {
+    const { body, typed, issuerCA } = catalogEntryRequest();
+    const json = { Accept: 'application/json' };
+    let curl = eudiDialogs.curl('POST', 'api/catalog/attestations', body, json);
+    if (issuerCA) {
+      curl += '\n\n' + eudiDialogs.curl('POST', 'api/trust/entities', { list: body.category, name: body.name + ' issuer', certificates: issuerCA }, json);
+    }
+    const flags = [['--name', body.name], ['--category', body.category]];
+    for (const c of typed) {
+      flags.push(['--type', c.format + ':' + c.type]);
+      for (const claim of c.claims) flags.push(['--claim', c.format + ':' + claim]);
+    }
+    // --los takes the level without its iso_18045_ prefix.
+    if (body.schema.attestationLoS) flags.push(['--los', body.schema.attestationLoS.replace(/^iso_18045_/, '')]);
+    if (body.schema.bindingType) flags.push(['--binding', body.schema.bindingType]);
+    if (body.schema.rulebookURI) flags.push(['--rulebook', body.schema.rulebookURI]);
+    if (body.schema.trustedAuthorities.length) flags.push(['--trusted-list', body.schema.trustedAuthorities[0].value]);
+    if (issuerCA) flags.push(['--issuer-ca', 'issuer-ca.pem']);
+    flags.push(['--remote', eudiDialogs.remoteURL()]);
+    return {
+      curl: curl,
+      cli: eudiDialogs.cli('eudi catalog add', flags),
+      cliNote: issuerCA ? 'Save the issuer CA as issuer-ca.pem.' : '',
+    };
+  }
+  eudiDialogs.setCommand(document.getElementById('registrar-catalog-add-dialog'), catalogCommand);
+
+  catalogForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const error = document.getElementById('registrar-catalog-form-error');
+    error.textContent = '';
+    const { body } = catalogEntryRequest();
     const save = document.getElementById('registrar-catalog-save');
     save.disabled = true;
     try {
-      const added = await registrarRequest('POST', 'api/catalog/attestations', {
-        name: document.getElementById('registrar-catalog-name').value.trim(),
-        category: document.getElementById('registrar-catalog-category').value,
-        credentials: credentials,
-        schema: catalogSchema('registrar'),
-      });
+      const added = await registrarRequest('POST', 'api/catalog/attestations', body);
       const issuerCA = document.getElementById('registrar-catalog-issuer-ca');
       const notice = document.getElementById('registrar-catalog-notice');
       notice.hidden = true;
