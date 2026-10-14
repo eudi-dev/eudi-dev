@@ -345,7 +345,7 @@ function addCredential(seed) {
   multiple.id = cred.id + "-multiple";
   multiple.checked = !!seed?.multiple;
   multipleLabel.title = "DCQL multiple (OpenID4VP 1.0 §6.1)";
-  multipleLabel.append(multiple, " Several");
+  multipleLabel.append(multiple, " Multiple");
   head.append(toggle, typeInput, multipleLabel, removeCred);
 
   const claimsLabel = document.createElement("div");
@@ -363,30 +363,248 @@ function addCredential(seed) {
   addClaim.textContent = "+ Claim";
   addClaim.addEventListener("click", () => addClaimRow(claims, "", nextClaimID()));
 
-  cred.append(head, claimsLabel, claims, addClaim);
+  // OpenID4VP 1.0 §6.4.1: claim_sets lists the accepted combinations of claims,
+  // the preferred one first.
+  const claimSetsLabel = document.createElement("div");
+  claimSetsLabel.className = "claims-label";
+  claimSetsLabel.id = cred.id + "-claim-sets-label";
+  claimSetsLabel.title = "DCQL claim_sets (OpenID4VP 1.0 §6.4.1)";
+  claimSetsLabel.textContent = "Claim sets";
+  const claimSetsHint = document.createElement("p");
+  claimSetsHint.className = "set-hint";
+  claimSetsHint.id = cred.id + "-claim-sets-hint";
+  claimSetsHint.textContent = "Tick the claims of each set. The wallet discloses one set, preferably the first.";
+  const claimSets = document.createElement("div");
+  claimSets.className = "claim-sets";
+  claimSets.id = cred.id + "-claim-sets";
+  let claimSetCount = 0;
+  const addClaimSet = document.createElement("button");
+  addClaimSet.type = "button";
+  addClaimSet.className = "btn small";
+  addClaimSet.id = cred.id + "-add-claim-set";
+  addClaimSet.textContent = "+ Claim set";
+  addClaimSet.addEventListener("click", () => addChoiceRow(claimSets, cred.id + "-claim-set-" + claimSetCount++, () => claimChoices(cred)));
+
+  cred.append(head, claimsLabel, claims, addClaim, claimSetsLabel, claimSetsHint, claimSets, addClaimSet);
   list.append(cred);
+  refreshChoices();
 }
+
+// A choice row has a checkbox for each claim or credential. Its ticks stay
+// when the claims or credentials change.
+function addChoiceRow(container, id, choices) {
+  const row = document.createElement("div");
+  row.className = "choice-row";
+  row.id = id;
+  row.choices = choices;
+  const boxes = document.createElement("span");
+  boxes.className = "choice-boxes";
+  boxes.id = id + "-choices";
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "btn icon small";
+  remove.id = id + "-remove";
+  remove.textContent = "×";
+  remove.setAttribute("aria-label", "Remove");
+  remove.addEventListener("click", () => row.remove());
+  row.append(boxes, remove);
+  container.append(row);
+  renderChoices(row);
+  return row;
+}
+
+function renderChoices(row) {
+  const boxes = row.querySelector(".choice-boxes");
+  const ticked = new Set(checkedKeys(row));
+  boxes.textContent = "";
+  const choices = row.choices();
+  if (choices.length === 0) {
+    boxes.textContent = "Nothing to pick yet.";
+    return;
+  }
+  for (const choice of choices) {
+    const label = document.createElement("label");
+    label.className = "multiple-option";
+    label.id = row.id + "-" + idPart(choice.key) + "-label";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.id = row.id + "-" + idPart(choice.key);
+    input.dataset.key = choice.key;
+    input.checked = ticked.has(choice.key);
+    label.append(input, " " + choice.label);
+    boxes.append(label);
+  }
+}
+
+function checkedKeys(row) {
+  return [...row.querySelectorAll(".choice-boxes input:checked")].map((input) => input.dataset.key);
+}
+
+function refreshChoices() {
+  document.querySelectorAll("#query-builder .choice-row").forEach(renderChoices);
+}
+
+// claimChoices lists the filled-in claims of a credential.
+function claimChoices(cred) {
+  return [...cred.querySelectorAll(".claim-row")]
+    .map((row) => ({ key: row.id, label: row.querySelector(".claim-input").value.trim() }))
+    .filter((choice) => choice.label !== "");
+}
+
+function credentialChoices() {
+  return [...document.querySelectorAll("#credentials-list .cred")].map((cred, i) => {
+    const type = cred.querySelector(".type-input").value.trim();
+    return { key: cred.id, label: "cred_" + i + (type ? " (" + type + ")" : "") };
+  });
+}
+
+// Editing a claim or a credential redraws the checkboxes. Ticking one does not.
+for (const type of ["input", "click"]) {
+  document.getElementById("query-builder").addEventListener(type, (event) => {
+    if (event.target.closest(".choice-boxes")) return;
+    setTimeout(refreshChoices);
+  });
+}
+
+// OpenID4VP 1.0 §6.2: each credential set lists options of credential queries.
+// A required set needs one of its options.
+let credentialSetCount = 0;
+document.getElementById("add-credential-set").addEventListener("click", () => {
+  const set = document.createElement("div");
+  set.className = "cred cred-set";
+  set.id = "credential-sets-" + credentialSetCount++;
+  let optionCount = 0;
+  const head = document.createElement("div");
+  head.className = "cred-head";
+  head.id = set.id + "-head";
+  const requiredLabel = document.createElement("label");
+  requiredLabel.className = "multiple-option";
+  requiredLabel.id = set.id + "-required-label";
+  requiredLabel.title = "DCQL credential_sets required (OpenID4VP 1.0 §6.2)";
+  const required = document.createElement("input");
+  required.type = "checkbox";
+  required.className = "required-input";
+  required.id = set.id + "-required";
+  required.checked = true;
+  requiredLabel.append(required, " Required");
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "btn icon small";
+  remove.id = set.id + "-remove";
+  remove.textContent = "×";
+  remove.setAttribute("aria-label", "Remove credential set");
+  remove.addEventListener("click", () => set.remove());
+  head.append(requiredLabel, remove);
+  const optionsLabel = document.createElement("div");
+  optionsLabel.className = "claims-label";
+  optionsLabel.id = set.id + "-options-label";
+  optionsLabel.textContent = "Options";
+  const optionsHint = document.createElement("p");
+  optionsHint.className = "set-hint";
+  optionsHint.id = set.id + "-options-hint";
+  optionsHint.textContent = "Tick the credentials of each option. The wallet presents all credentials of one option.";
+  const options = document.createElement("div");
+  options.className = "set-options";
+  options.id = set.id + "-options";
+  const addOption = document.createElement("button");
+  addOption.type = "button";
+  addOption.className = "btn small";
+  addOption.id = set.id + "-add-option";
+  addOption.textContent = "+ Option";
+  addOption.addEventListener("click", () => addChoiceRow(options, set.id + "-option-" + optionCount++, credentialChoices));
+  set.append(head, optionsLabel, optionsHint, options, addOption);
+  document.getElementById("credential-sets").append(set);
+  addOption.click();
+});
 
 document.getElementById("add-credential").addEventListener("click", () => addCredential());
 addCredential({ format: "dc+sd-jwt", type: "urn:eudi:pid:1", claims: ["given_name", "nationalities"] });
 
-function customRequestBody() {
-  const credentials = [];
-  for (const cred of document.querySelectorAll("#credentials-list .cred")) {
+// builderQuery builds the DCQL query from the builder's fields.
+function builderQuery() {
+  const creds = [...document.querySelectorAll("#credentials-list .cred")];
+  const credentials = creds.map((cred, i) => {
     const format = cred.querySelector(".format-select .selected").dataset.format;
     const type = cred.querySelector(".type-input").value.trim();
-    const claims = [];
-    for (const input of cred.querySelectorAll(".claim-input")) {
-      const path = window.eudiParseClaimPath(input.value);
-      if (path.length) claims.push(path);
+    const entry = { id: "cred_" + i, format };
+    entry.meta = format === "mso_mdoc" ? { doctype_value: type } : { vct_values: [type] };
+    // An mdoc element lives in a namespace. The builder uses the doctype as the
+    // namespace, like the PID does.
+    const claims = [...cred.querySelectorAll(".claim-row")]
+      .map((row) => {
+        const path = window.eudiParseClaimPath(row.querySelector(".claim-input").value);
+        return { key: row.id, path: format === "mso_mdoc" && path.length ? [type, ...path] : path };
+      })
+      .filter((claim) => claim.path.length);
+    const sets = [...cred.querySelectorAll(".claim-sets .choice-row")].map(checkedKeys).filter((keys) => keys.length);
+    if (claims.length) {
+      const ids = claimIDs(claims);
+      entry.claims = claims.map((claim) => (sets.length ? { id: ids.get(claim.key), path: claim.path } : { path: claim.path }));
+      const claimSets = sets.map((keys) => keys.filter((key) => ids.has(key)).map((key) => ids.get(key))).filter((set) => set.length);
+      if (claimSets.length) entry.claim_sets = claimSets;
     }
-    const entry = { format, claims };
     if (cred.querySelector(".multiple-input").checked) entry.multiple = true;
-    if (format === "mso_mdoc") entry.doctype = type;
-    else entry.vct = type;
-    credentials.push(entry);
+    return entry;
+  });
+  const queryIDs = new Map(creds.map((cred, i) => [cred.id, "cred_" + i]));
+  const credentialSets = [...document.querySelectorAll("#credential-sets .cred-set")]
+    .map((set) => {
+      const options = [...set.querySelectorAll(".choice-row")]
+        .map((row) => checkedKeys(row).map((key) => queryIDs.get(key)).filter(Boolean))
+        .filter((option) => option.length);
+      const entry = { options };
+      if (!set.querySelector(".required-input").checked) entry.required = false;
+      return entry;
+    })
+    .filter((set) => set.options.length);
+  const query = { credentials };
+  if (credentialSets.length) query.credential_sets = credentialSets;
+  return query;
+}
+
+// claimIDs names each claim after the last name in its path, such as
+// given_name. A claim id holds only letters, digits, _ and - (OpenID4VP 1.0 §6.3).
+function claimIDs(claims) {
+  const ids = new Map();
+  const used = new Set();
+  for (const claim of claims) {
+    const names = claim.path.filter((part) => typeof part === "string");
+    const base = (names[names.length - 1] || "claim").replace(/[^A-Za-z0-9_-]+/g, "_");
+    let id = base;
+    for (let n = 2; used.has(id); n++) id = base + "_" + n;
+    used.add(id);
+    ids.set(claim.key, id);
   }
-  const body = { type: "custom", client_id_scheme: clientIDScheme, credentials };
+  return ids;
+}
+
+const QUERY_MODE_HINTS = {
+  builder: "Pick credentials and claims. Claim sets and credential sets are optional.",
+  json: "Edit the DCQL query, for example to add claim values. The request sends it unchanged. Switching from the builder copies the builder's query into the editor.",
+};
+let queryMode = "builder";
+bindToggle("query-mode-toggle", (option) => {
+  queryMode = option.dataset.mode;
+  const json = queryMode === "json";
+  const editor = document.getElementById("dcql-json");
+  if (json) editor.value = JSON.stringify(builderQuery(), null, 2);
+  document.getElementById("query-builder").hidden = json;
+  document.getElementById("custom-hint").hidden = json;
+  editor.hidden = !json;
+  document.getElementById("query-mode-hint").textContent = QUERY_MODE_HINTS[queryMode];
+});
+
+function customRequestBody() {
+  const body = { type: "custom", client_id_scheme: clientIDScheme };
+  if (queryMode === "json") {
+    try {
+      body.dcql_query = JSON.parse(document.getElementById("dcql-json").value);
+    } catch (e) {
+      throw new Error("The DCQL query is not valid JSON: " + e.message);
+    }
+  } else {
+    body.dcql_query = builderQuery();
+  }
   if (clientIDScheme === "pre-registered") {
     const clientID = document.getElementById("client-id-input").value.trim();
     if (clientID) body.client_id = clientID;
@@ -468,7 +686,12 @@ document.getElementById("create-request").addEventListener("click", async () => 
   stopPolling();
   let request;
   if (credential === "custom") {
-    request = customRequestBody();
+    try {
+      request = customRequestBody();
+    } catch (e) {
+      renderResult({ status: "failed", error: e.message });
+      return;
+    }
   } else {
     request = { type: credential === "ticket" ? "ticket" : "pid" };
     if (vct) {

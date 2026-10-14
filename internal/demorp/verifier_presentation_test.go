@@ -127,7 +127,7 @@ func TestVerifierChecksTheKeyBinding(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			log := &checklist{}
-			_, err := d.verifySDJWTEntry(req, tc.presentation, TicketVCT, nil, "", d.credentialTrust(), log)
+			_, err := d.verifySDJWTEntry(req, tc.presentation, credentialQuery{vct: TicketVCT}, "", d.credentialTrust(), log)
 			if tc.failedCheck == "" {
 				if err != nil {
 					t.Fatalf("refused: %v (checks %v)", err, log.entries)
@@ -170,7 +170,7 @@ func TestVerifierRefusesADeviceResponseWithTwoDocuments(t *testing.T) {
 	}
 
 	log := &checklist{}
-	_, err = d.verifyMDOCPresentation(&requestState{}, format.EncodeBase64URL(encoded), PIDDocType, nil, "", d.credentialTrust(), log)
+	_, err = d.verifyMDOCPresentation(&requestState{}, format.EncodeBase64URL(encoded), credentialQuery{docType: PIDDocType}, "", d.credentialTrust(), log)
 	last := log.entries[len(log.entries)-1]
 	if err == nil || last["name"] != "DeviceResponse holds one document" || last["ok"] != false {
 		t.Errorf("error %v, last check %v, want the failed document count check", err, last)

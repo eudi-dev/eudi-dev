@@ -273,7 +273,7 @@ func TestAClaimsPathPointsIntoTheClaims(t *testing.T) {
 		{[]any{"eu.europa.ec.eudi.pid.de.1", "given_name"}, false},
 		{[]any{"middle_name"}, true},
 	} {
-		if got := len(missingClaimPaths(claims, [][]any{tc.path})) == 0; got != tc.want {
+		if got := claimPresent(claims, claimQuery{path: tc.path}); got != tc.want {
 			t.Errorf("%v: %t, want %t", tc.path, got, tc.want)
 		}
 	}

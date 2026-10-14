@@ -1156,7 +1156,7 @@ test.describe("Consent credential selection", () => {
     // The PIDs are not alternatives. Only the optional ticket set is.
     await expect(page.locator("#consent-selection-row")).toContainText("1 alternative");
     const note = page.locator("#consent-multiple-pid");
-    await expect(note).toContainText(/Sending (\d+) of \1 matching credentials/);
+    await expect(note).toContainText(/The wallet sends (\d+) of \1 matching credentials/);
     const pidCards = page.locator('#consent-dialog .consent-credential[data-credential-id]:not([data-vct="urn:eudi-test:demo-ticket:1"])');
     const sentPIDs = await pidCards.count();
     expect(sentPIDs).toBeGreaterThanOrEqual(2);
@@ -1168,7 +1168,7 @@ test.describe("Consent credential selection", () => {
     for (let i = 1; i < sentPIDs; i++) await candidates.nth(i).click();
     await page.locator("#consent-set-1-none").check();
     await page.locator("#consent-selection-done").click();
-    await expect(note).toContainText(`Sending 1 of ${sentPIDs}`);
+    await expect(note).toContainText(`The wallet sends 1 of ${sentPIDs}`);
 
     await page.locator("#consent-approve").click();
     await expect(page).toHaveURL(/\/verifier\/\?response_code=/, { timeout: 15_000 });
@@ -1590,6 +1590,94 @@ test.describe("Custom verifier request builder", () => {
     const result = await verifierResult(id);
     expect(result.status).toBe("verified");
     expect(result.claims.cred_0.nationalities).toEqual([]);
+  });
+
+  // OpenID4VP 1.0 §6.4.1: the JSON editor sends claim_sets. The verifier accepts
+  // the claim set the user picks in the wallet.
+  test("a written query with claim sets accepts the claim set the user picks", async ({ page }) => {
+    await page.goto(`${BASE}/verifier/`);
+    await page.locator('#credential-toggle [data-credential="custom"]').click();
+    await page.locator("#query-mode-json").click();
+    const editor = page.locator("#dcql-json");
+    await expect(editor).toHaveValue(/"cred_0"/);
+    await expect(page.locator("#query-builder")).toBeHidden();
+    await editor.fill(JSON.stringify({
+      credentials: [{
+        id: "pid",
+        format: "dc+sd-jwt",
+        meta: { vct_values: ["urn:eudi:pid:1"] },
+        claims: [
+          { id: "a", path: ["given_name"] },
+          { id: "b", path: ["family_name"] },
+          { id: "c", path: ["birthdate"] },
+        ],
+        claim_sets: [["a", "b"], ["a", "c"]],
+      }],
+    }));
+    const [resp] = await Promise.all([
+      page.waitForResponse((r) => r.url().endsWith("/verifier/api/requests") && r.request().method() === "POST"),
+      page.locator("#create-request").click(),
+    ]);
+    const { transaction_id: id } = await resp.json();
+    const schemeURI = (await page.locator("#scheme-uri").textContent()) || "";
+
+    await present(page, schemeURI);
+    await page.locator("#consent-show-claim-sets-pid").click();
+    await page.locator("#consent-claim-set-pid-1").check();
+    await page.locator("#consent-approve").click();
+    await expect(page).toHaveURL(/\/verifier\/\?response_code=/, { timeout: 45_000 });
+
+    const result = await verifierResult(id);
+    expect(result.status).toBe("verified");
+    expect(result.checks.map((c) => c.name)).toContain("pid: claim set 2 of 2 was disclosed (a, c)");
+  });
+
+  // The builder writes claim_sets and credential_sets, and the wallet answers
+  // them.
+  test("the builder sends claim sets and credential sets", async ({ page }) => {
+    await page.goto(`${BASE}/verifier/`);
+    await page.locator('#credential-toggle [data-credential="custom"]').click();
+    const first = "#credentials-list-0";
+    await page.locator(`${first}-claim-1-input`).fill("family_name");
+    await page.locator(`${first}-add-claim`).click();
+    await page.locator(`${first}-claim-2-input`).fill("birthdate");
+    await page.locator(`${first}-add-claim-set`).click();
+    await page.locator(`${first}-claim-set-0-${first.slice(1)}-claim-0`).check();
+    await page.locator(`${first}-claim-set-0-${first.slice(1)}-claim-1`).check();
+    await page.locator(`${first}-add-claim-set`).click();
+    await page.locator(`${first}-claim-set-1-${first.slice(1)}-claim-0`).check();
+    await page.locator(`${first}-claim-set-1-${first.slice(1)}-claim-2`).check();
+
+    await page.locator("#add-credential").click();
+    await page.locator("#credentials-list-1-format-mso-mdoc").click();
+    await page.locator("#credentials-list-1-type").fill("eu.europa.ec.eudi.pid.1");
+    await page.locator("#credentials-list-1-claim-0-input").fill("given_name");
+    await page.locator("#add-credential-set").click();
+    await page.locator("#credential-sets-0-option-0-credentials-list-0").check();
+    await page.locator("#credential-sets-0-add-option").click();
+    await page.locator("#credential-sets-0-option-1-credentials-list-1").check();
+
+    await page.locator("#query-mode-json").click();
+    const query = JSON.parse(await page.locator("#dcql-json").inputValue());
+    expect(query.credentials[0].claim_sets).toEqual([["given_name", "family_name"], ["given_name", "birthdate"]]);
+    expect(query.credential_sets).toEqual([{ options: [["cred_0"], ["cred_1"]] }]);
+    expect(query.credentials[1].claims).toEqual([{ path: ["eu.europa.ec.eudi.pid.1", "given_name"] }]);
+    await page.locator("#query-mode-builder").click();
+
+    const [resp] = await Promise.all([
+      page.waitForResponse((r) => r.url().endsWith("/verifier/api/requests") && r.request().method() === "POST"),
+      page.locator("#create-request").click(),
+    ]);
+    const { transaction_id: id } = await resp.json();
+    const schemeURI = (await page.locator("#scheme-uri").textContent()) || "";
+
+    await present(page, schemeURI);
+    await page.locator("#consent-approve").click();
+    await expect(page).toHaveURL(/\/verifier\/\?response_code=/, { timeout: 45_000 });
+
+    const result = await verifierResult(id);
+    expect(result.status).toBe("verified");
+    expect(result.checks.map((c) => c.name)).toContain("cred_0: claim set 1 of 2 was disclosed (given_name, family_name)");
   });
 
   test("ending the path with [*] discloses the array elements", async ({ page }) => {

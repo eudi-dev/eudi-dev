@@ -75,6 +75,8 @@ The verifier signs requests delivered from `/verifier/request/{id}` with its acc
 
 By default, a PID request accepts either an SD-JWT VC or an mdoc. The ticket is always an SD-JWT VC. With **multiple**, the wallet may send several credentials for each query, such as two stored PIDs.
 
+**Custom** builds your own request. In the builder you pick the credentials, claims, claim sets, credential sets and the client identifier prefix. An mdoc claim is an element name in the namespace of its doctype. Its **JSON** mode shows the DCQL query and lets you edit it, for example to add claim `values`. The request sends it unchanged. The verifier checks the response against it. Without `claim_sets` it needs every claim. With them it needs one complete claim set. Each required credential set needs one of its options.
+
 With the status list option, each ticket references a reserved index in the wallet's own status list. The wallet imports the ticket as revocable. After revocation, the demo verifier rejects the next presentation.
 
 ### PID credentials

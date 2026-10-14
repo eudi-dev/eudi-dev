@@ -30,7 +30,6 @@ import (
 	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
-	"github.com/eudi-dev/eudi-dev/v3/internal/dcql"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/httpsec"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jwe"
@@ -67,8 +66,11 @@ type requestState struct {
 	responseCode string
 	// queries and sets are the DCQL query. The request sends them and the
 	// response is checked against them.
-	queries  []credentialQuery
-	sets     []credentialSet
+	queries []credentialQuery
+	sets    []credentialSet
+	// rawDCQL is the DCQL query from the verifier page. The request sends it
+	// unchanged.
+	rawDCQL  map[string]any
 	nonce    string
 	clientID string
 	// interactiveEndpoint is set for a request inside an OpenID4VCI 1.1 §6
@@ -148,6 +150,9 @@ type createRequestBody struct {
 	Multiple bool `json:"multiple"`
 	// Credentials are the DCQL credential queries of a "custom" request.
 	Credentials []customCredentialTO `json:"credentials"`
+	// DCQLQuery is the DCQL query from the verifier page. It replaces
+	// Credentials.
+	DCQLQuery map[string]any `json:"dcql_query"`
 	// ClientIDScheme is the client identifier prefix of a custom request:
 	// "x509_hash" (the default), "x509_san_dns", "redirect_uri" or
 	// "pre-registered". Only the x509 prefixes sign the request object.
@@ -207,12 +212,17 @@ type customCredentialTO struct {
 
 // credentialQuery is one DCQL credential query (OpenID4VP 1.0 §6.1).
 type credentialQuery struct {
-	id       string
-	format   string
-	vct      string
-	docType  string
-	paths    [][]any
-	multiple bool
+	id      string
+	format  string
+	vct     string
+	vcts    []string
+	docType string
+	paths   [][]any
+	// claims and claimSets come from the page's DCQL query. They replace
+	// paths.
+	claims    []claimQuery
+	claimSets [][]string
+	multiple  bool
 	// trustedAuthorities is the trusted_authorities value, if any.
 	trustedAuthorities []map[string]any
 	// resultKey is the key of this entry in the verified claims. An empty key puts the
@@ -235,6 +245,9 @@ func (q credentialQuery) label() string {
 
 // dcqlQuery is the dcql_query parameter of the request.
 func (r *requestState) dcqlQuery() map[string]any {
+	if r.rawDCQL != nil {
+		return r.rawDCQL
+	}
 	credentials := make([]map[string]any, 0, len(r.queries))
 	for _, q := range r.queries {
 		entry := map[string]any{"id": q.id, "format": q.format}
@@ -567,7 +580,15 @@ func writeCreatedRequest(w http.ResponseWriter, req *requestState, walletURL, sc
 }
 
 func (d *DemoRP) createCustomRequest(w http.ResponseWriter, body createRequestBody) {
-	if len(body.Credentials) == 0 {
+	var written []credentialQuery
+	var writtenSets []credentialSet
+	if body.DCQLQuery != nil {
+		var err error
+		if written, writtenSets, err = parseDCQLQuery(body.DCQLQuery); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+	} else if len(body.Credentials) == 0 {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "a custom request needs at least one credential"})
 		return
 	}
@@ -607,7 +628,13 @@ func (d *DemoRP) createCustomRequest(w http.ResponseWriter, body createRequestBo
 		return
 	}
 
+	if body.DCQLQuery != nil {
+		req.queries, req.sets, req.rawDCQL = written, writtenSets, body.DCQLQuery
+	}
 	for i, c := range body.Credentials {
+		if body.DCQLQuery != nil {
+			break
+		}
 		format := strings.TrimSpace(c.Format)
 		switch {
 		case format == credtype.FormatSDJWT && strings.TrimSpace(c.VCT) == "":
@@ -750,17 +777,6 @@ func parseSigningKeyBundle(pemBundle string) (*ecdsa.PrivateKey, []*x509.Certifi
 		return nil, nil, fmt.Errorf("the signing key PEM carries no certificate")
 	}
 	return key, chain, nil
-}
-
-// missingClaimPaths lists the requested paths without a value.
-func missingClaimPaths(claims map[string]any, paths [][]any) []string {
-	var missing []string
-	for _, path := range paths {
-		if _, ok := dcql.SelectClaims(claims, path); !ok {
-			missing = append(missing, fmt.Sprint(path))
-		}
-	}
-	return missing
 }
 
 // namePaths turns claim names into DCQL claims paths, prefixed with an mdoc
@@ -1139,9 +1155,9 @@ func (d *DemoRP) verifyPresentation(req *requestState, vpToken string) (map[stri
 			var claims map[string]any
 			var err error
 			if q.format == credtype.FormatMDOC {
-				claims, err = d.verifyMDOCPresentation(req, presentation, q.docType, q.paths, itemLabel, trust, log)
+				claims, err = d.verifyMDOCPresentation(req, presentation, q, itemLabel, trust, log)
 			} else {
-				claims, err = d.verifySDJWTEntry(req, presentation, q.vct, q.paths, itemLabel, trust, log)
+				claims, err = d.verifySDJWTEntry(req, presentation, q, itemLabel, trust, log)
 			}
 			if err != nil {
 				d.recordPresentation(req, presentation)
@@ -1167,7 +1183,7 @@ func (d *DemoRP) verifyPresentation(req *requestState, vpToken string) (map[stri
 // verifySDJWTEntry runs the shared credential checks and checks the requested
 // type, the key binding and the disclosed claims. The label prefix tells ticket
 // checks apart from PID checks.
-func (d *DemoRP) verifySDJWTEntry(req *requestState, presentation, expectedVCT string, paths [][]any, label string, trust validate.Trust, log *checklist) (map[string]any, error) {
+func (d *DemoRP) verifySDJWTEntry(req *requestState, presentation string, q credentialQuery, label string, trust validate.Trust, log *checklist) (map[string]any, error) {
 	check := func(name string, err error) error {
 		return log.record(label+name, err)
 	}
@@ -1184,8 +1200,10 @@ func (d *DemoRP) verifySDJWTEntry(req *requestState, presentation, expectedVCT s
 	// answers its base type, such as a German PID for a base PID query.
 	gotVCT, _ := token.ResolvedClaims["vct"].(string)
 	gotAka := credtype.AkaVCTs(token.ResolvedClaims)
+	expected := q.typeValues()
 	if err = check("credential type matches the request",
-		errIf(!credtype.Answers(gotVCT, gotAka, expectedVCT), "vct is %q, requested %q", gotVCT, expectedVCT)); err != nil {
+		errIf(!slices.ContainsFunc(expected, func(want string) bool { return credtype.Answers(gotVCT, gotAka, want) }),
+			"vct is %q, requested %s", gotVCT, strings.Join(expected, " or "))); err != nil {
 		return nil, err
 	}
 
@@ -1251,9 +1269,7 @@ func (d *DemoRP) verifySDJWTEntry(req *requestState, presentation, expectedVCT s
 	}
 
 	disclosed := disclosedClaims(token)
-	missing := missingClaimPaths(disclosed, paths)
-	if err = check("requested claims were disclosed",
-		errIf(len(missing) > 0, "missing: %s", strings.Join(missing, ", "))); err != nil {
+	if err = check(q.checkClaims(disclosed, "requested claims were disclosed")); err != nil {
 		return nil, err
 	}
 
@@ -1283,7 +1299,7 @@ func (d *DemoRP) credentialTrust() validate.Trust {
 // signer on the list of another category cannot issue an accepted PID.
 func (d *DemoRP) credentialTrustFor(q credentialQuery) validate.Trust {
 	trust := d.credentialTrust()
-	if d.wallet.ARFChecks() && (credtype.IsPIDType(q.vct) || credtype.IsPIDType(q.docType)) {
+	if d.wallet.ARFChecks() && (slices.ContainsFunc(q.typeValues(), credtype.IsPIDType) || credtype.IsPIDType(q.docType)) {
 		trust.Issuance = append(trustedlists.AnchorsOf(d.wallet.TrustedLists().Lists(), lote.PIDProvidersListType, lote.IssuanceServices), d.verifierTrustAnchors...)
 	}
 	return trust
@@ -1311,7 +1327,8 @@ func disclosedClaims(token *sdjwt.Token) map[string]any {
 // verifyMDOCPresentation validates an mdoc DeviceResponse. It runs the shared
 // credential checks and checks the doctype, the holder signature over the
 // session transcript and the requested elements.
-func (d *DemoRP) verifyMDOCPresentation(req *requestState, presentation, docType string, paths [][]any, label string, trust validate.Trust, log *checklist) (map[string]any, error) {
+func (d *DemoRP) verifyMDOCPresentation(req *requestState, presentation string, q credentialQuery, label string, trust validate.Trust, log *checklist) (map[string]any, error) {
+	docType := q.docType
 	check := func(name string, err error) error {
 		return log.record(label+name, err)
 	}
@@ -1364,9 +1381,7 @@ func (d *DemoRP) verifyMDOCPresentation(req *requestState, presentation, docType
 		}
 		byNamespace[ns] = elements
 	}
-	missing := missingClaimPaths(byNamespace, paths)
-	if err = check("the requested elements are present",
-		errIf(len(missing) > 0, "missing from the presentation: %s", strings.Join(missing, ", "))); err != nil {
+	if err = check(q.checkClaims(byNamespace, "the requested elements are present")); err != nil {
 		return nil, err
 	}
 	return claims, nil
