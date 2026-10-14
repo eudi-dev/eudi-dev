@@ -2041,7 +2041,8 @@ for (const mode of ["debug", "strict"]) {
       });
       jsonPost(`${WALLET_URL}/api/presentations`, { uri, interactive: true }).catch(() => {});
       await page.goto(`${WALLET_URL}/?request=${await waitForPendingRequest()}`);
-      // The note names the claim set the wallet sends. The others open on request.
+      // The note names the claim set the wallet sends. The other sets appear after
+      // a click on Show all claim sets.
       const note = page.locator("#consent-claim-set-pid-current");
       await expect(note).toHaveText("The verifier accepts 2 claim sets. The wallet sends the first.");
       await expect(page.locator("#consent-claim-set-pid")).toHaveCount(0);
@@ -3065,15 +3066,15 @@ test.describe("Registrar", () => {
 
 });
 
-// Each dialog shows the command that does what the dialog does. The commands
-// run as shown against the wallet the page talks to.
+// Each dialog shows a command with the same effect. The tests run each command
+// as shown against the wallet of the page.
 test.describe("Commands in dialogs", () => {
   const cliHome = fs.mkdtempSync(path.join(os.tmpdir(), "eudi-dev-cli-home-"));
   // run runs a command in bash without blocking, so servers in this process
   // can answer the wallet meanwhile. The CLI runs the e2e build with its own
   // home, so it never reaches another wallet.
   function run(command) {
-    const script = command.replace(/^eudi /, "/tmp/eudi-dev-wallet-e2e ");
+    const script = command.replace(/^eudi /gm, "/tmp/eudi-dev-wallet-e2e ");
     return new Promise((resolve, reject) => {
       const child = require("child_process").spawn("bash", [], { env: { ...process.env, EUDI_DEV_HOME: cliHome } });
       let stdout = "";
@@ -3098,7 +3099,7 @@ test.describe("Commands in dialogs", () => {
     await run(await text.textContent());
     expect(await vcts()).toContain("urn:example:command:curl");
 
-    // The command follows the form.
+    // The command changes with the form.
     await page.locator("#issue-vct").fill("urn:example:command:cli");
     await page.locator("#issue-dialog-command-cli").check();
     await expect(text).toContainText("eudi issue sdjwt");
@@ -3119,59 +3120,80 @@ test.describe("Commands in dialogs", () => {
     await expect(page.locator("#issue-dialog")).not.toHaveClass(/dialog-maximized/);
   });
 
-  test("the consent dialog's command approves with the chosen claim set", async ({ page }) => {
+  // openClaimSetRequest opens a presentation request with two claim sets from a
+  // verifier in this process. The request comes from an API call, so every
+  // caller sees it.
+  async function openClaimSetRequest(page) {
     await denyPendingRequests();
-    let received;
-    const verifier = http.createServer((req, res) => {
+    const verifier = { received: undefined };
+    verifier.server = http.createServer((req, res) => {
       let body = "";
       req.on("data", (d) => (body += d));
       req.on("end", () => {
-        received = new URLSearchParams(body);
+        verifier.received = new URLSearchParams(body);
         res.setHeader("Content-Type", "application/json");
         res.end("{}");
       });
     });
-    await new Promise((resolve) => verifier.listen(0, "127.0.0.1", resolve));
+    await new Promise((resolve) => verifier.server.listen(0, "127.0.0.1", resolve));
+    const responseURI = `http://127.0.0.1:${verifier.server.address().port}/response`;
+    const uri = "openid4vp://authorize?" + new URLSearchParams({
+      client_id: `redirect_uri:${responseURI}`,
+      response_type: "vp_token",
+      response_mode: "direct_post",
+      response_uri: responseURI,
+      nonce: "n",
+      state: "s",
+      dcql_query: JSON.stringify({
+        credentials: [{
+          id: "pid",
+          format: "dc+sd-jwt",
+          meta: { vct_values: ["urn:eudi:pid:1"] },
+          claims: [{ id: "a", path: ["given_name"] }, { id: "b", path: ["family_name"] }, { id: "c", path: ["birthdate"] }],
+          claim_sets: [["a", "b"], ["a", "c"]],
+        }],
+      }),
+    });
+    jsonPost(`${WALLET_URL}/api/presentations`, { uri, interactive: true }).catch(() => {});
+    await page.goto(`${WALLET_URL}/?request=${await waitForPendingRequest()}`);
+    await page.locator("#consent-show-claim-sets-pid").click();
+    await page.locator("#consent-claim-set-pid-1").check();
+    await page.locator("#consent-dialog-command-toggle").click();
+    return verifier;
+  }
+
+  async function disclosedClaims(verifier) {
+    await expect.poll(() => verifier.received?.get("vp_token")).toBeTruthy();
+    const presentation = JSON.parse(verifier.received.get("vp_token")).pid[0];
+    return presentation.split("~").slice(1, -1)
+      .map((d) => JSON.parse(Buffer.from(d, "base64url").toString())[1])
+      .sort();
+  }
+
+  test("the consent dialog's curl command approves with the chosen claim set", async ({ page }) => {
+    const verifier = await openClaimSetRequest(page);
     try {
-      const responseURI = `http://127.0.0.1:${verifier.address().port}/response`;
-      const uri = "openid4vp://authorize?" + new URLSearchParams({
-        client_id: `redirect_uri:${responseURI}`,
-        response_type: "vp_token",
-        response_mode: "direct_post",
-        response_uri: responseURI,
-        nonce: "n",
-        state: "s",
-        dcql_query: JSON.stringify({
-          credentials: [{
-            id: "pid",
-            format: "dc+sd-jwt",
-            meta: { vct_values: ["urn:eudi:pid:1"] },
-            claims: [{ id: "a", path: ["given_name"] }, { id: "b", path: ["family_name"] }, { id: "c", path: ["birthdate"] }],
-            claim_sets: [["a", "b"], ["a", "c"]],
-          }],
-        }),
-      });
-      jsonPost(`${WALLET_URL}/api/presentations`, { uri, interactive: true }).catch(() => {});
-      await page.goto(`${WALLET_URL}/?request=${await waitForPendingRequest()}`);
-      await page.locator("#consent-show-claim-sets-pid").click();
-      await page.locator("#consent-claim-set-pid-1").check();
-      await page.locator("#consent-dialog-command-toggle").click();
       const text = page.locator("#consent-dialog-command-text");
       await expect(text).toContainText('"pid": 1');
-      // The command finds the request itself. This one came from an API call,
-      // so every caller sees it.
+      // The command finds the request itself.
       await expect(text).toContainText('REQUEST_ID="${REQUEST_ID:-$(curl');
-      const approve = (await text.textContent()).split("\n\n# Deny")[0];
-      await run(approve);
-
-      await expect.poll(() => received?.get("vp_token")).toBeTruthy();
-      const presentation = JSON.parse(received.get("vp_token")).pid[0];
-      const disclosed = presentation.split("~").slice(1, -1)
-        .map((d) => JSON.parse(Buffer.from(d, "base64url").toString())[1])
-        .sort();
-      expect(disclosed).toEqual(["birthdate", "given_name"]);
+      await run((await text.textContent()).split("\n\n# Deny")[0]);
+      expect(await disclosedClaims(verifier)).toEqual(["birthdate", "given_name"]);
     } finally {
-      await new Promise((resolve) => verifier.close(resolve));
+      await new Promise((resolve) => verifier.server.close(resolve));
+    }
+  });
+
+  test("the consent dialog's CLI command approves with the chosen claim set", async ({ page }) => {
+    const verifier = await openClaimSetRequest(page);
+    try {
+      await page.locator("#consent-dialog-command-cli").check();
+      const text = page.locator("#consent-dialog-command-text");
+      await expect(text).toContainText("eudi wallet requests approve");
+      await run((await text.textContent()).split("\n\n# Deny it")[0]);
+      expect(await disclosedClaims(verifier)).toEqual(["birthdate", "given_name"]);
+    } finally {
+      await new Promise((resolve) => verifier.server.close(resolve));
     }
   });
 
@@ -3198,6 +3220,45 @@ test.describe("Commands in dialogs", () => {
     await fetch(`${WALLET_URL}/api/registrar/wrp/${encodeURIComponent(registered.relyingParty.identifier[0].identifier)}`, { method: "DELETE" });
   });
 
+  test("the registrar dialog's CLI command enrols a verifier with a CSR", async ({ page }) => {
+    await page.goto(WALLET_URL);
+    await page.locator("#registrar-menu-toggle").click();
+    await page.locator("#registrar-parties-link").click();
+    await page.locator("#registrar-parties-register").click();
+    await page.locator("#registrar-name").fill("Command Kiosk");
+    await page.locator("#registrar-dialog-command-toggle").click();
+    await page.locator("#registrar-dialog-command-cli").check();
+    const text = page.locator("#registrar-dialog-command-text");
+    await expect(text).toContainText("eudi registrar enrol -");
+
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "eudi-dev-csr-"));
+    execSync('openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -keyout key.pem -out csr.pem -subj "/CN=Command Kiosk" 2>/dev/null', { cwd: dir });
+    const csr = JSON.stringify(fs.readFileSync(path.join(dir, "csr.pem"), "utf8")).slice(1, -1);
+    const command = (await text.textContent())
+      .replace("<your certificate signing request in PEM>", csr)
+      .replace("eudi registrar enrol -", "eudi registrar enrol - --json");
+    const enrolled = JSON.parse(await run(command));
+    expect(enrolled.relyingParty.tradeName).toBe("Command Kiosk");
+    expect(enrolled.access.chain).toContain("BEGIN CERTIFICATE");
+    await fetch(`${WALLET_URL}/api/registrar/wrp/${encodeURIComponent(enrolled.relyingParty.identifier[0].identifier)}`, { method: "DELETE" });
+  });
+
+  test("the issue dialog's CLI command saves a template with its catalogue entry", async ({ page }) => {
+    await fetch(`${WALLET_URL}/api/templates/e2e-gym-template`, { method: "DELETE" });
+    await page.goto(WALLET_URL);
+    await page.locator("#issue-btn").click();
+    await page.locator("#issue-vct").fill("urn:example:gym-template:1");
+    await page.locator("#issue-save-template").fill("e2e-gym-template");
+    await page.locator("#issue-catalog").check();
+    await page.locator("#issue-dialog-command-toggle").click();
+    await page.locator("#issue-dialog-command-cli").check();
+    const text = page.locator("#issue-dialog-command-text");
+    await expect(text).toContainText("--catalog");
+    await run(await text.textContent());
+    const entries = (await jsonGet(`${WALLET_URL}/api/catalog/attestations`)).body;
+    expect(entries.some((e) => (e.credentials || []).some((c) => c.type === "urn:example:gym-template:1"))).toBe(true);
+  });
+
   test("the template editor's CLI command saves the template", async ({ page }) => {
     await fetch(`${WALLET_URL}/api/templates/e2e-command`, { method: "DELETE" });
     await page.goto(WALLET_URL);
@@ -3214,7 +3275,7 @@ test.describe("Commands in dialogs", () => {
     expect(saved.vct).toBe("urn:example:e2e-command");
   });
 
-  test("the catalogue dialog's CLI command adds the entry", async ({ page }) => {
+  test("the catalogue dialog's CLI command adds the entry and its issuer CA", async ({ page }) => {
     for (const entry of (await jsonGet(`${WALLET_URL}/api/catalog/attestations`)).body) {
       if (entry.name === "Gym membership") {
         await fetch(`${WALLET_URL}/api/catalog/schemas/${encodeURIComponent(entry.schema.id)}`, { method: "DELETE" });
@@ -3227,6 +3288,9 @@ test.describe("Commands in dialogs", () => {
     await page.locator("#registrar-catalog-name").fill("Gym membership");
     await page.locator("#registrar-catalog-format-1-type").fill("urn:example:gym:1");
     await page.locator("#registrar-catalog-format-1-claims").fill("member_id, address.locality");
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "eudi-dev-ca-"));
+    execSync('openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 1 -subj "/CN=Gym CA" -addext basicConstraints=critical,CA:TRUE -addext keyUsage=critical,keyCertSign,cRLSign -keyout ca.key -out ca.pem 2>/dev/null', { cwd: dir });
+    await page.locator("#registrar-catalog-issuer-ca").fill(fs.readFileSync(path.join(dir, "ca.pem"), "utf8"));
     await page.locator("#registrar-catalog-add-dialog-command-toggle").click();
     await page.locator("#registrar-catalog-add-dialog-command-cli").check();
     const text = page.locator("#registrar-catalog-add-dialog-command-text");
@@ -3235,5 +3299,8 @@ test.describe("Commands in dialogs", () => {
 
     const added = (await jsonGet(`${WALLET_URL}/api/catalog/attestations`)).body.find((e) => e.name === "Gym membership");
     expect(added.credentials[0].claims).toEqual([["member_id"], ["address", "locality"]]);
+    // The issuer CA went on the category's trusted list from stdin.
+    const trust = (await jsonGet(`${WALLET_URL}/api/trust`)).body;
+    expect(JSON.stringify(trust)).toContain("Gym membership issuer");
   });
 });

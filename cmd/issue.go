@@ -34,6 +34,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
+	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
 	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
 )
 
@@ -75,6 +76,8 @@ var (
 	issueLogo                  string
 	issueLogoAlt               string
 	issueBackgroundImage       string
+	issueDisplayTemplate       string
+	issueCatalog               string
 )
 
 var issueCmd = &cobra.Command{
@@ -94,7 +97,7 @@ var issueSDJWTCmd = &cobra.Command{
 	Long: "Generate a signed SD-JWT credential with selectively disclosable claims. " +
 		"By default it prints a bare credential signed with an ephemeral P-256 key. --wallet issues into the managed wallet instead.",
 	Args: cobra.NoArgs,
-	RunE: runIssueSDJWT,
+	RunE: withInlineSigningMaterial(runIssueSDJWT),
 }
 
 var issueJWTCmd = &cobra.Command{
@@ -103,7 +106,7 @@ var issueJWTCmd = &cobra.Command{
 	Long: "Generate a signed JWT VC credential with claims directly in the payload (no selective disclosure). " +
 		"By default it prints a bare credential signed with an ephemeral P-256 key. --wallet issues into the managed wallet instead.",
 	Args: cobra.NoArgs,
-	RunE: runIssueJWT,
+	RunE: withInlineSigningMaterial(runIssueJWT),
 }
 
 var issueMDOCCmd = &cobra.Command{
@@ -112,7 +115,7 @@ var issueMDOCCmd = &cobra.Command{
 	Long: "Generate a signed mdoc (IssuerSigned) credential. " +
 		"By default it prints a bare credential signed with an ephemeral P-256 key. --wallet issues into the managed wallet instead.",
 	Args: cobra.NoArgs,
-	RunE: runIssueMDOC,
+	RunE: withInlineSigningMaterial(runIssueMDOC),
 }
 
 func init() {
@@ -130,8 +133,8 @@ func init() {
 	issueSDJWTCmd.Flags().StringVar(&issueTemplate, "template", "", "Credential template name or file, listed by 'templates list' (--claims overrides individual claims)")
 	issueSDJWTCmd.Flags().StringSliceVar(&issueAlwaysDisclosed, "always-disclosed", nil, "Claims to embed plainly instead of selectively disclosable (dotted paths for nested claims, e.g. address.country)")
 	issueSDJWTCmd.Flags().StringVar(&issueSaveTemplate, "save-template", "", "Save the issued claims and settings as a credential template with this name")
-	issueSDJWTCmd.Flags().StringVar(&issueKeyPath, "key", "", "Private key file (PEM or JWK). Ephemeral P-256 if omitted")
-	issueSDJWTCmd.Flags().StringVar(&issueCertPath, "cert", "", "Certificate chain file (PEM, leaf first) embedded as x5c. Requires --key")
+	issueSDJWTCmd.Flags().StringVar(&issueKeyPath, "key", "", "Private key: a PEM or JWK file, or the PEM or JWK itself. Ephemeral P-256 if omitted")
+	issueSDJWTCmd.Flags().StringVar(&issueCertPath, "cert", "", "Certificate chain (PEM, leaf first) embedded as x5c: a file or the PEM itself. Requires --key")
 	issueSDJWTCmd.Flags().StringVar(&issueIssuer, "iss", mock.DefaultIssuer, "Issuer URL")
 	issueSDJWTCmd.Flags().StringVar(&issueVCT, "vct", mock.DefaultPIDVCT, "Verifiable Credential Type")
 	issueSDJWTCmd.Flags().StringVar(&issueExpires, "exp", credtemplate.DefaultExp.String(), "Expiration duration (e.g. 720h, 24h)")
@@ -149,8 +152,8 @@ func init() {
 	issueJWTCmd.Flags().StringVar(&issueClaims, "claims", "", "Claims as JSON string or @filepath")
 	issueJWTCmd.Flags().StringVar(&issueTemplate, "template", "", "Credential template name or file, listed by 'templates list' (--claims overrides individual claims)")
 	issueJWTCmd.Flags().StringVar(&issueSaveTemplate, "save-template", "", "Save the issued claims and settings as a credential template with this name")
-	issueJWTCmd.Flags().StringVar(&issueKeyPath, "key", "", "Private key file (PEM or JWK). Ephemeral P-256 if omitted")
-	issueJWTCmd.Flags().StringVar(&issueCertPath, "cert", "", "Certificate chain file (PEM, leaf first) embedded as x5c. Requires --key")
+	issueJWTCmd.Flags().StringVar(&issueKeyPath, "key", "", "Private key: a PEM or JWK file, or the PEM or JWK itself. Ephemeral P-256 if omitted")
+	issueJWTCmd.Flags().StringVar(&issueCertPath, "cert", "", "Certificate chain (PEM, leaf first) embedded as x5c: a file or the PEM itself. Requires --key")
 	issueJWTCmd.Flags().StringVar(&issueIssuer, "iss", mock.DefaultIssuer, "Issuer URL")
 	issueJWTCmd.Flags().StringVar(&issueVCT, "vct", mock.DefaultPIDVCT, "Verifiable Credential Type")
 	issueJWTCmd.Flags().StringVar(&issueExpires, "exp", credtemplate.DefaultExp.String(), "Expiration duration (e.g. 720h, 24h)")
@@ -166,8 +169,8 @@ func init() {
 	issueMDOCCmd.Flags().StringVar(&issueClaims, "claims", "", "Claims as JSON string or @filepath")
 	issueMDOCCmd.Flags().StringVar(&issueTemplate, "template", "", "Credential template name or file, listed by 'templates list' (--claims overrides individual claims)")
 	issueMDOCCmd.Flags().StringVar(&issueSaveTemplate, "save-template", "", "Save the issued claims and settings as a credential template with this name")
-	issueMDOCCmd.Flags().StringVar(&issueKeyPath, "key", "", "Private key file (PEM or JWK). Ephemeral P-256 if omitted")
-	issueMDOCCmd.Flags().StringVar(&issueCertPath, "cert", "", "Certificate chain file (PEM, leaf first) embedded as x5chain. Requires --key")
+	issueMDOCCmd.Flags().StringVar(&issueKeyPath, "key", "", "Private key: a PEM or JWK file, or the PEM or JWK itself. Ephemeral P-256 if omitted")
+	issueMDOCCmd.Flags().StringVar(&issueCertPath, "cert", "", "Certificate chain (PEM, leaf first) embedded as x5chain: a file or the PEM itself. Requires --key")
 	issueMDOCCmd.Flags().StringVar(&issueDocType, "doc-type", credtemplate.DefaultDocType, "Document type")
 	issueMDOCCmd.Flags().StringVar(&issueNamespace, "namespace", credtemplate.DefaultDocType, "Namespace")
 	issueMDOCCmd.Flags().StringVar(&issueExpires, "exp", credtemplate.DefaultExp.String(), "Expiration duration (e.g. 720h, 24h)")
@@ -695,7 +698,60 @@ func issueAPIRequestFromFlags(cmd *cobra.Command, format string) (wallet.IssueAP
 	if display != (wallet.IssueDisplay{}) {
 		req.Display = &display
 	}
+	req.DisplayTemplate = issueDisplayTemplate
+	if req.Catalog, err = catalogEntryArg(); err != nil {
+		return req, err
+	}
 	return req, nil
+}
+
+// catalogEntryArg reads the --catalog entry.
+func catalogEntryArg() (*registrar.CatalogAttestation, error) {
+	if issueCatalog == "" {
+		return nil, nil
+	}
+	if issueSaveTemplate == "" {
+		return nil, fmt.Errorf("--catalog needs --save-template, because the catalogue entry describes the saved template")
+	}
+	raw, err := format.ReadInput(issueCatalog)
+	if err != nil {
+		return nil, fmt.Errorf("reading --catalog: %w", err)
+	}
+	var entry registrar.CatalogAttestation
+	if err := json.Unmarshal([]byte(raw), &entry); err != nil {
+		return nil, fmt.Errorf("parsing --catalog: %w", err)
+	}
+	return &entry, nil
+}
+
+// withInlineSigningMaterial lets --key and --cert take the PEM or JWK itself.
+// The value goes to a private temporary file, so every loader reads it like
+// a file.
+func withInlineSigningMaterial(run func(*cobra.Command, []string) error) func(*cobra.Command, []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		for _, value := range []*string{&issueKeyPath, &issueCertPath} {
+			trimmed := strings.TrimSpace(*value)
+			if !strings.HasPrefix(trimmed, "-----BEGIN") && !strings.HasPrefix(trimmed, "{") {
+				continue
+			}
+			original := *value
+			defer func() { *value = original }()
+			f, err := os.CreateTemp("", "eudi-issue-*")
+			if err != nil {
+				return err
+			}
+			defer os.Remove(f.Name())
+			_, err = f.WriteString(trimmed + "\n")
+			if closeErr := f.Close(); err == nil {
+				err = closeErr
+			}
+			if err != nil {
+				return err
+			}
+			*value = f.Name()
+		}
+		return run(cmd, args)
+	}
 }
 
 // addIssueDisplayFlags registers the display flags shared by the issue
@@ -703,6 +759,8 @@ func issueAPIRequestFromFlags(cmd *cobra.Command, format string) (wallet.IssueAP
 // credential, so they apply with --wallet.
 func addIssueDisplayFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&issueDisplayName, "display-name", "", "With --wallet: the credential's display name")
+	cmd.Flags().StringVar(&issueDisplayTemplate, "display-template", "", "With --wallet: use the display of this template for any display value not set by the other display flags")
+	cmd.Flags().StringVar(&issueCatalog, "catalog", "", "With --save-template: add the template to the attestation catalogue with this entry, as JSON like the catalog field of POST /api/issue (file, JSON or '-' for stdin)")
 	cmd.Flags().StringVar(&issueDisplayDescription, "display-description", "", "With --wallet: the credential's display description")
 	cmd.Flags().StringVar(&issueBackgroundColor, "background-color", "", "With --wallet: the card background color, a CSS color (e.g. #3d59a1)")
 	cmd.Flags().StringVar(&issueTextColor, "text-color", "", "With --wallet: the card text color, a CSS color")

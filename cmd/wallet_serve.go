@@ -80,6 +80,7 @@ type walletServeOptions struct {
 	DemoReset             string
 	ImprintFile           string
 	NewsFile              string
+	DemoConsentAPI        bool
 	Detached              bool
 	ServeTLS              bool
 	DemoVerifierIssuerCAs []string
@@ -157,6 +158,7 @@ Every flag can also be set as EUDI_DEV_<FLAG>, such as EUDI_DEV_BASE_URL for --b
 	addAllowPrivateNetworksFlag(cmd, &opts.AllowPrivateNetworks, "With --demo it also opens loopback, which a host that faces the internet should keep closed. ")
 	cmd.Flags().StringVar(&opts.DemoReset, "demo-reset", "1h", "When to restore the clean demo baseline: an interval (24h), a daily wall-clock time (00:00), or one with a timezone (\"00:00 Europe/Berlin\"). 0 disables. Requires --demo")
 	cmd.Flags().StringVar(&opts.ImprintFile, "imprint-file", "", "HTML snippet with the site operator's legal notice, served at /imprint (required for public EU hosting)")
+	cmd.Flags().BoolVar(&opts.DemoConsentAPI, "demo-consent-api", false, "Let API and CLI clients answer consent requests on a public demo. By default only the web UI answers them, so a client doesn't answer another visitor's request by mistake. Requires --demo")
 	cmd.Flags().StringVar(&opts.NewsFile, "news-file", "", "HTML snippet with news for visitors of a public demo, shown once in a popup and again from the footer link. Requires --demo")
 	cmd.Flags().BoolVar(&opts.ServeTLS, "serve-tls", false, "Serve an https --base-url locally with the wallet's own TLS certificate instead of expecting an external TLS terminator in front (the HTTP port stays bound as well)")
 	cmd.Flags().StringArrayVar(&opts.DemoVerifierIssuerCAs, "demo-verifier-issuer-ca", nil, "PEM file with extra issuer CA certificates for the demo verifier, in addition to the providers on the wallet's trusted lists (repeatable). Use it for credentials issued outside this wallet, such as in an OIDF conformance suite run")
@@ -508,6 +510,9 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	if opts.NewsFile != "" && !opts.Demo {
 		return fmt.Errorf("--news-file requires --demo")
 	}
+	if opts.DemoConsentAPI && !opts.Demo {
+		return fmt.Errorf("--demo-consent-api requires --demo")
+	}
 	demoOpts, err := parseDemoReset(opts.DemoReset)
 	if err != nil {
 		return fmt.Errorf("invalid --demo-reset %q: %w", opts.DemoReset, err)
@@ -643,6 +648,7 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 		}
 	}
 	demoOpts.Baseline = baseline
+	demoOpts.ConsentAPI = opts.DemoConsentAPI
 
 	for _, path := range opts.CredFiles {
 		if err := w.ImportCredentialFromFile(path); err != nil {

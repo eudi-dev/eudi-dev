@@ -45,7 +45,7 @@ It gets one registration certificate for its service.`,
 		Args: cobra.NoArgs,
 		RunE: showHelp,
 	}
-	cmd.AddCommand(partiesCmd("verifiers"), partiesCmd("issuers"), accessCertCmd(), registrationCertCmd(), registrarStatusCmd(true), registrarStatusCmd(false))
+	cmd.AddCommand(partiesCmd("verifiers"), partiesCmd("issuers"), enrolCmd(), accessCertCmd(), registrationCertCmd(), registrarStatusCmd(true), registrarStatusCmd(false))
 	return cmd
 }
 
@@ -352,6 +352,67 @@ revokes the current one, and prints its issuer_info.`,
 	cmd.Flags().StringVar(&to, "to", "", "Identifier of a registered relying party to add the attestation types to")
 	_ = cmd.RegisterFlagCompletionFunc("category", staticCompletion(credtemplate.Categories...))
 	_ = cmd.MarkFlagRequired("attestation")
+	return cmd
+}
+
+// enrolCmd sends an enrolment as the registrar dialog of the web UI does: the
+// registration and the certificates to issue, in one step.
+func enrolCmd() *cobra.Command {
+	var update bool
+	cmd := &cobra.Command{
+		Use:     "enrol <file|json|->",
+		Aliases: []string{"enroll"},
+		Short:   "Register a relying party and issue its certificates in one step",
+		Long: `Sends an enrolment like POST /api/registrar/enrolments: the relying party,
+an access certificate request with your CSR, and the registration certificate
+to issue. With --update it changes an existing registration, as PUT
+/api/registrar/enrolments does, for example to add an intended use or a
+service.
+
+In the web UI, the command button of the registrar dialog shows this
+enrolment. The output holds the access certificate chain and the
+verifier_info or issuer_info value.`,
+		Example: `  eudi registrar enrol enrolment.json
+  eudi registrar enrol --update - < enrolment.json`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			raw, err := format.ReadInput(args[0])
+			if err != nil {
+				return fmt.Errorf("reading the enrolment: %w", err)
+			}
+			var enrolment registrar.Enrolment
+			if err := json.Unmarshal([]byte(raw), &enrolment); err != nil {
+				return fmt.Errorf("parsing the enrolment: %w", err)
+			}
+			svc, err := managedWallet()
+			if err != nil {
+				return err
+			}
+			result, err := svc.Enrol(enrolment, update)
+			if err != nil {
+				return err
+			}
+			printResult(result, func() {
+				identifier := ""
+				if len(result.RelyingParty.Identifier) > 0 {
+					identifier = result.RelyingParty.Identifier[0].Identifier
+				}
+				fmt.Fprintf(cmd.ErrOrStderr(), "Enrolled %s (%s)\n", result.RelyingParty.TradeName, identifier)
+				if result.Access != nil {
+					_, _ = fmt.Fprint(cmd.OutOrStdout(), result.Access.Chain)
+				}
+				if result.Registration != nil {
+					info := result.Registration.VerifierInfo
+					if info == "" {
+						info = result.Registration.IssuerInfo
+					}
+					fmt.Fprintln(cmd.OutOrStdout(), info)
+				}
+			})
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&update, "update", false, "Change an existing registration, named by the first identifier of the relying party")
 	return cmd
 }
 

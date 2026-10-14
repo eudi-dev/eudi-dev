@@ -123,7 +123,7 @@ The wallet answers `200` with the issued credential: `credential_id`, `format`, 
 | `tx_code` | string | Transaction code of an offer |
 | `credential_configuration_id` | string | The configuration to request from an offer |
 
-Approval answers `200` with `status` `approved`, the verifier's `redirect_uri` and `status_code`, and an `error` when the submission failed. A deferred credential reports `status` `pending` with `transaction_id` and `retry_interval`. `POST /api/requests/{id}/deny` answers `200` with `status` `denied` and the verifier's `redirect_uri`. A request that timed out or was answered already returns `409`.
+Approval answers `200` with `status` `approved`, the verifier's `redirect_uri` and `status_code`, and an `error` when the submission failed. A deferred credential reports `status` `pending` with `transaction_id` and `retry_interval`. `POST /api/requests/{id}/deny` answers `200` with `status` `denied` and the verifier's `redirect_uri`. A request that timed out or was answered already returns `409`. A public demo answers both endpoints only for its web UI and refuses other clients with `403`, unless the operator starts it with `--demo-consent-api`.
 
 `GET /api/version` returns `version`, `build_id` and, outside the public demo, the `pid` of the server process.
 
@@ -623,7 +623,7 @@ The response includes `port`, `build_id`, `version`, `storage`, `seeded_keys`, `
 
 `form_defaults` holds the limits and defaults of the UI forms. `protected_relying_parties` lists the registrations that visitors can't change. On the public demo these are the demo issuer, the demo verifier and the parties from `--relying-parties`. Otherwise the list is empty. `news_id` identifies the current news of the public demo (empty without `--news-file`).
 
-Local instances also report `pid`, `wallet_dir` and `templates_dir`. The public demo hides those fields and adds a `demo` object. `POST /api/shutdown` sends its response before stopping the instance. Requests in flight finish first, like on Ctrl-C.
+Local instances also report `pid`, `wallet_dir` and `templates_dir`. The public demo hides those fields and adds a `demo` object. Its `consent_api` is `true` with `--demo-consent-api`. `POST /api/shutdown` sends its response before stopping the instance. Requests in flight finish first, like on Ctrl-C.
 
 `PUT /api/config/conformance` changes the settings given in its body. It takes the setting names reported by `GET /api/config`: `validation_mode`, `require_haip`, `require_arf`, `require_encrypted_request`, `vci_version`, `key_attestation_level`, `force_client_attestation` and `tls_verify_override`. It refuses any other name. It accepts these values for `tls_verify_override`:
 

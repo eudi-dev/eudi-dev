@@ -370,6 +370,10 @@ func (c *Client) Certificate(kind, format string) ([]byte, error) {
 // The timeout covers consent and the protocol exchange after it.
 const interactiveTimeout = config.ConsentTimeout + config.SlowRequestTimeout
 
+// The wallet answers an approval only after the submission to the verifier.
+// The submission ends after config.SlowRequestTimeout at the latest.
+const consentAnswerTimeout = config.SlowRequestTimeout + 10*time.Second
+
 // Present sends a presentation request URI to the remote wallet. With
 // interactive set, the wallet shows its consent dialog and holds the response
 // until the user decides.
@@ -452,6 +456,22 @@ func (c *Client) TrustLists() ([]map[string]any, error) {
 func (c *Client) OfferStatus(id string) (map[string]any, error) {
 	var out map[string]any
 	err := c.do(http.MethodGet, apiPath("offers", id), nil, &out)
+	return out, err
+}
+
+// ConsentRequests lists the pending consent requests visible to this client.
+func (c *Client) ConsentRequests() ([]map[string]any, error) {
+	var out []map[string]any
+	err := c.do(http.MethodGet, apiPath("requests"), nil, &out)
+	return out, err
+}
+
+// AnswerConsentRequest approves or denies a consent request. action is
+// approve or deny, and body holds the choices of an approval. ?request= names
+// the request, so a client without the owner's session can answer it.
+func (c *Client) AnswerConsentRequest(id, action string, body any) (map[string]any, error) {
+	var out map[string]any
+	err := c.doWithTimeout(consentAnswerTimeout, http.MethodPost, apiPath("requests", id, action)+"?request="+url.QueryEscape(id), body, &out)
 	return out, err
 }
 

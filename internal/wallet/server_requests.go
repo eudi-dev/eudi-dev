@@ -169,6 +169,9 @@ func refusalReason(status string) string {
 }
 
 func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
+	if s.refuseConsentAPI(w, r) {
+		return
+	}
 	id := r.PathValue("id")
 
 	var body struct {
@@ -266,6 +269,9 @@ func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDenyRequest(w http.ResponseWriter, r *http.Request) {
+	if s.refuseConsentAPI(w, r) {
+		return
+	}
 	id := r.PathValue("id")
 	if pending, ok := s.wallet.Consents().Get(id); ok && !consent.Owns(callerOwners(r), pending, namedRequest(r)) {
 		apierror.Write(w, http.StatusNotFound, apierror.NotFound, "request not found")
@@ -296,6 +302,20 @@ func (s *Server) handleDenyRequest(w http.ResponseWriter, r *http.Request) {
 	case <-time.After(config.SlowRequestTimeout):
 		writeJSON(w, http.StatusOK, map[string]any{"status": "denied"})
 	}
+}
+
+// refuseConsentAPI keeps API and CLI clients of a public demo from answering
+// consent requests. The demo is shared, so a client could pick up the request
+// of another visitor by mistake. The web UI names itself in the client header.
+// The header is no access control, because any client can send it. The
+// operator allows other clients with --demo-consent-api.
+func (s *Server) refuseConsentAPI(w http.ResponseWriter, r *http.Request) bool {
+	if s.demo == nil || s.demo.opts.ConsentAPI || clientName(r) == "eudi-ui" {
+		return false
+	}
+	apierror.Write(w, http.StatusForbidden, apierror.Forbidden,
+		"on the public demo only the web UI answers consent requests. The operator can allow other clients with --demo-consent-api")
+	return true
 }
 
 // consentPick holds the credentials picked for one query. The JSON form is a single

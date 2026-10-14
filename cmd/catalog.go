@@ -16,6 +16,7 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"text/tabwriter"
@@ -24,6 +25,7 @@ import (
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
+	"github.com/eudi-dev/eudi-dev/v3/internal/dcql"
 	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
 	"github.com/eudi-dev/eudi-dev/v3/internal/trustedlists"
 )
@@ -146,10 +148,11 @@ credentials of the type pass the trusted list check. It can't go with
 				if trustedList != "" {
 					return fmt.Errorf("--issuer-ca puts the CA on the wallet's list of the category, and --trusted-list links another list. Use one of them")
 				}
-				var err error
-				if caPEM, err = os.ReadFile(issuerCA); err != nil {
+				raw, err := readPEMArg(issuerCA)
+				if err != nil {
 					return fmt.Errorf("reading --issuer-ca: %w", err)
 				}
+				caPEM = []byte(raw)
 				// The entry is added only with a usable CA.
 				if _, err := trustedlists.NewEntity(credtemplate.CategoryEAA, "", string(caPEM)); err != nil {
 					return fmt.Errorf("--issuer-ca: %w", err)
@@ -194,7 +197,7 @@ credentials of the type pass the trusted list check. It can't go with
 	cmd.Flags().StringVar(&bindingType, "binding", "", "How the attestation is bound to its holder: "+strings.Join(bindings, ", ")+" (default key)")
 	cmd.Flags().StringVar(&rulebookURI, "rulebook", "", "URL of the rulebook (default a placeholder page on the wallet)")
 	cmd.Flags().StringVar(&trustedList, "trusted-list", "", "URL of the trusted list of its issuers (ETSI TS 119 602, default the category's list on the wallet)")
-	cmd.Flags().StringVar(&issuerCA, "issuer-ca", "", "PEM file with the CA of your issuer. The wallet puts it on the trusted list of the category")
+	cmd.Flags().StringVar(&issuerCA, "issuer-ca", "", "The CA of your issuer in PEM: a file, '-' for stdin or the PEM itself. The wallet adds it to the trusted list of the category")
 	_ = cmd.MarkFlagFilename("issuer-ca", "pem")
 	_ = cmd.RegisterFlagCompletionFunc("category", staticCompletion(credtemplate.Categories...))
 	_ = cmd.RegisterFlagCompletionFunc("los", staticCompletion(levels...))
@@ -217,11 +220,31 @@ func catalogClaimPath(format, typ, claim string) []any {
 		}
 		return []any{typ, claim}
 	}
+	// The same syntax as in the web UI: dots nest, [*] selects every element
+	// and [n] one element.
+	if path, ok := dcql.ParseSDJWTSelector(claim); ok {
+		return path
+	}
 	path := []any{}
 	for _, segment := range strings.Split(claim, ".") {
 		path = append(path, segment)
 	}
 	return path
+}
+
+// readPEMArg reads PEM from a file, from stdin with '-', or takes the PEM
+// itself.
+func readPEMArg(value string) (string, error) {
+	switch trimmed := strings.TrimSpace(value); {
+	case trimmed == "-":
+		data, err := io.ReadAll(os.Stdin)
+		return string(data), err
+	case strings.HasPrefix(trimmed, "-----BEGIN"):
+		return trimmed, nil
+	default:
+		data, err := os.ReadFile(trimmed)
+		return string(data), err
+	}
 }
 
 func catalogRemoveCmd() *cobra.Command {

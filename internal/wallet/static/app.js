@@ -1292,10 +1292,12 @@
     const nbf = document.getElementById('issue-nbf').value.trim();
     if (nbf) body.nbf = nbf;
     // Each batch copy uses a distinct holder key. The wallet rotates between copies during
-    // presentation.
-    const batch = parseInt(document.getElementById('issue-batch').value, 10);
-    if (batch >= 2) body.batch = batch;
-    if (document.getElementById('issue-binding').value === 'unbound') body.unbound = true;
+    // presentation. A JWT VC has no batch and no holder binding choice.
+    if (issueFormat.value !== 'jwt') {
+      const batch = parseInt(document.getElementById('issue-batch').value, 10);
+      if (batch >= 2) body.batch = batch;
+      if (document.getElementById('issue-binding').value === 'unbound') body.unbound = true;
+    }
     const statusListMode = document.getElementById('issue-status-list').value;
     if (statusListMode === 'none') {
       body.status_list_uri = '';
@@ -1554,7 +1556,21 @@
   // issueCommand is the API and CLI command for issuing with the form's values.
   function issueCommand(body) {
     const flags = [['--wallet'], ['--remote', eudiDialogs.remoteURL()]];
-    if (body.claims) flags.push(['--claims', JSON.stringify(body.claims)]);
+    // Linux takes at most 128 KiB in one argument. Large values go to files
+    // first.
+    const LARGE = 16 * 1024;
+    const files = [];
+    const steps = [];
+    if (body.claims) {
+      const claims = JSON.stringify(body.claims);
+      if (claims.length > LARGE) {
+        files.push('claims.json');
+        steps.push('cat > claims.json' + eudiDialogs.heredoc(JSON.stringify(body.claims, null, 2)));
+        flags.push(['--claims', '@claims.json']);
+      } else {
+        flags.push(['--claims', claims]);
+      }
+    }
     if (body.vct) flags.push(['--vct', body.vct]);
     if (body.doctype) flags.push(['--doc-type', body.doctype]);
     if (body.exp) flags.push(['--exp', body.exp]);
@@ -1569,16 +1585,31 @@
     for (const [field, flag] of [['name', '--display-name'], ['description', '--display-description'],
       ['background_color', '--background-color'], ['text_color', '--text-color'], ['logo', '--logo'],
       ['logo_alt_text', '--logo-alt'], ['background_image', '--background-image']]) {
-      if (display[field]) flags.push([flag, display[field]]);
+      const value = display[field];
+      if (!value) continue;
+      const image = /^data:image\/([a-z0-9.+-]+);base64,(.*)$/i.exec(value);
+      if (image && value.length > LARGE) {
+        const file = field.replace('_', '-') + '.' + image[1].replace('svg+xml', 'svg').replace('jpeg', 'jpg');
+        files.push(file);
+        steps.push('base64 -d > ' + file + eudiDialogs.heredoc(image[2].match(/.{1,76}/g).join('\n')));
+        flags.push([flag, file]);
+        continue;
+      }
+      flags.push([flag, value]);
     }
-    const left = [];
-    if (body.catalog) left.push('the catalogue entry');
-    if (body.signing_key || body.signing_cert) left.push('the signing key and certificate (pass them as files with --key and --cert)');
-    if (body.display_template) left.push("the template's images");
+    if (body.display_template) flags.push(['--display-template', body.display_template]);
+    if (body.catalog) flags.push(['--catalog', JSON.stringify(body.catalog)]);
+    if (body.signing_key) flags.push(['--key', body.signing_key]);
+    if (body.signing_cert) flags.push(['--cert', body.signing_cert]);
+    const keyNote = body.signing_key ? 'The command holds the private signing key, so it ends up in your shell history.' : '';
+    const notes = [];
+    if (files.length) notes.push('The command first writes ' + files.join(', ') + ' to the current directory.');
+    if (keyNote) notes.push(keyNote);
     return {
       curl: eudiDialogs.curl('POST', 'api/issue', body),
-      cli: eudiDialogs.cli('eudi issue ' + body.format, flags),
-      cliNote: left.length ? 'The CLI command leaves out ' + left.join(' and ') + '. The curl command sends everything.' : '',
+      note: keyNote,
+      cli: (steps.length ? steps.join('\n') + '\n\n' : '') + eudiDialogs.cli('eudi issue ' + body.format, flags),
+      cliNote: notes.join(' '),
     };
   }
 
@@ -1588,7 +1619,7 @@
     return {
       curl: eudiDialogs.curl('PUT', 'api/templates/' + encodeURIComponent(name), doc),
       cli: eudiDialogs.cli('eudi templates import -', [['--name', name], ['--remote', eudiDialogs.remoteURL()]]) +
-        " <<'EOF'\n" + JSON.stringify(doc, null, 2) + '\nEOF',
+        eudiDialogs.heredoc(JSON.stringify(doc, null, 2)),
     };
   }
 
@@ -2389,6 +2420,8 @@
     return html;
   }
 
+  const DEMO_CONSENT_NOTE = 'This public demo answers consent requests only from its web UI, unless the operator starts it with --demo-consent-api. ';
+
   function showConsentDialog(req) {
     consentRequestOpen = true;
     consentRequestID = req.id;
@@ -2514,7 +2547,8 @@
       });
     }
     // The note says which claim set the wallet sends, and the credential below
-    // lists its claims. All matching claim sets open on request.
+    // lists the claims of that set. Show all claim sets lists the other
+    // matching sets.
     function claimSetPicker(qid) {
       const sets = claimSetOptions(qid);
       if (sets.length < 2) return '';
@@ -3099,8 +3133,8 @@
 
 
     // approveRequestBody is the body of POST api/requests/{id}/approve with the
-    // dialog's choices. Edit has no claim checkboxes, so with alternatives the
-    // tracked selection counts.
+    // dialog's choices. With alternatives the dialog has no claim checkboxes,
+    // so the body uses the tracked selection.
     function approveRequestBody() {
       if (isIssuance) {
         const txCodeInput = document.getElementById('offer-tx-code-input');
@@ -3141,20 +3175,28 @@
     }
 
     // The command answers the newest pending request of this type with the
-    // dialog's choices, so it works for the next request too. ?request= lets a
-    // caller without this browser's session answer it.
+    // dialog's choices. A later request takes the same choices when it offers
+    // the same credentials. ?request= lets a caller without this browser's
+    // session answer it.
     eudiDialogs.setCommand(consentDialog, () => {
       const kind = { presentation: 'presentation request', issuance: 'credential offer', issuance_presentation: 'presentation request during issuance' }[req.type] || 'consent request';
       const find = 'REQUEST_ID="${REQUEST_ID:-$(curl -sS ' + eudiDialogs.shellQuote(eudiDialogs.walletURL('api/requests')) +
-        " | jq -r '[.[] | select(.type == \"" + req.type + "\")] | sort_by(.created_at) | last | .id')}\"";
-      // The request URL holds the shell variable, so it is in double quotes.
+        " | jq -r '[.[] | select(.type == \"" + req.type + "\")] | sort_by(.created_at) | last | .id // empty')}\"\n" +
+        ': "${REQUEST_ID:?no pending ' + kind + '}"';
+      // The URL stays in single quotes. Only the variable is spliced in.
       const answer = (action, body) => eudiDialogs.curl('POST', 'api/requests/REQUEST_ID/' + action + '?request=REQUEST_ID', body)
-        .replace(/'([^']*REQUEST_ID[^']*)'/, (_, url) => '"' + url.replace(/REQUEST_ID/g, '$REQUEST_ID') + '"');
+        .replace(/REQUEST_ID/g, "'\"$REQUEST_ID\"'");
+      const remote = ['--remote', eudiDialogs.remoteURL()];
       return {
         curl: '# The newest pending ' + kind + '. Set REQUEST_ID to answer another one.\n' + find +
           '\n\n# Approve\n' + answer('approve', approveRequestBody()) +
           '\n\n# Deny\n' + answer('deny'),
-        note: 'The command needs jq. A request started in a browser belongs to that browser, so curl does not see it. Requests from API calls, the CLI and tests are visible to every caller. To answer this request, set REQUEST_ID=' + req.id + '.',
+        note: (consentAPI ? '' : DEMO_CONSENT_NOTE) + 'The command needs jq. A request started in a browser belongs to that browser, so curl does not see it. Requests from API calls, the CLI and tests are visible to every caller. To answer this request, set REQUEST_ID=' + req.id + '.',
+        cli: '# Approve the newest pending ' + kind + '\n' +
+          eudiDialogs.cli('eudi wallet requests approve', [['--type', req.type], ['--body', '-'], remote]) +
+          eudiDialogs.heredoc(JSON.stringify(approveRequestBody(), null, 2)) + '\n\n# Deny it\n' +
+          eudiDialogs.cli('eudi wallet requests deny', [['--type', req.type], remote]),
+        cliNote: (consentAPI ? '' : DEMO_CONSENT_NOTE) + 'A request started in a browser belongs to that browser, so the CLI does not see it. Requests from API calls, the CLI and tests are visible to every caller. To answer this request, put its id ' + req.id + ' after approve or deny.',
       };
     });
     renderDialog();
@@ -3214,6 +3256,9 @@
   });
 
   let demoMode = false;
+  // consentAPI is false on a public demo that answers consent requests only
+  // from this UI.
+  let consentAPI = true;
   // protectedParties are registrations that public demo visitors can't
   // change.
   let protectedParties = new Set();
@@ -3253,6 +3298,7 @@
       }
       applyFormDefaults(config.form_defaults || {});
       demoMode = !!(config.demo && config.demo.enabled);
+      consentAPI = !demoMode || Boolean(config.demo.consent_api);
       protectedParties = new Set(config.protected_relying_parties || []);
       renderAutoAccept(!!config.auto_accept);
       renderConformance(config);
@@ -4788,8 +4834,8 @@
       return { kind: 'access', method: 'POST', path: 'api/registrar/access-certificates', body: body, access: body };
     }
     // Each registration certificate covers one intended use, so a new
-    // certificate needs a new intended use. A party that verifies can also
-    // issue. Its service gets the attestation types.
+    // certificate needs a new intended use. A verifier can also issue. In that
+    // case its service gets the attestation types.
     if (registrarTarget) {
       const issuer = registrarMode === 'issuer';
       const use = issuer ? null : intendedUseFromForm();
@@ -4901,8 +4947,7 @@
   const CSR_PLACEHOLDER = '<your certificate signing request in PEM>';
   const CSR_NOTE = 'The dialog creates a key in the browser when the CSR field is empty. For the command, create a key and a CSR, for example with openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -keyout key.pem -out csr.pem -subj "/CN=example". Then replace the placeholder with the CSR.';
 
-  // registrarCommand is the API and CLI command for the registrar dialog. Only
-  // an access certificate on its own has a CLI command.
+  // registrarCommand is the API and CLI command for the registrar dialog.
   function registrarCommand() {
     const plan = registrarPlan();
     const body = JSON.parse(JSON.stringify(plan.body));
@@ -4918,9 +4963,13 @@
       for (const name of body.dnsNames || []) flags.push(['--dns', name]);
       if (body.validity) flags.push(['--validity', body.validity]);
       flags.push(['--remote', eudiDialogs.remoteURL()]);
-      command.cli = eudiDialogs.cli('eudi registrar access-cert', flags) + (needsCSR ? '' : " <<'EOF'\n" + body.csr + '\nEOF');
-      command.cliNote = needsCSR ? CSR_NOTE : '';
+      command.cli = eudiDialogs.cli('eudi registrar access-cert', flags) + (needsCSR ? '' : eudiDialogs.heredoc(body.csr));
+    } else {
+      const flags = plan.method === 'PUT' ? [['--update']] : [];
+      flags.push(['--remote', eudiDialogs.remoteURL()]);
+      command.cli = eudiDialogs.cli('eudi registrar enrol -', flags) + eudiDialogs.heredoc(JSON.stringify(body, null, 2));
     }
+    command.cliNote = command.note;
     return command;
   }
   eudiDialogs.setCommand(document.getElementById('registrar-dialog'), registrarCommand);
@@ -5267,7 +5316,11 @@
       credentials: credentials,
       schema: catalogSchema('registrar'),
     };
-    return { body, typed, issuerCA: document.getElementById('registrar-catalog-issuer-ca').value.trim() };
+    const issuerCA = document.getElementById('registrar-catalog-issuer-ca').value.trim();
+    if (issuerCA && body.schema.trustedAuthorities.length) {
+      throw new Error("Use either an issuer CA or a trusted list. The issuer CA goes on the wallet's list of the category, and a trusted list links another list.");
+    }
+    return { body, typed, issuerCA };
   }
 
   // catalogCommand is the API and CLI command for adding the catalogue entry.
@@ -5289,12 +5342,11 @@
     if (body.schema.bindingType) flags.push(['--binding', body.schema.bindingType]);
     if (body.schema.rulebookURI) flags.push(['--rulebook', body.schema.rulebookURI]);
     if (body.schema.trustedAuthorities.length) flags.push(['--trusted-list', body.schema.trustedAuthorities[0].value]);
-    if (issuerCA) flags.push(['--issuer-ca', 'issuer-ca.pem']);
+    if (issuerCA) flags.push(['--issuer-ca', '-']);
     flags.push(['--remote', eudiDialogs.remoteURL()]);
     return {
       curl: curl,
-      cli: eudiDialogs.cli('eudi catalog add', flags),
-      cliNote: issuerCA ? 'Save the issuer CA as issuer-ca.pem.' : '',
+      cli: eudiDialogs.cli('eudi catalog add', flags) + (issuerCA ? eudiDialogs.heredoc(issuerCA) : ''),
     };
   }
   eudiDialogs.setCommand(document.getElementById('registrar-catalog-add-dialog'), catalogCommand);
@@ -5303,7 +5355,13 @@
     event.preventDefault();
     const error = document.getElementById('registrar-catalog-form-error');
     error.textContent = '';
-    const { body } = catalogEntryRequest();
+    let body;
+    try {
+      ({ body } = catalogEntryRequest());
+    } catch (e) {
+      error.textContent = e.message;
+      return;
+    }
     const save = document.getElementById('registrar-catalog-save');
     save.disabled = true;
     try {

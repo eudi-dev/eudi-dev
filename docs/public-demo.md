@@ -16,7 +16,7 @@ eudi wallet serve --demo --base-url https://eudi-test.dev \
 
 The server starts without opening a browser and loads protected PID credentials from the bundled templates. User templates with the same names, including those in `--templates-dir`, override the baseline used at startup and reset.
 
-Browser flows ask for consent. API submissions provide consent directly. A demo approves browser flows without asking only with `--auto-accept` on the command line. It ignores `EUDI_DEV_AUTO_ACCEPT` and warns at start when the flag is given. Each consent dialog appears in the browser session that started the flow. Requests without a browser ID appear in a shared banner where any visitor can answer them.
+Browser flows ask for consent. API submissions provide consent directly. A demo approves browser flows without asking only with `--auto-accept` on the command line. It ignores `EUDI_DEV_AUTO_ACCEPT` and warns at start when the flag is given. Each consent dialog appears in the browser session that started the flow. Requests without a browser ID appear in a shared banner where any visitor can answer them. Only the web UI answers consent requests, so an API or CLI client doesn't answer another visitor's request by mistake. A client can still name itself as the web UI, so this is no access control. `--demo-consent-api` (`EUDI_DEV_DEMO_CONSENT_API=true`) lets API and CLI clients answer consent requests too.
 
 ### Administrative operations
 
@@ -75,7 +75,7 @@ The verifier signs requests delivered from `/verifier/request/{id}` with its acc
 
 By default, a PID request accepts either an SD-JWT VC or an mdoc. The ticket is always an SD-JWT VC. With **multiple**, the wallet may send several credentials for each query, such as two stored PIDs.
 
-**Custom** builds your own request. In the builder you pick the credentials, claims, claim sets, credential sets and the client identifier prefix. An mdoc claim is an element name in the namespace of its doctype. Its **JSON** mode shows the DCQL query and lets you edit it, for example to add claim `values`. The request sends it unchanged. The verifier checks the response against it. Without `claim_sets` it needs every claim. With them it needs one complete claim set. Each required credential set needs one of its options.
+**Custom** builds your own request. In the builder you pick the credentials, claims, claim sets, credential sets and the client identifier prefix. An mdoc claim is an element name in the namespace of its doctype. Its **JSON** mode shows the DCQL query and lets you edit it, for example to add claim `values`. The request sends this query unchanged. The verifier checks the response against the query. Without `claim_sets`, the verifier needs every claim. With `claim_sets`, it needs one complete claim set. Each required credential set needs one of its options.
 
 With the status list option, each ticket references a reserved index in the wallet's own status list. The wallet imports the ticket as revocable. After revocation, the demo verifier rejects the next presentation.
 

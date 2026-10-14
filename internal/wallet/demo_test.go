@@ -1109,3 +1109,40 @@ func TestDemoCapsTheCredentialSize(t *testing.T) {
 		t.Fatalf("oversized credential: %v, want a VisitorLimitError", err)
 	}
 }
+
+// Visitors share a public demo, so an API client could answer the request of
+// another visitor. Only the web UI answers consent requests, unless the
+// operator allows other clients.
+func TestTheDemoAnswersConsentRequestsOnlyFromItsUI(t *testing.T) {
+	srv := newDemoTestServer(t)
+	deny := func(client string) int {
+		t.Helper()
+		req := consent.NewRequest(consent.TypePresentation, "")
+		if err := srv.wallet.Consents().Create(req); err != nil {
+			t.Fatal(err)
+		}
+		go func() {
+			select {
+			case <-req.ResultCh:
+				req.SubmissionCh <- consent.SubmissionResult{StatusCode: http.StatusOK}
+			case <-time.After(5 * time.Second):
+			}
+		}()
+		r := httptest.NewRequest(http.MethodPost, "/api/requests/"+req.ID+"/deny", nil)
+		if client != "" {
+			r.Header.Set(ClientHeader, client)
+		}
+		rec := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(rec, r)
+		return rec.Code
+	}
+	for client, want := range map[string]int{"": http.StatusForbidden, "eudi-cli/3.1.0": http.StatusForbidden, "eudi-ui/3.1.0": http.StatusOK} {
+		if got := deny(client); got != want {
+			t.Errorf("client %q: status %d, want %d", client, got, want)
+		}
+	}
+	srv.demo.opts.ConsentAPI = true
+	if got := deny("eudi-cli/3.1.0"); got != http.StatusOK {
+		t.Errorf("with --demo-consent-api: status %d, want 200", got)
+	}
+}

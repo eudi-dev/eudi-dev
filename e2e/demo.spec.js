@@ -34,6 +34,8 @@ test.beforeAll(async () => {
       // Periodic resets would clear state during tests.
       "--demo-reset",
       "0",
+      // The tests clear pending consent requests through the API.
+      "--demo-consent-api",
       "--port",
       String(PORT),
       "--wallet-dir",
@@ -262,7 +264,7 @@ test.describe("Demo mode consent visibility", () => {
     await expect(page.locator("#consent-findings-list")).toBeHidden();
     await summary.click();
     await expect(page.locator("#consent-findings-list")).toContainText("ARF RPRC_19");
-    await expect(page.locator("#consent-findings-list")).toContainText("Wallets must check it from 11 August 2028");
+    await expect(page.locator("#consent-findings-list")).toContainText("Wallets must check registration certificates from 11 August 2028");
     await page.locator("#consent-deny").click();
   });
 

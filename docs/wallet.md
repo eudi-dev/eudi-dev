@@ -27,6 +27,7 @@ For interaction diagrams of the implemented OID4VP and OID4VCI flows, see [docs/
 | `scan`       | Scan a QR code and accept or import its content |
 | `refresh`    | Ask a credential's issuer for a fresh copy over the refresh token grant |
 | `deferred`   | List deferred credentials (`check`, `abandon`) |
+| `requests`   | List pending consent requests (`approve`, `deny`) |
 | `logs`       | Show the activity log (`clean` removes old entries) |
 | `tls-cert`   | Print or export the wallet HTTPS leaf certificate |
 | `ps`         | List running wallet instances |
@@ -227,6 +228,18 @@ eudi wallet refresh <credential-id>                  # ask for a fresh copy
 ```
 
 See [issuance into the wallet](wallet/issuing.md) for sign-in, renewal, deferred issuance, wallet attestation, the OpenID4VCI feature level (`--vci-version`), and interactive authorization.
+
+## Consent requests
+
+`wallet requests` lists the consent requests of a running wallet server. `approve` and `deny` answer a request by its id, or the newest one of `--type` (`presentation`, `issuance` or `issuance_presentation`). `approve --body` takes the choices as JSON, like `POST /api/requests/{id}/approve`. Without it the wallet sends its automatic selection. The command button of a consent dialog shows the command with the dialog's choices.
+
+```bash
+eudi wallet requests                                       # list pending requests
+eudi wallet requests approve --type presentation           # the newest presentation request
+eudi wallet requests deny 7f3c…                            # one request by its id
+```
+
+A request started in a browser belongs to that browser, so the CLI lists only requests from API calls, the CLI and tests. On a public demo only the web UI answers consent requests, unless the operator starts it with `--demo-consent-api`.
 
 ## HTTP API
 

@@ -3242,7 +3242,6 @@ textarea.form-input {
   margin-top: 4px;
 }
 
-/* Dialog actions sit at the top right, beside the title. */
 .dialog-actions {
   float: right;
   display: flex;

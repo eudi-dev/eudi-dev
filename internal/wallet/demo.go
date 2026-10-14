@@ -41,6 +41,10 @@ type DemoOptions struct {
 	// Baseline adds the startup credentials again after a reset. When it is nil,
 	// a reset restores the protected default PIDs.
 	Baseline func() error
+	// ConsentAPI lets API and CLI clients answer consent requests. By default
+	// only the web UI answers them, so a client doesn't answer another
+	// visitor's request by mistake.
+	ConsentAPI bool
 }
 
 type DailySchedule struct {
@@ -326,6 +330,7 @@ func (s *Server) demoConfig() map[string]any {
 	cfg := map[string]any{
 		"enabled":                true,
 		"reset_interval_seconds": int(s.demo.opts.ResetInterval / time.Second),
+		"consent_api":            s.demo.opts.ConsentAPI,
 	}
 	if s.demo.opts.ResetDaily != nil {
 		cfg["reset_daily_at"] = s.demo.opts.ResetDaily.String()

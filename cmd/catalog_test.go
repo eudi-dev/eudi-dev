@@ -90,3 +90,21 @@ func TestTheCatalogCommandAddsAndDeletes(t *testing.T) {
 		t.Fatalf("delete: %v", deleted)
 	}
 }
+
+// A claim takes the same syntax as in the web UI: dots nest, [*] selects every
+// element and [n] one element.
+func TestCatalogueClaimsParseLikeTheWebUI(t *testing.T) {
+	for _, tc := range []struct {
+		format, claim string
+		want          []any
+	}{
+		{"dc+sd-jwt", "address.locality", []any{"address", "locality"}},
+		{"dc+sd-jwt", "nationalities[*]", []any{"nationalities", nil}},
+		{"mso_mdoc", "degree", []any{"org.example.diploma.1", "degree"}},
+		{"mso_mdoc", "org.example.ns:degree", []any{"org.example.ns", "degree"}},
+	} {
+		if got := catalogClaimPath(tc.format, "org.example.diploma.1", tc.claim); !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("%s %q: %v, want %v", tc.format, tc.claim, got, tc.want)
+		}
+	}
+}

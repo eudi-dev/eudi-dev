@@ -52,8 +52,8 @@ Flags shared by all three subcommands:
 | Flag       | Default                   | Description                                    |
 |------------|---------------------------|------------------------------------------------|
 | `--claims` | None                      | Claims as JSON string or `@filepath`           |
-| `--key`    | None                      | Private key file (PEM or JWK). Ephemeral if omitted |
-| `--cert`   | None                      | Certificate chain file (PEM, leaf first) embedded as x5c. Requires `--key` |
+| `--key`    | None                      | Private key: a PEM or JWK file, or the PEM or JWK itself. Ephemeral if omitted |
+| `--cert`   | None                      | Certificate chain (PEM, leaf first) embedded as x5c: a file or the PEM itself. Requires `--key` |
 | `--iss`    | `https://issuer.example`  | Issuer URL                                     |
 | `--vct`    | `urn:eudi:pid:1`       | Verifiable Credential Type                     |
 | `--exp`    | `720h` (30 days)          | Expiration duration                            |
@@ -74,8 +74,8 @@ Flags shared by all three subcommands:
 | Flag       | Default                   | Description                                    |
 |------------|---------------------------|------------------------------------------------|
 | `--claims` | None                      | Claims as JSON string or `@filepath`           |
-| `--key`    | None                      | Private key file (PEM or JWK). Ephemeral if omitted |
-| `--cert`   | None                      | Certificate chain file (PEM, leaf first) embedded as x5c. Requires `--key` |
+| `--key`    | None                      | Private key: a PEM or JWK file, or the PEM or JWK itself. Ephemeral if omitted |
+| `--cert`   | None                      | Certificate chain (PEM, leaf first) embedded as x5c: a file or the PEM itself. Requires `--key` |
 | `--iss`    | `https://issuer.example`  | Issuer URL                                     |
 | `--vct`    | `urn:eudi:pid:1`       | Verifiable Credential Type                     |
 | `--exp`    | `720h` (30 days)          | Expiration duration                            |
@@ -95,8 +95,8 @@ The JWT subcommand produces a standard JWT with all claims directly in the paylo
 | Flag          | Default                        | Description                                    |
 |---------------|--------------------------------|------------------------------------------------|
 | `--claims`    | None                           | Claims as JSON string or `@filepath`           |
-| `--key`       | None                           | Private key file (PEM or JWK). Ephemeral if omitted |
-| `--cert`      | None                           | Certificate chain file (PEM, leaf first) embedded as x5chain. Requires `--key` |
+| `--key`       | None                           | Private key: a PEM or JWK file, or the PEM or JWK itself. Ephemeral if omitted |
+| `--cert`      | None                           | Certificate chain (PEM, leaf first) embedded as x5chain: a file or the PEM itself. Requires `--key` |
 | `--doc-type`  | `eu.europa.ec.eudi.pid.1`      | Document type                                  |
 | `--namespace` | `eu.europa.ec.eudi.pid.1`      | Namespace                                      |
 | `--exp`       | `720h` (30 days)               | Expiration duration                            |
@@ -176,3 +176,5 @@ With `--wallet`, these flags set the card appearance of the imported credential 
 | `--logo` | None | The card logo, a file path, a data URI, or an http(s) URL |
 | `--logo-alt` | None | The logo's alt text |
 | `--background-image` | None | The card background image, a file path, a data URI, or an http(s) URL |
+| `--display-template` | None | Use the display of this template for any display value not set by the other display flags |
+| `--catalog` | None | With `--save-template`: add the template to the attestation catalogue with this entry, as JSON like the `catalog` field of `POST /api/issue` (file, JSON or `-` for stdin) |

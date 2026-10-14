@@ -32,7 +32,7 @@ If the verifier sets `multiple: true` on a query, all matching credentials are s
 
 The dialog also offers non-matching credentials with the reasons (format, type, missing claims). In strict mode this includes credentials that fail a strict rule, such as a missing holder binding. They are never picked automatically. If you pick one, the wallet discloses every requested claim present in the credential. When nothing matches a request from a link, the UI, a DC API call or an issuer during issuance, the dialog opens, and **Approve** stays disabled until you pick a credential for every query. Auto-accept and API submissions get no dialog. The wallet answers them with `access_denied`.
 
-When a query lists `claim_sets`, the wallet uses the first matching claim set (OpenID4VP 1.0 §6.4.1). The dialog says how many claim sets the verifier accepts and which one the wallet sends. The credential lists its claims. **Show all claim sets** lists every matching claim set, and you can pick another one. The wallet then discloses its claims. The claim checkboxes still apply.
+When a query lists `claim_sets`, the wallet uses the first matching claim set (OpenID4VP 1.0 §6.4.1). The dialog says how many claim sets the verifier accepts and which one the wallet sends. The credential lists the claims of that set. **Show all claim sets** lists every matching claim set, and you can pick another one. The wallet then discloses the claims of the chosen set. The claim checkboxes still apply.
 
 API clients receive the alternatives in `credential_options`. Each query also lists `non_matching` credentials with their `mismatches`. `unmatched` on a credential set lists the options without a matching credential. Send `picks` (query ID to credential ID, or to a list of credential IDs when the query has `"multiple": true`), `set_choices` (option index per set, or `-1` to skip an optional set), `claim_sets` (query ID to the index of a matching claim set) and `selected_claims` to `POST /api/requests/{id}/approve`. An invalid selection returns `400` and leaves the request pending.
 
@@ -42,7 +42,7 @@ API clients receive the alternatives in `credential_options`. Each query also li
 
 A credential issued in the web UI can reference the wallet's own status list when configured, a custom URI and index, or no status list. The UI can revoke and activate credentials on the wallet's own status list. For an external status list it fetches the list on request.
 
-The **</>** button beside a dialog's title shows the curl command for what the dialog does, with the dialog's current values. Where the CLI has a matching command, the panel switches to it. The button next to it makes the dialog almost full screen and back. See [dialog commands](../ui-automation.md#dialog-commands-and-size).
+The **</>** button beside a dialog's title shows the curl command for what the dialog does, with the dialog's current values. The panel can also show the matching CLI command. A second button switches the dialog between its normal size and almost full screen. See [dialog commands](../ui-automation.md#dialog-commands-and-size).
 
 To drive the web UI from Playwright or Selenium, see [UI automation](../ui-automation.md).
 
@@ -341,6 +341,7 @@ Every flag can also be set as `EUDI_DEV_<FLAG>`, with the flag name in upper cas
 | `--imprint-file`        | None     | HTML snippet with the operator's legal notice, served at `/imprint` |
 | `--log-format`          | `text`   | Console output format: `text` or `json` (one JSON record per line). See [JSON logs](#json-logs) |
 | `--news-file`           | None     | HTML snippet with news for visitors, shown once in a popup and linked from the footer. Requires `--demo` |
+| `--demo-consent-api`    | `false`  | Let API and CLI clients answer consent requests. By default only the web UI answers them, so a client doesn't answer another visitor's request by mistake. Requires `--demo` |
 | `-d, --detached`        | `false`  | Run the server as a background process and return once it responds. Output goes to `<wallet-dir>/serve.log`. Stop it with `wallet kill` |
 
 ## Startup credentials

@@ -23,6 +23,15 @@
     return "'" + String(value).replace(/'/g, "'\\''") + "'";
   }
 
+  // heredoc passes content on stdin. Its delimiter is a line the content
+  // doesn't have, so pasted text can't end it early.
+  function heredoc(content) {
+    const lines = new Set(String(content).split('\n'));
+    let delimiter = 'EOF';
+    for (let n = 2; lines.has(delimiter); n++) delimiter = 'EOF' + n;
+    return " <<'" + delimiter + "'\n" + content + '\n' + delimiter;
+  }
+
   // curl builds a curl command. A JSON body goes into a heredoc, so it needs no
   // quoting and stays readable.
   function curl(method, path, body, headers) {
@@ -32,8 +41,8 @@
     }
     if (body === undefined) return parts.join(' \\\n  ');
     parts.push("-H 'Content-Type: application/json'");
-    parts.push("--data-binary @- <<'EOF'");
-    return parts.join(' \\\n  ') + '\n' + JSON.stringify(body, null, 2) + '\nEOF';
+    parts.push('--data-binary @-');
+    return parts.join(' \\\n  ') + heredoc(JSON.stringify(body, null, 2));
   }
 
   // cli joins a command and its flags. Each flag is [name, value] or [name] for
@@ -150,7 +159,6 @@
       problem = e.message;
     }
 
-    // A dialog without a CLI command shows no switch.
     const hasCLI = Boolean(command && command.cli);
     panel.querySelector('.dialog-command-mode').hidden = !hasCLI;
     panel.querySelector('.dialog-command-label').hidden = hasCLI;
@@ -165,8 +173,8 @@
     note.hidden = !noteText;
   }
 
-  // Edits update an open command panel. A redraw of the dialog's content gets
-  // the actions again.
+  // Edits update an open command panel. After a redraw of the dialog's
+  // content, decorate adds the actions again.
   function watch(dialog) {
     let pending = false;
     const schedule = () => {
@@ -192,5 +200,5 @@
     watch(dialog);
   });
 
-  window.eudiDialogs = { setCommand, refresh, curl, cli, shellQuote, walletURL, remoteURL };
+  window.eudiDialogs = { setCommand, refresh, curl, cli, heredoc, shellQuote, walletURL, remoteURL };
 })();

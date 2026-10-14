@@ -302,6 +302,7 @@ eudi registrar registration-cert --identifier NLTEST.1A2B3C4D5E6F7A8B --new
 eudi registrar revoke --identifier NLTEST.1A2B3C4D5E6F7A8B
 eudi registrar activate --identifier NLTEST.1A2B3C4D5E6F7A8B
 eudi registrar verifiers rm NLTEST.1A2B3C4D5E6F7A8B
+eudi registrar enrol enrolment.json
 eudi catalog
 eudi catalog add --name "University diploma" --type dc+sd-jwt:urn:example:diploma:1 --claim dc+sd-jwt:degree
 eudi catalog rm 3f1c3b0d-71ad-496b-9f94-68198503e761
@@ -310,6 +311,8 @@ eudi catalog rm 3f1c3b0d-71ad-496b-9f94-68198503e761
 `verifiers` and `issuers` list the registered verifiers and issuers, and so do `verifiers list` and `issuers list`. `add` registers one and prints the assigned identifier, and `rm` deletes a registration and revokes its certificates. `verifiers add` takes the credentials and claims of a DCQL query, so requests with that query pass the over-asking check (ARF RPRC_21). `issuers add` takes the attestation types and optionally the categories of its entitlements.
 
 With `--to`, both add the other role to a registered relying party instead. `verifiers add --to` adds an intended use, and `issuers add --to` adds attestation types. On an issuer, the new types are added to the existing ones. The new certificate revokes the current one. It stays one registration with both roles. The command issues the new registration certificate and prints its `verifier_info` or `issuer_info` value. The other role changes the entitlements of the service, so the registrar revokes the certificates of the first role. `registration-cert` then issues new ones.
+
+`enrol` sends an enrolment like the registrar dialog of the web UI: the registration, an access certificate request with your CSR and the registration certificate to issue, in one step. `--update` changes an existing registration, for example to add an intended use or a service. In the web UI, the command button of the registrar dialog shows this enrolment. The command prints the access certificate chain and the `verifier_info` or `issuer_info` value.
 
 `access-cert` prints the PEM certificate and writes the client identifiers to stderr: `x509_hash` for the certificate and `x509_san_dns` for each `--dns` name (OpenID4VP 1.0 §5.9.3). The trade name of the service becomes the common name (ETSI TS 119 411-8 GEN-6.1.1-04, ARF Reg_31). The key must be P-256, because HAIP 1.0 §7 requires every wallet to support ES256 for signed presentation requests.
 
@@ -331,6 +334,7 @@ With `--to`, both add the other role to a registered relying party instead. `ver
 | `verifiers add` | `--privacy-policy` | `<issuer URL>/privacy-policy` | Privacy policy URL of the intended use |
 | `issuers add` | `--attestation` | None | Attestation type as `format:type`, such as `dc+sd-jwt:urn:eudi:pid:1` (repeatable, required) |
 | `issuers add` | `--category` | The categories of the attestation types | Category for the issuer's provider entitlement: `pid`, `qeaa`, `pub-eaa` or `eaa` (repeatable) |
+| `enrol` | `--update` | `false` | Change an existing registration, named by the first identifier of the relying party |
 | `access-cert` | `--identifier` | None | Registered identifier (required) |
 | `access-cert` | `--service-id` | The only service | Service the certificate is for |
 | `access-cert` | `--csr` | None | PEM certificate signing request (file or `-` for stdin, required) |
@@ -354,4 +358,4 @@ With `--to`, both add the other role to a registered relying party instead. `ver
 | `catalog add` | `--binding` | `key` | How the attestation is bound to its holder: `key` (a key in the wallet), `claim` (linked to another credential, such as a PID), `biometric` or `none` |
 | `catalog add` | `--rulebook` | `<issuer URL>/rulebook` | Rulebook URL |
 | `catalog add` | `--trusted-list` | The category's list on the wallet | URL of the trusted list of issuers for this type |
-| `catalog add` | `--issuer-ca` | None | PEM file with the CA of your issuer. The wallet adds it to the trusted list of the category |
+| `catalog add` | `--issuer-ca` | None | The CA of your issuer in PEM: a file, `-` for stdin or the PEM itself. The wallet adds it to the trusted list of the category |
