@@ -5,6 +5,19 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.1] - 2026-10-14
+
+### Added
+
+- **Close button in dialogs.** Every dialog has a × beside its title. A pending consent request has none, because you have to approve or deny it.
+
+### Fixed
+
+- **Command button in dialogs.** Dialogs without a command, such as Conformance, Templates and Relying parties, no longer show the **</>** button.
+- **Dialog buttons in list dialogs.** In the relying parties and catalogue dialogs, the buttons now sit beside the title, as in the other dialogs.
+- **Trusted list findings in the decoder.** If a credential isn't anchored in the trusted list of its catalogue entry, the decoder now shows a warning, like the wallet. The check fails only when the wallet runs in strict mode with `--arf`.
+- **Consent command note.** The note under the command in the consent dialog is easier to understand.
+
 ## [3.1.0] - 2026-10-14
 
 ### Added
