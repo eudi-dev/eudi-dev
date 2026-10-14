@@ -5,6 +5,31 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.0] - 2026-10-14
+
+### Added
+
+- **Commands in dialogs.** The **</>** button beside a dialog's title shows the curl command for what the dialog does, with the values you entered. The issue, template, registrar, catalogue and consent dialogs have it. You can switch to the matching CLI command.
+- **CLI for every dialog.** `eudi wallet requests` lists the consent requests, and `approve` or `deny` answer them. `eudi registrar enrol` sends the enrolment of the registrar dialog. `eudi issue` takes `--catalog` and `--display-template`, and `--key` and `--cert` take the PEM itself. `eudi catalog add --issuer-ca` also reads stdin.
+- **Dialog size.** A button beside the title switches a dialog between its normal size and almost full screen.
+- **Claim sets and credential sets in the demo verifier.** The Custom tab builds `claim_sets` and `credential_sets`. Its JSON mode lets you edit the DCQL query directly. The verifier checks the response against the query.
+
+### Changed
+
+- **Consent on a public demo.** Only the web UI answers consent requests, so an API or CLI client doesn't answer another visitor's request by mistake. `--demo-consent-api` lets API and CLI clients answer them too.
+- **Missing registration certificates.** With `--arf`, a verifier without a registration certificate in `verifier_info` and an issuer without one in `issuer_info` get a warning in every mode. Wallets must check registration certificates only from 11 August 2028 (CIR (EU) 2026/1731). The wallet still checks a registration certificate if there is one. Strict mode refuses an invalid one.
+- **Claim sets in the consent dialog.** A one-line note says which claim set the wallet sends. **Show all claim sets** lists the matching claim sets, and you can pick another one.
+
+### Fixed
+
+- **Header.** The logo, the title and the menu links are centered on one line.
+- **Footer.** The version, the sponsor link and the demo note line up. Footer links are underlined only on hover.
+- **Relying parties list.** The search text starts at the same edge as the text in the entries. The identifier shares a line with its pills. Every row of an entry starts at the same left edge, and the text of the certificate rows lines up.
+- **Non-matching credentials.** The note on a non-matching credential no longer mentions debug mode.
+- **Remove buttons in the demo verifier.** The × buttons are larger and tinted, so they stand out in dark mode.
+- **mdoc claims in the demo verifier.** The Custom tab puts an mdoc claim in the namespace of its doctype, so the wallet can match it.
+- **Dialog buttons.** On a phone the buttons wrap to a new row instead of running past the left edge of the dialog.
+
 ## [3.0.4] - 2026-10-13
 
 ### Fixed
