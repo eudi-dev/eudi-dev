@@ -2359,9 +2359,8 @@
       return claims;
     }
     // A query with multiple: true presents every candidate unless the user
-    // withholds some. Any other query presents its first candidate. In debug mode
-    // a query can have only non-matching credentials, and then has no automatic
-    // pick.
+    // withholds some. Any other query presents its first candidate. A query with
+    // only non-matching credentials has no automatic pick.
     function defaultPicks(q) {
       if (q.candidates.length === 0) return [];
       return q.multiple ? q.candidates.map(c => c.credential_id) : [q.candidates[0].credential_id];
@@ -2421,7 +2420,7 @@
       return '<div class="consent-multiple-note" id="consent-multiple-' + domID(qid) + '">' +
         'The verifier accepts several credentials here. Sending ' + sent + ' of ' + q.candidates.length + ' matching credentials.</div>';
     }
-    // Debug mode offers every claim_sets option satisfied by the picked
+    // The dialog offers every claim_sets option satisfied by the picked
     // credentials. The first is the automatic choice.
     function claimSetOptions(qid) {
       const picked = activeCandidates(qid);
@@ -2648,12 +2647,12 @@
     }
 
 
-    // Debug mode sends a non-matching credential when the user picks it. List every
+    // The wallet sends a non-matching credential when the user picks it. List every
     // reason so the expected verifier error is clear.
     function mismatchNote(mc, id) {
       if (!mc || !mc.mismatches || mc.mismatches.length === 0) return '';
       return '<div class="consent-mismatch" role="note" id="' + domID(id) + '">' +
-        '<span class="consent-mismatch-title" id="' + domID(id) + '-title">⚠ Does not match the query. Debug mode sends it anyway.</span>' +
+        '<span class="consent-mismatch-title" id="' + domID(id) + '-title">⚠ Does not match the query.</span>' +
         '<ul>' + mc.mismatches.map((r, i) => '<li id="' + domID(id) + '-reason-' + i + '">' + escHtml(r) + '</li>').join('') + '</ul></div>';
     }
     function unansweredNote(qid) {
