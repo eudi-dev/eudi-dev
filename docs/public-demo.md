@@ -202,7 +202,7 @@ Pass `--news-file` with an HTML snippet. The wallet opens it on a visitor's firs
 
 An image next to the snippet, such as `<img src="overview.png">`, is embedded in the page, because the wallet loads images only from itself. Images can be PNG, JPEG, GIF, WebP or SVG, up to 2 MiB each. A paragraph with `class="lead"` stands out as the summary.
 
-The example stack mounts the `news` folder, and `./deploy.sh push` copies it to the host. The header image is rendered from `3.0.0.source.html`.
+The example stack mounts the `news` folder, and `./deploy.sh push` copies it to the host. The header image is rendered from `3.source.html`.
 
 ## Deployment and updates
 
