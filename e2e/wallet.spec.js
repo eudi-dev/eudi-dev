@@ -2162,7 +2162,7 @@ test.describe("ARF checks", () => {
     });
   });
 
-  test("strict mode with --arf refuses a request without a registration certificate", async ({ page }) => {
+  test("strict mode with --arf refuses a request without an access certificate", async ({ page }) => {
     await page.goto(WALLET_URL);
     await page.locator("#conformance-link").click();
     await page.locator("#conf-mode-select").selectOption("strict");
@@ -2186,7 +2186,6 @@ test.describe("ARF checks", () => {
     }, uri);
     expect(status).toBe(400);
     expect(body.error).toBe("invalid_request");
-    expect(body.error_description).toContain("RPRC_19");
     expect(body.error_description).toContain("RPA_03");
   });
 

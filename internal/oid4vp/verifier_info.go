@@ -87,10 +87,7 @@ func ARFFindings(authReq *Request) []string {
 	for _, problem := range problems {
 		findings = append(findings, "ARF RPRC_17: the registration certificate "+problem)
 	}
-	switch count := len(registrations) + len(problems); {
-	case count == 0:
-		findings = append(findings, "ARF RPRC_17 and RPRC_19 and ETSI TS 119 472-2 OIDFVP-HAIP-COMMON-REQ-RO-13 as adapted by CIR (EU) 2026/1731 Annex XII: the request carries no registration certificate (typ rc-wrp+jwt) in verifier_info")
-	case count > 1:
+	if count := len(registrations) + len(problems); count > 1 {
 		findings = append(findings, fmt.Sprintf("ARF RPRC_19: the request carries %d registration certificates. It must carry exactly one", count))
 	}
 	accessChain := requestAccessChain(authReq)
@@ -117,6 +114,25 @@ func ARFFindings(authReq *Request) []string {
 		findings = append(findings, regcert.OverAskingFindings(registrations[0].Claims, authReq.DCQLQuery)...)
 	}
 	return findings
+}
+
+// RegistrationDeadline is the date from which wallets must authenticate and
+// validate registration certificates. CIR (EU) 2026/1731 defers Article 3(4)
+// of CIR (EU) 2024/2982 to it.
+const RegistrationDeadline = "11 August 2028"
+
+// ARFAdvisories warns about a request without a registration certificate.
+// Wallets must check one only from RegistrationDeadline, so it is a warning in
+// every mode.
+func ARFAdvisories(authReq *Request) []string {
+	if authReq == nil {
+		return nil
+	}
+	registrations, problems := regcert.Verify(regcert.InfoEntries(requestVerifierInfo(authReq), "verifier_info"))
+	if len(registrations)+len(problems) > 0 {
+		return nil
+	}
+	return []string{"ARF RPRC_19 and ETSI TS 119 472-2 OIDFVP-HAIP-COMMON-REQ-RO-13 as adapted by CIR (EU) 2026/1731 Annex XII: the request carries no registration certificate (typ rc-wrp+jwt) in verifier_info. Wallets must check registration certificates from " + RegistrationDeadline + " (CIR (EU) 2024/2982 Article 3(4))"}
 }
 
 // relyingPartyAuthenticated reports whether a trusted access certificate

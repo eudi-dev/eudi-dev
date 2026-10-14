@@ -63,7 +63,7 @@ func (w *Wallet) describeCredentialOffer(ctx context.Context, offer *oid4vc.Cred
 				refusal = nil
 			}
 		}
-		details.Findings = append(append(freshness, details.ARFFindings...), w.catalogueFindings(metadata, offer.CredentialConfigurationIDs)...)
+		details.Findings = append(append(append(freshness, details.ARFFindings...), w.issuerARFAdvisories(metadata)...), w.catalogueFindings(metadata, offer.CredentialConfigurationIDs)...)
 	}
 
 	for _, id := range offer.CredentialConfigurationIDs {

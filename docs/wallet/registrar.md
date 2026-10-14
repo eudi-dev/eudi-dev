@@ -150,7 +150,7 @@ The status list of the registration certificates must chain to a revocation serv
 The wallet does not check these:
 
 - **Access certificate revocation.** The registrar does not revoke access certificates. A deleted relying party keeps a valid access certificate until it expires.
-- **The register.** The wallet does not look up `registry_uri`. A verifier sends exactly one registration certificate with its request, so no external request is needed to check it (ARF RPRC_19). An issuer publishes its certificate in its metadata (RPRC_22). For a request with no registration certificate or with several, the consent dialog warns that the registered information could not be checked (RPRC_17).
+- **The register.** The wallet does not look up `registry_uri`. A verifier sends its registration certificate with its request, so no external request is needed to check it (ARF RPRC_19). An issuer publishes its certificate in its metadata (RPRC_22). For a request with no registration certificate or with several, the consent dialog warns that the registered information could not be checked (RPRC_17).
 
 ## External registrar
 
@@ -204,7 +204,7 @@ The demo issuer and the demo verifier each use their current registration certif
 The demo issuer signs its metadata with its access certificate and publishes its registration certificate in `issuer_info`. On the demo verifier page you choose how the verifier identifies itself:
 
 - **Registered** (default): the request is signed with the verifier's access certificate and carries its registration certificate in `verifier_info`. It passes the `--arf` checks. A custom request for a claim outside the templates gets an over-asking finding (RPRC_21).
-- **Not registered**: the request is signed with the access certificate and has no `verifier_info`, so `--arf` reports RPRC_19.
+- **Not registered**: the request is signed with the access certificate and has no `verifier_info`, so `--arf` warns about the missing registration certificate (RPRC_19).
 - **Own certificates**: you paste a PEM bundle with your key and access certificate chain, and optionally a `verifier_info` value.
 
 The identity buttons are `identity-registered`, `identity-unregistered` and `identity-own`. In **Own certificates** mode you paste into `signing-key` and `verifier-info`. The request API takes `"identity": "unregistered"` for the second option.

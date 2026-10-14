@@ -506,7 +506,7 @@ await page.locator("#conformance-close").click();
 
 API: `PUT /api/config/conformance` and `PUT /api/config/auto-accept` (see [introspection](wallet/http-api.md#introspection)).
 
-E2E tests: [`wallet.spec.js`](../e2e/wallet.spec.js), tests *conformance panel changes the local wallet setting via the endpoint*, *strict mode with --arf refuses a request without a registration certificate* and *names the mode and flips it at runtime*. [`demo.spec.js`](../e2e/demo.spec.js), test *the dialog reports what a demo instance checks*.
+E2E tests: [`wallet.spec.js`](../e2e/wallet.spec.js), tests *conformance panel changes the local wallet setting via the endpoint*, *strict mode with --arf refuses a request without an access certificate* and *names the mode and flips it at runtime*. [`demo.spec.js`](../e2e/demo.spec.js), test *the dialog reports what a demo instance checks*.
 
 ## API alternatives
 

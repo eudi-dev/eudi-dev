@@ -366,7 +366,7 @@ func TestStrictARFDeferredCollectionChecksTheIssuer(t *testing.T) {
 	w.AddDeferredIssuance(pending)
 
 	attempt := NewServer(w, 0, nil).attemptDeferredCollection(*pending)
-	if !attempt.Abandoned || !strings.Contains(attempt.Reason, "ARF RPRC_22a") {
+	if !attempt.Abandoned || !strings.Contains(attempt.Reason, "ARF ISSU_3") {
 		t.Fatalf("attempt = %+v, want it abandoned over the ARF findings", attempt)
 	}
 	if issuer.deferredRequests != 0 {

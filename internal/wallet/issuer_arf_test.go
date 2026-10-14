@@ -119,10 +119,6 @@ func TestARFChecksHowAnIssuerAuthenticates(t *testing.T) {
 			metadata, _ := signedTestIssuerMetadata(t, eaaKey, eaaChain, "dc+sd-jwt", testDiplomaVCT, eaaInfo)
 			return arfIssuerFindings(w, metadata, nil)
 		}, "ARF ISSU_34: the Credential Issuer Metadata is not signed"},
-		{"no registration certificate", func() []string {
-			metadata, chain := signedTestIssuerMetadata(t, eaaKey, eaaChain, "dc+sd-jwt", testDiplomaVCT, "")
-			return arfIssuerFindings(w, metadata, chain)
-		}, "ARF RPRC_22a and ETSI TS 119 472-3 V1.1.1 ISS-MDATA-REG_CERT-4.2.3-04 as adapted by CIR (EU) 2026/1731 Annex XI: the issuer metadata carries no registration certificate"},
 		{"an unregistered attestation type", func() []string {
 			metadata, chain := signedTestIssuerMetadata(t, eaaKey, eaaChain, "dc+sd-jwt", "urn:example:other", eaaInfo)
 			return arfIssuerFindings(w, metadata, chain)
@@ -234,19 +230,24 @@ func TestStrictARFRefusesAnUnregisteredIssuer(t *testing.T) {
 	}
 }
 
-// Missing issuer_info is an ARF finding: refused in strict mode, a warning in
-// debug mode, and not checked without --arf.
-func TestMissingIssuerInfoCountsOnlyWithARF(t *testing.T) {
+// Wallets must check a registration certificate only from 11 August 2028
+// (CIR (EU) 2026/1731). With --arf, missing issuer_info is a warning in every
+// mode, and strict mode does not refuse the issuer for it.
+func TestMissingIssuerInfoIsAWarning(t *testing.T) {
 	w := generateTestWallet(t)
 	rp := registerTestIssuer(t, w, registrar.NonQEAAProviderEntitlement)
 	key, chain := issueTestAccessCertificate(t, w, rp.Identifier[0].Identifier)
 	metadata, signer := signedTestIssuerMetadata(t, key, chain, "dc+sd-jwt", testDiplomaVCT, "")
-	if got := w.issuerARFCheck(metadata, signer, []string{"offered"}); got != nil {
-		t.Errorf("findings without --arf: %v", got)
+	if got := w.issuerARFAdvisories(metadata); got != nil {
+		t.Errorf("advisories without --arf: %v", got)
 	}
 	w.RequireARF = true
-	if got := strings.Join(w.issuerARFCheck(metadata, signer, []string{"offered"}), "\n"); !strings.Contains(got, "issuer_info") {
-		t.Errorf("findings with --arf: %q, want the missing issuer_info", got)
+	w.ValidationMode = ValidationModeStrict
+	if got := w.issuerARFCheck(metadata, signer, []string{"offered"}); len(got) != 0 {
+		t.Errorf("findings %v, want none for the missing issuer_info", got)
+	}
+	if got := strings.Join(w.issuerARFAdvisories(metadata), "\n"); !strings.Contains(got, "carries no registration certificate (an issuer_info entry with typ rc-wrp+jwt). Wallets must check registration certificates from 11 August 2028") {
+		t.Errorf("advisories %q, want the missing issuer_info", got)
 	}
 }
 
@@ -358,7 +359,7 @@ func TestStrictARFRefusesAnOfferBeforeTheConsentDialog(t *testing.T) {
 	srv, offerURI := setupMockIssuer(t, w, mockIssuerOpts{})
 	defer srv.Close()
 
-	if _, _, err := w.prepareIssuanceConsentRequest(t.Context(), offerURI, ""); err == nil || !strings.Contains(err.Error(), "RPRC_22a") {
+	if _, _, err := w.prepareIssuanceConsentRequest(t.Context(), offerURI, ""); err == nil || !strings.Contains(err.Error(), "ARF ISSU_3") {
 		t.Errorf("err %v, want the refusal before the dialog", err)
 	}
 }

@@ -2242,8 +2242,9 @@ func TestAStrictARFWalletAcceptsTheDemoVerifier(t *testing.T) {
 		{`{"type":"pid"}`, true},
 		{`{"type":"pid","vct":"urn:eudi:pid:de:1"}`, true},
 		{`{"type":"pid","format":"mdoc"}`, true},
-		// ARF RPRC_19: without a registration certificate the wallet refuses.
-		{`{"type":"pid","identity":"unregistered"}`, false},
+		// Wallets must check a registration certificate only from 11 August
+		// 2028 (CIR (EU) 2026/1731). A request without one gets a warning.
+		{`{"type":"pid","identity":"unregistered"}`, true},
 	} {
 		created := postJSONTo(t, ts.URL+"/verifier/api/requests", tc.body)
 		id, _ := created["transaction_id"].(string)

@@ -18,6 +18,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/x509"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"slices"
@@ -82,6 +83,12 @@ func (w *Wallet) checkIssuer(issuer string, metadata map[string]any, signerChain
 		}
 		report(findings...)
 	}
+	advisories := w.issuerARFAdvisories(metadata)
+	for _, a := range advisories {
+		log.Printf("[VCI] WARNING: %s", a)
+		w.addProtocolWarning("issuance", "arf_advisory", a, map[string]any{"issuer": issuer})
+	}
+	report(advisories...)
 	catalogue := w.catalogueFindings(metadata, configurations)
 	w.reportCatalogueFindings(issuer, catalogue)
 	report(catalogue...)

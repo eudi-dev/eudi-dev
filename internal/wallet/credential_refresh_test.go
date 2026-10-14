@@ -662,7 +662,7 @@ func TestStrictARFRefusesARenewalFromAnUnregisteredIssuer(t *testing.T) {
 		CredentialEndpoint: srv.URL + "/credential", ConfigurationID: "cfg",
 	})
 	_, err = w.RenewCredential(imported.ID)
-	if err == nil || !strings.Contains(err.Error(), "ARF RPRC_22a") {
+	if err == nil || !strings.Contains(err.Error(), "ARF ISSU_3") {
 		t.Fatalf("RenewCredential: %v, want the ARF findings", err)
 	}
 	if credentialRequests != 0 {

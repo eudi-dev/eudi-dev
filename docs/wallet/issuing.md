@@ -100,7 +100,7 @@ In `--mode debug` a failure is a warning. In `--mode strict` the wallet doesn't 
 
 If an offered type has no catalogue entry, the consent dialog and the log show a warning. No specification requires this check, so the warning doesn't stop issuance in either mode.
 
-The ARF applies the registration certificate checks 24 months after the amended CIR 2024/2982 enters into force. Until then many issuers publish no `issuer_info`, so test them in debug mode. The [registrar](registrar.md#issuers) registers issuers and issues their certificates.
+Metadata without a registration certificate gets a warning in every mode. Wallets must check registration certificates only from 11 August 2028 (CIR (EU) 2026/1731), so many issuers publish no `issuer_info` until then. If the metadata has a registration certificate, the wallet checks it as usual. The [registrar](registrar.md#issuers) registers issuers and issues their certificates.
 
 ## Wallet attestation
 

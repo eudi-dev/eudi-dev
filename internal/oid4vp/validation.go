@@ -89,6 +89,7 @@ func validatePresentationRequestCore(checks Checks, params *Request, payload map
 	var arfFindings []string
 	if checks.ARF {
 		arfFindings = ARFFindings(params)
+		advisories = append(advisories, ARFAdvisories(params)...)
 	}
 
 	if checks.Strict && len(findings) == 0 && len(arfFindings) > 0 && relyingPartyAuthenticated(params) {

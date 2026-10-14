@@ -27,6 +27,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
 	"github.com/eudi-dev/eudi-dev/v3/internal/regcert"
 	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
 	"github.com/eudi-dev/eudi-dev/v3/internal/trustedlists"
@@ -152,9 +153,6 @@ func issuerARFFindings(a issuerAuthentication) []string {
 		findings = append(findings, "ARF RPRC_22a: the issuer's registration certificate "+problem)
 	}
 	if len(registrations) == 0 {
-		if len(problems) == 0 {
-			findings = append(findings, "ARF RPRC_22a and ETSI TS 119 472-3 V1.1.1 ISS-MDATA-REG_CERT-4.2.3-04 as adapted by CIR (EU) 2026/1731 Annex XI: the issuer metadata carries no registration certificate (an issuer_info entry with typ rc-wrp+jwt)")
-		}
 		return findings
 	}
 
@@ -215,6 +213,20 @@ func (w *Wallet) issuerARFCheck(metadata map[string]any, signerChain []*x509.Cer
 		statusClient:   w.RegistrationStatusClient(),
 		category:       w.offeredCategory,
 	})
+}
+
+// issuerARFAdvisories warns about issuer metadata without a registration
+// certificate when --arf is on. Wallets must check one only from
+// oid4vp.RegistrationDeadline, so it is a warning in every mode.
+func (w *Wallet) issuerARFAdvisories(metadata map[string]any) []string {
+	if !w.ARFChecks() {
+		return nil
+	}
+	registrations, problems := regcert.Verify(regcert.InfoEntries(metadata, "issuer_info"))
+	if len(registrations)+len(problems) > 0 {
+		return nil
+	}
+	return []string{"ARF RPRC_22a and ETSI TS 119 472-3 V1.1.1 ISS-MDATA-REG_CERT-4.2.3-04 as adapted by CIR (EU) 2026/1731 Annex XI: the issuer metadata carries no registration certificate (an issuer_info entry with typ rc-wrp+jwt). Wallets must check registration certificates from " + oid4vp.RegistrationDeadline + " (CIR (EU) 2024/2982 Article 3(4))"}
 }
 
 // offeredCategory is the category of the catalogue entry for an offered type.

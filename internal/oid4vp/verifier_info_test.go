@@ -27,11 +27,14 @@ func TestARFRequiresAnAccessCertificate(t *testing.T) {
 	}
 }
 
-// ARF RPRC_19 requires a registration certificate even though OpenID4VP makes
-// verifier_info optional. RPRC_17 has the wallet warn the user without one.
-func TestARFRequiresARegistrationCertificate(t *testing.T) {
-	findings := ARFFindings(&Request{RequestPayload: map[string]any{"dcql_query": map[string]any{}}})
-	if !containsSubstring(findings, "ARF RPRC_17 and RPRC_19 and ETSI TS 119 472-2 OIDFVP-HAIP-COMMON-REQ-RO-13 as adapted by CIR (EU) 2026/1731 Annex XII: the request carries no registration certificate") {
-		t.Errorf("findings %v, want the RPRC_17 and RPRC_19 finding", findings)
+// Wallets must check a registration certificate only from 11 August 2028
+// (CIR (EU) 2026/1731), so a request without one gets a warning.
+func TestAMissingRegistrationCertificateIsAWarning(t *testing.T) {
+	request := &Request{RequestPayload: map[string]any{"dcql_query": map[string]any{}}}
+	if findings := ARFFindings(request); containsSubstring(findings, "no registration certificate") {
+		t.Errorf("findings %v, want the missing registration certificate only as a warning", findings)
+	}
+	if advisories := ARFAdvisories(request); !containsSubstring(advisories, "carries no registration certificate (typ rc-wrp+jwt) in verifier_info. Wallets must check registration certificates from 11 August 2028") {
+		t.Errorf("advisories %v, want the missing registration certificate", advisories)
 	}
 }
