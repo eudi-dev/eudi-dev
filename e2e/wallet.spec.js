@@ -2041,10 +2041,17 @@ for (const mode of ["debug", "strict"]) {
       });
       jsonPost(`${WALLET_URL}/api/presentations`, { uri, interactive: true }).catch(() => {});
       await page.goto(`${WALLET_URL}/?request=${await waitForPendingRequest()}`);
-      const picker = page.locator("#consent-claim-set-pid");
-      await expect(picker).toBeVisible();
-      await expect(picker.locator("option")).toHaveText(["auto: given_name, family_name", "given_name, birthdate"]);
-      await picker.selectOption("1");
+      // The note names the claim set the wallet sends. The others open on request.
+      const note = page.locator("#consent-claim-set-pid-current");
+      await expect(note).toHaveText("The verifier accepts 2 claim sets. The wallet sends the first.");
+      await expect(page.locator("#consent-claim-set-pid")).toHaveCount(0);
+      const toggle = page.locator("#consent-show-claim-sets-pid");
+      await toggle.click();
+      await expect(toggle).toBeFocused();
+      await expect(toggle).toHaveAttribute("aria-expanded", "true");
+      await expect(page.locator("#consent-claim-set-pid .consent-claim-set-keys")).toHaveText(["given_name, family_name", "given_name, birthdate"]);
+      await page.locator("#consent-claim-set-pid-1").check();
+      await expect(note).toHaveText("The verifier accepts 2 claim sets. The wallet sends set 2.");
       await expect(page.locator('.consent-claim input[data-claim="birthdate"]')).toBeChecked();
       await page.locator("#consent-approve").click();
 

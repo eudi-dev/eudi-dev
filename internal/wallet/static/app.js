@@ -2338,7 +2338,7 @@
 
     const options = !isIssuance && req.credential_options &&
       (req.credential_options.queries || []).length > 0 ? req.credential_options : null;
-    const selection = { editing: false, setChoices: [], picks: {}, claims: {}, claimSets: {}, showNonMatching: {} };
+    const selection = { editing: false, setChoices: [], picks: {}, claims: {}, claimSets: {}, showNonMatching: {}, showClaimSets: {} };
     let submitting = false;
     // An optional set answered only by non-matching credentials starts skipped,
     // because auto-accept skips it too.
@@ -2418,7 +2418,7 @@
       if (!q.multiple || q.candidates.length < 2) return '';
       const sent = activeCandidates(qid).length;
       return '<div class="consent-multiple-note" id="consent-multiple-' + domID(qid) + '">' +
-        'The verifier accepts several credentials here. Sending ' + sent + ' of ' + q.candidates.length + ' matching credentials.</div>';
+        'The verifier accepts several credentials. The wallet sends ' + sent + ' of ' + q.candidates.length + ' matching credentials.</div>';
     }
     // The dialog offers every claim_sets option satisfied by the picked
     // credentials. The first is the automatic choice.
@@ -2450,18 +2450,34 @@
         selection.claims[c.credential_id] = c.claim_sets.find(set => set.index === index).keys.slice();
       });
     }
+    // The note says which claim set the wallet sends, and the credential below
+    // lists its claims. All matching claim sets open on request.
     function claimSetPicker(qid) {
       const sets = claimSetOptions(qid);
       if (sets.length < 2) return '';
       const current = selection.claimSets[qid] === undefined ? sets[0].index : selection.claimSets[qid];
-      const optionsHtml = sets.map((set, i) =>
-        '<option value="' + set.index + '"' + (set.index === current ? ' selected' : '') + '>' +
-          (i === 0 ? 'auto: ' : '') + escHtml(set.keys.join(', ')) + '</option>').join('');
-      return '<div class="consent-claim-set" id="consent-claim-set-row-' + domID(qid) + '">' +
-        '<label class="consent-purpose-label" id="consent-claim-set-' + domID(qid) + '-label" for="consent-claim-set-' + domID(qid) + '">Claim set for ' + escHtml(qid) + '</label>' +
-        '<select class="form-input" id="consent-claim-set-' + domID(qid) + '" data-query="' + escHtml(qid) + '">' + optionsHtml + '</select>' +
-        '<div class="consent-claim-set-hint" id="consent-claim-set-hint-' + domID(qid) + '">The first matching claim set is the default.</div>' +
-      '</div>';
+      const position = Math.max(1, sets.findIndex(set => set.index === current) + 1);
+      const open = Boolean(selection.showClaimSets[qid]);
+      const id = 'consent-claim-set-' + domID(qid);
+      let html = '<div class="consent-multiple-note consent-claim-set" id="consent-claim-set-row-' + domID(qid) + '">' +
+        '<span id="' + id + '-current">The verifier accepts ' + sets.length + ' claim sets. The wallet sends ' +
+          (position === 1 ? 'the first' : 'set ' + position) + '.</span> ' +
+        '<button type="button" class="link-btn consent-claim-set-toggle" id="consent-show-claim-sets-' + domID(qid) + '" data-query="' + escHtml(qid) + '" aria-expanded="' + open + '" aria-controls="' + id + '">' +
+          (open ? 'Hide claim sets' : 'Show all claim sets') + '</button>';
+      if (open) {
+        html += '<div class="consent-claim-set-options" role="radiogroup" id="' + id + '" aria-labelledby="' + id + '-current">' +
+          sets.map((set, i) =>
+            '<label class="consent-claim-set-option" id="' + id + '-' + set.index + '-label">' +
+              '<input type="radio" name="' + id + '" id="' + id + '-' + set.index + '" value="' + set.index + '" data-query="' + escHtml(qid) + '"' + (set.index === current ? ' checked' : '') + '>' +
+              '<span class="consent-claim-set-text">' +
+                '<span class="consent-claim-set-name">Set ' + (i + 1) + (i === 0 ? ' (auto)' : '') + '</span> ' +
+                '<span class="consent-claim-set-keys">' + set.keys.map((key, k) =>
+                  '<span class="consent-claim-set-key">' + escHtml(key) + (k < set.keys.length - 1 ? ',' : '') + '</span>').join(' ') + '</span>' +
+              '</span>' +
+            '</label>').join('') +
+          '</div>';
+      }
+      return html + '</div>';
     }
     function isAutoSelection() {
       const defaultChoices = defaultSetChoices(options);
@@ -2821,10 +2837,17 @@
           renderDialog();
         });
       });
-      consentDialog.querySelectorAll('.consent-claim-set select').forEach(select => {
-        select.addEventListener('change', () => {
-          const qid = select.dataset.query;
-          const index = Number(select.value);
+      consentDialog.querySelectorAll('.consent-claim-set-toggle').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const qid = btn.dataset.query;
+          selection.showClaimSets[qid] = btn.getAttribute('aria-expanded') !== 'true';
+          renderDialog();
+        });
+      });
+      consentDialog.querySelectorAll('.consent-claim-set-options input[type="radio"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+          const qid = radio.dataset.query;
+          const index = Number(radio.value);
           if (index === claimSetOptions(qid)[0].index) delete selection.claimSets[qid];
           else selection.claimSets[qid] = index;
           // Changing the claim set discloses all of its claims again.
@@ -2909,7 +2932,11 @@
       '<button class="btn btn-primary" id="consent-approve">Approve</button>' +
     '</div>';
 
+    // A redraw replaces the focused control. Its replacement takes the focus.
+    const focusedID = consentDialog.contains(document.activeElement) ? document.activeElement.id : '';
     consentDialog.innerHTML = html;
+    const refocus = focusedID && document.getElementById(focusedID);
+    if (refocus) refocus.focus();
     // The More button only shows for a description longer than two lines.
     consentDialog.querySelectorAll('.offer-description').forEach(desc => {
       if (desc.scrollHeight <= desc.clientHeight + 1) desc.nextElementSibling.hidden = true;
