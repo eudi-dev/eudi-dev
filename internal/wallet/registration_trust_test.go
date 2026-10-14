@@ -43,12 +43,22 @@ func TestDecoderAnchorsARegistrationCertificateInTheRegistrarList(t *testing.T) 
 		t.Errorf("trust detail = %q, want the registrar list", check.Detail)
 	}
 
+	// Another wallet's registrar doesn't anchor it. The check fails only in
+	// strict mode with --arf.
 	other := generateTestWallet(t)
-	result, err = validate.Credential(cert, validate.Trust{Catalogue: other, HTTPClient: w.RegistrationStatusClient()}, validate.Options{Status: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if check, _ := result.Find(validate.CheckTrust); check.Status != validate.Fail || !strings.Contains(check.Detail, "does not chain to a trusted registrar") {
-		t.Errorf("another wallet's registrar: %+v, want a failed trust check", check)
+	for _, refuses := range []bool{false, true} {
+		other.ValidationMode = ValidationModeDebug
+		other.RequireARF = refuses
+		if refuses {
+			other.ValidationMode = ValidationModeStrict
+		}
+		want := map[bool]string{false: validate.Warning, true: validate.Fail}[refuses]
+		result, err = validate.Credential(cert, validate.Trust{Catalogue: other, HTTPClient: w.RegistrationStatusClient()}, validate.Options{Status: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if check, _ := result.Find(validate.CheckTrust); check.Status != want || !strings.Contains(check.Detail, "does not chain to a trusted registrar") {
+			t.Errorf("another wallet's registrar, refuses %v: %+v, want %s", refuses, check, want)
+		}
 	}
 }

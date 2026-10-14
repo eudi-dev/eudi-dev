@@ -239,7 +239,7 @@ eudi wallet requests approve --type presentation           # the newest presenta
 eudi wallet requests deny 7f3c…                            # one request by its id
 ```
 
-A request started in a browser belongs to that browser, so the CLI lists only requests from API calls, the CLI and tests. On a public demo only the web UI answers consent requests, unless the operator starts it with `--demo-consent-api`.
+The CLI lists requests that came from API calls, the CLI and tests. Requests opened in a browser are visible only in that browser. On a public demo only the web UI answers consent requests, unless the operator starts it with `--demo-consent-api`.
 
 ## HTTP API
 

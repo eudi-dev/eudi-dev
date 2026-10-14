@@ -30,9 +30,9 @@ import (
 const requestsLong = `A wallet server asks for consent before it presents or accepts a credential.
 These commands answer that consent dialog from the command line.
 
-A request started in a browser belongs to that browser, so the CLI does not
-list it. Requests from API calls, the CLI and tests are visible to every
-caller. Pass the id of any request to answer it directly.`
+The CLI lists requests that came from API calls, the CLI and tests. Requests
+opened in a browser are visible only in that browser. Pass the id of any
+request to answer it directly.`
 
 func walletRequestsCmd() *cobra.Command {
 	cmd := &cobra.Command{

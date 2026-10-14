@@ -1,11 +1,12 @@
-// Every dialog title gets two actions. One shows the curl and CLI command for
-// the dialog's action, with its current values. The other makes the dialog
-// almost full screen and back.
+// Every dialog title gets three actions. One shows the curl and CLI command
+// for the dialog's action, with its current values. One makes the dialog
+// almost full screen and back. The last one closes the dialog.
 (function () {
   'use strict';
 
   const ICON_COMMAND = '<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 4.5 2 8l3.5 3.5M10.5 4.5 14 8l-3.5 3.5"/></svg>';
   const ICON_MAXIMIZE = '<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5 9 7M2.5 13.5 7 9"/></svg>';
+  const ICON_CLOSE = '<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>';
   const ICON_RESTORE = '<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 6.5h-4v-4M2.5 9.5h4v4M9.5 6.5 14 2M6.5 9.5 2 14"/></svg>';
 
   // The commands use the page's own wallet URL, including a path prefix.
@@ -74,18 +75,21 @@
   }
 
   // decorate adds the actions in front of the title and the command panel
-  // after it. The title stays in place, so it keeps the focus.
+  // after it. The title stays in place, so it keeps the focus. A dialog
+  // without a title of its own gets both at its start.
   function decorate(dialog) {
+    if (dialog.querySelector(':scope > .dialog-actions')) return;
     const title = dialog.querySelector(':scope > .consent-title');
-    if (!title || dialog.querySelector(':scope > .dialog-actions')) return;
     const id = dialog.id;
     const actions = document.createElement('span');
     actions.className = 'dialog-actions';
     actions.id = id + '-actions';
     actions.innerHTML =
       '<button type="button" class="dialog-action" id="' + id + '-command-toggle" aria-expanded="false" aria-controls="' + id + '-command" title="API and CLI command" aria-label="API and CLI command">' + ICON_COMMAND + '</button>' +
-      '<button type="button" class="dialog-action" id="' + id + '-size" aria-pressed="false" title="Maximize" aria-label="Maximize">' + ICON_MAXIMIZE + '</button>';
-    title.before(actions);
+      '<button type="button" class="dialog-action" id="' + id + '-size" aria-pressed="false" title="Maximize" aria-label="Maximize">' + ICON_MAXIMIZE + '</button>' +
+      '<button type="button" class="dialog-action" id="' + id + '-close" title="Close" aria-label="Close">' + ICON_CLOSE + '</button>';
+    if (title) title.before(actions);
+    else dialog.prepend(actions);
 
     const panel = document.createElement('div');
     panel.className = 'dialog-command';
@@ -102,7 +106,7 @@
       '</div>' +
       '<pre class="dialog-command-text" id="' + id + '-command-text" tabindex="0"></pre>' +
       '<p class="dialog-command-note" id="' + id + '-command-note" hidden></p>';
-    title.after(panel);
+    (title || actions).after(panel);
 
     const state = stateOf(dialog);
     actions.querySelector('#' + id + '-command-toggle').addEventListener('click', () => {
@@ -115,6 +119,12 @@
       applySize(dialog, size);
     });
     applySize(dialog, size);
+    // The close action presses the dialog's own close button, so the dialog
+    // closes the way it always does.
+    actions.querySelector('#' + id + '-close').addEventListener('click', () => {
+      const close = closeButton(dialog);
+      if (close) close.click();
+    });
     panel.querySelectorAll('input[type="radio"]').forEach(radio => {
       radio.addEventListener('change', () => {
         state.mode = radio.value;
@@ -129,6 +139,7 @@
         setTimeout(() => { copy.textContent = 'Copy'; }, 1200);
       } catch (e) { /* The clipboard API may be unavailable. */ }
     });
+    refresh(dialog);
   }
 
   function applySize(dialog, button) {
@@ -141,10 +152,18 @@
     button.innerHTML = maximized ? ICON_RESTORE : ICON_MAXIMIZE;
   }
 
+  // closeButton is the dialog's visible button marked data-dialog-close. A
+  // pending consent request has none, because it needs Approve or Deny.
+  function closeButton(dialog) {
+    return Array.from(dialog.querySelectorAll('[data-dialog-close]'))
+      .find(button => !button.hidden && !button.disabled && !button.closest('[hidden]')) || null;
+  }
+
   function refresh(dialog) {
     const toggle = dialog.querySelector(':scope > .dialog-actions .dialog-action[aria-controls]');
     const panel = dialog.querySelector(':scope > .dialog-command');
     if (!toggle || !panel) return;
+    dialog.querySelector('#' + dialog.id + '-close').hidden = !closeButton(dialog);
     const build = builders.get(dialog);
     const state = stateOf(dialog);
     toggle.hidden = !build;

@@ -2239,7 +2239,7 @@
     }
 
     html += '<div class="consent-buttons">' +
-      '<button class="btn btn-primary" id="error-dismiss">Dismiss</button>' +
+      '<button class="btn btn-primary" id="error-dismiss" data-dialog-close>Dismiss</button>' +
     '</div>';
 
     consentDialog.innerHTML = html;
@@ -2301,7 +2301,7 @@
     }
 
     html += '<div class="consent-buttons">' +
-      '<button class="btn btn-primary" id="result-dismiss">Dismiss</button>' +
+      '<button class="btn btn-primary" id="result-dismiss" data-dialog-close>Dismiss</button>' +
     '</div>';
 
     consentDialog.innerHTML = html;
@@ -3191,12 +3191,12 @@
         curl: '# The newest pending ' + kind + '. Set REQUEST_ID to answer another one.\n' + find +
           '\n\n# Approve\n' + answer('approve', approveRequestBody()) +
           '\n\n# Deny\n' + answer('deny'),
-        note: (consentAPI ? '' : DEMO_CONSENT_NOTE) + 'The command needs jq. A request started in a browser belongs to that browser, so curl does not see it. Requests from API calls, the CLI and tests are visible to every caller. To answer this request, set REQUEST_ID=' + req.id + '.',
+        note: (consentAPI ? '' : DEMO_CONSENT_NOTE) + 'The command needs jq. It answers the newest request that came from an API call, the CLI or a test. Requests opened in a browser are visible only in that browser. To answer this request, set REQUEST_ID=' + req.id + '.',
         cli: '# Approve the newest pending ' + kind + '\n' +
           eudiDialogs.cli('eudi wallet requests approve', [['--type', req.type], ['--body', '-'], remote]) +
           eudiDialogs.heredoc(JSON.stringify(approveRequestBody(), null, 2)) + '\n\n# Deny it\n' +
           eudiDialogs.cli('eudi wallet requests deny', [['--type', req.type], remote]),
-        cliNote: (consentAPI ? '' : DEMO_CONSENT_NOTE) + 'A request started in a browser belongs to that browser, so the CLI does not see it. Requests from API calls, the CLI and tests are visible to every caller. To answer this request, put its id ' + req.id + ' after approve or deny.',
+        cliNote: (consentAPI ? '' : DEMO_CONSENT_NOTE) + 'Without an id, the command answers the newest request that came from an API call, the CLI or a test. Requests opened in a browser are visible only in that browser. To answer this request, put its id ' + req.id + ' after approve or deny.',
       };
     });
     renderDialog();

@@ -120,7 +120,10 @@ func (v run) trustCheck(c catalogueState, r *Result) Check {
 		check.Anchor = anchoring.Anchor(ServiceIssuance)
 		check.Detail = check.Anchor.String()
 	case len(anchoring.Findings) > 0:
-		check.Status = Fail
+		check.Status = Warning
+		if v.trust.Catalogue.RefusesTrustFindings() {
+			check.Status = Fail
+		}
 		check.Detail = strings.Join(anchoring.Findings, " ")
 	default:
 		check.Detail = strings.Join(append([]string{"The catalogue entry has no readable trusted list. ARF ISSU_10 asks to check an EAA only with access to its provider's trust anchors"}, anchoring.Warnings...), ". ")

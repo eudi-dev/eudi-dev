@@ -107,14 +107,19 @@ func validated(t *testing.T, raw string, trust Trust, opts Options) *Result {
 }
 
 // fakeCatalogue answers every credential with the same anchoring.
-type fakeCatalogue struct{ anchoring CatalogueAnchoring }
+type fakeCatalogue struct {
+	anchoring CatalogueAnchoring
+	refuses   bool
+}
 
 func (f fakeCatalogue) CheckCatalogueAnchoring(string) (CatalogueAnchoring, bool) {
 	return f.anchoring, true
 }
 
+func (f fakeCatalogue) RefusesTrustFindings() bool { return f.refuses }
+
 func anchoredBy(c issuerChain) fakeCatalogue {
-	return fakeCatalogue{CatalogueAnchoring{Entry: "Test", AnchoredBy: "https://lists.example/pid", IssuanceAnchors: []*x509.Certificate{c.ca}}}
+	return fakeCatalogue{anchoring: CatalogueAnchoring{Entry: "Test", AnchoredBy: "https://lists.example/pid", IssuanceAnchors: []*x509.Certificate{c.ca}}}
 }
 
 // Without a supplied key or list, the catalogue list anchors the issuer
@@ -140,7 +145,7 @@ func TestTheCatalogueListAnchorsTheSignature(t *testing.T) {
 // embedded leaf to prove integrity.
 func TestAnUnanchoredCatalogueEntryKeepsTheLeafCheck(t *testing.T) {
 	c := newIssuerChain(t)
-	unanchored := fakeCatalogue{CatalogueAnchoring{Entry: "Test", Findings: []string{"ARF ISSU_07: not on the list"}}}
+	unanchored := fakeCatalogue{anchoring: CatalogueAnchoring{Entry: "Test", Findings: []string{"ARF ISSU_07: not on the list"}}}
 	for name, raw := range map[string]string{
 		"SD-JWT VC": c.sdjwt(t, mock.SDJWTConfig{}),
 		"mdoc":      c.mdoc(t, mock.MDOCConfig{}),
@@ -149,9 +154,20 @@ func TestAnUnanchoredCatalogueEntryKeepsTheLeafCheck(t *testing.T) {
 		if got := mustFind(t, result, CheckSignature); got.Status != Pass || !strings.Contains(got.Detail, SourceX5CLeaf) {
 			t.Errorf("%s: signature = %+v, want it verified with the leaf", name, got)
 		}
-		if got := mustFind(t, result, CheckTrust); got.Status != Fail || !strings.Contains(got.Detail, "ISSU_07") {
-			t.Errorf("%s: trust = %+v, want the catalogue finding", name, got)
+		if got := mustFind(t, result, CheckTrust); got.Status != Warning || !strings.Contains(got.Detail, "ISSU_07") {
+			t.Errorf("%s: trust = %+v, want the catalogue finding as a warning", name, got)
 		}
+	}
+}
+
+// The trust check fails only when the wallet refuses the credential, in
+// strict mode with the ARF checks.
+func TestAWalletThatRefusesTheFindingFailsTheTrustCheck(t *testing.T) {
+	c := newIssuerChain(t)
+	refusing := fakeCatalogue{anchoring: CatalogueAnchoring{Entry: "Test", Findings: []string{"ARF ISSU_07: not on the list"}}, refuses: true}
+	result := validated(t, c.sdjwt(t, mock.SDJWTConfig{}), Trust{Catalogue: refusing}, Options{})
+	if got := mustFind(t, result, CheckTrust); got.Status != Fail || !strings.Contains(got.Detail, "ISSU_07") {
+		t.Errorf("trust = %+v, want the catalogue finding as a failure", got)
 	}
 }
 

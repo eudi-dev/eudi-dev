@@ -136,7 +136,7 @@
       <div class="news-content" id="news-content"></div>
       <div class="consent-buttons">
         <button class="btn" id="news-tour">Take the tour</button>
-        <button class="btn" id="news-close">Close</button>
+        <button class="btn" id="news-close" data-dialog-close>Close</button>
       </div>
     </div>
   </div>
@@ -208,7 +208,7 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
       <p class="dialog-hint" id="howto-registrar-forms-hint"><a data-doc="docs/wallet/registrar-api.md" target="_blank" rel="noopener" id="howto-registrar-docs-link">Registrar walkthrough</a></p>
       </div>
       <div class="consent-buttons">
-        <button class="btn" id="howto-close">Close</button>
+        <button class="btn" id="howto-close" data-dialog-close>Close</button>
       </div>
     </div>
   </div>
@@ -259,7 +259,7 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
       </table>
       <div class="consent-buttons">
         <button class="btn" id="conf-reset">Reset to startup settings</button>
-        <button class="btn" id="conformance-close">Close</button>
+        <button class="btn" id="conformance-close" data-dialog-close>Close</button>
       </div>
     </div>
   </div>
@@ -328,7 +328,7 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
       </div>
 
       <div class="consent-buttons">
-        <button class="btn" id="trust-close">Close</button>
+        <button class="btn" id="trust-close" data-dialog-close>Close</button>
       </div>
     </div>
   </div>
@@ -348,7 +348,7 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
         </div>
         <div class="form-error" id="trust-provider-error" role="alert"></div>
         <div class="consent-buttons">
-          <button type="button" class="btn" id="trust-provider-cancel">Cancel</button>
+          <button type="button" class="btn" id="trust-provider-cancel" data-dialog-close>Cancel</button>
           <button type="submit" class="btn btn-primary" id="trust-entity-add">Add CA</button>
         </div>
       </form>
@@ -366,7 +366,7 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
         </div>
         <div class="form-error" id="trust-external-error" role="alert"></div>
         <div class="consent-buttons">
-          <button type="button" class="btn" id="trust-external-cancel">Cancel</button>
+          <button type="button" class="btn" id="trust-external-cancel" data-dialog-close>Cancel</button>
           <button type="submit" class="btn btn-primary" id="trust-list-add">Add list</button>
         </div>
       </form>
@@ -380,7 +380,7 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
       <div class="registrar-cert-body" id="registrar-cert-body"></div>
       <div class="form-error" id="registrar-cert-error" role="alert"></div>
       <div class="consent-buttons">
-        <button type="button" class="btn" id="registrar-cert-close">Close</button>
+        <button type="button" class="btn" id="registrar-cert-close" data-dialog-close>Close</button>
       </div>
     </div>
   </div>
@@ -404,7 +404,7 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
       </div>
       <div class="form-error" id="registrar-parties-error" role="alert"></div>
       <div class="consent-buttons">
-        <button type="button" class="btn" id="registrar-parties-close">Close</button>
+        <button type="button" class="btn" id="registrar-parties-close" data-dialog-close>Close</button>
         <button type="button" class="btn btn-primary" id="registrar-parties-register">Register verifier</button>
         <button type="button" class="btn btn-primary" id="registrar-parties-register-issuer">Register issuer</button>
       </div>
@@ -544,7 +544,7 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
         </div>
 
         <div class="consent-buttons">
-          <button type="button" class="btn" id="registrar-close">Close</button>
+          <button type="button" class="btn" id="registrar-close" data-dialog-close>Close</button>
           <button type="submit" class="btn btn-primary" id="registrar-submit">Register verifier</button>
         </div>
       </form>
@@ -563,7 +563,7 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
 
       <div class="form-error" id="registrar-catalog-error" role="alert"></div>
       <div class="consent-buttons" id="registrar-catalog-buttons">
-        <button type="button" class="btn" id="registrar-catalog-close">Close</button>
+        <button type="button" class="btn" id="registrar-catalog-close" data-dialog-close>Close</button>
         <button type="button" class="btn btn-primary" id="registrar-catalog-add">Add attestation</button>
       </div>
     </div>
@@ -601,7 +601,7 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
         </div>
         <div class="form-error" id="registrar-catalog-form-error" role="alert"></div>
         <div class="consent-buttons">
-          <button type="button" class="btn" id="registrar-catalog-cancel">Cancel</button>
+          <button type="button" class="btn" id="registrar-catalog-cancel" data-dialog-close>Cancel</button>
           <button type="submit" class="btn btn-primary" id="registrar-catalog-save">Add to catalogue</button>
         </div>
       </form>
@@ -627,7 +627,7 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
       </div>
       <p class="dialog-hint" id="cli-disclaimer">Independent open source project. Not affiliated with or endorsed by the European Commission or the European Union.</p>
       <div class="consent-buttons">
-        <button class="btn" id="cli-close">Close</button>
+        <button class="btn" id="cli-close" data-dialog-close>Close</button>
       </div>
     </div>
   </div>
@@ -643,7 +643,7 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
       <textarea id="import-textarea" class="form-input form-textarea import-textarea"></textarea>
       <div class="form-error" id="import-error" role="alert"></div>
       <div class="consent-buttons">
-        <button class="btn" id="import-cancel">Cancel</button>
+        <button class="btn" id="import-cancel" data-dialog-close>Cancel</button>
         <button class="btn btn-primary" id="import-submit">Import</button>
       </div>
     </div>
@@ -794,7 +794,7 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
         </div>
         <div class="form-error" id="issue-error"></div>
         <div class="consent-buttons">
-          <button type="button" class="btn" id="issue-cancel">Cancel</button>
+          <button type="button" class="btn" id="issue-cancel" data-dialog-close>Cancel</button>
           <button type="submit" class="btn btn-primary" id="issue-submit">Issue</button>
         </div>
       </form>
@@ -807,7 +807,7 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
       <div id="templates-list" class="templates-list"></div>
       <div class="form-error" id="template-error"></div>
       <div class="consent-buttons">
-        <button type="button" class="btn" id="template-close">Close</button>
+        <button type="button" class="btn" id="template-close" data-dialog-close>Close</button>
         <button type="button" class="btn btn-primary" id="template-new">New template</button>
       </div>
     </div>

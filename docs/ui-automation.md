@@ -77,7 +77,7 @@ All dialogs are `.consent-overlay` elements. An open dialog has the class `activ
 
 ### Dialog commands and size
 
-A dialog with a title has two buttons beside it. `#<dialog id>-size` switches the dialog between its normal size and almost full screen. A maximized dialog has the class `dialog-maximized`. `#<dialog id>-command-toggle` opens the command panel `#<dialog id>-command`, where present. The panel shows the curl command for what the dialog does, with the dialog's current values (`#<dialog id>-command-text`). `#<dialog id>-command-cli` switches to the CLI command where one exists. The dialogs with a command panel are:
+A dialog with a title has buttons beside it. `#<dialog id>-close` closes the dialog like its Close or Cancel button. A pending consent request has no close button, because you have to approve or deny it. `#<dialog id>-size` switches the dialog between its normal size and almost full screen. A maximized dialog has the class `dialog-maximized`. `#<dialog id>-command-toggle` opens the command panel `#<dialog id>-command`, where present. The panel shows the curl command for what the dialog does, with the dialog's current values (`#<dialog id>-command-text`). `#<dialog id>-command-cli` switches to the CLI command where one exists. The dialogs with a command panel are:
 
 | Dialog | Dialog id | CLI command |
 |---|---|---|
@@ -86,7 +86,7 @@ A dialog with a title has two buttons beside it. `#<dialog id>-size` switches th
 | Add a catalogue entry | `registrar-catalog-add-dialog` | `eudi catalog add` |
 | Consent dialog | `consent-dialog` | `eudi wallet requests approve`, `deny` |
 
-The commands use the wallet URL of the page. A consent command answers the newest pending request of the same type. It looks the request up with `GET /api/requests` and `jq`. Set `REQUEST_ID` to answer a specific request. A request started in a browser belongs to that browser, so the command sees only requests from API calls, the CLI and tests. On a public demo only the web UI answers consent requests, unless the operator starts it with `--demo-consent-api`. Without a CSR, the registrar command has a CSR placeholder. Its note shows how to create a CSR.
+The commands use the wallet URL of the page. A consent command answers the newest pending request of the same type. It looks the request up with `GET /api/requests` and `jq`. Set `REQUEST_ID` to answer a specific request. The command sees requests that came from API calls, the CLI and tests. Requests opened in a browser are visible only in that browser. On a public demo only the web UI answers consent requests, unless the operator starts it with `--demo-consent-api`. Without a CSR, the registrar command has a CSR placeholder. Its note shows how to create a CSR.
 
 ## Credential issuance
 

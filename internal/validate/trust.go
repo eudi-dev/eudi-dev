@@ -96,6 +96,9 @@ func (t *Trust) AddTrustedList(raw string, now time.Time) error {
 // entry for the credential's type.
 type Catalogue interface {
 	CheckCatalogueAnchoring(raw string) (anchoring CatalogueAnchoring, found bool)
+	// RefusesTrustFindings reports whether the wallet refuses a credential
+	// with anchoring findings. Otherwise they are warnings.
+	RefusesTrustFindings() bool
 }
 
 // CatalogueAnchoring is the result of validating a credential with the

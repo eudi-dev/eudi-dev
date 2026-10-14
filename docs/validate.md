@@ -81,7 +81,7 @@ A trusted list past its `NextUpdate` is expired (ETSI TS 119 602 V1.1.1 §6.3.15
 
 ## Catalogue trust
 
-When the wallet's attestation catalogue has an entry for the credential type, `validate` and the web decoder also check whether one of the entry's trusted lists anchors the credential. The check reads the lists linked in the entry. For a PID or a PuB-EAA it also reads the lists of that type from the wallet's list of trusted lists, like the wallet does on issuance. `validate` adds the result as `trust` to `--json`. The result doesn't change the exit code. A type without a catalogue entry gets no trust check.
+When the wallet's attestation catalogue has an entry for the credential type, `validate` and the web decoder also check whether one of the entry's trusted lists anchors the credential. The check reads the lists linked in the entry. For a PID or a PuB-EAA it also reads the lists of that type from the wallet's list of trusted lists, like the wallet does on issuance. `validate` adds the result as `trust` to `--json`. If no list anchors the credential, the check gives a warning. It fails only in the decoder of a wallet that runs in strict mode with `--arf`, because only then does the wallet refuse the credential. The result doesn't change the exit code. A type without a catalogue entry gets no trust check.
 
 A registration certificate (`typ` `rc-wrp+jwt`) has no catalogue entry. The wallet's lists of registration certificate providers anchor it instead, as they do for a presentation under `--arf`. The issuance service of such a list anchors the certificate, and its revocation service the status list.
 

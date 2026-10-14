@@ -3089,6 +3089,18 @@ test.describe("Commands in dialogs", () => {
     return (await jsonGet(`${WALLET_URL}/api/credentials`)).body.map((c) => c.vct);
   }
 
+  test("dialogs without a command show no command button and close with ×", async ({ page }) => {
+    await page.goto(WALLET_URL);
+    for (const [name, link] of [["conformance", "#conformance-link"], ["templates", "#templates-link"], ["howto", "#how-to-use-link"]]) {
+      await page.locator(link).click();
+      await expect(page.locator(`#${name}-overlay`)).toHaveClass(/active/);
+      await expect(page.locator(`#${name}-dialog-size`)).toBeVisible();
+      await expect(page.locator(`#${name}-dialog-command-toggle`)).toBeHidden();
+      await page.locator(`#${name}-dialog-close`).click();
+      await expect(page.locator(`#${name}-overlay`)).not.toHaveClass(/active/);
+    }
+  });
+
   test("the issue dialog's curl and CLI commands issue the credential", async ({ page }) => {
     await page.goto(WALLET_URL);
     await page.locator("#issue-btn").click();
@@ -3158,6 +3170,8 @@ test.describe("Commands in dialogs", () => {
     await page.goto(`${WALLET_URL}/?request=${await waitForPendingRequest()}`);
     await page.locator("#consent-show-claim-sets-pid").click();
     await page.locator("#consent-claim-set-pid-1").check();
+    // A pending request needs an explicit answer, so it has no × to close it.
+    await expect(page.locator("#consent-dialog-close")).toBeHidden();
     await page.locator("#consent-dialog-command-toggle").click();
     return verifier;
   }

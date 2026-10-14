@@ -1247,6 +1247,7 @@ textarea.form-input {
 }
 
 .consent-dialog {
+  position: relative;
   background: var(--bg-dialog);
   border: 1px solid var(--border-dialog);
   border-radius: 22px;
@@ -3204,9 +3205,10 @@ textarea.form-input {
 
 .howto-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 0 12px;
 }
 
 .howto-head .btn {
@@ -3242,11 +3244,26 @@ textarea.form-input {
   margin-top: 4px;
 }
 
+/* The actions sit in the top right corner of the dialog, on the line of the
+   title. This works in block and flex dialogs. */
 .dialog-actions {
-  float: right;
+  position: absolute;
+  top: 17px;
+  right: 16px;
   display: flex;
   gap: 4px;
-  margin: -4px -6px 0 12px;
+}
+
+.dialog-actions + .consent-title,
+.dialog-actions ~ .howto-head {
+  padding-right: 108px;
+}
+
+/* The news starts with an image, so its actions take a row of their own. */
+.news-dialog > .dialog-actions {
+  position: static;
+  justify-content: flex-end;
+  margin: -6px -6px 8px 0;
 }
 
 .dialog-action {

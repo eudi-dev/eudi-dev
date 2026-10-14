@@ -118,6 +118,12 @@ func (w *Wallet) StatusListAnchors(raw string) []*x509.Certificate {
 	return anchoring.StatusAnchors
 }
 
+// RefusesTrustFindings reports whether a received credential with anchoring
+// findings is refused, as in checkReceivedCredentials.
+func (w *Wallet) RefusesTrustFindings() bool {
+	return w.Mode() == ValidationModeStrict && w.ARFChecks()
+}
+
 // CheckCatalogueAnchoring validates a raw SD-JWT VC or mdoc with the trusted
 // lists of its catalogue entry. found is false when the catalogue has no entry
 // for its type.
