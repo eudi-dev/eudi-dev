@@ -5,6 +5,13 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.4] - 2026-10-15
+
+### Fixed
+
+- **Own HTTPS endpoints in strict mode.** The wallet trusts its own CA for outgoing requests. In strict mode the demo verifier can now check the status list of a credential issued by the wallet.
+- **Client attestation on the demo issuer's sign-in page.** After an `auth_via_web` or `redirect_to_web` answer of the authorization challenge endpoint, the sign-in page shows the attestation the wallet sent.
+
 ## [3.1.3] - 2026-10-15
 
 ### Added
