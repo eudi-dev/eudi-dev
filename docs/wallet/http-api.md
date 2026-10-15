@@ -41,11 +41,11 @@ Every endpoint under `/api` answers errors with the same JSON object. So do the 
 | `400`, `422` | `invalid_request` | A malformed body or parameter, an unusable request or offer, or an invalid selection. A strict refusal of a presentation request carries the OpenID4VP 1.0 §8.5 error code instead |
 | `403` | `forbidden` | A cross-origin request, a protected credential or template, or an endpoint disabled on the public demo |
 | `404` | `not_found` | An unknown credential, template, request, offer, deferred credential or registration |
-| `408` | `consent_timeout` | Nobody answered the consent dialog in time |
 | `409` | `conflict` | The request timed out or was answered already, or a registration changed meanwhile |
 | `501` | `not_implemented` | An unsupported feature, such as historical status lists |
 | `503` | `temporarily_unavailable` | A required part, such as the store, is missing. Or too many flows wait for the user, see [waiting flows](#waiting-flows) |
 | `500`, `502` | `server_error` | The wallet could not build or deliver the response |
+| `504` | `consent_timeout` | Nobody answered the consent dialog in time |
 
 Some errors carry more members. A failed check of an external status list adds its `uri` and `idx`.
 

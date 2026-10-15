@@ -223,11 +223,13 @@ func (s *Server) refuseBusy(w http.ResponseWriter, err error) {
 	apierror.Write(w, http.StatusServiceUnavailable, apierror.TemporarilyUnavailable, err.Error())
 }
 
-// answerConsentTimeout ends a consent request without an answer in time.
+// answerConsentTimeout ends a consent request without an answer in time. It
+// answers 504, because RFC 9110 §15.5.9 lets a client repeat a request after
+// a 408, and browsers do. The repeat would open a new consent request.
 func (s *Server) answerConsentTimeout(w http.ResponseWriter, action string, req *consent.Request) {
 	s.wallet.AddLog(action, "Consent timed out", false)
-	req.SubmissionCh <- consent.SubmissionResult{Error: "consent timeout", StatusCode: http.StatusRequestTimeout}
-	apierror.Write(w, http.StatusRequestTimeout, apierror.ConsentTimeout, "consent timeout")
+	req.SubmissionCh <- consent.SubmissionResult{Error: "consent timeout", StatusCode: http.StatusGatewayTimeout}
+	apierror.Write(w, http.StatusGatewayTimeout, apierror.ConsentTimeout, "consent timeout")
 }
 
 func (s *Server) logDeniedPresentation(authReq *oid4vp.Request) {

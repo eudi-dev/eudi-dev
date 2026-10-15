@@ -64,7 +64,7 @@ func Code(status int) string {
 		return Forbidden
 	case http.StatusNotFound:
 		return NotFound
-	case http.StatusRequestTimeout:
+	case http.StatusGatewayTimeout:
 		return ConsentTimeout
 	case http.StatusConflict:
 		return Conflict

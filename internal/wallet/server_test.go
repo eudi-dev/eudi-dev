@@ -182,7 +182,7 @@ func TestListCredentials(t *testing.T) {
 	}
 }
 
-// An unanswered consent ends with HTTP 408 for the caller. The approve API
+// An unanswered consent ends with HTTP 504 for the caller. The approve API
 // waiting on the submission gets the same result.
 func TestAnswerConsentTimeout(t *testing.T) {
 	srv := newTestServer(t, false)
@@ -190,8 +190,8 @@ func TestAnswerConsentTimeout(t *testing.T) {
 	rec := httptest.NewRecorder()
 	srv.answerConsentTimeout(rec, "presentation", req)
 
-	if rec.Code != http.StatusRequestTimeout {
-		t.Fatalf("status %d, want 408", rec.Code)
+	if rec.Code != http.StatusGatewayTimeout {
+		t.Fatalf("status %d, want 504", rec.Code)
 	}
 	var body map[string]string
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
@@ -202,8 +202,8 @@ func TestAnswerConsentTimeout(t *testing.T) {
 	}
 	select {
 	case result := <-req.SubmissionCh:
-		if result.StatusCode != http.StatusRequestTimeout {
-			t.Errorf("submission status %d, want 408", result.StatusCode)
+		if result.StatusCode != http.StatusGatewayTimeout {
+			t.Errorf("submission status %d, want 504", result.StatusCode)
 		}
 	default:
 		t.Fatal("the submission channel received no result")
