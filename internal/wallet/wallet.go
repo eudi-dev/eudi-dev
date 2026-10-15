@@ -97,6 +97,7 @@ type Wallet struct {
 	// function takes the store lock, so never call it while holding that lock.
 	saveMutation func(change func() bool)
 	listCache    trustedlists.ListCache
+	outbound     OutboundConfig
 	outboundHTTP *http.Client
 	// Entity backends track the last loaded or saved snapshot and section revisions.
 	// File storage leaves these nil.
@@ -480,6 +481,8 @@ func (w *Wallet) setCertificateAuthority(caKey *ecdsa.PrivateKey, caCert *x509.C
 	defer w.mu.Unlock()
 	w.CAKey = caKey
 	w.CertChain = []*x509.Certificate{leafCert, caCert}
+	// The outbound client trusts the CA. The next request builds it anew.
+	w.outboundHTTP = nil
 	return nil
 }
 

@@ -252,3 +252,35 @@ func TestTLSTrustSurvivesStoreReload(t *testing.T) {
 		t.Fatalf("response=%q err=%v", body, err)
 	}
 }
+
+// The wallet CA signs the certificate of the wallet's own HTTPS listener. A
+// strict wallet reaches it, for example for the status list of a credential
+// it issued, and still refuses a certificate from another CA.
+func TestStrictWalletTrustsItsOwnHTTPSListener(t *testing.T) {
+	w := generateTestWallet(t)
+	w.ValidationMode = ValidationModeStrict
+	caKey, chain := w.certificateAuthority()
+	cert, err := generateIssuerTLSCertificate("localhost", caKey, caCertificate(chain))
+	if err != nil {
+		t.Fatal(err)
+	}
+	own := httptest.NewUnstartedServer(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(rw, "ok") }))
+	own.TLS = &tls.Config{Certificates: []tls.Certificate{cert}}
+	own.StartTLS()
+	defer own.Close()
+	defer w.HTTPClient().CloseIdleConnections()
+
+	response, err := w.HTTPClient().Get(strings.Replace(own.URL, "127.0.0.1", "localhost", 1))
+	if err != nil {
+		t.Fatalf("the wallet refused its own listener: %v", err)
+	}
+	_ = response.Body.Close()
+
+	foreign := httptest.NewTLSServer(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {}))
+	defer foreign.Close()
+	_, err = w.HTTPClient().Get(foreign.URL)
+	var certErr *tls.CertificateVerificationError
+	if !errors.As(err, &certErr) {
+		t.Fatalf("a certificate from another CA must be refused: %v", err)
+	}
+}

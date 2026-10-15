@@ -577,7 +577,7 @@ eudi wallet unregister             # Remove URL handlers
 
 Strict mode verifies server certificates for every outbound HTTPS request. Debug mode skips verification by default. `--tls-verify=true` or `--tls-verify=false` overrides either default, including for local endpoints and redirects.
 
-`--tls-ca dev-ca.pem` adds CA certificates to system trust. Server certificates must also match the hostname and be within their validity dates. Credential and request object signatures are checked separately.
+`--tls-ca dev-ca.pem` adds CA certificates to system trust. The wallet also trusts its own CA, which signs the certificate of its HTTPS listener. So the demo verifier can check the status lists of credentials issued by the wallet. Server certificates must also match the hostname and be within their validity dates. Credential and request object signatures are checked separately.
 
 ```bash
 eudi wallet serve --mode strict --tls-ca dev-ca.pem

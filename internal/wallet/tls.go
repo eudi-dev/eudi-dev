@@ -15,6 +15,7 @@
 package wallet
 
 import (
+	"crypto/x509"
 	"net/http"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
@@ -42,8 +43,7 @@ type OutboundConfig struct {
 }
 
 func (w *Wallet) ConfigureOutbound(cfg OutboundConfig) error {
-	roots, err := format.TLSRoots(cfg.TLSCAPEM)
-	if err != nil {
+	if _, err := format.TLSRoots(cfg.TLSCAPEM); err != nil {
 		return err
 	}
 	var override *bool
@@ -51,10 +51,9 @@ func (w *Wallet) ConfigureOutbound(cfg OutboundConfig) error {
 		value := *cfg.TLSVerify
 		override = &value
 	}
-	client := format.NewHTTPClient(w.TLSVerification, roots, cfg.Proxy)
 	w.mu.Lock()
 	previous := w.outboundHTTP
-	w.TLSVerify, w.outboundHTTP = override, client
+	w.TLSVerify, w.outbound, w.outboundHTTP = override, cfg, nil
 	w.mu.Unlock()
 	if previous != nil {
 		previous.CloseIdleConnections()
@@ -69,7 +68,28 @@ func (w *Wallet) HTTPClient() *http.Client {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.outboundHTTP == nil {
-		w.outboundHTTP = format.NewHTTPClient(w.TLSVerification, nil, nil)
+		roots := outboundRoots(w.outbound.TLSCAPEM, caCertificate(w.CertChain))
+		w.outboundHTTP = format.NewHTTPClient(w.TLSVerification, roots, w.outbound.Proxy)
 	}
 	return w.outboundHTTP
+}
+
+// outboundRoots trusts the system roots, the --tls-ca bundle and the wallet
+// CA. The wallet CA signs the certificate of the wallet's own HTTPS listener.
+// It serves the status lists of the wallet's credentials, and the demo
+// verifier fetches them. ConfigureOutbound has checked the bundle.
+func outboundRoots(bundle []byte, ca *x509.Certificate) *x509.CertPool {
+	roots, _ := format.TLSRoots(bundle)
+	if ca == nil {
+		return roots
+	}
+	if roots == nil {
+		system, err := x509.SystemCertPool()
+		if err != nil {
+			return nil
+		}
+		roots = system
+	}
+	roots.AddCert(ca)
+	return roots
 }
