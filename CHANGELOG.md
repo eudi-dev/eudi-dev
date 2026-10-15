@@ -5,6 +5,19 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.3] - 2026-10-15
+
+### Added
+
+- **Registrar API docs in the registrar dialog.** The command panel notes that the enrolment is an eudi-dev endpoint and links the docs of the standardized TS05 registry endpoints.
+
+### Fixed
+
+- **Findings of a refusal.** When strict mode refuses a request, an offer or a credential, the error dialog lists each finding on its own line. The activity log groups them in one entry, and the API answer lists them in `findings`.
+- **Consistent errors.** The demo issuer and verifier answer errors with `error` and `error_description` like the wallet. An invalid JSON body gets the same message on every endpoint. Renewing an unknown credential answers 404. Failed renewals and presentations appear in the activity log.
+- **Maximized dialogs.** A maximized dialog also gives its lists and text fields more height, such as the templates list and the JSON fields of the issue and template dialogs.
+- **Docs links of local builds.** A local build links the docs on `main` instead of a tag that doesn't exist.
+
 ## [3.1.2] - 2026-10-15
 
 ### Fixed
