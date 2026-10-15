@@ -3264,3 +3264,30 @@ textarea.form-input {
   justify-content: flex-end;
   margin: -6px -6px 8px 0;
 }
+
+/* A maximized dialog gives its lists and text fields the extra height. The
+   templates list fills the dialog, so its buttons stay at the bottom. */
+.consent-dialog.dialog-maximized:has(> .templates-list) {
+  display: flex;
+  flex-direction: column;
+}
+
+.consent-dialog.dialog-maximized > .templates-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+}
+
+.consent-dialog.dialog-maximized #issue-claim-rows {
+  max-height: none;
+}
+
+.consent-dialog.dialog-maximized .form-textarea {
+  height: 25vh;
+}
+
+.consent-dialog.dialog-maximized .template-editor-json,
+.consent-dialog.dialog-maximized #issue-claims,
+.consent-dialog.dialog-maximized .import-textarea {
+  height: 60vh;
+}

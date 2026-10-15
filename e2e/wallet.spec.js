@@ -3106,6 +3106,24 @@ test.describe("Commands in dialogs", () => {
     }
   });
 
+  test("a maximized dialog gives its list and JSON field the extra height", async ({ page }) => {
+    await page.goto(WALLET_URL);
+    await page.locator("#templates-link").click();
+    const list = page.locator("#templates-list");
+    const normal = (await list.boundingBox()).height;
+    await page.locator("#templates-dialog-size").click();
+    await expect.poll(async () => (await list.boundingBox()).height).toBeGreaterThan(normal + 100);
+    await page.locator("#template-close").click();
+
+    await page.locator("#issue-btn").click();
+    await page.locator("#issue-claims-mode-json").check();
+    const claims = page.locator("#issue-claims");
+    const small = (await claims.boundingBox()).height;
+    await page.locator("#issue-dialog-size").click();
+    await expect.poll(async () => (await claims.boundingBox()).height).toBeGreaterThan(small * 2);
+    await page.locator("#issue-dialog-size").click();
+  });
+
   test("the issue dialog's curl and CLI commands issue the credential", async ({ page }) => {
     await page.goto(WALLET_URL);
     await page.locator("#issue-btn").click();
