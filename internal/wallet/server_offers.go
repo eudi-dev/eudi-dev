@@ -27,6 +27,7 @@ import (
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 
@@ -160,9 +161,10 @@ func (s *Server) applyOfferOutcome(owner string, result *IssuanceResult, err err
 	if err != nil {
 		s.log("  ERROR: %v", err)
 		s.wallet.Consents().NotifyError(consent.Error{
-			Owner:   owner,
-			Message: "Credential issuance failed",
-			Detail:  err.Error(),
+			Owner:    owner,
+			Message:  "Credential issuance failed",
+			Detail:   err.Error(),
+			Findings: findings.Of(err),
 		})
 		return
 	}
@@ -243,7 +245,7 @@ func (s *Server) handleOfferAPI(w http.ResponseWriter, r *http.Request) {
 		ConfigurationID string `json:"credential_configuration_id,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, "invalid JSON body: "+err.Error())
+		apierror.InvalidJSON(w, err)
 		return
 	}
 
@@ -272,12 +274,13 @@ func (s *Server) processOfferURI(ctx context.Context, w http.ResponseWriter, uri
 		if err != nil {
 			s.log("  ERROR: %v", err)
 			s.wallet.Consents().NotifyError(consent.Error{
-				Owner:   opts.Owner,
-				Message: "The wallet refused the credential offer",
-				Detail:  err.Error(),
+				Owner:    opts.Owner,
+				Message:  "The wallet refused the credential offer",
+				Detail:   err.Error(),
+				Findings: findings.Of(err),
 			})
 			s.triggerUIRequest("")
-			apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, err.Error())
+			apierror.WriteErr(w, http.StatusBadRequest, apierror.InvalidRequest, err)
 			return
 		}
 
@@ -343,8 +346,8 @@ func (s *Server) awaitOfferConsent(w http.ResponseWriter, consentReq *consent.Re
 			return
 		}
 		if err != nil {
-			consentReq.SubmissionCh <- consent.SubmissionResult{Error: err.Error(), StatusCode: http.StatusBadRequest}
-			apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, err.Error())
+			consentReq.SubmissionCh <- consent.SubmissionResult{Error: err.Error(), StatusCode: http.StatusBadRequest, Findings: findings.Of(err)}
+			apierror.WriteErr(w, http.StatusBadRequest, apierror.InvalidRequest, err)
 			return
 		}
 
@@ -386,7 +389,7 @@ func (s *Server) processOfferDirectly(w http.ResponseWriter, uri string, opts Of
 		if !s.wallet.AutoAcceptSetting() {
 			s.triggerUIRequest("")
 		}
-		apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, err.Error())
+		apierror.WriteErr(w, http.StatusBadRequest, apierror.InvalidRequest, err)
 		return
 	}
 

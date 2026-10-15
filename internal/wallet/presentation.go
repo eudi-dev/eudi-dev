@@ -82,7 +82,7 @@ func (w *Wallet) createVPToken(match consent.Match, params *oid4vp.Request, mdoc
 	for _, claim := range match.MissingClaims {
 		undisclosed = append(undisclosed, fmt.Sprintf("The request asks for %s. The selected credential does not provide it (a missing claim, or an array index out of range), so it is not disclosed.", claim))
 	}
-	w.warnFindings("presentation", "The presentation does not disclose every requested claim as asked", undisclosed)
+	w.warnFindings("presentation", "undisclosed_claims", "The presentation does not disclose every requested claim as asked", undisclosed, nil)
 
 	switch cred.Format {
 	case credtype.FormatSDJWT:

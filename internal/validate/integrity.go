@@ -16,9 +16,9 @@ package validate
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
@@ -30,9 +30,9 @@ import (
 // repeated digest (step 4) or an unreferenced disclosure (step 5). It adds the SD-JWT VC rule that registered claims stay in the
 // Issuer-signed JWT.
 func CheckSDJWTIntegrity(token *sdjwt.Token) Check {
-	findings := append(append([]string{}, token.Deviations...), DisclosedRegisteredClaims(token)...)
-	if len(findings) > 0 {
-		return Check{Name: CheckIntegrity, Status: Fail, Detail: strings.Join(findings, ". ")}
+	list := append(append([]string{}, token.Deviations...), DisclosedRegisteredClaims(token)...)
+	if len(list) > 0 {
+		return Check{Name: CheckIntegrity, Status: Fail, Detail: findings.Join(list)}
 	}
 	if len(token.Disclosures) == 0 {
 		return Check{Name: CheckIntegrity, Status: Skipped, Detail: "No disclosures to verify"}
@@ -80,7 +80,7 @@ func CheckSDJWTType(token *sdjwt.Token) Check {
 // or a docType different from the signed one fails it.
 func CheckMDOCIntegrity(doc *mdoc.Document) Check {
 	if len(doc.Deviations) > 0 {
-		return Check{Name: CheckIntegrity, Status: Fail, Detail: strings.Join(doc.Deviations, ". ")}
+		return Check{Name: CheckIntegrity, Status: Fail, Detail: findings.Join(doc.Deviations)}
 	}
 	if doc.IssuerAuth == nil || doc.IssuerAuth.MSO == nil {
 		return Check{Name: CheckIntegrity, Status: Skipped, Detail: "No MSO available for digest verification"}

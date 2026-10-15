@@ -112,10 +112,7 @@ func (s *Server) handleAuthFlow(w http.ResponseWriter, authReq *oid4vp.Request) 
 	switch {
 	case outcome.invalid != nil:
 		s.triggerUIRequest("")
-		writeJSON(w, http.StatusBadRequest, map[string]any{
-			"error":             outcome.invalidCode,
-			"error_description": outcome.invalid.Error(),
-		})
+		apierror.WriteErr(w, http.StatusBadRequest, outcome.invalidCode, outcome.invalid)
 	case outcome.refusal != nil && outcome.refusal.status == "no_match":
 		s.triggerUIRequest("")
 		redirectURI := s.reportRefusalToVerifier(authReq, outcome.refusal.code, outcome.refusal.description)
@@ -220,7 +217,7 @@ func (s *Server) awaitPresentationConsent(w http.ResponseWriter, authReq *oid4vp
 func (s *Server) refuseBusy(w http.ResponseWriter, err error) {
 	s.log("  REFUSED: %v", err)
 	w.Header().Set("Retry-After", strconv.Itoa(int(config.ConsentTimeout.Seconds())))
-	apierror.Write(w, http.StatusServiceUnavailable, apierror.TemporarilyUnavailable, err.Error())
+	apierror.WriteErr(w, http.StatusServiceUnavailable, apierror.TemporarilyUnavailable, err)
 }
 
 // answerConsentTimeout ends a consent request without an answer in time. It
@@ -340,7 +337,7 @@ func withRedirectURI(body map[string]any, redirectURI string) map[string]any {
 func (s *Server) submitAuthorizationError(w http.ResponseWriter, authReq *oid4vp.Request, status, errorCode, errorDescription string) consent.SubmissionResult {
 	result, err := s.deliverAuthorizationError(authReq, errorCode, errorDescription)
 	if err != nil {
-		apierror.Write(w, http.StatusBadGateway, apierror.ServerError, err.Error())
+		apierror.WriteErr(w, http.StatusBadGateway, apierror.ServerError, err)
 		return consent.SubmissionResult{Error: err.Error()}
 	}
 
@@ -374,8 +371,8 @@ func (s *Server) submitPresentation(w http.ResponseWriter, authReq *oid4vp.Reque
 	prepared, err := s.wallet.preparePresentation(authReq, matches)
 	if err != nil {
 		s.log("  ERROR: Presentation preparation failed: %v", err)
-		s.wallet.AddLog("presentation", fmt.Sprintf("Presentation preparation failed: %v", err), false)
-		apierror.Write(w, http.StatusInternalServerError, apierror.ServerError, err.Error())
+		s.wallet.addProtocolLog("presentation", "presentation_failed", fmt.Sprintf("Presentation preparation failed: %v", err), false, map[string]any{"error": err.Error()})
+		apierror.WriteErr(w, http.StatusInternalServerError, apierror.ServerError, err)
 		return consent.SubmissionResult{Error: err.Error()}
 	}
 	if prepared.VPResult != nil {
@@ -388,7 +385,7 @@ func (s *Server) submitPresentation(w http.ResponseWriter, authReq *oid4vp.Reque
 	result, err := s.wallet.submitPreparedPresentation(authReq, matches, prepared)
 	if err != nil {
 		s.log("  ERROR: Submission failed: %v", err)
-		apierror.Write(w, http.StatusBadGateway, apierror.ServerError, err.Error())
+		apierror.WriteErr(w, http.StatusBadGateway, apierror.ServerError, err)
 		return consent.SubmissionResult{Error: err.Error()}
 	}
 

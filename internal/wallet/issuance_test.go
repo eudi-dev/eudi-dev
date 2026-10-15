@@ -276,7 +276,7 @@ func TestPrepareCredentialRequestBody_EncryptsWhenIssuerAdvertisesRequestEncrypt
 		},
 	}
 
-	body, contentType, err := prepareCredentialRequestBody(ValidationModeStrict, metadata, reqBody)
+	body, contentType, err := generateTestWallet(t).prepareCredentialRequestBody(ValidationModeStrict, metadata, reqBody)
 	if err != nil {
 		t.Fatalf("prepareCredentialRequestBody: %v", err)
 	}

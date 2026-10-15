@@ -20,6 +20,8 @@ package apierror
 import (
 	"encoding/json"
 	"net/http"
+
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 )
 
 // Error codes. invalid_request and server_error come from RFC 6749 §5.2,
@@ -41,15 +43,37 @@ const (
 type Body struct {
 	Error       string `json:"error"`
 	Description string `json:"error_description,omitempty"`
+	// Findings list the failed checks of a refusal, one per entry.
+	Findings []string `json:"findings,omitempty"`
 }
 
 // Write answers with the error object.
 func Write(w http.ResponseWriter, status int, code, description string) {
+	writeBody(w, status, Body{Error: code, Description: description})
+}
+
+func writeBody(w http.ResponseWriter, status int, body Body) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	enc := json.NewEncoder(w)
 	enc.SetEscapeHTML(false)
-	_ = enc.Encode(Body{Error: code, Description: description})
+	_ = enc.Encode(body)
+}
+
+// WriteErr answers with the error object for err. A refusal on findings
+// adds them as a list.
+func WriteErr(w http.ResponseWriter, status int, code string, err error) {
+	writeBody(w, status, Body{Error: code, Description: err.Error(), Findings: findings.Of(err)})
+}
+
+// WriteStatusErr is WriteErr with the code of the status.
+func WriteStatusErr(w http.ResponseWriter, status int, err error) {
+	WriteErr(w, status, Code(status), err)
+}
+
+// InvalidJSON answers a request body that is not the expected JSON.
+func InvalidJSON(w http.ResponseWriter, err error) {
+	Write(w, http.StatusBadRequest, InvalidRequest, "invalid JSON body: "+err.Error())
 }
 
 // WriteStatus answers with the error object and the code of the status.

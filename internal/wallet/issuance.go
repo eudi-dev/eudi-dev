@@ -1119,9 +1119,11 @@ type credentialRequestEncryptionParams struct {
 	kid string
 	alg string
 	enc string
+	// finding describes a key deviation that debug mode accepted.
+	finding string
 }
 
-func prepareCredentialRequestBody(mode ValidationMode, metadata map[string]any, reqBody map[string]any) ([]byte, string, error) {
+func (w *Wallet) prepareCredentialRequestBody(mode ValidationMode, metadata map[string]any, reqBody map[string]any) ([]byte, string, error) {
 	bodyJSON, err := json.Marshal(reqBody)
 	if err != nil {
 		return nil, "", fmt.Errorf("marshaling request: %w", err)
@@ -1132,6 +1134,9 @@ func prepareCredentialRequestBody(mode ValidationMode, metadata map[string]any, 
 	}
 	if encryption == nil {
 		return bodyJSON, "application/json", nil
+	}
+	if encryption.finding != "" {
+		w.addProtocolWarning("issuance", "short_jwk_coordinate", encryption.finding, nil)
 	}
 	jwe, _, err := EncryptJWEWithContentType(bodyJSON, encryption.key, encryption.kid, encryption.alg, encryption.enc, "json", nil, nil)
 	if err != nil {
@@ -1188,16 +1193,12 @@ func selectCredentialRequestEncryption(mode ValidationMode, metadata map[string]
 		if err != nil {
 			continue
 		}
-		// Debug mode continued past a specification violation. No wallet is in
-		// scope, so the finding goes to the process log.
-		if finding != "" {
-			log.Printf("[VCI] WARNING: %s", finding)
-		}
 		return &credentialRequestEncryptionParams{
-			key: key,
-			kid: kid,
-			alg: alg,
-			enc: enc,
+			key:     key,
+			kid:     kid,
+			alg:     alg,
+			enc:     enc,
+			finding: finding,
 		}, nil
 	}
 	if credentialRequestEncryptionRequired(raw) {
@@ -1215,9 +1216,8 @@ func credentialRequestEncryptionRequired(raw map[string]any) bool {
 func (w *Wallet) reportHAIPViolations(subject, issuer string, violations []string) error {
 	return w.reportDeviation(deviation{
 		action: "issuance", event: "haip_violation",
-		detail:  findingsSummary(specCitedSummary(subject, violations), violations),
-		details: map[string]any{"issuer": issuer, "findings": violations},
-		refusal: fmt.Errorf("%s: %s", strings.ToLower(subject), strings.Join(violations, ", ")),
+		summary: specCitedSummary(subject, violations), findings: violations,
+		details: map[string]any{"issuer": issuer},
 	})
 }
 
@@ -1239,13 +1239,12 @@ func (w *Wallet) issuanceChallenge(metadata, tokenResp map[string]any, issuer st
 	if cNonce == "" {
 		return "", nil
 	}
+	details := map[string]any{"issuer": issuer}
 	if w.Mode() == ValidationModeStrict {
-		log.Printf("[VCI] WARNING: ignoring the c_nonce in the token response of %s: OID4VCI 1.0 defines the Nonce Endpoint as its only source", issuer)
-		w.AddWarning("issuance", fmt.Sprintf("Ignored the c_nonce %s returned in its token response: OID4VCI 1.0 has no such parameter and defines the Nonce Endpoint as the only source of a challenge", issuer), nil)
+		w.addProtocolWarning("issuance", "token_response_c_nonce", fmt.Sprintf("Ignored the c_nonce in the token response of %s. OID4VCI 1.0 defines the Nonce Endpoint as the only source of a challenge", issuer), details)
 		return "", nil
 	}
-	log.Printf("[VCI] WARNING: %s returned a c_nonce in its token response, which OID4VCI 1.0 does not define, so this issuer is pre-1.0", issuer)
-	w.AddWarning("issuance", fmt.Sprintf("Using the c_nonce %s returned in its token response: OID4VCI 1.0 defines no such parameter, so this issuer is pre-1.0", issuer), nil)
+	w.addProtocolWarning("issuance", "token_response_c_nonce", fmt.Sprintf("Used the c_nonce in the token response of %s. OID4VCI 1.0 does not define it, so this issuer is pre-1.0", issuer), details)
 	return cNonce, nil
 }
 

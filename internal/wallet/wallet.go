@@ -36,6 +36,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
@@ -1030,37 +1031,59 @@ func (w *Wallet) AddWarning(action, detail string, details map[string]any) {
 	})
 }
 
-// Several findings share one log entry with the full list in its details.
-func (w *Wallet) warnFindings(action, summary string, findings []string) {
-	switch len(findings) {
-	case 0:
+// warnFindings writes one warning entry for the findings in list.
+func (w *Wallet) warnFindings(action, event, summary string, list []string, details map[string]any) {
+	if len(list) == 0 {
 		return
-	case 1:
-		w.AddWarning(action, findings[0], nil)
-	default:
-		w.AddWarning(action, findingsSummary(summary, findings), map[string]any{"findings": findings})
 	}
+	detail, details := findingsLogEntry(summary, list, details)
+	w.addProtocolWarning(action, event, detail, details)
 }
 
-// findingsSummary is the log line of several findings. One finding is its own
-// line.
-func findingsSummary(summary string, findings []string) string {
-	if len(findings) == 1 {
-		return findings[0]
+// reportRefusal records a refused flow: one failed log entry and the error
+// for the owner's browser. message is the title of the error. A refusal on
+// findings logs summary, with the findings in the details.
+func (w *Wallet) reportRefusal(action, event, owner, message, summary string, err error) {
+	list := findings.Of(err)
+	detail, details := err.Error(), map[string]any{"error": err.Error()}
+	if len(list) > 0 {
+		detail, details = findingsLogEntry(summary, list, nil)
 	}
-	return fmt.Sprintf("%s (%d findings, see details)", summary, len(findings))
+	w.addProtocolLog(action, event, detail, false, details)
+	w.Consents().NotifyError(consent.Error{Owner: owner, Message: message, Detail: err.Error(), Findings: list})
+}
+
+// findingsLogEntry is the log line and the details of findings. One finding
+// is its own line. Several share the summary. The details list them all.
+func findingsLogEntry(summary string, list []string, details map[string]any) (string, map[string]any) {
+	details = maps.Clone(details)
+	if details == nil {
+		details = map[string]any{}
+	}
+	details["findings"] = list
+	if len(list) == 1 {
+		return list[0], details
+	}
+	return fmt.Sprintf("%s (%d findings, see details)", summary, len(list)), details
 }
 
 // deviation is a failed check of the other party. Strict mode refuses the
 // flow with refusal, or with detail when refusal is nil. Debug mode records
-// a warning and goes on.
+// a warning and goes on. A deviation with findings sets summary and findings
+// instead of detail and refusal.
 type deviation struct {
 	action, event, detail string
 	details               map[string]any
 	refusal               error
+	summary               string
+	findings              []string
 }
 
 func (w *Wallet) reportDeviation(d deviation) error {
+	if len(d.findings) > 0 {
+		d.detail, d.details = findingsLogEntry(d.summary, d.findings, d.details)
+		d.refusal = &findings.Error{Summary: d.summary, Findings: d.findings}
+	}
 	if w.Mode() == ValidationModeStrict {
 		w.addProtocolLog(d.action, d.event, d.detail, false, d.details)
 		if d.refusal != nil {

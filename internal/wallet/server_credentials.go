@@ -86,7 +86,7 @@ func (s *Server) handleListCredentials(w http.ResponseWriter, r *http.Request) {
 	}
 	data, err := json.Marshal(listing)
 	if err != nil {
-		apierror.WriteStatus(w, http.StatusInternalServerError, err.Error())
+		apierror.WriteStatusErr(w, http.StatusInternalServerError, err)
 		return
 	}
 	w.Header().Set("X-Total-Count", strconv.Itoa(total))
@@ -124,7 +124,7 @@ func (s *Server) handleImportCredential(w http.ResponseWriter, r *http.Request) 
 
 	summary, err := s.management().ImportCredential(raw)
 	if err != nil {
-		apierror.WriteStatus(w, http.StatusBadRequest, err.Error())
+		apierror.WriteStatusErr(w, http.StatusBadRequest, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, withPublicImagePaths(r, summary))
@@ -133,11 +133,11 @@ func (s *Server) handleImportCredential(w http.ResponseWriter, r *http.Request) 
 func (s *Server) handleDeleteCredential(w http.ResponseWriter, r *http.Request) {
 	switch err := s.management().RemoveCredential(r.PathValue("id")); {
 	case errors.Is(err, ErrCredentialProtected):
-		apierror.WriteStatus(w, http.StatusForbidden, err.Error())
+		apierror.WriteStatusErr(w, http.StatusForbidden, err)
 	case errors.Is(err, ErrCredentialNotFound):
-		apierror.WriteStatus(w, http.StatusNotFound, err.Error())
+		apierror.WriteStatusErr(w, http.StatusNotFound, err)
 	case err != nil:
-		apierror.WriteStatus(w, http.StatusInternalServerError, err.Error())
+		apierror.WriteStatusErr(w, http.StatusInternalServerError, err)
 	default:
 		w.WriteHeader(http.StatusNoContent)
 	}
@@ -148,19 +148,19 @@ func (s *Server) handleSetCredentialStatus(w http.ResponseWriter, r *http.Reques
 		Status int `json:"status"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		apierror.WriteStatus(w, http.StatusBadRequest, "invalid JSON body")
+		apierror.InvalidJSON(w, err)
 		return
 	}
 	entry, err := s.management().SetCredentialStatus(r.PathValue("id"), body.Status)
 	switch {
 	case errors.Is(err, ErrStatusProtected):
-		apierror.WriteStatus(w, http.StatusForbidden, err.Error())
+		apierror.WriteStatusErr(w, http.StatusForbidden, err)
 	case errors.Is(err, ErrInvalidStatus):
-		apierror.WriteStatus(w, http.StatusBadRequest, err.Error())
+		apierror.WriteStatusErr(w, http.StatusBadRequest, err)
 	case errors.Is(err, ErrNoStatusEntry):
-		apierror.WriteStatus(w, http.StatusNotFound, err.Error())
+		apierror.WriteStatusErr(w, http.StatusNotFound, err)
 	case err != nil:
-		apierror.WriteStatus(w, http.StatusInternalServerError, err.Error())
+		apierror.WriteStatusErr(w, http.StatusInternalServerError, err)
 	default:
 		writeJSON(w, http.StatusOK, entry)
 	}
@@ -168,8 +168,12 @@ func (s *Server) handleSetCredentialStatus(w http.ResponseWriter, r *http.Reques
 
 func (s *Server) handleRenewCredential(w http.ResponseWriter, r *http.Request) {
 	renewed, err := s.RenewCredential(r.PathValue("id"))
-	if err != nil {
-		apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, err.Error())
+	switch {
+	case errors.Is(err, ErrCredentialNotFound):
+		apierror.WriteStatusErr(w, http.StatusNotFound, err)
+		return
+	case err != nil:
+		apierror.WriteErr(w, http.StatusBadRequest, apierror.InvalidRequest, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, withPublicImagePaths(r, CredentialSummary(*renewed)))

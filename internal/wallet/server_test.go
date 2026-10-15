@@ -3321,3 +3321,32 @@ func TestTrustListHistoryAPI(t *testing.T) {
 		}
 	}
 }
+
+// A strict refusal on several findings reaches every view as a list: the
+// API answer, the error for the browser and one activity log entry.
+func TestAuthorize_StrictRefusalListsItsFindings(t *testing.T) {
+	srv := newStrictTestServer(t, true)
+	srv.wallet.RequireHAIP = true
+	dcql := url.QueryEscape(`{"credentials":[{"id":"pid","format":"dc+sd-jwt","meta":{"vct_values":["urn:eudi:pid:1"]}}]}`)
+	resp := serverRequest(t, srv, http.MethodGet, "/authorize?client_id=redirect_uri:https://verifier.example/cb&response_type=vp_token&response_mode=direct_post&response_uri=https://verifier.example/cb&nonce=n&state=s&dcql_query="+dcql, "")
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("status %d: %s", resp.Code, resp.Body.String())
+	}
+	var body apierror.Body
+	if err := json.Unmarshal(resp.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Findings) < 2 {
+		t.Fatalf("findings %v, want the list of the refusal", body.Findings)
+	}
+
+	stored := srv.wallet.Consents().PeekLastError(nil)
+	if stored == nil || stored.Message != requestRefused || !slices.Equal(stored.Findings, body.Findings) {
+		t.Errorf("stored error %+v, want %q with the findings", stored, requestRefused)
+	}
+	log := srv.wallet.GetLog()
+	last := log[len(log)-1]
+	if last.Success || last.Details["event"] != "authorization_request_refused" || !slices.Equal(last.Details["findings"].([]string), body.Findings) {
+		t.Errorf("last log entry %+v, want the refusal with its findings", last)
+	}
+}

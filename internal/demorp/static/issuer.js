@@ -12,7 +12,7 @@ async function createOffer(grant, status, authorization, deferred, batch, creden
     const query = params.toString() ? "?" + params.toString() : "";
     const resp = await fetch("api/offers" + query, { method: "POST" });
     const doc = await resp.json();
-    if (!resp.ok) throw new Error(doc.error || resp.status);
+    if (!resp.ok) throw new Error(doc.error_description || doc.error || resp.status);
     const link = document.getElementById("wallet-link");
     link.href = doc.wallet_url;
     link.textContent = doc.wallet_url;

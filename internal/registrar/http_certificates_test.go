@@ -122,7 +122,7 @@ func TestRevocationReachesTheStatusList(t *testing.T) {
 		code string
 		want string
 	}{
-		{"malformed JSON", "{", apierror.InvalidRequest, "invalid request body"},
+		{"malformed JSON", "{", apierror.InvalidRequest, "invalid JSON body"},
 		{"unknown party", map[string]any{"identifier": "NLTEST.UNKNOWN", "revoked": true}, apierror.NotFound, "not registered"},
 		{"unknown intended use", map[string]any{"identifier": id, "intendedUseIdentifier": "x", "revoked": true}, apierror.NotFound, `no intended use "x"`},
 		{"unknown service", map[string]any{"identifier": id, "serviceIdentifier": "newsletter", "revoked": true}, apierror.NotFound, `no service "newsletter"`},
@@ -187,7 +187,7 @@ func TestTheStatusListNeedsTheRegistrarSigner(t *testing.T) {
 	api := newTestAPI(t)
 	api.env.signErr = errors.New("signer down")
 	wantError(t, api.do(http.MethodGet, RegistrationStatusListPath, nil, ""), http.StatusInternalServerError, apierror.ServerError, "signer down")
-	wantError(t, api.do(http.MethodPost, "/api/registrar/registration-certificates", "{", ""), http.StatusBadRequest, apierror.InvalidRequest, "invalid request body")
+	wantError(t, api.do(http.MethodPost, "/api/registrar/registration-certificates", "{", ""), http.StatusBadRequest, apierror.InvalidRequest, "invalid JSON body")
 }
 
 func TestTheCertificateListFiltersByRelyingParty(t *testing.T) {
@@ -253,7 +253,7 @@ func TestTheAccessCertificateAPI(t *testing.T) {
 		t.Errorf("chain %s, want the leaf and the CA", result.Chain)
 	}
 
-	wantError(t, api.do(http.MethodPost, "/api/registrar/access-certificates", "{", ""), http.StatusBadRequest, apierror.InvalidRequest, "invalid request body")
+	wantError(t, api.do(http.MethodPost, "/api/registrar/access-certificates", "{", ""), http.StatusBadRequest, apierror.InvalidRequest, "invalid JSON body")
 	wantError(t, api.do(http.MethodPost, "/api/registrar/access-certificates", AccessCertificateRequest{Identifier: "NLTEST.UNKNOWN", CSR: testAccessCSR(t, key)}, ""), http.StatusNotFound, apierror.NotFound, "not registered")
 	wantError(t, api.do(http.MethodPost, "/api/registrar/access-certificates", AccessCertificateRequest{Identifier: id, ServiceIdentifier: "newsletter", CSR: testAccessCSR(t, key)}, ""), http.StatusNotFound, apierror.NotFound, `no service "newsletter"`)
 	api.env.accessCAErr = errors.New("CA offline")

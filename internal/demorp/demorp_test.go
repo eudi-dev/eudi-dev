@@ -948,8 +948,8 @@ func TestVerifierDomesticPIDHasNoMDocForm(t *testing.T) {
 	if code != http.StatusBadRequest {
 		t.Fatalf("POST /api/requests = %d, want 400 (body: %v)", code, body)
 	}
-	if msg, _ := body["error"].(string); !strings.Contains(msg, "no mdoc form") {
-		t.Errorf("error = %q, want it to say a credential type has no mdoc form", msg)
+	if msg, _ := body["error_description"].(string); !strings.Contains(msg, "no mdoc form") {
+		t.Errorf("error_description = %q, want it to say a credential type has no mdoc form", msg)
 	}
 }
 

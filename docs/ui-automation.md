@@ -215,6 +215,7 @@ A failed flow opens an error dialog in the page that started it.
 | Control | Selector |
 |---|---|
 | Title and message | `#error-title`, `#error-message` |
+| Findings of a refusal | `#error-findings`, one `#error-finding-<n>` each |
 | **Technical details** | `#error-detail-more-toggle`, full text in `#error-detail` |
 | **Dismiss** | `#error-dismiss` |
 | Verifier answer after a presentation | `#result-title`, `#result-detail`, `#result-dismiss` |

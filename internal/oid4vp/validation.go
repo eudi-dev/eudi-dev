@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/dcql"
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 )
@@ -56,9 +57,8 @@ type ARFRefusal struct {
 	Findings []string
 }
 
-func (e *ARFRefusal) Error() string {
-	return "authorization request validation failed: " + strings.Join(e.Findings, ", ")
-}
+func (e *ARFRefusal) Error() string { return refusal(e.Findings).Error() }
+func (e *ARFRefusal) Unwrap() error { return refusal(e.Findings) }
 
 func validatePresentationRequestCore(checks Checks, params *Request, payload map[string]any) ([]string, error) {
 	var findings []string
@@ -97,10 +97,14 @@ func validatePresentationRequestCore(checks Checks, params *Request, payload map
 	}
 	findings = append(findings, arfFindings...)
 	if checks.Strict && len(findings) > 0 {
-		return nil, fmt.Errorf("authorization request validation failed: %s", strings.Join(findings, ", "))
+		return nil, refusal(findings)
 	}
 
 	return append(findings, advisories...), nil
+}
+
+func refusal(list []string) *findings.Error {
+	return &findings.Error{Summary: "authorization request validation failed", Findings: list}
 }
 
 // authorizationFindings collects the OID4VP 1.0 findings of a request.

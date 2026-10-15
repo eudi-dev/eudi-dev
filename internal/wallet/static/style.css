@@ -1799,6 +1799,16 @@ textarea.form-input {
   padding: 10px 26px;
 }
 
+.error-findings {
+  margin: 0 0 12px;
+  padding: 10px 14px 10px 32px;
+  border-radius: 12px;
+  background: var(--bg-raised);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 .error-more > summary {
   cursor: pointer;
   font-size: 13px;

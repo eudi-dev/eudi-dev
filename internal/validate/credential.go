@@ -16,10 +16,10 @@ package validate
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
@@ -213,7 +213,7 @@ func (v run) trustedListCheck() []Check {
 	if len(v.trust.Findings) == 0 {
 		return nil
 	}
-	return []Check{{Name: CheckTrustedList, Status: Warning, Detail: strings.Join(v.trust.Findings, ". ")}}
+	return []Check{{Name: CheckTrustedList, Status: Warning, Detail: findings.Join(v.trust.Findings)}}
 }
 
 func haipCheck(token *sdjwt.Token, r *Result) Check {
@@ -221,5 +221,5 @@ func haipCheck(token *sdjwt.Token, r *Result) Check {
 	if len(r.HAIPFindings) == 0 {
 		return Check{Name: CheckHAIP, Status: Pass, Detail: "No findings"}
 	}
-	return Check{Name: CheckHAIP, Status: Warning, Detail: strings.Join(r.HAIPFindings, ". ")}
+	return Check{Name: CheckHAIP, Status: Warning, Detail: findings.Join(r.HAIPFindings)}
 }

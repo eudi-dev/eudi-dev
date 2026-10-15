@@ -38,7 +38,7 @@ import (
 func (s *Server) handleGetCredential(w http.ResponseWriter, r *http.Request) {
 	summary, err := s.management().Credential(r.PathValue("id"))
 	if err != nil {
-		apierror.WriteStatus(w, http.StatusNotFound, err.Error())
+		apierror.WriteStatusErr(w, http.StatusNotFound, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, withPublicImagePaths(r, summary))
@@ -107,17 +107,16 @@ func (s *Server) handleGetCredentialStatus(w http.ResponseWriter, r *http.Reques
 		})
 		return
 	}
-	if len(result.HAIPFindings) > 0 {
-		finding := strings.Join(result.HAIPFindings, ". ")
-		details := map[string]any{"credential_id": cred.ID, "uri": ref.URI, "idx": ref.Idx}
-		if s.wallet.RefusesHAIPFindings() {
-			s.wallet.addProtocolWarning("wallet", "status_list_refused",
-				fmt.Sprintf("Status list of credential %s was refused: %s", credentialLabel(cred), finding), details)
-			apierror.WriteStatus(w, http.StatusUnprocessableEntity, finding)
+	if len(result.HAIPFindings) > 0 && s.wallet.HAIPChecks() {
+		if err := s.wallet.reportDeviation(deviation{
+			action: "wallet", event: "haip_violation",
+			summary:  specCitedSummary("The status list of credential "+credentialLabel(cred), result.HAIPFindings),
+			findings: result.HAIPFindings,
+			details:  map[string]any{"credential_id": cred.ID, "uri": ref.URI, "idx": ref.Idx},
+		}); err != nil {
+			apierror.WriteStatusErr(w, http.StatusUnprocessableEntity, err)
 			return
 		}
-		s.wallet.addProtocolWarning("wallet", "status_list_haip_finding",
-			fmt.Sprintf("Status list of credential %s: %s", credentialLabel(cred), finding), details)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"managed":       false,
@@ -137,7 +136,7 @@ func (s *Server) handleGetCredentialStatus(w http.ResponseWriter, r *http.Reques
 func (s *Server) handleDeleteAllCredentials(w http.ResponseWriter, r *http.Request) {
 	removed, err := s.management().RemoveAllCredentials()
 	if err != nil {
-		apierror.WriteStatus(w, http.StatusInternalServerError, err.Error())
+		apierror.WriteStatusErr(w, http.StatusInternalServerError, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, removed)
@@ -263,7 +262,7 @@ func (s *Server) handleIssueCredential(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := refuseRenamedTrustFields(body); err != nil {
-		apierror.WriteStatus(w, http.StatusBadRequest, err.Error())
+		apierror.WriteStatusErr(w, http.StatusBadRequest, err)
 		return
 	}
 

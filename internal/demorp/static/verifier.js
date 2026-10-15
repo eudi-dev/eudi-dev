@@ -718,7 +718,7 @@ document.getElementById("create-request").addEventListener("click", async () => 
   });
   const doc = await resp.json();
   if (!resp.ok) {
-    renderResult({ status: "failed", error: doc.error });
+    renderResult({ status: "failed", error: doc.error_description || doc.error });
     return;
   }
   const link = document.getElementById("wallet-link");

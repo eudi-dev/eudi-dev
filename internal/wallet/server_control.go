@@ -180,7 +180,7 @@ func (s *Server) handleLog(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleClearLog(w http.ResponseWriter, r *http.Request) {
 	if err := s.management().ClearLog(); err != nil {
-		apierror.WriteStatus(w, http.StatusInternalServerError, err.Error())
+		apierror.WriteStatusErr(w, http.StatusInternalServerError, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -269,7 +269,7 @@ func (s *Server) handleShutdown(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleSetNextError(w http.ResponseWriter, r *http.Request) {
 	var body consent.NextErrorOverride
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		apierror.WriteStatus(w, http.StatusBadRequest, "invalid JSON body")
+		apierror.InvalidJSON(w, err)
 		return
 	}
 	s.wallet.Consents().SetNextError(&body)
@@ -286,11 +286,11 @@ func (s *Server) handleSetPreferredFormat(w http.ResponseWriter, r *http.Request
 		Format string `json:"format"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		apierror.WriteStatus(w, http.StatusBadRequest, "invalid JSON body")
+		apierror.InvalidJSON(w, err)
 		return
 	}
 	if err := s.wallet.SetPreferredFormat(body.Format); err != nil {
-		apierror.WriteStatus(w, http.StatusBadRequest, err.Error())
+		apierror.WriteStatusErr(w, http.StatusBadRequest, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"format": body.Format})
@@ -303,7 +303,7 @@ func (s *Server) handleSetAutoAccept(w http.ResponseWriter, r *http.Request) {
 		Enabled bool `json:"enabled"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		apierror.WriteStatus(w, http.StatusBadRequest, "invalid JSON body")
+		apierror.InvalidJSON(w, err)
 		return
 	}
 	s.wallet.SetAutoAccept(body.Enabled)
@@ -322,7 +322,7 @@ func (s *Server) handleSetConformance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.wallet.UpdateConformance(patch); err != nil {
-		apierror.WriteStatus(w, http.StatusBadRequest, err.Error())
+		apierror.WriteStatusErr(w, http.StatusBadRequest, err)
 		return
 	}
 	s.writeConformanceConfig(w)

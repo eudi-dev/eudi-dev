@@ -47,7 +47,7 @@ Every endpoint under `/api` answers errors with the same JSON object. So do the 
 | `500`, `502` | `server_error` | The wallet could not build or deliver the response |
 | `504` | `consent_timeout` | Nobody answered the consent dialog in time |
 
-Some errors carry more members. A failed check of an external status list adds its `uri` and `idx`.
+Some errors carry more members. A refusal on findings, such as a strict refusal of a request or an offer, lists them in `findings`, one per entry. A failed check of an external status list adds its `uri` and `idx`.
 
 Protocol endpoints for verifiers and issuers answer as their specification defines. Status lists, trusted lists and certificates answer with the same error object when they fail. `/readyz` answers `503` with `status` and `error` (see [health probes](#health-probes)).
 

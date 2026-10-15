@@ -31,16 +31,14 @@ import (
 func (s *Server) handleBrowserPresentationAPI(w http.ResponseWriter, r *http.Request) {
 	var body oid4vp.BrowserAPIRequestEnvelope
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, "invalid JSON body: "+err.Error())
+		apierror.InvalidJSON(w, err)
 		return
 	}
 
 	requestOrigin := strings.TrimSpace(r.Header.Get("Origin"))
 	protocol, authReq, err := oid4vp.ParseBrowserAPIRequest(body, s.parseOpts, requestOrigin)
 	if err != nil {
-		s.log("  ERROR: %v", err)
-		s.wallet.AddLog("presentation", fmt.Sprintf("Failed to parse browser request: %v", err), false)
-		apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, err.Error())
+		s.refuseUnreadableRequest(w, requestOwner(r), err)
 		return
 	}
 
@@ -67,10 +65,7 @@ func (s *Server) handleBrowserPresentationAPI(w http.ResponseWriter, r *http.Req
 		// OpenID4VP 1.0 §8.5 follows RFC 6749 §4.1.2.1. The error goes to the
 		// user, and the invalid request gets no answer.
 		s.triggerUIRequest("")
-		writeJSON(w, http.StatusBadRequest, map[string]any{
-			"error":             outcome.invalidCode,
-			"error_description": outcome.invalid.Error(),
-		})
+		apierror.WriteErr(w, http.StatusBadRequest, outcome.invalidCode, outcome.invalid)
 		return
 	case outcome.refusal != nil:
 		// OpenID4VP 1.0 Appendix A returns a protocol error inside the
@@ -111,11 +106,8 @@ func (s *Server) writeBrowserAuthorizationError(w http.ResponseWriter, authReq *
 	result, err := s.buildBrowserAuthorizationErrorResult(authReq, protocol, errorCode, errorDescription)
 	if err != nil {
 		s.log("  ERROR: Browser error response failed: %v", err)
-		s.wallet.AddLog("presentation", fmt.Sprintf("Browser error response failed: %v", err), false)
-		writeJSON(w, fallbackStatus, map[string]any{
-			"error":             errorCode,
-			"error_description": errorDescription,
-		})
+		s.wallet.addProtocolLog("presentation", "presentation_failed", fmt.Sprintf("Browser error response failed: %v", err), false, map[string]any{"error": err.Error()})
+		apierror.Write(w, fallbackStatus, errorCode, errorDescription)
 		return
 	}
 
@@ -133,8 +125,8 @@ func (s *Server) writeBrowserPresentationResult(w http.ResponseWriter, authReq *
 	result, prepared, err := s.buildBrowserPresentationResult(authReq, protocol, matches)
 	if err != nil {
 		s.log("  ERROR: Browser API presentation failed: %v", err)
-		s.wallet.AddLog("presentation", fmt.Sprintf("Browser API presentation failed: %v", err), false)
-		apierror.Write(w, http.StatusInternalServerError, apierror.ServerError, err.Error())
+		s.wallet.addProtocolLog("presentation", "presentation_failed", fmt.Sprintf("Browser API presentation failed: %v", err), false, map[string]any{"error": err.Error()})
+		apierror.WriteErr(w, http.StatusInternalServerError, apierror.ServerError, err)
 		return consent.SubmissionResult{Error: err.Error()}
 	}
 

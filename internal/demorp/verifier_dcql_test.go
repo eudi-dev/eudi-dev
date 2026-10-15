@@ -71,7 +71,7 @@ func TestAnInvalidWrittenQueryIsRefused(t *testing.T) {
 	_, ts := serveDemoStack(t, w)
 
 	created := postJSONTo(t, ts.URL+"/verifier/api/requests", `{"type":"custom","dcql_query":{"credentials":[]}}`)
-	if msg, _ := created["error"].(string); !strings.Contains(msg, "the DCQL query is invalid") {
+	if msg, _ := created["error_description"].(string); !strings.Contains(msg, "the DCQL query is invalid") {
 		t.Fatalf("response %v, want the invalid query refused", created)
 	}
 }

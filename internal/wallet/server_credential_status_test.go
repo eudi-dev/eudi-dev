@@ -197,8 +197,8 @@ func TestShutdownEndpoint(t *testing.T) {
 }
 
 // HAIP 1.0 §6.1 requires the key of a status list token in its x5c header.
-// Debug mode reports the status with the finding. Strict mode with --haip
-// refuses it.
+// Debug mode reports the status with a warning. Strict mode with --haip
+// refuses it and logs the refusal.
 func TestExternalStatusListWithoutX5C(t *testing.T) {
 	key, err := mock.GenerateKey()
 	if err != nil {
@@ -221,12 +221,13 @@ func TestExternalStatusListWithoutX5C(t *testing.T) {
 	}
 
 	for _, tc := range []struct {
-		name string
-		mode ValidationMode
-		code int
+		name     string
+		mode     ValidationMode
+		code     int
+		severity string
 	}{
-		{"debug", ValidationModeDebug, http.StatusOK},
-		{"strict", ValidationModeStrict, http.StatusUnprocessableEntity},
+		{"debug", ValidationModeDebug, http.StatusOK, severityWarning},
+		{"strict", ValidationModeStrict, http.StatusUnprocessableEntity, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			w := generateTestWallet(t)
@@ -240,8 +241,8 @@ func TestExternalStatusListWithoutX5C(t *testing.T) {
 				t.Fatalf("status check = %d %s, want %d with the HAIP 1.0 §6.1 finding", resp.Code, resp.Body.String(), tc.code)
 			}
 			log := w.GetLog()
-			if last := log[len(log)-1]; last.Severity != "warning" || !strings.Contains(last.Detail, "HAIP 1.0 §6.1") {
-				t.Errorf("last log entry %+v, want the HAIP 1.0 §6.1 warning", last)
+			if last := log[len(log)-1]; last.Severity != tc.severity || !strings.Contains(last.Detail, "HAIP 1.0 §6.1") {
+				t.Errorf("last log entry %+v, want the HAIP 1.0 §6.1 finding with severity %q", last, tc.severity)
 			}
 		})
 	}

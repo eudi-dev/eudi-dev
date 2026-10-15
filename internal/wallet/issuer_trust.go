@@ -17,7 +17,6 @@ package wallet
 import (
 	"crypto/x509"
 	"fmt"
-	"log"
 	"slices"
 	"sort"
 	"strings"
@@ -86,10 +85,7 @@ func (w *Wallet) catalogueFindings(metadata map[string]any, configurations []str
 
 // reportCatalogueFindings warns in both modes.
 func (w *Wallet) reportCatalogueFindings(issuer string, findings []string) {
-	for _, f := range findings {
-		log.Printf("[VCI] WARNING: %s", f)
-		w.addProtocolWarning("issuance", "catalogue_finding", f, map[string]any{"issuer": issuer})
-	}
+	w.warnFindings("issuance", "catalogue_finding", "The attestation catalogue has no entry for some offered types", findings, map[string]any{"issuer": issuer})
 }
 
 // trustAnchorFindings validates the signature of a received credential with
@@ -100,9 +96,7 @@ func (w *Wallet) trustAnchorFindings(cred StoredCredential) []string {
 		return nil
 	}
 	anchoring, _ := w.catalogueAnchoring(cred)
-	for _, warning := range anchoring.Warnings {
-		w.addProtocolWarning("issuance", "trusted_list", warning, nil)
-	}
+	w.warnFindings("issuance", "trusted_list", "Some trusted lists of the catalogue entry give no anchors", anchoring.Warnings, nil)
 	return anchoring.Findings
 }
 
@@ -311,7 +305,7 @@ func (w *Wallet) checkReceivedCredentials(credResp map[string]any, issuer string
 		return debugFindings, nil
 	}
 	findings = dedupeStrings(findings)
-	if err := w.reportARFFindings(issuer, findings, "the received credential fails the ARF checks"); err != nil {
+	if err := w.reportARFFindings(issuer, "The received credential does not meet the ARF rules", findings); err != nil {
 		return nil, err
 	}
 	return append(debugFindings, findings...), nil

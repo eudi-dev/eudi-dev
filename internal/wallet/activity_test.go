@@ -201,7 +201,7 @@ func TestActivityPreservesRejectedVerifierResponse(t *testing.T) {
 			}
 			entries := w.GetLog()
 			entry := entries[len(entries)-1]
-			if entry.Success || entry.Details != nil || entry.Payload == nil || entry.Payload.Body != body {
+			if entry.Success || entry.Details["event"] != "presentation_failed" || entry.Payload == nil || entry.Payload.Body != body {
 				t.Fatalf("failed response lost or existing log fields changed: %+v", entry)
 			}
 		})

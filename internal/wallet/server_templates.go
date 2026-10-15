@@ -33,7 +33,7 @@ import (
 func (s *Server) handleListTemplates(w http.ResponseWriter, r *http.Request) {
 	templates, err := s.management().Templates()
 	if err != nil {
-		apierror.WriteStatus(w, http.StatusInternalServerError, err.Error())
+		apierror.WriteStatusErr(w, http.StatusInternalServerError, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, templates)
@@ -50,7 +50,7 @@ func (s *Server) handleGetTemplate(w http.ResponseWriter, r *http.Request) {
 
 	tpl, err := s.management().Template(name)
 	if err != nil {
-		apierror.WriteStatus(w, http.StatusNotFound, err.Error())
+		apierror.WriteStatusErr(w, http.StatusNotFound, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, tpl)
@@ -78,7 +78,7 @@ func (s *Server) handlePutTemplate(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, err := s.management().SaveTemplate(tpl, req.Catalog); err != nil {
 		if status := visitorLimitStatus(err, 0); status != 0 {
-			apierror.WriteStatus(w, status, err.Error())
+			apierror.WriteStatusErr(w, status, err)
 			return
 		}
 		registrar.WriteCatalogError(w, err)
@@ -87,7 +87,7 @@ func (s *Server) handlePutTemplate(w http.ResponseWriter, r *http.Request) {
 	s.templatesChanged()
 	saved, err := s.management().Template(tpl.Name)
 	if err != nil {
-		apierror.WriteStatus(w, http.StatusInternalServerError, err.Error())
+		apierror.WriteStatusErr(w, http.StatusInternalServerError, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, saved)
@@ -106,7 +106,7 @@ func (s *Server) handleDeleteTemplate(w http.ResponseWriter, r *http.Request) {
 			status = http.StatusNotFound
 		}
 		status = visitorLimitStatus(err, status)
-		apierror.WriteStatus(w, status, err.Error())
+		apierror.WriteStatusErr(w, status, err)
 		return
 	}
 	s.templatesChanged()

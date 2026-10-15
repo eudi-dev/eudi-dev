@@ -251,17 +251,16 @@ func typeCategory(_ string, types []string) string {
 // credential (RPRC_22a, RPRC_22b, RPRC_23, ISSU_24a, ISSU_24b, ISSU_34a,
 // ISSU_34b).
 func (w *Wallet) reportARFIssuanceFindings(issuer string, findings []string) error {
-	return w.reportARFFindings(issuer, findings, "the issuer does not authenticate as the ARF requires")
+	return w.reportARFFindings(issuer, "The issuer does not meet the ARF rules", findings)
 }
 
-// reportARFFindings warns in debug mode. In strict mode it returns refusal
-// with the findings.
-func (w *Wallet) reportARFFindings(issuer string, findings []string, refusal string) error {
+// reportARFFindings warns in debug mode. In strict mode it refuses with the
+// findings.
+func (w *Wallet) reportARFFindings(issuer, summary string, findings []string) error {
 	return w.reportDeviation(deviation{
 		action: "issuance", event: "arf_finding",
-		detail:  findingsSummary("The issuer does not meet the ARF rules", findings),
-		details: map[string]any{"issuer": issuer, "findings": findings},
-		refusal: fmt.Errorf("%s: %s", refusal, strings.Join(findings, ", ")),
+		summary: summary, findings: findings,
+		details: map[string]any{"issuer": issuer},
 	})
 }
 

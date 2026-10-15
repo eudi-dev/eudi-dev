@@ -678,13 +678,13 @@
       });
       if (!resp.ok) {
         const result = await resp.json().catch(() => ({}));
-        showErrorDialog('Setting the status failed.', apiErrorText(result, resp));
+        showAPIError('Setting the status failed', result, resp);
         return;
       }
       await loadCredentials();
       await loadLog();
     } catch (e) {
-      showErrorDialog('Setting the status failed.', e.message);
+      showErrorDialog('Setting the status failed', e.message);
     }
   }
 
@@ -720,12 +720,16 @@
 
   async function deleteCredential(id) {
     try {
-      await fetch('api/credentials/' + id, { method: 'DELETE' });
+      const resp = await fetch('api/credentials/' + id, { method: 'DELETE' });
+      if (!resp.ok) {
+        showAPIError('Deleting the credential failed', await resp.json().catch(() => ({})), resp);
+        return;
+      }
       openDescriptions.delete(id);
       await loadCredentials();
       await loadLog();
     } catch (e) {
-      console.error('Failed to delete credential:', e);
+      showErrorDialog('Deleting the credential failed', e.message);
     }
   }
 
@@ -753,7 +757,7 @@
       const result = await resp.json();
       if (followVerifierRedirect(result)) return;
       if (result.error) {
-        showErrorDialog(result.error_description || result.error);
+        await showFlowError(isVCI ? 'The wallet refused the credential offer' : 'The wallet refused the request', result, resp);
       } else {
         offerInput.value = '';
         await loadCredentials();
@@ -761,7 +765,7 @@
       }
     } catch (e) {
       // The flow goes on in the wallet. Its consent dialog stays open.
-      if (!consentRequestOpen) showErrorDialog('The request failed.', e.message);
+      if (!consentRequestOpen) showErrorDialog('The request failed', e.message);
     } finally {
       processBtn.disabled = false;
       processBtn.textContent = 'Process';
@@ -2212,7 +2216,7 @@
       dropStoredError();
       return;
     }
-    showErrorDialog(err.message, err.detail);
+    showErrorDialog(err.message, err.detail, err.findings);
   }
 
   // Go errors wrap their causes as "context: context: cause". The last part says
@@ -2235,7 +2239,28 @@
       '<pre class="error-detail" id="' + id + '">' + escHtml(detail) + '</pre></details>';
   }
 
-  function showErrorDialog(message, detail) {
+  // showFlowError shows the error the wallet stored for this browser, so a
+  // failed flow looks the same however the page learns of it. Without one it
+  // shows the API answer.
+  async function showFlowError(message, result, resp) {
+    try {
+      const stored = await (await fetch('api/error')).json();
+      if (stored && stored.message) {
+        presentError(stored);
+        return;
+      }
+    } catch (e) { /* The API answer below still explains the failure. */ }
+    showAPIError(message, result, resp);
+  }
+
+  // showAPIError shows a failed API call. A refusal lists its findings.
+  function showAPIError(message, result, resp) {
+    showErrorDialog(message, apiErrorText(result, resp), result && result.findings);
+  }
+
+  // A refusal lists its findings one by one. The full error text stays one
+  // click away.
+  function showErrorDialog(message, detail, findings) {
     eudiDialogs.setCommand(consentDialog, null);
     consentRequestOpen = false;
     const active = document.activeElement;
@@ -2247,7 +2272,14 @@
     var html = '<div class="dialog-title" id="error-title" tabindex="-1" style="color:var(--red)">Error</div>' +
       '<div class="dialog-message" id="error-message">' + escHtml(message) + '</div>';
 
-    if (detail) {
+    if (findings && findings.length) {
+      html += '<ul class="error-findings" id="error-findings">' +
+        findings.map((f, i) => '<li id="error-finding-' + i + '">' + escHtml(f) + '</li>').join('') + '</ul>';
+      if (detail) {
+        html += '<details class="error-more" id="error-detail-more"><summary id="error-detail-more-toggle">Technical details</summary>' +
+          '<pre class="error-detail" id="error-detail">' + escHtml(detail) + '</pre></details>';
+      }
+    } else if (detail) {
       html += errorDetailHtml(detail, 'error-detail');
     }
 
@@ -3093,7 +3125,7 @@
         // Do not update the replacement with the earlier result.
         if (consentRequestID !== req.id) return;
         if (!resp.ok) {
-          showErrorDialog('This request could not be answered', result.error_description || result.error || 'The wallet refused the answer.');
+          showAPIError('This request could not be answered', result, resp);
           return;
         }
         if (isIssuance) {
@@ -3104,8 +3136,7 @@
             return;
           }
           if (result.error || (result.status_code && result.status_code >= 400)) {
-            const detail = result.error || ('HTTP ' + result.status_code);
-            showErrorDialog('Credential issuance failed', detail);
+            showErrorDialog('Credential issuance failed', result.error || ('HTTP ' + result.status_code), result.findings);
             return;
           }
           closeConsentOverlay();
@@ -3130,12 +3161,13 @@
         const resp = await fetch(approveURL(req.id, '/deny'), { method: 'POST' });
         const result = await resp.json().catch(() => ({}));
         if (!resp.ok) {
-          showErrorDialog('This request could not be denied', result.error_description || result.error || 'The wallet refused the answer.');
+          showAPIError('This request could not be denied', result, resp);
           return;
         }
         if (followVerifierRedirect(result)) return;
       } catch (e) {
-        console.error('Deny failed:', e);
+        showErrorDialog('Deny request failed', e.message);
+        return;
       } finally {
         consentSubmitting = false;
       }
@@ -3395,7 +3427,7 @@
 
   // Conformance settings apply to the wallet process. The public demo displays them without
   // allowing changes.
-  let conformanceDefaults = { validation_mode: 'debug', require_haip: true, require_arf: false, require_encrypted_request: false, vci_version: '1.0', key_attestation_level: '' };
+  let conformanceDefaults = { validation_mode: 'debug', require_haip: false, require_arf: false, require_encrypted_request: false, vci_version: '1.0', key_attestation_level: '' };
 
   function effectiveConformance() {
     return {

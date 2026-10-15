@@ -219,7 +219,7 @@ func TestARFFindingsShareOneLogEntry(t *testing.T) {
 	findings := oid4vp.ARFFindings(&oid4vp.Request{
 		RequestPayload: verifierInfoPayload(map[string]any{"format": "registration_cert", "data": cert}),
 	})
-	w.warnFindings("presentation", specCitedSummary("The request", findings), findings)
+	w.warnFindings("presentation", "authorization_request_finding", specCitedSummary("The request", findings), findings, nil)
 
 	summaries := 0
 	var details map[string]any

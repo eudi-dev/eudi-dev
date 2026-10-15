@@ -449,11 +449,11 @@ func (w *Wallet) resolveClientAuthentication(method string, ctx clientAuthContex
 	}
 	if w.attestsClient(ctx.oauthMeta) {
 		auth := w.attestationClientAuth(ctx)
-		if w != nil && w.HAIPChecks() && w.Mode() != ValidationModeStrict &&
+		if w != nil && w.HAIPChecks() &&
 			!w.ForceClientAttestation &&
 			detectTokenEndpointAuthMethod(ctx.oauthMeta) == "" {
 			w.addProtocolWarning("issuance", "client_authentication_not_advertised",
-				fmt.Sprintf("The issuer's authorization server advertises no token endpoint client authentication method (draft-ietf-oauth-attestation-based-client-auth-%02d %s recommends it). Attesting anyway, since HAIP requires client authentication.", auth.ABCADraft, abcaMetadataSection(auth.ABCADraft)),
+				fmt.Sprintf("The issuer's authorization server advertises no token endpoint client authentication method (draft-ietf-oauth-attestation-based-client-auth-%02d %s recommends it). Attesting anyway, since HAIP requires client authentication", auth.ABCADraft, abcaMetadataSection(auth.ABCADraft)),
 				map[string]any{"token_endpoint": ctx.tokenEndpoint})
 		}
 		return auth
@@ -1157,7 +1157,7 @@ type credentialExchangeLog struct {
 
 func (w *Wallet) requestCredentialWithDPoP(a credentialRequestAttempt, proofs credentialProofs, trace *credentialExchangeLog) (map[string]any, error) {
 	reqBody := credentialRequestBody(proofs, a.credentialIdentifier, a.credentialConfigurationID, a.responseEncryption)
-	body, contentType, err := prepareCredentialRequestBody(w.Mode(), a.metadata, reqBody)
+	body, contentType, err := w.prepareCredentialRequestBody(w.Mode(), a.metadata, reqBody)
 	var responsePayload *LogPayload
 	if trace != nil {
 		payload := &LogPayload{Label: "Request", Body: string(body)}
@@ -1249,7 +1249,7 @@ func (w *Wallet) deferredCredentialAttempt(mode ValidationMode, metadata map[str
 	if responseEncryption != nil {
 		reqBody["credential_response_encryption"] = responseEncryption
 	}
-	body, contentType, err := prepareCredentialRequestBody(mode, metadata, reqBody)
+	body, contentType, err := w.prepareCredentialRequestBody(mode, metadata, reqBody)
 	requestPayload := &LogPayload{Label: "Request", Body: string(body)}
 	if contentType == "application/jwt" {
 		requestPayload.Body, requestPayload.Wire, requestPayload.Encrypted = reqBody, string(body), true
@@ -1513,7 +1513,7 @@ func (w *Wallet) fetchNonce(metadata map[string]any, nonce *string) string {
 	reason := nonceFailureReason(status, err)
 	if cNonce == "" && status == http.StatusMethodNotAllowed && w.Mode() == ValidationModeDebug {
 		if getNonce, getStatus, getErr := nonceRequest(w.HTTPClient(), "GET", ep, nonce, noncePayload); getNonce != "" {
-			w.AddWarning("issuance", fmt.Sprintf("The nonce endpoint %s answers a POST with 405 and serves a c_nonce only over GET. OID4VCI 1.0 §7.1 requires POST. Debug mode uses GET.", ep), nil)
+			w.addProtocolWarning("issuance", "nonce_endpoint_get", fmt.Sprintf("The nonce endpoint %s answers a POST with 405 and serves a c_nonce only over GET. OID4VCI 1.0 §7.1 requires POST. Debug mode uses GET", ep), map[string]any{"url": ep})
 			cNonce, reason = getNonce, ""
 		} else {
 			reason = nonceFailureReason(getStatus, getErr)

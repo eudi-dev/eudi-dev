@@ -34,7 +34,7 @@ func (s *Server) handleAddTrustedEntity(w http.ResponseWriter, r *http.Request) 
 		Certificates string `json:"certificates"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		apierror.WriteStatus(w, http.StatusBadRequest, "invalid JSON body")
+		apierror.InvalidJSON(w, err)
 		return
 	}
 	entity, err := s.management().AddTrustedEntity(body.List, body.Name, body.Certificates)
@@ -54,7 +54,7 @@ func (s *Server) handleAddTrustedList(w http.ResponseWriter, r *http.Request) {
 		URL string `json:"url"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		apierror.WriteStatus(w, http.StatusBadRequest, "invalid JSON body")
+		apierror.InvalidJSON(w, err)
 		return
 	}
 	added, err := s.management().AddTrustedList(body.URL)
@@ -72,11 +72,11 @@ func (s *Server) handleRemoveTrustedList(w http.ResponseWriter, r *http.Request)
 func writeTrustResult(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, trustedlists.ErrNotFound):
-		apierror.WriteStatus(w, http.StatusNotFound, err.Error())
+		apierror.WriteStatusErr(w, http.StatusNotFound, err)
 	case errors.Is(err, trustedlists.ErrFull):
-		apierror.WriteStatus(w, http.StatusForbidden, err.Error())
+		apierror.WriteStatusErr(w, http.StatusForbidden, err)
 	case err != nil:
-		apierror.WriteStatus(w, http.StatusBadRequest, err.Error())
+		apierror.WriteStatusErr(w, http.StatusBadRequest, err)
 	default:
 		w.WriteHeader(http.StatusNoContent)
 	}

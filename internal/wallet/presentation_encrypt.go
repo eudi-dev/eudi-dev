@@ -191,7 +191,7 @@ func (w *Wallet) encryptDirectPostJWTPayload(payload map[string]any, mdocNonce s
 		return "", nil, fmt.Errorf("extracting encryption key: %w", err)
 	}
 	if keyInfo.Finding != "" {
-		w.AddLog("presentation", keyInfo.Finding, false)
+		w.addProtocolWarning("presentation", "short_jwk_coordinate", keyInfo.Finding, nil)
 	}
 
 	enc, err := responseEncAlgorithm(params.RequestObject, params.ClientMetadata)

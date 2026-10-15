@@ -30,6 +30,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
 	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
@@ -257,7 +258,7 @@ func (d *DemoRP) handleIssuerMetadata(w http.ResponseWriter, r *http.Request) {
 	// with --arf reports that (ETSI TS 119 472-3 §4.2.3).
 	info, err := d.wallet.DemoIssuerInfo()
 	if err != nil {
-		http.Error(w, "building issuer metadata: "+err.Error(), http.StatusInternalServerError)
+		apierror.WriteStatus(w, http.StatusInternalServerError, "building issuer metadata: "+err.Error())
 		return
 	}
 	if info != nil {
@@ -266,7 +267,7 @@ func (d *DemoRP) handleIssuerMetadata(w http.ResponseWriter, r *http.Request) {
 	if wallet.PrefersSignedIssuerMetadata(r.Header.Get("Accept")) {
 		jwt, err := wallet.SignCredentialIssuerMetadata(d.wallet, issuer, metadata, time.Now().Add(time.Hour))
 		if err != nil {
-			http.Error(w, "signing issuer metadata: "+err.Error(), http.StatusInternalServerError)
+			apierror.WriteStatus(w, http.StatusInternalServerError, "signing issuer metadata: "+err.Error())
 			return
 		}
 		w.Header().Set("Content-Type", "application/jwt")
@@ -290,15 +291,13 @@ func (d *DemoRP) handleCreateOffer(w http.ResponseWriter, r *http.Request) {
 	authCode := r.URL.Query().Get("grant") == authCodeGrant
 	withStatus := r.URL.Query().Get("status") == "true"
 	if withStatus && d.statusListURI() == "" {
-		writeJSON(w, http.StatusConflict, map[string]string{
-			"error": "this wallet has no status list URL, so the ticket cannot carry a status reference",
-		})
+		apierror.WriteStatus(w, http.StatusConflict, "this wallet has no status list URL, so the ticket cannot carry a status reference")
 		return
 	}
 
 	configIDs, err := d.offerConfigurationIDs(r.URL.Query()["credential"])
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		apierror.WriteStatusErr(w, http.StatusBadRequest, err)
 		return
 	}
 
@@ -345,7 +344,7 @@ func (d *DemoRP) handleOfferByReference(w http.ResponseWriter, r *http.Request) 
 	}
 	d.mu.Unlock()
 	if !ok {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "unknown or expired credential offer"})
+		apierror.WriteStatus(w, http.StatusNotFound, "unknown or expired credential offer")
 		return
 	}
 	grants := map[string]any{}

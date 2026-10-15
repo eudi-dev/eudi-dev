@@ -77,7 +77,7 @@ func (w *Wallet) trustedAuthorityAnchors(query map[string]any) map[string][]*x50
 		taList, _ := cqMap["trusted_authorities"].([]any)
 		queryID, _ := cqMap["id"].(string)
 		listAnchors, listFindings := w.etsiTrustedListAnchors(taList)
-		w.warnFindings("presentation", fmt.Sprintf("The trusted lists of credential query %s", queryID), listFindings)
+		w.warnFindings("presentation", "trusted_list", fmt.Sprintf("The trusted lists of credential query %s", queryID), listFindings, nil)
 		maps.Copy(anchors, listAnchors)
 	}
 	return anchors

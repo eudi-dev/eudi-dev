@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
 )
 
@@ -58,32 +59,34 @@ type presentationRefusal struct {
 	status, code, description string
 }
 
+// requestRefused is the error title when the wallet refuses a request because
+// of its findings. Every view uses the same title.
+const requestRefused = "The wallet refused the request"
+
 // evaluatePresentationRequest validates a parsed request, records what it
 // found and decides between refusing it and presenting credentials.
 func (w *Wallet) evaluatePresentationRequest(authReq *oid4vp.Request, entry presentationEntry) presentationOutcome {
 	w.PrepareARFChecks(authReq)
-	findings, err := oid4vp.ValidateAuthorizationRequest(w.Conformance().checks(), authReq)
+	list, err := oid4vp.ValidateAuthorizationRequest(w.Conformance().checks(), authReq)
 	var arf *oid4vp.ARFRefusal
 	if errors.As(err, &arf) {
-		w.AddLog(entry.action, err.Error(), false)
-		w.Consents().NotifyError(consent.Error{Owner: entry.owner, Message: "The request does not meet the ARF registration rules", Detail: err.Error()})
+		const summary = "The request does not meet the ARF registration rules"
+		w.reportRefusal(entry.action, "arf_refusal", entry.owner, requestRefused, summary, err)
 		// The description lists the findings, so the verifier under test sees
 		// which rule its request breaks.
 		return presentationOutcome{refusal: &presentationRefusal{
 			status: "refused", code: oid4vp.ErrorAccessDenied,
-			description: "The request does not meet the ARF registration rules: " + strings.Join(arf.Findings, ", "),
+			description: (&findings.Error{Summary: summary, Findings: arf.Findings}).Error(),
 		}}
 	}
 	if err != nil {
-		w.AddLog(entry.action, err.Error(), false)
-		w.Consents().NotifyError(consent.Error{Owner: entry.owner, Message: "Authorization request validation failed", Detail: err.Error()})
+		w.reportRefusal(entry.action, "authorization_request_refused", entry.owner, requestRefused, specCitedSummary(entry.subject, findings.Of(err)), err)
 		return presentationOutcome{invalid: err, invalidCode: oid4vp.RefusalCode(authReq)}
 	}
 	// OID4VP 1.0 §8.3.1 lets the wallet send an unencrypted error response
 	// here ("MAY"). The wallet answers only its caller, with invalid_request.
 	if err := w.responseEncryptionError(authReq); err != nil {
-		w.AddLog(entry.action, err.Error(), false)
-		w.Consents().NotifyError(consent.Error{Owner: entry.owner, Message: "The response cannot be encrypted", Detail: err.Error()})
+		w.reportRefusal(entry.action, "response_encryption_unavailable", entry.owner, "The response cannot be encrypted", "", err)
 		return presentationOutcome{invalid: err, invalidCode: oid4vp.ErrorInvalidRequest}
 	}
 	// The override answers only a valid request.
@@ -92,8 +95,8 @@ func (w *Wallet) evaluatePresentationRequest(authReq *oid4vp.Request, entry pres
 		return presentationOutcome{refusal: &presentationRefusal{status: "error", code: override.Error, description: override.ErrorDescription}}
 	}
 
-	authReq.Findings = findings
-	w.warnFindings(entry.action, specCitedSummary(entry.subject, findings), findings)
+	authReq.Findings = list
+	w.warnFindings(entry.action, "authorization_request_finding", specCitedSummary(entry.subject, list), list, nil)
 	w.warnUndefinedRequestParameters(entry.action, authReq)
 
 	if !oid4vp.ResponseTypeRequiresVP(authReq.ResponseType) {
@@ -103,8 +106,7 @@ func (w *Wallet) evaluatePresentationRequest(authReq *oid4vp.Request, entry pres
 	// defines none. §8.5 answers an unknown one with invalid_scope.
 	if authReq.DCQLQuery == nil && strings.TrimSpace(authReq.Scope) != "" {
 		description := fmt.Sprintf("the wallet supports no scope %q", authReq.Scope)
-		w.AddLog(entry.action, description, false)
-		w.Consents().NotifyError(consent.Error{Owner: entry.owner, Message: "Unsupported scope", Detail: description})
+		w.reportRefusal(entry.action, "unsupported_scope", entry.owner, "Unsupported scope", "", errors.New(description))
 		return presentationOutcome{refusal: &presentationRefusal{status: "refused", code: oid4vp.ErrorInvalidScope, description: description}}
 	}
 	var outcome presentationOutcome
@@ -113,12 +115,8 @@ func (w *Wallet) evaluatePresentationRequest(authReq *oid4vp.Request, entry pres
 	}
 	// Debug mode lets a person answer with a credential that does not match.
 	if len(outcome.matches) == 0 && (outcome.options == nil || !entry.interactive) {
-		w.AddLog(entry.action, fmt.Sprintf("No matching credentials for %s", authReq.ClientID), false)
-		w.Consents().NotifyError(consent.Error{
-			Owner:   entry.owner,
-			Message: "No matching credentials",
-			Detail:  fmt.Sprintf("Verifier %s requested credentials but none matched the query", authReq.ClientID),
-		})
+		w.reportRefusal(entry.action, "no_matching_credentials", entry.owner, "No matching credentials", "",
+			fmt.Errorf("no credential matches the query of %s", authReq.ClientID))
 		// §8.5 access_denied: "The Wallet did not have the requested
 		// Credentials to satisfy the Authorization Request."
 		code, description := unsatisfiableQueryError(authReq.DCQLQuery)
@@ -224,7 +222,7 @@ func (w *Wallet) submitPreparedPresentation(authReq *oid4vp.Request, matches []c
 		w.addProtocolLog("presentation", "presentation_response", fmt.Sprintf("Sending presentation response to %s", authReq.ClientID), true, presentationResponseLogDetails(authReq, w, matches, prepared), PresentationLogPayload(response))
 	})
 	if err != nil {
-		w.AddLogPayload("presentation", fmt.Sprintf("Submission failed: %v", err), false, nil, VerifierResponseErrorPayload(err))
+		w.addProtocolLog("presentation", "presentation_failed", fmt.Sprintf("Submission failed: %v", err), false, map[string]any{"error": err.Error()}, VerifierResponseErrorPayload(err))
 		return nil, err
 	}
 	w.addProtocolLog("presentation", "verifier_response", fmt.Sprintf("Verifier result from %s: %s", authReq.ClientID, oid4vp.FormatDirectPostResult(result)), result.StatusCode < 400, verifierResponseLogDetails(authReq, prepared, result))
@@ -248,7 +246,7 @@ func (w *Wallet) deliverAuthorizationError(authReq *oid4vp.Request, errorCode, e
 		w.addProtocolLog("presentation", "presentation_error_response", fmt.Sprintf("Sending authorization error to %s", authReq.ClientID), true, errorDetails, PresentationLogPayload(response))
 	})
 	if err != nil {
-		w.AddLogPayload("presentation", fmt.Sprintf("Error submission failed: %v", err), false, nil, VerifierResponseErrorPayload(err))
+		w.addProtocolLog("presentation", "presentation_failed", fmt.Sprintf("Error submission failed: %v", err), false, map[string]any{"error": err.Error()}, VerifierResponseErrorPayload(err))
 		return nil, err
 	}
 	w.addProtocolLog("presentation", "verifier_response", fmt.Sprintf("Verifier result from %s: %s", authReq.ClientID, oid4vp.FormatDirectPostResult(result)), result.StatusCode < 400, verifierResponseLogDetails(authReq, &preparedPresentation{ResponseURI: responseURI}, result))

@@ -29,6 +29,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/httpsec"
@@ -125,7 +126,7 @@ func (d *DemoRP) handleRequestObject(w http.ResponseWriter, r *http.Request) {
 	}
 	d.mu.Unlock()
 	if !ok || jar == "" {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "unknown or expired request"})
+		apierror.WriteStatus(w, http.StatusNotFound, "unknown or expired request")
 		return
 	}
 	w.Header().Set("Content-Type", format.MediaTypeRequestObject)
@@ -343,12 +344,12 @@ func normalizePIDVCT(vct string) (string, error) {
 func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 	var body createRequestBody
 	if err := decodeJSONBody(r, &body); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON body"})
+		apierror.InvalidJSON(w, err)
 		return
 	}
 
 	if body.Identity != "" && body.Identity != "registered" && body.Identity != "unregistered" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": `identity must be "registered" or "unregistered"`})
+		apierror.WriteStatus(w, http.StatusBadRequest, `identity must be "registered" or "unregistered"`)
 		return
 	}
 
@@ -361,25 +362,25 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 	var claims, mdocClaims []string
 	ticketMode := strings.TrimSpace(body.Ticket)
 	if ticketMode != "" && ticketMode != "combined" && ticketMode != "optional" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": `ticket must be "combined" or "optional"`})
+		apierror.WriteStatus(w, http.StatusBadRequest, `ticket must be "combined" or "optional"`)
 		return
 	}
 	switch body.Type {
 	case "", "ticket":
 		body.Type = "ticket"
 		if ticketMode != "" {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "ticket applies to pid requests, which then ask for the ticket next to the PID"})
+			apierror.WriteStatus(w, http.StatusBadRequest, "ticket applies to pid requests, which then ask for the ticket next to the PID")
 			return
 		}
 
 		wantSDJWT, _, err := normalizePIDFormat(body.Format)
 		if err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			apierror.WriteStatusErr(w, http.StatusBadRequest, err)
 			return
 		}
 		// The ticket exists only as an SD-JWT VC.
 		if !wantSDJWT {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "the demo ticket only exists as an SD-JWT VC"})
+			apierror.WriteStatus(w, http.StatusBadRequest, "the demo ticket only exists as an SD-JWT VC")
 			return
 		}
 		vct = TicketVCT
@@ -389,12 +390,12 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 		// that it does not hold.
 		wantSDJWT, wantMDOC, err := normalizePIDFormat(body.Format)
 		if err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			apierror.WriteStatusErr(w, http.StatusBadRequest, err)
 			return
 		}
 		requested, err := normalizePIDVCT(body.VCT)
 		if err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			apierror.WriteStatusErr(w, http.StatusBadRequest, err)
 			return
 		}
 		// ISO/IEC 18013-5 has no inheritance between document types. Every mdoc
@@ -402,9 +403,7 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 		// namespace. Any PID would answer a doctype request for a national PID.
 		domestic := requested != PIDVCT
 		if domestic && wantMDOC && !wantSDJWT {
-			writeJSON(w, http.StatusBadRequest, map[string]string{
-				"error": "a credential type has no mdoc form: every PID carries the doctype " + PIDDocType + ", so ask for the PID in mdoc instead",
-			})
+			apierror.WriteStatus(w, http.StatusBadRequest, "a credential type has no mdoc form: every PID carries the doctype "+PIDDocType+", so ask for the PID in mdoc instead")
 			return
 		}
 		if wantSDJWT {
@@ -417,11 +416,11 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 		}
 		// The combined shape puts the ticket in the SD-JWT PID option.
 		if ticketMode == "combined" && !wantSDJWT {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "ticket: combined needs the SD-JWT PID in the request, so use format sd-jwt or both"})
+			apierror.WriteStatus(w, http.StatusBadRequest, "ticket: combined needs the SD-JWT PID in the request, so use format sd-jwt or both")
 			return
 		}
 	default:
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "type must be ticket or pid"})
+		apierror.WriteStatus(w, http.StatusBadRequest, "type must be ticket or pid")
 		return
 	}
 
@@ -480,13 +479,13 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 
 	req.encKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "generating response encryption key: " + err.Error()})
+		apierror.WriteStatus(w, http.StatusInternalServerError, "generating response encryption key: "+err.Error())
 		return
 	}
 
 	info, err := d.verifierInfo(body)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "registration certificate: " + err.Error()})
+		apierror.WriteStatus(w, http.StatusInternalServerError, "registration certificate: "+err.Error())
 		return
 	}
 	d.finalizeRequest(w, req, responseURI, base, signingKey, chain, info)
@@ -521,7 +520,7 @@ func writeSigningMaterialError(w http.ResponseWriter, body createRequestBody, er
 	if strings.TrimSpace(body.SigningKey) == "" {
 		status = http.StatusInternalServerError
 	}
-	writeJSON(w, status, map[string]string{"error": "signing material: " + err.Error()})
+	apierror.WriteStatus(w, status, "signing material: "+err.Error())
 }
 
 // finalizeRequest signs the request object, stores the request and returns the
@@ -547,7 +546,7 @@ func (d *DemoRP) finalizeRequest(w http.ResponseWriter, req *requestState, respo
 	}
 	jar, err := oid4vp.SignRequestObjectJWT(claims, signingKey, chain)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "signing request object: " + err.Error()})
+		apierror.WriteStatus(w, http.StatusInternalServerError, "signing request object: "+err.Error())
 		return
 	}
 	req.requestObject = jar
@@ -585,11 +584,11 @@ func (d *DemoRP) createCustomRequest(w http.ResponseWriter, body createRequestBo
 	if body.DCQLQuery != nil {
 		var err error
 		if written, writtenSets, err = parseDCQLQuery(body.DCQLQuery); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			apierror.WriteStatusErr(w, http.StatusBadRequest, err)
 			return
 		}
 	} else if len(body.Credentials) == 0 {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "a custom request needs at least one credential"})
+		apierror.WriteStatus(w, http.StatusBadRequest, "a custom request needs at least one credential")
 		return
 	}
 	signingKey, chain, err := d.requestSigningMaterial(body)
@@ -604,7 +603,7 @@ func (d *DemoRP) createCustomRequest(w http.ResponseWriter, body createRequestBo
 	signed := scheme == "x509_hash" || scheme == "x509_san_dns"
 	encKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "generating response encryption key: " + err.Error()})
+		apierror.WriteStatus(w, http.StatusInternalServerError, "generating response encryption key: "+err.Error())
 		return
 	}
 	base := d.baseURL()
@@ -620,11 +619,11 @@ func (d *DemoRP) createCustomRequest(w http.ResponseWriter, body createRequestBo
 	responseURI := base + "/verifier/response/" + req.id
 	req.clientID, err = customClientID(scheme, chain, responseURI, body.ClientID)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		apierror.WriteStatusErr(w, http.StatusBadRequest, err)
 		return
 	}
 	if len(body.VerifierInfo) > 0 && !signed {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "a custom verifier_info needs a signed client_id scheme (x509_hash or x509_san_dns)"})
+		apierror.WriteStatus(w, http.StatusBadRequest, "a custom verifier_info needs a signed client_id scheme (x509_hash or x509_san_dns)")
 		return
 	}
 
@@ -638,13 +637,13 @@ func (d *DemoRP) createCustomRequest(w http.ResponseWriter, body createRequestBo
 		format := strings.TrimSpace(c.Format)
 		switch {
 		case format == credtype.FormatSDJWT && strings.TrimSpace(c.VCT) == "":
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "a dc+sd-jwt credential needs a vct"})
+			apierror.WriteStatus(w, http.StatusBadRequest, "a dc+sd-jwt credential needs a vct")
 			return
 		case format == credtype.FormatMDOC && strings.TrimSpace(c.DocType) == "":
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "an mso_mdoc credential needs a doctype"})
+			apierror.WriteStatus(w, http.StatusBadRequest, "an mso_mdoc credential needs a doctype")
 			return
 		case format != credtype.FormatSDJWT && format != credtype.FormatMDOC:
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "format must be dc+sd-jwt or mso_mdoc"})
+			apierror.WriteStatus(w, http.StatusBadRequest, "format must be dc+sd-jwt or mso_mdoc")
 			return
 		}
 		var paths [][]any
@@ -660,7 +659,7 @@ func (d *DemoRP) createCustomRequest(w http.ResponseWriter, body createRequestBo
 	if signed {
 		info, err := d.verifierInfo(body)
 		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "registration certificate: " + err.Error()})
+			apierror.WriteStatus(w, http.StatusInternalServerError, "registration certificate: "+err.Error())
 			return
 		}
 		d.finalizeRequest(w, req, responseURI, base, signingKey, chain, info)
@@ -706,12 +705,12 @@ func customClientID(scheme string, chain []*x509.Certificate, responseURI, preRe
 func (d *DemoRP) deliverUnsignedRequest(w http.ResponseWriter, req *requestState, responseURI, base string) {
 	dcqlJSON, err := json.Marshal(req.dcqlQuery())
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "encoding dcql_query: " + err.Error()})
+		apierror.WriteStatus(w, http.StatusInternalServerError, "encoding dcql_query: "+err.Error())
 		return
 	}
 	metaJSON, err := json.Marshal(responseEncryptionMetadata(req.encKey))
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "encoding client_metadata: " + err.Error()})
+		apierror.WriteStatus(w, http.StatusInternalServerError, "encoding client_metadata: "+err.Error())
 		return
 	}
 
@@ -891,7 +890,7 @@ func (d *DemoRP) handleRequestStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	d.mu.Unlock()
 	if !ok {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "unknown or expired request"})
+		apierror.WriteStatus(w, http.StatusNotFound, "unknown or expired request")
 		return
 	}
 	writeJSON(w, http.StatusOK, doc)
@@ -921,7 +920,7 @@ func (d *DemoRP) handlePresentationResponse(w http.ResponseWriter, r *http.Reque
 	replay := ok && req.answered
 	d.mu.Unlock()
 	if !ok {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "unknown or expired request"})
+		apierror.WriteStatus(w, http.StatusNotFound, "unknown or expired request")
 		return
 	}
 	if replay {
@@ -937,7 +936,7 @@ func (d *DemoRP) handlePresentationResponse(w http.ResponseWriter, r *http.Reque
 	}
 	response, err := authorizationResponse(req, r.PostForm)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid_request", "error_description": err.Error()})
+		apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, err.Error())
 		return
 	}
 	// §8.2: "The Response URI MAY return the redirect_uri parameter in
@@ -961,7 +960,7 @@ func (d *DemoRP) handlePresentationResponse(w http.ResponseWriter, r *http.Reque
 		err = fmt.Errorf("the response carried no vp_token")
 	}
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid_request", "error_description": err.Error()})
+		apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, err.Error())
 		return
 	}
 
@@ -978,7 +977,7 @@ func (d *DemoRP) handlePresentationResponse(w http.ResponseWriter, r *http.Reque
 // writeAnswered refuses a second response. The nonce is fixed per request, so
 // a captured response would verify again.
 func writeAnswered(w http.ResponseWriter) {
-	writeJSON(w, http.StatusConflict, map[string]string{"error": "this request was already answered"})
+	apierror.WriteStatus(w, http.StatusConflict, "this request was already answered")
 }
 
 // answerResponse answers a processed response with the redirect_uri of

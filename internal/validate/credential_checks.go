@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
 	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
@@ -125,9 +126,9 @@ func (v run) trustCheck(c catalogueState, r *Result) Check {
 		if v.trust.Catalogue.RefusesTrustFindings() {
 			check.Status = Fail
 		}
-		check.Detail = strings.Join(anchoring.Findings, " ")
+		check.Detail = findings.Join(anchoring.Findings)
 	default:
-		check.Detail = strings.Join(append([]string{"The catalogue entry has no readable trusted list. ARF ISSU_10 asks to check an EAA only with access to its provider's trust anchors"}, anchoring.Warnings...), ". ")
+		check.Detail = findings.Join(append([]string{"The catalogue entry has no readable trusted list. ARF ISSU_10 asks to check an EAA only with access to its provider's trust anchors"}, anchoring.Warnings...))
 	}
 	return check
 }
@@ -228,7 +229,7 @@ func failedDetail(source string, errs []string) string {
 		}
 	}
 	if len(reasons) > 0 {
-		detail += ": " + strings.Join(reasons, ". ")
+		detail += ": " + findings.Join(reasons)
 	}
 	return detail
 }
@@ -328,7 +329,7 @@ func (v run) status(claims map[string]any, prefer string, c catalogueState, r *R
 		return []Check{{Name: CheckStatus, Status: Fail, Detail: fmt.Sprintf("Status check error: %v", err)}}
 	}
 	if len(result.HAIPFindings) > 0 && v.trust.Catalogue != nil && v.trust.Catalogue.RefusesHAIPFindings() {
-		return []Check{{Name: CheckStatus, Status: Fail, Detail: strings.Join(result.HAIPFindings, ". ")}}
+		return []Check{{Name: CheckStatus, Status: Fail, Detail: findings.Join(result.HAIPFindings)}}
 	}
 	r.Status = result
 	// draft-ietf-oauth-sd-jwt-vc-19 §2.2.2.3: "If the status claim is present
@@ -348,9 +349,9 @@ func (v run) status(claims map[string]any, prefer string, c catalogueState, r *R
 	switch {
 	case !result.TrustAnchored || len(result.HAIPFindings) > 0:
 		signature.Status = Warning
-		signature.Detail = strings.Join(append([]string{capitalize(result.SignatureInfo)}, notes...), ". ")
+		signature.Detail = findings.Join(append([]string{capitalize(result.SignatureInfo)}, notes...))
 	case len(notes) > 0:
-		signature.Detail += ". " + strings.Join(notes, ". ")
+		signature.Detail += ". " + findings.Join(notes)
 	}
 	if result.TrustAnchored && anchored {
 		signature.Anchor = a.Anchor(ServiceRevocation)

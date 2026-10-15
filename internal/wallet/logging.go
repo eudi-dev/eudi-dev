@@ -318,7 +318,7 @@ func addStringDetail(details map[string]any, key string, value string) {
 }
 
 func (w *Wallet) warnUndefinedRequestParameters(scope string, params *oid4vp.Request) {
-	w.warnFindings(scope, "The request contains parameters OID4VP 1.0 does not define", oid4vp.UndefinedRequestParameterFindings(params))
+	w.warnFindings(scope, "undefined_request_parameter", "The request contains parameters OID4VP 1.0 does not define", oid4vp.UndefinedRequestParameterFindings(params), nil)
 }
 
 func (w *Wallet) warnUndefinedResponseMembers(result *oid4vp.DirectPostResult) {

@@ -194,6 +194,8 @@ type SubmissionResult struct {
 	RedirectURI string `json:"redirect_uri,omitempty"`
 	Error       string `json:"error,omitempty"`
 	StatusCode  int    `json:"status_code,omitempty"`
+	// Findings are the failed checks behind Error, one per entry.
+	Findings []string `json:"findings,omitempty"`
 	// Deferred issuance is still pending. The wallet continues collecting in the
 	// background.
 	Pending       bool   `json:"pending,omitempty"`

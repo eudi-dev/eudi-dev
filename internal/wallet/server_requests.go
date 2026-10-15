@@ -187,7 +187,7 @@ func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Body != nil {
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil && !errors.Is(err, io.EOF) {
-			apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, "invalid JSON body: "+err.Error())
+			apierror.InvalidJSON(w, err)
 			return
 		}
 	}
@@ -215,7 +215,7 @@ func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := consent.ValidateSelection(pending.CredentialOptions, picks, body.SetChoices, body.ClaimSets); err != nil {
-			apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, err.Error())
+			apierror.WriteErr(w, http.StatusBadRequest, apierror.InvalidRequest, err)
 			return
 		}
 	}
@@ -250,6 +250,9 @@ func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
 		}, submission.RedirectURI)
 		if submission.Error != "" {
 			out["error"] = submission.Error
+		}
+		if len(submission.Findings) > 0 {
+			out["findings"] = submission.Findings
 		}
 		if submission.Pending {
 			// Report deferred issuance explicitly. Approval does not mean the

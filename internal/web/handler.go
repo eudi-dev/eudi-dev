@@ -138,7 +138,7 @@ func handleValidate(store *wallet.WalletStore, live *wallet.Wallet) http.Handler
 
 		var req validateRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			apierror.WriteStatus(w, http.StatusBadRequest, "invalid request body")
+			apierror.InvalidJSON(w, err)
 			return
 		}
 
@@ -157,7 +157,7 @@ func handleValidate(store *wallet.WalletStore, live *wallet.Wallet) http.Handler
 			Wallet:       live,
 		})
 		if err != nil {
-			apierror.WriteStatus(w, http.StatusUnprocessableEntity, err.Error())
+			apierror.WriteStatusErr(w, http.StatusUnprocessableEntity, err)
 			return
 		}
 

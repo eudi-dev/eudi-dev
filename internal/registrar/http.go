@@ -183,7 +183,7 @@ func (h *Server) handleEnrol(update bool) http.HandlerFunc {
 			return
 		}
 		if err := checkRegistrationSize(e.RelyingParty); err != nil {
-			apierror.WriteStatus(w, http.StatusBadRequest, err.Error())
+			apierror.WriteStatusErr(w, http.StatusBadRequest, err)
 			return
 		}
 		if update {
@@ -218,7 +218,7 @@ func decodeRelyingParty(w http.ResponseWriter, r *http.Request) (WalletRelyingPa
 		return rp, false
 	}
 	if err := checkRegistrationSize(rp); err != nil {
-		apierror.WriteStatus(w, http.StatusBadRequest, err.Error())
+		apierror.WriteStatusErr(w, http.StatusBadRequest, err)
 		return rp, false
 	}
 	return rp, true
@@ -236,7 +236,7 @@ func (h *Server) handleRegistrarWRPList(w http.ResponseWriter, r *http.Request) 
 	}
 	start, end, _, err := page(q, "cursor", len(matching))
 	if err != nil {
-		apierror.WriteStatus(w, http.StatusBadRequest, err.Error())
+		apierror.WriteStatusErr(w, http.StatusBadRequest, err)
 		return
 	}
 	pagination := map[string]any{"has_next_page": end < len(matching)}
@@ -344,7 +344,7 @@ func (h *Server) handleSetRegistrationCertificateStatus(w http.ResponseWriter, r
 		Revoked bool `json:"revoked"`
 	}
 	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
-		apierror.WriteStatus(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+		apierror.InvalidJSON(w, err)
 		return
 	}
 	if h.refuseProtected(w, req.Identifier) {
@@ -374,7 +374,7 @@ func (h *Server) handleRegistrationStatusList(w http.ResponseWriter, r *http.Req
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	token, err := h.Registrar().RegistrationStatusListToken()
 	if err != nil {
-		apierror.WriteStatus(w, http.StatusInternalServerError, err.Error())
+		apierror.WriteStatusErr(w, http.StatusInternalServerError, err)
 		return
 	}
 	w.Header().Set("Content-Type", statuslist.MediaTypeJWT)
@@ -391,7 +391,7 @@ func writeRegistrarError(w http.ResponseWriter, err error) {
 	case errors.Is(err, errRegistrarSigning):
 		status = http.StatusInternalServerError
 	}
-	apierror.WriteStatus(w, status, err.Error())
+	apierror.WriteStatusErr(w, status, err)
 }
 
 // handleCatalogSchemas answers GET /schemas of the catalogue of attestations
@@ -407,7 +407,7 @@ func (h *Server) handleCatalogSchemas(w http.ResponseWriter, r *http.Request) {
 	}
 	start, end, limit, err := page(q, "offset", len(matching))
 	if err != nil {
-		apierror.WriteStatus(w, http.StatusBadRequest, err.Error())
+		apierror.WriteStatusErr(w, http.StatusBadRequest, err)
 		return
 	}
 	schemas := matching[start:end]
@@ -591,7 +591,7 @@ func WriteCatalogError(w http.ResponseWriter, err error) {
 	case errors.Is(err, errCatalogFull):
 		status = http.StatusConflict
 	}
-	apierror.WriteStatus(w, status, err.Error())
+	apierror.WriteStatusErr(w, status, err)
 }
 
 // handleIssueRegistrationCertificate signs a registration certificate for a
@@ -599,7 +599,7 @@ func WriteCatalogError(w http.ResponseWriter, err error) {
 func (h *Server) handleIssueRegistrationCertificate(w http.ResponseWriter, r *http.Request) {
 	var req RegistrationCertificateRequest
 	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
-		apierror.WriteStatus(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+		apierror.InvalidJSON(w, err)
 		return
 	}
 	if h.refuseProtected(w, req.Identifier) {
@@ -623,7 +623,7 @@ func (h *Server) handleIssueRegistrationCertificate(w http.ResponseWriter, r *ht
 func (h *Server) handleIssueAccessCertificate(w http.ResponseWriter, r *http.Request) {
 	var req AccessCertificateRequest
 	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
-		apierror.WriteStatus(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+		apierror.InvalidJSON(w, err)
 		return
 	}
 	result, err := h.Registrar().IssueAccessCertificate(req)

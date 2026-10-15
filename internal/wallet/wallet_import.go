@@ -17,7 +17,6 @@ package wallet
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"log"
 	"slices"
@@ -227,9 +226,7 @@ func (w *Wallet) reportCredentialDeviations(spec string, deviations []string) er
 	}
 	return w.reportDeviation(deviation{
 		action: "wallet", event: "credential_structure_deviation",
-		detail:  findingsSummary("The credential deviates from "+spec, deviations),
-		details: map[string]any{"deviations": deviations},
-		refusal: errors.New(strings.Join(deviations, ". ")),
+		summary: "The credential deviates from " + spec, findings: deviations,
 	})
 }
 

@@ -21,7 +21,6 @@ import (
 	"net/http"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
-	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
@@ -46,9 +45,7 @@ func (s *Server) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 	authReq, err = oid4vp.ParseRequest(values, s.parseOpts)
 
 	if err != nil {
-		// Report parsing failures to the caller. Do not send a response to an invalid
-		// request's destination (RFC 6749 §4.1.2.1, adopted by OpenID4VP §8.5).
-		apierror.Write(w, http.StatusBadRequest, oid4vp.ParseErrorCode(err), "invalid authorization request: "+err.Error())
+		s.refuseUnreadableRequest(w, requestOwner(r), err)
 		return
 	}
 
@@ -62,6 +59,20 @@ func (s *Server) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 	s.handleAuthFlow(w, authReq)
 }
 
+// refuseUnreadableRequest answers a request the wallet cannot parse. The
+// error goes to the caller and the user. The request's destination gets
+// nothing (RFC 6749 §4.1.2.1, applied by OpenID4VP 1.0 §8.5).
+func (s *Server) refuseUnreadableRequest(w http.ResponseWriter, owner string, err error) {
+	s.log("  ERROR: %v", err)
+	action, message := "presentation", "Failed to parse authorization request"
+	if errors.Is(err, oid4vc.ErrUnrecognizedInput) {
+		action, message = "input", "Not an OpenID4VCI offer or OpenID4VP request"
+	}
+	s.wallet.reportRefusal(action, "authorization_request_unreadable", owner, message, "", err)
+	s.triggerUIRequest("")
+	apierror.WriteErr(w, http.StatusBadRequest, oid4vp.ParseErrorCode(err), err)
+}
+
 func (s *Server) handlePresentationAPI(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		URI               string `json:"uri"`
@@ -70,7 +81,7 @@ func (s *Server) handlePresentationAPI(w http.ResponseWriter, r *http.Request) {
 		SessionTranscript string `json:"session_transcript,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, "invalid JSON body: "+err.Error())
+		apierror.InvalidJSON(w, err)
 		return
 	}
 
@@ -89,21 +100,7 @@ func (s *Server) handlePresentationAPI(w http.ResponseWriter, r *http.Request) {
 	}
 	parsed, err := oid4vp.ParseAuthorizationRequestWithOptions(body.URI, s.parseOpts)
 	if err != nil {
-		s.log("  ERROR: %v", err)
-		message := "Failed to parse authorization request"
-		if errors.Is(err, oid4vc.ErrUnrecognizedInput) {
-			message = "Not an OpenID4VCI offer or OpenID4VP request"
-			s.wallet.AddLog("input", message, false)
-		} else {
-			s.wallet.AddLog("presentation", fmt.Sprintf("Failed to parse request: %v", err), false)
-		}
-		s.wallet.Consents().NotifyError(consent.Error{
-			Owner:   requestOwner(r),
-			Message: message,
-			Detail:  err.Error(),
-		})
-		s.triggerUIRequest("")
-		apierror.Write(w, http.StatusBadRequest, oid4vp.ParseErrorCode(err), err.Error())
+		s.refuseUnreadableRequest(w, requestOwner(r), err)
 		return
 	}
 

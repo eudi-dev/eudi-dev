@@ -467,6 +467,8 @@ func NewRuntime() *Runtime {
 type Error struct {
 	Message string `json:"message"`
 	Detail  string `json:"detail,omitempty"`
+	// Findings are the failed checks behind a refusal, one per entry.
+	Findings []string `json:"findings,omitempty"`
 	// Never serialize the owner because another caller could use it to claim the flow.
 	Owner string `json:"-"`
 }

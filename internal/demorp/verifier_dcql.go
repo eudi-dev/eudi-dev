@@ -21,6 +21,7 @@ import (
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/dcql"
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 )
 
 // claimQuery is one DCQL claims query (OpenID4VP 1.0 §6.3).
@@ -33,8 +34,8 @@ type claimQuery struct {
 // parseDCQLQuery reads the DCQL query from the verifier page. The request
 // sends it unchanged, and the response is checked against it.
 func parseDCQLQuery(raw map[string]any) ([]credentialQuery, []credentialSet, error) {
-	if findings := dcql.QueryFindings(raw); len(findings) > 0 {
-		return nil, nil, fmt.Errorf("the DCQL query is invalid: %s", strings.Join(findings, ". "))
+	if list := dcql.QueryFindings(raw); len(list) > 0 {
+		return nil, nil, &findings.Error{Summary: "the DCQL query is invalid", Findings: list}
 	}
 	var queries []credentialQuery
 	for _, entry := range raw["credentials"].([]any) {

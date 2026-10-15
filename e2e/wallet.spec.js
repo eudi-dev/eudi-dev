@@ -1243,7 +1243,8 @@ test("EUDI offer scheme reports missing offer parameters through issuance", asyn
   expect(body.error).toBe("invalid_request");
   expect(body.error_description).toContain("credential_offer");
   await expect(page.locator("#consent-overlay")).toHaveClass(/active/);
-  await expect(page.locator("#error-message")).toContainText("credential_offer");
+  await expect(page.locator("#error-message")).toHaveText("The wallet refused the credential offer");
+  await expect(page.locator("#consent-dialog")).toContainText("credential_offer");
 });
 
 // The error dialog is modal: it takes the focus, keeps Tab inside, closes with
@@ -2188,6 +2189,10 @@ test.describe("ARF checks", () => {
     expect(status).toBe(400);
     expect(body.error).toBe("invalid_request");
     expect(body.error_description).toContain("RPA_03");
+    expect(body.findings).toEqual(expect.arrayContaining([expect.stringContaining("RPA_03")]));
+    // The error dialog lists the findings one by one.
+    await expect(page.locator("#error-message")).toHaveText("The wallet refused the request");
+    await expect(page.locator("#error-findings li").filter({ hasText: "RPA_03" })).toHaveCount(1);
   });
 
   test("with --arf the offer dialog warns about an unregistered issuer", async ({ page }) => {

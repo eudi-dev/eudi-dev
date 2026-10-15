@@ -21,11 +21,20 @@ import (
 
 // RenewCredential renews a credential with its refresh token. The renewed
 // credential keeps the ID, so queries, UI selections and logs still match.
-func (w *Wallet) RenewCredential(id string) (*StoredCredential, error) {
+// A failed renewal is logged like a failed issuance.
+func (w *Wallet) RenewCredential(id string) (renewed *StoredCredential, err error) {
 	cred, ok := w.GetCredential(id)
 	if !ok {
-		return nil, fmt.Errorf("credential %s not found", id)
+		return nil, fmt.Errorf("%w: %s", ErrCredentialNotFound, id)
 	}
+	defer func() {
+		if err != nil {
+			w.addProtocolLog("issuance", "renewal_failed", fmt.Sprintf("Renewing credential %s failed: %v", credentialLabel(cred), err), false, map[string]any{
+				"credential_id": id,
+				"error":         err.Error(),
+			})
+		}
+	}()
 	if !cred.CanRenew() {
 		return nil, fmt.Errorf("credential %s cannot be renewed: its issuer handed over no refresh token", id)
 	}
@@ -69,7 +78,7 @@ func (w *Wallet) RenewCredential(id string) (*StoredCredential, error) {
 	if err != nil {
 		return nil, err
 	}
-	renewed, _, err := w.storeIssuedCredential(credResp, credentialDelivery{
+	renewed, _, err = w.storeIssuedCredential(credResp, credentialDelivery{
 		metadata:  metadata,
 		renewal:   renewal,
 		proofKeys: proofKeys,
