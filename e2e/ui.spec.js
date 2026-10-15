@@ -93,6 +93,19 @@ test.describe("Page load", () => {
   });
 });
 
+test.describe("Get the CLI dialog", () => {
+  test("maximizes and closes with the title buttons", async ({ page }) => {
+    await page.goto("/");
+    await page.locator("#get-cli-link").click();
+    await expect(page.locator("#cli-overlay")).toHaveClass(/active/);
+    await page.locator("#cli-dialog-size").click();
+    await expect(page.locator("#cli-dialog")).toHaveClass(/dialog-maximized/);
+    await expect(page.locator("#cli-dialog-command-toggle")).toBeHidden();
+    await page.locator("#cli-dialog-close").click();
+    await expect(page.locator("#cli-overlay")).not.toHaveClass(/active/);
+  });
+});
+
 test.describe("JWT decoding", () => {
   test("decodes a trust-list JWT and displays its payload", async ({ page }) => {
     const jwt = readFileSync(

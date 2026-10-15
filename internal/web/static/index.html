@@ -7,6 +7,7 @@
   <title>EUDI Dev Decoder</title>
   <meta name="description" content="Decode and inspect SD-JWT VC, mdoc and JWT credentials, presentations and requests of the EUDI ecosystem in the browser.">
   <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="dialog-tools.css">
   <link rel="stylesheet" href="style.css">
   <script src="theme.js"></script>
 </head>
@@ -61,7 +62,7 @@
     <div class="footer-disclaimer" id="footer-disclaimer">Unofficial, independent open source project. Not affiliated with or endorsed by the European Commission or the European Union.</div>
   </footer>
   <div class="consent-overlay" id="cli-overlay">
-    <div class="consent-dialog">
+    <div class="consent-dialog" id="cli-dialog">
       <div class="consent-title" id="cli-title">Get the CLI</div>
       <p class="dialog-hint" id="cli-intro">The <code>eudi</code> CLI from <a href="https://github.com/eudi-dev/eudi-dev" id="cli-repo-link" target="_blank" rel="noopener">eudi-dev</a> decodes, issues and presents credentials. It also runs a local wallet and proxies wallet traffic.</p>
       <div class="cli-install">
@@ -76,12 +77,13 @@
       </div>
       <p class="dialog-hint" id="cli-disclaimer">Independent open source project. Not affiliated with or endorsed by the European Commission or the European Union.</p>
       <div class="consent-buttons">
-        <button class="btn" id="cli-close">Close</button>
+        <button class="btn" id="cli-close" data-dialog-close>Close</button>
       </div>
     </div>
   </div>
 
   <script src="footer.js"></script>
   <script src="app.js"></script>
+  <script src="dialog-tools.js"></script>
 </body>
 </html>

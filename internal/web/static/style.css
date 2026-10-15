@@ -922,6 +922,7 @@ main {
 }
 
 .consent-dialog {
+  position: relative;
   background: var(--bg-dialog);
   border: 1px solid var(--border-dialog);
   border-radius: 22px;
