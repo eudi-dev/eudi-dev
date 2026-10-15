@@ -65,7 +65,8 @@
   }
 
   // setCommand registers the command builder of a dialog, or removes it when
-  // build is null. build returns { curl, cli, note, cliNote }. It runs only
+  // build is null. build returns { curl, cli, note, cliNote, docs }. docs is
+  // { text, label, href } and links the documentation after the note. It runs only
   // while the panel is open. It throws an Error for unusable form values.
   function setCommand(dialog, build) {
     if (build) builders.set(dialog, build);
@@ -105,7 +106,9 @@
         '<button type="button" class="btn btn-sm" id="' + id + '-command-copy">Copy</button>' +
       '</div>' +
       '<pre class="dialog-command-text" id="' + id + '-command-text" tabindex="0"></pre>' +
-      '<p class="dialog-command-note" id="' + id + '-command-note" hidden></p>';
+      '<p class="dialog-command-note" id="' + id + '-command-note" hidden></p>' +
+      '<p class="dialog-command-note" id="' + id + '-command-docs" hidden><span id="' + id + '-command-docs-text"></span> ' +
+        '<a id="' + id + '-command-docs-link" target="_blank" rel="noopener"></a></p>';
     (title || actions).after(panel);
 
     const state = stateOf(dialog);
@@ -190,6 +193,15 @@
     const noteText = command && (mode === 'cli' ? command.cliNote : command.note);
     note.textContent = noteText || '';
     note.hidden = !noteText;
+    const docs = panel.querySelector('#' + dialog.id + '-command-docs');
+    const doc = command && command.docs;
+    docs.hidden = !doc;
+    if (doc) {
+      docs.querySelector('#' + dialog.id + '-command-docs-text').textContent = doc.text;
+      const link = docs.querySelector('#' + dialog.id + '-command-docs-link');
+      link.href = doc.href;
+      link.textContent = doc.label;
+    }
   }
 
   // Edits update an open command panel. After a redraw of the dialog's

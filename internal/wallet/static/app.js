@@ -55,6 +55,15 @@
   const openedForRequest = pageParams.get('request') || '';
 
   // The request ID lets a browser without cookies answer its consent request.
+  // docsURL links a page of the docs. A release links the docs of its own
+  // tag. A beta's docs aren't on main yet. Other builds, such as a local
+  // v3.1.2+dirty or a pseudo-version, have no tag and link main.
+  function docsURL(doc) {
+    const version = window.EUDI_VERSION || '';
+    const ref = /^v\d+\.\d+\.\d+(-(beta|rc)\.\d+)?$/.test(version) ? version : 'main';
+    return 'https://github.com/eudi-dev/eudi-dev/blob/' + encodeURIComponent(ref) + '/' + doc;
+  }
+
   function approveURL(id, action) {
     const named = id === openedForRequest ? '?request=' + encodeURIComponent(id) : '';
     return 'api/requests/' + id + action + named;
@@ -4974,6 +4983,11 @@
       command.cli = eudiDialogs.cli('eudi registrar enrol -', flags) + eudiDialogs.heredoc(JSON.stringify(body, null, 2));
     }
     command.cliNote = command.note;
+    command.docs = {
+      text: 'This enrolment is an eudi-dev endpoint. It registers the party and issues both certificates in one step. For the standardized TS05 registry endpoints, see',
+      label: 'Registrar API',
+      href: docsURL('docs/wallet/registrar.md#registrar-api'),
+    };
     return command;
   }
   eudiDialogs.setCommand(document.getElementById('registrar-dialog'), registrarCommand);
@@ -5421,10 +5435,8 @@
     document.querySelectorAll('.howto-origin').forEach((el) => {
       el.textContent = appBase.href.replace(/\/$/, '');
     });
-    // A release links the docs of its own tag. A beta's docs aren't on main yet.
-    const ref = /^v\d/.test(window.EUDI_VERSION || '') ? window.EUDI_VERSION : 'main';
     howtoOverlay.querySelectorAll('a[data-doc]').forEach((a) => {
-      a.href = 'https://github.com/eudi-dev/eudi-dev/blob/' + encodeURIComponent(ref) + '/' + a.dataset.doc;
+      a.href = docsURL(a.dataset.doc);
     });
     howtoOverlay.classList.add('active');
   });

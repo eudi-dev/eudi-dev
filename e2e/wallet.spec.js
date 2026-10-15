@@ -3223,6 +3223,7 @@ test.describe("Commands in dialogs", () => {
     const text = page.locator("#registrar-dialog-command-text");
     await expect(text).toContainText("<your certificate signing request in PEM>");
     await expect(page.locator("#registrar-dialog-command-note")).toContainText("openssl req");
+    await expect(page.locator("#registrar-dialog-command-docs-link")).toHaveAttribute("href", /docs\/wallet\/registrar\.md#registrar-api$/);
 
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "eudi-dev-csr-"));
     execSync('openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -keyout key.pem -out csr.pem -subj "/CN=Command Shop" 2>/dev/null', { cwd: dir });
