@@ -141,10 +141,10 @@ func (d *DemoRP) startInteractiveAuthorization(w http.ResponseWriter, r *http.Re
 	offered := r.PostFormValue("interaction_types_supported")
 	if grant.settings.authorization == authorizationBrowser {
 		if offersInteractionType(offered, interactionTypeAuthViaWeb) {
-			d.startAuthViaWebInteraction(w, grant)
+			d.startAuthViaWebInteraction(w, r, grant)
 			return
 		}
-		d.redirectChallengeToWeb(w, grant)
+		d.redirectChallengeToWeb(w, r, grant)
 		return
 	}
 
@@ -271,35 +271,19 @@ func newAuthSession() string {
 	return hex.EncodeToString(randomBytes(32))
 }
 
-// pushChallengeAuthRequest stores a pushed authorization request for browser
-// sign-in, like the PAR endpoint.
-func (d *DemoRP) pushChallengeAuthRequest(grant authGrant) *authRequestState {
-	request := &authRequestState{
-		requestURI: requestURIPrefix + randToken(),
-		authGrant:  grant,
-		expires:    time.Now().Add(authRequestTTL),
-	}
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	d.pruneLocked()
-	makeRoom(d.authRequests, func(r *authRequestState) time.Time { return r.expires })
-	d.authRequests[request.requestURI] = request
-	return request
-}
-
 // startAuthViaWebInteraction answers with the browser interaction of
 // §6.2.1.2. The wallet uses the request_uri for an authorization request
 // (RFC 9126 §4). The redirect from the authorization endpoint completes the
 // authorization with a code. The token endpoint redeems it with the
 // code_verifier. §6.2.1.2: "the Authorization Server MUST omit auth_session
 // parameter in the response".
-func (d *DemoRP) startAuthViaWebInteraction(w http.ResponseWriter, grant authGrant) {
+func (d *DemoRP) startAuthViaWebInteraction(w http.ResponseWriter, r *http.Request, grant authGrant) {
 	if grant.redirectURI == "" {
 		writeJSON(w, http.StatusBadRequest, oauthError("invalid_request",
 			"the auth_via_web interaction continues at the authorization endpoint, which needs a redirect_uri in the authorization challenge request"))
 		return
 	}
-	request := d.pushChallengeAuthRequest(grant)
+	request := d.storeAuthRequest(grant, r)
 	log.Printf("[Demo issuer] interactive authorization: this offer wants the browser sign-in, asking for the auth_via_web interaction")
 	writeJSON(w, http.StatusForbidden, map[string]any{
 		"error":                     "insufficient_authorization",
@@ -312,14 +296,14 @@ func (d *DemoRP) startAuthViaWebInteraction(w http.ResponseWriter, grant authGra
 // redirectChallengeToWeb answers a wallet without auth_via_web support. It
 // returns redirect_to_web with a pushed authorization request for the
 // browser sign-in.
-func (d *DemoRP) redirectChallengeToWeb(w http.ResponseWriter, grant authGrant) {
+func (d *DemoRP) redirectChallengeToWeb(w http.ResponseWriter, r *http.Request, grant authGrant) {
 	if grant.redirectURI == "" {
 		writeJSON(w, http.StatusBadRequest, oauthError("invalid_request",
 			"this offer is redeemed with a browser sign-in, which needs a redirect_uri in the authorization challenge request"))
 		return
 	}
 
-	request := d.pushChallengeAuthRequest(grant)
+	request := d.storeAuthRequest(grant, r)
 	log.Printf("[Demo issuer] interactive authorization: this offer wants the browser sign-in, answering redirect_to_web")
 	writeJSON(w, http.StatusForbidden, map[string]any{
 		"error":       "redirect_to_web",

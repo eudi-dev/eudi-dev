@@ -365,6 +365,17 @@ func (d *DemoRP) handlePushedAuthorizationRequest(w http.ResponseWriter, r *http
 		writeJSON(w, http.StatusBadRequest, errResp)
 		return
 	}
+	request := d.storeAuthRequest(grant, r)
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"request_uri": request.requestURI,
+		"expires_in":  int(authRequestTTL.Seconds()),
+	})
+}
+
+// storeAuthRequest keeps a pushed authorization request for the browser
+// sign-in. The PAR endpoint and the authorization challenge endpoint both
+// push one. The login page shows the client attestation sent with r.
+func (d *DemoRP) storeAuthRequest(grant authGrant, r *http.Request) *authRequestState {
 	request := &authRequestState{
 		requestURI:           requestURIPrefix + randToken(),
 		authGrant:            grant,
@@ -373,15 +384,11 @@ func (d *DemoRP) handlePushedAuthorizationRequest(w http.ResponseWriter, r *http
 		expires:              time.Now().Add(authRequestTTL),
 	}
 	d.mu.Lock()
+	defer d.mu.Unlock()
 	d.pruneLocked()
 	makeRoom(d.authRequests, func(r *authRequestState) time.Time { return r.expires })
 	d.authRequests[request.requestURI] = request
-	d.mu.Unlock()
-
-	writeJSON(w, http.StatusCreated, map[string]any{
-		"request_uri": request.requestURI,
-		"expires_in":  int(authRequestTTL.Seconds()),
-	})
+	return request
 }
 
 // handleAuthorizeSubmit completes the login and redirects with the

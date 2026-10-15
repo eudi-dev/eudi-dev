@@ -254,6 +254,44 @@ func TestBrowserOfferAsksForTheAuthViaWebInteraction(t *testing.T) {
 	}
 }
 
+// The sign-in after auth_via_web shows the client attestation the wallet
+// sent to the authorization challenge endpoint, as it does after PAR.
+func TestTheSignInAfterAuthViaWebShowsTheClientAttestation(t *testing.T) {
+	d, _, _ := newDemoRP(t)
+	issuerState := createOfferState(t, d, authorizationBrowser)
+	provider := foreignWalletProvider(t)
+	clientKey, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatalf("generating client key: %v", err)
+	}
+	attestation := provider.attest(t, "http://wallet.example", clientKey)
+	pop := attestationPoP(t, clientKey, demoIssuerID)
+	rec := postAuthorizationChallenge(t, d, map[string]string{
+		"OAuth-Client-Attestation":     attestation,
+		"OAuth-Client-Attestation-PoP": pop,
+		"DPoP":                         dpopProof(t, clientKey, "POST", demoIssuerID+challengePath),
+	}, url.Values{
+		"issuer_state":                {issuerState},
+		"interaction_types_supported": {interactionTypePresentation + "," + interactionTypeAuthViaWeb},
+	})
+	var response map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("parsing response %q: %v", rec.Body.String(), err)
+	}
+	requestURI, _ := response["request_uri"].(string)
+
+	login := httptest.NewRecorder()
+	d.IssuerHandler().ServeHTTP(login, httptest.NewRequest(http.MethodGet, "/authorize?request_uri="+url.QueryEscape(requestURI), nil))
+	if login.Code != http.StatusOK {
+		t.Fatalf("serving the login page: %d %s", login.Code, login.Body.String())
+	}
+	for _, want := range []string{attestation, pop} {
+		if !strings.Contains(login.Body.String(), want) {
+			t.Errorf("the debug panel does not show %q", want)
+		}
+	}
+}
+
 // RFC 6749 §3.1 sends the request parameters as a form. A body that does not
 // parse is an invalid_request.
 func TestAnAuthorizationChallengeWithABrokenFormIsRefused(t *testing.T) {
