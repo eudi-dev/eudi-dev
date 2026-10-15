@@ -118,6 +118,8 @@ func (f fakeCatalogue) CheckCatalogueAnchoring(string) (CatalogueAnchoring, bool
 
 func (f fakeCatalogue) RefusesTrustFindings() bool { return f.refuses }
 
+func (f fakeCatalogue) RefusesHAIPFindings() bool { return f.refuses }
+
 func anchoredBy(c issuerChain) fakeCatalogue {
 	return fakeCatalogue{anchoring: CatalogueAnchoring{Entry: "Test", AnchoredBy: "https://lists.example/pid", IssuanceAnchors: []*x509.Certificate{c.ca}}}
 }
@@ -272,15 +274,13 @@ func TestAJWTIsDetectedByItsEncoding(t *testing.T) {
 	}
 }
 
-// serveStatusList serves a JWT Status List Token signed by the leaf of a
-// chain. It counts the requests.
-func serveStatusList(t *testing.T, c issuerChain, bits []byte) (*httptest.Server, *atomic.Int32) {
+// serveStatusList serves a JWT Status List Token signed by key, with chain
+// in its x5c header.
+func serveStatusList(t *testing.T, key *ecdsa.PrivateKey, chain []*x509.Certificate) *httptest.Server {
 	t.Helper()
-	var requests atomic.Int32
 	var srv *httptest.Server
 	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requests.Add(1)
-		token, err := statuslist.GenerateStatusListJWT(bits, c.issuerKey, statuslist.StatusListConfig{URI: srv.URL, CertChain: []*x509.Certificate{c.leaf, c.ca}})
+		token, err := statuslist.GenerateStatusListJWT(make([]byte, 16), key, statuslist.StatusListConfig{URI: srv.URL, CertChain: chain})
 		if err != nil {
 			t.Errorf("GenerateStatusListJWT: %v", err)
 			return
@@ -289,14 +289,14 @@ func serveStatusList(t *testing.T, c issuerChain, bits []byte) (*httptest.Server
 		_, _ = w.Write([]byte(token))
 	}))
 	t.Cleanup(srv.Close)
-	return srv, &requests
+	return srv
 }
 
 // A status list with an unanchored chain gets a warning on its
 // signature. With the revocation service of a supplied list it passes.
 func TestTheStatusListSignatureNeedsATrustAnchor(t *testing.T) {
 	c := newIssuerChain(t)
-	srv, _ := serveStatusList(t, c, make([]byte, 16))
+	srv := serveStatusList(t, c.issuerKey, []*x509.Certificate{c.leaf, c.ca})
 	raw := c.sdjwt(t, mock.SDJWTConfig{StatusListURI: srv.URL, StatusListIdx: 3})
 
 	result := validated(t, raw, Trust{}, Options{Status: true})
@@ -310,6 +310,28 @@ func TestTheStatusListSignatureNeedsATrustAnchor(t *testing.T) {
 	trust := Trust{Supplied: true, Revocation: []*x509.Certificate{c.ca}}
 	if got := mustFind(t, validated(t, raw, trust, Options{Status: true}), CheckStatusSignature); got.Status != Pass || got.Detail != "Valid, signed by "+c.leaf.Subject.CommonName {
 		t.Errorf("status list signature = %+v, want Valid, signed by the leaf", got)
+	}
+}
+
+// HAIP 1.0 §6.1 requires the status list token's key in its x5c header.
+// Without it the status list signature gets a warning. A wallet in strict
+// mode with --haip refuses the status.
+func TestAStatusListWithoutX5CIsAHAIPFinding(t *testing.T) {
+	c := newIssuerChain(t)
+	srv := serveStatusList(t, c.issuerKey, nil)
+	raw := c.sdjwt(t, mock.SDJWTConfig{StatusListURI: srv.URL, StatusListIdx: 3})
+
+	result := validated(t, raw, Trust{}, Options{Status: true})
+	if got := mustFind(t, result, CheckStatus); got.Status != Pass {
+		t.Fatalf("status = %+v, want it to pass", got)
+	}
+	if got := mustFind(t, result, CheckStatusSignature); got.Status != Warning || !strings.Contains(got.Detail, "HAIP 1.0 §6.1") {
+		t.Errorf("status list signature = %+v, want a HAIP 1.0 §6.1 warning", got)
+	}
+
+	strict := validated(t, raw, Trust{Catalogue: fakeCatalogue{refuses: true}}, Options{Status: true})
+	if got := mustFind(t, strict, CheckStatus); got.Status != Fail || !strings.Contains(got.Detail, "HAIP 1.0 §6.1") {
+		t.Errorf("status = %+v, want a HAIP 1.0 §6.1 failure", got)
 	}
 }
 
@@ -339,7 +361,7 @@ func TestASDJWTVCWithACWTStatusListIsReported(t *testing.T) {
 // The status list is fetched with the HTTP client of the trust context.
 func TestTheStatusListIsFetchedWithTheTrustClient(t *testing.T) {
 	c := newIssuerChain(t)
-	srv, _ := serveStatusList(t, c, make([]byte, 16))
+	srv := serveStatusList(t, c.issuerKey, []*x509.Certificate{c.leaf, c.ca})
 	raw := c.sdjwt(t, mock.SDJWTConfig{StatusListURI: srv.URL})
 
 	var used atomic.Int32

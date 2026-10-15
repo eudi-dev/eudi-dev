@@ -224,7 +224,7 @@ func printValidation(result *validate.Result, opts output.Options, report jsonRe
 			} else if status.IsValid {
 				fmt.Printf("  ! Status list signature: %s (not anchored by a trusted list)\n", status.SignatureInfo)
 			}
-			for _, warning := range status.Warnings {
+			for _, warning := range slices.Concat(status.Warnings, status.HAIPFindings) {
 				fmt.Printf("  ! Status list: %s\n", warning)
 			}
 		})

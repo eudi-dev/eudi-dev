@@ -99,6 +99,9 @@ type Catalogue interface {
 	// RefusesTrustFindings reports whether the wallet refuses a credential
 	// with anchoring findings. Otherwise they are warnings.
 	RefusesTrustFindings() bool
+	// RefusesHAIPFindings reports whether the wallet refuses a status list
+	// with HAIP 1.0 findings. Otherwise they are warnings.
+	RefusesHAIPFindings() bool
 }
 
 // CatalogueAnchoring is the result of validating a credential with the

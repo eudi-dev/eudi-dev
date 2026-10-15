@@ -196,7 +196,7 @@ The tracked revision is **draft-ietf-oauth-status-list-21** (editor's copy at <h
 | CORS on the status list endpoint | Implemented | Section 8.1 (browser-based clients) |
 | Historical resolution (the `time` query parameter) | Not implemented | The endpoint answers 501 (section 8.4) |
 | Status List Token validation rules (section 8.3) | Implemented | Signature, `typ`, `sub` against the credential's `uri`, `iat`, `exp`, `bits`, index bounds. A token that fails any of them yields no status |
-| Status List Token signature verification | Implemented | Always performed. The key comes from the trusted list chain, a caller-supplied key, `x5c`/`x5chain`, or the token's own `jwk`. A key without a trust anchor is reported as unanchored |
+| Status List Token signature verification | Implemented | Always performed. The key comes from the trusted list chain, a caller-supplied key, `x5c`/`x5chain`, the token's own `jwk`, or for a JWT the `kid` in the JWT VC Issuer Metadata of its `iss` (section 11.3 leaves key resolution open). A key without a trust anchor is reported as unanchored. A JWT token without `x5c` is a HAIP 1.0 §6.1 finding |
 | Status Types (section 7.1) | Implemented | Reported by name (VALID, INVALID, SUSPENDED, application specific, unknown) |
 | Revocation status check | Implemented | In `validate` and the validate UI when a status reference is present |
 | Runtime status changes via API | Implemented | `POST /api/credentials/<id>/status`. Accepts any Status Type value from 0 to 255. The published list widens to 1, 2, 4 or 8 bits to hold the value |

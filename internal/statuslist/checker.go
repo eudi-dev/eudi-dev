@@ -32,6 +32,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
+	"github.com/eudi-dev/eudi-dev/v3/internal/issuermetadata"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
 	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
 	"github.com/eudi-dev/eudi-dev/v3/internal/validity"
@@ -175,6 +176,7 @@ func CheckWithOptions(ref *StatusRef, opts CheckOptions) (*StatusResult, error) 
 		SignatureInfo:  tok.signatureInfo,
 		TrustAnchored:  tok.trustAnchored,
 		Warnings:       tok.warnings,
+		HAIPFindings:   tok.haipFindings,
 	}, nil
 }
 
@@ -280,6 +282,7 @@ type statusListToken struct {
 	signatureInfo string
 	trustAnchored bool
 	warnings      []string
+	haipFindings  []string
 }
 
 func (t *statusListToken) validate(ref *StatusRef, opts CheckOptions) error {
@@ -346,7 +349,7 @@ type keyCandidates struct {
 // Sections 5.1 and 5.2 say "Relying Parties MUST reject JWTs with an invalid
 // signature", so verification runs even without a trusted list. A trust anchor
 // only decides whether the key is trusted, and that is reported separately.
-func resolveKeys(certs []*x509.Certificate, embedded []crypto.PublicKey, named string, opts CheckOptions) (*keyCandidates, error) {
+func resolveKeys(certs []*x509.Certificate, embedded []crypto.PublicKey, named, iss string, opts CheckOptions) (*keyCandidates, error) {
 	if len(opts.TrustListCerts) > 0 {
 		if len(certs) == 0 {
 			return nil, fmt.Errorf("the status list token carries no certificate chain to validate against the trusted list")
@@ -402,7 +405,42 @@ func resolveKeys(certs []*x509.Certificate, embedded []crypto.PublicKey, named s
 		return nil, fmt.Errorf("the status list token names its key by the DID %s. This tool does not resolve DIDs. Section 11.3 leaves key resolution to the ecosystem, and the EUDI ecosystem identifies a Status Issuer by the certificate chain in the x5c header", did)
 	}
 
+	// Section 11.3 allows a kid that refers to web-based key resolution. No
+	// specification defines that resolution for a Status List Token, so the
+	// JWT VC Issuer Metadata of SD-JWT VC §4 is used. A key found there is
+	// never trust anchored.
+	if iss != "" {
+		keys, err := issuerMetadataKeys(iss, named, opts)
+		if err != nil {
+			return nil, fmt.Errorf("no key to verify the status list token with: it has no x5c and no jwk header, and its kid could not be resolved through the issuer metadata of %s: %w", iss, err)
+		}
+		return &keyCandidates{keys: keys, info: "signed by a key from the issuer metadata of " + iss}, nil
+	}
+
 	return nil, fmt.Errorf("no key to verify the status list token with: it carries no certificate chain and no public key, and no trusted list or key was supplied")
+}
+
+// issuerMetadataKeys returns the keys of the JWT VC Issuer Metadata of iss
+// that match kid.
+func issuerMetadataKeys(iss, kid string, opts CheckOptions) ([]crypto.PublicKey, error) {
+	jwks, err := issuermetadata.JWKs(iss, kid, opts.HTTPClient)
+	if err != nil {
+		return nil, err
+	}
+	var keys []crypto.PublicKey
+	var parseErr error
+	for _, jwk := range jwks {
+		key, err := publicKeyFromJWK(jwk)
+		if err != nil {
+			parseErr = err
+			continue
+		}
+		keys = append(keys, key)
+	}
+	if len(keys) == 0 {
+		return nil, fmt.Errorf("parsing the issuer metadata key: %w", parseErr)
+	}
+	return keys, nil
 }
 
 // verifyChain checks the token's chain against the trust anchors. An anchor
@@ -461,8 +499,18 @@ func parseJWTStatusListToken(body []byte, opts CheckOptions) (*statusListToken, 
 		}
 	}
 
+	payloadBytes, err := format.DecodeBase64URL(parts[1])
+	if err != nil {
+		return nil, fmt.Errorf("decoding status list payload: %w", err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+		return nil, fmt.Errorf("parsing status list payload: %w", err)
+	}
+
 	kid, _ := header["kid"].(string)
-	candidates, err := resolveKeys(certs, embedded, kid, opts)
+	iss, _ := payload["iss"].(string)
+	candidates, err := resolveKeys(certs, embedded, kid, iss, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -486,15 +534,6 @@ func parseJWTStatusListToken(body []byte, opts CheckOptions) (*statusListToken, 
 		return nil, fmt.Errorf("the status list token's %s signature does not verify", alg)
 	}
 
-	payloadBytes, err := format.DecodeBase64URL(parts[1])
-	if err != nil {
-		return nil, fmt.Errorf("decoding status list payload: %w", err)
-	}
-	var payload map[string]any
-	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-		return nil, fmt.Errorf("parsing status list payload: %w", err)
-	}
-
 	tok := &statusListToken{
 		format:        FormatJWT,
 		signatureInfo: candidates.info,
@@ -502,6 +541,12 @@ func parseJWTStatusListToken(body []byte, opts CheckOptions) (*statusListToken, 
 	}
 	if candidates.warning != "" {
 		tok.warnings = append(tok.warnings, candidates.warning)
+	}
+	// HAIP 1.0 §6.1: "The public key used to validate the signature on the
+	// Status List Token [...] MUST be included in the x5c JOSE header of the
+	// Token."
+	if len(certs) == 0 {
+		tok.haipFindings = append(tok.haipFindings, "HAIP 1.0 §6.1: the status list token has no x5c header. HAIP requires the signing certificate there")
 	}
 	tok.subject, _ = payload["sub"].(string)
 	tok.issuedAt = unixClaim(payload["iat"])

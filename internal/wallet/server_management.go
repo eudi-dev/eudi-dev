@@ -107,6 +107,18 @@ func (s *Server) handleGetCredentialStatus(w http.ResponseWriter, r *http.Reques
 		})
 		return
 	}
+	if len(result.HAIPFindings) > 0 {
+		finding := strings.Join(result.HAIPFindings, ". ")
+		details := map[string]any{"credential_id": cred.ID, "uri": ref.URI, "idx": ref.Idx}
+		if s.wallet.RefusesHAIPFindings() {
+			s.wallet.addProtocolWarning("wallet", "status_list_refused",
+				fmt.Sprintf("Status list of credential %s was refused: %s", credentialLabel(cred), finding), details)
+			apierror.WriteStatus(w, http.StatusUnprocessableEntity, finding)
+			return
+		}
+		s.wallet.addProtocolWarning("wallet", "status_list_haip_finding",
+			fmt.Sprintf("Status list of credential %s: %s", credentialLabel(cred), finding), details)
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"managed":       false,
 		"status":        result.Status,
@@ -115,8 +127,10 @@ func (s *Server) handleGetCredentialStatus(w http.ResponseWriter, r *http.Reques
 		"format":        result.Format,
 		"uri":           ref.URI,
 		"idx":           ref.Idx,
+		"signatureInfo": result.SignatureInfo,
 		"trustAnchored": result.TrustAnchored,
 		"warnings":      result.Warnings,
+		"haipFindings":  result.HAIPFindings,
 	})
 }
 

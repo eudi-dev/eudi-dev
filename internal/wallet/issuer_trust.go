@@ -124,6 +124,12 @@ func (w *Wallet) RefusesTrustFindings() bool {
 	return w.Mode() == ValidationModeStrict && w.ARFChecks()
 }
 
+// RefusesHAIPFindings reports whether a status list with HAIP 1.0 findings is
+// refused. Strict mode refuses them only with --haip.
+func (w *Wallet) RefusesHAIPFindings() bool {
+	return w.Mode() == ValidationModeStrict && w.HAIPChecks()
+}
+
 // CheckCatalogueAnchoring validates a raw SD-JWT VC or mdoc with the trusted
 // lists of its catalogue entry. found is false when the catalogue has no entry
 // for its type.

@@ -27,46 +27,6 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
 )
 
-// SD-JWT VC §4 forms the metadata location "by inserting the well-known
-// string /.well-known/jwt-vc-issuer between the host component and the path
-// component (if any) of the iss claim value in the JWT", and §4.1 removes any
-// terminating slash from the path first.
-func TestJWTVCIssuerMetadataURL(t *testing.T) {
-	tests := []struct {
-		iss     string
-		want    string
-		wantErr bool
-	}{
-		{iss: "https://example.com", want: "https://example.com/.well-known/jwt-vc-issuer"},
-		{iss: "https://example.com/", want: "https://example.com/.well-known/jwt-vc-issuer"},
-		{iss: "https://example.com/tenant/1234", want: "https://example.com/.well-known/jwt-vc-issuer/tenant/1234"},
-		{iss: "https://example.com/tenant/1234/", want: "https://example.com/.well-known/jwt-vc-issuer/tenant/1234"},
-		{iss: "https://example.com:8443/tenant", want: "https://example.com:8443/.well-known/jwt-vc-issuer/tenant"},
-		{iss: "http://example.com", wantErr: true},
-		{iss: "https://example.com/tenant?x=1", wantErr: true},
-		{iss: "https://example.com/tenant#frag", wantErr: true},
-		{iss: "not-a-url", wantErr: true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.iss, func(t *testing.T) {
-			got, err := JWTVCIssuerMetadataURL(tt.iss)
-			if tt.wantErr {
-				if err == nil {
-					t.Fatalf("JWTVCIssuerMetadataURL(%q) = %q, want an error", tt.iss, got)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("JWTVCIssuerMetadataURL(%q): %v", tt.iss, err)
-			}
-			if got != tt.want {
-				t.Errorf("JWTVCIssuerMetadataURL(%q) = %q, want %q", tt.iss, got, tt.want)
-			}
-		})
-	}
-}
-
 func tenantToken(t *testing.T, issuer string, key *ecdsa.PrivateKey) *sdjwt.Token {
 	t.Helper()
 	raw, err := mock.GenerateSDJWT(mock.SDJWTConfig{

@@ -17,8 +17,13 @@ package wallet
 import (
 	"fmt"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v3/internal/statuslist"
 )
 
 func newTestServerWithStatusList(t *testing.T) *Server {
@@ -188,5 +193,56 @@ func TestShutdownEndpoint(t *testing.T) {
 	case <-done:
 	case <-time.After(2 * time.Second):
 		t.Fatal("shutdown func not called")
+	}
+}
+
+// HAIP 1.0 §6.1 requires the key of a status list token in its x5c header.
+// Debug mode reports the status with the finding. Strict mode with --haip
+// refuses it.
+func TestExternalStatusListWithoutX5C(t *testing.T) {
+	key, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var list *httptest.Server
+	list = httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+		token, err := statuslist.GenerateStatusListJWT(make([]byte, 16), key, statuslist.StatusListConfig{URI: list.URL})
+		if err != nil {
+			t.Errorf("GenerateStatusListJWT: %v", err)
+			return
+		}
+		rw.Header().Set("Content-Type", statuslist.MediaTypeJWT)
+		_, _ = rw.Write([]byte(token))
+	}))
+	defer list.Close()
+	raw, err := mock.GenerateSDJWT(mock.SDJWTConfig{Issuer: "https://issuer.example", VCT: "urn:example:diploma:1", ExpiresIn: time.Hour, Claims: map[string]any{"degree": "MSc"}, Key: key, StatusListURI: list.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tc := range []struct {
+		name string
+		mode ValidationMode
+		code int
+	}{
+		{"debug", ValidationModeDebug, http.StatusOK},
+		{"strict", ValidationModeStrict, http.StatusUnprocessableEntity},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w := generateTestWallet(t)
+			w.ValidationMode, w.RequireHAIP = tc.mode, true
+			cred, err := w.ImportCredential(raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp := serverRequest(t, NewServer(w, 0, nil), http.MethodGet, "/api/credentials/"+cred.ID+"/status", "")
+			if resp.Code != tc.code || !strings.Contains(resp.Body.String(), "HAIP 1.0 §6.1") {
+				t.Fatalf("status check = %d %s, want %d with the HAIP 1.0 §6.1 finding", resp.Code, resp.Body.String(), tc.code)
+			}
+			log := w.GetLog()
+			if last := log[len(log)-1]; last.Severity != "warning" || !strings.Contains(last.Detail, "HAIP 1.0 §6.1") {
+				t.Errorf("last log entry %+v, want the HAIP 1.0 §6.1 warning", last)
+			}
+		})
 	}
 }

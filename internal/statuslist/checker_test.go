@@ -19,11 +19,15 @@ import (
 	"compress/zlib"
 	"crypto/ecdsa"
 	"crypto/x509"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/format"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 )
 
@@ -338,6 +342,9 @@ func TestCheckWithOptions_SignatureVerification(t *testing.T) {
 	if !result.IsValid {
 		t.Errorf("expected status valid, got %d", result.Status)
 	}
+	if len(result.HAIPFindings) != 0 {
+		t.Errorf("HAIP findings = %v, want none for a token with x5c", result.HAIPFindings)
+	}
 }
 
 func TestCheckWithOptions_UntrustedCert(t *testing.T) {
@@ -409,6 +416,81 @@ func TestCheckWithOptions_NoX5C(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "no certificate chain") {
 		t.Errorf("error = %v, want it to name the missing chain", err)
+	}
+}
+
+// issuerMetadataStatusServer serves a status list token that names its key
+// only by kid, next to the JWT VC Issuer Metadata of its iss. metadataKid is
+// the kid the metadata publishes.
+func issuerMetadataStatusServer(t *testing.T, key *ecdsa.PrivateKey, bitstring []byte, metadataKid string) (*httptest.Server, string) {
+	t.Helper()
+	compressed, err := compressBitstring(bitstring)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var srv *httptest.Server
+	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		iss := srv.URL + "/registry"
+		switch r.URL.Path {
+		case "/.well-known/jwt-vc-issuer/registry":
+			jwk := mock.SigningJWKMap(&key.PublicKey)
+			jwk["kid"] = metadataKid
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"issuer": iss, "jwks": map[string]any{"keys": []any{jwk}}})
+		case "/registry/list":
+			token, err := jws.Sign(
+				map[string]any{"alg": jws.AlgES256, "typ": TypJWT, "kid": "status-key"},
+				map[string]any{
+					"sub":         srv.URL + "/registry/list",
+					"iss":         iss,
+					"iat":         time.Now().Unix(),
+					"status_list": map[string]any{"bits": 1, "lst": format.EncodeBase64URL(compressed)},
+				}, key)
+			if err != nil {
+				t.Errorf("Sign: %v", err)
+				return
+			}
+			w.Header().Set("Content-Type", MediaTypeJWT)
+			_, _ = w.Write([]byte(token))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv, srv.URL + "/registry/list"
+}
+
+// A token that names its key only by kid is verified with the matching key
+// of the JWT VC Issuer Metadata of its iss. That key is not anchored, and the
+// missing x5c is a HAIP 1.0 §6.1 finding.
+func TestCheckWithOptions_KeyFromIssuerMetadata(t *testing.T) {
+	key := mustGenerateKey(t)
+	bitstring := make([]byte, 16)
+	bitstring[0] = 1 << 2
+	srv, uri := issuerMetadataStatusServer(t, key, bitstring, "status-key")
+
+	result, err := CheckWithOptions(&StatusRef{URI: uri, Idx: 2}, CheckOptions{HTTPClient: srv.Client()})
+	if err != nil {
+		t.Fatalf("CheckWithOptions: %v", err)
+	}
+	if result.Status != 1 || result.TrustAnchored {
+		t.Errorf("status %d, anchored %t, want status 1 and not anchored", result.Status, result.TrustAnchored)
+	}
+	if !strings.Contains(result.SignatureInfo, "issuer metadata") {
+		t.Errorf("signature info = %q, want it to name the issuer metadata", result.SignatureInfo)
+	}
+	if len(result.HAIPFindings) != 1 || !strings.Contains(result.HAIPFindings[0], "HAIP 1.0 §6.1") {
+		t.Errorf("HAIP findings = %v, want the missing x5c header", result.HAIPFindings)
+	}
+}
+
+func TestCheckWithOptions_KeyMissingFromIssuerMetadata(t *testing.T) {
+	key := mustGenerateKey(t)
+	srv, uri := issuerMetadataStatusServer(t, key, make([]byte, 16), "other-key")
+
+	_, err := CheckWithOptions(&StatusRef{URI: uri, Idx: 0}, CheckOptions{HTTPClient: srv.Client()})
+	if err == nil || !strings.Contains(err.Error(), "issuer metadata") {
+		t.Fatalf("error = %v, want it to name the issuer metadata", err)
 	}
 }
 

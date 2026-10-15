@@ -693,6 +693,10 @@
       }
       const revoked = result.status === 1;
       badge.textContent = revoked ? 'Revoked' : 'Active';
+      const notes = [].concat(result.warnings || [], result.haipFindings || []);
+      if (!result.trustAnchored) notes.unshift('Not anchored in a trusted list');
+      badge.title = [result.statusName + ' (' + result.uri + ', index ' + result.idx + ')',
+        result.signatureInfo ? 'Status list ' + result.signatureInfo : ''].concat(notes).filter(Boolean).join('. ');
       badge.classList.remove('status-external');
       badge.classList.add(revoked ? 'status-revoked' : 'status-active');
       const card = document.getElementById('credential-' + id);

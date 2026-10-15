@@ -17,6 +17,7 @@ package validate
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -326,6 +327,9 @@ func (v run) status(claims map[string]any, prefer string, c catalogueState, r *R
 	if err != nil {
 		return []Check{{Name: CheckStatus, Status: Fail, Detail: fmt.Sprintf("Status check error: %v", err)}}
 	}
+	if len(result.HAIPFindings) > 0 && v.trust.Catalogue != nil && v.trust.Catalogue.RefusesHAIPFindings() {
+		return []Check{{Name: CheckStatus, Status: Fail, Detail: strings.Join(result.HAIPFindings, ". ")}}
+	}
 	r.Status = result
 	// draft-ietf-oauth-sd-jwt-vc-19 §2.2.2.3: "If the status claim is present
 	// and using the status_list mechanism, the associated Status List Token
@@ -340,12 +344,13 @@ func (v run) status(claims map[string]any, prefer string, c catalogueState, r *R
 	status := Check{Name: CheckStatus, Status: Pass, Detail: fmt.Sprintf("Valid (index %d)", result.Index)}
 
 	signature := Check{Name: CheckStatusSignature, Status: Pass, Detail: "Valid, " + result.SignatureInfo}
+	notes := slices.Concat(result.Warnings, result.HAIPFindings)
 	switch {
-	case !result.TrustAnchored:
+	case !result.TrustAnchored || len(result.HAIPFindings) > 0:
 		signature.Status = Warning
-		signature.Detail = strings.Join(append([]string{capitalize(result.SignatureInfo)}, result.Warnings...), ". ")
-	case len(result.Warnings) > 0:
-		signature.Detail += ". " + strings.Join(result.Warnings, ". ")
+		signature.Detail = strings.Join(append([]string{capitalize(result.SignatureInfo)}, notes...), ". ")
+	case len(notes) > 0:
+		signature.Detail += ". " + strings.Join(notes, ". ")
 	}
 	if result.TrustAnchored && anchored {
 		signature.Anchor = a.Anchor(ServiceRevocation)

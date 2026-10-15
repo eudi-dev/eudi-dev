@@ -438,7 +438,7 @@ curl http://localhost:8085/api/credentials/<id>/status
 
 The endpoint accepts any Status Type from 0 to 255, for example SUSPENDED (`2`) or an application specific value. The published list carries the exact value. Its width is 1, 2, 4 or 8 bits, depending on the largest status in the list (the issuer's choice under section 7).
 
-The GET response contains `status`, `managed`, `uri`, `idx`, and `source` (`wallet` for the wallet's own list, `remote` for a fetched external list). It returns 404 for credentials without any status list reference, 422 for a malformed reference, and 502 when an external status list cannot be fetched.
+The GET response contains `status`, `managed`, `uri`, `idx`, and `source` (`wallet` for the wallet's own list, `remote` for a fetched external list). For an external list it adds `signatureInfo`, `trustAnchored`, `warnings` and `haipFindings`. It returns 404 for credentials without any status list reference, 422 for a malformed reference, and 502 when an external status list cannot be fetched. HAIP 1.0 §6.1 requires an `x5c` header on the status list token. Without it, a wallet in strict mode with `--haip` answers 422. Otherwise the finding is listed in `haipFindings`.
 
 Credential listings (`GET /api/credentials` and `GET /api/credentials/{id}`) include a `status` object for credentials that carry a status list reference: `uri` and `idx` from the credential, `managed` (true when the entry is on this wallet's own status list), and the current `status` value for managed entries.
 

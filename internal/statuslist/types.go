@@ -88,7 +88,10 @@ type StatusResult struct {
 	TrustAnchored bool `json:"trustAnchored"`
 	// Warnings collect conformance problems that did not stop the check.
 	Warnings []string `json:"warnings,omitempty"`
-	Error    string   `json:"error,omitempty"`
+	// HAIPFindings are deviations from HAIP 1.0 §6.1. Callers decide whether
+	// a finding refuses the status.
+	HAIPFindings []string `json:"haipFindings,omitempty"`
+	Error        string   `json:"error,omitempty"`
 }
 
 type CheckOptions struct {
