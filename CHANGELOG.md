@@ -5,6 +5,14 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.2] - 2026-10-15
+
+### Fixed
+
+- **Status lists without `x5c`.** The wallet and the decoder now show the status when the status list token has no `x5c` header. They look up its `kid` in the issuer metadata of its `iss`. HAIP 1.0 §6.1 requires `x5c`, so this gives a warning. Strict mode with `--haip` refuses the status. See [revocation status](docs/validate.md#revocation-status).
+- **Consent timeouts.** A consent request without an answer now ends with HTTP 504 (was 408). Browsers sent the request again after a 408, so the timeout showed twice in the activity log.
+- **Get the CLI in the decoder.** The dialog now has the maximize and close buttons of the wallet dialogs.
+
 ## [3.1.1] - 2026-10-14
 
 ### Added
