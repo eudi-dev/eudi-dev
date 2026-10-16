@@ -193,11 +193,7 @@ func TestARFAcceptsTheWalletsOwnIssuer(t *testing.T) {
 	if _, err := w.RegisterMissingDemoParties(); err != nil {
 		t.Fatal(err)
 	}
-	metadata, err := buildOpenIDCredentialIssuerMetadata(w, w.IssuerURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	signed, err := SignCredentialIssuerMetadata(w, w.IssuerURL, metadata, time.Now().Add(time.Hour))
+	signed, err := signCredentialIssuerMetadataJWT(w, w.IssuerURL, time.Now().Add(time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}

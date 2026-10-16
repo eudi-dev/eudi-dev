@@ -769,6 +769,75 @@ test.describe("Demo issuer authorization choice", () => {
   });
 });
 
+// Each issuer identity has its own Credential Issuer Identifier, so visitors of a
+// shared demo choose one without changing the issuer for anyone else.
+test.describe("Demo issuer identity", () => {
+  test("the identity check of a presentation during issuance has its own identity", async ({ page }) => {
+    await page.goto(`${BASE}/issuer/`);
+    await expect(page.locator("#identity-check-row")).toBeHidden();
+    await page.locator('#grant-toggle [data-grant="authorization_code"]').click();
+    await expect(page.locator("#identity-check-row")).toBeHidden();
+    await page.locator('#authorization-toggle [data-authorization="presentation"]').click();
+    await expect(page.locator("#identity-check-row")).toBeVisible();
+    await page.locator('#identity-check-toggle [data-identity-check="own"]').click();
+    await expect(page.locator("#identity-check-own-panel")).toBeVisible();
+    await page.locator('#identity-check-toggle [data-identity-check="unregistered"]').click();
+    await expect(page.locator("#identity-check-own-panel")).toBeHidden();
+    await expect(page.locator("#identity-check-hint")).toContainText("no verifier_info");
+
+    const created = page.waitForResponse((res) => res.url().includes("/issuer/api/offers"));
+    await page.locator("#create-btn").click();
+    const offer = await created;
+    expect(offer.status()).toBe(201);
+    expect(offer.url()).toContain("identity_check=unregistered");
+  });
+
+  test("an unregistered offer is issued from its own identifier", async ({ page }) => {
+    await page.goto(`${BASE}/issuer/`);
+    await expect(page.locator("#identity-own-panel")).toBeHidden();
+    await page.locator('#identity-toggle [data-identity="own"]').click();
+    await expect(page.locator("#identity-own-panel")).toBeVisible();
+    await page.locator('#identity-toggle [data-identity="unregistered"]').click();
+    await expect(page.locator("#identity-own-panel")).toBeHidden();
+    await expect(page.locator("#identity-hint")).toContainText("no issuer_info");
+
+    await page.locator("#create-btn").click();
+    await expect(page.locator("#issuer-id")).toHaveText(`${BASE}/issuer/unregistered`);
+    const uri = (await page.locator("#scheme-uri").textContent()) || "";
+
+    const redeemed = await postJSON("/api/offers", { uri });
+    expect(redeemed.status, JSON.stringify(redeemed.body)).toBe(200);
+    expect(redeemed.body.issuer).toBe(`${BASE}/issuer/unregistered`);
+  });
+
+  test("the sign-in page of an unregistered offer loads all its assets", async ({ page }) => {
+    const { body: offer } = await postJSON(
+      "/issuer/api/offers?grant=authorization_code&identity=unregistered",
+      {}
+    );
+    const redeemed = await postJSON("/api/offers", { uri: offer.scheme_uri });
+    expect(redeemed.status, JSON.stringify(redeemed.body)).toBe(202);
+    const { authorization_url: authURL, offer_id: offerID } = redeemed.body;
+    expect(authURL).toContain("/issuer/unregistered/authorize");
+
+    const failed = [];
+    page.on("response", (response) => {
+      if (response.status() >= 400) failed.push(response.url());
+    });
+    await page.goto(authURL);
+    await expect(page.locator("#footer-version")).not.toBeEmpty();
+    await page.locator("#login-submit").click();
+
+    await expect
+      .poll(
+        async () => (await (await fetch(`${BASE}/api/offers/${offerID}`)).json()).status,
+        { timeout: 15_000 }
+      )
+      .toBe("completed");
+    expect(failed).toEqual([]);
+  });
+});
+
 test.describe("Verifier request types", () => {
   test("the PID format toggle follows what is being requested", async ({ page }) => {
     await page.goto(`${BASE}/verifier/`);

@@ -201,7 +201,26 @@ On a public demo, visitors can't change either registration or its certificates.
 
 The demo issuer and the demo verifier each use their current registration certificate. If there is none, or the current one expires within a day, the registrar issues a new one. A revoked certificate stays the current one, so the demo keeps sending it until a new certificate replaces it.
 
-The demo issuer signs its metadata with its access certificate and publishes its registration certificate in `issuer_info`. On the demo verifier page you choose how the verifier identifies itself:
+On the demo issuer page you choose how the issuer identifies itself:
+
+- **Registered** (default): the metadata is signed with the issuer's access certificate and carries its registration certificate in `issuer_info`. It passes the `--arf` checks.
+- **Not registered**: the metadata is signed with the access certificate and has no `issuer_info`, so `--arf` warns about the missing registration certificate (RPRC_22a).
+- **Unsigned metadata**: the metadata is plain JSON, also for a wallet that asks for signed metadata. It has no `issuer_info`, like the metadata of an issuer without an access certificate. `--arf` reports the missing signature.
+- **Own certificates**: you paste a PEM bundle with your key and access certificate chain, and optionally an `issuer_info` value. Your key signs the metadata.
+
+A wallet fetches the metadata from the issuer identifier, and the request does not say which offer it is for. So each choice has its own issuer identifier. The registered issuer is `/issuer`, the unregistered one is `/issuer/unregistered` and the unsigned one is `/issuer/unsigned`. Each offer with own certificates gets an identifier under `/issuer/own/`. Visitors of a shared demo can pick any of them without changing the issuer for anyone else. An offer and its tokens work only at the issuer identifier in the offer, and the issued credentials name it as their issuer. An own identifier ends ten minutes after its last request.
+
+The identity buttons are `identity-registered`, `identity-unregistered`, `identity-unsigned` and `identity-own`. In **Own certificates** mode you paste into `signing-key` and `issuer-info`. The offer API takes `identity=unregistered`, `identity=unsigned` or `identity=own` as a query parameter. With `own` the request body is a JSON object with `signing_key` and the optional `issuer_info`.
+
+With **Presentation during issuance**, the issuer asks for a PID before it issues. You choose the identity of that PID request apart from the issuer identity, as on the demo verifier page:
+
+- **Registered** (default): the request is signed with the issuer's access certificate and carries the registration certificate of the identity check in `verifier_info`.
+- **Not registered**: the request is signed with the access certificate and has no `verifier_info`, so `--arf` warns about the missing registration certificate (RPRC_19).
+- **Own certificates**: you paste a PEM bundle with your key and access certificate chain, and optionally a `verifier_info` value.
+
+The buttons are `identity-check-registered`, `identity-check-unregistered` and `identity-check-own`. In **Own certificates** mode you paste into `identity-check-signing-key` and `identity-check-verifier-info`. The offer API takes `identity_check=unregistered` or `identity_check=own`. With `own` the request body has an `identity_check` object with `signing_key` and the optional `verifier_info`.
+
+On the demo verifier page you choose how the verifier identifies itself:
 
 - **Registered** (default): the request is signed with the verifier's access certificate and carries its registration certificate in `verifier_info`. It passes the `--arf` checks. A custom request for a claim outside the templates gets an over-asking finding (RPRC_21).
 - **Not registered**: the request is signed with the access certificate and has no `verifier_info`, so `--arf` warns about the missing registration certificate (RPRC_19).

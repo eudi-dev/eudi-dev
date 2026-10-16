@@ -17,6 +17,7 @@ package wallet
 import (
 	"crypto/ecdsa"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/hex"
 	"fmt"
 	"maps"
@@ -163,16 +164,16 @@ func signCredentialIssuerMetadataJWT(w *Wallet, issuer string, exp time.Time) (s
 	if err != nil {
 		return "", err
 	}
-	return SignCredentialIssuerMetadata(w, issuer, metadata, exp)
-}
-
-// SignCredentialIssuerMetadata signs the metadata with an access certificate,
-// as TS 119 472-3 V1.1.1 §4.2.2 requires.
-func SignCredentialIssuerMetadata(w *Wallet, issuer string, metadata map[string]any, exp time.Time) (string, error) {
 	signingKey, signerCerts, err := w.AccessSigningMaterial()
 	if err != nil {
 		return "", err
 	}
+	return SignCredentialIssuerMetadata(signingKey, signerCerts, issuer, metadata, exp)
+}
+
+// SignCredentialIssuerMetadata signs the metadata with an access certificate,
+// as TS 119 472-3 V1.1.1 §4.2.2 requires. The chain goes into x5c.
+func SignCredentialIssuerMetadata(signingKey *ecdsa.PrivateKey, signerCerts []*x509.Certificate, issuer string, metadata map[string]any, exp time.Time) (string, error) {
 	payload := maps.Clone(metadata)
 	payload["iss"] = issuer
 	payload["sub"] = issuer

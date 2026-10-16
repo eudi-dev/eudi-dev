@@ -137,8 +137,11 @@ The demo issuer at `/issuer/` creates offers for the Demo Event Ticket and the w
 | Grant | `#grant-toggle [data-grant=""]` (pre-authorized code), `[data-grant="authorization_code"]` |
 | Authorization (authorization code only) | `#authorization-toggle [data-authorization="browser"]`, `[data-authorization="presentation"]` |
 | Status list, deferred, batch | `#status-toggle [data-status]`, `#deferred-toggle [data-deferred]`, `#batch-toggle [data-batch]` |
+| Identity check (presentation during issuance only) | `#identity-check-toggle [data-identity-check="registered"]`, `"unregistered"`, `"own"` with `#identity-check-signing-key` and `#identity-check-verifier-info` |
+| Credential identifiers | `#identifiers-toggle [data-identifiers=""]` (when asked), `[data-identifiers="always"]` |
+| Issuer identity | `#identity-toggle [data-identity="registered"]`, `"unregistered"`, `"unsigned"`, `"own"` with `#signing-key` and `#issuer-info` |
 | **Create offer** | `#create-btn` |
-| Result | `#result`, with `#wallet-link`, `#scheme-uri`, `#offer-uri` |
+| Result | `#result`, with `#wallet-link`, `#scheme-uri`, `#offer-uri`, `#issuer-id` |
 | Error | `#error` |
 
 ```js
@@ -151,7 +154,7 @@ const ticket = page.locator('.credential-card[data-vct="urn:eudi-test:demo-ticke
 await expect(ticket.first()).toBeVisible();
 ```
 
-API: `POST /issuer/api/offers` answers `wallet_url`, `scheme_uri` and `offer_uri`. The query parameters `grant`, `authorization`, `status`, `deferred`, `batch` and `credential` match the page options.
+API: `POST /issuer/api/offers` answers `wallet_url`, `scheme_uri`, `offer_uri` and `issuer`. The query parameters `grant`, `authorization`, `status`, `deferred`, `batch`, `credential`, `identity`, `identity_check` and `credential_identifiers` match the page options. With `identity=own` the body carries `signing_key` and `issuer_info`, with `identity_check=own` an `identity_check` object with `signing_key` and `verifier_info` (see [demo issuer and verifier](wallet/registrar.md#demo-issuer-and-verifier)).
 
 E2E tests: [`prefix.spec.js`](../e2e/prefix.spec.js), test *a demo issuer offer opened in the browser is issued*. [`demo.spec.js`](../e2e/demo.spec.js), test *a deferred offer is awaited and then collected*.
 

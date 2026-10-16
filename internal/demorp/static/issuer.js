@@ -1,16 +1,29 @@
-async function createOffer(grant, status, authorization, deferred, batch, credential) {
+async function createOffer(grant, status, authorization, deferred, batch, credential, identity, identifiers, identityCheck) {
   const errEl = document.getElementById("error");
   errEl.hidden = true;
   try {
+    const init = { method: "POST" };
     const params = new URLSearchParams();
+    const body = {};
+    if (identity !== "registered") params.set("identity", identity);
+    if (identity === "own") Object.assign(body, ownIdentityBody());
+    if (identityCheckShown() && identityCheck !== "registered") {
+      params.set("identity_check", identityCheck);
+      if (identityCheck === "own") body.identity_check = ownIdentityCheckBody();
+    }
+    if (Object.keys(body).length) {
+      init.headers = { "Content-Type": "application/json" };
+      init.body = JSON.stringify(body);
+    }
     if (grant) params.set("grant", grant);
     if (status) params.set("status", status);
     if (deferred) params.set("deferred", "true");
     if (batch) params.set("batch", batch);
+    if (identifiers) params.set("credential_identifiers", identifiers);
     if (credential) params.set("credential", credential);
     if (grant && authorization) params.set("authorization", authorization);
     const query = params.toString() ? "?" + params.toString() : "";
-    const resp = await fetch("api/offers" + query, { method: "POST" });
+    const resp = await fetch("api/offers" + query, init);
     const doc = await resp.json();
     if (!resp.ok) throw new Error(doc.error_description || doc.error || resp.status);
     const link = document.getElementById("wallet-link");
@@ -20,6 +33,7 @@ async function createOffer(grant, status, authorization, deferred, batch, creden
     scheme.textContent = doc.scheme_uri;
     scheme.href = doc.scheme_uri;
     document.getElementById("offer-uri").textContent = doc.offer_uri;
+    document.getElementById("issuer-id").textContent = doc.issuer;
     document.getElementById("result").style.display = "block";
   } catch (e) {
     errEl.textContent = "Creating the offer failed: " + e.message;
@@ -48,6 +62,52 @@ const DEFERRED_HINTS = {
   true: "Issued a few seconds later at the deferred credential endpoint (OpenID4VCI 1.0 §9).",
 };
 
+const IDENTIFIERS_HINTS = {
+  "": "Only when the wallet asks with authorization_details.",
+  always: "Also when the wallet asks without authorization_details, as Keycloak does. The wallet must then request by credential_identifier (OpenID4VCI 1.0 §8.2).",
+};
+
+const IDENTITY_HINTS = {
+  registered: "The metadata is signed with the demo issuer's access certificate and carries its registration certificate in issuer_info.",
+  unregistered: "The metadata has no issuer_info. A wallet with ARF checks warns about the missing registration certificate (RPRC_22a).",
+  unsigned: "The metadata is plain JSON, also for a wallet that asks for signed metadata. It has no issuer_info and no access certificate.",
+  own: "The metadata is signed with your key and access certificate and carries your issuer_info. The offer gets an issuer identifier of its own.",
+};
+
+const IDENTITY_CHECK_HINTS = {
+  registered: "The PID request is signed with the demo issuer's access certificate and carries the registration certificate of the identity check in verifier_info.",
+  unregistered: "The PID request has no verifier_info. A wallet with ARF checks warns about the missing registration certificate (RPRC_19).",
+  own: "The PID request is signed with your key and access certificate and carries your verifier_info.",
+};
+
+// ownMaterial reads a pasted key with its certificates and an optional JSON
+// value, such as issuer_info, from two text areas.
+function ownMaterial(keyID, infoID, infoName) {
+  const signingKey = document.getElementById(keyID).value.trim();
+  if (!signingKey) throw new Error("paste the signing key and access certificate chain");
+  const body = { signing_key: signingKey };
+  const info = document.getElementById(infoID).value.trim();
+  if (info) {
+    try {
+      body[infoName] = JSON.parse(info);
+    } catch (e) {
+      throw new Error(infoName + " is not valid JSON: " + e.message);
+    }
+  }
+  return body;
+}
+
+// ownIdentityBody reads the key, the certificates and issuer_info of an own identity.
+function ownIdentityBody() {
+  return ownMaterial("signing-key", "issuer-info", "issuer_info");
+}
+
+// ownIdentityCheckBody reads the key, the certificates and verifier_info of an
+// own identity check.
+function ownIdentityCheckBody() {
+  return ownMaterial("identity-check-signing-key", "identity-check-verifier-info", "verifier_info");
+}
+
 function batchHint(n) {
   return n + " copies, each on its own key (OpenID4VCI 1.0 §8.3). Each presentation uses an unused copy.";
 }
@@ -64,6 +124,21 @@ let authorization = "browser";
 let deferred = "";
 let batch = "";
 let credential = "";
+let identity = "registered";
+let identifiers = "";
+let identityCheck = "registered";
+
+// The identity check is the PID presentation of interactive authorization.
+function identityCheckShown() {
+  return grant === "authorization_code" && authorization === "presentation";
+}
+
+function updateIdentityCheck() {
+  const shown = identityCheckShown();
+  document.getElementById("identity-check-row").hidden = !shown;
+  document.getElementById("identity-check-hint").hidden = !shown;
+  document.getElementById("identity-check-own-panel").hidden = !shown || identityCheck !== "own";
+}
 
 function bindToggle(id, key, hintID, hints, onChange) {
   const group = document.getElementById(id);
@@ -88,9 +163,15 @@ bindToggle("grant-toggle", "grant", "grant-hint", GRANT_HINTS, (value) => {
   const shown = value === "authorization_code";
   document.getElementById("authorization-row").hidden = !shown;
   document.getElementById("authorization-hint").hidden = !shown;
+  updateIdentityCheck();
 });
 bindToggle("authorization-toggle", "authorization", "authorization-hint", AUTHORIZATION_HINTS, (value) => {
   authorization = value;
+  updateIdentityCheck();
+});
+bindToggle("identity-check-toggle", "identityCheck", "identity-check-hint", IDENTITY_CHECK_HINTS, (value) => {
+  identityCheck = value;
+  updateIdentityCheck();
 });
 bindToggle("status-toggle", "status", "status-hint", STATUS_HINTS, (value) => {
   status = value;
@@ -101,9 +182,16 @@ bindToggle("deferred-toggle", "deferred", "deferred-hint", DEFERRED_HINTS, (valu
 bindToggle("batch-toggle", "batch", "batch-hint", BATCH_HINTS, (value) => {
   batch = value;
 });
+bindToggle("identifiers-toggle", "identifiers", "identifiers-hint", IDENTIFIERS_HINTS, (value) => {
+  identifiers = value;
+});
+bindToggle("identity-toggle", "identity", "identity-hint", IDENTITY_HINTS, (value) => {
+  identity = value;
+  document.getElementById("identity-own-panel").hidden = value !== "own";
+});
 
 document.getElementById("create-btn")
-  .addEventListener("click", () => createOffer(grant, status, authorization, deferred, batch, credential));
+  .addEventListener("click", () => createOffer(grant, status, authorization, deferred, batch, credential, identity, identifiers, identityCheck));
 
 const credentialSelect = document.getElementById("credential-select");
 credentialSelect.addEventListener("change", () => {

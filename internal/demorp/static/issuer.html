@@ -61,11 +61,16 @@
         var(--bg-input); }
     select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
     select option { background: var(--bg-surface); color: var(--text); }
+    .identity-panel { margin-bottom: 18px; }
+    textarea { width: 100%; min-height: 68px; margin-bottom: 6px; resize: vertical; white-space: pre;
+      font-family: var(--font-mono); font-size: 12px; background: var(--bg-input); color: var(--text);
+      border: 1px solid var(--border); border-radius: 14px; padding: 8px 14px; }
+    label.label { display: block; }
     /* Narrow screens give segmented controls the full width. Long labels stack. */
     @media (max-width: 480px) {
       .toggle:not(#credential-toggle) { display: flex; width: 100%; }
       .toggle:not(#credential-toggle) .toggle-option { flex: 1 1 auto; }
-      #grant-toggle { flex-direction: column; }
+      #grant-toggle, #identity-toggle, #identity-check-toggle { flex-direction: column; }
     }
   </style>
 </head>
@@ -102,6 +107,21 @@
       </div>
     </div>
     <p class="grant-hint" id="authorization-hint" hidden>Sign in here as alice (password alice).</p>
+    <div class="grant-row" id="identity-check-row" hidden>
+      <span class="grant-label" id="identity-check-label">Identity check</span>
+      <div class="toggle" id="identity-check-toggle" role="radiogroup" aria-label="Identity of the PID request during issuance">
+        <button type="button" class="toggle-option selected" id="identity-check-registered" data-identity-check="registered" role="radio" aria-checked="true">Registered</button>
+        <button type="button" class="toggle-option" id="identity-check-unregistered" data-identity-check="unregistered" role="radio" aria-checked="false">Not registered</button>
+        <button type="button" class="toggle-option" id="identity-check-own" data-identity-check="own" role="radio" aria-checked="false">Own certificates</button>
+      </div>
+    </div>
+    <p class="grant-hint" id="identity-check-hint" hidden>The PID request is signed with the demo issuer's access certificate and carries the registration certificate of the identity check in verifier_info.</p>
+    <div class="identity-panel" id="identity-check-own-panel" hidden>
+      <label class="label" for="identity-check-signing-key" id="identity-check-signing-key-label">Signing key and access certificate chain (PEM)</label>
+      <textarea id="identity-check-signing-key" spellcheck="false" placeholder="-----BEGIN PRIVATE KEY-----&#10;…&#10;-----BEGIN CERTIFICATE-----&#10;…"></textarea>
+      <label class="label" for="identity-check-verifier-info" id="identity-check-verifier-info-label">verifier_info (optional)</label>
+      <textarea id="identity-check-verifier-info" spellcheck="false" placeholder='[{"format":"registration_cert","data":"…"}]'></textarea>
+    </div>
     <div class="grant-row" id="status-row" hidden>
       <span class="grant-label" id="status-label">Status list</span>
       <div class="toggle" id="status-toggle" role="radiogroup" aria-label="Status list reference">
@@ -128,6 +148,30 @@
       </div>
     </div>
     <p class="grant-hint" id="batch-hint">One credential.</p>
+    <div class="grant-row" id="identifiers-row">
+      <span class="grant-label" id="identifiers-label">Credential identifiers</span>
+      <div class="toggle" id="identifiers-toggle" role="radiogroup" aria-label="Credential identifiers in the token response">
+        <button type="button" class="toggle-option selected" id="identifiers-requested" data-identifiers="" role="radio" aria-checked="true">When asked</button>
+        <button type="button" class="toggle-option" id="identifiers-always" data-identifiers="always" role="radio" aria-checked="false">Always</button>
+      </div>
+    </div>
+    <p class="grant-hint" id="identifiers-hint">Only when the wallet asks with authorization_details.</p>
+    <div class="grant-row" id="identity-row">
+      <span class="grant-label" id="identity-label">Issuer identity</span>
+      <div class="toggle" id="identity-toggle" role="radiogroup" aria-label="Issuer identity">
+        <button type="button" class="toggle-option selected" id="identity-registered" data-identity="registered" role="radio" aria-checked="true">Registered</button>
+        <button type="button" class="toggle-option" id="identity-unregistered" data-identity="unregistered" role="radio" aria-checked="false">Not registered</button>
+        <button type="button" class="toggle-option" id="identity-unsigned" data-identity="unsigned" role="radio" aria-checked="false">Unsigned metadata</button>
+        <button type="button" class="toggle-option" id="identity-own" data-identity="own" role="radio" aria-checked="false">Own certificates</button>
+      </div>
+    </div>
+    <p class="grant-hint" id="identity-hint">The metadata is signed with the demo issuer's access certificate and carries its registration certificate in issuer_info.</p>
+    <div class="identity-panel" id="identity-own-panel" hidden>
+      <label class="label" for="signing-key" id="signing-key-label">Signing key and access certificate chain (PEM)</label>
+      <textarea id="signing-key" spellcheck="false" placeholder="-----BEGIN PRIVATE KEY-----&#10;…&#10;-----BEGIN CERTIFICATE-----&#10;…"></textarea>
+      <label class="label" for="issuer-info" id="issuer-info-label">issuer_info (optional)</label>
+      <textarea id="issuer-info" spellcheck="false" placeholder='[{"format":"registration_cert","data":"…"}]'></textarea>
+    </div>
     <button class="btn primary" id="create-btn">Create offer</button>
     <div class="result" id="result">
       <div class="label" id="wallet-link-label">Open in the wallet on this host</div>
@@ -136,6 +180,8 @@
       <pre><a href="#" id="scheme-uri">…</a></pre>
       <div class="label" id="offer-uri-label">Offer URI (by reference)</div>
       <pre id="offer-uri">…</pre>
+      <div class="label" id="issuer-id-label">Credential issuer</div>
+      <pre id="issuer-id">…</pre>
       <p id="result-hint" class="result-hint">After the wallet accepts the offer, present the ticket at the <a href="../verifier/" id="result-verifier-link">demo verifier</a>.</p>
     </div>
     <div class="error" id="error" hidden></div>

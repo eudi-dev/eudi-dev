@@ -77,7 +77,7 @@ func (d *DemoRP) handleDeferredCredential(w http.ResponseWriter, r *http.Request
 
 	token, _, refused := d.authorizeAccessToken(r, "/deferred_credential")
 	if refused != nil {
-		d.writeAccessTokenError(w, refused)
+		d.writeAccessTokenError(w, r, refused)
 		return
 	}
 	var req struct {
@@ -113,7 +113,7 @@ func (d *DemoRP) handleDeferredCredential(w http.ResponseWriter, r *http.Request
 	// Only the access token that started the issuance can collect the credential.
 	if pending.token != token {
 		_, scheme, _ := accessToken(r)
-		d.writeAccessTokenError(w, &accessTokenError{scheme: scheme, code: "invalid_token", description: "the access token does not match this transaction"})
+		d.writeAccessTokenError(w, r, &accessTokenError{scheme: scheme, code: "invalid_token", description: "the access token does not match this transaction"})
 		return
 	}
 

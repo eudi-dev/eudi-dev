@@ -124,7 +124,7 @@ func (d *DemoRP) offeredConfigurationIDs() []string {
 
 // credentialConfigurations lists the template configurations as the
 // credential_configurations_supported entries of OpenID4VCI 1.0 §12.2.4.
-func (d *DemoRP) credentialConfigurations() map[string]any {
+func (d *DemoRP) credentialConfigurations(issuer string) map[string]any {
 	base := map[string]any{}
 	for _, cfg := range d.templateConfigurations() {
 		entry := map[string]any{
@@ -158,14 +158,14 @@ func (d *DemoRP) credentialConfigurations() map[string]any {
 			if tpl.TextColor != "" {
 				display["text_color"] = tpl.TextColor
 			}
-			if uri := d.templateImageURL(cfg.id, "logo", tpl.Logo); uri != "" {
+			if uri := d.templateImageURL(issuer, cfg.id, "logo", tpl.Logo); uri != "" {
 				logo := map[string]any{"uri": uri}
 				if tpl.LogoAltText != "" {
 					logo["alt_text"] = tpl.LogoAltText
 				}
 				display["logo"] = logo
 			}
-			if uri := d.templateImageURL(cfg.id, "background_image", tpl.BackgroundImage); uri != "" {
+			if uri := d.templateImageURL(issuer, cfg.id, "background_image", tpl.BackgroundImage); uri != "" {
 				display["background_image"] = map[string]any{"uri": uri}
 			}
 		}
@@ -182,13 +182,13 @@ func (d *DemoRP) credentialConfigurations() map[string]any {
 // bundled images and uploaded ones (data URIs) itself, since a data URI would
 // put the whole image into the metadata. An http or https image keeps its own
 // URL.
-func (d *DemoRP) templateImageURL(id, field, ref string) string {
+func (d *DemoRP) templateImageURL(issuer, id, field, ref string) string {
 	ref = strings.TrimSpace(ref)
 	if strings.HasPrefix(ref, "https://") || strings.HasPrefix(ref, "http://") {
 		return ref
 	}
 	if _, _, ok := wallet.TemplateImage(ref); ok {
-		return d.issuerID() + "/templates/" + url.PathEscape(id) + "/" + field
+		return issuer + "/templates/" + url.PathEscape(id) + "/" + field
 	}
 	return ""
 }
@@ -267,7 +267,7 @@ func (d *DemoRP) signTemplate(cfg templateConfiguration, holderKey *ecdsa.Public
 	}
 	spec := provider.IssuedAttestationSpec{Format: cfg.format, VCT: cfg.vct, DocType: cfg.docType}
 	spec.Category = d.wallet.CredentialCategory(&tpl, spec)
-	opts := wallet.HolderSigning{Issuer: d.issuerID()}
+	opts := wallet.HolderSigning{Issuer: d.issuerURL(granted.issuer)}
 	if granted.withStatus {
 		if opts.StatusListURI = d.statusListURI(); opts.StatusListURI == "" {
 			return "", fmt.Errorf("this wallet has no status list URL")

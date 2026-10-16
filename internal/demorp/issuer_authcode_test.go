@@ -490,11 +490,11 @@ func TestAWrongDemoAccountIsABadRequest(t *testing.T) {
 // the optional mode accepts that.
 func TestTheMetadataSaysWhetherAPreAuthorizedCodeNeedsAClient(t *testing.T) {
 	d, _, _ := newDemoRP(t)
-	if got := d.authorizationServerMetadata()["pre-authorized_grant_anonymous_access_supported"]; got != false {
+	if got := d.authorizationServerMetadata(registeredIssuer)["pre-authorized_grant_anonymous_access_supported"]; got != false {
 		t.Errorf("required mode: %v, want false", got)
 	}
 	d.SetClientAuthMode(ClientAuthOptional)
-	if got := d.authorizationServerMetadata()["pre-authorized_grant_anonymous_access_supported"]; got != true {
+	if got := d.authorizationServerMetadata(registeredIssuer)["pre-authorized_grant_anonymous_access_supported"]; got != true {
 		t.Errorf("optional mode: %v, want true", got)
 	}
 }
@@ -859,7 +859,7 @@ func TestAuthorizationServerMetadata(t *testing.T) {
 // authorization_response_iss_parameter_supported [...] to true".
 func TestAuthorizationServerMetadataAnnouncesTheIssParameter(t *testing.T) {
 	d, _, _ := newDemoRP(t)
-	if got := d.authorizationServerMetadata()["authorization_response_iss_parameter_supported"]; got != true {
+	if got := d.authorizationServerMetadata(registeredIssuer)["authorization_response_iss_parameter_supported"]; got != true {
 		t.Errorf("authorization_response_iss_parameter_supported = %v, want true", got)
 	}
 }
@@ -1044,7 +1044,7 @@ func TestTypedJWTsAcceptEquivalentTypValues(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			d, _, _ := newDemoRP(t)
-			if _, err := d.verifyProofJWT(proofJWTWith(t, d, proofOptions{nonce: issuedNonce(t, d), typ: spell("openid4vci-proof+jwt")})); err != nil {
+			if _, err := d.verifyProofJWT(proofJWTWith(t, d, proofOptions{nonce: issuedNonce(t, d), typ: spell("openid4vci-proof+jwt")}), d.issuerID()); err != nil {
 				t.Errorf("key proof: %s", err.description)
 			}
 

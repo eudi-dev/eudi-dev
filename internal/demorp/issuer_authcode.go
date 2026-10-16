@@ -122,7 +122,7 @@ type authGrant struct {
 // authorization_details next to an issuer_state narrow the offer. A request
 // without any gets the ticket, the default scope of this server (RFC 6749
 // §3.3). It returns the OAuth error of an unknown name.
-func (d *DemoRP) resolveAuthGrant(grant authGrant, scope, authorizationDetails string) (authGrant, map[string]string) {
+func (d *DemoRP) resolveAuthGrant(identity *issuerIdentity, grant authGrant, scope, authorizationDetails string) (authGrant, map[string]string) {
 	detailIDs, errResp := parseAuthorizationDetails(authorizationDetails)
 	if errResp != nil {
 		return grant, errResp
@@ -130,7 +130,7 @@ func (d *DemoRP) resolveAuthGrant(grant authGrant, scope, authorizationDetails s
 	grant.withDetails = detailIDs != nil
 	if grant.issuerState != "" {
 		d.mu.Lock()
-		offer := d.offerLocked(grant.issuerState, issuerStateKey)
+		offer := d.offerLocked(grant.issuerState, identity, issuerStateKey)
 		if offer != nil {
 			grant.settings = offer.offerSettings
 		}
@@ -147,7 +147,7 @@ func (d *DemoRP) resolveAuthGrant(grant authGrant, scope, authorizationDetails s
 	if err != nil {
 		return grant, oauthError("invalid_scope", err.Error())
 	}
-	grant.settings = offerSettings{configIDs: configIDs, authorization: authorizationBrowser}
+	grant.settings = offerSettings{configIDs: configIDs, authorization: authorizationBrowser, issuer: identity}
 	return grant, nil
 }
 
@@ -217,8 +217,8 @@ type authRequestState struct {
 
 // authorizationServerMetadata lists the accepted client authentication
 // methods, together with PAR, PKCE S256 and DPoP for HAIP.
-func (d *DemoRP) authorizationServerMetadata() map[string]any {
-	issuer := d.issuerID()
+func (d *DemoRP) authorizationServerMetadata(identity *issuerIdentity) map[string]any {
+	issuer := d.issuerURL(identity)
 	authMethods := []string{attestationClientAuth, attestationDPoPClientAuth}
 	popMethods := []string{"attestation_pop_jwt", "dpop_combined"}
 	anonymous := d.clientAuthMode() == ClientAuthOptional
@@ -258,24 +258,20 @@ func (d *DemoRP) authorizationServerMetadata() map[string]any {
 	// negotiation (§13.3). The server omits require_interactive_authorization
 	// because it also accepts the redirect flow.
 	if d.wallet != nil && d.wallet.VCIFeatureVersion() == wallet.VCIVersion11 {
-		metadata["authorization_challenge_endpoint"] = d.challengeEndpoint()
+		metadata["authorization_challenge_endpoint"] = d.challengeEndpoint(identity)
 	}
 	return metadata
 }
 
-// AuthorizationServerMetadataHandler serves the OAuth authorization server
-// metadata. Also register it at /.well-known/oauth-authorization-server/issuer
-// on the server root, because RFC 8414 puts the well-known segment before the
-// issuer path.
-func (d *DemoRP) AuthorizationServerMetadataHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, d.authorizationServerMetadata())
-	}
+// handleAuthorizationServerMetadata serves the OAuth authorization server
+// metadata of the request's identity.
+func (d *DemoRP) handleAuthorizationServerMetadata(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, d.authorizationServerMetadata(issuerOf(r)))
 }
 
 // The user signs in while redeeming the offer, between PAR and the token exchange.
 func (d *DemoRP) handleAuthorize(w http.ResponseWriter, r *http.Request) {
-	request, err := d.lookupAuthRequest(r.URL.Query().Get("request_uri"))
+	request, err := d.lookupAuthRequest(r.URL.Query().Get("request_uri"), issuerOf(r))
 	if err != nil {
 		writeAuthorizeError(w, err.Error())
 		return
@@ -284,7 +280,7 @@ func (d *DemoRP) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 		writeAuthorizeError(w, "client_id does not match the pushed authorization request")
 		return
 	}
-	renderLoginPage(w, loginPageData{
+	renderLoginPage(w, r, loginPageData{
 		Action:         "authorize",
 		RequestURI:     request.requestURI,
 		RedirectURI:    request.redirectURI,
@@ -319,7 +315,7 @@ func (d *DemoRP) handlePushedAuthorizationRequest(w http.ResponseWriter, r *http
 		writeJSON(w, http.StatusBadRequest, oauthError("invalid_request", "a pushed authorization request must not carry request_uri"))
 		return
 	}
-	jkt, errResp := d.dpopKey(r, d.issuerID()+"/par")
+	jkt, errResp := d.dpopKey(r, d.requestIssuerURL(r)+"/par")
 	if errResp != nil {
 		writeJSON(w, http.StatusBadRequest, errResp)
 		return
@@ -353,7 +349,7 @@ func (d *DemoRP) handlePushedAuthorizationRequest(w http.ResponseWriter, r *http
 		return
 	}
 
-	grant, errResp := d.resolveAuthGrant(authGrant{
+	grant, errResp := d.resolveAuthGrant(issuerOf(r), authGrant{
 		clientID:      clientID,
 		codeChallenge: challenge,
 		redirectURI:   redirectURI,
@@ -398,13 +394,13 @@ func (d *DemoRP) handleAuthorizeSubmit(w http.ResponseWriter, r *http.Request) {
 		writeAuthorizeError(w, "could not read the form")
 		return
 	}
-	request, err := d.lookupAuthRequest(r.PostFormValue("request_uri"))
+	request, err := d.lookupAuthRequest(r.PostFormValue("request_uri"), issuerOf(r))
 	if err != nil {
 		writeAuthorizeError(w, err.Error())
 		return
 	}
 	if !validDemoAccount(r.PostFormValue("username"), r.PostFormValue("password")) {
-		renderLoginPage(w, loginPageData{
+		renderLoginPage(w, r, loginPageData{
 			Action:         "authorize",
 			RequestURI:     request.requestURI,
 			RedirectURI:    request.redirectURI,
@@ -447,7 +443,7 @@ func (d *DemoRP) redirectWithCode(w http.ResponseWriter, r *http.Request, reques
 	}
 	query := target.Query()
 	query.Set("code", code)
-	query.Set("iss", d.issuerID())
+	query.Set("iss", d.requestIssuerURL(r))
 	if state != "" {
 		query.Set("state", state)
 	}
@@ -458,7 +454,7 @@ func (d *DemoRP) redirectWithCode(w http.ResponseWriter, r *http.Request, reques
 // handleAuthorizationCodeToken exchanges the code for an access token. It
 // checks PKCE, the redirect URI, the client attestation and the DPoP key.
 func (d *DemoRP) handleAuthorizationCodeToken(w http.ResponseWriter, r *http.Request) {
-	jkt, errResp := d.dpopKey(r, d.issuerID()+"/token")
+	jkt, errResp := d.dpopKey(r, d.requestIssuerURL(r)+"/token")
 	if errResp != nil {
 		writeJSON(w, http.StatusBadRequest, errResp)
 		return
@@ -484,6 +480,7 @@ func (d *DemoRP) handleAuthorizationCodeToken(w http.ResponseWriter, r *http.Req
 		delete(d.codes, code)
 		known = false
 	}
+	known = known && request.settings.issuer == issuerOf(r)
 	// Copy under the lock because the authorization endpoint writes to the
 	// same struct when it issues a code.
 	var granted authRequestState
@@ -522,7 +519,7 @@ func (d *DemoRP) handleAuthorizationCodeToken(w http.ResponseWriter, r *http.Req
 	}, granted.withDetails)
 }
 
-func (d *DemoRP) lookupAuthRequest(requestURI string) (*authRequestState, error) {
+func (d *DemoRP) lookupAuthRequest(requestURI string, identity *issuerIdentity) (*authRequestState, error) {
 	requestURI = strings.TrimSpace(requestURI)
 	if requestURI == "" {
 		return nil, fmt.Errorf("request_uri is required, this authorization server requires pushed authorization requests")
@@ -530,6 +527,9 @@ func (d *DemoRP) lookupAuthRequest(requestURI string) (*authRequestState, error)
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	request, ok := d.authRequests[requestURI]
+	if ok && request.settings.issuer != identity {
+		return nil, fmt.Errorf("unknown or expired request_uri")
+	}
 	if !ok || time.Now().After(request.expires) {
 		delete(d.authRequests, requestURI)
 		return nil, fmt.Errorf("unknown or expired request_uri")
@@ -918,7 +918,7 @@ func (d *DemoRP) authenticateClient(r *http.Request, clientID, jkt string) (clie
 	if !jws.Valid(pop.raw(), clientKey) {
 		return clientAuthentication{}, attestationFailed("client attestation PoP is not signed by the attested key")
 	}
-	if aud, _ := pop.payload["aud"].(string); aud != d.issuerID() {
+	if aud, _ := pop.payload["aud"].(string); aud != d.requestIssuerURL(r) {
 		return clientAuthentication{}, attestationFailed("client attestation PoP aud %q is not this authorization server", aud)
 	}
 	// §5.1 requires jti and iat in the PoP. exp is optional and drafts -08 and
@@ -941,7 +941,7 @@ func (d *DemoRP) authenticateClient(r *http.Request, clientID, jkt string) (clie
 	// ABCA draft-07 §12.1: "The Authorization Server manages a list of
 	// witnessed jti values of the Client Attestation PoP JWT for the time
 	// window of which the JWT would be considered valid."
-	if err := d.firstUseOfJTI("client attestation PoP", d.issuerID(), pop.payload); err != nil {
+	if err := d.firstUseOfJTI("client attestation PoP", d.requestIssuerURL(r), pop.payload); err != nil {
 		return clientAuthentication{}, attestationFailed("%v", err)
 	}
 	return authenticated, nil
@@ -1024,6 +1024,9 @@ type loginPageData struct {
 	Attestation    string
 	AttestationPoP string
 	IssuerName     string
+	// Root leads from the page to the wallet root. The page sits deeper below
+	// the identifiers of the unregistered and own identities.
+	Root string
 	// RedirectURI is not rendered. It is added to the form-action of the page
 	// so the post-login redirect is allowed.
 	RedirectURI string
@@ -1034,7 +1037,7 @@ var loginPageTemplate = template.Must(template.New("login").Parse(`<!DOCTYPE htm
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" type="image/svg+xml" href="../favicon.svg?v=2">
+<link rel="icon" type="image/svg+xml" href="{{.Root}}favicon.svg?v=2">
 <title>{{.IssuerName}}</title>
 <link rel="stylesheet" href="tokens.css">
 <script src="theme.js"></script>
@@ -1089,18 +1092,18 @@ input { font:inherit; font-size:14px; width:100%; height:42px; padding:0 18px; b
     <div class="footer-row">
       <span id="footer-version" class="footer-version"></span>
       <span id="footer-prerelease" class="footer-prerelease" hidden></span>
-      <a href="../imprint" id="imprint-link" hidden>Imprint</a>
+      <a href="{{.Root}}imprint" id="imprint-link" hidden>Imprint</a>
       <a href="https://github.com/sponsors/dominikschlosser" id="sponsor-link" class="footer-sponsor" target="_blank" rel="noopener" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/></svg>Sponsor</a>
     </div>
     <div class="footer-disclaimer" id="disclaimer">Unofficial, independent open source project. Not affiliated with or endorsed by the European Commission or the European Union.</div>
   </footer>
 </div>
-<script src="footer.js" data-config="../api/config"></script>
+<script src="footer.js" data-config="{{.Root}}api/config"></script>
 </body>
 </html>
 `))
 
-func renderLoginPage(w http.ResponseWriter, data loginPageData) {
+func renderLoginPage(w http.ResponseWriter, r *http.Request, data loginPageData) {
 	// The login page has its own policy so the post-login redirect to the
 	// client redirect_uri is allowed.
 	w.Header().Set("Content-Security-Policy", loginContentSecurityPolicy(data.RedirectURI))
@@ -1114,6 +1117,7 @@ func renderLoginPage(w http.ResponseWriter, data loginPageData) {
 	}
 	w.WriteHeader(status)
 	data.IssuerName = wallet.DemoIssuerName
+	data.Root = issuerOf(r).rootPath()
 	_ = loginPageTemplate.Execute(w, data)
 }
 

@@ -96,7 +96,7 @@ func TestInteractiveAuthorizationEndToEnd(t *testing.T) {
 		t.Errorf("issued credential family_name = %q, want the presented holder", got)
 	}
 
-	if got := d.challengeEndpoint(); !strings.HasSuffix(got, "/issuer/authorize-challenge") {
+	if got := d.challengeEndpoint(registeredIssuer); !strings.HasSuffix(got, "/issuer/authorize-challenge") {
 		t.Errorf("challenge endpoint = %q", got)
 	}
 	for _, entry := range w.GetLog() {
@@ -317,7 +317,7 @@ func TestInteractiveAuthorizationIsNotOfferedAtFeatureLevel10(t *testing.T) {
 	w.VCIVersion = wallet.VCIVersion10
 	d, _ := serveDemoStack(t, w)
 
-	metadata := d.authorizationServerMetadata()
+	metadata := d.authorizationServerMetadata(registeredIssuer)
 	if _, published := metadata["authorization_challenge_endpoint"]; published {
 		t.Error("the demo issuer published a challenge endpoint to a 1.0 wallet")
 	}
@@ -642,7 +642,7 @@ func TestInteractiveRequestPinsTheIssuerCA(t *testing.T) {
 		t.Errorf("a credential issued under this CA carries aki %q, but the request pins %q", got, aki)
 	}
 
-	request, err := d.interactivePresentationRequest(d.newInteractivePIDRequest())
+	request, err := d.interactivePresentationRequest(d.newInteractivePIDRequest(registeredIssuer), registeredIssuer, registeredIdentityCheck)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -697,7 +697,7 @@ func TestInteractiveAuthorizationVerifiesThePresentation(t *testing.T) {
 		t.Fatalf("generating client key: %v", err)
 	}
 	credential := signPID(t, d, holderKey)
-	audience := "ia:" + d.challengeEndpoint()
+	audience := "ia:" + d.challengeEndpoint(registeredIssuer)
 
 	continueWith := func(t *testing.T, session, presentation string) *httptest.ResponseRecorder {
 		t.Helper()
@@ -815,7 +815,7 @@ func TestAnInteractiveSessionIsBoundAndSingleUse(t *testing.T) {
 	credential := signPID(t, d, holderKey)
 	session, nonce := startInteractiveSession(t, d, provider, clientKey, issuerState)
 	vpToken, err := json.Marshal(map[string]any{"vp_token": map[string]any{"pid": []string{
-		presentCredential(t, holderKey, credential, "ia:"+d.challengeEndpoint(), nonce),
+		presentCredential(t, holderKey, credential, "ia:"+d.challengeEndpoint(registeredIssuer), nonce),
 	}}})
 	if err != nil {
 		t.Fatal(err)

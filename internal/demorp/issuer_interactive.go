@@ -72,8 +72,8 @@ type interactiveSession struct {
 
 // challengeEndpoint is the advertised URL. Every presentation made through it
 // is bound to this value.
-func (d *DemoRP) challengeEndpoint() string {
-	return d.issuerID() + challengePath
+func (d *DemoRP) challengeEndpoint(identity *issuerIdentity) string {
+	return d.issuerURL(identity) + challengePath
 }
 
 // handleAuthorizationChallenge is the Authorization Challenge Endpoint of
@@ -87,7 +87,7 @@ func (d *DemoRP) handleAuthorizationChallenge(w http.ResponseWriter, r *http.Req
 		writeJSON(w, http.StatusBadRequest, oauthError("invalid_request", "the request body is not a form: "+err.Error()))
 		return
 	}
-	jkt, errResp := d.dpopKey(r, d.challengeEndpoint())
+	jkt, errResp := d.dpopKey(r, d.challengeEndpoint(issuerOf(r)))
 	if errResp != nil {
 		writeJSON(w, http.StatusBadRequest, errResp)
 		return
@@ -122,7 +122,7 @@ func (d *DemoRP) startInteractiveAuthorization(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	grant, errResp := d.resolveAuthGrant(authGrant{
+	grant, errResp := d.resolveAuthGrant(issuerOf(r), authGrant{
 		clientID:      clientID,
 		codeChallenge: codeChallenge,
 		redirectURI:   r.PostFormValue("redirect_uri"),
@@ -158,7 +158,7 @@ func (d *DemoRP) startInteractiveAuthorization(w http.ResponseWriter, r *http.Re
 	// The challenge response carries the code, so no redirect_uri belongs to
 	// it, and the token request has none (RFC 6749 §4.1.3).
 	grant.redirectURI, grant.state = "", ""
-	request := d.newInteractivePIDRequest()
+	request := d.newInteractivePIDRequest(grant.settings.issuer)
 	session := &interactiveSession{
 		id:        newAuthSession(),
 		authGrant: grant,
@@ -172,7 +172,7 @@ func (d *DemoRP) startInteractiveAuthorization(w http.ResponseWriter, r *http.Re
 	d.interactive[session.id] = session
 	d.mu.Unlock()
 
-	presentationRequest, err := d.interactivePresentationRequest(request)
+	presentationRequest, err := d.interactivePresentationRequest(request, grant.settings.issuer, grant.settings.identityCheck)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, oauthError("server_error", err.Error()))
 		return
@@ -189,7 +189,7 @@ func (d *DemoRP) startInteractiveAuthorization(w http.ResponseWriter, r *http.Re
 // continueInteractiveAuthorization verifies the presentation in an
 // Intermediate Request (§6.1.2) and issues an authorization code.
 func (d *DemoRP) continueInteractiveAuthorization(w http.ResponseWriter, r *http.Request, sessionID, clientID, jkt string) {
-	session, errResp := d.takeInteractiveSession(sessionID, clientID, jkt)
+	session, errResp := d.takeInteractiveSession(sessionID, issuerOf(r), clientID, jkt)
 	if errResp != nil {
 		writeJSON(w, http.StatusBadRequest, errResp)
 		return
@@ -243,10 +243,13 @@ func (d *DemoRP) continueInteractiveAuthorization(w http.ResponseWriter, r *http
 // It checks the client and the DPoP key under the same lock that takes the
 // session out, so a session yields at most one authorization code. The error
 // codes are those of first-party-apps §5.2.2.1.
-func (d *DemoRP) takeInteractiveSession(sessionID, clientID, jkt string) (*interactiveSession, map[string]string) {
+func (d *DemoRP) takeInteractiveSession(sessionID string, identity *issuerIdentity, clientID, jkt string) (*interactiveSession, map[string]string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	session, known := d.interactive[sessionID]
+	if known && session.settings.issuer != identity {
+		return nil, oauthError("invalid_session", "unknown, used or expired auth_session")
+	}
 	if !known || time.Now().After(session.expires) {
 		delete(d.interactive, sessionID)
 		return nil, oauthError("invalid_session", "unknown, used or expired auth_session")
@@ -316,7 +319,7 @@ func (d *DemoRP) redirectChallengeToWeb(w http.ResponseWriter, r *http.Request, 
 // Authorization Challenge Endpoint. verifyPresentation accepts only
 // credentials under the issuer CA, so trusted_authorities lists that CA and
 // the wallet can pick a matching credential.
-func (d *DemoRP) newInteractivePIDRequest() *requestState {
+func (d *DemoRP) newInteractivePIDRequest(identity *issuerIdentity) *requestState {
 	var authorities []map[string]any
 	if aki := d.trustAnchorAKI(); aki != "" {
 		authorities = []map[string]any{{"type": "aki", "values": []string{aki}}}
@@ -330,8 +333,8 @@ func (d *DemoRP) newInteractivePIDRequest() *requestState {
 		// Either format satisfies the request.
 		sets:                []credentialSet{{options: [][]string{{"pid"}, {"pid_mdoc"}}}},
 		nonce:               randToken(),
-		clientID:            d.issuerID(),
-		interactiveEndpoint: d.challengeEndpoint(),
+		clientID:            d.issuerURL(identity),
+		interactiveEndpoint: d.challengeEndpoint(identity),
 		status:              "pending",
 		expires:             time.Now().Add(entryTTL),
 	}
@@ -339,16 +342,16 @@ func (d *DemoRP) newInteractivePIDRequest() *requestState {
 
 // OpenID4VCI 1.1 §6.2.1.1 uses the Digital Credentials API request form. The
 // request is signed with an x509_hash client ID.
-func (d *DemoRP) interactivePresentationRequest(req *requestState) (map[string]any, error) {
+func (d *DemoRP) interactivePresentationRequest(req *requestState, identity *issuerIdentity, check *identityCheck) (map[string]any, error) {
 	claims := map[string]any{
 		"response_type":    "vp_token",
 		"response_mode":    "ia_post",
 		"nonce":            req.nonce,
-		"expected_origins": []string{originOf(d.challengeEndpoint())},
+		"expected_origins": []string{originOf(d.challengeEndpoint(identity))},
 		"dcql_query":       req.dcqlQuery(),
 	}
 
-	signingKey, chain, err := d.wallet.AccessSigningMaterial()
+	signingKey, chain, err := d.identityCheckSigningMaterial(check)
 	if err != nil {
 		return nil, fmt.Errorf("loading the access certificate: %w", err)
 	}
@@ -356,11 +359,11 @@ func (d *DemoRP) interactivePresentationRequest(req *requestState) (map[string]a
 	// The registration certificate of the identity check goes in
 	// verifier_info (OpenID4VP 1.0 §5.1). Its intended use registers the
 	// requested claims (ARF RPRC_21).
-	info, err := d.wallet.DemoIdentityCheckVerifierInfo()
+	info, err := d.identityCheckVerifierInfo(check)
 	if err != nil {
 		return nil, err
 	}
-	if info != nil {
+	if len(info) > 0 {
 		claims["verifier_info"] = info
 	}
 

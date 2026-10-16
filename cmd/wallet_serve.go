@@ -818,13 +818,7 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	demoRP.SetVerifierTrustAnchors(verifierTrustAnchors)
 	srv.Mount("/issuer", demoRP.IssuerHandler())
 	srv.Mount("/verifier", demoRP.VerifierHandler())
-	// OID4VCI inserts the well-known segment before the issuer path,
-	// so the metadata for the /issuer-mounted issuer lives at the
-	// server root.
-	srv.Handle("GET /.well-known/openid-credential-issuer/issuer", demoRP.IssuerMetadataHandler())
-	// Same for the authorization server metadata of the demo issuer. The
-	// issuer is its own authorization server (RFC 8414 §3.1).
-	srv.Handle("GET /.well-known/oauth-authorization-server/issuer", demoRP.AuthorizationServerMetadataHandler())
+	demoRP.HandleWellKnown(srv.Handle)
 	if err := srv.CheckBasePath(); err != nil {
 		return err
 	}

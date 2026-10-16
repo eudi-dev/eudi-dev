@@ -82,6 +82,9 @@ type DemoRP struct {
 	// interactive holds the Authorization Challenge conversations of
 	// OpenID4VCI 1.1 §6, keyed by auth_session.
 	interactive map[string]*interactiveSession
+	// ownIssuers holds the own identities of visitors, keyed by their path
+	// below /issuer.
+	ownIssuers map[string]*issuerIdentity
 	// nonceKey authenticates the Nonce Endpoint challenges. A wallet can use
 	// one nonce for a whole batch of proofs.
 	nonceKey []byte
@@ -112,6 +115,7 @@ func New(w *wallet.Wallet, baseURL func() string) *DemoRP {
 		authRequests:  make(map[string]*authRequestState),
 		codes:         make(map[string]*authRequestState),
 		interactive:   make(map[string]*interactiveSession),
+		ownIssuers:    make(map[string]*issuerIdentity),
 		nonceKey:      randomBytes(32),
 		seenJTIs:      make(map[string]time.Time),
 		deferred:      make(map[string]*deferredTicket),
@@ -186,6 +190,11 @@ func (d *DemoRP) pruneLocked() {
 	for id, session := range d.interactive {
 		if now.After(session.expires) {
 			delete(d.interactive, id)
+		}
+	}
+	for path, identity := range d.ownIssuers {
+		if now.After(identity.expires) {
+			delete(d.ownIssuers, path)
 		}
 	}
 }

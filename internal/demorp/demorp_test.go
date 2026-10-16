@@ -369,6 +369,9 @@ func TestIssuerRejectsTheSingularProofMember(t *testing.T) {
 	}
 }
 
+// demoTicketGrant issues the ticket from the registered identity.
+var demoTicketGrant = ticketGrant{tokenState: tokenState{offerSettings: offerSettings{issuer: registeredIssuer}}, configID: ticketConfigurationID}
+
 func newIssuanceWallet(t *testing.T) *wallet.Wallet {
 	t.Helper()
 	holderKey, err := mock.GenerateKey()
@@ -391,7 +394,7 @@ func jsonString(v string) string {
 
 func presentTicket(t *testing.T, d *DemoRP, holderKey *ecdsa.PrivateKey, clientID, nonce string) string {
 	t.Helper()
-	credential, err := d.signGranted(&holderKey.PublicKey, ticketGrant{configID: ticketConfigurationID})
+	credential, err := d.signGranted(&holderKey.PublicKey, demoTicketGrant)
 	if err != nil {
 		t.Fatalf("signing ticket: %v", err)
 	}
@@ -404,7 +407,7 @@ func presentTicket(t *testing.T, d *DemoRP, holderKey *ecdsa.PrivateKey, clientI
 func TestTicketTimeClaimsAreRounded(t *testing.T) {
 	d, _, holderKey := newDemoRP(t)
 
-	credential, err := d.signGranted(&holderKey.PublicKey, ticketGrant{configID: ticketConfigurationID})
+	credential, err := d.signGranted(&holderKey.PublicKey, demoTicketGrant)
 	if err != nil {
 		t.Fatalf("signing ticket: %v", err)
 	}
@@ -460,7 +463,7 @@ func TestVerifierRejectsKeyBindingOutsideTheAcceptableWindow(t *testing.T) {
 			h := d.VerifierHandler()
 			id, params := startVerification(t, h, "ticket")
 
-			credential, err := d.signGranted(&holderKey.PublicKey, ticketGrant{configID: ticketConfigurationID})
+			credential, err := d.signGranted(&holderKey.PublicKey, demoTicketGrant)
 			if err != nil {
 				t.Fatalf("signing ticket: %v", err)
 			}
@@ -1130,7 +1133,7 @@ func TestVerifierRejectsInjectedDisclosure(t *testing.T) {
 
 	id, params := startVerification(t, h, "ticket")
 
-	credential, err := d.signGranted(&holderKey.PublicKey, ticketGrant{configID: ticketConfigurationID})
+	credential, err := d.signGranted(&holderKey.PublicKey, demoTicketGrant)
 	if err != nil {
 		t.Fatalf("signing ticket: %v", err)
 	}
@@ -1185,8 +1188,7 @@ func serveDemoStack(t *testing.T, w *wallet.Wallet) (*DemoRP, *httptest.Server) 
 	mux.Handle("/issuer/", http.StripPrefix("/issuer", d.IssuerHandler()))
 	// The well-known segment comes before the issuer path, so both metadata
 	// documents live at the server root.
-	mux.HandleFunc("GET /.well-known/openid-credential-issuer/issuer", d.IssuerMetadataHandler())
-	mux.HandleFunc("GET /.well-known/oauth-authorization-server/issuer", d.AuthorizationServerMetadataHandler())
+	d.HandleWellKnown(mux.Handle)
 	mux.Handle("/", srv.Handler())
 
 	ts := httptest.NewServer(mux)
@@ -1786,7 +1788,7 @@ func TestIssuerPersistsItsWalletChanges(t *testing.T) {
 	wallet.NewServer(w, 0, func() { saves++ })
 
 	for range 2 {
-		if _, err := d.signGranted(&holderKey.PublicKey, ticketGrant{configID: ticketConfigurationID}); err != nil {
+		if _, err := d.signGranted(&holderKey.PublicKey, demoTicketGrant); err != nil {
 			t.Fatalf("signing a ticket without a status reference: %v", err)
 		}
 	}
@@ -1794,7 +1796,7 @@ func TestIssuerPersistsItsWalletChanges(t *testing.T) {
 		t.Errorf("registering the ticket type saved the wallet %d times, want 1", saves)
 	}
 	saves = 0
-	if _, err := d.signGranted(&holderKey.PublicKey, ticketGrant{tokenState: tokenState{offerSettings: offerSettings{configIDs: []string{ticketConfigurationID}, withStatus: true}}, configID: ticketConfigurationID}); err != nil {
+	if _, err := d.signGranted(&holderKey.PublicKey, ticketGrant{tokenState: tokenState{offerSettings: offerSettings{configIDs: []string{ticketConfigurationID}, withStatus: true, issuer: registeredIssuer}}, configID: ticketConfigurationID}); err != nil {
 		t.Fatalf("signing a ticket with a status reference: %v", err)
 	}
 	if saves != 1 {
@@ -1818,10 +1820,10 @@ func TestAuthorizationCodeOfferKeepsTheStatusChoice(t *testing.T) {
 	grants := offer["grants"].(map[string]any)[authCodeGrant].(map[string]any)
 	issuerState := grants["issuer_state"].(string)
 
-	if grant, errResp := d.resolveAuthGrant(authGrant{issuerState: issuerState}, "", ""); errResp != nil || !grant.settings.withStatus {
+	if grant, errResp := d.resolveAuthGrant(registeredIssuer, authGrant{issuerState: issuerState}, "", ""); errResp != nil || !grant.settings.withStatus {
 		t.Errorf("grant %+v, %v: the status choice was lost between the offer and its issuer_state", grant.settings, errResp)
 	}
-	if _, errResp := d.resolveAuthGrant(authGrant{issuerState: "some-other-state"}, "", ""); errResp == nil {
+	if _, errResp := d.resolveAuthGrant(registeredIssuer, authGrant{issuerState: "some-other-state"}, "", ""); errResp == nil {
 		t.Error("an unknown issuer_state must not resolve to an offer")
 	}
 }
@@ -1839,12 +1841,12 @@ func TestAnAuthorizationFlowIssuesWhatItsRequestNames(t *testing.T) {
 		{"", `[{"type":"openid_credential","credential_configuration_id":"pid-mdoc"}]`, []string{"pid-mdoc"}},
 		{"", "", []string{ticketConfigurationID}},
 	} {
-		grant, errResp := d.resolveAuthGrant(authGrant{}, tc.scope, tc.details)
+		grant, errResp := d.resolveAuthGrant(registeredIssuer, authGrant{}, tc.scope, tc.details)
 		if errResp != nil || !slices.Equal(grant.settings.configIDs, tc.want) {
 			t.Errorf("scope %q details %q: %+v, %v, want %v", tc.scope, tc.details, grant.settings, errResp, tc.want)
 		}
 	}
-	if _, errResp := d.resolveAuthGrant(authGrant{}, "unknown-configuration", ""); errResp == nil || errResp["error"] != "invalid_scope" {
+	if _, errResp := d.resolveAuthGrant(registeredIssuer, authGrant{}, "unknown-configuration", ""); errResp == nil || errResp["error"] != "invalid_scope" {
 		t.Errorf("an unknown scope: %v, want invalid_scope", errResp)
 	}
 }
@@ -1861,7 +1863,7 @@ func TestAGrantIsRedeemedOnce(t *testing.T) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	preAuth := func(o *offerState) string { return o.preAuthCode }
-	if d.redeemOfferLocked("", preAuth) != nil {
+	if d.redeemOfferLocked("", registeredIssuer, preAuth) != nil {
 		t.Error("an empty pre-authorized code redeemed an offer")
 	}
 	var code string
@@ -1870,10 +1872,10 @@ func TestAGrantIsRedeemedOnce(t *testing.T) {
 			code = o.preAuthCode
 		}
 	}
-	if d.redeemOfferLocked(code, preAuth) == nil {
+	if d.redeemOfferLocked(code, registeredIssuer, preAuth) == nil {
 		t.Fatal("the pre-authorized code did not redeem its offer")
 	}
-	if d.redeemOfferLocked(code, preAuth) != nil {
+	if d.redeemOfferLocked(code, registeredIssuer, preAuth) != nil {
 		t.Error("a pre-authorized code redeemed its offer twice")
 	}
 }

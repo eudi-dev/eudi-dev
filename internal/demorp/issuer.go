@@ -126,18 +126,23 @@ type offerSettings struct {
 	batchSize int
 	// authorization is authorizationPresentation or authorizationBrowser.
 	authorization string
+	// issuer is the identity of the offer. Its grants work only at the
+	// endpoints of that identity.
+	issuer *issuerIdentity
+	// identityCheck signs the PID presentation request of interactive
+	// authorization.
+	identityCheck *identityCheck
+	// alwaysIdentifiers returns credential identifiers in the token response
+	// also to a wallet that asked without authorization_details, as Keycloak
+	// does. OpenID4VCI 1.0 §6.2 lets the Authorization Server return them.
+	alwaysIdentifiers bool
 }
 
 // IssuerHandler returns the demo issuer. Mount it with the /issuer prefix
 // stripped.
 func (d *DemoRP) IssuerHandler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /{$}", d.servePage("static/issuer.html"))
-	// The script is a separate file because the wallet Content-Security-Policy
-	// has no script-src 'unsafe-inline'.
-	mux.HandleFunc("GET /issuer.js", d.serveStatic("static/issuer.js"))
 	webui.Mount(mux)
-	mux.HandleFunc("POST /api/offers", d.handleCreateOffer)
 	mux.HandleFunc("GET /offer/{id}", d.handleOfferByReference)
 	mux.HandleFunc("POST /token", d.handleToken)
 	mux.HandleFunc("POST /credential", d.handleCredential)
@@ -153,17 +158,18 @@ func (d *DemoRP) IssuerHandler() http.Handler {
 	mux.HandleFunc("GET /authorize", d.handleAuthorize)
 	mux.HandleFunc("POST /authorize-challenge", d.handleAuthorizationChallenge)
 	mux.HandleFunc("POST /authorize", d.handleAuthorizeSubmit)
-	mux.HandleFunc("GET /.well-known/oauth-authorization-server", d.AuthorizationServerMetadataHandler())
+	mux.HandleFunc("GET /.well-known/oauth-authorization-server", d.handleAuthorizationServerMetadata)
+
+	page := http.NewServeMux()
+	page.HandleFunc("GET /{$}", d.servePage("static/issuer.html"))
+	// The script is a separate file because the wallet Content-Security-Policy
+	// has no script-src 'unsafe-inline'.
+	page.HandleFunc("GET /issuer.js", d.serveStatic("static/issuer.js"))
+	page.HandleFunc("POST /api/offers", d.handleCreateOffer)
+	page.Handle("/", mux)
 	// GuardAPI covers only the page's calls to /api/. Wallets on other
 	// origins call the protocol endpoints.
-	return httpsec.GuardAPI(limitBodies(mux), d.baseURL())
-}
-
-// IssuerMetadataHandler serves the issuer metadata. Also register it at
-// /.well-known/openid-credential-issuer/issuer on the server root, because
-// OpenID4VCI puts the well-known segment before the issuer path.
-func (d *DemoRP) IssuerMetadataHandler() http.HandlerFunc {
-	return d.handleIssuerMetadata
+	return httpsec.GuardAPI(limitBodies(d.identityHandler(page, mux)), d.baseURL())
 }
 
 func (d *DemoRP) serveStatic(name string) http.HandlerFunc {
@@ -231,7 +237,8 @@ func (d *DemoRP) handleLogo(w http.ResponseWriter, r *http.Request) {
 }
 
 func (d *DemoRP) handleIssuerMetadata(w http.ResponseWriter, r *http.Request) {
-	issuer := d.issuerID()
+	id := issuerOf(r)
+	issuer := d.issuerURL(id)
 	metadata := map[string]any{
 		"credential_issuer":            issuer,
 		"credential_endpoint":          issuer + "/credential",
@@ -252,26 +259,31 @@ func (d *DemoRP) handleIssuerMetadata(w http.ResponseWriter, r *http.Request) {
 				"logo":   map[string]any{"uri": issuer + "/logo.svg", "alt_text": "eudi-dev logo"},
 			},
 		},
-		"credential_configurations_supported": d.credentialConfigurations(),
+		"credential_configurations_supported": d.credentialConfigurations(issuer),
 	}
 	// Without a registration the metadata has no issuer_info, and a wallet
 	// with --arf reports that (ETSI TS 119 472-3 §4.2.3).
-	info, err := d.wallet.DemoIssuerInfo()
+	info, err := d.issuerInfo(id)
 	if err != nil {
 		apierror.WriteStatus(w, http.StatusInternalServerError, "building issuer metadata: "+err.Error())
 		return
 	}
-	if info != nil {
+	if len(info) > 0 {
 		metadata["issuer_info"] = info
 	}
-	if wallet.PrefersSignedIssuerMetadata(r.Header.Get("Accept")) {
-		jwt, err := wallet.SignCredentialIssuerMetadata(d.wallet, issuer, metadata, time.Now().Add(time.Hour))
+	if id.signsMetadata() && wallet.PrefersSignedIssuerMetadata(r.Header.Get("Accept")) {
+		signingKey, chain, err := d.accessSigningMaterial(id)
+		if err != nil {
+			apierror.WriteStatus(w, http.StatusInternalServerError, "loading the access certificate: "+err.Error())
+			return
+		}
+		jwt, err := wallet.SignCredentialIssuerMetadata(signingKey, chain, issuer, metadata, time.Now().Add(time.Hour))
 		if err != nil {
 			apierror.WriteStatus(w, http.StatusInternalServerError, "signing issuer metadata: "+err.Error())
 			return
 		}
 		w.Header().Set("Content-Type", "application/jwt")
-		w.Write([]byte(jwt))
+		_, _ = w.Write([]byte(jwt)) //nolint:gosec // G705: a compact JWS holds only base64url characters and dots, served as application/jwt.
 		return
 	}
 	writeJSON(w, http.StatusOK, metadata)
@@ -287,6 +299,16 @@ func (d *DemoRP) handleIssuerMetadata(w http.ResponseWriter, r *http.Request) {
 //   - authorization=presentation asks for a PID at the Authorization Challenge
 //     Endpoint (OpenID4VCI 1.1 §6). Any other value uses the browser sign-in.
 //     A wallet without interactive authorization always gets the sign-in.
+//   - identity is the issuer identity: registered (the default),
+//     unregistered, unsigned or own. own reads signing_key and issuer_info
+//     from the JSON body.
+//   - identity_check is the identity of the PID presentation during
+//     interactive authorization: registered (the default), unregistered or
+//     own. own reads signing_key and verifier_info from identity_check in the
+//     JSON body.
+//   - credential_identifiers=always returns credential identifiers in every
+//     token response, also when the wallet asked without
+//     authorization_details.
 func (d *DemoRP) handleCreateOffer(w http.ResponseWriter, r *http.Request) {
 	authCode := r.URL.Query().Get("grant") == authCodeGrant
 	withStatus := r.URL.Query().Get("status") == "true"
@@ -300,6 +322,11 @@ func (d *DemoRP) handleCreateOffer(w http.ResponseWriter, r *http.Request) {
 		apierror.WriteStatusErr(w, http.StatusBadRequest, err)
 		return
 	}
+	identity, check, err := d.offerIdentities(r)
+	if err != nil {
+		apierror.WriteStatusErr(w, http.StatusBadRequest, err)
+		return
+	}
 
 	d.mu.Lock()
 	d.pruneLocked()
@@ -307,11 +334,14 @@ func (d *DemoRP) handleCreateOffer(w http.ResponseWriter, r *http.Request) {
 	offer := &offerState{
 		id: randToken(),
 		offerSettings: offerSettings{
-			configIDs:     configIDs,
-			withStatus:    withStatus,
-			deferred:      r.URL.Query().Get("deferred") == "true",
-			batchSize:     parseBatchSize(r.URL.Query().Get("batch")),
-			authorization: normalizeAuthorizationMode(r.URL.Query().Get("authorization")),
+			configIDs:         configIDs,
+			withStatus:        withStatus,
+			deferred:          r.URL.Query().Get("deferred") == "true",
+			batchSize:         parseBatchSize(r.URL.Query().Get("batch")),
+			authorization:     normalizeAuthorizationMode(r.URL.Query().Get("authorization")),
+			issuer:            identity,
+			identityCheck:     check,
+			alwaysIdentifiers: r.URL.Query().Get("credential_identifiers") == "always",
 		},
 		expires: time.Now().Add(entryTTL),
 	}
@@ -324,14 +354,52 @@ func (d *DemoRP) handleCreateOffer(w http.ResponseWriter, r *http.Request) {
 	d.mu.Unlock()
 
 	base := d.baseURL()
-	offerURI := d.issuerID() + "/offer/" + offer.id
+	offerURI := d.issuerURL(identity) + "/offer/" + offer.id
 	params := url.Values{"credential_offer_uri": {offerURI}}.Encode()
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"id":         offer.id,
 		"offer_uri":  offerURI,
 		"wallet_url": base + "/credential-offer?" + params,
 		"scheme_uri": "openid-credential-offer://?" + params,
+		"issuer":     d.issuerURL(identity),
 	})
+}
+
+// offerIdentities reads the identity and identity_check parameters of an
+// offer request. An own identity or identity check reads its material from
+// the JSON body.
+func (d *DemoRP) offerIdentities(r *http.Request) (*issuerIdentity, *identityCheck, error) {
+	identity, checkKind := r.URL.Query().Get("identity"), r.URL.Query().Get("identity_check")
+	var body offerBody
+	var own []string
+	if identity == identityOwn {
+		own = append(own, "identity=own")
+	}
+	if checkKind == identityOwn {
+		own = append(own, "identity_check=own")
+	}
+	if len(own) > 0 {
+		if err := decodeJSONBody(r, &body); err != nil {
+			return nil, nil, fmt.Errorf("%s needs a JSON body: %w", strings.Join(own, " with "), err)
+		}
+	}
+	check, err := newIdentityCheck(checkKind, body.IdentityCheck)
+	if err != nil {
+		return nil, nil, err
+	}
+	switch identity {
+	case "", identityRegistered:
+		return registeredIssuer, check, nil
+	case identityUnregistered:
+		return unregisteredIssuer, check, nil
+	case identityUnsigned:
+		return unsignedIssuer, check, nil
+	case identityOwn:
+		own, err := d.newOwnIssuer(body.ownIdentityBody)
+		return own, check, err
+	default:
+		return nil, nil, fmt.Errorf("identity must be %q, %q, %q or %q, not %q", identityRegistered, identityUnregistered, identityUnsigned, identityOwn, identity)
+	}
 }
 
 func (d *DemoRP) handleOfferByReference(w http.ResponseWriter, r *http.Request) {
@@ -342,6 +410,7 @@ func (d *DemoRP) handleOfferByReference(w http.ResponseWriter, r *http.Request) 
 		delete(d.offers, id)
 		ok = false
 	}
+	ok = ok && offer.issuer == issuerOf(r)
 	d.mu.Unlock()
 	if !ok {
 		apierror.WriteStatus(w, http.StatusNotFound, "unknown or expired credential offer")
@@ -354,7 +423,7 @@ func (d *DemoRP) handleOfferByReference(w http.ResponseWriter, r *http.Request) 
 		grants[preAuthGrant] = map[string]any{"pre-authorized_code": offer.preAuthCode}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"credential_issuer":            d.issuerID(),
+		"credential_issuer":            d.requestIssuerURL(r),
 		"credential_configuration_ids": offer.configIDs,
 		"grants":                       grants,
 	})
@@ -380,7 +449,7 @@ func (d *DemoRP) handleToken(w http.ResponseWriter, r *http.Request) {
 	// HAIP 1.0 §4.4.1 requires client authentication at the token endpoint.
 	// The metadata lists only attestation-based methods, so both grants
 	// authenticate the same way.
-	jkt, errResp := d.dpopKey(r, d.issuerID()+"/token")
+	jkt, errResp := d.dpopKey(r, d.requestIssuerURL(r)+"/token")
 	if errResp != nil {
 		writeJSON(w, http.StatusBadRequest, errResp)
 		return
@@ -390,7 +459,7 @@ func (d *DemoRP) handleToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	d.mu.Lock()
-	offer := d.redeemOfferLocked(r.PostFormValue("pre-authorized_code"), func(o *offerState) string { return o.preAuthCode })
+	offer := d.redeemOfferLocked(r.PostFormValue("pre-authorized_code"), issuerOf(r), func(o *offerState) string { return o.preAuthCode })
 	var settings offerSettings
 	if offer != nil {
 		settings = offer.offerSettings
@@ -406,11 +475,12 @@ func (d *DemoRP) handleToken(w http.ResponseWriter, r *http.Request) {
 	d.issueToken(w, r, tokenState{offerSettings: settings, jkt: jkt, clientAuth: &clientAuth}, false)
 }
 
-// redeemOfferLocked finds the offer whose grant key matches and consumes it.
-// A pre-authorized code is "short lived and single use" (OpenID4VCI 1.0
-// §4.1.1), and an empty key matches no offer. Callers hold d.mu.
-func (d *DemoRP) redeemOfferLocked(key string, grantKey func(*offerState) string) *offerState {
-	offer := d.offerLocked(key, grantKey)
+// redeemOfferLocked finds the offer of the identity whose grant key matches
+// and consumes it. A pre-authorized code is "short lived and single use"
+// (OpenID4VCI 1.0 §4.1.1), and an empty key matches no offer. Callers hold
+// d.mu.
+func (d *DemoRP) redeemOfferLocked(key string, identity *issuerIdentity, grantKey func(*offerState) string) *offerState {
+	offer := d.offerLocked(key, identity, grantKey)
 	if offer == nil || offer.redeemed {
 		return nil
 	}
@@ -418,13 +488,14 @@ func (d *DemoRP) redeemOfferLocked(key string, grantKey func(*offerState) string
 	return offer
 }
 
-// offerLocked finds the live offer whose grant key matches. Callers hold d.mu.
-func (d *DemoRP) offerLocked(key string, grantKey func(*offerState) string) *offerState {
+// offerLocked finds the live offer of the identity whose grant key matches.
+// Callers hold d.mu.
+func (d *DemoRP) offerLocked(key string, identity *issuerIdentity, grantKey func(*offerState) string) *offerState {
 	if key == "" {
 		return nil
 	}
 	for _, offer := range d.offers {
-		if grantKey(offer) == key && time.Now().Before(offer.expires) {
+		if grantKey(offer) == key && offer.issuer == identity && time.Now().Before(offer.expires) {
 			return offer
 		}
 	}
@@ -444,6 +515,7 @@ func (d *DemoRP) issueToken(w http.ResponseWriter, r *http.Request, granted toke
 		writeJSON(w, http.StatusBadRequest, errResp)
 		return
 	}
+	withDetails = withDetails || granted.alwaysIdentifiers
 	if withDetails {
 		granted.credentialIDs = make(map[string]string, len(granted.configIDs))
 		for _, id := range granted.configIDs {
@@ -463,7 +535,8 @@ func (d *DemoRP) issueToken(w http.ResponseWriter, r *http.Request, granted toke
 // writeTokenResponse answers a token request. OpenID4VCI 1.0 §6.2 defines no
 // c_nonce in it. The wallet gets one from the Nonce Endpoint (§7). §6.2 makes
 // authorization_details "REQUIRED when the authorization_details parameter
-// [...] is used in either the Authorization Request or Token Request".
+// [...] is used in either the Authorization Request or Token Request" and
+// "OPTIONAL when scope parameter was used".
 func writeTokenResponse(w http.ResponseWriter, token string, granted tokenState) {
 	noStore(w)
 	tokenType := bearerScheme
@@ -502,10 +575,10 @@ type accessTokenError struct {
 // A request without an access token gets both challenges and, as RFC 6750
 // §3.1 asks, no error information. RFC 6750 §3.1 answers insufficient_scope
 // with 403 and the other errors with 401.
-func (d *DemoRP) writeAccessTokenError(w http.ResponseWriter, refused *accessTokenError) {
+func (d *DemoRP) writeAccessTokenError(w http.ResponseWriter, r *http.Request, refused *accessTokenError) {
 	algs := `algs="` + jws.AlgES256 + `"`
 	if refused.scheme == "" {
-		w.Header().Set("WWW-Authenticate", `Bearer realm="`+d.issuerID()+`", DPoP `+algs)
+		w.Header().Set("WWW-Authenticate", `Bearer realm="`+d.requestIssuerURL(r)+`", DPoP `+algs)
 		writeJSON(w, http.StatusUnauthorized, map[string]string{})
 		return
 	}
@@ -536,7 +609,7 @@ func (d *DemoRP) authorizeAccessToken(r *http.Request, endpoint string) (string,
 	d.mu.Lock()
 	granted, known := d.tokens[token]
 	var copied tokenState
-	if known && time.Now().Before(granted.expires) {
+	if known && time.Now().Before(granted.expires) && granted.issuer == issuerOf(r) {
 		copied = *granted
 	} else {
 		known = false
@@ -555,7 +628,7 @@ func (d *DemoRP) authorizeAccessToken(r *http.Request, endpoint string) (string,
 	}
 	// RFC 9449 §7.1: a request with the DPoP scheme carries a valid proof.
 	// Its key must be the key bound to the access token.
-	presented, err := d.verifyDPoPProof(r, d.issuerID()+endpoint, token)
+	presented, err := d.verifyDPoPProof(r, d.requestIssuerURL(r)+endpoint, token)
 	if err != nil {
 		return refuse("invalid_dpop_proof", err.Error())
 	}
@@ -620,7 +693,7 @@ func (d *DemoRP) handleCredential(w http.ResponseWriter, r *http.Request) {
 
 	token, tok, refused := d.authorizeAccessToken(r, "/credential")
 	if refused != nil {
-		d.writeAccessTokenError(w, refused)
+		d.writeAccessTokenError(w, r, refused)
 		return
 	}
 	granted := ticketGrant{tokenState: tok}
@@ -633,7 +706,7 @@ func (d *DemoRP) handleCredential(w http.ResponseWriter, r *http.Request) {
 	configID, errResp := d.requestedConfiguration(req, tok)
 	if errResp["error"] == "insufficient_scope" {
 		_, scheme, _ := accessToken(r)
-		d.writeAccessTokenError(w, &accessTokenError{scheme: scheme, code: errResp["error"], description: errResp["error_description"]})
+		d.writeAccessTokenError(w, r, &accessTokenError{scheme: scheme, code: errResp["error"], description: errResp["error_description"]})
 		return
 	}
 	if errResp != nil {
@@ -652,7 +725,7 @@ func (d *DemoRP) handleCredential(w http.ResponseWriter, r *http.Request) {
 
 	holderKeys := make([]*ecdsa.PublicKey, 0, len(proofs))
 	for _, proof := range proofs {
-		holderKey, err := d.verifyProofJWT(proof)
+		holderKey, err := d.verifyProofJWT(proof, d.requestIssuerURL(r))
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, oauthError(err.code, err.description))
 			return
@@ -794,7 +867,7 @@ func invalidProof(format string, args ...any) *proofError {
 // Key proofs are checked under OpenID4VCI 1.0 Appendix F.4. The aud check
 // against the Credential Issuer Identifier (F.1) stops reuse of a proof made
 // for another issuer.
-func (d *DemoRP) verifyProofJWT(raw string) (*ecdsa.PublicKey, *proofError) {
+func (d *DemoRP) verifyProofJWT(raw, issuer string) (*ecdsa.PublicKey, *proofError) {
 	proof, err := parseCompactJWT(raw)
 	if err != nil {
 		return nil, invalidProof("parsing proof JWT: %v", err)
@@ -814,8 +887,8 @@ func (d *DemoRP) verifyProofJWT(raw string) (*ecdsa.PublicKey, *proofError) {
 		return nil, invalidProof("proof JWT signature does not verify with the key in its header")
 	}
 
-	if aud, _ := proof.payload["aud"].(string); aud != d.issuerID() {
-		return nil, invalidProof("proof JWT aud is %q, want the credential issuer identifier %q", aud, d.issuerID())
+	if aud, _ := proof.payload["aud"].(string); aud != issuer {
+		return nil, invalidProof("proof JWT aud is %q, want the credential issuer identifier %q", aud, issuer)
 	}
 	// Appendix F.4: "the creation time of the JWT [...] is within an
 	// acceptable window (see Section 13.8)".

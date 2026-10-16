@@ -223,7 +223,7 @@ func TestAuthorizationDetailsOfTheAuthorizationRequestReachTheToken(t *testing.T
 
 	verifier := "aVeryLongCodeVerifierThatIsAtLeastFortyThreeCharacters"
 	sum := sha256.Sum256([]byte(verifier))
-	grant, errResp := d.resolveAuthGrant(authGrant{
+	grant, errResp := d.resolveAuthGrant(registeredIssuer, authGrant{
 		clientID:      "wallet",
 		codeChallenge: format.EncodeBase64URL(sum[:]),
 		redirectURI:   "http://wallet.example/cb",
@@ -320,7 +320,7 @@ func TestAKeyProofWithAPrivateKeyIsRefused(t *testing.T) {
 		map[string]any{"alg": "ES256", "typ": "openid4vci-proof+jwt", "jwk": jwk},
 		map[string]any{"aud": demoIssuerID, "iat": time.Now().Unix(), "nonce": nonceDoc["c_nonce"]},
 	)
-	if _, err := d.verifyProofJWT(proof); err == nil || err.code != "invalid_proof" || !strings.Contains(err.description, "private key") {
+	if _, err := d.verifyProofJWT(proof, d.issuerID()); err == nil || err.code != "invalid_proof" || !strings.Contains(err.description, "private key") {
 		t.Errorf("a proof with a private jwk: %v, want invalid_proof naming the private key", err)
 	}
 }

@@ -235,7 +235,7 @@ func TestOfferRefusesUnknownConfigurations(t *testing.T) {
 	if code != http.StatusBadRequest {
 		t.Errorf("offer for an unknown configuration: %d %v, want 400", code, doc)
 	}
-	granted := tokenState{offerSettings: offerSettings{configIDs: []string{ticketConfigurationID}}}
+	granted := tokenState{offerSettings: offerSettings{configIDs: []string{ticketConfigurationID}, issuer: registeredIssuer}}
 	if _, errResp := d.requestedConfiguration(credentialRequest{CredentialConfigurationID: "german-pid-sdjwt"}, granted); errResp["error"] != "insufficient_scope" {
 		t.Errorf("credential request for a configuration outside the token: %v, want insufficient_scope", errResp)
 	}

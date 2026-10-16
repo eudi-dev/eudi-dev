@@ -281,7 +281,7 @@ func TestVerifyProofJWTAcceptsANonceFromTheNonceEndpoint(t *testing.T) {
 	d, _, _ := newDemoRP(t)
 	nonce := issuedNonce(t, d)
 
-	if _, err := d.verifyProofJWT(proofJWTWith(t, d, proofOptions{nonce: nonce})); err != nil {
+	if _, err := d.verifyProofJWT(proofJWTWith(t, d, proofOptions{nonce: nonce}), d.issuerID()); err != nil {
 		t.Errorf("a nonce from the nonce endpoint was refused: %v", err)
 	}
 }
@@ -292,7 +292,7 @@ func TestVerifyProofJWTAcceptsANonceFromTheNonceEndpoint(t *testing.T) {
 func TestVerifyProofJWTRejectsANonceItNeverHandedOut(t *testing.T) {
 	d, _, _ := newDemoRP(t)
 
-	_, err := d.verifyProofJWT(proofJWTWith(t, d, proofOptions{nonce: "invented"}))
+	_, err := d.verifyProofJWT(proofJWTWith(t, d, proofOptions{nonce: "invented"}), d.issuerID())
 	if err == nil {
 		t.Fatal("a nonce this issuer never handed out was accepted")
 	}
@@ -308,7 +308,7 @@ func TestVerifyProofJWTRejectsANonceItNeverHandedOut(t *testing.T) {
 func TestVerifyProofJWTRejectsAProofWithNoNonce(t *testing.T) {
 	d, _, _ := newDemoRP(t)
 
-	_, err := d.verifyProofJWT(proofJWTWith(t, d, proofOptions{}))
+	_, err := d.verifyProofJWT(proofJWTWith(t, d, proofOptions{}), d.issuerID())
 	if err == nil {
 		t.Fatal("a proof with no nonce was accepted")
 	}
@@ -331,7 +331,7 @@ func TestVerifyProofJWTRejectsAProofMintedForAnotherIssuer(t *testing.T) {
 	_, err := d.verifyProofJWT(proofJWTWith(t, d, proofOptions{
 		nonce:    nonce,
 		audience: "https://another-issuer.example",
-	}))
+	}), d.issuerID())
 	if err == nil {
 		t.Fatal("a proof addressed to another credential issuer was accepted")
 	}
@@ -348,7 +348,7 @@ func TestVerifyProofJWTRejectsAProofOutsideTheAcceptedIATWindow(t *testing.T) {
 		_, err := d.verifyProofJWT(proofJWTWith(t, d, proofOptions{
 			nonce: nonce,
 			iat:   time.Now().Add(-2 * freshnessWindow),
-		}))
+		}), d.issuerID())
 		if err == nil {
 			t.Fatal("a proof issued long before now was accepted")
 		}
@@ -361,14 +361,14 @@ func TestVerifyProofJWTRejectsAProofOutsideTheAcceptedIATWindow(t *testing.T) {
 		_, err := d.verifyProofJWT(proofJWTWith(t, d, proofOptions{
 			nonce: nonce,
 			iat:   time.Now().Add(2 * freshnessWindow),
-		}))
+		}), d.issuerID())
 		if err == nil {
 			t.Fatal("a proof issued in the future was accepted")
 		}
 	})
 
 	t.Run("no iat at all", func(t *testing.T) {
-		_, err := d.verifyProofJWT(proofJWTWith(t, d, proofOptions{nonce: nonce, omitIAT: true}))
+		_, err := d.verifyProofJWT(proofJWTWith(t, d, proofOptions{nonce: nonce, omitIAT: true}), d.issuerID())
 		if err == nil {
 			t.Fatal("a proof with no iat was accepted")
 		}
@@ -382,7 +382,7 @@ func TestVerifyProofJWTRejectsAWronglyTypedProof(t *testing.T) {
 	d, _, _ := newDemoRP(t)
 	nonce := issuedNonce(t, d)
 
-	_, err := d.verifyProofJWT(proofJWTWith(t, d, proofOptions{nonce: nonce, typ: "JWT"}))
+	_, err := d.verifyProofJWT(proofJWTWith(t, d, proofOptions{nonce: nonce, typ: "JWT"}), d.issuerID())
 	if err == nil {
 		t.Fatal("a proof typed JWT was accepted")
 	}
@@ -397,14 +397,14 @@ func TestVerifyProofJWTKeyMaterialForms(t *testing.T) {
 
 	t.Run("x5c", func(t *testing.T) {
 		nonce := issuedNonce(t, d)
-		if _, err := d.verifyProofJWT(proofJWTWith(t, d, proofOptions{nonce: nonce, keyHeader: "x5c"})); err != nil {
+		if _, err := d.verifyProofJWT(proofJWTWith(t, d, proofOptions{nonce: nonce, keyHeader: "x5c"}), d.issuerID()); err != nil {
 			t.Errorf("a proof carrying its key in x5c was refused: %v", err)
 		}
 	})
 
 	t.Run("kid names a key this issuer cannot resolve", func(t *testing.T) {
 		nonce := issuedNonce(t, d)
-		_, err := d.verifyProofJWT(proofJWTWith(t, d, proofOptions{nonce: nonce, keyHeader: "kid"}))
+		_, err := d.verifyProofJWT(proofJWTWith(t, d, proofOptions{nonce: nonce, keyHeader: "kid"}), d.issuerID())
 		if err == nil {
 			t.Fatal("a proof identifying its key only by kid was accepted")
 		}
@@ -415,7 +415,7 @@ func TestVerifyProofJWTKeyMaterialForms(t *testing.T) {
 
 	t.Run("two key parameters at once", func(t *testing.T) {
 		nonce := issuedNonce(t, d)
-		_, err := d.verifyProofJWT(proofJWTWith(t, d, proofOptions{nonce: nonce, keyHeader: "jwk+kid"}))
+		_, err := d.verifyProofJWT(proofJWTWith(t, d, proofOptions{nonce: nonce, keyHeader: "jwk+kid"}), d.issuerID())
 		if err == nil {
 			t.Fatal("a proof carrying both jwk and kid was accepted")
 		}
@@ -423,7 +423,7 @@ func TestVerifyProofJWTKeyMaterialForms(t *testing.T) {
 
 	t.Run("no key parameter at all", func(t *testing.T) {
 		nonce := issuedNonce(t, d)
-		if _, err := d.verifyProofJWT(proofJWTWith(t, d, proofOptions{nonce: nonce, keyHeader: "none"})); err == nil {
+		if _, err := d.verifyProofJWT(proofJWTWith(t, d, proofOptions{nonce: nonce, keyHeader: "none"}), d.issuerID()); err == nil {
 			t.Fatal("a proof carrying no key material was accepted")
 		}
 	})
@@ -434,7 +434,7 @@ func TestVerifyProofJWTRejectsBadProofs(t *testing.T) {
 	nonce := issuedNonce(t, d)
 
 	t.Run("not a JWT", func(t *testing.T) {
-		if _, err := d.verifyProofJWT("nonsense"); err == nil {
+		if _, err := d.verifyProofJWT("nonsense", d.issuerID()); err == nil {
 			t.Error("something that is not a JWT was accepted")
 		}
 	})
@@ -456,21 +456,21 @@ func TestVerifyProofJWTRejectsBadProofs(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := d.verifyProofJWT(compact); err == nil {
+		if _, err := d.verifyProofJWT(compact, d.issuerID()); err == nil {
 			t.Error("a proof whose signature does not match its jwk was accepted")
 		}
 	})
 
 	t.Run("a signature that is not valid base64", func(t *testing.T) {
 		parts := strings.Split(proofJWTWith(t, d, proofOptions{nonce: nonce}), ".")
-		if _, err := d.verifyProofJWT(parts[0] + "." + parts[1] + ".!!!"); err == nil {
+		if _, err := d.verifyProofJWT(parts[0]+"."+parts[1]+".!!!", d.issuerID()); err == nil {
 			t.Error("an unreadable signature was accepted")
 		}
 	})
 
 	t.Run("a header that is not JSON", func(t *testing.T) {
 		bad := base64.RawURLEncoding.EncodeToString([]byte("not json")) + ".e30.AAAA"
-		if _, err := d.verifyProofJWT(bad); err == nil {
+		if _, err := d.verifyProofJWT(bad, d.issuerID()); err == nil {
 			t.Error("a header that is not JSON was accepted")
 		}
 	})
