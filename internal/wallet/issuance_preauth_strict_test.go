@@ -141,10 +141,11 @@ func strictPreAuthIssuer(t *testing.T, w *Wallet, requireDPoP, requireClientAtte
 				json.Unmarshal(body, &reqBody)
 				proofs, _ := reqBody["proofs"].(map[string]any)
 				// The batch arrives as one proof. Its key attestation lists
-				// every batch key with the holder key first, and the issuer
-				// issues one credential per attested key. Under the attestation
-				// proof type the proof is the attestation itself (Appendix F.3).
-				// Otherwise it is a holder-key jwt that carries it (F.1).
+				// every batch key, and the issuer issues one credential per
+				// attested key. Under the attestation proof type the proof is
+				// the attestation itself (Appendix F.3). Otherwise it is a jwt
+				// signed with the first attested key that carries it (F.1,
+				// CIR (EU) 2024/2979 Annex Ib TR_KA_3.1).
 				wantType := "attestation"
 				if proofTypes == "jwt" {
 					wantType = "jwt"
@@ -155,11 +156,10 @@ func strictPreAuthIssuer(t *testing.T, w *Wallet, requireDPoP, requireClientAtte
 					return
 				}
 				attestation, _ := values[0].(string)
+				var proofJWK map[string]any
 				if wantType == "jwt" {
 					header := decodeJWTPart(t, attestation, 0)
-					if jwk, _ := header["jwk"].(map[string]any); jwk["x"] != mock.SigningJWKMap(&w.HolderKey.PublicKey)["x"] {
-						t.Error("the attested proof is not signed by the holder key")
-					}
+					proofJWK, _ = header["jwk"].(map[string]any)
 					attestation, _ = header["key_attestation"].(string)
 				}
 				if attestation == "" {
@@ -178,8 +178,15 @@ func strictPreAuthIssuer(t *testing.T, w *Wallet, requireDPoP, requireClientAtte
 				if len(attested) != MaxBatchSize {
 					t.Errorf("key attestation attests %d keys, want the batch of %d", len(attested), MaxBatchSize)
 				}
-				if first, _ := attested[0].(map[string]any); first["x"] != mock.SigningJWKMap(&w.HolderKey.PublicKey)["x"] {
-					t.Error("the key attestation does not name the holder key first")
+				first, _ := attested[0].(map[string]any)
+				if proofJWK != nil && proofJWK["x"] != first["x"] {
+					t.Error("the attested proof is not signed by the first attested key")
+				}
+				// ARF ISSU_12b: every issuance binds fresh keys.
+				for _, key := range attested {
+					if jwk, _ := key.(map[string]any); jwk["x"] == mock.SigningJWKMap(&w.HolderKey.PublicKey)["x"] {
+						t.Error("the key attestation names the wallet's holder key")
+					}
 				}
 				for _, claim := range []string{"key_storage", "user_authentication"} {
 					values, _ := attPayload[claim].([]any)
@@ -281,7 +288,7 @@ func TestIssuanceProofKeys_KeyAttestationCoversBatch(t *testing.T) {
 		},
 	}
 
-	keys, err := issuanceProofKeys(w.HolderKey, metadata)
+	keys, err := issuanceProofKeys(metadata)
 	if err != nil {
 		t.Fatalf("issuanceProofKeys: %v", err)
 	}

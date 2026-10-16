@@ -46,32 +46,33 @@ func advertisedBatchSize(metadata map[string]any) int {
 	return int(size)
 }
 
-// issuanceProofKeys returns the proof keys of a credential request, holder
-// key first. buildCredentialProofs turns them into proofs. When the issuer
-// advertises batch_size >= 2, each copy of the batch is bound to its own fresh
-// key. RFC 9901 §10.1 requires this for SD-JWT batches. It is recommended for
-// mdoc.
-func issuanceProofKeys(holderKey *ecdsa.PrivateKey, metadata map[string]any) ([]*ecdsa.PrivateKey, error) {
-	return batchProofKeys(holderKey, metadata, MaxBatchSize)
+// issuanceProofKeys returns the proof keys of a credential request.
+// buildCredentialProofs turns them into proofs. Every key is fresh. ARF
+// ISSU_12b has the wallet "generate a new key pair for a new PID or
+// attestation", and CIR (EU) 2024/2979 Annex Ib TR_KA-2.3 puts a public key in
+// at most one key attestation. When the issuer advertises batch_size >= 2,
+// each copy of the batch is bound to its own key. RFC 9901 §10.1 requires this
+// for SD-JWT batches. It is recommended for mdoc.
+func issuanceProofKeys(metadata map[string]any) ([]*ecdsa.PrivateKey, error) {
+	return batchProofKeys(metadata, MaxBatchSize)
 }
 
-// batchProofKeys returns the holder key and fresh keys for up to wanted
-// copies, as many as the issuer's batch_size allows.
-func batchProofKeys(holderKey *ecdsa.PrivateKey, metadata map[string]any, wanted int) ([]*ecdsa.PrivateKey, error) {
-	keys := []*ecdsa.PrivateKey{holderKey}
+// batchProofKeys returns fresh keys for up to wanted copies, as many as the
+// issuer's batch_size allows, and at least one.
+func batchProofKeys(metadata map[string]any, wanted int) ([]*ecdsa.PrivateKey, error) {
 	batchSize := advertisedBatchSize(metadata)
-	count := min(batchSize, wanted, MaxBatchSize)
-	if count < 2 {
-		return keys, nil
-	}
+	count := max(min(batchSize, wanted, MaxBatchSize), 1)
+	keys := make([]*ecdsa.PrivateKey, 0, count)
 	for len(keys) < count {
 		key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 		if err != nil {
-			return nil, fmt.Errorf("generating batch proof key: %w", err)
+			return nil, fmt.Errorf("generating proof key: %w", err)
 		}
 		keys = append(keys, key)
 	}
-	log.Printf("[VCI] Issuer advertises batch_credential_issuance (batch_size=%d), requesting %d copies", batchSize, len(keys))
+	if count >= 2 {
+		log.Printf("[VCI] Issuer advertises batch_credential_issuance (batch_size=%d), requesting %d copies", batchSize, len(keys))
+	}
 	return keys, nil
 }
 
@@ -110,7 +111,7 @@ type batchCopy struct {
 // A single credential is taken with whatever key it is bound to. Among
 // several, a copy that breaks the rule above or cannot be read is a server
 // deviation. Strict mode refuses the response. Debug mode warns and leaves the
-// copy out. The copy bound to the holder key is the primary, or else the
+// copy out. The copy bound to the first proof key is the primary, or else the
 // first one.
 func (w *Wallet) sortBatch(credResp map[string]any, keys []*ecdsa.PrivateKey, report func(...string)) (sortedBatch, error) {
 	creds := credentialStringsFromResponse(credResp)
@@ -195,11 +196,10 @@ func proofKeyIndex(raw string, keys []*ecdsa.PrivateKey) int {
 	return -1
 }
 
-// primaryBindingKeyPEM returns the PEM of the credential's binding key when it
-// is not the holder key (index 0), and "" otherwise. The holder key needs no
-// per-copy record because batchSigningKey falls back to it.
+// primaryBindingKeyPEM returns the PEM of the proof key the credential is
+// bound to, and "" when it is bound to none of them.
 func primaryBindingKeyPEM(raw string, keys []*ecdsa.PrivateKey) string {
-	if idx := proofKeyIndex(raw, keys); idx > 0 {
+	if idx := proofKeyIndex(raw, keys); idx >= 0 {
 		if pem, err := encodeECPrivateKeyPEM(keys[idx]); err == nil {
 			return pem
 		}

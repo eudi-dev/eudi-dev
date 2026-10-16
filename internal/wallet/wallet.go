@@ -1305,14 +1305,12 @@ func (w *Wallet) ListedCredentials() []StoredCredential {
 	return out
 }
 
-// The copy bound to the wallet holder key represents its batch, so the listed ID
-// stays stable while other copies rotate.
+// The first copy of a batch in the store represents it. A batch is stored
+// with its primary first, and a renewal keeps the primary in place, so the
+// listed ID stays stable while other copies rotate.
 func batchRepresentative(creds []StoredCredential, member StoredCredential) StoredCredential {
-	if member.BindingKeyPEM == "" {
-		return member
-	}
 	for _, c := range creds {
-		if c.BatchGroup == member.BatchGroup && c.BindingKeyPEM == "" {
+		if c.BatchGroup == member.BatchGroup {
 			return c
 		}
 	}

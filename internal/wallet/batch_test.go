@@ -133,26 +133,17 @@ func TestStoreBatchSiblingsStoresEveryCopy(t *testing.T) {
 	if group == "" {
 		t.Fatal("the batch copies must carry a batch group")
 	}
-	holderCopies, keyedCopies := 0, 0
 	for i := range creds {
 		c := creds[i]
 		if c.BatchGroup != group {
 			t.Fatalf("copy %s carries a different batch group", c.ID)
 		}
 		if c.BindingKeyPEM == "" {
-			holderCopies++
-		} else {
-			keyedCopies++
+			t.Fatalf("copy %s carries no binding key of its own", c.ID)
 		}
 		if w.keyBindingNotHeld(&c) {
 			t.Fatalf("batch copy %s reads as not presentable, but its key is held", c.ID)
 		}
-	}
-	if holderCopies != 1 {
-		t.Fatalf("expected exactly one holder-key copy, got %d", holderCopies)
-	}
-	if keyedCopies != len(keys)-1 {
-		t.Fatalf("expected %d copies bound to their own key, got %d", len(keys)-1, keyedCopies)
 	}
 }
 
@@ -168,8 +159,8 @@ func TestListedCredentialsCollapsesBatch(t *testing.T) {
 	if len(listed) != 1 {
 		t.Fatalf("a batch should list as one credential, got %d", len(listed))
 	}
-	if listed[0].BindingKeyPEM != "" {
-		t.Fatal("a batch should be listed by its holder-key copy")
+	if listed[0].ID != w.GetCredentials()[0].ID {
+		t.Fatal("a batch should be listed by its first copy")
 	}
 	if summary := CredentialSummary(listed[0]); summary["batch"] != true {
 		t.Fatalf("the listed batch should carry the batch flag, got %v", summary["batch"])

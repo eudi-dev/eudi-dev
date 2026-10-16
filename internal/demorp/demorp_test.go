@@ -115,7 +115,7 @@ func signES256(t *testing.T, key *ecdsa.PrivateKey, header, payload map[string]a
 }
 
 // signJWT signs with the JOSE algorithm of the key's curve: ES256, ES384 or
-// ES512 (RFC 7518 §3.4). The header names that algorithm.
+// ES512 (RFC 7518 §3.4).
 func signJWT(t *testing.T, key *ecdsa.PrivateKey, header, payload map[string]any) string {
 	t.Helper()
 	newHash := sha256.New
@@ -1608,7 +1608,7 @@ func TestIssuanceWithOverrideStillStoresTheCredential(t *testing.T) {
 }
 
 // Batch copies use separate holder keys so presentations can rotate through unused
-// copies.
+// copies. ARF ISSU_12b: none of them is the wallet's holder key.
 func TestIssuerBatchOfferStoresEveryCopy(t *testing.T) {
 	w := newIssuanceWallet(t)
 	_, ts := serveDemoStack(t, w)
@@ -1617,7 +1617,6 @@ func TestIssuerBatchOfferStoresEveryCopy(t *testing.T) {
 	redeemDemoTicket(t, w, ts, "?batch=true")
 
 	var group string
-	holderCopies := 0
 	for _, c := range w.GetCredentials() {
 		if c.VCT != TicketVCT {
 			continue
@@ -1631,14 +1630,33 @@ func TestIssuerBatchOfferStoresEveryCopy(t *testing.T) {
 			t.Fatalf("batch copies landed in different groups: %s vs %s", group, c.BatchGroup)
 		}
 		if c.BindingKeyPEM == "" {
-			holderCopies++
+			t.Fatalf("batch copy %s is bound to the wallet's holder key", c.ID)
 		}
 	}
 	if added := len(w.GetCredentials()) - before; added < 2 {
 		t.Fatalf("a batch offer stored %d copies, want at least 2", added)
 	}
-	if holderCopies != 1 {
-		t.Fatalf("a batch must have exactly one holder-key copy, got %d", holderCopies)
+}
+
+// ARF ISSU_12b: the wallet generates "a new key pair for a new PID or
+// attestation". A single credential is bound to a fresh key too, and the
+// wallet presents it with that key.
+func TestIssuedCredentialIsBoundToAFreshKey(t *testing.T) {
+	w := newIssuanceWallet(t)
+	_, ts := serveDemoStack(t, w)
+
+	first := redeemDemoTicket(t, w, ts, "")
+	second := redeemDemoTicket(t, w, ts, "")
+	for _, ticket := range []*wallet.StoredCredential{first, second} {
+		if ticket.BindingKeyPEM == "" {
+			t.Fatalf("ticket %s is bound to the wallet's holder key", ticket.ID)
+		}
+	}
+	if first.BindingKeyPEM == second.BindingKeyPEM {
+		t.Fatal("two issuances bound their tickets to the same key")
+	}
+	if got := presentDemoTicket(t, ts); got["status"] != "verified" {
+		t.Fatalf("a ticket bound to a fresh key did not verify: %v (checks: %v)", got, got["checks"])
 	}
 }
 

@@ -98,32 +98,38 @@ func TestAdvertisedBatchSize(t *testing.T) {
 	}
 }
 
+// ARF ISSU_12b: the wallet generates "a new key pair for a new PID or
+// attestation". CIR (EU) 2024/2979 Annex Ib TR_KA-2.3 puts a public key in at
+// most one key attestation, so no two issuances share a proof key.
 func TestIssuanceProofKeys(t *testing.T) {
-	holder := testKey(t)
+	w := generateTestWallet(t)
 
-	keys, err := issuanceProofKeys(holder, map[string]any{})
+	single, err := issuanceProofKeys(map[string]any{})
 	if err != nil {
 		t.Fatalf("issuanceProofKeys: %v", err)
 	}
-	if len(keys) != 1 || keys[0] != holder {
-		t.Fatalf("without batch metadata expected only the holder key, got %d keys", len(keys))
+	if len(single) != 1 {
+		t.Fatalf("without batch metadata expected one proof key, got %d", len(single))
 	}
 
 	metadata := map[string]any{
 		"batch_credential_issuance": map[string]any{"batch_size": float64(10)},
 	}
-	keys, err = issuanceProofKeys(holder, metadata)
+	batch, err := issuanceProofKeys(metadata)
 	if err != nil {
 		t.Fatalf("issuanceProofKeys with batch: %v", err)
 	}
-	if len(keys) != MaxBatchSize {
-		t.Fatalf("expected %d proof keys, got %d", MaxBatchSize, len(keys))
+	if len(batch) != MaxBatchSize {
+		t.Fatalf("expected %d proof keys, got %d", MaxBatchSize, len(batch))
 	}
-	if keys[0] != holder {
-		t.Fatal("holder key must be first")
-	}
-	if keys[1].PublicKey.Equal(&holder.PublicKey) {
-		t.Fatal("batch key must differ from holder key")
+
+	seen := map[string]bool{mock.KeyIDForPublicKey(&w.HolderKey.PublicKey): true}
+	for _, key := range append(single, batch...) {
+		kid := mock.KeyIDForPublicKey(&key.PublicKey)
+		if seen[kid] {
+			t.Fatalf("proof key %s is the holder key or a key of another issuance", kid)
+		}
+		seen[kid] = true
 	}
 }
 

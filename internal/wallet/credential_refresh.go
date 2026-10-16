@@ -65,7 +65,7 @@ func (w *Wallet) RenewCredential(id string) (renewed *StoredCredential, err erro
 	nonce := ""
 	// A batch is renewed as a whole, each copy bound to a fresh key, so no
 	// expired copy stays in the presentation rotation.
-	proofKeys, err := batchProofKeys(w.HolderKeyPair(), metadata, w.batchSize(cred))
+	proofKeys, err := batchProofKeys(metadata, w.batchSize(cred))
 	if err != nil {
 		return nil, err
 	}
