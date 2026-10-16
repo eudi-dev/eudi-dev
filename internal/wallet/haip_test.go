@@ -325,7 +325,7 @@ func TestStrictHAIPChecksEveryCopyOfABatch(t *testing.T) {
 	w.RequireHAIP = true
 	w.ValidationMode = ValidationModeStrict
 	resp := map[string]any{"credentials": []any{map[string]any{"credential": good}, map[string]any{"credential": bare}}}
-	if _, err := w.checkReceivedCredentials(resp, "https://issuer.example"); err == nil || !strings.Contains(err.Error(), "§6.1.1") {
+	if _, err := w.checkReceivedCredentials(resp, nil, "", "https://issuer.example"); err == nil || !strings.Contains(err.Error(), "§6.1.1") {
 		t.Errorf("err %v, want the §6.1.1 finding for the second copy", err)
 	}
 }

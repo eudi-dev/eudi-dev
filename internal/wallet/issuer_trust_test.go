@@ -49,11 +49,11 @@ func TestAForeignPIDFailsTheTrustAnchorCheck(t *testing.T) {
 		}
 		resp := map[string]any{"credentials": []any{map[string]any{"credential": c.Raw}}}
 		w.ValidationMode = ValidationModeStrict
-		if _, err := w.checkReceivedCredentials(resp, "https://issuer.example"); err == nil {
+		if _, err := w.checkReceivedCredentials(resp, nil, "", "https://issuer.example"); err == nil {
 			t.Errorf("%s: strict mode accepted the credential", c.Format)
 		}
 		w.ValidationMode = ValidationModeDebug
-		if _, err := w.checkReceivedCredentials(resp, "https://issuer.example"); err != nil {
+		if _, err := w.checkReceivedCredentials(resp, nil, "", "https://issuer.example"); err != nil {
 			t.Errorf("%s: debug mode refused: %v", c.Format, err)
 		}
 	}
@@ -67,7 +67,7 @@ func TestEveryCopyOfABatchIsChecked(t *testing.T) {
 	own := w.GetCredentials()[0].Raw
 	foreign := generateTestWalletWithPID(t).GetCredentials()[0].Raw
 	resp := map[string]any{"credentials": []any{map[string]any{"credential": own}, map[string]any{"credential": foreign}}}
-	if _, err := w.checkReceivedCredentials(resp, "https://issuer.example"); err == nil {
+	if _, err := w.checkReceivedCredentials(resp, nil, "", "https://issuer.example"); err == nil {
 		t.Error("strict mode accepted a batch with a foreign copy")
 	}
 }

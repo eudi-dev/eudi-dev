@@ -376,7 +376,7 @@ func TestStrictARFChecksTheChosenConfigurationOnly(t *testing.T) {
 	if err := json.Unmarshal([]byte(issueTestIssuerInfo(t, w, rp).IssuerInfo), &info); err != nil {
 		t.Fatal(err)
 	}
-	credential := generateTestCredential(t, w)
+	credential := generateTestCredentialOfType(t, w, "urn:example:diploma:1")
 	var serverURL string
 	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		switch {

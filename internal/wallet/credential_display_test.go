@@ -91,7 +91,7 @@ func pixelBombPNG(t *testing.T) []byte {
 func displayIssuer(t *testing.T, w *Wallet, display []map[string]any) (*httptest.Server, string) {
 	t.Helper()
 
-	credRaw := generateTestCredential(t, w)
+	credRaw := generateTestCredentialOfType(t, w, "urn:test:credential")
 	var serverURL string
 
 	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {

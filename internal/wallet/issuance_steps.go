@@ -278,7 +278,7 @@ func (w *Wallet) storeIssuedCredential(credResp map[string]any, d credentialDeli
 
 func (w *Wallet) storeReceivedCredential(credResp map[string]any, d credentialDelivery) (*StoredCredential, string, error) {
 	issuer := d.renewal.Issuer
-	received, err := w.checkReceivedCredentials(credResp, issuer)
+	received, err := w.checkReceivedCredentials(credResp, d.metadata, d.renewal.ConfigurationID, issuer)
 	if err != nil {
 		return nil, "", err
 	}

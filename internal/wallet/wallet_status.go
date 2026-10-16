@@ -17,6 +17,7 @@ package wallet
 import (
 	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/binary"
 	"fmt"
 	"math/bits"
@@ -391,4 +392,33 @@ func (w *Wallet) CredentialSummaryWithBatch(c StoredCredential) map[string]any {
 		summary["batch_size"] = w.BatchGroupSize(c.BatchGroup)
 	}
 	return summary
+}
+
+// checkRemoteStatus fetches the status list of a credential from another
+// issuer. The revocation service of the trusted list that anchors the
+// credential anchors its status list. A valid signature alone does not
+// establish trust.
+func (w *Wallet) checkRemoteStatus(cred StoredCredential, ref *statuslist.StatusRef) (*statuslist.StatusResult, error) {
+	return w.checkStatusWithAnchors(cred, ref, w.StatusListAnchors(cred.Raw))
+}
+
+func (w *Wallet) checkStatusWithAnchors(cred StoredCredential, ref *statuslist.StatusRef, anchors []*x509.Certificate) (*statuslist.StatusResult, error) {
+	opts := statuslist.CheckOptions{HTTPClient: w.HTTPClient(), Prefer: statuslist.FormatForCredential(cred.Format)}
+	for _, anchor := range anchors {
+		opts.CandidateAnchors = append(opts.CandidateAnchors, statuslist.TrustCert{Raw: anchor.Raw})
+	}
+	return statuslist.CheckWithOptions(ref, opts)
+}
+
+// ownStatusAt is the status at an index of the wallet's own status list.
+// An index without an entry is valid, as BuildStatusList publishes it.
+func (w *Wallet) ownStatusAt(idx int) int {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	for _, entry := range w.StatusEntries {
+		if entry.Index == idx {
+			return entry.Status
+		}
+	}
+	return 0
 }

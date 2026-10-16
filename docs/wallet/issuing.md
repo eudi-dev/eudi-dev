@@ -96,7 +96,15 @@ A PID, QEAA or PuB-EAA entry must link a readable trusted list. Otherwise that i
 
 The wallet verifies the JAdES signature of each fetched trusted list. The signer must chain to a trusted list operator: the wallet CA or a CA from `--trusted-list-ca` (ARF PPNot_05, TLPub_05, TLPub_07). The flag takes a PEM file and is repeatable on `wallet serve`, `wallet accept` and `wallet scan`. A list found through an external list of trusted lists must instead be signed by the certificate in its pointer (ETSI TS 119 602 V1.1.1 §6.3.13).
 
-In `--mode debug` a failure is a warning. In `--mode strict` the wallet doesn't store the credential (ISSU_11b). Every copy of a batch, renewals and deferred credentials get the same check.
+The wallet also checks that the credential is the one it asked for, and that it is valid:
+
+- its `vct` or `doctype` is the type of the requested credential configuration (ISSU_06)
+- every copy of a batch has the same technical validity period (ISSU_11a)
+- it hasn't expired, it is already valid, and its status list doesn't mark it revoked or suspended (CIR (EU) 2024/2982 Article 4(3)(d)). A status list the wallet can't read is a finding too, because the wallet then can't tell whether the credential is revoked. The status list must chain to a revocation service on the trusted list that anchors the credential. For a credential with a status entry on the wallet's own list, the wallet reads its own state.
+
+In `--mode debug` a failure is a warning. In `--mode strict` the wallet doesn't store the credential (ISSU_11b). Every copy of a batch, renewals and deferred credentials get the same check. Manual import skips these checks, so the wallet can hold expired or revoked credentials to test verifiers.
+
+The copies of a batch must also have the same attribute values. OpenID4VCI 1.0 §3.3.2 requires this of the issuer, so the wallet checks it without `--arf` too. Strict mode refuses a batch whose copies differ, and debug mode warns.
 
 If an offered type has no catalogue entry, the consent dialog and the log show a warning. No specification requires this check, so the warning doesn't stop issuance in either mode.
 

@@ -271,9 +271,14 @@ func setupMockIssuer(t *testing.T, w *Wallet, opts mockIssuerOpts) (*httptest.Se
 
 func generateTestCredential(t *testing.T, w *Wallet) string {
 	t.Helper()
+	return generateTestCredentialOfType(t, w, "TestIssuedCred")
+}
+
+func generateTestCredentialOfType(t *testing.T, w *Wallet, vct string) string {
+	t.Helper()
 	cred, err := mock.GenerateSDJWT(mock.SDJWTConfig{
 		Issuer:    "https://test-issuer.example",
-		VCT:       "TestIssuedCred",
+		VCT:       vct,
 		ExpiresIn: 24 * time.Hour,
 		Claims:    map[string]any{"given_name": "Test", "family_name": "User"},
 		Key:       w.IssuerKey,

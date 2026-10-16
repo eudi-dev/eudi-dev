@@ -273,11 +273,19 @@ func validateWithAnchors(cred StoredCredential, anchors []*x509.Certificate) err
 
 // checkReceivedCredentials checks every credential of a credential response
 // before the wallet stores one, on every issuance path. Each copy of a batch
-// is signed on its own. With --haip it applies HAIP 1.0 §6.1.1, and with
-// --arf the trust anchor check. In strict mode a failed check refuses the
-// response (ARF ISSU_11b). In debug mode it returns the findings.
-func (w *Wallet) checkReceivedCredentials(credResp map[string]any, issuer string) ([]string, error) {
+// is signed on its own. Copies of a batch must share their attribute values
+// (OpenID4VCI 1.0 §3.3.2). With --haip it applies HAIP 1.0 §6.1.1. With
+// --arf it checks the trust anchor, the requested type (ISSU_06), the
+// validity period of the batch (ISSU_11a) and the validity and status of
+// every copy (CIR (EU) 2024/2982 Article 4(3)(d)). In strict mode a failed
+// check refuses the response (ARF ISSU_11b). In debug mode it returns the
+// findings. configID is the requested credential configuration.
+func (w *Wallet) checkReceivedCredentials(credResp, metadata map[string]any, configID, issuer string) ([]string, error) {
 	credentials := credentialStringsFromResponse(credResp)
+	received := make([]StoredCredential, 0, len(credentials))
+	for _, raw := range credentials {
+		received = append(received, receivedCredential(raw))
+	}
 	var debugFindings []string
 	if w.HAIPChecks() {
 		var violations []string
@@ -292,10 +300,22 @@ func (w *Wallet) checkReceivedCredentials(credResp map[string]any, issuer string
 			debugFindings = append(debugFindings, violations...)
 		}
 	}
-	var findings []string
-	for _, raw := range credentials {
-		findings = append(findings, w.trustAnchorFindings(receivedCredential(raw))...)
+	for _, deviation := range batchDatasetFindings(received) {
+		if err := w.reportServerDeviation(deviation); err != nil {
+			return nil, err
+		}
+		debugFindings = append(debugFindings, deviation)
 	}
+	if !w.ARFChecks() {
+		return debugFindings, nil
+	}
+	var findings []string
+	for _, cred := range received {
+		findings = append(findings, w.trustAnchorFindings(cred)...)
+	}
+	findings = append(findings, requestedTypeFindings(received, metadata, configID)...)
+	findings = append(findings, batchValidityFindings(received)...)
+	findings = append(findings, w.receivedValidityFindings(received, time.Now())...)
 	if len(findings) == 0 {
 		return debugFindings, nil
 	}
@@ -306,7 +326,8 @@ func (w *Wallet) checkReceivedCredentials(credResp map[string]any, issuer string
 	return append(debugFindings, findings...), nil
 }
 
-// receivedCredential reads the format and type of a raw SD-JWT VC or mdoc.
+// receivedCredential reads the format, type and claims of a raw SD-JWT VC or
+// mdoc.
 func receivedCredential(raw string) StoredCredential {
 	raw = strings.TrimSpace(raw)
 	if strings.Contains(raw, "~") {
@@ -314,13 +335,19 @@ func receivedCredential(raw string) StoredCredential {
 		if err != nil {
 			return StoredCredential{}
 		}
-		return StoredCredential{Format: credtype.FormatSDJWT, VCT: jsonutil.Text(token.Payload["vct"]), Raw: raw}
+		return StoredCredential{Format: credtype.FormatSDJWT, VCT: jsonutil.Text(token.Payload["vct"]), Claims: token.ResolvedClaims, Raw: raw}
 	}
 	doc, err := mdoc.Parse(raw)
 	if err != nil {
 		return StoredCredential{}
 	}
-	return StoredCredential{Format: credtype.FormatMDOC, DocType: doc.DocType, Raw: raw}
+	claims := make(map[string]any)
+	for ns, items := range doc.NameSpaces {
+		for _, item := range items {
+			claims[ns+":"+item.ElementIdentifier] = item.ElementValue
+		}
+	}
+	return StoredCredential{Format: credtype.FormatMDOC, DocType: doc.DocType, Claims: claims, Raw: raw}
 }
 
 // dedupeStrings trims the values and returns each non-empty one once, sorted.

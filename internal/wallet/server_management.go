@@ -83,12 +83,7 @@ func (s *Server) handleGetCredentialStatus(w http.ResponseWriter, r *http.Reques
 	// For externally issued credentials, report whether the status issuer's key is
 	// trusted. A valid signature alone does not establish trust. The status list
 	// is anchored by a revocation service on the credential's anchoring list.
-	statusAnchors := s.wallet.StatusListAnchors(cred.Raw)
-	checkOpts := statuslist.CheckOptions{HTTPClient: s.wallet.HTTPClient(), Prefer: statuslist.FormatForCredential(cred.Format)}
-	for _, anchor := range statusAnchors {
-		checkOpts.CandidateAnchors = append(checkOpts.CandidateAnchors, statuslist.TrustCert{Raw: anchor.Raw})
-	}
-	result, err := statuslist.CheckWithOptions(ref, checkOpts)
+	result, err := s.wallet.checkRemoteStatus(cred, ref)
 	if err != nil {
 		// The UI badge is temporary. Keep the failure reason in the activity log.
 		s.wallet.addProtocolWarning("wallet", "status_list_check_failed",
