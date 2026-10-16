@@ -46,11 +46,11 @@ type deferredTicket struct {
 // request whose credentials are not ready. OpenID4VCI 1.0 §8.3 and §9.2 require
 // HTTP 202 with transaction_id and interval. interval is "REQUIRED if
 // transaction_id is present".
-func writeIssuancePending(w http.ResponseWriter, transactionID string) {
-	writeJSON(w, http.StatusAccepted, map[string]any{
+func writeIssuancePending(w http.ResponseWriter, transactionID string, encryption *responseEncryption) {
+	writeCredentialResponse(w, http.StatusAccepted, map[string]any{
 		"transaction_id": transactionID,
 		"interval":       deferredPollSeconds,
-	})
+	}, encryption)
 }
 
 func (d *DemoRP) deferIssuance(holderKeys []*ecdsa.PublicKey, granted ticketGrant, token string) string {
@@ -84,12 +84,18 @@ func (d *DemoRP) handleDeferredCredential(w http.ResponseWriter, r *http.Request
 		TransactionID                string          `json:"transaction_id"`
 		CredentialResponseEncryption json.RawMessage `json:"credential_response_encryption"`
 	}
-	if err := decodeJSONBody(r, &req); err != nil {
-		writeJSON(w, http.StatusBadRequest, oauthError("invalid_credential_request", err.Error()))
+	encrypted, errResp := d.decodeCredentialRequest(r, &req)
+	if errResp != nil {
+		writeJSON(w, http.StatusBadRequest, errResp)
 		return
 	}
 	// §9.1 defines credential_response_encryption "as defined in Section 8.2".
-	if refuseResponseEncryption(w, req.CredentialResponseEncryption) {
+	// §9.2: "The credential_response_encryption object may be different from
+	// the one included in the initial Credential Request so the Credential
+	// Issuer MUST use the newly provided one."
+	encryption, errResp := parseResponseEncryption(req.CredentialResponseEncryption, encrypted)
+	if errResp != nil {
+		writeJSON(w, http.StatusBadRequest, errResp)
 		return
 	}
 	// §9.1 marks transaction_id REQUIRED. §8.3.1.2 invalid_credential_request:
@@ -118,7 +124,7 @@ func (d *DemoRP) handleDeferredCredential(w http.ResponseWriter, r *http.Request
 	}
 
 	if time.Now().Before(pending.readyAt) {
-		writeIssuancePending(w, req.TransactionID)
+		writeIssuancePending(w, req.TransactionID, encryption)
 		return
 	}
 
@@ -137,5 +143,5 @@ func (d *DemoRP) handleDeferredCredential(w http.ResponseWriter, r *http.Request
 		writeJSON(w, http.StatusInternalServerError, oauthError("server_error", err.Error()))
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"credentials": credentials})
+	writeCredentialResponse(w, http.StatusOK, map[string]any{"credentials": credentials}, encryption)
 }

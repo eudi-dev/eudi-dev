@@ -154,7 +154,7 @@ const ticket = page.locator('.credential-card[data-vct="urn:eudi-test:demo-ticke
 await expect(ticket.first()).toBeVisible();
 ```
 
-API: `POST /issuer/api/offers` answers `wallet_url`, `scheme_uri`, `offer_uri` and `issuer`. The query parameters `grant`, `authorization`, `status`, `deferred`, `batch`, `credential`, `identity`, `identity_check` and `credential_identifiers` match the page options. With `identity=own` the body carries `signing_key` and `issuer_info`, with `identity_check=own` an `identity_check` object with `signing_key` and `verifier_info` (see [demo issuer and verifier](wallet/registrar.md#demo-issuer-and-verifier)).
+API: `POST /issuer/api/offers` answers `wallet_url`, `scheme_uri`, `offer_uri` and `issuer`. `scheme_uri` uses `openid-credential-offer://`, which any OpenID4VCI wallet handles. The query parameters `grant`, `authorization`, `status`, `deferred`, `batch`, `credential`, `identity`, `identity_check` and `credential_identifiers` match the page options. With `identity=own` the body carries `signing_key` and `issuer_info`, with `identity_check=own` an `identity_check` object with `signing_key` and `verifier_info` (see [demo issuer and verifier](wallet/registrar.md#demo-issuer-and-verifier)).
 
 E2E tests: [`prefix.spec.js`](../e2e/prefix.spec.js), test *a demo issuer offer opened in the browser is issued*. [`demo.spec.js`](../e2e/demo.spec.js), test *a deferred offer is awaited and then collected*.
 

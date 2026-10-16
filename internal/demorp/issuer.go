@@ -261,6 +261,7 @@ func (d *DemoRP) handleIssuerMetadata(w http.ResponseWriter, r *http.Request) {
 		},
 		"credential_configurations_supported": d.credentialConfigurations(issuer),
 	}
+	metadata["credential_request_encryption"], metadata["credential_response_encryption"] = d.credentialEncryptionMetadata()
 	// Without a registration the metadata has no issuer_info, and a wallet
 	// with --arf reports that (ETSI TS 119 472-3 §4.2.3).
 	info, err := d.issuerInfo(id)
@@ -683,19 +684,6 @@ func (req credentialRequest) keyProofs() (string, []string, map[string]string) {
 	return "", nil, oauthError("invalid_proof", "proofs.jwt or proofs.attestation is required")
 }
 
-// refuseResponseEncryption refuses a request for an encrypted response. The
-// metadata has no credential_response_encryption, and OpenID4VCI 1.0
-// §8.3.1.2 answers unusable encryption parameters with
-// invalid_encryption_parameters.
-func refuseResponseEncryption(w http.ResponseWriter, parameter json.RawMessage) bool {
-	if len(parameter) == 0 || string(parameter) == "null" {
-		return false
-	}
-	writeJSON(w, http.StatusBadRequest, oauthError("invalid_encryption_parameters",
-		"this issuer does not encrypt credential responses and publishes no credential_response_encryption"))
-	return true
-}
-
 func (d *DemoRP) handleCredential(w http.ResponseWriter, r *http.Request) {
 
 	token, tok, refused := d.authorizeAccessToken(r, "/credential")
@@ -706,8 +694,9 @@ func (d *DemoRP) handleCredential(w http.ResponseWriter, r *http.Request) {
 	granted := ticketGrant{tokenState: tok}
 
 	var req credentialRequest
-	if err := decodeJSONBody(r, &req); err != nil {
-		writeJSON(w, http.StatusBadRequest, oauthError("invalid_credential_request", err.Error()))
+	encrypted, errResp := d.decodeCredentialRequest(r, &req)
+	if errResp != nil {
+		writeJSON(w, http.StatusBadRequest, errResp)
 		return
 	}
 	configID, errResp := d.requestedConfiguration(req, tok)
@@ -721,7 +710,9 @@ func (d *DemoRP) handleCredential(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	granted.configID = configID
-	if refuseResponseEncryption(w, req.CredentialResponseEncryption) {
+	encryption, errResp := parseResponseEncryption(req.CredentialResponseEncryption, encrypted)
+	if errResp != nil {
+		writeJSON(w, http.StatusBadRequest, errResp)
 		return
 	}
 	proofType, proofs, errResp := req.keyProofs()
@@ -753,7 +744,7 @@ func (d *DemoRP) handleCredential(w http.ResponseWriter, r *http.Request) {
 	holderKeys := issuedKeys(verified, granted.batchSize)
 
 	if granted.deferred {
-		writeIssuancePending(w, d.deferIssuance(holderKeys, granted, token))
+		writeIssuancePending(w, d.deferIssuance(holderKeys, granted, token), encryption)
 		return
 	}
 
@@ -764,7 +755,7 @@ func (d *DemoRP) handleCredential(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, oauthError("server_error", signErr.Error()))
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"credentials": credentials})
+	writeCredentialResponse(w, http.StatusOK, map[string]any{"credentials": credentials}, encryption)
 }
 
 // signBatch signs one credential per holder key (issuedKeys).
@@ -925,14 +916,14 @@ func (d *DemoRP) verifyProofJWT(raw, issuer string) (boundKeys, *proofError) {
 		// §8.3.1.2 invalid_nonce: "at least one of the key proofs contains an
 		// invalid c_nonce value. The wallet should retrieve a new c_nonce value
 		// (refer to Section 7)."
-		return boundKeys{}, &proofError{code: "invalid_nonce", description: "proof JWT nonce is not one this issuer handed out"}
+		return boundKeys{}, &proofError{code: "invalid_nonce", description: "proof JWT nonce was not issued by this issuer"}
 	}
 	return bound, nil
 }
 
-// proofBoundKeys reads the keys a jwt proof binds. With a key_attestation
-// header those are the attested keys, and the proof is signed by the first
-// one. A jwk or x5c next to it must name that key.
+// proofBoundKeys returns the keys bound by a jwt proof. With a key_attestation
+// header those are the attested keys, and the first one signs the proof. A jwk
+// or x5c header must hold that same key.
 func (d *DemoRP) proofBoundKeys(header map[string]any) (boundKeys, *proofError) {
 	rawAttestation, hasAttestation := header["key_attestation"]
 	if !hasAttestation {
@@ -956,7 +947,7 @@ func (d *DemoRP) proofBoundKeys(header map[string]any) (boundKeys, *proofError) 
 			return boundKeys{}, err
 		}
 		if !named.Equal(first) {
-			return boundKeys{}, invalidProof("proof JWT header names another key than the first attested key of its key attestation")
+			return boundKeys{}, invalidProof("proof JWT header key differs from the first attested key of its key attestation")
 		}
 	}
 	return boundKeys{keys: attestation.attestedKeys, attestation: attestation}, nil

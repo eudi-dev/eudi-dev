@@ -167,7 +167,7 @@ A wallet attestation or a key attestation can reference a status list entry. It 
 
 Wallet attestations, key attestations, their possession proofs, DPoP proofs and key proofs can be signed with ES256, ES384 or ES512. CIR (EU) 2024/2979 Annex Ib SA-3 asks an issuer to support all three. The metadata lists them in `proof_signing_alg_values_supported` and `dpop_signing_alg_values_supported`.
 
-The access token is bound to the DPoP key. The credential request must prove possession of that key again. The issuer does not encrypt credential responses and refuses a request for an encrypted one with `invalid_encryption_parameters`. The ticket includes the signed-in account name, so a skipped login shows in the result.
+The access token is bound to the DPoP key. The credential request must prove possession of that key again. The issuer publishes `credential_request_encryption` and `credential_response_encryption` with A128GCM and A256GCM (ETSI TS 119 472-3 CRYPTO-5-01). Both have `encryption_required: false`, so a wallet without encryption still gets plain JSON. A wallet that asks for an encrypted response must also encrypt its request (OpenID4VCI 1.0 §8.2). Otherwise the issuer answers `invalid_encryption_parameters`. The deferred credential endpoint works the same way. The ticket includes the signed-in account name, so a skipped login shows in the result.
 
 ### Wallets from other providers
 

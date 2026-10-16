@@ -21,6 +21,7 @@ package demorp
 
 import (
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/base64"
@@ -91,6 +92,9 @@ type DemoRP struct {
 	// nonceKey authenticates the Nonce Endpoint challenges. A wallet can use
 	// one nonce for a whole batch of proofs.
 	nonceKey []byte
+	// requestEncryptionKey decrypts credential requests. Its public key is
+	// the credential_request_encryption key of the issuer metadata.
+	requestEncryptionKey *ecdsa.PrivateKey
 	// seenJTIs holds a hash of the jti of each accepted DPoP proof and
 	// attestation PoP with its scope until its iat leaves the freshness window.
 	seenJTIs map[string]time.Time
@@ -110,19 +114,20 @@ type DemoRP struct {
 // of the wallet server, for example https://eudi-test.dev.
 func New(w *wallet.Wallet, baseURL func() string) *DemoRP {
 	return &DemoRP{
-		wallet:        w,
-		baseURL:       func() string { return strings.TrimRight(baseURL(), "/") },
-		offers:        make(map[string]*offerState),
-		tokens:        make(map[string]*tokenState),
-		requests:      make(map[string]*requestState),
-		authRequests:  make(map[string]*authRequestState),
-		codes:         make(map[string]*authRequestState),
-		interactive:   make(map[string]*interactiveSession),
-		ownIssuers:    make(map[string]*issuerIdentity),
-		nonceKey:      randomBytes(32),
-		seenJTIs:      make(map[string]time.Time),
-		deferred:      make(map[string]*deferredTicket),
-		deferredDelay: deferredReadyDelay,
+		wallet:               w,
+		baseURL:              func() string { return strings.TrimRight(baseURL(), "/") },
+		offers:               make(map[string]*offerState),
+		tokens:               make(map[string]*tokenState),
+		requests:             make(map[string]*requestState),
+		authRequests:         make(map[string]*authRequestState),
+		codes:                make(map[string]*authRequestState),
+		interactive:          make(map[string]*interactiveSession),
+		ownIssuers:           make(map[string]*issuerIdentity),
+		nonceKey:             randomBytes(32),
+		requestEncryptionKey: mustGenerateKey(),
+		seenJTIs:             make(map[string]time.Time),
+		deferred:             make(map[string]*deferredTicket),
+		deferredDelay:        deferredReadyDelay,
 	}
 }
 
@@ -150,6 +155,14 @@ func randomBytes(n int) []byte {
 		panic(fmt.Sprintf("reading random bytes: %v", err))
 	}
 	return b
+}
+
+func mustGenerateKey() *ecdsa.PrivateKey {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		panic(fmt.Sprintf("generating a P-256 key: %v", err))
+	}
+	return key
 }
 
 // pruneLocked removes expired entries. Callers hold d.mu.
@@ -258,8 +271,8 @@ func parseCompactJWT(raw string) (*compactJWT, error) {
 // walletSigningAlgs are the algorithms of wallet instance attestations, key
 // attestations and their proofs of possession: key proofs, attestation PoPs
 // and DPoP proofs. CIR (EU) 2024/2979 Annex Ib SA-3, as amended by CIR (EU)
-// 2026/1731, has an authorization server and a credential issuer support all
-// of SA-1: ES256, ES384 and ES512.
+// 2026/1731, requires an authorization server and a credential issuer to
+// support all of SA-1: ES256, ES384 and ES512.
 var walletSigningAlgs = []string{jws.AlgES256, "ES384", "ES512"}
 
 // raw is the compact serialization of the JWT.

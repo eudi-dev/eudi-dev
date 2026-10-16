@@ -487,35 +487,6 @@ func TestACredentialRequestCarriesOneProofType(t *testing.T) {
 	}
 }
 
-// The metadata publishes no credential_response_encryption. OpenID4VCI 1.0
-// §8.3.1.2 answers unusable encryption parameters with
-// invalid_encryption_parameters, and the Deferred Credential Request takes the
-// parameter "as defined in Section 8.2" (§9.1).
-func TestARequestForAnEncryptedResponseIsRefused(t *testing.T) {
-	d, _, _ := newDemoRP(t)
-	if _, metadata := doJSON(t, d.IssuerHandler(), "GET", "/.well-known/openid-credential-issuer", "", nil); metadata["credential_response_encryption"] != nil {
-		t.Fatalf("the metadata publishes credential_response_encryption %v", metadata["credential_response_encryption"])
-	}
-	const encryption = `"credential_response_encryption":{"jwk":{"kty":"EC"},"enc":"A128GCM"},`
-	token := redeemPreAuthOffer(t, d, "", nil)["access_token"].(string)
-	code, doc := requestCredential(t, d, token, encryption+`"credential_configuration_id":"demo-ticket",`)
-	if code != http.StatusBadRequest || doc["error"] != "invalid_encryption_parameters" {
-		t.Errorf("credential request: %d %v, want 400 invalid_encryption_parameters", code, doc)
-	}
-
-	d.deferredDelay = 0
-	token = redeemPreAuthOffer(t, d, "deferred=true", nil)["access_token"].(string)
-	_, accepted := requestCredential(t, d, token, `"credential_configuration_id":"demo-ticket",`)
-	code, doc = doJSON(t, d.IssuerHandler(), "POST", "/deferred_credential",
-		fmt.Sprintf(`{%s"transaction_id":%q}`, encryption, accepted["transaction_id"]), map[string]string{
-			"Authorization": "Bearer " + token,
-			"Content-Type":  "application/json",
-		})
-	if code != http.StatusBadRequest || doc["error"] != "invalid_encryption_parameters" {
-		t.Errorf("deferred credential request: %d %v, want 400 invalid_encryption_parameters", code, doc)
-	}
-}
-
 // OpenID4VCI 1.0 §8.3.1.1: an access token that "does not [...] enable
 // issuance of a requested Credential" gets an RFC 6750 §3 authorization
 // error. §3.1 answers insufficient_scope with 403.
