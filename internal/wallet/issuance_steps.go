@@ -49,11 +49,13 @@ func chooseOfferConfiguration(offer *oid4vc.CredentialOffer, chosen string) (str
 	return ids[0], nil
 }
 
-// readIssuerMetadata also returns the certificate chain of signed metadata.
-func (w *Wallet) readIssuerMetadata(issuer string, report func(...string)) (map[string]any, []*x509.Certificate, error) {
+// readIssuerMetadata also returns the certificate chain of signed metadata and
+// the problems that debug mode accepts in it.
+func (w *Wallet) readIssuerMetadata(issuer string) (map[string]any, []*x509.Certificate, []string, error) {
 	var signerChain []*x509.Certificate
+	var problems []string
 	preferSigned := w.ARFChecks()
-	onProblem := w.reportMetadataProblem(report)
+	onProblem := w.collectMetadataProblems(&problems)
 	metadata, err := w.fetchLoggedMetadata(metadataFetch{
 		event:         "issuer_metadata",
 		fetchLabel:    "issuer metadata",
@@ -67,39 +69,40 @@ func (w *Wallet) readIssuerMetadata(issuer string, report func(...string)) (map[
 		},
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("fetching issuer metadata: %w", err)
+		return nil, nil, nil, fmt.Errorf("fetching issuer metadata: %w", err)
 	}
-	return metadata, signerChain, nil
+	return metadata, signerChain, problems, nil
 }
 
-// checkIssuer runs the issuer checks for the requested configurations. The ARF
-// has the wallet check the issuer before it requests a credential. Strict mode refuses an ARF finding. Catalogue
+// checkIssuer runs the issuer checks for the requested configurations and
+// returns the findings. The ARF has the wallet check the issuer before it
+// requests a credential, so strict mode refuses an ARF finding. The other
 // findings only warn.
-func (w *Wallet) checkIssuer(issuer string, metadata map[string]any, signerChain []*x509.Certificate, configurations []string, report func(...string)) error {
-	if findings := w.issuerARFCheck(metadata, signerChain, configurations); len(findings) > 0 {
-		if err := w.reportARFIssuanceFindings(issuer, findings); err != nil {
-			return err
-		}
-		report(findings...)
+func (w *Wallet) checkIssuer(issuer string, metadata map[string]any, signerChain []*x509.Certificate, configurations []string) ([]string, error) {
+	arf := w.issuerARFCheck(metadata, signerChain, configurations)
+	if len(arf) > 0 && w.Mode() == ValidationModeStrict {
+		return nil, w.reportARFIssuanceFindings(issuer, arf)
 	}
-	advisories := w.issuerARFAdvisories(metadata)
-	w.warnFindings("issuance", "arf_advisory", "ARF advisories for the issuer", advisories, map[string]any{"issuer": issuer})
-	report(advisories...)
-	catalogue := w.catalogueFindings(metadata, configurations)
-	w.reportCatalogueFindings(issuer, catalogue)
-	report(catalogue...)
-	return nil
+	return slices.Concat(arf, w.issuerARFAdvisories(metadata), w.catalogueFindings(metadata, configurations)), nil
 }
 
-func (w *Wallet) loadIssuerMetadata(issuer string, configurations []string, report func(...string)) (map[string]any, error) {
-	metadata, signerChain, err := w.readIssuerMetadata(issuer, report)
+// loadIssuerMetadata reads and checks the metadata of an issuer. The caller
+// logs the findings with logIssuerFindings.
+func (w *Wallet) loadIssuerMetadata(issuer string, configurations []string) (map[string]any, []string, error) {
+	metadata, signerChain, problems, err := w.readIssuerMetadata(issuer)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	if err := w.checkIssuer(issuer, metadata, signerChain, configurations, report); err != nil {
-		return nil, err
+	findings, err := w.checkIssuer(issuer, metadata, signerChain, configurations)
+	if err != nil {
+		return nil, nil, err
 	}
-	return metadata, nil
+	return metadata, append(problems, findings...), nil
+}
+
+// logIssuerFindings logs the findings about an issuer in one entry.
+func (w *Wallet) logIssuerFindings(issuer string, findings []string) {
+	w.warnFindings("issuance", "issuer_findings", "Findings about the issuer", findings, map[string]any{"issuer": issuer})
 }
 
 // accessGrant is an accepted token response (RFC 6749 §5.1).
@@ -322,6 +325,7 @@ func (w *Wallet) storeReceivedCredential(credResp map[string]any, d credentialDe
 // of one offer.
 type issuanceSession struct {
 	metadata map[string]any
+	display  *oid4vc.CredentialDisplay
 	// renewal holds the issuer, its endpoints, the configuration and the
 	// client of this issuance.
 	renewal CredentialRenewal
@@ -354,7 +358,7 @@ func (w *Wallet) issueWithToken(s issuanceSession, tokenForm url.Values) (*Issua
 		return nil, err
 	}
 
-	display := w.resolveCredentialDisplay(nil, s.metadata, renewal.ConfigurationID)
+	display := s.display
 	credFormat := resolveCredentialFormat(s.metadata, renewal.ConfigurationID)
 	transactionID, _ := credResp["transaction_id"].(string)
 	if _, issued := credResp["credentials"]; issued && transactionID != "" {

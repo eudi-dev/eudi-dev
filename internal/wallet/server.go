@@ -185,6 +185,7 @@ func (s *Server) setupRoutes() {
 
 	s.routeFunc("GET /api/templates", s.handleListTemplates)
 	s.routeFunc("GET /api/templates/{name}", s.handleGetTemplate)
+	s.routeFunc("GET /api/templates/{name}/display/{field}", s.handleTemplateDisplayImage)
 	s.routeFunc("PUT /api/templates/{name}", s.withFreshStore(s.handlePutTemplate))
 	s.routeFunc("DELETE /api/templates/{name}", s.handleDeleteTemplate)
 

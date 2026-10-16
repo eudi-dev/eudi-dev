@@ -313,6 +313,7 @@ The wallet server exposes the same template store:
 |----------|-------------|
 | `GET /api/templates` | List all templates (predefined and user), including claims |
 | `GET /api/templates/{name}` | Get one template |
+| `GET /api/templates/{name}/display/{field}` | The `logo` or `background_image` of a template, when it is bundled or a data URI |
 | `PUT /api/templates/{name}` | Create or replace a user template (body is a full template document, so this is also the import endpoint) |
 | `DELETE /api/templates/{name}` | Delete a user template (deleting an override of a predefined template restores the predefined version) |
 
@@ -366,4 +367,4 @@ Pasting a template into the editor's JSON view imports it. The JSON view also ta
 
 For a catalogue entry made in the UI, the category sets the default level of security, and an empty trusted list links the category's list.
 
-On a public demo, visitors can save templates too. They can't change or delete the predefined templates or the operator's templates (those present at startup). Visitor templates can't have their own images. The bundled templates keep their images. A demo keeps at most 50 visitor templates, and a reset deletes them.
+On a public demo, visitors can save templates too. They can't change or delete the predefined templates or the operator's templates (those present at startup). A visitor template stores its images. A linked image is fetched once when the template is saved. A demo keeps at most 50 visitor templates, and a reset deletes them.

@@ -1496,18 +1496,15 @@ test.describe("Conformance", () => {
 });
 
 test.describe("Demo mode hardening", () => {
-  test("images, predefined templates and process control stay locked", async () => {
+  test("predefined templates and process control stay locked", async () => {
     const blocked = [
       ["PUT", "/api/templates/pid-sdjwt", { format: "sdjwt", claims: {} }],
       ["DELETE", "/api/templates/pid-sdjwt", null],
-      ["PUT", "/api/templates/e2e-image", { format: "sdjwt", claims: {}, display: { logo: "data:image/png;base64,iVBORw0KGgo=" } }],
       ["POST", "/api/shutdown", null],
       ["POST", "/api/next-error", { error: "access_denied" }],
       ["PUT", "/api/config/preferred-format", { preferred_format: "dc+sd-jwt" }],
       ["PUT", "/api/config/conformance", { validation_mode: "debug" }],
       ["DELETE", "/api/config/conformance", null],
-      ["POST", "/api/issue", { format: "sdjwt", vct: "urn:eudi:pid:1", status_list_uri: "", display: { background_image: "data:image/png;base64,iVBORw0KGgo=" } }],
-      ["POST", "/api/issue", { format: "sdjwt", vct: "urn:eudi:pid:1", status_list_uri: "", display: { logo: "data:image/png;base64,iVBORw0KGgo=" } }],
     ];
     for (const [method, pathname, body] of blocked) {
       const res = await fetch(BASE + pathname, {
@@ -1529,9 +1526,59 @@ test.describe("Demo mode hardening", () => {
     await expect(page.locator("#auto-accept-toggle")).toBeHidden();
     await page.locator("#issue-btn").click();
     await expect(page.locator("#issue-display-name")).toBeVisible();
-    await expect(page.locator("#issue-logo")).toBeHidden();
-    await expect(page.locator("#issue-bg-image")).toBeHidden();
+    await expect(page.locator("#issue-logo")).toBeVisible();
+    await expect(page.locator("#issue-bg-image")).toBeVisible();
     await expect(page.locator("#issue-save-template")).toBeVisible();
+  });
+
+  test("a template's own images show as previews in the issue dialog", async ({ page }) => {
+    await page.goto(BASE);
+    await page.locator("#issue-btn").click();
+    await page.locator("#issue-template").selectOption("demo-ticket");
+    const preview = page.locator("#issue-logo-preview");
+    await expect(preview).toBeVisible();
+    await expect.poll(() => preview.evaluate((img) => img.naturalWidth)).toBeGreaterThan(0);
+    await expect(page.locator("#issue-logo")).toHaveValue("");
+    await expect(page.locator("#issue-logo")).toHaveAttribute("placeholder", /template's image/);
+    await expect(page.locator("#issue-bg-image-preview")).toBeHidden();
+  });
+
+  test("the x button removes a template's image from the card", async ({ page }) => {
+    await page.goto(BASE);
+    await page.locator("#issue-btn").click();
+    await page.locator("#issue-template").selectOption("demo-ticket");
+    await expect(page.locator("#issue-logo-preview")).toBeVisible();
+    await page.locator("#issue-logo-remove").click();
+    await expect(page.locator("#issue-logo-preview")).toBeHidden();
+    const issued = page.waitForResponse((res) => res.url().endsWith("/api/issue") && res.request().method() === "POST");
+    await page.locator("#issue-submit").click();
+    const res = await issued;
+    expect(res.status()).toBe(201);
+    const sent = JSON.parse(res.request().postData() || "{}");
+    expect(sent.display_template).toBeUndefined();
+    expect((sent.display || {}).logo).toBeUndefined();
+  });
+
+  test("a visitor issues a card with an uploaded logo and background image", async ({ page }) => {
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+      "base64"
+    );
+    await page.goto(BASE);
+    await page.locator("#issue-btn").click();
+    // Its own type keeps the card out of the PID queries of later tests.
+    await page.locator("#issue-vct").fill("urn:example:e2e-visitor-images:1");
+    await page.locator("#issue-logo-file").setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: png });
+    await page.locator("#issue-bg-image-file").setInputFiles({ name: "card.png", mimeType: "image/png", buffer: png });
+    await expect(page.locator("#issue-logo")).toHaveValue(/^data:image\/png;base64,/);
+    await expect(page.locator("#issue-bg-image")).toHaveValue(/^data:image\/png;base64,/);
+    await expect(page.locator("#issue-logo-preview")).toBeVisible();
+    const issued = page.waitForResponse((res) => res.url().endsWith("/api/issue") && res.request().method() === "POST");
+    await page.locator("#issue-submit").click();
+    const res = await issued;
+    expect(res.status()).toBe(201);
+    const { id } = await res.json();
+    await fetch(`${BASE}/api/credentials/${id}`, { method: "DELETE" });
   });
 
   test("a visitor saves a template and adds it to the catalogue", async ({ page }) => {

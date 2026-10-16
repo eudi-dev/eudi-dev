@@ -56,6 +56,22 @@ func (s *Server) handleGetTemplate(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, tpl)
 }
 
+// handleTemplateDisplayImage serves the logo or background image of a
+// template, so the issue dialog can show the template's art.
+func (s *Server) handleTemplateDisplayImage(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if !credtemplate.IsBareName(name) {
+		http.NotFound(w, r)
+		return
+	}
+	tpl, err := s.management().Template(name)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	ServeTemplateImage(w, r, tpl.Display, r.PathValue("field"))
+}
+
 // templateSaveRequest is a template document. With catalog set, the template
 // is also added to the attestation catalogue as a new entry.
 type templateSaveRequest struct {

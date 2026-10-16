@@ -86,27 +86,56 @@ func TestPublicDemoKeepsIssuerImages(t *testing.T) {
 	}
 }
 
-// Every visitor of the public demo sees the cards of the others. A visitor
-// can only choose images bundled with the wallet.
-func TestPublicDemoRefusesVisitorImages(t *testing.T) {
+// Every visitor of the public demo sees the cards of the others. A visitor's
+// linked image is fetched and stored like an image from issuer metadata, so no
+// card loads it from elsewhere.
+func TestPublicDemoStoresVisitorImages(t *testing.T) {
 	srv := newDemoTestServer(t)
-	var limit *VisitorLimitError
-	if _, err := srv.management().Issue(IssueAPIRequest{Format: "sdjwt", VCT: "urn:test:art", Claims: map[string]any{"a": "b"}, Display: &IssueDisplay{Name: "Art", Logo: pngDataURI(t)}}); !errors.As(err, &limit) {
-		t.Errorf("issuing with an uploaded logo: %v, want a visitor limit", err)
-	}
-	if _, err := srv.management().SaveTemplate(credtemplate.Template{
-		Name: "visitor-art", Format: "sdjwt", Claims: map[string]any{"a": "b"},
-		Display: &credtemplate.TemplateDisplay{BackgroundImage: pngDataURI(t)},
-	}, nil); !errors.As(err, &limit) {
-		t.Errorf("saving a template with an uploaded image: %v, want a visitor limit", err)
-	}
-	bundled, err := staticFiles.ReadFile("static/logo.svg")
+	images := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write(tinyPNG)
+	}))
+	defer images.Close()
+
+	uploaded := pngDataURI(t)
+	issued, err := srv.management().Issue(IssueAPIRequest{Format: "sdjwt", VCT: "urn:test:art", Claims: map[string]any{"a": "b"}, Display: &IssueDisplay{Name: "Art", Logo: images.URL + "/logo.png", BackgroundImage: uploaded}})
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("issuing with a linked logo: %v", err)
 	}
-	bundledURI := "data:image/svg+xml;base64," + base64.StdEncoding.EncodeToString(bundled)
-	if _, err := srv.management().Issue(IssueAPIRequest{Format: "sdjwt", VCT: "urn:test:art", Claims: map[string]any{"a": "b"}, Display: &IssueDisplay{Name: "Art", Logo: bundledURI}}); err != nil {
-		t.Errorf("issuing with the bundled logo: %v", err)
+	id, _ := issued["id"].(string)
+	if c, ok := srv.wallet.GetCredential(id); !ok || c.Display == nil || !strings.HasPrefix(c.Display.LogoURI, "data:image/png;base64,") || c.Display.BackgroundURI != uploaded {
+		t.Errorf("the linked logo and the uploaded background image were not stored: %+v", c.Display)
+	}
+
+	if _, err := srv.management().SaveTemplate(credtemplate.Template{
+		Name: "visitor-art", Format: "sdjwt", VCT: "urn:test:visitor-art", Claims: map[string]any{"a": "b"},
+		Display: &credtemplate.TemplateDisplay{Name: "Visitor Art", BackgroundImage: images.URL + "/card.png"},
+	}, nil); err != nil {
+		t.Fatalf("saving a template with a linked background image: %v", err)
+	}
+	if saved, err := srv.management().Template("visitor-art"); err != nil || !strings.HasPrefix(saved.Display.BackgroundImage, "data:image/png;base64,") {
+		t.Errorf("the template keeps the link instead of the image: %v %+v", err, saved)
+	}
+	images.Close()
+	// The stored image is used, so issuing needs the link no more.
+	issued, err = srv.management().Issue(IssueAPIRequest{Format: "sdjwt", Template: "visitor-art"})
+	if err != nil {
+		t.Fatalf("issuing from the visitor's template: %v", err)
+	}
+	id, _ = issued["id"].(string)
+	if c, ok := srv.wallet.GetCredential(id); !ok || c.Display == nil || !strings.HasPrefix(c.Display.BackgroundURI, "data:image/png;base64,") {
+		t.Errorf("the template's linked background image was not stored: %+v", c.Display)
+	}
+
+	// A template image that the issue dialog keeps arrives as its bundled
+	// reference.
+	issued, err = srv.management().Issue(IssueAPIRequest{Format: "sdjwt", VCT: "urn:test:art", Claims: map[string]any{"a": "b"}, Display: &IssueDisplay{Name: "Art", Logo: "embedded:logo.svg"}})
+	if err != nil {
+		t.Fatalf("issuing with a bundled logo: %v", err)
+	}
+	id, _ = issued["id"].(string)
+	if c, ok := srv.wallet.GetCredential(id); !ok || c.Display == nil || !strings.HasPrefix(c.Display.LogoURI, "data:image/svg+xml;base64,") {
+		t.Errorf("the bundled logo was not stored: %+v", c.Display)
 	}
 }
 

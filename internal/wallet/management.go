@@ -169,15 +169,12 @@ func (m *Management) Issue(req IssueAPIRequest) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	// The display images of the request are fetched first. The issuance then
-	// reads them from the data URIs.
+	// The display images of the request are fetched before the commit, which
+	// holds the store lock.
 	if opts.Display != nil {
-		if err := m.wallet.checkDisplayImages(opts.Display.Logo, opts.Display.BackgroundImage); err != nil {
-			return nil, err
-		}
 		display := *opts.Display
-		display.Logo = m.wallet.cacheDisplayImage(nil, strings.TrimSpace(display.Logo), "logo")
-		display.BackgroundImage = m.wallet.cacheDisplayImage(nil, strings.TrimSpace(display.BackgroundImage), "background_image")
+		display.Logo = m.wallet.storeLinkedImage(display.Logo, "logo")
+		display.BackgroundImage = m.wallet.storeLinkedImage(display.BackgroundImage, "background_image")
 		opts.Display = &display
 	}
 	var summary map[string]any
@@ -254,6 +251,15 @@ func (m *Management) Template(name string) (*credtemplate.Template, error) {
 // SaveTemplate stores a template together with the catalogue entry requested
 // by entry (see Wallet.TemplateCatalogRequest).
 func (m *Management) SaveTemplate(tpl credtemplate.Template, entry *registrar.CatalogAttestation) (string, error) {
+	// A visitor template stores its linked images, so no card loads them from
+	// elsewhere. They are fetched before the commit, which holds the store
+	// lock.
+	if tpl.Display != nil && m.wallet.visitorRules().EmbeddedImagesOnly {
+		display := *tpl.Display
+		display.Logo = m.wallet.storeLinkedImage(display.Logo, "logo")
+		display.BackgroundImage = m.wallet.storeLinkedImage(display.BackgroundImage, "background_image")
+		tpl.Display = &display
+	}
 	entry, err := m.wallet.TemplateCatalogRequest(&tpl, entry)
 	if err != nil {
 		return "", err

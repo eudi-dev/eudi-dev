@@ -170,7 +170,7 @@ curl -X DELETE http://localhost:8085/api/credentials
 | `status_list_idx` | int     | Status list index (default is the next free index on the wallet's status list)               |
 | `category`        | string  | Credential category: `pid`, `qeaa`, `pub-eaa`, `eaa` or `unlisted`. Empty (default) takes the category of the template or the catalogue entry, else `eaa` |
 | `trust`           | object  | Trusted list and registration metadata to persist with the credential type. The fields match the `issue` trust flags: `entitlements`, `trusted_list_type`, `status_determination_approach`, `scheme_type_community_rules`, `scheme_territory`, `trusted_entity_name`, `issuance_service_type`, `revocation_service_type`, `issuance_service_name` and `revocation_service_name` |
-| `display`         | object  | Card appearance: `name`, `description`, `background_color`, `text_color`, `logo`, `logo_alt_text`, `background_image` (the `--display-*` flags). The public demo answers `403` to an image that is not bundled with the wallet |
+| `display`         | object  | Card appearance: `name`, `description`, `background_color`, `text_color`, `logo`, `logo_alt_text`, `background_image` (the `--display-*` flags). Image fields take `embedded:<file>`, a data URI or an http(s) URL. The wallet fetches a linked image once and stores it with the credential. With `--adhoc-display-images` an https link stays a link |
 | `display_template`| string  | Template that supplies the logo and background image of the credential (for a form with the template's claims flattened into `claims`) |
 | `batch`           | int     | Issue this many copies with distinct holder keys, at most 8. The wallet rotates between them (like `--batch`) |
 | `unbound`         | bool    | Issue a bearer credential without a holder key (like `--unbound`). By default the credential is bound to the wallet. Only a query with `require_cryptographic_holder_binding: false` matches an unbound credential. In strict mode an unbound mdoc matches no query |
@@ -204,6 +204,7 @@ The template endpoints use the same storage backend as the `templates` CLI comma
 |----------|-------------|
 | `GET /api/templates` | List all templates (predefined and user), including claims |
 | `GET /api/templates/{name}` | Get one template |
+| `GET /api/templates/{name}/display/{field}` | The `logo` or `background_image` of a template, when it is bundled or a data URI |
 | `PUT /api/templates/{name}` | Create or replace a user template. The body is a full template document. This endpoint also imports shared templates. A `catalog` object also adds the template to the attestation catalogue (see [templates](../templates.md#attestation-catalogue)). For a template with its own `catalog` object, the object replaces that one (see [catalogue entry in a template file](../templates.md#catalogue-entry-in-a-template-file)) |
 | `DELETE /api/templates/{name}` | Delete a user template. Deleting an override of a predefined template restores the predefined version |
 

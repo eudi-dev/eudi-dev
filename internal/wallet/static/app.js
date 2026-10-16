@@ -963,9 +963,54 @@
     issueTemplateSelect.value = current || '';
   }
 
-  // Send the template name so the server can apply embedded images that the form cannot
-  // carry.
+  // Send the template name so the server applies the template's images.
   let issueDisplayTemplate = '';
+  // issueTemplateDisplay is the display of that template. issueTemplateImages names the
+  // template images the card keeps. The form shows them as previews and keeps its own
+  // fields for replacements.
+  let issueTemplateDisplay = {};
+  let issueTemplateImages = {};
+
+  const ISSUE_IMAGE_FIELDS = [
+    { input: 'issue-logo', preview: 'issue-logo-preview', remove: 'issue-logo-remove', key: 'logo' },
+    { input: 'issue-bg-image', preview: 'issue-bg-image-preview', remove: 'issue-bg-image-remove', key: 'background_image' },
+  ];
+
+  // updateIssueImagePreviews shows each field's image, or the template's own image
+  // while the field is empty.
+  function updateIssueImagePreviews() {
+    for (const f of ISSUE_IMAGE_FIELDS) {
+      const input = document.getElementById(f.input);
+      const preview = document.getElementById(f.preview);
+      if (!input.dataset.placeholder) input.dataset.placeholder = input.placeholder;
+      const value = input.value.trim();
+      let src = '';
+      if (value.startsWith('data:image/')) {
+        src = value;
+      } else if (!value && issueTemplateImages[f.key]) {
+        src = 'api/templates/' + encodeURIComponent(issueDisplayTemplate) + '/display/' + f.key;
+      }
+      input.placeholder = !value && issueTemplateImages[f.key]
+        ? 'The template\'s image. Upload a file, or paste a data URI or https link to replace it'
+        : input.dataset.placeholder;
+      preview.parentElement.hidden = !src;
+      preview.hidden = false;
+      if (src) preview.src = src; else preview.removeAttribute('src');
+    }
+  }
+  for (const f of ISSUE_IMAGE_FIELDS) {
+    document.getElementById(f.input).addEventListener('input', updateIssueImagePreviews);
+    // A linked template image has no copy to preview. The × stays, so it can be removed.
+    document.getElementById(f.preview).addEventListener('error', (e) => { e.target.hidden = true; });
+    // The button removes the image the preview shows: the field's own image first,
+    // then the template's.
+    document.getElementById(f.remove).addEventListener('click', () => {
+      const input = document.getElementById(f.input);
+      if (input.value.trim()) input.value = '';
+      else issueTemplateImages[f.key] = false;
+      updateIssueImagePreviews();
+    });
+  }
 
   // Clear fields omitted by a new template to prevent values from mixing. Explicit form
   // values preserve user edits.
@@ -977,6 +1022,8 @@
   function applyTemplateToForm(tpl) {
     const display = tpl.display || {};
     issueDisplayTemplate = (display.logo || display.background_image) ? tpl.name : '';
+    issueTemplateDisplay = display;
+    issueTemplateImages = { logo: !!display.logo, background_image: !!display.background_image };
     if (tpl.format) issueFormat.value = tpl.format;
     updateIssueFormatFields();
     document.getElementById('issue-vct').value = tpl.vct || '';
@@ -1003,6 +1050,7 @@
     document.getElementById('issue-logo').value = '';
     document.getElementById('issue-logo-alt').value = '';
     document.getElementById('issue-bg-image').value = '';
+    updateIssueImagePreviews();
   }
 
   function updateClaimsMode() {
@@ -1190,6 +1238,8 @@
     issueTemplateSelect.value = '';
     issueAlwaysDisclosed.value = '';
     issueDisplayTemplate = '';
+    issueTemplateDisplay = {};
+    issueTemplateImages = {};
     applyTemplateDisplay({});
     document.getElementById('issue-claims-mode-builder').checked = true;
     issueClaimsTextarea.value = '';
@@ -1270,12 +1320,23 @@
   bindColorPicker('issue-bg-color-picker', 'issue-bg-color');
   bindColorPicker('issue-text-color-picker', 'issue-text-color');
 
+  // Both images travel base64-encoded in one request, which the wallet limits to 1 MB.
+  const MAX_UPLOAD_BYTES = 350 * 1024;
+
   function bindImageUpload(fileId, textId) {
     document.getElementById(fileId).addEventListener('change', (e) => {
       const file = e.target.files && e.target.files[0];
       if (!file) return;
+      if (file.size > MAX_UPLOAD_BYTES) {
+        issueError.textContent = 'The image is too large. Choose one up to 350 KB.';
+        e.target.value = '';
+        return;
+      }
       const reader = new FileReader();
-      reader.onload = () => { document.getElementById(textId).value = reader.result; };
+      reader.onload = () => {
+        document.getElementById(textId).value = reader.result;
+        updateIssueImagePreviews();
+      };
       reader.onerror = () => { issueError.textContent = 'Could not read the selected file.'; };
       reader.readAsDataURL(file);
     });
@@ -1354,10 +1415,20 @@
     if (logoAlt) display.logo_alt_text = logoAlt;
     const bgImage = document.getElementById('issue-bg-image').value.trim();
     if (bgImage) display.background_image = bgImage;
-    if (Object.keys(display).length > 0) body.display = display;
     // The server applies template display values beneath fields explicitly supplied by the
-    // form.
-    if (issueDisplayTemplate) body.display_template = issueDisplayTemplate;
+    // form. Without a removed template image the template's name is enough. Otherwise the
+    // display carries the template images the card keeps.
+    const removed = ISSUE_IMAGE_FIELDS.some(f => issueTemplateDisplay[f.key] && !issueTemplateImages[f.key]);
+    if (issueDisplayTemplate && !removed) {
+      body.display_template = issueDisplayTemplate;
+    } else if (issueDisplayTemplate) {
+      if (issueTemplateImages.logo && !display.logo) {
+        display.logo = issueTemplateDisplay.logo;
+        if (!display.logo_alt_text && issueTemplateDisplay.logo_alt_text) display.logo_alt_text = issueTemplateDisplay.logo_alt_text;
+      }
+      if (issueTemplateImages.background_image && !display.background_image) display.background_image = issueTemplateDisplay.background_image;
+    }
+    if (Object.keys(display).length > 0) body.display = display;
 
     return body;
   }
@@ -3371,9 +3442,6 @@
           ? 'state resets ' + schedule
           : 'state is shared and never reset automatically';
         note.hidden = false;
-        // The public demo accepts images from templates and issuer metadata, but rejects visitor
-        // image fields.
-        document.querySelectorAll('.issue-image-field').forEach((el) => { el.hidden = true; });
         document.querySelectorAll('.issue-signing-field').forEach((el) => { el.hidden = true; });
         document.getElementById('clear-log-btn').hidden = true;
         if (!localStorage.getItem('demo-banner-dismissed')) {

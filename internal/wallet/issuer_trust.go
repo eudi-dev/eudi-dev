@@ -83,11 +83,6 @@ func (w *Wallet) catalogueFindings(metadata map[string]any, configurations []str
 	return findings
 }
 
-// reportCatalogueFindings warns in both modes.
-func (w *Wallet) reportCatalogueFindings(issuer string, findings []string) {
-	w.warnFindings("issuance", "catalogue_finding", "The attestation catalogue has no entry for some offered types", findings, map[string]any{"issuer": issuer})
-}
-
 // trustAnchorFindings validates the signature of a received credential with
 // the trusted lists of its catalogue entry when --arf is on. The lists of an
 // EAA entry that give no anchors go to the activity log.

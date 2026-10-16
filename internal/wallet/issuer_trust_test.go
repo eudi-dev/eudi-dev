@@ -256,12 +256,6 @@ func TestAnOfferOutsideTheCatalogueWarns(t *testing.T) {
 	if len(got) != 1 || !strings.Contains(got[0], "urn:example:unknown:1") {
 		t.Fatalf("findings %v, want one for the unknown type", got)
 	}
-	w.ValidationMode = ValidationModeStrict
-	w.reportCatalogueFindings("https://issuer.example", got)
-	log := w.GetLog()
-	if last := log[len(log)-1]; last.Severity != "warning" || last.Details["event"] != "catalogue_finding" {
-		t.Errorf("last log entry %+v, want a catalogue warning", last)
-	}
 }
 
 // A trusted list anchors an external credential. The revocation service of

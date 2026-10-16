@@ -745,17 +745,25 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
             <input type="text" id="issue-text-color" class="form-input" placeholder="Any CSS color, e.g. #ffffff">
           </div>
 
-          <label class="form-label issue-image-field" for="issue-logo" id="issue-logo-label">Logo</label>
-          <div class="form-image-row issue-image-field" id="issue-logo-row">
+          <label class="form-label" for="issue-logo" id="issue-logo-label">Logo</label>
+          <div class="form-image-row" id="issue-logo-row">
+            <span class="form-image-preview-wrap" id="issue-logo-preview-wrap" hidden>
+              <img class="form-image-preview" id="issue-logo-preview" alt="Logo preview">
+              <button type="button" class="form-image-remove" id="issue-logo-remove" aria-label="Remove the logo">&times;</button>
+            </span>
             <input type="text" id="issue-logo" class="form-input" placeholder="Data URI or http(s) URL">
             <input type="file" id="issue-logo-file" accept="image/*" class="form-file" aria-label="Upload a logo">
           </div>
 
-          <label class="form-label issue-image-field" for="issue-logo-alt" id="issue-logo-alt-label">Logo alt text</label>
-          <input type="text" id="issue-logo-alt" class="form-input issue-image-field" placeholder="Describes the logo for screen readers">
+          <label class="form-label" for="issue-logo-alt" id="issue-logo-alt-label">Logo alt text</label>
+          <input type="text" id="issue-logo-alt" class="form-input" placeholder="Describes the logo for screen readers">
 
-          <label class="form-label issue-image-field" for="issue-bg-image" id="issue-bg-image-label">Background image</label>
-          <div class="form-image-row issue-image-field" id="issue-bg-image-row">
+          <label class="form-label" for="issue-bg-image" id="issue-bg-image-label">Background image</label>
+          <div class="form-image-row" id="issue-bg-image-row">
+            <span class="form-image-preview-wrap" id="issue-bg-image-preview-wrap" hidden>
+              <img class="form-image-preview" id="issue-bg-image-preview" alt="Background image preview">
+              <button type="button" class="form-image-remove" id="issue-bg-image-remove" aria-label="Remove the background image">&times;</button>
+            </span>
             <input type="text" id="issue-bg-image" class="form-input" placeholder="Data URI or http(s) URL">
             <input type="file" id="issue-bg-image-file" accept="image/*" class="form-file" aria-label="Upload a background image">
           </div>

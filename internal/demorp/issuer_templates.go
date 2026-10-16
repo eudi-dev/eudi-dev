@@ -26,7 +26,6 @@ import (
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
-	"github.com/eudi-dev/eudi-dev/v3/internal/httpsec"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
 	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
 	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
@@ -196,24 +195,13 @@ func (d *DemoRP) templateImageURL(issuer, id, field, ref string) string {
 // handleTemplateImage serves the logo or background image of a template. The
 // browser checks the ETag on every load, because a template can change.
 func (d *DemoRP) handleTemplateImage(w http.ResponseWriter, r *http.Request) {
-	var ref string
+	var display *credtemplate.TemplateDisplay
 	for _, cfg := range d.templateConfigurations() {
-		if cfg.id != r.PathValue("id") || cfg.template.Display == nil {
-			continue
-		}
-		switch r.PathValue("field") {
-		case "logo":
-			ref = cfg.template.Display.Logo
-		case "background_image":
-			ref = cfg.template.Display.BackgroundImage
+		if cfg.id == r.PathValue("id") {
+			display = cfg.template.Display
 		}
 	}
-	contentType, data, ok := wallet.TemplateImage(ref)
-	if !ok {
-		http.NotFound(w, r)
-		return
-	}
-	httpsec.ServeImage(w, r, contentType, data)
+	wallet.ServeTemplateImage(w, r, display, r.PathValue("field"))
 }
 
 // templateClaimPaths lists the top-level claims of the template with their

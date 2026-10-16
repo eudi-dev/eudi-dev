@@ -69,6 +69,7 @@ func (w *Wallet) describeCredentialOffer(ctx context.Context, offer *oid4vc.Cred
 	for _, id := range offer.CredentialConfigurationIDs {
 		details.Credentials = append(details.Credentials, w.describeConfiguration(images, metadata, id))
 	}
+	details.Findings = append(details.Findings, images.problems...)
 	return details, refusal
 }
 

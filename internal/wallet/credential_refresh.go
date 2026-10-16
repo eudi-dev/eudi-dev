@@ -42,10 +42,11 @@ func (w *Wallet) RenewCredential(id string) (renewed *StoredCredential, err erro
 
 	// A renewal requests a credential too, so the issuer checks apply. They
 	// run before the token request, so a refusal keeps the refresh token.
-	metadata, err := w.loadIssuerMetadata(renewal.Issuer, []string{renewal.ConfigurationID}, ignoreFindings)
+	metadata, findings, err := w.loadIssuerMetadata(renewal.Issuer, []string{renewal.ConfigurationID})
 	if err != nil {
 		return nil, err
 	}
+	w.logIssuerFindings(renewal.Issuer, findings)
 
 	grant, err := w.refreshAccessToken(renewal)
 	// The issuer may rotate the refresh token and retire the old one, so the

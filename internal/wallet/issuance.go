@@ -15,6 +15,7 @@
 package wallet
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/x509"
 	"encoding/json"
@@ -250,10 +251,28 @@ func (w *Wallet) processCredentialOffer(offerURI string, opts OfferOptions) (_ *
 	if err != nil {
 		return nil, err
 	}
-	metadata, err := w.loadIssuerMetadata(offer.CredentialIssuer, []string{configID}, opts.addFindings)
+	metadata, findings, err := w.loadIssuerMetadata(offer.CredentialIssuer, []string{configID})
 	if err != nil {
 		return nil, err
 	}
+	// Strict mode refuses the HAIP findings of the issuer metadata with those of
+	// the offer, once the authorization server metadata is known. Debug mode
+	// logs them with the other findings about the issuer.
+	var haip []string
+	if w.HAIPChecks() {
+		haip = haipIssuerMetadataViolations(metadata, configID)
+	}
+	strict := w.Mode() == ValidationModeStrict
+	if !strict {
+		findings = append(findings, haip...)
+	}
+	// The card display is resolved before the credential request, so its
+	// problems are logged with the other findings about the issuer.
+	images := newOfferImages(context.Background())
+	display := w.resolveCredentialDisplay(images, metadata, configID)
+	findings = append(findings, images.problems...)
+	opts.addFindings(findings...)
+	w.logIssuerFindings(offer.CredentialIssuer, findings)
 
 	grantType := preAuthorizedCodeGrant
 	if offer.Grants.PreAuthorizedCode == "" {
@@ -286,7 +305,10 @@ func (w *Wallet) processCredentialOffer(offerURI string, opts OfferOptions) (_ *
 
 	// Strict mode rejects HAIP findings. Debug mode logs them and continues.
 	if w.HAIPChecks() {
-		violations := append(ValidateHAIPIssuanceCompliance(offer, oauthMeta), haipIssuerMetadataViolations(metadata, configID)...)
+		violations := ValidateHAIPIssuanceCompliance(offer, oauthMeta)
+		if strict {
+			violations = append(violations, haip...)
+		}
 		if len(violations) > 0 {
 			if err := w.reportHAIPViolations("Credential offer", offer.CredentialIssuer, violations); err != nil {
 				return nil, err
@@ -297,6 +319,7 @@ func (w *Wallet) processCredentialOffer(offerURI string, opts OfferOptions) (_ *
 
 	session := issuanceSession{
 		metadata: metadata,
+		display:  display,
 		renewal: CredentialRenewal{
 			Issuer:             offer.CredentialIssuer,
 			TokenEndpoint:      tokenEndpoint,
@@ -432,14 +455,15 @@ func (w *Wallet) fetchLoggedMetadata(f metadataFetch) (map[string]any, error) {
 // missing iat or a past exp (§12.2.3). An error refuses the metadata.
 type metadataProblem func(problem string) error
 
-// reportMetadataProblem reports a metadata problem as a deviation and hands it
-// to report.
-func (w *Wallet) reportMetadataProblem(report func(findings ...string)) metadataProblem {
+// collectMetadataProblems refuses a metadata problem in strict mode. Debug
+// mode adds it to found, so it is logged with the other findings about the
+// issuer.
+func (w *Wallet) collectMetadataProblems(found *[]string) metadataProblem {
 	return func(problem string) error {
-		if err := w.reportDeviation(deviation{action: "issuance", event: "issuer_metadata_freshness", detail: problem}); err != nil {
-			return err
+		if w.Mode() == ValidationModeStrict {
+			return w.reportDeviation(deviation{action: "issuance", event: "issuer_metadata_freshness", detail: problem})
 		}
-		report(problem)
+		*found = append(*found, problem)
 		return nil
 	}
 }

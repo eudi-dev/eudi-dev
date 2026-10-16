@@ -919,6 +919,42 @@ textarea.form-input {
   background: var(--bg-input);
   cursor: pointer;
 }
+.form-image-preview-wrap {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+}
+.form-image-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg-input);
+  color: inherit;
+  font-size: 12px;
+  line-height: 14px;
+  cursor: pointer;
+}
+.form-image-preview {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-input);
+  object-fit: contain;
+}
+#issue-bg-image-preview {
+  object-fit: cover;
+}
+.form-image-preview[hidden] + .form-image-remove {
+  position: static;
+  align-self: center;
+}
 /* The chosen file ends up in the URL field next to it, so the picker shows
    only its button. */
 .form-file {

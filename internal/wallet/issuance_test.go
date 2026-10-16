@@ -838,13 +838,19 @@ func TestParseIssuerMetadataResponse_RequiresIatAndRejectsExpiredMetadata(t *tes
 			t.Fatal(err)
 		}
 		var reported []string
-		if _, _, err := parseIssuerMetadataDocument([]byte(raw), "application/jwt", w.IssuerURL, w.reportMetadataProblem(func(f ...string) { reported = append(reported, f...) })); err != nil {
+		if _, _, err := parseIssuerMetadataDocument([]byte(raw), "application/jwt", w.IssuerURL, w.collectMetadataProblems(&reported)); err != nil {
 			t.Errorf("%s in debug mode: %v", name, err)
 		}
 		if tc.want != "" && (len(reported) != 1 || !strings.Contains(reported[0], "§12.2.3")) {
 			t.Errorf("%s in debug mode reported %v, want the §12.2.3 finding", name, reported)
 		}
-		_, _, err = parseIssuerMetadataDocument([]byte(raw), "application/jwt", w.IssuerURL, refuseMetadataProblem)
+		w.ValidationMode = ValidationModeStrict
+		reported = nil
+		_, _, err = parseIssuerMetadataDocument([]byte(raw), "application/jwt", w.IssuerURL, w.collectMetadataProblems(&reported))
+		w.ValidationMode = ValidationModeDebug
+		if len(reported) > 0 {
+			t.Errorf("%s in strict mode collected %v, want a refusal", name, reported)
+		}
 		if tc.want == "" && err != nil {
 			t.Errorf("%s: %v", name, err)
 		}

@@ -15,8 +15,10 @@
 package wallet
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
@@ -220,13 +222,22 @@ func (s *Server) attemptDeferredCollection(pending DeferredIssuance) DeferredAtt
 	// Deferred Credential Request, and the issuer checks apply as for any
 	// credential request. The original flow has ended, so the wallet fetches
 	// the metadata again. Collection waits until usable metadata arrives.
-	metadata, signerChain, err := s.wallet.readIssuerMetadata(pending.Issuer, ignoreFindings)
+	metadata, signerChain, problems, err := s.wallet.readIssuerMetadata(pending.Issuer)
 	if err != nil {
 		return s.rescheduleDeferred(pending, pending.Interval(), fmt.Sprintf("the issuer metadata can't be used: %v", err))
 	}
-	if err := s.wallet.checkIssuer(pending.Issuer, metadata, signerChain, []string{pending.ConfigurationID}, ignoreFindings); err != nil {
+	findings, err := s.wallet.checkIssuer(pending.Issuer, metadata, signerChain, []string{pending.ConfigurationID})
+	if err != nil {
 		return s.abandonDeferred(pending, err.Error())
 	}
+	// The record carries the display resolved at offer time. When that was
+	// empty, the display comes from the metadata fetched for this collection.
+	display := pending.Display
+	images := newOfferImages(context.Background())
+	if display == nil {
+		display = s.wallet.resolveCredentialDisplay(images, metadata, pending.ConfigurationID)
+	}
+	s.wallet.logIssuerFindings(pending.Issuer, slices.Concat(problems, findings, images.problems))
 	// The validation mode is read once. This runs on the poller goroutine and
 	// can race a PUT /api/config/conformance.
 	mode := s.wallet.Mode()
@@ -262,12 +273,6 @@ func (s *Server) attemptDeferredCollection(pending DeferredIssuance) DeferredAtt
 		return s.handleDeferredAttemptError(pending, err)
 	}
 
-	// The record carries the display resolved at offer time. When that was
-	// empty, the display comes from the metadata fetched for this collection.
-	display := pending.Display
-	if display == nil {
-		display = s.wallet.resolveCredentialDisplay(nil, metadata, pending.ConfigurationID)
-	}
 	// §9.2 lets the Deferred Credential Response carry a notification_id of
 	// its own, defined in §8.3.
 	imported, _, err := s.wallet.storeIssuedCredential(credResp, credentialDelivery{

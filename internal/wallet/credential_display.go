@@ -17,7 +17,6 @@ package wallet
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
 	"image"
@@ -29,7 +28,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 
 	"golang.org/x/image/draw"
 
@@ -191,8 +189,8 @@ func (w *Wallet) resolveCredentialDisplay(images *offerImages, metadata map[stri
 	d.Description = boundDisplayText(description, maxDisplayDescriptionRunes)
 	locale, _ := entry["locale"].(string)
 	d.Locale = boundDisplayText(locale, maxDisplayLocaleRunes)
-	d.BackgroundColor = w.displayColor(entry, "background_color")
-	d.TextColor = w.displayColor(entry, "text_color")
+	d.BackgroundColor = w.displayColor(images, entry, "background_color")
+	d.TextColor = w.displayColor(images, entry, "text_color")
 	if logo, ok := entry["logo"].(map[string]any); ok {
 		uri, _ := logo["uri"].(string)
 		d.LogoURI = w.cacheDisplayImage(images, uri, "logo")
@@ -205,7 +203,7 @@ func (w *Wallet) resolveCredentialDisplay(images *offerImages, metadata map[stri
 		uri, _ := background["uri"].(string)
 		d.BackgroundURI = w.cacheDisplayImage(images, uri, "background_image")
 	}
-	w.checkDisplayContrast(d)
+	w.checkDisplayContrast(images, d)
 	if *d == (oid4vc.CredentialDisplay{}) {
 		return nil
 	}
@@ -214,7 +212,7 @@ func (w *Wallet) resolveCredentialDisplay(images *offerImages, metadata map[stri
 
 // checkDisplayContrast warns about a color pair below 3:1. Named colors and
 // hsl() values are skipped because parseCSSColor does not read them.
-func (w *Wallet) checkDisplayContrast(d *oid4vc.CredentialDisplay) {
+func (w *Wallet) checkDisplayContrast(images *offerImages, d *oid4vc.CredentialDisplay) {
 	if d.BackgroundColor == "" || d.TextColor == "" {
 		return
 	}
@@ -227,7 +225,7 @@ func (w *Wallet) checkDisplayContrast(d *oid4vc.CredentialDisplay) {
 	if ratio >= 3 {
 		return
 	}
-	w.addProtocolWarning("issuance", "credential_display_low_contrast",
+	w.warnDisplay(images, "credential_display_low_contrast",
 		fmt.Sprintf("The credential display colors %s on %s have a contrast ratio of %.1f:1, below the 3:1 a readable card needs.",
 			d.TextColor, d.BackgroundColor, ratio),
 		map[string]any{
@@ -316,8 +314,8 @@ func (w *Wallet) templateDisplay(td *credtemplate.TemplateDisplay) *oid4vc.Crede
 		Name:            boundDisplayText(td.Name, maxDisplayNameRunes),
 		Description:     boundDisplayText(td.Description, maxDisplayDescriptionRunes),
 		Locale:          "en-US",
-		BackgroundColor: w.displayColor(map[string]any{"background_color": td.BackgroundColor}, "background_color"),
-		TextColor:       w.displayColor(map[string]any{"text_color": td.TextColor}, "text_color"),
+		BackgroundColor: w.displayColor(nil, map[string]any{"background_color": td.BackgroundColor}, "background_color"),
+		TextColor:       w.displayColor(nil, map[string]any{"text_color": td.TextColor}, "text_color"),
 		LogoURI:         w.templateImage(td.Logo, "logo"),
 		LogoAltText:     boundDisplayText(td.LogoAltText, maxDisplayAltTextRunes),
 		BackgroundURI:   w.templateImage(td.BackgroundImage, "background_image"),
@@ -326,32 +324,17 @@ func (w *Wallet) templateDisplay(td *credtemplate.TemplateDisplay) *oid4vc.Crede
 		d.TextColor == "" && d.LogoURI == "" && d.BackgroundURI == "" {
 		return nil
 	}
-	w.checkDisplayContrast(d)
+	w.checkDisplayContrast(nil, d)
 	return d
 }
 
-// bundledImageDigests identifies the images bundled with the wallet. The demo
-// issuer serves the art of its templates from them.
-var bundledImageDigests = sync.OnceValue(func() map[[sha256.Size]byte]bool {
-	digests := map[[sha256.Size]byte]bool{}
-	entries, _ := defaults.ReadDir("images")
-	for _, entry := range entries {
-		if _, data, ok := TemplateImage(defaults.EmbeddedPrefix + "images/" + entry.Name()); ok {
-			digests[sha256.Sum256(data)] = true
-		}
+// storeLinkedImage fetches a linked image once and returns it as a data URI.
+// Bundled images and data URIs stay as they are.
+func (w *Wallet) storeLinkedImage(ref, field string) string {
+	if _, _, ok := TemplateImage(ref); ok {
+		return ref
 	}
-	return digests
-})
-
-// keepsTemplateImage reports whether a template image passes the visitor
-// rules: bundled art, named or as a data URI.
-func (w *Wallet) keepsTemplateImage(ref string) bool {
-	ref = strings.TrimSpace(ref)
-	if ref == "" || !w.visitorRules().BundledImagesOnly {
-		return true
-	}
-	_, data, ok := TemplateImage(ref)
-	return ok && bundledImageDigests()[sha256.Sum256(data)]
+	return w.cacheDisplayImage(nil, strings.TrimSpace(ref), field)
 }
 
 func (w *Wallet) templateImage(ref, field string) string {
@@ -362,7 +345,7 @@ func (w *Wallet) templateImage(ref, field string) string {
 	if strings.HasPrefix(ref, defaults.EmbeddedPrefix) {
 		contentType, data, ok := TemplateImage(ref)
 		if !ok {
-			w.rejectDisplayImage(field, ref, "not a bundled image")
+			w.rejectDisplayImage(nil, field, ref, "not a bundled image")
 			return ""
 		}
 		return "data:" + contentType + ";base64," + base64.StdEncoding.EncodeToString(data)
@@ -376,21 +359,21 @@ func (w *Wallet) issuedDisplay(in IssueDisplay) *oid4vc.CredentialDisplay {
 	d := &oid4vc.CredentialDisplay{
 		Name:            boundDisplayText(in.Name, maxDisplayNameRunes),
 		Description:     boundDisplayText(in.Description, maxDisplayDescriptionRunes),
-		BackgroundColor: w.displayColor(map[string]any{"background_color": in.BackgroundColor}, "background_color"),
-		TextColor:       w.displayColor(map[string]any{"text_color": in.TextColor}, "text_color"),
-		LogoURI:         w.cacheDisplayImage(nil, strings.TrimSpace(in.Logo), "logo"),
+		BackgroundColor: w.displayColor(nil, map[string]any{"background_color": in.BackgroundColor}, "background_color"),
+		TextColor:       w.displayColor(nil, map[string]any{"text_color": in.TextColor}, "text_color"),
+		LogoURI:         w.templateImage(in.Logo, "logo"),
 		LogoAltText:     boundDisplayText(in.LogoAltText, maxDisplayAltTextRunes),
-		BackgroundURI:   w.cacheDisplayImage(nil, strings.TrimSpace(in.BackgroundImage), "background_image"),
+		BackgroundURI:   w.templateImage(in.BackgroundImage, "background_image"),
 	}
 	if d.Name == "" && d.Description == "" && d.BackgroundColor == "" &&
 		d.TextColor == "" && d.LogoURI == "" && d.BackgroundURI == "" {
 		return nil
 	}
-	w.checkDisplayContrast(d)
+	w.checkDisplayContrast(nil, d)
 	return d
 }
 
-func (w *Wallet) displayColor(entry map[string]any, field string) string {
+func (w *Wallet) displayColor(images *offerImages, entry map[string]any, field string) string {
 	value, _ := entry[field].(string)
 	if value == "" {
 		return ""
@@ -398,7 +381,7 @@ func (w *Wallet) displayColor(entry map[string]any, field string) string {
 	if cssColorValue.MatchString(value) {
 		return value
 	}
-	w.addProtocolWarning("issuance", "credential_display_invalid",
+	w.warnDisplay(images, "credential_display_invalid",
 		fmt.Sprintf("The credential display %s is %q, which is not a CSS Color Module Level 3 color (§12.2.4). It is ignored.", field, value),
 		map[string]any{"field": field, "value": value})
 	return ""
@@ -406,10 +389,13 @@ func (w *Wallet) displayColor(entry map[string]any, field string) string {
 
 // offerImages resolves each display image of one credential offer once. An
 // offer can list many configurations that share a logo. ctx ends the fetches
-// when the client goes away. A nil *offerImages resolves every image anew.
+// when the client goes away. It also collects the display problems of the
+// issuer metadata. A nil *offerImages resolves every image anew and logs each
+// problem at once.
 type offerImages struct {
 	ctx      context.Context
 	resolved map[string]string
+	problems []string
 }
 
 func newOfferImages(ctx context.Context) *offerImages {
@@ -434,7 +420,7 @@ func (w *Wallet) cacheDisplayImage(images *offerImages, uri, field string) strin
 	if uri == "" {
 		return ""
 	}
-	if w.AdhocDisplayImages && !w.visitorRules().BundledImagesOnly && strings.HasPrefix(uri, "https://") {
+	if w.AdhocDisplayImages && !w.visitorRules().EmbeddedImagesOnly && strings.HasPrefix(uri, "https://") {
 		// Browsers block http images on https pages, so only https URLs stay.
 		// Each card view then reaches the issuer, so this mode is opt-in.
 		return uri
@@ -452,61 +438,61 @@ func (w *Wallet) embedDisplayImage(images *offerImages, uri, field string) strin
 		if strings.HasPrefix(uri, "data:") {
 			body, mediaType, ok := decodeImageDataURI(uri)
 			if !ok {
-				w.rejectDisplayImage(field, uri, "a data URI must carry a base64 image")
+				w.rejectDisplayImage(images, field, uri, "a data URI must carry a base64 image")
 				return ""
 			}
-			return w.encodeDisplayImage(body, mediaType, field, uri)
+			return w.encodeDisplayImage(images, body, mediaType, field, uri)
 		}
-		return w.fetchAndEmbedDisplayImage(ctx, uri, field)
+		return w.fetchAndEmbedDisplayImage(ctx, images, uri, field)
 	})
 }
 
 // Image URLs come from untrusted issuer metadata, so the fetch address
 // policy blocks private destinations (ADR-0004).
-func (w *Wallet) fetchAndEmbedDisplayImage(ctx context.Context, uri, field string) string {
+func (w *Wallet) fetchAndEmbedDisplayImage(ctx context.Context, images *offerImages, uri, field string) string {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri, nil)
 	if err != nil {
-		w.rejectDisplayImage(field, uri, err.Error())
+		w.rejectDisplayImage(images, field, uri, err.Error())
 		return ""
 	}
 	resp, err := w.HTTPClient().Do(req)
 	if err != nil {
-		w.rejectDisplayImage(field, uri, err.Error())
+		w.rejectDisplayImage(images, field, uri, err.Error())
 		return ""
 	}
 	defer resp.Body.Close()
 	contentType := resp.Header.Get("Content-Type")
 	if resp.StatusCode != http.StatusOK || !strings.HasPrefix(contentType, "image/") {
-		w.rejectDisplayImage(field, uri, fmt.Sprintf("HTTP %d with content type %q, the card needs an image", resp.StatusCode, contentType))
+		w.rejectDisplayImage(images, field, uri, fmt.Sprintf("HTTP %d with content type %q, the card needs an image", resp.StatusCode, contentType))
 		return ""
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxDisplayImageFetchBytes+1))
 	if err != nil {
-		w.rejectDisplayImage(field, uri, err.Error())
+		w.rejectDisplayImage(images, field, uri, err.Error())
 		return ""
 	}
 	if len(body) > maxDisplayImageFetchBytes {
-		w.rejectDisplayImage(field, uri, fmt.Sprintf("larger than the %dMB download cap", maxDisplayImageFetchBytes>>20))
+		w.rejectDisplayImage(images, field, uri, fmt.Sprintf("larger than the %dMB download cap", maxDisplayImageFetchBytes>>20))
 		return ""
 	}
 	mediaType, _, _ := strings.Cut(contentType, ";")
-	return w.encodeDisplayImage(body, strings.TrimSpace(mediaType), field, uri)
+	return w.encodeDisplayImage(images, body, strings.TrimSpace(mediaType), field, uri)
 }
 
 // encodeDisplayImage keeps the bytes as served when they fit the cap and
 // shrinks them to card size otherwise. Dimensions are checked first because
 // a small file can declare huge dimensions.
-func (w *Wallet) encodeDisplayImage(body []byte, mediaType, field, uri string) string {
+func (w *Wallet) encodeDisplayImage(images *offerImages, body []byte, mediaType, field, uri string) string {
 	if mediaType == "image/svg+xml" {
-		return w.keepVectorImage(body, field, uri)
+		return w.keepVectorImage(images, body, field, uri)
 	}
 	config, _, err := image.DecodeConfig(bytes.NewReader(body))
 	if err != nil {
-		w.rejectDisplayImage(field, uri, "not a raster image the wallet can read")
+		w.rejectDisplayImage(images, field, uri, "not a raster image the wallet can read")
 		return ""
 	}
 	if config.Width <= 0 || config.Height <= 0 || config.Width*config.Height > maxDisplayImagePixels {
-		w.rejectDisplayImage(field, uri, fmt.Sprintf("%dx%d pixels, past the %d-megapixel cap", config.Width, config.Height, maxDisplayImagePixels>>20))
+		w.rejectDisplayImage(images, field, uri, fmt.Sprintf("%dx%d pixels, past the %d-megapixel cap", config.Width, config.Height, maxDisplayImagePixels>>20))
 		return ""
 	}
 	if len(body) <= maxDisplayImageBytes {
@@ -514,11 +500,11 @@ func (w *Wallet) encodeDisplayImage(body []byte, mediaType, field, uri string) s
 	}
 	shrunk, shrunkType, ok := shrinkDisplayImage(body)
 	if !ok {
-		w.rejectDisplayImage(field, uri, fmt.Sprintf("larger than the %dKB cap and not a raster image the wallet can shrink", maxDisplayImageBytes>>10))
+		w.rejectDisplayImage(images, field, uri, fmt.Sprintf("larger than the %dKB cap and not a raster image the wallet can shrink", maxDisplayImageBytes>>10))
 		return ""
 	}
 	if len(shrunk) > maxDisplayImageBytes {
-		w.rejectDisplayImage(field, uri, fmt.Sprintf("still larger than the %dKB cap at card size", maxDisplayImageBytes>>10))
+		w.rejectDisplayImage(images, field, uri, fmt.Sprintf("still larger than the %dKB cap at card size", maxDisplayImageBytes>>10))
 		return ""
 	}
 	return "data:" + shrunkType + ";base64," + base64.StdEncoding.EncodeToString(shrunk)
@@ -526,9 +512,9 @@ func (w *Wallet) encodeDisplayImage(body []byte, mediaType, field, uri string) s
 
 // keepVectorImage stores an SVG as served. It has no pixel dimensions, so
 // only the byte cap applies.
-func (w *Wallet) keepVectorImage(body []byte, field, uri string) string {
+func (w *Wallet) keepVectorImage(images *offerImages, body []byte, field, uri string) string {
 	if len(body) > maxDisplayImageBytes {
-		w.rejectDisplayImage(field, uri, fmt.Sprintf("larger than the %dKB cap", maxDisplayImageBytes>>10))
+		w.rejectDisplayImage(images, field, uri, fmt.Sprintf("larger than the %dKB cap", maxDisplayImageBytes>>10))
 		return ""
 	}
 	// The SVG is only rendered through an <img> tag. An <img> runs no scripts
@@ -581,10 +567,22 @@ func shrinkDisplayImage(body []byte) ([]byte, string, bool) {
 	return out.Bytes(), "image/png", true
 }
 
-func (w *Wallet) rejectDisplayImage(field, uri, reason string) {
-	w.addProtocolWarning("issuance", "credential_display_image_rejected",
+func (w *Wallet) rejectDisplayImage(images *offerImages, field, uri, reason string) {
+	w.warnDisplay(images, "credential_display_image_rejected",
 		fmt.Sprintf("The credential display %s image was not kept: %s.", field, reason),
 		map[string]any{"field": field, "uri": uri, "reason": reason})
+}
+
+// warnDisplay records a display problem. Problems found in issuer metadata
+// are collected in images and reported with the other findings about the
+// issuer. Display input of the wallet's own forms and templates is logged at
+// once.
+func (w *Wallet) warnDisplay(images *offerImages, event, detail string, details map[string]any) {
+	if images != nil {
+		images.problems = append(images.problems, detail)
+		return
+	}
+	w.addProtocolWarning("issuance", event, detail, details)
 }
 
 // rememberDisplay updates both the stored credential and the caller's copy.

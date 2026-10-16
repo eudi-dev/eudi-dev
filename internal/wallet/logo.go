@@ -15,9 +15,12 @@
 package wallet
 
 import (
+	"net/http"
 	"strings"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/defaults"
+	"github.com/eudi-dev/eudi-dev/v3/internal/httpsec"
 )
 
 func LogoSVG() []byte {
@@ -42,4 +45,24 @@ func TemplateImage(ref string) (contentType string, data []byte, ok bool) {
 	}
 	data, contentType, ok = decodeImageDataURI(ref)
 	return contentType, data, ok
+}
+
+// ServeTemplateImage serves the logo or background_image of a template
+// display. A linked image has no copy to serve.
+func ServeTemplateImage(w http.ResponseWriter, r *http.Request, d *credtemplate.TemplateDisplay, field string) {
+	var ref string
+	if d != nil {
+		switch field {
+		case "logo":
+			ref = d.Logo
+		case "background_image":
+			ref = d.BackgroundImage
+		}
+	}
+	contentType, data, ok := TemplateImage(ref)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	httpsec.ServeImage(w, r, contentType, data)
 }

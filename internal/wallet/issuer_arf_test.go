@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -283,15 +284,19 @@ func TestARFChecksEachKindInAMixedOffer(t *testing.T) {
 	}
 }
 
-func TestDebugModeLogsTheIssuerFindingsAndGoesOn(t *testing.T) {
+// Debug mode returns the ARF findings, which the flow logs with the other
+// findings about the issuer. Strict mode refuses them.
+func TestTheIssuerChecksWarnInDebugModeAndRefuseInStrictMode(t *testing.T) {
 	w := generateTestWallet(t)
-	if err := w.reportARFIssuanceFindings("https://issuer.example", []string{"ARF RPRC_22a: one", "ARF RPRC_23: two"}); err != nil {
-		t.Fatal(err)
+	w.RequireARF = true
+	unsigned := map[string]any{"credential_issuer": "https://issuer.example"}
+	findings, err := w.checkIssuer("https://issuer.example", unsigned, nil, nil)
+	if err != nil || !slices.ContainsFunc(findings, func(f string) bool { return strings.Contains(f, "ARF ISSU_34") }) {
+		t.Fatalf("debug mode: findings %v, error %v, want the unsigned metadata finding", findings, err)
 	}
-	log := w.GetLog()
-	last := log[len(log)-1]
-	if last.Severity != "warning" || last.Details["event"] != "arf_finding" || !strings.Contains(last.Detail, "ARF rules (2 findings") {
-		t.Fatalf("log entry %+v", last)
+	w.ValidationMode = ValidationModeStrict
+	if _, err := w.checkIssuer("https://issuer.example", unsigned, nil, nil); err == nil || !strings.Contains(err.Error(), "ARF ISSU_34") {
+		t.Errorf("strict mode: error %v, want the refusal with the finding", err)
 	}
 }
 

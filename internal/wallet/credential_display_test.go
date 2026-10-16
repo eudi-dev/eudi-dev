@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 
@@ -250,9 +251,9 @@ func TestProcessCredentialOffer_CredentialDisplay(t *testing.T) {
 		if d.TextColor != "#ffffff" {
 			t.Errorf("valid text_color dropped: %q", d.TextColor)
 		}
-		warning := findLogEntry(w.GetLog(), "credential_display_invalid")
+		warning := findLogEntry(w.GetLog(), "issuer_findings")
 		if warning == nil {
-			t.Fatal("expected a credential_display_invalid entry")
+			t.Fatal("expected an issuer_findings entry")
 		}
 		if warning.Severity != severityWarning {
 			t.Errorf("severity = %q, want %q", warning.Severity, severityWarning)
@@ -275,8 +276,8 @@ func TestProcessCredentialOffer_CredentialDisplay(t *testing.T) {
 		if imported.Display.LogoURI != "" {
 			t.Errorf("oversized logo should not be cached: %.60q", imported.Display.LogoURI)
 		}
-		if findLogEntry(w.GetLog(), "credential_display_image_rejected") == nil {
-			t.Error("expected a credential_display_image_rejected entry")
+		if !strings.Contains(displayFindings(w), "logo image was not kept") {
+			t.Errorf("display findings %q, want the rejected logo", displayFindings(w))
 		}
 	})
 
@@ -293,8 +294,8 @@ func TestProcessCredentialOffer_CredentialDisplay(t *testing.T) {
 		if imported.Display.LogoURI != "" {
 			t.Errorf("non-image logo should not be cached: %.60q", imported.Display.LogoURI)
 		}
-		if findLogEntry(w.GetLog(), "credential_display_image_rejected") == nil {
-			t.Error("expected a credential_display_image_rejected entry")
+		if !strings.Contains(displayFindings(w), "the card needs an image") {
+			t.Errorf("display findings %q, want the non-image answer", displayFindings(w))
 		}
 	})
 
@@ -316,8 +317,8 @@ func TestProcessCredentialOffer_CredentialDisplay(t *testing.T) {
 		if len(raw) > maxDisplayImageBytes {
 			t.Errorf("cached art is %d bytes, over the %d cap", len(raw), maxDisplayImageBytes)
 		}
-		if entry := findLogEntry(w.GetLog(), "credential_display_image_rejected"); entry != nil {
-			t.Errorf("downscalable art was rejected: %s", entry.Detail)
+		if found := displayFindings(w); strings.Contains(found, "not kept") {
+			t.Errorf("downscalable art was rejected: %s", found)
 		}
 	})
 
@@ -334,12 +335,8 @@ func TestProcessCredentialOffer_CredentialDisplay(t *testing.T) {
 		if imported.Display.BackgroundURI != "" {
 			t.Errorf("pixel bomb should not be cached: %.40q", imported.Display.BackgroundURI)
 		}
-		warning := findLogEntry(w.GetLog(), "credential_display_image_rejected")
-		if warning == nil {
-			t.Fatal("expected a credential_display_image_rejected entry")
-		}
-		if !strings.Contains(warning.Detail, "megapixel") {
-			t.Errorf("detail does not name the dimension cap: %s", warning.Detail)
+		if !strings.Contains(displayFindings(w), "megapixel") {
+			t.Errorf("display findings %q do not name the dimension cap", displayFindings(w))
 		}
 	})
 
@@ -384,12 +381,8 @@ func TestProcessCredentialOffer_CredentialDisplay(t *testing.T) {
 		if d == nil || d.BackgroundColor != "#888888" || d.TextColor != "#777777" {
 			t.Fatalf("expected the pair to be kept, got %+v", d)
 		}
-		warning := findLogEntry(w.GetLog(), "credential_display_low_contrast")
-		if warning == nil {
-			t.Fatal("expected a credential_display_low_contrast entry")
-		}
-		if !strings.Contains(warning.Detail, "3:1") {
-			t.Errorf("detail does not name the threshold: %s", warning.Detail)
+		if !strings.Contains(displayFindings(w), "3:1") {
+			t.Errorf("display findings %q do not name the threshold", displayFindings(w))
 		}
 	})
 
@@ -761,5 +754,65 @@ func TestAPickedMdocWithoutDeviceKeyIsPresented(t *testing.T) {
 				t.Fatalf("presenting: %v", err)
 			}
 		})
+	}
+}
+
+// displayFindings joins the findings about the issuer.
+func displayFindings(w *Wallet) string {
+	entry := findLogEntry(w.GetLog(), "issuer_findings")
+	if entry == nil {
+		return ""
+	}
+	list, _ := entry.Details["findings"].([]string)
+	return strings.Join(list, "\n")
+}
+
+// All findings about an issuer form one log entry: the display problems and
+// the ARF findings alike.
+func TestFindingsAboutTheIssuerAreOneEntry(t *testing.T) {
+	w := generateTestWallet(t)
+	w.RequireARF = true
+	issueWithDisplay(t, w, []map[string]any{{
+		"name":             "Test Badge",
+		"background_color": "#888888",
+		"text_color":       "red;color:blue",
+		"logo":             map[string]any{"uri": "SERVER/page.html"},
+		"background_image": map[string]any{"uri": "SERVER/bomb.png"},
+	}})
+	var entries []LogEntry
+	for _, e := range w.GetLog() {
+		switch e.Details["event"] {
+		case "issuer_findings", "arf_finding", "credential_display_invalid", "credential_display_image_rejected":
+			entries = append(entries, e)
+		}
+	}
+	if len(entries) != 1 || entries[0].Details["event"] != "issuer_findings" {
+		t.Fatalf("finding entries %+v, want one issuer_findings entry", entries)
+	}
+	list, _ := entries[0].Details["findings"].([]string)
+	joined := strings.Join(list, "\n")
+	for _, want := range []string{"text_color", "logo image", "background_image image", "ARF"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("findings %q do not mention %s", list, want)
+		}
+	}
+}
+
+// The consent dialog lists the display problems with the other findings
+// about the issuer.
+func TestTheConsentDialogListsDisplayProblems(t *testing.T) {
+	w := generateTestWallet(t)
+	srv, offerURI := displayIssuer(t, w, []map[string]any{{
+		"name":       "Test Badge",
+		"text_color": "red;color:blue",
+	}})
+	t.Cleanup(srv.Close)
+	offer, err := w.resolveOffer(offerURI, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	details, _ := w.describeCredentialOffer(t.Context(), offer)
+	if !slices.ContainsFunc(details.Findings, func(f string) bool { return strings.Contains(f, "text_color") }) {
+		t.Errorf("findings %v, want the invalid text_color", details.Findings)
 	}
 }

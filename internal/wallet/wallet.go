@@ -1431,11 +1431,10 @@ type VisitorRules struct {
 	// visitor template. Visitors can change only those. The operator's
 	// templates, the built-in ones included, stay fixed.
 	VisitorTemplates bool
-	// BundledImagesOnly limits the images of visitor templates and issued
-	// credentials to the art bundled with the wallet. Images from issuer
-	// metadata are always fetched and stored. No card then loads from the
-	// issuer.
-	BundledImagesOnly bool
+	// EmbeddedImagesOnly stores every card image as a data URI, also in
+	// visitor templates. Linked images are fetched once and stored, so no
+	// card loads an image from elsewhere.
+	EmbeddedImagesOnly bool
 	// OwnSigningKeys refuses a signing key override. Every credential issued
 	// by the wallet then refers to one of its own providers.
 	OwnSigningKeys bool
@@ -1478,28 +1477,12 @@ func visitorLimit(format string, args ...any) error {
 	return &VisitorLimitError{reason: fmt.Sprintf(format, args...)}
 }
 
-// checkDisplayImages refuses visitor images that are not bundled with the
-// wallet. The visitor then learns why the image is missing.
-func (w *Wallet) checkDisplayImages(refs ...string) error {
-	for _, ref := range refs {
-		if !w.keepsTemplateImage(ref) {
-			return visitorLimit("the public demo doesn't accept your own images. Remove the logo and background image or keep the ones of a predefined template")
-		}
-	}
-	return nil
-}
-
 // checkTemplateSave applies the visitor rules and the template capacity to a
 // template about to be saved.
 func (w *Wallet) checkTemplateSave(tpl credtemplate.Template) error {
 	name := strings.TrimSpace(tpl.Name)
 	if w.templateNameFixed(name) {
 		return visitorLimit("%q is a predefined template, and the public demo can't change it. Save your version under another name", name)
-	}
-	if d := tpl.Display; d != nil {
-		if err := w.checkDisplayImages(d.Logo, d.BackgroundImage); err != nil {
-			return err
-		}
 	}
 	w.mu.RLock()
 	limit := w.capacity.Templates

@@ -86,7 +86,7 @@ func TestDemoAllowsVisitorFlows(t *testing.T) {
 	}
 }
 
-// Visitors can save templates without images. The operator's templates stay
+// Visitors can save templates. The operator's templates stay
 // as they are, and a reset removes the visitors' templates.
 func TestDemoVisitorTemplates(t *testing.T) {
 	srv := newTestServer(t, true)
@@ -98,20 +98,20 @@ func TestDemoVisitorTemplates(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	image := pngDataURI(t)
 	for _, tt := range []struct {
 		method, path, body string
 		want               int
 	}{
 		{"PUT", "/api/templates/visitor-card", `{"format":"sdjwt","vct":"urn:example:visitor:1","claims":{}}`, http.StatusOK},
 		{"PUT", "/api/templates/art-card", `{"format":"sdjwt","vct":"urn:example:art:1","claims":{},"display":{"logo":"embedded:logo.svg"}}`, http.StatusOK},
-		{"PUT", "/api/templates/upload-card", `{"format":"sdjwt","claims":{},"display":{"logo":"data:image/png;base64,AAAA"}}`, http.StatusForbidden},
-		{"PUT", "/api/templates/link-card", `{"format":"sdjwt","claims":{},"display":{"background_image":"https://images.example/card.png"}}`, http.StatusForbidden},
+		{"PUT", "/api/templates/upload-card", `{"format":"sdjwt","vct":"urn:example:upload:1","claims":{},"display":{"logo":"` + image + `"}}`, http.StatusOK},
+		{"PUT", "/api/templates/background-card", `{"format":"sdjwt","vct":"urn:example:background:1","claims":{},"display":{"background_image":"` + image + `"}}`, http.StatusOK},
 		{"PUT", "/api/templates/pid-sdjwt", `{"format":"sdjwt","claims":{}}`, http.StatusForbidden},
 		{"PUT", "/api/templates/operator-card", `{"format":"sdjwt","claims":{}}`, http.StatusForbidden},
 		{"DELETE", "/api/templates/operator-card", "", http.StatusForbidden},
 		{"POST", "/api/issue", `{"format":"sdjwt","save_as_template":"issued-card"}`, http.StatusCreated},
 		{"POST", "/api/issue", `{"format":"sdjwt","save_as_template":"german-pid-sdjwt"}`, http.StatusForbidden},
-		{"POST", "/api/issue", `{"format":"sdjwt","display":{"logo":"data:image/png;base64,AAAA"}}`, http.StatusForbidden},
 		{"POST", "/api/issue", `{"format":"sdjwt","display":{"logo":"embedded:logo.svg"}}`, http.StatusCreated},
 	} {
 		if w := serverRequest(t, srv, tt.method, tt.path, tt.body); w.Code != tt.want {
@@ -1144,5 +1144,33 @@ func TestTheDemoAnswersConsentRequestsOnlyFromItsUI(t *testing.T) {
 	srv.demo.opts.ConsentAPI = true
 	if got := deny("eudi-cli/3.1.0"); got != http.StatusOK {
 		t.Errorf("with --demo-consent-api: status %d, want 200", got)
+	}
+}
+
+// The issue dialog previews a template's images from this endpoint. A linked
+// image has no copy to serve.
+func TestTemplateDisplayImagesAreServed(t *testing.T) {
+	srv := newTestServer(t, true)
+	srv.wallet.Templates = credtemplate.FileLocation(t.TempDir())
+	if _, err := credtemplate.Save(srv.wallet.Templates, credtemplate.Template{
+		Name: "art-card", Format: "sdjwt", VCT: "urn:example:art:1", Claims: map[string]any{},
+		Display: &credtemplate.TemplateDisplay{Logo: pngDataURI(t), BackgroundImage: "https://images.example/card.png"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for path, want := range map[string]int{
+		"/api/templates/art-card/display/logo":             http.StatusOK,
+		"/api/templates/art-card/display/background_image": http.StatusNotFound,
+		"/api/templates/demo-ticket/display/logo":          http.StatusOK,
+		"/api/templates/missing/display/logo":              http.StatusNotFound,
+		"/api/templates/art-card/display/other":            http.StatusNotFound,
+	} {
+		w := serverRequest(t, srv, "GET", path, "")
+		if w.Code != want {
+			t.Errorf("GET %s = %d, want %d", path, w.Code, want)
+		}
+		if want == http.StatusOK && !strings.HasPrefix(w.Header().Get("Content-Type"), "image/") {
+			t.Errorf("GET %s: content type %q, want an image", path, w.Header().Get("Content-Type"))
+		}
 	}
 }

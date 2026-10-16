@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -842,5 +843,32 @@ func TestDeferredCollectionWaitsForUsableMetadata(t *testing.T) {
 				t.Errorf("records %+v, want the issuance rescheduled", list)
 			}
 		})
+	}
+}
+
+// A collection attempt checks the issuer again and logs its findings in one
+// entry.
+func TestDeferredCollectionLogsTheIssuerFindingsInOneEntry(t *testing.T) {
+	w := generateTestWallet(t)
+	w.RequireARF = true
+	srv, _ := deferredCollectionIssuer(t, generateTestCredential(t, w), 0, 1)
+	defer srv.Close()
+	server := NewServer(w, 0, func() {})
+	pending := pendingFor(t, w, srv.URL, 1)
+	pending.NextAttemptAt = time.Now().Add(-time.Second)
+	w.AddDeferredIssuance(pending)
+
+	server.collectDueDeferredCredentials(time.Now())
+	var entries []LogEntry
+	for _, e := range w.GetLog() {
+		if e.Details["event"] == "issuer_findings" {
+			entries = append(entries, e)
+		}
+	}
+	if len(entries) != 1 {
+		t.Fatalf("%d issuer_findings entries, want one", len(entries))
+	}
+	if list, _ := entries[0].Details["findings"].([]string); !slices.ContainsFunc(list, func(f string) bool { return strings.Contains(f, "ARF") }) {
+		t.Errorf("findings %v, want the ARF findings", list)
 	}
 }

@@ -138,7 +138,7 @@ func (s *Server) SetDemo(opts DemoOptions) error {
 	s.wallet.mu.Lock()
 	s.wallet.TrustSettings.MaxEntities, s.wallet.TrustSettings.MaxLists = maxDemoTrustedEntities, maxDemoTrustedLists
 	s.wallet.mu.Unlock()
-	s.wallet.SetVisitorRules(VisitorRules{VisitorTemplates: true, BundledImagesOnly: true, OwnSigningKeys: true})
+	s.wallet.SetVisitorRules(VisitorRules{VisitorTemplates: true, EmbeddedImagesOnly: true, OwnSigningKeys: true})
 	s.wallet.Consents().SetMaxPending(maxDemoPendingConsents)
 	s.wallet.Consents().SetMaxPendingPerOwner(maxDemoPendingConsentsPerOwner)
 	return nil
