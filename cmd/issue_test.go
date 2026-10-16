@@ -749,10 +749,10 @@ func TestSDJWTPIDClaims_HasExpectedFields(t *testing.T) {
 	if !ok {
 		t.Fatal("address should be a map")
 	}
-	// The rulebook puts the house number in its own claim. The German encoding
-	// keeps it in the street address.
+	// CIR (EU) 2024/2977 Annex, as replaced by CIR (EU) 2026/1731, has no
+	// resident_house_number. resident_street includes the house number.
 	assertClaimSet(t, "address", addr, map[string]bool{
-		"street_address": true, "house_number": true, "postal_code": true,
+		"street_address": true, "postal_code": true,
 		"locality": true, "region": true, "country": true,
 	})
 
