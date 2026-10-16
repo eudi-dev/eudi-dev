@@ -326,6 +326,11 @@ func TestCreateClientAttestationHeaders(t *testing.T) {
 	if attestationHeader["typ"] != "oauth-client-attestation+jwt" {
 		t.Fatalf("expected oauth client attestation typ, got %v", attestationHeader["typ"])
 	}
+	// CIR (EU) 2024/2979 Annex Ib FR-WIA-1 with ETSI TS 119 182-1 V1.2.1
+	// clause 5.1.11: a JAdES baseline B signature has a signed iat header.
+	if _, ok := attestationHeader["iat"].(float64); !ok {
+		t.Errorf("attestation header %v, want an iat header parameter", attestationHeader)
+	}
 	if attestationPayload["iss"] != "https://wallet.example" {
 		t.Fatalf("expected attestation iss to use wallet issuer URL, got %v", attestationPayload["iss"])
 	}
@@ -477,6 +482,10 @@ func TestCreateCredentialProofHeader_KeyAttestation(t *testing.T) {
 	keyAttestationPayload := decodeJWTPart(t, keyAttestationJWT, 1)
 	if keyAttestationHeader["typ"] != "key-attestation+jwt" {
 		t.Fatalf("expected key attestation typ, got %v", keyAttestationHeader["typ"])
+	}
+	// FR-KA-1 with ETSI TS 119 182-1 V1.2.1 clause 5.1.11.
+	if _, ok := keyAttestationHeader["iat"].(float64); !ok {
+		t.Errorf("key attestation header %v, want an iat header parameter", keyAttestationHeader)
 	}
 	// Appendix D.1 with F.1: kid "MUST NOT be present if jwk or x5c is
 	// present".

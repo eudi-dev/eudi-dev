@@ -106,7 +106,7 @@ Metadata without a registration certificate gets a warning in every mode. Wallet
 
 The wallet supports [OAuth 2.0 Attestation-Based Client Authentication](https://datatracker.ietf.org/doc/draft-ietf-oauth-attestation-based-client-auth/). It sends `OAuth-Client-Attestation` and `OAuth-Client-Attestation-PoP` headers to the PAR, token and Authorization Challenge endpoints.
 
-The attestation is signed by a separate wallet provider key. Its `x5c` contains the wallet provider leaf and any intermediate certificates, with the self-signed root omitted. An issuer can pin the root exported by `trust ca-cert` or use the wallet provider certificates at `/api/trustlists/wallet-provider`. Key attestations use the same wallet provider signer.
+The attestation is signed by a separate wallet provider key. Its `x5c` contains the wallet provider leaf and any intermediate certificates, with the self-signed root omitted. An issuer can pin the root exported by `trust ca-cert` or use the wallet provider certificates at `/api/trustlists/wallet-provider`. Key attestations use the same wallet provider signer. Both are compact JAdES baseline B signatures with the signing time in an `iat` header (CIR (EU) 2024/2979 Annex Ib FR-WIA-1 and FR-KA-1, ETSI TS 119 182-1 V1.2.1 clause 5.1.11).
 
 The wallet supports three drafts of the attestation specification ([ADR-0014](../adr/0014-pinned-draft-versions-stay-supported-alongside-the-latest.md)). Outgoing JWTs use the draft-07 claims required by OpenID4VCI 1.0 section 14.7. Both the attestation and its PoP include `iss` and `nbf`, regardless of `--vci-version`. Draft-08 allows these additional claims under sections 5.1 and 5.2 rule 1, so the same JWTs work across the supported drafts.
 

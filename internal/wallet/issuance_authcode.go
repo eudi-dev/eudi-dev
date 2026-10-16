@@ -676,6 +676,10 @@ func createClientAttestationHeaders(w *Wallet, auth *ClientAuthentication, clien
 		"alg": jws.AlgES256,
 		"typ": format.TypeClientAttestation,
 		"x5c": x5c,
+		// CIR (EU) 2024/2979 Annex Ib FR-WIA-1 (CIR (EU) 2026/1731) signs the
+		// WIA as compact JAdES baseline B. ETSI TS 119 182-1 V1.2.1 clause
+		// 5.1.11 requires the signed iat header in new JAdES signatures.
+		"iat": time.Now().Unix(),
 	}
 	if kid := mock.KeyIDForPublicKey(&signingKey.PublicKey); kid != "" {
 		clientAttestationHeader["kid"] = kid
@@ -781,6 +785,8 @@ func createKeyAttestation(w *Wallet, metadata map[string]any, configID, cNonce s
 		"alg": jws.AlgES256,
 		"typ": format.TypeKeyAttestation,
 		"x5c": certchain.X5C(chain),
+		// FR-KA-1 has the same JAdES baseline B rule as FR-WIA-1.
+		"iat": time.Now().Unix(),
 	}
 	payload := map[string]any{
 		"iat":           time.Now().Unix(),
