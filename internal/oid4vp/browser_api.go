@@ -15,7 +15,6 @@
 package oid4vp
 
 import (
-	"encoding/json"
 	"fmt"
 	"maps"
 	"net/url"
@@ -78,7 +77,6 @@ func ParseBrowserAPIRequest(body BrowserAPIRequestEnvelope, opts oid4vc.ParseOpt
 
 func parseBrowserAuthorizationRequest(protocol string, data any, opts oid4vc.ParseOptions, requestOrigin string) (*Request, error) {
 	var raw string
-	var unsignedDCAPI bool
 
 	switch protocol {
 	case browserAPIProtocolSigned:
@@ -115,26 +113,25 @@ func parseBrowserAuthorizationRequest(protocol string, data any, opts oid4vc.Par
 		}
 		return parseMultiSignedBrowserAuthorizationRequest(requestObject, opts, requestOrigin)
 	case browserAPIProtocolUnsigned:
-		payload := data
+		// OpenID4VP 1.0 Appendix A.3.1: the data of an unsigned request is a
+		// JSON object holding the request parameters.
+		requestMap, ok := data.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("unsigned browser request data must be a JSON object")
+		}
 		// OpenID4VP 1.0 Appendix A.2: the wallet ignores client_id and
 		// expected_origins in an unsigned request.
-		if requestMap, ok := data.(map[string]any); ok {
-			cloned := make(map[string]any, len(requestMap))
-			for key, value := range requestMap {
-				if key == "client_id" || key == "expected_origins" {
-					continue
-				}
-				cloned[key] = value
+		payload := make(map[string]any, len(requestMap))
+		for key, value := range requestMap {
+			if key == "client_id" || key == "expected_origins" {
+				continue
 			}
-			payload = cloned
+			payload[key] = value
 		}
-		unsignedDCAPI = true
-
-		bytes, err := json.Marshal(payload)
-		if err != nil {
-			return nil, fmt.Errorf("marshaling unsigned browser request: %w", err)
-		}
-		raw = string(bytes)
+		params := RequestFrom(oid4vc.AuthorizationRequestFromJSON(payload))
+		params.RequestOrigin = requestOrigin
+		params.UnsignedDCAPI = true
+		return params, nil
 	default:
 		return nil, fmt.Errorf("unsupported browser protocol %q", protocol)
 	}
@@ -146,7 +143,6 @@ func parseBrowserAuthorizationRequest(protocol string, data any, opts oid4vc.Par
 
 	params := RequestFrom(parsed)
 	params.RequestOrigin = requestOrigin
-	params.UnsignedDCAPI = unsignedDCAPI
 	return params, nil
 }
 

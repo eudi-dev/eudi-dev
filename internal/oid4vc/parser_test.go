@@ -308,6 +308,18 @@ func TestParseVPJSON(t *testing.T) {
 	}
 }
 
+// A JSON request with exactly two dots in its text is still a JSON object.
+func TestParseVPJSONWithTwoDots(t *testing.T) {
+	raw := `{"response_mode":"dc_api.jwt","response_type":"vp_token","nonce":"n-._~"}`
+	reqType, result, err := Parse(raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ar := result.(*AuthorizationRequest); reqType != TypeVP || ar.Nonce != "n-._~" || ar.ResponseMode != "dc_api.jwt" {
+		t.Errorf("type %d nonce %q response_mode %q", reqType, ar.Nonce, ar.ResponseMode)
+	}
+}
+
 func TestParseErrorCases(t *testing.T) {
 	tests := []struct {
 		name  string

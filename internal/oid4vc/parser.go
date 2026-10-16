@@ -60,12 +60,14 @@ func ParseWithOptions(raw string, opts ParseOptions) (RequestType, any, error) {
 		return parseHTTPURL(raw, opts)
 	}
 
-	if format.IsJWT(raw) {
-		return parseJWTInput(raw)
-	}
-
+	// RFC 7515 §7.1: a compact JWS is base64url text, which never starts
+	// with "{". A JSON object can hold two dots in its strings.
 	if strings.HasPrefix(raw, "{") {
 		return parseJSONInput(raw)
+	}
+
+	if format.IsJWT(raw) {
+		return parseJWTInput(raw)
 	}
 
 	return 0, nil, fmt.Errorf("%w: expected a URI, URL, JWT or JSON object", ErrUnrecognizedInput)
@@ -391,15 +393,16 @@ func parseJSONInput(raw string) (RequestType, any, error) {
 	// A.2). Their request fields identify them.
 	for _, marker := range []string{"client_id", "dcql_query", "response_type"} {
 		if _, ok := m[marker]; ok {
-			rt, req := buildVPFromJSON(m)
-			return rt, req, nil
+			return TypeVP, AuthorizationRequestFromJSON(m), nil
 		}
 	}
 
 	return 0, nil, fmt.Errorf("JSON does not contain VCI or VP markers (credential_issuer, client_id, dcql_query, response_type)")
 }
 
-func buildVPFromJSON(m map[string]any) (RequestType, *AuthorizationRequest) {
+// AuthorizationRequestFromJSON reads the parameters of an unsigned
+// authorization request that arrives as a JSON object.
+func AuthorizationRequestFromJSON(m map[string]any) *AuthorizationRequest {
 	req := &AuthorizationRequest{
 		FullJSON:   m,
 		FullParams: make(map[string]string),
@@ -421,5 +424,5 @@ func buildVPFromJSON(m map[string]any) (RequestType, *AuthorizationRequest) {
 		req.DCQLQuery = dq
 	}
 
-	return TypeVP, req
+	return req
 }

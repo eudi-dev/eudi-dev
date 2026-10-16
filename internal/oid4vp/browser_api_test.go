@@ -32,13 +32,15 @@ func browserRequest(protocol string, data any) BrowserAPIRequestEnvelope {
 
 // OpenID4VP 1.0 Appendix A.2: in an unsigned request the wallet ignores
 // client_id and expected_origins and identifies the caller by its origin.
+// Appendix A.3.1 makes the request a JSON object, so a nonce with dots stays
+// a parameter value.
 func TestUnsignedBrowserRequestIdentifiesTheCallerByOrigin(t *testing.T) {
 	body := browserRequest(browserAPIProtocolUnsigned, map[string]any{
 		"client_id":        "x509_san_dns:attacker.example",
 		"expected_origins": []any{"https://attacker.example"},
 		"response_type":    "vp_token",
 		"response_mode":    "dc_api",
-		"nonce":            "n-dc",
+		"nonce":            "n.dc-._~",
 		"dcql_query":       sdjwtVCTQuery("urn:eudi:pid:1"),
 	})
 	protocol, params, err := ParseBrowserAPIRequest(body, oid4vc.ParseOptions{}, callerOrigin)
@@ -48,7 +50,7 @@ func TestUnsignedBrowserRequestIdentifiesTheCallerByOrigin(t *testing.T) {
 	if protocol != browserAPIProtocolUnsigned || !params.UnsignedDCAPI || params.RequestOrigin != callerOrigin {
 		t.Fatalf("protocol %q unsigned %v origin %q", protocol, params.UnsignedDCAPI, params.RequestOrigin)
 	}
-	if params.ClientID != "" || params.Nonce != "n-dc" || params.DCQLQuery == nil {
+	if params.ClientID != "" || params.Nonce != "n.dc-._~" || params.DCQLQuery == nil {
 		t.Errorf("client_id %q nonce %q dcql %v, want the request without its client_id", params.ClientID, params.Nonce, params.DCQLQuery)
 	}
 	findings, err := ValidateAuthorizationRequest(Checks{Strict: true}, params)
@@ -125,6 +127,7 @@ func TestBrowserRequestErrors(t *testing.T) {
 		{"signed data is a number", browserRequest(browserAPIProtocolSigned, 42.0), "signed browser request data must be a JWT string or object"},
 		{"signed object without request", browserRequest(browserAPIProtocolSigned, map[string]any{"client_id": sanDNSClientID}), "signed browser request must contain request or request_uri"},
 		{"signed string is no request", browserRequest(browserAPIProtocolSigned, "garbage"), "parsing authorization request"},
+		{"unsigned data is a string", browserRequest(browserAPIProtocolUnsigned, "a.b.c"), "unsigned browser request data must be a JSON object"},
 		{"multisigned data is a string", browserRequest(browserAPIProtocolMultiSigned, "x"), "multisigned browser request data must be an object"},
 		{"multisigned without request", browserRequest(browserAPIProtocolMultiSigned, map[string]any{}), "multisigned browser request must contain a request object"},
 		{"multisigned without signatures", browserRequest(browserAPIProtocolMultiSigned, map[string]any{"request": map[string]any{"payload": "e30"}}), "multisigned browser request must contain payload and signatures"},
