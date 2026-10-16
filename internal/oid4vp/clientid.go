@@ -512,6 +512,10 @@ func SignRequestObjectJWT(claims map[string]any, signingKey *ecdsa.PrivateKey, s
 	header := map[string]any{
 		"alg": jws.AlgES256,
 		"typ": format.TypeRequestObject,
+		// ETSI TS 119 472-2 V1.3.1 OIDFVP-HAIP-REDIRECTS_RO-03: "The JWS
+		// Protected Header of the JWS signature on the RO shall incorporate
+		// the iat header parameter."
+		"iat": time.Now().Unix(),
 	}
 	if x5c := certchain.X5C(signerCerts); len(x5c) > 0 {
 		header["x5c"] = x5c

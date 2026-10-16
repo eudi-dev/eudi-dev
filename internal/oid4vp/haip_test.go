@@ -304,6 +304,16 @@ func haipCompliantParams(t *testing.T) (*Request, *oid4vc.RequestObjectJWT) {
 	return params, reqObj
 }
 
+// ETSI TS 119 472-2 V1.3.1 OIDFVP-HAIP-REDIRECTS_RO-03: "The JWS Protected
+// Header of the JWS signature on the RO shall incorporate the iat header
+// parameter."
+func TestSignedRequestObjectHeaderCarriesIat(t *testing.T) {
+	_, reqObj := haipCompliantParams(t)
+	if iat, ok := reqObj.Header["iat"].(float64); !ok || iat <= 0 {
+		t.Errorf("header = %v, want a numeric iat", reqObj.Header)
+	}
+}
+
 // HAIP 1.0 §5.3.1 and §5.3.2 apply "when the mdoc Credential Format is used"
 // and "when the SD-JWT VC Credential Format is used". A query for another
 // format is outside the profile, and HAIP does not forbid it.
