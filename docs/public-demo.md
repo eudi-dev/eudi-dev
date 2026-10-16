@@ -163,6 +163,8 @@ The callback is matched by `state` alone, so the sign-in can happen in any brows
 
 By default, PAR and token requests both require a wallet attestation. The issuer verifies its signature and the possession proof, including `sub`, `aud` and expiry. It refuses a possession proof with a reused `jti`. It accepts either a separate `OAuth-Client-Attestation-PoP` JWT or a DPoP proof signed by the attested key (`attest_jwt_client_auth_dpop`).
 
+A wallet attestation or a key attestation can reference a status list entry. It sits in `status` (OpenID4VCI 1.0 Appendix D.1 and E) or in `client_status.status` and `key_storage_status.status` (CIR (EU) 2024/2979 Annex Ib C_WIA-1 and C_KA-1). The issuer then fetches the status list and refuses the attestation unless its entry is valid (ARF WUA_25, WUA_11a). It also refuses when the status cannot be read, for example because the index is out of range, the list has expired or the list belongs to another URI.
+
 Wallet attestations, key attestations, their possession proofs, DPoP proofs and key proofs can be signed with ES256, ES384 or ES512. CIR (EU) 2024/2979 Annex Ib SA-3 asks an issuer to support all three. The metadata lists them in `proof_signing_alg_values_supported` and `dpop_signing_alg_values_supported`.
 
 The access token is bound to the DPoP key. The credential request must prove possession of that key again. The issuer does not encrypt credential responses and refuses a request for an encrypted one with `invalid_encryption_parameters`. The ticket includes the signed-in account name, so a skipped login shows in the result.

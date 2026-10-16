@@ -25,6 +25,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
+	"github.com/eudi-dev/eudi-dev/v3/internal/statuslist"
 )
 
 // KeyAttestationMode controls whether the demo issuer requires a key
@@ -173,6 +174,9 @@ func (d *DemoRP) verifyKeyAttestation(raw string, inJWTProof bool) (*keyAttestat
 	if !d.nonceIssued(nonce) {
 		return nil, &proofError{code: "invalid_nonce", description: "key attestation nonce is not one this issuer handed out"}
 	}
+	if err := d.checkAttestationStatus("key attestation", attestation.payload, "key_storage_status"); err != nil {
+		return nil, invalidProof("%v", err)
+	}
 	verified := &keyAttestation{
 		attestedKeys: attested,
 		keyStorage:   jsonutil.Strings(attestation.payload["key_storage"]),
@@ -236,4 +240,35 @@ func issuedKeys(proofs []boundKeys, batchSize int) []*ecdsa.PublicKey {
 		keys = keys[:want]
 	}
 	return keys
+}
+
+// checkAttestationStatus fetches the status lists a wallet instance
+// attestation or a key attestation references and refuses one whose status
+// is not valid. OpenID4VCI 1.0 Appendix D.1 and E define a status claim. CIR
+// (EU) 2024/2979 Annex Ib C_WIA-1 and C_KA-1, as amended by CIR (EU)
+// 2026/1731, put the reference in the status member of client_status or
+// key_storage_status (cirClaim). ARF WUA_25 and WUA_11a: the provider "SHALL
+// validate that the WIA [KA] is not revoked". A status that cannot be read
+// (an index out of range, an expired list, a list for another uri) refuses
+// too. draft-ietf-oauth-status-list-21 §8.3: "If any of these checks fails,
+// no statement about the status of the Referenced Token can be made and the
+// Referenced Token SHOULD be rejected."
+func (d *DemoRP) checkAttestationStatus(kind string, payload map[string]any, cirClaim string) error {
+	refs := []*statuslist.StatusRef{statuslist.ExtractStatusRef(payload)}
+	if nested, ok := payload[cirClaim].(map[string]any); ok {
+		refs = append(refs, statuslist.ExtractStatusRef(nested))
+	}
+	for _, ref := range refs {
+		if ref == nil {
+			continue
+		}
+		result, err := statuslist.CheckWithOptions(ref, statuslist.CheckOptions{HTTPClient: d.wallet.HTTPClient(), Prefer: statuslist.FormatJWT})
+		if err != nil {
+			return fmt.Errorf("the status of the %s cannot be established: %w", kind, err)
+		}
+		if !result.IsValid {
+			return fmt.Errorf("the %s is %s at index %d of %s", kind, result.StatusName, ref.Idx, ref.URI)
+		}
+	}
+	return nil
 }

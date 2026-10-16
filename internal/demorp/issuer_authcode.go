@@ -865,6 +865,9 @@ func (d *DemoRP) authenticateClient(r *http.Request, clientID, jkt string) (clie
 	if err := checkTimeClaims(attestation.payload, false, true); err != nil {
 		return clientAuthentication{}, attestationFailed("client attestation: %v", err)
 	}
+	if err := d.checkAttestationStatus("wallet instance attestation", attestation.payload, "client_status"); err != nil {
+		return clientAuthentication{}, attestationFailed("%v", err)
+	}
 	cnf, _ := attestation.payload["cnf"].(map[string]any)
 	cnfJWK, _ := cnf["jwk"].(map[string]any)
 	if cnfJWK == nil {
