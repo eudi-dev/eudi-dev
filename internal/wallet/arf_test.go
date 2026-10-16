@@ -24,6 +24,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"maps"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -379,8 +380,56 @@ func TestDebugARFListsTheFindingsInTheResponse(t *testing.T) {
 }
 
 // A relying party that authenticated with a trusted access certificate gets
-// access_denied when strict --arf refuses its request (RFC 6749 §4.1.2.1).
-func TestStrictARFAnswersAnAuthenticatedVerifierWithAccessDenied(t *testing.T) {
+// the error when strict --arf refuses its request (RFC 6749 §4.1.2.1). ARF
+// findings alone give access_denied. A request error gives its OpenID4VP 1.0
+// §8.5 code.
+func TestStrictARFAnswersAnAuthenticatedVerifier(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		extra       map[string]any
+		error, want string
+	}{
+		{"ARF findings", nil, "access_denied", "RPRC_21"},
+		{"transaction_data", map[string]any{"transaction_data": []any{format.EncodeBase64URL([]byte(`{"type":"payment","credential_ids":["pid"]}`))}}, "invalid_transaction_data", "transaction_data is not supported"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := newTestServer(t, true)
+			srv.wallet.RequireARF = true
+			srv.wallet.ValidationMode = ValidationModeStrict
+			key, chain, verifierInfo := registeredVerifier(t, srv.wallet)
+			verifier := newCaptureVerifier(t)
+			var info []any
+			if err := json.Unmarshal([]byte(verifierInfo), &info); err != nil {
+				t.Fatal(err)
+			}
+			clientID := oid4vp.X509HashClientID(chain[0])
+			claims := map[string]any{
+				"client_id": clientID, "response_type": "vp_token", "response_mode": "direct_post",
+				"response_uri": verifier.URL, "nonce": "n", "state": "s", "verifier_info": info,
+				"dcql_query": map[string]any{"credentials": []any{map[string]any{
+					"id": "pid", "format": "dc+sd-jwt", "meta": map[string]any{"vct_values": []any{"urn:eudi:pid:1"}},
+					"claims": []any{map[string]any{"path": []any{"birthdate"}}},
+				}}},
+			}
+			maps.Copy(claims, tt.extra)
+			requestObject, err := oid4vp.SignRequestObjectJWT(claims, key, chain)
+			if err != nil {
+				t.Fatal(err)
+			}
+			uri := "openid4vp://authorize?" + url.Values{"client_id": {clientID}, "request": {requestObject}}.Encode()
+			body, _ := json.Marshal(map[string]string{"uri": uri})
+			serverRequest(t, srv, http.MethodPost, "/api/presentations", string(body))
+			if form := verifier.received(t); form.Get("error") != tt.error || form.Get("state") != "s" || !strings.Contains(form.Get("error_description"), tt.want) {
+				t.Errorf("the verifier received %v, want %s naming %q", form, tt.error, tt.want)
+			}
+		})
+	}
+}
+
+// An encrypted response mode needs the verifier's encryption key. Without it
+// the wallet can't deliver the error, so only the caller gets the refusal and
+// its findings.
+func TestStrictARFKeepsAnUndeliverableRefusal(t *testing.T) {
 	srv := newTestServer(t, true)
 	srv.wallet.RequireARF = true
 	srv.wallet.ValidationMode = ValidationModeStrict
@@ -392,11 +441,10 @@ func TestStrictARFAnswersAnAuthenticatedVerifierWithAccessDenied(t *testing.T) {
 	}
 	clientID := oid4vp.X509HashClientID(chain[0])
 	requestObject, err := oid4vp.SignRequestObjectJWT(map[string]any{
-		"client_id": clientID, "response_type": "vp_token", "response_mode": "direct_post",
-		"response_uri": verifier.URL, "nonce": "n", "state": "s", "verifier_info": info,
+		"client_id": clientID, "response_type": "vp_token", "response_mode": "direct_post.jwt",
+		"response_uri": verifier.URL, "state": "s", "verifier_info": info,
 		"dcql_query": map[string]any{"credentials": []any{map[string]any{
 			"id": "pid", "format": "dc+sd-jwt", "meta": map[string]any{"vct_values": []any{"urn:eudi:pid:1"}},
-			"claims": []any{map[string]any{"path": []any{"birthdate"}}},
 		}}},
 	}, key, chain)
 	if err != nil {
@@ -404,8 +452,13 @@ func TestStrictARFAnswersAnAuthenticatedVerifierWithAccessDenied(t *testing.T) {
 	}
 	uri := "openid4vp://authorize?" + url.Values{"client_id": {clientID}, "request": {requestObject}}.Encode()
 	body, _ := json.Marshal(map[string]string{"uri": uri})
-	serverRequest(t, srv, http.MethodPost, "/api/presentations", string(body))
-	if form := verifier.received(t); form.Get("error") != "access_denied" || form.Get("state") != "s" || !strings.Contains(form.Get("error_description"), "RPRC_21") {
-		t.Errorf("the verifier received %v, want access_denied naming RPRC_21", form)
+	resp := serverRequest(t, srv, http.MethodPost, "/api/presentations", string(body))
+	if resp.Code != http.StatusBadRequest || !strings.Contains(resp.Body.String(), "nonce") {
+		t.Errorf("the caller got %d %s, want 400 with the missing nonce", resp.Code, resp.Body.String())
+	}
+	verifier.mu.Lock()
+	defer verifier.mu.Unlock()
+	if verifier.form != nil {
+		t.Errorf("the verifier received %v, want nothing", verifier.form)
 	}
 }

@@ -42,9 +42,10 @@ type presentationEntry struct {
 // presentationOutcome is what the shared presentation flow decided for a
 // request (ADR-0012). The entry point delivers it.
 type presentationOutcome struct {
-	// invalid is set for an invalid request. The wallet answers it only to its
-	// caller. OpenID4VP 1.0 §8.5 applies RFC 6749 §4.1.2.1. It sends nothing to
-	// the destination of an invalid request.
+	// invalid is set for an invalid request from a relying party that no
+	// trusted access certificate authenticates. The wallet answers it only to
+	// its caller. OpenID4VP 1.0 §8.5 applies RFC 6749 §4.1.2.1. It sends
+	// nothing to the destination of an invalid request.
 	invalid     error
 	invalidCode string
 	// refusal is the Authorization Error Response for the verifier.
@@ -68,15 +69,18 @@ const requestRefused = "The wallet refused the request"
 func (w *Wallet) evaluatePresentationRequest(authReq *oid4vp.Request, entry presentationEntry) presentationOutcome {
 	w.PrepareARFChecks(authReq)
 	list, err := oid4vp.ValidateAuthorizationRequest(w.Conformance().checks(), authReq)
-	var arf *oid4vp.ARFRefusal
-	if errors.As(err, &arf) {
-		const summary = "The request does not meet the ARF registration rules"
-		w.reportRefusal(entry.action, "arf_refusal", entry.owner, requestRefused, summary, err)
+	var authenticated *oid4vp.AuthenticatedRefusal
+	if errors.As(err, &authenticated) {
+		event, summary := "authorization_request_refused", specCitedSummary(entry.subject, authenticated.Findings)
+		if authenticated.Code == oid4vp.ErrorAccessDenied {
+			event, summary = "arf_refusal", "The request does not meet the ARF registration rules"
+		}
+		w.reportRefusal(entry.action, event, entry.owner, requestRefused, summary, err)
 		// The description lists the findings, so the verifier under test sees
 		// which rule its request breaks.
 		return presentationOutcome{refusal: &presentationRefusal{
-			status: "refused", code: oid4vp.ErrorAccessDenied,
-			description: (&findings.Error{Summary: summary, Findings: arf.Findings}).Error(),
+			status: "refused", code: authenticated.Code,
+			description: (&findings.Error{Summary: summary, Findings: authenticated.Findings}).Error(),
 		}}
 	}
 	if err != nil {

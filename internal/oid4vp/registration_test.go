@@ -216,14 +216,31 @@ func TestARFFindingsOfATrustedRelyingParty(t *testing.T) {
 }
 
 // ARF OIA_09: the wallet encrypts the presentation response of a remote flow.
+// With the HAIP checks, the HAIP finding reports the unencrypted response
+// mode once.
 func TestARFFindingsRequireAnEncryptedResponse(t *testing.T) {
 	f := newARFFixture(t)
 	params := f.request(t, f.registration(t, registrationClaims(relyingPartyID)))
 	for _, mode := range []string{"dc_api", "direct_post"} {
 		params.ResponseMode = mode
 		want := fmt.Sprintf("ARF OIA_09: response_mode %q returns the presentation unencrypted. The wallet must encrypt it", mode)
-		if findings := ARFFindings(params); !containsSubstring(findings, want) {
-			t.Errorf("findings = %v, want %q", findings, want)
+		findings, err := ValidateAuthorizationRequest(Checks{ARF: true}, params)
+		if err != nil || !containsSubstring(findings, want) {
+			t.Errorf("findings = %v, %v, want %q", findings, err, want)
+		}
+
+		findings, err = ValidateAuthorizationRequest(Checks{ARF: true, HAIP: true}, params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		reports := 0
+		for _, finding := range findings {
+			if strings.Contains(finding, fmt.Sprintf("response_mode %q", mode)) || strings.Contains(finding, fmt.Sprintf("got %q", mode)) {
+				reports++
+			}
+		}
+		if reports != 1 {
+			t.Errorf("with HAIP checks, %d findings report response_mode %q, want 1: %v", reports, mode, findings)
 		}
 	}
 }
@@ -290,9 +307,9 @@ func TestStrictARFRefusalOfAnAuthenticatedRelyingParty(t *testing.T) {
 	params := f.request(t, f.registration(t, registrationClaims(relyingPartyID)))
 
 	_, err := ValidateAuthorizationRequest(Checks{Strict: true, ARF: true}, params)
-	var refusal *ARFRefusal
-	if !errors.As(err, &refusal) {
-		t.Fatalf("err = %v, want an ARFRefusal", err)
+	var refusal *AuthenticatedRefusal
+	if !errors.As(err, &refusal) || refusal.Code != ErrorAccessDenied {
+		t.Fatalf("err = %v, want an access_denied AuthenticatedRefusal", err)
 	}
 	if len(refusal.Findings) != 1 || !strings.Contains(refusal.Findings[0], "Table 7") {
 		t.Errorf("refusal findings = %v", refusal.Findings)
@@ -312,6 +329,26 @@ func TestStrictARFRefusalOfAnAuthenticatedRelyingParty(t *testing.T) {
 	_, err = ValidateAuthorizationRequest(Checks{Strict: true, ARF: true}, params)
 	if err == nil || errors.As(err, &refusal) || !strings.Contains(err.Error(), "ARF RPA_04") {
 		t.Errorf("err = %v, want a plain refusal naming RPA_04", err)
+	}
+}
+
+// RFC 6749 §4.1.2.1: the wallet sends a request error to a relying party whose
+// client identifier is valid, and never to one with an invalid client
+// identifier.
+func TestStrictRefusalOfAnAuthenticatedRelyingPartyCarriesTheRequestError(t *testing.T) {
+	f := newARFFixture(t)
+	params := f.request(t, f.registration(t, registrationClaims(relyingPartyID)))
+	params.Nonce = ""
+	_, err := ValidateAuthorizationRequest(Checks{Strict: true, ARF: true}, params)
+	var refusal *AuthenticatedRefusal
+	if !errors.As(err, &refusal) || refusal.Code != ErrorInvalidRequest || !containsSubstring(refusal.Findings, "OID4VP 1.0 §5.2: nonce is required") {
+		t.Fatalf("err = %v, want an invalid_request AuthenticatedRefusal naming the nonce", err)
+	}
+
+	params.ClientID = "x509_san_dns:other.example"
+	_, err = ValidateAuthorizationRequest(Checks{Strict: true, ARF: true}, params)
+	if err == nil || errors.As(err, &refusal) {
+		t.Errorf("err = %v, want a plain refusal for an invalid client identifier", err)
 	}
 }
 

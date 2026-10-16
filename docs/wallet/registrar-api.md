@@ -245,7 +245,7 @@ In strict mode (`wallet --mode strict serve` or `PUT /api/config/conformance` wi
 {
   "status": "refused",
   "error": "access_denied",
-  "error_description": "The request does not meet the ARF registration rules: ARF RPRC_21: the request asks for family_name of urn:eudi:pid:1. The registration certificate does not register it (over-asking)",
+  "error_description": "The request does not meet the ARF rules: ARF RPRC_21: the request asks for family_name of urn:eudi:pid:1. The registration certificate does not register it (over-asking)",
   "redirect_uri": "https://shop.example/done"
 }
 ```

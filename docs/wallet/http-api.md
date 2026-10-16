@@ -323,7 +323,7 @@ The next OID4VP authorization request returns the configured error:
 }
 ```
 
-Strict mode with `--arf` answers the same way when it refuses a request only because of ARF findings and the verifier signed the request with a trusted access certificate. The wallet sends the verifier `access_denied` (OpenID4VP 1.0 §8.5, RFC 6749 §4.1.2.1), and the API answers with `"status": "refused"`. The `error_description` starts with "The request does not meet the ARF registration rules" and lists the findings. A request without an access certificate gets HTTP 400 like any invalid request, and the verifier gets no answer (see [presenting](presenting.md)).
+Strict mode with `--arf` answers the same way when it refuses a request signed with a trusted access certificate. The wallet sends the verifier `access_denied` for ARF findings alone, and the OpenID4VP 1.0 §8.5 code, such as `invalid_request` or `invalid_transaction_data`, when the request also breaks OpenID4VP (RFC 6749 §4.1.2.1). The API answers with `"status": "refused"`. For ARF findings alone the `error_description` starts with "The request does not meet the ARF rules" and lists the findings. A request without an access certificate gets HTTP 400 like any invalid request, and the verifier gets no answer (see [presenting](presenting.md)).
 
 **Clear override without consuming:**
 

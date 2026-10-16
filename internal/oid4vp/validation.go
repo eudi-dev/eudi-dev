@@ -49,30 +49,34 @@ func ValidateAuthorizationRequest(checks Checks, params *Request) ([]string, err
 	return validatePresentationRequestCore(checks, params, payload)
 }
 
-// ARFRefusal is a strict refusal on ARF findings alone. The relying party
-// signed the request with a trusted access certificate, so its client
-// identifier is valid and the wallet answers it with access_denied (RFC 6749
-// §4.1.2.1, applied by OpenID4VP 1.0 §8.5).
-type ARFRefusal struct {
+// AuthenticatedRefusal is a strict refusal of a request signed with a trusted
+// access certificate. The client identifier is valid, so the wallet sends Code
+// to the relying party (RFC 6749 §4.1.2.1, applied by OpenID4VP 1.0 §8.5).
+// Code is access_denied when only ARF findings remain. Otherwise it is the
+// §8.5 code of the request error.
+type AuthenticatedRefusal struct {
+	Code     string
 	Findings []string
 }
 
-func (e *ARFRefusal) Error() string { return refusal(e.Findings).Error() }
-func (e *ARFRefusal) Unwrap() error { return refusal(e.Findings) }
+func (e *AuthenticatedRefusal) Error() string { return refusal(e.Findings).Error() }
+func (e *AuthenticatedRefusal) Unwrap() error { return refusal(e.Findings) }
 
 func validatePresentationRequestCore(checks Checks, params *Request, payload map[string]any) ([]string, error) {
-	var findings []string
-
+	// clientFindings make the client identifier invalid. RFC 6749 §4.1.2.1
+	// then forbids sending the error to the client.
+	var clientFindings []string
 	clientID, reqObj := params.ClientID, params.RequestObject
 	if finding := verifyClientID(clientID, reqObj, params.ResponseDestination(), params.RequestOrigin); finding != "" {
-		findings = append(findings, finding)
+		clientFindings = append(clientFindings, finding)
 	}
 	if finding := validateRequestObject(clientID, reqObj); finding != "" {
-		findings = append(findings, finding)
+		clientFindings = append(clientFindings, finding)
 	}
 	if finding := verifyRequestObjectSignature(clientID, reqObj); finding != "" {
-		findings = append(findings, finding)
+		clientFindings = append(clientFindings, finding)
 	}
+	findings := append([]string{}, clientFindings...)
 	findings = append(findings, requestObjectClaimFindings(params)...)
 	findings = append(findings, authorizationFindings(params, payload)...)
 	var advisories []string
@@ -88,14 +92,18 @@ func validatePresentationRequestCore(checks Checks, params *Request, payload map
 	}
 	var arfFindings []string
 	if checks.ARF {
-		arfFindings = ARFFindings(params)
+		arfFindings = append(ARFFindings(params), responseEncryptionFindings(checks, params)...)
 		advisories = append(advisories, ARFAdvisories(params)...)
 	}
 
-	if checks.Strict && len(findings) == 0 && len(arfFindings) > 0 && relyingPartyAuthenticated(params) {
-		return nil, &ARFRefusal{Findings: arfFindings}
+	code := RefusalCode(params)
+	if len(findings) == 0 {
+		code = ErrorAccessDenied
 	}
 	findings = append(findings, arfFindings...)
+	if checks.Strict && len(findings) > 0 && len(clientFindings) == 0 && relyingPartyAuthenticated(params) {
+		return nil, &AuthenticatedRefusal{Code: code, Findings: findings}
+	}
 	if checks.Strict && len(findings) > 0 {
 		return nil, refusal(findings)
 	}
@@ -311,4 +319,20 @@ func validateResponseMode(responseMode, responseURI, redirectURI string) error {
 		return fmt.Errorf("unsupported response_mode %q", responseMode)
 	}
 	return nil
+}
+
+// responseEncryptionFindings applies ARF OIA_09: "For remote presentation
+// flows the Wallet Unit SHALL ensure that the attributes included in the
+// presented attestation are accessible only to the Relying Party Instance, by
+// encrypting the presentation response." HAIP 1.0 §5.1 and §5.2 require the
+// same outside Interactive Authorization, so with the HAIP checks the HAIP
+// finding covers it.
+func responseEncryptionFindings(checks Checks, params *Request) []string {
+	if ResponseModeEncrypts(params.ResponseMode) {
+		return nil
+	}
+	if checks.HAIP && !IsInteractiveAuthorizationResponseMode(params.ResponseMode) {
+		return nil
+	}
+	return []string{fmt.Sprintf("ARF OIA_09: response_mode %q returns the presentation unencrypted. The wallet must encrypt it", params.ResponseMode)}
 }
