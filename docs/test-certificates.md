@@ -50,7 +50,7 @@ Two more self-signed CAs sit beside the root. They have the subject organization
 - The **relying party access CA** (`CN=EUDI Dev Test Relying Party Access CA`) signs every access certificate of the registrar, including those of the demo issuer and the demo verifier. The wallet's `access-ca` list contains it.
 - The **registrar CA** (`CN=EUDI Dev Test Registrar CA`) signs the registrar's signing certificate. The wallet's `registrar` list contains it.
 
-Neither chains to the root. The root anchors credential issuers, and a visitor's CSR must never produce a certificate under it. Credential signer leaves carry the ISO/IEC 18013-5 document signing purpose. The credential signer's subject country matches the credential's `issuing_country`, with `NL` as the default. Its AIA and CRL URLs identify the provider intermediate and its revocation list.
+Neither chains to the root. The root anchors credential issuers, and a visitor's CSR must never produce a certificate under it. Each credential signing key has two leaves. The mdoc leaf carries the ISO/IEC 18013-5 document signing purpose. The leaf for SD-JWT VC and the other formats has none. The credential signer's subject country matches the credential's `issuing_country`, with `NL` as the default. Its AIA and CRL URLs identify the provider intermediate and its revocation list.
 
 In the PID Rulebook, the trust anchors are notified provider keys. ISO/IEC 18013-5:2021 Annex B uses a direct IACA hierarchy whose root has a path length of zero. The generated root has a path length of one, and the OpenID suite reports this as an ISO profile warning. Certificate signatures and trust paths are checked separately.
 
@@ -102,7 +102,7 @@ The provider intermediates and signing leaves have `C=NL` and organization ident
 | Status signer | `EUDI Dev Status List Signer` | Root CA |
 | Trusted list signer | `EUDI Dev Test List Operator` | Root CA |
 
-Provider intermediates have critical key usage `keyCertSign, cRLSign` and critical basic constraints `CA:TRUE, pathlen:0`. Signing leaves have critical key usage `digitalSignature` and omit basic constraints. Only credential signers carry the critical extended key usage `mdlDS` (`1.0.18013.5.1.2`). The other signing roles have no extended key usage extension.
+Provider intermediates have critical key usage `keyCertSign, cRLSign` and critical basic constraints `CA:TRUE, pathlen:0`. Signing leaves have critical key usage `digitalSignature` and omit basic constraints. Only the mdoc document signers carry the critical extended key usage `mdlDS` (`1.0.18013.5.1.2`), because ISO/IEC 18013-5 Table B.3 requires it. ETSI EN 319 412-2 V2.5.1 GEN-4.3.10-1 forbids a critical extended key usage, so the SD-JWT VC signers and the other signing roles have no extended key usage extension. The mdoc signer keeps the ISO profile, and the conflict with GEN-4.3.10-1 stays there.
 
 ### Provider and access indicators
 
@@ -114,6 +114,8 @@ The PID and wallet provider signers have a non-critical QCStatements extension (
 | Wallet provider | `0.4.0.194126.1.2` | `30153013060604008e4601063009060704008bec4e0102` |
 
 Every access certificate has a non-critical certificate policies extension (`2.5.29.32`) with policy `0.4.0.194118.1.2`, the legal person access policy identifier from TS 119 411-8 V1.1.1 clause 5.3. Its CPS qualifier (`1.3.6.1.5.5.7.2.1`) is `https://github.com/eudi-dev/eudi-dev/blob/main/docs/test-certificates.md`. Access certificates have critical basic constraints `CA:FALSE` and last one year.
+
+The other signing leaves have a non-critical certificate policies extension with the policy `2.25.59819509786676971546508472270828373224` and the same CPS qualifier. ETSI EN 319 412-2 V2.5.1 GEN-4.3.3-2 requires a policy that reflects the practices of the CA. ETSI TS 119 412-6 applies that rule to the PID provider (PID-4.1-01) and the wallet provider (WAL-5.1-01) but names no policy of its own. No ETSI policy describes a test CA, so this policy identifier is a UUID OID (ITU-T X.667). This page is its practice statement.
 
 ### Retrieval, revocation and alternative names
 

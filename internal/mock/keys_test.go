@@ -181,6 +181,7 @@ func TestGenerateCACert_IACAProfile(t *testing.T) {
 func TestGenerateLeafCert_DocumentSignerProfile(t *testing.T) {
 	caCert, leaf := mustCertPair(t, LeafCertOptions{
 		CRLDistributionPoints: []string{"https://localhost:8086/api/crl"},
+		MdocDocumentSigner:    true,
 	})
 
 	if got := leaf.Subject.Country; len(got) != 1 || got[0] != DefaultCertificateCountry {

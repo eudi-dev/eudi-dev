@@ -36,7 +36,7 @@ import (
 // generateEAATrustListJWT signs an EAA list with the CA as its
 // trust anchor.
 func signingChain(w *Wallet, spec provider.IssuedAttestationSpec) ([]*x509.Certificate, error) {
-	_, chain, err := w.Signer().ForList(spec.List(), "")
+	_, chain, err := w.Signer().ForList(spec.List(), "", spec.Format)
 	return chain, err
 }
 

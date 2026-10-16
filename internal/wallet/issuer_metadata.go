@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/netaddr"
 	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
@@ -101,7 +102,7 @@ func issuerSigningJWKs(w *Wallet, exp time.Time) []any {
 	seen := map[string]bool{}
 	var keys []any
 	for _, list := range lists {
-		key, chain, err := w.Signer().ForList(list, "")
+		key, chain, err := w.Signer().ForList(list, "", credtype.FormatSDJWT)
 		if err != nil {
 			continue
 		}

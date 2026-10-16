@@ -58,16 +58,16 @@ func TestSeededKeysMatchTheGoldenFile(t *testing.T) {
 		return spec
 	}
 	for _, category := range credtemplate.Categories {
-		key, chain, err := w.Signer().ForList(spec("urn:golden", category).List(), "")
+		key, chain, err := w.Signer().ForList(spec("urn:golden", category).List(), "", credtype.FormatSDJWT)
 		material("category/"+category, key, chain, err)
 	}
 	custom, err := provider.NormalizeIssuedAttestationSpec(provider.IssuedAttestationSpec{Format: credtype.FormatSDJWT, VCT: "urn:golden:custom", Scheme: lote.Scheme{LoTEType: "https://example.org/LoTEType/custom", EntityName: "Custom Provider", SchemeTerritory: "DE"}}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	key, chain, err := w.Signer().ForList(custom.List(), "")
+	key, chain, err := w.Signer().ForList(custom.List(), "", credtype.FormatSDJWT)
 	material("custom", key, chain, err)
-	key, chain, err = w.Signer().ForList(spec("urn:golden:unlisted", provider.UnlistedCategory).List(), "")
+	key, chain, err = w.Signer().ForList(spec("urn:golden:unlisted", provider.UnlistedCategory).List(), "", credtype.FormatSDJWT)
 	material("unlisted", key, chain, err)
 	key, chain, err = w.Signer().ForCredential(spec("urn:golden", credtemplate.CategoryPID), map[string]any{"issuing_country": "DE"})
 	material("pid/DE", key, chain, err)

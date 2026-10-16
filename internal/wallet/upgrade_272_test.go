@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
@@ -195,7 +196,7 @@ func TestTheProviderCAOfEudiDev272EAAsIsServed(t *testing.T) {
 	if old == nil {
 		t.Fatal("the fixture has no SD-JWT EAA")
 	}
-	_, chain, err := w.Signer().ForList(provider.CategoryList(credtemplate.CategoryEAA), "")
+	_, chain, err := w.Signer().ForList(provider.CategoryList(credtemplate.CategoryEAA), "", credtype.FormatSDJWT)
 	if err != nil {
 		t.Fatal(err)
 	}

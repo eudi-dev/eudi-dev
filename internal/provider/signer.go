@@ -27,6 +27,7 @@ import (
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/config"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
@@ -74,7 +75,7 @@ func (s *Signer) HasCA() bool {
 // list. The signer's countryName matches issuing_country, as ISO/IEC
 // 18013-5 Table B.3 requires.
 func (s *Signer) ForCredential(spec IssuedAttestationSpec, claims map[string]any) (*ecdsa.PrivateKey, []*x509.Certificate, error) {
-	return s.ForList(spec.List(), IssuingCountry(claims))
+	return s.ForList(spec.List(), IssuingCountry(claims), spec.Format)
 }
 
 // IssuingCountry is the issuing_country claim when it is a two-letter
@@ -88,8 +89,9 @@ func IssuingCountry(claims map[string]any) string {
 }
 
 // ForList returns the signing key of the list and its chain under the
-// provider CA of the country.
-func (s *Signer) ForList(list List, country string) (*ecdsa.PrivateKey, []*x509.Certificate, error) {
+// provider CA of the country. The key has one certificate for mdoc document
+// signing and one for the other credential formats.
+func (s *Signer) ForList(list List, country, format string) (*ecdsa.PrivateKey, []*x509.Certificate, error) {
 	if country == "" {
 		country = mock.DefaultCertificateCountry
 	}
@@ -111,6 +113,7 @@ func (s *Signer) ForList(list List, country string) (*ecdsa.PrivateKey, []*x509.
 	case role == string(mock.WalletProviderCertificate):
 		opts.Role = mock.WalletProviderCertificate
 	}
+	opts.MdocDocumentSigner = format == credtype.FormatMDOC && opts.Role != mock.WalletProviderCertificate
 	if role != credtemplate.CategoryPID {
 		var err error
 		if issuerKey, err = s.keys.Key(signingKeyName(role)); err != nil {
@@ -193,7 +196,7 @@ func issuingCertificateURLs(issuerURL string) []string {
 
 // WalletProvider signs wallet and key attestations.
 func (s *Signer) WalletProvider() (*ecdsa.PrivateKey, []*x509.Certificate, error) {
-	return s.ForList(WalletProviderList(), "")
+	return s.ForList(WalletProviderList(), "", "")
 }
 
 // ProviderCA returns an existing provider CA of the role and country. An
@@ -311,7 +314,7 @@ func (s *Signer) StatusList() (*ecdsa.PrivateKey, []*x509.Certificate, error) {
 // Default is the signing material of the PID list, the first credential
 // category.
 func (s *Signer) Default() (*ecdsa.PrivateKey, []*x509.Certificate, error) {
-	return s.ForList(CategoryList(credtemplate.Categories[0]), "")
+	return s.ForList(CategoryList(credtemplate.Categories[0]), "", credtype.FormatMDOC)
 }
 
 // IssuerSubjectAltNames are the SANs of a signing leaf. SD-JWT VC draft-08

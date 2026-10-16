@@ -62,8 +62,45 @@ var (
 	oidExtensionIssuerAltName    = asn1.ObjectIdentifier{2, 5, 29, 18}
 	oidExtensionExtendedKeyUsage = asn1.ObjectIdentifier{2, 5, 29, 37}
 	// mdlDS is the document signing key purpose of ISO/IEC 18013-5 Annex B.
-	oidMdlDocumentSigner = asn1.ObjectIdentifier{1, 0, 18013, 5, 1, 2}
+	oidMdlDocumentSigner               = asn1.ObjectIdentifier{1, 0, 18013, 5, 1, 2}
+	oidExtensionCertificatePolicies    = asn1.ObjectIdentifier{2, 5, 29, 32}
+	oidPolicyQualifierCPS              = asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 2, 1}
+	certificatePracticeStatementURI    = "https://github.com/eudi-dev/eudi-dev/blob/main/docs/test-certificates.md"
+	legalPersonAccessCertificatePolicy = mustParseOID("0.4.0.194118.1.2")
 )
+
+// TestCertificatePolicy identifies the policy of the generated signing
+// certificates other than access certificates. ETSI EN 319 412-2 V2.5.1
+// GEN-4.3.3-2 asks for "the identifier of at least one certificate policy
+// which reflects the practices and procedures undertaken by the CA". No ETSI
+// policy describes a test CA, so the identifier is a UUID OID (ITU-T X.667)
+// and the practice statement is docs/test-certificates.md.
+var TestCertificatePolicy = mustParseOID("2.25.59819509786676971546508472270828373224")
+
+func mustParseOID(text string) x509.OID {
+	oid, err := x509.ParseOID(text)
+	if err != nil {
+		panic(err)
+	}
+	return oid
+}
+
+// certificatePoliciesExtension holds one policy with the test practice
+// statement as its CPS qualifier.
+func certificatePoliciesExtension(policy x509.OID) (pkix.Extension, error) {
+	id, err := policy.MarshalBinary()
+	if err != nil {
+		return pkix.Extension{}, err
+	}
+	value, err := asn1.Marshal([]certificatePolicy{{
+		ID:         asn1.RawValue{Tag: asn1.TagOID, Bytes: id},
+		Qualifiers: []policyQualifier{{ID: oidPolicyQualifierCPS, URI: certificatePracticeStatementURI}},
+	}})
+	if err != nil {
+		return pkix.Extension{}, fmt.Errorf("encoding the certificate policy: %w", err)
+	}
+	return pkix.Extension{Id: oidExtensionCertificatePolicies, Value: value}, nil
+}
 
 type CertificateRole string
 
@@ -232,7 +269,7 @@ func generateNamedCACert(caKey *ecdsa.PrivateKey, maxPathLen int, subject pkix.N
 }
 
 type certificatePolicy struct {
-	ID         asn1.ObjectIdentifier
+	ID         asn1.RawValue
 	Qualifiers []policyQualifier
 }
 
@@ -248,8 +285,14 @@ type LeafCertOptions struct {
 	Role                  CertificateRole
 	IssuingCertificateURL []string
 	CertificateAuthority  bool
-	// CIR (EU) 2026/1731 Annex IV, EAA-6.2.10.1-08: the Token Status List
-	// extended key usage "may be used" for the status list signing certificate.
+	// MdocDocumentSigner adds the critical mdlDS extended key usage that
+	// ISO/IEC 18013-5 Table B.3 requires of a document signer. ETSI EN 319
+	// 412-2 V2.5.1 GEN-4.3.10-1 forbids a critical one, so signers of other
+	// formats have no extended key usage.
+	MdocDocumentSigner bool
+	// StatusListSigner marks the status list signing certificate. It adds no
+	// extension. provider.Keys stores a certificate under a digest of these
+	// options, and existing wallets hold their status list signer under it.
 	StatusListSigner bool
 	// Country becomes the subject countryName. ISO/IEC 18013-5 Table B.3
 	// requires it to equal the signed credential's issuing_country element.
@@ -352,7 +395,7 @@ func GenerateLeafCertWithOptions(caKey *ecdsa.PrivateKey, caCert *x509.Certifica
 	if template.NotAfter.After(caCert.NotAfter) {
 		template.NotAfter = caCert.NotAfter
 	}
-	if !opts.CertificateAuthority && !opts.StatusListSigner && (opts.Role == "" || opts.Role == PIDProviderCertificate) {
+	if opts.MdocDocumentSigner && !opts.CertificateAuthority {
 		extendedKeyUsage, err := asn1.Marshal([]asn1.ObjectIdentifier{oidMdlDocumentSigner})
 		if err != nil {
 			return nil, fmt.Errorf("encoding extended key usage: %w", err)
@@ -376,20 +419,18 @@ func GenerateLeafCertWithOptions(caKey *ecdsa.PrivateKey, caCert *x509.Certifica
 		}
 		template.ExtraExtensions = append(template.ExtraExtensions, pkix.Extension{Id: asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 1, 3}, Value: statements})
 	}
-	if opts.Role == AccessCertificate {
-		template.BasicConstraintsValid = true
-		// TS 119 411-8 V1.1.1 §5.3 defines the legal person access policy.
-		policies, err := asn1.Marshal([]certificatePolicy{{
-			ID: asn1.ObjectIdentifier{0, 4, 0, 194118, 1, 2},
-			Qualifiers: []policyQualifier{{
-				ID:  asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 2, 1},
-				URI: "https://github.com/eudi-dev/eudi-dev/blob/main/docs/test-certificates.md",
-			}},
-		}})
-		if err != nil {
-			return nil, fmt.Errorf("encoding access certificate policy: %w", err)
+	if !opts.CertificateAuthority {
+		policy := TestCertificatePolicy
+		if opts.Role == AccessCertificate {
+			template.BasicConstraintsValid = true
+			// TS 119 411-8 V1.1.1 §5.3 defines the legal person access policy.
+			policy = legalPersonAccessCertificatePolicy
 		}
-		template.ExtraExtensions = append(template.ExtraExtensions, pkix.Extension{Id: asn1.ObjectIdentifier{2, 5, 29, 32}, Value: policies})
+		policies, err := certificatePoliciesExtension(policy)
+		if err != nil {
+			return nil, err
+		}
+		template.ExtraExtensions = append(template.ExtraExtensions, policies)
 	}
 
 	der, err := x509.CreateCertificate(rand.Reader, template, caCert, leafPubKey, caKey)

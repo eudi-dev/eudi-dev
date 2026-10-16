@@ -24,6 +24,7 @@ import (
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/config"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
@@ -115,13 +116,19 @@ func (t *Set) SignedGroupList(issuer string, group Group, path string) (string, 
 		countries = t.pidCountries()
 	}
 	for _, country := range countries {
-		_, chain, err := signer.ForList(group.List, country)
-		if err != nil {
-			return "", err
+		for _, format := range []string{credtype.FormatMDOC, credtype.FormatSDJWT} {
+			_, chain, err := signer.ForList(group.List, country, format)
+			if err != nil {
+				return "", err
+			}
+			// Roles without a format of their own return the same leaf for
+			// both formats.
+			if encoded := base64.StdEncoding.EncodeToString(chain[0].Raw); !slices.Contains(issuanceCertificates, encoded) {
+				issuanceCertificates = append(issuanceCertificates, encoded)
+			}
 		}
-		issuanceCertificates = append(issuanceCertificates, base64.StdEncoding.EncodeToString(chain[0].Raw))
 	}
-	_, signingChain, err := signer.ForList(group.List, "")
+	_, signingChain, err := signer.ForList(group.List, "", credtype.FormatMDOC)
 	if err != nil {
 		return "", err
 	}
@@ -148,7 +155,7 @@ func (t *Set) SignedGroupList(issuer string, group Group, path string) (string, 
 	return signer.Keys().TrustList(listKey, listChain[0], opts)
 }
 
-// caEntityName is the TEName of the entity that lists a certificate, or
+// caEntityName is the TEName of the entity listing a certificate, or
 // fallback for a certificate without a name. ETSI TS 119 602 V1.1.1
 // §6.6.3.0: the organizationName of a listed certificate "should strictly
 // match the 'TE Name' value".

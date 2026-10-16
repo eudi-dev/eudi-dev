@@ -198,7 +198,7 @@ func TestUnderARFAPIDChainsToThePIDProviderList(t *testing.T) {
 			h := d.VerifierHandler()
 			id, params := startVerificationWith(t, h, `{"type":"pid","format":"sd-jwt"}`)
 
-			key, chain, err := d.wallet.Signer().ForList(provider.CategoryList(tc.category), "")
+			key, chain, err := d.wallet.Signer().ForList(provider.CategoryList(tc.category), "", credtype.FormatSDJWT)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -253,7 +253,7 @@ func TestUnderARFACatalogueCategoryPicksTheProviderList(t *testing.T) {
 			h := d.VerifierHandler()
 			id, params := startVerificationWith(t, h, `{"type":"custom","credentials":[{"format":"dc+sd-jwt","vct":"`+tc.vct+`","claims":[["given_name"]]}]}`)
 
-			key, chain, err := d.wallet.Signer().ForList(provider.CategoryList(tc.signer), "")
+			key, chain, err := d.wallet.Signer().ForList(provider.CategoryList(tc.signer), "", credtype.FormatSDJWT)
 			if err != nil {
 				t.Fatal(err)
 			}
