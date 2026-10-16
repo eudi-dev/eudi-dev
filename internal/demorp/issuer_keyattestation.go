@@ -35,7 +35,7 @@ type KeyAttestationMode string
 const (
 	// KeyAttestationOptional is the default. The jwt proof type works without
 	// a key attestation, so wallets without one can collect credentials. A key
-	// attestation that a wallet sends is always verified.
+	// attestation sent by a wallet is always verified.
 	KeyAttestationOptional KeyAttestationMode = "optional"
 	// KeyAttestationRequired adds key_attestations_required to the jwt proof
 	// type too, as CIR (EU) 2024/2979 Annex Ib TR_KA-4 asks of an issuer of
@@ -89,9 +89,9 @@ func (d *DemoRP) keyAttestationRequirement(cfg templateConfiguration) map[string
 
 // proofTypesSupported lists the jwt proof type and the attestation proof
 // type. CIR (EU) 2024/2979 Annex Ib TR_KA-4 asks for both. The attestation
-// proof type always carries a key attestation, so it always names the
-// requirement. The jwt proof type names it only when the issuer requires a key
-// attestation. OpenID4VCI 1.0 §12.2.4: "If the Credential Issuer does not
+// proof type always carries a key attestation, so it always carries the
+// requirement. The jwt proof type carries it only when the issuer requires a
+// key attestation. OpenID4VCI 1.0 §12.2.4: "If the Credential Issuer does not
 // require a key attestation, this parameter MUST NOT be present".
 func (d *DemoRP) proofTypesSupported(cfg templateConfiguration) map[string]any {
 	requirement := d.keyAttestationRequirement(cfg)
@@ -110,14 +110,13 @@ func (d *DemoRP) proofTypesSupported(cfg templateConfiguration) map[string]any {
 
 // keyAttestation is a verified key attestation of OpenID4VCI 1.0 Appendix D.1.
 type keyAttestation struct {
-	attestedKeys []*ecdsa.PublicKey
-	keyStorage   []string
-	attester     attestationSigner
-	name         string
+	attestedKeys       []*ecdsa.PublicKey
+	keyStorage         []string
+	userAuthentication []string
 }
 
-// boundKeys are the keys that one key proof binds credentials to: the proof
-// key, or the attested keys of its key attestation.
+// boundKeys are the keys bound by one key proof: the proof key, or the
+// attested keys of its key attestation.
 type boundKeys struct {
 	keys        []*ecdsa.PublicKey
 	attestation *keyAttestation
@@ -172,27 +171,34 @@ func (d *DemoRP) verifyKeyAttestation(raw string, inJWTProof bool) (*keyAttestat
 		return nil, invalidProof("key attestation carries no nonce: request one from the nonce endpoint")
 	}
 	if !d.nonceIssued(nonce) {
-		return nil, &proofError{code: "invalid_nonce", description: "key attestation nonce is not one this issuer handed out"}
+		return nil, &proofError{code: "invalid_nonce", description: "key attestation nonce was not issued by this issuer"}
 	}
-	if err := d.checkAttestationStatus("key attestation", attestation.payload, "key_storage_status"); err != nil {
-		return nil, invalidProof("%v", err)
-	}
-	verified := &keyAttestation{
-		attestedKeys: attested,
-		keyStorage:   jsonutil.Strings(attestation.payload["key_storage"]),
-		attester:     attester,
-		name:         attester.name(attestation.payload),
+	if _, refused := d.checkAttestationStatus("key attestation", attestation.payload, "key_storage_status"); refused != nil {
+		return nil, invalidProof("%v", refused)
 	}
 	if !attester.trusted {
-		log.Printf("[Demo issuer] key attestation from %q accepted on its own certificate, which does not chain to a wallet provider CA this issuer knows", verified.name)
+		log.Printf("[Demo issuer] key attestation from %q accepted as untrusted. Its certificate does not chain to a known wallet provider CA.", attester.name(attestation.payload))
 	}
-	return verified, nil
+	return &keyAttestation{
+		attestedKeys:       attested,
+		keyStorage:         jsonutil.Strings(attestation.payload["key_storage"]),
+		userAuthentication: jsonutil.Strings(attestation.payload["user_authentication"]),
+	}, nil
 }
 
-// mentionsWSCD reports whether the key attestation attests keys in a WSCD
+// wscdProblem says why a proof does not show a key in a WSCD. It is empty when
+// the key attestation mentions a WSCD with both claims at iso_18045_high
 // (C_KA-1).
-func (a *keyAttestation) mentionsWSCD() bool {
-	return slices.Contains(a.keyStorage, wscdLevel)
+func wscdProblem(attestation *keyAttestation) string {
+	switch {
+	case attestation == nil:
+		return "the proof carries no key attestation"
+	case !slices.Contains(attestation.keyStorage, wscdLevel):
+		return fmt.Sprintf("the key attestation claims key_storage %v, not %s, so it does not mention a WSCD", attestation.keyStorage, wscdLevel)
+	case !slices.Contains(attestation.userAuthentication, wscdLevel):
+		return fmt.Sprintf("the key attestation claims user_authentication %v, not %s, as C_KA-1 requires for a WSCD", attestation.userAuthentication, wscdLevel)
+	}
+	return ""
 }
 
 // verifyAttestationProof checks a proof of the attestation proof type
@@ -206,14 +212,23 @@ func (d *DemoRP) verifyAttestationProof(raw string) (boundKeys, *proofError) {
 }
 
 // checkKeyAttestations applies the issuer's key attestation policy to the
-// verified proofs of a credential request.
+// verified proofs of a credential request. Required mode refuses a PID proof
+// without a WSCD key. Optional mode accepts it and logs it.
 func (d *DemoRP) checkKeyAttestations(proofs []boundKeys, cfg templateConfiguration) *proofError {
 	for _, proof := range proofs {
-		switch {
-		case proof.attestation == nil && d.keyAttestationRequired():
+		if proof.attestation == nil && d.keyAttestationRequired() {
 			return invalidProof("this issuer requires a key attestation (key_attestations_required): send it in the key_attestation header of the jwt proof or as an attestation proof")
-		case proof.attestation != nil && d.requiresWSCD(cfg) && !proof.attestation.mentionsWSCD():
-			return invalidProof("the key attestation claims key_storage %v, not %s, so it does not mention a WSCD. A PID is bound only to a key in a WSCD (CIR (EU) 2024/2979 Annex Ib TR_KA-8)", proof.attestation.keyStorage, wscdLevel)
+		}
+		if !d.requiresWSCD(cfg) {
+			continue
+		}
+		problem := wscdProblem(proof.attestation)
+		switch {
+		case problem == "":
+		case d.keyAttestationRequired():
+			return invalidProof("%s. A PID is bound only to a key in a WSCD (CIR (EU) 2024/2979 Annex Ib TR_KA-8)", problem)
+		default:
+			log.Printf("[Demo issuer] PID proof accepted without a WSCD key (CIR (EU) 2024/2979 Annex Ib TR_KA-8): %s", problem)
 		}
 	}
 	return nil
@@ -242,33 +257,41 @@ func issuedKeys(proofs []boundKeys, batchSize int) []*ecdsa.PublicKey {
 	return keys
 }
 
-// checkAttestationStatus fetches the status lists a wallet instance
-// attestation or a key attestation references and refuses one whose status
-// is not valid. OpenID4VCI 1.0 Appendix D.1 and E define a status claim. CIR
-// (EU) 2024/2979 Annex Ib C_WIA-1 and C_KA-1, as amended by CIR (EU)
-// 2026/1731, put the reference in the status member of client_status or
-// key_storage_status (cirClaim). ARF WUA_25 and WUA_11a: the provider "SHALL
-// validate that the WIA [KA] is not revoked". A status that cannot be read
-// (an index out of range, an expired list, a list for another uri) refuses
-// too. draft-ietf-oauth-status-list-21 §8.3: "If any of these checks fails,
-// no statement about the status of the Referenced Token can be made and the
-// Referenced Token SHOULD be rejected."
-func (d *DemoRP) checkAttestationStatus(kind string, payload map[string]any, cirClaim string) error {
+// checkAttestationStatus fetches the status lists referenced by a wallet
+// instance attestation or a key attestation. OpenID4VCI 1.0 Appendix D.1
+// and E define a status claim. CIR (EU) 2024/2979 Annex Ib C_WIA-1 and
+// C_KA-1, as amended by CIR (EU) 2026/1731, put the reference in the status
+// member of client_status or key_storage_status (cirClaim). ARF WUA_25 and
+// WUA_11a: the provider "SHALL validate that the WIA [KA] is not revoked", so
+// a status other than VALID refuses the attestation.
+//
+// A status that cannot be established (an unreachable or unreadable list, an
+// expired list, an index out of range, a list for another uri) does not
+// refuse it. draft-ietf-oauth-status-list-21 §8.3 says that then "no
+// statement about the status of the Referenced Token can be made and the
+// Referenced Token SHOULD be rejected". This issuer accepts it anyway,
+// because the public demo cannot reach the status lists of a wallet on
+// localhost. Then established is false. The attestation is accepted and
+// logged as untrusted.
+func (d *DemoRP) checkAttestationStatus(kind string, payload map[string]any, cirClaim string) (established bool, refused error) {
 	refs := []*statuslist.StatusRef{statuslist.ExtractStatusRef(payload)}
 	if nested, ok := payload[cirClaim].(map[string]any); ok {
 		refs = append(refs, statuslist.ExtractStatusRef(nested))
 	}
+	established = true
 	for _, ref := range refs {
 		if ref == nil {
 			continue
 		}
 		result, err := statuslist.CheckWithOptions(ref, statuslist.CheckOptions{HTTPClient: d.wallet.HTTPClient(), Prefer: statuslist.FormatJWT})
 		if err != nil {
-			return fmt.Errorf("the status of the %s cannot be established: %w", kind, err)
+			log.Printf("[Demo issuer] the status of the %s cannot be established, so it is accepted as untrusted: %v", kind, err)
+			established = false
+			continue
 		}
 		if !result.IsValid {
-			return fmt.Errorf("the %s is %s at index %d of %s", kind, result.StatusName, ref.Idx, ref.URI)
+			return false, fmt.Errorf("the %s is %s at index %d of %s", kind, result.StatusName, ref.Idx, ref.URI)
 		}
 	}
-	return nil
+	return established, nil
 }

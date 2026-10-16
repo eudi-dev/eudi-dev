@@ -16,7 +16,6 @@ package demorp
 
 import (
 	"encoding/base64"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -25,11 +24,12 @@ import (
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/statuslist"
+	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
 )
 
 // serveProviderStatusLists serves the wallet provider's status lists. On
 // /list, index 0 is valid and index 1 revoked. /expired is a list whose
-// token has expired, and /moved names another uri as its subject.
+// token has expired, and /moved has another uri as its subject.
 func serveProviderStatusLists(t *testing.T, provider walletProvider) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(nil)
@@ -58,24 +58,46 @@ func statusReference(uri string, idx int) map[string]any {
 }
 
 // attestationStatusCases are status references on the lists of
-// serveProviderStatusLists, with the words a refusal names.
+// serveProviderStatusLists. A status other than VALID refuses the
+// attestation, and the refusal gives the status. A status that cannot be
+// established leaves the attestation accepted but untrusted.
 var attestationStatusCases = []struct {
-	name, path string
-	idx        int
-	want       string
+	name, uri string
+	idx       int
+	refused   string
+	trusted   bool
 }{
-	{"a valid entry", "/list", 0, ""},
-	{"a revoked entry", "/list", 1, "INVALID"},
-	{"an index out of range", "/list", 100, "out of range"},
-	{"an expired status list", "/expired", 0, "expired"},
-	{"a status list of another uri", "/moved", 0, "subject"},
+	{"a valid entry", "/list", 0, "", true},
+	{"a revoked entry", "/list", 1, "INVALID", false},
+	{"an index out of range", "/list", 100, "", false},
+	{"an expired status list", "/expired", 0, "", false},
+	{"a status list of another uri", "/moved", 0, "", false},
+	{"an unreachable status list", "http://127.0.0.1:1/list", 0, "", false},
+}
+
+func statusListURI(lists *httptest.Server, uri string) string {
+	if strings.HasPrefix(uri, "/") {
+		return lists.URL + uri
+	}
+	return uri
+}
+
+// ownWalletProvider signs as the wallet's own wallet provider, which chains
+// to the wallet provider list, so its attestations are trusted.
+func ownWalletProvider(t *testing.T, w *wallet.Wallet) walletProvider {
+	t.Helper()
+	key, chain, err := w.Signer().WalletProvider()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return walletProvider{key: key, leaf: chain[0]}
 }
 
 // ARF WUA_25: the PID Provider "SHALL validate that the WIA is not revoked".
 // CIR (EU) 2024/2979 Annex Ib C_WIA-1 puts the reference in client_status.
 func TestTheStatusOfAWalletInstanceAttestationIsChecked(t *testing.T) {
-	d, _, _ := newDemoRP(t)
-	provider := foreignWalletProvider(t)
+	d, w, _ := newDemoRP(t)
+	provider := ownWalletProvider(t, w)
 	lists := serveProviderStatusLists(t, provider)
 
 	for _, claim := range []string{"client_status", "status"} {
@@ -91,7 +113,7 @@ func TestTheStatusOfAWalletInstanceAttestationIsChecked(t *testing.T) {
 					"exp": time.Now().Add(5 * time.Minute).Unix(),
 					"cnf": map[string]any{"jwk": holderJWK(t, clientKey)},
 				}
-				reference := statusReference(lists.URL+tc.path, tc.idx)
+				reference := statusReference(statusListURI(lists, tc.uri), tc.idx)
 				if claim == "client_status" {
 					payload[claim] = map[string]any{"status": reference, "exp": time.Now().Add(60 * 24 * time.Hour).Unix()}
 				} else {
@@ -100,15 +122,17 @@ func TestTheStatusOfAWalletInstanceAttestationIsChecked(t *testing.T) {
 				attestation := signJWT(t, provider.key,
 					map[string]any{"typ": "oauth-client-attestation+jwt", "x5c": []any{base64.StdEncoding.EncodeToString(provider.leaf.Raw)}},
 					payload)
-				rec := pushAuthorizationRequest(t, d.IssuerHandler(), "wallet", nil, "abc", map[string]string{
-					"OAuth-Client-Attestation":     attestation,
-					"OAuth-Client-Attestation-PoP": attestationPoP(t, clientKey, demoIssuerID),
-				})
+				req := httptest.NewRequest(http.MethodPost, "/par", nil)
+				req.Header.Set("OAuth-Client-Attestation", attestation)
+				req.Header.Set("OAuth-Client-Attestation-PoP", attestationPoP(t, clientKey, demoIssuerID))
+				auth, authErr := d.authenticateClient(req, "wallet", "")
 				switch {
-				case tc.want == "" && rec.Code != http.StatusCreated:
-					t.Errorf("status = %d, want 201: %s", rec.Code, rec.Body.String())
-				case tc.want != "" && (rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), tc.want)):
-					t.Errorf("status = %d %s, want 400 naming %q", rec.Code, rec.Body.String(), tc.want)
+				case tc.refused != "" && (authErr == nil || !strings.Contains(authErr.description, tc.refused)):
+					t.Errorf("error = %v, want a refusal naming %q", authErr, tc.refused)
+				case tc.refused == "" && authErr != nil:
+					t.Errorf("refused: %s", authErr.description)
+				case tc.refused == "" && auth.trusted != tc.trusted:
+					t.Errorf("trusted = %v, want %v", auth.trusted, tc.trusted)
 				}
 			})
 		}
@@ -118,22 +142,22 @@ func TestTheStatusOfAWalletInstanceAttestationIsChecked(t *testing.T) {
 // ARF WUA_11a: the provider "SHALL validate that the KA is not revoked". CIR
 // (EU) 2024/2979 Annex Ib C_KA-1 puts the reference in key_storage_status.
 func TestTheStatusOfAKeyAttestationIsChecked(t *testing.T) {
-	d, _, _ := newDemoRP(t)
-	provider := foreignWalletProvider(t)
+	d, w, _ := newDemoRP(t)
+	provider := ownWalletProvider(t, w)
 	lists := serveProviderStatusLists(t, provider)
 	keys := generateKeys(t, 1)
 
 	for _, tc := range attestationStatusCases {
 		t.Run(tc.name, func(t *testing.T) {
 			attestation := provider.keyAttestation(t, d, keys, func(p map[string]any) {
-				p["key_storage_status"] = map[string]any{"status": statusReference(lists.URL+tc.path, tc.idx), "exp": time.Now().Add(60 * 24 * time.Hour).Unix()}
+				p["key_storage_status"] = map[string]any{"status": statusReference(statusListURI(lists, tc.uri), tc.idx), "exp": time.Now().Add(60 * 24 * time.Hour).Unix()}
 			})
-			code, doc := sendProofs(t, d, "credential=pid-sdjwt", "attestation", attestation)
+			_, err := d.verifyKeyAttestation(attestation, true)
 			switch {
-			case tc.want == "" && code != http.StatusOK:
-				t.Errorf("status = %d %v, want 200", code, doc)
-			case tc.want != "" && (code != http.StatusBadRequest || doc["error"] != "invalid_proof" || !strings.Contains(fmt.Sprint(doc["error_description"]), tc.want)):
-				t.Errorf("status = %d %v, want 400 invalid_proof naming %q", code, doc, tc.want)
+			case tc.refused != "" && (err == nil || err.code != "invalid_proof" || !strings.Contains(err.description, tc.refused)):
+				t.Errorf("error = %v, want invalid_proof naming %q", err, tc.refused)
+			case tc.refused == "" && err != nil:
+				t.Errorf("refused: %v", err)
 			}
 		})
 	}

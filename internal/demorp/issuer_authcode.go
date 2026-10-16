@@ -762,7 +762,7 @@ type clientAuthentication struct {
 	// later omit iss, so the signing certificate subject is the fallback.
 	attester string
 	// trusted reports whether the attestation chains to a provider on the
-	// wallet provider lists.
+	// wallet provider lists and its status, if referenced, was read as valid.
 	trusted bool
 }
 
@@ -780,7 +780,7 @@ func (d *DemoRP) authenticateTokenClient(w http.ResponseWriter, r *http.Request,
 		return clientAuthentication{}, false
 	}
 	if clientAuth.method != unauthenticatedClientAuth && !clientAuth.trusted {
-		log.Printf("[Demo issuer] client attestation from %q accepted on its own certificate, which does not chain to a wallet provider CA this issuer knows", clientAuth.attester)
+		log.Printf("[Demo issuer] client attestation from %q accepted as untrusted. Its certificate does not chain to a known wallet provider CA, or its status could not be established.", clientAuth.attester)
 	}
 	return clientAuth, true
 }
@@ -865,8 +865,9 @@ func (d *DemoRP) authenticateClient(r *http.Request, clientID, jkt string) (clie
 	if err := checkTimeClaims(attestation.payload, false, true); err != nil {
 		return clientAuthentication{}, attestationFailed("client attestation: %v", err)
 	}
-	if err := d.checkAttestationStatus("wallet instance attestation", attestation.payload, "client_status"); err != nil {
-		return clientAuthentication{}, attestationFailed("%v", err)
+	statusEstablished, refused := d.checkAttestationStatus("wallet instance attestation", attestation.payload, "client_status")
+	if refused != nil {
+		return clientAuthentication{}, attestationFailed("%v", refused)
 	}
 	cnf, _ := attestation.payload["cnf"].(map[string]any)
 	cnfJWK, _ := cnf["jwk"].(map[string]any)
@@ -888,7 +889,7 @@ func (d *DemoRP) authenticateClient(r *http.Request, clientID, jkt string) (clie
 		method:   attestationClientAuth,
 		clientID: sub,
 		attester: attester.name(attestation.payload),
-		trusted:  attester.trusted,
+		trusted:  attester.trusted && statusEstablished,
 	}
 	if rawPoP == "" {
 		// attest_jwt_client_auth_dpop: the DPoP proof is the only PoP, so §7.3
