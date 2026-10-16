@@ -169,6 +169,7 @@ The wallet checks that:
 - the registration certificate is signed by a trusted registrar (RPRC_02a), identifies the relying party and the service of the access certificate (RPRC_17a), has a valid signature and `typ`, contains all claims required by ETSI TS 119 475 and is not expired (RPRC_17)
 - the registrar has not revoked the registration certificate (RPRC_17). Its status list must be readable and chain to a trusted registrar (RPACANot_03b)
 - the request asks only for credentials and claims registered in that certificate (RPRC_21)
+- the response mode encrypts the presentation, so it is `direct_post.jwt`, `dc_api.jwt` or `ia_post.jwt` (OIA_09)
 
 A request without a registration certificate gets a warning in every mode. Wallets must check registration certificates only from 11 August 2028 (CIR (EU) 2026/1731).
 

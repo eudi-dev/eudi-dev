@@ -29,19 +29,13 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
 )
 
-// responseModeEncrypts reports whether a response mode sends the response as
-// a JWE (OID4VP 1.0 §8.3.1 and Appendix A.4, OpenID4VCI 1.1 §6.2.1.1).
-func responseModeEncrypts(mode string) bool {
-	return mode == "direct_post.jwt" || mode == "dc_api.jwt" || mode == "ia_post.jwt"
-}
-
 // handoverJWKThumbprint is the jwkThumbprint of an mdoc handover. OID4VP 1.0
 // Appendix B.2.6.1: "If the response is encrypted [...] the third element MUST
 // be the JWK SHA-256 Thumbprint [...] of the Verifier's public key used to
 // encrypt the response. Otherwise, the third element MUST be null." B.2.6.2
 // says the same for dc_api.jwt and dc_api.
 func (w *Wallet) handoverJWKThumbprint(params *oid4vp.Request) []byte {
-	if !responseModeEncrypts(params.ResponseMode) {
+	if !oid4vp.ResponseModeEncrypts(params.ResponseMode) {
 		return nil
 	}
 	jwk, _ := responseEncryptionJWK(w.Mode(), params.RequestObject, params.ClientMetadata)
@@ -152,7 +146,7 @@ func extractEncryptionKey(mode ValidationMode, reqObj *oid4vc.RequestObjectJWT, 
 // The wallet checks both before consent, so the user never approves an
 // undeliverable presentation.
 func (w *Wallet) responseEncryptionError(params *oid4vp.Request) error {
-	if !responseModeEncrypts(params.ResponseMode) {
+	if !oid4vp.ResponseModeEncrypts(params.ResponseMode) {
 		return nil
 	}
 	if _, err := extractEncryptionKey(w.Mode(), params.RequestObject, params.ClientMetadata); err != nil {

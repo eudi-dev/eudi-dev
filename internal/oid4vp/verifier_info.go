@@ -84,6 +84,12 @@ func ARFFindings(authReq *Request) []string {
 	}
 	registrations, problems := regcert.Verify(regcert.InfoEntries(requestVerifierInfo(authReq), "verifier_info"))
 	var findings []string
+	// OIA_09: "For remote presentation flows the Wallet Unit SHALL ensure that
+	// the attributes included in the presented attestation are accessible only
+	// to the Relying Party Instance, by encrypting the presentation response."
+	if !ResponseModeEncrypts(authReq.ResponseMode) {
+		findings = append(findings, fmt.Sprintf("ARF OIA_09: response_mode %q returns the presentation unencrypted. The wallet must encrypt it", authReq.ResponseMode))
+	}
 	for _, problem := range problems {
 		findings = append(findings, "ARF RPRC_17: the registration certificate "+problem)
 	}

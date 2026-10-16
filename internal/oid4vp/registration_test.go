@@ -24,6 +24,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math/big"
 	"reflect"
 	"strings"
@@ -127,7 +128,7 @@ func (f arfFixture) request(t *testing.T, verifierInfo ...map[string]any) *Reque
 		info[i] = entry
 	}
 	claims := map[string]any{
-		"client_id": sanDNSClientID, "response_type": "vp_token", "response_mode": "direct_post",
+		"client_id": sanDNSClientID, "response_type": "vp_token", "response_mode": "direct_post.jwt",
 		"response_uri": "https://verifier.example/response", "nonce": "n-arf", "aud": SelfIssuedAudience,
 		"dcql_query": sdjwtVCTQuery("urn:eudi:pid:1"), "verifier_info": info,
 	}
@@ -211,6 +212,19 @@ func TestARFFindingsOfATrustedRelyingParty(t *testing.T) {
 	want := []string{"ETSI TS 119 475 V1.2.1 Table 7: the registration certificate has no status (its entry in the registrar's status list), so the wallet cannot check revocation"}
 	if findings := ARFFindings(params); !reflect.DeepEqual(findings, want) {
 		t.Errorf("findings = %v, want %v", findings, want)
+	}
+}
+
+// ARF OIA_09: the wallet encrypts the presentation response of a remote flow.
+func TestARFFindingsRequireAnEncryptedResponse(t *testing.T) {
+	f := newARFFixture(t)
+	params := f.request(t, f.registration(t, registrationClaims(relyingPartyID)))
+	for _, mode := range []string{"dc_api", "direct_post"} {
+		params.ResponseMode = mode
+		want := fmt.Sprintf("ARF OIA_09: response_mode %q returns the presentation unencrypted. The wallet must encrypt it", mode)
+		if findings := ARFFindings(params); !containsSubstring(findings, want) {
+			t.Errorf("findings = %v, want %q", findings, want)
+		}
 	}
 }
 

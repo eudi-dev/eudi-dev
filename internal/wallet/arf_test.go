@@ -94,7 +94,7 @@ func signedARFRequest(t *testing.T, checking *Wallet, key *ecdsa.PrivateKey, cha
 		t.Fatal(err)
 	}
 	clientID := oid4vp.X509HashClientID(chain[0])
-	claims := map[string]any{"client_id": clientID, "response_type": "vp_token", "nonce": "n", "verifier_info": info}
+	claims := map[string]any{"client_id": clientID, "response_type": "vp_token", "response_mode": "direct_post.jwt", "response_uri": "https://verifier.example/response", "nonce": "n", "verifier_info": info}
 	raw, err := oid4vp.SignRequestObjectJWT(claims, key, chain)
 	if err != nil {
 		t.Fatal(err)
@@ -103,7 +103,7 @@ func signedARFRequest(t *testing.T, checking *Wallet, key *ecdsa.PrivateKey, cha
 	if err != nil {
 		t.Fatal(err)
 	}
-	params := &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ClientID: clientID, ResponseType: "vp_token", Nonce: "n", RequestObject: &oid4vc.RequestObjectJWT{Raw: raw, Header: header, Payload: payload}}, RequestPayload: payload}
+	params := &oid4vp.Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ClientID: clientID, ResponseType: "vp_token", ResponseMode: "direct_post.jwt", ResponseURI: "https://verifier.example/response", Nonce: "n", RequestObject: &oid4vc.RequestObjectJWT{Raw: raw, Header: header, Payload: payload}}, RequestPayload: payload}
 	checking.RequireARF = true
 	checking.PrepareARFChecks(params)
 	return params

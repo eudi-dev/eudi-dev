@@ -62,6 +62,12 @@ func ResponseTypeRequiresVP(responseType string) bool {
 	return responseType == "" || ResponseTypeContains(responseType, "vp_token")
 }
 
+// ResponseModeEncrypts reports whether a response mode sends the response as
+// a JWE (OID4VP 1.0 §8.3.1 and Appendix A.4, OpenID4VCI 1.1 §6.2.1.1).
+func ResponseModeEncrypts(mode string) bool {
+	return mode == "direct_post.jwt" || mode == "dc_api.jwt" || mode == "ia_post.jwt"
+}
+
 // IsInteractiveAuthorizationResponseMode reports whether a response mode is
 // one of the two defined in OpenID4VCI 1.1 §6.2.1.1. Both send the response to
 // the Authorization Challenge Endpoint.
