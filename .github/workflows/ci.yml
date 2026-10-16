@@ -46,6 +46,14 @@ jobs:
       - name: Build
         run: go build -v ./...
 
+      # Platform files such as the macOS URL handler would otherwise first
+      # compile in the release workflow.
+      - name: Cross-compile for macOS and Windows
+        if: matrix.storage.name == 'file'
+        run: |
+          GOOS=darwin GOARCH=arm64 go vet ./...
+          GOOS=windows GOARCH=amd64 go build ./...
+
       - name: Test versioned Go installation
         if: matrix.storage.name == 'file'
         run: python3 scripts/test_go_install.py
@@ -81,6 +89,10 @@ jobs:
             echo "$output"
             exit 1
           fi
+
+      # The URL handler test asks xdg-mime for the registered default handler.
+      - name: Install xdg-utils
+        run: command -v xdg-mime || (sudo apt-get update -qq && sudo apt-get install -y -qq xdg-utils)
 
       - name: Test
         run: go test -coverprofile=coverage.out ./...

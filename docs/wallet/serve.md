@@ -278,7 +278,7 @@ Example discovery response:
 
 The example leaves out the `qeaa`, `pub-eaa`, `access-ca` and `registrar` entries.
 
-`--register` also registers OS URL scheme handlers. `openid4vp://`, `eudi-openid4vp://`, `haip-vp://`, `openid-credential-offer://`, `haip-vci://` and `eu-eaa-offer://` links then open the wallet on macOS. On Linux and Windows, `--register` is a no-op.
+`--register` also registers OS URL scheme handlers. `openid4vp://`, `eudi-openid4vp://`, `haip-vp://`, `openid-credential-offer://`, `haip-vci://` and `eu-eaa-offer://` links then open the wallet on macOS and Linux. On Windows, `--register` is a no-op.
 
 ```bash
 eudi wallet serve
@@ -552,11 +552,12 @@ On a running wallet server the same export is available as `GET /api/certificate
 
 Registers (or removes) OS-level URL scheme handlers for `openid4vp://`, `eudi-openid4vp://`, `haip-vp://`, `openid-credential-offer://`, `haip-vci://` and `eu-eaa-offer://` links.
 
-The handler script starts a local `wallet serve` instance when none is running and forwards the incoming URI to it. If a UI tab is open, the wallet notifies it over the event stream. Otherwise it opens the UI with the request ID in the URL, and that tab handles the request.
+The handler starts a local `wallet serve` instance when none is running and forwards the incoming URI to it. If a UI tab is open, the wallet notifies it over the event stream. Otherwise it opens the UI with the request ID in the URL, and that tab handles the request.
 
 With `--auto-accept`, the handler processes URLs without opening the UI. It POSTs to a running `wallet serve` instance or runs `wallet accept` if that fails.
 
 - **macOS**: Creates an AppleScript `.app` bundle in `~/Applications/` and registers via Launch Services
+- **Linux**: Writes a hidden desktop entry, `~/.local/share/applications/dev.eudi.wallet.desktop`, and makes it the default handler of the schemes in `~/.config/mimeapps.list`. A clicked link runs `eudi wallet open-url <uri>`. This works with every desktop that follows the freedesktop.org standards, such as GNOME, KDE, XFCE, Cinnamon and MATE, and with `xdg-open` under a window manager. `register` warns when something is missing (see below)
 - **Other platforms**: `register` / `unregister` are accepted as no-ops. Use `wallet accept <uri>` instead
 
 ```bash
@@ -566,12 +567,29 @@ eudi wallet register --port 9000   # Use custom listener port
 eudi wallet unregister             # Remove URL handlers
 ```
 
-`wallet register` has no flags of its own. It takes `wallet serve` flags, stores them and replays them as `wallet serve ...` when a clicked link has to start the wallet. The handler script also reads two of them:
+`wallet register` has no flags of its own. It takes `wallet serve` flags, stores them and replays them as `wallet serve ...` when a clicked link has to start the wallet. The handler also reads two of them:
 
 | Flag            | Default | Effect on the handler                                                   |
 |-----------------|---------|-------------------------------------------------------------------------|
 | `--port`        | `8085`  | Port of the running wallet. The handler tries it first and then falls back to the CLI |
 | `--auto-accept` | `false` | Handle incoming URLs without opening the wallet UI                      |
+
+### URL scheme handlers on Linux
+
+Browsers ask once before they open a link with a custom scheme. Firefox then asks the desktop for the default handler. Chrome and Chromium use the desktop portal or `xdg-open`. Snap browsers, the default on Ubuntu, may only open the scheme when `xdg-mime` names its default handler. Flatpak browsers go through the desktop portal.
+
+`register` warns when:
+
+- there is no graphical session (`DISPLAY` and `WAYLAND_DISPLAY` are unset). Nothing can click a link there.
+- `xdg-open` or `xdg-mime` is missing. Install `xdg-utils` for Chrome, Chromium and snap browsers.
+- `~/.config/mimeapps.list` is a link, for example from home-manager on NixOS. `register` leaves it alone and prints the lines to add to that configuration.
+- the path of `eudi` contains spaces or special characters. `xdg-open` under a bare window manager can't run such a path.
+
+A desktop-specific file such as `~/.config/kde-mimeapps.list` overrides `mimeapps.list`. If it names another handler for one of the schemes, `register` changes that entry too.
+
+Without a desktop environment, `xdg-open` uses the scheme handlers only when `DISPLAY` or `WAYLAND_DISPLAY` is set. Under a window manager without the desktop portal, a Flatpak browser needs a portal backend such as `xdg-desktop-portal-gtk`.
+
+The handler logs to `~/.eudi-dev/url-handler.log`. A wallet started by the handler logs to `~/.eudi-dev/url-handler-server.log`.
 
 ## HTTPS certificate verification
 

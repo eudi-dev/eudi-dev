@@ -16,23 +16,45 @@ package urlhandler
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/config"
 )
 
-// Homebrew's stable symlink survives upgrades that replace the versioned binary. Other
-// symlinks may point into temporary build directories, so use their resolved targets.
+// The symlinks of Homebrew and of Nix profiles survive upgrades that replace the
+// versioned binary. Other symlinks may point into temporary build directories, so
+// use their resolved targets.
 func stableBinaryPath(executable string) string {
 	resolved, err := filepath.EvalSymlinks(executable)
 	if err != nil {
 		return executable
 	}
-	if resolved != executable && strings.Contains(filepath.ToSlash(resolved), "/Cellar/") {
+	if !versionedPath(resolved) {
+		return resolved
+	}
+	if resolved != executable {
 		return executable
 	}
+	// Linux resolves the executable through /proc/self/exe, so the link that
+	// was run only shows in the command name.
+	if invoked, err := exec.LookPath(os.Args[0]); err == nil {
+		if abs, err := filepath.Abs(invoked); err == nil {
+			if target, err := filepath.EvalSymlinks(abs); err == nil && target == resolved {
+				return abs
+			}
+		}
+	}
 	return resolved
+}
+
+// versionedPath reports a binary path that a package manager replaces on
+// upgrade.
+func versionedPath(path string) bool {
+	slashed := filepath.ToSlash(path)
+	return strings.Contains(slashed, "/Cellar/") || strings.HasPrefix(slashed, "/nix/store/")
 }
 
 // The script version lets the wallet detect an outdated installed handler.

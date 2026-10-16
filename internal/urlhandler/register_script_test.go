@@ -110,6 +110,9 @@ func TestHandlerScriptSourceAutoAccept(t *testing.T) {
 // The handler submits the clicked URI as one JSON string, whatever it
 // contains, and a binary path with shell syntax stays one word.
 func TestHandlerScriptSubmitsTheURIAsAJSONString(t *testing.T) {
+	if _, err := exec.LookPath("curl"); err != nil {
+		t.Skip("the handler script submits with curl, which is not installed")
+	}
 	bodies := make(chan map[string]any, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body map[string]any
@@ -202,5 +205,50 @@ func TestStableBinaryPathPlainFile(t *testing.T) {
 	want, _ := filepath.EvalSymlinks(bin)
 	if got := stableBinaryPath(bin); got != want {
 		t.Errorf("plain file: got %q, want %q", got, want)
+	}
+}
+
+func TestPackageManagerPathsAreVersioned(t *testing.T) {
+	for path, want := range map[string]bool{
+		"/opt/homebrew/Cellar/eudi-dev/3.1.4/bin/eudi": true,
+		"/nix/store/abc123-eudi-dev-3.1.4/bin/eudi":    true,
+		"/usr/local/bin/eudi":                          false,
+		"/home/me/go/bin/eudi":                         false,
+		"/home/me/nix/store/not-the-store/bin/eudi":    false,
+	} {
+		if got := versionedPath(path); got != want {
+			t.Errorf("%s: versioned %t, want %t", path, got, want)
+		}
+	}
+}
+
+// Linux reports the executable behind /proc/self/exe. The link that was run
+// still comes from the command name.
+func TestStableBinaryPathFindsTheInvokedLink(t *testing.T) {
+	root := t.TempDir()
+	target := filepath.Join(root, "Cellar", "eudi-dev", "1.2.3", "bin", "eudi")
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(target, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(root, "bin", "eudi")
+	if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	resolved, err := filepath.EvalSymlinks(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := os.Args
+	t.Cleanup(func() { os.Args = args })
+	os.Args = []string{link}
+
+	if got := stableBinaryPath(resolved); got != link {
+		t.Errorf("got %q, want the invoked link %q", got, link)
 	}
 }

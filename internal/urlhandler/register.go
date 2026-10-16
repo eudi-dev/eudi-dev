@@ -17,15 +17,43 @@
 package urlhandler
 
 import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/config"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc/scheme"
 )
 
+// Options are the settings of a registration. A clicked link reaches or
+// starts the wallet with them.
 type Options struct {
-	ListenerPort int
-	AutoAccept   bool
-	ServeArgs    []string
+	ListenerPort int      `json:"listener_port"`
+	AutoAccept   bool     `json:"auto_accept"`
+	ServeArgs    []string `json:"serve_args,omitempty"`
+}
+
+func optionsPath() string {
+	return filepath.Join(config.BaseDir(), "url-handler.json")
+}
+
+// LoadOptions reads the options of the current registration. ok is false
+// without a registration.
+func LoadOptions() (opts Options, ok bool, err error) {
+	data, err := os.ReadFile(optionsPath())
+	if errors.Is(err, os.ErrNotExist) {
+		return Options{}, false, nil
+	}
+	if err != nil {
+		return Options{}, false, err
+	}
+	if err := json.Unmarshal(data, &opts); err != nil {
+		return Options{}, false, fmt.Errorf("reading %s: %w", optionsPath(), err)
+	}
+	return opts, true, nil
 }
 
 // The wallet registers as the OS handler for these URL schemes.
@@ -38,17 +66,21 @@ var (
 // Registration describes what Register set up. Registered is false
 // on a platform without URL scheme registration.
 type Registration struct {
-	Registered bool     `json:"registered"`
-	AppBundle  string   `json:"app_bundle,omitempty"`
-	Handler    string   `json:"handler,omitempty"`
-	Binary     string   `json:"binary,omitempty"`
-	AutoAccept bool     `json:"auto_accept"`
-	ServeArgs  []string `json:"serve_args,omitempty"`
-	Schemes    []string `json:"schemes,omitempty"`
+	Registered  bool     `json:"registered"`
+	AppBundle   string   `json:"app_bundle,omitempty"`
+	DesktopFile string   `json:"desktop_file,omitempty"`
+	Handler     string   `json:"handler,omitempty"`
+	Binary      string   `json:"binary,omitempty"`
+	AutoAccept  bool     `json:"auto_accept"`
+	ServeArgs   []string `json:"serve_args,omitempty"`
+	Schemes     []string `json:"schemes,omitempty"`
+	// Warnings name what keeps links from reaching the wallet on this machine.
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 // Unregistration describes what Unregister removed.
 type Unregistration struct {
 	Unregistered bool   `json:"unregistered"`
 	AppBundle    string `json:"app_bundle,omitempty"`
+	DesktopFile  string `json:"desktop_file,omitempty"`
 }

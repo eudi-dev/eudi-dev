@@ -81,6 +81,9 @@ func Register(opts Options) (Registration, error) {
 	if err := os.WriteFile(handlerPath, []byte(handler), 0755); err != nil {
 		return Registration{}, fmt.Errorf("writing handler script: %w", err)
 	}
+	if err := saveOptions(opts); err != nil {
+		return Registration{}, err
+	}
 
 	// osacompile requires the output bundle to be absent.
 	os.RemoveAll(bundlePath)
@@ -171,6 +174,7 @@ func Unregister() (Unregistration, error) {
 	}
 
 	os.Remove(handlerScriptPath())
+	os.Remove(optionsPath())
 
 	if !installed {
 		return Unregistration{}, nil

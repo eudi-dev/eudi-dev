@@ -34,8 +34,8 @@ For interaction diagrams of the implemented OID4VP and OID4VCI flows, see [docs/
 | `use`        | Switch management to a remote instance (`use <url>`) or back to local (`use local`) |
 | `kill`       | Stop a running wallet instance by pid, port or URL (`kill --all` stops all) |
 | `info`       | Show the configuration of the managed wallet (local or remote) |
-| `register`   | Register the OS URL scheme handlers on macOS (a no-op elsewhere) |
-| `unregister` | Remove the OS URL scheme handlers on macOS (a no-op elsewhere) |
+| `register`   | Register the OS URL scheme handlers on macOS and Linux (a no-op elsewhere) |
+| `unregister` | Remove the OS URL scheme handlers on macOS and Linux (a no-op elsewhere) |
 
 Three top-level commands also work on the active wallet and take the same wallet flags:
 
@@ -91,13 +91,13 @@ eudi wallet logs -f
 # Import a credential from a file
 eudi wallet import credential.txt
 
-# Register URL scheme handlers so openid4vp:// links open the wallet on macOS
+# Register URL scheme handlers so openid4vp:// links open the wallet on macOS and Linux
 eudi wallet register
 ```
 
-On Linux and Windows, `wallet register` and `wallet unregister` are no-ops. Open copied protocol links with `eudi wallet accept '<uri>'`. Credential offers support `openid-credential-offer://`, `haip-vci://` and EUDI `eu-eaa-offer://`.
+On Windows, `wallet register` and `wallet unregister` are no-ops. Open copied protocol links with `eudi wallet accept '<uri>'`. Credential offers support `openid-credential-offer://`, `haip-vci://` and EUDI `eu-eaa-offer://`.
 
-While `wallet use <url>` sets a remote target, the macOS URL handler sends clicked links to that instance. It opens the remote consent UI in the browser. `wallet use local` routes links back to the local wallet server.
+While `wallet use <url>` sets a remote target, the URL handler sends clicked links to that instance. It opens the remote consent UI in the browser. `wallet use local` routes links back to the local wallet server.
 
 ## Credential type inheritance
 
@@ -197,7 +197,7 @@ eudi wallet logs --json       # JSON array of log entries
 
 ## Wallet server
 
-`wallet serve` runs the web UI, protocol endpoints, trusted lists and management API. It loads credentials from the selected storage backend and asks for consent on interactive requests. On macOS it can also register URL scheme handlers. The [activity log API](wallet/http-api.md#activity-log) describes the JSON format of the activity view.
+`wallet serve` runs the web UI, protocol endpoints, trusted lists and management API. It loads credentials from the selected storage backend and asks for consent on interactive requests. On macOS and Linux it can also register URL scheme handlers. The [activity log API](wallet/http-api.md#activity-log) describes the JSON format of the activity view.
 
 ```bash
 eudi wallet serve                      # web UI on http://localhost:8085

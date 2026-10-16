@@ -84,7 +84,7 @@ The wallet handling the flow fetches the offer and prompts for a transaction cod
 
 ## Wallet invocation by URL
 
-Both wallet flows also run at the wallet's own URL, wherever a verifier or issuer would use a custom-scheme link. Custom schemes are registered on macOS only.
+Both wallet flows also run at the wallet's own URL, wherever a verifier or issuer would use a custom-scheme link. Custom schemes are registered on macOS and Linux.
 
 | Custom scheme | Wallet URL |
 |---------------|------------|

@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -109,6 +110,7 @@ func init() {
 	walletCmd.AddCommand(walletRefreshCmd())
 	walletCmd.AddCommand(walletRegisterCmd())
 	walletCmd.AddCommand(walletUnregisterCmd())
+	walletCmd.AddCommand(walletOpenURLCmd())
 	walletCmd.AddCommand(walletTLSCertCmd())
 	walletCmd.AddCommand(walletInfoCmd())
 	walletCmd.AddCommand(walletPsCmd())
@@ -377,8 +379,8 @@ func walletRemoveCmd() *cobra.Command {
 func walletRegisterCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "register [wallet-serve-flags...]",
-		Short: "Register the OS URL scheme handlers (macOS, a no-op elsewhere)",
-		Long: `Registers this wallet as the OS handler for the OID4VP/OID4VCI URL schemes (macOS, a no-op elsewhere). The provided arguments are stored and replayed as 'wallet serve ...' when a clicked link needs to auto-start the wallet listener.
+		Short: "Register the OS URL scheme handlers (macOS and Linux, a no-op elsewhere)",
+		Long: `Registers this wallet as the OS handler for the OID4VP/OID4VCI URL schemes (macOS and Linux, a no-op elsewhere). The provided arguments are stored and replayed as 'wallet serve ...' when a clicked link needs to auto-start the wallet listener.
 
 Supported schemes: openid4vp://, eudi-openid4vp://, haip-vp://,
 openid-credential-offer://, haip-vci:// and eu-eaa-offer://.`,
@@ -465,7 +467,7 @@ func walletUnregisterCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "unregister",
 		Args:  cobra.NoArgs,
-		Short: "Remove the OS URL scheme handlers (macOS, a no-op elsewhere)",
+		Short: "Remove the OS URL scheme handlers (macOS and Linux, a no-op elsewhere)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			unreg, err := urlhandler.Unregister()
 			if err != nil {
@@ -476,7 +478,11 @@ func walletUnregisterCmd() *cobra.Command {
 					fmt.Println("No URL scheme handlers were registered.")
 					return
 				}
-				fmt.Printf("Unregistered URL scheme handlers and removed %s\n", unreg.AppBundle)
+				removed := unreg.AppBundle
+				if removed == "" {
+					removed = unreg.DesktopFile
+				}
+				fmt.Printf("Unregistered URL scheme handlers and removed %s\n", removed)
 			})
 			return nil
 		},
@@ -489,7 +495,12 @@ func printRegistration(reg urlhandler.Registration) {
 		return
 	}
 	fmt.Println("Registered URL scheme handlers:")
-	fmt.Printf("  App bundle: %s\n", reg.AppBundle)
+	if reg.AppBundle != "" {
+		fmt.Printf("  App bundle: %s\n", reg.AppBundle)
+	}
+	if reg.DesktopFile != "" {
+		fmt.Printf("  Desktop:    %s\n", reg.DesktopFile)
+	}
 	fmt.Printf("  Handler:    %s\n", reg.Handler)
 	fmt.Printf("  Binary:     %s\n", reg.Binary)
 	mode := "interactive UI"
@@ -505,6 +516,9 @@ func printRegistration(reg urlhandler.Registration) {
 		schemes[i] = scheme + "://"
 	}
 	fmt.Printf("  Schemes:    %s\n", strings.Join(schemes, ", "))
+	for _, warning := range reg.Warnings {
+		color.New(color.FgYellow).Printf("  Warning: %s\n", warning)
+	}
 }
 
 func certificateExportFormat(asPEM, asJWKS bool) (string, error) {

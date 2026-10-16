@@ -32,6 +32,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/output"
 	"github.com/eudi-dev/eudi-dev/v3/internal/remote"
+	"github.com/eudi-dev/eudi-dev/v3/internal/urlhandler"
 	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
 )
 
@@ -214,6 +215,11 @@ func findFreePresentationPortPair(start int) (int, error) {
 }
 
 func registeredWalletListenerBaseURL() string {
+	if opts, ok, err := urlhandler.LoadOptions(); err == nil && ok && opts.ListenerPort > 0 {
+		return fmt.Sprintf("http://localhost:%d", opts.ListenerPort)
+	}
+	// A handler registered before url-handler.json names its listener only in
+	// its script.
 	raw, err := os.ReadFile(filepath.Join(config.BaseDir(), "url-handler.sh"))
 	if err != nil {
 		return ""

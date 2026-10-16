@@ -752,6 +752,9 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 			yellow.Printf("  Register:      skipped (%s)\n", err)
 		} else if reg.Registered {
 			fmt.Printf("  Register:      URL scheme handlers registered\n")
+			for _, warning := range reg.Warnings {
+				yellow.Printf("                 %s\n", warning)
+			}
 		} else {
 			yellow.Printf("  Register:      not supported on this platform (use 'wallet accept <uri>' for copied links)\n")
 		}
