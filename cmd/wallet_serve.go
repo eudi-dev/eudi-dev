@@ -112,7 +112,7 @@ Capabilities:
   - Decoder (/decoder/)
   - Activity log
 
-Use --register to also register OS URL scheme handlers (openid4vp://, eudi-openid4vp://, haip-vp://, openid-credential-offer://, haip-vci://, eu-eaa-offer://)
+Use --register to also register OS URL scheme handlers (openid4vp://, eudi-openid4vp://, haip-vp://, eu-eaap://, openid-credential-offer://, haip-vci://, eu-eaa-offer://)
 so the wallet automatically receives incoming protocol requests.
 
 Every flag can also be set as EUDI_DEV_<FLAG>, such as EUDI_DEV_BASE_URL for --base-url. A flag on the command line wins.`,
@@ -143,7 +143,7 @@ Every flag can also be set as EUDI_DEV_<FLAG>, such as EUDI_DEV_BASE_URL for --b
 	cmd.Flags().StringVar(&opts.KeyPath, "key", "", "Holder private key file (PEM/JWK). Uses the stored key or auto-generates one if omitted")
 	cmd.Flags().StringVar(&opts.IssuerKey, "issuer-key", "", "Issuer key for generated PIDs (PEM/JWK)")
 	cmd.Flags().StringVar(&opts.SessionTranscript, "session-transcript", "oid4vp", "mdoc session transcript mode: 'oid4vp' (OID4VP 1.0, default) or 'iso' (ISO 18013-7)")
-	cmd.Flags().BoolVar(&opts.Register, "register", false, "Register OS URL scheme handlers (openid4vp://, eudi-openid4vp://, haip-vp://, openid-credential-offer://, haip-vci://, eu-eaa-offer://)")
+	cmd.Flags().BoolVar(&opts.Register, "register", false, "Register OS URL scheme handlers (openid4vp://, eudi-openid4vp://, haip-vp://, eu-eaap://, openid-credential-offer://, haip-vci://, eu-eaa-offer://)")
 	cmd.Flags().BoolVar(&opts.NoRegister, "no-register", false, "Skip URL scheme registration (overrides --register)")
 	cmd.Flags().BoolVar(&opts.StatusList, "status-list", false, "Embed status list references in generated credentials")
 	cmd.Flags().StringVar(&opts.BaseURL, "base-url", "", "Public URL of the wallet's HTTP endpoints, optionally with a path prefix such as https://example.com/eudi (its host is also reused for HTTPS wallet endpoints)")

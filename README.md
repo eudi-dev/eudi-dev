@@ -125,7 +125,7 @@ Input is a file path, a URL, a raw credential string or stdin. `--json` prints o
 | **SD-JWT VC** (`dc+sd-jwt`) | Disclosures, `_sd` resolution, key binding JWT. Signatures: ES256/384/512, RS256/384/512, PS256/384/512 |
 | **mdoc** (`mso_mdoc`) | CBOR IssuerSigned and DeviceResponse, COSE_Sign1 issuerAuth, MSO |
 | **JWT VC** (`jwt_vc_json`) | Plain W3C JWT Verifiable Credentials, presented unchanged |
-| **OpenID4VCI and OpenID4VP** | Credential offers and authorization requests with the schemes `openid-credential-offer://`, `haip-vci://`, `eu-eaa-offer://`, `openid4vp://`, `haip-vp://` and `eudi-openid4vp://` |
+| **OpenID4VCI and OpenID4VP** | Credential offers and authorization requests with the schemes `openid-credential-offer://`, `haip-vci://`, `eu-eaa-offer://`, `openid4vp://`, `haip-vp://`, `eudi-openid4vp://` and `eu-eaap://` |
 | **ETSI trusted lists** | TS 119 602 lists of trusted entities |
 
 [Spec compliance](docs/spec-compliance.md) lists what is implemented for each specification, and the [flow diagrams](docs/diagrams/README.md) show the issuer and verifier interactions.

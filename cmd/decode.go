@@ -48,7 +48,7 @@ lists, and revocation checks.
 
 Accepts:
   - Credential strings: SD-JWT, JWT, mdoc (hex or base64url)
-  - URI schemes: openid-credential-offer://, haip-vci://, eu-eaa-offer://, openid4vp://, haip-vp://, eudi-openid4vp://
+  - URI schemes: openid-credential-offer://, haip-vci://, eu-eaa-offer://, openid4vp://, haip-vp://, eudi-openid4vp://, eu-eaap://
   - HTTPS URLs with OID4 query parameters
   - JWT request objects (OID4VP, trusted lists)
   - Raw JSON

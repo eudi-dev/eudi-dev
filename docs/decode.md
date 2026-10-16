@@ -29,7 +29,7 @@ eudi decode -f trusted-list https://example.com/trusted-list.jwt
 
 ## Auto-detection order
 
-1. **URI schemes**: `openid-credential-offer://` / `haip-vci://` / `eu-eaa-offer://` (VCI), `openid4vp://` / `haip-vp://` / `eudi-openid4vp://` (VP)
+1. **URI schemes**: `openid-credential-offer://` / `haip-vci://` / `eu-eaa-offer://` (VCI), `openid4vp://` / `haip-vp://` / `eudi-openid4vp://` / `eu-eaap://` (VP)
 2. **HTTP(S) URL with OID4 query params**: `credential_offer` / `credential_offer_uri` (VCI), `client_id` / `response_type` / `request_uri` (VP)
 3. **SD-JWT**: contains `~` separator
 4. **mdoc**: hex or base64url encoded CBOR

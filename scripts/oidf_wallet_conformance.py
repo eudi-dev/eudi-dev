@@ -1030,7 +1030,7 @@ def wallet_api_path_for_request(request_url: str) -> str:
     parsed = urllib.parse.urlsplit(request_url)
     if parsed.scheme in {"openid-credential-offer", "haip-vci", "eu-eaa-offer"}:
         return "/api/offers"
-    if parsed.scheme in {"openid4vp", "eudi-openid4vp", "haip-vp"}:
+    if parsed.scheme in {"openid4vp", "eudi-openid4vp", "haip-vp", "eu-eaap"}:
         return "/api/presentations"
     query = urllib.parse.parse_qs(parsed.query)
     if "credential_offer" in query or "credential_offer_uri" in query or "credential_offer" in parsed.path:

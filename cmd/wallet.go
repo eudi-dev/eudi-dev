@@ -382,7 +382,7 @@ func walletRegisterCmd() *cobra.Command {
 		Short: "Register the OS URL scheme handlers (macOS and Linux, a no-op elsewhere)",
 		Long: `Registers this wallet as the OS handler for the OID4VP/OID4VCI URL schemes (macOS and Linux, a no-op elsewhere). The provided arguments are stored and replayed as 'wallet serve ...' when a clicked link needs to auto-start the wallet listener.
 
-Supported schemes: openid4vp://, eudi-openid4vp://, haip-vp://,
+Supported schemes: openid4vp://, eudi-openid4vp://, haip-vp://, eu-eaap://,
 openid-credential-offer://, haip-vci:// and eu-eaa-offer://.`,
 		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {

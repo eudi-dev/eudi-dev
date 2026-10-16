@@ -26,7 +26,7 @@ sequenceDiagram
     Issuer-->>Wallet: credential
 
     RP-->>Browser: authorization request or Browser API request
-    Browser->>Wallet: openid4vp:// / haip-vp:// / eudi-openid4vp:// or dc_api*
+    Browser->>Wallet: openid4vp:// / haip-vp:// / eudi-openid4vp:// / eu-eaap:// or dc_api*
     Wallet-->>RP: presentation response
 ```
 

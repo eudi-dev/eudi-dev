@@ -208,6 +208,7 @@ func TestParseAlternativeSchemes(t *testing.T) {
 	}{
 		{"haip-vp://"},
 		{"eudi-openid4vp://"},
+		{"eu-eaap://"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.scheme, func(t *testing.T) {

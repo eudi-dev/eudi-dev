@@ -24,6 +24,7 @@ func TestSchemesMatchWithoutCase(t *testing.T) {
 		"  Haip-VP://?request_uri=x":            {true, false},
 		"openid-credential-offer://?x=1":        {false, true},
 		"EU-EAA-OFFER://?credential_offer=x":    {false, true},
+		"eu-eaap://?request_uri=x":              {true, false},
 		"https://verifier.example/openid4vp://": {false, false},
 		"openid4vp:authorize":                   {false, false},
 	} {

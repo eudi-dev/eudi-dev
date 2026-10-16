@@ -19,8 +19,10 @@ package scheme
 import "strings"
 
 var (
-	// Presentation schemes start an OpenID4VP request.
-	Presentation = []string{"openid4vp", "eudi-openid4vp", "haip-vp"}
+	// Presentation schemes start an OpenID4VP request. ETSI TS 119 472-2 V1.3.1
+	// OIDFVP-HAIP-REDIRECTS-03: "The EUDI Wallet shall support at least a custom
+	// URL scheme "eu-eaap://" for its authorization_endpoint."
+	Presentation = []string{"openid4vp", "eudi-openid4vp", "haip-vp", "eu-eaap"}
 	// Issuance schemes carry an OpenID4VCI credential offer.
 	Issuance = []string{"openid-credential-offer", "haip-vci", "eu-eaa-offer"}
 )

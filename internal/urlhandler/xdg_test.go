@@ -30,7 +30,7 @@ func TestTheDesktopEntryHandsEverySchemeToOpenURL(t *testing.T) {
 	for _, want := range []string{
 		"Exec=/usr/local/bin/eudi wallet open-url %u\n",
 		"NoDisplay=true\n",
-		"MimeType=x-scheme-handler/openid4vp;x-scheme-handler/eudi-openid4vp;x-scheme-handler/haip-vp;x-scheme-handler/openid-credential-offer;x-scheme-handler/haip-vci;x-scheme-handler/eu-eaa-offer;\n",
+		"MimeType=x-scheme-handler/openid4vp;x-scheme-handler/eudi-openid4vp;x-scheme-handler/haip-vp;x-scheme-handler/eu-eaap;x-scheme-handler/openid-credential-offer;x-scheme-handler/haip-vci;x-scheme-handler/eu-eaa-offer;\n",
 	} {
 		if !strings.Contains(entry, want) {
 			t.Errorf("the desktop entry lacks %q:\n%s", want, entry)

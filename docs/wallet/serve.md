@@ -278,7 +278,7 @@ Example discovery response:
 
 The example leaves out the `qeaa`, `pub-eaa`, `access-ca` and `registrar` entries.
 
-`--register` also registers OS URL scheme handlers. `openid4vp://`, `eudi-openid4vp://`, `haip-vp://`, `openid-credential-offer://`, `haip-vci://` and `eu-eaa-offer://` links then open the wallet on macOS and Linux. On Windows, `--register` is a no-op.
+`--register` also registers OS URL scheme handlers. `openid4vp://`, `eudi-openid4vp://`, `haip-vp://`, `eu-eaap://`, `openid-credential-offer://`, `haip-vci://` and `eu-eaa-offer://` links then open the wallet on macOS and Linux. On Windows, `--register` is a no-op.
 
 ```bash
 eudi wallet serve
@@ -550,7 +550,7 @@ On a running wallet server the same export is available as `GET /api/certificate
 
 ## `wallet register` / `wallet unregister`
 
-Registers (or removes) OS-level URL scheme handlers for `openid4vp://`, `eudi-openid4vp://`, `haip-vp://`, `openid-credential-offer://`, `haip-vci://` and `eu-eaa-offer://` links.
+Registers (or removes) OS-level URL scheme handlers for `openid4vp://`, `eudi-openid4vp://`, `haip-vp://`, `eu-eaap://`, `openid-credential-offer://`, `haip-vci://` and `eu-eaa-offer://` links.
 
 The handler starts a local `wallet serve` instance when none is running and forwards the incoming URI to it. If a UI tab is open, the wallet notifies it over the event stream. Otherwise it opens the UI with the request ID in the URL, and that tab handles the request.
 

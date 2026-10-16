@@ -16,7 +16,7 @@ Three settings control validation:
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Authorization request parsing | Implemented | `openid4vp://`, `haip-vp://`, `eudi-openid4vp://` schemes |
+| Authorization request parsing | Implemented | `openid4vp://`, `haip-vp://`, `eudi-openid4vp://`, `eu-eaap://` schemes |
 | Request Object parameter extraction | Enforced | The wallet uses only the Request Object parameters (§5.10.1: "The Wallet MUST only use the parameters in this Request Object, even if the same parameter was provided in an Authorization Request query parameter"). A parameter missing from the Request Object counts as absent. A Request Object `client_id` that differs from the outer one aborts the flow |
 | Undefined parameters | Warned | The wallet warns in every mode about request parameters that OID4VP 1.0 does not define and about response fields other than `redirect_uri` (§8.2). RFC 6749 §3.1 requires ignoring unrecognized parameters |
 | Required request parameters | Enforced | `nonce` (§5.2), exactly one of `dcql_query` and `scope` on a `vp_token` request (§5.1), and no `redirect_uri` alongside `response_uri` (§8.2). The wallet defines no `scope` values (§5.5), so it answers a request with only `scope` with `invalid_scope` (§8.5) |

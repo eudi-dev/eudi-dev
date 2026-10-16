@@ -96,6 +96,7 @@ func TestDetect_OID4VP_URIScheme(t *testing.T) {
 		{"openid4vp", "openid4vp://?client_id=did:example:123&response_type=vp_token"},
 		{"haip-vp", "haip-vp://?client_id=did:example:123&response_type=vp_token"},
 		{"eudi", "eudi-openid4vp://?client_id=did:example:123"},
+		{"eu-eaap", "eu-eaap://?client_id=did:example:123"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

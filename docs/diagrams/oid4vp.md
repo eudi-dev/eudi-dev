@@ -55,7 +55,7 @@ sequenceDiagram
     participant Wallet as eudi-dev
 
     RP-->>Browser: Authorization request URI or link
-    Browser->>Wallet: Open openid4vp://, haip-vp://, or eudi-openid4vp:// request
+    Browser->>Wallet: Open openid4vp://, haip-vp://, eudi-openid4vp:// or eu-eaap:// request
     Wallet->>RP: Fetch request_uri if present
     Wallet->>Wallet: Validate client_id and request object
     Wallet->>Wallet: Evaluate dcql_query against stored credentials

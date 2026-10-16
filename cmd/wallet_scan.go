@@ -138,7 +138,7 @@ func walletAcceptCmd() *cobra.Command {
 		Short: "Accept and process an OID4VP presentation request or OID4VCI credential offer",
 		Long: `Auto-detects the URI type and dispatches to the appropriate flow:
 
-  - openid4vp://, haip-vp://, eudi-openid4vp://     →  OID4VP presentation
+  - openid4vp://, haip-vp://, eudi-openid4vp://, eu-eaap:// →  OID4VP presentation
   - openid-credential-offer://, haip-vci://, eu-eaa-offer:// → OID4VCI credential issuance
 
 For OID4VP requests, the wallet evaluates the DCQL query, shows a consent UI

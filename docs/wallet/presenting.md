@@ -8,7 +8,7 @@ The wallet answers an OID4VP presentation request from the CLI (`wallet accept`)
 
 Detects the URI type and dispatches to the matching flow:
 
-- `openid4vp://`, `haip-vp://`, `eudi-openid4vp://`: OID4VP presentation (evaluates DCQL, shows the consent UI, submits the VP token)
+- `openid4vp://`, `haip-vp://`, `eudi-openid4vp://`, `eu-eaap://`: OID4VP presentation (evaluates DCQL, shows the consent UI, submits the VP token)
   - Supports `response_type=vp_token id_token` (SIOPv2 + OID4VP combined flow). Generates a self-issued ID token alongside the VP token
   - Supports `response_type=id_token` (SIOPv2 only). Generates a self-issued ID token without VP token
 - `openid-credential-offer://`, `haip-vci://`, `eu-eaa-offer://`: OID4VCI credential issuance (fetches the credential from the issuer)
@@ -66,7 +66,7 @@ When `accept` or `scan` forwards a flow to a running wallet, that wallet uses it
 
 Scans a QR code from an image file or screen capture and detects the content:
 
-- `openid4vp://`, `haip-vp://`, `eudi-openid4vp://`: delegates to `accept` (OID4VP presentation)
+- `openid4vp://`, `haip-vp://`, `eudi-openid4vp://`, `eu-eaap://`: delegates to `accept` (OID4VP presentation)
 - `openid-credential-offer://`, `haip-vci://`, `eu-eaa-offer://`: delegates to `accept` (OID4VCI issuance)
 - SD-JWT / mdoc raw credential: delegates to `import`
 
