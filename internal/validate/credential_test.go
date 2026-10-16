@@ -228,7 +228,8 @@ func TestTheValidityCheckUsesOneRule(t *testing.T) {
 		{"SD-JWT VC expired", c.sdjwt(t, mock.SDJWTConfig{IssuedAt: at(-time.Hour), ExpiresIn: time.Hour - 2*time.Minute}), Fail},
 		{"SD-JWT VC not valid within the skew", c.sdjwt(t, mock.SDJWTConfig{NotBefore: at(30 * time.Second)}), Pass},
 		{"SD-JWT VC not yet valid", c.sdjwt(t, mock.SDJWTConfig{NotBefore: at(2 * time.Minute)}), Fail},
-		{"SD-JWT VC issued in the future", c.sdjwt(t, mock.SDJWTConfig{IssuedAt: at(time.Hour)}), Warning},
+		{"SD-JWT VC issued in the future", c.sdjwt(t, mock.SDJWTConfig{IssuedAt: at(time.Hour), NotBefore: at(-time.Hour)}), Warning},
+		{"PID issued in the future with a disclosed iat", c.sdjwt(t, mock.SDJWTConfig{IsPID: true, IssuedAt: at(time.Hour), NotBefore: at(-time.Hour)}), Warning},
 		{"mdoc not yet valid", c.mdoc(t, mock.MDOCConfig{ValidFrom: at(time.Hour), ExpiresIn: 2 * time.Hour}), Fail},
 		{"mdoc expired", c.mdoc(t, mock.MDOCConfig{ExpiresIn: -2 * time.Minute}), Fail},
 	} {

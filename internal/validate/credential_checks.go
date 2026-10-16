@@ -32,10 +32,16 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/validity"
 )
 
-// jwtValidity reads exp, nbf and iat from the issuer-signed payload. SD-JWT VC
-// forbids selective disclosure of exp and nbf.
-func jwtValidity(payload map[string]any, now time.Time) Check {
-	return validityCheck(unixClaim(payload, "nbf"), unixClaim(payload, "iat"), unixClaim(payload, "exp"), now, "No exp claim present")
+// jwtValidity reads exp and nbf from the issuer-signed payload. SD-JWT VC
+// forbids selective disclosure of exp and nbf. iat falls back to the resolved
+// claims, because a PID discloses it (CIR (EU) 2024/2977 Annex section 4.2,
+// as replaced by CIR (EU) 2026/1731).
+func jwtValidity(token *sdjwt.Token, now time.Time) Check {
+	issued := unixClaim(token.Payload, "iat")
+	if issued == nil {
+		issued = unixClaim(token.ResolvedClaims, "iat")
+	}
+	return validityCheck(unixClaim(token.Payload, "nbf"), issued, unixClaim(token.Payload, "exp"), now, "No exp claim present")
 }
 
 // mdocValidity reads the MSO validityInfo. ISO 18013-5 §9.1.2.4 makes

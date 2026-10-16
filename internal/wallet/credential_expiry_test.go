@@ -177,3 +177,20 @@ func TestSortCredentialsNewestFirst_UndatedGoLast(t *testing.T) {
 		t.Errorf("undated order = %q, %q, want their original relative order", creds[1].ID, creds[2].ID)
 	}
 }
+
+// A PID discloses iat (CIR (EU) 2024/2977 Annex section 4.2), so its
+// issuance time comes from the disclosures.
+func TestCredentialIssuedAtReadsTheDisclosedIssuanceTimeOfAPID(t *testing.T) {
+	key, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	issuedAt := time.Now().Add(-2 * time.Hour).Truncate(time.Hour)
+	raw, err := mock.GenerateSDJWT(mock.SDJWTConfig{VCT: "urn:eudi:pid:1", Key: key, IssuedAt: &issuedAt, ExpiresIn: time.Hour, Claims: map[string]any{"given_name": "Erika"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := CredentialIssuedAt(StoredCredential{Format: "dc+sd-jwt", Raw: raw}); !got.Equal(issuedAt) {
+		t.Errorf("issued at %v, want %v", got, issuedAt)
+	}
+}

@@ -29,6 +29,7 @@ import (
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
 	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
@@ -247,9 +248,13 @@ func runIssueSDJWT(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// Claims given without a template have no category. The PID vct
+	// namespace then identifies a PID.
+	category := resolved.Category()
 	cfg := mock.SDJWTConfig{
 		Issuer:          issueIssuer,
 		VCT:             resolved.VCT,
+		IsPID:           category == credtemplate.CategoryPID || category == "" && credtype.IsPIDType(resolved.VCT),
 		ExpiresIn:       resolved.Exp,
 		NotBefore:       nbf,
 		Claims:          resolved.CredentialClaims(),

@@ -251,3 +251,32 @@ func TestSignForHolderDoesTheIssuersBookkeeping(t *testing.T) {
 		t.Errorf("the wallet stored %d credentials", n)
 	}
 }
+
+// The category of the attestation type decides whether a credential is a PID.
+// A PID discloses iat (CIR (EU) 2024/2977 Annex section 4.2, as replaced by
+// CIR (EU) 2026/1731).
+func TestTheCategoryDecidesWhetherACredentialIsAPID(t *testing.T) {
+	w := generateTestWallet(t)
+	for _, tc := range []struct {
+		vct, category string
+		disclosed     bool
+	}{
+		{"urn:example:national-id:1", credtemplate.CategoryPID, true},
+		{"urn:eudi:pid:xx:1", credtemplate.CategoryEAA, false},
+	} {
+		t.Run(tc.category, func(t *testing.T) {
+			result, err := w.IssueCredential(IssueOptions{Format: "sdjwt", VCT: tc.vct, Claims: map[string]any{"given_name": "Erika"}, Category: tc.category})
+			if err != nil {
+				t.Fatal(err)
+			}
+			token, err := sdjwt.Parse(result.Raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, plain := token.Payload["iat"]
+			if _, resolved := token.ResolvedClaims["iat"]; !resolved || plain == tc.disclosed {
+				t.Errorf("iat plain = %v, want disclosed = %v", plain, tc.disclosed)
+			}
+		})
+	}
+}

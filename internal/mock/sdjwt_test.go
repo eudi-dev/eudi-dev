@@ -46,7 +46,7 @@ func TestGenerateSDJWT_SigningTimeIsIndependentOfIssuanceTime(t *testing.T) {
 	issuedAt := before.Add(-3 * time.Hour).Truncate(time.Hour)
 	raw, err := GenerateSDJWT(SDJWTConfig{
 		CertificateIssuer: "https://issuer.example", Issuer: "https://issuer.example",
-		VCT: DefaultPIDVCT, Key: key, IssuedAt: &issuedAt,
+		VCT: DefaultPIDVCT, IsPID: true, Key: key, IssuedAt: &issuedAt,
 		CertChain: []*x509.Certificate{leaf, ca},
 	})
 	if err != nil {
@@ -60,8 +60,8 @@ func TestGenerateSDJWT_SigningTimeIsIndependentOfIssuanceTime(t *testing.T) {
 	if !ok || signedAt < float64(before.Unix()) || signedAt > float64(time.Now().Unix()) {
 		t.Errorf("signature time = %v, want the current signing time", parsed.Header["iat"])
 	}
-	if parsed.Payload["iat"] != float64(issuedAt.Unix()) {
-		t.Errorf("issuance time = %v, want %d", parsed.Payload["iat"], issuedAt.Unix())
+	if parsed.ResolvedClaims["iat"] != float64(issuedAt.Unix()) {
+		t.Errorf("issuance time = %v, want %d", parsed.ResolvedClaims["iat"], issuedAt.Unix())
 	}
 }
 
@@ -74,6 +74,7 @@ func TestGenerateSDJWT_DefaultClaims(t *testing.T) {
 	cfg := SDJWTConfig{
 		Issuer:    "https://issuer.example",
 		VCT:       "urn:eudi:pid:1",
+		IsPID:     true,
 		ExpiresIn: 24 * time.Hour,
 		Claims:    credtemplate.DefaultClaims,
 		Key:       key,
@@ -110,8 +111,9 @@ func TestGenerateSDJWT_DefaultClaims(t *testing.T) {
 		t.Errorf("expected vct urn:eudi:pid:1, got %s", vct)
 	}
 
-	if len(token.Disclosures) != len(credtemplate.DefaultClaims) {
-		t.Errorf("expected %d disclosures, got %d", len(credtemplate.DefaultClaims), len(token.Disclosures))
+	// A PID also discloses iat.
+	if len(token.Disclosures) != len(credtemplate.DefaultClaims)+1 {
+		t.Errorf("expected %d disclosures, got %d", len(credtemplate.DefaultClaims)+1, len(token.Disclosures))
 	}
 
 	for name, expected := range credtemplate.DefaultClaims {
@@ -178,6 +180,7 @@ func TestGenerateSDJWT_PIDClaims(t *testing.T) {
 	cfg := SDJWTConfig{
 		Issuer:    "https://issuer.example",
 		VCT:       "urn:eudi:pid:1",
+		IsPID:     true,
 		ExpiresIn: 24 * time.Hour,
 		Claims:    templateClaims("pid-sdjwt"),
 		Key:       key,
@@ -193,8 +196,9 @@ func TestGenerateSDJWT_PIDClaims(t *testing.T) {
 		t.Fatalf("sdjwt.Parse: %v", err)
 	}
 
-	// One disclosure per top-level claim, plus one per nested property and array element.
-	expectedTotal := len(templateClaims("pid-sdjwt"))
+	// One disclosure per top-level claim, plus one per nested property and
+	// array element, plus iat.
+	expectedTotal := len(templateClaims("pid-sdjwt")) + 1
 	for _, value := range templateClaims("pid-sdjwt") {
 		switch v := value.(type) {
 		case map[string]any:
@@ -319,7 +323,7 @@ func TestGenerateSDJWT_EmptyClaims(t *testing.T) {
 
 	cfg := SDJWTConfig{
 		Issuer:    "https://issuer.example",
-		VCT:       "urn:eudi:pid:1",
+		VCT:       "urn:example:vc",
 		ExpiresIn: 24 * time.Hour,
 		Claims:    map[string]any{},
 		Key:       key,
@@ -537,7 +541,7 @@ func TestGenerateSDJWT_WithNotBefore(t *testing.T) {
 	}
 }
 
-func TestGenerateSDJWT_WithoutNotBefore(t *testing.T) {
+func TestGenerateSDJWT_NotBeforeDefaultsToIssuance(t *testing.T) {
 	key, _ := GenerateKey()
 
 	cfg := SDJWTConfig{
@@ -551,8 +555,10 @@ func TestGenerateSDJWT_WithoutNotBefore(t *testing.T) {
 	result, _ := GenerateSDJWT(cfg)
 	token, _ := sdjwt.Parse(result)
 
-	if _, ok := token.Payload["nbf"]; ok {
-		t.Error("nbf should not be present when NotBefore is nil")
+	// ETSI TS 119 472-1 V1.2.1 EAA-5.2.7.1-01 requires nbf. Without a
+	// configured not-before, validity starts at issuance.
+	if nbf, iat := token.Payload["nbf"], token.Payload["iat"]; nbf == nil || nbf != iat {
+		t.Errorf("nbf = %v, want the issuance time %v", nbf, iat)
 	}
 }
 
@@ -608,7 +614,7 @@ func TestGenerateSDJWT_AlwaysDisclosedTopLevel(t *testing.T) {
 
 	cfg := SDJWTConfig{
 		Issuer:    "https://issuer.example",
-		VCT:       "urn:eudi:pid:1",
+		VCT:       "urn:example:vc",
 		ExpiresIn: 24 * time.Hour,
 		Claims: map[string]any{
 			"given_name":    "ERIKA",
@@ -661,7 +667,7 @@ func TestGenerateSDJWT_AlwaysDisclosedNestedPath(t *testing.T) {
 
 	cfg := SDJWTConfig{
 		Issuer:    "https://issuer.example",
-		VCT:       "urn:eudi:pid:1",
+		VCT:       "urn:example:vc",
 		ExpiresIn: 24 * time.Hour,
 		Claims: map[string]any{
 			"address": map[string]any{

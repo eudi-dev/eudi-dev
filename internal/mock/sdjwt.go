@@ -41,8 +41,13 @@ type SDJWTConfig struct {
 	// IssuedAt overrides the iat issuance time. exp counts from it. An issuer
 	// of several copies rounds it, so the copies are not linkable by the
 	// issuance second (RFC 9901 §10.1). Nil uses the current time.
-	IssuedAt      *time.Time
-	NotBefore     *time.Time // optional: sets nbf claim
+	IssuedAt *time.Time
+	// NotBefore is the nbf claim when Claims has none. Nil uses the issuance
+	// time.
+	NotBefore *time.Time
+	// IsPID marks a PID. A PID discloses iat and references its signing
+	// certificate with x5u.
+	IsPID         bool
 	Claims        map[string]any
 	Key           *ecdsa.PrivateKey
 	HolderKey     *ecdsa.PublicKey    // optional: adds cnf claim for holder binding
@@ -106,9 +111,28 @@ func GenerateSDJWT(cfg SDJWTConfig) (string, error) {
 		digests = append(digests, topDigest)
 	}
 
+	// CIR (EU) 2024/2977 Annex section 4.2, as replaced by CIR (EU)
+	// 2026/1731, makes every claim of a PID selectively disclosable "except
+	// those claims defined as non-selectively disclosable in SD-JWT VC
+	// format" (also ARF PID_21). SD-JWT VC §3.2.2.2 lets iat be disclosed.
+	var issuedAt any = now.Unix()
+	if claimed, ok := plain["iat"]; ok {
+		issuedAt = claimed
+		delete(plain, "iat")
+	}
+	if cfg.IsPID {
+		disclosure, digest, err := createDisclosure("iat", issuedAt)
+		if err != nil {
+			return "", err
+		}
+		disclosures = append(disclosures, disclosure)
+		digests = append(digests, digest)
+	} else {
+		plain["iat"] = issuedAt
+	}
+
 	payload := map[string]any{
 		"iss":     cfg.Issuer,
-		"iat":     now.Unix(),
 		"exp":     now.Add(cfg.ExpiresIn).Unix(),
 		"vct":     cfg.VCT,
 		"_sd_alg": "sha-256",
@@ -124,9 +148,18 @@ func GenerateSDJWT(cfg SDJWTConfig) (string, error) {
 		payload[name] = value
 	}
 
+	// ETSI TS 119 472-1 V1.2.1 EAA-5.2.7.1-01: "A SD-JWT VC EAA shall include
+	// the nbf claim". CIR (EU) 2024/2977 Annex section 4.2, as replaced by CIR
+	// (EU) 2026/1731, uses nbf and exp for the technical validity period of a
+	// PID.
+	var notBefore any = now.Unix()
 	if cfg.NotBefore != nil {
-		payload["nbf"] = cfg.NotBefore.Unix()
+		notBefore = cfg.NotBefore.Unix()
 	}
+	if claimed, ok := plain["nbf"]; ok {
+		notBefore = claimed
+	}
+	payload["nbf"] = notBefore
 
 	if cfg.HolderKey != nil {
 		payload["cnf"] = map[string]any{
@@ -162,7 +195,7 @@ func GenerateSDJWT(cfg SDJWTConfig) (string, error) {
 		}
 		if len(x5c) > 0 {
 			header["x5c"] = x5c
-			if strings.HasPrefix(cfg.VCT, credtype.PIDVCTPrefix) && !cfg.KeepTrustAnchor {
+			if cfg.IsPID && !cfg.KeepTrustAnchor {
 				if reference := SigningCertificateURL(cfg.CertificateIssuer, chain[0], "pem"); reference != "" {
 					digest := sha256.Sum256(chain[0].Raw)
 					header["x5u"] = reference
@@ -191,9 +224,10 @@ func GenerateSDJWT(cfg SDJWTConfig) (string, error) {
 	return serialized.String(), nil
 }
 
-// forcePlainClaims always stay in plain text: the claims of SD-JWT VC
-// §2.2.2.3 and iat. This generator writes iat itself, and RFC 9901 §7.1
-// rejects a disclosure for a claim already present next to _sd.
+// forcePlainClaims are the template claims kept out of the claim disclosures:
+// the claims of SD-JWT VC §2.2.2.3 and iat. RFC 9901 §7.1 rejects a disclosure
+// for a claim already present next to _sd. The generator writes iat itself,
+// as a disclosure for a PID.
 var forcePlainClaims = func() map[string]bool {
 	claims := map[string]bool{"iat": true}
 	for _, name := range credtype.NeverDisclosedClaims {

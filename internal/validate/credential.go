@@ -153,7 +153,7 @@ func Credential(raw string, trust Trust, opts Options) (*Result, error) {
 func SDJWT(token *sdjwt.Token, trust Trust, opts Options) *Result {
 	v := newRun(trust, opts)
 	r := &Result{Format: FormatSDJWT, SDJWT: token}
-	r.add(CheckSDJWTType(token), jwtValidity(token.Payload, v.now), CheckSDJWTIntegrity(token))
+	r.add(CheckSDJWTType(token), jwtValidity(token, v.now), CheckSDJWTIntegrity(token))
 	r.add(v.trustedListCheck()...)
 	cat := v.catalogue(token.Raw)
 	r.add(v.jwtSignature(token, cat, r), v.trustCheck(cat, r))
@@ -171,7 +171,7 @@ func SDJWT(token *sdjwt.Token, trust Trust, opts Options) *Result {
 func JWT(token *sdjwt.Token, trust Trust, opts Options) *Result {
 	v := newRun(trust, opts)
 	r := &Result{Format: FormatJWT, SDJWT: token}
-	r.add(jwtValidity(token.Payload, v.now), Check{Name: CheckIntegrity, Status: Skipped, Detail: "Not applicable for plain JWT"})
+	r.add(jwtValidity(token, v.now), Check{Name: CheckIntegrity, Status: Skipped, Detail: "Not applicable for plain JWT"})
 	r.add(v.trustedListCheck()...)
 	cat := v.catalogue(token.Raw)
 	r.add(v.jwtSignature(token, cat, r))

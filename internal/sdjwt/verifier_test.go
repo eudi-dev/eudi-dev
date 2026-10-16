@@ -154,6 +154,23 @@ func TestVerify(t *testing.T) {
 	}
 }
 
+// A PID discloses iat (CIR (EU) 2024/2977 Annex section 4.2, as replaced by
+// CIR (EU) 2026/1731). The issuance time is read from the disclosure.
+func TestVerify_ReadsADisclosedIssuanceTime(t *testing.T) {
+	key, _ := mock.GenerateKey()
+	issuedAt := time.Now().Add(-time.Hour).Truncate(time.Second)
+	token := generateTestSDJWT(t, mock.SDJWTConfig{
+		Issuer: "https://issuer.example", VCT: "urn:eudi:pid:1", IsPID: true, IssuedAt: &issuedAt,
+		ExpiresIn: 24 * time.Hour, Claims: map[string]any{"given_name": "Erika"}, Key: key,
+	})
+	if _, plain := token.Payload["iat"]; plain {
+		t.Fatal("the PID carries iat in plain text")
+	}
+	if result := Verify(token, &key.PublicKey); result.IssuedAt == nil || !result.IssuedAt.Equal(issuedAt) {
+		t.Errorf("IssuedAt = %v, want %v", result.IssuedAt, issuedAt)
+	}
+}
+
 func TestVerify_InvalidJWTStructure(t *testing.T) {
 	token := &Token{
 		Raw:     "not-a-jwt",

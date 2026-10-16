@@ -245,7 +245,7 @@ func (w *Wallet) parseSDJWTEntry(raw, group, bindingKeyPEM string) (StoredCreden
 		BatchGroup:    group,
 		BindingKeyPEM: bindingKeyPEM,
 	}
-	cred.issuedAt = jwtIssuedAt(token.Payload)
+	cred.issuedAt = jwtIssuedAt(token.ResolvedClaims)
 
 	if vct, ok := token.Payload["vct"].(string); ok {
 		cred.VCT = vct
@@ -365,7 +365,7 @@ func (c *StoredCredential) Rehydrate() error {
 		if c.Claims == nil {
 			c.Claims = token.ResolvedClaims
 		}
-		c.issuedAt = jwtIssuedAt(token.Payload)
+		c.issuedAt = jwtIssuedAt(token.ResolvedClaims)
 
 	case credtype.FormatJWTVC:
 		_, payload, _, err := format.ParseJWTParts(c.Raw)
@@ -414,8 +414,11 @@ func (w *Wallet) rememberRenewal(credentialID string, renewal CredentialRenewal)
 	}
 }
 
-func jwtIssuedAt(payload map[string]any) time.Time {
-	if iat, ok := payload["iat"].(float64); ok && iat > 0 {
+// jwtIssuedAt reads iat from the claims. An SD-JWT passes its resolved
+// claims, because a PID carries iat as a disclosure (CIR (EU) 2024/2977 Annex
+// section 4.2, as replaced by CIR (EU) 2026/1731).
+func jwtIssuedAt(claims map[string]any) time.Time {
+	if iat, ok := claims["iat"].(float64); ok && iat > 0 {
 		return time.Unix(int64(iat), 0)
 	}
 	return time.Time{}

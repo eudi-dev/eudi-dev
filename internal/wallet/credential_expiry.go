@@ -89,7 +89,7 @@ func CredentialIssuedAt(cred StoredCredential) time.Time {
 		if err != nil || token == nil {
 			return time.Time{}
 		}
-		return jwtIssuedAt(token.Payload)
+		return jwtIssuedAt(token.ResolvedClaims)
 	}
 }
 

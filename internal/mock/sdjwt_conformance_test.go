@@ -52,6 +52,7 @@ func generateForTest(t *testing.T, cfg SDJWTConfig) string {
 // permits no empty component, so the serialization ends in a single tilde.
 func TestGenerateSDJWT_WithoutDisclosures(t *testing.T) {
 	raw := generateForTest(t, SDJWTConfig{
+		VCT:             "urn:example:vc",
 		Claims:          map[string]any{"given_name": "Erika", "family_name": "Mustermann"},
 		AlwaysDisclosed: []string{"given_name", "family_name"},
 	})
@@ -80,10 +81,10 @@ func TestGenerateSDJWT_WithoutDisclosures(t *testing.T) {
 
 // SD-JWT VC §2.2.2.3: iss, nbf, exp, cnf, vct, vct#integrity, aka_vcts and
 // status "MUST NOT be included in the Disclosures, i.e., cannot be
-// selectively disclosed".
+// selectively disclosed". Outside a PID, iat stays in the payload too.
 func TestGenerateSDJWT_ReservedClaimsStayInThePayload(t *testing.T) {
 	raw := generateForTest(t, SDJWTConfig{
-		VCT: "urn:eudi:pid:1",
+		VCT: "urn:example:vc",
 		Claims: map[string]any{
 			"given_name": "Erika",
 			"vct":        "urn:attacker:admin",
@@ -107,6 +108,29 @@ func TestGenerateSDJWT_ReservedClaimsStayInThePayload(t *testing.T) {
 	}
 	if token.ResolvedClaims["given_name"] != "Erika" {
 		t.Errorf("resolved given_name = %v, want Erika", token.ResolvedClaims["given_name"])
+	}
+}
+
+// CIR (EU) 2024/2977 Annex section 4.2, as replaced by CIR (EU) 2026/1731,
+// and ARF PID_21: a PID must disclose each claim selectively, except the
+// claims SD-JWT VC keeps in plain text. iat is not one of them (SD-JWT VC
+// §3.2.2.2). nbf stays in the payload.
+func TestGenerateSDJWT_PIDIssuanceTimeIsSelectivelyDisclosable(t *testing.T) {
+	issuedAt := time.Now().Add(-time.Hour).Truncate(time.Hour)
+	raw := generateForTest(t, SDJWTConfig{VCT: "urn:example:national-id:1", IsPID: true, IssuedAt: &issuedAt, Claims: map[string]any{"given_name": "Erika", "iat": 1700000000}})
+
+	token, err := sdjwt.Parse(raw)
+	if err != nil {
+		t.Fatalf("sdjwt.Parse: %v", err)
+	}
+	if iat, plain := token.Payload["iat"]; plain {
+		t.Errorf("payload carries iat = %v in plain text", iat)
+	}
+	if token.ResolvedClaims["iat"] != float64(1700000000) {
+		t.Errorf("disclosed iat = %v, want the claimed issuance time", token.ResolvedClaims["iat"])
+	}
+	if token.Payload["nbf"] != float64(issuedAt.Unix()) {
+		t.Errorf("nbf = %v, want %d in the payload", token.Payload["nbf"], issuedAt.Unix())
 	}
 }
 
@@ -192,5 +216,43 @@ func assertSorted(t *testing.T, where string, raw any) {
 	}
 	if !sort.StringsAreSorted(digests) {
 		t.Errorf("%s: _sd digests are in claim order rather than hidden: %v", where, digests)
+	}
+}
+
+// The caller decides whether a credential is a PID. A PID vct alone does
+// not make the generator disclose iat.
+func TestGenerateSDJWT_KeepsIssuanceTimePlainWithoutPIDFlag(t *testing.T) {
+	token, err := sdjwt.Parse(generateForTest(t, SDJWTConfig{VCT: "urn:eudi:pid:de:1", Claims: map[string]any{"given_name": "Erika"}}))
+	if err != nil {
+		t.Fatalf("sdjwt.Parse: %v", err)
+	}
+	if _, plain := token.Payload["iat"]; !plain {
+		t.Error("payload has no plain iat")
+	}
+}
+
+// A template nbf is kept. Without one, NotBefore and then the issuance time
+// set nbf.
+func TestGenerateSDJWT_NotBefore(t *testing.T) {
+	issuedAt := time.Now().Add(-time.Hour).Truncate(time.Second)
+	configured := issuedAt.Add(time.Minute)
+	for _, tc := range []struct {
+		name string
+		cfg  SDJWTConfig
+		want int64
+	}{
+		{"template nbf", SDJWTConfig{IssuedAt: &issuedAt, NotBefore: &configured, Claims: map[string]any{"nbf": 1700000000}}, 1700000000},
+		{"configured nbf", SDJWTConfig{IssuedAt: &issuedAt, NotBefore: &configured}, configured.Unix()},
+		{"issuance time", SDJWTConfig{IssuedAt: &issuedAt}, issuedAt.Unix()},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			token, err := sdjwt.Parse(generateForTest(t, tc.cfg))
+			if err != nil {
+				t.Fatalf("sdjwt.Parse: %v", err)
+			}
+			if token.Payload["nbf"] != float64(tc.want) {
+				t.Errorf("nbf = %v, want %d", token.Payload["nbf"], tc.want)
+			}
+		})
 	}
 }

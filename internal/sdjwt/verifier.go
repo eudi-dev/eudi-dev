@@ -56,7 +56,13 @@ func Verify(token *Token, pubKey crypto.PublicKey) *VerifyResult {
 		result.ExpiresAt = &t
 		result.Expired = validity.Expired(&t, now)
 	}
-	if iat, ok := jsonutil.GetFloat64(token.Payload, "iat"); ok {
+	// A PID discloses iat (CIR (EU) 2024/2977 Annex section 4.2, as replaced
+	// by CIR (EU) 2026/1731), so iat falls back to the resolved claims.
+	iat, ok := jsonutil.GetFloat64(token.Payload, "iat")
+	if !ok {
+		iat, ok = jsonutil.GetFloat64(token.ResolvedClaims, "iat")
+	}
+	if ok {
 		t := time.Unix(int64(iat), 0)
 		result.IssuedAt = &t
 	}

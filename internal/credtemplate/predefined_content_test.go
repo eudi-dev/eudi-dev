@@ -91,7 +91,7 @@ func issuedContent(t *testing.T, tpl Template) map[string]any {
 	var issued map[string]any
 	switch tpl.Format {
 	case "sdjwt":
-		raw, err := mock.GenerateSDJWT(mock.SDJWTConfig{VCT: tpl.VCT, Claims: claims, Key: key, AlwaysDisclosed: tpl.AlwaysDisclosed})
+		raw, err := mock.GenerateSDJWT(mock.SDJWTConfig{VCT: tpl.VCT, IsPID: tpl.Category == CategoryPID, Claims: claims, Key: key, AlwaysDisclosed: tpl.AlwaysDisclosed})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -106,7 +106,7 @@ func issuedContent(t *testing.T, tpl Template) map[string]any {
 				plain = append(plain, name)
 			}
 		}
-		for _, drop := range []string{"iat", "exp", "iss", "vct"} {
+		for _, drop := range []string{"iat", "nbf", "exp", "iss", "vct"} {
 			delete(issued, drop)
 		}
 		slices.Sort(plain)

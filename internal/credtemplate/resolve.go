@@ -139,6 +139,14 @@ func (r Resolved) CredentialClaims() map[string]any {
 	return r.template.WithUniqueClaims(r.Claims)
 }
 
+// Category is the category of the template. It is empty without a template.
+func (r Resolved) Category() string {
+	if r.template == nil {
+		return ""
+	}
+	return r.template.Category
+}
+
 // Template returns the resolved parameters as a template, to save them.
 func (r Resolved) Template(name string) Template {
 	saved := Template{
