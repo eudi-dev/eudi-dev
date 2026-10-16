@@ -1050,6 +1050,34 @@ test.describe("Credential Issuing via UI", () => {
     expect(restored.body.status).toBe(0);
   });
 
+  test("shows a suspended credential and re-activates it", async ({ page }) => {
+    await page.goto(WALLET_URL);
+    const card = page.locator('.credential-card[data-format="sdjwt"]').first();
+    const id = await card.getAttribute("data-credential-id");
+
+    const suspend = await fetch(`${WALLET_URL}/api/credentials/${id}/status`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: 2 }),
+    });
+    expect(suspend.ok).toBe(true);
+
+    await page.reload();
+    await expect(page.locator(`#status-${id}`)).toHaveText("Suspended");
+    await expect(page.locator(`#credential-${id}`)).toHaveAttribute(
+      "data-status",
+      "suspended"
+    );
+    await expect(page.locator(`#revoke-${id}`)).toHaveText("Activate");
+
+    await page.locator(`#revoke-${id}`).click();
+    await expect(page.locator(`#status-${id}`)).toHaveText("Active");
+    const restored = await jsonGet(
+      `${WALLET_URL}/api/credentials/${id}/status`
+    );
+    expect(restored.body.status).toBe(0);
+  });
+
   test("issues a credential without a status list via the dialog", async ({
     page,
   }) => {

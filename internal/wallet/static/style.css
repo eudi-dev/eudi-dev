@@ -1198,6 +1198,7 @@ textarea.form-input {
 .ico-check::before { content: "✓ "; }
 .ico-x::before { content: "✗ "; }
 .ico-warn::before { content: "⚠ "; }
+.ico-pause::before { content: "⏸ "; }
 
 .status-active {
   background: var(--ok-bg);
@@ -1217,6 +1218,7 @@ textarea.form-input {
 }
 
 .status-unheld-key,
+.status-suspended,
 .status-expiring,
 .status-not-yet-valid {
   background: var(--warn-bg);

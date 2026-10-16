@@ -386,9 +386,9 @@
     const st = cred.status;
     let statusBadge;
     if (st && st.managed) {
-      const revoked = st.status === 1;
-      dataset.status = revoked ? 'revoked' : 'active';
-      statusBadge = '<span class="status-badge ' + (revoked ? 'status-revoked ico-block' : 'status-active ico-dot') + '" id="' + idPrefix + 'status-' + domID(cred.id) + '" title="' + (revoked ? 'Revoked' : 'Not revoked') + ' (' + escHtml(st.uri || '') + ', index ' + st.idx + ')">' + (revoked ? 'Revoked' : 'Active') + '</span>';
+      const state = statusListState(st.status, st.statusName);
+      dataset.status = state.key;
+      statusBadge = '<span class="status-badge ' + state.cls + '" id="' + idPrefix + 'status-' + domID(cred.id) + '" title="' + escHtml(st.statusName || '') + ' (' + escHtml(st.uri || '') + ', index ' + st.idx + ')">' + escHtml(state.label) + '</span>';
     } else if (st && st.uri) {
       dataset.status = 'external';
       statusBadge = '<span class="status-badge status-external ico-half" id="' + idPrefix + 'status-' + domID(cred.id) + '" title="External status list, not checked (' + escHtml(st.uri) + ', index ' + st.idx + ')">External list</span>';
@@ -548,7 +548,7 @@
       let revokeBtn = '';
       if (st && st.managed) {
         if (!isProtected) {
-          revokeBtn = '<button class="btn btn-sm" id="revoke-' + domID(cred.id) + '" data-revoke="' + escHtml(cred.id) + '">' + (st.status === 1 ? 'Activate' : 'Revoke') + '</button>';
+          revokeBtn = '<button class="btn btn-sm" id="revoke-' + domID(cred.id) + '" data-revoke="' + escHtml(cred.id) + '">' + (st.status === 0 ? 'Revoke' : 'Activate') + '</button>';
         }
       } else if (st && st.uri) {
         revokeBtn = '<button class="btn btn-sm" id="status-check-' + domID(cred.id) + '" data-check-status="' + escHtml(cred.id) + '">Check status</button>';
@@ -597,7 +597,7 @@
       }
       const revoke = card.querySelector('[data-revoke]');
       if (revoke) {
-        revoke.addEventListener('click', () => setCredentialStatus(cred.id, st.status === 1 ? 0 : 1));
+        revoke.addEventListener('click', () => setCredentialStatus(cred.id, st.status === 0 ? 1 : 0));
       }
       const check = card.querySelector('[data-check-status]');
       if (check) {
@@ -688,6 +688,17 @@
     }
   }
 
+  // Status Type values from draft-ietf-oauth-status-list §7.1. Any value other
+  // than VALID makes the credential unusable.
+  function statusListState(value, name) {
+    switch (value) {
+      case 0: return { key: 'active', label: 'Active', cls: 'status-active ico-dot' };
+      case 1: return { key: 'revoked', label: 'Revoked', cls: 'status-revoked ico-block' };
+      case 2: return { key: 'suspended', label: 'Suspended', cls: 'status-suspended ico-pause' };
+      default: return { key: 'other', label: name || 'Status ' + value, cls: 'status-revoked ico-warn' };
+    }
+  }
+
   async function checkCredentialStatus(id) {
     const badge = document.getElementById('status-' + id);
     if (badge) badge.textContent = 'Checking…';
@@ -700,16 +711,15 @@
         badge.title = apiErrorText(result, resp);
         return;
       }
-      const revoked = result.status === 1;
-      badge.textContent = revoked ? 'Revoked' : 'Active';
+      const state = statusListState(result.status, result.statusName);
+      badge.textContent = state.label;
       const notes = [].concat(result.warnings || [], result.haipFindings || []);
       if (!result.trustAnchored) notes.unshift('Not anchored in a trusted list');
       badge.title = [result.statusName + ' (' + result.uri + ', index ' + result.idx + ')',
         result.signatureInfo ? 'Status list ' + result.signatureInfo : ''].concat(notes).filter(Boolean).join('. ');
-      badge.classList.remove('status-external');
-      badge.classList.add(revoked ? 'status-revoked' : 'status-active');
+      badge.className = 'status-badge ' + state.cls;
       const card = document.getElementById('credential-' + id);
-      if (card) card.dataset.status = revoked ? 'revoked' : 'active';
+      if (card) card.dataset.status = state.key;
     } catch (e) {
       if (badge) {
         badge.textContent = 'Check failed';

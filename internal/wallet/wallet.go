@@ -51,7 +51,7 @@ import (
 
 type StatusEntry struct {
 	Index  int `json:"index"`
-	Status int `json:"status"` // 0=valid, 1=revoked
+	Status int `json:"status"` // Status Type value, draft-ietf-oauth-status-list §7.1
 }
 
 type Wallet struct {

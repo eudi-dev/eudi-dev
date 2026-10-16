@@ -133,6 +133,8 @@ func (m *Management) SetCredentialStatus(id string, status int) (StatusEntry, er
 			verb = "Activated"
 		case 1:
 			verb = "Revoked"
+		case 2:
+			verb = "Suspended"
 		}
 		m.wallet.AddLog("management", fmt.Sprintf("%s credential %s", verb, id), true)
 		return nil
