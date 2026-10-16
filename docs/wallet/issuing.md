@@ -41,6 +41,15 @@ A renewal runs the same steps as an issuance. The wallet checks the issuer and t
 
 The server checks for renewal every 30 seconds and renews credentials within a minute of expiry. Failed renewals wait ten minutes before retrying. The wallet also attempts renewal before presenting a credential that expires within a minute, including without a running server. If renewal fails, it presents the stored credential.
 
+### Reuse policy
+
+With `--arf` the wallet follows the issuer's `credential_reuse_policy` (ETSI TS 119 472-3 V1.1.1 clause 4.2.4.2, ARF ISSU_39a). It takes the first method in `details` that it supports: `once_only`, `limited_time` (also spelled `limited-time`) or `rotating-batch`. It doesn't support `per-relying-party`. The policy replaces `batch_credential_issuance` (clause 4.2.4.2-14):
+
+- `once_only` and `rotating-batch` request a batch of the policy's `batch_size`, at most 8 copies.
+- `limited_time` requests one credential.
+
+The policy also decides when the wallet renews. Under `once_only` it requests a new batch when the unused copies reach `reissue_trigger_unused` (ISSU_45). Under the other methods it renews `reissue_trigger_lifetime_left` seconds before expiry. The renewal within a minute of expiry still applies. Without `--arf` the wallet ignores the policy.
+
 ## Deferred issuance
 
 An issuer that cannot issue the credential immediately responds to the credential request with a `transaction_id`. The wallet collects the credential from the `deferred_credential_endpoint` later, in both issuance flows.

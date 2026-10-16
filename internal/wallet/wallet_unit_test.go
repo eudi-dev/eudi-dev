@@ -118,9 +118,10 @@ func TestWalletInstanceIsScopedToTheAuthorizationServer(t *testing.T) {
 	}
 }
 
-// The DPoP key is the key the WIA attests, because draft-10 §5.2 takes the
+// The DPoP key is the key attested by the WIA, because draft-10 §5.2 takes the
 // DPoP proof as the attestation's possession proof. A renewal stored without
-// an authorization server keeps the holder key its tokens are bound to.
+// an authorization server keeps the holder key, because its tokens are bound
+// to it.
 func TestDPoPKeyIsTheWalletInstanceKey(t *testing.T) {
 	w := generateTestWallet(t)
 	renewal := CredentialRenewal{UseDPoP: true, AuthorizationServer: "https://as-one.example"}
@@ -151,9 +152,9 @@ func TestWalletInstanceAttestationFollowsPreferredStatusPeriod(t *testing.T) {
 	}
 }
 
-// C_KA-1: a KA names the certification of the key storage and its status
-// (R_KA_1 option 1, one index for the key storage type). With --arf and no
-// requirement of the issuer it describes a WSCD.
+// C_KA-1: a KA states the certification of the key storage and its status
+// (R_KA_1 option 1, one index for the key storage type). With --arf, when the
+// issuer sets no requirement, it describes a WSCD.
 func TestKeyAttestationStorageClaims(t *testing.T) {
 	w := generateTestWallet(t)
 	w.IssuerURL = "https://wallet.example"
@@ -171,7 +172,7 @@ func TestKeyAttestationStorageClaims(t *testing.T) {
 		},
 	}
 	attest := func() map[string]any {
-		keys, err := issuanceProofKeys(metadata)
+		keys, err := issuanceProofKeys(metadata, nil)
 		if err != nil {
 			t.Fatalf("issuanceProofKeys: %v", err)
 		}

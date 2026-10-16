@@ -366,9 +366,12 @@ type CredentialRenewal struct {
 	ClientID           string `json:"client_id,omitempty"`
 	RefreshToken       string `json:"refresh_token"`
 	UseDPoP            bool   `json:"use_dpop,omitempty"`
-	// AuthorizationServer identifies the server the wallet instance key
-	// belongs to (see clientKey).
+	// AuthorizationServer identifies the authorization server of the wallet
+	// instance key (see clientKey).
 	AuthorizationServer string `json:"authorization_server,omitempty"`
+	// ReusePolicy is the issuer's reuse option followed by the wallet. It
+	// decides when the wallet renews the credential (credentialNeedsRenewal).
+	ReusePolicy *ReuseOption `json:"reuse_policy,omitempty"`
 	// Refresh requests use the same client authentication as the original token
 	// request.
 	ClientAuth *ClientAuthentication `json:"client_auth,omitempty"`

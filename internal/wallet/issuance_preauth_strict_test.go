@@ -144,7 +144,7 @@ func strictPreAuthIssuer(t *testing.T, w *Wallet, requireDPoP, requireClientAtte
 				// every batch key, and the issuer issues one credential per
 				// attested key. Under the attestation proof type the proof is
 				// the attestation itself (Appendix F.3). Otherwise it is a jwt
-				// signed with the first attested key that carries it (F.1,
+				// that carries it and is signed with the first attested key (F.1,
 				// CIR (EU) 2024/2979 Annex Ib TR_KA_3.1).
 				wantType := "attestation"
 				if proofTypes == "jwt" {
@@ -185,7 +185,7 @@ func strictPreAuthIssuer(t *testing.T, w *Wallet, requireDPoP, requireClientAtte
 				// ARF ISSU_12b: every issuance binds fresh keys.
 				for _, key := range attested {
 					if jwk, _ := key.(map[string]any); jwk["x"] == mock.SigningJWKMap(&w.HolderKey.PublicKey)["x"] {
-						t.Error("the key attestation names the wallet's holder key")
+						t.Error("the key attestation contains the wallet's holder key")
 					}
 				}
 				for _, claim := range []string{"key_storage", "user_authentication"} {
@@ -288,7 +288,7 @@ func TestIssuanceProofKeys_KeyAttestationCoversBatch(t *testing.T) {
 		},
 	}
 
-	keys, err := issuanceProofKeys(metadata)
+	keys, err := issuanceProofKeys(metadata, nil)
 	if err != nil {
 		t.Fatalf("issuanceProofKeys: %v", err)
 	}

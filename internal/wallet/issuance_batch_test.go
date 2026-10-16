@@ -104,7 +104,7 @@ func TestAdvertisedBatchSize(t *testing.T) {
 func TestIssuanceProofKeys(t *testing.T) {
 	w := generateTestWallet(t)
 
-	single, err := issuanceProofKeys(map[string]any{})
+	single, err := issuanceProofKeys(map[string]any{}, nil)
 	if err != nil {
 		t.Fatalf("issuanceProofKeys: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestIssuanceProofKeys(t *testing.T) {
 	metadata := map[string]any{
 		"batch_credential_issuance": map[string]any{"batch_size": float64(10)},
 	}
-	batch, err := issuanceProofKeys(metadata)
+	batch, err := issuanceProofKeys(metadata, nil)
 	if err != nil {
 		t.Fatalf("issuanceProofKeys with batch: %v", err)
 	}

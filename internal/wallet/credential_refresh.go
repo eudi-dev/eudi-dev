@@ -47,6 +47,7 @@ func (w *Wallet) RenewCredential(id string) (renewed *StoredCredential, err erro
 		return nil, err
 	}
 	w.logIssuerFindings(renewal.Issuer, findings)
+	renewal.ReusePolicy = w.reuseOption(metadata, renewal.ConfigurationID)
 
 	grant, err := w.refreshAccessToken(renewal)
 	// The issuer may rotate the refresh token and retire the old one, so the
@@ -64,8 +65,13 @@ func (w *Wallet) RenewCredential(id string) (renewed *StoredCredential, err erro
 
 	nonce := ""
 	// A batch is renewed as a whole, each copy bound to a fresh key, so no
-	// expired copy stays in the presentation rotation.
-	proofKeys, err := batchProofKeys(metadata, w.batchSize(cred))
+	// expired copy stays in the presentation rotation. Under a reuse policy
+	// the renewal is a new batch of the policy's size (ARF ISSU_45).
+	wanted := w.batchSize(cred)
+	if renewal.ReusePolicy != nil {
+		wanted = MaxBatchSize
+	}
+	proofKeys, err := batchProofKeys(metadata, renewal.ReusePolicy, wanted)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +125,7 @@ const renewalRetryAfter = 10 * time.Minute
 // failure does not stop the sweep.
 func (s *Server) renewExpiringCredentials(now time.Time) error {
 	for _, cred := range s.wallet.GetCredentials() {
-		if !cred.CanRenew() || !CredentialNeedsRenewal(cred, now) {
+		if !cred.CanRenew() || !s.wallet.credentialNeedsRenewal(cred, now) {
 			continue
 		}
 		if !s.renewalDue(cred.ID, now) {

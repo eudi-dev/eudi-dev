@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
@@ -43,6 +44,7 @@ func storeTestBatch(t *testing.T, w *Wallet, keys []*ecdsa.PrivateKey) {
 		raw, err := mock.GenerateSDJWT(mock.SDJWTConfig{
 			Issuer:    "https://issuer.example",
 			VCT:       testBatchVCT,
+			ExpiresIn: 24 * time.Hour,
 			Claims:    map[string]any{"family_name": "Doe", "given_name": "Jane"},
 			Key:       issuerKey,
 			HolderKey: &k.PublicKey,
@@ -314,6 +316,7 @@ func TestRenewalKeepsBatchMembership(t *testing.T) {
 		raw, err := mock.GenerateSDJWT(mock.SDJWTConfig{
 			Issuer:    "https://issuer.example",
 			VCT:       testBatchVCT,
+			ExpiresIn: 24 * time.Hour,
 			Claims:    map[string]any{"family_name": "Doe", "given_name": "Jane"},
 			Key:       issuerKey,
 			HolderKey: &k.PublicKey,

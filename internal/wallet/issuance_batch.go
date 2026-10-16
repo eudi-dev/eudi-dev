@@ -18,6 +18,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/big"
@@ -46,21 +47,105 @@ func advertisedBatchSize(metadata map[string]any) int {
 	return int(size)
 }
 
+// ReuseOption is the option of an issuer's credential_reuse_policy followed by
+// the wallet (ETSI TS 119 472-3 V1.1.1 clause 4.2.4.2, ARF ISSU_39a).
+type ReuseOption struct {
+	// Method is the entry of details followed by the wallet.
+	Method                     string `json:"method"`
+	BatchSize                  int    `json:"batch_size,omitempty"`
+	ReissueTriggerUnused       int    `json:"reissue_trigger_unused,omitempty"`
+	ReissueTriggerLifetimeLeft int64  `json:"reissue_trigger_lifetime_left,omitempty"`
+}
+
+// The reuse methods of clause 4.2.4.2. -03 spells limited_time with an
+// underscore, NOTE 3, -12 and Example 3 with a hyphen.
+const (
+	reuseOnceOnly          = "once_only"
+	reuseLimitedTime       = "limited_time"
+	reuseLimitedTimeHyphen = "limited-time"
+	reuseRotatingBatch     = "rotating-batch"
+)
+
+type credentialReusePolicy struct {
+	ID      string `json:"id"`
+	Options []struct {
+		Details                    []string `json:"details"`
+		BatchSize                  int      `json:"batch_size"`
+		ReissueTriggerUnused       int      `json:"reissue_trigger_unused"`
+		ReissueTriggerLifetimeLeft int64    `json:"reissue_trigger_lifetime_left"`
+	} `json:"options"`
+}
+
+// reuseOption returns the reuse option for a credential configuration. It reads the policy only with --arf. -06: the wallet
+// "should follow the method whose string first appears in the mentioned
+// array and the Wallet Unit supports". The wallet supports once_only (method
+// A), limited_time (method B) and rotating-batch (method C), not
+// per-relying-party (method D).
+func (w *Wallet) reuseOption(metadata map[string]any, configID string) *ReuseOption {
+	if !w.ARFChecks() {
+		return nil
+	}
+	configs, _ := metadata["credential_configurations_supported"].(map[string]any)
+	config, _ := configs[configID].(map[string]any)
+	credentialMetadata, _ := config["credential_metadata"].(map[string]any)
+	raw, ok := credentialMetadata["credential_reuse_policy"]
+	if !ok {
+		return nil
+	}
+	encoded, err := json.Marshal(raw)
+	if err != nil {
+		return nil
+	}
+	var policy credentialReusePolicy
+	if json.Unmarshal(encoded, &policy) != nil || policy.ID != "arf_annex_ii" {
+		return nil
+	}
+	for _, option := range policy.Options {
+		for _, method := range option.Details {
+			switch method {
+			case reuseOnceOnly, reuseLimitedTime, reuseLimitedTimeHyphen, reuseRotatingBatch:
+				return &ReuseOption{
+					Method:                     method,
+					BatchSize:                  option.BatchSize,
+					ReissueTriggerUnused:       option.ReissueTriggerUnused,
+					ReissueTriggerLifetimeLeft: option.ReissueTriggerLifetimeLeft,
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// batchSizeFor returns how many copies the issuer allows in one request. A
+// reuse policy decides it. -14: "If both the batch_credential_issuance [...]
+// and the credential_reuse_policy are present, then the
+// batch_credential_issuance shall be ignored". limited_time asks for single
+// credentials.
+func batchSizeFor(metadata map[string]any, reuse *ReuseOption) int {
+	if reuse == nil {
+		return advertisedBatchSize(metadata)
+	}
+	if reuse.Method == reuseLimitedTime || reuse.Method == reuseLimitedTimeHyphen {
+		return 1
+	}
+	return reuse.BatchSize
+}
+
 // issuanceProofKeys returns the proof keys of a credential request.
 // buildCredentialProofs turns them into proofs. Every key is fresh. ARF
-// ISSU_12b has the wallet "generate a new key pair for a new PID or
+// ISSU_12b requires the wallet to "generate a new key pair for a new PID or
 // attestation", and CIR (EU) 2024/2979 Annex Ib TR_KA-2.3 puts a public key in
-// at most one key attestation. When the issuer advertises batch_size >= 2,
-// each copy of the batch is bound to its own key. RFC 9901 §10.1 requires this
-// for SD-JWT batches. It is recommended for mdoc.
-func issuanceProofKeys(metadata map[string]any) ([]*ecdsa.PrivateKey, error) {
-	return batchProofKeys(metadata, MaxBatchSize)
+// at most one key attestation. When the issuer allows a batch, each copy of
+// the batch is bound to its own key. RFC 9901 §10.1 requires this for SD-JWT
+// batches. It is recommended for mdoc.
+func issuanceProofKeys(metadata map[string]any, reuse *ReuseOption) ([]*ecdsa.PrivateKey, error) {
+	return batchProofKeys(metadata, reuse, MaxBatchSize)
 }
 
 // batchProofKeys returns fresh keys for up to wanted copies, as many as the
-// issuer's batch_size allows, and at least one.
-func batchProofKeys(metadata map[string]any, wanted int) ([]*ecdsa.PrivateKey, error) {
-	batchSize := advertisedBatchSize(metadata)
+// issuer allows, and at least one.
+func batchProofKeys(metadata map[string]any, reuse *ReuseOption, wanted int) ([]*ecdsa.PrivateKey, error) {
+	batchSize := batchSizeFor(metadata, reuse)
 	count := max(min(batchSize, wanted, MaxBatchSize), 1)
 	keys := make([]*ecdsa.PrivateKey, 0, count)
 	for len(keys) < count {
@@ -71,7 +156,7 @@ func batchProofKeys(metadata map[string]any, wanted int) ([]*ecdsa.PrivateKey, e
 		keys = append(keys, key)
 	}
 	if count >= 2 {
-		log.Printf("[VCI] Issuer advertises batch_credential_issuance (batch_size=%d), requesting %d copies", batchSize, len(keys))
+		log.Printf("[VCI] Issuer allows batches of %d, requesting %d copies", batchSize, len(keys))
 	}
 	return keys, nil
 }
@@ -196,8 +281,8 @@ func proofKeyIndex(raw string, keys []*ecdsa.PrivateKey) int {
 	return -1
 }
 
-// primaryBindingKeyPEM returns the PEM of the proof key the credential is
-// bound to, and "" when it is bound to none of them.
+// primaryBindingKeyPEM returns the PEM of the proof key bound to the
+// credential, and "" when it is bound to none of them.
 func primaryBindingKeyPEM(raw string, keys []*ecdsa.PrivateKey) string {
 	if idx := proofKeyIndex(raw, keys); idx >= 0 {
 		if pem, err := encodeECPrivateKeyPEM(keys[idx]); err == nil {
@@ -242,9 +327,9 @@ func (w *Wallet) storeIssuedBatch(primary StoredCredential, copies []batchCopy, 
 
 // storeRenewedBatch puts a renewed credential in place of the one with id
 // and its copies in place of the other copies of that batch. The wallet's
-// bookkeeping of the credential (protection, display, batch, use count) and
-// its place stay. A renewal that returns fewer copies drops the rest, since
-// they keep the old validity. The caller holds the store lock.
+// bookkeeping of the credential (protection, display, batch) and its place
+// stay. The renewed credential is unused. A renewal that returns fewer copies
+// drops the rest, since they keep the old validity. The caller holds the store lock.
 func (w *Wallet) storeRenewedBatch(id string, fresh StoredCredential, copies []batchCopy, renewal CredentialRenewal) ([]StoredCredential, error) {
 	w.mu.Lock()
 	i := slices.IndexFunc(w.Credentials, func(c StoredCredential) bool { return c.ID == id })
@@ -258,7 +343,6 @@ func (w *Wallet) storeRenewedBatch(id string, fresh StoredCredential, copies []b
 	fresh.Renewal = &renewal
 	fresh.Display = old.Display
 	fresh.BatchGroup = old.BatchGroup
-	fresh.Uses = old.Uses
 	fresh.LastPresentedAt = old.LastPresentedAt
 	if fresh.BatchGroup == "" && len(copies) > 0 {
 		fresh.BatchGroup = newCredentialID()
@@ -287,6 +371,21 @@ func (w *Wallet) storeRenewedBatch(id string, fresh StoredCredential, copies []b
 		w.adoptOwnStatusEntry(&stored[i])
 	}
 	return stored, nil
+}
+
+// unusedCopies counts the unused copies of the credential's batch. A
+// credential outside a batch is its own batch.
+func (w *Wallet) unusedCopies(cred StoredCredential) int {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	n := 0
+	for _, c := range w.Credentials {
+		inBatch := c.ID == cred.ID || (cred.BatchGroup != "" && c.BatchGroup == cred.BatchGroup)
+		if inBatch && c.Uses == 0 {
+			n++
+		}
+	}
+	return n
 }
 
 // batchSize counts the copies of the credential's batch. A credential outside

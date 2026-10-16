@@ -327,6 +327,7 @@ func (w *Wallet) processCredentialOffer(offerURI string, opts OfferOptions) (_ *
 			ConfigurationID:     configID,
 			UseDPoP:             usesDPoP(oauthMeta),
 			AuthorizationServer: oauthIssuer(oauthMeta, tokenEndpoint),
+			ReusePolicy:         w.reuseOption(metadata, configID),
 		},
 		nonces: &dpopNonceState{},
 		report: opts.addFindings,

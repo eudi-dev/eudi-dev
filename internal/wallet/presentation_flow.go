@@ -42,10 +42,10 @@ type presentationEntry struct {
 // presentationOutcome is what the shared presentation flow decided for a
 // request (ADR-0012). The entry point delivers it.
 type presentationOutcome struct {
-	// invalid is set for an invalid request from a relying party that no
-	// trusted access certificate authenticates. The wallet answers it only to
-	// its caller. OpenID4VP 1.0 §8.5 applies RFC 6749 §4.1.2.1. It sends
-	// nothing to the destination of an invalid request.
+	// invalid is set for an invalid request from a relying party without a
+	// trusted access certificate. The wallet reports it only to its caller and
+	// sends nothing to the request's destination (RFC 6749 §4.1.2.1, applied
+	// by OpenID4VP 1.0 §8.5).
 	invalid     error
 	invalidCode string
 	// refusal is the Authorization Error Response for the verifier.
@@ -70,10 +70,12 @@ func (w *Wallet) evaluatePresentationRequest(authReq *oid4vp.Request, entry pres
 	w.PrepareARFChecks(authReq)
 	list, err := oid4vp.ValidateAuthorizationRequest(w.Conformance().checks(), authReq)
 	var authenticated *oid4vp.AuthenticatedRefusal
-	if errors.As(err, &authenticated) {
+	// The verifier gets the error only if the wallet can encrypt it for an
+	// encrypted response mode. Otherwise only the caller gets the refusal.
+	if errors.As(err, &authenticated) && w.responseEncryptionError(authReq) == nil {
 		event, summary := "authorization_request_refused", specCitedSummary(entry.subject, authenticated.Findings)
 		if authenticated.Code == oid4vp.ErrorAccessDenied {
-			event, summary = "arf_refusal", "The request does not meet the ARF registration rules"
+			event, summary = "arf_refusal", "The request does not meet the ARF rules"
 		}
 		w.reportRefusal(entry.action, event, entry.owner, requestRefused, summary, err)
 		// The description lists the findings, so the verifier under test sees
@@ -198,7 +200,7 @@ func (w *Wallet) renewExpiring(matches []consent.Match) {
 	now := time.Now()
 	for _, match := range matches {
 		cred, ok := w.GetCredential(match.CredentialID)
-		if !ok || !cred.CanRenew() || !CredentialNeedsRenewal(cred, now) {
+		if !ok || !cred.CanRenew() || !w.credentialNeedsRenewal(cred, now) {
 			continue
 		}
 		if _, err := manage.RenewCredential(cred.ID); err != nil {

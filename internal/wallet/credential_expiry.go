@@ -71,6 +71,33 @@ func CredentialNeedsRenewal(cred StoredCredential, now time.Time) bool {
 	return now.Add(renewalMargin).After(expiry)
 }
 
+// credentialNeedsRenewal adds the triggers of the issuer's reuse policy to
+// CredentialNeedsRenewal (ETSI TS 119 472-3 V1.1.1 clause 4.2.4.2). ARF ISSU_45:
+// under once_only the wallet "SHALL request the issuance of a new batch when
+// this limit is reached", where reissue_trigger_unused is "the lower limit for
+// the number of unused PIDs/EAAs" (-10). Under the other methods
+// reissue_trigger_lifetime_left is "the number of seconds before the
+// expiration of the PID/EAA" (-13) at which the wallet renews.
+func (w *Wallet) credentialNeedsRenewal(cred StoredCredential, now time.Time) bool {
+	if CredentialNeedsRenewal(cred, now) {
+		return true
+	}
+	if cred.Renewal == nil || cred.Renewal.ReusePolicy == nil {
+		return false
+	}
+	reuse := cred.Renewal.ReusePolicy
+	if reuse.Method == reuseOnceOnly {
+		// A batch at or below the limit means the issuer issued fewer copies
+		// than requested. A renewal would return the same number.
+		return w.batchSize(cred) > reuse.ReissueTriggerUnused && w.unusedCopies(cred) <= reuse.ReissueTriggerUnused
+	}
+	_, expiry := CredentialValidity(cred)
+	if expiry.IsZero() || reuse.ReissueTriggerLifetimeLeft <= 0 {
+		return false
+	}
+	return !now.Add(time.Duration(reuse.ReissueTriggerLifetimeLeft) * time.Second).Before(expiry)
+}
+
 // CredentialIssuedAt reads iat from a JWT payload or signed from an mdoc MSO.
 // It returns the zero time when the credential has neither.
 func CredentialIssuedAt(cred StoredCredential) time.Time {

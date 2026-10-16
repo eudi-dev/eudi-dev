@@ -343,7 +343,7 @@ func (w *Wallet) issueWithToken(s issuanceSession, tokenForm url.Values) (*Issua
 	renewal := s.renewal
 	renewal.RefreshToken = grant.refreshToken
 
-	proofKeys, err := issuanceProofKeys(s.metadata)
+	proofKeys, err := issuanceProofKeys(s.metadata, renewal.ReusePolicy)
 	if err != nil {
 		return nil, fmt.Errorf("preparing proof keys: %w", err)
 	}
