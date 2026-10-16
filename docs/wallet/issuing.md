@@ -43,12 +43,12 @@ The server checks for renewal every 30 seconds and renews credentials within a m
 
 ### Reuse policy
 
-With `--arf` the wallet follows the issuer's `credential_reuse_policy` (ETSI TS 119 472-3 V1.1.1 clause 4.2.4.2, ARF ISSU_39a). It takes the first method in `details` that it supports: `once_only`, `limited_time` (also spelled `limited-time`) or `rotating-batch`. It doesn't support `per-relying-party`. The policy replaces `batch_credential_issuance` (clause 4.2.4.2-14):
+With `--arf` the wallet follows the issuer's `credential_reuse_policy` (ETSI TS 119 472-3 V1.1.1 clause 4.2.4.2, ARF ISSU_39a) for the batch size and for renewal. It doesn't apply the policy to anything else. It takes the first supported method in `details`: `once_only`, `limited_time` (also spelled `limited-time`) or `rotating-batch`. It doesn't support `per-relying-party`. The policy replaces `batch_credential_issuance` (clause 4.2.4.2-14):
 
 - `once_only` and `rotating-batch` request a batch of the policy's `batch_size`, at most 8 copies.
 - `limited_time` requests one credential.
 
-The policy also decides when the wallet renews. Under `once_only` it requests a new batch when the unused copies reach `reissue_trigger_unused` (ISSU_45). Under the other methods it renews `reissue_trigger_lifetime_left` seconds before expiry. The renewal within a minute of expiry still applies. Without `--arf` the wallet ignores the policy.
+The policy also decides when the wallet renews. Under `once_only` it requests a new batch when the unused copies reach `reissue_trigger_unused` (ISSU_45). Under the other methods it renews `reissue_trigger_lifetime_left` seconds before expiry. The wallet also renews within a minute of expiry. Without `--arf` the wallet ignores the policy.
 
 ## Deferred issuance
 
@@ -90,6 +90,7 @@ The offer flow applies `--mode`, `--haip` and `--arf` like a presentation, wheth
 With `--arf` the wallet also checks the issuer before it requests a credential, for an offer and for a renewal, as ARF §6.6.2.2 and §6.6.2.3 describe. It asks for signed metadata first (`Accept: application/jwt, application/json;q=0.5`) and checks that:
 
 - the Credential Issuer Metadata is signed with an access certificate (OpenID4VCI 1.0 §12.2.3, ISSU_22 and ISSU_32), and that certificate chains to a trusted access certificate authority (ISSU_24 for a PID Provider, ISSU_34 for an Attestation Provider)
+- no certificate on the path of the access certificate is revoked, and its CRL is readable (ISSU_24, ISSU_34, CIR (EU) 2024/2982 Article 3(1) and 4(2)). A revoked registrar certificate only gets a warning, like a missing registration certificate, because wallets must check registration certificates only from 11 August 2028
 - the metadata carries a registration certificate in `issuer_info` (ETSI TS 119 472-3 V1.1.1 §4.2.3), signed by a trusted registrar (ISSU_23c, ISSU_33a), not expired and not revoked (RPRC_22a)
 - the registration certificate identifies the provider of the access certificate (RPRC_22b)
 - the registration certificate registers the issuer as a PID Provider for a PID (ISSU_24a), or as a QEAA, PuB-EAA or EAA Provider for other attestations (ISSU_34a)
@@ -105,11 +106,11 @@ A PID, QEAA or PuB-EAA entry must link a readable trusted list. Otherwise that i
 
 The wallet verifies the JAdES signature of each fetched trusted list. The signer must chain to a trusted list operator: the wallet CA or a CA from `--trusted-list-ca` (ARF PPNot_05, TLPub_05, TLPub_07). The flag takes a PEM file and is repeatable on `wallet serve`, `wallet accept` and `wallet scan`. A list found through an external list of trusted lists must instead be signed by the certificate in its pointer (ETSI TS 119 602 V1.1.1 §6.3.13).
 
-The wallet also checks that the credential is the one it asked for, and that it is valid:
+The wallet also checks that the credential is the requested one, and that it is valid:
 
 - its `vct` or `doctype` is the type of the requested credential configuration (ISSU_06)
 - every copy of a batch has the same technical validity period (ISSU_11a)
-- it hasn't expired, it is already valid, and its status list doesn't mark it revoked or suspended (CIR (EU) 2024/2982 Article 4(3)(d)). A status list the wallet can't read is a finding too, because the wallet then can't tell whether the credential is revoked. The status list must chain to a revocation service on the trusted list that anchors the credential. For a credential with a status entry on the wallet's own list, the wallet reads its own state.
+- it hasn't expired, it is already valid, and its status list doesn't mark it revoked or suspended (CIR (EU) 2024/2982 Article 4(3)(d)). The wallet must be able to read the status list. Otherwise that is a finding. The status list must chain to a revocation service on the trusted list of the credential's issuer. For a credential with a status entry on the wallet's own list, the wallet reads its own state.
 
 In `--mode debug` a failure is a warning. In `--mode strict` the wallet doesn't store the credential (ISSU_11b). Every copy of a batch, renewals and deferred credentials get the same check. Manual import skips these checks, so the wallet can hold expired or revoked credentials to test verifiers.
 
@@ -160,9 +161,9 @@ The wallet attestation is the wallet instance attestation:
 - `wallet_solution_certification_information` is a test object. It says that nobody certified the wallet and links [SECURITY.md](../../SECURITY.md).
 - `client_status` points to an entry on the wallet's own status list. Each authorization server gets its own entry, and all attestations sent to it keep that entry (the "per-issuer reuse" option of R_WIA-1).
 
-Each authorization server also gets its own wallet instance key. The attestation binds it, and the wallet signs its DPoP proofs for that server with it. ARF ISSU_35a has the attested key differ between providers. The key derives from the holder key, so a renewal uses the same key.
+Each authorization server also gets its own wallet instance key. The attestation binds it, and the wallet signs its DPoP proofs for that server with it. ARF ISSU_35a asks for a different attested key per provider. The key derives from the holder key, so a renewal uses the same key.
 
-A key attestation carries `certification`, a link to [SECURITY.md](../../SECURITY.md), and `key_storage_status`. All key attestations share one status entry for the wallet's key storage (the "type-shared index" option of R_KA_1). With `--arf` and no requirement of the issuer, `key_storage` and `user_authentication` claim `iso_18045_high`, as C_KA-1 asks of a WSCD. See [key attestation claims](serve.md#key-attestation-claims).
+A key attestation carries `certification`, a link to [SECURITY.md](../../SECURITY.md), and `key_storage_status`. All key attestations share one status entry for the wallet's key storage (the "type-shared index" option of R_KA_1). With `--arf`, when the issuer sets no requirement, `key_storage` and `user_authentication` claim `iso_18045_high`, as C_KA-1 asks of a WSCD. See [key attestation claims](serve.md#key-attestation-claims).
 
 The `exp` of `client_status` and `key_storage_status` is 32 days ahead, so at least 31 days remain when the issuer receives the attestation (LC_GEN-1). An issuer can prefer another period with `preferred_client_status_period` at the top level of its metadata and `preferred_key_storage_status_period` in `key_attestations_required`. The wallet then uses that period (LC_GEN_2.1, LC_GEN_2.2).
 

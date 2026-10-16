@@ -165,13 +165,14 @@ The wallet checks that:
 
 - the request is signed with an access certificate in `x5c` (RPA_03)
 - the access certificate chains to a trusted access certificate authority (RPA_04)
+- no certificate on the path of the access certificate is revoked (RPA_06a, CIR (EU) 2024/2982 Article 3(1) and 5(2)). The wallet reads the CRL of every certificate with a CRL distribution point. A CRL is a finding too if it is unreadable, not signed by the certificate's issuer or past its next update
 - the request carries at most one registration certificate in `verifier_info` (RPRC_19)
 - the registration certificate is signed by a trusted registrar (RPRC_02a), identifies the relying party and the service of the access certificate (RPRC_17a), has a valid signature and `typ`, contains all claims required by ETSI TS 119 475 and is not expired (RPRC_17)
 - the registrar has not revoked the registration certificate (RPRC_17). Its status list must be readable and chain to a trusted registrar (RPACANot_03b)
 - the request asks only for credentials and claims registered in that certificate (RPRC_21)
-- the response mode encrypts the presentation, so it is `direct_post.jwt`, `dc_api.jwt` or `ia_post.jwt` (OIA_09)
+- the response mode encrypts the presentation, so it is `direct_post.jwt`, `dc_api.jwt` or `ia_post.jwt` (OIA_09). With `--haip`, the HAIP check reports this instead.
 
-A request without a registration certificate gets a warning in every mode. Wallets must check registration certificates only from 11 August 2028 (CIR (EU) 2026/1731).
+A request without a registration certificate gets a warning in every mode. So does a revoked registrar certificate, or one with an unreadable CRL (WRP-VALIDATION-02). Wallets must check registration certificates only from 11 August 2028 (CIR (EU) 2026/1731).
 
 The ARF lets the Wallet Provider decide whether to refuse (RPA_06a). In `--mode debug` the wallet logs the findings as warnings and goes on. `POST /api/presentations` returns them in `findings`. This works for requests by URL, over the Digital Credentials API and during [interactive authorization](issuing.md#interactive-authorization). Strict mode refuses.
 

@@ -151,7 +151,6 @@ The status list of the registration certificates must chain to a revocation serv
 
 The wallet does not check these:
 
-- **Access certificate revocation.** The wallet doesn't read the CRL of an access certificate.
 - **The register.** The wallet does not look up `registry_uri`. A verifier sends its registration certificate with its request, so no external request is needed to check it (ARF RPRC_19). An issuer publishes its certificate in its metadata (RPRC_22). For a request with no registration certificate or with several, the consent dialog warns that the registered information could not be checked (RPRC_17).
 
 ## External registrar

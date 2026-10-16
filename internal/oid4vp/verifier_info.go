@@ -17,7 +17,9 @@ package oid4vp
 import (
 	"crypto/x509"
 	"fmt"
+	"net/http"
 	"strings"
+	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
@@ -84,12 +86,6 @@ func ARFFindings(authReq *Request) []string {
 	}
 	registrations, problems := regcert.Verify(regcert.InfoEntries(requestVerifierInfo(authReq), "verifier_info"))
 	var findings []string
-	// OIA_09: "For remote presentation flows the Wallet Unit SHALL ensure that
-	// the attributes included in the presented attestation are accessible only
-	// to the Relying Party Instance, by encrypting the presentation response."
-	if !ResponseModeEncrypts(authReq.ResponseMode) {
-		findings = append(findings, fmt.Sprintf("ARF OIA_09: response_mode %q returns the presentation unencrypted. The wallet must encrypt it", authReq.ResponseMode))
-	}
 	for _, problem := range problems {
 		findings = append(findings, "ARF RPRC_17: the registration certificate "+problem)
 	}
@@ -99,8 +95,13 @@ func ARFFindings(authReq *Request) []string {
 	accessChain := requestAccessChain(authReq)
 	if len(accessChain) == 0 {
 		findings = append(findings, "ARF RPA_03: the request is not signed with a relying party access certificate in x5c")
-	} else if _, err := certchain.Verify(accessChain, authReq.RelyingPartyCAs); err != nil {
+	} else if path, err := certchain.VerifiedPath(accessChain, authReq.RelyingPartyCAs); err != nil {
 		findings = append(findings, fmt.Sprintf("ARF RPA_04: the access certificate %q does not chain to a trusted access certificate authority: %v", accessChain[0].Subject.String(), err))
+	} else {
+		// CIR (EU) 2024/2982 Article 3(1) and 5(2) require the wallet to validate
+		// the relying party with its access certificate. A revoked certificate
+		// fails RFC 5280 §6.1.3 (a)(3).
+		findings = append(findings, certchain.RevocationFindings(path, authReq.StatusClient, "ARF RPA_06a and CIR (EU) 2024/2982 Article 3(1) and 5(2)")...)
 	}
 	for _, r := range registrations {
 		cert := r.Claims
@@ -127,26 +128,55 @@ func ARFFindings(authReq *Request) []string {
 // of CIR (EU) 2024/2982 to it.
 const RegistrationDeadline = "11 August 2028"
 
-// ARFAdvisories warns about a request without a registration certificate.
-// Wallets must check one only from RegistrationDeadline, so it is a warning in
-// every mode.
+// ARFAdvisories warns about a request without a registration certificate and
+// about a revoked registrar certificate. Wallets must check
+// registration certificates only from RegistrationDeadline, so these are
+// warnings in every mode.
 func ARFAdvisories(authReq *Request) []string {
 	if authReq == nil {
 		return nil
 	}
 	registrations, problems := regcert.Verify(regcert.InfoEntries(requestVerifierInfo(authReq), "verifier_info"))
-	if len(registrations)+len(problems) > 0 {
-		return nil
+	if len(registrations)+len(problems) == 0 {
+		return []string{"ARF RPRC_19 and ETSI TS 119 472-2 OIDFVP-HAIP-COMMON-REQ-RO-13 as adapted by CIR (EU) 2026/1731 Annex XII: the request carries no registration certificate (typ rc-wrp+jwt) in verifier_info. Wallets must check registration certificates from " + RegistrationDeadline + " (CIR (EU) 2024/2982 Article 3(4))"}
 	}
-	return []string{"ARF RPRC_19 and ETSI TS 119 472-2 OIDFVP-HAIP-COMMON-REQ-RO-13 as adapted by CIR (EU) 2026/1731 Annex XII: the request carries no registration certificate (typ rc-wrp+jwt) in verifier_info. Wallets must check registration certificates from " + RegistrationDeadline + " (CIR (EU) 2024/2982 Article 3(4))"}
+	return RegistrarRevocationAdvisories(registrations, authReq.RegistrarCAs, authReq.StatusClient, "ARF RPRC_17 and CIR (EU) 2024/2982 Annex II WRP-VALIDATION-02 as added by CIR (EU) 2026/1731")
+}
+
+// RegistrarRevocationAdvisories checks the registrar chain of each
+// registration certificate against its CRLs. Only chains to a trusted
+// registrar are checked. WRP-VALIDATION-02 counts a revoked certificate as a
+// failed validation. It applies from RegistrationDeadline (CIR (EU) 2024/2982
+// Article 3(4)).
+func RegistrarRevocationAdvisories(registrations []regcert.Registration, registrarCAs []*x509.Certificate, client *http.Client, rule string) []string {
+	var advisories []string
+	for _, r := range registrations {
+		path, err := certchain.VerifiedPath(r.Chain, registrarCAs)
+		if err != nil {
+			continue
+		}
+		name := jsonutil.FirstNonEmpty(jsonutil.Text(r.Claims["name"]), jsonutil.Text(r.Claims["sub"]), "the relying party")
+		for _, finding := range certchain.RevocationFindings(path, client, rule) {
+			advisories = append(advisories, finding+". It signs the registration certificate of "+name+". Wallets must check registration certificates from "+RegistrationDeadline+" (CIR (EU) 2024/2982 Article 3(4))")
+		}
+	}
+	return advisories
 }
 
 // relyingPartyAuthenticated reports whether a trusted access certificate
-// signed the request (ARF RPA_03 and RPA_04).
+// signed the request (ARF RPA_03 and RPA_04). ARF RPA_06a: with a revoked
+// access certificate, "Relying Party authentication fails".
 func relyingPartyAuthenticated(authReq *Request) bool {
-	chain := requestAccessChain(authReq)
-	_, err := certchain.Verify(chain, authReq.RelyingPartyCAs)
-	return err == nil
+	path, err := certchain.VerifiedPath(requestAccessChain(authReq), authReq.RelyingPartyCAs)
+	if err != nil {
+		return false
+	}
+	for _, problem := range certchain.CheckRevocation(path, authReq.StatusClient, time.Now()) {
+		if problem.Revoked {
+			return false
+		}
+	}
+	return true
 }
 
 // requestAccessChain returns the request object's x5c chain, leaf first, if the

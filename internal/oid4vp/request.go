@@ -132,7 +132,8 @@ type Request struct {
 	// Browser navigations redirect to the verifier after submission. API calls receive
 	// JSON.
 	BrowserRedirect bool
-	// StatusClient fetches the status lists of registration certificates
+	// StatusClient fetches the status lists of registration certificates and
+	// the CRLs of access and registrar certificates.
 	// (Wallet.RegistrationStatusClient).
 	StatusClient *http.Client
 	// RelyingPartyCAs, RegistrarCAs and RegistrationStatusCAs anchor the --arf

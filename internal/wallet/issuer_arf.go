@@ -142,8 +142,13 @@ func issuerARFFindings(a issuerAuthentication) []string {
 	var findings []string
 	if len(a.signerChain) == 0 {
 		findings = append(findings, accessRule+": the Credential Issuer Metadata is not signed, so the wallet cannot check the issuer's access certificate. The issuer must sign it as OpenID4VCI 1.0 §12.2.3 describes ("+signingRule+")")
-	} else if _, err := certchain.Verify(a.signerChain, a.accessCAs); err != nil {
+	} else if path, err := certchain.VerifiedPath(a.signerChain, a.accessCAs); err != nil {
 		findings = append(findings, fmt.Sprintf("%s: the access certificate %q of the signed issuer metadata does not chain to a trusted access certificate authority: %v", accessRule, a.signerChain[0].Subject.String(), err))
+	} else {
+		// ISSU_24 and ISSU_34: the access certificate "is valid at the time of
+		// validation". CIR (EU) 2024/2982 Article 3(1) and 4(2) require the wallet
+		// to authenticate the issuer before it requests a credential.
+		findings = append(findings, certchain.RevocationFindings(path, a.statusClient, accessRule+" and CIR (EU) 2024/2982 Article 3(1) and 4(2)")...)
 	}
 
 	entries := regcert.InfoEntries(a.metadata, "issuer_info")
@@ -216,17 +221,19 @@ func (w *Wallet) issuerARFCheck(metadata map[string]any, signerChain []*x509.Cer
 }
 
 // issuerARFAdvisories warns about issuer metadata without a registration
-// certificate when --arf is on. Wallets must check one only from
-// oid4vp.RegistrationDeadline, so it is a warning in every mode.
+// certificate, and about a revoked registrar certificate, when --arf is on.
+// Wallets must check registration certificates only from
+// oid4vp.RegistrationDeadline, so these are warnings in every mode.
 func (w *Wallet) issuerARFAdvisories(metadata map[string]any) []string {
 	if !w.ARFChecks() {
 		return nil
 	}
 	registrations, problems := regcert.Verify(regcert.InfoEntries(metadata, "issuer_info"))
-	if len(registrations)+len(problems) > 0 {
-		return nil
+	if len(registrations)+len(problems) == 0 {
+		return []string{"ARF RPRC_22a and ETSI TS 119 472-3 V1.1.1 ISS-MDATA-REG_CERT-4.2.3-04 as adapted by CIR (EU) 2026/1731 Annex XI: the issuer metadata carries no registration certificate (an issuer_info entry with typ rc-wrp+jwt). Wallets must check registration certificates from " + oid4vp.RegistrationDeadline + " (CIR (EU) 2024/2982 Article 3(4))"}
 	}
-	return []string{"ARF RPRC_22a and ETSI TS 119 472-3 V1.1.1 ISS-MDATA-REG_CERT-4.2.3-04 as adapted by CIR (EU) 2026/1731 Annex XI: the issuer metadata carries no registration certificate (an issuer_info entry with typ rc-wrp+jwt). Wallets must check registration certificates from " + oid4vp.RegistrationDeadline + " (CIR (EU) 2024/2982 Article 3(4))"}
+	registrarCAs := trustedlists.AnchorsOf(w.TrustedLists().Lists(), lote.RegistrationCertProvidersListType, lote.IssuanceServices)
+	return oid4vp.RegistrarRevocationAdvisories(registrations, registrarCAs, w.RegistrationStatusClient(), "ARF RPRC_22a")
 }
 
 // CatalogueCategory is the category of the catalogue entry for a type. A type

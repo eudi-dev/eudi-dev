@@ -15,6 +15,7 @@
 package wallet
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/x509"
 	"errors"
@@ -35,39 +36,51 @@ import (
 )
 
 // RegistrationStatusClient fetches the status lists of registration
-// certificates. The wallet's own list is answered in process, so strict TLS
-// doesn't have to trust the wallet's self-signed HTTPS port. Other lists go
-// through the outbound client.
+// certificates and the CRLs of access and registrar certificates. The
+// wallet's own list and CRLs are answered in process, so strict TLS doesn't
+// have to trust the wallet's self-signed HTTPS port. Other URLs go through
+// the outbound client.
 func (w *Wallet) RegistrationStatusClient() *http.Client {
 	outbound := w.HTTPClient()
-	return &http.Client{Timeout: outbound.Timeout, Transport: ownStatusListTransport{wallet: w, next: outbound}}
+	return &http.Client{Timeout: outbound.Timeout, Transport: ownPublicationsTransport{wallet: w, next: outbound}}
 }
 
-type ownStatusListTransport struct {
+type ownPublicationsTransport struct {
 	wallet *Wallet
 	next   *http.Client
 }
 
-func (t ownStatusListTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	if req.Method != http.MethodGet || !format.SameURL(req.URL, t.wallet.Registrar().RegistrationStatusListURL()) {
-		if t.next.Transport == nil {
-			return nil, errors.New("the wallet has no outbound transport")
+func (t ownPublicationsTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.Method == http.MethodGet && format.SameURL(req.URL, t.wallet.Registrar().RegistrationStatusListURL()) {
+		token, err := t.wallet.Registrar().RegistrationStatusListToken()
+		if err != nil {
+			return nil, err
 		}
-		return t.next.Transport.RoundTrip(req)
+		return inProcessResponse(req, statuslist.MediaTypeJWT, []byte(token)), nil
 	}
-	token, err := t.wallet.Registrar().RegistrationStatusListToken()
-	if err != nil {
-		return nil, err
+	if path, ok := t.wallet.ownCRLPath(req.URL); ok && req.Method == http.MethodGet {
+		der, err := t.wallet.CRL(path)
+		if err != nil {
+			return nil, err
+		}
+		return inProcessResponse(req, "application/pkix-crl", der), nil
 	}
+	if t.next.Transport == nil {
+		return nil, errors.New("the wallet has no outbound transport")
+	}
+	return t.next.Transport.RoundTrip(req)
+}
+
+func inProcessResponse(req *http.Request, contentType string, body []byte) *http.Response {
 	return &http.Response{
 		StatusCode: http.StatusOK,
 		Status:     "200 OK",
 		Proto:      "HTTP/1.1", ProtoMajor: 1, ProtoMinor: 1,
-		Header:        http.Header{"Content-Type": []string{statuslist.MediaTypeJWT}},
-		Body:          io.NopCloser(strings.NewReader(token)),
-		ContentLength: int64(len(token)),
+		Header:        http.Header{"Content-Type": []string{contentType}},
+		Body:          io.NopCloser(bytes.NewReader(body)),
+		ContentLength: int64(len(body)),
 		Request:       req,
-	}, nil
+	}
 }
 
 // PrepareARFChecks adds what --arf needs to a request: a client for the status

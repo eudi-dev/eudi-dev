@@ -32,6 +32,17 @@ const coseX5Chain = 33
 // Verify checks that the leaf chain[0] chains to one of the anchors, with the
 // rest of the chain as intermediates. It returns the leaf.
 func Verify(chain, anchors []*x509.Certificate) (*x509.Certificate, error) {
+	path, err := VerifiedPath(chain, anchors)
+	if err != nil {
+		return nil, err
+	}
+	return path[0], nil
+}
+
+// VerifiedPath checks that the leaf chain[0] chains to one of the anchors, with
+// the rest of the chain as intermediates. It returns the certification path
+// from the leaf to the anchor.
+func VerifiedPath(chain, anchors []*x509.Certificate) ([]*x509.Certificate, error) {
 	if len(chain) == 0 {
 		return nil, errors.New("no certificate")
 	}
@@ -46,14 +57,15 @@ func Verify(chain, anchors []*x509.Certificate) (*x509.Certificate, error) {
 	for _, cert := range chain[1:] {
 		intermediates.AddCert(cert)
 	}
-	if _, err := chain[0].Verify(x509.VerifyOptions{
+	paths, err := chain[0].Verify(x509.VerifyOptions{
 		Roots:         roots,
 		Intermediates: intermediates,
 		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
-	}); err != nil {
+	})
+	if err != nil {
 		return nil, err
 	}
-	return chain[0], nil
+	return paths[0], nil
 }
 
 // FromX5C reads a JOSE x5c value, leaf first. RFC 7515 §4.1.6 makes it an
