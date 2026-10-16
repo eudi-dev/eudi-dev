@@ -196,7 +196,7 @@ The tracked revision is **draft-ietf-oauth-status-list-21** (editor's copy at <h
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Status List Token generation (JWT) | Implemented | Available for generated wallet credentials (`--pid` or `--status-list`) |
-| Status List Token generation (CWT) | Implemented | Served under `application/statuslist+cwt` when the client asks for it |
+| Status List Token generation (CWT) | Implemented | Served under `application/statuslist+cwt` when the client asks for it. One status list serves the credentials of every provider CA. So its signer sits under the wallet CA, and the `status_list` of an mdoc names the wallet CA in its `certificate` element (CIR (EU) 2024/2979 Annex II EAA-6.2.10.1-06.1 as amended by CIR (EU) 2026/1731) |
 | Status List Token parsing (JWT and CWT) | Implemented | The wallet reads both media types. It asks for the format of the credential first: JWT for an SD-JWT VC or a registration certificate, CWT for an mdoc. The other one follows with `q=0.5` (Section 8.1 uses RFC 9110 content negotiation) |
 | Content negotiation on the status list endpoint | Implemented | Section 8.1. JWT is the default |
 | CORS on the status list endpoint | Implemented | Section 8.1 (browser-based clients) |

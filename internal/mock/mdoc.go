@@ -152,12 +152,17 @@ type MDOCConfig struct {
 	// SplitClaimsByNamespace).
 	Claims        map[string]any
 	Key           *ecdsa.PrivateKey
-	HolderKey     *ecdsa.PublicKey    // optional: adds deviceKeyInfo to MSO
-	ExpiresIn     time.Duration       // Validity duration. Defaults to 30 days when zero.
-	ValidFrom     *time.Time          // optional: override validFrom (defaults to now)
-	StatusListURI string              // optional: status list URI for revocation
-	StatusListIdx int                 // optional: index in the status list
-	CertChain     []*x509.Certificate // optional: x5chain certificate chain [leaf, CA]
+	HolderKey     *ecdsa.PublicKey // optional: adds deviceKeyInfo to MSO
+	ExpiresIn     time.Duration    // Validity duration. Defaults to 30 days when zero.
+	ValidFrom     *time.Time       // optional: override validFrom (defaults to now)
+	StatusListURI string           // optional: status list URI for revocation
+	StatusListIdx int              // optional: index in the status list
+	// StatusListCertificate is the DER certificate that signed the top-level
+	// certificate in the x5chain of the status list. CIR (EU) 2024/2979 Annex
+	// II EAA-6.2.10.1-06.1, as amended by CIR (EU) 2026/1731, makes it the
+	// trust anchor of that x5chain.
+	StatusListCertificate []byte
+	CertChain             []*x509.Certificate // optional: x5chain certificate chain [leaf, CA]
 	// KeepTrustAnchor embeds the chain as given, including a terminal
 	// self-signed root.
 	KeepTrustAnchor bool
@@ -245,12 +250,14 @@ func GenerateMDOC(cfg MDOCConfig) (string, error) {
 	}
 
 	if cfg.StatusListURI != "" {
-		mso["status"] = map[string]any{
-			"status_list": map[string]any{
-				"uri": cfg.StatusListURI,
-				"idx": cfg.StatusListIdx,
-			},
+		statusList := map[string]any{
+			"uri": cfg.StatusListURI,
+			"idx": cfg.StatusListIdx,
 		}
+		if len(cfg.StatusListCertificate) > 0 {
+			statusList["certificate"] = cfg.StatusListCertificate
+		}
+		mso["status"] = map[string]any{"status_list": statusList}
 	}
 
 	if cfg.HolderKey != nil {

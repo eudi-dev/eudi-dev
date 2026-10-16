@@ -355,11 +355,33 @@ type credentialSigner struct {
 	issuedAt  *time.Time
 	notBefore *time.Time
 	statusURI string
-	key       *ecdsa.PrivateKey
-	chain     []*x509.Certificate
+	// statusCert is the certificate element of the mdoc status_list.
+	statusCert []byte
+	key        *ecdsa.PrivateKey
+	chain      []*x509.Certificate
 	// keepAnchor embeds an override chain as given, root included, to test
 	// verifier rejection.
 	keepAnchor bool
+	// isPID is set from the category of the attestation type. The signing
+	// certificate is a PID provider certificate for the same category.
+	isPID bool
+}
+
+// statusListCertificate is the DER certificate that signs the top-level
+// certificate of the wallet's own status list, or nil for another list. The
+// status list signer sits under the wallet CA, and an mdoc document signer
+// under a provider CA. So CIR (EU) 2024/2979 Annex II EAA-6.2.10.1-06.2, as
+// amended by CIR (EU) 2026/1731, can't link them, and the MSO carries the
+// anchor in the certificate element (EAA-6.2.10.1-06.1).
+func (w *Wallet) statusListCertificate(statusURI string) []byte {
+	if statusURI == "" || statusURI != strings.TrimSpace(w.StatusListURL()) {
+		return nil
+	}
+	_, chain, err := w.Signer().StatusList()
+	if err != nil || len(chain) < 2 {
+		return nil
+	}
+	return chain[len(chain)-1].Raw
 }
 
 // newCredentialSigner signs with the key and chain of the attestation type.
@@ -373,7 +395,7 @@ func (w *Wallet) newCredentialSigner(resolved credtemplate.Resolved, spec provid
 	if issuer == "" {
 		issuer = mock.DefaultIssuer
 	}
-	return &credentialSigner{resolved: resolved, issuer: issuer, certIss: w.IssuerURL, statusURI: statusURI, key: key, chain: chain}, nil
+	return &credentialSigner{resolved: resolved, issuer: issuer, certIss: w.IssuerURL, statusURI: statusURI, statusCert: w.statusListCertificate(statusURI), key: key, chain: chain, isPID: spec.Category == credtemplate.CategoryPID}, nil
 }
 
 func (w *Wallet) issueSigner(opts IssueOptions, resolved credtemplate.Resolved, spec provider.IssuedAttestationSpec, statusURI string) (*credentialSigner, error) {
@@ -394,7 +416,8 @@ func (w *Wallet) issueSigner(opts IssueOptions, resolved credtemplate.Resolved, 
 	}
 	return &credentialSigner{
 		resolved: resolved, issuer: issuer, certIss: w.IssuerURL, notBefore: opts.NotBefore,
-		statusURI: statusURI, key: opts.SigningKey, chain: opts.SigningCertChain, keepAnchor: true,
+		statusURI: statusURI, statusCert: w.statusListCertificate(statusURI), key: opts.SigningKey, chain: opts.SigningCertChain, keepAnchor: true,
+		isPID: spec.Category == credtemplate.CategoryPID,
 	}, nil
 }
 
@@ -453,6 +476,7 @@ func (s *credentialSigner) sign(holderPub *ecdsa.PublicKey, statusIdx int) (stri
 		return mock.GenerateSDJWT(mock.SDJWTConfig{
 			CertificateIssuer: s.certIss,
 			Issuer:            s.issuer, VCT: r.VCT, ExpiresIn: r.Exp, IssuedAt: s.issuedAt, NotBefore: s.notBefore,
+			IsPID:  s.isPID,
 			Claims: claims, Key: s.key, HolderKey: holderPub,
 			StatusListURI: s.statusURI, StatusListIdx: statusIdx, CertChain: s.chain,
 			AlwaysDisclosed: r.AlwaysDisclosed, KeepTrustAnchor: s.keepAnchor,
@@ -468,7 +492,7 @@ func (s *credentialSigner) sign(holderPub *ecdsa.PublicKey, statusIdx int) (stri
 			CertificateIssuer: s.certIss,
 			DocType:           r.DocType, Namespace: r.Namespace, Claims: claims,
 			Key: s.key, HolderKey: holderPub, ExpiresIn: r.Exp, ValidFrom: s.notBefore,
-			StatusListURI: s.statusURI, StatusListIdx: statusIdx, CertChain: s.chain,
+			StatusListURI: s.statusURI, StatusListIdx: statusIdx, StatusListCertificate: s.statusCert, CertChain: s.chain,
 			KeepTrustAnchor: s.keepAnchor,
 		})
 	}
