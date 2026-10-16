@@ -74,6 +74,7 @@ type walletServeOptions struct {
 	Conformance           *conformanceFlags
 	AdhocDisplayImages    bool
 	DemoIssuerClientAuth  string
+	DemoIssuerKeyAttest   string
 	VCIClientID           string
 	VCIRedirectURI        string
 	Demo                  bool
@@ -152,6 +153,7 @@ Every flag can also be set as EUDI_DEV_<FLAG>, such as EUDI_DEV_BASE_URL for --b
 	cmd.Flags().StringVar(&opts.PreferredFormat, "preferred-format", "", "Preferred credential format when multiple match: 'dc+sd-jwt', 'mso_mdoc', or 'jwt_vc_json'")
 	cmd.Flags().BoolVar(&opts.AdhocDisplayImages, "adhoc-display-images", false, "Keep an issuer's https display image URL and let the card fetch it on demand instead of fetching once and storing the image (nothing is stored but the issuer sees each render, while a data URI, template art, and http URLs are still embedded)")
 	cmd.Flags().StringVar(&opts.DemoIssuerClientAuth, "demo-issuer-client-auth", string(demorp.ClientAuthRequired), "What the demo issuer's authorization server demands at its PAR and token endpoints: 'required' (HAIP 1.0 §4.4.1, the default) or 'optional' (also serves wallets that send no wallet attestation, for testing against them)")
+	cmd.Flags().StringVar(&opts.DemoIssuerKeyAttest, "demo-issuer-key-attestation", string(demorp.KeyAttestationOptional), "Key attestation requirement of the demo issuer's credential endpoint: 'optional' (default, also accepts jwt proofs without a key attestation) or 'required' (every proof must carry a key attestation, CIR (EU) 2024/2979 Annex Ib TR_KA-4)")
 	cmd.Flags().StringVar(&opts.VCIClientID, "vci-client-id", "", "Client ID the wallet should use for OID4VCI authorization-code flows")
 	cmd.Flags().StringVar(&opts.VCIRedirectURI, "vci-redirect-uri", "", "Redirect URI the wallet should use for OID4VCI authorization-code flows")
 	cmd.Flags().BoolVar(&opts.Demo, "demo", false, "Public demo profile: implies --pid, --mode debug, --haip, --arf and --vci-version 1.1 (all overridable), disables process/filesystem endpoints, blocks fetches to loopback and private networks unless --allow-private-networks is given, ignores $EUDI_DEV_AUTO_ACCEPT")
@@ -468,6 +470,10 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	clientAuthMode, err := demorp.ParseClientAuthMode(opts.DemoIssuerClientAuth)
 	if err != nil {
 		return fmt.Errorf("--demo-issuer-client-auth: %w", err)
+	}
+	keyAttestationMode, err := demorp.ParseKeyAttestationMode(opts.DemoIssuerKeyAttest)
+	if err != nil {
+		return fmt.Errorf("--demo-issuer-key-attestation: %w", err)
 	}
 	if opts.ServeTLS {
 		if err := validateServeTLSBaseURL(opts.BaseURL); err != nil {
@@ -818,6 +824,7 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 		return localURL
 	})
 	demoRP.SetClientAuthMode(clientAuthMode)
+	demoRP.SetKeyAttestationMode(keyAttestationMode)
 	demoRP.SetVerifierTrustAnchors(verifierTrustAnchors)
 	srv.Mount("/issuer", demoRP.IssuerHandler())
 	srv.Mount("/verifier", demoRP.VerifierHandler())

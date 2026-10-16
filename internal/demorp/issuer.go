@@ -653,27 +653,34 @@ type credentialRequest struct {
 	CredentialResponseEncryption json.RawMessage            `json:"credential_response_encryption"`
 }
 
-// jwtProofs returns the key proofs of the jwt proof type, the only one in
-// proof_types_supported. The error codes are those of OpenID4VCI 1.0
-// §8.3.1.2.
-func (req credentialRequest) jwtProofs() ([]string, map[string]string) {
+// keyProofs returns the proof type and the key proofs of the request. The
+// metadata offers the jwt proof type and the attestation proof type. The error
+// codes are those of OpenID4VCI 1.0 §8.3.1.2.
+func (req credentialRequest) keyProofs() (string, []string, map[string]string) {
 	if len(req.Proofs) > 1 {
-		return nil, oauthError("invalid_proof", "proofs must contain exactly one proof type")
+		return "", nil, oauthError("invalid_proof", "proofs must contain exactly one proof type")
 	}
-	var proofs []string
-	if raw, ok := req.Proofs["jwt"]; ok {
+	for proofType, raw := range req.Proofs {
+		var proofs []string
 		if err := json.Unmarshal(raw, &proofs); err != nil {
-			return nil, oauthError("invalid_proof", "proofs.jwt must be an array of strings")
+			return "", nil, oauthError("invalid_proof", fmt.Sprintf("proofs.%s must be an array of strings", proofType))
 		}
+		switch {
+		case proofType != "jwt" && proofType != "attestation":
+			return "", nil, oauthError("invalid_proof", fmt.Sprintf("proof type %q is not in proof_types_supported (jwt, attestation)", proofType))
+		case len(proofs) == 0:
+			return "", nil, oauthError("invalid_proof", fmt.Sprintf("proofs.%s must not be empty", proofType))
+		// Appendix F: the attestation parameter is "an array that contains
+		// exactly one JWT".
+		case proofType == "attestation" && len(proofs) != 1:
+			return "", nil, oauthError("invalid_proof", "proofs.attestation must contain exactly one key attestation")
+		case len(proofs) > demoBatchSize:
+			return "", nil, oauthError("invalid_credential_request",
+				fmt.Sprintf("this issuer signs at most %d copies in one request", demoBatchSize))
+		}
+		return proofType, proofs, nil
 	}
-	if len(proofs) == 0 {
-		return nil, oauthError("invalid_proof", "proofs.jwt is required")
-	}
-	if len(proofs) > demoBatchSize {
-		return nil, oauthError("invalid_credential_request",
-			fmt.Sprintf("this issuer signs at most %d copies in one request", demoBatchSize))
-	}
-	return proofs, nil
+	return "", nil, oauthError("invalid_proof", "proofs.jwt or proofs.attestation is required")
 }
 
 // refuseResponseEncryption refuses a request for an encrypted response. The
@@ -717,21 +724,33 @@ func (d *DemoRP) handleCredential(w http.ResponseWriter, r *http.Request) {
 	if refuseResponseEncryption(w, req.CredentialResponseEncryption) {
 		return
 	}
-	proofs, errResp := req.jwtProofs()
+	proofType, proofs, errResp := req.keyProofs()
 	if errResp != nil {
 		writeJSON(w, http.StatusBadRequest, errResp)
 		return
 	}
 
-	holderKeys := make([]*ecdsa.PublicKey, 0, len(proofs))
+	verified := make([]boundKeys, 0, len(proofs))
 	for _, proof := range proofs {
-		holderKey, err := d.verifyProofJWT(proof, d.requestIssuerURL(r))
+		var bound boundKeys
+		var err *proofError
+		if proofType == "attestation" {
+			bound, err = d.verifyAttestationProof(proof)
+		} else {
+			bound, err = d.verifyProofJWT(proof, d.requestIssuerURL(r))
+		}
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, oauthError(err.code, err.description))
 			return
 		}
-		holderKeys = append(holderKeys, holderKey)
+		verified = append(verified, bound)
 	}
+	cfg, _ := d.templateConfiguration(configID)
+	if err := d.checkKeyAttestations(verified, cfg); err != nil {
+		writeJSON(w, http.StatusBadRequest, oauthError(err.code, err.description))
+		return
+	}
+	holderKeys := issuedKeys(verified, granted.batchSize)
 
 	if granted.deferred {
 		writeIssuancePending(w, d.deferIssuance(holderKeys, granted, token))
@@ -748,16 +767,8 @@ func (d *DemoRP) handleCredential(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"credentials": credentials})
 }
 
-// signBatch signs one credential per proof key, up to the granted batch size.
-// A single-credential offer uses only the first proof key.
+// signBatch signs one credential per holder key (issuedKeys).
 func (d *DemoRP) signBatch(holderKeys []*ecdsa.PublicKey, granted ticketGrant) ([]map[string]any, error) {
-	want := granted.batchSize
-	if want < 1 {
-		want = 1
-	}
-	if want < len(holderKeys) {
-		holderKeys = holderKeys[:want]
-	}
 	credentials := make([]map[string]any, 0, len(holderKeys))
 	for _, key := range holderKeys {
 		credential, err := d.signGranted(key, granted)
@@ -866,34 +877,40 @@ func invalidProof(format string, args ...any) *proofError {
 
 // Key proofs are checked under OpenID4VCI 1.0 Appendix F.4. The aud check
 // against the Credential Issuer Identifier (F.1) stops reuse of a proof made
-// for another issuer.
-func (d *DemoRP) verifyProofJWT(raw, issuer string) (*ecdsa.PublicKey, *proofError) {
+// for another issuer. A proof with a key_attestation header binds the
+// attested keys.
+func (d *DemoRP) verifyProofJWT(raw, issuer string) (boundKeys, *proofError) {
 	proof, err := parseCompactJWT(raw)
 	if err != nil {
-		return nil, invalidProof("parsing proof JWT: %v", err)
+		return boundKeys{}, invalidProof("parsing proof JWT: %v", err)
 	}
 	if typ, _ := proof.header["typ"].(string); !format.JOSETypeIs(typ, format.TypeKeyProof) {
-		return nil, invalidProof("proof JWT typ is %q, want openid4vci-proof+jwt", typ)
+		return boundKeys{}, invalidProof("proof JWT typ is %q, want openid4vci-proof+jwt", typ)
 	}
 	if alg, _ := proof.header["alg"].(string); !slices.Contains(walletSigningAlgs, alg) {
-		return nil, invalidProof("proof JWT alg %q is not among the supported algorithms (%s)", alg, strings.Join(walletSigningAlgs, ", "))
+		return boundKeys{}, invalidProof("proof JWT alg %q is not among the supported algorithms (%s)", alg, strings.Join(walletSigningAlgs, ", "))
 	}
 
-	holderKey, keyErr := proofKeyMaterial(proof.header)
+	bound, keyErr := d.proofBoundKeys(proof.header)
 	if keyErr != nil {
-		return nil, keyErr
+		return boundKeys{}, keyErr
 	}
-	if !jws.Valid(proof.raw(), holderKey) {
-		return nil, invalidProof("proof JWT signature does not verify with the key in its header")
+	if !jws.Valid(proof.raw(), bound.keys[0]) {
+		if bound.attestation != nil {
+			// CIR (EU) 2024/2979 Annex Ib TR_KA-6 verifies the proof "under
+			// the key at index 0 of the 'attested_keys' array".
+			return boundKeys{}, invalidProof("proof JWT signature does not verify with the first attested key of its key attestation")
+		}
+		return boundKeys{}, invalidProof("proof JWT signature does not verify with the key in its header")
 	}
 
 	if aud, _ := proof.payload["aud"].(string); aud != issuer {
-		return nil, invalidProof("proof JWT aud is %q, want the credential issuer identifier %q", aud, issuer)
+		return boundKeys{}, invalidProof("proof JWT aud is %q, want the credential issuer identifier %q", aud, issuer)
 	}
 	// Appendix F.4: "the creation time of the JWT [...] is within an
 	// acceptable window (see Section 13.8)".
 	if err := checkTimeClaims(proof.payload, true, false); err != nil {
-		return nil, invalidProof("proof JWT %v", err)
+		return boundKeys{}, invalidProof("proof JWT %v", err)
 	}
 
 	// §8.2: "The c_nonce value is retrieved from the Nonce Endpoint as defined
@@ -902,15 +919,47 @@ func (d *DemoRP) verifyProofJWT(raw, issuer string) (*ecdsa.PublicKey, *proofErr
 	if nonce == "" {
 		// §8.3.1.2 puts a missing challenge under invalid_proof: "(3) if at
 		// least one of the key proofs does not contain a c_nonce value".
-		return nil, invalidProof("proof JWT carries no nonce: request one from the nonce endpoint")
+		return boundKeys{}, invalidProof("proof JWT carries no nonce: request one from the nonce endpoint")
 	}
 	if !d.nonceIssued(nonce) {
 		// §8.3.1.2 invalid_nonce: "at least one of the key proofs contains an
 		// invalid c_nonce value. The wallet should retrieve a new c_nonce value
 		// (refer to Section 7)."
-		return nil, &proofError{code: "invalid_nonce", description: "proof JWT nonce is not one this issuer handed out"}
+		return boundKeys{}, &proofError{code: "invalid_nonce", description: "proof JWT nonce is not one this issuer handed out"}
 	}
-	return holderKey, nil
+	return bound, nil
+}
+
+// proofBoundKeys reads the keys a jwt proof binds. With a key_attestation
+// header those are the attested keys, and the proof is signed by the first
+// one. A jwk or x5c next to it must name that key.
+func (d *DemoRP) proofBoundKeys(header map[string]any) (boundKeys, *proofError) {
+	rawAttestation, hasAttestation := header["key_attestation"]
+	if !hasAttestation {
+		key, err := proofKeyMaterial(header)
+		if err != nil {
+			return boundKeys{}, err
+		}
+		return boundKeys{keys: []*ecdsa.PublicKey{key}}, nil
+	}
+	compact, _ := rawAttestation.(string)
+	attestation, err := d.verifyKeyAttestation(compact, true)
+	if err != nil {
+		return boundKeys{}, err
+	}
+	first := attestation.attestedKeys[0]
+	_, hasJWK := header["jwk"]
+	_, hasX5C := header["x5c"]
+	if hasJWK || hasX5C {
+		named, err := proofKeyMaterial(header)
+		if err != nil {
+			return boundKeys{}, err
+		}
+		if !named.Equal(first) {
+			return boundKeys{}, invalidProof("proof JWT header names another key than the first attested key of its key attestation")
+		}
+	}
+	return boundKeys{keys: attestation.attestedKeys, attestation: attestation}, nil
 }
 
 // proofKeyMaterial reads the key bound to a proof. Appendix F.1

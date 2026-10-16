@@ -55,6 +55,9 @@ func ParseJWTParts(raw string) (header, payload map[string]any, sig []byte, err 
 const (
 	// TypeKeyProof is the jwt key proof of OpenID4VCI 1.0.
 	TypeKeyProof = "openid4vci-proof+jwt"
+	// TypeKeyAttestation is the key attestation of OpenID4VCI 1.0 Appendix
+	// D.1.
+	TypeKeyAttestation = "key-attestation+jwt"
 	// TypeClientAttestation and TypeClientAttestationPoP are the client
 	// attestation and its proof of possession of
 	// draft-ietf-oauth-attestation-based-client-auth.

@@ -983,11 +983,11 @@ func (d *DemoRP) attestationSigner(header map[string]any) (attestationSigner, er
 		return attestationSigner{}, err
 	}
 	if len(certs) == 0 {
-		return attestationSigner{}, fmt.Errorf("client attestation header has no x5c certificate")
+		return attestationSigner{}, fmt.Errorf("the attestation header has no x5c certificate")
 	}
 	key, ok := certs[0].PublicKey.(*ecdsa.PublicKey)
 	if !ok {
-		return attestationSigner{}, fmt.Errorf("client attestation certificate does not hold an EC key")
+		return attestationSigner{}, fmt.Errorf("the attestation certificate does not hold an EC key")
 	}
 	return attestationSigner{key: key, leaf: certs[0], trusted: d.chainsToWalletProviderCA(certs)}, nil
 }

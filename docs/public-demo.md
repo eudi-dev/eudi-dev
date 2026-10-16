@@ -142,6 +142,10 @@ Client authentication is required on the token endpoint for both grants (HAIP 1.
 
 The challenge for the key proof comes from the Nonce Endpoint defined in OpenID4VCI 1.0 §7. The issuer serves it at `POST /issuer/nonce` and advertises it as `nonce_endpoint` in its Credential Issuer metadata. If a proof uses a stale nonce, the issuer returns `invalid_nonce`. The wallet fetches a fresh nonce and retries.
 
+The issuer offers the `jwt` and the `attestation` proof types (CIR (EU) 2024/2979 Annex Ib TR_KA-4). A wallet can send a key attestation in the `key_attestation` header of a jwt proof or as an attestation proof. The issuer then checks the attestation's signature with its `x5c` certificate, its expiry and its nonce. A jwt proof must be signed by the first attested key. The issuer binds one credential to each attested key, up to the `batch_size` of its metadata (ETSI TS 119 472-3 CRED-REQ-PROC-4.6.2.1-04). With `--arf`, a PID needs a key attestation whose `key_storage` is `iso_18045_high`, the level of a WSCD (TR_KA-8). The issuer accepts a key attestation from an unknown wallet provider the same way it accepts its wallet attestation.
+
+By default the jwt proof type works without a key attestation, so wallets without one can still collect credentials. `--demo-issuer-key-attestation required` puts `key_attestations_required` on the jwt proof type too and refuses a proof without a key attestation.
+
 An offer set to "Deferred" on the issuer page, or created with `POST /issuer/api/offers?deferred=true`, is issued deferred. The credential endpoint answers `202` with a `transaction_id`. The wallet then collects the credentials at `POST /issuer/deferred_credential`. The Credential Issuer metadata advertises this endpoint as `deferred_credential_endpoint`. The credentials are ready after five seconds. Only the access token that started the issuance can collect them.
 
 Sign in with **alice / alice**, the only account. The issuer stores no user data, and the session ends with the flow.

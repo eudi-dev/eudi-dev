@@ -66,6 +66,9 @@ type DemoRP struct {
 	// clientAuth is the client authentication the demo authorization server
 	// requires from a wallet. The zero value is ClientAuthRequired.
 	clientAuth ClientAuthMode
+	// keyAttestation is whether the credential endpoint requires a key
+	// attestation. The zero value is KeyAttestationOptional.
+	keyAttestation KeyAttestationMode
 	// verifierTrustAnchors lets the demo verifier accept credentials from other
 	// issuers, such as the conformance suite. The wallet's credential provider
 	// lists are always trusted.

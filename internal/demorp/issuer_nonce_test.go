@@ -443,11 +443,11 @@ func TestVerifyProofJWTAcceptsEverySA1Algorithm(t *testing.T) {
 			proof := signJWT(t, key,
 				map[string]any{"typ": "openid4vci-proof+jwt", "jwk": holderJWK(t, key)},
 				map[string]any{"aud": d.issuerID(), "iat": time.Now().Unix(), "nonce": issuedNonce(t, d)})
-			holderKey, verifyErr := d.verifyProofJWT(proof, d.issuerID())
+			bound, verifyErr := d.verifyProofJWT(proof, d.issuerID())
 			if verifyErr != nil {
 				t.Fatalf("refused: %v", verifyErr)
 			}
-			if !holderKey.Equal(&key.PublicKey) {
+			if !bound.keys[0].Equal(&key.PublicKey) {
 				t.Error("the proof bound another key")
 			}
 		})

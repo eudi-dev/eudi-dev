@@ -779,7 +779,7 @@ func createKeyAttestation(w *Wallet, metadata map[string]any, configID, cNonce s
 	// kid "MUST NOT be present if jwk or x5c is present".
 	header := map[string]any{
 		"alg": jws.AlgES256,
-		"typ": "key-attestation+jwt",
+		"typ": format.TypeKeyAttestation,
 		"x5c": certchain.X5C(chain),
 	}
 	payload := map[string]any{
