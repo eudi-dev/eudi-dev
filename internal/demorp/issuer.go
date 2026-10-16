@@ -576,7 +576,7 @@ type accessTokenError struct {
 // §3.1 asks, no error information. RFC 6750 §3.1 answers insufficient_scope
 // with 403 and the other errors with 401.
 func (d *DemoRP) writeAccessTokenError(w http.ResponseWriter, r *http.Request, refused *accessTokenError) {
-	algs := `algs="` + jws.AlgES256 + `"`
+	algs := `algs="` + strings.Join(walletSigningAlgs, " ") + `"`
 	if refused.scheme == "" {
 		w.Header().Set("WWW-Authenticate", `Bearer realm="`+d.requestIssuerURL(r)+`", DPoP `+algs)
 		writeJSON(w, http.StatusUnauthorized, map[string]string{})
@@ -875,15 +875,15 @@ func (d *DemoRP) verifyProofJWT(raw, issuer string) (*ecdsa.PublicKey, *proofErr
 	if typ, _ := proof.header["typ"].(string); !format.JOSETypeIs(typ, format.TypeKeyProof) {
 		return nil, invalidProof("proof JWT typ is %q, want openid4vci-proof+jwt", typ)
 	}
-	if alg, _ := proof.header["alg"].(string); alg != jws.AlgES256 {
-		return nil, invalidProof("proof JWT alg is %q, and this issuer advertises ES256 only", alg)
+	if alg, _ := proof.header["alg"].(string); !slices.Contains(walletSigningAlgs, alg) {
+		return nil, invalidProof("proof JWT alg %q is not among the supported algorithms (%s)", alg, strings.Join(walletSigningAlgs, ", "))
 	}
 
 	holderKey, keyErr := proofKeyMaterial(proof.header)
 	if keyErr != nil {
 		return nil, keyErr
 	}
-	if !verifyES256(holderKey, proof.signingInput, proof.signature) {
+	if !jws.Valid(proof.raw(), holderKey) {
 		return nil, invalidProof("proof JWT signature does not verify with the key in its header")
 	}
 

@@ -252,10 +252,12 @@ func parseCompactJWT(raw string) (*compactJWT, error) {
 	return &compactJWT{header: header, payload: payload, signature: sig, signingInput: raw[:strings.LastIndex(raw, ".")]}, nil
 }
 
-// attestationAlgs are the algorithms of wallet and key attestations. CIR (EU)
-// 2024/2979 Annex Ib SA-3 has an issuer support all of SA-1: ES256, ES384 and
-// ES512.
-var attestationAlgs = []string{jws.AlgES256, "ES384", "ES512"}
+// walletSigningAlgs are the algorithms of wallet instance attestations, key
+// attestations and their proofs of possession: key proofs, attestation PoPs
+// and DPoP proofs. CIR (EU) 2024/2979 Annex Ib SA-3, as amended by CIR (EU)
+// 2026/1731, has an authorization server and a credential issuer support all
+// of SA-1: ES256, ES384 and ES512.
+var walletSigningAlgs = []string{jws.AlgES256, "ES384", "ES512"}
 
 // raw is the compact serialization of the JWT.
 func (j *compactJWT) raw() string {

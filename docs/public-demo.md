@@ -159,6 +159,8 @@ The callback is matched by `state` alone, so the sign-in can happen in any brows
 
 By default, PAR and token requests both require a wallet attestation. The issuer verifies its signature and the possession proof, including `sub`, `aud` and expiry. It refuses a possession proof with a reused `jti`. It accepts either a separate `OAuth-Client-Attestation-PoP` JWT or a DPoP proof signed by the attested key (`attest_jwt_client_auth_dpop`).
 
+Wallet attestations, key attestations, their possession proofs, DPoP proofs and key proofs can be signed with ES256, ES384 or ES512. CIR (EU) 2024/2979 Annex Ib SA-3 asks an issuer to support all three. The metadata lists them in `proof_signing_alg_values_supported` and `dpop_signing_alg_values_supported`.
+
 The access token is bound to the DPoP key. The credential request must prove possession of that key again. The issuer does not encrypt credential responses and refuses a request for an encrypted one with `invalid_encryption_parameters`. The ticket includes the signed-in account name, so a skipped login shows in the result.
 
 ### Wallets from other providers

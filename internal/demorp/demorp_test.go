@@ -19,6 +19,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/sha512"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
@@ -39,6 +40,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jwe"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
@@ -109,6 +111,31 @@ func signES256(t *testing.T, key *ecdsa.PrivateKey, header, payload map[string]a
 	sig := make([]byte, 64)
 	r.FillBytes(sig[:32])
 	s.FillBytes(sig[32:])
+	return signingInput + "." + base64.RawURLEncoding.EncodeToString(sig)
+}
+
+// signJWT signs with the JOSE algorithm of the key's curve: ES256, ES384 or
+// ES512 (RFC 7518 §3.4). The header names that algorithm.
+func signJWT(t *testing.T, key *ecdsa.PrivateKey, header, payload map[string]any) string {
+	t.Helper()
+	newHash := sha256.New
+	header["alg"] = "ES256"
+	switch key.Curve {
+	case elliptic.P384():
+		header["alg"], newHash = "ES384", sha512.New384
+	case elliptic.P521():
+		header["alg"], newHash = "ES512", sha512.New
+	}
+	signingInput, err := jws.SigningInput(header, payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest := newHash()
+	digest.Write([]byte(signingInput))
+	sig, err := jws.Signature(key, digest.Sum(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
 	return signingInput + "." + base64.RawURLEncoding.EncodeToString(sig)
 }
 

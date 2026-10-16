@@ -130,7 +130,7 @@ func (d *DemoRP) credentialConfigurations(issuer string) map[string]any {
 			"format": cfg.format,
 			"scope":  cfg.id,
 			"proof_types_supported": map[string]any{
-				"jwt": map[string]any{"proof_signing_alg_values_supported": []string{jws.AlgES256}},
+				"jwt": map[string]any{"proof_signing_alg_values_supported": walletSigningAlgs},
 			},
 			"credential_signing_alg_values_supported": []string{jws.AlgES256},
 		}

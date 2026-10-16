@@ -16,6 +16,7 @@ package mock
 
 import (
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
@@ -258,12 +259,16 @@ func GenerateMDOC(cfg MDOCConfig) (string, error) {
 			return "", fmt.Errorf("encoding holder key: %w", err)
 		}
 
+		crv, err := coseCurve(cfg.HolderKey)
+		if err != nil {
+			return "", err
+		}
 		// COSE_Key labels 1=kty, -1=crv, -2=x, -3=y (RFC 9053 §7.1.1).
 		coseKey := map[any]any{
 			int64(1):  int64(2), // kty: EC2
-			int64(-1): int64(1), // crv: P-256
-			int64(-2): xBytes,   // x coordinate
-			int64(-3): yBytes,   // y coordinate
+			int64(-1): crv,
+			int64(-2): xBytes,
+			int64(-3): yBytes,
 		}
 
 		mso["deviceKeyInfo"] = map[string]any{
@@ -340,4 +345,18 @@ func GenerateMDOC(cfg MDOCConfig) (string, error) {
 	}
 
 	return base64.RawURLEncoding.EncodeToString(issuerSignedBytes), nil
+}
+
+// coseCurve is the COSE Elliptic Curve identifier of an EC2 key (RFC 9053
+// §7.1).
+func coseCurve(key *ecdsa.PublicKey) (int64, error) {
+	switch key.Curve {
+	case elliptic.P256():
+		return 1, nil
+	case elliptic.P384():
+		return 2, nil
+	case elliptic.P521():
+		return 3, nil
+	}
+	return 0, fmt.Errorf("the holder key curve %s has no COSE identifier", key.Curve.Params().Name)
 }

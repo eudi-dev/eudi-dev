@@ -240,14 +240,14 @@ func (d *DemoRP) authorizationServerMetadata(identity *issuerIdentity) map[strin
 		// Each credential configuration has its id as scope.
 		"scopes_supported":                                 d.offeredConfigurationIDs(),
 		"code_challenge_methods_supported":                 []string{"S256"},
-		"dpop_signing_alg_values_supported":                []string{jws.AlgES256},
+		"dpop_signing_alg_values_supported":                walletSigningAlgs,
 		"token_endpoint_auth_methods_supported":            authMethods,
 		"token_endpoint_auth_signing_alg_values_supported": []string{jws.AlgES256},
 		// draft-ietf-oauth-attestation-based-client-auth-10 §8 requires these
 		// two from a server that supports the method. They are the only place
 		// a wallet learns the accepted signature algorithms.
-		"client_attestation_signing_alg_values_supported":     attestationAlgs,
-		"client_attestation_pop_signing_alg_values_supported": attestationAlgs,
+		"client_attestation_signing_alg_values_supported":     walletSigningAlgs,
+		"client_attestation_pop_signing_alg_values_supported": walletSigningAlgs,
 		// In optional mode, none means the client may omit the attestation.
 		"client_attestation_pop_methods_supported": popMethods,
 		// OpenID4VCI 1.0 §12.3: whether a Token Request with a Pre-Authorized
@@ -595,8 +595,8 @@ func (d *DemoRP) verifyDPoPProof(r *http.Request, expectedURL, accessToken strin
 	if typ, _ := proof.header["typ"].(string); !format.JOSETypeIs(typ, "dpop+jwt") {
 		return "", fmt.Errorf("DPoP proof has typ %q, expected dpop+jwt", typ)
 	}
-	if alg, _ := proof.header["alg"].(string); alg != jws.AlgES256 {
-		return "", fmt.Errorf("DPoP proof alg %q is not among the supported algorithms (ES256)", alg)
+	if alg, _ := proof.header["alg"].(string); !slices.Contains(walletSigningAlgs, alg) {
+		return "", fmt.Errorf("DPoP proof alg %q is not among the supported algorithms (%s)", alg, strings.Join(walletSigningAlgs, ", "))
 	}
 	// §4.2: the payload "MUST contain at least" jti, htm, htu and iat.
 	if jti, _ := proof.payload["jti"].(string); jti == "" {
@@ -610,7 +610,7 @@ func (d *DemoRP) verifyDPoPProof(r *http.Request, expectedURL, accessToken strin
 	if err != nil {
 		return "", fmt.Errorf("parsing DPoP jwk: %w", err)
 	}
-	if !verifyES256(key, proof.signingInput, proof.signature) {
+	if !jws.Valid(proof.raw(), key) {
 		return "", fmt.Errorf("DPoP proof signature does not verify")
 	}
 	if htm, _ := proof.payload["htm"].(string); !strings.EqualFold(htm, r.Method) {
@@ -840,8 +840,8 @@ func (d *DemoRP) authenticateClient(r *http.Request, clientID, jkt string) (clie
 	if typ, _ := attestation.header["typ"].(string); !format.JOSETypeIs(typ, format.TypeClientAttestation) {
 		return clientAuthentication{}, attestationFailed("client attestation has typ %q, expected oauth-client-attestation+jwt", typ)
 	}
-	if alg, _ := attestation.header["alg"].(string); !slices.Contains(attestationAlgs, alg) {
-		return clientAuthentication{}, attestationFailed("client attestation alg %q is not among the supported algorithms (%s)", alg, strings.Join(attestationAlgs, ", "))
+	if alg, _ := attestation.header["alg"].(string); !slices.Contains(walletSigningAlgs, alg) {
+		return clientAuthentication{}, attestationFailed("client attestation alg %q is not among the supported algorithms (%s)", alg, strings.Join(walletSigningAlgs, ", "))
 	}
 	attester, err := d.attestationSigner(attestation.header)
 	if err != nil {
@@ -912,8 +912,8 @@ func (d *DemoRP) authenticateClient(r *http.Request, clientID, jkt string) (clie
 	if typ, _ := pop.header["typ"].(string); !format.JOSETypeIs(typ, format.TypeClientAttestationPoP) {
 		return clientAuthentication{}, attestationFailed("client attestation PoP has typ %q, expected oauth-client-attestation-pop+jwt", typ)
 	}
-	if alg, _ := pop.header["alg"].(string); !slices.Contains(attestationAlgs, alg) {
-		return clientAuthentication{}, attestationFailed("client attestation PoP alg %q is not among the supported algorithms (%s)", alg, strings.Join(attestationAlgs, ", "))
+	if alg, _ := pop.header["alg"].(string); !slices.Contains(walletSigningAlgs, alg) {
+		return clientAuthentication{}, attestationFailed("client attestation PoP alg %q is not among the supported algorithms (%s)", alg, strings.Join(walletSigningAlgs, ", "))
 	}
 	if !jws.Valid(pop.raw(), clientKey) {
 		return clientAuthentication{}, attestationFailed("client attestation PoP is not signed by the attested key")

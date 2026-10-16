@@ -16,6 +16,7 @@ package demorp
 
 import (
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -427,6 +428,30 @@ func TestVerifyProofJWTKeyMaterialForms(t *testing.T) {
 			t.Fatal("a proof carrying no key material was accepted")
 		}
 	})
+}
+
+// CIR (EU) 2024/2979 Annex Ib SA-3, as amended by CIR (EU) 2026/1731: a
+// credential issuer supports ES256, ES384 and ES512.
+func TestVerifyProofJWTAcceptsEverySA1Algorithm(t *testing.T) {
+	d, _, _ := newDemoRP(t)
+	for _, curve := range []elliptic.Curve{elliptic.P256(), elliptic.P384(), elliptic.P521()} {
+		t.Run(curve.Params().Name, func(t *testing.T) {
+			key, err := ecdsa.GenerateKey(curve, rand.Reader)
+			if err != nil {
+				t.Fatal(err)
+			}
+			proof := signJWT(t, key,
+				map[string]any{"typ": "openid4vci-proof+jwt", "jwk": holderJWK(t, key)},
+				map[string]any{"aud": d.issuerID(), "iat": time.Now().Unix(), "nonce": issuedNonce(t, d)})
+			holderKey, verifyErr := d.verifyProofJWT(proof, d.issuerID())
+			if verifyErr != nil {
+				t.Fatalf("refused: %v", verifyErr)
+			}
+			if !holderKey.Equal(&key.PublicKey) {
+				t.Error("the proof bound another key")
+			}
+		})
+	}
 }
 
 func TestVerifyProofJWTRejectsBadProofs(t *testing.T) {

@@ -16,6 +16,9 @@ package mock
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/x509"
 	"encoding/base64"
 	"strings"
@@ -697,5 +700,40 @@ func TestGenerateMDOC_DrivingPrivilegeDates(t *testing.T) {
 	}
 	if len(item.Value) != 1 || item.Value[0].Issued.Number != 1004 || item.Value[0].Expiry.Number != 1004 || item.Value[0].Restriction != "2026-01-01" {
 		t.Errorf("driving privilege types = %+v", item.Value)
+	}
+}
+
+// The device key uses the curve of the holder key. RFC 9053 §7.1 gives P-384
+// and P-521 their own COSE crv values.
+func TestGenerateMDOCBindsHolderKeysOfEveryCurve(t *testing.T) {
+	issuerKey, err := GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, curve := range []elliptic.Curve{elliptic.P256(), elliptic.P384(), elliptic.P521()} {
+		t.Run(curve.Params().Name, func(t *testing.T) {
+			holderKey, err := ecdsa.GenerateKey(curve, rand.Reader)
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := GenerateMDOC(MDOCConfig{
+				DocType: "eu.europa.ec.eudi.pid.1", Namespace: "eu.europa.ec.eudi.pid.1",
+				Claims: map[string]any{"given_name": "Erika"}, Key: issuerKey, HolderKey: &holderKey.PublicKey,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			doc, err := mdoc.Parse(result)
+			if err != nil {
+				t.Fatal(err)
+			}
+			deviceKey, err := mdoc.DeviceKey(doc)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !deviceKey.Equal(&holderKey.PublicKey) {
+				t.Errorf("device key on %s, want the %s holder key", deviceKey.Curve.Params().Name, curve.Params().Name)
+			}
+		})
 	}
 }

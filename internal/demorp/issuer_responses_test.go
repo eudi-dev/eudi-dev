@@ -16,6 +16,8 @@ package demorp
 
 import (
 	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -340,6 +342,10 @@ func TestDPoPProofChecks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	p384Key, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
 	const accessToken = "the-access-token"
 	htu := demoIssuerID + "/credential"
 	ath := func(token string) string {
@@ -367,7 +373,10 @@ func TestDPoPProofChecks(t *testing.T) {
 		{"two proofs", []string{proof(key, nil), proof(key, nil)}, "header fields"},
 		{"a proof that is no JWT", []string{"not-a-jwt"}, "parsing"},
 		{"another typ", []string{proof(key, func(h, _ map[string]any) { h["typ"] = "JWT" })}, "typ"},
-		{"another alg", []string{proof(key, func(h, _ map[string]any) { h["alg"] = "ES384" })}, "alg"},
+		{"an alg outside SA-1", []string{proof(key, func(h, _ map[string]any) { h["alg"] = "RS256" })}, "alg"},
+		{"an ES384 proof", []string{signJWT(t, p384Key,
+			map[string]any{"typ": "dpop+jwt", "jwk": holderJWK(t, p384Key)},
+			map[string]any{"htm": "POST", "htu": htu, "iat": time.Now().Unix(), "jti": randToken(), "ath": ath(accessToken)})}, ""},
 		{"no jwk", []string{proof(key, func(h, _ map[string]any) { delete(h, "jwk") })}, "no jwk"},
 		{"a jwk that is no key", []string{proof(key, func(h, _ map[string]any) {
 			h["jwk"] = map[string]any{"kty": "EC", "crv": "P-256", "x": "AA", "y": "AA"}
@@ -638,12 +647,12 @@ func TestARefusedAccessTokenGetsAChallenge(t *testing.T) {
 		want     []string
 		absent   string
 	}{
-		{"no access token", "/credential", nil, []string{`Bearer realm="` + demoIssuerID + `"`, `DPoP algs="ES256"`}, "error="},
+		{"no access token", "/credential", nil, []string{`Bearer realm="` + demoIssuerID + `"`, `DPoP algs="ES256 ES384 ES512"`}, "error="},
 		{"an unknown bearer token", "/credential", map[string]string{"Authorization": "Bearer unknown"}, []string{`Bearer error="invalid_token"`}, ""},
 		{"a proof of another key", "/credential", map[string]string{
 			"Authorization": "DPoP " + accessToken,
 			"DPoP":          dpopProofForToken(t, otherKey, "POST", demoIssuerID+"/credential", accessToken),
-		}, []string{`DPoP error="invalid_token"`, `algs="ES256"`}, ""},
+		}, []string{`DPoP error="invalid_token"`, `algs="ES256 ES384 ES512"`}, ""},
 		{"an unknown token at the deferred endpoint", "/deferred_credential", map[string]string{"Authorization": "Bearer unknown"}, []string{`Bearer error="invalid_token"`}, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
