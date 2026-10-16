@@ -110,7 +110,7 @@ func (w *Wallet) processAuthorizationCodeOffer(offer *oid4vc.CredentialOffer, se
 	if offer.Grants.IssuerState != "" {
 		parForm.Set("issuer_state", offer.Grants.IssuerState)
 	}
-	authCtx := clientAuthContext{oauthMeta: oauthMeta, tokenEndpoint: session.renewal.TokenEndpoint}
+	authCtx := clientAuthContext{oauthMeta: oauthMeta, tokenEndpoint: session.renewal.TokenEndpoint, issuerMetadata: session.metadata}
 	clientAuth := w.resolveClientAuthentication(clientAuthMethod, authCtx)
 	session.renewal.ClientID = clientID
 	session.renewal.ClientAuth = clientAuth
@@ -124,6 +124,7 @@ func (w *Wallet) processAuthorizationCodeOffer(offer *oid4vc.CredentialOffer, se
 		codeChallenge:         codeChallenge,
 		clientAuth:            clientAuth,
 		dpopKey:               dpopKey,
+		clientKey:             w.clientKey(session.renewal),
 		nonces:                nonces,
 		authorizationEndpoint: authorizationEndpoint,
 		issuer:                oauthIssuer(oauthMeta, ""),
@@ -170,7 +171,7 @@ func (w *Wallet) processAuthorizationCodeOffer(offer *oid4vc.CredentialOffer, se
 	if requestURI == "" && parEndpoint != "" {
 		w.addProtocolLog("issuance", "par_request", fmt.Sprintf("Request PAR from %s", parEndpoint), true, formRequestLogDetails(parEndpoint, "par", parForm), &LogPayload{Label: "Request", Body: parForm.Encode()})
 		parPayload := &LogPayload{}
-		parResp, err := postFormWithDPoP(w.HTTPClient(), parEndpoint, parForm, dpopKey, "", &nonces.authzServer, w.clientAuthenticatorFor(clientAuth, clientID), parPayload)
+		parResp, err := postFormWithDPoP(w.HTTPClient(), parEndpoint, parForm, dpopKey, "", &nonces.authzServer, w.clientAuthenticatorFor(clientAuth, clientID, setup.clientKey), parPayload)
 		w.addProtocolLog("issuance", "par_response", fmt.Sprintf("PAR response from %s", parEndpoint), err == nil, responseMapLogDetails(parEndpoint, "par", parResp, err), parPayload)
 		if err != nil {
 			return nil, fmt.Errorf("PAR request: %w", err)
@@ -227,7 +228,9 @@ type authorizationCodeSetup struct {
 	codeChallenge     string
 	clientAuth        *ClientAuthentication
 	dpopKey           *ecdsa.PrivateKey
-	nonces            *dpopNonceState
+	// clientKey is the wallet instance key bound by the client attestation.
+	clientKey *ecdsa.PrivateKey
+	nonces    *dpopNonceState
 	// The auth_via_web interaction (OpenID4VCI 1.1 §6.2.1.2) takes the
 	// request_uri to authorizationEndpoint and checks the redirect back against
 	// issuer.
@@ -433,8 +436,9 @@ func (w *Wallet) attestsClient(oauthMeta map[string]any) bool {
 // clientAuthContext holds the inputs for choosing client authentication.
 // tokenEndpoint is the audience when the metadata has no issuer.
 type clientAuthContext struct {
-	oauthMeta     map[string]any
-	tokenEndpoint string
+	oauthMeta      map[string]any
+	tokenEndpoint  string
+	issuerMetadata map[string]any
 }
 
 // resolveClientAuthentication returns the client authentication to store with
@@ -488,6 +492,11 @@ func (w *Wallet) attestationClientAuth(ctx clientAuthContext) *ClientAuthenticat
 		ChallengeEndpoint: challengeEndpoint,
 		ABCADraft:         w.VCIFeatureVersion().ABCADraft(),
 	}
+	// LC_WIA-1.1 places the preference "at the top level of the Credential
+	// Issuer metadata".
+	if seconds, ok := ctx.issuerMetadata["preferred_client_status_period"].(float64); ok && seconds > 0 {
+		auth.PreferredStatusPeriod = int64(seconds)
+	}
 	if usesCombinedPoP(ctx.oauthMeta) {
 		auth.CombinedPoP = true
 		if auth.ABCADraft < ABCALatestDraft {
@@ -532,11 +541,13 @@ func usesDPoP(oauthMeta map[string]any) bool {
 	return supportsDPoP(oauthMeta) || usesCombinedPoP(oauthMeta)
 }
 
-func (w *Wallet) clientAuthenticatorFor(auth *ClientAuthentication, clientID string) *clientAuthenticator {
+// clientAuthenticatorFor authenticates as clientID. An attestation binds
+// instanceKey.
+func (w *Wallet) clientAuthenticatorFor(auth *ClientAuthentication, clientID string, instanceKey *ecdsa.PrivateKey) *clientAuthenticator {
 	if auth == nil || (auth.Method != ClientAuthAttestation && auth.Method != ClientAuthPrivateKeyJWT) {
 		return nil
 	}
-	return &clientAuthenticator{wallet: w, auth: auth, clientID: clientID}
+	return &clientAuthenticator{wallet: w, auth: auth, clientID: clientID, instanceKey: instanceKey}
 }
 
 // clientAuthenticator authenticates each request to the authorization server.
@@ -551,7 +562,8 @@ type clientAuthenticator struct {
 	wallet *Wallet
 	auth   *ClientAuthentication
 	// clientID is the subject of the attestation.
-	clientID string
+	clientID    string
+	instanceKey *ecdsa.PrivateKey
 	// challenge comes from the server and goes into the next PoP.
 	challenge string
 }
@@ -570,7 +582,7 @@ func (a *clientAuthenticator) headers() (map[string]string, error) {
 			return nil, err
 		}
 	}
-	headers, err := createClientAttestationHeaders(a.wallet, a.auth, a.clientID, challenge)
+	headers, err := createClientAttestationHeaders(a.wallet, a.auth, a.clientID, challenge, a.instanceKey)
 	if err != nil {
 		return nil, fmt.Errorf("creating client attestation headers: %w", err)
 	}
@@ -658,19 +670,25 @@ func (a *clientAuthenticator) formBody(contentType string, body []byte) ([]byte,
 	return []byte(form.Encode()), nil
 }
 
-// createClientAttestationHeaders creates the attestation and, outside combined
-// mode, the PoP for the attested key. Both carry the claims of every supported
+// createClientAttestationHeaders creates the attestation of instanceKey and,
+// outside combined mode, its PoP. Both carry the claims of every supported
 // draft (the draft-07 shape). Every draft allows extra claims in these JWTs
-// (§5.1 and §5.2 rule 1), so one shape verifies under all of them.
-func createClientAttestationHeaders(w *Wallet, auth *ClientAuthentication, clientID, challenge string) (map[string]string, error) {
+// (§5.1 and §5.2 rule 1), so one shape verifies under all of them. The
+// attestation is also a wallet instance attestation with the claims of CIR
+// (EU) 2024/2979 Annex Ib.
+func createClientAttestationHeaders(w *Wallet, auth *ClientAuthentication, clientID, challenge string, instanceKey *ecdsa.PrivateKey) (map[string]string, error) {
 
 	signingKey, chain, err := w.Signer().WalletProvider()
 	if err != nil {
 		return nil, err
 	}
+	instanceClaims, err := w.walletInstanceClaims(auth.Audience, auth.PreferredStatusPeriod)
+	if err != nil {
+		return nil, err
+	}
 
 	x5c := certchain.X5C(chain)
-	holderKey := w.HolderKeyPair()
+	holderKey := instanceKey
 	holderJWK := mock.SigningJWKMap(&holderKey.PublicKey)
 	clientAttestationHeader := map[string]any{
 		"alg": jws.AlgES256,
@@ -693,6 +711,9 @@ func createClientAttestationHeaders(w *Wallet, auth *ClientAuthentication, clien
 		// claims (§5.1 rule 1).
 		"iss": w.IssuerURL,
 		"nbf": time.Now().Unix(),
+	}
+	for claim, value := range instanceClaims {
+		clientAttestationPayload[claim] = value
 	}
 	clientAttestationJWT, err := signJWT(clientAttestationHeader, clientAttestationPayload, signingKey)
 	if err != nil {
@@ -799,6 +820,13 @@ func createKeyAttestation(w *Wallet, metadata map[string]any, configID, cNonce s
 		payload[claim] = values
 	}
 	w.noteKeyAttestationClaims(claims, requirement)
+	storage, err := w.keyStorageClaims(requirement)
+	if err != nil {
+		return "", err
+	}
+	for claim, value := range storage {
+		payload[claim] = value
+	}
 	if cNonce != "" {
 		payload["nonce"] = cNonce
 	}
@@ -812,6 +840,9 @@ func createKeyAttestation(w *Wallet, metadata map[string]any, configID, cNonce s
 // keyAttestationClaimNames are the attack potential resistance claims of a
 // key attestation (OpenID4VCI 1.0 Appendix D.2).
 var keyAttestationClaimNames = []string{"key_storage", "user_authentication"}
+
+// wscdAttestationLevel is the Appendix D.2 value of a WSCD (C_KA-1).
+const wscdAttestationLevel = "iso_18045_high"
 
 // keyAttestationLevelValues are the values of those claims in Appendix D.2.
 // They are the ISO/IEC 18045 attack potentials, also used by catalogue entries.
@@ -828,21 +859,32 @@ func ParseKeyAttestationLevel(value string) (string, error) {
 }
 
 // keyAttestationClaims returns the key_storage and user_authentication claims
-// for a key attestation. The default is what the issuer requires. "none"
-// returns no claims, and any other level is set on both claims.
+// for a key attestation. The default is what the issuer requires. With --arf
+// and no requirement both claims describe a WSCD. CIR (EU) 2024/2979 Annex Ib
+// C_KA-1 requires them, with "value 'iso_18045_high' where a key attestation
+// mentions a WSCD". "none" returns no claims, and any other level is set on
+// both claims.
 func (w *Wallet) keyAttestationClaims(requirement map[string]any) map[string]any {
 	switch level := w.KeyAttestationLevelSetting(); level {
 	case "none":
 		return nil
 	case "":
-		return requiredKeyAttestationClaims(requirement)
-	default:
-		claims := map[string]any{}
-		for _, claim := range keyAttestationClaimNames {
-			claims[claim] = []any{level}
+		required := requiredKeyAttestationClaims(requirement)
+		if len(required) == 0 && w.ARFChecks() {
+			return keyAttestationLevelClaims(wscdAttestationLevel)
 		}
-		return claims
+		return required
+	default:
+		return keyAttestationLevelClaims(level)
 	}
+}
+
+func keyAttestationLevelClaims(level string) map[string]any {
+	claims := map[string]any{}
+	for _, claim := range keyAttestationClaimNames {
+		claims[claim] = []any{level}
+	}
+	return claims
 }
 
 func requiredKeyAttestationClaims(requirement map[string]any) map[string]any {

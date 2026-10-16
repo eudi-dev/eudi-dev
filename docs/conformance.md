@@ -86,7 +86,8 @@ The matrix is fixed in the wrapper. Use the official runner `--rerun` selector f
 
 The wallet runs a conformance test with its normal keys:
 
-- its holder key for DPoP, `private_key_jwt` and the credentials it issues to itself
+- its holder key for `private_key_jwt` and for self-issued credentials
+- a wallet instance key per authorization server for client attestation and DPoP
 - a fresh key for the proofs of each issuance
 - its wallet provider signing key and certificate chain for client attestation and key attestation
 - its shared wallet CA as the trust anchor

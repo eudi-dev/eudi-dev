@@ -315,7 +315,7 @@ func TestCreateClientAttestationHeaders(t *testing.T) {
 	w.IssuerURL = "https://wallet.example"
 
 	auth := &ClientAuthentication{Method: ClientAuthAttestation, Audience: "https://issuer.example"}
-	headers, err := createClientAttestationHeaders(w, auth, "wallet-client", "challenge-123")
+	headers, err := createClientAttestationHeaders(w, auth, "wallet-client", "challenge-123", w.HolderKey)
 	if err != nil {
 		t.Fatalf("createClientAttestationHeaders: %v", err)
 	}
@@ -375,11 +375,11 @@ func TestCreateClientAttestationHeaders_UniquePoPJTI(t *testing.T) {
 	w.IssuerURL = "https://wallet.example"
 
 	auth := &ClientAuthentication{Method: ClientAuthAttestation, Audience: "https://issuer.example"}
-	first, err := createClientAttestationHeaders(w, auth, "wallet-client", "challenge-123")
+	first, err := createClientAttestationHeaders(w, auth, "wallet-client", "challenge-123", w.HolderKey)
 	if err != nil {
 		t.Fatalf("first createClientAttestationHeaders: %v", err)
 	}
-	second, err := createClientAttestationHeaders(w, auth, "wallet-client", "challenge-123")
+	second, err := createClientAttestationHeaders(w, auth, "wallet-client", "challenge-123", w.HolderKey)
 	if err != nil {
 		t.Fatalf("second createClientAttestationHeaders: %v", err)
 	}
@@ -442,7 +442,7 @@ func TestDoDPoPRequest_RegeneratesAttestationHeadersOnRetry(t *testing.T) {
 	defer srv.Close()
 
 	nonce := ""
-	authenticator := w.clientAuthenticatorFor(&ClientAuthentication{Method: ClientAuthAttestation, Audience: srv.URL}, "wallet-client")
+	authenticator := w.clientAuthenticatorFor(&ClientAuthentication{Method: ClientAuthAttestation, Audience: srv.URL}, "wallet-client", w.HolderKey)
 	_, _, err := doDPoPRequest(http.MethodPost, srv.URL, "application/json", "", []byte(`{}`), "", "", w.HolderKey, &nonce, authenticator, srv.Client())
 	if err != nil {
 		t.Fatalf("doDPoPRequest: %v", err)

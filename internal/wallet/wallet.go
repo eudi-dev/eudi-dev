@@ -366,6 +366,9 @@ type CredentialRenewal struct {
 	ClientID           string `json:"client_id,omitempty"`
 	RefreshToken       string `json:"refresh_token"`
 	UseDPoP            bool   `json:"use_dpop,omitempty"`
+	// AuthorizationServer identifies the server the wallet instance key
+	// belongs to (see clientKey).
+	AuthorizationServer string `json:"authorization_server,omitempty"`
 	// Refresh requests use the same client authentication as the original token
 	// request.
 	ClientAuth *ClientAuthentication `json:"client_auth,omitempty"`
@@ -390,6 +393,9 @@ type ClientAuthentication struct {
 	// With dpop_combined, the DPoP proof also proves possession for the attestation.
 	// Send only OAuth-Client-Attestation (ABCA draft-10 §5.2).
 	CombinedPoP bool `json:"combined_pop,omitempty"`
+	// PreferredStatusPeriod is the issuer's preferred_client_status_period in
+	// seconds (CIR (EU) 2024/2979 Annex Ib LC_WIA-1).
+	PreferredStatusPeriod int64 `json:"preferred_client_status_period,omitempty"`
 	// LegacyClientID is where eudi-dev 2 stored the client ID. Loading moves it
 	// to CredentialRenewal.ClientID.
 	LegacyClientID string `json:"client_id,omitempty"`

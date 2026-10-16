@@ -227,7 +227,7 @@ func TestHolderKeyReadsHoldTheWalletLock(t *testing.T) {
 		<-done
 	}()
 	for range 20 {
-		if _, err := createClientAttestationHeaders(w, &ClientAuthentication{}, "client", ""); err != nil {
+		if _, err := createClientAttestationHeaders(w, &ClientAuthentication{}, "client", "", w.HolderKey); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := createKeyAttestation(w, metadata, "cfg", "n", nil); err != nil {

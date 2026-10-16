@@ -137,7 +137,25 @@ Without `--haip` the wallet attests **only when the authorization server adverti
 
 > The client SHOULD fetch and parse the Authorization Server metadata and recognize Attestation-Based Client Authentication as a client authentication mechanism if either of the given `token_endpoint_auth_methods_supported` values are present.
 
-Following the metadata also limits correlation. The wallet has one holder key and one attestation, and §10.1 of the draft warns that reusing them across authorization servers lets those servers correlate the user.
+Following the metadata also limits correlation. §10.1 of the draft warns that reusing a key and an attestation across authorization servers lets those servers correlate the user. The wallet attests a key of its own for each authorization server (see [wallet instance and key attestation claims](#wallet-instance-and-key-attestation-claims)).
+
+### Wallet instance and key attestation claims
+
+The wallet is its own wallet provider. Its attestations carry the claims of CIR (EU) 2024/2979 Annex Ib (added by CIR (EU) 2026/1731) and EC TS3.
+
+The wallet attestation is the wallet instance attestation:
+
+- `wallet_name` is the wallet name. The `wallet-provider` trusted list uses it as the service name (ETSI TS 119 602 Table E.3).
+- `wallet_version` is the release of the binary.
+- `wallet_link` links the project.
+- `wallet_solution_certification_information` is a test object. It says that nobody certified the wallet and links [SECURITY.md](../../SECURITY.md).
+- `client_status` points to an entry on the wallet's own status list. Each authorization server gets its own entry, and all attestations sent to it keep that entry (the "per-issuer reuse" option of R_WIA-1).
+
+Each authorization server also gets its own wallet instance key. The attestation binds it, and the wallet signs its DPoP proofs for that server with it. ARF ISSU_35a has the attested key differ between providers. The key derives from the holder key, so a renewal uses the same key.
+
+A key attestation carries `certification`, a link to [SECURITY.md](../../SECURITY.md), and `key_storage_status`. All key attestations share one status entry for the wallet's key storage (the "type-shared index" option of R_KA_1). With `--arf` and no requirement of the issuer, `key_storage` and `user_authentication` claim `iso_18045_high`, as C_KA-1 asks of a WSCD. See [key attestation claims](serve.md#key-attestation-claims).
+
+The `exp` of `client_status` and `key_storage_status` is 32 days ahead, so at least 31 days remain when the issuer receives the attestation (LC_GEN-1). An issuer can prefer another period with `preferred_client_status_period` at the top level of its metadata and `preferred_key_storage_status_period` in `key_attestations_required`. The wallet then uses that period (LC_GEN_2.1, LC_GEN_2.2).
 
 ### `--client-attestation`
 

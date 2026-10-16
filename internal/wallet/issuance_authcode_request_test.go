@@ -193,7 +193,7 @@ func TestClientAssertionIsFreshOnRetry(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	authenticator := w.clientAuthenticatorFor(&ClientAuthentication{Method: ClientAuthPrivateKeyJWT, Audience: srv.URL}, "wallet-client")
+	authenticator := w.clientAuthenticatorFor(&ClientAuthentication{Method: ClientAuthPrivateKeyJWT, Audience: srv.URL}, "wallet-client", w.HolderKey)
 	var nonce string
 	if _, err := postFormWithDPoP(srv.Client(), srv.URL, url.Values{"grant_type": {"authorization_code"}}, w.HolderKey, "", &nonce, authenticator); err != nil {
 		t.Fatalf("postFormWithDPoP: %v", err)

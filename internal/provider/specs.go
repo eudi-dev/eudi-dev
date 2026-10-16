@@ -273,9 +273,12 @@ func WalletProviderList() List {
 		SchemeTerritory:             "EU",
 		IssuanceServiceType:         walletProviderIssuanceServiceType,
 		RevocationServiceType:       walletProviderRevocationServiceType,
-		IssuanceServiceName:         "Wallet Attestation Issuance",
-		RevocationServiceName:       "Wallet Attestation Revocation",
-		EntityName:                  config.WalletName + " Provider",
+		// ETSI TS 119 602 V1.1.1 Table E.3: "The value of the ServiceName
+		// component shall be the name of a wallet solution". The wallet's
+		// attestations name it in wallet_name.
+		IssuanceServiceName:   config.WalletName,
+		RevocationServiceName: config.WalletName,
+		EntityName:            config.WalletName + " Provider",
 	}}
 }
 

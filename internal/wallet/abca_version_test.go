@@ -223,7 +223,9 @@ func TestAttestationShapeIsDraftUnion(t *testing.T) {
 				t.Errorf("PoP iss = %v, want the attestation's sub %v", pop["iss"], attestation["sub"])
 			}
 
-			wantAttestation := []string{"cnf", "exp", "iat", "iss", "nbf", "sub"}
+			// The wallet instance claims of CIR (EU) 2024/2979 Annex Ib
+			// C_WIA-1 and C_WIA-2 are extra claims under every draft.
+			wantAttestation := []string{"client_status", "cnf", "exp", "iat", "iss", "nbf", "sub", "wallet_link", "wallet_name", "wallet_solution_certification_information", "wallet_version"}
 			wantPoP := []string{"aud", "exp", "iat", "iss", "jti", "nbf"}
 			if got := sortedKeys(attestation); !slices.Equal(got, wantAttestation) {
 				t.Errorf("attestation claims = %v, want exactly %v", got, wantAttestation)
@@ -371,7 +373,7 @@ func TestClientAttestorChallengeUse(t *testing.T) {
 	authenticator := w.clientAuthenticatorFor(&ClientAuthentication{
 		Method: ClientAuthAttestation, Audience: "https://as.example",
 		ChallengeEndpoint: srv.URL,
-	}, "c")
+	}, "c", w.HolderKey)
 	header := http.Header{}
 	header.Set("OAuth-Client-Attestation-Challenge", "served-challenge")
 	authenticator.observe(header)
@@ -440,7 +442,7 @@ func TestStoredABCADraftDrivesEmission(t *testing.T) {
 
 	headers, err := createClientAttestationHeaders(w, &ClientAuthentication{
 		Method: ClientAuthAttestation, Audience: "https://as.example", ABCADraft: 7,
-	}, "c", "")
+	}, "c", "", w.HolderKey)
 	if err != nil {
 		t.Fatalf("createClientAttestationHeaders: %v", err)
 	}

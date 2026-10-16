@@ -125,7 +125,7 @@ func (g *accessGrant) expiresAt(now time.Time) time.Time {
 // tokens, and nil otherwise.
 func (w *Wallet) dpopKeyForRenewal(r CredentialRenewal) *ecdsa.PrivateKey {
 	if r.UseDPoP {
-		return w.HolderKeyPair()
+		return w.clientKey(r)
 	}
 	return nil
 }
@@ -136,7 +136,7 @@ func (w *Wallet) dpopKeyForRenewal(r CredentialRenewal) *ecdsa.PrivateKey {
 // rotated refresh token.
 func (w *Wallet) requestAccessToken(r CredentialRenewal, form url.Values, nonce *string) (*accessGrant, error) {
 	dpopKey := w.dpopKeyForRenewal(r)
-	authenticator := w.clientAuthenticatorFor(r.ClientAuth, r.ClientID)
+	authenticator := w.clientAuthenticatorFor(r.ClientAuth, r.ClientID, w.clientKey(r))
 	details := formRequestLogDetails(r.TokenEndpoint, "token", form)
 	details["grant_type"] = form.Get("grant_type")
 	details["client_attestation"] = r.ClientAuth != nil && r.ClientAuth.Method == ClientAuthAttestation

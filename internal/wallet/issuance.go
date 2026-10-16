@@ -321,11 +321,12 @@ func (w *Wallet) processCredentialOffer(offerURI string, opts OfferOptions) (_ *
 		metadata: metadata,
 		display:  display,
 		renewal: CredentialRenewal{
-			Issuer:             offer.CredentialIssuer,
-			TokenEndpoint:      tokenEndpoint,
-			CredentialEndpoint: credentialEndpoint,
-			ConfigurationID:    configID,
-			UseDPoP:            usesDPoP(oauthMeta),
+			Issuer:              offer.CredentialIssuer,
+			TokenEndpoint:       tokenEndpoint,
+			CredentialEndpoint:  credentialEndpoint,
+			ConfigurationID:     configID,
+			UseDPoP:             usesDPoP(oauthMeta),
+			AuthorizationServer: oauthIssuer(oauthMeta, tokenEndpoint),
 		},
 		nonces: &dpopNonceState{},
 		report: opts.addFindings,
@@ -352,7 +353,7 @@ func (w *Wallet) processCredentialOffer(offerURI string, opts OfferOptions) (_ *
 	// An issuer may protect the pre-authorized token request with DPoP,
 	// attestation-based client authentication and key attestation. Its metadata
 	// says which of them apply.
-	session.renewal.ClientAuth = w.resolveClientAuthentication("", clientAuthContext{oauthMeta: oauthMeta, tokenEndpoint: tokenEndpoint})
+	session.renewal.ClientAuth = w.resolveClientAuthentication("", clientAuthContext{oauthMeta: oauthMeta, tokenEndpoint: tokenEndpoint, issuerMetadata: metadata})
 	if session.renewal.ClientAuth != nil {
 		// A pre-authorized offer carries no client_id, and the wallet is not
 		// registered with the issuer. The attestation identifies the wallet

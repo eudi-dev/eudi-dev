@@ -22,6 +22,7 @@ import (
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/remote"
 	"github.com/eudi-dev/eudi-dev/v3/internal/urlhandler"
+	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
 )
 
 // Version is set at build time via -ldflags:
@@ -47,6 +48,7 @@ func init() {
 		}
 	}
 	remote.SetVersion(Version)
+	wallet.SetSolutionVersion(Version)
 	urlhandler.SetScriptVersion(Version)
 	rootCmd.AddCommand(versionCmd)
 }
