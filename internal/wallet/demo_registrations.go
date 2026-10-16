@@ -112,7 +112,7 @@ func (w *Wallet) demoAccessSigningMaterial(keyName string, registration registra
 		return nil, nil, err
 	}
 	dnsNames, _, _ := provider.IssuerSubjectAltNames(w.IssuerURL)
-	subject, err := json.Marshal([]any{rp.Identifier[0].Identifier, rp.LegalPerson.LegalName, rp.Country, tradeName, serviceID, rp.Services[0].SupportURI, dnsNames})
+	subject, err := json.Marshal([]any{rp.Identifier[0].Identifier, rp.LegalPerson.LegalName, rp.Country, tradeName, serviceID, rp.Services[0].SupportURI, dnsNames, w.Signer().CRLDistributionPoints(provider.AccessCACRLPath)})
 	if err != nil {
 		return nil, nil, err
 	}

@@ -80,7 +80,7 @@ The [complete certificate examples](test-certificate-examples.md) contain public
 
 The root's subject and issuer are both `C=NL, O=EUDI Dev Test CA, CN=EUDI Dev Wallet CA`. It has critical key usage `keyCertSign, cRLSign` (`2.5.29.15`) and critical basic constraints `CA:TRUE, pathlen:1` (`2.5.29.19`).
 
-The provider intermediates and signing leaves have `C=NL` and organization identifier `NTRNL-NLTEST.00000000` (`2.5.4.97`) in this reference configuration. For credential signers and their provider CAs, the country and identifier follow the credential's `issuing_country`. The trusted list signer has the scheme operator name `EUDI Dev Wallet` as its organization. Its country is the scheme territory of the list it signs, as ETSI TS 119 602 V1.1.1 clause 6.8.0 requires. That is `EU` for the lists of Annexes D to G, the PuB-EAA list and the list of trusted lists, and `NL` for the QEAA and EAA lists. Each territory has its own signer certificate with the same key. The access signer of the demo verifier has organization `EUDI Dev Test Verifier` and identifier `NTRNL-NLTEST.00000001`, so it is registered as its own relying party. An access signer's common name is the trade name of its service (ETSI TS 119 411-8 V1.1.1 GEN-6.1.1-04, ARF Reg_31). The other intermediates and leaves use organization `EUDI Dev Test Provider`.
+The provider intermediates and signing leaves have `C=NL` and organization identifier `NTRNL-NLTEST.00000000` (`2.5.4.97`) in this reference configuration. For credential signers and their provider CAs, the country and identifier follow the credential's `issuing_country`. The trusted list signer has the scheme operator name `EUDI Dev Wallet` as its organization. Its country is the scheme territory of the signed list, as ETSI TS 119 602 V1.1.1 clause 6.8.0 requires. That is `EU` for the lists of Annexes D to G, the PuB-EAA list and the list of trusted lists, and `NL` for the QEAA and EAA lists. Each territory has its own signer certificate with the same key. The access signer of the demo verifier has organization `EUDI Dev Test Verifier` and identifier `NTRNL-NLTEST.00000001`, so it is registered as its own relying party. An access signer's common name is the trade name of its service (ETSI TS 119 411-8 V1.1.1 GEN-6.1.1-04, ARF Reg_31). The other intermediates and leaves use organization `EUDI Dev Test Provider`.
 
 ### Subjects and issuers
 
@@ -102,7 +102,7 @@ The provider intermediates and signing leaves have `C=NL` and organization ident
 | Status signer | `EUDI Dev Status List Signer` | Root CA |
 | Trusted list signer | `EUDI Dev Test List Operator` | Root CA |
 
-Provider intermediates have critical key usage `keyCertSign, cRLSign` and critical basic constraints `CA:TRUE, pathlen:0`. Signing leaves have critical key usage `digitalSignature` and omit basic constraints. Only the mdoc document signers carry the critical extended key usage `mdlDS` (`1.0.18013.5.1.2`), because ISO/IEC 18013-5 Table B.3 requires it. ETSI EN 319 412-2 V2.5.1 GEN-4.3.10-1 forbids a critical extended key usage, so the SD-JWT VC signers and the other signing roles have no extended key usage extension. The mdoc signer keeps the ISO profile, and the conflict with GEN-4.3.10-1 stays there.
+Provider intermediates have critical key usage `keyCertSign, cRLSign` and critical basic constraints `CA:TRUE, pathlen:0`. Signing leaves have critical key usage `digitalSignature` and omit basic constraints. Only the mdoc document signers carry the critical extended key usage `mdlDS` (`1.0.18013.5.1.2`), because ISO/IEC 18013-5 Table B.3 requires it. ETSI EN 319 412-2 V2.5.1 GEN-4.3.10-1 forbids a critical extended key usage, so the SD-JWT VC signers and the other signing roles have no extended key usage extension. The mdoc signer follows the ISO profile and so conflicts with GEN-4.3.10-1.
 
 ### Provider and access indicators
 
@@ -115,23 +115,27 @@ The PID and wallet provider signers have a non-critical QCStatements extension (
 
 Every access certificate has a non-critical certificate policies extension (`2.5.29.32`) with policy `0.4.0.194118.1.2`, the legal person access policy identifier from TS 119 411-8 V1.1.1 clause 5.3. Its CPS qualifier (`1.3.6.1.5.5.7.2.1`) is `https://github.com/eudi-dev/eudi-dev/blob/main/docs/test-certificates.md`. Access certificates have critical basic constraints `CA:FALSE` and last one year.
 
-The other signing leaves have a non-critical certificate policies extension with the policy `2.25.59819509786676971546508472270828373224` and the same CPS qualifier. ETSI EN 319 412-2 V2.5.1 GEN-4.3.3-2 requires a policy that reflects the practices of the CA. ETSI TS 119 412-6 applies that rule to the PID provider (PID-4.1-01) and the wallet provider (WAL-5.1-01) but names no policy of its own. No ETSI policy describes a test CA, so this policy identifier is a UUID OID (ITU-T X.667). This page is its practice statement.
+The other signing leaves have a non-critical certificate policies extension with the policy `2.25.59819509786676971546508472270828373224` and the same CPS qualifier. ETSI EN 319 412-2 V2.5.1 GEN-4.3.3-2 requires a policy that reflects the practices of the CA. ETSI TS 119 412-6 applies that rule to the PID provider (PID-4.1-01) and the wallet provider (WAL-5.1-01) but defines no policy of its own. No ETSI policy describes a test CA, so this policy identifier is a UUID OID (ITU-T X.667). This page is its practice statement.
 
 ### Retrieval, revocation and alternative names
 
 The examples use the public demo origin `https://eudi-test.dev`. A configured HTTPS `--base-url` sets the issuer URL directly, including any path prefix. Each listed extension is non-critical.
 
-| Certificate | AIA `caIssuers` (`1.3.6.1.5.5.7.1.1`) | CRL distribution point (`2.5.29.31`) | Subject alternative names (`2.5.29.17`) |
+| Certificate | AIA `caIssuers` (`1.3.6.1.5.5.7.1.1`) | CRL path (`2.5.29.31`) | Subject alternative names (`2.5.29.17`) |
 | --- | --- | --- | --- |
-| PID signer | `https://eudi-test.dev/api/certificates/providers/pid/NL.der` | `https://eudi-test.dev/api/crl/providers/pid/NL` | DNS `eudi-test.dev`, URI `https://eudi-test.dev` |
-| Wallet provider signer | `https://eudi-test.dev/api/certificates/providers/wallet/NL.der` | `https://eudi-test.dev/api/crl/providers/wallet/NL` | DNS `eudi-test.dev`, URI `https://eudi-test.dev` |
-| EAA signer | `https://eudi-test.dev/api/certificates/providers/eaa/NL.der` | `https://eudi-test.dev/api/crl/providers/eaa/NL` | DNS `eudi-test.dev`, URI `https://eudi-test.dev` |
-| Provider intermediates | `https://eudi-test.dev/api/certificates/ca.der` | `https://eudi-test.dev/api/crl` | None |
-| Trusted list signer | `https://eudi-test.dev/api/certificates/ca.der` | `https://eudi-test.dev/api/crl` | DNS `eudi-test.dev`, URI `https://eudi-test.dev` |
-| Access signers of the demo issuer and the demo verifier | None | None | DNS `eudi-test.dev`, URI `https://eudi-test.dev/support` |
-| Registrar signer | None | None | None |
-| Status signer | None | `https://eudi-test.dev/api/crl` | None |
+| PID signer | `https://eudi-test.dev/api/certificates/providers/pid/NL.der` | `/api/crl/providers/pid/NL` | DNS `eudi-test.dev`, URI `https://eudi-test.dev` |
+| Wallet provider signer | `https://eudi-test.dev/api/certificates/providers/wallet/NL.der` | `/api/crl/providers/wallet/NL` | DNS `eudi-test.dev`, URI `https://eudi-test.dev` |
+| EAA signer | `https://eudi-test.dev/api/certificates/providers/eaa/NL.der` | `/api/crl/providers/eaa/NL` | DNS `eudi-test.dev`, URI `https://eudi-test.dev` |
+| Provider intermediates | `https://eudi-test.dev/api/certificates/ca.der` | `/api/crl` | None |
+| Trusted list signer | `https://eudi-test.dev/api/certificates/ca.der` | `/api/crl` | DNS `eudi-test.dev`, URI `https://eudi-test.dev` |
+| Access certificates | `https://eudi-test.dev/api/certificates/relying-party-access-ca.der` | `/api/crl/relying-party-access-ca` | The support URI or email of the service, and for the demo parties DNS `eudi-test.dev` |
+| Registrar signer | None | `/api/crl/registrar-ca` | None |
+| Status signer | None | `/api/crl` | None |
 | Root CA, relying party access CA and registrar CA | None | None | None |
+
+Each CRL distribution point lists the path twice. The first URL uses plain http, because ETSI EN 319 412-2 V2.5.1 GEN-4.3.11-4 asks for one http or ldap reference. The second uses the issuer URL over https. With an http `--base-url`, such as the local default, the http URL is that base URL. With an https `--base-url` on the default port, such as `https://eudi-test.dev`, the wallet runs behind a TLS terminator. The http URL is then the issuer host on port 80, for example `http://eudi-test.dev/api/crl`, and the terminator has to answer the CRL paths over plain http. In other setups, such as `--serve-tls` on its own port, the certificate gives only the https URL. The CA of each certificate signs the CRL at its path.
+
+The wallet CA, the provider CAs and the registrar CA revoke no certificates, so their CRLs are empty. Credentials are revoked on the status list. The relying party access CA revokes the access certificates of a deleted relying party, and those of a service whose certified data changed (CIR (EU) 2025/848 Article 9(6) and Annex IV). See [registrar](wallet/registrar.md).
 
 ### Localhost special case
 
@@ -140,7 +144,7 @@ The default local issuer URL is `https://localhost:8086`. The wallet's HTTP UI a
 | Field | Local value |
 | --- | --- |
 | AIA `caIssuers` | `https://localhost:8086/api/certificates/providers/pid/NL.der` |
-| CRL distribution point | `https://localhost:8086/api/crl/providers/pid/NL` |
+| CRL distribution points | `http://localhost:8085/api/crl/providers/pid/NL` and `https://localhost:8086/api/crl/providers/pid/NL` |
 | Subject alternative names | DNS `localhost`, URI `https://localhost:8086` |
 
 `--docker` uses `host.docker.internal` as the local hostname. An HTTPS `--base-url`, such as `https://eudi-test.dev`, sets the issuer URL directly. The wallet reuses its stored issuer URL unless `--base-url` or `--docker` selects another one. See [wallet server URLs](wallet/serve.md) for serving and TLS options.
@@ -155,7 +159,7 @@ Trusted lists publish issuance certificates, their provider CAs and status signi
 
 The schema is ETSI's [published JSON binding](https://forge.etsi.org/rep/esi/x19_60201_lists_of_trusted_entities), revision `e84f427f0cde99513b574ef4b5a155ac4a38eab6` from 13 November 2025. The PID, wallet provider, access certificate provider, registration certificate provider and PuB-EAA lists follow Annexes D to H. TS 119 602 defines no list type for QEAA and EAA providers. Their lists use types of this project: `https://eudi-test.dev/LoTEType/QEAAProvidersList` and `https://eudi-test.dev/LoTEType/EAAProvidersList`. The list of trusted lists has the type `https://eudi-test.dev/LoTEType/ListOfTrustedLists`.
 
-The entity on the access certificate provider list and on the registration certificate provider list is named `EUDI Dev Test CA`. That is the organization of the CA it lists (clause 6.6.3.0). A CA from `--relying-party-ca` is listed under its organization too. The services of the wallet provider list carry the reference number of the wallet solution in a `ServiceUniqueIdentifier` extension (Table E.3). The test wallet has no reference number from the Official Journal, so it uses `https://eudi-test.dev/WalletSolution/eudi-dev`.
+The entity on the access certificate provider list and on the registration certificate provider list is named `EUDI Dev Test CA`. That is the organization of the listed CA (clause 6.6.3.0). A CA from `--relying-party-ca` is listed under its organization too. The services of the wallet provider list carry the reference number of the wallet solution in a `ServiceUniqueIdentifier` extension (Table E.3). The test wallet has no reference number from the Official Journal, so it uses `https://eudi-test.dev/WalletSolution/eudi-dev`.
 
 ## Public PID provider comparison
 

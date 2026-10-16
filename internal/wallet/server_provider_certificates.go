@@ -16,18 +16,15 @@ package wallet
 
 import (
 	"crypto/ecdsa"
-	"crypto/rand"
 	"crypto/x509"
 	"encoding/hex"
 	"encoding/pem"
 	"errors"
 	"fmt"
 	"io/fs"
-	"math/big"
 	"net/http"
 	"path"
 	"strings"
-	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
 )
@@ -83,22 +80,4 @@ func (s *Server) handleProviderCertificateDER(w http.ResponseWriter, r *http.Req
 	}
 	w.Header().Set("Content-Type", "application/pkix-cert")
 	w.Write(cert.Raw)
-}
-
-func (s *Server) handleProviderCRL(w http.ResponseWriter, r *http.Request) {
-	key, cert, err := s.providerCAForRequest(r)
-	if err != nil {
-		writeProviderCAError(w, r, err)
-		return
-	}
-	now := time.Now().UTC().Truncate(time.Second)
-	der, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
-		Number: big.NewInt(now.Unix()), ThisUpdate: now, NextUpdate: now.Add(crlUpdateInterval),
-	}, cert, key)
-	if err != nil {
-		apierror.WriteStatus(w, http.StatusInternalServerError, "signing CRL: "+err.Error())
-		return
-	}
-	w.Header().Set("Content-Type", "application/pkix-crl")
-	w.Write(der)
 }

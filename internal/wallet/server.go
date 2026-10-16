@@ -193,7 +193,9 @@ func (s *Server) setupRoutes() {
 	s.routeFunc("GET /api/certificates/ca.der", s.handleCACertificateDER)
 	s.routeFunc("GET /api/certificates/providers/{role}/{country}", s.handleProviderCertificateDER)
 	s.routeFunc("GET /api/certificates/signers/{certificate}", s.handleSigningCertificate)
-	s.routeFunc("GET /api/crl/providers/{role}/{country}", s.handleProviderCRL)
+	s.routeFunc("GET "+provider.ProviderCRLPath("{role}", "{country}"), s.handleProviderCRL)
+	s.routeFunc("GET "+provider.AccessCACRLPath, s.withFreshStore(s.handleAccessCACRL))
+	s.routeFunc("GET "+provider.RegistrarCACRLPath, s.handleRegistrarCACRL)
 	s.routeFunc("GET /api/certificates/tls", s.handleTLSCertificate)
 	s.routeFunc("GET /api/certificates/registrar", s.handleRegistrarCertificate)
 	s.routeFunc("GET /api/certificates/relying-party-access-ca", s.handleRelyingPartyAccessCA)
@@ -229,7 +231,7 @@ func (s *Server) setupRoutes() {
 	}
 
 	s.routeFunc("GET /api/statuslist", s.withFreshStore(s.handleStatusList))
-	s.routeFunc("GET /api/crl", s.withFreshStore(s.handleCRL))
+	s.routeFunc("GET "+provider.RootCRLPath, s.withFreshStore(s.handleCRL))
 	s.routeFunc("GET /api/credentials/{id}/status", s.withFreshStore(s.handleGetCredentialStatus))
 	s.routeFunc("POST /api/credentials/{id}/status", s.withFreshStore(s.handleSetCredentialStatus))
 

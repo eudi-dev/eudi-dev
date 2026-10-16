@@ -54,6 +54,9 @@ func (e *testEnv) RegistrarSigningMaterial() (*ecdsa.PrivateKey, []*x509.Certifi
 func (e *testEnv) RelyingPartyAccessCA() (*ecdsa.PrivateKey, *x509.Certificate, error) {
 	return e.accessCAKey, e.accessCA, e.accessCAErr
 }
+func (e *testEnv) AccessCACRLDistributionPoints() []string {
+	return []string{"http://wallet.example/api/crl/relying-party-access-ca"}
+}
 func (e *testEnv) TemplateLocation() credtemplate.Location { return e.templates }
 func (e *testEnv) MaxRelyingParties() int                  { return e.maxRelyingParties }
 func (e *testEnv) TrustedListURL(category string) string {

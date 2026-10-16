@@ -22,6 +22,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
@@ -245,7 +246,7 @@ func TestHandleStatusList_ServesCWTWhenAsked(t *testing.T) {
 	if len(leaf.ExtKeyUsage) != 0 || len(leaf.UnknownExtKeyUsage) != 0 {
 		t.Error("status signer must omit the optional EKU rather than assert document signing")
 	}
-	if len(leaf.CRLDistributionPoints) != 1 || leaf.CRLDistributionPoints[0] != w.IssuerURL+"/api/crl" {
+	if !slices.Contains(leaf.CRLDistributionPoints, w.IssuerURL+"/api/crl") {
 		t.Errorf("status signer CRL distribution points = %v", leaf.CRLDistributionPoints)
 	}
 	roots := x509.NewCertPool()

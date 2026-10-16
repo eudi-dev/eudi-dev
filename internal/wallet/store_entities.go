@@ -50,6 +50,7 @@ const (
 	registrarSection          = "relying-parties"
 	registrationStatusSection = "registration-status"
 	catalogSection            = "attestation-catalog"
+	accessCertificateSection  = "access-certificates"
 	trustSection              = "trust"
 	settingsSection           = "settings"
 	revisionSection           = "revision"
@@ -59,8 +60,8 @@ const (
 // Running servers reload only serverSections. They manage deferred issuances in memory
 // and use their own configured URLs.
 var (
-	allSections    = []string{credentialsSection, logSection, statusSection, deferredSection, attestationsSection, registrarSection, registrationStatusSection, catalogSection, trustSection, settingsSection}
-	serverSections = []string{credentialsSection, logSection, statusSection, attestationsSection, registrarSection, registrationStatusSection, catalogSection, trustSection}
+	allSections    = []string{credentialsSection, logSection, statusSection, deferredSection, attestationsSection, registrarSection, registrationStatusSection, catalogSection, accessCertificateSection, trustSection, settingsSection}
+	serverSections = []string{credentialsSection, logSection, statusSection, attestationsSection, registrarSection, registrationStatusSection, catalogSection, accessCertificateSection, trustSection}
 )
 
 const logTrimEvery = 64
@@ -194,6 +195,8 @@ func (s *WalletStore) loadSections(w *Wallet, sections []string) error {
 			w.RegistrationStatuses = loaded.registrationStatuses
 		case catalogSection:
 			w.Catalog = loaded.catalog
+		case accessCertificateSection:
+			w.AccessCertificates = loaded.accessCertificates
 		case trustSection:
 			w.TrustedEntities = loaded.trust.Entities
 			w.AddedTrustedLists = loaded.trust.Lists
@@ -289,6 +292,7 @@ type loadedSections struct {
 	relyingParties       []registrar.WalletRelyingParty
 	registrationStatuses []registrar.RegistrationStatus
 	catalog              []registrar.CatalogAttestation
+	accessCertificates   []registrar.AccessCertificateStatus
 	trust                storedTrust
 	settings             walletSettings
 }
@@ -374,6 +378,11 @@ func (s *WalletStore) parseSections(blobs stateSnapshot, sections []string, know
 			var entry registrar.CatalogAttestation
 			if err = json.Unmarshal(data, &entry); err == nil {
 				loaded.catalog = append(loaded.catalog, entry)
+			}
+		case accessCertificateSection:
+			var entry registrar.AccessCertificateStatus
+			if err = json.Unmarshal(data, &entry); err == nil {
+				loaded.accessCertificates = append(loaded.accessCertificates, entry)
 			}
 		case trustSection:
 			err = json.Unmarshal(data, &loaded.trust)
@@ -651,6 +660,11 @@ func (s *WalletStore) currentEntities(w *Wallet, snapshot stateSnapshot) (map[st
 	}
 	for _, entry := range w.Catalog {
 		if err := put(s.stateKey(catalogSection, entityName(entry.Schema.ID)), entry); err != nil {
+			return nil, nil, nil, err
+		}
+	}
+	for _, entry := range w.AccessCertificates {
+		if err := put(s.stateKey(accessCertificateSection, entityName(entry.Serial)), entry); err != nil {
 			return nil, nil, nil, err
 		}
 	}

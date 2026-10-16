@@ -107,6 +107,9 @@ func (e registrarEnv) RegistrarSigningMaterial() (*ecdsa.PrivateKey, []*x509.Cer
 func (e registrarEnv) RelyingPartyAccessCA() (*ecdsa.PrivateKey, *x509.Certificate, error) {
 	return e.w.Signer().RelyingPartyAccessCA()
 }
+func (e registrarEnv) AccessCACRLDistributionPoints() []string {
+	return e.w.Signer().CRLDistributionPoints(provider.AccessCACRLPath)
+}
 func (e registrarEnv) TemplateLocation() credtemplate.Location { return e.w.Templates }
 func (e registrarEnv) MaxRelyingParties() int {
 	e.w.mu.RLock()

@@ -49,6 +49,9 @@ type State struct {
 	// Catalog holds the attestations added to the registrar's catalogue. The
 	// templates add their own entries.
 	Catalog []CatalogAttestation `json:"catalog,omitempty"`
+	// AccessCertificates are the unexpired access certificates issued for a
+	// CSR.
+	AccessCertificates []AccessCertificateStatus `json:"access_certificates,omitempty"`
 }
 
 // Clone copies the lists, so the copy and s change independently.
@@ -57,6 +60,7 @@ func (s State) Clone() State {
 		RelyingParties:       slices.Clone(s.RelyingParties),
 		RegistrationStatuses: slices.Clone(s.RegistrationStatuses),
 		Catalog:              slices.Clone(s.Catalog),
+		AccessCertificates:   slices.Clone(s.AccessCertificates),
 	}
 }
 
@@ -67,6 +71,9 @@ type Env interface {
 	RegistrarBase() string
 	RegistrarSigningMaterial() (*ecdsa.PrivateKey, []*x509.Certificate, error)
 	RelyingPartyAccessCA() (*ecdsa.PrivateKey, *x509.Certificate, error)
+	// AccessCACRLDistributionPoints are the URLs of the CRL of the relying
+	// party access CA.
+	AccessCACRLDistributionPoints() []string
 	TemplateLocation() credtemplate.Location
 	// TrustedListURL is where the wallet publishes the trusted list of a
 	// credential category.
@@ -254,6 +261,7 @@ func (r *Registrar) updateRelyingParty(rp WalletRelyingParty, categories func(fo
 		}
 		return supersedeReason(before, rp, statusKey(s))
 	})
+	r.revokeAccessCertificatesLocked(stored.Identifier, &rp)
 	r.state.RelyingParties[i] = rp
 	return cloneRelyingParty(rp)
 }
@@ -318,6 +326,7 @@ func (r *Registrar) DeleteRelyingParty(identifier string) error {
 		}
 		return ""
 	})
+	r.revokeAccessCertificatesLocked(deleted, nil)
 	r.state.RelyingParties = slices.Delete(r.state.RelyingParties, i, i+1)
 	return nil
 }

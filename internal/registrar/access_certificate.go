@@ -80,10 +80,15 @@ func (r *Registrar) IssueAccessCertificate(req AccessCertificateRequest) (*Acces
 	if err != nil {
 		return nil, err
 	}
-	chain, err := r.AccessCertificateFor(rp, req.ServiceIdentifier, publicKey, req.DNSNames, validity)
+	service, err := findService(rp, req.ServiceIdentifier)
 	if err != nil {
 		return nil, err
 	}
+	chain, err := r.AccessCertificateFor(rp, service.ServiceIdentifier, publicKey, req.DNSNames, validity)
+	if err != nil {
+		return nil, err
+	}
+	r.recordAccessCertificate(rp, service.ServiceIdentifier, chain[0])
 	return accessCertificateResult(chain), nil
 }
 
@@ -156,6 +161,7 @@ func (r *Registrar) AccessCertificateFor(rp WalletRelyingParty, serviceIdentifie
 		// CIR (EU) 2025/848 Annex IV point 3(k) asks for the location of the
 		// issuer certificate (authorityInformationAccess caIssuers).
 		IssuingCertificateURL: []string{strings.TrimRight(r.env.RegistrarBase(), "/") + AccessCACertificatePath},
+		CRLDistributionPoints: r.env.AccessCACRLDistributionPoints(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("%w: signing the access certificate: %w", errRegistrarSigning, err)

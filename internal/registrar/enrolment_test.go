@@ -124,6 +124,7 @@ func TestFailedEnrolmentKeepsTheCertificates(t *testing.T) {
 		t.Fatal(err)
 	}
 	certificates := w.RegistrationCertificateStatuses(identifier)
+	issueTestAccessCertificate(t, w, identifier)
 	key, err := mock.GenerateKey()
 	if err != nil {
 		t.Fatal(err)
@@ -132,6 +133,9 @@ func TestFailedEnrolmentKeepsTheCertificates(t *testing.T) {
 	changed.Services = []WalletRelyingPartyService{stored.Services[0]}
 	changed.Services[0].IntendedUses = []IntendedUse{stored.Services[0].IntendedUses[0], ageCheckUse("Second check")}
 	changed.Services[0].IntendedUses[0].Purpose = []MultiLangString{{Lang: "en", Content: "Changed purpose"}}
+	// A new trade name revokes the access certificate until the enrolment
+	// fails.
+	changed.Services[0].ServiceTradeName = "Changed Shop"
 
 	for name, fail := range map[string]func(e *Enrolment){
 		"bad DNS name": func(e *Enrolment) {
@@ -150,6 +154,9 @@ func TestFailedEnrolmentKeepsTheCertificates(t *testing.T) {
 		}
 		if after := w.RegistrationCertificateStatuses(identifier); !reflect.DeepEqual(after, certificates) {
 			t.Errorf("%s: certificates %+v, want %+v", name, after, certificates)
+		}
+		if revoked := w.RevokedAccessCertificates(); len(revoked) != 0 {
+			t.Errorf("%s: %d access certificates stay revoked", name, len(revoked))
 		}
 	}
 }

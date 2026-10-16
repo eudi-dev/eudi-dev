@@ -19,6 +19,7 @@ import (
 	"crypto/x509"
 	"slices"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
 	"github.com/eudi-dev/eudi-dev/v3/internal/storage"
 )
@@ -45,7 +46,9 @@ type walletRoot struct{ w *Wallet }
 func (r walletRoot) Root() provider.Root {
 	r.w.mu.RLock()
 	defer r.w.mu.RUnlock()
-	return provider.Root{IssuerKey: r.w.IssuerKey, CAKey: r.w.CAKey, Chain: slices.Clone(r.w.CertChain), IssuerURL: r.w.IssuerURL}
+	// A server without --base-url serves on its own origin.
+	base := jsonutil.FirstNonEmpty(r.w.BaseURL, r.w.ServingOrigin)
+	return provider.Root{IssuerKey: r.w.IssuerKey, CAKey: r.w.CAKey, Chain: slices.Clone(r.w.CertChain), IssuerURL: r.w.IssuerURL, BaseURL: base}
 }
 
 // AccessSigningMaterial is the access certificate of the wallet's issuer, the

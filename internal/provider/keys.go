@@ -186,7 +186,7 @@ func (s *Keys) storedCA(key *ecdsa.PrivateKey, root *x509.Certificate) (*x509.Ce
 // ProviderCA returns the CA under root that issues the signing certificates
 // of the role in the country. A root with path length zero issues them
 // itself.
-func (s *Keys) ProviderCA(rootKey *ecdsa.PrivateKey, root *x509.Certificate, issuer, role, country string) (*ecdsa.PrivateKey, *x509.Certificate, error) {
+func (s *Keys) ProviderCA(rootKey *ecdsa.PrivateKey, root *x509.Certificate, origin Root, role, country string) (*ecdsa.PrivateKey, *x509.Certificate, error) {
 	if root.MaxPathLenZero {
 		return rootKey, root, nil
 	}
@@ -213,8 +213,8 @@ func (s *Keys) ProviderCA(rootKey *ecdsa.PrivateKey, root *x509.Certificate, iss
 		CommonName:            "EUDI Dev Test " + role + " CA " + country,
 		Country:               country,
 		CertificateAuthority:  true,
-		IssuingCertificateURL: issuingCertificateURLs(issuer),
-		CRLDistributionPoints: CRLDistributionPoints(issuer),
+		IssuingCertificateURL: issuingCertificateURLs(origin.IssuerURL),
+		CRLDistributionPoints: origin.CRLDistributionPoints(RootCRLPath),
 	}, false)
 	return key, cert, err
 }

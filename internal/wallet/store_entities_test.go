@@ -31,6 +31,7 @@ import (
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
+	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
 	"github.com/eudi-dev/eudi-dev/v3/internal/storage"
 )
 
@@ -78,6 +79,7 @@ func TestEntities_RoundTrip(t *testing.T) {
 	}
 	w.RegisterStatusEntry(first, 7)
 	w.DeferredIssuances = []DeferredIssuance{{ID: "d1", TransactionID: "tx", DeferredEndpoint: "https://issuer.example/deferred"}}
+	w.AccessCertificates = []registrar.AccessCertificateStatus{{Serial: "1f", Identifier: "NLTEST.1", Expires: time.Now().Add(time.Hour).Unix(), Revoked: time.Now().Unix(), Reason: 5}}
 	w.BaseURL = "http://wallet.example"
 	w.IssuerURL = "https://wallet.example:8086"
 	for i := 0; i < 3; i++ {
@@ -110,6 +112,9 @@ func TestEntities_RoundTrip(t *testing.T) {
 	}
 	if len(reloaded.IssuedAttestations) != 2 {
 		t.Fatalf("issued attestations = %+v", reloaded.IssuedAttestations)
+	}
+	if !reflect.DeepEqual(reloaded.AccessCertificates, w.AccessCertificates) {
+		t.Fatalf("access certificates = %+v", reloaded.AccessCertificates)
 	}
 	if reloaded.BaseURL != w.BaseURL || reloaded.IssuerURL != w.IssuerURL {
 		t.Fatalf("urls = %s %s", reloaded.BaseURL, reloaded.IssuerURL)

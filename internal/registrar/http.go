@@ -626,7 +626,12 @@ func (h *Server) handleIssueAccessCertificate(w http.ResponseWriter, r *http.Req
 		apierror.InvalidJSON(w, err)
 		return
 	}
-	result, err := h.Registrar().IssueAccessCertificate(req)
+	var result *AccessCertificateResult
+	var err error
+	h.Mutate(func() bool {
+		result, err = h.Registrar().IssueAccessCertificate(req)
+		return err == nil
+	})
 	if err != nil {
 		writeRegistrarError(w, err)
 		return

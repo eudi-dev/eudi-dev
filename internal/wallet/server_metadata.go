@@ -15,16 +15,12 @@
 package wallet
 
 import (
-	"crypto/rand"
-	"crypto/x509"
 	"errors"
 	"fmt"
 	"io/fs"
-	"math/big"
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
 	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
@@ -260,28 +256,4 @@ func (s *Server) handleStatusList(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", statuslist.MediaTypeJWT)
 	w.Write([]byte(jwt))
-}
-
-// Generated signing certificates reference this CRL (ISO/IEC 18013-5 Table B.3). The
-// wallet does not revoke certificates, so it signs an empty list. Credential
-// revocation uses the status list.
-func (s *Server) handleCRL(w http.ResponseWriter, r *http.Request) {
-	caKey, chain := s.wallet.certificateAuthority()
-	if caKey == nil || len(chain) == 0 {
-		apierror.WriteStatus(w, http.StatusInternalServerError, "wallet has no CA certificate")
-		return
-	}
-	caCert := chain[len(chain)-1]
-	now := time.Now()
-	der, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
-		Number:     big.NewInt(now.Unix()),
-		ThisUpdate: now,
-		NextUpdate: now.Add(crlUpdateInterval),
-	}, caCert, caKey)
-	if err != nil {
-		apierror.WriteStatus(w, http.StatusInternalServerError, fmt.Sprintf("generating certificate revocation list: %v", err))
-		return
-	}
-	w.Header().Set("Content-Type", "application/pkix-crl")
-	w.Write(der)
 }

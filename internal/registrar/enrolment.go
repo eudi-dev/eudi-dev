@@ -62,6 +62,7 @@ func (r *Registrar) Enrol(e Enrolment, update bool) (*EnrolmentResult, error) {
 	}
 	identifier := candidate.Identifier[0].Identifier
 	statuses := r.RegistrationCertificateStatuses(identifier)
+	accessCertificates := r.accessCertificateRecords(identifier)
 	var stored WalletRelyingParty
 	if before != nil {
 		stored, err = r.UpdateRelyingParty(candidate)
@@ -79,7 +80,7 @@ func (r *Registrar) Enrol(e Enrolment, update bool) (*EnrolmentResult, error) {
 		result.Registration, err = r.IssueRegistrationCertificate(*registration)
 	}
 	if err != nil {
-		r.undoEnrolment(identifier, before, statuses)
+		r.undoEnrolment(identifier, before, statuses, accessCertificates)
 		return nil, err
 	}
 	return result, nil
@@ -151,9 +152,10 @@ func enrolmentRequests(candidate WalletRelyingParty, before *WalletRelyingParty,
 }
 
 // undoEnrolment puts back the registration and the statuses of its
-// certificates as they were before the enrolment. A new registration is
+// certificates as they were before the enrolment. That undoes the revocation
+// of access certificates by a changed registration. A new registration is
 // removed.
-func (r *Registrar) undoEnrolment(identifier string, before *WalletRelyingParty, statuses []RegistrationStatus) {
+func (r *Registrar) undoEnrolment(identifier string, before *WalletRelyingParty, statuses []RegistrationStatus, accessCertificates []AccessCertificateStatus) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if i := relyingPartyIndex(r.state.RelyingParties, identifier); i >= 0 {
@@ -169,6 +171,12 @@ func (r *Registrar) undoEnrolment(identifier string, before *WalletRelyingParty,
 		})
 		if j >= 0 {
 			r.state.RegistrationStatuses[j] = kept
+		}
+	}
+	for _, kept := range accessCertificates {
+		j := slices.IndexFunc(r.state.AccessCertificates, func(s AccessCertificateStatus) bool { return s.Serial == kept.Serial })
+		if j >= 0 {
+			r.state.AccessCertificates[j] = kept
 		}
 	}
 }

@@ -85,6 +85,8 @@ The **Service** field selects the service for the addition. It starts with a ser
 
 **Issue access certificate** signs an access certificate for a service of a registered party. It takes a CSR, or the browser creates the key. The registration and its registration certificates don't change. A party with several services has one button per service. On a public demo the protected parties have the button too.
 
+The relying party access CA keeps a record of each access certificate it issued for a CSR, until the certificate expires. It tracks at most 100 valid ones per party. Past that it stops tracking the oldest one. That certificate stays valid and never goes on the CRL. Deleting the party revokes all tracked ones (CIR (EU) 2025/848 Article 9(6)). An update that changes the legal name, the country, the trade name or the support contact of a service, or removes the service, revokes the access certificates of that service (Annex IV). The revoked certificates are on the CRL at `/api/crl/relying-party-access-ca`. The access certificates of the demo issuer and the demo verifier are never revoked.
+
 Deleting a registration certificate removes what it certifies from the registration: the intended use, or the attestation types of the service. The registrar revokes the certificates of that intended use or service. Deleting the relying party revokes all its certificates.
 
 ![Register a verifier](../assets/registrar-register.png)
@@ -149,7 +151,7 @@ The status list of the registration certificates must chain to a revocation serv
 
 The wallet does not check these:
 
-- **Access certificate revocation.** The registrar does not revoke access certificates. A deleted relying party keeps a valid access certificate until it expires.
+- **Access certificate revocation.** The wallet doesn't read the CRL of an access certificate.
 - **The register.** The wallet does not look up `registry_uri`. A verifier sends its registration certificate with its request, so no external request is needed to check it (ARF RPRC_19). An issuer publishes its certificate in its metadata (RPRC_22). For a request with no registration certificate or with several, the consent dialog warns that the registered information could not be checked (RPRC_17).
 
 ## External registrar

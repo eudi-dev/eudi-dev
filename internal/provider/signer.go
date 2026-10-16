@@ -40,6 +40,14 @@ type Root struct {
 	CAKey     *ecdsa.PrivateKey
 	Chain     []*x509.Certificate
 	IssuerURL string
+	// BaseURL is the wallet's own URL. An http one serves the CRLs over
+	// plain http.
+	BaseURL string
+}
+
+// CRLDistributionPoints are the URLs of the CRL served at path.
+func (r Root) CRLDistributionPoints(path string) []string {
+	return CRLDistributionPoints(r.BaseURL, r.IssuerURL, path)
 }
 
 // Env gives the signer the root material of the wallet. Root reads it under
@@ -104,7 +112,7 @@ func (s *Signer) ForList(list List, country, format string) (*ecdsa.PrivateKey, 
 	opts := mock.LeafCertOptions{
 		CommonName:            signingLeafCommonName(list),
 		Country:               country,
-		CRLDistributionPoints: CRLDistributionPoints(root.IssuerURL),
+		CRLDistributionPoints: root.CRLDistributionPoints(RootCRLPath),
 	}
 	role := Role(list)
 	switch {
@@ -121,16 +129,15 @@ func (s *Signer) ForList(list List, country, format string) (*ecdsa.PrivateKey, 
 		}
 	}
 	opts.IssuingCertificateURL = issuingCertificateURLs(root.IssuerURL)
-	parentKey, parent, err := s.keys.ProviderCA(caKey, caCert, root.IssuerURL, role, country)
+	parentKey, parent, err := s.keys.ProviderCA(caKey, caCert, root, role, country)
 	if err != nil {
 		return nil, nil, fmt.Errorf("generating provider CA: %w", err)
 	}
 	if !parent.Equal(caCert) {
-		base := strings.TrimRight(root.IssuerURL, "/")
-		if base != "" {
+		if base := strings.TrimRight(root.IssuerURL, "/"); base != "" {
 			opts.IssuingCertificateURL = []string{base + "/api/certificates/providers/" + role + "/" + country + ".der"}
-			opts.CRLDistributionPoints = []string{base + "/api/crl/providers/" + role + "/" + country}
 		}
+		opts.CRLDistributionPoints = root.CRLDistributionPoints(ProviderCRLPath(role, country))
 	}
 	opts.DNSNames, opts.IPAddresses, opts.URIs = IssuerSubjectAltNames(root.IssuerURL)
 	leafCert, err := s.keys.Certificate(parentKey, parent, &issuerKey.PublicKey, opts, false)
@@ -175,14 +182,57 @@ func signingKeyName(role string) string {
 	return "issuer-" + role
 }
 
-// CRLDistributionPoints is the CRL of the issuer. ISO/IEC 18013-5 Table B.3
-// requires a CRL distribution point URI in document signer certificates.
-func CRLDistributionPoints(issuerURL string) []string {
+// The paths of the CRLs of the wallet CA, of the relying party access CA and
+// of the registrar CA.
+const (
+	RootCRLPath        = "/api/crl"
+	AccessCACRLPath    = "/api/crl/relying-party-access-ca"
+	RegistrarCACRLPath = "/api/crl/registrar-ca"
+)
+
+// ProviderCRLPath is the path of the CRL of a provider CA.
+func ProviderCRLPath(role, country string) string {
+	return "/api/crl/providers/" + role + "/" + country
+}
+
+// CRLDistributionPoints are the URLs of the CRL at path, first over http and
+// then over https. ETSI EN 319 412-2 V2.5.1 GEN-4.3.11-4: "At least one of
+// the present references shall use either http (http://) [...] or ldap
+// (ldap://) scheme." ISO/IEC 18013-5 Table B.3 also requires a CRL
+// distribution point in a document signer certificate.
+//
+// An http base URL serves the CRL itself. An https base URL on the default
+// port is a public origin, so a TLS terminator in front of the wallet answers
+// plain http on the issuer's host. Without such an origin there is no http
+// URL, because nothing would answer it.
+func CRLDistributionPoints(baseURL, issuerURL, path string) []string {
+	base := strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	issuer := strings.TrimRight(strings.TrimSpace(issuerURL), "/")
-	if issuer == "" {
-		return nil
+	var out []string
+	switch {
+	case strings.HasPrefix(base, "http://"):
+		out = append(out, base+path)
+	case strings.HasPrefix(issuer, "http://"):
+		out = append(out, issuer+path)
+	case strings.HasPrefix(issuer, "https://") && publicOrigin(base):
+		if u, err := url.Parse(issuer); err == nil && u.Hostname() != "" {
+			u.Scheme, u.Host = "http", u.Hostname()
+			if strings.Contains(u.Host, ":") {
+				u.Host = "[" + u.Host + "]"
+			}
+			out = append(out, u.String()+path)
+		}
 	}
-	return []string{issuer + "/api/crl"}
+	if strings.HasPrefix(issuer, "https://") {
+		out = append(out, issuer+path)
+	}
+	return out
+}
+
+// publicOrigin reports whether base is an https URL on the default port.
+func publicOrigin(base string) bool {
+	u, err := url.Parse(base)
+	return err == nil && u.Scheme == "https" && u.Hostname() != "" && u.Port() == ""
 }
 
 // issuingCertificateURLs is where the issuer publishes the wallet CA.
@@ -212,7 +262,12 @@ func (s *Signer) ProviderCA(role, country string) (*ecdsa.PrivateKey, *x509.Cert
 	if root.CAKey == nil || len(root.Chain) == 0 {
 		return nil, nil, fmt.Errorf("wallet has no CA certificate chain")
 	}
-	return s.keys.ProviderCA(root.CAKey, root.Chain[len(root.Chain)-1], root.IssuerURL, role, country)
+	return s.keys.ProviderCA(root.CAKey, root.Chain[len(root.Chain)-1], root, role, country)
+}
+
+// CRLDistributionPoints are the URLs of the CRL served at path.
+func (s *Signer) CRLDistributionPoints(path string) []string {
+	return s.env.Root().CRLDistributionPoints(path)
 }
 
 // RelyingPartyAccessCA issues the access certificates of registered relying
@@ -242,7 +297,11 @@ func (s *Signer) Registrar() (*ecdsa.PrivateKey, []*x509.Certificate, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	leaf, err := s.keys.Certificate(caKey, ca, &key.PublicKey, mock.LeafCertOptions{CommonName: "EUDI Dev Test Registrar", Role: mock.RegistrarCertificate}, false)
+	leaf, err := s.keys.Certificate(caKey, ca, &key.PublicKey, mock.LeafCertOptions{
+		CommonName:            "EUDI Dev Test Registrar",
+		Role:                  mock.RegistrarCertificate,
+		CRLDistributionPoints: s.env.Root().CRLDistributionPoints(RegistrarCACRLPath),
+	}, false)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -265,7 +324,7 @@ func (s *Signer) auxiliary(keyRole string, opts mock.LeafCertOptions) (*ecdsa.Pr
 		return nil, nil, err
 	}
 	opts.IssuingCertificateURL = issuingCertificateURLs(issuer)
-	opts.CRLDistributionPoints = CRLDistributionPoints(issuer)
+	opts.CRLDistributionPoints = root.CRLDistributionPoints(RootCRLPath)
 	opts.DNSNames, opts.IPAddresses, opts.URIs = IssuerSubjectAltNames(issuer)
 	ca := chain[len(chain)-1]
 	leaf, err := s.keys.Certificate(caKey, ca, &key.PublicKey, opts, false)
@@ -303,7 +362,7 @@ func (s *Signer) StatusList() (*ecdsa.PrivateKey, []*x509.Certificate, error) {
 	leaf, err := s.keys.Certificate(caKey, caCert, &issuerKey.PublicKey, mock.LeafCertOptions{
 		CommonName:            "EUDI Dev Status List Signer",
 		StatusListSigner:      true,
-		CRLDistributionPoints: CRLDistributionPoints(root.IssuerURL),
+		CRLDistributionPoints: root.CRLDistributionPoints(RootCRLPath),
 	}, false)
 	if err != nil {
 		return nil, nil, fmt.Errorf("generating status list signer certificate: %w", err)
