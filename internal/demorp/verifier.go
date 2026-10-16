@@ -39,6 +39,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
+	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
 	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
 	"github.com/eudi-dev/eudi-dev/v3/internal/trustedlists"
 	"github.com/eudi-dev/eudi-dev/v3/internal/validate"
@@ -1294,13 +1295,28 @@ func (d *DemoRP) credentialTrust() validate.Trust {
 }
 
 // credentialTrustFor anchors the credential that answers the query. Under
-// --arf a PID chains to a PID provider list (ARF ISSU_07, ADR-0022), so a
-// signer on the list of another category cannot issue an accepted PID.
+// --arf the category of the requested type picks the provider lists (ADR-0022).
+// A PID chains to a PID provider list (ARF OIA_12) and a PuB-EAA to a PuB-EAA
+// provider list (OIA_14), so a signer on the list of another category cannot
+// issue an accepted credential. The note to OIA_15 expects the relying party
+// to know the category of the requested type. The catalogue gives it. A type without a
+// catalogue entry has no known category and chains to any provider list.
 func (d *DemoRP) credentialTrustFor(q credentialQuery) validate.Trust {
 	trust := d.credentialTrust()
-	if d.wallet.ARFChecks() && (slices.ContainsFunc(q.typeValues(), credtype.IsPIDType) || credtype.IsPIDType(q.docType)) {
-		trust.Issuance = append(trustedlists.AnchorsOf(d.wallet.TrustedLists().Lists(), lote.PIDProvidersListType, lote.IssuanceServices), d.verifierTrustAnchors...)
+	if !d.wallet.ARFChecks() {
+		return trust
 	}
+	types := q.typeValues()
+	if q.format == credtype.FormatMDOC {
+		types = []string{q.docType}
+	}
+	category := d.wallet.CatalogueCategory(q.format, types)
+	if category == "" {
+		return trust
+	}
+	lists, listType := d.wallet.TrustedLists().Lists(), registrar.CategoryOf(category).LoTEType
+	trust.Issuance = append(trustedlists.AnchorsOf(lists, listType, lote.IssuanceServices), d.verifierTrustAnchors...)
+	trust.Revocation = append(trustedlists.AnchorsOf(lists, listType, lote.RevocationServices), d.verifierTrustAnchors...)
 	return trust
 }
 

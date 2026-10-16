@@ -24,9 +24,11 @@ import (
 
 	"github.com/fxamacker/cbor/v2"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
+	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
 )
 
 // resignCredential signs the issuer JWT of an SD-JWT again with the issuer
@@ -220,6 +222,61 @@ func TestUnderARFAPIDChainsToThePIDProviderList(t *testing.T) {
 			}
 			if errText, _ := status["error"].(string); !tc.verified && !strings.HasPrefix(errText, "signature") {
 				t.Errorf("error = %q, want the signature check to refuse the PID", errText)
+			}
+		})
+	}
+}
+
+// ARF OIA_14: a relying party validates a PuB-EAA with a PuB-EAA provider
+// list. The catalogue entry of the requested type gives its category. A type
+// without an entry chains to any provider list.
+func TestUnderARFACatalogueCategoryPicksTheProviderList(t *testing.T) {
+	const pubEAA, unknown = "urn:test:pub-eaa:1", "urn:test:unknown:1"
+	for _, tc := range []struct {
+		name, vct, signer string
+		verified          bool
+	}{
+		{"a PuB-EAA from a PuB-EAA signer", pubEAA, "pub-eaa", true},
+		{"a PuB-EAA from an EAA signer", pubEAA, "eaa", false},
+		{"a type without a catalogue entry", unknown, "eaa", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d, _, holderKey := newDemoRP(t)
+			d.wallet.RequireARF = true
+			if _, err := d.wallet.Registrar().AddCatalogAttestation(registrar.CatalogAttestation{
+				Name:        "Test PuB-EAA",
+				Category:    "pub-eaa",
+				Credentials: []registrar.CatalogCredential{{Format: credtype.FormatSDJWT, Type: pubEAA, Claims: [][]any{{"given_name"}}}},
+			}); err != nil {
+				t.Fatal(err)
+			}
+			h := d.VerifierHandler()
+			id, params := startVerificationWith(t, h, `{"type":"custom","credentials":[{"format":"dc+sd-jwt","vct":"`+tc.vct+`","claims":[["given_name"]]}]}`)
+
+			key, chain, err := d.wallet.Signer().ForList(provider.CategoryList(tc.signer), "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			credential, err := mock.GenerateSDJWT(mock.SDJWTConfig{
+				Issuer:    d.issuerID(),
+				VCT:       tc.vct,
+				ExpiresIn: time.Hour,
+				Claims:    map[string]any{"given_name": "Erika"},
+				Key:       key,
+				HolderKey: &holderKey.PublicKey,
+				CertChain: chain,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			postPresentation(t, h, id, "cred_0", presentCredential(t, holderKey, credential, params.Get("client_id"), params.Get("nonce")))
+
+			_, status := requestStatus(t, d, id)
+			if verified := status["status"] == "verified"; verified != tc.verified {
+				t.Errorf("status = %v, want verified %v (error: %v)", status["status"], tc.verified, status["error"])
+			}
+			if errText, _ := status["error"].(string); !tc.verified && !strings.HasPrefix(errText, "cred_0: signature") {
+				t.Errorf("error = %q, want the signature check to refuse the credential", errText)
 			}
 		})
 	}

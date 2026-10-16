@@ -211,7 +211,7 @@ func (w *Wallet) issuerARFCheck(metadata map[string]any, signerChain []*x509.Cer
 		registrarCAs:   trustedlists.AnchorsOf(lists, lote.RegistrationCertProvidersListType, lote.IssuanceServices),
 		statusCAs:      trustedlists.AnchorsOf(lists, lote.RegistrationCertProvidersListType, lote.RevocationServices),
 		statusClient:   w.RegistrationStatusClient(),
-		category:       w.offeredCategory,
+		category:       w.CatalogueCategory,
 	})
 }
 
@@ -229,10 +229,10 @@ func (w *Wallet) issuerARFAdvisories(metadata map[string]any) []string {
 	return []string{"ARF RPRC_22a and ETSI TS 119 472-3 V1.1.1 ISS-MDATA-REG_CERT-4.2.3-04 as adapted by CIR (EU) 2026/1731 Annex XI: the issuer metadata carries no registration certificate (an issuer_info entry with typ rc-wrp+jwt). Wallets must check registration certificates from " + oid4vp.RegistrationDeadline + " (CIR (EU) 2024/2982 Article 3(4))"}
 }
 
-// offeredCategory is the category of the catalogue entry for an offered type.
-// A type without an entry is a PID when its name says so (ARF PID_04 and
-// PID_14, see typeCategory).
-func (w *Wallet) offeredCategory(format string, types []string) string {
+// CatalogueCategory is the category of the catalogue entry for a type. A type
+// without an entry is a PID when its name says so (ARF PID_04 and PID_14, see
+// typeCategory). Otherwise its category is unknown and empty.
+func (w *Wallet) CatalogueCategory(format string, types []string) string {
 	if entry, ok := w.catalogueEntryFor(format, types); ok {
 		return entry.Category
 	}

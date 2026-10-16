@@ -24,4 +24,6 @@ The list IDs are `pid`, `qeaa`, `pub-eaa` and `eaa`. Beside them the wallet publ
 
 A wallet state that stores `http://uri.etsi.org/19602/LoTEType/local` for a type reads it as the list of the type's category, or as `eaa`.
 
+With `--arf` the demo verifier anchors a presented credential in the lists of the requested type's category, as ARF OIA_12 to OIA_15 ask of a relying party. The catalogue entry of the type gives the category. A type without an entry has no known category, so any provider list anchors it.
+
 Every credential from a user template is on a list, so the demo issuer's registration covers its type from the first offer. A wallet with `--arf` reports only an unlisted type when the demo issuer offers one.
