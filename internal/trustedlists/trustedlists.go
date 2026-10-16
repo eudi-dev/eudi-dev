@@ -100,6 +100,9 @@ const (
 	// --trusted-list-ca. The wallet doesn't publish it.
 	TrustedListCAID = "trusted-list-ca"
 	ListOfListsType = "https://eudi-test.dev/LoTEType/ListOfTrustedLists"
+	// listOfListsTerritory is the SchemeTerritory of the list of lists. It
+	// points to lists of the whole Union.
+	listOfListsTerritory = "EU"
 )
 
 // Entity is a provider added by a user to one of the wallet's trusted lists.
@@ -137,7 +140,7 @@ func NewEntity(list, name, certificatesPEM string) (Entity, error) {
 	if err != nil {
 		return Entity{}, fmt.Errorf("the certificates: %w", err)
 	}
-	entity := Entity{List: list, Name: jsonutil.FirstNonEmpty(name, certs[0].Subject.CommonName, "Trusted provider")}
+	entity := Entity{List: list, Name: jsonutil.FirstNonEmpty(name, caEntityName(certs[0], "Trusted provider"))}
 	digest := sha256.New()
 	digest.Write([]byte(list))
 	for _, cert := range certs {
@@ -213,7 +216,7 @@ func (t *Set) listEntities(listID string) []lote.Entity {
 		if err == nil {
 			for _, cert := range configured {
 				encoded := base64.StdEncoding.EncodeToString(cert.Raw)
-				out = append(out, lote.Entity{Name: jsonutil.FirstNonEmpty(cert.Subject.CommonName, "Relying party CA"), Issuance: []string{encoded}, Revocation: []string{encoded}})
+				out = append(out, lote.Entity{Name: caEntityName(cert, "Relying party CA"), Issuance: []string{encoded}, Revocation: []string{encoded}})
 			}
 		}
 	}

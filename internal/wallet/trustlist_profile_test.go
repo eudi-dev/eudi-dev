@@ -52,9 +52,8 @@ func TestTrustListProfilePublication(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			postal := info["SchemeOperatorAddress"].(map[string]any)["SchemeOperatorPostalAddress"].([]any)[0].(map[string]any)
-			if len(operator.Subject.Country) != 1 || operator.Subject.Country[0] != postal["Country"] {
-				t.Errorf("operator certificate country = %v, address country = %v", operator.Subject.Country, postal["Country"])
+			if len(operator.Subject.Country) != 1 || operator.Subject.Country[0] != info["SchemeTerritory"] {
+				t.Errorf("operator certificate country = %v, scheme territory = %v (§6.8.0)", operator.Subject.Country, info["SchemeTerritory"])
 			}
 			date := info["ListIssueDateTime"].(string)
 			if _, err := time.Parse("2006-01-02T15:04:05Z", date); err != nil || strings.Contains(date, ".") {

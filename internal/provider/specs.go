@@ -48,6 +48,12 @@ const (
 	walletProviderSchemeCommunityRules  = "http://uri.etsi.org/19602/WalletProvidersList/schemerules/EU"
 	walletProviderIssuanceServiceType   = "http://uri.etsi.org/19602/SvcType/WalletSolution/Issuance"
 	walletProviderRevocationServiceType = "http://uri.etsi.org/19602/SvcType/WalletSolution/Revocation"
+
+	// WalletSolutionReference stands in for the reference number that the
+	// Commission publishes for a certified wallet solution (ETSI TS 119 602
+	// V1.1.1 Table E.3). The test wallet has none, so it uses a URI of this
+	// project like its other list URIs.
+	WalletSolutionReference = "https://eudi-test.dev/WalletSolution/eudi-dev"
 )
 
 type IssuedAttestationSpec struct {
@@ -275,7 +281,7 @@ func WalletProviderList() List {
 		RevocationServiceType:       walletProviderRevocationServiceType,
 		// ETSI TS 119 602 V1.1.1 Table E.3: "The value of the ServiceName
 		// component shall be the name of a wallet solution". The wallet's
-		// attestations name it in wallet_name.
+		// attestations carry it in wallet_name.
 		IssuanceServiceName:   config.WalletName,
 		RevocationServiceName: config.WalletName,
 		EntityName:            config.WalletName + " Provider",

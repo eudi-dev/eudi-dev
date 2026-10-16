@@ -34,7 +34,6 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
 	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
-	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
 	"github.com/eudi-dev/eudi-dev/v3/internal/validate"
 )
@@ -410,7 +409,7 @@ func AnchorsOf(lists []List, listType, kind string) []*x509.Certificate {
 func (t *Set) ListOfLists(issuer string) (string, error) {
 	issuer = strings.TrimRight(strings.TrimSpace(issuer), "/")
 	signer := t.env.Signer()
-	key, chain, err := signer.TrustList(config.WalletName, mock.DefaultCertificateCountry)
+	key, chain, err := signer.TrustList(config.WalletName, listOfListsTerritory)
 	if err != nil {
 		return "", err
 	}
@@ -439,7 +438,7 @@ func (t *Set) ListOfLists(issuer string) (string, error) {
 			"LoTESequenceNumber":    sequence,
 			"LoTEType":              ListOfListsType,
 			"SchemeOperatorName":    []map[string]string{{"lang": "en", "value": config.WalletName}},
-			"SchemeTerritory":       "EU",
+			"SchemeTerritory":       listOfListsTerritory,
 			"ListIssueDateTime":     issued.Format(time.RFC3339),
 			"NextUpdate":            issued.Add(lote.UpdateInterval).Format(time.RFC3339),
 		}

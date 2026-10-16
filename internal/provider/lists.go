@@ -74,6 +74,12 @@ func (s *Keys) TrustList(key *ecdsa.PrivateKey, ca *x509.Certificate, opts lote.
 	})
 }
 
+// Territory is the SchemeTerritory of the list. The list signer's
+// countryName must match it (ETSI TS 119 602 V1.1.1 §6.8.0).
+func (list List) Territory() string {
+	return jsonutil.FirstNonEmpty(list.SchemeTerritory, mock.DefaultCertificateCountry)
+}
+
 // SignTrustList signs a list with the wallet's defaults for unset options.
 func SignTrustList(signingKey *ecdsa.PrivateKey, caCert *x509.Certificate, opts lote.Options) (string, error) {
 	if strings.TrimSpace(opts.OperatorName) == "" {
@@ -83,9 +89,7 @@ func SignTrustList(signingKey *ecdsa.PrivateKey, caCert *x509.Certificate, opts 
 	if opts.Scheme.LoTEType == "" {
 		opts.Scheme = eaa
 	}
-	if opts.Scheme.SchemeTerritory == "" {
-		opts.Scheme.SchemeTerritory = mock.DefaultCertificateCountry
-	}
+	opts.Scheme.SchemeTerritory = List{Scheme: opts.Scheme}.Territory()
 	opts.Scheme.StatusDeterminationApproach = jsonutil.FirstNonEmpty(opts.Scheme.StatusDeterminationApproach, eaa.StatusDeterminationApproach)
 	opts.Scheme.SchemeTypeCommunityRules = jsonutil.FirstNonEmpty(opts.Scheme.SchemeTypeCommunityRules, eaa.SchemeTypeCommunityRules)
 	opts.Path = jsonutil.FirstNonEmpty(opts.Path, DefaultTrustListPath)

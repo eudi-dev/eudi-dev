@@ -15,6 +15,7 @@
 package trustedlists
 
 import (
+	"crypto/x509"
 	"encoding/base64"
 	"fmt"
 	"slices"
@@ -23,6 +24,7 @@ import (
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/config"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
@@ -72,7 +74,7 @@ func (t *Set) SignedGroupList(issuer string, group Group, path string) (string, 
 	if path == "" {
 		path = provider.DefaultTrustListPath
 	}
-	listKey, listChain, err := signer.TrustList(config.WalletName, mock.DefaultCertificateCountry)
+	listKey, listChain, err := signer.TrustList(config.WalletName, group.List.Territory())
 	if err != nil {
 		return "", err
 	}
@@ -85,11 +87,14 @@ func (t *Set) SignedGroupList(issuer string, group Group, path string) (string, 
 		ProviderName: t.env.ListedProviderName(),
 	}
 	switch group.ID {
+	case provider.WalletProviderListID:
+		opts.WalletSolution = provider.WalletSolutionReference
 	case provider.AccessCAListID:
 		_, accessCA, err := signer.RelyingPartyAccessCA()
 		if err != nil {
 			return "", err
 		}
+		opts.ProviderName = caEntityName(accessCA, t.env.ListedProviderName())
 		opts.IssuanceCertificates = []string{base64.StdEncoding.EncodeToString(accessCA.Raw)}
 		return signer.Keys().TrustList(listKey, listChain[0], opts)
 	case provider.RegistrarListID:
@@ -99,6 +104,7 @@ func (t *Set) SignedGroupList(issuer string, group Group, path string) (string, 
 		if err != nil {
 			return "", err
 		}
+		opts.ProviderName = caEntityName(registrarCA, t.env.ListedProviderName())
 		opts.IssuanceCertificates = []string{base64.StdEncoding.EncodeToString(registrarCA.Raw)}
 		opts.RevocationCertificates = opts.IssuanceCertificates
 		return signer.Keys().TrustList(listKey, listChain[0], opts)
@@ -140,6 +146,17 @@ func (t *Set) SignedGroupList(issuer string, group Group, path string) (string, 
 	opts.IssuanceCertificates = issuanceCertificates
 	opts.RevocationCertificates = []string{base64.StdEncoding.EncodeToString(statusChain[0].Raw)}
 	return signer.Keys().TrustList(listKey, listChain[0], opts)
+}
+
+// caEntityName is the TEName of the entity that lists a certificate, or
+// fallback for a certificate without a name. ETSI TS 119 602 V1.1.1
+// §6.6.3.0: the organizationName of a listed certificate "should strictly
+// match the 'TE Name' value".
+func caEntityName(cert *x509.Certificate, fallback string) string {
+	if len(cert.Subject.Organization) > 0 {
+		return jsonutil.FirstNonEmpty(cert.Subject.Organization[0], cert.Subject.CommonName, fallback)
+	}
+	return jsonutil.FirstNonEmpty(cert.Subject.CommonName, fallback)
 }
 
 // pidCountries lists the issuing countries of the PID templates and the

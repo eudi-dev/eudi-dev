@@ -104,6 +104,9 @@ type Options struct {
 	// Previous is the list this one replaces. A Pub-EAA providers list keeps
 	// its services.
 	Previous string `json:"-"`
+	// WalletSolution is the reference number of the operator's own wallet
+	// solution on a wallet providers list.
+	WalletSolution string `json:",omitempty"`
 }
 
 // Entity is a provider on a list with the base64 DER certificates of its
@@ -111,6 +114,9 @@ type Options struct {
 type Entity struct {
 	Name                 string
 	Issuance, Revocation []string
+	// WalletSolution is the reference number URI of the wallet solution
+	// listed in the services of a wallet provider entity.
+	WalletSolution string
 }
 
 // UpdateInterval is the time until the NextUpdate of a list built by Sign.
@@ -171,7 +177,7 @@ func Sign(signingKey *ecdsa.PrivateKey, signer *x509.Certificate, opts Options) 
 		schemeInfo["PointersToOtherLoTE"] = []map[string]any{PointerEntry(opts.Issuer+opts.Path, opts.Scheme.LoTEType, opts.OperatorName, opts.Scheme.SchemeTerritory, signerB64)}
 	}
 
-	entities := append([]Entity{{Name: opts.ProviderName, Issuance: opts.IssuanceCertificates, Revocation: opts.RevocationCertificates}}, opts.Entities...)
+	entities := append([]Entity{{Name: opts.ProviderName, Issuance: opts.IssuanceCertificates, Revocation: opts.RevocationCertificates, WalletSolution: opts.WalletSolution}}, opts.Entities...)
 	trustedEntities := make([]map[string]any, 0, len(entities))
 	for _, entity := range entities {
 		trustedEntities = append(trustedEntities, map[string]any{
@@ -293,6 +299,15 @@ func services(scheme Scheme, entity Entity) []map[string]any {
 	}
 	if len(entity.Revocation) > 0 {
 		out = append(out, service(scheme.RevocationServiceType, scheme.RevocationServiceName, entity.Revocation))
+	}
+	// ETSI TS 119 602 V1.1.1 Table E.3: "The ServiceUniqueIdentifier extension
+	// shall be used to provide the reference number of the wallet solution
+	// identified through the ServiceName component". The JSON binding
+	// (1960201_json_schema_sie.json) defines the member of the extension object.
+	if scheme.LoTEType == WalletProvidersListType && entity.WalletSolution != "" {
+		for _, s := range out {
+			s["ServiceInformation"].(map[string]any)["ServiceInformationExtensions"] = []map[string]string{{"ServiceUniqueIdentifier": entity.WalletSolution}}
+		}
 	}
 	return out
 }
