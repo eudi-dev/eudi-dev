@@ -45,6 +45,34 @@ func TestValidateAuthorizationRequest_DebugAllowsMissingNonce(t *testing.T) {
 	}
 }
 
+// OpenID4VP 1.0 §5.3: the Verifier MUST include state "if at least one
+// Presentation without Holder Binding is requested and unless the Digital
+// Credentials API is used".
+func TestStateIsRequiredForAPresentationWithoutHolderBinding(t *testing.T) {
+	const want = "OID4VP 1.0 §5.3: state is required when the request accepts a presentation without holder binding"
+	unbound := func(r *Request) {
+		r.DCQLQuery = sdjwtVCTQuery("urn:eudi:pid:1")
+		r.DCQLQuery["credentials"].([]any)[0].(map[string]any)["require_cryptographic_holder_binding"] = false
+	}
+	for _, tt := range []struct {
+		name   string
+		change func(*Request)
+		found  bool
+	}{
+		{"unbound without state", unbound, true},
+		{"unbound with state", func(r *Request) { unbound(r); r.State = "s-1" }, false},
+		{"unbound over the DC API", func(r *Request) { unbound(r); r.ResponseMode, r.ResponseURI = "dc_api", "" }, false},
+		{"bound without state", nil, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := ValidateAuthorizationRequest(Checks{Strict: true}, redirectRequest(tt.change))
+			if found := err != nil && strings.Contains(err.Error(), want); found != tt.found {
+				t.Errorf("err = %v, want the §5.3 finding: %v", err, tt.found)
+			}
+		})
+	}
+}
+
 func TestValidateAuthorizationRequest_StrictRejectsUnsupportedClientIDPrefix(t *testing.T) {
 	params := &Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ClientID: "invalid_scheme:verifier", ResponseType: "vp_token", ResponseMode: "direct_post", ResponseURI: "https://verifier.example/response", Nonce: "nonce"}}
 

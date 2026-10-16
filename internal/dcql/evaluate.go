@@ -634,6 +634,18 @@ func w3cCredentialTypes(payload map[string]any) []string {
 	return nil
 }
 
+// RequestsUnboundPresentation reports whether any credential query of the
+// query accepts a presentation without Cryptographic Holder Binding.
+func RequestsUnboundPresentation(query map[string]any) bool {
+	credentials, _ := query["credentials"].([]any)
+	for _, cq := range credentials {
+		if cqMap, ok := cq.(map[string]any); ok && !requiresHolderBinding(cqMap) {
+			return true
+		}
+	}
+	return false
+}
+
 // requiresHolderBinding reads require_cryptographic_holder_binding. It
 // defaults to true (OpenID4VP 1.0 §6.1). The Verifier then expects a
 // Cryptographic Holder Binding proof. An unbound credential cannot give one.

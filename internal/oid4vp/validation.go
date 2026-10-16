@@ -123,6 +123,12 @@ func authorizationFindings(params *Request, payload map[string]any) []string {
 	if params.ResponseMode == "" {
 		findings = append(findings, "OID4VP 1.0 §5.2: response_mode is required")
 	}
+	// §5.3: the Verifier MUST include state "if at least one Presentation
+	// without Holder Binding is requested and unless the Digital Credentials
+	// API is used".
+	if params.State == "" && !IsDCAPIResponseMode(params.ResponseMode) && dcql.RequestsUnboundPresentation(params.DCQLQuery) {
+		findings = append(findings, "OID4VP 1.0 §5.3: state is required when the request accepts a presentation without holder binding")
+	}
 	// §8.2: "When the response_uri parameter is present, the redirect_uri
 	// Authorization Request parameter MUST NOT be present."
 	if responseModeUsesDirectPost(params.ResponseMode) && params.RedirectURI != "" {
