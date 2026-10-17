@@ -62,17 +62,14 @@ func TestScanFile_InvalidImage(t *testing.T) {
 	}
 }
 
-func TestScanScreen_NonDarwin(t *testing.T) {
-	// ScanScreen is macOS only. Elsewhere it must fail at once.
-	if runtime.GOOS == "darwin" {
-		t.Skip("skipping: ScanScreen launches interactive screencapture on macOS")
+func TestScanScreenWithoutScreenCapture(t *testing.T) {
+	// macOS and Linux open an interactive screen capture.
+	if runtime.GOOS == "darwin" || runtime.GOOS == "linux" {
+		t.Skip("ScanScreen opens an interactive screen capture on " + runtime.GOOS)
 	}
 	_, err := ScanScreen()
-	if err == nil {
-		t.Fatal("expected error on non-darwin platform")
-	}
-	if !strings.Contains(err.Error(), "only supported on macOS") {
-		t.Errorf("unexpected error: %v", err)
+	if err == nil || !strings.Contains(err.Error(), "works on macOS and Linux") {
+		t.Errorf("ScanScreen: %v, want the hint to use --qr", err)
 	}
 }
 
