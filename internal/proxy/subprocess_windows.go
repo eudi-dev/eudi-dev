@@ -28,5 +28,5 @@ func (s *Subprocess) Stop() {
 	if s.cmd.Process == nil {
 		return
 	}
-	s.cmd.Process.Signal(os.Kill)
+	_ = s.cmd.Process.Signal(os.Kill)
 }
