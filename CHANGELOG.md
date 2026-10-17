@@ -5,6 +5,44 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.0] - 2026-10-17
+
+### Added
+
+- **Issuer identity on the demo issuer page.** The demo issuer can be registered, not registered, serve unsigned metadata or use your own certificates, each under its own issuer identifier. See [demo issuer and verifier](docs/wallet/registrar.md#demo-issuer-and-verifier).
+- **Identity of the PID request during issuance.** With presentation during issuance, the demo issuer page chooses the identity of its PID request on its own, like the demo verifier.
+- **Credential identifiers on demand.** With `credential_identifiers=always`, the demo issuer returns credential identifiers in every token response (OpenID4VCI 1.0 §6.2), as Keycloak does.
+- **Own images on the public demo.** Visitors can upload, paste or link a logo and background image in the issue dialog. A linked image is fetched once and stored.
+- **Template images in the issue dialog.** A template's logo and background image show as previews, and the × on a preview removes the image.
+- **URL scheme handlers on Linux.** `wallet register` and `wallet serve --register` work on Linux, so `openid4vp://` and credential offer links open the wallet. See [serve](docs/wallet/serve.md).
+- **Screen QR scanning on Linux.** `--screen` works on Linux through the desktop's own screenshot tool (XDG Desktop Portal).
+- **`eu-eaap://` links.** The wallet opens presentation requests with the `eu-eaap://` scheme of ETSI TS 119 472-2.
+- **CRLs for the test PKI.** The wallet's CAs serve CRLs, and new certificates link them. With `--arf` the wallet checks the CRLs of access certificates and registrar certificates.
+- **Revoked access certificates.** Deleting a registration or changing its certified data revokes the access certificates issued for it.
+- **Claims of wallet and key attestations.** The wallet's attestations carry the claims of CIR (EU) 2024/2979 Annex Ib, including a status reference, and each authorization server gets its own wallet instance key.
+- **Key attestations at the demo issuer.** The demo issuer verifies key attestations, offers the `attestation` proof type and refuses revoked wallet or key attestations. `--demo-issuer-key-attestation required` makes key attestations mandatory.
+- **Credential encryption at the demo issuer.** The demo issuer offers encrypted credential requests and responses. Plain requests still work.
+- **More key proof algorithms at the demo issuer.** Key proofs and DPoP proofs can use ES384 and ES512.
+- **Reuse policy.** With `--arf` the wallet follows the issuer's `credential_reuse_policy` (ETSI TS 119 472-3) for the batch size and for renewal.
+- **Checks of received credentials.** With `--arf` the wallet checks the type, validity and status of a received credential and the validity period of a batch. Copies of a batch with different attribute values are a finding in every mode.
+
+### Changed
+
+- **Findings about an issuer in one log entry.** Problems with the issuer metadata, ARF findings, catalogue findings and card display problems are logged together for each issuance.
+- **A fresh key for every credential.** Each issued credential is bound to its own new key.
+- **Error responses to authenticated verifiers.** In strict mode with `--arf`, a verifier with a valid access certificate gets an error response for every refused request. The error code says why, for example `invalid_request`.
+- **`--arf` includes `--haip`.** The ARF builds on HAIP, so `--arf` turns the HAIP checks on too. An explicit `--haip=false` still turns them off.
+- **`state` for presentations without holder binding.** A request that accepts a presentation without holder binding must carry `state` (OpenID4VP 1.0 §5.3).
+- **PID content.** Every SD-JWT VC has `nbf`, and a PID discloses `iat` selectively. The EU PID template has no separate house number (CIR (EU) 2026/1731).
+- **Certificate and list profiles.** Signing certificates carry a test certificate policy, and the SD-JWT VC signer has its own certificate without the critical mdoc purpose. Trusted lists follow ETSI TS 119 602 more closely. See [test certificates](docs/test-certificates.md).
+- **Credential categories at the demo verifier.** With `--arf` the demo verifier accepts a credential only from the provider lists of its catalogue category.
+- **`iat` in request objects.** The demo verifier puts `iat` in the JWS header of its request objects (ETSI TS 119 472-2).
+
+### Fixed
+
+- **Suspended credentials in the wallet.** A credential with status SUSPENDED (`2`) or another non-zero status showed as active. Its card now shows the status, and Activate sets it back to valid.
+- **Unsigned Digital Credentials API requests.** The wallet refused an unsigned request whose JSON text held two dots. It now reads the request as a JSON object.
+
 ## [3.1.4] - 2026-10-15
 
 ### Fixed
