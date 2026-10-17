@@ -72,7 +72,7 @@ Scans a QR code from an image file or screen capture and detects the content:
 
 ```bash
 eudi wallet scan qr-image.png
-eudi wallet scan --screen              # macOS interactive screen capture
+eudi wallet scan --screen              # interactive screen capture (macOS and Linux)
 eudi wallet scan --screen --auto-accept # approves a presentation without asking
 ```
 
@@ -176,7 +176,7 @@ A request without a registration certificate gets a warning in every mode. So do
 
 The ARF lets the Wallet Provider decide whether to refuse (RPA_06a). In `--mode debug` the wallet logs the findings as warnings and goes on. `POST /api/presentations` returns them in `findings`. This works for requests by URL, over the Digital Credentials API and during [interactive authorization](issuing.md#interactive-authorization). Strict mode refuses.
 
-How strict mode refuses depends on the verifier. When the request is signed with a trusted access certificate and its client identifier is valid, the wallet sends the verifier an error response (OpenID4VP 1.0 §8.5, RFC 6749 §4.1.2.1). When only ARF findings remain, the error is `access_denied`. Its `error_description` is "The request does not meet the ARF registration rules: " followed by the findings, for example `ARF RPRC_21: ...`. When the request also breaks OpenID4VP, the error is the §8.5 code of that problem, such as `invalid_request` or `invalid_transaction_data`, and the description lists all findings. `POST /api/presentations` answers with status `refused` and the same description. `wallet accept` and `wallet scan` send the same response. Over the Digital Credentials API, the error is in the API result (OpenID4VP 1.0 Appendix A). Any other strict refusal stays in the wallet. The caller gets HTTP 400 as described under [HAIP 1.0 Enforcement](#haip-10-enforcement).
+How strict mode refuses depends on the verifier. When the request is signed with a trusted access certificate and its client identifier is valid, the wallet sends the verifier an error response (OpenID4VP 1.0 §8.5, RFC 6749 §4.1.2.1). When only ARF findings remain, the error is `access_denied`. Its `error_description` is "The request does not meet the ARF rules: " followed by the findings, for example `ARF RPRC_21: ...`. When the request also breaks OpenID4VP, the error is the §8.5 code of that problem, such as `invalid_request` or `invalid_transaction_data`, and the description lists all findings. `POST /api/presentations` answers with status `refused` and the same description. `wallet accept` and `wallet scan` send the same response. Over the Digital Credentials API, the error is in the API result (OpenID4VP 1.0 Appendix A). Any other strict refusal stays in the wallet. The caller gets HTTP 400 as described under [HAIP 1.0 Enforcement](#haip-10-enforcement).
 
 The [registrar API walkthrough](registrar-api.md) shows both outcomes with real requests.
 

@@ -261,7 +261,7 @@ func walletScanCmd() *cobra.Command {
 	}
 
 	cmd.Flags().IntVar(&port, "port", config.DefaultWalletPort, "Server port (serves trusted list and consent UI)")
-	cmd.Flags().BoolVar(&screen, "screen", false, "Interactive screen capture (macOS)")
+	cmd.Flags().BoolVar(&screen, "screen", false, "Interactive screen capture (macOS and Linux)")
 	cmd.Flags().BoolVar(&autoAccept, "auto-accept", false, "Approve presentations without asking")
 	cmd.Flags().BoolVar(&docker, "docker", false, "Serve the trusted lists and the status list under host.docker.internal for verifiers in a container")
 	addListenFlag(cmd, &listen, "--docker binds 0.0.0.0 unless this flag or the variable is set. ")
