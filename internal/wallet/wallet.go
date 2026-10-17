@@ -210,7 +210,10 @@ type ConformanceSettings struct {
 	ValidationMode ValidationMode `json:"validation_mode"`
 	RequireHAIP    bool           `json:"require_haip"`
 	// RequireARF turns on the ARF checks of verifiers, issuers and received
-	// credentials (--arf).
+	// credentials (--arf). Turning it on also turns on RequireHAIP: ARF Annex 2
+	// has wallets follow OpenID4VP and OpenID4VCI as profiled in [HAIP], and CIR
+	// (EU) 2024/2982 Annex II as amended by CIR (EU) 2026/1731 applies HAIP
+	// (OIDFVP-HAIP-GEN-01).
 	RequireARF bool `json:"require_arf"`
 	// RequireEncryptedRequest rejects unencrypted request_uri responses.
 	RequireEncryptedRequest bool `json:"require_encrypted_request"`
@@ -287,6 +290,7 @@ func (w *Wallet) UpdateConformance(p ConformancePatch) error {
 			return err
 		}
 	}
+	arfWasOn := next.RequireARF
 	for _, field := range []struct {
 		value  *bool
 		target *bool
@@ -302,6 +306,9 @@ func (w *Wallet) UpdateConformance(p ConformancePatch) error {
 	}
 	if p.TLSVerify.Set {
 		next.TLSVerify = p.TLSVerify.Value
+	}
+	if next.RequireARF && !arfWasOn && p.RequireHAIP == nil {
+		next.RequireHAIP = true
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()

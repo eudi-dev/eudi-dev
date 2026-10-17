@@ -32,7 +32,7 @@ import (
 
 const (
 	haipFlagUsage                = "Enforce HAIP 1.0 on presentations (x509_hash, direct_post.jwt, DCQL, signed request object, P-256 response encryption) and on credential offers (https issuer, and authorization code offers also need PAR, PKCE S256, DPoP, client auth)"
-	arfFlagUsage                 = "Check the access and registration certificates of verifiers and issuers against the ARF, including over-asking and revocation. With --mode strict the wallet refuses the request or the offer on any finding"
+	arfFlagUsage                 = "Check the access and registration certificates of verifiers and issuers against the ARF, including over-asking and revocation. Turns on --haip too, because the ARF builds on HAIP. With --mode strict the wallet refuses the request or the offer on any finding"
 	relyingPartyCAFlagUsage      = "PEM file with CA certificates for relying party access and registration certificates. The wallet puts them on its access-ca and registrar lists (repeatable)"
 	trustListCAFlagUsage         = "PEM file with CA certificates of trusted list operators. With --arf the wallet also accepts trusted lists signed under these CAs (repeatable)"
 	trustedListFlagUsage         = "URL of an external list of trusted entities (ETSI TS 119 602) for the wallet's list of trusted lists. With --arf its providers anchor the checks of their list type (repeatable)"
@@ -121,7 +121,7 @@ func (f *conformanceFlags) resolve() (walletConformance, error) {
 	c := walletConformance{
 		settings: wallet.ConformanceSettings{
 			ValidationMode:          mode,
-			RequireHAIP:             f.haip,
+			RequireHAIP:             f.haip || f.arf && !f.cmd.Flags().Changed("haip"),
 			RequireARF:              f.arf,
 			RequireEncryptedRequest: f.encrypted,
 			VCIVersion:              vciVersion,

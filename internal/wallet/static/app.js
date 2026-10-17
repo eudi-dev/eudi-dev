@@ -3582,7 +3582,12 @@
     applyConformanceToControls();
   }
 
-  function onConformanceChange() {
+  function onConformanceChange(event) {
+    // The ARF builds on HAIP, so turning the ARF checks on turns HAIP on too.
+    if (event && event.target && event.target.id === 'conf-arf-input' && event.target.checked) {
+      const haip = document.getElementById('conf-haip-input');
+      if (haip) haip.checked = true;
+    }
     renderConformanceHints();
     if (demoMode) return;
     setServerConformance(currentControlValues());

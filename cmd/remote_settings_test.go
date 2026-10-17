@@ -175,3 +175,28 @@ func TestConformanceFlagsApplyEverySetting(t *testing.T) {
 		t.Errorf("applied %+v", got)
 	}
 }
+
+// --arf turns on --haip, because the ARF builds on HAIP. An explicit --haip
+// value wins.
+func TestARFFlagTurnsOnHAIP(t *testing.T) {
+	for _, tc := range []struct {
+		args []string
+		haip bool
+	}{
+		{[]string{"--arf"}, true},
+		{[]string{"--arf", "--haip=false"}, false},
+	} {
+		cmd := &cobra.Command{Use: "accept"}
+		flags := addConformanceFlags(cmd)
+		if err := cmd.ParseFlags(tc.args); err != nil {
+			t.Fatal(err)
+		}
+		conformance, err := flags.resolve()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if conformance.settings.RequireHAIP != tc.haip || !conformance.settings.RequireARF {
+			t.Errorf("%v: require_haip=%v require_arf=%v, want %v and true", tc.args, conformance.settings.RequireHAIP, conformance.settings.RequireARF, tc.haip)
+		}
+	}
+}

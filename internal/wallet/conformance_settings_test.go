@@ -54,3 +54,31 @@ func TestConformanceSettingsRefuseUnknownValues(t *testing.T) {
 		t.Errorf("preferred format = %q after a refused change", got)
 	}
 }
+
+// The ARF builds on HAIP, so turning the ARF checks on turns the HAIP checks
+// on. A require_haip value in the same patch wins.
+func TestTurningARFOnTurnsHAIPOn(t *testing.T) {
+	off := false
+	on := true
+	w := generateTestWallet(t)
+	if err := w.UpdateConformance(ConformancePatch{RequireARF: &on, RequireHAIP: &off}); err != nil {
+		t.Fatal(err)
+	}
+	if got := w.Conformance(); got.RequireHAIP || !got.RequireARF {
+		t.Errorf("with require_haip false in the patch: require_haip=%v require_arf=%v, want only ARF on", got.RequireHAIP, got.RequireARF)
+	}
+
+	w = generateTestWallet(t)
+	if err := w.UpdateConformance(ConformancePatch{RequireARF: &on}); err != nil {
+		t.Fatal(err)
+	}
+	if got := w.Conformance(); !got.RequireHAIP || !got.RequireARF {
+		t.Errorf("after turning ARF on: require_haip=%v require_arf=%v, want both on", got.RequireHAIP, got.RequireARF)
+	}
+	if err := w.UpdateConformance(ConformancePatch{RequireHAIP: &off}); err != nil {
+		t.Fatal(err)
+	}
+	if got := w.Conformance(); got.RequireHAIP || !got.RequireARF {
+		t.Errorf("after turning HAIP off: require_haip=%v require_arf=%v, want only ARF on", got.RequireHAIP, got.RequireARF)
+	}
+}

@@ -2198,6 +2198,8 @@ test.describe("ARF checks", () => {
     await page.locator("#conf-mode-select").selectOption("strict");
     await page.locator("#conf-arf-input").check();
     await expect.poll(async () => (await jsonGet(`${WALLET_URL}/api/config`)).body.require_arf).toBe(true);
+    // The ARF builds on HAIP, so the HAIP checks turn on with it.
+    await expect(page.locator("#conf-haip-input")).toBeChecked();
 
     const responseURI = "http://127.0.0.1:9/response";
     const uri = "openid4vp://?" + new URLSearchParams({
