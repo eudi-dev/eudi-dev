@@ -93,7 +93,7 @@ func parseCatalogSource(name, dir string, data []byte) ([]CatalogFileEntry, erro
 			continue
 		}
 		if len(e.Schema.TrustedAuthorities) > 0 {
-			return nil, fmt.Errorf("%s: %s: issuerCA puts the CA on the wallet's list of the category, and trustedAuthorities links another list. Use one of them", name, e.label(i))
+			return nil, fmt.Errorf("%s: %s: set either issuerCA or trustedAuthorities. issuerCA adds the CA to the wallet's list for the category, and trustedAuthorities links another list", name, e.label(i))
 		}
 		file := e.IssuerCA
 		if !filepath.IsAbs(file) {

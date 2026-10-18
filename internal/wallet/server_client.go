@@ -25,9 +25,9 @@ import (
 // handlers.
 const ClientHeader = config.ClientHeader
 
-const staleClientNotice = "This client named neither itself nor a page, so what it submits is offered to every open tab " +
-	"rather than the one that started it. Re-register the URL handler with 'eudi wallet register', or send " +
-	OwnerHeader + " from your own client to say which page a flow belongs to."
+const staleClientNotice = "This client did not identify itself or a page, so its requests show up in every open tab. " +
+	"Re-register the URL handler with 'eudi wallet register', or send " +
+	OwnerHeader + " from your own client to tell the wallet which page a flow belongs to."
 
 func clientName(r *http.Request) string {
 	if r == nil {

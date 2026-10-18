@@ -45,7 +45,7 @@ VCI Final runs 32 plans covering both credential formats, both grants, both offe
 
 The HAIP plans expose fewer selectable variants (the module entries fix the rest):
 
-- VP HAIP: SD-JWT and mdoc with `direct_post.jwt` and `dc_api.jwt`, the latter covering unsigned (no `client_id`), signed `x509_hash`, and multisigned `x509_hash` Browser API modules (4 plans)
+- VP HAIP: SD-JWT and mdoc with `direct_post.jwt` and `dc_api.jwt` (4 plans). The `dc_api.jwt` plans cover unsigned (no `client_id`), signed `x509_hash`, and multisigned `x509_hash` Browser API modules
 - VCI HAIP: SD-JWT and mdoc, each issuer-initiated with the offer `by_value` and `by_reference` and wallet-initiated without an offer, each covering immediate plain, deferred plain, and immediate encrypted responses (6 plans)
 
 The matrix omits the `pre_registered` and `decentralized_identifier` prefixes, `issuer_initiated_dc_api`, `rar` authorization requests in the authorization code flow, and mTLS or `private_key_jwt` client authentication. The wallet uses scope-based authorization. The HAIP plans cover wallet-initiated issuance. The Final issuance matrix uses issuer-initiated flows.

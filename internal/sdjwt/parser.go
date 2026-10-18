@@ -379,7 +379,7 @@ func parseStructure(raw string) (*Token, error) {
 		if alg, ok := rawAlg.(string); !ok {
 			token.Deviations = append(token.Deviations, "_sd_alg is not a string, which RFC 9901 §4.1.1 requires, so its disclosures cannot be matched")
 		} else if _, err := hashForSDAlg(alg); err != nil {
-			token.Deviations = append(token.Deviations, fmt.Sprintf("_sd_alg %q is not a hash this build computes, so its disclosures cannot be matched", alg))
+			token.Deviations = append(token.Deviations, fmt.Sprintf("_sd_alg %q is not a supported hash algorithm, so its disclosures cannot be matched", alg))
 		} else {
 			sdAlg = alg
 		}

@@ -270,7 +270,7 @@ func (w *Wallet) authorizationChallengeCode(response map[string]any) (string, er
 	// Some servers send code. It is accepted as an alias for authorization_code
 	// with a warning.
 	if code := jsonutil.GetString(response, "code"); code != "" {
-		if err := w.reportServerDeviation("authorization challenge response carried the authorization code in \"code\". Section 5.2.1 of the OAuth 2.0 for First-Party Applications specification names it \"authorization_code\""); err != nil {
+		if err := w.reportServerDeviation("authorization challenge response carried the authorization code in \"code\". Section 5.2.1 of the OAuth 2.0 for First-Party Applications specification calls it \"authorization_code\""); err != nil {
 			return "", err
 		}
 		return code, nil
@@ -304,7 +304,7 @@ func (w *Wallet) runAuthorizationInteraction(endpoint string, response map[strin
 		}
 		return w.runAuthViaWebInteraction(response, setup)
 	case "":
-		return nil, fmt.Errorf("authorization server asked for an interaction without naming its type (OpenID4VCI 1.1 §6.2.1 makes interaction_type_required REQUIRED)")
+		return nil, fmt.Errorf("authorization server asked for an interaction without an interaction type (OpenID4VCI 1.1 §6.2.1 makes interaction_type_required REQUIRED)")
 	default:
 		// §6.2.1: "If a Wallet receives an interaction_type_required value
 		// that it does not support, it MUST abort the issuance process."
@@ -486,7 +486,7 @@ func (w *Wallet) parseInteractiveAuthorizationRequest(request map[string]any, en
 	// §6.2.1.1 answers the interaction with a presentation, so the request
 	// has to ask for a vp_token.
 	if params.ResponseType != "" && !oid4vp.ResponseTypeContains(params.ResponseType, "vp_token") {
-		return nil, fmt.Errorf("openid4vp_request has response_type %q and asks for no vp_token, which the presentation interaction of OpenID4VCI 1.1 §6.2.1.1 sends", params.ResponseType)
+		return nil, fmt.Errorf("openid4vp_request has response_type %q and asks for no vp_token. The presentation interaction of OpenID4VCI 1.1 §6.2.1.1 sends a vp_token", params.ResponseType)
 	}
 
 	// §6.2.1.1: "The response_mode MUST be either ia_post for unencrypted

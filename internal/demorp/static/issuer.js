@@ -47,7 +47,7 @@ const GRANT_HINTS = {
 
 const AUTHORIZATION_HINTS = {
   browser: "Sign in here as alice (password alice).",
-  presentation: "The wallet presents a PID before the issuer issues (OpenID4VCI 1.1 interactive authorization).",
+  presentation: "The wallet presents a PID before issuance (OpenID4VCI 1.1 interactive authorization).",
 };
 
 // Credentials need a status reference before the wallet can revoke them.
@@ -64,7 +64,7 @@ const DEFERRED_HINTS = {
 const IDENTITY_HINTS = {
   registered: "The metadata is signed with the demo issuer's access certificate and carries its registration certificate in issuer_info.",
   unregistered: "The metadata has no issuer_info. A wallet with ARF checks warns about the missing registration certificate (RPRC_22a).",
-  unsigned: "The metadata is plain JSON, also for a wallet that asks for signed metadata. It has no issuer_info and no access certificate.",
+  unsigned: "The metadata is plain JSON, even when the wallet asks for signed metadata. It has no issuer_info and no access certificate.",
   own: "The metadata is signed with your key and access certificate and carries your issuer_info. The offer gets an issuer identifier of its own.",
 };
 

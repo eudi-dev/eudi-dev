@@ -361,7 +361,7 @@ func (t *Set) Lists() []List {
 		}
 		list, err := t.readListSignedBy(pointed[i].URL, signers)
 		if err == nil && pointers[i].LoTEType != "" && list.SchemeInfo.LoTEType != pointers[i].LoTEType {
-			list, err = nil, fmt.Errorf("the list has the type %s, and its pointer names %s", list.SchemeInfo.LoTEType, pointers[i].LoTEType)
+			list, err = nil, fmt.Errorf("the list has the type %s, but its pointer gives the type %s", list.SchemeInfo.LoTEType, pointers[i].LoTEType)
 		}
 		pointed[i].List, pointed[i].Err = list, err
 	})

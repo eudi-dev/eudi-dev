@@ -59,7 +59,7 @@ Browser-driven flow:
 ./start.sh --browser
 ```
 
-`./start.sh --browser` runs `eudi wallet register` automatically. On macOS that installs the custom scheme handlers. On Linux and Windows it is a no-op, so when Keycloak shows the wallet page, copy the `openid4vp://...` link target and run:
+`./start.sh --browser` runs `eudi wallet register` automatically. On macOS that installs the custom scheme handlers. On Linux and Windows it does nothing. When Keycloak shows the wallet page, copy the `openid4vp://...` link target and run:
 
 ```bash
 eudi wallet accept '<openid4vp://...>'

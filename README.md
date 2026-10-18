@@ -21,7 +21,7 @@
 
 # Test Wallet and Dev Tools for the EUDI Ecosystem
 
-A wallet for testing EUDI issuers and verifiers, in the browser, on the command line and over an HTTP API. It speaks OpenID4VP 1.0, OpenID4VCI 1.0 and HAIP 1.0 with SD-JWT VC and mdoc credentials. It also includes other parts of the ecosystem: a registrar (new in 3.0.0), PID templates, a demo issuer and verifier, a decoder and a debug proxy.
+A wallet for testing EUDI issuers and verifiers, in the browser, on the command line and over an HTTP API. It supports OpenID4VP 1.0, OpenID4VCI 1.0 and HAIP 1.0 with SD-JWT VC and mdoc credentials. It also includes other parts of the ecosystem: a registrar (new in 3.0.0), PID templates, a demo issuer and verifier, a decoder and a debug proxy.
 
 > **Try it online:** a shared public demo runs at **<https://eudi-test.dev>**. The newest beta runs at <https://preview.eudi-test.dev>.
 
@@ -29,7 +29,7 @@ A wallet for testing EUDI issuers and verifiers, in the browser, on the command 
 
 ## Highlights
 
-**A wallet for testing your issuer or verifier.** Accept credential offers and answer presentation requests from the web UI, the CLI or the HTTP API. Every exchange shows up in the activity log with its requests and responses. Debug mode reports what an issuer or verifier gets wrong and carries on. Strict mode refuses. → [Wallet](docs/wallet.md), [presenting](docs/wallet/presenting.md), [issuing](docs/wallet/issuing.md), [UI automation](docs/ui-automation.md)
+**A wallet for testing your issuer or verifier.** Accept credential offers and answer presentation requests from the web UI, the CLI or the HTTP API. Every exchange shows up in the activity log with its requests and responses. In debug mode the wallet reports what an issuer or verifier gets wrong and continues. In strict mode it stops the flow. → [Wallet](docs/wallet.md), [presenting](docs/wallet/presenting.md), [issuing](docs/wallet/issuing.md), [UI automation](docs/ui-automation.md)
 
 **HAIP and ARF checks.** `--haip` checks verifiers and issuers against HAIP 1.0. `--arf` (new in 3.0.0) checks how they authenticate under the ARF: access and registration certificates, revocation, and whether a verifier asks for more than it registered. → [HAIP](docs/wallet/presenting.md#haip-10-enforcement), [ARF checks for verifiers](docs/wallet/presenting.md#arf-checks) and [for issuers](docs/wallet/issuing.md#arf-checks)
 

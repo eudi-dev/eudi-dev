@@ -787,7 +787,7 @@ func (w *Wallet) baselinePIDTypes() []string {
 		}
 		t, err := credtemplate.Load(predefined.Name, w.Templates)
 		if err != nil {
-			log.Printf("[Wallet] WARNING: the baseline leaves out the template %s: %v", predefined.Name, err)
+			log.Printf("[Wallet] WARNING: skipping the template %s in the baseline: %v", predefined.Name, err)
 			continue
 		}
 		if !slices.Contains(types, t.VCT) {

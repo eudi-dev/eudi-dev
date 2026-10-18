@@ -33,11 +33,11 @@ The user adds trust in two ways, with `trust`, the trust API or the UI:
 
 ## Consequences
 
-The wallet CA is no anchor for access or registration certificates. It anchors trusted lists as a list operator CA, and credentials through the provider CAs on its lists.
+The wallet CA is not an anchor for access or registration certificates. It anchors trusted lists as a list operator CA, and credentials through the provider CAs on its lists.
 
 A test of another registrar or issuer needs one step: put its CA on the list of its role, or add its published list. The checks then run unchanged.
 
-The wallet verifies the signature of every list on each check. External lists are cached for 5 minutes. A list past its next update anchors nothing (§6.3.15). In strict mode the wallet refuses to add an unreadable list. In debug mode it adds the list and reports why it can't use it.
+The wallet verifies the signature of every list on each check. External lists are cached for 5 minutes. After its next update time, a list anchors nothing (§6.3.15). In strict mode the wallet refuses to add an unreadable list. In debug mode it adds the list and reports why it can't use it.
 
 On the public demo all visitors share the added providers and lists, so one visitor's CA anchors the checks of everyone until the next reset. The demo caps them at 20 providers and 5 lists.
 

@@ -597,7 +597,7 @@ func TestDemoBlocksClearingSharedHistory(t *testing.T) {
 	if rec.Code != http.StatusForbidden {
 		t.Errorf("status = %d, want %d", rec.Code, http.StatusForbidden)
 	}
-	if body := decodeJSON(t, rec); body["error"] != "forbidden" || body["error_description"] != "the public demo disables this endpoint" {
+	if body := decodeJSON(t, rec); body["error"] != "forbidden" || body["error_description"] != "this endpoint is disabled on the public demo" {
 		t.Errorf("body = %v, want the forbidden error object", body)
 	}
 }

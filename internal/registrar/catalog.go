@@ -625,7 +625,7 @@ var templateCatalogNamespace = uuid.NewSHA1(uuid.NameSpaceURL, []byte("https://g
 func (r *Registrar) templateCatalog(base string) []CatalogAttestation {
 	templates, err := credtemplate.List(r.env.TemplateLocation())
 	if err != nil {
-		log.Printf("[Registrar] WARNING: the catalogue leaves out templates it can't read: %v", err)
+		log.Printf("[Registrar] WARNING: skipping unreadable templates in the catalogue: %v", err)
 	}
 	built, _ := r.buildTemplateCatalog(templates, base)
 	entries := make([]CatalogAttestation, 0, len(built))
@@ -634,7 +634,7 @@ func (r *Registrar) templateCatalog(base string) []CatalogAttestation {
 	// the wallet finds the trusted list of a credential by its one entry.
 	for i, b := range built {
 		if clash := ownedEntryClash(built, i); clash != nil {
-			log.Printf("[Registrar] WARNING: the catalogue leaves out the entry of template %q: %v", b.owners[0], clash)
+			log.Printf("[Registrar] WARNING: skipping the catalogue entry of template %q: %v", b.owners[0], clash)
 			continue
 		}
 		entries = append(entries, b.entry)
@@ -702,7 +702,7 @@ func (r *Registrar) buildTemplateCatalog(templates []credtemplate.Template, base
 		i, ok := index[entry.Name]
 		if ok && slices.ContainsFunc(built[i].entry.Credentials, func(c CatalogCredential) bool { return c.Format == credential.Format }) {
 			if t.Catalog != nil {
-				problems = append(problems, templateCatalogProblem{t.Name, fmt.Errorf("another template already makes up %q in %s", entry.Name, credential.Format)})
+				problems = append(problems, templateCatalogProblem{t.Name, fmt.Errorf("another template already defines %q in %s", entry.Name, credential.Format)})
 			}
 			continue
 		}

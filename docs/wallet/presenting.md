@@ -6,7 +6,7 @@ The wallet answers an OID4VP presentation request from the CLI (`wallet accept`)
 
 ## `wallet accept <uri>`
 
-Detects the URI type and dispatches to the matching flow:
+Detects the URI type and starts the matching flow:
 
 - `openid4vp://`, `haip-vp://`, `eudi-openid4vp://`, `eu-eaap://`: OID4VP presentation (evaluates DCQL, shows the consent UI, submits the VP token)
   - Supports `response_type=vp_token id_token` (SIOPv2 + OID4VP combined flow). Generates a self-issued ID token alongside the VP token
@@ -21,7 +21,7 @@ When a verifier responds to a presentation with a `redirect_uri`, the wallet pri
 
 `debug` mode matches DCQL queries loosely to help troubleshoot verifier queries. A credential that matches the requested format and metadata and at least one requested claim counts as a match with a warning, even when other required claim paths are missing. `strict` mode requires every claim path.
 
-An `etsi_tl` entry in `trusted_authorities` identifies a trusted list. The wallet reads it like its own trusted lists. The list must be current and signed by a trusted list operator. Its issuance services anchor the credential. If the wallet can't read or verify the list, it logs a warning and the list matches no credential. The other entries still count. `debug` mode offers an unmatched credential as untrusted.
+An `etsi_tl` entry in `trusted_authorities` identifies a trusted list. The wallet reads it like its own trusted lists. The list must be current and signed by a trusted list operator. The list's issuance services are the trust anchors for the credential. If the wallet can't read or verify the list, it logs a warning and the list matches no credential. The other entries still count. `debug` mode offers an unmatched credential as untrusted.
 
 The wallet presents a `jwt_vc_json` credential without a Verifiable Presentation, so it can't prove holder binding. Such a credential answers only a query with `require_cryptographic_holder_binding: false` (OpenID4VP 1.0 Appendix B.1).
 
@@ -60,7 +60,7 @@ For sign-in, `wallet accept` prints the authorization URL. It opens the URL only
 
 Strict mode verifies HTTPS certificates. Debug mode skips verification by default. For local flows, `--tls-verify=true|false` overrides either default and `--tls-ca dev-ca.pem` adds trusted CA certificates. See [HTTPS certificate verification](serve.md#https-certificate-verification).
 
-When `accept` or `scan` forwards a flow to a running wallet, that wallet uses its own settings for every step of the flow. A conformance flag with the running wallet's own value changes nothing. A CA or list the wallet already trusts changes nothing either. A flag with a different value fails and shows the wallet's value. The TLS CA and proxy flags always return an error, because the wallet doesn't report them. Set the settings on `wallet serve`, change them in its Conformance panel, or put CAs and lists on its trusted lists with [`trust`](serve.md#trusted-lists).
+When `accept` or `scan` forwards a flow to a running wallet, that wallet uses its own settings for every step of the flow. A conformance flag set to the running wallet's value has no effect. The same applies to a CA or list that the wallet already trusts. A flag with a different value fails and shows the wallet's value. The TLS CA and proxy flags always return an error, because the wallet doesn't report them. Set the settings on `wallet serve`, change them in its Settings dialog, or put CAs and lists on its trusted lists with [`trust`](serve.md#trusted-lists).
 
 ## `wallet scan`
 
@@ -159,7 +159,7 @@ Every request to a given wallet uses the same validation mode, HAIP, ARF and enc
 
 ## ARF checks
 
-`--arf` on `wallet serve`, `wallet accept` or `wallet scan` checks the relying party's access and registration certificates in a presentation request against the ARF. It checks issuers too (see [issuing](issuing.md#arf-checks)). `--demo` turns it on by default. The Conformance panel and `PUT /api/config/conformance` (`require_arf`) switch it at runtime.
+`--arf` on `wallet serve`, `wallet accept` or `wallet scan` checks the relying party's access and registration certificates in a presentation request against the ARF. It checks issuers too (see [issuing](issuing.md#arf-checks)). `--demo` turns it on by default. The Settings dialog and `PUT /api/config/conformance` (`require_arf`) switch it at runtime.
 
 The wallet checks that:
 
@@ -174,9 +174,9 @@ The wallet checks that:
 
 A request without a registration certificate gets a warning in every mode. So does a revoked registrar certificate, or one with an unreadable CRL (WRP-VALIDATION-02). Wallets must check registration certificates only from 11 August 2028 (CIR (EU) 2026/1731).
 
-The ARF lets the Wallet Provider decide whether to refuse (RPA_06a). In `--mode debug` the wallet logs the findings as warnings and goes on. `POST /api/presentations` returns them in `findings`. This works for requests by URL, over the Digital Credentials API and during [interactive authorization](issuing.md#interactive-authorization). Strict mode refuses.
+The ARF lets the Wallet Provider decide whether to refuse (RPA_06a). In `--mode debug` the wallet logs the findings as warnings and continues. `POST /api/presentations` returns them in `findings`. This works for requests by URL, over the Digital Credentials API and during [interactive authorization](issuing.md#interactive-authorization). Strict mode refuses.
 
-How strict mode refuses depends on the verifier. When the request is signed with a trusted access certificate and its client identifier is valid, the wallet sends the verifier an error response (OpenID4VP 1.0 §8.5, RFC 6749 §4.1.2.1). When only ARF findings remain, the error is `access_denied`. Its `error_description` is "The request does not meet the ARF rules: " followed by the findings, for example `ARF RPRC_21: ...`. When the request also breaks OpenID4VP, the error is the §8.5 code of that problem, such as `invalid_request` or `invalid_transaction_data`, and the description lists all findings. `POST /api/presentations` answers with status `refused` and the same description. `wallet accept` and `wallet scan` send the same response. Over the Digital Credentials API, the error is in the API result (OpenID4VP 1.0 Appendix A). Any other strict refusal stays in the wallet. The caller gets HTTP 400 as described under [HAIP 1.0 Enforcement](#haip-10-enforcement).
+How strict mode refuses depends on the verifier. When the request is signed with a trusted access certificate and its client identifier is valid, the wallet sends the verifier an error response (OpenID4VP 1.0 §8.5, RFC 6749 §4.1.2.1). When only ARF findings remain, the error is `access_denied`. Its `error_description` is "The request does not meet the ARF rules: " followed by the findings, for example `ARF RPRC_21: ...`. When the request also breaks OpenID4VP, the error is the §8.5 code of that problem, such as `invalid_request` or `invalid_transaction_data`, and the description lists all findings. `POST /api/presentations` answers with status `refused` and the same description. `wallet accept` and `wallet scan` send the same response. Over the Digital Credentials API, the error is in the API result (OpenID4VP 1.0 Appendix A). For any other strict refusal, the wallet sends nothing to the verifier. The caller gets HTTP 400 as described under [HAIP 1.0 Enforcement](#haip-10-enforcement).
 
 The [registrar API walkthrough](registrar-api.md) shows both outcomes with real requests.
 

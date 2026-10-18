@@ -99,7 +99,7 @@ func TestParse_RecoverableBreaks(t *testing.T) {
 		{
 			name: "unsupported _sd_alg",
 			raw:  assembleSDJWT(t, map[string]any{"iss": "https://issuer.example", "_sd_alg": "sha-999"}),
-			want: "not a hash this build computes",
+			want: "not a supported hash algorithm",
 		},
 		{
 			name: "_sd_alg is not a string",

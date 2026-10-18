@@ -10,7 +10,7 @@ For a local wallet, the URL handler leaves the owner unset. The wallet opens its
 
 ## Not a security boundary
 
-The owner decides where UI events appear. It does not authenticate callers. Anyone can supply a cookie or header, and the API remains open ([ADR-0002](0002-the-wallet-http-api-is-unauthenticated.md)). The activity log is shared, so visitors can still read other flows there.
+The owner determines where UI events appear. It does not authenticate callers. Anyone can supply a cookie or header, and the API remains open ([ADR-0002](0002-the-wallet-http-api-is-unauthenticated.md)). The activity log is shared, so visitors can still read other flows there.
 
 ## Unowned flows stay answerable
 
@@ -18,7 +18,7 @@ Every caller can see and answer a flow without an owner. This keeps the CLI, cur
 
 A sign-in prompt goes only to its owner because it navigates the browser. Clients without an owner receive the sign-in URL in the API response.
 
-Only one of the owner's open tabs navigates. The issuer accepts a pushed authorization request only once (RFC 9126 §4). Each page load sends a tab id, in the `X-Eudi-Tab` header and in the `tab` query of its event stream. The prompt goes to the tab where the user approved or submitted the offer. Without such a tab it goes to the newest tab. When the wallet redirects a browser to the sign-in, the browser opens it, and no tab follows. Consent requests, errors and state changes still reach every tab.
+Only one of the owner's open tabs navigates. The issuer accepts a pushed authorization request only once (RFC 9126 §4). Each page load sends a tab id, in the `X-Eudi-Tab` header and in the `tab` query of its event stream. The prompt goes to the tab where the user approved or submitted the offer. Without such a tab it goes to the newest tab. When the wallet redirects a browser to the sign-in page, that browser opens it and no tab navigates. Consent requests, errors and state changes still go to every tab.
 
 Errors follow the consent routing rules. Consent requests without an owner appear in the shared banner. A tab opened by a local wallet can answer its request directly using the request ID in its URL.
 

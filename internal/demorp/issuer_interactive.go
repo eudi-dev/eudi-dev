@@ -287,7 +287,7 @@ func (d *DemoRP) startAuthViaWebInteraction(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	request := d.storeAuthRequest(grant, r)
-	log.Printf("[Demo issuer] interactive authorization: this offer wants the browser sign-in, asking for the auth_via_web interaction")
+	log.Printf("[Demo issuer] interactive authorization: the offer requires a browser sign-in, asking for the auth_via_web interaction")
 	writeJSON(w, http.StatusForbidden, map[string]any{
 		"error":                     "insufficient_authorization",
 		"interaction_type_required": interactionTypeAuthViaWeb,
@@ -307,7 +307,7 @@ func (d *DemoRP) redirectChallengeToWeb(w http.ResponseWriter, r *http.Request, 
 	}
 
 	request := d.storeAuthRequest(grant, r)
-	log.Printf("[Demo issuer] interactive authorization: this offer wants the browser sign-in, answering redirect_to_web")
+	log.Printf("[Demo issuer] interactive authorization: the offer requires a browser sign-in, answering redirect_to_web")
 	writeJSON(w, http.StatusForbidden, map[string]any{
 		"error":       "redirect_to_web",
 		"request_uri": request.requestURI,

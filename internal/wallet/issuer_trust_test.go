@@ -181,7 +181,7 @@ func TestTheCatalogueCheckReturnsAnUntrustedEAAListAsAWarning(t *testing.T) {
 	w, raw := eaaWithUntrustedList(t)
 	logged := len(w.GetLog())
 	anchoring, found := w.CheckCatalogueAnchoring(raw)
-	if !found || len(anchoring.Warnings) != 1 || !strings.Contains(anchoring.Warnings[0], "gives no anchors") {
+	if !found || len(anchoring.Warnings) != 1 || !strings.Contains(anchoring.Warnings[0], "has no trust anchors") {
 		t.Fatalf("anchoring = %+v, want one warning for the untrusted list", anchoring)
 	}
 	if got := len(w.GetLog()); got != logged {

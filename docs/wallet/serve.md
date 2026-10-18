@@ -42,7 +42,7 @@ API clients receive the alternatives in `credential_options`. Each query also li
 
 A credential issued in the web UI can reference the wallet's own status list when configured, a custom URI and index, or no status list. The UI can revoke and activate credentials on the wallet's own status list. For an external status list it fetches the list on request.
 
-The **</>** button beside a dialog's title shows the curl command for what the dialog does, with the dialog's current values. The panel can also show the matching CLI command. A second button switches the dialog between its normal size and almost full screen. See [dialog commands](../ui-automation.md#dialog-commands-and-size).
+Each dialog can show the curl command for its action, with its current values, and the matching CLI command. A dialog can also switch to almost full screen. See [dialog commands](../ui-automation.md#dialog-commands-and-size).
 
 To drive the web UI from Playwright or Selenium, see [UI automation](../ui-automation.md).
 
@@ -64,7 +64,7 @@ For a local https origin without an external TLS terminator, add `--serve-tls`. 
 
 The request objects of the demo verifier and the demo issuer carry `iat` in their JWS header, as ETSI TS 119 472-2 V1.3.1 OIDFVP-HAIP-REDIRECTS_RO-03 requires.
 
-The demo verifier accepts a credential when its certificate chains to an issuance service on a credential provider list of the wallet's [list of trusted lists](#trusted-lists). That includes the wallet's own issuers, added providers and the providers on external lists. The status list of a credential chains to a revocation service of a credential provider list (ETSI TS 119 602 V1.1.1 Table D.3). With `--arf`, the catalogue entry of the requested type gives its category, and the credential and its status list must chain to a provider list of that category ([ADR 0022](../adr/0022-one-trusted-list-per-credential-category.md)). A PID needs a PID provider list (ARF OIA_12) and a PuB-EAA needs a PuB-EAA provider list (OIA_14). A type missing from the catalogue may chain to any provider list, unless its name marks it as a PID. `--demo-verifier-issuer-ca <pem>` (repeatable) adds more CAs directly (for example, the OIDF conformance suite signs its credentials under its own CAs).
+The demo verifier accepts a credential when its certificate chains to an issuance service on a credential provider list of the wallet's [list of trusted lists](#trusted-lists). That includes the wallet's own issuers, added providers and the providers on external lists. The status list of a credential must chain to a revocation service of a credential provider list (ETSI TS 119 602 V1.1.1 Table D.3). With `--arf`, the catalogue entry of the requested type gives its category, and the credential and its status list must chain to a provider list of that category ([ADR 0022](../adr/0022-one-trusted-list-per-credential-category.md)). A PID needs a PID provider list (ARF OIA_12) and a PuB-EAA needs a PuB-EAA provider list (OIA_14). A type missing from the catalogue may chain to any provider list, unless its name marks it as a PID. `--demo-verifier-issuer-ca <pem>` (repeatable) adds more CAs directly (for example, the OIDF conformance suite signs its credentials under its own CAs).
 
 The demo verifier checks a presented credential with the [checks of `validate`](../validate.md#checks), for SD-JWT VCs and mdocs alike. The signature must verify. A failed `type`, `expiry`, `integrity` or `status` check rejects the presentation. HAIP findings and an unanchored status list are warnings. The verifier then checks the key binding, the nonce, the audience and the requested claims. It fetches status lists and issuer metadata with the wallet's HTTP client, so `--tls-ca`, `--tls-verify` and the proxy flags apply.
 
@@ -130,7 +130,7 @@ eudi trust rm-list https://lists.example/pid
 
 `add-ca` takes a PEM file with CA certificates and one of the list IDs above. The wallet adds the CA to that list as a provider with an issuance and a revocation service, and signs the list. The CA is then a trust anchor for certificates issued under it and for their status lists. Adding the same certificates to the same list again replaces the earlier entry. The name defaults to the CA's common name. The wallet doesn't publish the `trusted-list-ca` list. Its CAs may sign trusted lists, like those from `--trusted-list-ca`, so the wallet accepts external lists signed under them.
 
-`add-list` puts an external list of trusted entities on the list of trusted lists. With `--arf` the providers on the external list are trust anchors for the checks of its list type. For example, a PID provider list anchors the checks of received PIDs. The list signer must chain to the wallet CA, to a CA from `--trusted-list-ca` or to a CA added with `add-ca --list trusted-list-ca`. In `--mode strict` the wallet refuses an unreadable list. In `--mode debug` it adds the list and reports the reason. `wallet serve --trusted-list <url>` (repeatable) adds lists at startup. They can't be removed through the API. PID and PuB-EAA provider lists anchor their credentials directly. A list of another credential type anchors credentials only when the catalogue entry of the type links it (see [attestation catalogue](registrar.md#attestation-catalogue)).
+`add-list` puts an external list of trusted entities on the list of trusted lists. With `--arf` the wallet trusts the providers on the external list for the list's type. For example, it trusts the providers on a PID provider list for received PIDs. The list signer must chain to the wallet CA, to a CA from `--trusted-list-ca` or to a CA added with `add-ca --list trusted-list-ca`. In `--mode strict` the wallet refuses an unreadable list. In `--mode debug` it adds the list and reports the reason. `wallet serve --trusted-list <url>` (repeatable) adds lists at startup. They can't be removed through the API. The wallet uses PID and PuB-EAA provider lists for their credentials directly. It uses a list of another credential type only when the catalogue entry of the type links that list (see [attestation catalogue](registrar.md#attestation-catalogue)).
 
 `eudi trust` shows the wallet's lists, the added providers and the external lists:
 
@@ -174,7 +174,7 @@ Each entry of `lists` has `url` and, where they apply, `configured` (from `--tru
 }
 ```
 
-The wallet keeps a fetched external list for 5 minutes, or until its `NextUpdate` if that comes first. A list past its `NextUpdate` is expired and anchors nothing (ETSI TS 119 602 V1.1.1 §6.3.15). A withdrawn service anchors nothing either. The public demo holds at most 20 added providers and 5 added lists.
+The wallet keeps a fetched external list for 5 minutes, or until its `NextUpdate` if that comes first. A list past its `NextUpdate` is expired, and the wallet ignores it (ETSI TS 119 602 V1.1.1 §6.3.15). The wallet also ignores a withdrawn service. The public demo holds at most 20 added providers and 5 added lists.
 
 #### List of trusted lists
 
@@ -195,7 +195,7 @@ The wallet keeps a fetched external list for 5 minutes, or until its `NextUpdate
 
 The wallet follows the pointers of an external list of this type, one level deep. A pointed-to list must be signed by a certificate of its pointer (§6.3.13). `GET /api/trust` shows such a list with `via`. To trust all lists of another eudi-dev wallet at once, add its `/api/trustlists/lists`. That list is signed under the other wallet's CA. Start this wallet with `--trusted-list-ca` set to that CA.
 
-`wallet serve` reuses persisted issuer and status list URLs unless `--base-url` or `--docker` overrides them. Credentials generated earlier then keep resolving against the same endpoints. Issuance with `issue ... --wallet` follows the same rule. Both print a note when no running server serves the embedded URLs.
+`wallet serve` reuses persisted issuer and status list URLs unless `--base-url` or `--docker` overrides them. Credentials generated earlier then keep working with the same endpoints. Issuance with `issue ... --wallet` follows the same rule. Both print a note when no running server serves the embedded URLs.
 
 The startup banner warns about a persisted Docker hostname outside Docker. It also warns about stored credentials whose issuer or status list URLs are not served by this server. Those credentials fail validation and status checks until they are issued again.
 
@@ -298,7 +298,7 @@ Every flag can also be set as `EUDI_DEV_<FLAG>`, with the flag name in upper cas
 |-------------------------|----------|--------------------------------------------------|
 | `--port`                | `8085`   | Server port                                      |
 | `--listen`              | `$EUDI_DEV_LISTEN`, else `127.0.0.1` | IP address to bind. `0.0.0.0` opens the wallet to the network. See [listen address](#listen-address) |
-| `--auto-accept`         | `false`  | Approve presentations and credential offers without asking. Without it, only interactive channels (web invocation URLs, scheme dispatches, browser DC-API) show the consent dialog. API submissions (`POST /api/offers`, `/api/presentations`) always auto-accept because the API call counts as consent (opt in per request with `"interactive": true`). With `--demo` only the flag turns it on (not `EUDI_DEV_AUTO_ACCEPT`) |
+| `--auto-accept`         | `false`  | Approve presentations and credential offers without asking. Without it, only interactive channels (web invocation URLs, custom-scheme links, browser DC-API) show the consent dialog. API submissions (`POST /api/offers`, `/api/presentations`) always auto-accept because the API call counts as consent (opt in per request with `"interactive": true`). With `--demo` only the flag turns it on (not `EUDI_DEV_AUTO_ACCEPT`) |
 | `--credential`          | None     | Import credential from file (repeatable)         |
 | `--credentials`         | None     | Credentials to add on every start, from a YAML or JSON file, a directory of such files, or stdin (`-`). See [startup credentials](#startup-credentials) |
 | `--catalog`             | None     | Attestation types to pre-register in the catalogue on every start, from a YAML or JSON file, a directory of such files, or stdin (`-`). See [pre-registered catalogue entries](#pre-registered-catalogue-entries) |
@@ -318,8 +318,8 @@ Every flag can also be set as `EUDI_DEV_<FLAG>`, with the flag name in upper cas
 | `--http-proxy` | `$HTTP_PROXY` | Forward proxy for outbound `http://` requests |
 | `--https-proxy` | `$HTTPS_PROXY` | Forward proxy for outbound `https://` requests |
 | `--no-proxy` | `$NO_PROXY` | Hosts, domains and CIDRs that bypass the proxy |
-| `--allow-private-networks` | `$EUDI_DEV_ALLOW_PRIVATE_NETWORKS`, else `false` | Let outbound requests reach private networks. With `--demo` it also opens loopback. See [outbound address limits](#outbound-address-limits) |
-| `--key-attestation-level` | Issuer requirements | Test claims for key storage and user authentication: issuer requirements (default), `none`, or a level such as `iso_18045_high`. Change it in the Conformance panel. See [key attestation claims](#key-attestation-claims) |
+| `--allow-private-networks` | `$EUDI_DEV_ALLOW_PRIVATE_NETWORKS`, else `false` | Allow outbound requests to private networks. With `--demo` it also allows loopback. See [outbound address limits](#outbound-address-limits) |
+| `--key-attestation-level` | Issuer requirements | Test claims for key storage and user authentication: issuer requirements (default), `none`, or a level such as `iso_18045_high`. Change it in the Settings dialog. See [key attestation claims](#key-attestation-claims) |
 | `--preferred-format`    | None     | Preferred credential format when multiple match: `dc+sd-jwt`, `mso_mdoc`, or `jwt_vc_json`. Change it at runtime with `PUT /api/config/preferred-format` |
 | `--status-list`         | `false`  | Embed status list references in generated credentials |
 | `--base-url`            | None     | Public URL of the wallet, optionally with a path prefix (see [reverse proxy setup](../reverse-proxy.md)). An https base URL is used as the issuer URL (external TLS terminator). An http base URL derives a self-signed HTTPS issuer URL on port+1. Existing persisted issuer URLs are reused unless this flag is set |
@@ -426,7 +426,7 @@ eudi wallet serve --demo --pid=false --credentials demo-credentials.yaml
 
 The wallet checks every entry before it starts. An invalid entry stops the start. So does an entry that reuses the name or a type of a template entry or of another entry in the files. The error message shows the file and the entry. An entry added through the UI, the API or `eudi catalog add` doesn't stop the start. The file's entry replaces it.
 
-Each start loads the file again. An entry keeps its id, so a restart adds no duplicates. A changed entry is updated. An entry removed from the file leaves the catalogue at the next start. The wallet marks these entries as pre-registered and removes only those. Entries added through the UI, the API or `eudi catalog add` stay. The only exception is an entry with the name or a type of an entry in the file. The file's entry replaces it. A CA added through `issuerCA` stays on its list when you remove the entry. Remove it with `eudi trust rm-ca`.
+Each start loads the file again. An entry keeps its id, so a restart adds no duplicates. A changed entry is updated. The next start removes an entry that is no longer in the file. The wallet marks these entries as pre-registered and removes only those. Entries added through the UI, the API or `eudi catalog add` stay. The only exception is an entry with the name or a type of an entry in the file. The file's entry replaces it. A CA added through `issuerCA` stays on its list when you remove the entry. Remove it with `eudi trust rm-ca`.
 
 Outside the demo you can change or delete a pre-registered entry. The next start restores it from the file. With `--demo` visitors can't change or delete these entries, and a demo reset restores them with their CAs.
 
@@ -465,7 +465,7 @@ As with every flag, the environment variable is `EUDI_DEV_RELYING_PARTIES`.
 
 ## Key attestation claims
 
-`--key-attestation-level` sets the test claims `key_storage` and `user_authentication` (OpenID4VCI Appendix D.2). By default they match the issuer's requirements. With `--arf` and no requirement both claim `iso_18045_high`, the level CIR (EU) 2024/2979 Annex Ib C_KA-1 sets for a WSCD. `none` omits both claims. A level such as `iso_18045_high` sets both explicitly. The Conformance panel can change this at runtime.
+`--key-attestation-level` sets the test claims `key_storage` and `user_authentication` (OpenID4VCI Appendix D.2). By default they match the issuer's requirements. With `--arf` and no requirement both claim `iso_18045_high`. CIR (EU) 2024/2979 Annex Ib C_KA-1 requires this level for a WSCD. `none` omits both claims. A level such as `iso_18045_high` sets both explicitly. The Settings dialog can change this at runtime.
 
 These claims describe simulated protection levels. Keys are stored unencrypted. See [SECURITY.md](../../SECURITY.md).
 
@@ -570,7 +570,7 @@ eudi wallet register --port 9000   # Use custom listener port
 eudi wallet unregister             # Remove URL handlers
 ```
 
-`wallet register` has no flags of its own. It takes `wallet serve` flags, stores them and replays them as `wallet serve ...` when a clicked link has to start the wallet. The handler also reads two of them:
+`wallet register` has no flags of its own. It takes `wallet serve` flags, stores them and passes them to `wallet serve` when a clicked link has to start the wallet. The handler also reads two of them:
 
 | Flag            | Default | Effect on the handler                                                   |
 |-----------------|---------|-------------------------------------------------------------------------|
@@ -579,16 +579,16 @@ eudi wallet unregister             # Remove URL handlers
 
 ### URL scheme handlers on Linux
 
-Browsers ask once before they open a link with a custom scheme. Firefox then asks the desktop for the default handler. Chrome and Chromium use the desktop portal or `xdg-open`. Snap browsers, the default on Ubuntu, may only open the scheme when `xdg-mime` names its default handler. Flatpak browsers go through the desktop portal.
+Browsers ask once before they open a link with a custom scheme. Firefox then asks the desktop for the default handler. Chrome and Chromium use the desktop portal or `xdg-open`. Snap browsers, the default on Ubuntu, may only open the scheme when `xdg-mime` reports a default handler for it. Flatpak browsers go through the desktop portal.
 
 `register` warns when:
 
-- there is no graphical session (`DISPLAY` and `WAYLAND_DISPLAY` are unset). Nothing can click a link there.
+- there is no graphical session (`DISPLAY` and `WAYLAND_DISPLAY` are unset). No browser can open a link there.
 - `xdg-open` or `xdg-mime` is missing. Install `xdg-utils` for Chrome, Chromium and snap browsers.
 - `~/.config/mimeapps.list` is a link, for example from home-manager on NixOS. `register` leaves it alone and prints the lines to add to that configuration.
 - the path of `eudi` contains spaces or special characters. `xdg-open` under a bare window manager can't run such a path.
 
-A desktop-specific file such as `~/.config/kde-mimeapps.list` overrides `mimeapps.list`. If it names another handler for one of the schemes, `register` changes that entry too.
+A desktop-specific file such as `~/.config/kde-mimeapps.list` overrides `mimeapps.list`. If it sets another handler for one of the schemes, `register` changes that entry too.
 
 Without a desktop environment, `xdg-open` uses the scheme handlers only when `DISPLAY` or `WAYLAND_DISPLAY` is set. Under a window manager without the desktop portal, a Flatpak browser needs a portal backend such as `xdg-desktop-portal-gtk`.
 
@@ -598,7 +598,7 @@ The handler logs to `~/.eudi-dev/url-handler.log`. A wallet started by the handl
 
 Strict mode verifies server certificates for every outbound HTTPS request. Debug mode skips verification by default. `--tls-verify=true` or `--tls-verify=false` overrides either default, including for local endpoints and redirects.
 
-`--tls-ca dev-ca.pem` adds CA certificates to system trust. The wallet also trusts its own CA, which signs the certificate of its HTTPS listener. So the demo verifier can check the status lists of credentials issued by the wallet. Server certificates must also match the hostname and be within their validity dates. Credential and request object signatures are checked separately.
+`--tls-ca dev-ca.pem` adds CA certificates to system trust. The wallet also trusts its own CA. This CA signs the certificate of the wallet's HTTPS listener, so the demo verifier can check the status lists of credentials issued by the wallet. Server certificates must also match the hostname and be within their validity dates. Credential and request object signatures are checked separately.
 
 ```bash
 eudi wallet serve --mode strict --tls-ca dev-ca.pem
@@ -606,7 +606,7 @@ eudi wallet serve --mode strict --tls-verify=false
 eudi wallet serve --mode debug --tls-verify=true
 ```
 
-A running wallet uses its own TLS settings. Set them with its startup flags, in the Conformance panel, or through `PUT /api/config/conformance`.
+A running wallet uses its own TLS settings. Set them with its startup flags, in the Settings dialog, or through `PUT /api/config/conformance`.
 
 ## Outbound proxy
 
@@ -633,14 +633,14 @@ A running wallet uses its startup proxy settings. `wallet accept` and `wallet sc
 
 ## Listen address
 
-The wallet, the decoder and the proxy have no authentication. So they bind `127.0.0.1` by default and only this machine reaches them. `--listen` picks another IP address. `0.0.0.0` binds every interface, IPv6 included where the system supports it. `::1` binds IPv6 loopback only. `localhost` stands for `127.0.0.1`.
+The wallet, the decoder and the proxy have no authentication. They bind `127.0.0.1` by default, so only this machine can connect to them. `--listen` picks another IP address. `0.0.0.0` binds every interface, IPv6 included where the system supports it. `::1` binds IPv6 loopback only. `localhost` stands for `127.0.0.1`.
 
 ```bash
 eudi wallet serve --listen 0.0.0.0     # reachable from the network
 EUDI_DEV_LISTEN=0.0.0.0 eudi decoder
 ```
 
-The flag wins over `EUDI_DEV_LISTEN`. The [Docker image](../docker.md) sets the variable to `0.0.0.0`, so published ports reach every server in the container. `--docker` also binds `0.0.0.0` when neither the flag nor the variable is set. On Linux, `host.docker.internal` reaches the host on the Docker bridge, not on loopback. The wallet and the proxy print a note when they bind more than loopback.
+The flag wins over `EUDI_DEV_LISTEN`. The [Docker image](../docker.md) sets the variable to `0.0.0.0`, so every server in the container accepts connections on the published ports. `--docker` also binds `0.0.0.0` when neither the flag nor the variable is set. On Linux, `host.docker.internal` is the host's address on the Docker bridge. The wallet and the proxy print a note when they bind more than loopback.
 
 The printed URLs stay on `localhost` for a loopback or wildcard address. A server bound to one other address prints that address. The wallet then needs a `--base-url` with that address too, because it builds its own URLs on `localhost` otherwise.
 
@@ -648,13 +648,13 @@ The printed URLs stay on `localhost` for a loopback or wildcard address. A serve
 
 Visitors give the wallet URLs (credential offers, request URIs and the URLs inside them). So the wallet connects only to public addresses and to loopback by default. Loopback covers the usual setup with wallet, issuer and verifier on one machine. The wallet refuses private (RFC 1918), link local, CGNAT, unique local, unspecified and multicast addresses. It also refuses the other special purpose ranges, such as reserved, documentation and benchmarking addresses, and the IPv6 ranges that embed an IPv4 address (NAT64, 6to4 and Teredo). Link local includes cloud metadata endpoints. The check runs on the resolved address of every connection, redirects included.
 
-Some destinations come from the operator, so the wallet always reaches them at their exact address and port. These are the wallet's own origins, the `--trusted-list` URLs and the forward proxy.
+Some destinations come from the operator, so the wallet can always connect to them at their exact address and port. These are the wallet's own origins, the `--trusted-list` URLs and the forward proxy.
 
 Issuers and verifiers on a LAN, in Docker or in a cluster sit on private networks. Start the wallet with `--allow-private-networks` to reach them, or set `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=true`. The flag wins over the variable. The [Docker image](../docker.md) sets the variable.
 
 A proxied request connects only to the proxy. The proxy then connects to the destination. Only the proxy decides which addresses that request reaches.
 
-`--demo` connects to public addresses and the operator's destinations only. `--allow-private-networks` or the variable lets a demo reach private networks and loopback too. The wallet then prints a warning at start, because any visitor can make it call local and internal services. An internet-facing demo sets `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=false` (see [public demo hosting](../public-demo.md#outbound-connections)).
+`--demo` connects to public addresses and the operator's destinations only. `--allow-private-networks` or the variable lets a demo connect to private networks and loopback too. The wallet then prints a warning at start, because any visitor can make it call local and internal services. An internet-facing demo sets `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=false` (see [public demo hosting](../public-demo.md#outbound-connections)).
 
 ## JSON logs
 

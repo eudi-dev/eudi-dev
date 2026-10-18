@@ -313,7 +313,7 @@ func TestCheckTemplateCatalogBeforeSaving(t *testing.T) {
 	saveTestTemplate(t, w, credtemplate.Template{Name: "member", Format: "sdjwt", VCT: "urn:example:member:1", Claims: map[string]any{}}, `{"name":"Member card"}`)
 
 	same := credtemplate.Template{Name: "other", Format: "sdjwt", VCT: "urn:example:other:1", Claims: map[string]any{}, Catalog: json.RawMessage(`{"name":"Member card"}`)}
-	if err := w.CheckTemplateCatalog(&same); err == nil || !strings.Contains(err.Error(), `template "other": another template already makes up "Member card" in dc+sd-jwt`) || strings.Contains(err.Error(), "broken") {
+	if err := w.CheckTemplateCatalog(&same); err == nil || !strings.Contains(err.Error(), `template "other": another template already defines "Member card" in dc+sd-jwt`) || strings.Contains(err.Error(), "broken") {
 		t.Errorf("error %v, want the clash of the template to save", err)
 	}
 	clash := credtemplate.Template{Name: "other", Format: "sdjwt", VCT: "urn:example:member:1", Claims: map[string]any{}, Catalog: json.RawMessage(`{"name":"Club card"}`)}

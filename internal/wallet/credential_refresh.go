@@ -36,7 +36,7 @@ func (w *Wallet) RenewCredential(id string) (renewed *StoredCredential, err erro
 		}
 	}()
 	if !cred.CanRenew() {
-		return nil, fmt.Errorf("credential %s cannot be renewed: its issuer handed over no refresh token", id)
+		return nil, fmt.Errorf("credential %s cannot be renewed: its issuer sent no refresh token", id)
 	}
 	renewal := *cred.Renewal
 

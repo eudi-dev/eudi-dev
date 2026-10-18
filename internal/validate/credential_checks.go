@@ -144,7 +144,7 @@ func (v run) trustCheck(c catalogueState, r *Result) Check {
 // certificate cannot stand in for it.
 func (v run) emptyTrust() (Check, bool) {
 	if v.trust.Supplied && !v.trust.Pending && len(v.trust.Keys) == 0 && len(v.trust.Issuance) == 0 {
-		return Check{Name: CheckSignature, Status: Fail, Detail: "The supplied trust names no key and no issuance service"}, true
+		return Check{Name: CheckSignature, Status: Fail, Detail: "The supplied trust has no key and no issuance service"}, true
 	}
 	return Check{}, false
 }
@@ -218,7 +218,7 @@ func noKeyDetail(token *sdjwt.Token) string {
 	kid, _ := token.Header["kid"].(string)
 	iss, _ := token.Payload["iss"].(string)
 	if did := keys.DIDReference(kid, iss); did != "" {
-		return fmt.Sprintf("The issuer key is named by the DID %s. This tool does not resolve DIDs", did)
+		return fmt.Sprintf("The issuer key is identified by the DID %s. This tool does not resolve DIDs", did)
 	}
 	return "No key provided"
 }
@@ -310,7 +310,7 @@ func (v run) status(claims map[string]any, prefer string, c catalogueState, r *R
 	case ref == nil:
 		return []Check{{Name: CheckStatus, Status: Skipped, Detail: "No status list reference in credential"}}
 	case v.opts.Offline:
-		return []Check{{Name: CheckStatus, Status: Skipped, Detail: "Needs the status list, which is fetched from the issuer", NeedsNetwork: true}}
+		return []Check{{Name: CheckStatus, Status: Skipped, Detail: "Needs the status list from the issuer", NeedsNetwork: true}}
 	case !v.opts.Status:
 		return []Check{{Name: CheckStatus, Status: Skipped, Detail: "Not requested"}}
 	case v.trust.Err != nil:

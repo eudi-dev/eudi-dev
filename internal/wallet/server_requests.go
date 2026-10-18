@@ -54,7 +54,7 @@ func (s *Server) handleRequestStream(w http.ResponseWriter, r *http.Request) {
 	rc := http.NewResponseController(w)
 	extendDeadline := func() {
 		if err := rc.SetWriteDeadline(time.Now().Add(streamWriteTimeout)); err != nil {
-			s.log("  WARNING: event stream write deadline not extended, the stream ends with the server's write timeout: %v", err)
+			s.log("  WARNING: event stream write deadline not extended. The stream ends at the server's write timeout: %v", err)
 		}
 	}
 	extendDeadline()
@@ -154,7 +154,7 @@ func (s *Server) allowSlowResponse(w http.ResponseWriter, wait time.Duration) {
 	err := http.NewResponseController(w).SetWriteDeadline(time.Now().Add(wait + config.SlowRequestTimeout))
 	// Detached browser flows use a writer with no deadline.
 	if err != nil && !errors.Is(err, http.ErrNotSupported) {
-		s.log("  WARNING: write deadline not extended, a slow answer may not reach the caller: %v", err)
+		s.log("  WARNING: write deadline not extended. A slow answer may not reach the caller: %v", err)
 	}
 }
 

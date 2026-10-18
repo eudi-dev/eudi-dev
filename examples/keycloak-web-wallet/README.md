@@ -55,7 +55,7 @@ Services:
 
 After startup, `start.sh` runs `scripts/configure-wallet-links.py`. The script uses the admin API to set the `oid4vp` provider's `walletScheme` to `http://localhost:<wallet-port>/authorize` and the `demo-trust-list` provider's `trustListUrl` to the wallet's trusted list. Keycloak's login page then links straight to the wallet.
 
-Keycloak `26.7.2` notes: the `create-credential-offer` REST endpoint sits behind the `oid4vc-vci-rest-credential-offer` feature flag, and offers can only be created for credentials assigned to the user. The demo assigns `membership-credential` to `alice` via the admin API (`POST /admin/realms/{realm}/users/{id}/vc/credentials`) before creating an offer.
+Keycloak `26.7.2` notes: the `create-credential-offer` REST endpoint requires the `oid4vc-vci-rest-credential-offer` feature flag. Offers can only be created for credentials assigned to the user. The demo assigns `membership-credential` to `alice` via the admin API (`POST /admin/realms/{realm}/users/{id}/vc/credentials`) before creating an offer.
 
 **Extension version**: this example uses `keycloak-extension-oid4vp` `0.11.1`, downloaded by `scripts/download-extension.sh`. When a local checkout of the extension exists next to this repository (or at `KEYCLOAK_OID4VP_REPO`) and Maven is installed, `start.sh` builds the jar from it. This lets you test extension changes before release.
 
@@ -63,13 +63,13 @@ Keycloak `26.7.2` notes: the `create-credential-offer` REST endpoint sits behind
 
 1. Gets a user token for `alice` and calls Keycloak's `create-credential-offer` endpoint (assigning the credential to the user first, as 26.7.2 requires).
 2. Resolves the one-shot offer URI and inlines the offer JSON (see `keycloak-issuer-wallet` for the reason).
-3. Invokes `GET http://localhost:9085/credential-offer?credential_offer=...`. The wallet waits for consent, the script approves it via `POST /api/requests/{id}/approve`, and the wallet redeems the offer against Keycloak and stores the membership credential.
+3. Invokes `GET http://localhost:9085/credential-offer?credential_offer=...`. The wallet waits for consent. The script approves it via `POST /api/requests/{id}/approve`. The wallet then redeems the offer against Keycloak and stores the membership credential.
 
 ### Verification (`demo-verification.py`)
 
 1. Starts an OIDC login for the `wallet-mock` client in the `wallet-demo` realm.
 2. Takes the wallet link from the extension's login page. After `configure-wallet-links.py` this is the wallet's `/authorize` URL.
-3. GETs it. The wallet fetches the request object and waits for consent. The script approves it via `POST /api/requests/{id}/approve`, and the wallet presents the PID credential via `direct_post` and returns the verifier's `redirect_uri`.
+3. GETs it. The wallet fetches the request object and waits for consent. The script approves it via `POST /api/requests/{id}/approve`. The wallet then presents the PID credential via `direct_post` and returns the verifier's `redirect_uri`.
 4. Completes the broker flow with that redirect and exchanges the authorization code. The user is signed in as the PID subject (`preferred_username=123456782`, mapped from `personal_administrative_number`).
 
 ```mermaid

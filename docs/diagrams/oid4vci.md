@@ -30,11 +30,11 @@ sequenceDiagram
 
 ## Common inputs
 
-| Field / setting | Why it matters in `eudi-dev` |
+| Field / setting | Role in `eudi-dev` |
 |-----------------|--------------------------------|
 | `credential_offer` or `credential_offer_uri` | One of these starts the issuance flow. |
 | `credential_issuer` | Used to fetch `/.well-known/openid-credential-issuer` and resolve the token and credential endpoints. |
-| `credential_configuration_ids` | The wallet requests one configuration. That is the one picked in the consent dialog or sent as `credential_configuration_id`, and otherwise the first. It resolves the format and, in the authorization code flow, the scope. |
+| `credential_configuration_ids` | The wallet requests one configuration: the one picked in the consent dialog or sent as `credential_configuration_id`, otherwise the first. It resolves the format and, in the authorization code flow, the scope. |
 | Issuer metadata `nonce_endpoint` | Provides the challenge signed by the key proof (OpenID4VCI 1.0 §8.2). The wallet calls it whenever the metadata advertises it. |
 | `authorization_details[].credential_identifiers` | When present in the token response, the wallet sends `credential_identifier` at the credential endpoint instead of `credential_configuration_id`. |
 | Issuer metadata `credential_response_encryption` support | When advertised, the wallet requests encrypted credential responses and decrypts compact JWE responses. |
@@ -74,7 +74,7 @@ sequenceDiagram
 
 ### Relevant parameters
 
-| Field / setting | Used how |
+| Field / setting | Usage |
 |-----------------|----------|
 | `grants.urn:ietf:params:oauth:grant-type:pre-authorized_code.pre-authorized_code` | Selects the pre-authorized code branch. |
 | `grants...tx_code` | Optional. When present, the issuer expects an out-of-band transaction code. Pass it with `wallet accept --tx-code ...`. |
@@ -119,7 +119,7 @@ sequenceDiagram
 
 ### Relevant parameters
 
-| Field / setting | Used how |
+| Field / setting | Usage |
 |-----------------|----------|
 | `eudi wallet serve --vci-client-id ...` | Sets a fixed client ID. Without it, a flow with client attestation uses a random client ID and other flows use the wallet origin. |
 | `eudi wallet serve --vci-redirect-uri ...` | Overrides the callback URL, which defaults to the wallet origin plus `/callback`. Interactive authorization (below) can run without a redirect. |
@@ -158,10 +158,10 @@ sequenceDiagram
 
 ### Relevant parameters
 
-| Field / setting | Used how |
+| Field / setting | Usage |
 |-----------------|----------|
 | `eudi wallet serve --vci-version 1.1` | Selects the feature level. At `1.0` the redirect flow runs. |
 | OAuth metadata `authorization_challenge_endpoint` | Publishing it switches an offer to this flow. |
 | `interaction_types_supported` | The wallet always advertises `urn:openid:dcp:ia:openid4vp_presentation`, and `urn:openid:dcp:ia:auth_via_web` only when an https redirect URI is configured and the metadata includes an `authorization_endpoint`. |
-| `openid4vp_request` | The OpenID4VP request answered by the presentation interaction, with response mode `ia_post` or `ia_post.jwt`. |
+| `openid4vp_request` | The OpenID4VP request of the presentation interaction, with response mode `ia_post` or `ia_post.jwt`. |
 | `auth_session` | Carries the authorization state across challenge requests and the browser redirect. |

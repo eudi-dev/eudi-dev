@@ -57,7 +57,7 @@ eudi decode --qr screenshot.png
 eudi decode --screen
 ```
 
-`--screen` lets you select a screen region. On macOS it runs `screencapture` in interactive selection mode. On Linux it asks the desktop for an interactive screenshot through the XDG Desktop Portal, which GNOME, KDE and other desktops provide under Wayland and X11. The screenshot file is deleted after the scan. On other platforms, take a screenshot and pass it with `--qr`.
+`--screen` lets you select a screen region. On macOS it runs `screencapture` in interactive selection mode. On Linux it takes an interactive screenshot through the XDG Desktop Portal. GNOME, KDE and other desktops provide the portal under Wayland and X11. The screenshot file is deleted after the scan. On other platforms, take a screenshot and pass it with `--qr`.
 
 > **Note:** macOS grants screen capture permission to the terminal app (Terminal.app, iTerm2). If the permission is missing, System Settings opens at the Screen Recording pane. Grant it and run the command again.
 

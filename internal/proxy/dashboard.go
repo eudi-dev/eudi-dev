@@ -129,7 +129,7 @@ func (d *Dashboard) handleStream(w http.ResponseWriter, r *http.Request) {
 	rc := http.NewResponseController(w)
 	extendDeadline := func() {
 		if err := rc.SetWriteDeadline(time.Now().Add(streamWriteTimeout)); err != nil {
-			log.Printf("[Dashboard] stream write deadline not extended, the stream will end with the server's write timeout: %v", err)
+			log.Printf("[Dashboard] stream write deadline not extended. The stream ends at the server's write timeout: %v", err)
 		}
 	}
 	extendDeadline()

@@ -125,7 +125,7 @@ func (w *Wallet) issuanceAnchors(listURL string) ([]*x509.Certificate, error) {
 		return nil, err
 	}
 	if len(certs) == 0 {
-		return nil, fmt.Errorf("the list names no issuance service")
+		return nil, fmt.Errorf("the list has no issuance service")
 	}
 	return certs, nil
 }

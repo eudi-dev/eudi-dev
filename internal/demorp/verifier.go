@@ -370,7 +370,7 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 	case "", "ticket":
 		body.Type = "ticket"
 		if ticketMode != "" {
-			apierror.WriteStatus(w, http.StatusBadRequest, "ticket applies to pid requests, which then ask for the ticket next to the PID")
+			apierror.WriteStatus(w, http.StatusBadRequest, "ticket applies only to pid requests. The request then asks for the ticket next to the PID")
 			return
 		}
 
@@ -404,7 +404,7 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 		// namespace. Any PID would answer a doctype request for a national PID.
 		domestic := requested != PIDVCT
 		if domestic && wantMDOC && !wantSDJWT {
-			apierror.WriteStatus(w, http.StatusBadRequest, "a credential type has no mdoc form: every PID carries the doctype "+PIDDocType+", so ask for the PID in mdoc instead")
+			apierror.WriteStatus(w, http.StatusBadRequest, "this credential type has no mdoc form. Every PID uses the doctype "+PIDDocType+", so request the PID as mdoc instead")
 			return
 		}
 		if wantSDJWT {

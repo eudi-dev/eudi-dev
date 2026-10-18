@@ -33,7 +33,7 @@ sequenceDiagram
 
 ## Common request fields
 
-| Field / setting | Why it matters in `eudi-dev` |
+| Field / setting | Role in `eudi-dev` |
 |-----------------|--------------------------------|
 | `client_id` | Required except in an unsigned Digital Credentials API request. That request carries no `client_id` (OpenID4VP Appendix A.2). The wallet validates the Client Identifier Prefix (see the prefix table below). |
 | `response_type` | Supports `vp_token`, `vp_token id_token`, and `id_token`. |
@@ -76,7 +76,7 @@ sequenceDiagram
 
 ### Relevant parameters
 
-| Field / setting | Used how |
+| Field / setting | Usage |
 |-----------------|----------|
 | `response_type=vp_token` | Standard VP-only flow. |
 | `response_type=vp_token id_token` | The wallet returns both. |
@@ -109,7 +109,7 @@ sequenceDiagram
 
 ### Relevant parameters
 
-| Field / setting | Used how |
+| Field / setting | Usage |
 |-----------------|----------|
 | `request_uri` | The wallet fetches the request object from this URI. |
 | `request_uri_method=post` | Switches the request-object fetch from GET to POST. |
@@ -140,7 +140,7 @@ sequenceDiagram
 
 ### Relevant parameters
 
-| Field / setting | Used how |
+| Field / setting | Usage |
 |-----------------|----------|
 | Browser API protocol `openid4vp-v1-unsigned` | Unsigned Browser API request branch. |
 | Browser API protocol `openid4vp-v1-signed` | Signed Browser API request branch. Request data can be a compact JWT or an object containing `request` or `request_uri`. |

@@ -241,7 +241,7 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
           <label class="conf-toggle" id="conf-arf-label" title="Access and registration certificates, revocation, over-asking and the trusted lists of received credentials (--arf)"><input type="checkbox" id="conf-arf-input"> Check verifier and issuer certificates</label>
         </td></tr>
         <tr><td id="conf-encrypted-name">Request objects</td><td>
-          <label class="conf-toggle" id="conf-encrypted-label" title="The wallet always sends an encryption key in wallet_metadata. This makes the verifier use it (--require-encrypted-request)"><input type="checkbox" id="conf-encrypted-input"> Refuse unencrypted request objects</label>
+          <label class="conf-toggle" id="conf-encrypted-label" title="The wallet always sends an encryption key in wallet_metadata. This setting makes the verifier use it (--require-encrypted-request)"><input type="checkbox" id="conf-encrypted-input"> Refuse unencrypted request objects</label>
         </td></tr>
         <tr><td id="conf-vci-version-name">OpenID4VCI version</td><td>
           <select id="conf-vci-version-select" class="conf-input" aria-labelledby="conf-vci-version-name">
@@ -251,7 +251,7 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
         </td></tr>
         <tr><td id="conf-transcript-name">mdoc session transcript</td><td id="conf-transcript" title="Set at startup with --session-transcript">—</td></tr>
         <tr id="conf-vci-client-id-row"><td id="conf-vci-client-id-name">OpenID4VCI client ID</td><td>
-          <input type="text" id="conf-vci-client-id" class="conf-input mono" placeholder="Random for each flow" aria-labelledby="conf-vci-client-id-name" title="A fixed client ID for authorization code flows (--vci-client-id). Empty gives each flow with client attestation a random client ID">
+          <input type="text" id="conf-vci-client-id" class="conf-input mono" placeholder="Random for each flow" aria-labelledby="conf-vci-client-id-name" title="A fixed client ID for authorization code flows (--vci-client-id). If empty, each flow with client attestation uses a random client ID">
         </td></tr>
         <tr><td id="conf-format-name">Preferred format</td><td id="conf-format" title="Used when credentials in several formats match. Set at startup or with PUT /api/config/preferred-format">—</td></tr>
         <tr><td id="conf-key-attestation-name">Key attestation level</td><td>

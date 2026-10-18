@@ -286,7 +286,7 @@ func (w *Wallet) statusIndexFree(idx int, credID string) error {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 	if allocation < 0 || allocation >= w.StatusListCounter {
-		return fmt.Errorf("status index %d is not one the wallet assigned. Leave the index out and the wallet assigns one", idx)
+		return fmt.Errorf("status index %d was not assigned by the wallet. Leave out the index to let the wallet assign one", idx)
 	}
 	group := ""
 	for _, c := range w.Credentials {

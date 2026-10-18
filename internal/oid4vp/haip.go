@@ -132,7 +132,7 @@ func haipSignedRequestViolations(reqObj *oid4vc.RequestObjectJWT) []string {
 		for i, cert := range certs[1:] {
 			if validate.SelfSignedCertificate(cert) {
 				violations = append(violations, fmt.Sprintf(
-					"HAIP 1.0 §5: the x5c header of the signed request carries a self-signed certificate at position %d (subject %q), where the certificate of the trust anchor MUST NOT be included",
+					"HAIP 1.0 §5: the x5c header of the signed request carries a self-signed certificate at position %d (subject %q). The trust anchor certificate MUST NOT be included",
 					i+2, cert.Subject.String()))
 				break
 			}

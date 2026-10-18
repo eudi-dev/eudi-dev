@@ -1705,7 +1705,7 @@
     if (body.catalog) flags.push(['--catalog', JSON.stringify(body.catalog)]);
     if (body.signing_key) flags.push(['--key', body.signing_key]);
     if (body.signing_cert) flags.push(['--cert', body.signing_cert]);
-    const keyNote = body.signing_key ? 'The command holds the private signing key, so it ends up in your shell history.' : '';
+    const keyNote = body.signing_key ? 'The command contains the private signing key, so it ends up in your shell history.' : '';
     const notes = [];
     if (files.length) notes.push('The command first writes ' + files.join(', ') + ' to the current directory.');
     if (keyNote) notes.push(keyNote);
@@ -2553,7 +2553,7 @@
     return html;
   }
 
-  const DEMO_CONSENT_NOTE = 'This public demo answers consent requests only from its web UI, unless the operator starts it with --demo-consent-api. ';
+  const DEMO_CONSENT_NOTE = 'On this public demo, only the web UI can answer consent requests, unless the operator starts it with --demo-consent-api. ';
 
   function showConsentDialog(req) {
     consentRequestOpen = true;
@@ -3329,12 +3329,12 @@
         curl: '# The newest pending ' + kind + '. Set REQUEST_ID to answer another one.\n' + find +
           '\n\n# Approve\n' + answer('approve', approveRequestBody()) +
           '\n\n# Deny\n' + answer('deny'),
-        note: (consentAPI ? '' : DEMO_CONSENT_NOTE) + 'The command needs jq. It answers the newest request that came from an API call, the CLI or a test. Requests opened in a browser are visible only in that browser. To answer this request, set REQUEST_ID=' + req.id + '.',
+        note: (consentAPI ? '' : DEMO_CONSENT_NOTE) + 'The command needs jq. It answers the newest request from an API call, the CLI or a test. Requests opened in a browser are visible only in that browser. To answer this request, set REQUEST_ID=' + req.id + '.',
         cli: '# Approve the newest pending ' + kind + '\n' +
           eudiDialogs.cli('eudi wallet requests approve', [['--type', req.type], ['--body', '-'], remote]) +
           eudiDialogs.heredoc(JSON.stringify(approveRequestBody(), null, 2)) + '\n\n# Deny it\n' +
           eudiDialogs.cli('eudi wallet requests deny', [['--type', req.type], remote]),
-        cliNote: (consentAPI ? '' : DEMO_CONSENT_NOTE) + 'Without an id, the command answers the newest request that came from an API call, the CLI or a test. Requests opened in a browser are visible only in that browser. To answer this request, put its id ' + req.id + ' after approve or deny.',
+        cliNote: (consentAPI ? '' : DEMO_CONSENT_NOTE) + 'Without an id, the command answers the newest request from an API call, the CLI or a test. Requests opened in a browser are visible only in that browser. To answer this request, put its id ' + req.id + ' after approve or deny.',
       };
     });
     renderDialog();
@@ -3801,7 +3801,7 @@
           const note = document.createElement('span');
           note.className = 'trust-item-hint';
           note.id = item.id + '-catalogue-hint';
-          note.textContent = 'Used only through a catalogue entry that links it.';
+          note.textContent = 'Used only when a catalogue entry links it.';
           text.appendChild(note);
         }
         item.appendChild(text);
@@ -5471,7 +5471,7 @@
     };
     const issuerCA = document.getElementById('registrar-catalog-issuer-ca').value.trim();
     if (issuerCA && body.schema.trustedAuthorities.length) {
-      throw new Error("Use either an issuer CA or a trusted list. The issuer CA goes on the wallet's list of the category, and a trusted list links another list.");
+      throw new Error("Use either an issuer CA or a trusted list. The wallet adds the issuer CA to its list for the category. A trusted list links another list.");
     }
     return { body, typed, issuerCA };
   }

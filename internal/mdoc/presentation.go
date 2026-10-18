@@ -58,11 +58,11 @@ func VerifyValueDigests(doc *Document) error {
 					item.ElementIdentifier, item.DigestID)
 			}
 			if len(item.RawCBOR) == 0 {
-				return fmt.Errorf("element %q kept no encoded form to hash", item.ElementIdentifier)
+				return fmt.Errorf("element %q has no encoded form to hash", item.ElementIdentifier)
 			}
 			got := hash(item.RawCBOR)
 			if !bytes.Equal(got, want) {
-				return fmt.Errorf("element %q does not match the digest the issuer signed", item.ElementIdentifier)
+				return fmt.Errorf("element %q does not match its digest in the MSO", item.ElementIdentifier)
 			}
 		}
 	}
@@ -113,7 +113,7 @@ func VerifyDeviceAuth(doc *Document, sessionTranscript []byte) error {
 	}
 	alg, err := msg.Headers.Protected.Algorithm()
 	if err != nil {
-		return fmt.Errorf("the device signature names no algorithm: %w", err)
+		return fmt.Errorf("the device signature has no algorithm: %w", err)
 	}
 	verifier, err := NewCOSEVerifier(alg, deviceKey)
 	if err != nil {
@@ -134,7 +134,7 @@ func DeviceKey(doc *Document) (*ecdsa.PublicKey, error) {
 	}
 	info := doc.IssuerAuth.MSO.DeviceKeyInfo
 	if info == nil {
-		return nil, fmt.Errorf("the MSO names no device key, so the credential is not holder-bound")
+		return nil, fmt.Errorf("the MSO has no device key, so the credential is not holder-bound")
 	}
 	if _, ok := info["deviceKey"]; !ok {
 		return nil, fmt.Errorf("deviceKeyInfo carries no deviceKey")
@@ -226,7 +226,7 @@ func ItemDigest(doc *Document, namespace string, item IssuerSignedItem) (got, wa
 		return nil, nil, err
 	}
 	if len(item.RawCBOR) == 0 {
-		return nil, nil, fmt.Errorf("element kept no encoded form to hash")
+		return nil, nil, fmt.Errorf("element has no encoded form to hash")
 	}
 	got = hash(item.RawCBOR)
 	want = doc.IssuerAuth.MSO.ValueDigests[namespace][item.DigestID]

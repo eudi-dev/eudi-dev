@@ -438,7 +438,7 @@ func TestInteractiveAuthorizationAbortsOnAnUnsupportedInteraction(t *testing.T) 
 	}{
 		{name: "web", interaction: interactionTypeAuthViaWeb, wantIn: interactionTypeAuthViaWeb},
 		{name: "unknown", interaction: "urn:example:ia:smartcard", wantIn: "unsupported interaction type"},
-		{name: "missing", interaction: "", wantIn: "without naming its type"},
+		{name: "missing", interaction: "", wantIn: "without an interaction type"},
 	}
 
 	for _, tc := range tests {

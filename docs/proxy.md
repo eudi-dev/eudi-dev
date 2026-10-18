@@ -30,7 +30,7 @@ The proxy checks the rules from top to bottom. The first match sets the badge.
 | VCI metadata           | Path contains `.well-known/openid-credential-issuer` |
 | OIDC metadata          | Path contains `.well-known/openid-configuration` |
 | VCI credential offer   | `credential_offer` or `credential_offer_uri` in query |
-| VP auth request        | `client_id` and a `response_type` with `vp_token` in query. An `id_token` response type counts with an OID4VP parameter such as `request_uri`, `response_uri` or `dcql_query` |
+| VP auth request        | `client_id` and a `response_type` with `vp_token` in query. An `id_token` response type only counts together with an OID4VP parameter such as `request_uri`, `response_uri` or `dcql_query` |
 | OIDC auth request      | `client_id`, `redirect_uri` and a `response_type` with `code`, `token` or `id_token` in query, plus the `openid` scope or a `form_post` response mode |
 | OIDC callback          | GET with `code` or `error` in query, or a POST body with `code` or `error` and no `grant_type` |
 | VP request object      | GET whose response body is a JWT, or a POST body with `wallet_metadata` or `wallet_nonce` (`request_uri_method=post`) |
@@ -56,9 +56,9 @@ By default only OID4VP/VCI traffic is shown. Other requests (favicon, health che
 
 ## Bodies and streams
 
-The proxy forwards every body in full. It keeps the first MiB of each request and response body for the terminal, the dashboard and the HAR export. A longer body is marked `requestTruncated` or `responseTruncated` in `--json`. When the proxy keeps the whole response, it replaces the target host with its own. A longer response passes through unchanged.
+The proxy forwards every body in full. It keeps the first MiB of each request and response body for the terminal, the dashboard and the HAR export. A longer body is marked `requestTruncated` or `responseTruncated` in `--json`. In a response of up to 1 MiB, the proxy replaces the target host with its own. A longer response is forwarded unchanged.
 
-Event streams pass through as each event arrives. Event streams and long polls stay open past the server's write timeout, because each write gets a new deadline.
+The proxy forwards each event of an event stream as it arrives. Event streams and long polls stay open past the server's write timeout, because each write gets a new deadline.
 
 ## Flags
 
@@ -67,7 +67,7 @@ Event streams pass through as each event arrives. Event streams and long polls s
 | `--target`       | None    | URL of the verifier/issuer (required)    |
 | `--port`         | `9090`  | Proxy listen port                        |
 | `--dashboard`    | `9091`  | Dashboard listen port                    |
-| `--listen` | `$EUDI_DEV_LISTEN`, else `127.0.0.1` | IP address the proxy and its dashboard bind. `0.0.0.0` opens them to the network (see [listen address](wallet/serve.md#listen-address)) |
+| `--listen` | `$EUDI_DEV_LISTEN`, else `127.0.0.1` | IP address to bind for the proxy and its dashboard. `0.0.0.0` opens them to the network (see [listen address](wallet/serve.md#listen-address)) |
 | `--no-dashboard` | `false` | Disable web dashboard                    |
 | `--dashboard-base-url` | None | Public dashboard URL when a reverse proxy serves it under a path prefix, such as `https://example.com/eudi-proxy` (see [reverse proxy setup](reverse-proxy.md#proxy-dashboard)) |
 | `--all-traffic`  | `false` | Show all traffic                          |
@@ -107,7 +107,7 @@ The dashboard serves the recorded traffic as JSON. `eudi proxy logs` reads these
 
 | Route | Response |
 |-------|----------|
-| `GET /api/entries` | All recorded entries as a JSON array. The `X-Entries-Limit` header gives how many entries the proxy keeps |
+| `GET /api/entries` | All recorded entries as a JSON array. The `X-Entries-Limit` header contains the maximum number of entries the proxy keeps |
 | `GET /api/stream` | New entries as server-sent events, one JSON entry per `data:` line |
 | `GET /api/har` | All recorded entries as a HAR file, downloaded as `eudi-dev.har`. The dashboard's HAR export uses it |
 

@@ -54,7 +54,7 @@ A request belongs to your test page when one of these holds:
 ```js
 const owner = "test-" + Date.now();
 await page.goto(`${WALLET}/?focus=overview&owner=${owner}`);
-// The call answers after the consent, so the test doesn't await it.
+// The call returns after the consent, so the test doesn't await it.
 fetch(`${WALLET}/api/offers`, {
   method: "POST",
   headers: { "Content-Type": "application/json", "X-Eudi-Owner": owner },
@@ -153,7 +153,7 @@ const ticket = page.locator('.credential-card[data-vct="urn:eudi-test:demo-ticke
 await expect(ticket.first()).toBeVisible();
 ```
 
-API: `POST /issuer/api/offers` answers `wallet_url`, `scheme_uri`, `offer_uri` and `issuer`. `scheme_uri` uses `openid-credential-offer://`, which any OpenID4VCI wallet handles. The query parameters `grant`, `authorization`, `status`, `deferred`, `batch`, `credential`, `identity` and `identity_check` match the page options. Without `authorization_details` the token response has no credential identifiers. `credential_identifiers=always` adds them to every token response, as Keycloak does (OpenID4VCI 1.0 §6.2). The wallet then has to request by `credential_identifier`. With `identity=own` the body carries `signing_key` and `issuer_info`, with `identity_check=own` an `identity_check` object with `signing_key` and `verifier_info` (see [demo issuer and verifier](wallet/registrar.md#demo-issuer-and-verifier)).
+API: `POST /issuer/api/offers` returns `wallet_url`, `scheme_uri`, `offer_uri` and `issuer`. `scheme_uri` uses `openid-credential-offer://`, which any OpenID4VCI wallet handles. The query parameters `grant`, `authorization`, `status`, `deferred`, `batch`, `credential`, `identity` and `identity_check` match the page options. Without `authorization_details` the token response has no credential identifiers. `credential_identifiers=always` adds them to every token response, as Keycloak does (OpenID4VCI 1.0 §6.2). The wallet then has to request by `credential_identifier`. With `identity=own` the body carries `signing_key` and `issuer_info`. With `identity_check=own` it carries an `identity_check` object with `signing_key` and `verifier_info` (see [demo issuer and verifier](wallet/registrar.md#demo-issuer-and-verifier)).
 
 E2E tests: [`prefix.spec.js`](../e2e/prefix.spec.js), test *a demo issuer offer opened in the browser is issued*. [`demo.spec.js`](../e2e/demo.spec.js), test *a deferred offer is awaited and then collected*.
 
@@ -178,7 +178,7 @@ await page.locator("#login-submit").click();
 await page.waitForURL(`${WALLET}/?focus=overview`);
 ```
 
-API: `POST /api/offers` answers `202` with `authorization_url` and `offer_id`. Open the URL in the browser, sign in and poll `GET /api/offers/{offer_id}` until its `status` is `completed`. See [sign-in during issuance](wallet/issuing.md#sign-in-during-issuance).
+API: `POST /api/offers` returns `202` with `authorization_url` and `offer_id`. Open the URL in the browser, sign in and poll `GET /api/offers/{offer_id}` until its `status` is `completed`. See [sign-in during issuance](wallet/issuing.md#sign-in-during-issuance).
 
 E2E tests: [`demo.spec.js`](../e2e/demo.spec.js), test *the credential arrives once the user signs in at the issuer*. [`prefix.spec.js`](../e2e/prefix.spec.js), test *issuer sign-in returns to the wallet under the prefix*.
 
@@ -289,7 +289,7 @@ E2E tests: [`prefix.spec.js`](../e2e/prefix.spec.js), test *a demo verifier requ
 | Candidate | `#consent-candidate-<query id>-<credential id>`, a `.candidate` with `data-query` and `data-cred`. A picked one has the class `selected`. Under **multiple** it is a checkbox with `aria-checked` |
 | Option of a credential set | `#consent-set-<n>-option-<m>` (radio) |
 | Skip an optional set | `#consent-set-<n>-none` |
-| Claim set | `#consent-claim-set-<query id>-current` says which claim set the wallet sends. `#consent-show-claim-sets-<query id>` opens the list `#consent-claim-set-<query id>`. Each set is the radio `#consent-claim-set-<query id>-<claim_sets index>` |
+| Claim set | `#consent-claim-set-<query id>-current` shows which claim set the wallet sends. `#consent-show-claim-sets-<query id>` opens the list `#consent-claim-set-<query id>`. Each set is the radio `#consent-claim-set-<query id>-<claim_sets index>` |
 | Non-matching credentials | `#consent-show-nonmatching-<query id>` opens the list. Rows have `data-non-matching="true"`. Reasons are in `consent-mismatch-<query id>-<credential id>` |
 
 Under **multiple**, the last selected credential stays selected. While a non-matching credential is picked or none matches, the list stays open under `#consent-nonmatching-label-<query id>`.
@@ -320,7 +320,7 @@ The demo verifier polls for the result and shows it on its page.
 | Disclosed claims | `#claims` (table), rows `#claims-<n>-<claim>` |
 | The presentation in the decoder | `#presentation-link` |
 
-API: `GET /verifier/api/requests/{transaction id}` answers `status`, `checks` and `claims`. `POST /verifier/api/requests` with `{"type": "pid"}` creates a request and answers `transaction_id`, `wallet_url` and `scheme_uri`.
+API: `GET /verifier/api/requests/{transaction id}` returns `status`, `checks` and `claims`. `POST /verifier/api/requests` with `{"type": "pid"}` creates a request and returns `transaction_id`, `wallet_url` and `scheme_uri`.
 
 E2E tests: [`demo.spec.js`](../e2e/demo.spec.js), tests *a response with a ticket and a PID lists the checks of each credential* and *the redirect shows the requested credential and folds the passed checks*.
 
@@ -509,7 +509,7 @@ E2E tests: [`wallet.spec.js`](../e2e/wallet.spec.js), test *trust dialog adds a 
 | HTTPS certificates | `#conf-tls-select` (`auto`, `true`, `false`) |
 | HAIP, ARF, encrypted request objects | `#conf-haip-input`, `#conf-arf-input`, `#conf-encrypted-input` |
 | OpenID4VCI version, key attestation level | `#conf-vci-version-select`, `#conf-key-attestation-select` |
-| OpenID4VCI client ID | `#conf-vci-client-id`. Empty gives each flow with client attestation a random client ID. A demo shows the row only for a fixed client ID |
+| OpenID4VCI client ID | `#conf-vci-client-id`. When it is empty, each flow with client attestation uses a random client ID. A demo shows the row only for a fixed client ID |
 | **Reset to startup settings**, **Close** | `#conf-reset`, `#conformance-close` |
 
 **Auto-accept** (`#auto-accept-toggle`) shows the state in `aria-pressed`. Only local wallets show it.

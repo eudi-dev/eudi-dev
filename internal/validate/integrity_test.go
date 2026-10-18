@@ -270,7 +270,7 @@ func TestCheckSDJWTIntegrity(t *testing.T) {
 }
 
 func TestCheckMDOCIntegrity_FailsOnParseDeviations(t *testing.T) {
-	doc := &mdoc.Document{Deviations: []string{`the document names docType "org.iso.18013.5.1.mDL", but the issuer signed "eu.europa.ec.eudi.pid.1" in the MSO`}}
+	doc := &mdoc.Document{Deviations: []string{`the document has docType "org.iso.18013.5.1.mDL", but the MSO signed by the issuer has "eu.europa.ec.eudi.pid.1"`}}
 	if got := CheckMDOCIntegrity(doc); got.Status != Fail {
 		t.Errorf("Status = %q (%s), want fail", got.Status, got.Detail)
 	}

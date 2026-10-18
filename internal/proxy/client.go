@@ -53,7 +53,7 @@ func NewDashboardClient(rawURL string) (*DashboardClient, error) {
 		return nil, fmt.Errorf("invalid dashboard URL %q: %w", rawURL, err)
 	}
 	if parsed.Host == "" {
-		return nil, fmt.Errorf("dashboard URL %q names no host", rawURL)
+		return nil, fmt.Errorf("dashboard URL %q has no host", rawURL)
 	}
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
 		return nil, fmt.Errorf("dashboard URL %q must be http or https", rawURL)

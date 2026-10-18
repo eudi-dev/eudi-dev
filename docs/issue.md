@@ -35,7 +35,7 @@ eudi issue mdoc  | eudi decode
 
 ## Flags
 
-Flags marked "With `--wallet`" are refused without `--wallet`.
+Flags marked "With `--wallet`" only work together with `--wallet`.
 
 Flags shared by all three subcommands:
 

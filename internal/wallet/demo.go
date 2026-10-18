@@ -154,7 +154,7 @@ func (s *Server) Handler() http.Handler {
 	}
 	inner := secure(s.guardAPI(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if s.demo != nil && demoBlockedRoute(r) {
-			apierror.WriteStatus(w, http.StatusForbidden, "the public demo disables this endpoint")
+			apierror.WriteStatus(w, http.StatusForbidden, "this endpoint is disabled on the public demo")
 			return
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)

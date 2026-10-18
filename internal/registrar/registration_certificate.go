@@ -243,7 +243,7 @@ func providerService(rp WalletRelyingParty, serviceIdentifier string) (WalletRel
 		return WalletRelyingPartyService{}, fmt.Errorf("%w as an attestation provider: %s", errRelyingPartyNotFound, rp.Identifier[0].Identifier)
 	}
 	if len(providers) != 1 {
-		return WalletRelyingPartyService{}, fmt.Errorf("%s has %d attestation provider services and no intended use was given, so name the service or the intended use", rp.Identifier[0].Identifier, len(providers))
+		return WalletRelyingPartyService{}, fmt.Errorf("%s has %d attestation provider services. Specify the service or the intended use", rp.Identifier[0].Identifier, len(providers))
 	}
 	return providers[0], nil
 }

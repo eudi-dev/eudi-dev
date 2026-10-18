@@ -14,7 +14,7 @@ Paste a credential to see its header, claims and disclosures. The decoder runs t
 
 The decoder reads the attestation catalogue of the stored wallet when one exists. It never creates a wallet. It anchors a credential in the trusted lists of its catalogue entry, as described in [catalogue trust](validate.md#catalogue-trust). A registration certificate has no catalogue entry. The decoder anchors it in the lists of registration certificate providers. A registration certificate copied from `verifier_info` is base64url encoded (ETSI TS 119 472-2 RO-16). The decoder, `eudi decode` and `eudi validate` decode it and read the JWT inside. The decoder of a running wallet also uses the lists from `--trusted-list` and the list operators from `--trusted-list-ca`.
 
-The decoder fetches the trusted lists, issuer metadata and status lists referenced in the input. It reaches public addresses and loopback only. `--allow-private-networks` (or `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=true`) lifts the limit for issuers on a private network (see [outbound address limits](wallet/serve.md#outbound-address-limits)).
+The decoder fetches the trusted lists, issuer metadata and status lists referenced in the input. It only connects to public addresses and loopback. `--allow-private-networks` (or `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=true`) lifts the limit for issuers on a private network (see [outbound address limits](wallet/serve.md#outbound-address-limits)).
 
 ## Flags
 
@@ -23,11 +23,11 @@ The decoder fetches the trusted lists, issuer metadata and status lists referenc
 | `--port` | `8080` | Port to listen on |
 | `--listen` | `$EUDI_DEV_LISTEN`, else `127.0.0.1` | IP address to bind. `0.0.0.0` opens the decoder to the network (see [listen address](wallet/serve.md#listen-address)) |
 | `--imprint-file` | None | HTML snippet with the operator's legal notice, served at `/imprint` |
-| `--allow-private-networks` | `$EUDI_DEV_ALLOW_PRIVATE_NETWORKS`, else `false` | Let outbound requests reach private networks |
+| `--allow-private-networks` | `$EUDI_DEV_ALLOW_PRIVATE_NETWORKS`, else `false` | Allow outbound requests to private networks |
 
 ## Validation API
 
-`POST /api/validate` decodes and validates one credential. It is the call behind the decoder UI. A running wallet serves it at `/decoder/api/validate`. The body is JSON with these fields:
+`POST /api/validate` decodes and validates one credential. The decoder UI uses this call. A running wallet serves it at `/decoder/api/validate`. The body is JSON with these fields:
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -36,7 +36,7 @@ The decoder fetches the trusted lists, issuer metadata and status lists referenc
 | `trustListURL` | string | URL of a trusted list that anchors the issuer |
 | `trustListRaw` | string | A trusted list JWT that anchors the issuer |
 | `checkStatus` | bool | Fetch the status list of a credential with a status reference |
-| `offline` | bool | Skip the checks that need the network. They come back as `skipped` with `needsNetwork: true` |
+| `offline` | bool | Skip the checks that need the network. These checks return `skipped` with `needsNetwork: true` |
 
 The response is the decoded credential with a `validation` object. Its `checks` array lists one entry per check with `name`, `status` (`pass`, `fail`, `warning` or `skipped`) and `detail`. A passing trust or status list check also returns its `anchor`: the `list_url` and `service` of the trusted list entry, and the catalogue `entry` that links the list.
 

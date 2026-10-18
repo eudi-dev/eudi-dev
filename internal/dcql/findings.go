@@ -233,7 +233,7 @@ func credentialSetFindings(query map[string]any, ids map[string]bool) []string {
 			}
 			for _, ref := range option {
 				if id, _ := ref.(string); !ids[id] {
-					findings = append(findings, fmt.Sprintf("OID4VP 1.0 §6.2: credential_sets[%d].options[%d] references %v, which is no credential query id", i, j, ref))
+					findings = append(findings, fmt.Sprintf("OID4VP 1.0 §6.2: credential_sets[%d].options[%d] references %v, but there is no credential query with that id", i, j, ref))
 				}
 			}
 		}

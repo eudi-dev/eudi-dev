@@ -228,7 +228,7 @@ The access certificate chains to the relying party access CA on the wallet's `ac
 
 ### 5. Request beyond the registration
 
-Add `family_name` to the DCQL query, sign again and send it. In debug mode the wallet still presents. The response has the same fields as above and adds `findings`:
+Add `family_name` to the DCQL query, sign again and send it. In debug mode the wallet still presents the PID. The response has the same fields as above and adds `findings`:
 
 ```json
 {
@@ -434,7 +434,7 @@ The wallet checks this request like any other verifier request. The access certi
 
 ## Certificates from another registrar
 
-The wallet anchors access certificates and registration certificates only through its `access-ca` and `registrar` lists. To test certificates from your own registrar, put its CAs on these lists:
+The wallet takes the trust anchors for access certificates and registration certificates only from its `access-ca` and `registrar` lists. To test certificates from your own registrar, put its CAs on these lists:
 
 ```bash
 eudi trust add-ca --list access-ca --name "My Registrar Access CA" --ca my-access-ca.pem
@@ -448,4 +448,4 @@ jq -n --rawfile ca my-registrar-ca.pem '{list: "registrar", name: "My Registrar"
   curl -s -X POST localhost:8085/api/trust/entities -H 'Content-Type: application/json' -d @-
 ```
 
-A CA on the `registrar` list anchors the registration certificates and their status list. See [trusted lists](serve.md#trusted-lists) for the other lists and for external lists.
+A CA on the `registrar` list is the trust anchor for registration certificates and their status list. See [trusted lists](serve.md#trusted-lists) for the other lists and for external lists.

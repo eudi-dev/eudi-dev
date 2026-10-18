@@ -517,7 +517,7 @@ func (w *Wallet) attestationClientAuth(ctx clientAuthContext) *ClientAuthenticat
 		auth.CombinedPoP = true
 		if auth.ABCADraft < ABCALatestDraft {
 			w.addProtocolWarning("issuance", "abca_draft_feature",
-				fmt.Sprintf("This authorization server takes the DPoP proof as the attestation's possession proof (dpop_combined), a draft-10 mechanism, while the configured OpenID4VCI version pins attestation-based client authentication draft-0%d. Using it, since the server offers nothing earlier.", auth.ABCADraft),
+				fmt.Sprintf("This authorization server uses the DPoP proof as the proof of possession for the client attestation (dpop_combined). This is a draft-10 mechanism, and the configured OpenID4VCI version pins attestation-based client authentication draft-0%d. The wallet uses it because the server offers no earlier mechanism.", auth.ABCADraft),
 				map[string]any{"token_endpoint": ctx.tokenEndpoint})
 		}
 	}
@@ -1104,7 +1104,7 @@ func (w *Wallet) checkTokenType(tokenResp map[string]any, sentDPoP bool) error {
 		return w.reportServerDeviation(fmt.Sprintf("the token response omitted token_type, which RFC 6749 §5.1 requires (assuming %s)", accessTokenScheme(tokenResp, sentDPoP)))
 	}
 	if !strings.EqualFold(tokenType, "Bearer") && !strings.EqualFold(tokenType, "DPoP") {
-		return w.reportServerDeviation(fmt.Sprintf("the token response token_type %q is neither Bearer (RFC 6749) nor DPoP (RFC 9449), treating it as Bearer", tokenType))
+		return w.reportServerDeviation(fmt.Sprintf("the token response token_type %q is neither Bearer (RFC 6749) nor DPoP (RFC 9449). The wallet treats it as Bearer", tokenType))
 	}
 	return nil
 }
@@ -1824,7 +1824,7 @@ func (w *Wallet) validateAuthorizationCodeResponse(values url.Values, expectedSt
 	if expectedState = strings.TrimSpace(expectedState); expectedState != "" {
 		switch state := values.Get("state"); {
 		case state == "":
-			if err := w.reportServerDeviation("the authorization response omitted state, which RFC 6749 §4.1.2 returns when the request carried one"); err != nil {
+			if err := w.reportServerDeviation("the authorization response omitted state. RFC 6749 §4.1.2 requires it when the request carried one"); err != nil {
 				return err
 			}
 		case state != expectedState:

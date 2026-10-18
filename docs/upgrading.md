@@ -81,7 +81,7 @@ A CLI command that talks to a running wallet refuses a setting that differs from
 
 ## Outbound connections
 
-`wallet serve` and the decoder reach public addresses, loopback and their own URLs. Add `--allow-private-networks` (or `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=true`) when your issuer or verifier runs in a private network. The Docker image allows private networks.
+`wallet serve` and the decoder connect to public addresses, loopback and their own URLs. Add `--allow-private-networks` (or `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=true`) when your issuer or verifier runs in a private network. The Docker image allows private networks.
 
 ## Stricter checks
 

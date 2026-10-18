@@ -43,7 +43,7 @@ Every endpoint under `/api` answers errors with the same JSON object. So do the 
 | `404` | `not_found` | An unknown credential, template, request, offer, deferred credential or registration |
 | `409` | `conflict` | The request timed out or was answered already, or a registration changed meanwhile |
 | `501` | `not_implemented` | An unsupported feature, such as historical status lists |
-| `503` | `temporarily_unavailable` | A required part, such as the store, is missing. Or too many flows wait for the user, see [waiting flows](#waiting-flows) |
+| `503` | `temporarily_unavailable` | A required part, such as the store, is missing, or too many flows are waiting for the user (see [waiting flows](#waiting-flows)) |
 | `500`, `502` | `server_error` | The wallet could not build or deliver the response |
 | `504` | `consent_timeout` | Nobody answered the consent dialog in time |
 
@@ -53,7 +53,7 @@ Protocol endpoints for verifiers and issuers answer as their specification defin
 
 ### Waiting flows
 
-A flow that waits for the consent dialog or for a sign-in at the issuer holds the wallet until it ends or times out. At most 100 consent dialogs and 100 sign-ins wait at once, 30 of each on a public demo. On a public demo, one browser can also have at most 3 consent dialogs and 3 sign-ins waiting. The `X-Eudi-Owner` header or the session cookie identifies the browser. Requests with neither share one count. Beyond these limits the wallet refuses a new interactive presentation or offer with `503`, `temporarily_unavailable` and a `Retry-After` header. A waiting flow ends after five minutes at the latest.
+A flow that waits for the consent dialog or for a sign-in at the issuer counts as waiting until it ends or times out. At most 100 consent dialogs and 100 sign-ins wait at once, 30 of each on a public demo. On a public demo, one browser can also have at most 3 consent dialogs and 3 sign-ins waiting. The `X-Eudi-Owner` header or the session cookie identifies the browser. Requests with neither share one count. Beyond these limits the wallet refuses a new interactive presentation or offer with `503`, `temporarily_unavailable` and a `Retry-After` header. A waiting flow ends after five minutes at the latest.
 
 ### Presentations and offers
 
@@ -82,7 +82,7 @@ The [deferred issuance](#deferred-issuance) endpoints follow up on a deferred of
 |-------|------|-------------|
 | `uri` | string | The authorization request, such as `openid4vp://?client_id=...&request_uri=...`. Required |
 | `interactive` | bool | Show the consent dialog and wait for an answer. Without it the API call counts as consent |
-| `auto_accept` | bool | Approve without the dialog, also when `interactive` is set |
+| `auto_accept` | bool | Approve without the dialog, even when `interactive` is set |
 | `session_transcript` | string | mdoc session transcript for this request: `oid4vp` or `iso`. Default is the server setting `--session-transcript` |
 
 A submitted presentation answers `200` with `status` `submitted`, the verifier's `response` (`status_code`, `body` and `redirect_uri`), the `vp_token_keys` and the debug mode `findings`. A `redirect_uri` from the verifier also appears at the top level. When no credential matches, the wallet sends the verifier an error response and answers `200` with `status` `no_match` and that error. A refusal answers `200` with `status` `refused` and the error sent to the verifier. A denied consent answers `200` with `status` `denied`. See [presenting](presenting.md) for the strict and ARF rules.
@@ -110,7 +110,7 @@ The wallet answers `200` with the issued credential: `credential_id`, `format`, 
 
 #### Consent requests
 
-`GET /api/requests` lists the pending consent requests. Each has `id`, `type` (`presentation`, `issuance` or `issuance_presentation`), `client_id`, `matched_credentials`, `credential_options` and `mine`. `GET /api/requests/stream` sends a `consent` event for each new request, `wallet-error` for a failed flow, `state` when the stored state changes, and `authorize` with the sign-in `url` of an issuer. Only one tab of a browser gets `authorize`. The page sends its tab id in the `X-Eudi-Tab` header when it approves or submits an offer, and in the `tab` query of the stream. The event goes to the stream with that tab id, or else to the newest stream ([ADR-0011](../adr/0011-a-flow-belongs-to-the-browser-that-started-it.md)).
+`GET /api/requests` lists the pending consent requests. Each has `id`, `type` (`presentation`, `issuance` or `issuance_presentation`), `client_id`, `matched_credentials`, `credential_options` and `mine`. `GET /api/requests/stream` sends a `consent` event for each new request, `wallet-error` for a failed flow, `state` when the stored state changes, and `authorize` with the sign-in `url` of an issuer. Only one tab of a browser gets `authorize`. The page sends its tab id in the `X-Eudi-Tab` header when it approves or submits an offer, and in the `tab` query of the stream. The event goes to the stream with that tab id, otherwise to the newest stream ([ADR-0011](../adr/0011-a-flow-belongs-to-the-browser-that-started-it.md)).
 
 `POST /api/requests/{id}/approve` takes an optional JSON body:
 
@@ -168,8 +168,8 @@ curl -X DELETE http://localhost:8085/api/credentials
 | `nbf`             | string  | Not-before as RFC3339 (`2025-01-15T00:00:00Z`) or relative duration (`-1h`)                  |
 | `status_list_uri` | string  | Status list URI to embed. Default is the wallet's own status list when configured. `""` disables it |
 | `status_list_idx` | int     | Status list index (default is the next free index on the wallet's status list)               |
-| `category`        | string  | Credential category: `pid`, `qeaa`, `pub-eaa`, `eaa` or `unlisted`. Empty (default) takes the category of the template or the catalogue entry, else `eaa` |
-| `trust`           | object  | Trusted list and registration metadata to persist with the credential type. The fields match the `issue` trust flags: `entitlements`, `trusted_list_type`, `status_determination_approach`, `scheme_type_community_rules`, `scheme_territory`, `trusted_entity_name`, `issuance_service_type`, `revocation_service_type`, `issuance_service_name` and `revocation_service_name` |
+| `category`        | string  | Credential category: `pid`, `qeaa`, `pub-eaa`, `eaa` or `unlisted`. Empty (default) takes the category of the template or the catalogue entry, otherwise `eaa` |
+| `trust`           | object  | Trusted list and registration metadata stored with the credential type. The fields match the `issue` trust flags: `entitlements`, `trusted_list_type`, `status_determination_approach`, `scheme_type_community_rules`, `scheme_territory`, `trusted_entity_name`, `issuance_service_type`, `revocation_service_type`, `issuance_service_name` and `revocation_service_name` |
 | `display`         | object  | Card appearance: `name`, `description`, `background_color`, `text_color`, `logo`, `logo_alt_text`, `background_image` (the `--display-*` flags). Image fields take `embedded:<file>`, a data URI or an http(s) URL. The wallet fetches a linked image once and stores it with the credential. With `--adhoc-display-images` an https link stays a link |
 | `display_template`| string  | Template that supplies the logo and background image of the credential (for a form with the template's claims flattened into `claims`) |
 | `batch`           | int     | Issue this many copies with distinct holder keys, at most 8. The wallet rotates between them (like `--batch`) |
@@ -273,7 +273,7 @@ Trusted lists contain service certificates and provider CAs. A separate list ope
 
 ### Registrar
 
-These endpoints are available on both wallet ports. Anyone with access to the wallet can register, change and delete relying parties, as with credentials. All `GET` endpoints under `/api/registrar/wrp` and `PUT /api/registrar/wrp` answer with a JWT signed by the registrar (`application/jwt`). Its payload has `iss`, `iat` and `data`. Send `Accept: application/json` without `application/jwt` to get the payload unsigned. See [registrar](registrar.md#registrar-api). The [registrar API walkthrough](registrar-api.md) registers a verifier and an issuer with curl and uses their certificates.
+These endpoints are available on both wallet ports. Anyone with access to the wallet can register, change and delete relying parties, as with credentials. All `GET` endpoints under `/api/registrar/wrp` and `PUT /api/registrar/wrp` answer with a JWT signed by the registrar (`application/jwt`). Its payload has `iss`, `iat` and `data`. Send `Accept: application/json` without `application/jwt` to get the payload unsigned. See [registrar](registrar.md#registrar-api). The [registrar API walkthrough](registrar-api.md) shows how to register a verifier and an issuer with curl and use their certificates.
 
 `PUT /api/registrar/wrp` and `PUT /api/catalog/schemas/{id}` have no CLI command.
 

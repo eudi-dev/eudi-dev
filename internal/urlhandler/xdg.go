@@ -287,7 +287,7 @@ func desktopWarnings(binary string, lookPath func(string) (string, error), geten
 		}
 	}
 	if len(missing) > 0 {
-		warnings = append(warnings, fmt.Sprintf("%s not found. Chrome, Chromium and snap browsers need xdg-utils to hand links to the wallet.", strings.Join(missing, " and ")))
+		warnings = append(warnings, fmt.Sprintf("%s not found. Chrome, Chromium and snap browsers need xdg-utils to pass links to the wallet.", strings.Join(missing, " and ")))
 	}
 	return warnings
 }

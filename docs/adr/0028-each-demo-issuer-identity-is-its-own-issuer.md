@@ -11,7 +11,7 @@ Each identity has its own Credential Issuer Identifier below `/issuer`:
 - `/issuer/unsigned` answers with plain JSON metadata without `issuer_info`, also when the wallet asks for signed metadata.
 - `/issuer/own/{token}` is created for one offer. It signs with the visitor's key and access certificate chain and publishes the visitor's `issuer_info`. It ends ten minutes after its last request.
 
-Every identifier serves the same protocol endpoints from the same state. The request path decides the identity. An offer records its identity. Its codes, tokens and authorization sessions work only at that identifier. The metadata, the DPoP `htu`, the key proof and attestation PoP `aud`, the `iss` of the authorization response and the `iss` of the issued credential all use the identifier in the request URL. The identity check during interactive authorization is a presentation request, so it is chosen apart from the issuer identity, like the identity of the demo verifier.
+Every identifier serves the same protocol endpoints from the same state. The request path determines the identity. An offer records its identity. Its codes, tokens and authorization sessions work only at that identifier. The metadata, the DPoP `htu`, the key proof and attestation PoP `aud`, the `iss` of the authorization response and the `iss` of the issued credential all use the identifier in the request URL. The identity check during interactive authorization is a presentation request, so it is chosen separately from the issuer identity, like the identity of the demo verifier.
 
 ## Consequences
 

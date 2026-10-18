@@ -522,7 +522,7 @@ func (d *DemoRP) handleAuthorizationCodeToken(w http.ResponseWriter, r *http.Req
 func (d *DemoRP) lookupAuthRequest(requestURI string, identity *issuerIdentity) (*authRequestState, error) {
 	requestURI = strings.TrimSpace(requestURI)
 	if requestURI == "" {
-		return nil, fmt.Errorf("request_uri is required, this authorization server requires pushed authorization requests")
+		return nil, fmt.Errorf("request_uri is required. This authorization server requires pushed authorization requests")
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -545,7 +545,7 @@ func (d *DemoRP) lookupAuthRequest(requestURI string, identity *issuerIdentity) 
 // reloading/refreshing their user agent", so showing the login page again is
 // fine. §7.3 asks to "make the request URIs one-time use", so a request_uri
 // yields one authorization code.
-var errRequestURIUsed = errors.New("request_uri has already been used, RFC 9126 §4 gives a client one use of it")
+var errRequestURIUsed = errors.New("request_uri has already been used. RFC 9126 §4 allows a client to use it only once")
 
 func validDemoAccount(username, password string) bool {
 	return strings.TrimSpace(username) == demoAccountUsername && password == demoAccountPassword
@@ -586,7 +586,7 @@ func (d *DemoRP) verifyDPoPProof(r *http.Request, expectedURL, accessToken strin
 	case len(headers) == 0 || strings.TrimSpace(headers[0]) == "":
 		return "", fmt.Errorf("a DPoP proof is required")
 	case len(headers) > 1:
-		return "", fmt.Errorf("the request carries %d DPoP header fields, RFC 9449 §4.3 allows one", len(headers))
+		return "", fmt.Errorf("the request carries %d DPoP header fields. RFC 9449 §4.3 allows one", len(headers))
 	}
 	proof, err := parseCompactJWT(headers[0])
 	if err != nil {
@@ -822,7 +822,7 @@ func (d *DemoRP) authenticateClient(r *http.Request, clientID, jkt string) (clie
 	rawPoP := strings.TrimSpace(r.Header.Get("OAuth-Client-Attestation-PoP"))
 	if rawAttestation == "" {
 		if rawPoP != "" {
-			return clientAuthentication{}, attestationFailed("OAuth-Client-Attestation-PoP was sent without the OAuth-Client-Attestation it proves possession for")
+			return clientAuthentication{}, attestationFailed("OAuth-Client-Attestation-PoP was sent without an OAuth-Client-Attestation")
 		}
 		if d.clientAuthMode() == ClientAuthOptional {
 			return clientAuthentication{method: unauthenticatedClientAuth}, nil
@@ -901,10 +901,10 @@ func (d *DemoRP) authenticateClient(r *http.Request, clientID, jkt string) (clie
 			return clientAuthentication{}, attestationFailed("no OAuth-Client-Attestation-PoP and no DPoP proof, so nothing proves possession of the attested key")
 		}
 		if attested, err := jwkThumbprint(clientKey); err != nil || jkt != attested {
-			return clientAuthentication{}, attestationFailed("the DPoP proof is signed by a different key than the one the client attestation attests")
+			return clientAuthentication{}, attestationFailed("the DPoP proof is not signed by the key in the client attestation")
 		}
 		if draft < 10 {
-			log.Printf("[Demo issuer] the DPoP proof serves as the attestation's possession proof (dpop_combined), a draft-10 mechanism, while the configured OpenID4VCI version pins draft-0%d. Accepted, since draft-10 is always supported alongside the pinned drafts", draft)
+			log.Printf("[Demo issuer] the DPoP proof is the proof of possession for the client attestation (dpop_combined). This is a draft-10 mechanism and the configured OpenID4VCI version pins draft-0%d. Accepted, because draft-10 is always supported alongside the pinned drafts", draft)
 		}
 		return authenticated, nil
 	}

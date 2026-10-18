@@ -94,7 +94,7 @@ func parseDeviceResponse(data []byte) (*Document, error) {
 		case doc.DocType == "":
 			doc.DocType = dt
 		case dt != doc.DocType:
-			doc.Deviations = append(doc.Deviations, fmt.Sprintf("the document names docType %q, but the issuer signed %q in the MSO", dt, doc.DocType))
+			doc.Deviations = append(doc.Deviations, fmt.Sprintf("the document has docType %q, but the MSO signed by the issuer has %q", dt, doc.DocType))
 		}
 	}
 
@@ -118,7 +118,7 @@ func parseDeviceResponse(data []byte) (*Document, error) {
 	case doc.ResponseStatus == nil:
 		doc.Deviations = append(doc.Deviations, "the DeviceResponse has no status, which ISO 18013-5 §8.3.2.1.2.2 requires")
 	case *doc.ResponseStatus != 0:
-		doc.Deviations = append(doc.Deviations, fmt.Sprintf("the DeviceResponse status is %d, only 0 (OK) reports a successful response (ISO 18013-5 §8.3.2.1.2.2)", *doc.ResponseStatus))
+		doc.Deviations = append(doc.Deviations, fmt.Sprintf("the DeviceResponse status is %d. Only 0 (OK) means success (ISO 18013-5 §8.3.2.1.2.2)", *doc.ResponseStatus))
 	}
 
 	doc.IsDeviceResponse = true

@@ -66,7 +66,7 @@ func parseCWTStatusListToken(body []byte, opts CheckOptions) (*statusListToken, 
 	case tagCWT:
 		return nil, fmt.Errorf("the status list token carries the CWT tag 61, which section 5.2 forbids")
 	default:
-		return nil, fmt.Errorf("the status list token is CBOR tag %d, section 5.2 requires the tagged COSE_Sign1_Tagged (18)", raw.Number)
+		return nil, fmt.Errorf("the status list token is CBOR tag %d. Section 5.2 requires the tagged COSE_Sign1_Tagged (18)", raw.Number)
 	}
 
 	var msg cose.Sign1Message
@@ -173,20 +173,20 @@ func parseCWTStatusListToken(body []byte, opts CheckOptions) (*statusListToken, 
 func cwtType(protected cose.ProtectedHeader) (string, error) {
 	value, present := headerValue(protected, coseHeaderType)
 	if !present {
-		return "", fmt.Errorf("the status list token has no type header (16), section 5.2 requires %q", MediaTypeCWT)
+		return "", fmt.Errorf("the status list token has no type header (16). Section 5.2 requires %q", MediaTypeCWT)
 	}
 	switch v := value.(type) {
 	case string:
 		if strings.EqualFold(v, MediaTypeCWT) {
 			return "", nil
 		}
-		return "", fmt.Errorf("the status list token has type %q, section 5.2 requires %q", v, MediaTypeCWT)
+		return "", fmt.Errorf("the status list token has type %q. Section 5.2 requires %q", v, MediaTypeCWT)
 	case int64, uint64, int:
 		// Section 14.8 requests a CoAP Content-Format ID for
 		// application/statuslist+cwt. The number is still TBD.
-		return fmt.Sprintf("the status list token names its type by CoAP Content-Format ID %v, which section 14.8 has not had assigned yet", v), nil
+		return fmt.Sprintf("the status list token gives its type as CoAP Content-Format ID %v, but section 14.8 has no ID assigned yet", v), nil
 	default:
-		return "", fmt.Errorf("the status list token's type header (16) is a %T, section 5.2 requires the media type name or a CoAP Content-Format ID", value)
+		return "", fmt.Errorf("the status list token's type header (16) is a %T. Section 5.2 requires the media type name or a CoAP Content-Format ID", value)
 	}
 }
 

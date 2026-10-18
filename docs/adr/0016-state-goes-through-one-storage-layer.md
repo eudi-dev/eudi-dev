@@ -32,7 +32,7 @@ At request boundaries ([ADR-0005](0005-the-server-reloads-its-store-on-every-req
 
 Postgres writes are atomic per row. A wallet save spans several statements and is not a transaction across all entities. Concurrent writes to the same entity can overwrite each other. Revision markers tell a server when to reload. They do not lock entity writes. The status list counter uses compare-and-swap to allocate distinct indices across servers.
 
-Use the file or memory backend for one wallet server. A server using file storage checks the content hash of the wallet file while handling requests. Use Postgres to share persisted state across servers. Pending browser flows and demo issuer/verifier requests remain in memory, so requests in one flow must reach the same server. Each server also keeps fetched external trusted lists in memory for 5 minutes.
+Use the file or memory backend for one wallet server. A server using file storage checks the content hash of the wallet file while handling requests. Use Postgres to share persisted state across servers. Pending browser flows and demo issuer/verifier requests remain in memory, so all requests of one flow must go to the same server. Each server also keeps fetched external trusted lists in memory for 5 minutes.
 
 Servers that share a database must start with the same `--relying-party-ca` and `--trusted-list` flags. These flags change the signed content of `access-ca`, `registrar` and the list of trusted lists. Servers with different flags sign different content and keep replacing each other's list instance, so its sequence number grows on every request.
 

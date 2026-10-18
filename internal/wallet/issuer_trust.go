@@ -91,7 +91,7 @@ func (w *Wallet) trustAnchorFindings(cred StoredCredential) []string {
 		return nil
 	}
 	anchoring, _ := w.catalogueAnchoring(cred)
-	w.warnFindings("issuance", "trusted_list", "Some trusted lists of the catalogue entry give no anchors", anchoring.Warnings, nil)
+	w.warnFindings("issuance", "trusted_list", "Some trusted lists of the catalogue entry have no trust anchors", anchoring.Warnings, nil)
 	return anchoring.Findings
 }
 
@@ -182,7 +182,7 @@ func (w *Wallet) catalogueAnchoring(cred StoredCredential) (CatalogueAnchoring, 
 		switch {
 		case c.Err != nil && eaa:
 			// ISSU_10 needs anchors, so the list is only a warning.
-			result.Warnings = append(result.Warnings, fmt.Sprintf("The trusted list %s of %s gives no anchors: %v", c.URL, described, c.Err))
+			result.Warnings = append(result.Warnings, fmt.Sprintf("The trusted list %s of %s has no trust anchors: %v", c.URL, described, c.Err))
 			continue
 		case c.Err != nil:
 			problems = append(problems, fmt.Sprintf("%s (%v)", c.URL, c.Err))
@@ -244,7 +244,7 @@ func categoryListType(category string) string {
 
 func validateWithAnchors(cred StoredCredential, anchors []*x509.Certificate) error {
 	if len(anchors) == 0 {
-		return fmt.Errorf("the trusted list names no issuance service")
+		return fmt.Errorf("the trusted list has no issuance service")
 	}
 	key, err := dcql.ChainKey(dcqlCredential(cred), anchors)
 	if err != nil {

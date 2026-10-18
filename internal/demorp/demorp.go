@@ -294,7 +294,7 @@ func verifyES256(pub *ecdsa.PublicKey, signingInput string, sig []byte) bool {
 // draft-ietf-oauth-attestation-based-client-auth-10 §7.1 for the attested key.
 func holderKeyFromJWK(jwk map[string]any) (*ecdsa.PublicKey, error) {
 	if _, private := jwk["d"]; private {
-		return nil, fmt.Errorf("the jwk carries private key material, it must hold a public key only")
+		return nil, fmt.Errorf("the jwk carries private key material. It must hold only a public key")
 	}
 	data, err := json.Marshal(jwk)
 	if err != nil {

@@ -16,17 +16,17 @@ eudi wallet serve --demo --base-url https://eudi-test.dev \
 
 The server starts without opening a browser and loads protected PID credentials from the bundled templates. User templates with the same names, including those in `--templates-dir`, override the baseline used at startup and reset.
 
-Browser flows ask for consent. API submissions provide consent directly. A demo approves browser flows without asking only with `--auto-accept` on the command line. It ignores `EUDI_DEV_AUTO_ACCEPT` and warns at start when the flag is given. Each consent dialog appears in the browser session that started the flow. Requests without a browser ID appear in a shared banner where any visitor can answer them. Only the web UI answers consent requests, so an API or CLI client doesn't answer another visitor's request by mistake. A client can still name itself as the web UI, so this is no access control. `--demo-consent-api` (`EUDI_DEV_DEMO_CONSENT_API=true`) lets API and CLI clients answer consent requests too.
+Browser flows ask for consent. API submissions provide consent directly. A demo approves browser flows without asking only with `--auto-accept` on the command line. It ignores `EUDI_DEV_AUTO_ACCEPT` and warns at start when the flag is given. Each consent dialog appears in the browser session that started the flow. Requests without a browser ID appear in a shared banner where any visitor can answer them. Only the web UI answers consent requests, so an API or CLI client doesn't answer another visitor's request by mistake. A client can still claim to be the web UI, so this check is not access control. `--demo-consent-api` (`EUDI_DEV_DEMO_CONSENT_API=true`) lets API and CLI clients answer consent requests too.
 
 ### Administrative operations
 
-The public demo returns `403` for shutdown, error injection, log clearing and changes to format, consent or conformance settings. Visitors can save templates. They can't change or delete the predefined templates or the operator's templates (those present at startup). The demo issuer, the demo verifier and the parties from `--relying-parties` are protected. Visitors can't change these registrations. They can't issue or revoke their registration certificates either. Anyone can get an access certificate for these parties. Visitors can't delete the catalogue entries of the predefined templates. Linked images, from visitors or from issuer metadata, are fetched once and stored, so the cards show them without loading anything from elsewhere. The demo ignores `--adhoc-display-images`. A demo keeps at most 50 visitor templates, and a reset deletes them. Configuration responses omit host paths and the process ID.
+The public demo returns `403` for shutdown, error injection, log clearing and changes to format, consent or conformance settings. Visitors can save templates. They can't change or delete the predefined templates or the operator's templates (those present at startup). The demo issuer, the demo verifier and the parties from `--relying-parties` are protected. Visitors can't change these registrations. They can't issue or revoke their registration certificates either. Anyone can get an access certificate for these parties. Visitors can't delete the catalogue entries of the predefined templates. The wallet fetches linked images once and stores them. This applies to images from visitors and from issuer metadata. Cards then load images only from the wallet. The demo ignores `--adhoc-display-images`. A demo keeps at most 50 visitor templates, and a reset deletes them. Configuration responses omit host paths and the process ID.
 
 ### Outbound connections
 
 Visitor URLs are restricted to public network addresses. The wallet checks resolved addresses when connecting and rejects loopback, private, link local, CGNAT and unique local ranges, including cloud metadata endpoints. It also rejects the reserved, documentation and benchmarking ranges and the IPv6 ranges that embed an IPv4 address (NAT64, 6to4 and Teredo). The operator's destinations are exempt at their exact address and port: the wallet's own advertised origins, the `--trusted-list` URLs and the forward proxy. The bundled issuer and verifier connect to the wallet through these origins.
 
-A wallet without `--demo` also allows loopback. `--allow-private-networks` or `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=true` lifts the limit, with and without `--demo` (see [outbound address limits](wallet/serve.md#outbound-address-limits)). A demo with the limit lifted reaches loopback and private networks. Any visitor could then use it to call services on the host or in its network. The wallet warns about this at start.
+A wallet without `--demo` also allows loopback. `--allow-private-networks` or `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=true` lifts the limit, with and without `--demo` (see [outbound address limits](wallet/serve.md#outbound-address-limits)). With the limit lifted, a demo can connect to loopback and private networks. Any visitor could then use it to call services on the host or in its network. The wallet warns about this at start.
 
 The Docker image sets `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=true`. A public demo must set it to `false`, as the services `wallet` and `wallet-preview` in `examples/public-demo/docker-compose.yml` do.
 
@@ -71,7 +71,7 @@ Pages opened by the CLI or URL handler keep the supplied browser ID in `sessionS
 
 Every wallet server includes an issuer at `/issuer` and a verifier at `/verifier`. The issuer offers a Demo Event Ticket through pre-authorized and authorization code flows. The verifier requests the ticket or a PID through OpenID4VP.
 
-The verifier signs requests delivered from `/verifier/request/{id}` with its access certificate, identifies itself with `x509_hash:` and receives encrypted `direct_post.jwt` responses. It is registered with the wallet's registrar for the credentials of the wallet's templates and sends its registration certificate with each request. A request can also go out without the registration certificate, or with your own key, access certificate and `verifier_info`. Each request has its own encryption key and accepts one verified response. A response that does not verify shows its failure and leaves the request open. An error response (for example after Deny) also leaves it open. The verifier answers it with a `redirect_uri` back to its page, and the page shows the error. Offers and requests expire after ten minutes and are kept only in memory.
+The verifier signs requests delivered from `/verifier/request/{id}` with its access certificate, identifies itself with `x509_hash:` and receives encrypted `direct_post.jwt` responses. It is registered with the wallet's registrar for the credentials of the wallet's templates and sends its registration certificate with each request. You can also send a request without the registration certificate, or with your own key, access certificate and `verifier_info`. Each request has its own encryption key and accepts one verified response. If a response fails verification, the verifier shows the failure and the request stays open. An error response (for example after Deny) also leaves it open. The verifier answers it with a `redirect_uri` back to its page, and the page shows the error. Offers and requests expire after ten minutes and are kept only in memory.
 
 By default, a PID request accepts either an SD-JWT VC or an mdoc. The ticket is always an SD-JWT VC. With **multiple**, the wallet may send several credentials for each query, such as two stored PIDs.
 
@@ -98,7 +98,7 @@ To include a ticket, set `ticket` in the same request:
 
 All four baseline credentials are protected. The UI, the API and the CLI refuse to delete or revoke them. Visitor credentials can be deleted. Removing baseline protection requires direct access to `wallet.json`.
 
-All visitors share credentials, registered relying parties, trusted lists and the activity log. Anyone can issue credentials, delete unprotected credentials, register, revoke and delete relying parties, and read the log. Anyone can also put providers and external lists on the wallet's [trusted lists](wallet/serve.md#trusted-lists). These entries then anchor the `--arf` checks for every visitor. The demo holds at most 20 added providers and 5 added lists. It keeps the newest 500 credentials and 100 deferred issuances, besides the protected PIDs. At most 30 consent dialogs and 30 sign-ins wait at once, and at most 3 of each per browser. Requests without a browser ID share one count of 3 (see [waiting flows](wallet/http-api.md#waiting-flows)). The demo refuses a credential larger than 512 KB. Errors from flows started in another browser are not shown. Use test data only.
+All visitors share credentials, registered relying parties, trusted lists and the activity log. Anyone can issue credentials, delete unprotected credentials, register, revoke and delete relying parties, and read the log. Anyone can also put providers and external lists on the wallet's [trusted lists](wallet/serve.md#trusted-lists). With `--arf` the wallet then trusts these entries for every visitor. The demo holds at most 20 added providers and 5 added lists. It keeps the newest 500 credentials and 100 deferred issuances, in addition to the protected PIDs. At most 30 consent dialogs and 30 sign-ins wait at once, and at most 3 of each per browser. Requests without a browser ID share one count of 3 (see [waiting flows](wallet/http-api.md#waiting-flows)). The demo refuses a credential larger than 512 KB. Each browser shows only the errors of its own flows. Use test data only.
 
 ## Rate limits
 
@@ -130,11 +130,11 @@ The HAIP authorization code flow needs a client ID and redirect URI. Issuers in 
 --vci-redirect-uri https://eudi-test.dev/callback
 ```
 
-An issuer that requires client registration needs a fixed client ID. Set it with `--vci-client-id` and register it together with the redirect URI. Flows without client attestation use the wallet origin as client ID. Pre-authorized code offers work without either flag (an attestation is still sent where the issuer's metadata asks for one).
+An issuer that requires client registration needs a fixed client ID. Set it with `--vci-client-id` and register it together with the redirect URI. Flows without client attestation use the wallet origin as client ID. Pre-authorized code offers need neither flag. The wallet still sends an attestation when the issuer's metadata asks for one.
 
 ## Demo issuer as an authorization server
 
-The demo issuer is also its own authorization server. Its metadata at `/.well-known/oauth-authorization-server/issuer` advertises PAR, PKCE S256, DPoP and ABCA draft-10 methods `attest_jwt_client_auth` and `attest_jwt_client_auth_dpop`. Its endpoints are `/issuer/par`, `/issuer/authorize` and `/issuer/token`. With `--vci-version 1.1` (set by `--demo`), the metadata also advertises `POST /issuer/authorize-challenge`. It is the Authorization Challenge Endpoint of OpenID4VCI 1.1 §6 and runs [interactive authorization](wallet/issuing.md#interactive-authorization).
+The demo issuer is also its own authorization server. Its metadata at `/.well-known/oauth-authorization-server/issuer` advertises PAR, PKCE S256, DPoP and ABCA draft-10 methods `attest_jwt_client_auth` and `attest_jwt_client_auth_dpop`. Its endpoints are `/issuer/par`, `/issuer/authorize` and `/issuer/token`. With `--vci-version 1.1` (set by `--demo`), the metadata also advertises `POST /issuer/authorize-challenge`. It is the Authorization Challenge Endpoint of OpenID4VCI 1.1 §6 and handles [interactive authorization](wallet/issuing.md#interactive-authorization).
 
 It accepts the attestation claims defined by ABCA draft-07, draft-08 and draft-10. A valid attestation for a supported draft other than the configured version produces a warning ([ADR-0014](adr/0014-pinned-draft-versions-stay-supported-alongside-the-latest.md)).
 
@@ -150,7 +150,7 @@ An offer set to "Deferred" on the issuer page, or created with `POST /issuer/api
 
 Sign in with **alice / alice**, the only account. The issuer stores no user data, and the session ends with the flow.
 
-The user signs in when the wallet redeems the offer. The wallet runs the pushed authorization request, and the authorization endpoint asks the user to authenticate. The credential is bound to the account that completed that login.
+The user signs in when the wallet redeems the offer. The wallet sends the pushed authorization request, and the authorization endpoint asks the user to authenticate. The credential is bound to the account that completed that login.
 
 The hosted wallet returns the authorization URL to the caller:
 
@@ -163,7 +163,7 @@ The callback is matched by `state` alone, so the sign-in can happen in any brows
 
 By default, PAR and token requests both require a wallet attestation. The issuer verifies its signature and the possession proof, including `sub`, `aud` and expiry. It refuses a possession proof with a reused `jti`. It accepts either a separate `OAuth-Client-Attestation-PoP` JWT or a DPoP proof signed by the attested key (`attest_jwt_client_auth_dpop`).
 
-A wallet attestation or a key attestation can reference a status list entry. It sits in `status` (OpenID4VCI 1.0 Appendix D.1 and E) or in `client_status.status` and `key_storage_status.status` (CIR (EU) 2024/2979 Annex Ib C_WIA-1 and C_KA-1). The issuer then fetches the status list. It refuses the attestation when the entry is anything other than valid, for example revoked (ARF WUA_25, WUA_11a). Sometimes the status cannot be established. The list host may be unreachable, the list may have expired or belong to another URI, or the index may be out of range. The issuer then accepts the attestation, marks it untrusted and logs the reason. Token Status List section 8.3 only says such an attestation SHOULD be rejected. The public demo cannot reach the status lists of a wallet on localhost.
+A wallet attestation or a key attestation can reference a status list entry. The reference is in `status` (OpenID4VCI 1.0 Appendix D.1 and E) or in `client_status.status` and `key_storage_status.status` (CIR (EU) 2024/2979 Annex Ib C_WIA-1 and C_KA-1). The issuer then fetches the status list. It refuses the attestation when the entry is anything other than valid, for example revoked (ARF WUA_25, WUA_11a). Sometimes the status cannot be established. The list host may be unreachable, the list may have expired or belong to another URI, or the index may be out of range. The issuer then accepts the attestation, marks it untrusted and logs the reason. Token Status List section 8.3 only says such an attestation SHOULD be rejected. The public demo cannot reach the status lists of a wallet on localhost.
 
 Wallet attestations, key attestations, their possession proofs, DPoP proofs and key proofs can be signed with ES256, ES384 or ES512. CIR (EU) 2024/2979 Annex Ib SA-3 asks an issuer to support all three. The metadata lists them in `proof_signing_alg_values_supported` and `dpop_signing_alg_values_supported`.
 
@@ -208,7 +208,7 @@ Pass `--imprint-file` with an HTML snippet containing the operator's name, addre
 
 Pass `--news-file` with an HTML snippet. The wallet opens it on a visitor's first visit and again after the file changes. It needs `--demo`.
 
-An image next to the snippet, such as `<img src="overview.png">`, is embedded in the page, because the wallet loads images only from itself. Images can be PNG, JPEG, GIF, WebP or SVG, up to 2 MiB each. A paragraph with `class="lead"` stands out as the summary.
+An image next to the snippet, such as `<img src="overview.png">`, is embedded in the page, because the wallet loads images only from itself. Images can be PNG, JPEG, GIF, WebP or SVG, up to 2 MiB each. A paragraph with `class="lead"` is styled as the summary.
 
 The example stack mounts the `news` folder, and `./deploy.sh push` copies it to the host. The header image is rendered from `3.source.html`.
 
@@ -305,10 +305,10 @@ Visitor counts are approximate because addresses are masked. Everyone sharing an
 ## Deployment notes
 
 - Terminate TLS in a reverse proxy (the example uses Caddy with automatic Let's Encrypt) and forward to the wallet's HTTP port. The wallet derives all advertised URLs from `--base-url`.
-- Mount a volume at `/home/app/.eudi-dev` and set `EUDI_DEV_STORAGE=file` and `EUDI_DEV_SEED=`. This persists credentials, keys and the shared CA. Mount the parent of `wallet/` so the CA survives restarts and verifiers can reuse their trusted lists.
+- Mount a volume at `/home/app/.eudi-dev` and set `EUDI_DEV_STORAGE=file` and `EUDI_DEV_SEED=`. The volume keeps credentials, keys and the shared CA. Mount the parent of `wallet/` so the CA survives restarts and verifiers can reuse their trusted lists.
 - Run one replica when using file storage.
 - Keep the rate limiting in the proxy. The Caddyfile of the compose example enables the `rate_limit` zones described above.
-- Leave `HTTP_PROXY` and `HTTPS_PROXY` unset in the container and do not pass `--http-proxy` or `--https-proxy`. With an outbound proxy, the connection-time address checks see only the proxy's address.
+- Leave `HTTP_PROXY` and `HTTPS_PROXY` unset in the container and do not pass `--http-proxy` or `--https-proxy`. With an outbound proxy, the address checks at connection time only see the proxy's address.
 - Requests to the demo's own public URL, such as a pasted offer, resolve through public DNS. This works on cloud hosts that support hairpin NAT. A compose network alias for the public hostname would resolve to a private address and be blocked.
 
 ## CLI access to the demo

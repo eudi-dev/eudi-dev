@@ -48,7 +48,7 @@ func HAIPCredentialFindings(header, payload map[string]any) []string {
 	iss, _ := payload["iss"].(string)
 	if did := keys.DIDReference(kid, iss); did != "" {
 		findings = append(findings, fmt.Sprintf(
-			"HAIP 1.0 §6.1.1: the credential names its issuer key by the DID %s. The profile requires the issuer's signing certificate and its trust chain in the x5c header", did))
+			"HAIP 1.0 §6.1.1: the credential identifies its issuer key by the DID %s. The profile requires the issuer's signing certificate and its trust chain in the x5c header", did))
 	}
 	// HAIP 1.0 §6.1: "The status claim, if present, MUST contain status_list as
 	// defined in [I-D.ietf-oauth-status-list]." The status claim is always in the

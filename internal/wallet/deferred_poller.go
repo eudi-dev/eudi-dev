@@ -169,7 +169,7 @@ func (s *Server) collectDueDeferredCredentials(now time.Time) error {
 			continue
 		}
 		if pending.Expired(now) {
-			s.abandonDeferred(pending, fmt.Sprintf("the issuer did not produce it within %s", deferredIssuanceMaxAge))
+			s.abandonDeferred(pending, fmt.Sprintf("the issuer did not issue it within %s", deferredIssuanceMaxAge))
 			continue
 		}
 		s.attemptDeferredCollection(pending)

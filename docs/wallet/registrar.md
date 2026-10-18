@@ -5,7 +5,7 @@ The wallet includes a relying party registrar. Each member state runs a registra
 - An **access certificate** (ETSI TS 119 411-8 V1.1.1). You send a certificate signing request and keep the private key. A verifier signs its request objects with that key and puts the certificate in `x5c`. An issuer signs its Credential Issuer Metadata with it (ARF ISSU_22 and ISSU_32).
 - A **registration certificate** (ETSI TS 119 475 V1.2.1, typ `rc-wrp+jwt`). A verifier gets one for each intended use. It lists which credentials and claims the verifier may request, and the purpose shown in the consent dialog. The verifier sends it in `verifier_info` (OpenID4VP 1.0 §5.1). There the certificate is base64url encoded (ETSI TS 119 472-2 RO-16). An issuer gets one for its service (ARF RPRC_13). It lists which attestation types the issuer may issue, and the issuer publishes it in `issuer_info` as the plain JWT (ETSI TS 119 472-3 V1.1.1 §4.2.3). Both arrays carry only the registration certificate. CIR (EU) 2026/1731 requires one element with the certificate (Annex XI for ISS-MDATA-REG_CERT-4.2.3-04, Annex XII for RO-13) and voids the `registrar_dataset` requirements. The wallet ignores other elements.
 
-Both certificates contain the same identifier (ARF Reg_32 and RPRC_07). The registrar API follows the TS05 v1.5 data model and registry API. The [registrar API walkthrough](registrar-api.md) registers a verifier and an issuer with curl and then uses their certificates with the wallet.
+Both certificates contain the same identifier (ARF Reg_32 and RPRC_07). The registrar API follows the TS05 v1.5 data model and registry API. The [registrar API walkthrough](registrar-api.md) shows how to register a verifier and an issuer with curl and use their certificates with the wallet.
 
 ## Registrations
 
@@ -34,7 +34,7 @@ Registrations are part of the wallet state. With file or Postgres storage they s
 
 ## Issuers
 
-An issuer registers as an attestation provider. Its service has an entitlement from ETSI TS 119 475 V1.2.1 Annex A.2 (`PID_Provider`, `QEAA_Provider`, `PUB_EAA_Provider` or `Non_Q_EAA_Provider`) and lists its attestation types in `providesAttestations` (ARF RPRC_15). Each entry has a `format` and a `type` (the `vct` or the doctype, TS05 v1.5 §2.4.8). A provider needs at least one type. Without a provider entitlement, the service gets the entitlement of each type's category: the category of its catalogue entry, else `pid` for a PID type (ARF PID_04, PID_14), else `eaa`.
+An issuer registers as an attestation provider. Its service has an entitlement from ETSI TS 119 475 V1.2.1 Annex A.2 (`PID_Provider`, `QEAA_Provider`, `PUB_EAA_Provider` or `Non_Q_EAA_Provider`) and lists its attestation types in `providesAttestations` (ARF RPRC_15). Each entry has a `format` and a `type` (the `vct` or the doctype, TS05 v1.5 §2.4.8). A provider needs at least one type. Without a provider entitlement, the service gets the entitlement of each type's category. That is the category of the type's catalogue entry. Without an entry, a PID type (ARF PID_04, PID_14) is `pid` and any other type is `eaa`.
 
 With `--arf` a PID needs `PID_Provider` (ISSU_24a). Any other attestation needs `QEAA_Provider`, `PUB_EAA_Provider` or `Non_Q_EAA_Provider` (ISSU_34a). The wallet treats these three alike. The choice only changes the content of the registration certificate. The wallet does not validate qualified signatures.
 
@@ -50,7 +50,7 @@ A wallet with `--arf` then checks the issuer before it requests a credential (se
 
 A provider that also requests attributes, for example to authenticate the user during issuance, registers intended uses in the same service (ARF RPRC_05 note, TS05 v1.5 §2.4.1). The registrar then adds the `Service_Provider` entitlement to that service.
 
-Entitlements belong to a service. The ARF registers the data of TS6 (Reg_01a), and TS6 v1.2.2 records the entitlements per service. A registration certificate covers one service, or one intended use of a service (ARF RPRC_09 and RPRC_13). It lists the entitlements of that service. ETSI TS 119 475 V1.2.1 Table 7 still takes them from the relying party, and the registrar follows the ARF. Adding the other role to a service changes its entitlements. The registrar then revokes the certificates of that service. Certificates of other services stay valid. Issue new ones afterwards, or register both roles at once.
+Entitlements belong to a service. The ARF registers the data of TS6 (Reg_01a), and TS6 v1.2.2 records the entitlements per service. A registration certificate covers one service, or one intended use of a service (ARF RPRC_09 and RPRC_13). It lists the entitlements of that service. ETSI TS 119 475 V1.2.1 Table 7 takes them from the relying party. The registrar follows the ARF. Adding the other role to a service changes its entitlements. The registrar then revokes the certificates of that service. Certificates of other services stay valid. Issue new ones afterwards, or register both roles at once.
 
 ## Revocation
 
@@ -58,7 +58,7 @@ Every registration certificate has a `status` claim that points to an entry in t
 
 `registrar revoke` or the status endpoint revokes a certificate. `registrar activate` or the same endpoint makes it valid again.
 
-An intended use or an issuer service has one valid certificate at a time. When the registrar revokes a certificate itself, you can't activate it again. It does so:
+An intended use or an issuer service has one valid certificate at a time. You can't activate a certificate that the registrar revoked itself. The registrar revokes a certificate:
 
 - when you issue a new certificate for the same intended use or service
 - when an update changes a field in the certificate (name, legal name, country, purpose, privacy policy, support URL, supervisory authority, credentials and claims, entitlements or attestation types)
@@ -67,7 +67,7 @@ An intended use or an issuer service has one valid certificate at a time. When t
 
 If you request a certificate while someone updates the same registration, the request fails with HTTP 409. Try again.
 
-Each certificate gets its own random entry. The entry stays taken after the certificate expires, because ETSI TS 119 475 V1.2.1 GEN-6.2.6.1-05 gives every certificate of an issuer a unique index. When half the list is taken, the list doubles in size. With memory storage the entries are lost on restart, and a demo reset clears them. After a restart or a reset, a revoked certificate is valid again. Rarely, a new certificate then gets the same entry as an old one, and revoking it revokes the old one too.
+Each certificate gets its own random entry. The entry stays reserved after the certificate expires, because ETSI TS 119 475 V1.2.1 GEN-6.2.6.1-05 gives every certificate of an issuer a unique index. When half the list is taken, the list doubles in size. With memory storage the entries are lost on restart, and a demo reset clears them. After a restart or a reset, a revoked certificate is valid again. Rarely, a new certificate then gets the same entry as an old one, and revoking it revokes the old one too.
 
 ## Web UI
 
@@ -79,7 +79,7 @@ A verifier registration certificate belongs to one intended use. An issuer regis
 
 **+ Add verifier registration certificate** adds an intended use (ETSI TS 119 475) and issues a verifier registration certificate for it. The certificates of the other intended uses stay valid. For an issuer, the dialog suggests an intended use that asks for a PID before issuance. The party stays one relying party with both roles, because CIR (EU) 2025/848 Annex I keeps all entitlements and intended uses of a party in one registration. The issuer signs its request with its access certificate and sends the new certificate in `verifier_info`.
 
-The **Service** field selects the service for the addition. It starts with a service that already has the role. Otherwise it starts with the first service that already has an access certificate. The dialog says which certificates the addition revokes. An intended use gives an issuer service the `Service_Provider` entitlement. Its issuer registration certificate lists the entitlements, so the registrar revokes it. After the addition, **Issue a new issuer registration certificate** issues it again. **A new service** keeps the certificates of the other services valid. It needs a service identifier and gets its own access certificate.
+The **Service** field selects the service for the addition. It preselects a service that already has the role. Otherwise it preselects the first service with an access certificate. The dialog says which certificates the addition revokes. An intended use gives an issuer service the `Service_Provider` entitlement. Its issuer registration certificate lists the entitlements, so the registrar revokes it. After the addition, **Issue a new issuer registration certificate** issues it again. **A new service** keeps the certificates of the other services valid. It needs a service identifier and gets its own access certificate.
 
 **+ Add issuer registration certificate** adds attestation types to a party without them and issues the issuer registration certificate. The **Service** field works as above. The service gets a provider entitlement, so the registrar revokes the verifier registration certificates of the service. The dialog then offers to issue new ones. A party has one issuer registration certificate for its service (ARF RPRC_13). **Edit attestation types** changes its list and issues a new certificate. The registrar then derives the provider entitlements from the categories of the types, unless you pick one.
 
@@ -140,12 +140,12 @@ The access certificate has the policy `0.4.0.194118.1.2` (ETSI TS 119 411-8 §5.
 
 The consent dialog shows the registered purpose and a link to the privacy policy (ARF RPA_10). API clients find them in `purposes` and `privacy_policies` of a pending request. The wallet shows them even without `--arf`. The registration certificate must have a valid signature, and it must identify the same relying party as the access certificate that signed the request object (ETSI TS 119 475 V1.2.1 GEN-5.1.1-03). For a request without a request object the dialog shows neither.
 
-With `--arf` the wallet checks the access and registration certificates of every verifier and issuer. It doesn't matter which registrar issued them (see [ARF checks for verifiers](presenting.md#arf-checks) and [for issuers](issuing.md#arf-checks)). It takes the anchors from two [trusted lists](serve.md#trusted-lists):
+With `--arf` the wallet checks the access and registration certificates of every verifier and issuer. This applies to certificates from any registrar (see [ARF checks for verifiers](presenting.md#arf-checks) and [for issuers](issuing.md#arf-checks)). It takes the anchors from two [trusted lists](serve.md#trusted-lists):
 
 - **Access certificates** must chain to a CA on an `access-ca` list. The wallet's own list contains the relying party access CA.
 - **Registration certificates** must chain to a CA on a `registrar` list. The wallet's own list contains the registrar CA. The relying party access CA is not on the registrar list, because that CA signs every visitor's CSR. Otherwise anyone with an access certificate could sign their own registration certificate.
 
-With `--arf` a registration certificate binds to an access certificate with the same relying party identifier and the same service identifier (ARF RPRC_17a). Certificates from this registrar pass these checks. A registered credential without a claim list declares no attributes (ETSI TS 119 475 V1.2.1 Annex B.2.9), so requesting any claim counts as over-asking. TS05 registrars always list the claims.
+With `--arf` a registration certificate must have the same relying party identifier and service identifier as the access certificate (ARF RPRC_17a). Certificates from this registrar pass these checks. A registered credential without a claim list declares no attributes (ETSI TS 119 475 V1.2.1 Annex B.2.9), so requesting any claim counts as over-asking. TS05 registrars always list the claims.
 
 The status list of the registration certificates must chain to a revocation service on a `registrar` list (ARF RPACANot_03b). If the wallet can't read the status, that is a finding. The wallet reads its own registrar's status list directly. It fetches other registrars' lists with its proxy and TLS settings.
 
@@ -166,7 +166,7 @@ eudi wallet serve --arf --trusted-list-ca lists-ca.pem --trusted-list https://li
 - `--trusted-list-ca` is the CA of the list operator. The operator signs the lists. The wallet uses a list only if its signer chains to this CA or to the wallet CA (ARF PPNot_05, TLPub_05 and TLPub_07).
 - `--trusted-list` adds a list or a list of trusted lists. The wallet follows the pointers of a list of trusted lists and takes the anchors from each list according to its type.
 
-A running wallet, the public demo included, takes the same setup at runtime: `eudi trust add-ca --list trusted-list-ca --ca lists-ca.pem` (or **Add CA** with `trusted-list-ca` in the UI), then `eudi trust add-list <url>`. `eudi trust` and **Trust & certificates** in the UI show each list and whether the wallet could read it. The built-in registrar keeps working next to the external one.
+A running wallet, the public demo included, accepts the same setup at runtime: `eudi trust add-ca --list trusted-list-ca --ca lists-ca.pem` (or **Add CA** with `trusted-list-ca` in the UI), then `eudi trust add-list <url>`. `eudi trust` and **Trust & certificates** in the UI show each list and whether the wallet could read it. The built-in registrar still works alongside the external one.
 
 Another eudi-dev wallet can be the external registrar, for example one at `https://other-wallet.example`. Its wallet CA signs its lists, and its list of trusted lists points to its `access-ca` and `registrar` lists:
 
@@ -191,12 +191,12 @@ eudi trust add-ca --list registrar --ca other-registrar-ca.pem
 
 The demo issuer and the demo verifier are registered like any other relying party. Each has its own access certificate from the relying party access CA, with the semantics identifier of its registration.
 
-- **EUDI Dev Demo Issuer** is an issuer. It is registered for the credential types of its templates and of the issued-attestation registry, except unlisted ones. The [category](serve.md#credential-categories) of a type comes from the template or the catalogue entry, else it is an EAA. Its entitlements are those of the categories, such as `PID_Provider` for the PIDs and `Non_Q_EAA_Provider` for the demo ticket. It also has the intended use `identity-check`. That intended use asks for `given_name` and `family_name` of the EUDI PID in both formats. The demo issuer sends that registration certificate when it asks for your PID during [interactive authorization](issuing.md#interactive-authorization). Because of this intended use it also has the `Service_Provider` entitlement (ARF RPRC_05 note).
+- **EUDI Dev Demo Issuer** is an issuer. It is registered for the credential types of its templates and of the issued-attestation registry, except unlisted ones. The [category](serve.md#credential-categories) of a type comes from the template or the catalogue entry. Otherwise it is an EAA. Its entitlements are those of the categories, such as `PID_Provider` for the PIDs and `Non_Q_EAA_Provider` for the demo ticket. It also has the intended use `identity-check`. That intended use asks for `given_name` and `family_name` of the EUDI PID in both formats. The demo issuer sends that registration certificate when it asks for your PID during [interactive authorization](issuing.md#interactive-authorization). Because of this intended use it also has the `Service_Provider` entitlement (ARF RPRC_05 note).
 - **EUDI Dev Demo Verifier** is a verifier with one intended use, `demo-requests`. It registers the claims of every predefined template, so the demo requests ask only for registered claims.
 
-Their names, identifiers, descriptions and intended uses are TS05 relying party files in [`internal/defaults/registrations/`](../../internal/defaults/registrations/). The wallet adds the parts that depend on its templates: the issuer's attestation types and entitlements, and the credentials of the verifier's intended use. The demo pages show the names of these files, and the identity check asks for the claims registered for its intended use.
+Their names, identifiers, descriptions and intended uses are TS05 relying party files in [`internal/defaults/registrations/`](../../internal/defaults/registrations/). The wallet adds the parts that depend on its templates: the issuer's attestation types and entitlements, and the credentials of the verifier's intended use. The demo pages show the names from these files, and the identity check asks for the claims registered for its intended use.
 
-The wallet registers both at startup if they are missing. You can change or delete them like any other registration. A local wallet keeps your changes. It only keeps the issuer's attestation types and entitlements in line with the templates and the catalogue. So the issuer's registration certificate lists all offered types. A deleted registration stays deleted until the next start. Without its registration the demo issuer publishes no `issuer_info` and the demo verifier sends no `verifier_info`. A restart on another port or base URL moves both registrations to the new URL.
+The wallet registers both at startup if they are missing. You can change or delete them like any other registration. A local wallet keeps your changes. It only updates the issuer's attestation types and entitlements to match the templates and the catalogue, so the issuer's registration certificate lists all offered types. A deleted registration stays deleted until the next start. Without its registration the demo issuer publishes no `issuer_info` and the demo verifier sends no `verifier_info`. A restart on another port or base URL moves both registrations to the new URL.
 
 On a public demo, visitors can't change either registration or its certificates. The wallet updates both when the templates or the catalogue change, and after every reset.
 
@@ -209,11 +209,11 @@ On the demo issuer page you choose how the issuer identifies itself:
 - **Unsigned metadata**: the metadata is plain JSON, also for a wallet that asks for signed metadata. It has no `issuer_info`, like the metadata of an issuer without an access certificate. `--arf` reports the missing signature.
 - **Own certificates**: you paste a PEM bundle with your key and access certificate chain, and optionally an `issuer_info` value. Your key signs the metadata.
 
-A wallet fetches the metadata from the issuer identifier, and the request does not say which offer it is for. So each choice has its own issuer identifier. The registered issuer is `/issuer`, the unregistered one is `/issuer/unregistered` and the unsigned one is `/issuer/unsigned`. Each offer with own certificates gets an identifier under `/issuer/own/`. Visitors of a shared demo can pick any of them without changing the issuer for anyone else. An offer and its tokens work only at the issuer identifier in the offer, and the issued credentials name it as their issuer. An own identifier ends ten minutes after its last request.
+A wallet fetches the metadata from the issuer identifier. The metadata request doesn't identify the offer, so each choice has its own issuer identifier. The registered issuer is `/issuer`, the unregistered one is `/issuer/unregistered` and the unsigned one is `/issuer/unsigned`. Each offer with own certificates gets an identifier under `/issuer/own/`. Visitors of a shared demo can pick any of them without changing the issuer for anyone else. An offer and its tokens work only at the issuer identifier in the offer, and the issued credentials have it as their issuer. An identifier under `/issuer/own/` expires ten minutes after its last request.
 
 The identity buttons are `identity-registered`, `identity-unregistered`, `identity-unsigned` and `identity-own`. In **Own certificates** mode you paste into `signing-key` and `issuer-info`. The offer API takes `identity=unregistered`, `identity=unsigned` or `identity=own` as a query parameter. With `own` the request body is a JSON object with `signing_key` and the optional `issuer_info`.
 
-With **Presentation during issuance**, the issuer asks for a PID before it issues. You choose the identity of that PID request apart from the issuer identity, as on the demo verifier page:
+With **Presentation during issuance**, the issuer asks for a PID before it issues. You choose the identity of that PID request separately from the issuer identity, as on the demo verifier page:
 
 - **Registered** (default): the request is signed with the issuer's access certificate and carries the registration certificate of the identity check in `verifier_info`.
 - **Not registered**: the request is signed with the access certificate and has no `verifier_info`, so `--arf` warns about the missing registration certificate (RPRC_19).
@@ -237,7 +237,7 @@ Every predefined credential template is in the catalogue. Templates with the sam
 
 To add a user template, tick "Add the template to the attestation catalogue" when you save it (see [templates](../templates.md#attestation-catalogue)). You can delete that entry like any other added type.
 
-A template file can carry its own entry in a `catalog` field (see [templates](../templates.md#catalogue-entry-in-a-template-file)). That entry follows the template like the entry of a predefined template.
+A template file can carry its own entry in a `catalog` field (see [templates](../templates.md#catalogue-entry-in-a-template-file)). That entry stays in sync with the template, like the entry of a predefined template.
 
 To pre-register attestation types at startup, pass a file of entries to `wallet serve --catalog` (see [pre-registered catalogue entries](serve.md#pre-registered-catalogue-entries)). Each start loads the file again, so the entries survive restarts and demo resets. On a public demo visitors can't change or delete them.
 
@@ -330,9 +330,9 @@ eudi catalog rm 3f1c3b0d-71ad-496b-9f94-68198503e761
 
 `verifiers` and `issuers` list the registered verifiers and issuers, and so do `verifiers list` and `issuers list`. `add` registers one and prints the assigned identifier, and `rm` deletes a registration and revokes its certificates. `verifiers add` takes the credentials and claims of a DCQL query, so requests with that query pass the over-asking check (ARF RPRC_21). `issuers add` takes the attestation types and optionally the categories of its entitlements.
 
-With `--to`, both add the other role to a registered relying party instead. `verifiers add --to` adds an intended use, and `issuers add --to` adds attestation types. On an issuer, the new types are added to the existing ones. The new certificate revokes the current one. It stays one registration with both roles. The command issues the new registration certificate and prints its `verifier_info` or `issuer_info` value. The other role changes the entitlements of the service, so the registrar revokes the certificates of the first role. `registration-cert` then issues new ones.
+With `--to`, both add the other role to a registered relying party instead. `verifiers add --to` adds an intended use, and `issuers add --to` adds attestation types. On an issuer, the new types are added to the existing ones. Issuing the new certificate revokes the current one. It stays one registration with both roles. The command issues the new registration certificate and prints its `verifier_info` or `issuer_info` value. The other role changes the entitlements of the service, so the registrar revokes the certificates of the first role. `registration-cert` then issues new ones.
 
-`enrol` sends an enrolment like the registrar dialog of the web UI: the registration, an access certificate request with your CSR and the registration certificate to issue, in one step. `--update` changes an existing registration, for example to add an intended use or a service. In the web UI, the command button of the registrar dialog shows this enrolment. The command prints the access certificate chain and the `verifier_info` or `issuer_info` value.
+`enrol` sends an enrolment like the registrar dialog of the web UI: the registration, an access certificate request with your CSR and the registration certificate to issue, in one step. `--update` changes an existing registration, for example to add an intended use or a service. The registrar dialog of the web UI can show this enrolment as a command. The command prints the access certificate chain and the `verifier_info` or `issuer_info` value.
 
 `access-cert` prints the PEM certificate and writes the client identifiers to stderr: `x509_hash` for the certificate and `x509_san_dns` for each `--dns` name (OpenID4VP 1.0 §5.9.3). The trade name of the service becomes the common name (ETSI TS 119 411-8 GEN-6.1.1-04, ARF Reg_31). The key must be P-256, because HAIP 1.0 §7 requires every wallet to support ES256 for signed presentation requests.
 

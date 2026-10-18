@@ -336,7 +336,7 @@ func (w *Wallet) demoIssuerRegistration() (registrar.WalletRelyingParty, error) 
 	}
 	templates, err := credtemplate.List(w.Templates)
 	if err != nil {
-		log.Printf("[Wallet] WARNING: the demo issuer is registered without the templates the wallet can't read: %v", err)
+		log.Printf("[Wallet] WARNING: registering the demo issuer without unreadable templates: %v", err)
 	}
 	for _, t := range templates {
 		switch format, _ := credtemplate.NormalizeFormat(t.Format); {

@@ -431,7 +431,7 @@ func (w *Wallet) collapseBatchMatches(matches []consent.Match, credentials []Sto
 	out := matches[:0]
 	for i, m := range matches {
 		if byID[m.CredentialID].BatchGroup != "" && !keep[i] {
-			log.Printf("[DCQL]   query=%s: batch copy %s held back, another copy of the batch is presented", m.QueryID, m.CredentialID)
+			log.Printf("[DCQL]   query=%s: batch copy %s held back because another copy of the batch is presented", m.QueryID, m.CredentialID)
 			continue
 		}
 		out = append(out, m)

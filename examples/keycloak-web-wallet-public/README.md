@@ -39,6 +39,6 @@ Stop everything with `docker compose down` and `kill $(cat .ngrok.pid)`.
 | `WALLET_BASE_URL` | `https://eudi-test.dev` | Public wallet instance used by the example (any `--demo` deployment works, see [docs/public-demo.md](../../docs/public-demo.md)) |
 | `KEYCLOAK_PUBLIC_URL` | set by `start.sh` via ngrok | Public origin that forwards to the local Keycloak |
 | `NGROK_DOMAIN` | none | Reserved ngrok domain for a stable tunnel URL |
-| `KEYCLOAK_PORT` / `APP_PORT` | `9080` / `9090` | Local ports, next free port is picked automatically |
+| `KEYCLOAK_PORT` / `APP_PORT` | `9080` / `9090` | Local ports. The script picks the next free port automatically |
 
 The public wallet resets on its own schedule. Restarting this example does not reset it.

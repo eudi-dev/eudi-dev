@@ -7,7 +7,7 @@ The wallet has two validation modes. Both run the same checks. They differ in ho
 - `debug` (default) reports each finding and continues processing the request. In DCQL evaluation it keeps a credential match with a warning when some required claim paths are missing but other requested claims match
 - `strict` treats violations as errors and rejects the request
 
-The mode only affects what the wallet does automatically. In the consent dialog you can always pick a non-matching credential or another claim set, also in strict mode.
+The mode only affects what the wallet does automatically. In the consent dialog you can always pick a non-matching credential or another claim set, even in strict mode.
 
 Strict mode covers OpenID4VP 1.0, OpenID4VCI 1.0 and HAIP 1.0. Advisory findings are warnings in both modes. Two flags add more checks. `--haip` adds the HAIP 1.0 checks (see [HAIP 1.0 enforcement](wallet/presenting.md#haip-10-enforcement)). `--arf` adds the ARF checks of verifier and issuer certificates (see [ARF checks](wallet/presenting.md#arf-checks)). The mode decides what happens to their findings.
 
@@ -142,7 +142,7 @@ All wallet state is stored in `~/.eudi-dev/wallet/` by default:
     └── templates/          # User credential templates (see templates.md)
 ```
 
-Display images are stored once in `assets/`, named by a hash of their content. Credentials refer to them as `asset:<hash>.<ext>`. Embedded `data:` URIs are readable and move into asset storage on the next save.
+Display images are stored once in `assets/`, named by a hash of their content. Credentials refer to them as `asset:<hash>.<ext>`. The wallet also reads embedded `data:` URIs and moves them into asset storage on the next save.
 
 On the file backend the activity log is the top-level `log` field of `wallet.json`. The other backends store each entry separately (see [Storage backends](#storage-backends)). `wallet logs clean` clears the entries and writes `wallet-log-cleaned-at`. When a running wallet server saves, it drops in-memory entries older than that marker. With `--wallet-dir`, both files are in that directory.
 
@@ -212,7 +212,7 @@ See [wallet server](wallet/serve.md) for the endpoints, trusted lists, certifica
 
 ```bash
 eudi wallet accept 'openid4vp://authorize?...'   # evaluate DCQL, consent, submit
-eudi wallet scan --screen                        # scan a QR and dispatch
+eudi wallet scan --screen                        # scan a QR code and start its flow
 ```
 
 See [presentation from the wallet](wallet/presenting.md) for the `wallet accept` and `wallet scan` flags, invoking the wallet by URL, HAIP 1.0 and ARF checks.
@@ -223,7 +223,7 @@ See [presentation from the wallet](wallet/presenting.md) for the `wallet accept`
 
 ```bash
 eudi wallet accept 'openid-credential-offer://...'   # accept an offer
-eudi wallet deferred                                 # what is still being collected
+eudi wallet deferred                                 # list pending deferred credentials
 eudi wallet refresh <credential-id>                  # ask for a fresh copy
 ```
 
@@ -231,7 +231,7 @@ See [issuance into the wallet](wallet/issuing.md) for sign-in, renewal, deferred
 
 ## Consent requests
 
-`wallet requests` lists the consent requests of a running wallet server. `approve` and `deny` answer a request by its id, or the newest one of `--type` (`presentation`, `issuance` or `issuance_presentation`). `approve --body` takes the choices as JSON, like `POST /api/requests/{id}/approve`. Without it the wallet sends its automatic selection. The command button of a consent dialog shows the command with the dialog's choices.
+`wallet requests` lists the consent requests of a running wallet server. `approve` and `deny` answer a request by its id, or the newest one of `--type` (`presentation`, `issuance` or `issuance_presentation`). `approve --body` takes the choices as JSON, like `POST /api/requests/{id}/approve`. Without it the wallet sends its automatic selection. A consent dialog can show the matching CLI command with its current choices.
 
 ```bash
 eudi wallet requests                                       # list pending requests

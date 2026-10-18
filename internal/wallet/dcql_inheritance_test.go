@@ -50,7 +50,7 @@ func TestEvaluateDCQL_ExtendingTypeAnswersForTheTypeItExtends(t *testing.T) {
 	if matches[0].VCT != germanPIDVCT {
 		t.Errorf("matched vct = %q, want %q", matches[0].VCT, germanPIDVCT)
 	}
-	if !strings.Contains(logs.String(), "an extending type answers for the type it extends") {
+	if !strings.Contains(logs.String(), "because it extends that type") {
 		t.Error("the log does not say why a credential of another type matched")
 	}
 }

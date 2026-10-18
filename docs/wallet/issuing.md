@@ -43,7 +43,7 @@ The server checks for renewal every 30 seconds and renews credentials within a m
 
 ### Reuse policy
 
-With `--arf` the wallet follows the issuer's `credential_reuse_policy` (ETSI TS 119 472-3 V1.1.1 clause 4.2.4.2, ARF ISSU_39a) for the batch size and for renewal. It doesn't apply the policy to anything else. It takes the first supported method in `details`: `once_only`, `limited_time` (also spelled `limited-time`) or `rotating-batch`. It doesn't support `per-relying-party`. The policy replaces `batch_credential_issuance` (clause 4.2.4.2-14):
+With `--arf` the wallet applies the issuer's `credential_reuse_policy` (ETSI TS 119 472-3 V1.1.1 clause 4.2.4.2, ARF ISSU_39a) to the batch size and to renewal only. It takes the first supported method in `details`: `once_only`, `limited_time` (also spelled `limited-time`) or `rotating-batch`. It doesn't support `per-relying-party`. The policy replaces `batch_credential_issuance` (clause 4.2.4.2-14):
 
 - `once_only` and `rotating-batch` request a batch of the policy's `batch_size`, at most 8 copies.
 - `limited_time` requests one credential.
@@ -98,7 +98,7 @@ With `--arf` the wallet also checks the issuer before it requests a credential, 
 
 Signed metadata must carry `iat`, and an `exp` must not be in the past (OpenID4VCI 1.0 §12.2.3). In `--mode debug` the wallet reads such metadata and logs a warning in the activity log. In `--mode strict` it refuses the metadata.
 
-In `--mode debug` the findings are warnings and issuance goes on. The issuance result returns them in `findings`. In `--mode strict` the wallet refuses the offer before the consent dialog and doesn't request the credential. The trust anchors are the same as for verifiers: an access certificate chains to a CA on an `access-ca` list and a registration certificate to a CA on a `registrar` list (see [ARF checks](presenting.md#arf-checks)). The [registrar API walkthrough](registrar-api.md#an-issuer) registers an issuer and runs these checks.
+In `--mode debug` the findings are warnings and issuance continues. The issuance result returns them in `findings`. In `--mode strict` the wallet refuses the offer before the consent dialog and doesn't request the credential. The trust anchors are the same as for verifiers: an access certificate chains to a CA on an `access-ca` list and a registration certificate to a CA on a `registrar` list (see [ARF checks](presenting.md#arf-checks)). The [registrar API walkthrough](registrar-api.md#an-issuer) shows how to register an issuer and run these checks.
 
 When the credential arrives, the wallet looks up its type in the [attestation catalogue](registrar.md#attestation-catalogue). The entry's category determines the rule: ARF ISSU_07 for a PID, ISSU_08 for a QEAA, ISSU_09 for a PuB-EAA and ISSU_10 for another EAA. The credential's certificate chain (`x5c` or `x5chain`) must end in an issuance service certificate on a trusted list, and the signature must verify. The wallet tries the list linked by the entry. By default an entry links the wallet's own list for its category. For a PID or a PuB-EAA, it also tries every list of that type on the [list of trusted lists](serve.md#trusted-lists). A PID from another issuer passes once its CA is on the wallet's `pid` list (`trust add-ca --list pid`) or on an external PID provider list.
 
@@ -141,13 +141,13 @@ Debug mode, used by the public demo, handles two issuer deviations:
 - An issuer that requires an attestation but advertises no client authentication method. Advertising is a SHOULD in every draft (draft-07 section 10.1, draft-08 section 9, draft-10 section 8). The wallet attests anyway and warns about the missing advertisement.
 - An issuer that advertises only unauthenticated access (`none`). The wallet proceeds without client authentication and warns.
 
-`--mode strict` attests in both cases and lets the exchange fail at the token endpoint if the issuer rejects it.
+In `--mode strict` the wallet attests in both cases. If the issuer rejects the attestation, the token request fails.
 
 Without `--haip` the wallet attests **only when the authorization server advertises it** by listing `attest_jwt_client_auth` in `token_endpoint_auth_methods_supported`. §8 of the draft recommends this:
 
 > The client SHOULD fetch and parse the Authorization Server metadata and recognize Attestation-Based Client Authentication as a client authentication mechanism if either of the given `token_endpoint_auth_methods_supported` values are present.
 
-Following the metadata also limits correlation. §10.1 of the draft warns that reusing a key and an attestation across authorization servers lets those servers correlate the user. The wallet attests a key of its own for each authorization server (see [wallet instance and key attestation claims](#wallet-instance-and-key-attestation-claims)).
+Following the metadata also limits correlation. §10.1 of the draft warns that reusing a key and an attestation across authorization servers lets those servers correlate the user. The wallet uses a separate attested key for each authorization server (see [wallet instance and key attestation claims](#wallet-instance-and-key-attestation-claims)).
 
 ### Wallet instance and key attestation claims
 
@@ -157,11 +157,11 @@ The wallet attestation is the wallet instance attestation:
 
 - `wallet_name` is the wallet name. The `wallet-provider` trusted list uses it as the service name (ETSI TS 119 602 Table E.3).
 - `wallet_version` is the release of the binary.
-- `wallet_link` links the project.
+- `wallet_link` is a link to the project.
 - `wallet_solution_certification_information` is a test object. It says that nobody certified the wallet and links [SECURITY.md](../../SECURITY.md).
 - `client_status` points to an entry on the wallet's own status list. Each authorization server gets its own entry, and all attestations sent to it keep that entry (the "per-issuer reuse" option of R_WIA-1).
 
-Each authorization server also gets its own wallet instance key. The attestation binds it, and the wallet signs its DPoP proofs for that server with it. ARF ISSU_35a asks for a different attested key per provider. The key derives from the holder key, so a renewal uses the same key.
+Each authorization server also gets its own wallet instance key. The attestation binds it, and the wallet signs its DPoP proofs for that server with it. ARF ISSU_35a asks for a different attested key per provider. The wallet derives this key from the holder key, so a renewal uses the same key.
 
 A key attestation carries `certification`, a link to [SECURITY.md](../../SECURITY.md), and `key_storage_status`. All key attestations share one status entry for the wallet's key storage (the "type-shared index" option of R_KA_1). With `--arf`, when the issuer sets no requirement, `key_storage` and `user_authentication` claim `iso_18045_high`, as C_KA-1 asks of a WSCD. See [key attestation claims](serve.md#key-attestation-claims).
 

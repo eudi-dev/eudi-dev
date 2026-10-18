@@ -16,6 +16,6 @@ Where the ARF and ETSI TS 119 475 differ, the ARF wins. The ARF defines what an 
 
 ## Consequences
 
-Before a change, read the current text, even when the code cites an older version ([ADR-0010](0010-spec-conformance-is-checked-before-and-after-every-change.md)). A citation names the current version, or the requirement identifier for the ARF. An ARF version such as "ARF v3.0.0" appears only where an older text is the reason for a behaviour.
+Before a change, read the current text, even when the code cites an older version ([ADR-0010](0010-spec-conformance-is-checked-before-and-after-every-change.md)). A citation gives the current version, or the requirement identifier for the ARF. An ARF version such as "ARF v3.0.0" appears only where an older text is the reason for a behaviour.
 
-When a specification drops a requirement, its check goes too. When it adds one, the check follows the requirement level of the current text.
+When a specification drops a requirement, the toolkit removes its check. When it adds one, the check follows the requirement level of the current text.

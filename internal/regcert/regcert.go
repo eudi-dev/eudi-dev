@@ -114,7 +114,7 @@ func StatusFindings(cert map[string]any, client *http.Client, statusCAs []*x509.
 		findings = append(findings, fmt.Sprintf("%s: the registrar revoked the registration certificate of %s (status %s at index %d of %s)", rule, name, result.StatusName, ref.Idx, ref.URI))
 	}
 	if len(statusCAs) == 0 {
-		findings = append(findings, fmt.Sprintf("ARF RPACANot_03b: the status list of the registration certificate of %s is not anchored, because no trusted list names a revocation service of a registration certificate provider", name))
+		findings = append(findings, fmt.Sprintf("ARF RPACANot_03b: the status list of the registration certificate of %s is not anchored, because no trusted list has a revocation service of a registration certificate provider", name))
 	}
 	return findings
 }

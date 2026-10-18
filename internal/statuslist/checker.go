@@ -253,9 +253,9 @@ func detectFormat(contentType string, body []byte) (string, string) {
 		sniffed = FormatJWT
 	}
 	if contentType == "" {
-		return sniffed, fmt.Sprintf("the status list response declared no Content-Type, section 8.2 requires %s or %s", MediaTypeJWT, MediaTypeCWT)
+		return sniffed, fmt.Sprintf("the status list response declared no Content-Type. Section 8.2 requires %s or %s", MediaTypeJWT, MediaTypeCWT)
 	}
-	return sniffed, fmt.Sprintf("the status list response declared Content-Type %q, section 8.2 requires %s or %s", contentType, MediaTypeJWT, MediaTypeCWT)
+	return sniffed, fmt.Sprintf("the status list response declared Content-Type %q. Section 8.2 requires %s or %s", contentType, MediaTypeJWT, MediaTypeCWT)
 }
 
 func looksLikeCompactJWS(body []byte) bool {
@@ -293,7 +293,7 @@ func (t *statusListToken) validate(ref *StatusRef, opts CheckOptions) error {
 		return fmt.Errorf("the status list token has no subject claim, which section 5.1 and 5.2 require")
 	}
 	if t.subject != ref.URI {
-		return fmt.Errorf("the status list token's subject %q is not the uri %q the credential references", t.subject, ref.URI)
+		return fmt.Errorf("the status list token's subject is %q, but the credential references the uri %q", t.subject, ref.URI)
 	}
 
 	// Section 5.1: "iat: REQUIRED. ... The iat (issued at) claim MUST specify
@@ -395,14 +395,14 @@ func resolveKeys(certs []*x509.Certificate, embedded []crypto.PublicKey, named, 
 		return &keyCandidates{
 			keys:    embedded,
 			info:    "signed by the key in its own header",
-			warning: "the status list token was verified with its own embedded key. That proves nothing about its issuer",
+			warning: "the status list token was verified with its own embedded key, so its issuer is not verified",
 		}, nil
 	}
 
 	// Section 11.3 leaves key resolution to the ecosystem. The EUDI ecosystem
 	// resolves a Status Issuer through x5c. A DID kid gets its own error.
 	if did := keys.DIDReference(named); did != "" {
-		return nil, fmt.Errorf("the status list token names its key by the DID %s. This tool does not resolve DIDs. Section 11.3 leaves key resolution to the ecosystem, and the EUDI ecosystem identifies a Status Issuer by the certificate chain in the x5c header", did)
+		return nil, fmt.Errorf("the status list token identifies its key by the DID %s. This tool does not resolve DIDs. Section 11.3 leaves key resolution to the ecosystem, and the EUDI ecosystem identifies a Status Issuer by the certificate chain in the x5c header", did)
 	}
 
 	// Section 11.3 allows a kid that refers to web-based key resolution. No
@@ -483,9 +483,9 @@ func parseJWTStatusListToken(body []byte, opts CheckOptions) (*statusListToken, 
 	typ, _ := header["typ"].(string)
 	if !format.JOSETypeIs(typ, TypJWT) {
 		if typ == "" {
-			return nil, fmt.Errorf("the status list token has no typ header, section 5.1 requires %q", TypJWT)
+			return nil, fmt.Errorf("the status list token has no typ header. Section 5.1 requires %q", TypJWT)
 		}
-		return nil, fmt.Errorf("the status list token has typ %q, section 5.1 requires %q", typ, TypJWT)
+		return nil, fmt.Errorf("the status list token has typ %q. Section 5.1 requires %q", typ, TypJWT)
 	}
 
 	certs, err := certchain.FromX5C(header["x5c"])
@@ -653,7 +653,7 @@ func extractStatus(bitstring []byte, idx, bits int) (int, error) {
 
 	entries := len(bitstring) * 8 / bits
 	if idx >= entries {
-		return 0, fmt.Errorf("index %d is out of range, the status list holds %d entries in %d bytes", idx, entries, len(bitstring))
+		return 0, fmt.Errorf("index %d is out of range. The status list holds %d entries in %d bytes", idx, entries, len(bitstring))
 	}
 
 	bitPos := idx * bits

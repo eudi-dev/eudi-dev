@@ -11,7 +11,7 @@ docker run -p 8085:8085 -p 8086:8086 ghcr.io/eudi-dev/eudi-dev
 
 The default command `wallet serve` starts a headless wallet. It holds PID credentials and approves every request. It stores state in memory and derives keys from a fixed seed. Each start uses the same keys and CA without a volume (see [Storage](#storage)). Stopping the container discards credentials issued or imported during the run.
 
-The image sets `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=true`, so the wallet reaches verifiers on the Docker host and in other containers. Set `-e EUDI_DEV_ALLOW_PRIVATE_NETWORKS=false` for a wallet open to internet visitors. It then reaches public addresses and loopback only. With `--demo` it reaches public addresses only (see [outbound address limits](wallet/serve.md#outbound-address-limits)). The variable also applies to `--demo`, so a public demo needs it set to `false`.
+The image sets `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=true`, so the wallet can connect to verifiers on the Docker host and in other containers. Set `-e EUDI_DEV_ALLOW_PRIVATE_NETWORKS=false` for a wallet open to internet visitors. It then connects only to public addresses and loopback. With `--demo` it connects only to public addresses (see [outbound address limits](wallet/serve.md#outbound-address-limits)). The variable also applies to `--demo`, so a public demo needs it set to `false`.
 
 Override the command to use any CLI feature:
 
@@ -28,9 +28,9 @@ The image sets `EUDI_DEV_PORT=8085`, `EUDI_DEV_AUTO_ACCEPT=true` and `EUDI_DEV_P
 
 `wallet serve` refuses to start when an `EUDI_DEV_` variable matches no flag. `EUDI_DEV_HOME`, `EUDI_DEV_STORAGE`, `EUDI_DEV_SEED`, `EUDI_DEV_ALLOW_PRIVATE_NETWORKS`, `EUDI_DEV_LISTEN` and `EUDI_DEV_REMOTE_TIMEOUT` keep their own meaning. `EUDI_DEV_REMOTE_TIMEOUT` sets how long the wallet waits for an issuer or verifier, as a Go duration such as `45s`. The default is `15s`.
 
-The image sets `EUDI_DEV_LISTEN=0.0.0.0`. The wallet, the decoder and the proxy in the container then bind every interface, so published ports reach them. Outside a container they bind `127.0.0.1` by default (see [listen address](wallet/serve.md#listen-address)).
+The image sets `EUDI_DEV_LISTEN=0.0.0.0`. The wallet, the decoder and the proxy in the container then bind every interface, so they accept connections on the published ports. Outside a container they bind `127.0.0.1` by default (see [listen address](wallet/serve.md#listen-address)).
 
-The HTTPS issuer runs on the port after `EUDI_DEV_PORT`. Change the port with `EUDI_DEV_PORT` rather than `--port`, so the health check follows it. With host networking, the wallet then needs no port mapping and no command:
+The HTTPS issuer runs on the port after `EUDI_DEV_PORT`. Change the port with `EUDI_DEV_PORT` rather than `--port`, because the health check reads the variable. With host networking, the wallet then needs no port mapping and no command:
 
 ```yaml
 services:
@@ -93,7 +93,7 @@ docker run -d --name eudi-demo -p 8085:8085 -p 8086:8086 \
   ghcr.io/eudi-dev/eudi-dev:latest
 ```
 
-The demo persists its state in files on the volume and generates its own keys, so its CA stays private and stable across restarts. Visitors confirm each browser flow, because a demo ignores the image default `EUDI_DEV_AUTO_ACCEPT=true`. `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=false` keeps visitors away from the host and its networks.
+The demo persists its state in files on the volume and generates its own keys, so its CA stays private and stable across restarts. Visitors confirm each browser flow, because a demo ignores the image default `EUDI_DEV_AUTO_ACCEPT=true`. With `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=false`, visitors can't make the wallet connect to the host or its networks.
 
 `--demo` turns on `--pid` (four PID credentials), `--mode debug`, `--haip`, `--arf` and `--vci-version 1.1`. It disables administrative operations and resets the wallet hourly. Change the schedule with `--demo-reset`.
 
@@ -309,7 +309,7 @@ curl -X POST http://localhost:8085/api/credentials -d 'eyJhbGci...'
 
 With `wallet serve --pid`, generated credentials carry a status list reference pointing to `https://<host>:<port+1>/api/statuslist`. `--status-list` adds the reference to every generated credential.
 
-The HTTPS issuer URL uses the same host selection. By default the issuer runs on `https://<host>:<port+1>` and serves `/.well-known/jwt-vc-issuer`, the signed `/.well-known/openid-credential-issuer` endpoint, and `/api/registrar/wrp`.
+The HTTPS issuer URL uses the same host. By default the issuer runs on `https://<host>:<port+1>` and serves `/.well-known/jwt-vc-issuer`, the signed `/.well-known/openid-credential-issuer` endpoint, and `/api/registrar/wrp`.
 
 For verifier tests that need to trust that HTTPS endpoint, export the persisted certificate:
 
@@ -323,7 +323,7 @@ To trust every spawned wallet from one root, export the shared wallet CA:
 eudi trust ca-cert --out wallet-ca-cert.pem
 ```
 
-The status list URI and issuer host are written into credentials at generation time. When the verifier runs inside Docker and the wallet on the host (or vice versa), use `--docker` (or `--base-url` for a custom URL). The status list URL, signed issuer metadata and registrar endpoints are then reachable from both sides. `--docker` binds `0.0.0.0`, because on Linux containers reach the host on the Docker bridge, not on loopback:
+The status list URI and issuer host are written into credentials at generation time. When the verifier runs inside Docker and the wallet on the host (or vice versa), use `--docker` (or `--base-url` for a custom URL). The status list URL, signed issuer metadata and registrar endpoints are then reachable from both sides. `--docker` binds `0.0.0.0`. On Linux, containers reach the host over the Docker bridge:
 
 ```bash
 # Wallet on host, verifier in Docker

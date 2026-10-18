@@ -100,7 +100,7 @@ All fields except `claims` are optional:
 | `always_disclosed` | Claims issued plainly instead of selectively disclosable (see below) |
 | `unique_claims` | Claims that get a new random value in every credential, for example an opaque subject identifier |
 | `rulebook` | URL of the rulebook or specification of the credential type. The [attestation catalogue](#attestation-catalogue) links it |
-| `baseline` | Marks a PID that the demo profile holds. Only predefined templates use it |
+| `baseline` | Marks a PID held by the demo profile. Only predefined templates use it |
 | `category` | `pid`, `qeaa`, `pub-eaa` or `eaa`. Credentials from the template are on the [trusted list](wallet/serve.md#trusted-lists) of this category. Without one, the template's catalogue entry gives the category, else the credentials are EAAs. The predefined PID templates are `pid` and the demo ticket is `eaa` |
 | `display` | Card appearance for credentials issued from the template (`name`, `description`, `background_color`, `text_color`, `logo`, `logo_alt_text`, `background_image`) and display names of its claims (`claims`). Image fields take `embedded:<file>`, a data URI or an http(s) URL (see [card appearance](#card-appearance-display)). The predefined PID templates set it |
 | `catalog` | The template's own entry in the attestation catalogue, with the fields of a catalogue request. Its category is the template's category. See [catalogue entry in a template file](#catalogue-entry-in-a-template-file) |
@@ -121,7 +121,7 @@ A string `embedded:<file>` refers to a file in the built-in defaults, such as `e
 
 ## Dates and unique values
 
-A template fills some empty claims when it issues:
+Issuance from a template fills some empty claims:
 
 - In a template of category `pid`, an empty `date_of_issuance` or `issuance_date` becomes the date of issuance. An empty `date_of_expiry` or `expiry_date` becomes the date five years later. A date that is set stays.
 - A claim listed in `unique_claims` gets a new random value in every credential. The Italian PID lists `sub` with an empty value.
@@ -180,7 +180,7 @@ claims:
   eu.europa.ec.eudi.pid.de.1:birth_name: GABLER
 ```
 
-Unquoted values follow YAML typing, with a few rules that keep a template the same as its JSON form:
+Unquoted values follow YAML typing. A few rules make a YAML template match its JSON form:
 
 | YAML value | Claim value |
 |------------|-------------|
@@ -287,7 +287,7 @@ eudi templates show employee-card > share-me.json
 eudi templates delete employee-card
 ```
 
-`templates import` reads a `.yaml` or `.yml` file as YAML and any other file as JSON. On stdin, input that starts with `{` is JSON and other input is YAML. `templates show` prints JSON whatever the source format.
+`templates import` reads a `.yaml` or `.yml` file as YAML and any other file as JSON. On stdin, input that starts with `{` is JSON and other input is YAML. `templates show` prints JSON for every source format.
 
 All `templates` subcommands accept `--wallet-dir` to target a non-default wallet store. With `--remote <url>` (or after `wallet use <url>`), list, show, save, import, and delete operate on a remote instance's template store through its REST API. See [remote control](wallet/http-api.md#remote-control).
 
@@ -353,17 +353,17 @@ A JSON or YAML template file in the template directory can carry a `catalog` obj
 }
 ```
 
-The entry exists as long as the template file and changes with it. Its id derives from its name, so it stays the same across restarts. The catalogue API can't change it. `wallet serve` checks these objects at startup. If an object is invalid or reuses the name or a type of another entry, the start fails and reports the template name.
+The entry exists as long as the template file and changes with it. Its id is derived from its name, so it stays the same across restarts. The catalogue API can't change it. `wallet serve` checks these objects at startup. If an object is invalid or reuses the name or a type of another entry, the start fails and reports the template name.
 
 `GET /api/templates/{name}` shows the `catalog` object. Saving such a template keeps it. A save with a `catalog` object replaces it. A predefined template can carry one too. Its entry then uses those fields.
 
-`templates import` and a `PUT` to a template without its own `catalog` object treat the object as a request and add an entry, as described above.
+For a template without its own `catalog` object, `templates import` and `PUT` treat a `catalog` object as a catalogue request. They add an entry, as described above.
 
 ## Wallet UI
 
 An unchecked SD box in the issue dialog puts the claim in `always_disclosed`. "Save as template" saves the form only after the issuance succeeds.
 
-Pasting a template into the editor's JSON view imports it. The JSON view also takes fields the builder lacks, such as `unique_claims`, and the builder keeps them.
+Pasting a template into the editor's JSON view imports it. The JSON view also accepts fields without a builder control, such as `unique_claims`. The builder keeps these fields.
 
 For a catalogue entry made in the UI, the category sets the default level of security, and an empty trusted list links the category's list.
 

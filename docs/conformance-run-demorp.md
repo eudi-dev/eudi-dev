@@ -50,7 +50,7 @@ ONLY_SCENARIOS=vp-verifier-final-sdjwt,vci-issuer-preauth \
   scripts/oidf-demorp-conformance.sh
 ```
 
-The `--rerun` selector passes through to the official runner exactly as in the wallet runbook.
+The wrapper passes the `--rerun` selector to the official runner, as in the wallet runbook.
 
 ## HTTPS setup
 

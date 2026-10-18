@@ -226,7 +226,7 @@ func (w *Wallet) checkDisplayContrast(images *offerImages, d *oid4vc.CredentialD
 		return
 	}
 	w.warnDisplay(images, "credential_display_low_contrast",
-		fmt.Sprintf("The credential display colors %s on %s have a contrast ratio of %.1f:1, below the 3:1 a readable card needs.",
+		fmt.Sprintf("The credential display colors %s on %s have a contrast ratio of %.1f:1, below the 3:1 needed for a readable card.",
 			d.TextColor, d.BackgroundColor, ratio),
 		map[string]any{
 			"background_color": d.BackgroundColor,
@@ -463,7 +463,7 @@ func (w *Wallet) fetchAndEmbedDisplayImage(ctx context.Context, images *offerIma
 	defer resp.Body.Close()
 	contentType := resp.Header.Get("Content-Type")
 	if resp.StatusCode != http.StatusOK || !strings.HasPrefix(contentType, "image/") {
-		w.rejectDisplayImage(images, field, uri, fmt.Sprintf("HTTP %d with content type %q, the card needs an image", resp.StatusCode, contentType))
+		w.rejectDisplayImage(images, field, uri, fmt.Sprintf("the server answered HTTP %d with content type %q instead of an image", resp.StatusCode, contentType))
 		return ""
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxDisplayImageFetchBytes+1))

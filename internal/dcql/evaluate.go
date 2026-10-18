@@ -581,7 +581,7 @@ func matchesMeta(cred Credential, cqMap map[string]any) bool {
 			return false
 		}
 		if found != cred.VCT {
-			log.Printf("[DCQL]   credential %s: vct %s answers the requested %s (an extending type answers for the type it extends)",
+			log.Printf("[DCQL]   credential %s: vct %s matches the requested %s because it extends that type",
 				cred.ID, cred.VCT, found)
 		}
 	}

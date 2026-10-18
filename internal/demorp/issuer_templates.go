@@ -90,7 +90,7 @@ func (d *DemoRP) warnUnreadableTemplates(err error) {
 	d.templateWarning = message
 	d.mu.Unlock()
 	if changed && message != "" {
-		log.Printf("[Demo issuer] WARNING: the issuer offers no templates it can't read: %v", err)
+		log.Printf("[Demo issuer] WARNING: skipping unreadable templates: %v", err)
 	}
 }
 

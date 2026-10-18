@@ -294,7 +294,7 @@ func TestProcessCredentialOffer_CredentialDisplay(t *testing.T) {
 		if imported.Display.LogoURI != "" {
 			t.Errorf("non-image logo should not be cached: %.60q", imported.Display.LogoURI)
 		}
-		if !strings.Contains(displayFindings(w), "the card needs an image") {
+		if !strings.Contains(displayFindings(w), "instead of an image") {
 			t.Errorf("display findings %q, want the non-image answer", displayFindings(w))
 		}
 	})

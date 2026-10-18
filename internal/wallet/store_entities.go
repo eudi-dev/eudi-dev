@@ -771,7 +771,7 @@ func (s *WalletStore) allocateStatusIndex(w *Wallet) (int, error) {
 		w.mu.Unlock()
 		return next, nil
 	}
-	return 0, errors.New("the status counter kept changing under the allocation")
+	return 0, errors.New("the status counter changed too often during the allocation")
 }
 
 func (snap stateSnapshot) is(other stateSnapshot) bool {

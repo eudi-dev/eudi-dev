@@ -161,7 +161,7 @@ func (w *Wallet) resolveOffer(offerURI string, approved *oid4vc.CredentialOffer)
 	// approved offer.
 	if approved != nil && !sameCredentialOffer(approved, offer) {
 		w.addProtocolWarning("issuance", "credential_offer_changed",
-			fmt.Sprintf("The credential_offer_uri now offers %s rather than the %s this issuance was approved for, continuing with what was approved",
+			fmt.Sprintf("The credential_offer_uri now offers %s, but %s was approved. Issuance continues with the approved offer",
 				offerSummary(offer), offerSummary(approved)),
 			map[string]any{
 				"issuer":          approved.CredentialIssuer,
@@ -670,7 +670,7 @@ func verifySignedIssuerMetadata(token *sdjwt.Token, issuer string) error {
 		return fmt.Errorf("issuer metadata signature is invalid")
 	}
 	if err := verifyIssuerMetadataChainTrust(certs); err != nil {
-		log.Printf("[VCI] signed issuer metadata signer could not be anchored (%v). The wallet holds no issuer trust anchors, so the metadata is read as signed but unplaced", err)
+		log.Printf("[VCI] signed issuer metadata signer could not be anchored (%v). The wallet holds no issuer trust anchors, so it reads the metadata as signed by an unanchored signer", err)
 	}
 	return nil
 }
@@ -859,7 +859,7 @@ func (w *Wallet) fallbackAuthorizationServer(metadata map[string]any, authServer
 		return candidate, candidateMeta, true
 	}
 	w.addProtocolWarning("issuance", "authorization_server_fallback_unavailable",
-		fmt.Sprintf("No other advertised authorization server states support for %s, continuing with %s.",
+		fmt.Sprintf("No other advertised authorization server supports %s. Continuing with %s.",
 			grantType, authServer),
 		map[string]any{
 			"authorization_server": authServer,

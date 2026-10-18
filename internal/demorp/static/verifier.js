@@ -580,7 +580,7 @@ function claimIDs(claims) {
 
 const QUERY_MODE_HINTS = {
   builder: "Pick credentials and claims. Claim sets and credential sets are optional.",
-  json: "Edit the DCQL query, for example to add claim values. The request sends it unchanged. Switching from the builder copies the builder's query into the editor.",
+  json: "Edit the DCQL query, for example to add claim values. The request contains it unchanged. Switching from the builder copies its query into the editor.",
 };
 let queryMode = "builder";
 bindToggle("query-mode-toggle", (option) => {

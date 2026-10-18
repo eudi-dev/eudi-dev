@@ -22,6 +22,6 @@ Web pages and scripts use relative links. A test in `internal/publicpath` fails 
 
 Links in API responses, such as credential image URLs and trusted list paths, include the request's prefix.
 
-`wallet serve` stores its base and issuer URL. Commands that issue without a running server embed these stored URLs. It takes them from `--base-url`, or from the stored base URL when the flag is absent. One-shot commands such as `wallet accept` and `issue --wallet --iss` use their own URLs for that run only and never store them.
+`wallet serve` stores its base and issuer URL. It takes them from `--base-url`, or from the stored base URL when the flag is absent. Commands that issue without a running server embed these stored URLs. One-shot commands such as `wallet accept` and `issue --wallet --iss` use their own URLs for that run only and never store them.
 
 The path prefix must not start with one of the server's own paths. With `--base-url https://example.com/api`, the server could not tell whether `/api/version` is its own API or the version endpoint under the prefix. `wallet serve` and `eudi proxy` refuse such a base URL.

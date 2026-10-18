@@ -83,7 +83,7 @@ func normalizeBits(bits int) (int, error) {
 	case 2, 4, 8:
 		return bits, nil
 	default:
-		return 0, fmt.Errorf("a status list cannot use %d bits per entry, section 4.1 allows 1, 2, 4 and 8", bits)
+		return 0, fmt.Errorf("a status list cannot use %d bits per entry. Section 4.1 allows 1, 2, 4 and 8", bits)
 	}
 }
 

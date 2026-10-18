@@ -460,7 +460,7 @@ func normalizeRelyingParty(rp *WalletRelyingParty, base string, before *WalletRe
 		// 412-1 V1.6.1 LEG-5.1.4-03 uses XG).
 		switch prefix := semantic[3:5]; prefix {
 		case "XG":
-			return fmt.Errorf("a LEI names no country. Set the relying party's country")
+			return fmt.Errorf("a LEI does not include a country. Set the relying party's country")
 		case "EL":
 			rp.Country = "GR"
 		default:
@@ -766,7 +766,7 @@ func findIntendedUse(rp WalletRelyingParty, serviceIdentifier, intendedUseIdenti
 func findService(rp WalletRelyingParty, serviceIdentifier string) (WalletRelyingPartyService, error) {
 	if serviceIdentifier == "" {
 		if len(rp.Services) != 1 {
-			return WalletRelyingPartyService{}, fmt.Errorf("%s has %d services, so name the service", rp.Identifier[0].Identifier, len(rp.Services))
+			return WalletRelyingPartyService{}, fmt.Errorf("%s has %d services. Specify the service", rp.Identifier[0].Identifier, len(rp.Services))
 		}
 		return rp.Services[0], nil
 	}

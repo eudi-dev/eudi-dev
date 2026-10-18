@@ -46,7 +46,7 @@ eudi wallet list
 eudi wallet logs
 ```
 
-A browser session stays on one server (the ingress hashes the `eudi_session` cookie), so the wallet UI at `http://localhost:8080` works as usual once it has been opened. A flow that starts with a verifier's or issuer's redirect in a fresh browser lands on either server, so open the UI first.
+A browser session stays on one server (the ingress hashes the `eudi_session` cookie), so the wallet UI at `http://localhost:8080` works as usual once it has been opened. A flow that starts with a verifier's or issuer's redirect in a fresh browser can go to either server, so open the UI first.
 
 ## Correctness under load
 
