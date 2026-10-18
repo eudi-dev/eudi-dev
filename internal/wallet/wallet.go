@@ -76,8 +76,11 @@ type Wallet struct {
 	AdhocDisplayImages bool `json:"-"`
 	BaseURL            string
 	IssuerURL          string
-	VCIClientID        string `json:"-"`
-	VCIRedirectURI     string `json:"-"`
+	// VCIClientID is the fixed client_id of authorization code flows. Empty
+	// gives each flow with attestation-based client authentication a random
+	// client_id. Other flows then use the wallet origin.
+	VCIClientID    string `json:"-"`
+	VCIRedirectURI string `json:"-"`
 	// Callback URLs use this origin when BaseURL is unset.
 	ServingOrigin string `json:"-"`
 	// storedURLs holds the base and issuer URL written by a save while

@@ -6,7 +6,7 @@ Run a shared public wallet with the `--demo` profile, as at `https://eudi-test.d
 
 ```bash
 eudi wallet serve --demo --base-url https://eudi-test.dev \
-  --vci-client-id https://eudi-test.dev --vci-redirect-uri https://eudi-test.dev/callback \
+  --vci-redirect-uri https://eudi-test.dev/callback \
   --status-list --imprint-file imprint.html
 ```
 
@@ -124,13 +124,13 @@ With an HTTP base URL, the wallet also starts its self-signed HTTPS listener on 
 
 ## Client identity for authorization code issuance
 
-The HAIP authorization code flow needs a client ID and redirect URI. Both default to the wallet's own origin (`--base-url`) and its `/callback` endpoint. The example deployment sets them explicitly:
+The HAIP authorization code flow needs a client ID and redirect URI. Issuers in the EUDI ecosystem have no registered wallet clients. The wallet attestation identifies the wallet, so each authorization code flow with attestation-based client authentication uses a new random client ID. The redirect URI defaults to the `/callback` endpoint of the wallet origin (`--base-url`). The example deployment sets it explicitly:
 
 ```
---vci-client-id https://eudi-test.dev --vci-redirect-uri https://eudi-test.dev/callback
+--vci-redirect-uri https://eudi-test.dev/callback
 ```
 
-If the issuer requires client registration, register those two values. Use different values if the issuer has already registered another client ID or redirect URI. Pre-authorized code offers work without either flag (an attestation is still sent where the issuer's metadata asks for one).
+An issuer that requires client registration needs a fixed client ID. Set it with `--vci-client-id` and register it together with the redirect URI. Flows without client attestation use the wallet origin as client ID. Pre-authorized code offers work without either flag (an attestation is still sent where the issuer's metadata asks for one).
 
 ## Demo issuer as an authorization server
 

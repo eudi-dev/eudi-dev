@@ -111,6 +111,36 @@ func TestInteractiveAuthorizationEndToEnd(t *testing.T) {
 	t.Errorf("no log entry recorded the presentation, log: %v", w.GetLog())
 }
 
+// Without a configured client_id, each authorization code flow with
+// attestation-based client authentication uses a new random client_id. The
+// ecosystem has no pre-registered wallet clients, so the issuer identifies the
+// wallet through its attestation.
+func TestEachAttestedFlowHasItsOwnRandomClientID(t *testing.T) {
+	w := interactiveTestWallet(t)
+	d, ts := serveDemoStack(t, w)
+	origin := w.VCIClientID
+	w.VCIClientID = ""
+
+	for range 2 {
+		offer := postJSONTo(t, ts.URL+"/issuer/api/offers?grant="+authCodeGrant+"&authorization="+authorizationPresentation, `{}`)
+		uri, _ := offer["scheme_uri"].(string)
+		if _, err := w.ProcessCredentialOffer(uri); err != nil {
+			t.Fatal(err)
+		}
+	}
+	d.mu.Lock()
+	clientIDs := map[string]bool{}
+	for _, token := range d.tokens {
+		if token.clientAuth != nil {
+			clientIDs[token.clientAuth.clientID] = true
+		}
+	}
+	d.mu.Unlock()
+	if len(clientIDs) != 2 || clientIDs[origin] || clientIDs[""] {
+		t.Errorf("the attestations named the clients %v, want two random ones", clientIDs)
+	}
+}
+
 // A template offer issues its template through presentation during issuance,
 // as it does with a pre-authorized code.
 func TestInteractiveAuthorizationIssuesTheOfferedTemplate(t *testing.T) {

@@ -154,7 +154,7 @@ Every flag can also be set as EUDI_DEV_<FLAG>, such as EUDI_DEV_BASE_URL for --b
 	cmd.Flags().BoolVar(&opts.AdhocDisplayImages, "adhoc-display-images", false, "Keep an issuer's https display image URL and let the card fetch it on demand instead of fetching once and storing the image (nothing is stored but the issuer sees each render, while a data URI, template art, and http URLs are still embedded)")
 	cmd.Flags().StringVar(&opts.DemoIssuerClientAuth, "demo-issuer-client-auth", string(demorp.ClientAuthRequired), "What the demo issuer's authorization server demands at its PAR and token endpoints: 'required' (HAIP 1.0 §4.4.1, the default) or 'optional' (also serves wallets that send no wallet attestation, for testing against them)")
 	cmd.Flags().StringVar(&opts.DemoIssuerKeyAttest, "demo-issuer-key-attestation", string(demorp.KeyAttestationOptional), "Key attestation requirement of the demo issuer's credential endpoint: 'optional' (default, also accepts jwt proofs without a key attestation) or 'required' (every proof must carry a key attestation, CIR (EU) 2024/2979 Annex Ib TR_KA-4)")
-	cmd.Flags().StringVar(&opts.VCIClientID, "vci-client-id", "", "Client ID the wallet should use for OID4VCI authorization-code flows")
+	cmd.Flags().StringVar(&opts.VCIClientID, "vci-client-id", "", "Fixed client ID for OID4VCI authorization code flows. Unset, each flow with attestation-based client authentication gets a random client ID, and other flows use the wallet origin")
 	cmd.Flags().StringVar(&opts.VCIRedirectURI, "vci-redirect-uri", "", "Redirect URI the wallet should use for OID4VCI authorization-code flows")
 	cmd.Flags().BoolVar(&opts.Demo, "demo", false, "Public demo profile: implies --pid, --mode debug, --haip, --arf and --vci-version 1.1 (all overridable), disables process/filesystem endpoints, blocks fetches to loopback and private networks unless --allow-private-networks is given, ignores $EUDI_DEV_AUTO_ACCEPT")
 	addAllowPrivateNetworksFlag(cmd, &opts.AllowPrivateNetworks, "With --demo it also opens loopback, which a host that faces the internet should keep closed. ")
@@ -569,12 +569,9 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	}
 	w.IssuerURL = origin.Issuer
 
-	// Default the client ID and callback URI to this wallet's origin so authorization
-	// code offers work without extra flags. Both are required before PAR, where the
+	// Default the callback URI to this wallet's origin so authorization code
+	// offers work without extra flags. It is required before PAR, where the
 	// wallet first sends its attestation.
-	if w.VCIClientID == "" {
-		w.VCIClientID = origin.Base
-	}
 	if w.VCIRedirectURI == "" {
 		w.VCIRedirectURI = origin.Base + "/callback"
 	}

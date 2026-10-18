@@ -51,9 +51,6 @@ func (w *Wallet) processAuthorizationCodeOffer(offer *oid4vc.CredentialOffer, se
 	}
 	clientID := strings.TrimSpace(w.VCIClientID)
 	redirectURI := strings.TrimSpace(w.VCIRedirectURI)
-	if clientID == "" {
-		return nil, fmt.Errorf("OID4VCI authorization_code flow requires a configured wallet client_id")
-	}
 
 	// Interactive authorization (OID4VCI 1.1 §6) needs no redirect URI.
 	challengeEndpoint := interactiveAuthorizationEndpoint(oauthMeta)
@@ -95,6 +92,22 @@ func (w *Wallet) processAuthorizationCodeOffer(offer *oid4vc.CredentialOffer, se
 		return nil, err
 	}
 
+	authCtx := clientAuthContext{oauthMeta: oauthMeta, tokenEndpoint: session.renewal.TokenEndpoint, issuerMetadata: session.metadata}
+	clientAuth := w.resolveClientAuthentication(clientAuthMethod, authCtx)
+	if clientID == "" {
+		// The attestation identifies the wallet, so the issuer has to accept
+		// a client_id it has never seen.
+		if clientAuth != nil && clientAuth.Method == ClientAuthAttestation {
+			clientID = randomBase64URL(18)
+			log.Printf("[VCI] Random client_id for this flow: %s", clientID)
+		} else {
+			clientID = w.walletClientIdentifier()
+		}
+	}
+	if clientID == "" {
+		return nil, fmt.Errorf("OID4VCI authorization_code flow requires a configured wallet client_id")
+	}
+
 	state := randomBase64URL(18)
 	codeVerifier := randomBase64URL(32)
 	codeChallenge := codeChallengeS256(codeVerifier)
@@ -110,8 +123,6 @@ func (w *Wallet) processAuthorizationCodeOffer(offer *oid4vc.CredentialOffer, se
 	if offer.Grants.IssuerState != "" {
 		parForm.Set("issuer_state", offer.Grants.IssuerState)
 	}
-	authCtx := clientAuthContext{oauthMeta: oauthMeta, tokenEndpoint: session.renewal.TokenEndpoint, issuerMetadata: session.metadata}
-	clientAuth := w.resolveClientAuthentication(clientAuthMethod, authCtx)
 	session.renewal.ClientID = clientID
 	session.renewal.ClientAuth = clientAuth
 

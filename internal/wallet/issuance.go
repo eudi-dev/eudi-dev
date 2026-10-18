@@ -29,6 +29,7 @@ import (
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jwe"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
@@ -390,13 +391,13 @@ func (w *Wallet) processCredentialOffer(offerURI string, opts OfferOptions) (_ *
 	return w.issueWithToken(session, tokenForm)
 }
 
-// walletClientIdentifier returns the client identifier in the wallet's own
-// attestation: the configured OID4VCI client_id, or else its base URL.
+// walletClientIdentifier returns the configured OID4VCI client_id, or else the
+// wallet origin.
 func (w *Wallet) walletClientIdentifier() string {
 	if id := strings.TrimSpace(w.VCIClientID); id != "" {
 		return id
 	}
-	return strings.TrimSpace(w.BaseURL)
+	return strings.TrimSpace(jsonutil.FirstNonEmpty(w.BaseURL, w.ServingOrigin))
 }
 
 func verifyImportedJWTMetadataSignature(raw string, client *http.Client) (string, string) {

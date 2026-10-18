@@ -61,10 +61,9 @@ services:
       - "8085"
       - --base-url
       - https://eudi-test.dev
-      # Keep client identity and callback URLs stable for issuers that register this
-      # wallet.
-      - --vci-client-id
-      - https://eudi-test.dev
+      # Without --vci-client-id, each attested authorization code flow uses a
+      # random client ID, as issuers in the EUDI ecosystem have no registered
+      # wallet clients. The callback URL stays stable.
       - --vci-redirect-uri
       - https://eudi-test.dev/callback
       - --status-list
@@ -105,8 +104,6 @@ services:
       - --port
       - "8085"
       - --base-url
-      - https://preview.eudi-test.dev
-      - --vci-client-id
       - https://preview.eudi-test.dev
       - --vci-redirect-uri
       - https://preview.eudi-test.dev/callback

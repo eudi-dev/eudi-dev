@@ -54,7 +54,7 @@ eudi wallet accept 'openid-credential-offer://...' --tx-code 123456
 | `--client-attestation`  | `false`  | Send the wallet attestation on OID4VCI token requests even when the issuer does not advertise `attest_jwt_client_auth` |
 | `--vci-version`         | `1.0`    | OpenID4VCI feature level as a client: `1.0` or `1.1` |
 
-Pre-authorized code offers work directly with `wallet accept`. Authorization code offers require a running `wallet serve` instance. The client ID defaults to the wallet origin and the redirect URI to its `/callback` endpoint. Override them with `--vci-client-id` and `--vci-redirect-uri`. The wallet uses PAR and DPoP when advertised by the issuer.
+Pre-authorized code offers work directly with `wallet accept`. Authorization code offers require a running `wallet serve` instance. Each flow with attestation-based client authentication uses a new random client ID, and other flows use the wallet origin. The redirect URI defaults to the `/callback` endpoint of the wallet origin. Set fixed values with `--vci-client-id` and `--vci-redirect-uri`. The wallet uses PAR and DPoP when advertised by the issuer.
 
 For sign-in, `wallet accept` prints the authorization URL. It opens the URL only when no wallet page is already handling the flow, because the request can be used once (RFC 9126 §4). After the issuer redirects back, the wallet exchanges the code. The CLI waits for the credential or an error. A remote wallet follows the same process. See [sign-in during issuance](issuing.md#sign-in-during-issuance).
 

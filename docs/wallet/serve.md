@@ -324,7 +324,7 @@ Every flag can also be set as `EUDI_DEV_<FLAG>`, with the flag name in upper cas
 | `--status-list`         | `false`  | Embed status list references in generated credentials |
 | `--base-url`            | None     | Public URL of the wallet, optionally with a path prefix (see [reverse proxy setup](../reverse-proxy.md)). An https base URL is used as the issuer URL (external TLS terminator). An http base URL derives a self-signed HTTPS issuer URL on port+1. Existing persisted issuer URLs are reused unless this flag is set |
 | `--docker`              | `false`  | Use `host.docker.internal` instead of `localhost` when deriving new HTTP and HTTPS wallet endpoint URLs. The server then binds `0.0.0.0` unless `--listen` sets another address |
-| `--vci-client-id`       | Wallet origin | Client ID for OID4VCI authorization code flows |
+| `--vci-client-id`       | Random per flow | Fixed client ID for OID4VCI authorization code flows. Unset, each flow with attestation-based client authentication gets a random client ID, and other flows use the wallet origin |
 | `--vci-redirect-uri`    | Wallet origin + `/callback` | Redirect URI for OID4VCI authorization code flows |
 | `--vci-version`         | `1.0`    | OpenID4VCI feature level of the wallet as a client: `1.0` (the published version) or `1.1` (also uses 1.1 draft features when the issuer supports them). See [OpenID4VCI feature level](issuing.md#openid4vci-feature-level) |
 | `--haip`                | `false`  | Check incoming presentations and credential offers against HAIP 1.0. `--mode` sets how violations are handled. Strict aborts the flow. Debug reports the violation and continues |
