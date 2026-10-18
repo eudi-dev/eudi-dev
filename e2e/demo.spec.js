@@ -1120,6 +1120,44 @@ test.describe("Consent credential selection", () => {
     expect(result.claims.vct).toBe(after);
   });
 
+  test("a plain SD-JWT claim is fixed in the consent and still sent", async ({ page }) => {
+    const vct = "urn:example:e2e-plain-claims:1";
+    const issued = await postJSON("/api/issue", {
+      format: "sdjwt",
+      vct,
+      claims: { member_id: "M-1", nickname: "Bo" },
+      always_disclosed: ["member_id"],
+    });
+    expect(issued.status).toBe(201);
+    try {
+      const req = await openPreparedConsent(page, {
+        type: "custom",
+        dcql_query: {
+          credentials: [{
+            id: "card",
+            format: "dc+sd-jwt",
+            meta: { vct_values: [vct] },
+            claims: [{ path: ["member_id"] }, { path: ["nickname"] }],
+          }],
+        },
+      });
+
+      const plain = page.locator('.consent-claim input[data-claim="member_id"]');
+      await expect(plain).toBeChecked();
+      await expect(plain).toBeDisabled();
+      await expect(page.locator(".consent-claim-fixed", { hasText: "member_id" })).toContainText("always sent");
+      await expect(page.locator('.consent-claim input[data-claim="nickname"]')).toBeEnabled();
+
+      await page.locator("#consent-approve").click();
+      await expect(page).toHaveURL(/\/verifier\/\?response_code=/, { timeout: 15_000 });
+      const result = await verifierResult(req.id);
+      expect(result.status).toBe("verified");
+      expect(result.claims.card.member_id).toBe("M-1");
+    } finally {
+      await fetch(`${BASE}/api/credentials/${issued.body.id}`, { method: "DELETE" });
+    }
+  });
+
   test("withholding a requested claim reaches the verifier as its absence", async ({ page }) => {
     const req = await openConsent(page);
 

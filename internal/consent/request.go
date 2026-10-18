@@ -110,6 +110,10 @@ type Match struct {
 	DocType      string         `json:"doctype,omitempty"`
 	Claims       map[string]any `json:"claims"`
 	SelectedKeys []string       `json:"selected_keys"`
+	// AlwaysDisclosed lists the claims of SelectedKeys and ClaimSets that are
+	// always sent, such as plain SD-JWT claims. The holder cannot withhold
+	// them.
+	AlwaysDisclosed []string `json:"always_disclosed,omitempty"`
 	// Debug mode can offer credentials that fail trusted_authorities matching. The
 	// consent dialog flags this violation.
 	UntrustedAuthority bool `json:"untrusted_authority,omitempty"`

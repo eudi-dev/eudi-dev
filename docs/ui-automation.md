@@ -259,7 +259,7 @@ The demo verifier at `/verifier/` builds requests for you:
 | Query without a matching credential (debug mode) | `#consent-unanswered-<query id>`. **Approve** stays disabled until you pick one |
 | **Approve**, **Deny** | `#consent-approve`, `#consent-deny` |
 
-Uncheck a claim to withhold it. The verifier then receives the presentation without that claim.
+Uncheck a claim to withhold it. The verifier then receives the presentation without that claim. Some claims are always sent, such as a plain SD-JWT claim or any claim of a `jwt_vc_json` credential. Their checkbox is disabled, and the row has the class `consent-claim-fixed`.
 
 After **Approve** or **Deny**, the wallet follows the verifier's `redirect_uri`. Wait for the navigation. The demo verifier redirects to `/verifier/?response_code=...`. Without a redirect, the page stays in the wallet and shows the verifier's answer.
 
@@ -276,7 +276,7 @@ await expect(page.locator("#status")).toHaveAttribute("data-status", "verified")
 
 API: `POST /api/presentations` with `{"uri": "..."}` presents the automatic selection without a dialog. With `"interactive": true` it waits for the dialog. See [presentation requests](wallet/http-api.md#presentation-requests).
 
-E2E tests: [`prefix.spec.js`](../e2e/prefix.spec.js), test *a demo verifier request is answered and returns to the verifier*. [`demo.spec.js`](../e2e/demo.spec.js), tests *the registered demo verifier shows its purpose in the consent dialog*, *withholding a requested claim reaches the verifier as its absence* and *denying in the wallet returns to the verifier page, which shows the refusal*. [`wallet.spec.js`](../e2e/wallet.spec.js), tests *denying in the consent dialog continues at the verifier* and *denying stays in the wallet when the verifier sends no redirect_uri*.
+E2E tests: [`prefix.spec.js`](../e2e/prefix.spec.js), test *a demo verifier request is answered and returns to the verifier*. [`demo.spec.js`](../e2e/demo.spec.js), tests *the registered demo verifier shows its purpose in the consent dialog*, *withholding a requested claim reaches the verifier as its absence*, *a plain SD-JWT claim is fixed in the consent and still sent* and *denying in the wallet returns to the verifier page, which shows the refusal*. [`wallet.spec.js`](../e2e/wallet.spec.js), tests *denying in the consent dialog continues at the verifier* and *denying stays in the wallet when the verifier sends no redirect_uri*.
 
 ### Selection
 

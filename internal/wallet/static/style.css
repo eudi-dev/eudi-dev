@@ -1574,6 +1574,12 @@ textarea.form-input {
   cursor: pointer;
 }
 .consent-claim:last-child { border-bottom: none; }
+.consent-claim-fixed { cursor: default; }
+.consent-claim-fixed-tag {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-dim);
+}
 .consent-untrusted {
   margin-top: 10px;
   padding: 10px 12px;

@@ -16,6 +16,7 @@ package wallet
 
 import (
 	"log"
+	"slices"
 	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
@@ -24,11 +25,14 @@ import (
 )
 
 // applySelectedClaims discloses the user's selected claims for each credential.
+// Always disclosed claims stay in the selection, because the presentation
+// sends them anyway.
 func (w *Wallet) applySelectedClaims(matches []consent.Match, selected map[string][]string) []consent.Match {
 	if selected == nil {
 		return matches
 	}
-	for i, m := range matches {
+	for i := range matches {
+		m := &matches[i]
 		keys, ok := selected[m.CredentialID]
 		if !ok {
 			continue
@@ -37,8 +41,14 @@ func (w *Wallet) applySelectedClaims(matches []consent.Match, selected map[strin
 		if !ok {
 			continue
 		}
-		matches[i].SelectedKeys = keys
-		matches[i].Claims = dcql.FilterClaims(dcqlCredential(cred), keys)
+		keys = slices.Clone(keys)
+		for _, key := range m.AlwaysDisclosed {
+			if !slices.Contains(keys, key) {
+				keys = append(keys, key)
+			}
+		}
+		m.SelectedKeys = keys
+		m.Claims = dcql.FilterClaims(dcqlCredential(cred), keys)
 		log.Printf("[VP]   %s: disclosing %v", shortID(m.CredentialID), keys)
 	}
 	return matches

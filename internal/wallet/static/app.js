@@ -2810,9 +2810,12 @@
       return '<span class="consent-claim-hint" id="' + id + '-hint"><span class="consent-claim-warn" id="' + id + '-warn" aria-hidden="true">⚠</span>' + escHtml(hint) + '</span>';
     }
 
-    function claimChecklist(credID, claims, kept, emptyArrays, missing) {
+    // The claims in always are sent in any case, so their checkboxes are fixed.
+    function claimChecklist(credID, claims, kept, emptyArrays, missing, always) {
       const keys = Object.keys(claims || {});
-      const shared = keys.filter(k => (kept ? kept.includes(k) : true)).length;
+      const fixed = always || [];
+      const isShared = k => fixed.includes(k) || (kept ? kept.includes(k) : true);
+      const shared = keys.filter(isShared).length;
       const empties = emptyArrays || [];
       const missingList = missing || [];
       const total = keys.length + missingList.length;
@@ -2826,11 +2829,13 @@
           : (typeof claims[key] === 'object' ? JSON.stringify(claims[key]) : String(claims[key]));
         const row = prefix + '-claim-' + i;
         const warn = empty ? warnMarker('Empty array disclosed. Use a null or index path for the values.', row) : '';
-        const checked = kept ? kept.includes(key) : true;
-        rows += '<label class="consent-claim" id="' + row + '">' +
-          '<input type="checkbox" id="' + row + '-input"' + (checked ? ' checked' : '') + ' data-cred="' + credID + '" data-claim="' + escHtml(key) + '">' +
+        const isFixed = fixed.includes(key);
+        const fixedTitle = isFixed ? ' title="The issuer did not make this claim selectively disclosable, so it is always sent."' : '';
+        rows += '<label class="consent-claim' + (isFixed ? ' consent-claim-fixed' : '') + '" id="' + row + '"' + fixedTitle + '>' +
+          '<input type="checkbox" id="' + row + '-input"' + (isShared(key) ? ' checked' : '') + (isFixed ? ' disabled' : '') + ' data-cred="' + credID + '" data-claim="' + escHtml(key) + '">' +
           '<span class="consent-claim-name mono" id="' + row + '-name">' + escHtml(key) + '</span>' +
           '<span class="consent-claim-value mono" id="' + row + '-value">' + escHtml(val) + '</span>' + warn +
+          (isFixed ? '<span class="consent-claim-fixed-tag" id="' + row + '-fixed">always sent</span>' : '') +
         '</label>';
       });
       // Debug mode includes missing claims so the mismatch remains visible.
@@ -2866,8 +2871,8 @@
         '<div class="credential-card' + (cred.batch ? ' batch' : '') + '">' + body.html + '</div>' +
         untrustedAuthorityNote(mc, 'consent-untrusted-' + mc.credential_id) + unboundNote(mc) + mismatchNote(mc, 'consent-mismatch-' + mc.query_id + '-' + mc.credential_id) +
         (claimSet
-          ? claimChecklist(mc.credential_id, claimSet.claims, kept, null, null)
-          : claimChecklist(mc.credential_id, mc.claims, kept, mc.empty_array_claims, mc.missing_claims)) +
+          ? claimChecklist(mc.credential_id, claimSet.claims, kept, null, null, mc.always_disclosed)
+          : claimChecklist(mc.credential_id, mc.claims, kept, mc.empty_array_claims, mc.missing_claims, mc.always_disclosed)) +
       '</div>';
     }
 

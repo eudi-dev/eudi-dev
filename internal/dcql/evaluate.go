@@ -150,14 +150,15 @@ func Evaluate(query map[string]any, credentials []Credential, opts Options) ([]c
 			}
 			if len(mismatches) > 0 {
 				nonMatching = append(nonMatching, consent.Match{
-					QueryID:      queryID,
-					CredentialID: cred.ID,
-					Format:       cred.Format,
-					VCT:          cred.VCT,
-					DocType:      cred.DocType,
-					Claims:       FilterClaims(cred, selection.selectedKeys),
-					SelectedKeys: selection.selectedKeys,
-					Mismatches:   mismatches,
+					QueryID:         queryID,
+					CredentialID:    cred.ID,
+					Format:          cred.Format,
+					VCT:             cred.VCT,
+					DocType:         cred.DocType,
+					Claims:          FilterClaims(cred, selection.selectedKeys),
+					SelectedKeys:    selection.selectedKeys,
+					AlwaysDisclosed: alwaysDisclosed(cred, selection.selectedKeys),
+					Mismatches:      mismatches,
 				})
 				continue
 			}
@@ -187,6 +188,7 @@ func Evaluate(query map[string]any, credentials []Credential, opts Options) ([]c
 				DocType:            cred.DocType,
 				Claims:             FilterClaims(cred, selection.selectedKeys),
 				SelectedKeys:       selection.selectedKeys,
+				AlwaysDisclosed:    alwaysDisclosed(cred, offeredKeys(selection.selectedKeys, claimSets)),
 				UntrustedAuthority: untrustedAuthority,
 				Unbound:            unbound,
 				EmptyArrayClaims:   selection.emptyArrays,
@@ -517,6 +519,20 @@ type claimSelection struct {
 	// discloses an empty array (see disclosesEmptyArray).
 	emptyArrays []string
 	match       bool
+}
+
+// offeredKeys returns the selected keys and the keys of each claim set. The
+// consent dialog offers all of them.
+func offeredKeys(selected []string, claimSets []consent.ClaimSet) []string {
+	keys := slices.Clone(selected)
+	for _, set := range claimSets {
+		for _, key := range set.Keys {
+			if !slices.Contains(keys, key) {
+				keys = append(keys, key)
+			}
+		}
+	}
+	return keys
 }
 
 // matchesFormat treats a missing format as a wildcard. §6.1 makes format
