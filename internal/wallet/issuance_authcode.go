@@ -49,7 +49,7 @@ func (w *Wallet) processAuthorizationCodeOffer(offer *oid4vc.CredentialOffer, se
 	if w == nil {
 		return nil, fmt.Errorf("wallet is nil")
 	}
-	clientID := strings.TrimSpace(w.VCIClientID)
+	clientID := w.Conformance().VCIClientID
 	redirectURI := strings.TrimSpace(w.VCIRedirectURI)
 
 	// Interactive authorization (OID4VCI 1.1 §6) needs no redirect URI.

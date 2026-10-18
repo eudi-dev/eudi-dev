@@ -1537,7 +1537,7 @@ test.describe("Verifier polling", () => {
   });
 });
 
-test.describe("Conformance", () => {
+test.describe("Settings dialog", () => {
   test("the dialog reports what a demo instance checks", async ({ page }) => {
     await page.goto(BASE);
     await page.locator("#conformance-link").click();
@@ -1550,8 +1550,23 @@ test.describe("Conformance", () => {
     await expect(page.locator("#conf-transcript")).toHaveText("OpenID4VP");
     await expect(page.locator("#conf-mode-hint")).toHaveText("Warn and continue");
 
+    await expect(page.locator("#conformance-title")).toHaveText("Settings");
+    await expect(page.locator("#conf-vci-client-id-row")).toBeHidden();
+
     await page.locator("#conformance-close").click();
     await expect(page.locator("#conformance-overlay")).not.toHaveClass(/active/);
+  });
+
+  test("the dialog shows a fixed OpenID4VCI client ID", async ({ page }) => {
+    await page.route("**/api/config", async (route) => {
+      const response = await route.fetch();
+      await route.fulfill({ response, json: { ...(await response.json()), vci_client_id: "registered-wallet" } });
+    });
+    await page.goto(BASE);
+    await page.locator("#conformance-link").click();
+    await expect(page.locator("#conf-vci-client-id-row")).toBeVisible();
+    await expect(page.locator("#conf-vci-client-id")).toHaveValue("registered-wallet");
+    await expect(page.locator("#conf-vci-client-id")).toBeDisabled();
   });
 
   // Go tests cover debug mode acceptance of HAIP violations.

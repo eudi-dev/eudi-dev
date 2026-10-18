@@ -20,7 +20,7 @@
         <a href="decoder/" id="decoder-link">Decoder</a>
         <a href="#" id="how-to-use-link">How to use</a>
         <a href="#" id="get-cli-link">Get the CLI</a>
-        <a href="#" id="conformance-link">Conformance</a>
+        <a href="#" id="conformance-link">Settings</a>
         <a href="#" id="templates-link">Templates</a>
         <a href="#" id="trust-link">Trust &amp; certificates</a>
         <span class="header-submenu-group" id="registrar-menu">
@@ -216,7 +216,7 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
 
   <div class="consent-overlay" id="conformance-overlay">
     <div class="consent-dialog" id="conformance-dialog">
-      <div class="consent-title" id="conformance-title">Conformance</div>
+      <div class="consent-title" id="conformance-title">Settings</div>
       <p class="dialog-hint" id="conf-intro" hidden>Fixed settings on the public demo.</p>
       <table class="conformance-table" id="conformance-table">
         <tr><td id="conf-mode-name">Validation mode</td><td>
@@ -250,6 +250,9 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
           </select>
         </td></tr>
         <tr><td id="conf-transcript-name">mdoc session transcript</td><td id="conf-transcript" title="Set at startup with --session-transcript">—</td></tr>
+        <tr id="conf-vci-client-id-row"><td id="conf-vci-client-id-name">OpenID4VCI client ID</td><td>
+          <input type="text" id="conf-vci-client-id" class="conf-input mono" placeholder="Random for each flow" aria-labelledby="conf-vci-client-id-name" title="A fixed client ID for authorization code flows (--vci-client-id). Empty gives each flow with client attestation a random client ID">
+        </td></tr>
         <tr><td id="conf-format-name">Preferred format</td><td id="conf-format" title="Used when credentials in several formats match. Set at startup or with PUT /api/config/preferred-format">—</td></tr>
         <tr><td id="conf-key-attestation-name">Key attestation level</td><td>
           <select id="conf-key-attestation-select" class="conf-input" aria-labelledby="conf-key-attestation-name" title="Sets key_storage and user_authentication in the key attestation (OpenID4VCI Appendix D.2)">

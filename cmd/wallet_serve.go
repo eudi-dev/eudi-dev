@@ -552,7 +552,7 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 		w.AdhocDisplayImages = true
 	}
 	if opts.VCIClientID != "" {
-		w.VCIClientID = opts.VCIClientID
+		w.VCIClientID = strings.TrimSpace(opts.VCIClientID)
 	}
 	if opts.VCIRedirectURI != "" {
 		w.VCIRedirectURI = opts.VCIRedirectURI

@@ -24,7 +24,7 @@ import (
 func TestConformancePatchUsesTheReportedNames(t *testing.T) {
 	srv := newTestServer(t, false)
 	resp := serverRequest(t, srv, http.MethodPut, "/api/config/conformance",
-		`{"validation_mode":"strict","require_haip":true,"require_arf":true,"require_encrypted_request":true,"vci_version":"1.1","key_attestation_level":"none","force_client_attestation":true,"tls_verify_override":false}`)
+		`{"validation_mode":"strict","require_haip":true,"require_arf":true,"require_encrypted_request":true,"vci_version":"1.1","key_attestation_level":"none","force_client_attestation":true,"tls_verify_override":false,"vci_client_id":"registered-wallet"}`)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("PUT answered %d: %s", resp.Code, resp.Body.String())
 	}
@@ -32,10 +32,29 @@ func TestConformancePatchUsesTheReportedNames(t *testing.T) {
 	for key, want := range map[string]any{
 		"validation_mode": "strict", "require_haip": true, "require_arf": true, "require_encrypted_request": true,
 		"vci_version": "1.1", "key_attestation_level": "none", "force_client_attestation": true,
-		"tls_verify_override": false, "tls_verify": false,
+		"tls_verify_override": false, "tls_verify": false, "vci_client_id": "registered-wallet",
 	} {
 		if config[key] != want {
 			t.Errorf("%s = %v, want %v", key, config[key], want)
+		}
+	}
+}
+
+// The settings dialog can clear a fixed client ID, so each attested flow gets
+// a random one. A reset restores --vci-client-id.
+func TestTheClientIDChangesAtRuntimeAndResets(t *testing.T) {
+	w := generateTestWallet(t)
+	w.VCIClientID = "startup-wallet"
+	srv := NewServer(w, 0, nil)
+	for _, tc := range []struct{ method, body, want string }{
+		{http.MethodPut, `{"vci_client_id":" "}`, ""},
+		{http.MethodDelete, "", "startup-wallet"},
+	} {
+		if resp := serverRequest(t, srv, tc.method, "/api/config/conformance", tc.body); resp.Code != http.StatusOK {
+			t.Fatalf("%s answered %d: %s", tc.method, resp.Code, resp.Body.String())
+		}
+		if got := w.Conformance().VCIClientID; got != tc.want {
+			t.Errorf("after %s the client ID is %q, want %q", tc.method, got, tc.want)
 		}
 	}
 }

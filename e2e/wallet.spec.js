@@ -184,6 +184,26 @@ test.describe("Wallet Dashboard", () => {
     await expect.poll(configMode).toBe(before);
   });
 
+  test("the settings dialog sets a fixed client ID and clears it again", async ({ page }) => {
+    await page.goto(WALLET_URL);
+    const clientID = async () =>
+      (await page.evaluate(async () => (await (await fetch("/api/config")).json()).vci_client_id));
+    await page.click("#conformance-link");
+    const input = page.locator("#conf-vci-client-id");
+    try {
+      await expect(input).toBeEnabled();
+      await expect(input).toHaveValue("");
+      await input.fill("registered-wallet");
+      await input.press("Enter");
+      await expect.poll(clientID).toBe("registered-wallet");
+      await input.fill("");
+      await input.press("Enter");
+      await expect.poll(clientID).toBe("");
+    } finally {
+      await page.click("#conf-reset");
+    }
+  });
+
   test("HTTPS verification overrides the validation mode and resets to its default", async ({ page }) => {
     await page.goto(WALLET_URL);
     await page.click("#conformance-link");

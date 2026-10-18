@@ -394,7 +394,7 @@ func (w *Wallet) processCredentialOffer(offerURI string, opts OfferOptions) (_ *
 // walletClientIdentifier returns the configured OID4VCI client_id, or else the
 // wallet origin.
 func (w *Wallet) walletClientIdentifier() string {
-	if id := strings.TrimSpace(w.VCIClientID); id != "" {
+	if id := w.Conformance().VCIClientID; id != "" {
 		return id
 	}
 	return strings.TrimSpace(jsonutil.FirstNonEmpty(w.BaseURL, w.ServingOrigin))

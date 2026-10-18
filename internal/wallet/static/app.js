@@ -3440,7 +3440,7 @@
       protectedParties = new Set(config.protected_relying_parties || []);
       renderAutoAccept(!!config.auto_accept);
       renderConformance(config);
-      ['conf-mode-select', 'conf-tls-select', 'conf-haip-input', 'conf-arf-input', 'conf-encrypted-input', 'conf-vci-version-select', 'conf-key-attestation-select'].forEach((id) => {
+      ['conf-mode-select', 'conf-tls-select', 'conf-haip-input', 'conf-arf-input', 'conf-encrypted-input', 'conf-vci-version-select', 'conf-key-attestation-select', 'conf-vci-client-id'].forEach((id) => {
         const el = document.getElementById(id);
         if (el && !el.dataset.wired) {
           el.dataset.wired = '1';
@@ -3528,6 +3528,7 @@
       encrypted: !!conformanceDefaults.require_encrypted_request,
       vciVersion: conformanceDefaults.vci_version === '1.1' ? '1.1' : '1.0',
       keyAttestationLevel: conformanceDefaults.key_attestation_level || '',
+      vciClientID: conformanceDefaults.vci_client_id || '',
     };
   }
 
@@ -3547,6 +3548,11 @@
     if (enc) { enc.checked = eff.encrypted; enc.disabled = demoMode; }
     if (vci) { vci.value = eff.vciVersion; vci.disabled = demoMode; }
     if (level) { level.dataset.wanted = eff.keyAttestationLevel; level.value = eff.keyAttestationLevel; level.disabled = demoMode; }
+    const clientID = document.getElementById('conf-vci-client-id');
+    if (clientID) { clientID.value = eff.vciClientID; clientID.disabled = demoMode; }
+    // The demo cannot change the client ID, so it shows only a fixed one.
+    const clientIDRow = document.getElementById('conf-vci-client-id-row');
+    if (clientIDRow) clientIDRow.hidden = demoMode && !eff.vciClientID;
     renderConformanceHints();
   }
 
@@ -3571,6 +3577,7 @@
     const enc = document.getElementById('conf-encrypted-input');
     const vci = document.getElementById('conf-vci-version-select');
     const level = document.getElementById('conf-key-attestation-select');
+    const clientID = document.getElementById('conf-vci-client-id');
     return {
       validation_mode: mode ? mode.value : undefined,
       tls_verify_override: !tls || tls.value === 'auto' ? null : tls.value === 'true',
@@ -3579,6 +3586,7 @@
       require_encrypted_request: enc ? enc.checked : undefined,
       vci_version: vci ? vci.value : undefined,
       key_attestation_level: level ? level.value : undefined,
+      vci_client_id: clientID ? clientID.value.trim() : undefined,
     };
   }
 

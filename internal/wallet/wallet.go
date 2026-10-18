@@ -76,11 +76,7 @@ type Wallet struct {
 	AdhocDisplayImages bool `json:"-"`
 	BaseURL            string
 	IssuerURL          string
-	// VCIClientID is the fixed client_id of authorization code flows. Empty
-	// gives each flow with attestation-based client authentication a random
-	// client_id. Other flows then use the wallet origin.
-	VCIClientID    string `json:"-"`
-	VCIRedirectURI string `json:"-"`
+	VCIRedirectURI     string `json:"-"`
 	// Callback URLs use this origin when BaseURL is unset.
 	ServingOrigin string `json:"-"`
 	// storedURLs holds the base and issuer URL written by a save while
@@ -232,6 +228,11 @@ type ConformanceSettings struct {
 	ForceClientAttestation bool `json:"force_client_attestation"`
 	// TLSVerify overrides TLS verification. Nil follows the validation mode.
 	TLSVerify *bool `json:"tls_verify_override"`
+	// VCIClientID is the fixed client_id of authorization code flows
+	// (--vci-client-id). Empty gives each flow with attestation-based client
+	// authentication a random client_id. Other flows then use the wallet
+	// origin.
+	VCIClientID string `json:"vci_client_id"`
 }
 
 // ConformanceDocument is the conformance part of GET /api/config.
@@ -253,6 +254,7 @@ type ConformancePatch struct {
 	KeyAttestationLevel     *string      `json:"key_attestation_level,omitempty"`
 	ForceClientAttestation  *bool        `json:"force_client_attestation,omitempty"`
 	TLSVerify               NullableBool `json:"tls_verify_override"`
+	VCIClientID             *string      `json:"vci_client_id,omitempty"`
 }
 
 // NullableBool tells an absent member from null. Set reports that the member
@@ -309,6 +311,9 @@ func (w *Wallet) UpdateConformance(p ConformancePatch) error {
 	}
 	if p.TLSVerify.Set {
 		next.TLSVerify = p.TLSVerify.Value
+	}
+	if p.VCIClientID != nil {
+		next.VCIClientID = strings.TrimSpace(*p.VCIClientID)
 	}
 	if next.RequireARF && !arfWasOn && p.RequireHAIP == nil {
 		next.RequireHAIP = true
