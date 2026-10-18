@@ -7,10 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [3.2.1] - 2026-10-18
 
+### Fixed
+
+- **One sign-in per offer with several wallet tabs.** With several wallet tabs open, only the tab where you approved the offer opens the issuer sign-in. Each tab used to start its own authorization, and the issuer refused all but the first.
+- **Random client IDs for attested authorization code flows.** Issuers in the EUDI ecosystem have no registered wallet clients. Without `--vci-client-id`, each authorization code flow with attestation-based client authentication now uses a new random client ID, so issuers that expect a known client fail the test. eudi-test.dev and its preview no longer set a fixed client ID. A local wallet sets or clears the client ID in the settings dialog.
+- **Plain claims in the consent dialog.** Claims that are always sent, such as plain SD-JWT claims, show a fixed checkbox marked "always sent". The activity log lists them as disclosed.
+
 ### Changed
 
-- **No credential identifiers toggle on the demo issuer page.** The page returns credential identifiers only to a wallet that asks with `authorization_details`, as most issuers do. The offer API still takes `credential_identifiers=always`.
-- **CRLs over plain http on the public demo.** The Caddyfile no longer redirects the CRL paths to https, so clients that don't follow that redirect can fetch the http CRL link in the certificates.
+- **No credential identifiers toggle on the demo issuer page.** The demo issuer returns credential identifiers only when the wallet asks with `authorization_details`, as most issuers do. The offer API still takes `credential_identifiers=always`.
+- **Settings dialog.** The Conformance dialog is now called Settings. It also shows the OpenID4VCI client ID.
+- **Clearer wording.** The CLI help, docs, UI texts and messages use short, plain sentences.
+- **CRLs over plain http on the public demo.** The Caddyfile no longer redirects the CRL paths to https. Clients that don't follow redirects can now fetch the http CRL link in the certificates.
 
 ## [3.2.0] - 2026-10-17
 
