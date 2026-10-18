@@ -5,6 +5,13 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.1] - 2026-10-18
+
+### Changed
+
+- **No credential identifiers toggle on the demo issuer page.** The page returns credential identifiers only to a wallet that asks with `authorization_details`, as most issuers do. The offer API still takes `credential_identifiers=always`.
+- **CRLs over plain http on the public demo.** The Caddyfile no longer redirects the CRL paths to https, so clients that don't follow that redirect can fetch the http CRL link in the certificates.
+
 ## [3.2.0] - 2026-10-17
 
 ### Added
