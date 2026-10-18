@@ -48,13 +48,13 @@ var proxyCmd = &cobra.Command{
 	Use:   "proxy [-- command args...]",
 	Args:  cobra.ArbitraryArgs,
 	Short: "Start a debugging reverse proxy for OID4VP/VCI flows",
-	Long: `Starts a reverse proxy that intercepts, classifies, and decodes OID4VP/VCI
-traffic between a wallet and a verifier/issuer. Point your wallet at the proxy
+	Long: `Starts a reverse proxy between a wallet and a verifier or issuer. It shows the
+OpenID4VP and OpenID4VCI traffic and decodes it. Point your wallet at the proxy
 port instead of the target.
 
-Optionally launch the target service as a subprocess by passing its command
-after '--'. The proxy scans the service's output for encryption keys
-(best-effort), so it decrypts JWE responses of third-party wallets too.
+To start the target service as a subprocess, pass its command after '--'. The
+proxy then looks for encryption keys in its output, so it can also decrypt
+encrypted responses from other wallets. This works on a best effort basis.
 
 Examples:
   eudi proxy --target http://localhost:8080
@@ -70,9 +70,9 @@ func init() {
 	proxyCmd.Flags().IntVar(&proxyPort, "port", config.DefaultProxyPort, "Proxy listen port")
 	proxyCmd.Flags().IntVar(&dashboardPort, "dashboard", config.DefaultProxyDashboardPort, "Dashboard listen port")
 	addListenFlag(proxyCmd, &proxyListen, "The proxy and its dashboard bind it. ")
-	proxyCmd.Flags().BoolVar(&noDashboard, "no-dashboard", false, "Disable web dashboard")
+	proxyCmd.Flags().BoolVar(&noDashboard, "no-dashboard", false, "Run without the web dashboard")
 	proxyCmd.Flags().StringVar(&dashboardBaseURL, "dashboard-base-url", "", "Public dashboard URL when a reverse proxy serves it under a path prefix, such as https://example.com/eudi-proxy")
-	proxyCmd.Flags().BoolVar(&allTraffic, "all-traffic", false, "Show all traffic, not just OID4VP/VCI requests")
+	proxyCmd.Flags().BoolVar(&allTraffic, "all-traffic", false, "Show all traffic, not only OpenID4VP and OpenID4VCI requests")
 	_ = proxyCmd.MarkFlagRequired("target")
 	proxyCmd.AddCommand(proxyLogsCmd())
 	rootCmd.AddCommand(proxyCmd)

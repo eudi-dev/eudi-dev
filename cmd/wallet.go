@@ -61,9 +61,13 @@ var noOpen bool
 var walletCmd = &cobra.Command{
 	Use:   "wallet",
 	Short: "Manage a testing wallet for OID4VP/OID4VCI flows",
-	Long: "Stateful wallet, persisted to files by default. Supports credential management, OID4VP presentations, OID4VCI issuance, " +
-		"QR scanning, and URL scheme registration. The management commands operate on the local store, on the remote " +
-		"instance selected by `wallet use` or --remote, or through a running server for the same wallet directory.",
+	Long: "A test wallet that keeps its state in files by default. It stores credentials,\n" +
+		"presents them with OpenID4VP, receives them with OpenID4VCI, scans QR codes\n" +
+		"and registers URL scheme handlers.\n" +
+		"\n" +
+		"The management commands work on the local store, on the remote wallet selected\n" +
+		"with `wallet use` or --remote, or through a running server for the same wallet\n" +
+		"directory.",
 	Args: cobra.NoArgs,
 	RunE: showHelp,
 }
@@ -76,7 +80,7 @@ var walletFlags = newWalletFlags()
 func newWalletFlags() *pflag.FlagSet {
 	flags := pflag.NewFlagSet("wallet", pflag.ContinueOnError)
 	flags.StringVar(&walletDir, "wallet-dir", "", "Wallet storage directory (default ~/.eudi-dev/wallet/)")
-	flags.StringVar(&remoteFlag, "remote", "", "Manage a remote wallet server at this URL for this invocation (\"local\" forces the local store)")
+	flags.StringVar(&remoteFlag, "remote", "", "Use the wallet server at this URL for this command (\"local\" uses the local store)")
 	flags.StringVar(&templatesDir, "templates-dir", "", "Credential template directory (default <wallet-dir>/templates/)")
 	flags.StringVar(&storageSpec, "storage", "", storageFlagUsage)
 	flags.StringVar(&keySeed, "seed", "", seedFlagUsage)
@@ -380,10 +384,14 @@ func walletRegisterCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "register [wallet-serve-flags...]",
 		Short: "Register the OS URL scheme handlers (macOS and Linux, a no-op elsewhere)",
-		Long: `Registers this wallet as the OS handler for the OID4VP/OID4VCI URL schemes (macOS and Linux, a no-op elsewhere). The provided arguments are stored and replayed as 'wallet serve ...' when a clicked link needs to auto-start the wallet listener.
-
-Supported schemes: openid4vp://, eudi-openid4vp://, haip-vp://, eu-eaap://,
-openid-credential-offer://, haip-vci:// and eu-eaa-offer://.`,
+		Long: "Registers this wallet as the handler for the OpenID4VP and OpenID4VCI URL\n" +
+			"schemes on macOS and Linux. On other systems it does nothing.\n" +
+			"\n" +
+			"The arguments are saved. When you click a link and no wallet server is\n" +
+			"running, the handler starts `wallet serve` with them.\n" +
+			"\n" +
+			"Supported schemes: openid4vp://, eudi-openid4vp://, haip-vp://, eu-eaap://,\n" +
+			"openid-credential-offer://, haip-vci:// and eu-eaa-offer://.",
 		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			for _, arg := range args {
@@ -570,13 +578,13 @@ func walletTLSCertCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "tls-cert",
 		Args:  cobra.NoArgs,
-		Short: "Print or export the wallet HTTPS leaf certificate",
-		Long: `Loads or creates the HTTPS leaf certificate used by the wallet's HTTPS endpoints.
-Use this to inspect or export the exact server certificate presented by the wallet.
-Use 'trust ca-cert' for the one trust root shared by every wallet under the same base directory.
+		Short: "Print or export the TLS certificate of the wallet",
+		Long: `Prints the TLS certificate of the wallet's HTTPS endpoints and creates it if
+needed. 'trust ca-cert' prints the root CA shared by all wallets under the
+same base directory.
 
-Use --jwks to export the certificate as a JWKS document (public key with x5c
-chain).`,
+--jwks exports the certificate as a JWKS document, a public key with its x5c
+chain.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			certFormat, err := certificateExportFormat(asPEM, asJWKS)
 			if err != nil {
@@ -594,7 +602,7 @@ chain).`,
 		},
 	}
 
-	cmd.Flags().IntVar(&port, "port", config.DefaultWalletPort, "Wallet server port (certificate will match HTTPS wallet endpoints on port+1)")
+	cmd.Flags().IntVar(&port, "port", config.DefaultWalletPort, "Wallet server port. The certificate covers the HTTPS endpoints on port+1")
 	cmd.Flags().StringVar(&baseURL, "base-url", "", "Base URL used to derive the HTTPS wallet host")
 	cmd.Flags().BoolVar(&docker, "docker", false, "Use host.docker.internal instead of localhost when deriving the HTTPS wallet host")
 	cmd.Flags().StringVar(&outPath, "out", "", "Write the wallet TLS certificate to a file instead of stdout")
@@ -697,11 +705,12 @@ func loadWalletECKey(path, label string) (*ecdsa.PrivateKey, error) {
 func walletRefreshCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "refresh <credential-id>",
-		Short: "Ask a credential's issuer for a fresh copy",
-		Long: `Renews a credential using the refresh token its issuer handed over at issuance.
+		Short: "Renew a credential at its issuer",
+		Long: `Renews a credential with the refresh token from its issuance. The credential
+keeps its id.
 
-The credential keeps its id, so anything referring to it still does. A wallet
-server renews on its own shortly before expiry. This asks now.`,
+A wallet server renews credentials shortly before they expire. Use this
+command to renew one now.`,
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: completeCredentialIDs,
 		RunE: func(cmd *cobra.Command, args []string) error {

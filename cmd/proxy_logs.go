@@ -41,15 +41,15 @@ func proxyLogsCmdReconnectingAfter(reconnectDelay time.Duration) *cobra.Command 
 	cmd := &cobra.Command{
 		Use:   "logs [dashboard-url]",
 		Short: "Print the traffic a running proxy recorded",
-		Long: fmt.Sprintf(`Prints the traffic of a proxy that is already running, read from its
-dashboard, in the same form the proxy prints it itself. Use it for a proxy in
-a container, in the background, or on another machine.
+		Long: fmt.Sprintf(`Prints the traffic recorded by a running proxy, read from its dashboard. The
+output looks like the proxy's own output. Use it for a proxy in a container, in
+the background or on another machine.
 
-The argument is the dashboard URL, not the proxy port. Without one it reads a
-proxy on this machine (http://localhost:%d).
+The argument is the dashboard URL, not the proxy port. Without it the command
+reads the proxy on this machine (http://localhost:%d).
 
-A proxy started without --all-traffic never recorded non-OID4VP/VCI requests,
-so they cannot be read back here either.
+Without --all-traffic the proxy records only OpenID4VP and OpenID4VCI requests,
+so other requests are missing here too.
 
 Examples:
   eudi proxy logs

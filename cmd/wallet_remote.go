@@ -123,12 +123,13 @@ func walletUseCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:               "use [url|local]",
 		ValidArgsFunction: completeUseTargets,
-		Short:             "Switch wallet management to a remote instance (or back to local)",
-		Long: "Selects which wallet the management commands operate on. With a URL the CLI manages that " +
-			"running eudi-dev wallet server over its REST API. With \"local\" it manages the local wallet store again. " +
-			"Without arguments it prints the current target. The instance is health checked first and its release " +
-			"is compared with this CLI: a differing major release is refused (--force accepts it anyway), while " +
-			"minor and patch differences are compatible.",
+		Short:             "Manage a remote wallet server, or the local store again",
+		Long: `Selects the wallet that the management commands work on. With a URL the CLI
+manages that wallet server over its HTTP API. "local" switches back to the
+local store. Without an argument it prints the current choice.
+
+The CLI first checks that the server answers and compares its version. A
+different major version is refused unless you pass --force.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
@@ -247,11 +248,15 @@ func walletPsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "ps",
 		Short: "List running wallet instances",
-		Long: "Scans the instance registry and the local process list for running wallet servers and asks " +
-			"each for its version. A registered server whose process runs stays listed when it does not answer. The active remote target set by `wallet use <url>` is listed too " +
-			"when it responds, even when it runs elsewhere (for example in a Docker container). " +
-			"Use `wallet use <url>` to manage one of them and " +
-			"`wallet kill <target>` to stop one.",
+		Long: "Lists running wallet servers. The CLI reads its instance registry and the\n" +
+			"local process list, and asks each server for its version. A registered server\n" +
+			"whose process still runs stays in the list when it doesn't answer.\n" +
+			"\n" +
+			"The remote wallet set with `wallet use <url>` is listed when it answers, also\n" +
+			"when it runs elsewhere, such as in a Docker container.\n" +
+			"\n" +
+			"Use `wallet use <url>` to manage a server and `wallet kill <target>` to stop\n" +
+			"one.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runInstancesList()
@@ -358,9 +363,9 @@ func walletKillCmd() *cobra.Command {
 		Use:               "kill [pid|port|url]",
 		ValidArgsFunction: completeInstanceTargets,
 		Short:             "Stop a running eudi-dev wallet instance",
-		Long: "Stops a running wallet server found by `wallet ps`. The target is a pid, a port, or a URL. " +
-			"The instance is asked to exit via its shutdown endpoint. When it does not respond, a local process " +
-			"gets a SIGTERM instead.",
+		Long: "Stops a wallet server listed by `wallet ps`. Name it by process id, port or\n" +
+			"URL. The CLI first asks the server to shut down. If it doesn't answer, a local\n" +
+			"process gets SIGTERM.",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if all {
 				if len(args) != 0 {
@@ -540,9 +545,9 @@ func walletInfoCmd() *cobra.Command {
 		Use:     "info",
 		Aliases: []string{"config"},
 		Short:   "Show the configuration of the managed wallet (local or remote)",
-		Long: "Prints the introspection document of the wallet the CLI currently manages. For a remote wallet " +
-			"this is the instance's /api/config endpoint (pid, port, directories, URLs, and runtime behavior). " +
-			"For the local store it shows the equivalent local view.",
+		Long: `Prints the configuration of the managed wallet. For a remote wallet this is
+its GET /api/config document, with the process id, port, directories, URLs and
+settings. For the local store it prints the same fields.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			svc, err := managedWallet()

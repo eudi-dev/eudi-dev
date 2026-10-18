@@ -40,8 +40,8 @@ var (
 var validateCmd = &cobra.Command{
 	Use:   "validate [input]",
 	Short: "Validate a credential (signature, expiry, revocation)",
-	Long: `Decode and validate a credential. Unlike 'decode' (which only parses and displays),
-'validate' actively checks correctness:
+	Long: `Decodes and checks a credential. 'decode' only parses and shows it. 'validate'
+also checks:
 
   - Type header and disclosure digests
   - Signature verification (with --key or --trusted-list, else the embedded certificate or issuer metadata)

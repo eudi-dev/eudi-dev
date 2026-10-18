@@ -84,10 +84,14 @@ var (
 var issueCmd = &cobra.Command{
 	Use:   "issue",
 	Short: "Generate test SD-JWT, JWT, or mdoc credentials",
-	Long: "Generates a signed test credential in one of two modes.\n\n" +
-		"By default it prints a bare credential signed with an ephemeral key (or --key/--cert) to stdout and touches no wallet. " +
-		"With --wallet it issues with the managed wallet's issuer key instead and imports the credential there: into the local store, " +
-		"the remote instance selected by `wallet use`, or a running server for the same wallet directory.",
+	Long: "Generates a signed test credential.\n" +
+		"\n" +
+		"By default it prints the credential to stdout. It is signed with a new random\n" +
+		"key, or with --key and --cert, and no wallet is involved.\n" +
+		"\n" +
+		"With --wallet the wallet's issuer key signs it, and the credential goes into\n" +
+		"the wallet: the local store, the remote wallet selected with `wallet use`, or\n" +
+		"a running server for the same wallet directory.",
 	Args: cobra.NoArgs,
 	RunE: showHelp,
 }
@@ -96,7 +100,7 @@ var issueSDJWTCmd = &cobra.Command{
 	Use:   "sdjwt",
 	Short: "Generate a test SD-JWT credential",
 	Long: "Generate a signed SD-JWT credential with selectively disclosable claims. " +
-		"By default it prints a bare credential signed with an ephemeral P-256 key. --wallet issues into the managed wallet instead.",
+		"By default it prints the credential, signed with a new random P-256 key. With --wallet it goes into the wallet instead.",
 	Args: cobra.NoArgs,
 	RunE: withInlineSigningMaterial(runIssueSDJWT),
 }
@@ -105,7 +109,7 @@ var issueJWTCmd = &cobra.Command{
 	Use:   "jwt",
 	Short: "Generate a test JWT VC credential",
 	Long: "Generate a signed JWT VC credential with claims directly in the payload (no selective disclosure). " +
-		"By default it prints a bare credential signed with an ephemeral P-256 key. --wallet issues into the managed wallet instead.",
+		"By default it prints the credential, signed with a new random P-256 key. With --wallet it goes into the wallet instead.",
 	Args: cobra.NoArgs,
 	RunE: withInlineSigningMaterial(runIssueJWT),
 }
@@ -114,7 +118,7 @@ var issueMDOCCmd = &cobra.Command{
 	Use:   "mdoc",
 	Short: "Generate a test mdoc credential",
 	Long: "Generate a signed mdoc (IssuerSigned) credential. " +
-		"By default it prints a bare credential signed with an ephemeral P-256 key. --wallet issues into the managed wallet instead.",
+		"By default it prints the credential, signed with a new random P-256 key. With --wallet it goes into the wallet instead.",
 	Args: cobra.NoArgs,
 	RunE: withInlineSigningMaterial(runIssueMDOC),
 }
@@ -125,14 +129,14 @@ func init() {
 	issueCmd.PersistentFlags().StringVar(&templatesDir, "templates-dir", "", "Credential template directory (default <wallet-dir>/templates/)")
 	issueCmd.PersistentFlags().StringVar(&storageSpec, "storage", "", storageFlagUsage)
 	issueCmd.PersistentFlags().StringVar(&keySeed, "seed", "", seedFlagUsage)
-	issueCmd.PersistentFlags().StringVar(&remoteFlag, "remote", "", "With --wallet: issue on a remote wallet server at this URL (\"local\" forces the local store)")
+	issueCmd.PersistentFlags().StringVar(&remoteFlag, "remote", "", "With --wallet: issue on the wallet server at this URL (\"local\" uses the local store)")
 	issueCmd.AddCommand(issueSDJWTCmd)
 	issueCmd.AddCommand(issueJWTCmd)
 	issueCmd.AddCommand(issueMDOCCmd)
 
 	issueSDJWTCmd.Flags().StringVar(&issueClaims, "claims", "", "Claims as JSON string or @filepath")
 	issueSDJWTCmd.Flags().StringVar(&issueTemplate, "template", "", "Credential template name or file, listed by 'templates list' (--claims overrides individual claims)")
-	issueSDJWTCmd.Flags().StringSliceVar(&issueAlwaysDisclosed, "always-disclosed", nil, "Claims to embed plainly instead of selectively disclosable (dotted paths for nested claims, e.g. address.country)")
+	issueSDJWTCmd.Flags().StringSliceVar(&issueAlwaysDisclosed, "always-disclosed", nil, "Claims that stay plain in the payload instead of selectively disclosable, as dotted paths for nested claims such as address.country")
 	issueSDJWTCmd.Flags().StringVar(&issueSaveTemplate, "save-template", "", "Save the issued claims and settings as a credential template with this name")
 	issueSDJWTCmd.Flags().StringVar(&issueKeyPath, "key", "", "Private key: a PEM or JWK file, or the PEM or JWK itself. Ephemeral P-256 if omitted")
 	issueSDJWTCmd.Flags().StringVar(&issueCertPath, "cert", "", "Certificate chain (PEM, leaf first) embedded as x5c: a file or the PEM itself. Requires --key")
@@ -140,11 +144,11 @@ func init() {
 	issueSDJWTCmd.Flags().StringVar(&issueVCT, "vct", mock.DefaultPIDVCT, "Verifiable Credential Type")
 	issueSDJWTCmd.Flags().StringVar(&issueExpires, "exp", credtemplate.DefaultExp.String(), "Expiration duration (e.g. 720h, 24h)")
 	issueSDJWTCmd.Flags().StringVar(&issueNBF, "nbf", "", "Not-before time (RFC3339 e.g. 2025-01-15T00:00:00Z, or duration e.g. -1h)")
-	issueSDJWTCmd.Flags().BoolVar(&issuePID, "pid", false, "Use full EUDI PID Rulebook claims")
-	issueSDJWTCmd.Flags().StringSliceVar(&issueOmit, "omit", nil, "Claim names to omit from the resolved claim set (e.g. place_of_birth,sex)")
+	issueSDJWTCmd.Flags().BoolVar(&issuePID, "pid", false, "Use all claims of the PID Rulebook")
+	issueSDJWTCmd.Flags().StringSliceVar(&issueOmit, "omit", nil, "Leave out these claims, such as place_of_birth,sex")
 	issueSDJWTCmd.Flags().BoolVar(&issueToWallet, "wallet", false, "Import the issued credential into the wallet")
-	issueSDJWTCmd.Flags().IntVar(&issueBatchSize, "batch", 0, fmt.Sprintf("Issue a batch of this many distinct-key copies, at most %d (--wallet only), so the wallet presents an unused one each time", wallet.MaxBatchSize))
-	issueSDJWTCmd.Flags().BoolVar(&issueUnbound, "unbound", false, "With --wallet: issue without a holder key (a bearer credential with no cnf). The default binds it to the wallet. Only a query with require_cryptographic_holder_binding false matches it")
+	issueSDJWTCmd.Flags().IntVar(&issueBatchSize, "batch", 0, fmt.Sprintf("With --wallet: issue this many copies, each with its own key, at most %d. The wallet presents an unused copy each time", wallet.MaxBatchSize))
+	issueSDJWTCmd.Flags().BoolVar(&issueUnbound, "unbound", false, "With --wallet: issue without a holder key, so the credential has no cnf. Only a query with require_cryptographic_holder_binding false matches it")
 	issueSDJWTCmd.Flags().StringVar(&issueStatusListURI, "status-list-uri", "", "Status list URI to embed in credential")
 	issueSDJWTCmd.Flags().IntVar(&issueStatusListIdx, "status-list-idx", 0, "Status list index to embed in credential")
 	addIssueTrustMetadataFlags(issueSDJWTCmd)
@@ -159,8 +163,8 @@ func init() {
 	issueJWTCmd.Flags().StringVar(&issueVCT, "vct", mock.DefaultPIDVCT, "Verifiable Credential Type")
 	issueJWTCmd.Flags().StringVar(&issueExpires, "exp", credtemplate.DefaultExp.String(), "Expiration duration (e.g. 720h, 24h)")
 	issueJWTCmd.Flags().StringVar(&issueNBF, "nbf", "", "Not-before time (RFC3339 e.g. 2025-01-15T00:00:00Z, or duration e.g. -1h)")
-	issueJWTCmd.Flags().BoolVar(&issuePID, "pid", false, "Use full EUDI PID Rulebook claims")
-	issueJWTCmd.Flags().StringSliceVar(&issueOmit, "omit", nil, "Claim names to omit from the resolved claim set (e.g. place_of_birth,sex)")
+	issueJWTCmd.Flags().BoolVar(&issuePID, "pid", false, "Use all claims of the PID Rulebook")
+	issueJWTCmd.Flags().StringSliceVar(&issueOmit, "omit", nil, "Leave out these claims, such as place_of_birth,sex")
 	issueJWTCmd.Flags().BoolVar(&issueToWallet, "wallet", false, "Import the issued credential into the wallet")
 	issueJWTCmd.Flags().StringVar(&issueStatusListURI, "status-list-uri", "", "Status list URI to embed in credential")
 	issueJWTCmd.Flags().IntVar(&issueStatusListIdx, "status-list-idx", 0, "Status list index to embed in credential")
@@ -176,11 +180,11 @@ func init() {
 	issueMDOCCmd.Flags().StringVar(&issueNamespace, "namespace", credtemplate.DefaultDocType, "Namespace")
 	issueMDOCCmd.Flags().StringVar(&issueExpires, "exp", credtemplate.DefaultExp.String(), "Expiration duration (e.g. 720h, 24h)")
 	issueMDOCCmd.Flags().StringVar(&issueNBF, "nbf", "", "Not-before time (RFC3339 e.g. 2025-01-15T00:00:00Z, or duration e.g. -1h)")
-	issueMDOCCmd.Flags().BoolVar(&issuePID, "pid", false, "Use full EUDI PID Rulebook claims")
-	issueMDOCCmd.Flags().StringSliceVar(&issueOmit, "omit", nil, "Claim names to omit from the resolved claim set (e.g. place_of_birth,sex)")
+	issueMDOCCmd.Flags().BoolVar(&issuePID, "pid", false, "Use all claims of the PID Rulebook")
+	issueMDOCCmd.Flags().StringSliceVar(&issueOmit, "omit", nil, "Leave out these claims, such as place_of_birth,sex")
 	issueMDOCCmd.Flags().BoolVar(&issueToWallet, "wallet", false, "Import the issued credential into the wallet")
-	issueMDOCCmd.Flags().IntVar(&issueBatchSize, "batch", 0, fmt.Sprintf("Issue a batch of this many distinct-key copies, at most %d (--wallet only), so the wallet presents an unused one each time", wallet.MaxBatchSize))
-	issueMDOCCmd.Flags().BoolVar(&issueUnbound, "unbound", false, "With --wallet: issue without an MSO device key (a malformed mdoc for testing verifier rejection). The default binds it to the wallet. Only a query with require_cryptographic_holder_binding false matches it, and strict mode refuses to present it")
+	issueMDOCCmd.Flags().IntVar(&issueBatchSize, "batch", 0, fmt.Sprintf("With --wallet: issue this many copies, each with its own key, at most %d. The wallet presents an unused copy each time", wallet.MaxBatchSize))
+	issueMDOCCmd.Flags().BoolVar(&issueUnbound, "unbound", false, "With --wallet: issue without a device key in the MSO. This mdoc is malformed, to test how verifiers reject it. Only a query with require_cryptographic_holder_binding false matches it, and strict mode refuses to present it")
 	issueMDOCCmd.Flags().StringVar(&issueStatusListURI, "status-list-uri", "", "Status list URI to embed in credential")
 	issueMDOCCmd.Flags().IntVar(&issueStatusListIdx, "status-list-idx", 0, "Status list index to embed in credential")
 	addIssueTrustMetadataFlags(issueMDOCCmd)
@@ -764,7 +768,7 @@ func withInlineSigningMaterial(run func(*cobra.Command, []string) error) func(*c
 // credential, so they apply with --wallet.
 func addIssueDisplayFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&issueDisplayName, "display-name", "", "With --wallet: the credential's display name")
-	cmd.Flags().StringVar(&issueDisplayTemplate, "display-template", "", "With --wallet: use the display of this template for any display value not set by the other display flags")
+	cmd.Flags().StringVar(&issueDisplayTemplate, "display-template", "", "With --wallet: take the display values from this template where no other display flag sets them")
 	cmd.Flags().StringVar(&issueCatalog, "catalog", "", "With --save-template: add the template to the attestation catalogue with this entry, as JSON like the catalog field of POST /api/issue (file, JSON or '-' for stdin)")
 	cmd.Flags().StringVar(&issueDisplayDescription, "display-description", "", "With --wallet: the credential's display description")
 	cmd.Flags().StringVar(&issueBackgroundColor, "background-color", "", "With --wallet: the card background color, a CSS color (e.g. #3d59a1)")
@@ -797,17 +801,17 @@ func displayImageMIME(path string, data []byte) string {
 }
 
 func addIssueTrustMetadataFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&issueCategory, "category", "", "With --wallet: credential category (it selects the signer and the trusted list): pid, qeaa, pub-eaa or eaa (default the category of the template or the catalogue entry, else eaa). unlisted keeps it off every list")
-	cmd.Flags().StringSliceVar(&issueEntitlements, "entitlement", nil, "With --wallet: registrar entitlement URI to persist with the issued credential (repeatable)")
-	cmd.Flags().StringVar(&issueTrustListType, "trusted-list-type", "", "With --wallet: trusted list LoTE type to persist with the issued credential")
-	cmd.Flags().StringVar(&issueStatusDetermination, "status-determination-approach", "", "With --wallet: trusted list status determination approach URI to persist with the issued credential")
-	cmd.Flags().StringVar(&issueSchemeCommunityRule, "scheme-community-rule", "", "With --wallet: trusted list scheme community rule URI to persist with the issued credential")
-	cmd.Flags().StringVar(&issueSchemeTerritory, "scheme-territory", "", "With --wallet: trusted list scheme territory to persist with the issued credential")
-	cmd.Flags().StringVar(&issueTrustEntityName, "trusted-entity-name", "", "With --wallet: trusted list entity name to persist with the issued credential")
-	cmd.Flags().StringVar(&issueIssuanceServiceType, "issuance-service-type", "", "With --wallet: trusted list issuance service type identifier to persist with the issued credential")
-	cmd.Flags().StringVar(&issueRevocationServiceType, "revocation-service-type", "", "With --wallet: trusted list revocation service type identifier to persist with the issued credential")
-	cmd.Flags().StringVar(&issueIssuanceServiceName, "issuance-service-name", "", "With --wallet: trusted list issuance service name to persist with the issued credential")
-	cmd.Flags().StringVar(&issueRevocationServiceName, "revocation-service-name", "", "With --wallet: trusted list revocation service name to persist with the issued credential")
+	cmd.Flags().StringVar(&issueCategory, "category", "", "With --wallet: the credential category, which decides the signer and the trusted list: pid, qeaa, pub-eaa, eaa, or unlisted for no list (default the category of the template or the catalogue entry, else eaa)")
+	cmd.Flags().StringSliceVar(&issueEntitlements, "entitlement", nil, "With --wallet: the registrar entitlement URI stored with the credential (repeatable)")
+	cmd.Flags().StringVar(&issueTrustListType, "trusted-list-type", "", "With --wallet: the trusted list LoTE type stored with the credential")
+	cmd.Flags().StringVar(&issueStatusDetermination, "status-determination-approach", "", "With --wallet: the trusted list status determination approach URI stored with the credential")
+	cmd.Flags().StringVar(&issueSchemeCommunityRule, "scheme-community-rule", "", "With --wallet: the trusted list scheme community rule URI stored with the credential")
+	cmd.Flags().StringVar(&issueSchemeTerritory, "scheme-territory", "", "With --wallet: the trusted list scheme territory stored with the credential")
+	cmd.Flags().StringVar(&issueTrustEntityName, "trusted-entity-name", "", "With --wallet: the trusted list entity name stored with the credential")
+	cmd.Flags().StringVar(&issueIssuanceServiceType, "issuance-service-type", "", "With --wallet: the trusted list issuance service type identifier stored with the credential")
+	cmd.Flags().StringVar(&issueRevocationServiceType, "revocation-service-type", "", "With --wallet: the trusted list revocation service type identifier stored with the credential")
+	cmd.Flags().StringVar(&issueIssuanceServiceName, "issuance-service-name", "", "With --wallet: the trusted list issuance service name stored with the credential")
+	cmd.Flags().StringVar(&issueRevocationServiceName, "revocation-service-name", "", "With --wallet: the trusted list revocation service name stored with the credential")
 }
 
 func issueTrustSpecFromFlags() provider.IssuedAttestationSpec {

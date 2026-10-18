@@ -35,8 +35,8 @@ const (
 	arfFlagUsage                 = "Check the access and registration certificates of verifiers and issuers against the ARF, including over-asking and revocation. Turns on --haip too, because the ARF builds on HAIP. With --mode strict the wallet refuses the request or the offer on any finding"
 	relyingPartyCAFlagUsage      = "PEM file with CA certificates for relying party access and registration certificates. The wallet puts them on its access-ca and registrar lists (repeatable)"
 	trustListCAFlagUsage         = "PEM file with CA certificates of trusted list operators. With --arf the wallet also accepts trusted lists signed under these CAs (repeatable)"
-	trustedListFlagUsage         = "URL of an external list of trusted entities (ETSI TS 119 602) for the wallet's list of trusted lists. With --arf its providers anchor the checks of their list type (repeatable)"
-	keyAttestationLevelFlagUsage = "What the key attestation claims as key_storage and user_authentication (OpenID4VCI Appendix D.2): whatever the issuer requires (default), 'none', or one of iso_18045_high, iso_18045_moderate, iso_18045_enhanced-basic, iso_18045_basic for both. The wallet holds its keys in software and can prove none of these levels"
+	trustedListFlagUsage         = "URL of an external list of trusted entities (ETSI TS 119 602) to add to the wallet's list of trusted lists. With --arf the wallet trusts its providers for the list's type (repeatable)"
+	keyAttestationLevelFlagUsage = "The key_storage and user_authentication values of the key attestation (OpenID4VCI Appendix D.2): by default the values the issuer requires, 'none' to leave them out, or one of iso_18045_high, iso_18045_moderate, iso_18045_enhanced-basic and iso_18045_basic for both. The wallet keeps its keys in software, so it reaches none of these levels"
 )
 
 // conformanceFlags are the flags that set what a wallet checks. The wallet
@@ -68,8 +68,8 @@ func addConformanceFlags(cmd *cobra.Command) *conformanceFlags {
 	flags.StringArrayVar(&f.trustedLists, "trusted-list", nil, trustedListFlagUsage)
 	flags.StringVar(&f.keyAttestationLevel, "key-attestation-level", "", keyAttestationLevelFlagUsage)
 	flags.BoolVar(&f.encrypted, "require-encrypted-request", false, "Reject request objects that are not encrypted. The wallet always sends an encryption key in wallet_metadata, so this only requires the verifier to use it")
-	flags.BoolVar(&f.clientAttestation, "client-attestation", false, "Send the wallet attestation on OID4VCI token requests even when the issuer does not advertise attest_jwt_client_auth (advertising it is only a SHOULD)")
-	flags.StringVar(&f.vciVersion, "vci-version", string(wallet.VCIVersion10), "OpenID4VCI feature level the wallet uses as a client: '1.0' (the published version, the default) or '1.1' (also uses what the 1.1 draft adds, where an issuer offers it)")
+	flags.BoolVar(&f.clientAttestation, "client-attestation", false, "Send the wallet attestation with OpenID4VCI token requests, also when the issuer doesn't advertise attest_jwt_client_auth (advertising it is a SHOULD)")
+	flags.StringVar(&f.vciVersion, "vci-version", string(wallet.VCIVersion10), "OpenID4VCI version: '1.0' (the published version) or '1.1', which also uses features of the 1.1 draft where the issuer supports them")
 	return f
 }
 

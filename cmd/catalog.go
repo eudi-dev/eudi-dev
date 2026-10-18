@@ -102,12 +102,14 @@ namespaces for mso_mdoc.
 SD-JWT, separate path segments with dots. An mdoc claim is an element of
 the doctype's namespace, or namespace:element.
 
---category is pid, qeaa, pub-eaa or eaa. The wallet signs credentials of the
-type under the provider CA of that category, and the entry links the
-category's trusted list unless --trusted-list names another. --issuer-ca puts
-the CA of your own issuer on the category's list, so with --arf its
-credentials of the type pass the trusted list check. It can't go with
---trusted-list, because the entry then links another list.`,
+--category is pid, qeaa, pub-eaa or eaa. The wallet signs credentials of this
+type under the provider CA of that category. The entry links the category's
+trusted list, or the list given with --trusted-list.
+
+--issuer-ca adds the CA of your own issuer to the category's list. With --arf,
+credentials of this type from your issuer then pass the trusted list check.
+--issuer-ca and --trusted-list can't be combined, because --trusted-list links
+a different list.`,
 		Example: `  eudi catalog add --name "University diploma" --type dc+sd-jwt:urn:example:diploma:1 --claim dc+sd-jwt:degree
   eudi catalog add --name "University diploma" --type mso_mdoc:org.example.diploma.1 --claim mso_mdoc:degree --category qeaa
   eudi catalog add --name "University diploma" --type mso_mdoc:org.example.diploma.1 --los moderate --trusted-list https://example.com/lote`,
@@ -252,7 +254,7 @@ func catalogRemoveCmd() *cobra.Command {
 		Use:     "rm <id>",
 		Aliases: []string{"remove", "delete"},
 		Short:   "Remove an added attestation type",
-		Long:    "Removes an added attestation type, also one added with a template. The entries of the predefined templates can't be removed.",
+		Long:    "Removes an attestation type that you added, also one added with a template. Entries of predefined templates can't be removed.",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			svc, err := managedWallet()

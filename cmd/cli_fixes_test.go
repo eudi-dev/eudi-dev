@@ -196,7 +196,7 @@ func TestAllowPrivateNetworksHelpFitsTheCommand(t *testing.T) {
 		t.Errorf("eudi decoder help mentions --demo: %s", decoderHelp)
 	}
 	walletHelp := walletServeCmd().Flags().Lookup(allowPrivateNetworksFlag).Usage
-	if !strings.Contains(walletHelp, "With --demo it also opens loopback") {
+	if !strings.Contains(walletHelp, "With --demo it also allows loopback") {
 		t.Errorf("wallet serve help: %s", walletHelp)
 	}
 }

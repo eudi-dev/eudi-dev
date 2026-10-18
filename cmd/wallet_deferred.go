@@ -29,15 +29,14 @@ func walletDeferredCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "deferred",
 		Short: "List the credentials an issuer deferred",
-		Long: `Lists the credentials an issuer accepted but was not ready to hand over.
+		Long: `Lists the credentials that issuers will issue later (deferred issuance).
 
-A deferred credential comes with a transaction id and an interval to come back
-after. A running wallet server collects it on that interval by itself, and the
-entry disappears once the credential arrives.
+For each one the issuer returns a transaction id and an interval. A running
+wallet server asks again after each interval and removes the entry when the
+credential arrives.
 
-Use "check" to ask an issuer now instead of at the next scheduled attempt, and
-"abandon" to stop collecting one. All of these need a running wallet server,
-which is where the collecting happens.`,
+"check" asks the issuer now, and "abandon" stops asking. Both need a running
+wallet server.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := deferredClient()
@@ -70,11 +69,8 @@ func walletDeferredCheckCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "check [id]",
 		Short: "Ask the issuer for a deferred credential now",
-		Long: `Makes one deferred credential request now, instead of waiting for the next
-scheduled attempt.
-
-Without an id, every deferred credential is checked. A checked entry's next
-attempt then moves on by its interval, as if the poller had made it.`,
+		Long: `Asks the issuer for a deferred credential now. Without an id it asks for every
+deferred credential. The next automatic attempt then comes one interval later.`,
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: completeDeferredIDs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -145,11 +141,8 @@ func walletDeferredAbandonCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "abandon <id>",
 		Short: "Stop collecting a deferred credential",
-		Long: `Drops a deferred credential from the wallet's collection schedule.
-
-The transaction stays valid at the issuer, the wallet just stops asking. Use
-it for an issuance you no longer want, instead of waiting out the 24 hours
-after which the wallet gives up on its own.`,
+		Long: `Stops asking the issuer for a deferred credential. The transaction stays valid
+at the issuer. Without this command the wallet gives up after 24 hours.`,
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: completeDeferredIDs,
 		RunE: func(cmd *cobra.Command, args []string) error {

@@ -113,8 +113,9 @@ Capabilities:
   - Decoder (/decoder/)
   - Activity log
 
-Use --register to also register OS URL scheme handlers (openid4vp://, eudi-openid4vp://, haip-vp://, eu-eaap://, openid-credential-offer://, haip-vci://, eu-eaa-offer://)
-so the wallet automatically receives incoming protocol requests.
+--register also registers the URL scheme handlers, so links with these schemes
+open this wallet: openid4vp://, eudi-openid4vp://, haip-vp://, eu-eaap://,
+openid-credential-offer://, haip-vci:// and eu-eaa-offer://.
 
 Every flag can also be set as EUDI_DEV_<FLAG>, such as EUDI_DEV_BASE_URL for --base-url. A flag on the command line wins.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
@@ -136,33 +137,33 @@ Every flag can also be set as EUDI_DEV_<FLAG>, such as EUDI_DEV_BASE_URL for --b
 	cmd.Flags().IntVar(&opts.Port, "port", config.DefaultWalletPort, "Wallet server port")
 	addListenFlag(cmd, &opts.Listen, "--docker binds 0.0.0.0 unless this flag or the variable is set. ")
 	cmd.Flags().BoolVar(&opts.AutoAccept, "auto-accept", false, "Approve presentations and credential offers without asking. --demo ignores $EUDI_DEV_AUTO_ACCEPT and takes this flag from the command line only")
-	cmd.Flags().StringSliceVar(&opts.CredFiles, "credential", nil, "Import credential from file (repeatable)")
+	cmd.Flags().StringSliceVar(&opts.CredFiles, "credential", nil, "Import a credential from a file (repeatable)")
 	cmd.Flags().StringVar(&opts.CredentialsFile, "credentials", "", "Credentials to issue or import on every start and after a demo reset: a YAML or JSON file, a directory of such files, or '-' for stdin")
 	cmd.Flags().StringVar(&opts.CatalogFile, "catalog", "", "Attestation types to pre-register in the catalogue on every start and after a demo reset: a YAML or JSON file, a directory of such files, or '-' for stdin")
 	cmd.Flags().StringVar(&opts.RelyingPartiesFile, "relying-parties", "", "Relying parties to register with the wallet's registrar on every start and after a demo reset: a YAML or JSON file, a directory of such files, or '-' for stdin")
-	cmd.Flags().BoolVar(&opts.PID, "pid", false, "Auto-generate default EUDI PID credentials (SD-JWT + mdoc)")
+	cmd.Flags().BoolVar(&opts.PID, "pid", false, "Issue the default PID credentials (SD-JWT VC and mdoc) at startup")
 	cmd.Flags().StringVar(&opts.KeyPath, "key", "", "Holder private key file (PEM/JWK). Uses the stored key or auto-generates one if omitted")
 	cmd.Flags().StringVar(&opts.IssuerKey, "issuer-key", "", "Issuer key for generated PIDs (PEM/JWK)")
 	cmd.Flags().StringVar(&opts.SessionTranscript, "session-transcript", "oid4vp", "mdoc session transcript mode: 'oid4vp' (OID4VP 1.0, default) or 'iso' (ISO 18013-7)")
 	cmd.Flags().BoolVar(&opts.Register, "register", false, "Register OS URL scheme handlers (openid4vp://, eudi-openid4vp://, haip-vp://, eu-eaap://, openid-credential-offer://, haip-vci://, eu-eaa-offer://)")
 	cmd.Flags().BoolVar(&opts.NoRegister, "no-register", false, "Skip URL scheme registration (overrides --register)")
 	cmd.Flags().BoolVar(&opts.StatusList, "status-list", false, "Embed status list references in generated credentials")
-	cmd.Flags().StringVar(&opts.BaseURL, "base-url", "", "Public URL of the wallet's HTTP endpoints, optionally with a path prefix such as https://example.com/eudi (its host is also reused for HTTPS wallet endpoints)")
+	cmd.Flags().StringVar(&opts.BaseURL, "base-url", "", "Public URL of the wallet, optionally with a path prefix such as https://example.com/eudi. The HTTPS endpoints use the same host")
 	cmd.Flags().BoolVar(&opts.Docker, "docker", false, "Use host.docker.internal instead of localhost for both HTTP and HTTPS wallet endpoint URLs")
 	opts.Conformance = addConformanceFlags(cmd)
 	cmd.Flags().StringVar(&opts.PreferredFormat, "preferred-format", "", "Preferred credential format when multiple match: 'dc+sd-jwt', 'mso_mdoc', or 'jwt_vc_json'")
-	cmd.Flags().BoolVar(&opts.AdhocDisplayImages, "adhoc-display-images", false, "Keep an issuer's https display image URL and let the card fetch it on demand instead of fetching once and storing the image (nothing is stored but the issuer sees each render, while a data URI, template art, and http URLs are still embedded)")
-	cmd.Flags().StringVar(&opts.DemoIssuerClientAuth, "demo-issuer-client-auth", string(demorp.ClientAuthRequired), "What the demo issuer's authorization server demands at its PAR and token endpoints: 'required' (HAIP 1.0 §4.4.1, the default) or 'optional' (also serves wallets that send no wallet attestation, for testing against them)")
+	cmd.Flags().BoolVar(&opts.AdhocDisplayImages, "adhoc-display-images", false, "Store the URL of an issuer's https display image and load the image each time a card shows it, instead of storing the image once. The issuer then sees each view. Data URIs, template images and http URLs are still stored")
+	cmd.Flags().StringVar(&opts.DemoIssuerClientAuth, "demo-issuer-client-auth", string(demorp.ClientAuthRequired), "Client authentication at the PAR and token endpoints of the demo issuer: 'required' (HAIP 1.0 §4.4.1, the default) or 'optional', which also accepts wallets without a wallet attestation")
 	cmd.Flags().StringVar(&opts.DemoIssuerKeyAttest, "demo-issuer-key-attestation", string(demorp.KeyAttestationOptional), "Key attestation requirement of the demo issuer's credential endpoint: 'optional' (default, also accepts jwt proofs without a key attestation) or 'required' (every proof must carry a key attestation, CIR (EU) 2024/2979 Annex Ib TR_KA-4)")
 	cmd.Flags().StringVar(&opts.VCIClientID, "vci-client-id", "", "Fixed client ID for OID4VCI authorization code flows. Unset, each flow with attestation-based client authentication gets a random client ID, and other flows use the wallet origin")
-	cmd.Flags().StringVar(&opts.VCIRedirectURI, "vci-redirect-uri", "", "Redirect URI the wallet should use for OID4VCI authorization-code flows")
+	cmd.Flags().StringVar(&opts.VCIRedirectURI, "vci-redirect-uri", "", "Redirect URI for OpenID4VCI authorization code flows (default /callback of the wallet origin)")
 	cmd.Flags().BoolVar(&opts.Demo, "demo", false, "Public demo profile: implies --pid, --mode debug, --haip, --arf and --vci-version 1.1 (all overridable), disables process/filesystem endpoints, blocks fetches to loopback and private networks unless --allow-private-networks is given, ignores $EUDI_DEV_AUTO_ACCEPT")
-	addAllowPrivateNetworksFlag(cmd, &opts.AllowPrivateNetworks, "With --demo it also opens loopback, which a host that faces the internet should keep closed. ")
+	addAllowPrivateNetworksFlag(cmd, &opts.AllowPrivateNetworks, "With --demo it also allows loopback. Keep that off on a host that faces the internet. ")
 	cmd.Flags().StringVar(&opts.DemoReset, "demo-reset", "1h", "When to restore the clean demo baseline: an interval (24h), a daily wall-clock time (00:00), or one with a timezone (\"00:00 Europe/Berlin\"). 0 disables. Requires --demo")
 	cmd.Flags().StringVar(&opts.ImprintFile, "imprint-file", "", "HTML snippet with the site operator's legal notice, served at /imprint (required for public EU hosting)")
 	cmd.Flags().BoolVar(&opts.DemoConsentAPI, "demo-consent-api", false, "Let API and CLI clients answer consent requests on a public demo. By default only the web UI answers them, so a client doesn't answer another visitor's request by mistake. Requires --demo")
 	cmd.Flags().StringVar(&opts.NewsFile, "news-file", "", "HTML snippet with news for visitors of a public demo, shown once in a popup and again from the footer link. Requires --demo")
-	cmd.Flags().BoolVar(&opts.ServeTLS, "serve-tls", false, "Serve an https --base-url locally with the wallet's own TLS certificate instead of expecting an external TLS terminator in front (the HTTP port stays bound as well)")
+	cmd.Flags().BoolVar(&opts.ServeTLS, "serve-tls", false, "Serve an https --base-url with the wallet's own TLS certificate instead of an external TLS terminator. The HTTP port stays open too")
 	cmd.Flags().StringArrayVar(&opts.DemoVerifierIssuerCAs, "demo-verifier-issuer-ca", nil, "PEM file with extra issuer CA certificates for the demo verifier, in addition to the providers on the wallet's trusted lists (repeatable). Use it for credentials issued outside this wallet, such as in an OIDF conformance suite run")
 	cmd.Flags().StringVar(&opts.LogFormat, "log-format", "", "Console output format: 'text' (the default) or 'json' (one JSON record per line on stdout, for log collectors)")
 	cmd.Flags().BoolVarP(&opts.Detached, "detached", "d", false, "Run the server as a background process and return once it responds. Output goes to <wallet-dir>/serve.log")

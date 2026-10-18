@@ -305,11 +305,11 @@ registration-cert to get the registration certificate. It comes inside an
 issuer_info value for your issuer metadata.
 
 --to adds the attestation types to a registered relying party instead. A
-verifier issues as well and stays one registration with both roles. Its
-service gets a provider entitlement, so the registrar revokes the verifier
-registration certificates of the service. An issuer lists the new types next to
-its others. The command issues the new issuer registration certificate, which
-revokes the current one, and prints its issuer_info.`,
+verifier then also issues and keeps one registration for both roles. Its
+service gets a provider entitlement, so the registrar revokes the service's
+verifier registration certificates. For an issuer, the new types are added to
+its existing ones. In both cases the command issues a new issuer registration
+certificate, revokes the current one and prints the issuer_info.`,
 		Example: `  eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:urn:example:diploma:1
   eudi registrar issuers add --name "Example PID Provider" --attestation dc+sd-jwt:urn:eudi:pid:1 --attestation mso_mdoc:eu.europa.ec.eudi.pid.1
   eudi registrar issuers add --name "Example Bank" --category qeaa --attestation dc+sd-jwt:urn:example:account:1
@@ -347,7 +347,7 @@ revokes the current one, and prints its issuer_info.`,
 		},
 	}
 	party.add(cmd)
-	cmd.Flags().StringArrayVar(&categories, "category", nil, "Credential category whose provider entitlement the issuer gets: pid, qeaa, pub-eaa or eaa (repeatable, default the categories of the attestation types in the catalogue)")
+	cmd.Flags().StringArrayVar(&categories, "category", nil, "Give the issuer the provider entitlement of this category: pid, qeaa, pub-eaa or eaa (repeatable, default the categories of its attestation types in the catalogue)")
 	cmd.Flags().StringArrayVar(&attestations, "attestation", nil, "Attestation type as format:type, such as dc+sd-jwt:urn:eudi:pid:1 or mso_mdoc:eu.europa.ec.eudi.pid.1 (repeatable, required)")
 	cmd.Flags().StringVar(&to, "to", "", "Identifier of a registered relying party to add the attestation types to")
 	_ = cmd.RegisterFlagCompletionFunc("category", staticCompletion(credtemplate.Categories...))

@@ -136,17 +136,17 @@ func walletAcceptCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "accept <uri>",
 		Short: "Accept and process an OID4VP presentation request or OID4VCI credential offer",
-		Long: `Auto-detects the URI type and dispatches to the appropriate flow:
+		Long: `Detects the kind of link and starts the matching flow:
 
-  - openid4vp://, haip-vp://, eudi-openid4vp://, eu-eaap:// →  OID4VP presentation
+  - openid4vp://, haip-vp://, eudi-openid4vp://, eu-eaap:// → OID4VP presentation
   - openid-credential-offer://, haip-vci://, eu-eaa-offer:// → OID4VCI credential issuance
 
-For OID4VP requests, the wallet evaluates the DCQL query, shows a consent UI
-(unless --auto-accept), and submits a VP token to the verifier.
+For a presentation request the wallet matches the DCQL query, asks for consent
+unless --auto-accept is set, and sends the VP token to the verifier.
 
-For OID4VCI offers, the wallet fetches the credential from the issuer and
-stores it locally. A running wallet server reloads the same wallet store at
-request boundaries, so later presentation requests see the new credential.`,
+For a credential offer the wallet gets the credential from the issuer and
+stores it. A wallet server using the same store sees the new credential with
+its next request.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			conformance, err := conformanceFlags.resolve()
@@ -172,7 +172,7 @@ request boundaries, so later presentation requests see the new credential.`,
 		},
 	}
 
-	cmd.Flags().IntVar(&port, "port", config.DefaultWalletPort, "Server port for OID4VP (serves trusted list and consent UI)")
+	cmd.Flags().IntVar(&port, "port", config.DefaultWalletPort, "Port of the wallet server that serves the trusted lists and the consent page")
 	cmd.Flags().BoolVar(&autoAccept, "auto-accept", false, "Approve presentations without asking")
 	cmd.Flags().BoolVar(&docker, "docker", false, "Serve the trusted lists and the status list under host.docker.internal for verifiers in a container")
 	addListenFlag(cmd, &listen, "--docker binds 0.0.0.0 unless this flag or the variable is set. ")
@@ -197,9 +197,9 @@ func walletScanCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "scan [image-file]",
 		Short: "Scan a QR code and accept or import its content",
-		Long: "Reads a QR code from an image file, or with --screen from an interactive screen capture, " +
-			"and dispatches its content like `wallet accept`: a presentation request or credential offer runs " +
-			"that flow, a raw credential is imported.",
+		Long: "Reads a QR code from an image file, or with --screen from a screen capture. A " +
+			"presentation request or credential offer starts its flow, as with `wallet accept`. A " +
+			"credential is imported.",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var content string
@@ -260,7 +260,7 @@ func walletScanCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().IntVar(&port, "port", config.DefaultWalletPort, "Server port (serves trusted list and consent UI)")
+	cmd.Flags().IntVar(&port, "port", config.DefaultWalletPort, "Port of the wallet server that serves the trusted lists and the consent page")
 	cmd.Flags().BoolVar(&screen, "screen", false, "Interactive screen capture (macOS and Linux)")
 	cmd.Flags().BoolVar(&autoAccept, "auto-accept", false, "Approve presentations without asking")
 	cmd.Flags().BoolVar(&docker, "docker", false, "Serve the trusted lists and the status list under host.docker.internal for verifiers in a container")

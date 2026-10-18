@@ -33,21 +33,22 @@ func trustCmd() *cobra.Command {
 		Use:   "trust",
 		Short: "Show the wallet's trusted lists and add your own CAs and lists",
 		Long: `With --arf the wallet checks credentials, access certificates and registration
-certificates against lists of trusted entities (ETSI TS 119 602). It signs a
-list per credential category (pid, qeaa, pub-eaa, eaa), one for wallet
-providers, one for access certificate providers (access-ca) and one for
-registration certificate providers (registrar). A list of trusted lists at
+certificates against lists of trusted entities (ETSI TS 119 602). The wallet
+signs one list for each credential category (pid, qeaa, pub-eaa, eaa), one for
+wallet providers, one for access certificate providers (access-ca) and one for
+registration certificate providers (registrar). The list of trusted lists at
 /api/trustlists/lists points to all of them and to the external lists you add.
 
 show prints one of these lists. ca-cert prints the wallet CA that signs them.
 
-add-ca puts the CA of your own issuer or registrar on one of the wallet's lists.
-add-ca --list trusted-list-ca adds the CA of a trusted list operator. The
-wallet doesn't publish that list.
-add-list puts an external list on the list of trusted lists. Its signer has to
-chain to the wallet CA, to a CA from wallet serve --trusted-list-ca or to a CA
-added with add-ca --list trusted-list-ca. A list reached through a list of trusted lists is checked against the signer
-certificate in its pointer.
+add-ca adds the CA of your own issuer or registrar to one of the wallet's
+lists. With --list trusted-list-ca it adds the CA of a trusted list operator.
+The wallet doesn't publish that list.
+
+add-list adds an external list to the list of trusted lists. Its signer has to
+chain to the wallet CA, to a CA given with wallet serve --trusted-list-ca, or
+to a CA added with add-ca --list trusted-list-ca. A list found through a list
+of trusted lists must be signed with the certificate given in its pointer.
 
 Without a subcommand, or with list, it lists the wallet's lists and what you
 added.`,
@@ -136,15 +137,16 @@ func trustShowCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "show [list]",
 		Short: "Print one of the wallet's trusted lists, or its URL",
-		Long: `Prints a list of trusted entities (ETSI TS 119 602) of this wallet as a signed JWT.
-The output can be piped to a file or used directly with --trusted-list in the validate command.
+		Long: `Prints one of the wallet's lists of trusted entities (ETSI TS 119 602) as a
+signed JWT. You can save it to a file or pass it to validate --trusted-list.
 
-The list is one of pid, qeaa, pub-eaa, eaa, wallet-provider, access-ca,
-registrar or the tl- ID of a custom list. Use lists for the list of trusted
-lists. 'trust list' shows every list.
-Without a list or selection flag, this prints the PID provider list, like /api/trustlist.
---vct or --doctype selects the list covering that credential type.
---url prints only the list URL of a running wallet server.`,
+The list is pid, qeaa, pub-eaa, eaa, wallet-provider, access-ca, registrar or
+the tl- id of a custom list. "lists" prints the list of trusted lists, and
+'trust list' shows all of them. Without an argument it prints the PID provider
+list, as /api/trustlist does.
+
+--vct or --doctype selects the list for that credential type. --url prints
+only the URL of the list on a running wallet server.`,
 		Example: `  eudi trust show > trustlist.jwt
   eudi trust show eaa --url
   eudi trust show --doctype org.iso.23220.photoid.1 --url
@@ -297,12 +299,13 @@ func trustAddCACmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add-ca",
 		Short: "Put a CA on one of the wallet's lists",
-		Long: `Puts the CA certificates of a PEM file on one of the wallet's lists. The wallet
-signs the list with the CA on it, so with --arf the CA anchors the checks of
-that list: a credential of the category, an access certificate (access-ca) or
-a registration certificate and its status list (registrar). The list
-trusted-list-ca holds the CAs of trusted list operators. The wallet doesn't
-publish it and accepts external lists signed under its CAs.`,
+		Long: `Adds the CA certificates of a PEM file to one of the wallet's lists, and the
+wallet signs the list again. With --arf the CA is then a trust anchor for that
+list: for credentials of its category, for access certificates (access-ca), or
+for registration certificates and their status list (registrar).
+
+The trusted-list-ca list holds the CAs of trusted list operators. The wallet
+doesn't publish it. It accepts external lists signed under these CAs.`,
 		Example: `  eudi trust add-ca --list pid --name "Example PID Provider" --ca pid-ca.pem
   eudi trust add-ca --list registrar --ca registrar-ca.pem
   eudi trust add-ca --list trusted-list-ca --ca lists-ca.pem`,
@@ -357,11 +360,11 @@ func trustAddListCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "add-list <url>",
 		Short: "Put an external list on the list of trusted lists",
-		Long: `Puts an external list of trusted entities (ETSI TS 119 602) on the wallet's list
-of trusted lists. With --arf its providers anchor the checks of its list type,
-for example a PID provider list for received PIDs. Its signer has to chain to
-the wallet CA, to a CA from wallet serve --trusted-list-ca or to a CA added
-with trust add-ca --list trusted-list-ca.`,
+		Long: `Adds an external list of trusted entities (ETSI TS 119 602) to the wallet's list
+of trusted lists. With --arf the wallet trusts the providers on it for the
+list's type, for example a PID provider list for received PIDs. The list's
+signer has to chain to the wallet CA, to a CA given with wallet serve
+--trusted-list-ca, or to a CA added with trust add-ca --list trusted-list-ca.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			svc, err := managedWallet()

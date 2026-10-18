@@ -43,7 +43,7 @@ func walletLogsCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "logs",
 		Short: "Show the wallet activity log",
-		Long:  "Show persisted interactions received by the wallet and sent from the wallet. By default each log entry is printed on one line.",
+		Long:  "Shows the activity log of the wallet: the requests it received and sent. Each entry is printed on one line.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if jsonOutput && follow {
@@ -79,7 +79,7 @@ func walletLogsCmd() *cobra.Command {
 			return followWalletLogs(cmd.Context(), out, store, last, walletLogPrintOptions{Verbose: verbose})
 		},
 	}
-	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "Follow wallet logs and print new entries as they are persisted")
+	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "Keep running and print new entries as they arrive")
 	cmd.AddCommand(walletLogsCleanCmd())
 	return cmd
 }
@@ -87,7 +87,7 @@ func walletLogsCmd() *cobra.Command {
 func walletLogsCleanCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "clean",
-		Short: "Remove old wallet logs",
+		Short: "Clear the activity log",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			svc, err := managedWallet()

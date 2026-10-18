@@ -268,7 +268,7 @@ func init() {
 	templatesCmd.PersistentFlags().StringVar(&walletDir, "wallet-dir", "", "Wallet storage directory holding the templates/ subdirectory (default ~/.eudi-dev/wallet/)")
 	templatesCmd.PersistentFlags().StringVar(&templatesDir, "templates-dir", "", "Credential template directory (default <wallet-dir>/templates/)")
 	templatesCmd.PersistentFlags().StringVar(&storageSpec, "storage", "", storageFlagUsage)
-	templatesCmd.PersistentFlags().StringVar(&remoteFlag, "remote", "", "Manage templates on a remote wallet server at this URL (\"local\" forces the local store)")
+	templatesCmd.PersistentFlags().StringVar(&remoteFlag, "remote", "", "Manage the templates of the wallet server at this URL (\"local\" uses the local store)")
 	templatesCmd.AddCommand(templatesListCmd)
 	templatesCmd.AddCommand(templatesShowCmd)
 	templatesCmd.AddCommand(templatesSaveCmd)
@@ -282,7 +282,7 @@ func init() {
 	templatesSaveCmd.Flags().StringVar(&templateNamespace, "namespace", "", "Default namespace (mdoc)")
 	templatesSaveCmd.Flags().StringVar(&templateExp, "exp", "", "Default expiration duration (e.g. 720h)")
 	templatesSaveCmd.Flags().StringVar(&templateClaims, "claims", "", "Claims as JSON string or @filepath")
-	templatesSaveCmd.Flags().StringSliceVar(&templateAlwaysDisclosed, "always-disclosed", nil, "Claims to embed plainly instead of selectively disclosable (dotted paths for nested claims)")
+	templatesSaveCmd.Flags().StringSliceVar(&templateAlwaysDisclosed, "always-disclosed", nil, "Claims that stay plain in the payload instead of selectively disclosable, as dotted paths for nested claims")
 	templatesSaveCmd.Flags().StringVar(&templateDescription, "description", "", "Template description")
 
 	templatesImportCmd.Flags().StringVar(&templateImportName, "name", "", "Save the imported template under this name")
