@@ -133,6 +133,8 @@ func (w *Wallet) processAuthorizationCodeOffer(offer *oid4vc.CredentialOffer, se
 		presentationConsented: opts.PresentationConsented,
 		owner:                 opts.Owner,
 		flow:                  opts.Flow,
+		tab:                   opts.Tab,
+		callerNavigates:       opts.CallerNavigates,
 	}
 	issuance := authorizationCodeIssuance{
 		session:      session,
@@ -193,7 +195,7 @@ func (w *Wallet) processAuthorizationCodeOffer(offer *oid4vc.CredentialOffer, se
 		"redirect_uri": redirectURI,
 		"state":        state,
 	}, &LogPayload{Label: "Request URL", Body: authURL})
-	callbackValues, err := runAuthorizationCodeRequest(w, authorizationEndpoint, clientID, requestURI, parForm, redirectURI, state, oauthIssuer(oauthMeta, ""), consent.AuthorizationPrompt{Owner: opts.Owner, Flow: opts.Flow}, w.issRequired(oauthMeta))
+	callbackValues, err := runAuthorizationCodeRequest(w, authorizationEndpoint, clientID, requestURI, parForm, redirectURI, state, oauthIssuer(oauthMeta, ""), consent.AuthorizationPrompt{Owner: opts.Owner, Flow: opts.Flow, Tab: opts.Tab, CallerNavigates: opts.CallerNavigates}, w.issRequired(oauthMeta))
 	authorizationResponseDetails := map[string]any{
 		"direction": "inbound",
 		"endpoint":  "authorization",
@@ -243,6 +245,9 @@ type authorizationCodeSetup struct {
 	// owner identifies the browser the issuance belongs to.
 	owner string
 	flow  string
+	// tab and callerNavigates route the sign-in prompt (consent.AuthorizationPrompt).
+	tab             string
+	callerNavigates bool
 }
 
 // authorizationCodeIssuance holds what the token request needs, whichever

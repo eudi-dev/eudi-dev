@@ -154,7 +154,7 @@ The user signs in when the wallet redeems the offer. The wallet runs the pushed 
 
 The hosted wallet returns the authorization URL to the caller:
 
-- The browser tab receives an `authorize` event on `/api/requests/stream` and navigates to the issuer.
+- The tab where you approved the offer receives an `authorize` event on `/api/requests/stream` and navigates to the issuer. Other open tabs stay where they are.
 - An API caller receives `202 authorization_required`, the URL and an `offer_id`.
 
 The flow waits for the issuer to redirect to `/callback`. The wallet then resumes issuance and returns the browser to the wallet UI.

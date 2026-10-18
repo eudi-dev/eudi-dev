@@ -110,7 +110,7 @@ The wallet answers `200` with the issued credential: `credential_id`, `format`, 
 
 #### Consent requests
 
-`GET /api/requests` lists the pending consent requests. Each has `id`, `type` (`presentation`, `issuance` or `issuance_presentation`), `client_id`, `matched_credentials`, `credential_options` and `mine`. `GET /api/requests/stream` sends a `consent` event for each new request, `wallet-error` for a failed flow, `state` when the stored state changes, and `authorize` with the sign-in `url` of an issuer.
+`GET /api/requests` lists the pending consent requests. Each has `id`, `type` (`presentation`, `issuance` or `issuance_presentation`), `client_id`, `matched_credentials`, `credential_options` and `mine`. `GET /api/requests/stream` sends a `consent` event for each new request, `wallet-error` for a failed flow, `state` when the stored state changes, and `authorize` with the sign-in `url` of an issuer. Only one tab of a browser gets `authorize`. The page sends its tab id in the `X-Eudi-Tab` header when it approves or submits an offer, and in the `tab` query of the stream. The event goes to the stream with that tab id, or else to the newest stream ([ADR-0011](../adr/0011-a-flow-belongs-to-the-browser-that-started-it.md)).
 
 `POST /api/requests/{id}/approve` takes an optional JSON body:
 

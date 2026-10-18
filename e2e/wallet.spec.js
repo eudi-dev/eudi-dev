@@ -345,7 +345,7 @@ test.describe("Wallet loading states", () => {
     const eventReady = new Promise((resolve) => { sendEvent = resolve; });
     const refreshReady = new Promise((resolve) => { releaseRefresh = resolve; });
     let refreshing = false;
-    await page.route("**/api/requests/stream", async (route) => {
+    await page.route("**/api/requests/stream?*", async (route) => {
       await eventReady;
       await route.fulfill({ contentType: "text/event-stream", body: "event: state\ndata: {}\n\n" });
     });

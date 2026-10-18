@@ -107,6 +107,12 @@ type OfferOptions struct {
 	// Flow tags the sign-in prompt of this issuance, so the caller that
 	// started it picks up its own prompt.
 	Flow string
+	// Tab identifies the wallet page that started this issuance. The sign-in
+	// prompt goes to that page.
+	Tab string
+	// CallerNavigates is set when the caller opens the sign-in URL itself, so
+	// no wallet page navigates to it.
+	CallerNavigates bool
 	// ResolvedOffer is the offer that the caller already resolved from the same
 	// URI, for example for a consent dialog. The flow uses it only when reading
 	// the URI again fails.

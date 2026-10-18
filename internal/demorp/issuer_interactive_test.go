@@ -134,6 +134,45 @@ func TestInteractiveAuthorizationIssuesTheOfferedTemplate(t *testing.T) {
 	}
 }
 
+// With auto-accept, a browser that opens an offer link is redirected to the
+// sign-in. RFC 9126 §4 allows one use of the request_uri, so no open wallet
+// page of that browser follows.
+func TestABrowserRedirectedToTheSignInIsTheOnlyOneToOpenIt(t *testing.T) {
+	w := interactiveTestWallet(t)
+	w.AutoAccept = true
+	_, ts := serveDemoStack(t, w)
+	useHTTPSCallback(w)
+
+	offer := postJSONTo(t, ts.URL+"/issuer/api/offers?grant="+authCodeGrant+"&authorization="+authorizationBrowser, `{}`)
+	walletURL, _ := offer["wallet_url"].(string)
+	if walletURL == "" {
+		t.Fatalf("unexpected offer response: %v", offer)
+	}
+	page, unsubscribe := w.Consents().SubscribePageAuthorization([]string{"visitor"}, "open-tab")
+	defer unsubscribe()
+
+	req, err := http.NewRequest(http.MethodGet, walletURL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Accept", "text/html")
+	req.Header.Set(wallet.OwnerHeader, "visitor")
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if location := resp.Header.Get("Location"); !strings.Contains(location, "/issuer/authorize") {
+		t.Fatalf("%d to %q, want a redirect to the sign-in", resp.StatusCode, location)
+	}
+	select {
+	case prompt := <-page:
+		t.Errorf("the open page received the sign-in %s", prompt.URL)
+	case <-time.After(200 * time.Millisecond):
+	}
+}
+
 // The issuer picks the interaction per offer. For an offer that wants browser
 // sign-in it asks a wallet that advertises auth_via_web for that interaction
 // (OpenID4VCI 1.1 §6.2.1.2). The wallet then publishes the sign-in URL.

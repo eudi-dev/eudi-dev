@@ -741,6 +741,30 @@ test.describe("Demo issuer authorization choice", () => {
     expect(events).toContain("interactive_authorization_redirect_to_web");
   });
 
+  // RFC 9126 §4 allows one use of a pushed request_uri. Only the approving tab
+  // opens the sign-in, and the other open tab stays.
+  test("only the approving tab of a browser opens the sign-in", async ({ page, context }) => {
+    const { body: offer } = await postJSON("/issuer/api/offers?grant=authorization_code&authorization=browser", {});
+    const owner = await openAsSchemeHandler(page);
+    const other = await context.newPage();
+    try {
+      await other.goto(`${BASE}/?focus=overview&owner=${owner}`);
+      await expect(other.locator("body")).toHaveAttribute("data-request-stream", "open");
+      await expect(page.locator("body")).toHaveAttribute("data-request-stream", "open");
+
+      submitAsSchemeHandler("/api/offers", offer.scheme_uri, owner);
+      await expect(page.locator("#consent-overlay")).toHaveClass(/active/);
+      await expect(other.locator("#consent-overlay")).toHaveClass(/active/);
+      await page.locator("#consent-approve").click();
+
+      await expect(page.locator('input[name="username"]')).toHaveValue("alice", { timeout: 15_000 });
+      await expect(other.locator("#consent-overlay")).not.toHaveClass(/active/);
+      expect(new URL(other.url()).pathname).toBe("/");
+    } finally {
+      await other.close();
+    }
+  });
+
   // The pushed request_uri can be used once (RFC 9126 §4). Fetching it before browser
   // sign-in would consume it.
   test("the credential arrives once the user signs in at the issuer", async ({ page }) => {

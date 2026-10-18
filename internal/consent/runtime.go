@@ -15,8 +15,10 @@
 package consent
 
 import (
+	"cmp"
 	"errors"
 	"net/url"
+	"slices"
 	"sync"
 	"time"
 )
@@ -227,15 +229,28 @@ func (rt *Runtime) SubscribeErrors() (<-chan Error, func()) {
 	}
 }
 
-// SubscribeAuthorization delivers issuer sign-in prompts accepted by accept,
-// between authorization and token exchange. Hosted wallets deliver the
-// URL to the existing browser tab. Local wallets can open it directly.
+// SubscribeAuthorization delivers the issuer sign-in prompts accepted by
+// accept to the caller of a flow, between authorization and token exchange.
 func (rt *Runtime) SubscribeAuthorization(accept func(AuthorizationPrompt) bool) (<-chan AuthorizationPrompt, func()) {
+	return rt.subscribeAuthorization(authSubscriber{accept: accept})
+}
+
+// SubscribePageAuthorization delivers sign-in prompts to a wallet page of one
+// of the owners. Each prompt goes to one page only: the page with the
+// prompt's tab, else the newest page. RFC 9126 §4 allows one use of a
+// request_uri, so a second page would start a second authorization, and it
+// would fail.
+func (rt *Runtime) SubscribePageAuthorization(owners []string, tab string) (<-chan AuthorizationPrompt, func()) {
+	return rt.subscribeAuthorization(authSubscriber{page: true, owners: owners, tab: tab})
+}
+
+func (rt *Runtime) subscribeAuthorization(sub authSubscriber) (<-chan AuthorizationPrompt, func()) {
 	ch := make(chan AuthorizationPrompt, 4)
+	sub.ch = ch
 	rt.mu.Lock()
 	rt.authSubID++
 	id := rt.authSubID
-	rt.authSubscribers[id] = authSubscriber{ch: ch, accept: accept}
+	rt.authSubscribers[id] = sub
 	rt.mu.Unlock()
 
 	return ch, func() {
@@ -252,23 +267,51 @@ func (rt *Runtime) SubscribeAuthorization(accept func(AuthorizationPrompt) bool)
 	}
 }
 
-// NotifyAuthorization reports whether a matching subscriber received the
-// prompt. That is the caller of its flow or the flow's owning browser.
+// NotifyAuthorization reports whether the prompt was delivered, to the caller
+// of its flow or to one page of its owner.
 func (rt *Runtime) NotifyAuthorization(prompt AuthorizationPrompt) bool {
+	type page struct {
+		id  int64
+		sub authSubscriber
+	}
 	rt.mu.Lock()
-	subs := make([]chan AuthorizationPrompt, 0, len(rt.authSubscribers))
-	for _, sub := range rt.authSubscribers {
-		if sub.accept(prompt) {
-			subs = append(subs, sub.ch)
+	var callers []chan AuthorizationPrompt
+	var pages []page
+	for id, sub := range rt.authSubscribers {
+		switch {
+		case sub.page:
+			if !prompt.CallerNavigates && OwnedBy(sub.owners, prompt.Owner) {
+				pages = append(pages, page{id, sub})
+			}
+		case sub.accept(prompt):
+			callers = append(callers, sub.ch)
 		}
 	}
 	rt.mu.Unlock()
 
 	delivered := false
-	for _, ch := range subs {
+	for _, ch := range callers {
 		select {
 		case ch <- prompt:
 			delivered = true
+		default:
+		}
+	}
+	// Try the page with the prompt's tab first, then the newest pages.
+	slices.SortFunc(pages, func(a, b page) int {
+		aTab, bTab := prompt.Tab != "" && a.sub.tab == prompt.Tab, prompt.Tab != "" && b.sub.tab == prompt.Tab
+		if aTab != bTab {
+			if aTab {
+				return -1
+			}
+			return 1
+		}
+		return cmp.Compare(b.id, a.id)
+	})
+	for _, p := range pages {
+		select {
+		case p.sub.ch <- prompt:
+			return true
 		default:
 		}
 	}
@@ -399,16 +442,26 @@ func (rt *Runtime) NotifyStateChanged() {
 
 // AuthorizationPrompt uses Owner to identify the browser handling issuance. Empty means
 // the initiating client supplied no browser ID. Flow identifies the
-// prompt's issuance.
+// prompt's issuance. Tab identifies the wallet page that started the flow, if
+// any.
 type AuthorizationPrompt struct {
 	URL   string
 	Owner string
 	Flow  string
+	Tab   string
+	// CallerNavigates is set when the caller opens the URL itself, for example
+	// a redirected browser. No wallet page navigates then.
+	CallerNavigates bool
 }
 
+// An authSubscriber is a flow caller, which filters with accept, or a wallet
+// page of the owners.
 type authSubscriber struct {
 	ch     chan AuthorizationPrompt
 	accept func(AuthorizationPrompt) bool
+	page   bool
+	owners []string
+	tab    string
 }
 
 // Prune unread errors because callers select the map keys.

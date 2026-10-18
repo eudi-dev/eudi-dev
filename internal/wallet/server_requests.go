@@ -67,10 +67,8 @@ func (s *Server) handleRequestStream(w http.ResponseWriter, r *http.Request) {
 	defer errUnsub()
 	stateCh, stateUnsub := s.wallet.Consents().SubscribeState()
 	defer stateUnsub()
-	// Only the browser that owns the issuance navigates to the sign-in URL.
-	authCh, authUnsub := s.wallet.Consents().SubscribeAuthorization(func(prompt consent.AuthorizationPrompt) bool {
-		return consent.OwnedBy(owners, prompt.Owner)
-	})
+	// Only one page of the issuance's owner navigates to the sign-in URL.
+	authCh, authUnsub := s.wallet.Consents().SubscribePageAuthorization(owners, requestTab(r))
 	defer authUnsub()
 
 	// The page reads the pending requests when the stream opens, so the stream
@@ -233,6 +231,7 @@ func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
 	req.ResultCh <- consent.Result{
 		Approved:        true,
 		Owner:           requestOwner(r),
+		Tab:             requestTab(r),
 		SelectedClaims:  body.SelectedClaims,
 		TxCode:          strings.TrimSpace(body.TxCode),
 		ConfigurationID: body.ConfigurationID,

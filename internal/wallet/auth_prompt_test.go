@@ -58,3 +58,64 @@ func TestSignInPromptReachesOnlyItsFlowAndOwner(t *testing.T) {
 		t.Fatal("a prompt nobody of its flow received counted as delivered")
 	}
 }
+
+// RFC 9126 §4 allows one use of a request_uri. Only one open page of a
+// browser opens the sign-in: the page that started the flow, else the newest
+// page.
+func TestSignInPromptReachesOnePageOfTheBrowser(t *testing.T) {
+	w := generateTestWallet(t)
+	rt := w.Consents()
+	owners := []string{"visitor-1"}
+	older, unsubOlder := rt.SubscribePageAuthorization(owners, "tab-older")
+	defer unsubOlder()
+	newer, unsubNewer := rt.SubscribePageAuthorization(owners, "tab-newer")
+	defer unsubNewer()
+	otherBrowser, unsubOther := rt.SubscribePageAuthorization([]string{"visitor-2"}, "tab-older")
+	defer unsubOther()
+
+	for _, tc := range []struct {
+		name string
+		tab  string
+		want <-chan consent.AuthorizationPrompt
+	}{
+		{"the approving page", "tab-older", older},
+		{"a flow without a page goes to the newest page", "", newer},
+		{"a closed page goes to the newest page", "tab-closed", newer},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if !rt.NotifyAuthorization(consent.AuthorizationPrompt{URL: "https://issuer.example/authorize", Owner: "visitor-1", Tab: tc.tab}) {
+				t.Fatal("no page received the prompt")
+			}
+			for name, ch := range map[string]<-chan consent.AuthorizationPrompt{"older": older, "newer": newer, "other browser": otherBrowser} {
+				_, got := received(ch)
+				if got != (ch == tc.want) {
+					t.Errorf("%s page received the prompt: %v", name, got)
+				}
+			}
+		})
+	}
+}
+
+// A browser redirected to the sign-in opens it itself, so no page of that
+// browser navigates. The caller of the flow still receives the prompt.
+func TestNoPageNavigatesWhenTheCallerOpensTheSignIn(t *testing.T) {
+	w := generateTestWallet(t)
+	rt := w.Consents()
+	page, unsubPage := rt.SubscribePageAuthorization([]string{"visitor-1"}, "tab")
+	defer unsubPage()
+	prompt := consent.AuthorizationPrompt{URL: "https://issuer.example/authorize", Owner: "visitor-1", Flow: "f", CallerNavigates: true}
+	if rt.NotifyAuthorization(prompt) {
+		t.Fatal("a prompt without a caller counted as delivered")
+	}
+	caller, unsubCaller := rt.SubscribeAuthorization(func(p consent.AuthorizationPrompt) bool { return p.Flow == "f" })
+	defer unsubCaller()
+	if !rt.NotifyAuthorization(prompt) {
+		t.Fatal("the caller did not receive the prompt")
+	}
+	if _, ok := received(caller); !ok {
+		t.Error("the caller has no prompt")
+	}
+	if p, ok := received(page); ok {
+		t.Errorf("the page received %+v", p)
+	}
+}

@@ -51,6 +51,12 @@
   // Keep the consent owner in sessionStorage for reloads and remove it from shareable
   // URLs.
   const actingOwner = readActingOwner();
+  // The tab id names this page load. The wallet sends an issuer sign-in to one
+  // page only, because the issuer accepts each authorization request once.
+  // Unlike randomUUID, getRandomValues also works on plain http.
+  const tabID = Array.from(crypto.getRandomValues(new Uint8Array(16)),
+    (b) => b.toString(16).padStart(2, '0')).join('');
+  const tabHeaders = { 'X-Eudi-Tab': tabID };
   // Read the request ID before clearing the address bar.
   const openedForRequest = pageParams.get('request') || '';
 
@@ -760,7 +766,7 @@
 
       const resp = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...tabHeaders },
         body: JSON.stringify({ uri: uri, interactive: true })
       });
 
@@ -2209,8 +2215,9 @@
   }
 
   function connectSSE() {
-    const es = new EventSource('api/requests/stream' +
-      (actingOwner ? '?owner=' + encodeURIComponent(actingOwner) : ''));
+    const streamParams = new URLSearchParams({ tab: tabID });
+    if (actingOwner) streamParams.set('owner', actingOwner);
+    const es = new EventSource('api/requests/stream?' + streamParams);
     es.addEventListener('consent', (event) => {
       try {
         const req = JSON.parse(event.data);
@@ -3203,7 +3210,7 @@
         const approveBody = approveRequestBody();
         const resp = await fetch(approveURL(req.id, '/approve'), {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...tabHeaders },
           body: JSON.stringify(approveBody)
         });
         const result = await resp.json();

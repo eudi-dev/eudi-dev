@@ -259,6 +259,7 @@ func (s *Server) handleOfferAPI(w http.ResponseWriter, r *http.Request) {
 	s.processOfferURI(r.Context(), w, body.URI, OfferOptions{
 		TxCode:          body.TxCode,
 		Owner:           requestOwner(r),
+		Tab:             requestTab(r),
 		ConfigurationID: body.ConfigurationID,
 	}, false, !body.Interactive)
 }
@@ -306,6 +307,8 @@ func (s *Server) processOfferURI(ctx context.Context, w http.ResponseWriter, uri
 	}
 
 	opts.PresentationConsented = apiInitiated
+	// A browser navigation is redirected to the sign-in URL.
+	opts.CallerNavigates = browserRedirect
 	s.processOfferDirectly(w, uri, opts, browserRedirect)
 }
 
@@ -337,6 +340,7 @@ func (s *Server) awaitOfferConsent(w http.ResponseWriter, consentReq *consent.Re
 		}
 		opts.ResolvedOffer = consentReq.ResolvedOffer
 		opts.Owner = approvingOwner(consentReq.Owner, answer.Owner)
+		opts.Tab = answer.Tab
 		// Show consent for any presentation requested by the issuer during this
 		// interactive flow.
 		result, pending, err := s.runOffer(consentReq.OfferURI, opts)

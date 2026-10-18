@@ -186,6 +186,9 @@ type Result struct {
 	// Presentations requested during issuance go to the browser that approved the
 	// offer.
 	Owner string
+	// Tab identifies the wallet page that approved. A sign-in prompt of the
+	// flow goes to that page.
+	Tab string
 	// Entered in the consent dialog after the offer declares that a transaction code
 	// is required.
 	TxCode string

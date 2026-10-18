@@ -96,6 +96,20 @@ func boundedOwner(value string) string {
 	return value
 }
 
+// TabHeader identifies the wallet page behind a request. The event stream
+// carries the tab id in the tab query parameter, because EventSource cannot
+// set headers. See consent.Runtime.SubscribePageAuthorization.
+const TabHeader = "X-Eudi-Tab"
+
+const tabParam = "tab"
+
+func requestTab(r *http.Request) string {
+	if tab := boundedOwner(r.Header.Get(TabHeader)); tab != "" {
+		return tab
+	}
+	return boundedOwner(r.URL.Query().Get(tabParam))
+}
+
 // EventSource cannot set custom headers, so the event stream also accepts the owner in
 // its query.
 func presentedOwner(r *http.Request) string {
