@@ -3,11 +3,11 @@
 	order rate_limit before basic_auth
 }
 
-# Plain http serves only the CRLs and redirects everything else to https.
-# ETSI EN 319 412-2 V2.5.1 GEN-4.3.11-4 requires an http CRL reference, and CRL
-# clients such as Java's do not follow a redirect from http to https. An
-# explicit http site replaces the automatic redirect of its host, so the
-# snippet sends the redirect itself.
+# Over plain http, Caddy serves the CRLs and redirects everything else to
+# https. ETSI EN 319 412-2 V2.5.1 GEN-4.3.11-4 requires an http CRL link. CRL
+# clients such as Java's don't follow a redirect from http to https. An http
+# site block turns off the automatic redirect for its host, so the snippet
+# sends the redirect itself.
 (http_site) {
 	@crl {
 		method GET HEAD
