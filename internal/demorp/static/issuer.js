@@ -1,4 +1,4 @@
-async function createOffer(grant, status, authorization, deferred, batch, credential, identity, identifiers, identityCheck) {
+async function createOffer(grant, status, authorization, deferred, batch, credential, identity, identityCheck) {
   const errEl = document.getElementById("error");
   errEl.hidden = true;
   try {
@@ -19,7 +19,6 @@ async function createOffer(grant, status, authorization, deferred, batch, creden
     if (status) params.set("status", status);
     if (deferred) params.set("deferred", "true");
     if (batch) params.set("batch", batch);
-    if (identifiers) params.set("credential_identifiers", identifiers);
     if (credential) params.set("credential", credential);
     if (grant && authorization) params.set("authorization", authorization);
     const query = params.toString() ? "?" + params.toString() : "";
@@ -60,11 +59,6 @@ const STATUS_HINTS = {
 const DEFERRED_HINTS = {
   "": "Issued at once.",
   true: "Issued a few seconds later at the deferred credential endpoint (OpenID4VCI 1.0 §9).",
-};
-
-const IDENTIFIERS_HINTS = {
-  "": "Only when the wallet asks with authorization_details.",
-  always: "Also when the wallet asks without authorization_details, as Keycloak does. The wallet must then request by credential_identifier (OpenID4VCI 1.0 §8.2).",
 };
 
 const IDENTITY_HINTS = {
@@ -125,7 +119,6 @@ let deferred = "";
 let batch = "";
 let credential = "";
 let identity = "registered";
-let identifiers = "";
 let identityCheck = "registered";
 
 // The identity check is the PID presentation of interactive authorization.
@@ -182,16 +175,13 @@ bindToggle("deferred-toggle", "deferred", "deferred-hint", DEFERRED_HINTS, (valu
 bindToggle("batch-toggle", "batch", "batch-hint", BATCH_HINTS, (value) => {
   batch = value;
 });
-bindToggle("identifiers-toggle", "identifiers", "identifiers-hint", IDENTIFIERS_HINTS, (value) => {
-  identifiers = value;
-});
 bindToggle("identity-toggle", "identity", "identity-hint", IDENTITY_HINTS, (value) => {
   identity = value;
   document.getElementById("identity-own-panel").hidden = value !== "own";
 });
 
 document.getElementById("create-btn")
-  .addEventListener("click", () => createOffer(grant, status, authorization, deferred, batch, credential, identity, identifiers, identityCheck));
+  .addEventListener("click", () => createOffer(grant, status, authorization, deferred, batch, credential, identity, identityCheck));
 
 const credentialSelect = document.getElementById("credential-select");
 credentialSelect.addEventListener("change", () => {
