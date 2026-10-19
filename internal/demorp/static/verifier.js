@@ -265,12 +265,84 @@ const SCHEME_HINTS = {
   "pre-registered": "Unsigned request with a bare client id. The wallet reports the signature as unverified.",
 };
 
+const UNSIGNED_SCHEMES = ["redirect_uri", "pre-registered"];
+
 let clientIDScheme = "x509_hash";
-bindToggle("scheme-toggle", (option) => {
-  clientIDScheme = option.dataset.scheme;
+// Over the Digital Credentials API the Request choice decides the signing,
+// so only the signing schemes remain. An unsigned request has no client_id
+// (OpenID4VP 1.0 Appendix A.2), so the scheme does not apply.
+function updateSchemeRow() {
+  const overAPI = delivery === "dc_api";
+  for (const scheme of UNSIGNED_SCHEMES) {
+    const option = document.querySelector(`#scheme-toggle [data-scheme="${scheme}"]`);
+    option.disabled = overAPI;
+    option.title = overAPI ? "Over the Digital Credentials API, choose Unsigned under Request" : "";
+  }
+  if (overAPI && UNSIGNED_SCHEMES.includes(clientIDScheme)) {
+    clientIDScheme = "x509_hash";
+    markSelected("scheme-toggle", (option) => option.dataset.scheme === clientIDScheme);
+  }
+  const hidden = overAPI && signing === "unsigned";
+  document.getElementById("scheme-row").hidden = hidden;
+  document.getElementById("scheme-hint").hidden = hidden;
   document.getElementById("scheme-hint").textContent = SCHEME_HINTS[clientIDScheme];
   document.getElementById("client-id-row").hidden = clientIDScheme !== "pre-registered";
+}
+bindToggle("scheme-toggle", (option) => {
+  clientIDScheme = option.dataset.scheme;
+  updateSchemeRow();
 });
+
+// The eudi-dev browser extension sets eudiDevDigitalCredentials. Without it,
+// a browser with the Digital Credentials API asks a wallet on a phone.
+const EXTENSION_ZIP = "../eudi-dev-dc-api-extension.zip";
+const EXTENSION_STEPS = ` run <code>eudi wallet browser</code>. It opens Chrome with the eudi-dev extension. Or <a href="${EXTENSION_ZIP}" id="extension-download" download>download the extension</a>, unzip it, open <code>chrome://extensions</code>, turn on Developer mode and choose Load unpacked.`;
+
+function dcAPISupport() {
+  if (window.eudiDevDigitalCredentials) return "extension";
+  if (typeof window.DigitalCredential !== "undefined") return "native";
+  return "none";
+}
+
+function deliveryHint() {
+  if (delivery === "redirect") return "The wallet gets the request by link or QR code and posts the response to this verifier.";
+  switch (dcAPISupport()) {
+    case "extension":
+      return "This page calls <code>navigator.credentials.get()</code>. The eudi-dev extension answers with the wallet set in the extension.";
+    case "native":
+      return "This page calls <code>navigator.credentials.get()</code>. The browser asks a wallet on your phone. To answer with this wallet instead," + EXTENSION_STEPS;
+    default:
+      return "This browser has no Digital Credentials API. To answer with this wallet," + EXTENSION_STEPS;
+  }
+}
+
+// The protocols of OpenID4VP 1.0 Appendix A.
+const SIGNING_HINTS = {
+  signed: "Signed with the verifier's access certificate (<code>openid4vp-v1-signed</code>). The request lists the origin of this page in <code>expected_origins</code>.",
+  unsigned: "No signature and no <code>client_id</code> (<code>openid4vp-v1-unsigned</code>). The wallet identifies the verifier by the origin of this page.",
+  multisigned: "Two signatures in the JWS JSON serialization (<code>openid4vp-v1-multisigned</code>): the verifier's access certificate and a new key that no registrar knows. The wallet uses a signature it can verify.",
+};
+
+let delivery = "redirect";
+let signing = "signed";
+function selectDelivery(name) {
+  delivery = name;
+  markSelected("delivery-toggle", (option) => option.dataset.delivery === name);
+  document.getElementById("delivery-hint").innerHTML = deliveryHint();
+  document.getElementById("signing-row").hidden = delivery !== "dc_api";
+  document.getElementById("signing-hint").hidden = delivery !== "dc_api";
+  updateSchemeRow();
+  updateIdentityAvailability();
+}
+function selectSigning(name) {
+  signing = name;
+  markSelected("signing-toggle", (option) => option.dataset.signing === name);
+  document.getElementById("signing-hint").innerHTML = SIGNING_HINTS[name];
+  updateSchemeRow();
+  updateIdentityAvailability();
+}
+bindToggle("delivery-toggle", (option) => selectDelivery(option.dataset.delivery));
+bindToggle("signing-toggle", (option) => selectSigning(option.dataset.signing));
 
 function addClaimRow(container, value, id) {
   const row = document.createElement("div");
@@ -649,7 +721,8 @@ selectIdentity(identity);
 // verifier_info needs a signed request object (OpenID4VP 1.0 §5.1), so the custom
 // redirect_uri and pre-registered schemes send no registration certificate.
 function unsignedRequest() {
-  return credential === "custom" && (clientIDScheme === "redirect_uri" || clientIDScheme === "pre-registered");
+  if (delivery === "dc_api") return signing === "unsigned";
+  return credential === "custom" && UNSIGNED_SCHEMES.includes(clientIDScheme);
 }
 function updateIdentityAvailability() {
   const unsigned = unsignedRequest();
@@ -711,6 +784,14 @@ document.getElementById("create-request").addEventListener("click", async () => 
     renderResult({ status: "failed", error: e.message });
     return;
   }
+  if (delivery === "dc_api") {
+    if (dcAPISupport() === "none") {
+      renderResult({ status: "failed", error: "This browser has no Digital Credentials API. Run eudi wallet browser or install the eudi-dev extension." });
+      return;
+    }
+    request.delivery = "dc_api";
+    request.signing = signing;
+  }
   const resp = await fetch("api/requests", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -721,16 +802,60 @@ document.getElementById("create-request").addEventListener("click", async () => 
     renderResult({ status: "failed", error: doc.error_description || doc.error });
     return;
   }
+  if (doc.dc_api) {
+    presentWithDCAPI(doc);
+    return;
+  }
   const link = document.getElementById("wallet-link");
   link.href = doc.wallet_url;
   link.textContent = doc.wallet_url;
   const scheme = document.getElementById("scheme-uri");
   scheme.textContent = doc.scheme_uri;
   scheme.href = doc.scheme_uri;
+  showQR("wallet-link-qr", doc.wallet_url_qr);
+  showQR("scheme-uri-qr", doc.scheme_uri_qr);
   document.getElementById("request-box").style.display = "block";
   renderResult({ status: "pending" });
   startPolling(doc.transaction_id);
   });
+
+// showQR shows the QR code of a link. The server omits it for a link too long
+// for a QR code.
+function showQR(id, svg) {
+  const img = document.getElementById(id);
+  img.classList.remove("large");
+  img.hidden = !svg;
+  if (svg) img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+}
+for (const id of ["wallet-link-qr", "scheme-uri-qr"]) {
+  const img = document.getElementById(id);
+  img.addEventListener("click", () => img.classList.toggle("large"));
+}
+
+// presentWithDCAPI asks the browser for the presentation and passes the
+// result to the verifier (OpenID4VP 1.0 Appendix A.4).
+async function presentWithDCAPI(doc) {
+  document.getElementById("request-box").style.display = "none";
+  renderResult({ status: "pending" });
+  let credential;
+  try {
+    credential = await navigator.credentials.get({ digital: doc.dc_api.digital });
+  } catch (e) {
+    renderResult({ status: "failed", error: `The Digital Credentials API call failed: ${e.name}: ${e.message}` });
+    return;
+  }
+  const resp = await fetch(`api/requests/${encodeURIComponent(doc.transaction_id)}/dc-api`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ protocol: credential.protocol, data: credential.data }),
+  });
+  if (!resp.ok) {
+    const problem = await resp.json().catch(() => ({}));
+    renderResult({ status: "failed", error: problem.error_description || problem.error || `HTTP ${resp.status}` });
+    return;
+  }
+  startPolling(doc.transaction_id);
+}
 
 // The wallet redirects here with a response_code. The page reads the result
 // with it (OpenID4VP 1.0 §8.2).
@@ -753,6 +878,8 @@ function restoreSelection(request) {
   document.getElementById("request-multiple").checked = !!request.multiple;
 }
 if (responseCode) startPolling(responseCode);
+selectSigning(signing);
+selectDelivery(delivery);
 
 fetch("../api/config")
   .then((resp) => resp.json())

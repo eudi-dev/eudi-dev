@@ -36,6 +36,15 @@
     pre { font-family: var(--font-mono); font-size: 12px; background: var(--bg-input); border: 1px solid var(--border);
       border-radius: 12px; padding: 10px 12px; overflow-x: auto; user-select: all; white-space: pre-wrap; word-break: break-all; }
     a { color: var(--link); }
+    /* Each link has its QR code beside it. A long request needs the larger
+       code, so a click enlarges it. */
+    .link-row { display: flex; gap: 12px; align-items: flex-start; }
+    .link-row pre { flex: 1; min-width: 0; }
+    .qr { width: 160px; height: 160px; flex-shrink: 0; padding: 6px; background: #fff;
+      border: 1px solid var(--border); border-radius: 12px; cursor: zoom-in; }
+    .qr.large { width: min(100%, 420px); height: auto; cursor: zoom-out; }
+    .link-row:has(.qr.large) { flex-direction: column; }
+    @media (max-width: 480px) { .link-row { flex-direction: column; } }
     .links { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 18px; font-size: 13px; color: var(--text-dim); }
     .page-footer { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
     .status { font-size: 15px; font-weight: 700; margin: 12px 0 6px; overflow-wrap: anywhere; }
@@ -204,12 +213,35 @@
       <label class="label" for="verifier-info" id="verifier-info-label">verifier_info (optional)</label>
       <textarea id="verifier-info" spellcheck="false" placeholder='[{"format":"registration_cert","data":"…"}]'></textarea>
     </div>
+    <div class="format-row" id="delivery-row">
+      <span class="format-label" id="delivery-label">Delivery</span>
+      <div class="toggle" id="delivery-toggle" role="radiogroup" aria-label="How the request reaches the wallet">
+        <button type="button" class="toggle-option selected" id="delivery-redirect" data-delivery="redirect" role="radio" aria-checked="true">QR code and link</button>
+        <button type="button" class="toggle-option" id="delivery-dc-api" data-delivery="dc_api" role="radio" aria-checked="false">Digital Credentials API</button>
+      </div>
+    </div>
+    <p class="format-hint" id="delivery-hint"></p>
+    <div class="format-row" id="signing-row" hidden>
+      <span class="format-label" id="signing-label">Request</span>
+      <div class="toggle" id="signing-toggle" role="radiogroup" aria-label="How the request is signed">
+        <button type="button" class="toggle-option selected" id="signing-signed" data-signing="signed" role="radio" aria-checked="true">Signed</button>
+        <button type="button" class="toggle-option" id="signing-unsigned" data-signing="unsigned" role="radio" aria-checked="false">Unsigned</button>
+        <button type="button" class="toggle-option" id="signing-multisigned" data-signing="multisigned" role="radio" aria-checked="false">Multisigned</button>
+      </div>
+    </div>
+    <p class="format-hint" id="signing-hint" hidden></p>
     <button class="btn primary" id="create-request">Create request</button>
     <div class="result" id="request-box">
       <div class="label" id="wallet-link-label">Open in the wallet on this host</div>
-      <pre><a href="#" id="wallet-link">…</a></pre>
+      <div class="link-row">
+        <pre><a href="#" id="wallet-link">…</a></pre>
+        <img class="qr" id="wallet-link-qr" alt="QR code of the wallet link" title="Click to enlarge" hidden>
+      </div>
       <div class="label" id="scheme-uri-label">Authorization request (custom scheme, for any wallet)</div>
-      <pre><a href="#" id="scheme-uri">…</a></pre>
+      <div class="link-row">
+        <pre><a href="#" id="scheme-uri">…</a></pre>
+        <img class="qr" id="scheme-uri-qr" alt="QR code of the authorization request" title="Click to enlarge" hidden>
+      </div>
     </div>
     <div class="result" id="result-box">
       <div class="status" id="status"></div>

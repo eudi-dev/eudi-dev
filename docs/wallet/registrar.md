@@ -229,6 +229,10 @@ On the demo verifier page you choose how the verifier identifies itself:
 
 The identity buttons are `identity-registered`, `identity-unregistered` and `identity-own`. In **Own certificates** mode you paste into `signing-key` and `verifier-info`. The request API takes `"identity": "unregistered"` for the second option.
 
+The demo verifier page also chooses how a request reaches the wallet. **QR code and link** shows the wallet URL and the `openid4vp://` URI, each with a QR code. **Digital Credentials API** calls `navigator.credentials.get()` on the page, and **Request** chooses a signed, unsigned or multisigned request. See [browser extension](browser-extension.md).
+
+The buttons are `delivery-redirect`, `delivery-dc-api`, `signing-signed`, `signing-unsigned` and `signing-multisigned`. The request API returns the QR codes as SVG in `wallet_url_qr` and `scheme_uri_qr`. With `"delivery": "dc_api"` it returns `dc_api`, the argument for `navigator.credentials.get()`, and `"signing"` chooses the protocol. The page posts the result to `/verifier/api/requests/{transaction_id}/dc-api`.
+
 ## Attestation catalogue
 
 The registrar keeps a catalogue of attestation types, like the catalogue of attestations in EC TS11 v1.0 (§4.3 and §5). Each entry describes one attestation type: its formats with the schema of each, its rulebook, its level of security, how it is bound to its holder and the trusted list of its issuers.

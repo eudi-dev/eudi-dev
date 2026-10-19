@@ -39,6 +39,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
+	"github.com/eudi-dev/eudi-dev/v3/internal/qr"
 	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
 	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
 	"github.com/eudi-dev/eudi-dev/v3/internal/trustedlists"
@@ -87,6 +88,12 @@ type requestState struct {
 	// request and an encrypted response.
 	requestObject string
 	encKey        *ecdsa.PrivateKey
+	// dcAPIOrigin is set for a request over the Digital Credentials API. It
+	// is the origin of the verifier page, which the response binds to
+	// (OpenID4VP 1.0 Appendix A).
+	dcAPIOrigin string
+	// dcAPIProtocol is the Digital Credentials API protocol of the request.
+	dcAPIProtocol string
 
 	// selection is the page's choice that created the request. The page
 	// restores it after the wallet redirects there.
@@ -109,6 +116,7 @@ func (d *DemoRP) VerifierHandler() http.Handler {
 	webui.Mount(mux)
 	mux.HandleFunc("POST /api/requests", d.handleCreateRequest)
 	mux.HandleFunc("GET /api/requests/{key}", d.handleRequestStatus)
+	mux.HandleFunc("POST /api/requests/{key}/dc-api", d.handleDCAPIResponse)
 	mux.HandleFunc("GET /request/{id}", d.handleRequestObject)
 	mux.HandleFunc("POST /response/{id}", d.handlePresentationResponse)
 	// GuardAPI covers only the page's calls to /api/. Wallets on other
@@ -169,6 +177,14 @@ type createRequestBody struct {
 	// VerifierInfo is the verifier_info array (OpenID4VP 1.0 §5.1) that goes
 	// with SigningKey. Empty sends none.
 	VerifierInfo []any `json:"verifier_info"`
+	// Delivery "dc_api" returns the argument for navigator.credentials.get()
+	// (OpenID4VP 1.0 Appendix A). Empty or "redirect" returns the wallet URL
+	// and the openid4vp:// URI.
+	Delivery string `json:"delivery"`
+	// Signing chooses the protocol of a dc_api request: "signed",
+	// "unsigned" or "multisigned". Empty signs a request whose client_id
+	// scheme signs.
+	Signing string `json:"signing"`
 	// Identity "unregistered" sends the demo verifier's access certificate
 	// without its registration certificate. Without SigningKey, "registered"
 	// or an empty value sends both.
@@ -354,8 +370,15 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	signedScheme := body.Type != "custom" || signingScheme(customScheme(body))
+	dcAPIOrigin, dcAPIProtocol, err := d.dcAPIDelivery(body, signedScheme)
+	if err != nil {
+		apierror.WriteStatusErr(w, http.StatusBadRequest, err)
+		return
+	}
+
 	if body.Type == "custom" {
-		d.createCustomRequest(w, body)
+		d.createCustomRequest(w, body, dcAPIOrigin, dcAPIProtocol)
 		return
 	}
 
@@ -433,6 +456,8 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 		status:        "pending",
 		expires:       time.Now().Add(entryTTL),
 		selection:     body.selection(),
+		dcAPIOrigin:   dcAPIOrigin,
+		dcAPIProtocol: dcAPIProtocol,
 	}
 	// Only the requested formats get a query, so a response in another format
 	// is not accepted.
@@ -484,6 +509,10 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.dcAPIProtocol == dcAPIUnsigned {
+		d.deliverUnsignedRequest(w, req, responseURI, base)
+		return
+	}
 	info, err := d.verifierInfo(body)
 	if err != nil {
 		apierror.WriteStatus(w, http.StatusInternalServerError, "registration certificate: "+err.Error())
@@ -545,18 +574,37 @@ func (d *DemoRP) finalizeRequest(w http.ResponseWriter, req *requestState, respo
 	if len(verifierInfo) > 0 {
 		claims["verifier_info"] = verifierInfo
 	}
+	if req.dcAPIOrigin != "" {
+		// OpenID4VP 1.0 Appendix A.2: the response goes back through the API,
+		// and a signed request lists the origins it may come from. State isn't a
+		// DC API parameter.
+		claims["response_mode"] = "dc_api.jwt"
+		claims["expected_origins"] = []string{req.dcAPIOrigin}
+		delete(claims, "response_uri")
+		delete(claims, "state")
+	}
+	if req.dcAPIProtocol == dcAPIMultiSigned {
+		request, err := multiSignedRequest(claims, signingKey, chain, req.clientID, verifierInfo)
+		if err != nil {
+			apierror.WriteStatus(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		d.storeRequest(req)
+		writeCreatedDCAPIRequest(w, req, dcAPIMultiSigned, map[string]any{"request": request})
+		return
+	}
 	jar, err := oid4vp.SignRequestObjectJWT(claims, signingKey, chain)
 	if err != nil {
 		apierror.WriteStatus(w, http.StatusInternalServerError, "signing request object: "+err.Error())
 		return
 	}
 	req.requestObject = jar
+	d.storeRequest(req)
 
-	d.mu.Lock()
-	d.pruneLocked()
-	makeRoom(d.requests, func(r *requestState) time.Time { return r.expires })
-	d.requests[req.id] = req
-	d.mu.Unlock()
+	if req.dcAPIOrigin != "" {
+		writeCreatedDCAPIRequest(w, req, dcAPISigned, map[string]any{"request": jar})
+		return
+	}
 
 	// The signed object is too long for a scheme URI or a QR code, so it is
 	// passed by reference.
@@ -568,18 +616,34 @@ func (d *DemoRP) finalizeRequest(w http.ResponseWriter, req *requestState, respo
 	writeCreatedRequest(w, req, base+"/authorize?"+params, "openid4vp://?"+params)
 }
 
+func (d *DemoRP) storeRequest(req *requestState) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.pruneLocked()
+	makeRoom(d.requests, func(r *requestState) time.Time { return r.expires })
+	d.requests[req.id] = req
+}
+
 // writeCreatedRequest returns the transaction_id to the page that created the
 // request. The page reads the result with it.
 func writeCreatedRequest(w http.ResponseWriter, req *requestState, walletURL, schemeURI string) {
-	writeJSON(w, http.StatusCreated, map[string]any{
+	doc := map[string]any{
 		"id":             req.id,
 		"transaction_id": req.transactionID,
 		"wallet_url":     walletURL,
 		"scheme_uri":     schemeURI,
-	})
+	}
+	// The page shows each link also as a QR code for a wallet on a phone. A
+	// link too long for a QR code stays a link.
+	for name, link := range map[string]string{"wallet_url_qr": walletURL, "scheme_uri_qr": schemeURI} {
+		if svg, err := qr.SVG(link); err == nil {
+			doc[name] = svg
+		}
+	}
+	writeJSON(w, http.StatusCreated, doc)
 }
 
-func (d *DemoRP) createCustomRequest(w http.ResponseWriter, body createRequestBody) {
+func (d *DemoRP) createCustomRequest(w http.ResponseWriter, body createRequestBody, dcAPIOrigin, dcAPIProtocol string) {
 	var written []credentialQuery
 	var writtenSets []credentialSet
 	if body.DCQLQuery != nil {
@@ -597,11 +661,8 @@ func (d *DemoRP) createCustomRequest(w http.ResponseWriter, body createRequestBo
 		writeSigningMaterialError(w, body, err)
 		return
 	}
-	scheme := strings.TrimSpace(body.ClientIDScheme)
-	if scheme == "" {
-		scheme = "x509_hash"
-	}
-	signed := scheme == "x509_hash" || scheme == "x509_san_dns"
+	scheme := customScheme(body)
+	signed := signingScheme(scheme) && dcAPIProtocol != dcAPIUnsigned
 	encKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		apierror.WriteStatus(w, http.StatusInternalServerError, "generating response encryption key: "+err.Error())
@@ -616,6 +677,8 @@ func (d *DemoRP) createCustomRequest(w http.ResponseWriter, body createRequestBo
 		expires:       time.Now().Add(entryTTL),
 		encKey:        encKey,
 		selection:     body.selection(),
+		dcAPIOrigin:   dcAPIOrigin,
+		dcAPIProtocol: dcAPIProtocol,
 	}
 	responseURI := base + "/verifier/response/" + req.id
 	req.clientID, err = customClientID(scheme, chain, responseURI, body.ClientID)
@@ -624,7 +687,7 @@ func (d *DemoRP) createCustomRequest(w http.ResponseWriter, body createRequestBo
 		return
 	}
 	if len(body.VerifierInfo) > 0 && !signed {
-		apierror.WriteStatus(w, http.StatusBadRequest, "a custom verifier_info needs a signed client_id scheme (x509_hash or x509_san_dns)")
+		apierror.WriteStatus(w, http.StatusBadRequest, "a custom verifier_info needs a signed request with the client_id scheme x509_hash or x509_san_dns")
 		return
 	}
 
@@ -667,6 +730,20 @@ func (d *DemoRP) createCustomRequest(w http.ResponseWriter, body createRequestBo
 		return
 	}
 	d.deliverUnsignedRequest(w, req, responseURI, base)
+}
+
+// customScheme returns the client identifier prefix of a custom request.
+func customScheme(body createRequestBody) string {
+	if scheme := strings.TrimSpace(body.ClientIDScheme); scheme != "" {
+		return scheme
+	}
+	return "x509_hash"
+}
+
+// signingScheme reports a prefix that needs a signed request object
+// (OpenID4VP 1.0 §5.9).
+func signingScheme(scheme string) bool {
+	return scheme == "x509_hash" || scheme == "x509_san_dns"
 }
 
 // customClientID builds the client identifier for the selected prefix
@@ -714,12 +791,20 @@ func (d *DemoRP) deliverUnsignedRequest(w http.ResponseWriter, req *requestState
 		apierror.WriteStatus(w, http.StatusInternalServerError, "encoding client_metadata: "+err.Error())
 		return
 	}
+	d.storeRequest(req)
 
-	d.mu.Lock()
-	d.pruneLocked()
-	makeRoom(d.requests, func(r *requestState) time.Time { return r.expires })
-	d.requests[req.id] = req
-	d.mu.Unlock()
+	if req.dcAPIOrigin != "" {
+		// OpenID4VP 1.0 Appendix A.3.1: the data of an unsigned request holds
+		// the request parameters as JSON.
+		writeCreatedDCAPIRequest(w, req, dcAPIUnsigned, map[string]any{
+			"response_type":   "vp_token",
+			"response_mode":   "dc_api.jwt",
+			"nonce":           req.nonce,
+			"dcql_query":      req.dcqlQuery(),
+			"client_metadata": responseEncryptionMetadata(req.encKey),
+		})
+		return
+	}
 
 	params := url.Values{
 		"client_id":       {req.clientID},
@@ -793,11 +878,19 @@ func namePaths(namespace string, names []string) [][]any {
 	return paths
 }
 
-// checkPresentationAudience expects the OpenID4VP client ID or the
+// checkPresentationAudience expects the page origin for the Digital
+// Credentials API. Otherwise it expects the OpenID4VP client ID or the
 // Authorization Challenge Endpoint. OpenID4VCI 1.1 Appendix A.3.5 uses the
 // endpoint origin. Its example, the other appendices and §6.2.1.5 use the
 // full endpoint. Both ia: forms are accepted.
 func checkPresentationAudience(req *requestState, aud string) error {
+	// OpenID4VP 1.0 §5.9.3: over the Digital Credentials API "the audience of
+	// the Credential Presentation is always the origin value prefixed by
+	// origin:".
+	if req.dcAPIOrigin != "" {
+		want := "origin:" + req.dcAPIOrigin
+		return errIf(aud != want, "aud is %q, want %q", aud, want)
+	}
 	if req.interactiveEndpoint == "" {
 		return errIf(aud != req.clientID, "aud is %q, want %q", aud, req.clientID)
 	}
@@ -813,6 +906,9 @@ func (d *DemoRP) rebuildSessionTranscript(req *requestState) ([]byte, error) {
 	if req.interactiveEndpoint != "" {
 		// ia_post: the response is unencrypted, so the third element is null.
 		return mdoc.OID4VCIIAESessionTranscript(req.interactiveEndpoint, req.nonce, nil)
+	}
+	if req.dcAPIOrigin != "" {
+		return mdoc.OID4VPDCAPISessionTranscript(req.dcAPIOrigin, req.nonce, encryptionJWKThumbprint(req.encKey))
 	}
 	return mdoc.OID4VPSessionTranscript(
 		req.clientID, req.nonce, encryptionJWKThumbprint(req.encKey), d.baseURL()+"/verifier/response/"+req.id)
@@ -929,19 +1025,38 @@ func (d *DemoRP) handlePresentationResponse(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	if req.dcAPIOrigin != "" {
+		apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, "this request expects its response through the Digital Credentials API")
+		return
+	}
+
 	// The request id is in the QR code, so anyone who sees it can post here.
 	// A response that is not for this request changes nothing.
 	if err := r.ParseForm(); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid_request"})
 		return
 	}
-	response, err := authorizationResponse(req, r.PostForm)
-	if err != nil {
+	recorded, err := d.recordResponse(req, r.PostForm)
+	switch {
+	case err != nil:
 		apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, err.Error())
-		return
+	case !recorded:
+		writeAnswered(w)
+	default:
+		// §8.2: "The Response URI MAY return the redirect_uri parameter in
+		// response to successful Authorization Responses or for Error
+		// Responses."
+		d.answerResponse(w, req)
 	}
-	// §8.2: "The Response URI MAY return the redirect_uri parameter in
-	// response to successful Authorization Responses or for Error Responses."
+}
+
+// recordResponse checks a response and records its outcome. It returns false
+// when an earlier response already answered the request.
+func (d *DemoRP) recordResponse(req *requestState, form url.Values) (bool, error) {
+	response, err := authorizationResponse(req, form)
+	if err != nil {
+		return false, err
+	}
 	// The state is the request id from the QR code, so an error response
 	// leaves the request open like any response that does not verify.
 	if refusal, _ := response["error"].(string); refusal != "" {
@@ -949,30 +1064,20 @@ func (d *DemoRP) handlePresentationResponse(w http.ResponseWriter, r *http.Reque
 		if description, _ := response["error_description"].(string); description != "" {
 			reason += " (" + description + ")"
 		}
-		if !d.declineRequest(req, reason) {
-			writeAnswered(w)
-			return
-		}
-		d.answerResponse(w, req)
-		return
+		return d.declineRequest(req, reason), nil
 	}
 	vpToken, err := json.Marshal(response["vp_token"])
 	if err == nil && response["vp_token"] == nil {
 		err = fmt.Errorf("the response carried no vp_token")
 	}
 	if err != nil {
-		apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, err.Error())
-		return
+		return false, err
 	}
 
 	// The page shows a failure. Anyone can encrypt a response to the request's
 	// public key, so only a verified presentation answers the request.
 	claims, checks, err := d.verifyPresentation(req, string(vpToken))
-	if !d.finishRequest(req, claims, checks, err, err == nil) {
-		writeAnswered(w)
-		return
-	}
-	d.answerResponse(w, req)
+	return d.finishRequest(req, claims, checks, err, err == nil), nil
 }
 
 // writeAnswered refuses a second response. The nonce is fixed per request, so
@@ -1035,9 +1140,11 @@ func authorizationResponse(req *requestState, form url.Values) (map[string]any, 
 			}
 		}
 	default:
-		return nil, fmt.Errorf("the response carried no encrypted response parameter (direct_post.jwt was requested)")
+		return nil, fmt.Errorf("the response carried no response parameter, but the request asked for an encrypted response")
 	}
-	if state, _ := params["state"].(string); state != req.id {
+	// Over the Digital Credentials API the page that created the request
+	// returns the response, and state isn't a parameter (Appendix A.2).
+	if state, _ := params["state"].(string); req.dcAPIOrigin == "" && state != req.id {
 		return nil, fmt.Errorf("the response is for a different request")
 	}
 	return params, nil
