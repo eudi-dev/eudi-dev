@@ -104,7 +104,14 @@ func (c *cdpClient) call(method string, params map[string]any, result any) error
 	_, err = c.w.Write(append(data, 0))
 	c.writeMu.Unlock()
 	if err != nil {
-		return fmt.Errorf("%s: %w", method, err)
+		// A browser that exits at once breaks the pipe before the reader
+		// sees its end.
+		select {
+		case <-c.done:
+			return errBrowserClosed
+		case <-time.After(time.Second):
+			return fmt.Errorf("%s: %w", method, err)
+		}
 	}
 
 	select {
