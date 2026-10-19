@@ -108,6 +108,8 @@ func init() {
 	walletCmd.AddCommand(walletRemoveCmd())
 	walletCmd.AddCommand(walletAcceptCmd())
 	walletCmd.AddCommand(walletScanCmd())
+	walletCmd.AddCommand(walletExtensionCmd())
+	walletCmd.AddCommand(walletBrowserCmd())
 	walletCmd.AddCommand(walletLogsCmd())
 	walletCmd.AddCommand(walletDeferredCmd())
 	walletCmd.AddCommand(walletRequestsCmd())

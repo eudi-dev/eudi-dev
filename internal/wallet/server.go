@@ -32,6 +32,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
 	"github.com/eudi-dev/eudi-dev/v3/internal/config"
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
+	"github.com/eudi-dev/eudi-dev/v3/internal/dcextension"
 	"github.com/eudi-dev/eudi-dev/v3/internal/netaddr"
 	"github.com/eudi-dev/eudi-dev/v3/internal/news"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
@@ -158,6 +159,7 @@ func (s *Server) setupRoutes() {
 
 	s.routeFunc("POST /api/presentations", s.withFreshStore(s.handlePresentationAPI))
 	s.routeFunc("POST /api/dc-api", s.withFreshStore(s.handleBrowserPresentationAPI))
+	s.routeFunc("GET /"+dcextension.ZipName, s.handleDCExtension)
 
 	s.routeFunc("POST /api/offers", s.withFreshStore(s.handleOfferAPI))
 	s.routeFunc("GET /api/offers/{id}", s.handleOfferStatus)

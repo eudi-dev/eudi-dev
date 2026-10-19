@@ -114,6 +114,10 @@ Other callers, including curl and test harnesses, receive the same JSON response
 
 In interactive mode (no `--auto-accept`) the two caller types also behave differently before consent. A browser navigation redirects to the wallet UI for consent and then to the verifier's `redirect_uri`. An API call blocks until the request is approved or denied, in the UI or via `POST /api/requests/{id}/approve` or `/deny`. Both responses carry the verifier's `redirect_uri` when it returned one.
 
+## Digital Credentials API
+
+A verifier page can ask for a presentation with the W3C Digital Credentials API (`navigator.credentials.get()`). The eudi-dev browser extension answers these calls with an eudi-dev wallet, so you can test a verifier on one computer. `eudi wallet browser` opens Chrome with the extension loaded. The wallet answers the request at `POST /api/dc-api`. See [browser extension](browser-extension.md) for the installation, what a test with the extension covers and the interface for other wallets.
+
 ## HAIP 1.0 enforcement
 
 `--haip` on `wallet serve` or `wallet accept` checks incoming requests and offers against [HAIP 1.0 Final](https://openid.net/specs/openid4vc-high-assurance-interoperability-profile-1_0-final.html). `--demo` turns it on by default (see [public demo](../public-demo.md)).

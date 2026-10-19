@@ -59,6 +59,10 @@ const (
 	OwnerHeader  = "X-Eudi-Owner"
 )
 
+// PublicDemoURL is the public demo wallet. The browser extension uses it
+// when no other wallet is given.
+const PublicDemoURL = "https://eudi-test.dev"
+
 const HomeEnvVar = "EUDI_DEV_HOME"
 
 // State directory and environment variable of eudi-dev 2.

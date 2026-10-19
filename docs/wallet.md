@@ -213,9 +213,10 @@ See [wallet server](wallet/serve.md) for the endpoints, trusted lists, certifica
 ```bash
 eudi wallet accept 'openid4vp://authorize?...'   # evaluate DCQL, consent, submit
 eudi wallet scan --screen                        # scan a QR code and start its flow
+eudi wallet browser                              # Chrome with the extension for the Digital Credentials API
 ```
 
-See [presentation from the wallet](wallet/presenting.md) for the `wallet accept` and `wallet scan` flags, invoking the wallet by URL, HAIP 1.0 and ARF checks.
+See [presentation from the wallet](wallet/presenting.md) for the `wallet accept` and `wallet scan` flags, invoking the wallet by URL, the [Digital Credentials API](wallet/browser-extension.md), HAIP 1.0 and ARF checks.
 
 ## Issuance
 

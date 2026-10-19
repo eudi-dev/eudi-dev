@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "eudi-dev Digital Credentials",
+  "description": "Answers navigator.credentials.get() with an eudi-dev wallet, so you can test a verifier without a phone.",
+  "version": "0.0.0",
+  "icons": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png" },
+  "action": {
+    "default_title": "eudi-dev Digital Credentials",
+    "default_popup": "popup.html",
+    "default_icon": { "16": "icons/16.png", "32": "icons/32.png" }
+  },
+  "permissions": ["storage", "offscreen"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    { "matches": ["<all_urls>"], "js": ["page.js"], "world": "MAIN", "run_at": "document_start", "all_frames": true },
+    { "matches": ["<all_urls>"], "js": ["bridge.js"], "run_at": "document_start", "all_frames": true }
+  ]
+}

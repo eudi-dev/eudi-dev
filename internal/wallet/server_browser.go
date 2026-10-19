@@ -15,14 +15,18 @@
 package wallet
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
 	"github.com/eudi-dev/eudi-dev/v3/internal/config"
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
+	"github.com/eudi-dev/eudi-dev/v3/internal/dcextension"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
 )
 
@@ -35,7 +39,11 @@ func (s *Server) handleBrowserPresentationAPI(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	requestOrigin := strings.TrimSpace(r.Header.Get("Origin"))
+	requestOrigin, err := browserAPIOrigin(r)
+	if err != nil {
+		apierror.WriteErr(w, http.StatusBadRequest, apierror.InvalidRequest, err)
+		return
+	}
 	protocol, authReq, err := oid4vp.ParseBrowserAPIRequest(body, s.parseOpts, requestOrigin)
 	if err != nil {
 		s.refuseUnreadableRequest(w, requestOwner(r), err)
@@ -98,6 +106,47 @@ func (s *Server) handleBrowserPresentationAPI(w http.ResponseWriter, r *http.Req
 	default:
 		consentReq.SubmissionCh <- s.writeBrowserPresentationResult(w, authReq, protocol, matches)
 	}
+}
+
+// handleDCExtension serves the browser extension that forwards Digital
+// Credentials API calls to this wallet.
+func (s *Server) handleDCExtension(w http.ResponseWriter, r *http.Request) {
+	var archive bytes.Buffer
+	walletURL := jsonutil.FirstNonEmpty(s.wallet.BaseURL, s.wallet.ServingOrigin)
+	if err := dcextension.WriteZip(&archive, dcextension.Options{WalletURL: walletURL, Version: s.version}); err != nil {
+		apierror.WriteErr(w, http.StatusInternalServerError, apierror.ServerError, fmt.Errorf("packaging the browser extension: %w", err))
+		return
+	}
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+dcextension.ZipName+`"`)
+	_, _ = w.Write(archive.Bytes())
+}
+
+// CallerOriginHeader carries the origin of the page that called
+// navigator.credentials.get() when the eudi-dev browser extension forwards the
+// call. The extension's request has the extension's own Origin. A web page
+// can't send the header to another origin, because /api/dc-api answers no
+// CORS preflight.
+const CallerOriginHeader = "X-Eudi-Caller-Origin"
+
+// browserAPIOrigin returns the origin of the page behind a Digital Credentials
+// API request. A web page's Origin header comes from its browser and wins.
+func browserAPIOrigin(r *http.Request) (string, error) {
+	origin := strings.TrimSpace(r.Header.Get("Origin"))
+	caller := strings.TrimSpace(r.Header.Get(CallerOriginHeader))
+	if caller == "" || (origin != "" && !extensionOrigin(origin)) {
+		return origin, nil
+	}
+	parsed, err := url.Parse(caller)
+	if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Host == "" || parsed.Scheme+"://"+parsed.Host != caller {
+		return "", fmt.Errorf("%s must be a web origin such as https://verifier.example, got %q", CallerOriginHeader, caller)
+	}
+	return caller, nil
+}
+
+func extensionOrigin(origin string) bool {
+	scheme, _, _ := strings.Cut(origin, "://")
+	return scheme == "chrome-extension" || scheme == "moz-extension" || scheme == "safari-web-extension"
 }
 
 // OpenID4VP 1.0 Appendix A.4 fulfills the DC API promise even for protocol errors.

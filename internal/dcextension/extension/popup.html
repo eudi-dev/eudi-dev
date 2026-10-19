@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>eudi-dev Digital Credentials</title>
+  <style>
+    :root { color-scheme: light dark; --bg: #ffffff; --text: #1a1b26; --dim: #565f89; --border: #c0c4d6; --accent: #3d59a1; --ok: #2e7d32; --bad: #c62828; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #1a1b26; --text: #c0caf5; --dim: #9aa5ce; --border: #414868; --accent: #7aa2f7; --ok: #9ece6a; --bad: #f7768e; } }
+    body { margin: 0; padding: 14px 16px; width: 320px; font: 13px/1.45 system-ui, sans-serif; background: var(--bg); color: var(--text); }
+    h1 { font-size: 14px; margin: 0 0 10px; display: flex; gap: 8px; align-items: center; }
+    h1 img { width: 20px; height: 20px; }
+    label { display: block; font-weight: 600; color: var(--dim); margin-bottom: 4px; }
+    input { box-sizing: border-box; width: 100%; padding: 6px 8px; font: 12px ui-monospace, monospace; color: var(--text); background: transparent; border: 1px solid var(--border); border-radius: 6px; }
+    .row { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+    button { font: inherit; font-weight: 600; padding: 5px 12px; border: 0; border-radius: 6px; background: var(--accent); color: #fff; cursor: pointer; }
+    a { color: var(--accent); }
+    #status { margin-top: 10px; color: var(--dim); }
+    #status.ok { color: var(--ok); }
+    #status.bad { color: var(--bad); }
+    p { margin: 10px 0 0; color: var(--dim); }
+  </style>
+</head>
+<body>
+  <h1><img src="icons/32.png" alt="">eudi-dev Digital Credentials</h1>
+  <label for="wallet-url">Wallet URL</label>
+  <input id="wallet-url" type="url" spellcheck="false">
+  <div class="row">
+    <button id="save" type="button">Save</button>
+    <a id="open" href="#" target="_blank" rel="noopener">Open the wallet</a>
+  </div>
+  <div id="status"></div>
+  <p>Pages that call <code>navigator.credentials.get()</code> with a <code>digital</code> request get the answer from this wallet. The wallet opens in a window to ask for your consent.</p>
+  <script src="popup.js"></script>
+</body>
+</html>
