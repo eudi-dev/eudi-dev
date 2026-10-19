@@ -170,3 +170,51 @@ jobs:
           fi
           git commit -m "eudi-dev ${VERSION}"
           git push
+
+  chrome-web-store:
+    # The store gets the newest stable release only. Google reviews each
+    # version before users get it. See docs/chrome-web-store/README.md.
+    if: ${{ needs.channels.outputs.latest == 'true' }}
+    runs-on: ubuntu-latest
+    needs: [channels, release]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+
+      - name: Upload and publish the browser extension
+        env:
+          PUBLISHER_ID: ${{ vars.CHROME_WEB_STORE_PUBLISHER_ID }}
+          EXTENSION_ID: ${{ vars.CHROME_WEB_STORE_EXTENSION_ID }}
+          CLIENT_ID: ${{ secrets.CHROME_WEB_STORE_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CHROME_WEB_STORE_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CHROME_WEB_STORE_REFRESH_TOKEN }}
+        run: |
+          if [ -z "$PUBLISHER_ID" ] || [ -z "$EXTENSION_ID" ] || [ -z "$REFRESH_TOKEN" ]; then
+            echo "Chrome Web Store not configured, skipping the extension upload"
+            exit 0
+          fi
+          package=$(scripts/chrome-web-store-package.sh "${GITHUB_REF#refs/tags/}")
+          token=$(curl -fsS https://oauth2.googleapis.com/token \
+            --data-urlencode "client_id=$CLIENT_ID" \
+            --data-urlencode "client_secret=$CLIENT_SECRET" \
+            --data-urlencode "refresh_token=$REFRESH_TOKEN" \
+            --data-urlencode "grant_type=refresh_token" | jq -r .access_token)
+          echo "::add-mask::$token"
+          api=https://chromewebstore.googleapis.com
+          item="publishers/$PUBLISHER_ID/items/$EXTENSION_ID"
+          curl -fsS -X POST -H "Authorization: Bearer $token" -T "$package" "$api/upload/v2/$item:upload"
+          echo
+          # The store may still process the upload, so publishing retries for
+          # a few minutes.
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            if curl -fsS -X POST -H "Authorization: Bearer $token" "$api/v2/$item:publish"; then
+              echo
+              exit 0
+            fi
+            echo "Publishing failed (attempt $attempt), retrying in 20 seconds"
+            sleep 20
+          done
+          exit 1
