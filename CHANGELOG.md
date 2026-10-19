@@ -5,6 +5,19 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.0] - 2026-10-19
+
+### Added
+
+- **Browser extension for the Digital Credentials API.** The eudi-dev extension answers `navigator.credentials.get()` with an eudi-dev wallet, so you can test a verifier on one computer without a phone. `eudi wallet browser` opens Chrome with the extension loaded. `eudi wallet extension <dir>` and the zip file at `/eudi-dev-dc-api-extension.zip` install it in your everyday profile. See [browser extension](docs/wallet/browser-extension.md).
+- **Digital Credentials API on the demo verifier.** The demo verifier can send its request with `navigator.credentials.get()`, signed, unsigned or multisigned. It verifies the encrypted response like any other presentation.
+- **QR codes on the demo verifier.** The wallet link and the `openid4vp://` request each have a QR code beside them for a wallet on a phone. A click enlarges the code.
+
+### Fixed
+
+- **Template images in the template dialog.** A new template that starts from another one keeps its images. An image removed with × stays removed when you save an edited template.
+- **Card display of templates saved at issuance.** "Save as template" and `--save-template` store the card's name, colors and images, like the issued card.
+
 ## [3.2.2] - 2026-10-19
 
 ### Fixed
