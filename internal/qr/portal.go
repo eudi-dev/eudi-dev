@@ -38,6 +38,13 @@ const (
 
 var errCaptureCancelled = errors.New("screen capture cancelled")
 
+// portalUnusableError reports that no screenshot portal could take the
+// screenshot, as opposed to the user cancelling it.
+type portalUnusableError struct{ err error }
+
+func (e portalUnusableError) Error() string { return e.err.Error() }
+func (e portalUnusableError) Unwrap() error { return e.err }
+
 // portalRequestPath is the object path of the Request a portal call creates.
 // org.freedesktop.portal.Request: "/org/freedesktop/portal/desktop/request/SENDER/TOKEN,
 // where SENDER is the caller's unique name, with the initial ':' removed and
@@ -63,7 +70,7 @@ func portalScreenshotFile(body []any) (string, error) {
 	case portalResponseAbort:
 		return "", errCaptureCancelled
 	default:
-		return "", fmt.Errorf("the screenshot portal ended the request (response %d)", code)
+		return "", portalUnusableError{fmt.Errorf("the screenshot portal ended the request (response %d)", code)}
 	}
 	results, _ := body[1].(map[string]dbus.Variant)
 	raw, _ := results["uri"].Value().(string)

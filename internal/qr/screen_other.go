@@ -20,5 +20,5 @@ import "fmt"
 
 // ScanScreen has no screen capture on this platform.
 func ScanScreen() (string, error) {
-	return "", fmt.Errorf("--screen works on macOS and Linux. Take a screenshot and pass it with --qr instead")
+	return "", fmt.Errorf("--screen works on macOS and Linux. Take a screenshot and scan the image file instead")
 }
