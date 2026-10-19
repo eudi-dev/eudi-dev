@@ -5,6 +5,12 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.2] - 2026-10-19
+
+### Fixed
+
+- **Screen QR scanning on X11 window managers.** On i3 and other X11 window managers without a screenshot portal, `--screen` selects the region with `maim` or `scrot`. If neither is installed, it explains how to install one. Errors without screen capture tell you to scan an image file. They used to name `--qr`, which only `decode` has.
+
 ## [3.2.1] - 2026-10-18
 
 ### Fixed
