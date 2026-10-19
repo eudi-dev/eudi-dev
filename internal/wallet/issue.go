@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -191,6 +192,9 @@ func (w *Wallet) IssueCredential(opts IssueOptions) (result *IssueResult, err er
 	var catalogEntry *registrar.CatalogAttestation
 	if name := strings.TrimSpace(opts.SaveTemplate); name != "" {
 		t := resolved.Template(name)
+		if t.Display, err = w.savedTemplateDisplay(tpl, opts); err != nil {
+			return nil, err
+		}
 		saved = &t
 		if catalogEntry, err = w.TemplateCatalogRequest(saved, opts.Catalog); err != nil {
 			return nil, err
@@ -499,16 +503,26 @@ func (s *credentialSigner) sign(holderPub *ecdsa.PublicKey, statusIdx int) (stri
 	return "", fmt.Errorf("unsupported format %q", r.Format)
 }
 
+// displaySource returns the template that supplies the display of an issued
+// credential: the display template if one is set, otherwise the issued
+// template.
+func (w *Wallet) displaySource(tpl *credtemplate.Template, opts IssueOptions) (*credtemplate.Template, error) {
+	if opts.DisplayTemplate == "" {
+		return tpl, nil
+	}
+	dt, err := credtemplate.Load(opts.DisplayTemplate, w.Templates)
+	if err != nil {
+		return nil, fmt.Errorf("loading the display template %q: %w", opts.DisplayTemplate, err)
+	}
+	return dt, nil
+}
+
 // issueDisplay merges display fields one by one, so setting a name or color
 // keeps the template's images.
 func (w *Wallet) issueDisplay(tpl *credtemplate.Template, opts IssueOptions) (*oid4vc.CredentialDisplay, error) {
-	source := tpl
-	if opts.DisplayTemplate != "" {
-		dt, err := credtemplate.Load(opts.DisplayTemplate, w.Templates)
-		if err != nil {
-			return nil, fmt.Errorf("loading the display template %q: %w", opts.DisplayTemplate, err)
-		}
-		source = dt
+	source, err := w.displaySource(tpl, opts)
+	if err != nil {
+		return nil, err
 	}
 	var display *oid4vc.CredentialDisplay
 	if source != nil {
@@ -518,6 +532,48 @@ func (w *Wallet) issueDisplay(tpl *credtemplate.Template, opts IssueOptions) (*o
 		display = mergeCredentialDisplay(display, w.issuedDisplay(*opts.Display))
 	}
 	return display, nil
+}
+
+// savedTemplateDisplay returns the display of a template saved at issuance.
+// Like the issued card, it starts from the display of the source template.
+// Each field set in the request replaces the template's value. A new logo
+// brings its own alt text, even an empty one.
+func (w *Wallet) savedTemplateDisplay(tpl *credtemplate.Template, opts IssueOptions) (*credtemplate.TemplateDisplay, error) {
+	source, err := w.displaySource(tpl, opts)
+	if err != nil {
+		return nil, err
+	}
+	var display credtemplate.TemplateDisplay
+	if source != nil && source.Display != nil {
+		display = *source.Display
+		display.Claims = maps.Clone(display.Claims)
+	}
+	if in := opts.Display; in != nil {
+		for _, field := range []struct {
+			value string
+			to    *string
+		}{
+			{in.Name, &display.Name},
+			{in.Description, &display.Description},
+			{in.BackgroundColor, &display.BackgroundColor},
+			{in.TextColor, &display.TextColor},
+			{in.BackgroundImage, &display.BackgroundImage},
+		} {
+			if value := strings.TrimSpace(field.value); value != "" {
+				*field.to = value
+			}
+		}
+		if logo := strings.TrimSpace(in.Logo); logo != "" {
+			display.Logo, display.LogoAltText = logo, strings.TrimSpace(in.LogoAltText)
+		} else if alt := strings.TrimSpace(in.LogoAltText); alt != "" {
+			display.LogoAltText = alt
+		}
+	}
+	if display.Name == "" && display.Description == "" && display.BackgroundColor == "" && display.TextColor == "" &&
+		display.Logo == "" && display.LogoAltText == "" && display.BackgroundImage == "" && len(display.Claims) == 0 {
+		return nil, nil
+	}
+	return &display, nil
 }
 
 // discardCredentials removes credentials and their status entries.

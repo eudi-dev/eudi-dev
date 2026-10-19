@@ -167,6 +167,39 @@ func TestIssueSaveAsTemplate(t *testing.T) {
 	}
 }
 
+// A template saved at issuance keeps the display of its source template.
+// Fields set in the request replace the template's values, as on the issued
+// card.
+func TestASavedTemplateKeepsTheDisplayOfItsSource(t *testing.T) {
+	srv := newTestServer(t, true)
+
+	body := `{"format": "sdjwt", "vct": "urn:example:ticket", "claims": {"event": "Gala"}, "display_template": "demo-ticket", "display": {"name": "Gala ticket"}, "save_as_template": "gala"}`
+	if resp := serverRequest(t, srv, http.MethodPost, "/api/issue", body); resp.Code != http.StatusCreated {
+		t.Fatalf("issue: %d: %s", resp.Code, resp.Body.String())
+	}
+	resp := serverRequest(t, srv, http.MethodGet, "/api/templates/gala", "")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("saved template not found: %d", resp.Code)
+	}
+	display, _ := decodeJSON(t, resp)["display"].(map[string]any)
+	want := map[string]any{"name": "Gala ticket", "logo": "embedded:images/logo.svg", "logo_alt_text": "eudi-dev logo", "background_color": "#0f766e"}
+	for key, value := range want {
+		if display[key] != value {
+			t.Errorf("display.%s = %v, want %v", key, display[key], value)
+		}
+	}
+
+	// A new logo replaces the template's logo and its alt text.
+	body = `{"format": "sdjwt", "vct": "urn:example:ticket", "display_template": "demo-ticket", "display": {"logo": "embedded:images/logo.svg"}, "save_as_template": "gala-2"}`
+	if resp := serverRequest(t, srv, http.MethodPost, "/api/issue", body); resp.Code != http.StatusCreated {
+		t.Fatalf("issue: %d: %s", resp.Code, resp.Body.String())
+	}
+	display, _ = decodeJSON(t, serverRequest(t, srv, http.MethodGet, "/api/templates/gala-2", ""))["display"].(map[string]any)
+	if display["logo_alt_text"] != nil || display["name"] != "Demo Event Ticket" {
+		t.Errorf("display = %v, want the template's name without its logo alt text", display)
+	}
+}
+
 func TestIssuePIDUsesTemplateOverride(t *testing.T) {
 	srv := newTestServer(t, true)
 

@@ -847,6 +847,34 @@ test.describe("Credential Issuing via UI", () => {
     await expect(page.locator("#header-links")).not.toHaveClass(/open/);
   });
 
+  // A new template can start from another one in the template select. It
+  // keeps the images shown as previews, except one the user removes.
+  test("a new template keeps the images of the template it starts from", async ({ page }) => {
+    const saveCopy = async (name, removeLogo) => {
+      await page.goto(WALLET_URL);
+      await page.locator("#templates-link").click();
+      await page.locator("#template-new").click();
+      await page.locator("#template-editor-name").fill(name);
+      await page.locator("#issue-template").selectOption("demo-ticket");
+      await expect(page.locator("#issue-logo-preview")).toBeVisible();
+      if (removeLogo) await page.locator("#issue-logo-remove").click();
+      await page.locator("#issue-submit").click();
+      await expect(page.locator(".template-row-name", { hasText: name })).toBeVisible();
+      const resp = await page.request.get(`${WALLET_URL}/api/templates/${name}`);
+      const display = (await resp.json()).display || {};
+      await page.request.delete(`${WALLET_URL}/api/templates/${name}`);
+      return display;
+    };
+
+    const kept = await saveCopy("e2e-ticket-copy", false);
+    expect(kept.logo).toBe("embedded:images/logo.svg");
+    expect(kept.logo_alt_text).toBe("eudi-dev logo");
+
+    const removed = await saveCopy("e2e-ticket-no-logo", true);
+    expect(removed.logo).toBeUndefined();
+    expect(removed.name).toBe("Demo Event Ticket");
+  });
+
   test("manages templates and issues from one with a non-disclosable claim", async ({
     page,
   }) => {

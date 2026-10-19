@@ -137,7 +137,7 @@ func init() {
 	issueSDJWTCmd.Flags().StringVar(&issueClaims, "claims", "", "Claims as JSON string or @filepath")
 	issueSDJWTCmd.Flags().StringVar(&issueTemplate, "template", "", "Credential template name or file, listed by 'templates list' (--claims overrides individual claims)")
 	issueSDJWTCmd.Flags().StringSliceVar(&issueAlwaysDisclosed, "always-disclosed", nil, "Claims that stay plain in the payload instead of selectively disclosable, as dotted paths for nested claims such as address.country")
-	issueSDJWTCmd.Flags().StringVar(&issueSaveTemplate, "save-template", "", "Save the issued claims and settings as a credential template with this name")
+	issueSDJWTCmd.Flags().StringVar(&issueSaveTemplate, "save-template", "", "Save the issued claims, settings and card display as a credential template with this name")
 	issueSDJWTCmd.Flags().StringVar(&issueKeyPath, "key", "", "Private key: a PEM or JWK file, or the PEM or JWK itself. Ephemeral P-256 if omitted")
 	issueSDJWTCmd.Flags().StringVar(&issueCertPath, "cert", "", "Certificate chain (PEM, leaf first) embedded as x5c: a file or the PEM itself. Requires --key")
 	issueSDJWTCmd.Flags().StringVar(&issueIssuer, "iss", mock.DefaultIssuer, "Issuer URL")
@@ -156,7 +156,7 @@ func init() {
 
 	issueJWTCmd.Flags().StringVar(&issueClaims, "claims", "", "Claims as JSON string or @filepath")
 	issueJWTCmd.Flags().StringVar(&issueTemplate, "template", "", "Credential template name or file, listed by 'templates list' (--claims overrides individual claims)")
-	issueJWTCmd.Flags().StringVar(&issueSaveTemplate, "save-template", "", "Save the issued claims and settings as a credential template with this name")
+	issueJWTCmd.Flags().StringVar(&issueSaveTemplate, "save-template", "", "Save the issued claims, settings and card display as a credential template with this name")
 	issueJWTCmd.Flags().StringVar(&issueKeyPath, "key", "", "Private key: a PEM or JWK file, or the PEM or JWK itself. Ephemeral P-256 if omitted")
 	issueJWTCmd.Flags().StringVar(&issueCertPath, "cert", "", "Certificate chain (PEM, leaf first) embedded as x5c: a file or the PEM itself. Requires --key")
 	issueJWTCmd.Flags().StringVar(&issueIssuer, "iss", mock.DefaultIssuer, "Issuer URL")
@@ -173,7 +173,7 @@ func init() {
 
 	issueMDOCCmd.Flags().StringVar(&issueClaims, "claims", "", "Claims as JSON string or @filepath")
 	issueMDOCCmd.Flags().StringVar(&issueTemplate, "template", "", "Credential template name or file, listed by 'templates list' (--claims overrides individual claims)")
-	issueMDOCCmd.Flags().StringVar(&issueSaveTemplate, "save-template", "", "Save the issued claims and settings as a credential template with this name")
+	issueMDOCCmd.Flags().StringVar(&issueSaveTemplate, "save-template", "", "Save the issued claims, settings and card display as a credential template with this name")
 	issueMDOCCmd.Flags().StringVar(&issueKeyPath, "key", "", "Private key: a PEM or JWK file, or the PEM or JWK itself. Ephemeral P-256 if omitted")
 	issueMDOCCmd.Flags().StringVar(&issueCertPath, "cert", "", "Certificate chain (PEM, leaf first) embedded as x5chain: a file or the PEM itself. Requires --key")
 	issueMDOCCmd.Flags().StringVar(&issueDocType, "doc-type", credtemplate.DefaultDocType, "Document type")

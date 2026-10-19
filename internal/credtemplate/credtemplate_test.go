@@ -508,3 +508,23 @@ func TestResolve(t *testing.T) {
 		t.Errorf("defaults = %+v", defaults)
 	}
 }
+
+// A saved template keeps the display of its source template as its own copy.
+func TestTheSavedTemplateKeepsTheSourceDisplay(t *testing.T) {
+	source := &Template{
+		Name: "ticket", Format: "sdjwt", VCT: "urn:example:ticket",
+		Display: &TemplateDisplay{Name: "Ticket", Logo: "embedded:images/logo.svg", Claims: map[string]string{"event": "Event"}},
+	}
+	resolved, err := Resolve(source, Request{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	saved := resolved.Template("ticket-copy")
+	if saved.Display == nil || saved.Display.Logo != "embedded:images/logo.svg" || saved.Display.Claims["event"] != "Event" {
+		t.Fatalf("saved display = %+v, want the source display", saved.Display)
+	}
+	saved.Display.Claims["event"] = "changed"
+	if source.Display.Claims["event"] != "Event" {
+		t.Error("the saved template shares its claim labels with the source")
+	}
+}

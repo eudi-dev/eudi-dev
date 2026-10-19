@@ -62,7 +62,7 @@ Flags shared by all three subcommands:
 | `--omit`   | None                      | Comma-separated claim names to exclude         |
 | `--template` | None                    | Credential template name or file (see [templates](templates.md)) |
 | `--always-disclosed` | None            | Claims issued plainly instead of selectively disclosable (dotted paths for nested claims) |
-| `--save-template` | None               | Save the issued claims and settings as a template with this name |
+| `--save-template` | None               | Save the issued claims, settings and card display as a template with this name |
 | `--wallet` | `false`                   | Import the issued credential into the wallet   |
 | `--batch`  | `0`                       | With `--wallet`: issue this many copies with separate holder keys, at most 8. The wallet presents an unused copy each time |
 | `--unbound` | `false`                  | With `--wallet`: issue without a holder key (a bearer credential with no cnf). The default binds it to the wallet. Only a query with `require_cryptographic_holder_binding: false` matches it |
@@ -83,7 +83,7 @@ Flags shared by all three subcommands:
 | `--pid`    | `false`                   | Use full EUDI PID Rulebook claims              |
 | `--omit`   | None                      | Comma-separated claim names to exclude         |
 | `--template` | None                    | Credential template name or file (see [templates](templates.md)) |
-| `--save-template` | None               | Save the issued claims and settings as a template with this name |
+| `--save-template` | None               | Save the issued claims, settings and card display as a template with this name |
 | `--wallet` | `false`                   | Import the issued credential into the wallet   |
 | `--status-list-uri` | None           | Status list URI to embed in credential         |
 | `--status-list-idx` | `0`            | Status list index to embed in credential       |
@@ -104,7 +104,7 @@ The JWT subcommand produces a standard JWT with all claims directly in the paylo
 | `--pid`       | `false`                        | Use full EUDI PID Rulebook claims              |
 | `--omit`      | None                           | Comma-separated claim names to exclude         |
 | `--template`  | None                           | Credential template name or file (see [templates](templates.md)) |
-| `--save-template` | None                       | Save the issued claims and settings as a template with this name |
+| `--save-template` | None                       | Save the issued claims, settings and card display as a template with this name |
 | `--wallet`    | `false`                        | Import the issued credential into the wallet   |
 | `--batch`     | `0`                            | With `--wallet`: issue this many copies with separate holder keys, at most 8. The wallet presents an unused copy each time |
 | `--unbound`   | `false`                        | With `--wallet`: issue without an MSO device key (a malformed mdoc for testing verifier rejection). The default binds it to the wallet. Only a query with `require_cryptographic_holder_binding: false` matches it. In strict mode no query matches it, but you can still pick it in the consent dialog |

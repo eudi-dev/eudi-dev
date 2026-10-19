@@ -1561,10 +1561,16 @@
     for (const [key, id] of Object.entries(fields)) {
       if (field(id)) display[key] = field(id);
     }
-    // The form leaves template images out. They stay unless the user sets new ones.
-    const sourceDisplay = source.display || {};
-    for (const key of ['logo', 'logo_alt_text', 'background_image']) {
-      if (!display[key] && sourceDisplay[key]) display[key] = sourceDisplay[key];
+    // The form fills its fields from a template: the edited one, or the one
+    // picked in the template select. It shows that template's images as
+    // previews and leaves their fields empty. A preview image goes into the
+    // saved template unless the user removed or replaced it.
+    for (const f of ISSUE_IMAGE_FIELDS) {
+      if (display[f.key] || !issueTemplateImages[f.key] || !issueTemplateDisplay[f.key]) continue;
+      display[f.key] = issueTemplateDisplay[f.key];
+      if (f.key === 'logo' && !display.logo_alt_text && issueTemplateDisplay.logo_alt_text) {
+        display.logo_alt_text = issueTemplateDisplay.logo_alt_text;
+      }
     }
     if (Object.keys(display).length > 0) doc.display = display; else delete doc.display;
     const defaultName = display.name || templateEditorName.value.trim();

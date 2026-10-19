@@ -16,6 +16,7 @@ package credtemplate
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 	"time"
 
@@ -163,6 +164,12 @@ func (r Resolved) Template(name string) Template {
 	}
 	if r.template != nil {
 		saved.UniqueClaims = r.template.UniqueClaims
+		// The saved template keeps the display of its source template.
+		if d := r.template.Display; d != nil {
+			display := *d
+			display.Claims = maps.Clone(d.Claims)
+			saved.Display = &display
+		}
 	}
 	return saved
 }
