@@ -5,6 +5,26 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.2] - Unreleased
+
+### Added
+
+- **Transaction code on the demo issuer.** A pre-authorized offer can ask for a transaction code. The demo issuer generates a six-digit code and shows it below the offer. The wallet then has to send it with the pre-authorized code.
+- **Key proof types on the demo issuer.** An offer can list only the `jwt` proof type in the metadata, for wallets that can't get a key attestation from their wallet provider.
+- **Your own access certificate for the demo issuer and verifier.** `--demo-issuer-signing-key` and `--demo-verifier-signing-key` sign with your key and access certificate chain, for example from a member state sandbox. The `--demo-issuer-info` and `--demo-verifier-info` flags add an info array. The `--demo-issuer-registration-cert` and `--demo-verifier-registration-cert` flags add a single registration certificate instead. See [demo issuer and verifier](docs/wallet/demo-issuer.md).
+- **Endpoint URL as attestation audience.** The demo issuer accepts a client attestation PoP whose `aud` is the URL of the called endpoint instead of the issuer identifier. It logs a warning, so a wallet with that mistake can still finish the flow.
+
+### Changed
+
+- **Compact consent on narrow screens.** In the browser extension window and on phones, each credential in a consent dialog folds to a short summary. It shows what is shared and any warnings. A tap opens the card and the full claim list.
+- **Readable form requests in the activity log.** Token, PAR, authorization challenge and request object requests show the body as sent. **View decoded** shows their form fields, as **View decrypted** does for an encrypted payload.
+- **Batch size per offer.** An issuer identifier created for one offer advertises that offer's copies as `batch_size`. With a single copy it supports no batch issuance.
+- **Content type of encrypted request objects.** The wallet warns when an encrypted request object has no `cty: "JWT"` in its JWE header. RFC 9101 makes it a Nested JWT, and RFC 7519 §5.2 requires `cty` on those.
+
+### Fixed
+
+- **Unencrypted presentation during issuance.** The demo issuer asked for an unencrypted presentation, so the wallet reported ARF OIA_09. It now asks for an encrypted `ia_post.jwt` response.
+
 ## [3.3.1] - 2026-10-20
 
 ### Added
