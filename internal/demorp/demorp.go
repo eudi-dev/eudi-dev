@@ -28,6 +28,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"net/http"
 	"strings"
 	"sync"
@@ -147,6 +148,19 @@ func (d *DemoRP) SetVerifierTrustAnchors(anchors []*x509.Certificate) {
 
 func randToken() string {
 	return hex.EncodeToString(randomBytes(16))
+}
+
+// randomDigits returns n uniformly random decimal digits.
+func randomDigits(n int) string {
+	digits := make([]byte, n)
+	for i := range digits {
+		d, err := rand.Int(rand.Reader, big.NewInt(10))
+		if err != nil {
+			panic(fmt.Sprintf("reading random digits: %v", err))
+		}
+		digits[i] = byte('0' + d.Int64())
+	}
+	return string(digits)
 }
 
 func randomBytes(n int) []byte {

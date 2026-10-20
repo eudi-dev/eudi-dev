@@ -1,4 +1,4 @@
-async function createOffer(grant, status, authorization, deferred, batch, credential, identity, identityCheck) {
+async function createOffer(grant, txCode, status, authorization, deferred, batch, credential, identity, identityCheck) {
   const errEl = document.getElementById("error");
   errEl.hidden = true;
   try {
@@ -16,6 +16,7 @@ async function createOffer(grant, status, authorization, deferred, batch, creden
       init.body = JSON.stringify(body);
     }
     if (grant) params.set("grant", grant);
+    else if (txCode) params.set("tx_code", "true");
     if (status) params.set("status", status);
     if (deferred) params.set("deferred", "true");
     if (batch) params.set("batch", batch);
@@ -33,6 +34,8 @@ async function createOffer(grant, status, authorization, deferred, batch, creden
     scheme.href = doc.scheme_uri;
     showQR("wallet-link-qr", doc.wallet_url_qr);
     showQR("scheme-uri-qr", doc.scheme_uri_qr);
+    document.getElementById("tx-code-result").hidden = !doc.tx_code;
+    document.getElementById("tx-code-value").textContent = doc.tx_code || "";
     document.getElementById("offer-uri").textContent = doc.offer_uri;
     document.getElementById("issuer-id").textContent = doc.issuer;
     document.getElementById("result").style.display = "block";
@@ -45,6 +48,11 @@ async function createOffer(grant, status, authorization, deferred, batch, creden
 const GRANT_HINTS = {
   "": "The offer carries the code. No sign-in.",
   authorization_code: "The wallet uses PAR, PKCE, DPoP and a wallet attestation.",
+};
+
+const TX_CODE_HINTS = {
+  "": "No code to enter in the wallet.",
+  true: "The user enters a six-digit code in the wallet. It appears below the offer.",
 };
 
 const AUTHORIZATION_HINTS = {
@@ -115,6 +123,7 @@ const BATCH_HINTS = {
 };
 
 let grant = "";
+let txCode = "";
 let status = "";
 let authorization = "browser";
 let deferred = "";
@@ -158,7 +167,13 @@ bindToggle("grant-toggle", "grant", "grant-hint", GRANT_HINTS, (value) => {
   const shown = value === "authorization_code";
   document.getElementById("authorization-row").hidden = !shown;
   document.getElementById("authorization-hint").hidden = !shown;
+  // A transaction code protects only a pre-authorized code.
+  document.getElementById("tx-code-row").hidden = shown;
+  document.getElementById("tx-code-hint").hidden = shown;
   updateIdentityCheck();
+});
+bindToggle("tx-code-toggle", "txCode", "tx-code-hint", TX_CODE_HINTS, (value) => {
+  txCode = value;
 });
 bindToggle("authorization-toggle", "authorization", "authorization-hint", AUTHORIZATION_HINTS, (value) => {
   authorization = value;
@@ -183,7 +198,7 @@ bindToggle("identity-toggle", "identity", "identity-hint", IDENTITY_HINTS, (valu
 });
 
 document.getElementById("create-btn")
-  .addEventListener("click", () => createOffer(grant, status, authorization, deferred, batch, credential, identity, identityCheck));
+  .addEventListener("click", () => createOffer(grant, txCode, status, authorization, deferred, batch, credential, identity, identityCheck));
 
 const credentialSelect = document.getElementById("credential-select");
 credentialSelect.addEventListener("change", () => {

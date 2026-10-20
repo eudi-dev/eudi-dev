@@ -319,6 +319,35 @@ test.describe("Demo mode consent visibility", () => {
     await fetch(`${BASE}/api/credentials`, { method: "DELETE" });
   });
 
+  test("an offer with a transaction code issues after the wallet sends it", async ({ page }) => {
+    const { body: offer } = await postJSON("/issuer/api/offers?tx_code=true", {});
+    expect(offer.tx_code).toMatch(/^[0-9]{6}$/);
+    const uri = "openid-credential-offer://?credential_offer_uri=" + encodeURIComponent(offer.offer_uri);
+
+    const owner = await openAsSchemeHandler(page);
+    submitAsSchemeHandler("/api/offers", uri, owner);
+    await expect(page.locator("#consent-overlay")).toHaveClass(/active/);
+    await page.locator("#offer-tx-code-input").fill(offer.tx_code);
+    await page.locator("#consent-approve").click();
+
+    await expect(
+      page.locator("#credentials .credential-card", {
+        hasText: "Demo Event Ticket",
+      })
+    ).toBeVisible({ timeout: 15_000 });
+
+    await fetch(`${BASE}/api/credentials`, { method: "DELETE" });
+  });
+
+  test("the issuer page shows the transaction code of a new offer", async ({ page }) => {
+    await page.goto(`${BASE}/issuer/`);
+    await page.locator("#tx-code-with").click();
+    await page.locator("#create-btn").click();
+    await expect(page.locator("#tx-code-value")).toHaveText(/^[0-9]{6}$/);
+    await page.locator("#grant-authorization-code").click();
+    await expect(page.locator("#tx-code-row")).toBeHidden();
+  });
+
   // A failed flow without an owner doesn't open in a browser's next issuance.
   test("an earlier failure does not reopen on the next issuance", async ({ page }) => {
     const dead = "openid-credential-offer://?credential_offer=" + encodeURIComponent(JSON.stringify({

@@ -18,6 +18,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/subtle"
 	"embed"
 	"encoding/binary"
 	"encoding/json"
@@ -89,6 +90,10 @@ type offerState struct {
 	// request to the offer (OpenID4VCI 1.0 §4.1.1), so it stays valid until
 	// the offer expires, and the authorization code is the one-time grant.
 	preAuthCode string
+	// txCode is the Transaction Code the wallet sends with the
+	// pre-authorized code (OpenID4VCI 1.0 §4.1.1). It is empty when the
+	// offer needs none.
+	txCode      string
 	issuerState string
 	redeemed    bool
 	expires     time.Time
@@ -314,8 +319,15 @@ func (d *DemoRP) handleIssuerMetadata(w http.ResponseWriter, r *http.Request) {
 //   - credential_identifiers=always returns credential identifiers in every
 //     token response, also when the wallet asked without
 //     authorization_details.
+//   - tx_code=true protects a pre-authorized offer with a generated
+//     Transaction Code. The response returns it as tx_code.
 func (d *DemoRP) handleCreateOffer(w http.ResponseWriter, r *http.Request) {
 	authCode := r.URL.Query().Get("grant") == authCodeGrant
+	withTxCode := r.URL.Query().Get("tx_code") == "true"
+	if withTxCode && authCode {
+		apierror.WriteStatus(w, http.StatusBadRequest, "a transaction code needs a pre-authorized offer")
+		return
+	}
 	withStatus := r.URL.Query().Get("status") == "true"
 	if withStatus && d.statusListURI() == "" {
 		apierror.WriteStatus(w, http.StatusConflict, "this wallet has no status list URL, so the ticket cannot carry a status reference")
@@ -355,6 +367,9 @@ func (d *DemoRP) handleCreateOffer(w http.ResponseWriter, r *http.Request) {
 	} else {
 		offer.preAuthCode = randToken()
 	}
+	if withTxCode {
+		offer.txCode = randomDigits(txCodeLength)
+	}
 	d.offers[offer.id] = offer
 	d.mu.Unlock()
 
@@ -367,6 +382,9 @@ func (d *DemoRP) handleCreateOffer(w http.ResponseWriter, r *http.Request) {
 		"wallet_url": base + "/credential-offer?" + params,
 		"scheme_uri": "openid-credential-offer://?" + params,
 		"issuer":     d.issuerURL(identity),
+	}
+	if offer.txCode != "" {
+		doc["tx_code"] = offer.txCode
 	}
 	addLinkQRCodes(doc, "wallet_url", "scheme_uri")
 	writeJSON(w, http.StatusCreated, doc)
@@ -427,7 +445,15 @@ func (d *DemoRP) handleOfferByReference(w http.ResponseWriter, r *http.Request) 
 	if offer.issuerState != "" {
 		grants[authCodeGrant] = map[string]any{"issuer_state": offer.issuerState}
 	} else {
-		grants[preAuthGrant] = map[string]any{"pre-authorized_code": offer.preAuthCode}
+		grant := map[string]any{"pre-authorized_code": offer.preAuthCode}
+		if offer.txCode != "" {
+			grant["tx_code"] = map[string]any{
+				"input_mode":  "numeric",
+				"length":      txCodeLength,
+				"description": "Enter the transaction code shown on the demo issuer page.",
+			}
+		}
+		grants[preAuthGrant] = grant
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"credential_issuer":            d.requestIssuerURL(r),
@@ -479,7 +505,33 @@ func (d *DemoRP) handleToken(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	if errResp := checkTxCode(offer.txCode, r.PostForm); errResp != nil {
+		writeJSON(w, http.StatusBadRequest, errResp)
+		return
+	}
 	d.issueToken(w, r, tokenState{offerSettings: settings, jkt: jkt, clientAuth: &clientAuth}, false)
+}
+
+// txCodeLength is the number of digits of a generated Transaction Code.
+const txCodeLength = 6
+
+// checkTxCode compares the tx_code of a token request with the one of the
+// offer. OpenID4VCI 1.0 §6.3 answers a missing or unexpected tx_code with
+// invalid_request and a wrong one with invalid_grant. The pre-authorized code
+// is already used up, so a wrong guess ends the offer.
+func checkTxCode(expected string, form url.Values) map[string]string {
+	sent, present := form["tx_code"]
+	switch {
+	case expected == "" && present:
+		return map[string]string{"error": "invalid_request", "error_description": "this offer needs no tx_code"}
+	case expected == "":
+		return nil
+	case !present:
+		return map[string]string{"error": "invalid_request", "error_description": "this offer needs a tx_code"}
+	case subtle.ConstantTimeCompare([]byte(sent[0]), []byte(expected)) != 1:
+		return map[string]string{"error": "invalid_grant", "error_description": "wrong tx_code"}
+	}
+	return nil
 }
 
 // redeemOfferLocked finds the offer of the identity whose grant key matches

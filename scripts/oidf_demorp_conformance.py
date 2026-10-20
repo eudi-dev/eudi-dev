@@ -259,7 +259,9 @@ def demo_scenarios() -> list[DemoScenario]:
                 "vci_authorization_code_flow_variant": "issuer_initiated",
             },
             modules=vci_issuer_modules("issuer_initiated"),
-            offer_query="batch=8",
+            # The suite sends a tx_code with every pre-authorized code, and
+            # OpenID4VCI 1.0 §6.3 refuses one the offer did not ask for.
+            offer_query="batch=8&tx_code=true",
         ),
         # Run the VCI modules. The appended FAPI2 plans require a fuller authorization
         # server. Other variants are fixed by module group, and the runner uses the first
@@ -360,6 +362,9 @@ def create_vci_config(args: argparse.Namespace, suite_dir: Path, scenario: DemoS
     config["credential"]["status_list_trust_anchor_pem"] = ca_pem
     config.setdefault("client2", {})
     config["client2"]["jwks"] = {"keys": [CLIENT2_JWK]}
+    # Without a static code the suite waits for the code of each offer at its
+    # tx_code endpoint, where the harness sends it.
+    config["vci"].pop("static_tx_code", None)
     # The harness signs in at the demo issuer's authorization page itself, so
     # the suite's scripted browser has nothing to do.
     config["browser"] = []
@@ -412,6 +417,9 @@ def deliver_credential_offer(wallet_url: str, scenario: DemoScenario, alias: str
     encoded = urllib.parse.quote(json.dumps(offer, separators=(",", ":")), safe="")
     suite_get(f"{module_base_url(alias)}/credential_offer?credential_offer={encoded}")
     print(f"[monitor] delivered demo credential offer {created['id']} to {alias}", flush=True)
+    if tx_code := created.get("tx_code"):
+        suite_get(f"{module_base_url(alias)}/tx_code?code={tx_code}")
+        print(f"[monitor] delivered its transaction code to {alias}", flush=True)
 
 
 def submit_verifier_request(wallet_url: str, scenario: DemoScenario, alias: str) -> str:
