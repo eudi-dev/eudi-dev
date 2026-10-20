@@ -2470,6 +2470,29 @@
   }
 
 
+  // On a narrow screen a consent credential folds to a summary. The user opens
+  // it for the card and the full claim list.
+  function consentFoldSummary(id, format, name, countText, names, warnings, open, namesAreKeys) {
+    const preview = claimNamesPreview(names);
+    return '<button type="button" class="consent-fold-summary" id="' + id + '-fold" aria-expanded="' + open + '" aria-controls="' + id + '-fold-body">' +
+        '<span class="consent-fold-title">' + (format ? '<span class="format-badge format-badge-row" id="' + id + '-fold-format">' + escHtml(format) + '</span>' : '') +
+          '<span class="consent-fold-name" id="' + id + '-fold-name">' + escHtml(name) + '</span></span>' +
+        '<span class="consent-fold-count" id="' + id + '-fold-count">' + escHtml(countText) + '</span>' +
+        (preview ? '<span class="consent-fold-names' + (namesAreKeys ? ' mono' : '') + '" id="' + id + '-fold-names">' + escHtml(preview) + '</span>' : '') +
+        (warnings.length ? '<span class="consent-fold-warn" id="' + id + '-fold-warn"><span class="ico-warn" aria-hidden="true"></span>' + escHtml(warnings.join(' · ')) + '</span>' : '') +
+        '<span class="consent-fold-chevron" aria-hidden="true"></span>' +
+      '</button>';
+  }
+
+  function claimNamesPreview(names) {
+    return names.slice(0, 3).join(', ') + (names.length > 3 ? ' +' + (names.length - 3) : '');
+  }
+
+  // An mdoc claim key carries its namespace before the colon.
+  function shortClaimName(key) {
+    return key.slice(key.lastIndexOf(':') + 1);
+  }
+
   // Offer previews have no credential yet, so signature, status and holder binding checks
   // do not apply.
   function offerCardHtml(cred) {
@@ -2511,7 +2534,20 @@
             : '<div class="consent-claim">' + path + '</div>';
         }).join('') + '</div>';
     }
-    return '<div class="consent-credential" id="' + prefix + '" data-config-id="' + domID(cred.id) + '">' + card + claims + '</div>';
+    const claimNames = (cred.claims || []).map(claim => (cred.claim_display_names || {})[claim] || shortClaimName(claim));
+    const countText = 'You will receive ' + claimNames.length + ' claim' + (claimNames.length === 1 ? '' : 's');
+    return '<div class="consent-credential consent-fold" id="' + prefix + '" data-config-id="' + domID(cred.id) + '">' +
+      consentFoldSummary(prefix, fmt, faceName, countText, claimNames, [], false) +
+      '<div class="consent-fold-body" id="' + prefix + '-fold-body">' + card + claims + '</div></div>';
+  }
+
+  // The More button only shows for a description longer than two lines. A
+  // folded description has no height, so it is measured once it shows.
+  function hideMoreForShortDescriptions(root) {
+    root.querySelectorAll('.offer-description').forEach(desc => {
+      if (desc.offsetParent === null || desc.classList.contains('offer-description-open')) return;
+      desc.nextElementSibling.hidden = desc.scrollHeight <= desc.clientHeight + 1;
+    });
   }
 
   // A long issuer description stays at two lines until the user opens it.
@@ -2592,7 +2628,7 @@
 
     const options = !isIssuance && req.credential_options &&
       (req.credential_options.queries || []).length > 0 ? req.credential_options : null;
-    const selection = { editing: false, setChoices: [], picks: {}, claims: {}, claimSets: {}, showNonMatching: {}, showClaimSets: {} };
+    const selection = { editing: false, setChoices: [], picks: {}, claims: {}, claimSets: {}, showNonMatching: {}, showClaimSets: {}, unfolded: {} };
     let submitting = false;
     // An optional set answered only by non-matching credentials starts skipped,
     // because auto-accept skips it too.
@@ -2843,11 +2879,17 @@
     }
 
     // The claims in always are sent in any case, so their checkboxes are fixed.
+    function sharedClaimKeys(claims, kept, always) {
+      const fixed = always || [];
+      return Object.keys(claims || {}).filter(k => fixed.includes(k) || (kept ? kept.includes(k) : true));
+    }
+
     function claimChecklist(credID, claims, kept, emptyArrays, missing, always) {
       const keys = Object.keys(claims || {});
       const fixed = always || [];
-      const isShared = k => fixed.includes(k) || (kept ? kept.includes(k) : true);
-      const shared = keys.filter(isShared).length;
+      const sharedKeys = sharedClaimKeys(claims, kept, always);
+      const isShared = k => sharedKeys.includes(k);
+      const shared = sharedKeys.length;
       const empties = emptyArrays || [];
       const missingList = missing || [];
       const total = keys.length + missingList.length;
@@ -2899,13 +2941,31 @@
       const body = credentialCardBody(cred, 'summary-');
       const kept = options ? selection.claims[mc.credential_id] : null;
       const claimSet = options ? chosenClaimSet(mc) : null;
-      return '<div class="consent-credential" id="consent-credential-' + mc.credential_id + '" data-credential-id="' + mc.credential_id + '" data-vct="' + escHtml(mc.vct || '') + '" data-doctype="' + escHtml(mc.doctype || '') + '">' +
+      const claims = claimSet ? claimSet.claims : mc.claims;
+      const missing = claimSet ? [] : (mc.missing_claims || []);
+      const shared = sharedClaimKeys(claims, kept, mc.always_disclosed);
+      const total = Object.keys(claims || {}).length + missing.length;
+      const warnings = [];
+      if (missing.length) warnings.push(missing.length + (missing.length === 1 ? ' requested field missing' : ' requested fields missing'));
+      if (!claimSet && (mc.empty_array_claims || []).some(key => shared.includes(key))) warnings.push('Empty array disclosed');
+      if (mc.untrusted_authority) warnings.push('Issuer not trusted by the verifier');
+      if (mc.unbound) warnings.push('No holder binding');
+      if (mc.mismatches && mc.mismatches.length) warnings.push('Does not match the query');
+      const id = 'consent-credential-' + mc.credential_id;
+      const name = (cred.display && cred.display.name) || cred.vct || cred.doctype || cred.format;
+      return '<div class="consent-credential consent-fold' + (selection.unfolded[mc.credential_id] ? ' consent-fold-open' : '') + '" id="' + id + '" data-credential-id="' + mc.credential_id + '" data-vct="' + escHtml(mc.vct || '') + '" data-doctype="' + escHtml(mc.doctype || '') + '">' +
+        consentFoldSummary(id, formatLabelFor(cred), name, sharedCountText(shared.length, total), shared.map(shortClaimName), warnings, !!selection.unfolded[mc.credential_id], true) +
+        '<div class="consent-fold-body" id="' + id + '-fold-body">' +
         '<div class="credential-card' + (cred.batch ? ' batch' : '') + '">' + body.html + '</div>' +
         untrustedAuthorityNote(mc, 'consent-untrusted-' + mc.credential_id) + unboundNote(mc) + mismatchNote(mc, 'consent-mismatch-' + mc.query_id + '-' + mc.credential_id) +
         (claimSet
           ? claimChecklist(mc.credential_id, claimSet.claims, kept, null, null, mc.always_disclosed)
           : claimChecklist(mc.credential_id, mc.claims, kept, mc.empty_array_claims, mc.missing_claims, mc.always_disclosed)) +
-      '</div>';
+      '</div></div>';
+    }
+
+    function sharedCountText(shared, total) {
+      return total === 0 ? 'Shares no fields' : 'Shares ' + shared + ' of ' + total + ' field' + (total === 1 ? '' : 's');
     }
 
     // Debug mode offers credentials that fail trusted_authorities. Explain the mismatch
@@ -3129,14 +3189,34 @@
         });
       }
 
+      // A narrow screen cuts a long identifier to one line. A tap shows all of it.
+      const who = document.getElementById('consent-who');
+      if (who) who.addEventListener('click', e => {
+        if (!e.target.closest('a, button')) who.classList.toggle('who-open');
+      });
+      consentDialog.querySelectorAll('.consent-fold-summary').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const fold = btn.closest('.consent-fold');
+          const open = !fold.classList.contains('consent-fold-open');
+          fold.classList.toggle('consent-fold-open', open);
+          btn.setAttribute('aria-expanded', String(open));
+          if (fold.dataset.credentialId) selection.unfolded[fold.dataset.credentialId] = open;
+          if (open) hideMoreForShortDescriptions(fold);
+        });
+      });
+
       consentDialog.querySelectorAll('.consent-credential').forEach(credEl => {
         const countEl = credEl.querySelector('.cl-count');
         const boxes = credEl.querySelectorAll('.consent-claims input[type="checkbox"]');
         if (!countEl || boxes.length === 0) return;
         const total = boxes.length;
+        const foldCount = credEl.querySelector('.consent-fold-count');
+        const foldNames = credEl.querySelector('.consent-fold-names');
         const update = () => {
-          const checked = [...boxes].filter(b => b.checked).length;
-          countEl.textContent = checked + ' of ' + total + ' field' + (total === 1 ? '' : 's');
+          const checked = [...boxes].filter(b => b.checked);
+          countEl.textContent = checked.length + ' of ' + total + ' field' + (total === 1 ? '' : 's');
+          if (foldCount) foldCount.textContent = sharedCountText(checked.length, total);
+          if (foldNames) foldNames.textContent = claimNamesPreview(checked.map(b => shortClaimName(b.dataset.claim)));
         };
         boxes.forEach(b => b.addEventListener('change', update));
       });
@@ -3197,10 +3277,7 @@
     consentDialog.innerHTML = html;
     const refocus = focusedID && document.getElementById(focusedID);
     if (refocus) refocus.focus();
-    // The More button only shows for a description longer than two lines.
-    consentDialog.querySelectorAll('.offer-description').forEach(desc => {
-      if (desc.scrollHeight <= desc.clientHeight + 1) desc.nextElementSibling.hidden = true;
-    });
+    hideMoreForShortDescriptions(consentDialog);
     wireSelectionHandlers();
     if (unansweredQueries().length > 0) {
       const approve = document.getElementById('consent-approve');

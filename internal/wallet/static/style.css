@@ -1490,6 +1490,102 @@ textarea.form-input {
   margin-bottom: 12px;
 }
 
+/* The dialog switches at the breakpoint of the credential list. On a narrow
+   screen each credential folds to a summary that opens on tap. */
+.consent-overlay {
+  container-type: inline-size;
+}
+
+.consent-fold-summary {
+  display: none;
+}
+
+@container (max-width: 600px) {
+  .consent-fold-summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 10px;
+    row-gap: 3px;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .consent-fold-summary > :not(.consent-fold-chevron) {
+    grid-column: 1;
+    min-width: 0;
+  }
+  .consent-fold-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .consent-fold-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .consent-fold-count {
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  .consent-fold-names {
+    font-size: 12px;
+    color: var(--text-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .consent-fold-warn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--yellow);
+  }
+  .consent-fold-chevron {
+    grid-column: 2;
+    grid-row: 1 / span 4;
+    align-self: center;
+    width: 8px;
+    height: 8px;
+    margin-right: 4px;
+    border-right: 2px solid var(--text-dim);
+    border-bottom: 2px solid var(--text-dim);
+    transform: rotate(-45deg);
+    transition: transform 0.15s;
+  }
+  .consent-fold-open .consent-fold-chevron {
+    transform: rotate(45deg);
+  }
+  .consent-fold-open .consent-fold-names,
+  .consent-fold-open .consent-fold-warn {
+    display: none;
+  }
+  .consent-fold:not(.consent-fold-open) > .consent-fold-body {
+    display: none;
+  }
+  .consent-fold-open > .consent-fold-body {
+    margin-top: 12px;
+  }
+  .who-cid,
+  .who-name.mono {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .who-open .who-cid,
+  .who-open .who-name.mono {
+    white-space: normal;
+  }
+}
+
 .consent-credential .credential-card,
 .candidate .credential-card {
   display: flex;

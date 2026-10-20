@@ -1385,6 +1385,35 @@ test.describe("Consent credential selection", () => {
     expect(await overflow()).toBeLessThanOrEqual(0);
   });
 
+  // The browser extension opens the wallet in a window about 520px wide. Each
+  // credential folds to a summary there, so the dialog fits without scrolling.
+  test("a narrow consent dialog folds each credential to a summary", async ({ page }) => {
+    await page.setViewportSize({ width: 520, height: 760 });
+    await openPreparedConsent(page, { type: "custom", credentials: [
+      { format: "dc+sd-jwt", vct: "urn:eudi:pid:1", claims: [["given_name"], ["family_name"], ["birthdate"]] },
+      { format: "mso_mdoc", doctype: "eu.europa.ec.eudi.pid.1", claims: [["eu.europa.ec.eudi.pid.1", "given_name"]] },
+    ] });
+    const dialog = page.locator("#consent-dialog");
+    const summaries = dialog.locator(".consent-fold-summary");
+    await expect(summaries).toHaveCount(2);
+    await expect(summaries.first()).toContainText("Shares 3 of 3 fields");
+    await expect(summaries.first()).toContainText("birthdate, family_name, given_name");
+    await expect(dialog.locator(".consent-claims").first()).toBeHidden();
+    expect(await dialog.evaluate((el) => el.scrollHeight <= el.clientHeight)).toBe(true);
+
+    await summaries.first().click();
+    await expect(summaries.first()).toHaveAttribute("aria-expanded", "true");
+    const familyName = dialog.locator('.consent-claim input[data-claim="family_name"]').first();
+    await expect(familyName).toBeVisible();
+    await familyName.uncheck();
+    await expect(summaries.first()).toContainText("Shares 2 of 3 fields");
+
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await expect(summaries.first()).toBeHidden();
+    await expect(dialog.locator(".consent-claims")).toHaveCount(2);
+    await expect(dialog.locator(".consent-claims").last()).toBeVisible();
+  });
+
   test("the verifier page asks for the ticket next to the PID and for multiple", async ({ page }) => {
     await page.goto(`${BASE}/verifier/`);
     await page.locator('#credential-toggle [data-credential="pid-ticket"]').click();

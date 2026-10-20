@@ -1540,6 +1540,7 @@ test.describe("Offer dialog descriptions", () => {
 
     await page.setViewportSize({ width: 390, height: 800 });
     await page.goto(`${WALLET_URL}/?focus=overview&request=${await waitForPendingRequest()}`);
+    await page.locator("#offer-credential-long-config-fold").click();
     const description = page.locator("#offer-description-long-config");
     const toggle = page.locator("#offer-description-long-config-toggle");
     await expect(description).toContainText("final examination");
@@ -1555,6 +1556,7 @@ test.describe("Offer dialog descriptions", () => {
 
     await toggle.click();
     await expect(toggle).toHaveText("More");
+    await page.locator("#offer-credential-short-config-fold").click();
     await expect(page.locator("#offer-description-short-config")).toHaveText("A badge.");
     await expect(page.locator("#offer-description-short-config-toggle")).toBeHidden();
 
