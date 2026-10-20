@@ -256,7 +256,11 @@ func TestTheIdentityCheckHasItsOwnIdentity(t *testing.T) {
 		{"own with an empty verifier_info", registeredIssuer, ownWithoutInfo, false, true},
 		{"registered for an own issuer", ownIssuer, registeredIdentityCheck, true, false},
 	} {
-		request, err := d.interactivePresentationRequest(d.newInteractivePIDRequest(tc.issuer), tc.issuer, tc.check)
+		pidRequest, err := d.newInteractivePIDRequest(tc.issuer)
+		if err != nil {
+			t.Fatal(err)
+		}
+		request, err := d.interactivePresentationRequest(pidRequest, tc.issuer, tc.check)
 		if err != nil {
 			t.Fatal(err)
 		}

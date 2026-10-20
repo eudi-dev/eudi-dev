@@ -232,7 +232,7 @@ The wallet supports two interaction types. It advertises a type only when it can
 
 The wallet rejects a request for an interaction it did not advertise.
 
-The built-in demo issuer uses both. An offer set to "Presentation during issuance" runs the presentation interaction. An offer set to "Browser sign-in" requests the `auth_via_web` interaction from a wallet that advertises it, and falls back to `redirect_to_web` (first-party-apps Section 5.2.2.1.1) for other wallets.
+The built-in demo issuer uses both. An offer set to "Presentation during issuance" runs the presentation interaction and asks for an encrypted `ia_post.jwt` response. An offer set to "Browser sign-in" requests the `auth_via_web` interaction from a wallet that advertises it, and falls back to `redirect_to_web` (first-party-apps Section 5.2.2.1.1) for other wallets.
 
 #### Demo issuer example
 

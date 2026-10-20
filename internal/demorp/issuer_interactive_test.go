@@ -29,7 +29,9 @@ import (
 	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
+	"github.com/eudi-dev/eudi-dev/v3/internal/jwe"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
 )
@@ -68,6 +70,7 @@ func interactiveTestWallet(t *testing.T) *wallet.Wallet {
 // returning an authorization code, without browser sign-in.
 func TestInteractiveAuthorizationEndToEnd(t *testing.T) {
 	w := interactiveTestWallet(t)
+	w.RequireARF = true
 	d, ts := serveDemoStack(t, w)
 
 	offer := postJSONTo(t, ts.URL+"/issuer/api/offers?grant="+authCodeGrant+"&authorization="+authorizationPresentation, `{}`)
@@ -99,16 +102,36 @@ func TestInteractiveAuthorizationEndToEnd(t *testing.T) {
 	if got := d.challengeEndpoint(registeredIssuer); !strings.HasSuffix(got, "/issuer/authorize-challenge") {
 		t.Errorf("challenge endpoint = %q", got)
 	}
+	presented := false
 	for _, entry := range w.GetLog() {
-		details := entry.Details
-		if details == nil {
-			continue
+		if entry.Severity != "" || !entry.Success {
+			t.Errorf("the wallet reported a problem with the demo issuer: %s %v", entry.Detail, entry.Details)
 		}
-		if details["event"] == "interactive_authorization_presentation" {
-			return
+		if entry.Details["event"] == "interactive_authorization_presentation" {
+			presented = true
 		}
 	}
-	t.Errorf("no log entry recorded the presentation, log: %v", w.GetLog())
+	if !presented {
+		t.Errorf("no log entry recorded the presentation, log: %v", w.GetLog())
+	}
+}
+
+// The mdoc session transcript of an encrypted response carries the thumbprint
+// of the encryption key (OpenID4VCI 1.1 Appendix A.2.5).
+func TestInteractiveAuthorizationAcceptsAnMdocPID(t *testing.T) {
+	w := interactiveTestWallet(t)
+	_, ts := serveDemoStack(t, w)
+	for _, credential := range w.GetCredentials() {
+		if credential.Format != credtype.FormatMDOC {
+			w.RemoveCredential(credential.ID)
+		}
+	}
+
+	offer := postJSONTo(t, ts.URL+"/issuer/api/offers?grant="+authCodeGrant+"&authorization="+authorizationPresentation, `{}`)
+	uri, _ := offer["scheme_uri"].(string)
+	if _, err := w.ProcessCredentialOffer(uri); err != nil {
+		t.Fatalf("redeeming the offer with an mdoc PID: %v", err)
+	}
 }
 
 // Without a configured client_id, each authorization code flow with
@@ -688,6 +711,56 @@ func startInteractiveSession(t *testing.T, d *DemoRP, provider walletProvider, c
 	return session, nonce
 }
 
+// encryptedPresentationResponse encrypts an Authorization Response to the key
+// of the session's presentation request, as a wallet does for ia_post.jwt.
+func encryptedPresentationResponse(t *testing.T, d *DemoRP, session string, response map[string]any) string {
+	t.Helper()
+	d.mu.Lock()
+	state := d.interactive[session]
+	d.mu.Unlock()
+	if state == nil || state.request.encKey == nil {
+		t.Fatalf("session %q has no response encryption key", session)
+	}
+	plaintext, err := json.Marshal(response)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compact, _, err := jwe.EncryptECDHES(plaintext, &state.request.encKey.PublicKey, "", "A128GCM", "", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(map[string]string{"response": compact})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(encoded)
+}
+
+// ARF OIA_09 requires an encrypted presentation response, so the request
+// asks for ia_post.jwt and carries the encryption key (OpenID4VCI 1.1
+// §6.2.1.1).
+func TestInteractivePresentationRequestAsksForAnEncryptedResponse(t *testing.T) {
+	d, _, _ := newDemoRP(t)
+	pidRequest, err := d.newInteractivePIDRequest(registeredIssuer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, err := d.interactivePresentationRequest(pidRequest, registeredIssuer, registeredIdentityCheck)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jar, _ := request["request"].(string)
+	claims := signedRequestClaims(t, jar)
+	if claims["response_mode"] != "ia_post.jwt" {
+		t.Errorf("response_mode = %v, want ia_post.jwt", claims["response_mode"])
+	}
+	metadata, _ := claims["client_metadata"].(map[string]any)
+	jwks, _ := metadata["jwks"].(map[string]any)
+	if keys, _ := jwks["keys"].([]any); len(keys) != 1 {
+		t.Errorf("client_metadata = %v, want one encryption key", metadata)
+	}
+}
+
 // The query's aki must match the issued credential's AuthorityKeyId so the wallet can
 // select a credential trusted by this issuer.
 func TestInteractiveRequestPinsTheIssuerCA(t *testing.T) {
@@ -711,7 +784,11 @@ func TestInteractiveRequestPinsTheIssuerCA(t *testing.T) {
 		t.Errorf("a credential issued under this CA carries aki %q, but the request pins %q", got, aki)
 	}
 
-	request, err := d.interactivePresentationRequest(d.newInteractivePIDRequest(registeredIssuer), registeredIssuer, registeredIdentityCheck)
+	pidRequest, err := d.newInteractivePIDRequest(registeredIssuer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, err := d.interactivePresentationRequest(pidRequest, registeredIssuer, registeredIdentityCheck)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -770,17 +847,14 @@ func TestInteractiveAuthorizationVerifiesThePresentation(t *testing.T) {
 
 	continueWith := func(t *testing.T, session, presentation string) *httptest.ResponseRecorder {
 		t.Helper()
-		vpToken, err := json.Marshal(map[string]any{"vp_token": map[string]any{"pid": []string{presentation}}})
-		if err != nil {
-			t.Fatalf("encoding openid4vp_response: %v", err)
-		}
+		vpToken := encryptedPresentationResponse(t, d, session, map[string]any{"vp_token": map[string]any{"pid": []string{presentation}}})
 		return postAuthorizationChallenge(t, d, map[string]string{
 			"OAuth-Client-Attestation":     provider.attest(t, "http://wallet.example", clientKey),
 			"OAuth-Client-Attestation-PoP": attestationPoP(t, clientKey, demoIssuerID),
 			"DPoP":                         dpopProof(t, clientKey, "POST", demoIssuerID+challengePath),
 		}, url.Values{
 			"auth_session":       {session},
-			"openid4vp_response": {string(vpToken)},
+			"openid4vp_response": {vpToken},
 		})
 	}
 
@@ -814,6 +888,22 @@ func TestInteractiveAuthorizationVerifiesThePresentation(t *testing.T) {
 		}
 		session, nonce := startInteractiveSession(t, d, provider, clientKey, issuerState)
 		refused(t, continueWith(t, session, presentCredential(t, otherKey, credential, audience, nonce)))
+	})
+
+	t.Run("an unencrypted presentation is refused", func(t *testing.T) {
+		session, nonce := startInteractiveSession(t, d, provider, clientKey, issuerState)
+		plain, err := json.Marshal(map[string]any{"vp_token": map[string]any{"pid": []string{presentCredential(t, holderKey, credential, audience, nonce)}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		rec := postAuthorizationChallenge(t, d, map[string]string{
+			"OAuth-Client-Attestation":     provider.attest(t, "http://wallet.example", clientKey),
+			"OAuth-Client-Attestation-PoP": attestationPoP(t, clientKey, demoIssuerID),
+			"DPoP":                         dpopProof(t, clientKey, "POST", demoIssuerID+challengePath),
+		}, url.Values{"auth_session": {session}, "openid4vp_response": {string(plain)}})
+		if rec.Code != http.StatusBadRequest || strings.Contains(rec.Body.String(), "authorization_code") {
+			t.Fatalf("status = %d (%s), want 400 without a code", rec.Code, rec.Body.String())
+		}
 	})
 
 	t.Run("a presentation passing every check gets the code", func(t *testing.T) {
@@ -883,18 +973,15 @@ func TestAnInteractiveSessionIsBoundAndSingleUse(t *testing.T) {
 	}
 	credential := signPID(t, d, holderKey)
 	session, nonce := startInteractiveSession(t, d, provider, clientKey, issuerState)
-	vpToken, err := json.Marshal(map[string]any{"vp_token": map[string]any{"pid": []string{
+	vpToken := encryptedPresentationResponse(t, d, session, map[string]any{"vp_token": map[string]any{"pid": []string{
 		presentCredential(t, holderKey, credential, "ia:"+d.challengeEndpoint(registeredIssuer), nonce),
 	}}})
-	if err != nil {
-		t.Fatal(err)
-	}
 	continueWith := func(dpopKey *ecdsa.PrivateKey) *httptest.ResponseRecorder {
 		return postAuthorizationChallenge(t, d, map[string]string{
 			"OAuth-Client-Attestation":     provider.attest(t, "http://wallet.example", clientKey),
 			"OAuth-Client-Attestation-PoP": attestationPoP(t, clientKey, demoIssuerID),
 			"DPoP":                         dpopProof(t, dpopKey, "POST", demoIssuerID+challengePath),
-		}, url.Values{"auth_session": {session}, "openid4vp_response": {string(vpToken)}})
+		}, url.Values{"auth_session": {session}, "openid4vp_response": {vpToken}})
 	}
 
 	if rec := continueWith(otherKey); rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "invalid_dpop_proof") {

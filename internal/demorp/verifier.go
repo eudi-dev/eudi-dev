@@ -910,8 +910,7 @@ func checkPresentationAudience(req *requestState, aud string) error {
 // Appendix A.2.5.
 func (d *DemoRP) rebuildSessionTranscript(req *requestState) ([]byte, error) {
 	if req.interactiveEndpoint != "" {
-		// ia_post: the response is unencrypted, so the third element is null.
-		return mdoc.OID4VCIIAESessionTranscript(req.interactiveEndpoint, req.nonce, nil)
+		return mdoc.OID4VCIIAESessionTranscript(req.interactiveEndpoint, req.nonce, encryptionJWKThumbprint(req.encKey))
 	}
 	if req.dcAPIOrigin != "" {
 		return mdoc.OID4VPDCAPISessionTranscript(req.dcAPIOrigin, req.nonce, encryptionJWKThumbprint(req.encKey))
@@ -1115,30 +1114,11 @@ func authorizationResponse(req *requestState, form url.Values) (map[string]any, 
 	params := map[string]any{}
 	switch encrypted := strings.TrimSpace(form.Get("response")); {
 	case encrypted != "":
-		if req.encKey == nil {
-			return nil, fmt.Errorf("this request has no response encryption key")
-		}
-		header, err := jwe.ParseHeader(encrypted)
+		decrypted, err := decryptAuthorizationResponse(req, encrypted)
 		if err != nil {
-			return nil, fmt.Errorf("reading the response header: %w", err)
+			return nil, err
 		}
-		// OpenID4VP 1.0 §8.3: "The JWE enc content encryption algorithm used
-		// is obtained from the encrypted_response_enc_values_supported
-		// parameter of client metadata".
-		if !slices.Contains(responseEncValues, header.Enc) {
-			return nil, fmt.Errorf("the response is encrypted with %s, but the request offered %s", header.Enc, strings.Join(responseEncValues, " and "))
-		}
-		ecdhKey, err := req.encKey.ECDH()
-		if err != nil {
-			return nil, fmt.Errorf("converting the response encryption key: %w", err)
-		}
-		plaintext, err := jwe.Decrypt(encrypted, ecdhKey)
-		if err != nil {
-			return nil, fmt.Errorf("decrypting the response: %w", err)
-		}
-		if err := json.Unmarshal(plaintext, &params); err != nil {
-			return nil, fmt.Errorf("parsing the decrypted response: %w", err)
-		}
+		params = decrypted
 	case form.Get("error") != "":
 		for _, name := range []string{"error", "error_description", "state"} {
 			if value := form.Get(name); value != "" {
@@ -1152,6 +1132,37 @@ func authorizationResponse(req *requestState, form url.Values) (map[string]any, 
 	// returns the response, and state isn't a parameter (Appendix A.2).
 	if state, _ := params["state"].(string); req.dcAPIOrigin == "" && state != req.id {
 		return nil, fmt.Errorf("the response is for a different request")
+	}
+	return params, nil
+}
+
+// decryptAuthorizationResponse decrypts a response JWE with the key of the
+// request.
+func decryptAuthorizationResponse(req *requestState, encrypted string) (map[string]any, error) {
+	if req.encKey == nil {
+		return nil, fmt.Errorf("this request has no response encryption key")
+	}
+	header, err := jwe.ParseHeader(encrypted)
+	if err != nil {
+		return nil, fmt.Errorf("reading the response header: %w", err)
+	}
+	// OpenID4VP 1.0 §8.3: "The JWE enc content encryption algorithm used is
+	// obtained from the encrypted_response_enc_values_supported parameter of
+	// client metadata".
+	if !slices.Contains(responseEncValues, header.Enc) {
+		return nil, fmt.Errorf("the response is encrypted with %s, but the request offered %s", header.Enc, strings.Join(responseEncValues, " and "))
+	}
+	ecdhKey, err := req.encKey.ECDH()
+	if err != nil {
+		return nil, fmt.Errorf("converting the response encryption key: %w", err)
+	}
+	plaintext, err := jwe.Decrypt(encrypted, ecdhKey)
+	if err != nil {
+		return nil, fmt.Errorf("decrypting the response: %w", err)
+	}
+	var params map[string]any
+	if err := json.Unmarshal(plaintext, &params); err != nil {
+		return nil, fmt.Errorf("parsing the decrypted response: %w", err)
 	}
 	return params, nil
 }

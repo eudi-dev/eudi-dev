@@ -15,6 +15,9 @@
 package demorp
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -158,7 +161,11 @@ func (d *DemoRP) startInteractiveAuthorization(w http.ResponseWriter, r *http.Re
 	// The challenge response carries the code, so no redirect_uri belongs to
 	// it, and the token request has none (RFC 6749 §4.1.3).
 	grant.redirectURI, grant.state = "", ""
-	request := d.newInteractivePIDRequest(grant.settings.issuer)
+	request, err := d.newInteractivePIDRequest(grant.settings.issuer)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, oauthError("server_error", err.Error()))
+		return
+	}
 	session := &interactiveSession{
 		id:        newAuthSession(),
 		authGrant: grant,
@@ -198,6 +205,18 @@ func (d *DemoRP) continueInteractiveAuthorization(w http.ResponseWriter, r *http
 	var response map[string]any
 	if err := json.Unmarshal([]byte(r.PostFormValue("openid4vp_response")), &response); err != nil {
 		writeJSON(w, http.StatusBadRequest, oauthError("invalid_request", "openid4vp_response is not a JSON object: "+err.Error()))
+		return
+	}
+	// OpenID4VP 1.0 §8.3.1 lets a wallet send an error response unencrypted.
+	if encrypted, _ := response["response"].(string); encrypted != "" {
+		decrypted, err := decryptAuthorizationResponse(session.request, encrypted)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, oauthError("invalid_request", err.Error()))
+			return
+		}
+		response = decrypted
+	} else if response["error"] == nil {
+		writeJSON(w, http.StatusBadRequest, oauthError("invalid_request", "openid4vp_response carried no encrypted response, but the request asked for ia_post.jwt"))
 		return
 	}
 	// §6.2.1.1: a wallet that cannot satisfy the request answers with an
@@ -319,10 +338,14 @@ func (d *DemoRP) redirectChallengeToWeb(w http.ResponseWriter, r *http.Request, 
 // Authorization Challenge Endpoint. verifyPresentation accepts only
 // credentials under the issuer CA, so trusted_authorities lists that CA and
 // the wallet can pick a matching credential.
-func (d *DemoRP) newInteractivePIDRequest(identity *issuerIdentity) *requestState {
+func (d *DemoRP) newInteractivePIDRequest(identity *issuerIdentity) (*requestState, error) {
 	var authorities []map[string]any
 	if aki := d.trustAnchorAKI(); aki != "" {
 		authorities = []map[string]any{{"type": "aki", "values": []string{aki}}}
+	}
+	encKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, fmt.Errorf("generating the response encryption key: %w", err)
 	}
 	return &requestState{
 		id: randToken(),
@@ -335,17 +358,20 @@ func (d *DemoRP) newInteractivePIDRequest(identity *issuerIdentity) *requestStat
 		nonce:               randToken(),
 		clientID:            d.issuerURL(identity),
 		interactiveEndpoint: d.challengeEndpoint(identity),
+		encKey:              encKey,
 		status:              "pending",
 		expires:             time.Now().Add(entryTTL),
-	}
+	}, nil
 }
 
 // OpenID4VCI 1.1 §6.2.1.1 uses the Digital Credentials API request form. The
-// request is signed with an x509_hash client ID.
+// request is signed with an x509_hash client ID. ARF OIA_09 requires an
+// encrypted response, so it asks for ia_post.jwt.
 func (d *DemoRP) interactivePresentationRequest(req *requestState, identity *issuerIdentity, check *identityCheck) (map[string]any, error) {
 	claims := map[string]any{
 		"response_type":    "vp_token",
-		"response_mode":    "ia_post",
+		"response_mode":    "ia_post.jwt",
+		"client_metadata":  responseEncryptionMetadata(req.encKey),
 		"nonce":            req.nonce,
 		"expected_origins": []string{originOf(d.challengeEndpoint(identity))},
 		"dcql_query":       req.dcqlQuery(),
