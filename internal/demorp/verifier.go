@@ -525,6 +525,9 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 
 func (d *DemoRP) requestSigningMaterial(body createRequestBody) (*ecdsa.PrivateKey, []*x509.Certificate, error) {
 	if strings.TrimSpace(body.SigningKey) == "" {
+		if d.configuredVerifier != nil {
+			return d.configuredVerifier.Key, d.configuredVerifier.Chain, nil
+		}
 		key, chain, err := d.wallet.DemoVerifierAccessSigningMaterial()
 		if err == nil && (key == nil || len(chain) == 0) {
 			err = fmt.Errorf("the wallet has no access certificate")
@@ -541,6 +544,9 @@ func (d *DemoRP) requestSigningMaterial(body createRequestBody) (*ecdsa.PrivateK
 func (d *DemoRP) verifierInfo(body createRequestBody) ([]any, error) {
 	if strings.TrimSpace(body.SigningKey) != "" || body.Identity == "unregistered" {
 		return body.VerifierInfo, nil
+	}
+	if d.configuredVerifier != nil {
+		return d.configuredVerifier.Info, nil
 	}
 	return d.wallet.DemoVerifierInfo()
 }

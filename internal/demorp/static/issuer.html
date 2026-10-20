@@ -75,7 +75,7 @@
     }
   </style>
 </head>
-<body>
+<body{{if .ConfiguredIssuer}} data-configured-identity="true"{{end}}>
   <div class="card">
     <div class="page-header">
       <img src="../logo.svg" alt="" class="page-logo" id="header-logo">

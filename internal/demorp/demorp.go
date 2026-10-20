@@ -90,6 +90,10 @@ type DemoRP struct {
 	// offerIssuers holds the identities created for one offer, keyed by
 	// their path below /issuer.
 	offerIssuers map[string]*issuerIdentity
+	// configuredIssuer and configuredVerifier replace the registered identities
+	// of the demo issuer and the demo verifier when set.
+	configuredIssuer   *ConfiguredIdentity
+	configuredVerifier *ConfiguredIdentity
 	// nonceKey authenticates the Nonce Endpoint challenges. A wallet can use
 	// one nonce for a whole batch of proofs.
 	nonceKey []byte

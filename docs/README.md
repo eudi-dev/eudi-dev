@@ -16,7 +16,7 @@ Guides for using eudi-dev as a wallet, issuer, verifier and CA.
 - [Browser extension](wallet/browser-extension.md): Digital Credentials API in Chrome, `wallet browser`, what a test covers, the wallet interface
 - [Issuance into the wallet](wallet/issuing.md): sign-in, deferred issuance, renewing, VCI feature level, wallet attestation, interactive authorization
 - [Wallet HTTP API](wallet/http-api.md): the full REST API and remote control
-- [Demo issuer and verifier](wallet/demo-issuer.md): transaction codes, key proof types
+- [Demo issuer and verifier](wallet/demo-issuer.md): your own access certificate, transaction codes, key proof types
 - [Registrar](wallet/registrar.md): register verifiers and issuers, issue their certificates, keep a catalogue of attestations, and see what the wallet checks
 - [Registrar API walkthrough](wallet/registrar-api.md): register a verifier and an issuer with curl and use their certificates against the wallet
 - [UI automation](ui-automation.md): drive the wallet UI, the demo issuer and the demo verifier from Playwright or Selenium

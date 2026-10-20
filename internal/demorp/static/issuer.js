@@ -84,6 +84,13 @@ const IDENTITY_HINTS = {
   own: "The metadata is signed with your key and access certificate and carries your issuer_info. The offer gets an issuer identifier of its own.",
 };
 
+// A server started with --demo-issuer-signing-key signs with that certificate.
+if (document.body.dataset.configuredIdentity) {
+  IDENTITY_HINTS.registered = "The metadata is signed with the access certificate the server was started with and carries the issuer_info given with it.";
+  IDENTITY_HINTS.unregistered = "The metadata is signed with the access certificate the server was started with and has no issuer_info. A wallet with ARF checks warns about the missing registration certificate (RPRC_22a).";
+  document.getElementById("identity-hint").textContent = IDENTITY_HINTS.registered;
+}
+
 const IDENTITY_CHECK_HINTS = {
   registered: "The PID request is signed with the demo issuer's access certificate and carries the registration certificate of the identity check in verifier_info.",
   unregistered: "The PID request has no verifier_info. A wallet with ARF checks warns about the missing registration certificate (RPRC_19).",

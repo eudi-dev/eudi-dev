@@ -211,6 +211,8 @@ On the demo issuer page you choose how the issuer identifies itself:
 
 A wallet fetches the metadata from the issuer identifier. The metadata request doesn't identify the offer, so each choice has its own issuer identifier. The registered issuer is `/issuer`, the unregistered one is `/issuer/unregistered` and the unsigned one is `/issuer/unsigned`. Each offer with own certificates gets an identifier under `/issuer/own/`. Visitors of a shared demo can pick any of them without changing the issuer for anyone else. An offer and its tokens work only at the issuer identifier in the offer, and the issued credentials have it as their issuer. An identifier under `/issuer/own/` expires ten minutes after its last request. An offer whose options change the metadata, such as "jwt only" key proofs, gets an identifier under `/issuer/variant/` (see [offer options](demo-issuer.md#offer-options)).
 
+The wallet can also start with the access certificate of another ecosystem in place of the registered identity (see [your own access certificate](demo-issuer.md#your-own-access-certificate)).
+
 The identity buttons are `identity-registered`, `identity-unregistered`, `identity-unsigned` and `identity-own`. In **Own certificates** mode you paste into `signing-key` and `issuer-info`. The offer API takes `identity=unregistered`, `identity=unsigned` or `identity=own` as a query parameter. With `own` the request body is a JSON object with `signing_key` and the optional `issuer_info`.
 
 The offer shows the wallet URL and the `openid-credential-offer://` URI, each with a QR code. The offer API returns the QR codes as SVG in `wallet_url_qr` and `scheme_uri_qr`.

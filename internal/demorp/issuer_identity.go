@@ -122,6 +122,9 @@ func (d *DemoRP) requestIssuerURL(r *http.Request) string {
 func (d *DemoRP) issuerInfo(id *issuerIdentity) ([]any, error) {
 	switch id.kind {
 	case identityRegistered:
+		if d.configuredIssuer != nil {
+			return d.configuredIssuer.Info, nil
+		}
 		return d.wallet.DemoIssuerInfo()
 	case identityOwn:
 		return id.issuerInfo, nil
@@ -134,6 +137,9 @@ func (d *DemoRP) issuerInfo(id *issuerIdentity) ([]any, error) {
 func (d *DemoRP) accessSigningMaterial(id *issuerIdentity) (*ecdsa.PrivateKey, []*x509.Certificate, error) {
 	if id.kind == identityOwn {
 		return id.signingKey, id.chain, nil
+	}
+	if d.configuredIssuer != nil {
+		return d.configuredIssuer.Key, d.configuredIssuer.Chain, nil
 	}
 	return d.wallet.AccessSigningMaterial()
 }

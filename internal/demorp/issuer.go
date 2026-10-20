@@ -199,6 +199,9 @@ func (d *DemoRP) serveStatic(name string) http.HandlerFunc {
 type pageData struct {
 	IssuerName, VerifierName string
 	NationalPIDs             []nationalPID
+	// ConfiguredIssuer and ConfiguredVerifier report an identity given at
+	// startup, so the pages describe that one as registered.
+	ConfiguredIssuer, ConfiguredVerifier bool
 }
 
 // nationalPID is a PID type that extends the EUDI PID. The verifier page
@@ -231,7 +234,13 @@ func (d *DemoRP) servePage(name string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-cache")
-		_ = page.Execute(w, pageData{IssuerName: wallet.DemoIssuerName, VerifierName: wallet.DemoVerifierName, NationalPIDs: d.nationalPIDs()})
+		_ = page.Execute(w, pageData{
+			IssuerName:         wallet.DemoIssuerName,
+			VerifierName:       wallet.DemoVerifierName,
+			NationalPIDs:       d.nationalPIDs(),
+			ConfiguredIssuer:   d.configuredIssuer != nil,
+			ConfiguredVerifier: d.configuredVerifier != nil,
+		})
 	}
 }
 

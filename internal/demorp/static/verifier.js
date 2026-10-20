@@ -701,6 +701,11 @@ const IDENTITY_HINTS = {
   own: "Signed with your key and access certificate.",
   unsigned: "Needs a signed request object (x509_hash or x509_san_dns).",
 };
+// A server started with --demo-verifier-signing-key signs with that certificate.
+if (document.body.dataset.configuredIdentity) {
+  IDENTITY_HINTS.registered = "Signed with the access certificate the server was started with and sent with the verifier_info given with it.";
+  IDENTITY_HINTS.unregistered = "Signed with the access certificate the server was started with. No registration certificate. A wallet with ARF checks reports RPRC_19.";
+}
 let identity = "registered";
 // chosenIdentity is the user's choice. An unsigned request shows
 // "unregistered" without forgetting it.

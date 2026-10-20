@@ -2,6 +2,27 @@
 
 `wallet serve` includes a demo issuer at `/issuer/` and a demo verifier at `/verifier/`. Their registrations and identities are described in [demo issuer and verifier](registrar.md#demo-issuer-and-verifier). How the issuer works as an authorization server is in [public demo hosting](../public-demo.md#demo-issuer-as-an-authorization-server).
 
+## Your own access certificate
+
+By default the demo issuer and the demo verifier sign with access certificates from the wallet's registrar. To test a wallet that trusts another ecosystem, such as a member state sandbox, start the server with that ecosystem's material:
+
+```bash
+eudi wallet serve --base-url https://wallet-test.ngrok.dev \
+  --demo-issuer-signing-key sandbox.pem --demo-issuer-info sandbox-issuer-info.json \
+  --demo-verifier-signing-key sandbox.pem --demo-verifier-registration-cert sandbox-rc.jwt
+```
+
+| Flag | Content |
+|---|---|
+| `--demo-issuer-signing-key`, `--demo-verifier-signing-key` | PEM file with an EC private key and its access certificate chain, leaf first |
+| `--demo-issuer-info` | JSON file with the `issuer_info` array |
+| `--demo-verifier-info` | JSON file with the `verifier_info` array |
+| `--demo-issuer-registration-cert`, `--demo-verifier-registration-cert` | File with a registration certificate as a compact JWT. It becomes the only entry of `issuer_info` or `verifier_info` |
+
+All flags are optional. An info file or a registration certificate needs the signing key of the same role. Use the info file or the registration certificate, not both. Without either, the metadata or the request carries no registration certificate.
+
+The material replaces the **Registered** identity on the issuer and verifier pages. **Not registered** signs with the same key and leaves out the registration certificate. **Own certificates** still takes the key pasted on the page. The identity check during interactive authorization keeps the demo issuer's eudi-dev certificate.
+
 ## Offer options
 
 Besides the identity, an offer sets how the issuer handles it:

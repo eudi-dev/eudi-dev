@@ -44,6 +44,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/netaddr"
 	"github.com/eudi-dev/eudi-dev/v3/internal/news"
 	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
+	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
 	"github.com/eudi-dev/eudi-dev/v3/internal/remote"
 	"github.com/eudi-dev/eudi-dev/v3/internal/serverlog"
 	"github.com/eudi-dev/eudi-dev/v3/internal/storage"
@@ -85,6 +86,8 @@ type walletServeOptions struct {
 	Detached              bool
 	ServeTLS              bool
 	DemoVerifierIssuerCAs []string
+	DemoIssuerIdentity    demoIdentityFlags
+	DemoVerifierIdentity  demoIdentityFlags
 	LogFormat             string
 }
 
@@ -165,6 +168,8 @@ Every flag can also be set as EUDI_DEV_<FLAG>, such as EUDI_DEV_BASE_URL for --b
 	cmd.Flags().StringVar(&opts.NewsFile, "news-file", "", "HTML snippet with news for visitors of a public demo, shown once in a popup and again from the footer link. Requires --demo")
 	cmd.Flags().BoolVar(&opts.ServeTLS, "serve-tls", false, "Serve an https --base-url with the wallet's own TLS certificate instead of an external TLS terminator. The HTTP port stays open too")
 	cmd.Flags().StringArrayVar(&opts.DemoVerifierIssuerCAs, "demo-verifier-issuer-ca", nil, "PEM file with extra issuer CA certificates for the demo verifier, in addition to the providers on the wallet's trusted lists (repeatable). Use it for credentials issued outside this wallet, such as in an OIDF conformance suite run")
+	addDemoIdentityFlags(cmd, &opts.DemoIssuerIdentity, "issuer", "issuer_info", "metadata")
+	addDemoIdentityFlags(cmd, &opts.DemoVerifierIdentity, "verifier", "verifier_info", "request objects")
 	cmd.Flags().StringVar(&opts.LogFormat, "log-format", "", "Console output format: 'text' (the default) or 'json' (one JSON record per line on stdout, for log collectors)")
 	cmd.Flags().BoolVarP(&opts.Detached, "detached", "d", false, "Run the server as a background process and return once it responds. Output goes to <wallet-dir>/serve.log")
 	return cmd, &opts
@@ -484,6 +489,14 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	verifierTrustAnchors, err := loadVerifierTrustAnchors(opts.DemoVerifierIssuerCAs)
 	if err != nil {
 		return fmt.Errorf("--demo-verifier-issuer-ca: %w", err)
+	}
+	issuerIdentity, err := opts.DemoIssuerIdentity.load("issuer", registrar.IssuerInfoValue)
+	if err != nil {
+		return err
+	}
+	verifierIdentity, err := opts.DemoVerifierIdentity.load("verifier", registrar.VerifierInfoValue)
+	if err != nil {
+		return err
 	}
 	store, err := openStore()
 	if err != nil {
@@ -824,6 +837,12 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	demoRP.SetClientAuthMode(clientAuthMode)
 	demoRP.SetKeyAttestationMode(keyAttestationMode)
 	demoRP.SetVerifierTrustAnchors(verifierTrustAnchors)
+	if issuerIdentity != nil {
+		demoRP.SetIssuerIdentity(issuerIdentity)
+	}
+	if verifierIdentity != nil {
+		demoRP.SetVerifierIdentity(verifierIdentity)
+	}
 	srv.Mount("/issuer", demoRP.IssuerHandler())
 	srv.Mount("/verifier", demoRP.VerifierHandler())
 	demoRP.HandleWellKnown(srv.Handle)
