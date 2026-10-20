@@ -92,20 +92,22 @@ func (d *DemoRP) keyAttestationRequirement(cfg templateConfiguration) map[string
 // proof type always carries a key attestation, so it always carries the
 // requirement. The jwt proof type carries it only when the issuer requires a
 // key attestation. OpenID4VCI 1.0 §12.2.4: "If the Credential Issuer does not
-// require a key attestation, this parameter MUST NOT be present".
-func (d *DemoRP) proofTypesSupported(cfg templateConfiguration) map[string]any {
+// require a key attestation, this parameter MUST NOT be present". An
+// identity created for one offer can list the jwt proof type alone.
+func (d *DemoRP) proofTypesSupported(cfg templateConfiguration, id *issuerIdentity) map[string]any {
 	requirement := d.keyAttestationRequirement(cfg)
 	jwtProof := map[string]any{"proof_signing_alg_values_supported": walletSigningAlgs}
 	if d.keyAttestationRequired() {
 		jwtProof["key_attestations_required"] = requirement
 	}
-	return map[string]any{
-		"jwt": jwtProof,
-		"attestation": map[string]any{
+	proofTypes := map[string]any{"jwt": jwtProof}
+	if !id.jwtProofOnly {
+		proofTypes["attestation"] = map[string]any{
 			"proof_signing_alg_values_supported": walletSigningAlgs,
 			"key_attestations_required":          requirement,
-		},
+		}
 	}
+	return proofTypes
 }
 
 // keyAttestation is a verified key attestation of OpenID4VCI 1.0 Appendix D.1.
@@ -240,16 +242,16 @@ func (d *DemoRP) checkKeyAttestations(proofs []boundKeys, cfg templateConfigurat
 // present in the attested_keys array", and OpenID4VCI 1.0 Appendix F.1 and
 // F.3 say the same with SHOULD. Without one, the offer's batch size decides.
 // The batch_size of the metadata caps both.
-func issuedKeys(proofs []boundKeys, batchSize int) []*ecdsa.PublicKey {
+func issuedKeys(proofs []boundKeys, batchSize, maxBatch int) []*ecdsa.PublicKey {
 	var keys []*ecdsa.PublicKey
 	attested := false
 	for _, proof := range proofs {
 		keys = append(keys, proof.keys...)
 		attested = attested || proof.attestation != nil
 	}
-	want := max(batchSize, 1)
+	want := min(max(batchSize, 1), maxBatch)
 	if attested {
-		want = demoBatchSize
+		want = maxBatch
 	}
 	if len(keys) > want {
 		keys = keys[:want]

@@ -157,6 +157,14 @@
       </div>
     </div>
     <p class="grant-hint" id="batch-hint">One credential.</p>
+    <div class="grant-row" id="proof-types-row">
+      <span class="grant-label" id="proof-types-label">Key proofs</span>
+      <div class="toggle" id="proof-types-toggle" role="radiogroup" aria-label="Key proof types in the metadata">
+        <button type="button" class="toggle-option selected" id="proof-types-all" data-proof-types="" role="radio" aria-checked="true">jwt and attestation</button>
+        <button type="button" class="toggle-option" id="proof-types-jwt" data-proof-types="jwt" role="radio" aria-checked="false">jwt only</button>
+      </div>
+    </div>
+    <p class="grant-hint" id="proof-types-hint">The wallet chooses. The attestation proof type needs a key attestation from the wallet provider.</p>
     <div class="grant-row" id="identity-row">
       <span class="grant-label" id="identity-label">Issuer identity</span>
       <div class="toggle" id="identity-toggle" role="radiogroup" aria-label="Issuer identity">

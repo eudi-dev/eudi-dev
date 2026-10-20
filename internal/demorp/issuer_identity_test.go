@@ -216,6 +216,59 @@ func TestAnOwnIdentityCarriesTheSuppliedCertificates(t *testing.T) {
 	}
 }
 
+// An own identity serves one offer, so its metadata advertises the copies of
+// that offer. A single copy leaves out batch_credential_issuance, because
+// OpenID4VCI 1.0 §12.2.4 requires a batch_size of at least 2.
+func TestAnOwnIdentityAdvertisesTheBatchSizeOfItsOffer(t *testing.T) {
+	w := newIssuanceWallet(t)
+	_, ts := serveDemoStack(t, w)
+	signingKey, _, issuerInfo := registerOwnIssuer(t, w)
+	body, _ := json.Marshal(ownIdentityBody{SigningKey: signingKey, IssuerInfo: issuerInfo})
+
+	for _, tt := range []struct {
+		batch string
+		want  any
+	}{
+		{batch: "", want: nil},
+		{batch: "3", want: map[string]any{"batch_size": float64(3)}},
+	} {
+		created := postJSONTo(t, ts.URL+"/issuer/api/offers?identity=own&batch="+tt.batch, string(body))
+		issuer, _ := created["issuer"].(string)
+		metadata := getJSONFrom(t, ts.URL+"/.well-known/openid-credential-issuer/issuer/"+strings.TrimPrefix(issuer, ts.URL+"/issuer/"))
+		if got := metadata["batch_credential_issuance"]; !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("batch=%q: batch_credential_issuance = %v, want %v", tt.batch, got, tt.want)
+		}
+	}
+	if metadata := getJSONFrom(t, ts.URL+"/.well-known/openid-credential-issuer/issuer"); metadata["batch_credential_issuance"] == nil {
+		t.Error("the registered identity must advertise batch issuance")
+	}
+}
+
+func TestAnOwnIdentityCanListOnlyTheJWTProofType(t *testing.T) {
+	w := newIssuanceWallet(t)
+	_, ts := serveDemoStack(t, w)
+	signingKey, _, issuerInfo := registerOwnIssuer(t, w)
+	body, _ := json.Marshal(ownIdentityBody{SigningKey: signingKey, IssuerInfo: issuerInfo})
+
+	created := postJSONTo(t, ts.URL+"/issuer/api/offers?identity=own&proof_types=jwt", string(body))
+	issuer, _ := created["issuer"].(string)
+	metadata := getJSONFrom(t, ts.URL+"/.well-known/openid-credential-issuer/issuer/"+strings.TrimPrefix(issuer, ts.URL+"/issuer/"))
+	configurations, _ := metadata["credential_configurations_supported"].(map[string]any)
+	ticket, _ := configurations[ticketConfigurationID].(map[string]any)
+	proofTypes, _ := ticket["proof_types_supported"].(map[string]any)
+	if _, jwt := proofTypes["jwt"]; !jwt || len(proofTypes) != 1 {
+		t.Fatalf("proof_types_supported = %v, want jwt alone", proofTypes)
+	}
+
+	result, err := w.ProcessCredentialOffer(created["scheme_uri"].(string))
+	if err != nil {
+		t.Fatalf("issuance failed: %v", err)
+	}
+	if result.Issuer != issuer {
+		t.Errorf("issued by %s, want %s", result.Issuer, issuer)
+	}
+}
+
 // The identity check has its own identity, like the demo verifier. The
 // registered one carries the registration certificate of the identity check,
 // and an own one signs with the supplied key and sends the supplied
@@ -226,7 +279,7 @@ func TestTheIdentityCheckHasItsOwnIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	signingKey, accessLeaf, issuerInfo := registerOwnIssuer(t, w)
-	ownIssuer, err := d.newOwnIssuer(ownIdentityBody{SigningKey: signingKey, IssuerInfo: issuerInfo})
+	ownIssuer, err := d.newOwnIssuer(ownIdentityBody{SigningKey: signingKey, IssuerInfo: issuerInfo}, offerIssuerOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -498,5 +551,36 @@ func TestAnOfferRecordsItsIdentityCheck(t *testing.T) {
 	}
 	if offer.issuer != registeredIssuer {
 		t.Errorf("issuer identity %s, want the registered one", offer.issuer.kind)
+	}
+}
+
+// A shared identity serves one metadata document, so an offer that changes it
+// gets an issuer identifier of its own that presents itself the same way.
+func TestAJWTOnlyOfferGetsAVariantOfItsIdentity(t *testing.T) {
+	w := newIssuanceWallet(t)
+	_, ts := serveDemoStack(t, w)
+
+	created := postJSONTo(t, ts.URL+"/issuer/api/offers?proof_types=jwt", "")
+	issuer, _ := created["issuer"].(string)
+	if !strings.HasPrefix(issuer, ts.URL+"/issuer/variant/") {
+		t.Fatalf("issuer %q, want an identifier below /issuer/variant/", issuer)
+	}
+	wellKnown := ts.URL + "/.well-known/openid-credential-issuer/issuer/" + strings.TrimPrefix(issuer, ts.URL+"/issuer/")
+	metadata := getJSONFrom(t, wellKnown)
+	registered := getJSONFrom(t, ts.URL+"/.well-known/openid-credential-issuer/issuer")
+	if !reflect.DeepEqual(metadata["issuer_info"], registered["issuer_info"]) {
+		t.Error("the variant does not carry the registered issuer_info")
+	}
+	if x5c, want := signedMetadataX5C(t, wellKnown), signedMetadataX5C(t, ts.URL+"/.well-known/openid-credential-issuer/issuer"); len(x5c) == 0 || x5c[0] != want[0] {
+		t.Error("the variant is not signed with the registered access certificate")
+	}
+	configurations, _ := metadata["credential_configurations_supported"].(map[string]any)
+	ticket, _ := configurations[ticketConfigurationID].(map[string]any)
+	if proofTypes, _ := ticket["proof_types_supported"].(map[string]any); len(proofTypes) != 1 || proofTypes["jwt"] == nil {
+		t.Errorf("proof_types_supported = %v, want jwt alone", proofTypes)
+	}
+
+	if _, err := w.ProcessCredentialOffer(created["scheme_uri"].(string)); err != nil {
+		t.Fatalf("issuance failed: %v", err)
 	}
 }

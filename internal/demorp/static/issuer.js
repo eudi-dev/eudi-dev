@@ -1,4 +1,4 @@
-async function createOffer(grant, txCode, status, authorization, deferred, batch, credential, identity, identityCheck) {
+async function createOffer(grant, txCode, status, authorization, deferred, batch, proofTypes, credential, identity, identityCheck) {
   const errEl = document.getElementById("error");
   errEl.hidden = true;
   try {
@@ -20,6 +20,7 @@ async function createOffer(grant, txCode, status, authorization, deferred, batch
     if (status) params.set("status", status);
     if (deferred) params.set("deferred", "true");
     if (batch) params.set("batch", batch);
+    if (proofTypes) params.set("proof_types", proofTypes);
     if (credential) params.set("credential", credential);
     if (grant && authorization) params.set("authorization", authorization);
     const query = params.toString() ? "?" + params.toString() : "";
@@ -69,6 +70,11 @@ const STATUS_HINTS = {
 const DEFERRED_HINTS = {
   "": "Issued at once.",
   true: "Issued a few seconds later at the deferred credential endpoint (OpenID4VCI 1.0 §9).",
+};
+
+const PROOF_TYPES_HINTS = {
+  "": "The wallet chooses. The attestation proof type needs a key attestation from the wallet provider.",
+  jwt: "The metadata lists only the jwt proof type. The offer gets an issuer identifier of its own.",
 };
 
 const IDENTITY_HINTS = {
@@ -128,6 +134,7 @@ let status = "";
 let authorization = "browser";
 let deferred = "";
 let batch = "";
+let proofTypes = "";
 let credential = "";
 let identity = "registered";
 let identityCheck = "registered";
@@ -192,13 +199,16 @@ bindToggle("deferred-toggle", "deferred", "deferred-hint", DEFERRED_HINTS, (valu
 bindToggle("batch-toggle", "batch", "batch-hint", BATCH_HINTS, (value) => {
   batch = value;
 });
+bindToggle("proof-types-toggle", "proofTypes", "proof-types-hint", PROOF_TYPES_HINTS, (value) => {
+  proofTypes = value;
+});
 bindToggle("identity-toggle", "identity", "identity-hint", IDENTITY_HINTS, (value) => {
   identity = value;
   document.getElementById("identity-own-panel").hidden = value !== "own";
 });
 
 document.getElementById("create-btn")
-  .addEventListener("click", () => createOffer(grant, txCode, status, authorization, deferred, batch, credential, identity, identityCheck));
+  .addEventListener("click", () => createOffer(grant, txCode, status, authorization, deferred, batch, proofTypes, credential, identity, identityCheck));
 
 const credentialSelect = document.getElementById("credential-select");
 credentialSelect.addEventListener("change", () => {

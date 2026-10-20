@@ -148,8 +148,6 @@ By default the jwt proof type works without a key attestation, so wallets withou
 
 An offer set to "Deferred" on the issuer page, or created with `POST /issuer/api/offers?deferred=true`, is issued deferred. The credential endpoint answers `202` with a `transaction_id`. The wallet then collects the credentials at `POST /issuer/deferred_credential`. The Credential Issuer metadata advertises this endpoint as `deferred_credential_endpoint`. The credentials are ready after five seconds. Only the access token that started the issuance can collect them.
 
-A pre-authorized offer set to "With" transaction code, or created with `POST /issuer/api/offers?tx_code=true`, needs a six-digit transaction code (OpenID4VCI 1.0 §4.1.1). The issuer page shows the code below the offer. The token endpoint refuses a request without the code or with a wrong one, and the pre-authorized code is then used up.
-
 Sign in with **alice / alice**, the only account. The issuer stores no user data, and the session ends with the flow.
 
 The user signs in when the wallet redeems the offer. The wallet sends the pushed authorization request, and the authorization endpoint asks the user to authenticate. The credential is bound to the account that completed that login.

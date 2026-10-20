@@ -123,13 +123,14 @@ func (d *DemoRP) offeredConfigurationIDs() []string {
 
 // credentialConfigurations lists the template configurations as the
 // credential_configurations_supported entries of OpenID4VCI 1.0 §12.2.4.
-func (d *DemoRP) credentialConfigurations(issuer string) map[string]any {
+func (d *DemoRP) credentialConfigurations(id *issuerIdentity) map[string]any {
+	issuer := d.issuerURL(id)
 	base := map[string]any{}
 	for _, cfg := range d.templateConfigurations() {
 		entry := map[string]any{
 			"format":                cfg.format,
 			"scope":                 cfg.id,
-			"proof_types_supported": d.proofTypesSupported(cfg),
+			"proof_types_supported": d.proofTypesSupported(cfg, id),
 			"credential_signing_alg_values_supported": []string{jws.AlgES256},
 		}
 		switch cfg.format {

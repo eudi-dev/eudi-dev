@@ -348,6 +348,13 @@ test.describe("Demo mode consent visibility", () => {
     await expect(page.locator("#tx-code-row")).toBeHidden();
   });
 
+  test("a jwt only offer gets an issuer identifier of its own", async ({ page }) => {
+    await page.goto(`${BASE}/issuer/`);
+    await page.locator("#proof-types-jwt").click();
+    await page.locator("#create-btn").click();
+    await expect(page.locator("#issuer-id")).toContainText("/issuer/variant/");
+  });
+
   // A failed flow without an owner doesn't open in a browser's next issuance.
   test("an earlier failure does not reopen on the next issuance", async ({ page }) => {
     const dead = "openid-credential-offer://?credential_offer=" + encodeURIComponent(JSON.stringify({

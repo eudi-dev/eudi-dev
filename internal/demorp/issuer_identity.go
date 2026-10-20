@@ -34,9 +34,10 @@ const (
 	identityOwn          = "own"
 	identityUnsigned     = "unsigned"
 
-	unregisteredPath = "/unregistered"
-	unsignedPath     = "/unsigned"
-	ownPathPrefix    = "/own/"
+	unregisteredPath  = "/unregistered"
+	unsignedPath      = "/unsigned"
+	ownPathPrefix     = "/own/"
+	variantPathPrefix = "/variant/"
 )
 
 // issuerIdentity is how the demo issuer presents itself: the access
@@ -51,8 +52,15 @@ type issuerIdentity struct {
 	signingKey *ecdsa.PrivateKey
 	chain      []*x509.Certificate
 	issuerInfo []any
-	// expires moves forward with every request, so an own identity lasts as
-	// long as a wallet uses it.
+	// maxBatch is the batch_size of the identity's metadata. 0 means
+	// demoBatchSize. An identity created for one offer takes the number of
+	// copies of that offer.
+	maxBatch int
+	// jwtProofOnly leaves the attestation proof type out of the metadata and
+	// refuses it at the credential endpoint.
+	jwtProofOnly bool
+	// expires moves forward with every request, so an identity created for
+	// one offer lasts as long as a wallet uses it.
 	expires time.Time
 }
 
@@ -63,6 +71,15 @@ var (
 	// issuer without an access certificate.
 	unsignedIssuer = &issuerIdentity{kind: identityUnsigned, path: unsignedPath}
 )
+
+// batchSize is the most proofs one Credential Request may carry. 1 means
+// the identity does not support batch issuance.
+func (id *issuerIdentity) batchSize() int {
+	if id.maxBatch > 0 {
+		return id.maxBatch
+	}
+	return demoBatchSize
+}
 
 // signsMetadata reports whether the identity serves signed metadata to a
 // wallet that asks for it (OpenID4VCI 1.0 §12.2.3).
@@ -209,27 +226,51 @@ func (d *DemoRP) identityCheckVerifierInfo(check *identityCheck) ([]any, error) 
 	return nil, nil
 }
 
+// offerIssuerOptions are the offer settings that an identity created for one
+// offer publishes in its metadata.
+type offerIssuerOptions struct {
+	batchSize    int
+	jwtProofOnly bool
+}
+
+// variesMetadata reports whether the options change the metadata of a shared
+// identity.
+func (o offerIssuerOptions) variesMetadata() bool {
+	return o.jwtProofOnly
+}
+
 // newOwnIssuer stores an identity with the visitor's access certificate and
 // issuer_info under an identifier of its own.
-func (d *DemoRP) newOwnIssuer(body ownIdentityBody) (*issuerIdentity, error) {
+func (d *DemoRP) newOwnIssuer(body ownIdentityBody, options offerIssuerOptions) (*issuerIdentity, error) {
 	key, chain, err := parseOwnSigningKey("signing_key", body.SigningKey)
 	if err != nil {
 		return nil, err
 	}
-	id := &issuerIdentity{
+	return d.addOfferIssuer(&issuerIdentity{
 		kind:       identityOwn,
 		path:       ownPathPrefix + randToken(),
 		signingKey: key,
 		chain:      chain,
 		issuerInfo: body.IssuerInfo,
-		expires:    time.Now().Add(entryTTL),
-	}
+	}, options), nil
+}
+
+// newVariantIssuer creates an identity for one offer that presents itself
+// like base but publishes the metadata of the offer's options.
+func (d *DemoRP) newVariantIssuer(base *issuerIdentity, options offerIssuerOptions) *issuerIdentity {
+	return d.addOfferIssuer(&issuerIdentity{kind: base.kind, path: variantPathPrefix + randToken()}, options)
+}
+
+func (d *DemoRP) addOfferIssuer(id *issuerIdentity, options offerIssuerOptions) *issuerIdentity {
+	id.maxBatch = max(options.batchSize, 1)
+	id.jwtProofOnly = options.jwtProofOnly
+	id.expires = time.Now().Add(entryTTL)
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.pruneLocked()
-	makeRoom(d.ownIssuers, func(o *issuerIdentity) time.Time { return o.expires })
-	d.ownIssuers[id.path] = id
-	return id, nil
+	makeRoom(d.offerIssuers, func(o *issuerIdentity) time.Time { return o.expires })
+	d.offerIssuers[id.path] = id
+	return id
 }
 
 // identityAt splits a path below /issuer into the identity and the path
@@ -241,18 +282,23 @@ func (d *DemoRP) identityAt(path string) (*issuerIdentity, string, bool) {
 	if rest, ok := cutPathPrefix(path, unsignedPath); ok {
 		return unsignedIssuer, rest, true
 	}
-	tail, ok := strings.CutPrefix(path, ownPathPrefix)
+	prefix := ownPathPrefix
+	tail, ok := strings.CutPrefix(path, prefix)
+	if !ok {
+		prefix = variantPathPrefix
+		tail, ok = strings.CutPrefix(path, prefix)
+	}
 	if !ok {
 		return registeredIssuer, path, true
 	}
 	token, _, _ := strings.Cut(tail, "/")
-	idPath := ownPathPrefix + token
+	idPath := prefix + token
 	rest, _ := cutPathPrefix(path, idPath)
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	id, known := d.ownIssuers[idPath]
+	id, known := d.offerIssuers[idPath]
 	if !known || time.Now().After(id.expires) {
-		delete(d.ownIssuers, idPath)
+		delete(d.offerIssuers, idPath)
 		return nil, "", false
 	}
 	id.expires = time.Now().Add(entryTTL)

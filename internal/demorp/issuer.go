@@ -258,9 +258,6 @@ func (d *DemoRP) handleIssuerMetadata(w http.ResponseWriter, r *http.Request) {
 		// A 1.0 wallet gets its key proof challenge from the Nonce Endpoint
 		// (§7).
 		"nonce_endpoint": issuer + "/nonce",
-		// OpenID4VCI 1.0 §12.2.4: batch_size is "the maximum array size for the
-		// proofs parameter in a Credential Request".
-		"batch_credential_issuance": map[string]any{"batch_size": demoBatchSize},
 		"display": []map[string]any{
 			{
 				"name":   wallet.DemoIssuerName,
@@ -268,7 +265,13 @@ func (d *DemoRP) handleIssuerMetadata(w http.ResponseWriter, r *http.Request) {
 				"logo":   map[string]any{"uri": issuer + "/logo.svg", "alt_text": "eudi-dev logo"},
 			},
 		},
-		"credential_configurations_supported": d.credentialConfigurations(issuer),
+		"credential_configurations_supported": d.credentialConfigurations(id),
+	}
+	// OpenID4VCI 1.0 §12.2.4: batch_size is "the maximum array size for the
+	// proofs parameter in a Credential Request" and at least 2. Without
+	// batch_credential_issuance the issuer does not support batch issuance.
+	if batchSize := id.batchSize(); batchSize > 1 {
+		metadata["batch_credential_issuance"] = map[string]any{"batch_size": batchSize}
 	}
 	metadata["credential_request_encryption"], metadata["credential_response_encryption"] = d.credentialEncryptionMetadata()
 	// Without a registration the metadata has no issuer_info, and a wallet
@@ -412,15 +415,29 @@ func (d *DemoRP) offerIdentities(r *http.Request) (*issuerIdentity, *identityChe
 	if err != nil {
 		return nil, nil, err
 	}
+	options := offerIssuerOptions{batchSize: parseBatchSize(r.URL.Query().Get("batch"))}
+	switch proofTypes := r.URL.Query().Get("proof_types"); proofTypes {
+	case "jwt":
+		options.jwtProofOnly = true
+	case "":
+	default:
+		return nil, nil, fmt.Errorf("proof_types must be %q, not %q", "jwt", proofTypes)
+	}
+	forOffer := func(base *issuerIdentity) (*issuerIdentity, *identityCheck, error) {
+		if options.variesMetadata() {
+			return d.newVariantIssuer(base, options), check, nil
+		}
+		return base, check, nil
+	}
 	switch identity {
 	case "", identityRegistered:
-		return registeredIssuer, check, nil
+		return forOffer(registeredIssuer)
 	case identityUnregistered:
-		return unregisteredIssuer, check, nil
+		return forOffer(unregisteredIssuer)
 	case identityUnsigned:
-		return unsignedIssuer, check, nil
+		return forOffer(unsignedIssuer)
 	case identityOwn:
-		own, err := d.newOwnIssuer(body.ownIdentityBody)
+		own, err := d.newOwnIssuer(body.ownIdentityBody, options)
 		return own, check, err
 	default:
 		return nil, nil, fmt.Errorf("identity must be %q, %q, %q or %q, not %q", identityRegistered, identityUnregistered, identityUnsigned, identityOwn, identity)
@@ -712,10 +729,10 @@ type credentialRequest struct {
 	CredentialResponseEncryption json.RawMessage            `json:"credential_response_encryption"`
 }
 
-// keyProofs returns the proof type and the key proofs of the request. The
-// metadata offers the jwt proof type and the attestation proof type. The error
-// codes are those of OpenID4VCI 1.0 §8.3.1.2.
-func (req credentialRequest) keyProofs() (string, []string, map[string]string) {
+// keyProofs returns the proof type and the key proofs of the request, checked
+// against the metadata of the identity. The error codes are those of
+// OpenID4VCI 1.0 §8.3.1.2.
+func (req credentialRequest) keyProofs(identity *issuerIdentity) (string, []string, map[string]string) {
 	if len(req.Proofs) > 1 {
 		return "", nil, oauthError("invalid_proof", "proofs must contain exactly one proof type")
 	}
@@ -725,6 +742,8 @@ func (req credentialRequest) keyProofs() (string, []string, map[string]string) {
 			return "", nil, oauthError("invalid_proof", fmt.Sprintf("proofs.%s must be an array of strings", proofType))
 		}
 		switch {
+		case proofType == "attestation" && identity.jwtProofOnly:
+			return "", nil, oauthError("invalid_proof", "proof type \"attestation\" is not in proof_types_supported (jwt)")
 		case proofType != "jwt" && proofType != "attestation":
 			return "", nil, oauthError("invalid_proof", fmt.Sprintf("proof type %q is not in proof_types_supported (jwt, attestation)", proofType))
 		case len(proofs) == 0:
@@ -733,9 +752,9 @@ func (req credentialRequest) keyProofs() (string, []string, map[string]string) {
 		// exactly one JWT".
 		case proofType == "attestation" && len(proofs) != 1:
 			return "", nil, oauthError("invalid_proof", "proofs.attestation must contain exactly one key attestation")
-		case len(proofs) > demoBatchSize:
+		case len(proofs) > identity.batchSize():
 			return "", nil, oauthError("invalid_credential_request",
-				fmt.Sprintf("this issuer signs at most %d copies in one request", demoBatchSize))
+				fmt.Sprintf("this issuer signs at most %d copies in one request", identity.batchSize()))
 		}
 		return proofType, proofs, nil
 	}
@@ -773,7 +792,7 @@ func (d *DemoRP) handleCredential(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errResp)
 		return
 	}
-	proofType, proofs, errResp := req.keyProofs()
+	proofType, proofs, errResp := req.keyProofs(granted.issuer)
 	if errResp != nil {
 		writeJSON(w, http.StatusBadRequest, errResp)
 		return
@@ -799,7 +818,7 @@ func (d *DemoRP) handleCredential(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, oauthError(err.code, err.description))
 		return
 	}
-	holderKeys := issuedKeys(verified, granted.batchSize)
+	holderKeys := issuedKeys(verified, granted.batchSize, granted.issuer.batchSize())
 
 	if granted.deferred {
 		writeIssuancePending(w, d.deferIssuance(holderKeys, granted, token), encryption)
