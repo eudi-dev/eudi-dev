@@ -75,3 +75,18 @@ func DecryptCompactJWE(compact string, key *ecdsa.PrivateKey) (string, error) {
 func DecryptRequestObjectJWE(jwe string, key *ecdsa.PrivateKey) (string, error) {
 	return DecryptCompactJWE(jwe, key)
 }
+
+// RequestObjectContentTypeFinding applies RFC 9101 §4, which makes a signed
+// and encrypted Request Object a Nested JWT, and RFC 7519 §5.2, which requires
+// cty "JWT" on a Nested JWT. RFC 7515 §4.1.10 compares it case-insensitively.
+func RequestObjectContentTypeFinding(header jwe.Header) string {
+	cty, _ := header.Raw["cty"].(string)
+	if strings.EqualFold(cty, "JWT") {
+		return ""
+	}
+	const rule = `RFC 9101 §4 makes a signed and encrypted request object a Nested JWT. RFC 7519 §5.2 requires cty "JWT" on a Nested JWT.`
+	if cty == "" {
+		return "The JWE header of the encrypted request object has no cty. " + rule
+	}
+	return fmt.Sprintf("The JWE header of the encrypted request object sets cty to %q. %s", cty, rule)
+}

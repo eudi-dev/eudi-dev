@@ -236,6 +236,13 @@ func (w *Wallet) resolveFetchedRequestObject(fetched *fetchedRequestObject, logF
 		if err != nil {
 			return "", fmt.Errorf("decrypting request object JWE: %w", err)
 		}
+		header, err := jwe.ParseHeader(result)
+		if err != nil {
+			return "", fmt.Errorf("parsing the request object JWE header: %w", err)
+		}
+		if finding := oid4vp.RequestObjectContentTypeFinding(header); finding != "" {
+			w.addProtocolWarning("presentation", "request_object_content_type", finding, nil)
+		}
 		result = decrypted
 	}
 	if !format.IsJWT(result) {

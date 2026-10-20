@@ -357,7 +357,7 @@ func TestMakeFetchRequestURI_POST_Encrypted(t *testing.T) {
 			"wallet_nonce":  walletNonce,
 		})
 
-		jweStr, _, err := jwe.EncryptECDHES([]byte(jwt), pubKey, "verifier-kid", "A128GCM", "", nil, nil)
+		jweStr, _, err := jwe.EncryptECDHES([]byte(jwt), pubKey, "verifier-kid", "A128GCM", "JWT", nil, nil)
 		if err != nil {
 			t.Fatalf("encrypting request object: %v", err)
 		}
@@ -623,5 +623,39 @@ func TestWalletMetadataNamesTheFormatProfileMembers(t *testing.T) {
 		if _, present := profile["alg_values_supported"]; present {
 			t.Errorf("a format profile still carries alg_values_supported, which Appendix B does not define: %v", profile)
 		}
+	}
+}
+
+func TestMakeFetchRequestURI_EncryptedRequestObjectWithoutContentTypeWarns(t *testing.T) {
+	walletKey, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	wallet := &Wallet{RequestEncryptionKey: walletKey}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		jwt := makeTestJWT(map[string]any{"alg": "ES256"}, map[string]any{
+			"client_id":     "test-verifier",
+			"response_type": "vp_token",
+		})
+		jweStr, _, err := jwe.EncryptECDHES([]byte(jwt), &walletKey.PublicKey, "verifier-kid", "A128GCM", "", nil, nil)
+		if err != nil {
+			t.Errorf("encrypting request object: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/oauth-authz-req+jwt")
+		w.Write([]byte(jweStr))
+	}))
+	defer srv.Close()
+
+	result, err := MakeFetchRequestURI(wallet, nil)(srv.URL, "get", "")
+	if err != nil {
+		t.Fatalf("fetch: %v", err)
+	}
+	if !format.IsJWT(result) {
+		t.Fatal("expected the decrypted request object")
+	}
+	entry := findLogEntry(wallet.GetLog(), "request_object_content_type")
+	if entry == nil || entry.Severity != severityWarning || !contains(entry.Detail, "RFC 7519 §5.2") {
+		t.Fatalf("missing cty warning, got %+v", entry)
 	}
 }

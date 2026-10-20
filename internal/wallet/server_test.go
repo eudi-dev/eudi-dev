@@ -2846,7 +2846,7 @@ func TestPresentationFlow_RequestURIMethodPost_Encrypted(t *testing.T) {
 			"wallet_nonce":  walletNonce,
 		})
 
-		jweStr, _, err := jwe.EncryptECDHES([]byte(jwt), pubKey, "kid", "A128GCM", "", nil, nil)
+		jweStr, _, err := jwe.EncryptECDHES([]byte(jwt), pubKey, "kid", "A128GCM", "JWT", nil, nil)
 		if err != nil {
 			t.Fatalf("encrypting request object: %v", err)
 		}

@@ -19,6 +19,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
@@ -37,7 +38,7 @@ func TestDecryptRequestObjectJWE(t *testing.T) {
 		"nonce":         "test-nonce",
 	})
 
-	jweStr, _, err := jwe.EncryptECDHES([]byte(jwt), &walletKey.PublicKey, "test-kid", "A128GCM", "", nil, nil)
+	jweStr, _, err := jwe.EncryptECDHES([]byte(jwt), &walletKey.PublicKey, "test-kid", "A128GCM", "JWT", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,4 +57,28 @@ func makeTestJWT(header, payload map[string]any) string {
 	h, _ := json.Marshal(header)
 	p, _ := json.Marshal(payload)
 	return format.EncodeBase64URL(h) + "." + format.EncodeBase64URL(p) + ".testsig"
+}
+
+func TestRequestObjectContentTypeFinding(t *testing.T) {
+	tests := []struct {
+		name    string
+		header  map[string]any
+		finding string
+	}{
+		{name: "cty JWT", header: map[string]any{"cty": "JWT"}},
+		{name: "cty compared case-insensitively", header: map[string]any{"cty": "jwt"}},
+		{name: "missing cty", header: map[string]any{}, finding: "The JWE header of the encrypted request object has no cty."},
+		{name: "other cty", header: map[string]any{"cty": "json"}, finding: `The JWE header of the encrypted request object sets cty to "json".`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := RequestObjectContentTypeFinding(jwe.Header{Raw: tt.header})
+			if tt.finding == "" && got != "" {
+				t.Fatalf("unexpected finding %q", got)
+			}
+			if !strings.HasPrefix(got, tt.finding) {
+				t.Fatalf("finding = %q, want prefix %q", got, tt.finding)
+			}
+		})
+	}
 }
