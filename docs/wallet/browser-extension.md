@@ -1,6 +1,6 @@
 # Browser extension for the Digital Credentials API
 
-A verifier page can ask for a presentation with the [W3C Digital Credentials API](https://www.w3.org/TR/digital-credentials/). The page calls `navigator.credentials.get()` with a `digital` request, and the browser passes the request to a wallet. Chrome asks a wallet on a phone, which needs Bluetooth for the proximity check. The eudi-dev browser extension answers the call with an eudi-dev wallet instead, so you can test a verifier on one computer.
+A verifier page can ask for a presentation with the [W3C Digital Credentials API](https://www.w3.org/TR/digital-credentials/). The page calls `navigator.credentials.get()` with a `digital` request, and the browser passes the request to a wallet. Chrome asks a wallet on a phone, which needs Bluetooth for the proximity check. The eudi-dev browser extension answers the call with an eudi-dev wallet instead, so you can test a verifier without a phone.
 
 The extension works in Chrome, Chromium, Edge and Brave on macOS, Linux and Windows.
 
@@ -77,7 +77,7 @@ Use the extension while you build a verifier and in its automated tests. Before 
 
 ## Wallet interface
 
-The extension works with any wallet that offers this HTTP interface. The eudi-dev wallet implements it.
+The extension does the job of the operating system. A phone wallet gets requests through Credential Manager on Android or Identity Document Services on iOS. The extension sends them to the wallet over this HTTP interface instead. The eudi-dev wallet implements it, and other test wallets can too.
 
 **Request.** The extension sends the argument of `navigator.credentials.get()` as JSON:
 

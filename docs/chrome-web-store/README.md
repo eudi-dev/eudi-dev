@@ -39,7 +39,7 @@ Choose **New item** and upload the zip. Then fill in the tabs.
 **Description** (the summary under the name comes from the manifest):
 
 ```text
-eudi-dev Digital Credentials lets you test websites that use the W3C Digital Credentials API on one computer. It works with any verifier website, without changes to the website.
+eudi-dev Digital Credentials lets you test websites that use the W3C Digital Credentials API without a phone. It works with any verifier website, without changes to the website.
 
 A verifier page asks for a credential with navigator.credentials.get(). Chrome normally passes the request to a wallet on a phone, which needs Bluetooth and a mobile wallet with test credentials. This extension answers the call with an eudi-dev test wallet instead. The wallet opens in a window and shows what the verifier asks for. You approve or deny the presentation there.
 

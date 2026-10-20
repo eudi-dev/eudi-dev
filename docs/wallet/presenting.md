@@ -116,7 +116,7 @@ In interactive mode (no `--auto-accept`) the two caller types also behave differ
 
 ## Digital Credentials API
 
-A verifier page can ask for a presentation with the W3C Digital Credentials API (`navigator.credentials.get()`). The eudi-dev browser extension answers these calls with an eudi-dev wallet, so you can test a verifier on one computer. `eudi wallet browser` opens Chrome with the extension loaded. The wallet answers the request at `POST /api/dc-api`. See [browser extension](browser-extension.md) for the installation, what a test with the extension covers and the interface for other wallets.
+A verifier page can ask for a presentation with the W3C Digital Credentials API (`navigator.credentials.get()`). The eudi-dev browser extension answers these calls with an eudi-dev wallet, so you can test a verifier without a phone. `eudi wallet browser` opens Chrome with the extension loaded. The wallet answers the request at `POST /api/dc-api`. See [browser extension](browser-extension.md) for the installation, what a test with the extension covers and the interface for other test wallets.
 
 ## HAIP 1.0 enforcement
 

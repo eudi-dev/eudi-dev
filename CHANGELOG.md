@@ -5,11 +5,27 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.1] - 2026-10-20
+
+### Added
+
+- **Browser extension in How to use.** A new tab shows how to install the browser extension for the Digital Credentials API.
+- **QR codes on the demo issuer.** The wallet link and the `openid-credential-offer://` URI of an offer each have a QR code beside them, as on the demo verifier.
+
+### Changed
+
+- **News without a tour.** The news dialog has no **Take the tour** button anymore. The tour in **How to use** stays.
+
+### Fixed
+
+- **Error flash before the issuer sign-in.** In Firefox, approving an offer that needs a sign-in at the issuer showed "Approve request failed" for a moment before the sign-in page opened.
+- **Activity log of Browser API responses.** The encrypted and the decrypted view of an encrypted response now show the same result. The decrypted view has the plaintext in place of the JWE.
+
 ## [3.3.0] - 2026-10-19
 
 ### Added
 
-- **Browser extension for the Digital Credentials API.** The eudi-dev extension answers `navigator.credentials.get()` with an eudi-dev wallet, so you can test a verifier on one computer without a phone. `eudi wallet browser` opens Chrome with the extension loaded. `eudi wallet extension <dir>` and the zip file at `/eudi-dev-dc-api-extension.zip` install it in your everyday profile. See [browser extension](docs/wallet/browser-extension.md).
+- **Browser extension for the Digital Credentials API.** The eudi-dev extension answers `navigator.credentials.get()` with an eudi-dev wallet, so you can test a verifier without a phone. `eudi wallet browser` opens Chrome with the extension loaded. `eudi wallet extension <dir>` and the zip file at `/eudi-dev-dc-api-extension.zip` install it in your everyday profile. See [browser extension](docs/wallet/browser-extension.md).
 - **Digital Credentials API on the demo verifier.** The demo verifier can send its request with `navigator.credentials.get()`, signed, unsigned or multisigned. It verifies the encrypted response like any other presentation.
 - **QR codes on the demo verifier.** The wallet link and the `openid4vp://` request each have a QR code beside them for a wallet on a phone. A click enlarges the code.
 
