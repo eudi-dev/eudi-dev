@@ -182,7 +182,7 @@ func (w *Wallet) processAuthorizationCodeOffer(offer *oid4vc.CredentialOffer, se
 	}
 
 	if requestURI == "" && parEndpoint != "" {
-		w.addProtocolLog("issuance", "par_request", fmt.Sprintf("Request PAR from %s", parEndpoint), true, formRequestLogDetails(parEndpoint, "par", parForm), &LogPayload{Label: "Request", Body: parForm.Encode()})
+		w.addProtocolLog("issuance", "par_request", fmt.Sprintf("Request PAR from %s", parEndpoint), true, formRequestLogDetails(parEndpoint, "par", parForm), formLogPayload("Request", parForm))
 		parPayload := &LogPayload{}
 		parResp, err := postFormWithDPoP(w.HTTPClient(), parEndpoint, parForm, dpopKey, "", &nonces.authzServer, w.clientAuthenticatorFor(clientAuth, clientID, setup.clientKey), parPayload)
 		w.addProtocolLog("issuance", "par_response", fmt.Sprintf("PAR response from %s", parEndpoint), err == nil, responseMapLogDetails(parEndpoint, "par", parResp, err), parPayload)
@@ -218,7 +218,7 @@ func (w *Wallet) processAuthorizationCodeOffer(offer *oid4vc.CredentialOffer, se
 	if err != nil {
 		authorizationResponseDetails["error"] = err.Error()
 	}
-	w.addProtocolLog("issuance", "authorization_response", fmt.Sprintf("Authorization response for %s", authorizationEndpoint), err == nil, authorizationResponseDetails, &LogPayload{Label: "Response parameters", Body: callbackValues.Encode()})
+	w.addProtocolLog("issuance", "authorization_response", fmt.Sprintf("Authorization response for %s", authorizationEndpoint), err == nil, authorizationResponseDetails, formLogPayload("Response parameters", callbackValues))
 	if err != nil {
 		return nil, fmt.Errorf("authorization request: %w", err)
 	}

@@ -1907,12 +1907,13 @@
       }
       const payloadToggle = el.querySelector('.log-payload-toggle');
       if (payloadToggle) {
-        let showEncrypted = true;
+        const labels = logPayloadViewLabels(view.payload);
+        let showWire = true;
         payloadToggle.addEventListener('click', () => {
-          showEncrypted = !showEncrypted;
-          el.querySelector('.log-payload > pre').textContent = logPayloadText(showEncrypted ? view.payload.wire : view.payload.body);
-          el.querySelector('.log-payload-view').textContent = showEncrypted ? 'Encrypted view' : 'Decrypted view';
-          payloadToggle.textContent = showEncrypted ? 'View decrypted' : 'View encrypted';
+          showWire = !showWire;
+          el.querySelector('.log-payload > pre').textContent = logPayloadText(showWire ? view.payload.wire : view.payload.body);
+          el.querySelector('.log-payload-view').textContent = showWire ? labels.wire : labels.plain;
+          payloadToggle.textContent = showWire ? labels.showPlain : labels.showWire;
         });
       }
       logContainer.appendChild(el);
@@ -2065,17 +2066,25 @@
     return JSON.stringify(value, null, 2);
   }
 
+  function logPayloadViewLabels(payload) {
+    return payload.encrypted
+      ? { wire: 'Encrypted view', plain: 'Decrypted view', showWire: 'View encrypted', showPlain: 'View decrypted' }
+      : { wire: 'Encoded view', plain: 'Decoded view', showWire: 'View encoded', showPlain: 'View decoded' };
+  }
+
   function renderLogPayload(payload, decoderInput, presentations, credentials, idPrefix) {
-    const canToggle = payload.encrypted && payload.body != null && payload.wire !== undefined;
-    const showWire = payload.encrypted && payload.wire !== undefined;
+    const hasWire = payload.wire !== undefined && payload.wire !== null;
+    const canToggle = hasWire && payload.body != null;
+    const labels = logPayloadViewLabels(payload);
     let html = '<section class="log-payload" id="' + idPrefix + '-payload"><div class="log-payload-heading"><div class="log-payload-label" id="' + idPrefix + '-payload-label">' + escHtml(payload.label) + '</div>';
-    if (payload.encrypted) {
-      const view = showWire ? 'Encrypted view' : (payload.body != null ? 'Decrypted view' : 'Encrypted on wire');
-      html += '<span class="log-payload-view" id="' + idPrefix + '-payload-view" title="Encrypted on the wire">' + view + '</span>';
+    if (payload.encrypted || canToggle) {
+      const view = hasWire ? labels.wire : (payload.body != null ? labels.plain : 'Encrypted on wire');
+      const title = payload.encrypted ? ' title="Encrypted on the wire"' : '';
+      html += '<span class="log-payload-view" id="' + idPrefix + '-payload-view"' + title + '>' + view + '</span>';
     }
     html += '</div>';
     let controls = '';
-    if (canToggle) controls += '<button type="button" class="btn log-payload-toggle" id="' + idPrefix + '-payload-toggle" data-testid="log-payload-toggle" title="Switch the log display between the wire value and plaintext">View decrypted</button>';
+    if (canToggle) controls += '<button type="button" class="btn log-payload-toggle" id="' + idPrefix + '-payload-toggle" data-testid="log-payload-toggle" title="Switch the log display between the wire value and the readable value">' + labels.showPlain + '</button>';
     if (decoderInput) controls += renderLogDecoderLink(decoderInput, idPrefix + '-decoder-link');
     if (presentations.length) controls += renderLogPresentations(presentations, idPrefix);
     credentials.forEach((credential, n) => {
@@ -2087,12 +2096,9 @@
     });
     if (controls) html += '<div class="log-payload-controls" id="' + idPrefix + '-controls">' + controls + '</div>';
     const missing = payload.encrypted ? 'Plaintext unavailable' : 'No response body available';
-    const value = showWire ? payload.wire : payload.body;
+    const value = hasWire ? payload.wire : payload.body;
     const body = value == null ? missing : (value === '' ? '(empty body)' : logPayloadText(value));
     html += '<pre id="' + idPrefix + '-payload-body">' + escHtml(body) + '</pre>';
-    if (payload.wire !== undefined && !payload.encrypted) {
-      html += '<details class="log-wire" id="' + idPrefix + '-wire"><summary id="' + idPrefix + '-wire-toggle" data-testid="log-wire-toggle">Wire value</summary><pre id="' + idPrefix + '-wire-body">' + escHtml(logPayloadText(payload.wire)) + '</pre></details>';
-    }
     return html + '</section>';
   }
 

@@ -384,6 +384,47 @@ func TestInteractiveAuthorizationReportsAChallengeError(t *testing.T) {
 	}
 }
 
+// The activity log shows the fields of a form request and keeps the encoded
+// body as the wire value.
+func TestInteractiveAuthorizationLogsFormRequestsAsFields(t *testing.T) {
+	w := newInteractiveWallet(t)
+	issuer := newInteractiveIssuer(t, w)
+	issuer.satisfiedImmediately = true
+
+	if _, err := w.ProcessCredentialOffer(interactiveOfferURI(issuer.url)); err != nil {
+		t.Fatalf("ProcessCredentialOffer() error = %v", err)
+	}
+	for event, field := range map[string][2]string{
+		"authorization_challenge_request": {"code_challenge_method", "S256"},
+		"token_request":                   {"grant_type", "authorization_code"},
+	} {
+		payload := walletLogPayload(t, w.GetLog(), event)
+		fields, ok := payload.Body.(map[string]any)
+		if !ok {
+			t.Fatalf("%s body = %#v, want the form fields", event, payload.Body)
+		}
+		if fields[field[0]] != field[1] {
+			t.Errorf("%s %s = %v, want %q", event, field[0], fields[field[0]], field[1])
+		}
+		wire, _ := payload.Wire.(string)
+		form, err := url.ParseQuery(wire)
+		if err != nil || len(form) != len(fields) {
+			t.Errorf("%s wire = %q, want the encoded form with %d fields", event, wire, len(fields))
+		}
+	}
+}
+
+func walletLogPayload(t *testing.T, entries []LogEntry, event string) *LogPayload {
+	t.Helper()
+	for _, entry := range entries {
+		if entry.Details["event"] == event && entry.Payload != nil {
+			return entry.Payload
+		}
+	}
+	t.Fatalf("missing wallet log payload for %q", event)
+	return nil
+}
+
 // At feature level 1.0 the wallet uses the redirect flow and fails when the
 // server has no authorization endpoint.
 func TestInteractiveAuthorizationIsNotUsedAtFeatureLevel10(t *testing.T) {

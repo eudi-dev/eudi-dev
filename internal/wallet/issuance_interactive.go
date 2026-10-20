@@ -227,7 +227,7 @@ func (w *Wallet) initialAuthorizationChallengeForm(setup authorizationCodeSetup,
 func (w *Wallet) postAuthorizationChallenge(endpoint string, form url.Values, setup authorizationCodeSetup) (map[string]any, error) {
 	w.addProtocolLog("issuance", "authorization_challenge_request",
 		fmt.Sprintf("Authorization challenge request to %s", endpoint), true,
-		formRequestLogDetails(endpoint, "authorization_challenge", form), &LogPayload{Label: "Request", Body: form.Encode()})
+		formRequestLogDetails(endpoint, "authorization_challenge", form), formLogPayload("Request", form))
 
 	body := []byte(form.Encode())
 	respBody, status, reqErr := doDPoPRequest("POST", endpoint, "application/x-www-form-urlencoded", "", body,

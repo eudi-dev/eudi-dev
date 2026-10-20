@@ -164,3 +164,11 @@ func TestActivityLog_IsBounded(t *testing.T) {
 		t.Error("trimming dropped the newest entry instead of the oldest")
 	}
 }
+
+// A browser callback that never came leaves no parameters to show.
+func TestFormLogPayloadOfAnEmptyFormIsAnEmptyBody(t *testing.T) {
+	payload := formLogPayload("Response parameters", nil)
+	if payload.Body != "" || payload.Wire != nil {
+		t.Errorf("payload = %#v, want an empty body and no wire value", payload)
+	}
+}

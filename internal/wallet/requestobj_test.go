@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
@@ -243,6 +244,18 @@ func TestMakeFetchRequestURI_POST(t *testing.T) {
 	walletLogs := wallet.GetLog()
 	assertWalletLogEvent(t, walletLogs, "request_object_fetch_request")
 	assertWalletLogEvent(t, walletLogs, "request_object_fetch_response")
+
+	payload := walletLogPayload(t, walletLogs, "request_object_fetch_request")
+	fields, _ := payload.Body.(map[string]any)
+	if len(fields) != 2 || fields["wallet_nonce"] != receivedWalletNonce {
+		t.Errorf("request body = %#v, want wallet_metadata and wallet_nonce", payload.Body)
+	}
+	if _, ok := fields["wallet_metadata"].(map[string]any); !ok {
+		t.Errorf("logged wallet_metadata = %#v, want the JSON object", fields["wallet_metadata"])
+	}
+	if wire, _ := payload.Wire.(string); !strings.Contains(wire, "wallet_nonce="+receivedWalletNonce) {
+		t.Errorf("wire = %q, want the encoded form", payload.Wire)
+	}
 }
 
 func hasWarning(w *Wallet, text string) bool {

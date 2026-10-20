@@ -1738,7 +1738,7 @@ for (const event of ["presentation_response", "interactive_authorization_present
   });
 }
 
-test("request activity formats JSON strings and preserves non-JSON payloads", async ({ page }) => {
+test("request activity formats JSON strings and switches between decoded and encoded views", async ({ page }) => {
   const bodies = ['{"nonce":"test-nonce","claims":["given_name"]}', "signed.token.value"];
   await page.route("**/api/log*", route => route.fulfill({ json: bodies.map(body => ({
     time: "2026-10-01T08:00:00Z", action: "presentation", detail: "Presentation request", success: true,
@@ -1748,9 +1748,13 @@ test("request activity formats JSON strings and preserves non-JSON payloads", as
   const entries = page.getByTestId("log-entry");
   await expect(entries).toHaveCount(2);
   for (const entry of await entries.all()) await entry.getByTestId("log-entry-toggle").click();
+  await expect(entries.nth(0).locator(".log-payload > pre")).toHaveText("original-wire-value");
+  await expect(entries.nth(0).locator(".log-payload-view")).toHaveText("Encoded view");
+  await entries.nth(0).getByTestId("log-payload-toggle").click();
   await expect(entries.nth(0).locator(".log-payload > pre")).toHaveText("signed.token.value");
-  await entries.nth(0).getByTestId("log-wire-toggle").click();
-  await expect(entries.nth(0).locator(".log-wire pre")).toHaveText("original-wire-value");
+  await expect(entries.nth(0).locator(".log-payload-view")).toHaveText("Decoded view");
+  await expect(entries.nth(0).getByTestId("log-payload-toggle")).toHaveText("View encoded");
+  await entries.nth(1).getByTestId("log-payload-toggle").click();
   await expect(entries.nth(1).locator(".log-payload > pre")).toHaveText('{\n  "nonce": "test-nonce",\n  "claims": [\n    "given_name"\n  ]\n}');
 });
 

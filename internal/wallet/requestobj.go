@@ -172,7 +172,10 @@ func fetchRequestURIPOST(w *Wallet, requestURI, clientID string, logFn func(stri
 	logRequestObjectFetchRequest(w, "POST", requestURI, map[string]any{
 		"wallet_metadata": walletMeta,
 		"wallet_nonce":    walletNonce,
-	}, &LogPayload{Label: "Request", Body: form.Encode()})
+	}, &LogPayload{Label: "Request", Body: map[string]any{
+		"wallet_metadata": walletMeta,
+		"wallet_nonce":    walletNonce,
+	}, Wire: form.Encode()})
 
 	req, err := http.NewRequest("POST", requestURI, strings.NewReader(form.Encode()))
 	if err != nil {

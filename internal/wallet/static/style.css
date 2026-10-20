@@ -2057,14 +2057,6 @@ textarea.form-input {
   overflow-wrap: anywhere;
   text-decoration: none;
 }
-.log-wire {
-  margin-top: 0.5rem;
-}
-.log-wire > summary {
-  cursor: pointer;
-  color: var(--text-dim);
-}
-
 .log-time {
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;

@@ -24,6 +24,23 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
 )
 
+// formLogPayload shows each field of a form body. The encoded form stays as
+// the wire value.
+func formLogPayload(label string, form url.Values) *LogPayload {
+	if len(form) == 0 {
+		return &LogPayload{Label: label, Body: ""}
+	}
+	fields := make(map[string]any, len(form))
+	for key, values := range form {
+		if len(values) == 1 {
+			fields[key] = values[0]
+		} else {
+			fields[key] = values
+		}
+	}
+	return &LogPayload{Label: label, Body: fields, Wire: form.Encode()}
+}
+
 func VerifierResponseErrorPayload(err error) *LogPayload {
 	var responseErr *oid4vp.VerifierResponseError
 	if errors.As(err, &responseErr) {

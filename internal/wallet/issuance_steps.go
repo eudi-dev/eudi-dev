@@ -141,7 +141,7 @@ func (w *Wallet) requestAccessToken(r CredentialRenewal, form url.Values, nonce 
 	details["grant_type"] = form.Get("grant_type")
 	details["client_attestation"] = r.ClientAuth != nil && r.ClientAuth.Method == ClientAuthAttestation
 	details["dpop"] = dpopKey != nil
-	w.addProtocolLog("issuance", "token_request", fmt.Sprintf("Request token from %s", r.TokenEndpoint), true, details, &LogPayload{Label: "Request", Body: form.Encode()})
+	w.addProtocolLog("issuance", "token_request", fmt.Sprintf("Request token from %s", r.TokenEndpoint), true, details, formLogPayload("Request", form))
 	payload := &LogPayload{}
 	resp, err := postFormWithDPoP(w.HTTPClient(), r.TokenEndpoint, form, dpopKey, "", nonce, authenticator, payload)
 	w.addProtocolLog("issuance", "token_response", fmt.Sprintf("Token response from %s", r.TokenEndpoint), err == nil, responseMapLogDetails(r.TokenEndpoint, "token", resp, err), payload)
