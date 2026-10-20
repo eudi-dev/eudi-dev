@@ -3253,10 +3253,6 @@ textarea.form-input {
   background: var(--bg-btn-dialog);
 }
 
-#news-tour {
-  margin-right: auto;
-}
-
 .howto-head {
   display: flex;
   flex-wrap: wrap;

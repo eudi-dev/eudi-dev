@@ -68,35 +68,6 @@
         text: () => 'Paste an SD-JWT, mdoc or JWT to see its contents and check its signature.',
       },
     ],
-    news: [
-      {
-        nav: 'registrar-menu-toggle',
-        title: 'Register your verifier or issuer',
-        text: () => 'Open Relying parties to register your service. You get an access certificate and a registration certificate. The wallet tells you when your request asks for more than you registered.',
-      },
-      {
-        nav: 'registrar-menu-toggle',
-        title: 'Browse attestation types',
-        text: () => 'The Attestation catalogue lists each credential type with its schemas, rulebook and trusted list.',
-      },
-      {
-        nav: 'conformance-link',
-        title: 'Check against the ARF',
-        text: () => demo()
-          ? 'This demo checks access and registration certificates as the ARF describes. The consent dialog lists every failed check.'
-          : 'Switch on the ARF checks to test access and registration certificates. In debug mode the consent dialog lists every failed check.',
-      },
-      {
-        nav: 'trust-link',
-        title: 'Bring your own trust',
-        text: () => 'Put your issuer\'s CA on one of the wallet\'s trusted lists, or add a list of your own.',
-      },
-      {
-        nav: 'how-to-use-link',
-        title: 'Follow the registrar walkthrough',
-        text: () => 'The Registrar tab shows every step with curl, from the registration to a signed request.',
-      },
-    ],
   };
 
   function resolve(step) {
@@ -233,9 +204,5 @@
   byId('howto-tour').addEventListener('click', () => {
     byId('howto-close').click();
     start('overview', byId('how-to-use-link'));
-  });
-  byId('news-tour').addEventListener('click', () => {
-    byId('news-close').click();
-    start('news', byId('news-link'));
   });
 })();

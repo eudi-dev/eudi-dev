@@ -162,6 +162,24 @@ test.describe("Wallet Dashboard", () => {
     await page.click("#howto-close");
   });
 
+  test("how to use has a browser extension tab", async ({ page }) => {
+    await page.goto(WALLET_URL);
+    await page.click("#how-to-use-link");
+    await page.click("#howto-tab-extension");
+    await expect(page.locator("#howto-tab-extension")).toHaveAttribute("aria-selected", "true");
+    const panel = page.locator("#howto-panel-extension");
+    await expect(panel).toBeVisible();
+    await expect(panel.locator("#howto-extension-browser-command")).toHaveText(`eudi wallet browser --wallet-url ${WALLET_URL}`);
+    await expect(panel.locator('a[data-doc="docs/wallet/browser-extension.md"]')).toHaveAttribute(
+      "href",
+      /^https:\/\/github\.com\/eudi-dev\/eudi-dev\/blob\/[^/]+\/docs\/wallet\/browser-extension\.md$/,
+    );
+    const download = page.waitForEvent("download");
+    await panel.locator("#howto-extension-zip-link").click();
+    expect((await download).suggestedFilename()).toBe("eudi-dev-dc-api-extension.zip");
+    await page.click("#howto-close");
+  });
+
   test("conformance panel changes the local wallet setting via the endpoint", async ({
     page,
   }) => {

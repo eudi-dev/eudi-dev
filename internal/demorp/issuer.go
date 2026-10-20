@@ -23,8 +23,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"mime"
 	"net/http"
 	"net/url"
+	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -165,6 +167,8 @@ func (d *DemoRP) IssuerHandler() http.Handler {
 	// The script is a separate file because the wallet Content-Security-Policy
 	// has no script-src 'unsafe-inline'.
 	page.HandleFunc("GET /issuer.js", d.serveStatic("static/issuer.js"))
+	page.HandleFunc("GET /link-qr.js", d.serveStatic("static/link-qr.js"))
+	page.HandleFunc("GET /link-qr.css", d.serveStatic("static/link-qr.css"))
 	page.HandleFunc("POST /api/offers", d.handleCreateOffer)
 	page.Handle("/", mux)
 	// GuardAPI covers only the page's calls to /api/. Wallets on other
@@ -179,7 +183,7 @@ func (d *DemoRP) serveStatic(name string) http.HandlerFunc {
 			http.NotFound(w, r)
 			return
 		}
-		w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+		w.Header().Set("Content-Type", mime.TypeByExtension(path.Ext(name)))
 		w.Header().Set("Cache-Control", "no-cache")
 		_, _ = w.Write(data)
 	}
@@ -357,13 +361,15 @@ func (d *DemoRP) handleCreateOffer(w http.ResponseWriter, r *http.Request) {
 	base := d.baseURL()
 	offerURI := d.issuerURL(identity) + "/offer/" + offer.id
 	params := url.Values{"credential_offer_uri": {offerURI}}.Encode()
-	writeJSON(w, http.StatusCreated, map[string]any{
+	doc := map[string]any{
 		"id":         offer.id,
 		"offer_uri":  offerURI,
 		"wallet_url": base + "/credential-offer?" + params,
 		"scheme_uri": "openid-credential-offer://?" + params,
 		"issuer":     d.issuerURL(identity),
-	})
+	}
+	addLinkQRCodes(doc, "wallet_url", "scheme_uri")
+	writeJSON(w, http.StatusCreated, doc)
 }
 
 // offerIdentities reads the identity and identity_check parameters of an

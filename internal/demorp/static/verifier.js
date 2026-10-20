@@ -819,18 +819,6 @@ document.getElementById("create-request").addEventListener("click", async () => 
   startPolling(doc.transaction_id);
   });
 
-// showQR shows the QR code of a link. The server omits it for a link too long
-// for a QR code.
-function showQR(id, svg) {
-  const img = document.getElementById(id);
-  img.classList.remove("large");
-  img.hidden = !svg;
-  if (svg) img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
-}
-for (const id of ["wallet-link-qr", "scheme-uri-qr"]) {
-  const img = document.getElementById(id);
-  img.addEventListener("click", () => img.classList.toggle("large"));
-}
 
 // presentWithDCAPI asks the browser for the presentation and passes the
 // result to the verifier (OpenID4VP 1.0 Appendix A.4).

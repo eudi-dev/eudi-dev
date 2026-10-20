@@ -1,0 +1,9 @@
+/* Each link has its QR code beside it. A long link needs the larger code, so a
+   click enlarges it. */
+.link-row { display: flex; gap: 12px; align-items: flex-start; }
+.link-row pre { flex: 1; min-width: 0; }
+.qr { width: 160px; height: 160px; flex-shrink: 0; padding: 6px; background: #fff;
+  border: 1px solid var(--border); border-radius: 12px; cursor: zoom-in; }
+.qr.large { width: min(100%, 420px); height: auto; cursor: zoom-out; }
+.link-row:has(.qr.large) { flex-direction: column; }
+@media (max-width: 480px) { .link-row { flex-direction: column; } }

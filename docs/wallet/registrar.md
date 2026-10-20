@@ -213,6 +213,8 @@ A wallet fetches the metadata from the issuer identifier. The metadata request d
 
 The identity buttons are `identity-registered`, `identity-unregistered`, `identity-unsigned` and `identity-own`. In **Own certificates** mode you paste into `signing-key` and `issuer-info`. The offer API takes `identity=unregistered`, `identity=unsigned` or `identity=own` as a query parameter. With `own` the request body is a JSON object with `signing_key` and the optional `issuer_info`.
 
+The offer shows the wallet URL and the `openid-credential-offer://` URI, each with a QR code. The offer API returns the QR codes as SVG in `wallet_url_qr` and `scheme_uri_qr`.
+
 With **Presentation during issuance**, the issuer asks for a PID before it issues. You choose the identity of that PID request separately from the issuer identity, as on the demo verifier page:
 
 - **Registered** (default): the request is signed with the issuer's access certificate and carries the registration certificate of the identity check in `verifier_info`.

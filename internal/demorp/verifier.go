@@ -113,6 +113,8 @@ func (d *DemoRP) VerifierHandler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", d.servePage("static/verifier.html"))
 	mux.HandleFunc("GET /verifier.js", d.serveStatic("static/verifier.js"))
+	mux.HandleFunc("GET /link-qr.js", d.serveStatic("static/link-qr.js"))
+	mux.HandleFunc("GET /link-qr.css", d.serveStatic("static/link-qr.css"))
 	webui.Mount(mux)
 	mux.HandleFunc("POST /api/requests", d.handleCreateRequest)
 	mux.HandleFunc("GET /api/requests/{key}", d.handleRequestStatus)
@@ -633,14 +635,18 @@ func writeCreatedRequest(w http.ResponseWriter, req *requestState, walletURL, sc
 		"wallet_url":     walletURL,
 		"scheme_uri":     schemeURI,
 	}
-	// The page shows each link also as a QR code for a wallet on a phone. A
-	// link too long for a QR code stays a link.
-	for name, link := range map[string]string{"wallet_url_qr": walletURL, "scheme_uri_qr": schemeURI} {
-		if svg, err := qr.SVG(link); err == nil {
-			doc[name] = svg
+	addLinkQRCodes(doc, "wallet_url", "scheme_uri")
+	writeJSON(w, http.StatusCreated, doc)
+}
+
+// addLinkQRCodes adds the QR code of each named link as <name>_qr, for a
+// wallet on a phone. A link too long for a QR code stays a link.
+func addLinkQRCodes(doc map[string]any, names ...string) {
+	for _, name := range names {
+		if svg, err := qr.SVG(doc[name].(string)); err == nil {
+			doc[name+"_qr"] = svg
 		}
 	}
-	writeJSON(w, http.StatusCreated, doc)
 }
 
 func (d *DemoRP) createCustomRequest(w http.ResponseWriter, body createRequestBody, dcAPIOrigin, dcAPIProtocol string) {

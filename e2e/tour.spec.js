@@ -1,5 +1,5 @@
 // @ts-check
-// The guided tour walks through the wallet's use cases from How to use or the news.
+// The guided tour walks through the wallet's use cases from How to use.
 const { test, expect } = require("@playwright/test");
 const { waitForServer } = require("./helpers");
 const { execSync, spawn } = require("child_process");
@@ -26,13 +26,6 @@ const TITLES = [
 ];
 // The header links behind these steps collapse into the menu on a phone.
 const NAV_STEPS = TITLES.slice(5);
-const NEWS_TITLES = [
-  "Register your verifier or issuer",
-  "Browse attestation types",
-  "Check against the ARF",
-  "Bring your own trust",
-  "Follow the registrar walkthrough",
-];
 
 test.describe.configure({ mode: "serial" });
 
@@ -41,7 +34,7 @@ test.beforeAll(async () => {
   execSync("go build -o /tmp/eudi-tour-e2e ..", { cwd: __dirname });
   const work = fs.mkdtempSync(path.join(os.tmpdir(), "eudi-tour-e2e-"));
   const newsFile = path.join(work, "news.html");
-  fs.writeFileSync(newsFile, "<h2>New in this release</h2><p>A guided tour.</p>");
+  fs.writeFileSync(newsFile, "<h2>New in this release</h2><p>A new feature.</p>");
   walletProcess = spawn(
     "/tmp/eudi-tour-e2e",
     ["wallet", "serve", "--demo", "--demo-reset", "0", "--port", String(PORT),
@@ -188,23 +181,4 @@ test("the tour renders in the light and the dark theme", async ({ browser }) => 
   }
   expect(backgrounds.light).toBe("rgb(255, 255, 255)");
   expect(backgrounds.dark).toBe("rgb(36, 39, 45)");
-});
-
-test("the news tour shows the new features and can be taken again", async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem("demo-banner-dismissed", "1"));
-  await page.goto(BASE);
-  await expect(page.locator("#news-overlay")).toHaveClass(/active/);
-  await page.locator("#news-tour").click();
-  await expect(page.locator("#news-overlay")).not.toHaveClass(/active/);
-  for (const [i, title] of NEWS_TITLES.entries()) {
-    await expect(page.locator("#tour-title")).toHaveText(title);
-    await expect(page.locator("#tour-step")).toHaveText(`Step ${i + 1} of ${NEWS_TITLES.length}`);
-    await page.locator("#tour-next").click();
-  }
-  await expect(page.locator("#tour")).toBeHidden();
-  await expect(page.locator("#news-link")).toBeFocused();
-
-  await page.locator("#news-link").click();
-  await expect(page.locator("#news-overlay")).toHaveClass(/active/);
-  await expect(page.locator("#news-tour")).toBeVisible();
 });

@@ -192,3 +192,14 @@ test("each link of a request has a QR code beside it", async ({ page }) => {
   await page.locator("#scheme-uri-qr").click();
   await expect(page.locator("#scheme-uri-qr")).toHaveClass(/large/);
 });
+
+test("each link of a credential offer has a QR code beside it", async ({ page }) => {
+  await page.goto(`${BASE}/issuer/`);
+  await page.locator("#create-btn").click();
+  for (const id of ["#wallet-link-qr", "#scheme-uri-qr"]) {
+    await expect(page.locator(id)).toBeVisible();
+    expect(await page.locator(id).evaluate((img) => img.naturalWidth)).toBeGreaterThan(0);
+  }
+  await page.locator("#wallet-link-qr").click();
+  await expect(page.locator("#wallet-link-qr")).toHaveClass(/large/);
+});

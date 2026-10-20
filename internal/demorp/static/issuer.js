@@ -31,6 +31,8 @@ async function createOffer(grant, status, authorization, deferred, batch, creden
     const scheme = document.getElementById("scheme-uri");
     scheme.textContent = doc.scheme_uri;
     scheme.href = doc.scheme_uri;
+    showQR("wallet-link-qr", doc.wallet_url_qr);
+    showQR("scheme-uri-qr", doc.scheme_uri_qr);
     document.getElementById("offer-uri").textContent = doc.offer_uri;
     document.getElementById("issuer-id").textContent = doc.issuer;
     document.getElementById("result").style.display = "block";

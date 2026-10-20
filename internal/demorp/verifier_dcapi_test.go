@@ -215,6 +215,17 @@ func TestARedirectRequestCarriesAQRCodePerLink(t *testing.T) {
 	}
 }
 
+// Each link of a credential offer comes with its QR code.
+func TestACredentialOfferCarriesAQRCodePerLink(t *testing.T) {
+	_, ts := serveDemoStack(t, customTestWallet(t))
+	created := postJSONTo(t, ts.URL+"/issuer/api/offers", "")
+	for _, name := range []string{"wallet_url_qr", "scheme_uri_qr"} {
+		if svg, _ := created[name].(string); !strings.HasPrefix(svg, "<svg ") {
+			t.Errorf("%s = %.40q, want an SVG", name, created[name])
+		}
+	}
+}
+
 func decodeSegment(t *testing.T, segment string) map[string]any {
 	t.Helper()
 	raw, err := base64.RawURLEncoding.DecodeString(segment)

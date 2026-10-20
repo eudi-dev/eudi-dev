@@ -136,7 +136,6 @@
     <div class="consent-dialog news-dialog" id="news-dialog" role="dialog" aria-modal="true" aria-label="News">
       <div class="news-content" id="news-content"></div>
       <div class="consent-buttons">
-        <button class="btn" id="news-tour">Take the tour</button>
         <button class="btn" id="news-close" data-dialog-close>Close</button>
       </div>
     </div>
@@ -169,29 +168,30 @@
       <div class="howto-tabs" id="howto-tabs" role="tablist" aria-label="How to use">
         <button type="button" class="howto-tab active" role="tab" id="howto-tab-basics" aria-selected="true" aria-controls="howto-panel-basics">Issuance and presentation</button>
         <button type="button" class="howto-tab" role="tab" id="howto-tab-registrar" aria-selected="false" aria-controls="howto-panel-registrar" tabindex="-1">Registrar</button>
+        <button type="button" class="howto-tab" role="tab" id="howto-tab-extension" aria-selected="false" aria-controls="howto-panel-extension" tabindex="-1">Browser extension</button>
       </div>
       <div class="howto-panel" role="tabpanel" id="howto-panel-basics" aria-labelledby="howto-tab-basics">
       <p class="dialog-hint" id="howto-basics-intro">Test issuance with OpenID4VCI and presentations with OpenID4VP. This wallet supports SD-JWT VC, mdoc, holder binding, status lists and trusted lists.</p>
       <div class="cli-install">
-        <div class="cli-install-label" id="howto-offer-label">Deliver a credential offer (OpenID4VCI)</div>
+        <div class="cli-install-label" id="howto-offer-label">Send a credential offer (OpenID4VCI)</div>
         <pre id="howto-offer-endpoint"><span class="howto-origin" id="howto-offer-origin"></span>/credential-offer?credential_offer_uri=&hellip;</pre>
         <div class="cli-install-label" id="howto-request-label">Send an authorization request (OpenID4VP)</div>
         <pre id="howto-request-endpoint"><span class="howto-origin" id="howto-request-origin"></span>/authorize?client_id=&hellip;&amp;request_uri=&hellip;</pre>
-        <div class="cli-install-label" id="howto-trustlist-label">Trusted list for verifiers that accept this wallet's credentials</div>
+        <div class="cli-install-label" id="howto-trustlist-label">PID trusted list for your verifier</div>
         <pre id="howto-trustlist-endpoint"><span class="howto-origin" id="howto-trustlist-origin"></span>/api/trustlist</pre>
       </div>
       <p class="dialog-hint" id="howto-scheme-hint">To open a custom-scheme link in a browser, replace everything before the <code>?</code> with the matching endpoint URL. Keep the query parameters.</p>
       <div class="cli-install">
-        <div class="cli-install-label" id="howto-accept-label">Custom-scheme links via CLI (any platform)</div>
+        <div class="cli-install-label" id="howto-accept-label">Open a custom-scheme link from the CLI (any platform)</div>
         <pre id="howto-accept-command">eudi wallet accept 'openid4vp://authorize?client_id=&hellip;'</pre>
-        <div class="cli-install-label" id="howto-register-label">System URL handler (macOS and Linux)</div>
+        <div class="cli-install-label" id="howto-register-label">Register the wallet as URL handler (macOS and Linux)</div>
         <pre id="howto-register-command">eudi wallet register</pre>
       </div>
-      <p class="dialog-hint" id="howto-register-hint">On macOS and Linux, <code>wallet register</code> makes <code>openid4vp://</code>, <code>eudi-openid4vp://</code>, <code>haip-vp://</code>, <code>eu-eaap://</code>, <code>openid-credential-offer://</code>, <code>haip-vci://</code> and <code>eu-eaa-offer://</code> links open in this wallet. See the <a data-doc="docs/wallet.md" target="_blank" rel="noopener" id="howto-wallet-docs-link">wallet documentation</a> for all endpoints.</p>
+      <p class="dialog-hint" id="howto-register-hint">After <code>wallet register</code>, the system opens <code>openid4vp://</code>, <code>eudi-openid4vp://</code>, <code>haip-vp://</code>, <code>eu-eaap://</code>, <code>openid-credential-offer://</code>, <code>haip-vci://</code> and <code>eu-eaa-offer://</code> links in this wallet. See the <a data-doc="docs/wallet.md" target="_blank" rel="noopener" id="howto-wallet-docs-link">wallet documentation</a> for all endpoints.</p>
       <p class="dialog-hint" id="howto-demo-hint">Try the <a href="issuer/" target="_blank" id="howto-demo-issuer-link">demo issuer</a> or <a href="verifier/" target="_blank" id="howto-demo-verifier-link">demo verifier</a>.</p>
       </div>
       <div class="howto-panel" role="tabpanel" id="howto-panel-registrar" aria-labelledby="howto-tab-registrar" hidden>
-      <p class="dialog-hint" id="howto-registrar-intro">Register your verifier or issuer with the wallet's registrar. You get an access certificate and a registration certificate. With <code>--arf</code> the wallet checks both, as the ARF asks.</p>
+      <p class="dialog-hint" id="howto-registrar-intro">Register your verifier or issuer with the wallet's registrar. You get an access certificate and a registration certificate. With <code>--arf</code> the wallet checks both, as the ARF requires.</p>
       <div class="cli-install">
         <div class="cli-install-label" id="howto-registrar-register-label">1. Register the relying party</div>
         <pre id="howto-registrar-register-endpoint">POST <span class="howto-origin" id="howto-registrar-register-origin"></span>/api/registrar/wrp</pre>
@@ -202,11 +202,21 @@
       </div>
       <p class="dialog-hint" id="howto-registrar-sign-hint">4. A verifier signs its request object with the access certificate's key, puts the chain in <code>x5c</code> and adds <code>verifier_info</code>. An issuer signs its metadata the same way and adds <code>issuer_info</code>.</p>
       <div class="cli-install">
-        <div class="cli-install-label" id="howto-registrar-cli-label">The same from the CLI</div>
+        <div class="cli-install-label" id="howto-registrar-cli-label">With the CLI</div>
         <pre class="howto-commands" id="howto-registrar-cli-commands">eudi registrar verifiers add --name "Example Shop" --purpose "Age check" --dcql query.json
 eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:urn:example:diploma:1</pre>
       </div>
       <p class="dialog-hint" id="howto-registrar-forms-hint"><a data-doc="docs/wallet/registrar-api.md" target="_blank" rel="noopener" id="howto-registrar-docs-link">Registrar walkthrough</a></p>
+      </div>
+      <div class="howto-panel" role="tabpanel" id="howto-panel-extension" aria-labelledby="howto-tab-extension" hidden>
+      <p class="dialog-hint" id="howto-extension-intro">Test a verifier page that uses the W3C Digital Credentials API. The eudi-dev browser extension answers <code>navigator.credentials.get()</code> with this wallet instead of a phone wallet. It works in Chrome, Chromium, Edge and Brave.</p>
+      <div class="cli-install">
+        <div class="cli-install-label" id="howto-extension-browser-label">Open a browser with the extension loaded (macOS and Linux)</div>
+        <pre id="howto-extension-browser-command">eudi wallet browser --wallet-url <span class="howto-origin" id="howto-extension-browser-origin"></span></pre>
+      </div>
+      <p class="dialog-hint" id="howto-extension-zip-hint">To use the extension in your everyday browser profile, <a href="eudi-dev-dc-api-extension.zip" download id="howto-extension-zip-link">download it</a> and unzip it. Open <code>chrome://extensions</code>, turn on Developer mode, choose Load unpacked and select the folder. It uses this wallet. You can set another wallet in the extension popup.</p>
+      <p class="dialog-hint" id="howto-extension-demo-hint">Try it on the <a href="verifier/" target="_blank" id="howto-extension-verifier-link">demo verifier</a>: choose Digital Credentials API under Delivery.</p>
+      <p class="dialog-hint" id="howto-extension-docs-hint"><a data-doc="docs/wallet/browser-extension.md" target="_blank" rel="noopener" id="howto-extension-docs-link">Extension documentation</a></p>
       </div>
       <div class="consent-buttons">
         <button class="btn" id="howto-close" data-dialog-close>Close</button>

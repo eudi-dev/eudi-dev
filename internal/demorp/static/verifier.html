@@ -7,6 +7,7 @@
   <title>{{.VerifierName}}</title>
   <meta name="description" content="Demo verifier of the EUDI Dev Wallet: requests and cryptographically verifies PID and ticket presentations over OpenID4VP.">
   <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="link-qr.css">
   <script src="theme.js"></script>
   <script src="footer.js"></script>
   <style>
@@ -36,15 +37,6 @@
     pre { font-family: var(--font-mono); font-size: 12px; background: var(--bg-input); border: 1px solid var(--border);
       border-radius: 12px; padding: 10px 12px; overflow-x: auto; user-select: all; white-space: pre-wrap; word-break: break-all; }
     a { color: var(--link); }
-    /* Each link has its QR code beside it. A long request needs the larger
-       code, so a click enlarges it. */
-    .link-row { display: flex; gap: 12px; align-items: flex-start; }
-    .link-row pre { flex: 1; min-width: 0; }
-    .qr { width: 160px; height: 160px; flex-shrink: 0; padding: 6px; background: #fff;
-      border: 1px solid var(--border); border-radius: 12px; cursor: zoom-in; }
-    .qr.large { width: min(100%, 420px); height: auto; cursor: zoom-out; }
-    .link-row:has(.qr.large) { flex-direction: column; }
-    @media (max-width: 480px) { .link-row { flex-direction: column; } }
     .links { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 18px; font-size: 13px; color: var(--text-dim); }
     .page-footer { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
     .status { font-size: 15px; font-weight: 700; margin: 12px 0 6px; overflow-wrap: anywhere; }
@@ -267,6 +259,7 @@
     </footer>
   </div>
   <script src="../claim-path.js"></script>
+  <script src="link-qr.js"></script>
   <script src="verifier.js"></script>
 </body>
 </html>

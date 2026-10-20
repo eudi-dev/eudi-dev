@@ -7,6 +7,7 @@
   <title>{{.IssuerName}}</title>
   <meta name="description" content="Demo credential issuer of the EUDI Dev Wallet: issues a Demo Event Ticket over OpenID4VCI to any test wallet.">
   <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="link-qr.css">
   <script src="theme.js"></script>
   <script src="footer.js"></script>
   <style>
@@ -167,9 +168,15 @@
     <button class="btn primary" id="create-btn">Create offer</button>
     <div class="result" id="result">
       <div class="label" id="wallet-link-label">Open in the wallet on this host</div>
-      <pre><a href="#" id="wallet-link">…</a></pre>
+      <div class="link-row">
+        <pre><a href="#" id="wallet-link">…</a></pre>
+        <img class="qr" id="wallet-link-qr" alt="QR code of the wallet link" title="Click to enlarge" hidden>
+      </div>
       <div class="label" id="scheme-uri-label">Credential offer (custom scheme, for any wallet)</div>
-      <pre><a href="#" id="scheme-uri">…</a></pre>
+      <div class="link-row">
+        <pre><a href="#" id="scheme-uri">…</a></pre>
+        <img class="qr" id="scheme-uri-qr" alt="QR code of the credential offer" title="Click to enlarge" hidden>
+      </div>
       <div class="label" id="offer-uri-label">Offer URI (by reference)</div>
       <pre id="offer-uri">…</pre>
       <div class="label" id="issuer-id-label">Credential issuer</div>
@@ -192,6 +199,7 @@
       <div class="footer-disclaimer" id="disclaimer">Unofficial, independent open source project. Not affiliated with or endorsed by the European Commission or the European Union.</div>
     </footer>
   </div>
+  <script src="link-qr.js"></script>
   <script src="issuer.js"></script>
 </body>
 </html>
