@@ -523,3 +523,45 @@ func TestPopMethodsNoneInOptionalMode(t *testing.T) {
 		t.Errorf("client_attestation_pop_methods_supported = %v, want it to include none in optional mode", methods)
 	}
 }
+
+// ABCA draft-07 §5.2 and draft-10 §5.1 put the issuer identifier in the PoP
+// aud. The URL of the called endpoint is accepted with a warning, any other
+// value is refused.
+func TestPoPAudience(t *testing.T) {
+	tests := []struct {
+		name     string
+		audience string
+		status   int
+		warning  bool
+	}{
+		{name: "issuer identifier", audience: demoIssuerID, status: http.StatusOK},
+		{name: "token endpoint", audience: demoIssuerID + "/token", status: http.StatusOK, warning: true},
+		{name: "another endpoint", audience: demoIssuerID + "/par", status: http.StatusBadRequest},
+		{name: "another server", audience: "https://elsewhere.example", status: http.StatusBadRequest},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d, _, _ := newDemoRP(t)
+			form := preAuthTokenForm(t, d)
+			clientKey, err := mock.GenerateKey()
+			if err != nil {
+				t.Fatalf("generating client key: %v", err)
+			}
+			headers := map[string]string{
+				"Content-Type":                 "application/x-www-form-urlencoded",
+				"OAuth-Client-Attestation":     foreignWalletProvider(t).attest(t, "wallet", clientKey),
+				"OAuth-Client-Attestation-PoP": attestationPoP(t, clientKey, tt.audience),
+			}
+			var rec *httptest.ResponseRecorder
+			logged := captureLog(t, func() {
+				rec = postFormWithHeaders(t, d.IssuerHandler(), "/token", form, headers)
+			})
+			if rec.Code != tt.status {
+				t.Fatalf("status = %d, want %d (%s)", rec.Code, tt.status, rec.Body.String())
+			}
+			if warned := strings.Contains(logged, "is the endpoint URL"); warned != tt.warning {
+				t.Errorf("warning logged = %v, want %v:\n%s", warned, tt.warning, logged)
+			}
+		})
+	}
+}

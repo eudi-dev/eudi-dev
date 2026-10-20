@@ -26,6 +26,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -922,8 +923,8 @@ func (d *DemoRP) authenticateClient(r *http.Request, clientID, jkt string) (clie
 	if !jws.Valid(pop.raw(), clientKey) {
 		return clientAuthentication{}, attestationFailed("client attestation PoP is not signed by the attested key")
 	}
-	if aud, _ := pop.payload["aud"].(string); aud != d.requestIssuerURL(r) {
-		return clientAuthentication{}, attestationFailed("client attestation PoP aud %q is not this authorization server", aud)
+	if err := checkPoPAudience(pop.payload, d.requestIssuerURL(r), r); err != nil {
+		return clientAuthentication{}, err
 	}
 	// §5.1 requires jti and iat in the PoP. exp is optional and drafts -08 and
 	// later omit iss. An iss that differs from the client_id means the proof
@@ -1161,4 +1162,21 @@ func redirectFormActionSource(redirectURI string) string {
 func writeAuthorizeError(w http.ResponseWriter, message string) {
 	// No redirect_uri is trusted yet, so the error is shown on this endpoint.
 	writeJSON(w, http.StatusBadRequest, oauthError("invalid_request", message))
+}
+
+// checkPoPAudience applies ABCA draft-07 §5.2 and draft-10 §5.1: the aud of
+// the PoP is the issuer identifier of the authorization server. Some wallets
+// send the URL of the endpoint they call, as the htu of a DPoP proof. The
+// demo issuer accepts that with a warning, so the rest of the flow can be
+// tested.
+func checkPoPAudience(payload map[string]any, issuer string, r *http.Request) *clientAuthError {
+	aud, _ := payload["aud"].(string)
+	if aud == issuer {
+		return nil
+	}
+	if endpoint := issuer + "/" + path.Base(r.URL.Path); aud == endpoint {
+		log.Printf("[Demo issuer] client attestation PoP aud %q is the endpoint URL. ABCA draft-07 §5.2 and draft-10 §5.1 require the issuer identifier %q. Accepted, so the rest of the flow can be tested", aud, issuer)
+		return nil
+	}
+	return attestationFailed("client attestation PoP aud %q is not this authorization server", aud)
 }
