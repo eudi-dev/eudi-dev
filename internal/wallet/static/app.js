@@ -1963,7 +1963,7 @@
           for (const key of ['vp_token', 'id_token']) {
             if (details[key] !== undefined) body[key] = details[key];
           }
-          payload = { label: 'Response', body: Object.keys(body).length ? body : null, encrypted: true, wire: result };
+          payload = { label: 'Response', body: Object.keys(body).length ? { protocol: result.protocol, data: body } : null, encrypted: true, wire: result };
         } else {
           payload = { label: 'Response', body: result };
         }
@@ -2251,7 +2251,7 @@
     es.addEventListener('authorize', (event) => {
       try {
         const { url } = JSON.parse(event.data);
-        if (isWebURL(url)) window.location.href = url;
+        if (isWebURL(url)) leavePage(url);
       } catch (e) {
         console.error('SSE authorize parse error:', e);
       }
@@ -2294,6 +2294,13 @@
   // The submitting handler closes its own dialog after receiving the result. Background
   // reconciliation must leave it open.
   let consentSubmitting = false;
+  // Firefox rejects pending fetches with a NetworkError as soon as the page
+  // starts to navigate. The page then shows no error, since the navigation
+  // ended the fetch and nothing failed.
+  let leavingPage = false;
+  // The back button can restore the page from the back/forward cache with
+  // leavingPage still set.
+  window.addEventListener('pageshow', () => { leavingPage = false; });
 
   // Closing a dialog makes any request it replaced available in the banner again.
   function closeConsentOverlay() {
@@ -2355,6 +2362,7 @@
   // A refusal lists its findings one by one. The full error text stays one
   // click away.
   function showErrorDialog(message, detail, findings) {
+    if (leavingPage) return;
     eudiDialogs.setCommand(consentDialog, null);
     consentRequestOpen = false;
     const active = document.activeElement;
@@ -2414,8 +2422,13 @@
     }
     // The page navigates away, so only the console keeps the error.
     if (result.error) console.warn('wallet error before the redirect:', result.error);
-    window.location.href = result.redirect_uri;
+    leavePage(result.redirect_uri);
     return true;
+  }
+
+  function leavePage(url) {
+    leavingPage = true;
+    window.location.href = url;
   }
 
   function showSubmissionResult(result) {

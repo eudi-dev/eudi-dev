@@ -679,6 +679,49 @@ test.describe("Demo issuer authorization choice", () => {
     await otherContext.close();
   });
 
+  // Firefox rejects pending fetches as soon as the page starts to navigate. The
+  // wallet leaves for the issuer's sign-in while the approval is still open.
+  test("leaving for the issuer's sign-in shows no error", async ({ browser }) => {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    const errors = [];
+    await page.exposeBinding("reportError", (_, text) => errors.push(text));
+    const { body: offer } = await postJSON(
+      "/issuer/api/offers?grant=authorization_code&authorization=browser",
+      {}
+    );
+    await page.goto(`${BASE}/`);
+    await page.evaluate(() => {
+      const send = window.fetch;
+      window.fetch = (url, opts) => {
+        if (!String(url).endsWith("/approve")) return send(url, opts);
+        send(url, opts).catch(() => {});
+        return new Promise((_, reject) => {
+          window.addEventListener("beforeunload", () =>
+            reject(new TypeError("NetworkError when attempting to fetch resource.")));
+        });
+      };
+      new MutationObserver(() => {
+        const text = document.getElementById("consent-dialog").textContent;
+        if (/failed/i.test(text)) window.reportError(text);
+      }).observe(document.getElementById("consent-dialog"), { childList: true, subtree: true });
+    });
+    // The sign-in page loads slowly, so an error has time to show.
+    await page.route("**/issuer/authorize*", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await route.continue();
+    });
+
+    await page.fill("#offer-input", offer.scheme_uri);
+    await page.locator("#process-btn").click();
+    await page.waitForSelector("#consent-overlay.active", { timeout: 15_000 });
+    await page.locator("#consent-approve").click();
+    await page.waitForURL(/\/issuer\/authorize/, { timeout: 15_000 });
+
+    expect(errors).toEqual([]);
+    await context.close();
+  });
+
   // A phone drops open requests when the user switches apps. The issuance goes on in
   // the wallet and waits for the presentation.
   test("a lost issuance request keeps the presentation dialog open", async ({ browser }) => {

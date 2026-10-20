@@ -1780,6 +1780,22 @@ test("encrypted activity without plaintext still shows the wire value", async ({
   await expect(entry.getByTestId("log-payload-toggle")).toHaveCount(0);
 });
 
+test("an encrypted Browser API response shows the same result in both views", async ({ page }) => {
+  await page.route("**/api/log*", route => route.fulfill({ json: [{
+    time: "2026-10-01T08:00:00Z", action: "presentation", detail: "Returned Browser API presentation", success: true,
+    details: { event: "presentation_response", vp_token: { pid: ["presented-token"] },
+      browser_api_result: { protocol: "openid4vp-v1-signed", data: { response: "encrypted-response" } } },
+  }] }));
+  await page.goto(WALLET_URL);
+  const entry = page.getByTestId("log-entry");
+  await entry.getByTestId("log-entry-toggle").click();
+  await expect(entry.locator(".log-payload > pre"))
+    .toHaveText(JSON.stringify({ protocol: "openid4vp-v1-signed", data: { response: "encrypted-response" } }, null, 2));
+  await entry.getByTestId("log-payload-toggle").click();
+  await expect(entry.locator(".log-payload > pre"))
+    .toHaveText(JSON.stringify({ protocol: "openid4vp-v1-signed", data: { vp_token: { pid: ["presented-token"] } } }, null, 2));
+});
+
 test("activity details stay visible and decoded request JWTs open in the decoder", async ({ page }) => {
   const claims = { client_id: "https://verifier.example", nonce: "decoded-nonce" };
   const jwt = [JSON.stringify({ alg: "ES256", typ: "oauth-authz-req+jwt" }), JSON.stringify(claims)]

@@ -192,6 +192,7 @@ func (s *Server) writeBrowserPresentationResult(w http.ResponseWriter, authReq *
 	payload := PresentationLogPayload(prepared.Response)
 	if payload.Encrypted {
 		payload.Wire = result
+		payload.Body = oid4vp.BrowserAPIResult{Protocol: result.Protocol, Data: payload.Body}
 	} else {
 		payload.Body = result
 	}

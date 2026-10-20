@@ -923,7 +923,9 @@ func TestBrowserPresentationAPI_DCAPISignedJWT(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	actualPlain, err := json.Marshal(decrypted)
+	// Both views show the same result. The decrypted view has the plaintext
+	// in place of the JWE.
+	actualPlain, err := json.Marshal(oid4vp.BrowserAPIResult{Protocol: "openid4vp-v1-signed", Data: decrypted})
 	if err != nil {
 		t.Fatal(err)
 	}
