@@ -25,7 +25,7 @@ A wallet for testing EUDI issuers and verifiers, in the browser, on the command 
 
 > **Try it online:** a shared public demo runs at **<https://eudi-test.dev>**. The newest beta runs at <https://preview.eudi-test.dev>.
 
-![Wallet UI](docs/assets/wallet-ui.png)
+https://github.com/user-attachments/assets/e915c82c-75f0-4f6b-94eb-cd4a4252a863
 
 ## Highlights
 
