@@ -1695,6 +1695,21 @@ test("activity starts collapsed and opens the sent presentation in the decoder",
     .toHaveJSProperty("href", WALLET_URL + "/decoder/#credential=presented-token");
 });
 
+test("an expanded activity entry shows its whole detail", async ({ page }) => {
+  const detail = "The nonce endpoint https://issuer.example/nonce answers a POST with 405 and serves a c_nonce only over GET. "
+    + "OID4VCI 1.0 §7.1 requires POST. Debug mode uses GET";
+  await page.route("**/api/log*", route => route.fulfill({ json: [{
+    time: "2026-10-01T08:00:00Z", action: "issuance", detail, success: true, severity: "warning",
+    details: { event: "nonce_endpoint_get", url: "https://issuer.example/nonce" },
+  }] }));
+  await page.goto(WALLET_URL);
+  const text = page.getByTestId("log-entry").locator(".log-detail");
+  const clipped = () => text.evaluate(el => el.scrollWidth > el.clientWidth);
+  expect(await clipped()).toBe(true);
+  await page.getByTestId("log-entry-toggle").click();
+  expect(await clipped()).toBe(false);
+});
+
 for (const event of ["presentation_response", "interactive_authorization_presentation"]) {
   test(`encrypted presentation activity opens every sent token for ${event}`, async ({ page }) => {
     const first = activityJWT("first-presentation");

@@ -2174,6 +2174,15 @@ textarea.form-input {
   white-space: nowrap;
 }
 
+/* An expanded entry shows its whole detail, also past the clamp on narrow screens. */
+.log-entry.expanded .log-detail {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  display: block;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+}
+
 .log-status {
   font-weight: 600;
 }
