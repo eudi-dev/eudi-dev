@@ -50,7 +50,7 @@ func (s *Server) handleBrowserPresentationAPI(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	s.log("Received Browser API authorization request")
+	s.log("Received an authorization request through the Digital Credentials API")
 	s.log("  Protocol:      %s", protocol)
 	s.log("  Client ID:     %s", authReq.ClientID)
 	s.log("  Response Mode: %s", authReq.ResponseMode)
@@ -166,15 +166,15 @@ func (s *Server) writeBrowserAuthorizationError(w http.ResponseWriter, authReq *
 	details["error"] = errorCode
 	addStringDetail(details, "error_description", errorDescription)
 	details["browser_api_result"] = result
-	s.wallet.addProtocolLog("presentation", "presentation_error_response", fmt.Sprintf("Returned Browser API error to %s", authReq.ClientID), true, details)
+	s.wallet.addProtocolLog("presentation", "presentation_error_response", fmt.Sprintf("Returned an error to %s through the Digital Credentials API", authReq.ClientID), true, details)
 	writeJSON(w, http.StatusOK, result)
 }
 
 func (s *Server) writeBrowserPresentationResult(w http.ResponseWriter, authReq *oid4vp.Request, protocol string, matches []consent.Match) consent.SubmissionResult {
 	result, prepared, err := s.buildBrowserPresentationResult(authReq, protocol, matches)
 	if err != nil {
-		s.log("  ERROR: Browser API presentation failed: %v", err)
-		s.wallet.addProtocolLog("presentation", "presentation_failed", fmt.Sprintf("Browser API presentation failed: %v", err), false, map[string]any{"error": err.Error()})
+		s.log("  ERROR: Digital Credentials API presentation failed: %v", err)
+		s.wallet.addProtocolLog("presentation", "presentation_failed", fmt.Sprintf("Digital Credentials API presentation failed: %v", err), false, map[string]any{"error": err.Error()})
 		apierror.WriteErr(w, http.StatusInternalServerError, apierror.ServerError, err)
 		return consent.SubmissionResult{Error: err.Error()}
 	}
@@ -196,7 +196,7 @@ func (s *Server) writeBrowserPresentationResult(w http.ResponseWriter, authReq *
 	} else {
 		payload.Body = result
 	}
-	s.wallet.addProtocolLog("presentation", "presentation_response", fmt.Sprintf("Returned Browser API presentation to %s", authReq.ClientID), true, details, payload)
+	s.wallet.addProtocolLog("presentation", "presentation_response", fmt.Sprintf("Returned the presentation to %s through the Digital Credentials API", authReq.ClientID), true, details, payload)
 	writeJSON(w, http.StatusOK, result)
 	return consent.SubmissionResult{StatusCode: http.StatusOK}
 }

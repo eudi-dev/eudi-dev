@@ -294,7 +294,7 @@ The expanded local matrix (76 plans: the full supported cross product of the alp
 - one VCI module ended `INTERRUPTED` after a machine-load stall (the harness cancelled it, and the same module passes in the neighbouring plans)
 - 18 mdoc VCI plans contain the mdoc batch skips
 
-Variants exercised for the first time in this matrix: `url_query`, `x509_san_dns`, `web-origin`, multisigned requests and the Browser API response modes in the Final plan, plus grant, offer delivery, issuance mode and encryption cross products in VCI. They revealed the two wallet gaps fixed in 2.3.0 (request URI parsing, derived `response_uri`).
+Variants exercised for the first time in this matrix: `url_query`, `x509_san_dns`, `web-origin`, multisigned requests and the Digital Credentials API response modes in the Final plan, plus grant, offer delivery, issuance mode and encryption cross products in VCI. They revealed the two wallet gaps fixed in 2.3.0 (request URI parsing, derived `response_uri`).
 
 ## Baseline
 

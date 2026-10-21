@@ -229,7 +229,7 @@ func TestBuildBrowserAPIResult(t *testing.T) {
 		{"dc_api error", &AuthorizationResponseEnvelope{ResponseMode: "dc_api", Plain: map[string]any{"error": "access_denied", "error_description": "user said no", "state": "s"}}, map[string]any{"error": "access_denied"}, ""},
 		{"dc_api.jwt error", &AuthorizationResponseEnvelope{ResponseMode: "dc_api.jwt", Plain: map[string]any{"error": "invalid_request", "state": "s"}}, map[string]any{"error": "invalid_request"}, ""},
 		{"dc_api.jwt without JWT", &AuthorizationResponseEnvelope{ResponseMode: "dc_api.jwt"}, nil, "dc_api.jwt response is missing response JWT"},
-		{"direct_post", &AuthorizationResponseEnvelope{ResponseMode: "direct_post", Plain: vpToken}, nil, `response_mode "direct_post" cannot be returned via Browser API`},
+		{"direct_post", &AuthorizationResponseEnvelope{ResponseMode: "direct_post", Plain: vpToken}, nil, `response_mode "direct_post" cannot be returned through the Digital Credentials API`},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := BuildBrowserAPIResult(browserAPIProtocolSigned, tt.response)

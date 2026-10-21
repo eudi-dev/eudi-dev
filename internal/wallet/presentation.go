@@ -473,7 +473,7 @@ func (w *Wallet) submitPresentation(vpResult *VPTokenMapResult, idToken, state, 
 			return oid4vp.SubmitDirectPostObject(responseURI, response.Plain, w.HTTPClient())
 		})
 	case "dc_api", "dc_api.jwt":
-		return nil, fmt.Errorf("response_mode %q must be returned via Browser API, not direct submission", response.ResponseMode)
+		return nil, fmt.Errorf("response_mode %q must be returned through the Digital Credentials API, not direct submission", response.ResponseMode)
 	case "ia_post", "ia_post.jwt":
 		return nil, fmt.Errorf("response_mode %q goes back to the Authorization Challenge Endpoint, not to a response_uri", response.ResponseMode)
 	default:
@@ -500,7 +500,7 @@ func (w *Wallet) submitAuthorizationError(errorCode, errorDescription, state, re
 	case "direct_post":
 		return oid4vp.SubmitDirectPostObject(responseURI, response.Plain, w.HTTPClient())
 	case "dc_api", "dc_api.jwt":
-		return nil, fmt.Errorf("response_mode %q must be returned via Browser API, not direct submission", response.ResponseMode)
+		return nil, fmt.Errorf("response_mode %q must be returned through the Digital Credentials API, not direct submission", response.ResponseMode)
 	case "ia_post", "ia_post.jwt":
 		return nil, fmt.Errorf("response_mode %q goes back to the Authorization Challenge Endpoint, not to a response_uri", response.ResponseMode)
 	default:

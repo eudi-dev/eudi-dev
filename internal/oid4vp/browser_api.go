@@ -246,6 +246,6 @@ func BuildBrowserAPIResult(protocol string, response *AuthorizationResponseEnvel
 			Data:     dcAPIData(response.Plain),
 		}, nil
 	default:
-		return nil, fmt.Errorf("response_mode %q cannot be returned via Browser API", response.ResponseMode)
+		return nil, fmt.Errorf("response_mode %q cannot be returned through the Digital Credentials API", response.ResponseMode)
 	}
 }

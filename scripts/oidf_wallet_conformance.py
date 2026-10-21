@@ -1290,7 +1290,7 @@ def submit_browser_api_request(wallet_url: str, browser_request: dict, submit_ur
             )
             with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT, context=conformance_api_context()) as resp:
                 resp.read()
-            print(f"[monitor] submitted Browser API exception to suite: {submit_url}", flush=True)
+            print(f"[monitor] submitted Digital Credentials API exception to suite: {submit_url}", flush=True)
             return WalletSubmissionResult(completed=True, retryable=False)
 
     req = urllib.request.Request(
@@ -1301,7 +1301,7 @@ def submit_browser_api_request(wallet_url: str, browser_request: dict, submit_ur
     )
     with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT, context=conformance_api_context()) as resp:
         resp.read()
-    print(f"[monitor] submitted Browser API result to suite: {submit_url}", flush=True)
+    print(f"[monitor] submitted Digital Credentials API result to suite: {submit_url}", flush=True)
     return WalletSubmissionResult(completed=True, retryable=False)
 
 

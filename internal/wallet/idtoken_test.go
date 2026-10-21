@@ -344,11 +344,11 @@ func TestBrowserIDTokenOnlyFlowWithoutCredentialMatch(t *testing.T) {
 		t.Fatalf("expected browser data object, got %T", result["data"])
 	}
 	if _, ok := data["vp_token"]; ok {
-		t.Fatalf("expected no vp_token in Browser API result, got %v", data["vp_token"])
+		t.Fatalf("expected no vp_token in Digital Credentials API result, got %v", data["vp_token"])
 	}
 	rawIDToken, ok := data["id_token"].(string)
 	if !ok || rawIDToken == "" {
-		t.Fatalf("expected id_token in Browser API result, got %v", data["id_token"])
+		t.Fatalf("expected id_token in Digital Credentials API result, got %v", data["id_token"])
 	}
 
 	_, payload, _, err := format.ParseJWTParts(rawIDToken)

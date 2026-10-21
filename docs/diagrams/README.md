@@ -6,7 +6,7 @@ These Mermaid diagrams show how `eudi-dev` interacts with issuers and verifiers.
 
 | Page | Scope |
 |------|-------|
-| [OID4VP flows](./oid4vp.md) | Presentation request variants, response modes, Browser API, and request-object handling |
+| [OID4VP flows](./oid4vp.md) | Presentation request variants, response modes, Digital Credentials API, and request-object handling |
 | [OID4VCI flows](./oid4vci.md) | Credential offer variants, grant flows, and the credential request branches |
 
 ## Whole interaction
@@ -25,7 +25,7 @@ sequenceDiagram
     Wallet->>Issuer: credential request
     Issuer-->>Wallet: credential
 
-    RP-->>Browser: authorization request or Browser API request
+    RP-->>Browser: authorization request or Digital Credentials API request
     Browser->>Wallet: openid4vp:// / haip-vp:// / eudi-openid4vp:// / eu-eaap:// or dc_api*
     Wallet-->>RP: presentation response
 ```
@@ -56,7 +56,7 @@ sequenceDiagram
     Issuer-->>Wallet: credential
 
     Note over Browser,RP: OID4VP branch
-    Browser->>Wallet: open URI request or trigger Browser API request
+    Browser->>Wallet: open URI request or trigger Digital Credentials API request
     opt request_uri present
         Wallet->>RP: fetch request_uri
     end
@@ -68,7 +68,7 @@ sequenceDiagram
     else fragment
         Wallet-->>Browser: redirect URI with fragment response
     else dc_api / dc_api.jwt
-        Wallet-->>Browser: Browser API response
+        Wallet-->>Browser: Digital Credentials API response
     end
 ```
 

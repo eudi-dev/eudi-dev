@@ -124,7 +124,7 @@ A verifier page can ask for a presentation with the W3C Digital Credentials API 
 
 `--haip` adds the profile checks below. Strict mode rejects violations. Debug mode reports them and continues where possible. Advisory findings remain warnings in either mode.
 
-For **presentations** (OID4VP `direct_post.jwt` and Browser API `dc_api.jwt`) the wallet checks every request against all of:
+For **presentations** (OID4VP `direct_post.jwt` and Digital Credentials API `dc_api.jwt`) the wallet checks every request against all of:
 
 - `response_type` must be `vp_token` (§5)
 - `response_mode` must be `direct_post.jwt` (§5.1) or `dc_api.jwt` (§5.2)

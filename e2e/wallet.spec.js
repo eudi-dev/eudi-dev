@@ -1819,9 +1819,9 @@ test("encrypted activity without plaintext still shows the wire value", async ({
   await expect(entry.getByTestId("log-payload-toggle")).toHaveCount(0);
 });
 
-test("an encrypted Browser API response shows the same result in both views", async ({ page }) => {
+test("an encrypted Digital Credentials API response shows the same result in both views", async ({ page }) => {
   await page.route("**/api/log*", route => route.fulfill({ json: [{
-    time: "2026-10-01T08:00:00Z", action: "presentation", detail: "Returned Browser API presentation", success: true,
+    time: "2026-10-01T08:00:00Z", action: "presentation", detail: "Returned the presentation to https://verifier.example through the Digital Credentials API", success: true,
     details: { event: "presentation_response", vp_token: { pid: ["presented-token"] },
       browser_api_result: { protocol: "openid4vp-v1-signed", data: { response: "encrypted-response" } } },
   }] }));

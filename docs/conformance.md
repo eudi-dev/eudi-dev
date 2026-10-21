@@ -45,7 +45,7 @@ VCI Final runs 32 plans covering both credential formats, both grants, both offe
 
 The HAIP plans expose fewer selectable variants (the module entries fix the rest):
 
-- VP HAIP: SD-JWT and mdoc with `direct_post.jwt` and `dc_api.jwt` (4 plans). The `dc_api.jwt` plans cover unsigned (no `client_id`), signed `x509_hash`, and multisigned `x509_hash` Browser API modules
+- VP HAIP: SD-JWT and mdoc with `direct_post.jwt` and `dc_api.jwt` (4 plans). The `dc_api.jwt` plans cover unsigned (no `client_id`), signed `x509_hash`, and multisigned `x509_hash` Digital Credentials API modules
 - VCI HAIP: SD-JWT and mdoc, each issuer-initiated with the offer `by_value` and `by_reference` and wallet-initiated without an offer, each covering immediate plain, deferred plain, and immediate encrypted responses (6 plans)
 
 The matrix omits the `pre_registered` and `decentralized_identifier` prefixes, `issuer_initiated_dc_api`, `rar` authorization requests in the authorization code flow, and mTLS or `private_key_jwt` client authentication. The wallet uses scope-based authorization. The HAIP plans cover wallet-initiated issuance. The Final issuance matrix uses issuer-initiated flows.
@@ -75,11 +75,11 @@ The matrix is fixed in the wrapper. Use the official runner `--rerun` selector f
 - generates per-scenario OIDF config files from the upstream templates
 - keeps the VCI suite alias aligned with the configured `redirect_uri` and helper-page paths
 - disables the suite's VCI browser helper page and drives the same offer URL directly through the wallet API
-- drives Browser API `dc_api` / `dc_api.jwt` presentation requests through the wallet's `/api/dc-api` endpoint
+- drives Digital Credentials API `dc_api` / `dc_api.jwt` presentation requests through the wallet's `/api/dc-api` endpoint
 - sets the wallet's conformance mode before each submission through `PUT /api/config/conformance`. Final modules run without HAIP checks and HAIP modules run with them, regardless of the wallet's startup flags
 - starts the wallet-initiated VCI modules itself. The suite provides no offer for them, so the harness sends the wallet an offer for the suite's issuer and the configured credential, without `issuer_state`
 - passes explicit VP module lists for the alpha Final scenarios and runs the certifiable HAIP plans complete
-- monitors waiting modules and automatically submits presentation requests, Browser API requests, credential offers, verifier redirects, and negative-review screenshot placeholders
+- monitors waiting modules and automatically submits presentation requests, Digital Credentials API requests, credential offers, verifier redirects, and negative-review screenshot placeholders
 - prints the created local `plan-detail.html?plan=...` URLs
 
 ## Wallet keys

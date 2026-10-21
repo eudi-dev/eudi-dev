@@ -11,7 +11,7 @@ sequenceDiagram
     participant Wallet as eudi-dev
 
     RP-->>Browser: Presentation request
-    Browser->>Wallet: Open URI request or trigger Browser API request
+    Browser->>Wallet: Open URI request or trigger Digital Credentials API request
     opt request object is by reference
         Wallet->>RP: Fetch request_uri
     end
@@ -25,9 +25,9 @@ sequenceDiagram
     else response_mode = fragment
         Wallet-->>Browser: redirect_uri with fragment payload
     else response_mode = dc_api
-        Wallet-->>Browser: Browser API plain response
+        Wallet-->>Browser: Digital Credentials API plain response
     else response_mode = dc_api.jwt
-        Wallet-->>Browser: Browser API encrypted response
+        Wallet-->>Browser: Digital Credentials API encrypted response
     end
 ```
 
@@ -118,7 +118,7 @@ sequenceDiagram
 | `--require-encrypted-request` | Rejects a POSTed `request_uri` response that is not a compact JWE. The encryption JWK is sent either way. |
 | Request object `Content-Type` | The wallet expects `application/oauth-authz-req+jwt` on the POST response. |
 
-## Browser API flow
+## Digital Credentials API flow
 
 ```mermaid
 sequenceDiagram
@@ -127,14 +127,14 @@ sequenceDiagram
     participant Wallet as eudi-dev
 
     Browser->>RP: Trigger digital credentials request
-    RP->>Wallet: Browser API request envelope
+    RP->>Wallet: Digital Credentials API request envelope
     Wallet->>Wallet: Parse signed or unsigned browser request
     Wallet->>Wallet: Validate caller origin, client identifier and request object
     Wallet->>Wallet: Evaluate dcql_query and build response
     alt response_mode = dc_api
-        Wallet-->>RP: Plain Browser API response object
+        Wallet-->>RP: Plain Digital Credentials API response object
     else response_mode = dc_api.jwt
-        Wallet-->>RP: Encrypted Browser API response JWT
+        Wallet-->>RP: Encrypted Digital Credentials API response JWT
     end
 ```
 
@@ -142,12 +142,12 @@ sequenceDiagram
 
 | Field / setting | Usage |
 |-----------------|----------|
-| Browser API protocol `openid4vp-v1-unsigned` | Unsigned Browser API request branch. |
-| Browser API protocol `openid4vp-v1-signed` | Signed Browser API request branch. Request data can be a compact JWT or an object containing `request` or `request_uri`. |
-| Browser API protocol `openid4vp-v1-multisigned` | Multi-signed Browser API request branch. The wallet takes the first verifiable signature, or else the first one that parses. |
-| `response_mode=dc_api` | Wallet returns plain JSON through the Browser API response envelope. |
-| `response_mode=dc_api.jwt` | Wallet encrypts the response and returns a `response` JWT in the Browser API envelope. |
-| Unsigned Browser API request | Carries no `client_id` (OpenID4VP Appendix A.2). The verifier is identified by the origin reported by the platform. Any `client_id` or `expected_origins` in the request data is discarded. |
+| Digital Credentials API protocol `openid4vp-v1-unsigned` | Unsigned Digital Credentials API request branch. |
+| Digital Credentials API protocol `openid4vp-v1-signed` | Signed Digital Credentials API request branch. Request data can be a compact JWT or an object containing `request` or `request_uri`. |
+| Digital Credentials API protocol `openid4vp-v1-multisigned` | Multi-signed Digital Credentials API request branch. The wallet takes the first verifiable signature, or else the first one that parses. |
+| `response_mode=dc_api` | Wallet returns plain JSON through the Digital Credentials API response envelope. |
+| `response_mode=dc_api.jwt` | Wallet encrypts the response and returns a `response` JWT in the Digital Credentials API envelope. |
+| Unsigned Digital Credentials API request | Carries no `client_id` (OpenID4VP Appendix A.2). The verifier is identified by the origin reported by the platform. Any `client_id` or `expected_origins` in the request data is discarded. |
 
 ## Client identifier prefixes and policy switches
 

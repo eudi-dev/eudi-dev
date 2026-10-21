@@ -38,7 +38,7 @@ examples/      Keycloak and web-wallet integration examples
 | `netaddr` | Which hosts are local to the machine running eudi-dev |
 | `news` | The operator's news for visitors of a public demo |
 | `oid4vc` | OID4VP and OID4VCI request and offer parsing |
-| `oid4vp` | The wallet side of OpenID4VP 1.0: request checks (client identifier, client metadata, verifier_info, HAIP), browser API requests and response delivery |
+| `oid4vp` | The wallet side of OpenID4VP 1.0: request checks (client identifier, client metadata, verifier_info, HAIP), Digital Credentials API requests and response delivery |
 | `output` | Terminal output formatting |
 | `provider` | The wallet's provider keys and certificates: the trusted list of each credential category, the signing key and CA of each list, the access and registrar CAs, and the sequenced list instances |
 | `proxy` | Reverse proxy, traffic classifier, dashboard |
@@ -64,7 +64,7 @@ examples/      Keycloak and web-wallet integration examples
 
 **Decode and validate.** The tool accepts a file, URL, stdin or QR scan. It detects the format and parses the input. It then displays the result or checks its signature, validity period and revocation status.
 
-**Presentation (OID4VP).** The wallet receives an authorization request through a URI, HTTP endpoint or browser API. It fetches and decrypts a request object when needed. With a request object, the wallet uses only the parameters inside it (RFC 9101 §6.3).
+**Presentation (OID4VP).** The wallet receives an authorization request through a URI, an HTTP endpoint or the Digital Credentials API. It fetches and decrypts a request object when needed. With a request object, the wallet uses only the parameters inside it (RFC 9101 §6.3).
 
 The wallet checks the client identifier, signature and required parameters. Debug mode reports findings and continues. Strict mode stops on findings. `--haip` adds the profile checks. DCQL selects the matching credentials. A credential also matches when its type extends the requested type.
 
