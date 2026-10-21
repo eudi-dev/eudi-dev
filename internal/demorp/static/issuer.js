@@ -16,7 +16,7 @@ async function createOffer(grant, txCode, status, authorization, deferred, batch
       init.body = JSON.stringify(body);
     }
     if (grant) params.set("grant", grant);
-    else if (txCode) params.set("tx_code", "true");
+    else if (txCode) params.set("tx_code", txCode);
     if (status) params.set("status", status);
     if (deferred) params.set("deferred", "true");
     if (batch) params.set("batch", batch);
@@ -35,8 +35,6 @@ async function createOffer(grant, txCode, status, authorization, deferred, batch
     scheme.href = doc.scheme_uri;
     showQR("wallet-link-qr", doc.wallet_url_qr);
     showQR("scheme-uri-qr", doc.scheme_uri_qr);
-    document.getElementById("tx-code-result").hidden = !doc.tx_code;
-    document.getElementById("tx-code-value").textContent = doc.tx_code || "";
     document.getElementById("offer-uri").textContent = doc.offer_uri;
     document.getElementById("issuer-id").textContent = doc.issuer;
     document.getElementById("result").style.display = "block";
@@ -46,6 +44,10 @@ async function createOffer(grant, txCode, status, authorization, deferred, batch
   }
 }
 
+function randomDigits(n) {
+  return Array.from(crypto.getRandomValues(new Uint32Array(n)), (v) => v % 10).join("");
+}
+
 const GRANT_HINTS = {
   "": "The offer carries the code. No sign-in.",
   authorization_code: "The wallet uses PAR, PKCE, DPoP and a wallet attestation.",
@@ -53,7 +55,7 @@ const GRANT_HINTS = {
 
 const TX_CODE_HINTS = {
   "": "No code to enter in the wallet.",
-  true: "The user enters a six-digit code in the wallet. It appears below the offer.",
+  true: "",
 };
 
 const AUTHORIZATION_HINTS = {
@@ -183,11 +185,31 @@ bindToggle("grant-toggle", "grant", "grant-hint", GRANT_HINTS, (value) => {
   document.getElementById("authorization-hint").hidden = !shown;
   // A transaction code protects only a pre-authorized code.
   document.getElementById("tx-code-row").hidden = shown;
-  document.getElementById("tx-code-hint").hidden = shown;
+  showTxCode(!shown);
   updateIdentityCheck();
 });
+// The page picks the code, so it can show it before the offer exists.
 bindToggle("tx-code-toggle", "txCode", "tx-code-hint", TX_CODE_HINTS, (value) => {
-  txCode = value;
+  txCode = value ? randomDigits(6) : "";
+  document.getElementById("tx-code-value").textContent = txCode;
+  showTxCode(true);
+});
+
+// The code takes the place of the hint while the offer uses one.
+function showTxCode(available) {
+  document.getElementById("tx-code-hint").hidden = !available || Boolean(txCode);
+  document.getElementById("tx-code-shown").hidden = !available || !txCode;
+}
+
+document.getElementById("tx-code-copy").addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  try {
+    await navigator.clipboard.writeText(txCode);
+    button.textContent = "Copied";
+  } catch {
+    button.textContent = "Copy failed";
+  }
+  setTimeout(() => { button.textContent = "Copy"; }, 1500);
 });
 bindToggle("authorization-toggle", "authorization", "authorization-hint", AUTHORIZATION_HINTS, (value) => {
   authorization = value;

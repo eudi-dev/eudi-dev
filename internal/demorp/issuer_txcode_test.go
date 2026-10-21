@@ -110,3 +110,24 @@ func TestATransactionCodeNeedsAPreAuthorizedOffer(t *testing.T) {
 		t.Fatalf("creating offer: %d %v, want 400", code, doc)
 	}
 }
+
+func TestAnOfferTakesTheTransactionCodeItIsGiven(t *testing.T) {
+	d, _, _ := newDemoRP(t)
+	code, doc := doJSON(t, d.IssuerHandler(), "POST", "/api/offers?tx_code=042917", "", nil)
+	if code != http.StatusCreated {
+		t.Fatalf("creating offer: %d %v", code, doc)
+	}
+	if doc["tx_code"] != "042917" {
+		t.Errorf("tx_code = %v, want 042917", doc["tx_code"])
+	}
+}
+
+func TestATransactionCodeIsTrueOrSixDigits(t *testing.T) {
+	d, _, _ := newDemoRP(t)
+	for _, value := range []string{"12345", "1234567", "12345a", "false"} {
+		code, doc := doJSON(t, d.IssuerHandler(), "POST", "/api/offers?tx_code="+value, "", nil)
+		if code != http.StatusBadRequest {
+			t.Errorf("tx_code=%s: %d %v, want 400", value, code, doc)
+		}
+	}
+}

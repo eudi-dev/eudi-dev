@@ -35,6 +35,10 @@
     .result { margin-top: 18px; display: none; }
     .result-hint { margin-top: 12px; color: var(--text-dim); font-size: 13px; }
     .label { font-size: 13px; font-weight: 600; color: var(--text-dim); margin: 12px 0 6px; }
+    .tx-code { font-family: var(--font-mono); font-size: 14px; font-weight: 600; letter-spacing: 0.08em; color: var(--text); }
+    .copy-btn { font: inherit; padding: 0; border: 0; background: none; color: var(--link); cursor: pointer; }
+    .copy-btn:hover { text-decoration: underline; }
+    #offer-details summary { cursor: pointer; font-size: 13px; color: var(--text-dim); margin-top: 12px; width: fit-content; }
     pre { font-family: var(--font-mono); font-size: 12px; background: var(--bg-input); border: 1px solid var(--border);
       border-radius: 12px; padding: 10px 12px; overflow-x: auto; user-select: all; white-space: pre-wrap; word-break: break-all; }
     a { color: var(--link); }
@@ -108,6 +112,7 @@
       </div>
     </div>
     <p class="grant-hint" id="tx-code-hint">No code to enter in the wallet.</p>
+    <p class="grant-hint" id="tx-code-shown" hidden>Enter <span class="tx-code" id="tx-code-value"></span> in the wallet when it asks for it. <button type="button" class="copy-btn" id="tx-code-copy">Copy</button></p>
     <div class="grant-row" id="authorization-row" hidden>
       <span class="grant-label" id="authorization-label">Authorization</span>
       <div class="toggle" id="authorization-toggle" role="radiogroup" aria-label="How the user authorizes the issuance">
@@ -195,14 +200,13 @@
         <pre><a href="#" id="scheme-uri">…</a></pre>
         <img class="qr" id="scheme-uri-qr" alt="QR code of the credential offer" title="Click to enlarge" hidden>
       </div>
-      <div id="tx-code-result" hidden>
-        <div class="label" id="tx-code-result-label">Transaction code (enter it in the wallet)</div>
-        <pre id="tx-code-value">…</pre>
-      </div>
-      <div class="label" id="offer-uri-label">Offer URI (by reference)</div>
-      <pre id="offer-uri">…</pre>
-      <div class="label" id="issuer-id-label">Credential issuer</div>
-      <pre id="issuer-id">…</pre>
+      <details id="offer-details">
+        <summary id="offer-details-summary">Details</summary>
+        <div class="label" id="offer-uri-label">Offer URI (by reference)</div>
+        <pre id="offer-uri">…</pre>
+        <div class="label" id="issuer-id-label">Credential issuer</div>
+        <pre id="issuer-id">…</pre>
+      </details>
       <p id="result-hint" class="result-hint">After the wallet accepts the offer, present the ticket at the <a href="../verifier/" id="result-verifier-link">demo verifier</a>.</p>
     </div>
     <div class="error" id="error" hidden></div>

@@ -339,13 +339,24 @@ test.describe("Demo mode consent visibility", () => {
     await fetch(`${BASE}/api/credentials`, { method: "DELETE" });
   });
 
-  test("the issuer page shows the transaction code of a new offer", async ({ page }) => {
+  test("the issuer page shows the transaction code as soon as it is chosen", async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     await page.goto(`${BASE}/issuer/`);
     await page.locator("#tx-code-with").click();
+    const shown = page.locator("#tx-code-shown #tx-code-value");
+    await expect(shown).toHaveText(/^[0-9]{6}$/);
+    await expect(page.locator("#tx-code-hint")).toBeHidden();
+    await page.locator("#tx-code-copy").click();
+    await expect(page.locator("#tx-code-copy")).toHaveText("Copied");
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(await shown.textContent());
+    const offer = page.waitForResponse((r) => r.url().includes("/issuer/api/offers"));
     await page.locator("#create-btn").click();
-    await expect(page.locator("#tx-code-value")).toHaveText(/^[0-9]{6}$/);
+    expect((await (await offer).json()).tx_code).toBe(await shown.textContent());
     await page.locator("#grant-authorization-code").click();
     await expect(page.locator("#tx-code-row")).toBeHidden();
+    await expect(page.locator("#tx-code-shown")).toBeHidden();
+    await page.locator("#grant-pre-authorized-code").click();
+    await expect(shown).toBeVisible();
   });
 
   test("the issuer page puts the ticket on the wallet's status list by default", async ({ page }) => {

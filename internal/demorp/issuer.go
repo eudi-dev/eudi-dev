@@ -335,12 +335,17 @@ func (d *DemoRP) handleIssuerMetadata(w http.ResponseWriter, r *http.Request) {
 //   - credential_identifiers=always returns credential identifiers in every
 //     token response, also when the wallet asked without
 //     authorization_details.
-//   - tx_code=true protects a pre-authorized offer with a generated
-//     Transaction Code. The response returns it as tx_code.
+//   - tx_code protects a pre-authorized offer with a Transaction Code: true
+//     generates one, six digits are the code itself. The response returns it
+//     as tx_code.
 func (d *DemoRP) handleCreateOffer(w http.ResponseWriter, r *http.Request) {
 	authCode := r.URL.Query().Get("grant") == authCodeGrant
-	withTxCode := r.URL.Query().Get("tx_code") == "true"
-	if withTxCode && authCode {
+	txCode, err := requestedTxCode(r.URL.Query().Get("tx_code"))
+	if err != nil {
+		apierror.WriteStatusErr(w, http.StatusBadRequest, err)
+		return
+	}
+	if txCode != "" && authCode {
 		apierror.WriteStatus(w, http.StatusBadRequest, "a transaction code needs a pre-authorized offer")
 		return
 	}
@@ -383,9 +388,7 @@ func (d *DemoRP) handleCreateOffer(w http.ResponseWriter, r *http.Request) {
 	} else {
 		offer.preAuthCode = randToken()
 	}
-	if withTxCode {
-		offer.txCode = randomDigits(txCodeLength)
-	}
+	offer.txCode = txCode
 	d.offers[offer.id] = offer
 	d.mu.Unlock()
 
@@ -542,8 +545,22 @@ func (d *DemoRP) handleToken(w http.ResponseWriter, r *http.Request) {
 	d.issueToken(w, r, tokenState{offerSettings: settings, jkt: jkt, clientAuth: &clientAuth}, false)
 }
 
-// txCodeLength is the number of digits of a generated Transaction Code.
+// txCodeLength is the number of digits of a Transaction Code.
 const txCodeLength = 6
+
+// requestedTxCode reads the tx_code parameter of a new offer. The issuer page
+// sends its own code, so it can show the code before the offer exists.
+func requestedTxCode(value string) (string, error) {
+	switch {
+	case value == "":
+		return "", nil
+	case value == "true":
+		return randomDigits(txCodeLength), nil
+	case len(value) == txCodeLength && strings.Trim(value, "0123456789") == "":
+		return value, nil
+	}
+	return "", fmt.Errorf("tx_code must be true or %d digits", txCodeLength)
+}
 
 // checkTxCode compares the tx_code of a token request with the one of the
 // offer. OpenID4VCI 1.0 §6.3 answers a missing or unexpected tx_code with
