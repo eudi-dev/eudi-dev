@@ -1346,6 +1346,10 @@ test.describe("Consent credential selection", () => {
     expect(result.status).toBe("verified");
     expect(result.claims.ticket.event).toBe("EUDI Interop Fest");
     expect(result.checks.map((c) => c.name)).toContain("ticket: signature");
+    const ticket = page.locator("#claims tr.claims-group", { hasText: "ticket" });
+    await expect(ticket).toBeVisible();
+    const event = page.locator("#claims tr", { has: page.locator("td", { hasText: /^event$/ }) });
+    await expect(event.locator("td").last()).toHaveText("EUDI Interop Fest");
   });
 
   test("a combined option presents PID and ticket together or the PID alone", async ({ page }) => {

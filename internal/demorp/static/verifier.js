@@ -117,9 +117,9 @@ function renderResult(doc) {
   if (doc.status === "verified" && doc.claims) {
     claims.innerHTML = Object.entries(doc.claims).map(([k, v], i) => {
       const id = `claims-${i}-${idPart(k)}`;
-      return typeof v === "object" && v !== null
-        ? `<tr id="${id}"><td id="${id}-name">${esc(k)}</td><td id="${id}-value"><div class="claim-json" id="${id}-json">${esc(JSON.stringify(v, null, 2))}</div></td></tr>`
-        : `<tr id="${id}"><td id="${id}-name">${esc(k)}</td><td id="${id}-value">${esc(v)}</td></tr>`;
+      if (!isPlainObject(v)) return claimRowHTML(id, k, v);
+      const rows = Object.entries(v).map(([name, value], j) => claimRowHTML(`${id}-${j}-${idPart(name)}`, name, value));
+      return `<tr class="claims-group" id="${id}"><th colspan="2" id="${id}-name">${esc(k)}</th></tr>` + rows.join("");
     }).join("");
     claims.hidden = false;
     label.hidden = false;
@@ -128,6 +128,17 @@ function renderResult(doc) {
     label.hidden = true;
   }
   renderPresentationLink(doc.presentation);
+}
+
+function isPlainObject(v) {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+function claimRowHTML(id, name, value) {
+  const shown = typeof value === "object" && value !== null
+    ? `<div class="claim-json" id="${id}-json">${esc(JSON.stringify(value, null, 2))}</div>`
+    : esc(value);
+  return `<tr id="${id}"><td id="${id}-name">${esc(name)}</td><td id="${id}-value">${shown}</td></tr>`;
 }
 
 // The decoder link carries the complete presentation, because the wallet does

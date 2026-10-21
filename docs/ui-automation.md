@@ -319,7 +319,7 @@ The demo verifier polls for the result and shows it on its page.
 | Failed checks and warnings | `#checks .check-item` with the class `fail` or `warn` |
 | Passed checks | `#checks-passed` (collapsed), opened with `#checks-passed-summary` |
 | Check groups per credential | `.check-group`, headed with the query ID |
-| Disclosed claims | `#claims` (table), rows `#claims-<n>-<claim>` |
+| Disclosed claims | `#claims` (table), rows `#claims-<n>-<claim>`. A claim with an object value, such as the ticket, is a heading row followed by a row per member, `#claims-<n>-<claim>-<m>-<member>` |
 | The presentation in the decoder | `#presentation-link` |
 
 API: `GET /verifier/api/requests/{transaction id}` returns `status`, `checks` and `claims`. `POST /verifier/api/requests` with `{"type": "pid"}` creates a request and returns `transaction_id`, `wallet_url` and `scheme_uri`.
