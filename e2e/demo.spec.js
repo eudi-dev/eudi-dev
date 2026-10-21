@@ -348,6 +348,12 @@ test.describe("Demo mode consent visibility", () => {
     await expect(page.locator("#tx-code-row")).toBeHidden();
   });
 
+  test("the issuer page puts the ticket on the wallet's status list by default", async ({ page }) => {
+    await page.goto(`${BASE}/issuer/`);
+    await expect(page.locator("#status-row")).toBeVisible();
+    await expect(page.locator("#status-with")).toHaveAttribute("aria-checked", "true");
+  });
+
   test("a jwt only offer gets an issuer identifier of its own", async ({ page }) => {
     await page.goto(`${BASE}/issuer/`);
     await page.locator("#proof-types-jwt").click();

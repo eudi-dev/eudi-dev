@@ -202,6 +202,9 @@ type pageData struct {
 	// ConfiguredIssuer and ConfiguredVerifier report an identity given at
 	// startup, so the pages describe that one as registered.
 	ConfiguredIssuer, ConfiguredVerifier bool
+	// StatusList reports that the wallet publishes a status list, so the
+	// issuer page offers a revocable ticket.
+	StatusList bool
 }
 
 // nationalPID is a PID type that extends the EUDI PID. The verifier page
@@ -240,6 +243,7 @@ func (d *DemoRP) servePage(name string) http.HandlerFunc {
 			NationalPIDs:       d.nationalPIDs(),
 			ConfiguredIssuer:   d.configuredIssuer != nil,
 			ConfiguredVerifier: d.configuredVerifier != nil,
+			StatusList:         d.statusListURI() != "",
 		})
 	}
 }

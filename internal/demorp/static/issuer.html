@@ -131,14 +131,16 @@
       <label class="label" for="identity-check-verifier-info" id="identity-check-verifier-info-label">verifier_info (optional)</label>
       <textarea id="identity-check-verifier-info" spellcheck="false" placeholder='[{"format":"registration_cert","data":"…"}]'></textarea>
     </div>
-    <div class="grant-row" id="status-row" hidden>
+    {{- if .StatusList}}
+    <div class="grant-row" id="status-row">
       <span class="grant-label" id="status-label">Status list</span>
       <div class="toggle" id="status-toggle" role="radiogroup" aria-label="Status list reference">
-        <button type="button" class="toggle-option selected" id="status-without" data-status="" role="radio" aria-checked="true">Without</button>
-        <button type="button" class="toggle-option" id="status-with" data-status="true" role="radio" aria-checked="false">With</button>
+        <button type="button" class="toggle-option" id="status-without" data-status="" role="radio" aria-checked="false">Without</button>
+        <button type="button" class="toggle-option selected" id="status-with" data-status="true" role="radio" aria-checked="true">With</button>
       </div>
     </div>
-    <p class="grant-hint" id="status-hint" hidden>No status reference. The ticket can't be revoked.</p>
+    <p class="grant-hint" id="status-hint">On this wallet's status list. Revoke it in the wallet to test the demo verifier.</p>
+    {{- end}}
     <div class="grant-row" id="deferred-row">
       <span class="grant-label" id="deferred-label">Issuance</span>
       <div class="toggle" id="deferred-toggle" role="radiogroup" aria-label="Deferred issuance">

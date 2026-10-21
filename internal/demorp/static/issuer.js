@@ -137,7 +137,7 @@ const BATCH_HINTS = {
 
 let grant = "";
 let txCode = "";
-let status = "";
+let status = document.querySelector("#status-toggle .selected")?.dataset.status || "";
 let authorization = "browser";
 let deferred = "";
 let batch = "";
@@ -245,9 +245,5 @@ fetch("../api/config")
   .then((resp) => resp.json())
   .then((config) => {
     window.eudiFooter(config);
-    if (config.status_list_url) {
-      document.getElementById("status-row").hidden = false;
-      document.getElementById("status-hint").hidden = false;
-    }
   })
   .catch(() => {});
