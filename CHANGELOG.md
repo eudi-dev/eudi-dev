@@ -5,7 +5,7 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.3.2] - Unreleased
+## [3.3.2] - 2026-10-21
 
 ### Added
 
@@ -19,10 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Compact consent on narrow screens.** In the browser extension window and on phones, each credential in a consent dialog folds to a short summary. It shows what is shared and any warnings. A tap opens the card and the full claim list.
 - **Readable form requests in the activity log.** Token, PAR, authorization challenge and request object requests show the body as sent. **View decoded** shows their form fields, as **View decrypted** does for an encrypted payload.
 - **Batch size per offer.** An issuer identifier created for one offer advertises that offer's copies as `batch_size`. With a single copy it supports no batch issuance.
+- **Revocable demo ticket by default.** The demo issuer page selects "With" for the status list, so you can revoke the ticket in the wallet.
+- **Claims table on the demo verifier.** The result lists each claim in its own row, also the claims of the ticket, instead of a JSON block.
+- **Digital Credentials API by name.** Log messages, errors and docs say Digital Credentials API instead of Browser API, as OpenID4VP 1.0 does.
 - **Content type of encrypted request objects.** The wallet warns when an encrypted request object has no `cty: "JWT"` in its JWE header. RFC 9101 makes it a Nested JWT, and RFC 7519 §5.2 requires `cty` on those.
 
 ### Fixed
 
+- **Cut-off warnings in the activity log.** An expanded entry shows its whole text, not just the first line.
 - **Unencrypted presentation during issuance.** The demo issuer asked for an unencrypted presentation, so the wallet reported ARF OIA_09. It now asks for an encrypted `ia_post.jwt` response.
 
 ## [3.3.1] - 2026-10-20
