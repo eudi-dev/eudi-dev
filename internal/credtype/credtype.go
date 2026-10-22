@@ -22,7 +22,7 @@
 // Type Metadata with extends (draft-ietf-oauth-sd-jwt-vc-19 §5.4) needs a
 // retrievable document, and a URN vct has none. Extends applies PID_14
 // directly. The aka_vcts claim (§2.2.2.2) states further types in the
-// credential itself, and Chain reads it.
+// credential itself. Chain takes those and the types from Type Metadata.
 //
 // Inheritance grants no issuing authority (§7.7: "Verifiers and Holders MUST
 // NOT assume that any issuer who issues a credential extending a known type is
@@ -89,9 +89,9 @@ func isNumber(s string) bool {
 }
 
 // Chain returns every type of a credential with type vct. The list starts with
-// vct, then the types in aka_vcts, then the base types from Extends. It has no
-// duplicates. An empty vct yields an empty chain.
-func Chain(vct string, akaVCTs []string) []string {
+// vct, then the other types (from aka_vcts and Type Metadata), then the base
+// types from Extends. It has no duplicates. An empty vct yields an empty chain.
+func Chain(vct string, others []string) []string {
 	if vct == "" {
 		return nil
 	}
@@ -104,8 +104,8 @@ func Chain(vct string, akaVCTs []string) []string {
 		seen[t] = true
 		chain = append(chain, t)
 	}
-	for _, aka := range akaVCTs {
-		add(aka)
+	for _, other := range others {
+		add(other)
 	}
 	// A credential also matches indirect base types. The seen set stops cycles.
 	for i := 0; i < len(chain); i++ {
@@ -116,11 +116,11 @@ func Chain(vct string, akaVCTs []string) []string {
 	return chain
 }
 
-func Answers(vct string, akaVCTs []string, requested string) bool {
+func Answers(vct string, others []string, requested string) bool {
 	if requested == "" || vct == "" {
 		return false
 	}
-	for _, t := range Chain(vct, akaVCTs) {
+	for _, t := range Chain(vct, others) {
 		if t == requested {
 			return true
 		}

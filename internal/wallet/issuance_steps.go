@@ -291,6 +291,17 @@ func (w *Wallet) storeReceivedCredential(credResp map[string]any, d credentialDe
 	if err != nil {
 		return nil, "", fmt.Errorf("importing received credential: %w", err)
 	}
+	typed := w.typeMetadata(primary.Raw, "issuance")
+	if len(typed.problems) > 0 {
+		if err := w.reportDeviation(deviation{action: "issuance", event: "type_metadata", summary: typeMetadataSummary(primary.VCT), findings: typed.problems}); err != nil {
+			return nil, "", err
+		}
+		d.report(typed.problems...)
+	}
+	primary.TypeMetadata = typed.metadata
+	if d.display == nil {
+		d.display = typeDisplay(typed.metadata)
+	}
 
 	var stored []StoredCredential
 	w.saveChange(func() bool {

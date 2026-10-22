@@ -18,6 +18,9 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -29,6 +32,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
 	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
+	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
 )
 
 // resignCredential signs the issuer JWT of an SD-JWT again with the issuer
@@ -277,6 +281,71 @@ func TestUnderARFACatalogueCategoryPicksTheProviderList(t *testing.T) {
 			}
 			if errText, _ := status["error"].(string); !tc.verified && !strings.HasPrefix(errText, "cred_0: signature") {
 				t.Errorf("error = %q, want the signature check to refuse the credential", errText)
+			}
+		})
+	}
+}
+
+// draft-ietf-oauth-sd-jwt-vc-19 §5.4: a credential answers a type its Type
+// Metadata extends. §5.7 and §7.4: the verifier refuses it when the metadata
+// fails to process or the credential breaks the claim metadata it can see.
+func TestVerifierUsesTheTypeMetadataOfAnHTTPSType(t *testing.T) {
+	d, _, holderKey := newDemoRP(t)
+	var server *httptest.Server
+	docs := map[string]string{}
+	server = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		doc, ok := docs[r.URL.Path]
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(strings.ReplaceAll(doc, "{base}", server.URL)))
+	}))
+	t.Cleanup(server.Close)
+	ca := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw})
+	if err := d.wallet.ConfigureOutbound(wallet.OutboundConfig{TLSCAPEM: ca}); err != nil {
+		t.Fatal(err)
+	}
+	_, chain, err := d.wallet.Signer().Default()
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := &requestState{id: "req", clientID: "x509_hash:verifier", nonce: "the-nonce"}
+	credential, err := mock.GenerateSDJWT(mock.SDJWTConfig{
+		Issuer: d.issuerID(), VCT: server.URL + "/child", ExpiresIn: time.Hour,
+		Claims: map[string]any{"event": "Demo"}, Key: d.wallet.IssuerKey, HolderKey: &holderKey.PublicKey, CertChain: chain,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	presentation := strings.TrimSuffix(credential, "~") + "~"
+	digest := sha256.Sum256([]byte(presentation))
+	presentation += signES256(t, holderKey, map[string]any{"alg": "ES256", "typ": "kb+jwt"}, map[string]any{
+		"iat": time.Now().Unix(), "aud": req.clientID, "nonce": req.nonce, "sd_hash": base64.RawURLEncoding.EncodeToString(digest[:]),
+	})
+
+	for _, tc := range []struct {
+		name, base, failedCheck string
+	}{
+		{"an extended type", `{"vct":"{base}/base"}`, ""},
+		{"a claim against its sd rule", `{"vct":"{base}/base","claims":[{"path":["event"],"sd":"never"}]}`, "credential follows its Type Metadata"},
+		{"a circular chain", `{"vct":"{base}/base","extends":"{base}/child"}`, "Type Metadata of the credential"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			docs["/child"] = `{"vct":"{base}/child","extends":"{base}/base"}`
+			docs["/base"] = tc.base
+			log := &checklist{}
+			_, err := d.verifySDJWTEntry(req, presentation, credentialQuery{vct: server.URL + "/base"}, "", d.credentialTrust(), log)
+			if tc.failedCheck == "" {
+				if err != nil {
+					t.Fatalf("refused: %v (checks %v)", err, log.entries)
+				}
+				return
+			}
+			last := log.entries[len(log.entries)-1]
+			if err == nil || last["name"] != tc.failedCheck || last["ok"] != false {
+				t.Errorf("error %v, last check %v, want the failed check %q", err, last, tc.failedCheck)
 			}
 		})
 	}

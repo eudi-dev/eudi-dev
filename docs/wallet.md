@@ -107,12 +107,27 @@ The wallet matches a DCQL `vct_values` entry against the credential's own type a
 
 OpenID4VP 1.0 Appendix B.3.5 makes this optional: "The Wallet MAY return Credentials that inherit from any of the specified types". Other wallets may only match the exact type. A verifier that wants domestic PIDs from any wallet lists their types in `vct_values` next to `urn:eudi:pid:1`. With `--arf`, the wallet warns about a query for `urn:eudi:pid:1` without a domestic type.
 
-The wallet derives these relationships from 2 sources:
+The wallet derives these relationships from 3 sources:
 
 - the PID type itself. A country or region code after `urn:eudi:pid:` (`urn:eudi:pid:de:1`, `urn:eudi:pid:fr:1`) marks a domestic type. A domestic type extends `urn:eudi:pid:1`. A version number after `urn:eudi:pid:` (`urn:eudi:pid:1`, `urn:eudi:pid:2`) marks the country-independent type
 - the `aka_vcts` claim ([SD-JWT VC](https://datatracker.ietf.org/doc/draft-ietf-oauth-sd-jwt-vc/) §2.2.2.2). It lists additional types of the credential and applies to every credential type
+- the `extends` chain in the [Type Metadata](#type-metadata) of a credential with an HTTPS `vct`
 
 Inheritance describes the credential type only. Signature and trusted list checks decide whether the issuer is authorized (§7.7: "Verifiers and Holders MUST NOT assume that any issuer who issues a credential extending a known type is authorized to do so").
+
+### Type Metadata
+
+When the wallet stores an SD-JWT VC whose `vct` is an HTTPS URL, it retrieves the Type Metadata from that URL ([SD-JWT VC draft 19](https://datatracker.ietf.org/doc/draft-ietf-oauth-sd-jwt-vc/19/) §5.3.1). It follows `extends` to every extended type and checks `vct#integrity` and `extends#integrity` (§6). A redirect must stay on HTTPS. The activity log shows every response.
+
+The wallet uses the metadata in 3 places:
+
+- type matching. The credential answers a DCQL request for any type it extends (§5.4)
+- the credential name. A credential without issuer display metadata takes the type's display name, in English if there is one (§5.5)
+- claim metadata. The credential must contain every mandatory claim and disclose each claim as its `sd` value says (§5.6)
+
+The wallet retrieves the metadata when it stores the credential, never during a presentation (§8.4). It keeps the metadata with the credential. Without integrity metadata, the wallet retrieves it again in the background when its HTTP freshness lifetime ends (§5.3.4). A credential the wallet generates from a template gets no Type Metadata, because the template gives its display and claims.
+
+Metadata that cannot be retrieved leaves the credential without it. This includes a chain that extends a URN type, because the wallet knows no registry (§5.3.2). A circular chain (§7.4) or failed claim metadata (§5.7) rejects the credential in strict mode. Debug mode and manual import keep it with a warning.
 
 In mdoc every PID has the doctype `eu.europa.ec.eudi.pid.1` (PID_04). National elements are in a domestic namespace. Its name is the doctype with the country or region code appended (`eu.europa.ec.eudi.pid.de.1`, PID_06). A `doctype_value` request therefore matches every PID. A claim query selects a national element by its namespace: `"path": ["eu.europa.ec.eudi.pid.de.1", "birth_name"]`.
 

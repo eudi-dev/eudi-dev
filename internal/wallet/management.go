@@ -77,10 +77,11 @@ func (m *Management) Credential(id string) (map[string]any, error) {
 }
 
 func (m *Management) ImportCredential(raw string) (map[string]any, error) {
+	typed := m.wallet.typeMetadata(raw, "wallet")
 	var imported *StoredCredential
 	err := m.commit(func() error {
 		var err error
-		if imported, err = m.wallet.ImportCredential(raw); err != nil {
+		if imported, err = m.wallet.importCredential(raw, "", "", typed); err != nil {
 			return err
 		}
 		m.wallet.AddLog("management", fmt.Sprintf("Imported %s credential %s", imported.Format, credentialLabel(*imported)), true)

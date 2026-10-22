@@ -270,7 +270,9 @@ func (w *Wallet) IssueCredential(opts IssueOptions) (result *IssueResult, err er
 	if err != nil {
 		return nil, fmt.Errorf("generating credential: %w", err)
 	}
-	imported, err := w.ImportCredential(raw)
+	// The wallet made the credential from its template, which gives the
+	// display and claims, so it retrieves no Type Metadata.
+	imported, err := w.importCredential(raw, "", "", typeMetadataResult{})
 	if err != nil {
 		return nil, fmt.Errorf("importing to wallet: %w", err)
 	}
@@ -301,7 +303,7 @@ func (w *Wallet) IssueCredential(opts IssueOptions) (result *IssueResult, err er
 			if err != nil {
 				return nil, err
 			}
-			copyCred, err := w.importBatchCopy(copyRaw, group, pem)
+			copyCred, err := w.importBatchCopy(copyRaw, group, pem, typeMetadataResult{})
 			if err != nil {
 				return nil, fmt.Errorf("importing batch copy: %w", err)
 			}

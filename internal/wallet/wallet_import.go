@@ -45,21 +45,26 @@ func newCredentialID() string {
 
 // ImportCredential returns a copy that survives changes to the wallet's credential slice.
 func (w *Wallet) ImportCredential(raw string) (*StoredCredential, error) {
-	return w.importCredential(raw, "", "")
+	return w.importCredential(raw, "", "", w.typeMetadata(raw, "wallet"))
 }
 
 // Set batch fields before checking holder binding so a copy with its own key is
 // recognized as presentable.
-func (w *Wallet) importBatchCopy(raw, group, bindingKeyPEM string) (*StoredCredential, error) {
-	return w.importCredential(raw, group, bindingKeyPEM)
+func (w *Wallet) importBatchCopy(raw, group, bindingKeyPEM string, typed typeMetadataResult) (*StoredCredential, error) {
+	return w.importCredential(raw, group, bindingKeyPEM, typed)
 }
 
-func (w *Wallet) importCredential(raw, group, bindingKeyPEM string) (*StoredCredential, error) {
+func (w *Wallet) importCredential(raw, group, bindingKeyPEM string, typed typeMetadataResult) (*StoredCredential, error) {
 	parsed, err := w.parseDetectedFormat(strings.TrimSpace(raw), group, bindingKeyPEM)
 	if err != nil {
 		return nil, err
 	}
-	cred := w.appendCredential(parsed)
+	// Manual import keeps the credential and only warns.
+	if len(typed.problems) > 0 {
+		detail, details := findingsLogEntry(typeMetadataSummary(parsed.VCT), typed.problems, nil)
+		w.addProtocolWarning("wallet", "type_metadata", detail, details)
+	}
+	cred := w.appendCredential(withTypeMetadata(parsed, typed.metadata))
 	w.adoptOwnStatusEntry(cred)
 	w.noteUnheldKeyBinding(cred)
 	w.noteDIDIssuerKey(cred)

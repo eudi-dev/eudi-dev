@@ -43,6 +43,9 @@ type Credential struct {
 	Claims                        map[string]any
 	// Disclosures are the disclosures of an SD-JWT VC.
 	Disclosures []sdjwt.Disclosure
+	// Types are the types an SD-JWT VC extends according to its Type
+	// Metadata (draft-ietf-oauth-sd-jwt-vc-19 §5.4).
+	Types []string
 	// Bound is set when the holder can prove holder binding: a KB-JWT for an
 	// SD-JWT VC, deviceKey for an mdoc. A jwt_vc_json credential is presented
 	// without a Verifiable Presentation, so it has none (OpenID4VP 1.0
@@ -560,7 +563,7 @@ func matchesMeta(cred Credential, cqMap map[string]any) bool {
 		if cred.VCT == "" {
 			return false
 		}
-		types := credtype.Chain(cred.VCT, credtype.AkaVCTs(cred.Claims))
+		types := credtype.Chain(cred.VCT, append(credtype.AkaVCTs(cred.Claims), cred.Types...))
 		found := ""
 		for _, v := range vctValues {
 			s, ok := v.(string)

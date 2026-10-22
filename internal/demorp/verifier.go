@@ -21,6 +21,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"maps"
 	"net/http"
@@ -44,6 +45,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
 	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
 	"github.com/eudi-dev/eudi-dev/v3/internal/trustedlists"
+	"github.com/eudi-dev/eudi-dev/v3/internal/typemetadata"
 	"github.com/eudi-dev/eudi-dev/v3/internal/validate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
 	"github.com/eudi-dev/eudi-dev/v3/internal/webui"
@@ -1334,10 +1336,31 @@ func (d *DemoRP) verifySDJWTEntry(req *requestState, presentation string, q cred
 	// The wallet chose the credential, so check the type. A derived type
 	// answers its base type, such as a German PID for a base PID query.
 	gotVCT, _ := token.ResolvedClaims["vct"].(string)
-	gotAka := credtype.AkaVCTs(token.ResolvedClaims)
+	gotTypes := credtype.AkaVCTs(token.ResolvedClaims)
 	expected := q.typeValues()
+	answers := func(want string) bool { return credtype.Answers(gotVCT, gotTypes, want) }
+	if !slices.ContainsFunc(expected, answers) && typemetadata.IsRetrievable(gotVCT) {
+		// A type with an HTTPS vct can extend a requested type in its Type
+		// Metadata (draft-ietf-oauth-sd-jwt-vc-19 §5.4).
+		integrity, _ := token.ResolvedClaims["vct#integrity"].(string)
+		metadata, err := typemetadata.Resolver{Client: d.wallet.HTTPClient()}.Resolve(gotVCT, integrity)
+		var processing *typemetadata.ProcessingError
+		switch {
+		case errors.As(err, &processing):
+			// §5.7 and §7.4 reject the credential.
+			return nil, check("Type Metadata of the credential", err)
+		case err != nil:
+			log.warn(label+"Type Metadata of the credential", err)
+		default:
+			problems := metadata.ValidatePresentation(token.Payload, token.Disclosures)
+			if err = check("credential follows its Type Metadata", errIf(len(problems) > 0, "%s", strings.Join(problems, " "))); err != nil {
+				return nil, err
+			}
+			gotTypes = append(gotTypes, metadata.Types...)
+		}
+	}
 	if err = check("credential type matches the request",
-		errIf(!slices.ContainsFunc(expected, func(want string) bool { return credtype.Answers(gotVCT, gotAka, want) }),
+		errIf(!slices.ContainsFunc(expected, answers),
 			"vct is %q, requested %s", gotVCT, strings.Join(expected, " or "))); err != nil {
 		return nil, err
 	}

@@ -52,6 +52,7 @@ func dcqlCredential(cred StoredCredential) dcql.Credential {
 	return dcql.Credential{
 		ID: cred.ID, Format: cred.Format, VCT: cred.VCT, DocType: cred.DocType, Raw: cred.Raw,
 		Claims:      cred.Claims,
+		Types:       cred.extendedTypes(),
 		Disclosures: cred.Disclosures,
 		Bound:       (cred.Format == credtype.FormatSDJWT || cred.Format == credtype.FormatMDOC) && credentialHolderBinding(cred.Raw).Bound,
 		IssuedAt:    CredentialIssuedAt(cred),

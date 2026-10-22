@@ -41,6 +41,7 @@ func (s *Server) backgroundTasks() []backgroundTask {
 		{name: "deferred credentials", every: backgroundTick, run: s.collectDueDeferredCredentials},
 		{name: "credential renewal", every: renewalCheckInterval, run: s.renewExpiringCredentials},
 		{name: "signing certificate", every: certificateCheckInterval, run: s.renewSigningCertificate},
+		{name: "type metadata", every: typeMetadataRefresh, run: s.refreshTypeMetadata},
 	}
 }
 
