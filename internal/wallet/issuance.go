@@ -405,7 +405,7 @@ func verifyImportedJWTMetadataSignature(raw string, client *http.Client) (string
 	if err != nil {
 		return "", ""
 	}
-	result, source, err := validate.VerifyJWTSignature(token, nil, nil, client)
+	result, source, err := validate.VerifyJWTSignature(token, validate.VCIssuerMetadata, nil, nil, client)
 	if err != nil {
 		return "fail", err.Error()
 	}

@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package issuermetadata reads JWT VC Issuer Metadata (SD-JWT VC §4).
+// Package issuermetadata finds the signing keys of a JWT issuer in its JWT VC
+// Issuer Metadata (SD-JWT VC §4) or its authorization server metadata.
 package issuermetadata
 
 import (

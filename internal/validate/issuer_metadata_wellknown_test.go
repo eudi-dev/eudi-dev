@@ -68,7 +68,7 @@ func TestResolveJWTIssuerMetadataKeys_TenantScopedIssuer(t *testing.T) {
 	issuer = srv.URL + "/tenant/1234"
 
 	token := tenantToken(t, issuer, key)
-	resolved, source, err := ResolveJWTIssuerMetadataKeys(token, nil)
+	resolved, source, err := ResolveJWTIssuerMetadataKeys(token, VCIssuerMetadata, nil)
 	if err != nil {
 		t.Fatalf("ResolveJWTIssuerMetadataKeys: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestResolveJWTIssuerMetadataKeys_JWKSURI(t *testing.T) {
 	jwksURI = srv.URL + "/keys.jwks"
 
 	token := tenantToken(t, issuer, key)
-	resolved, _, err := ResolveJWTIssuerMetadataKeys(token, nil)
+	resolved, _, err := ResolveJWTIssuerMetadataKeys(token, VCIssuerMetadata, nil)
 	if err != nil {
 		t.Fatalf("ResolveJWTIssuerMetadataKeys: %v", err)
 	}
@@ -181,7 +181,7 @@ func TestResolveJWTIssuerMetadataKeys_RejectsMalformedMetadata(t *testing.T) {
 			issuer = srv.URL + "/tenant/1234"
 
 			token := tenantToken(t, issuer, key)
-			resolved, _, err := ResolveJWTIssuerMetadataKeys(token, nil)
+			resolved, _, err := ResolveJWTIssuerMetadataKeys(token, VCIssuerMetadata, nil)
 			if err == nil {
 				t.Fatalf("ResolveJWTIssuerMetadataKeys accepted the document and returned %v", resolved)
 			}

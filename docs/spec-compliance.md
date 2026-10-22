@@ -162,6 +162,7 @@ Selective disclosure is RFC 9901. The credential profile on top of it is `draft-
 | `aka_vcts` claim | Implemented | Read when matching a credential against a requested type (§2.2.2.2). Written into issued credentials whose type extends another. Never treated as evidence of issuer authorization (§7.7) |
 | Type Metadata `extends` | Not implemented | The relationship is resolved from PID_14 for PID types and from `aka_vcts` for any type. EUDI PID `vct` values are URNs, and §5.4 does not cover URNs. The ARF only asks a Scheme Provider to "consider defining" a Type Metadata Document (Annex 2, ARB_31) |
 | JWT VC Issuer Metadata key resolution | Implemented | `/.well-known/jwt-vc-issuer` is inserted between the host and the path of `iss` (SD-JWT VC §4), so a tenant-scoped issuer resolves. The document must contain `issuer` identical to `iss` and either `jwks` or `jwks_uri`, never both (§4.2 and §4.3) |
+| Access token key resolution | Implemented | A plain JWT, such as an RFC 9068 access token, is verified with the `jwks_uri` of its issuer's authorization server metadata (RFC 8414 §3) or OpenID Connect Discovery (§4). The `issuer` value must be identical to `iss` (RFC 8414 §3.3) |
 
 ## mdoc / ISO 18013-5
 

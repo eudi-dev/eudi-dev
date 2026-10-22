@@ -186,11 +186,18 @@ func (v run) jwtSignature(token *sdjwt.Token, c catalogueState, r *Result) Check
 		return Check{Name: CheckSignature, Status: Fail, Detail: failedDetail(source, res.Errors)}
 	}
 
-	res, source, err := VerifyJWTSignature(token, v.trust.Keys, anchors, v.trust.HTTPClient)
+	// SD-JWT VC §4 defines the JWT VC Issuer Metadata for SD-JWT VCs. The
+	// keys of a plain JWT, such as an access token (RFC 9068 §4), are in the
+	// authorization server metadata.
+	metadata := VCIssuerMetadata
+	if r.Format == FormatJWT {
+		metadata = AuthorizationServerMetadata
+	}
+	res, source, err := VerifyJWTSignature(token, metadata, v.trust.Keys, anchors, v.trust.HTTPClient)
 	var metadataErr *IssuerMetadataError
 	switch {
 	case errors.As(err, &metadataErr) && !v.trust.Supplied:
-		return Check{Name: CheckSignature, Status: Skipped, Detail: fmt.Sprintf("Issuer metadata lookup failed: %v", err)}
+		return Check{Name: CheckSignature, Status: Skipped, Detail: fmt.Sprintf("Key lookup failed: %v", err)}
 	case err != nil:
 		return Check{Name: CheckSignature, Status: Fail, Detail: err.Error()}
 	case res == nil:

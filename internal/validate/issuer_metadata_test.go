@@ -83,7 +83,7 @@ func TestVerifyJWTSignature_UsesIssuerMetadata(t *testing.T) {
 		t.Fatalf("sdjwt.Parse: %v", err)
 	}
 
-	result, source, err := VerifyJWTSignature(token, nil, nil)
+	result, source, err := VerifyJWTSignature(token, VCIssuerMetadata, nil, nil)
 	if err != nil {
 		t.Fatalf("VerifyJWTSignature: %v", err)
 	}
@@ -129,7 +129,7 @@ func TestVerifyJWTSignature_UsesIssuerMetadataWithoutKid(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result, source, err := VerifyJWTSignature(token, nil, nil, srv.Client())
+	result, source, err := VerifyJWTSignature(token, VCIssuerMetadata, nil, nil, srv.Client())
 	if err != nil {
 		t.Fatalf("VerifyJWTSignature: %v", err)
 	}
@@ -165,7 +165,7 @@ func TestVerifyJWTSignature_SkipsAnUnusableIssuerMetadataKey(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result, source, err := VerifyJWTSignature(token, nil, nil, srv.Client())
+	result, source, err := VerifyJWTSignature(token, VCIssuerMetadata, nil, nil, srv.Client())
 	if err != nil {
 		t.Fatalf("VerifyJWTSignature: %v", err)
 	}
@@ -197,7 +197,7 @@ func TestVerifyJWTSignature_SuppliedKeyIsNotReplacedByIssuerMetadata(t *testing.
 	issuer = srv.URL
 	token := tenantToken(t, issuer, key)
 
-	result, source, err := VerifyJWTSignature(token, []crypto.PublicKey{&other.PublicKey}, nil, srv.Client())
+	result, source, err := VerifyJWTSignature(token, VCIssuerMetadata, []crypto.PublicKey{&other.PublicKey}, nil, srv.Client())
 	if err != nil {
 		t.Fatalf("VerifyJWTSignature: %v", err)
 	}
@@ -235,7 +235,7 @@ func newX5CToken(t *testing.T) (*sdjwt.Token, []lote.CertInfo) {
 func TestVerifyJWTSignature_X5CLeafOfflineWithoutTrustList(t *testing.T) {
 	token, _ := newX5CToken(t)
 
-	result, source, err := VerifyJWTSignature(token, nil, nil)
+	result, source, err := VerifyJWTSignature(token, VCIssuerMetadata, nil, nil)
 	if err != nil {
 		t.Fatalf("VerifyJWTSignature: %v", err)
 	}
@@ -250,7 +250,7 @@ func TestVerifyJWTSignature_X5CLeafOfflineWithoutTrustList(t *testing.T) {
 func TestVerifyJWTSignature_X5CChainOutranksLeaf(t *testing.T) {
 	token, anchors := newX5CToken(t)
 
-	result, source, err := VerifyJWTSignature(token, nil, anchors)
+	result, source, err := VerifyJWTSignature(token, VCIssuerMetadata, nil, anchors)
 	if err != nil {
 		t.Fatalf("VerifyJWTSignature: %v", err)
 	}
@@ -270,7 +270,7 @@ func TestVerifyJWTSignature_UnmatchedTrustListDoesNotFallBackToLeaf(t *testing.T
 	otherCA, _, otherDER := generateCACert(t)
 	foreign := []lote.CertInfo{{PublicKey: otherCA.PublicKey, Raw: otherDER}}
 
-	result, source, err := VerifyJWTSignature(token, nil, foreign)
+	result, source, err := VerifyJWTSignature(token, VCIssuerMetadata, nil, foreign)
 	if err == nil && result != nil && result.SignatureValid && source == SourceX5CLeaf {
 		t.Fatal("leaf-only pass despite an explicit trust list")
 	}
@@ -304,7 +304,7 @@ func TestVerifyJWTSignature_TrustListIgnoresAnUnanchoredMetadataKey(t *testing.T
 	otherCA, _, otherDER := generateCACert(t)
 	anchors := []lote.CertInfo{{PublicKey: otherCA.PublicKey, Raw: otherDER}}
 
-	result, source, _ := VerifyJWTSignature(token, nil, anchors)
+	result, source, _ := VerifyJWTSignature(token, VCIssuerMetadata, nil, anchors)
 	if result != nil && result.SignatureValid {
 		t.Errorf("signature valid via %q, want no pass without an anchored key", source)
 	}

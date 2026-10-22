@@ -93,7 +93,7 @@ SD-JWT Credential
   [3] birthdate: 1978-02-12
 ```
 
-`decode` automatically verifies JWT and SD-JWT signatures. It uses the embedded `x5c` certificate when present, or issuer metadata resolved from `iss` and `kid`. Use `validate` to supply a key or trusted list and check revocation status.
+`decode` automatically verifies JWT and SD-JWT signatures. It uses the embedded `x5c` certificate when present. Otherwise it looks up the key by `iss` and `kid`. For an SD-JWT VC that is the JWT VC Issuer Metadata. For a plain JWT, such as an access token, it is the `jwks_uri` of the authorization server metadata (RFC 8414) or of OpenID Connect Discovery. Use `validate` to supply a key or trusted list and check revocation status.
 
 An SD-JWT that violates an RFC 9901 §7.1 rejection rule (a disclosure that overwrites a signed claim, a duplicate digest, an unreferenced disclosure) is printed with the violated rule shown above the output. In strict mode the wallet refuses such a credential on import.
 

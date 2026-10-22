@@ -5,6 +5,12 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.4] - Unreleased
+
+### Fixed
+
+- **Access token keys in the decoder.** The decoder verifies a plain JWT, such as an access token, with the keys from the authorization server metadata (RFC 8414) or OpenID Connect Discovery. Only SD-JWT VCs use the JWT VC Issuer Metadata.
+
 ## [3.3.3] - 2026-10-22
 
 ### Fixed

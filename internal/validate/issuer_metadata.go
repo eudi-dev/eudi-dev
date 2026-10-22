@@ -47,16 +47,40 @@ func CanResolveJWTIssuerMetadata(token *sdjwt.Token) bool {
 	return len(token.Signature) > 0
 }
 
+// KeyMetadata is the metadata in which the iss of a JWT publishes its
+// signing keys.
+type KeyMetadata int
+
+const (
+	// VCIssuerMetadata is the JWT VC Issuer Metadata of an SD-JWT VC issuer
+	// (SD-JWT VC §4).
+	VCIssuerMetadata KeyMetadata = iota
+	// AuthorizationServerMetadata is the metadata of the authorization server
+	// that issued a JWT, such as an access token (RFC 9068 §4).
+	AuthorizationServerMetadata
+)
+
+func (m KeyMetadata) source() string {
+	if m == AuthorizationServerMetadata {
+		return "authorization server metadata"
+	}
+	return "issuer metadata"
+}
+
 // ResolveJWTIssuerMetadataKeys returns the candidate signing keys from the
-// JWT VC Issuer Metadata of the token's iss.
-func ResolveJWTIssuerMetadataKeys(token *sdjwt.Token, tlCerts []lote.CertInfo, clients ...*http.Client) ([]crypto.PublicKey, string, error) {
+// metadata of the token's iss.
+func ResolveJWTIssuerMetadataKeys(token *sdjwt.Token, metadata KeyMetadata, tlCerts []lote.CertInfo, clients ...*http.Client) ([]crypto.PublicKey, string, error) {
 	if !CanResolveJWTIssuerMetadata(token) {
 		return nil, "", nil
 	}
 
 	iss := jsonutil.GetString(token.Payload, "iss")
 	kid, _ := token.Header["kid"].(string)
-	jwks, err := issuermetadata.JWKs(iss, kid, clients...)
+	lookup := issuermetadata.JWKs
+	if metadata == AuthorizationServerMetadata {
+		lookup = issuermetadata.AuthorizationServerJWKs
+	}
+	jwks, err := lookup(iss, kid, clients...)
 	if err != nil {
 		return nil, "", err
 	}
@@ -70,9 +94,9 @@ func ResolveJWTIssuerMetadataKeys(token *sdjwt.Token, tlCerts []lote.CertInfo, c
 			key, err := extractAndValidateJWKX5C(jwk, tlCerts)
 			switch {
 			case err != nil:
-				chainErr = fmt.Errorf("the issuer metadata key does not chain to the trusted list: %w", err)
+				chainErr = fmt.Errorf("the %s key does not chain to the trusted list: %w", metadata.source(), err)
 			case key == nil:
-				chainErr = fmt.Errorf("the issuer metadata key has no x5c to chain to the trusted list")
+				chainErr = fmt.Errorf("the %s key has no x5c to chain to the trusted list", metadata.source())
 			default:
 				keys = append(keys, key)
 			}
@@ -80,7 +104,7 @@ func ResolveJWTIssuerMetadataKeys(token *sdjwt.Token, tlCerts []lote.CertInfo, c
 		if len(keys) == 0 {
 			return nil, "", chainErr
 		}
-		return keys, "issuer metadata (x5c chain verified)", nil
+		return keys, metadata.source() + " (x5c chain verified)", nil
 	}
 
 	var parseErr error
@@ -95,7 +119,7 @@ func ResolveJWTIssuerMetadataKeys(token *sdjwt.Token, tlCerts []lote.CertInfo, c
 	if len(keys) == 0 && parseErr != nil {
 		return nil, "", parseErr
 	}
-	return keys, "issuer metadata", nil
+	return keys, metadata.source(), nil
 }
 
 func jwkPublicKey(jwk map[string]any) (crypto.PublicKey, error) {
@@ -112,8 +136,8 @@ func jwkPublicKey(jwk map[string]any) (crypto.PublicKey, error) {
 
 // verifyWithIssuerMetadata verifies the token with the first metadata key
 // that matches its signature.
-func verifyWithIssuerMetadata(token *sdjwt.Token, tlCerts []lote.CertInfo, clients ...*http.Client) (*sdjwt.VerifyResult, string, error) {
-	keys, source, err := ResolveJWTIssuerMetadataKeys(token, tlCerts, clients...)
+func verifyWithIssuerMetadata(token *sdjwt.Token, metadata KeyMetadata, tlCerts []lote.CertInfo, clients ...*http.Client) (*sdjwt.VerifyResult, string, error) {
+	keys, source, err := ResolveJWTIssuerMetadataKeys(token, metadata, tlCerts, clients...)
 	if err != nil || len(keys) == 0 {
 		return nil, "", err
 	}
@@ -126,8 +150,7 @@ func verifyWithIssuerMetadata(token *sdjwt.Token, tlCerts []lote.CertInfo, clien
 	return result, source, nil
 }
 
-// IssuerMetadataError is a failed lookup of the issuer's key in its JWT VC
-// Issuer Metadata (SD-JWT VC §4).
+// IssuerMetadataError is a failed lookup of the issuer's key in its metadata.
 type IssuerMetadataError struct{ Err error }
 
 func (e *IssuerMetadataError) Error() string { return e.Err.Error() }
@@ -146,21 +169,23 @@ const (
 
 // VerifyJWTSignature verifies the token signature. It tries in order x5c with
 // the trust list, the given keys, and without given keys the embedded x5c leaf
-// (only without a trust list) and the issuer metadata. Given keys are the
-// whole trust, so a key that fails is not replaced by a metadata key. The leaf
-// step keeps validation offline for credentials that carry their issuer
+// (only without a trust list) and the metadata of the issuer. Given keys are
+// the whole trust, so a key that fails is not replaced by a metadata key. The
+// leaf step keeps validation offline for credentials that carry their issuer
 // certificate.
-func VerifyJWTSignature(token *sdjwt.Token, pubKeys []crypto.PublicKey, tlCerts []lote.CertInfo, clients ...*http.Client) (*sdjwt.VerifyResult, string, error) {
-	return verifyJWTSignature(token, pubKeys, tlCerts, true, clients...)
+func VerifyJWTSignature(token *sdjwt.Token, metadata KeyMetadata, pubKeys []crypto.PublicKey, tlCerts []lote.CertInfo, clients ...*http.Client) (*sdjwt.VerifyResult, string, error) {
+	return verifyJWTSignature(token, pubKeys, tlCerts, &metadata, clients...)
 }
 
 // VerifyJWTSignatureOffline uses only supplied keys and certificates. This path must
 // complete without network access.
 func VerifyJWTSignatureOffline(token *sdjwt.Token, pubKeys []crypto.PublicKey, tlCerts []lote.CertInfo) (*sdjwt.VerifyResult, string, error) {
-	return verifyJWTSignature(token, pubKeys, tlCerts, false)
+	return verifyJWTSignature(token, pubKeys, tlCerts, nil)
 }
 
-func verifyJWTSignature(token *sdjwt.Token, pubKeys []crypto.PublicKey, tlCerts []lote.CertInfo, resolveIssuerMetadata bool, clients ...*http.Client) (*sdjwt.VerifyResult, string, error) {
+// verifyJWTSignature looks up keys in the issuer's metadata only when metadata
+// is set.
+func verifyJWTSignature(token *sdjwt.Token, pubKeys []crypto.PublicKey, tlCerts []lote.CertInfo, metadata *KeyMetadata, clients ...*http.Client) (*sdjwt.VerifyResult, string, error) {
 	if token == nil {
 		return nil, "", fmt.Errorf("token is nil")
 	}
@@ -200,8 +225,8 @@ func verifyJWTSignature(token *sdjwt.Token, pubKeys []crypto.PublicKey, tlCerts 
 		if chainErr != nil {
 			best.Errors = append(best.Errors, chainErr.Error())
 		}
-		if resolveIssuerMetadata && len(pubKeys) == 0 {
-			result, source, err := verifyWithIssuerMetadata(token, tlCerts, clients...)
+		if metadata != nil && len(pubKeys) == 0 {
+			result, source, err := verifyWithIssuerMetadata(token, *metadata, tlCerts, clients...)
 			switch {
 			case err != nil:
 				best.Errors = append(best.Errors, err.Error())
@@ -215,11 +240,11 @@ func verifyJWTSignature(token *sdjwt.Token, pubKeys []crypto.PublicKey, tlCerts 
 		return nil, "", chainErr
 	}
 
-	if !resolveIssuerMetadata {
+	if metadata == nil {
 		return nil, "", nil
 	}
 
-	result, source, err := verifyWithIssuerMetadata(token, tlCerts, clients...)
+	result, source, err := verifyWithIssuerMetadata(token, *metadata, tlCerts, clients...)
 	if err != nil {
 		return nil, "", &IssuerMetadataError{Err: err}
 	}
