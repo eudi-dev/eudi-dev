@@ -710,6 +710,18 @@ header .btn {
   padding: 7px 16px;
 }
 
+.howto-store {
+  margin: 12px 0;
+}
+.howto-store .btn {
+  display: inline-block;
+  margin-bottom: 8px;
+  text-decoration: none;
+}
+.howto-manual summary {
+  cursor: pointer;
+}
+
 .cli-install-label {
   font-size: 13px;
   font-weight: 600;
@@ -3241,6 +3253,11 @@ textarea.form-input {
   height: auto;
   margin: 0 0 16px;
   border-radius: 10px;
+}
+
+.news-content .chrome-web-store .btn {
+  display: inline-block;
+  text-decoration: none;
 }
 
 .news-dialog {

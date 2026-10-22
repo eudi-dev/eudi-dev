@@ -307,7 +307,11 @@ bindToggle("scheme-toggle", (option) => {
 // The eudi-dev browser extension sets eudiDevDigitalCredentials. Without it,
 // a browser with the Digital Credentials API asks a wallet on a phone.
 const EXTENSION_ZIP = "../eudi-dev-dc-api-extension.zip";
-const EXTENSION_STEPS = ` run <code>eudi wallet browser</code>. It opens Chrome with the eudi-dev extension. Or <a href="${EXTENSION_ZIP}" id="extension-download" download>download the extension</a>, unzip it, open <code>chrome://extensions</code>, turn on Developer mode and choose Load unpacked.`;
+const EXTENSION_STORE = "https://chromewebstore.google.com/detail/nbddeclckpkklpejkmhchmhmajginnok";
+// The store version answers with the public demo until the user sets another
+// wallet in its popup.
+const STORE_WALLET = "https://eudi-test.dev";
+const WALLET_URL = new URL("..", location.href).href.replace(/\/$/, "");
 
 function dcAPISupport() {
   if (window.eudiDevDigitalCredentials) return "extension";
@@ -315,15 +319,33 @@ function dcAPISupport() {
   return "none";
 }
 
+// Chrome, Edge and Brave install extensions from the Chrome Web Store.
+function chromium() {
+  return (navigator.userAgentData?.brands || []).some((b) => b.brand === "Chromium");
+}
+
+function extensionSteps(lead) {
+  const manual = `run <code>eudi wallet browser</code>. It opens Chrome with the eudi-dev extension. Or <a href="${EXTENSION_ZIP}" id="extension-download" download>download the extension</a>, unzip it, open <code>chrome://extensions</code>, turn on Developer mode and choose Load unpacked.`;
+  if (!chromium()) return hint(`${lead} ${manual}`);
+  const popup = WALLET_URL === STORE_WALLET ? "" : ` Then set <code>${WALLET_URL}</code> as the wallet in its popup.`;
+  return hint(`${lead} install the eudi-dev extension.${popup}`) +
+    hint(`<a class="btn primary store" id="extension-store" href="${EXTENSION_STORE}" target="_blank" rel="noopener">Install from the Chrome Web Store</a>`) +
+    `<details class="format-hint" id="extension-manual"><summary>Other ways to install</summary>To use the extension that matches this wallet's version, ${manual}</details>`;
+}
+
+function hint(html) {
+  return `<p class="format-hint">${html}</p>`;
+}
+
 function deliveryHint() {
-  if (delivery === "redirect") return "The wallet gets the request by link or QR code and posts the response to this verifier.";
+  if (delivery === "redirect") return hint("The wallet gets the request by link or QR code and posts the response to this verifier.");
   switch (dcAPISupport()) {
     case "extension":
-      return "This page calls <code>navigator.credentials.get()</code>. The eudi-dev extension answers with the wallet set in the extension.";
+      return hint("This page calls <code>navigator.credentials.get()</code>. The eudi-dev extension answers with the wallet set in the extension.");
     case "native":
-      return "This page calls <code>navigator.credentials.get()</code>. The browser asks a wallet on your phone. To answer with this wallet instead," + EXTENSION_STEPS;
+      return extensionSteps("This page calls <code>navigator.credentials.get()</code>. The browser asks a wallet on your phone. To answer with this wallet instead,");
     default:
-      return "This browser has no Digital Credentials API. To answer with this wallet," + EXTENSION_STEPS;
+      return extensionSteps("This browser has no Digital Credentials API. To answer with this wallet,");
   }
 }
 

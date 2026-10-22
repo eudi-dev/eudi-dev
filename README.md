@@ -31,7 +31,7 @@ https://github.com/user-attachments/assets/e915c82c-75f0-4f6b-94eb-cd4a4252a863
 
 **A wallet for testing your issuer or verifier.** Accept credential offers and answer presentation requests from the web UI, the CLI or the HTTP API. Every exchange shows up in the activity log with its requests and responses. In debug mode the wallet reports what an issuer or verifier gets wrong and continues. In strict mode it stops the flow. → [Wallet](docs/wallet.md), [presenting](docs/wallet/presenting.md), [issuing](docs/wallet/issuing.md), [UI automation](docs/ui-automation.md)
 
-**Test the Digital Credentials API.** A browser extension answers `navigator.credentials.get()` calls with an eudi-dev wallet, so you can test a verifier that uses the Digital Credentials API without a phone. It works in Chrome, Edge and Brave. → [Browser extension](docs/wallet/browser-extension.md)
+**Test the Digital Credentials API.** A browser extension answers `navigator.credentials.get()` calls with an eudi-dev wallet, so you can test a verifier that uses the Digital Credentials API without a phone. It works in Chrome, Edge and Brave. Install it from the [Chrome Web Store](https://chromewebstore.google.com/detail/nbddeclckpkklpejkmhchmhmajginnok). → [Browser extension](docs/wallet/browser-extension.md)
 
 **HAIP and ARF checks.** `--haip` checks verifiers and issuers against HAIP 1.0. `--arf` (new in 3.0.0) checks how they authenticate under the ARF: access and registration certificates, revocation, and whether a verifier asks for more than it registered. → [HAIP](docs/wallet/presenting.md#haip-10-enforcement), [ARF checks for verifiers](docs/wallet/presenting.md#arf-checks) and [for issuers](docs/wallet/issuing.md#arf-checks)
 

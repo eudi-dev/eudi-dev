@@ -210,11 +210,18 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
       </div>
       <div class="howto-panel" role="tabpanel" id="howto-panel-extension" aria-labelledby="howto-tab-extension" hidden>
       <p class="dialog-hint" id="howto-extension-intro">Test a verifier page that uses the W3C Digital Credentials API. The eudi-dev browser extension answers <code>navigator.credentials.get()</code> with this wallet instead of a phone wallet. It works in Chrome, Chromium, Edge and Brave.</p>
+      <div class="howto-store" id="howto-extension-store" hidden>
+        <a class="btn btn-primary" href="https://chromewebstore.google.com/detail/nbddeclckpkklpejkmhchmhmajginnok" target="_blank" rel="noopener" id="howto-extension-store-link">Install from the Chrome Web Store</a>
+        <p class="dialog-hint" id="howto-extension-store-hint">The store version uses the public demo at https://eudi-test.dev. To use this wallet, set <span class="howto-origin"></span> as the wallet in its popup.</p>
+      </div>
+      <details class="howto-manual" id="howto-extension-manual">
+      <summary class="dialog-hint" id="howto-extension-manual-summary">Other ways to install</summary>
       <div class="cli-install">
         <div class="cli-install-label" id="howto-extension-browser-label">Open a browser with the extension loaded (macOS and Linux)</div>
         <pre id="howto-extension-browser-command">eudi wallet browser --wallet-url <span class="howto-origin" id="howto-extension-browser-origin"></span></pre>
       </div>
       <p class="dialog-hint" id="howto-extension-zip-hint">To use the extension in your everyday browser profile, <a href="eudi-dev-dc-api-extension.zip" download id="howto-extension-zip-link">download it</a> and unzip it. Open <code>chrome://extensions</code>, turn on Developer mode, choose Load unpacked and select the folder. It uses this wallet. You can set another wallet in the extension popup.</p>
+      </details>
       <p class="dialog-hint" id="howto-extension-demo-hint">Try it on the <a href="verifier/" target="_blank" id="howto-extension-verifier-link">demo verifier</a>: choose Digital Credentials API under Delivery.</p>
       <p class="dialog-hint" id="howto-extension-docs-hint"><a data-doc="docs/wallet/browser-extension.md" target="_blank" rel="noopener" id="howto-extension-docs-link">Extension documentation</a></p>
       </div>

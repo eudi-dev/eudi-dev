@@ -81,6 +81,9 @@
     #credential-toggle .toggle-option.selected { background: var(--accent); border-color: var(--accent);
       color: var(--on-accent); box-shadow: none; }
     p.format-hint { font-size: 13px; color: var(--text-dim); margin-bottom: 18px; }
+    .btn.store { display: inline-flex; align-items: center; text-decoration: none; }
+    details.format-hint { font-size: 13px; color: var(--text-dim); margin-bottom: 18px; }
+    details.format-hint summary { cursor: pointer; }
     #credential-row, #multiple-row { margin-bottom: 18px; }
     #custom-panel { margin-bottom: 18px; }
     .cred { border-radius: 16px; padding: 14px; margin-bottom: 10px; background: var(--bg-raised); }
@@ -214,7 +217,7 @@
         <button type="button" class="toggle-option" id="delivery-dc-api" data-delivery="dc_api" role="radio" aria-checked="false">Digital Credentials API</button>
       </div>
     </div>
-    <p class="format-hint" id="delivery-hint"></p>
+    <div id="delivery-hint"></div>
     <div class="format-row" id="signing-row" hidden>
       <span class="format-label" id="signing-label">Request</span>
       <div class="toggle" id="signing-toggle" role="radiogroup" aria-label="How the request is signed">

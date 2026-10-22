@@ -3523,6 +3523,13 @@
     });
   }
 
+  // Chrome, Edge and Brave install extensions from the Chrome Web Store. The
+  // extension sets eudiDevDigitalCredentials once it is installed.
+  function offerChromeWebStore() {
+    const chromium = (navigator.userAgentData?.brands || []).some((b) => b.brand === 'Chromium');
+    return chromium && !window.eudiDevDigitalCredentials;
+  }
+
   // The public demo news opens once per content version. A consent link
   // never opens the news, so the news can't cover the request.
   const newsOverlay = document.getElementById('news-overlay');
@@ -3534,6 +3541,7 @@
       const content = document.getElementById('news-content');
       content.innerHTML = (await resp.json()).html;
       content.querySelectorAll('*').forEach((el, i) => { if (!el.id) el.id = 'news-content-' + i; });
+      content.querySelectorAll('.chrome-web-store').forEach((el) => { el.hidden = !offerChromeWebStore(); });
       newsOverlay.classList.add('active');
       try { localStorage.setItem('news-seen', id); } catch (e) { /* Storage may be unavailable in private browsing. */ }
     };
@@ -5730,6 +5738,11 @@
     howtoOverlay.querySelectorAll('a[data-doc]').forEach((a) => {
       a.href = docsURL(a.dataset.doc);
     });
+    const offerStore = offerChromeWebStore();
+    document.getElementById('howto-extension-store').hidden = !offerStore;
+    document.getElementById('howto-extension-manual').open = !offerStore;
+    document.getElementById('howto-extension-manual-summary').textContent = offerStore ? 'Other ways to install' : 'Install';
+    document.getElementById('howto-extension-store-hint').hidden = appBase.href === 'https://eudi-test.dev/';
     howtoOverlay.classList.add('active');
   });
   const howtoTabs = Array.from(howtoOverlay.querySelectorAll('.howto-tab'));

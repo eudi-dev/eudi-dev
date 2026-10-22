@@ -108,7 +108,9 @@ Lets developers answer Digital Credentials API requests (navigator.credentials.g
 
 Choose **Submit for review**. The first review is likely to take several days. Extensions with a host permission for all sites and a script that replaces a browser API get an in-depth review. The justifications above explain both.
 
-After approval, note the extension ID and the store URL. Link the store page in the demo verifier hint, the README and [Digital Credentials API](../wallet/browser-extension.md), before `eudi wallet browser` and the zip download.
+The extension is published as https://chromewebstore.google.com/detail/nbddeclckpkklpejkmhchmhmajginnok with the ID `nbddeclckpkklpejkmhchmhmajginnok`. The demo verifier, the wallet's How to use dialog, the README and [browser extension](../wallet/browser-extension.md) link it.
+
+The release job uploads only the package. Changes to the description, the screenshots or the promo tiles in this folder have to be made in the dashboard by hand.
 
 ## 5. Updates from releases
 
@@ -116,7 +118,7 @@ The `chrome-web-store` job of the release workflow builds the package for each s
 
 | Name | Kind | Value |
 |---|---|---|
-| `CHROME_WEB_STORE_PUBLISHER_ID` | Repository variable | Publisher ID from **Publisher > Settings** in the dashboard |
+| `CHROME_WEB_STORE_PUBLISHER_ID` | Repository variable | Publisher ID from the **Account** page of the dashboard. It is also the ID in the dashboard URL, `https://chrome.google.com/webstore/devconsole/<publisher ID>`. |
 | `CHROME_WEB_STORE_EXTENSION_ID` | Repository variable | Extension ID of the item |
 | `CHROME_WEB_STORE_CLIENT_ID` | Repository secret | OAuth client ID |
 | `CHROME_WEB_STORE_CLIENT_SECRET` | Repository secret | OAuth client secret |

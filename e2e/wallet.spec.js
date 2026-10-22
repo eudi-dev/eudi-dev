@@ -169,6 +169,8 @@ test.describe("Wallet Dashboard", () => {
     await expect(page.locator("#howto-tab-extension")).toHaveAttribute("aria-selected", "true");
     const panel = page.locator("#howto-panel-extension");
     await expect(panel).toBeVisible();
+    await expect(panel.locator("#howto-extension-store-link")).toBeVisible();
+    await panel.locator("#howto-extension-manual summary").click();
     await expect(panel.locator("#howto-extension-browser-command")).toHaveText(`eudi wallet browser --wallet-url ${WALLET_URL}`);
     await expect(panel.locator('a[data-doc="docs/wallet/browser-extension.md"]')).toHaveAttribute(
       "href",

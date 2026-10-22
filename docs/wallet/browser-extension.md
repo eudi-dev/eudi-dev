@@ -6,6 +6,8 @@ The extension works in Chrome, Chromium, Edge and Brave on macOS, Linux and Wind
 
 ## Installation
 
+Install [eudi-dev Digital Credentials](https://chromewebstore.google.com/detail/nbddeclckpkklpejkmhchmhmajginnok) from the Chrome Web Store. It uses the public demo at https://eudi-test.dev. To use another wallet, such as a local one, set its URL in the extension's popup. In Chrome, Edge and Brave, the wallet's How to use dialog and the demo verifier show an install button until the extension is installed. A new release reaches the store after Google reviews it, so the store version can be a few days behind.
+
 `wallet browser` opens the browser with the extension loaded:
 
 ```bash
@@ -17,7 +19,7 @@ The extension uses the wallet that the other wallet commands use: `--remote`, th
 
 The browser uses its own profile in the eudi-dev folder, separate from your everyday profile. Chrome 137 and later ignore `--load-extension`. `wallet browser` loads the extension with the Chrome DevTools Protocol command `Extensions.loadUnpacked`, which Chrome allows only in a separate profile.
 
-To use the extension in your everyday profile, install it from a folder:
+To use the version of your eudi-dev release in your everyday profile, install it from a folder:
 
 ```bash
 eudi wallet extension ~/eudi-dev-extension                                    # for the public demo at https://eudi-test.dev

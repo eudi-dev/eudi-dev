@@ -62,6 +62,7 @@ async function startDCAPIRequest(context, signing = "signed") {
   await page.locator("#format-sd-jwt").click();
   await page.locator("#delivery-dc-api").click();
   await expect(page.locator("#delivery-hint")).toContainText("The eudi-dev extension answers");
+  await expect(page.locator("#extension-store")).toHaveCount(0);
   await page.locator(`#signing-${signing}`).click();
   const walletWindow = context.waitForEvent("page");
   await page.locator("#create-request").click();
@@ -173,12 +174,38 @@ test("the extension answers a verifier of another origin", async () => {
   }
 });
 
-test("without the extension the verifier offers it for download", async ({ page }) => {
+test("without the extension the verifier offers it from the store and for download", async ({ page }) => {
   await page.goto(`${BASE}/verifier/`);
   await page.locator("#delivery-dc-api").click();
+  await expect(page.locator("#extension-store")).toHaveAttribute("href", /chromewebstore\.google\.com\/detail\/nbddeclckpkklpejkmhchmhmajginnok$/);
+  await expect(page.locator("#delivery-hint")).toContainText(`set ${BASE} as the wallet in its popup`);
+  await expect(page.locator("#extension-download")).toBeHidden();
+  await page.locator("#extension-manual summary").click();
   const download = page.waitForEvent("download");
   await page.locator("#extension-download").click();
   expect((await download).suggestedFilename()).toBe("eudi-dev-dc-api-extension.zip");
+});
+
+test("the How to use dialog offers the extension from the store until it is installed", async ({ page }) => {
+  await page.goto(BASE);
+  await page.locator("#how-to-use-link").click();
+  await page.locator("#howto-tab-extension").click();
+  await expect(page.locator("#howto-extension-store-link")).toBeVisible();
+  await expect(page.locator("#howto-extension-store-hint")).toContainText(`set ${BASE} as the wallet`);
+  await expect(page.locator("#howto-extension-browser-command")).toBeHidden();
+  await page.locator("#howto-extension-manual summary").click();
+  await expect(page.locator("#howto-extension-browser-command")).toBeVisible();
+
+  await withExtension(async (context) => {
+    const wallet = await context.newPage();
+    await wallet.goto(BASE);
+    await wallet.locator("#how-to-use-link").click();
+    await wallet.locator("#howto-tab-extension").click();
+    await expect(wallet.locator("#howto-extension-intro")).toBeVisible();
+    await expect(wallet.locator("#howto-extension-store")).toBeHidden();
+    await expect(wallet.locator("#howto-extension-manual-summary")).toHaveText("Install");
+    await expect(wallet.locator("#howto-extension-browser-command")).toBeVisible();
+  });
 });
 
 test("each link of a request has a QR code beside it", async ({ page }) => {
