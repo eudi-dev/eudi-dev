@@ -182,9 +182,12 @@ func (w *Wallet) processAuthorizationCodeOffer(offer *oid4vc.CredentialOffer, se
 	}
 
 	if requestURI == "" && parEndpoint != "" {
-		w.addProtocolLog("issuance", "par_request", fmt.Sprintf("Request PAR from %s", parEndpoint), true, formRequestLogDetails(parEndpoint, "par", parForm), formLogPayload("Request", parForm))
 		parPayload := &LogPayload{}
-		parResp, err := postFormWithDPoP(w.HTTPClient(), parEndpoint, parForm, dpopKey, "", &nonces.authzServer, w.clientAuthenticatorFor(clientAuth, clientID, setup.clientKey), parPayload)
+		var sent http.Header
+		parResp, err := postFormWithDPoP(w.HTTPClient(), parEndpoint, parForm, dpopKey, "", &nonces.authzServer, w.clientAuthenticatorFor(clientAuth, clientID, setup.clientKey), &sent, parPayload)
+		parDetails := formRequestLogDetails(parEndpoint, "par", parForm)
+		addRequestHeaders(parDetails, sent)
+		w.addProtocolLog("issuance", "par_request", fmt.Sprintf("Request PAR from %s", parEndpoint), true, parDetails, formLogPayload("Request", parForm))
 		w.addProtocolLog("issuance", "par_response", fmt.Sprintf("PAR response from %s", parEndpoint), err == nil, responseMapLogDetails(parEndpoint, "par", parResp, err), parPayload)
 		if err != nil {
 			return nil, fmt.Errorf("PAR request: %w", err)
@@ -1061,6 +1064,24 @@ func dpopTargetURI(raw string) string {
 	return parsed.String()
 }
 
+// loggedRequestHeaders are the headers that authenticate a request. They keep
+// the spelling of their specs, which http.Header canonicalizes away.
+var loggedRequestHeaders = []string{"Authorization", "DPoP", "OAuth-Client-Attestation", "OAuth-Client-Attestation-PoP"}
+
+// addRequestHeaders adds the authentication headers a request sent to its log
+// details, such as the DPoP proof and the client attestation.
+func addRequestHeaders(details map[string]any, sent http.Header) {
+	headers := map[string]string{}
+	for _, name := range loggedRequestHeaders {
+		if value := sent.Get(name); value != "" {
+			headers[name] = value
+		}
+	}
+	if len(headers) > 0 {
+		details["headers"] = headers
+	}
+}
+
 func formRequestLogDetails(endpoint, endpointName string, form url.Values) map[string]any {
 	return map[string]any{
 		"direction": "outbound",
@@ -1137,9 +1158,9 @@ func (e *serverRefusal) Error() string { return e.Message }
 
 func (e *serverRefusal) Unwrap() error { return e.Cause }
 
-func postFormWithDPoP(client *http.Client, target string, form url.Values, key *ecdsa.PrivateKey, accessToken string, nonce *string, authenticator *clientAuthenticator, payloads ...*LogPayload) (map[string]any, error) {
+func postFormWithDPoP(client *http.Client, target string, form url.Values, key *ecdsa.PrivateKey, accessToken string, nonce *string, authenticator *clientAuthenticator, sent *http.Header, payloads ...*LogPayload) (map[string]any, error) {
 	body := []byte(form.Encode())
-	respBody, status, err := doDPoPRequest("POST", target, "application/x-www-form-urlencoded", "", body, "", accessToken, key, nonce, authenticator, client)
+	respBody, status, err := doDPoPRequest("POST", target, "application/x-www-form-urlencoded", "", body, "", accessToken, key, nonce, authenticator, client, sent)
 	if payload := firstLogPayload(payloads); payload != nil {
 		payload.Label, payload.Body = "Response", string(respBody)
 	}
@@ -1215,14 +1236,14 @@ func credentialRequestBody(proofs credentialProofs, credentialIdentifier, creden
 }
 
 type credentialExchangeLog struct {
-	Request  func(*LogPayload)
+	Request  func(payload *LogPayload, sent http.Header)
 	Response *LogPayload
 }
 
 func (w *Wallet) requestCredentialWithDPoP(a credentialRequestAttempt, proofs credentialProofs, trace *credentialExchangeLog) (map[string]any, error) {
 	reqBody := credentialRequestBody(proofs, a.credentialIdentifier, a.credentialConfigurationID, a.responseEncryption)
 	body, contentType, err := w.prepareCredentialRequestBody(w.Mode(), a.metadata, reqBody)
-	var responsePayload *LogPayload
+	var requestPayload, responsePayload *LogPayload
 	if trace != nil {
 		payload := &LogPayload{Label: "Request", Body: string(body)}
 		if contentType == "application/jwt" {
@@ -1231,16 +1252,22 @@ func (w *Wallet) requestCredentialWithDPoP(a credentialRequestAttempt, proofs cr
 		if err != nil {
 			payload.Label, payload.Body = "Request (not sent)", reqBody
 		}
-		if trace.Request != nil {
-			trace.Request(payload)
-		}
+		requestPayload = payload
 		trace.Response = &LogPayload{Label: "Response"}
 		responsePayload = trace.Response
 	}
+	logRequest := func(sent http.Header) {
+		if trace != nil && trace.Request != nil {
+			trace.Request(requestPayload, sent)
+		}
+	}
 	if err != nil {
+		logRequest(nil)
 		return nil, err
 	}
-	respBody, statusCode, reqErr := doDPoPRequest("POST", a.endpoint, contentType, credentialAccept(a.responseEncryption), body, a.authScheme, a.accessToken, a.dpopKey, a.nonce, nil, w.HTTPClient())
+	var sent http.Header
+	respBody, statusCode, reqErr := doDPoPRequest("POST", a.endpoint, contentType, credentialAccept(a.responseEncryption), body, a.authScheme, a.accessToken, a.dpopKey, a.nonce, nil, w.HTTPClient(), &sent)
+	logRequest(sent)
 	out, encrypted, parseErr := parseCredentialResponseBody(respBody, w.HolderKeyPair(), responsePayload)
 	if parseErr == nil {
 		// The caller acts on the code of a Credential Error Response
@@ -1326,11 +1353,14 @@ func (w *Wallet) deferredCredentialAttempt(mode ValidationMode, metadata map[str
 		requestPayload.Label, requestPayload.Body = "Request (not sent)", reqBody
 		requestDetails["error"] = err.Error()
 	}
-	w.addProtocolLog("issuance", "deferred_credential_request", fmt.Sprintf("Request deferred credential from %s", endpoint), err == nil, requestDetails, requestPayload)
 	if err != nil {
+		w.addProtocolLog("issuance", "deferred_credential_request", fmt.Sprintf("Request deferred credential from %s", endpoint), false, requestDetails, requestPayload)
 		return nil, err
 	}
-	respBody, statusCode, reqErr := doDPoPRequest("POST", endpoint, contentType, credentialAccept(responseEncryption), body, authScheme, accessToken, dpopKey, nonce, nil, w.HTTPClient())
+	var sent http.Header
+	respBody, statusCode, reqErr := doDPoPRequest("POST", endpoint, contentType, credentialAccept(responseEncryption), body, authScheme, accessToken, dpopKey, nonce, nil, w.HTTPClient(), &sent)
+	addRequestHeaders(requestDetails, sent)
+	w.addProtocolLog("issuance", "deferred_credential_request", fmt.Sprintf("Request deferred credential from %s", endpoint), true, requestDetails, requestPayload)
 	responsePayload := &LogPayload{Label: "Response"}
 	defer func() {
 		logErr := err
@@ -1463,15 +1493,19 @@ func (w *Wallet) notifyCredential(event string, metadata, credResp map[string]an
 	if notificationID == "" || notificationEndpoint == "" {
 		return
 	}
-	w.addProtocolLog("issuance", "notification_request", fmt.Sprintf("Send credential notification to %s", notificationEndpoint), true, map[string]any{
+	var sent http.Header
+	status, respBody, err := sendNotificationWithDPoP(notificationEndpoint, accessToken, authScheme, notificationID, event, dpopKey, nonce, w.HTTPClient(), &sent)
+	requestDetails := map[string]any{
 		"direction":          "outbound",
 		"method":             "POST",
 		"url":                notificationEndpoint,
 		"endpoint":           "notification",
 		"notification_id":    notificationID,
 		"notification_event": event,
-	}, &LogPayload{Label: "Request", Body: notificationRequestBody(notificationID, event)})
-	status, respBody, err := sendNotificationWithDPoP(notificationEndpoint, accessToken, authScheme, notificationID, event, dpopKey, nonce, w.HTTPClient())
+	}
+	addRequestHeaders(requestDetails, sent)
+	w.addProtocolLog("issuance", "notification_request", fmt.Sprintf("Send credential notification to %s", notificationEndpoint), true, requestDetails,
+		&LogPayload{Label: "Request", Body: notificationRequestBody(notificationID, event)})
 	if err != nil {
 		w.addProtocolLog("issuance", "notification_response", fmt.Sprintf("Notification response from %s", notificationEndpoint), false, map[string]any{
 			"direction": "inbound",
@@ -1539,13 +1573,13 @@ func notificationRequestBody(notificationID, event string) map[string]any {
 	return map[string]any{"notification_id": notificationID, "event": event}
 }
 
-func sendNotificationWithDPoP(endpoint, accessToken, authScheme, notificationID, event string, dpopKey *ecdsa.PrivateKey, nonce *string, client *http.Client) (int, []byte, error) {
+func sendNotificationWithDPoP(endpoint, accessToken, authScheme, notificationID, event string, dpopKey *ecdsa.PrivateKey, nonce *string, client *http.Client, sent *http.Header) (int, []byte, error) {
 	body, err := json.Marshal(notificationRequestBody(notificationID, event))
 	if err != nil {
 		return 0, nil, fmt.Errorf("marshaling notification request: %w", err)
 	}
 	// §11.2 requires a 2xx and only RECOMMENDS 204, so any 2xx is a success.
-	respBody, statusCode, err := doDPoPRequest("POST", endpoint, "application/json", "", body, authScheme, accessToken, dpopKey, nonce, nil, client)
+	respBody, statusCode, err := doDPoPRequest("POST", endpoint, "application/json", "", body, authScheme, accessToken, dpopKey, nonce, nil, client, sent)
 	if err != nil {
 		return statusCode, respBody, err
 	}
@@ -1600,7 +1634,7 @@ func (w *Wallet) fetchNonce(metadata map[string]any, nonce *string) string {
 // nonceRequest sends one Nonce Endpoint request and reads c_nonce from a 2xx
 // response (§7.2). It returns the HTTP status so the caller can detect a 405.
 func nonceRequest(client *http.Client, method, ep string, nonce *string, payloads ...*LogPayload) (string, int, error) {
-	respBody, status, err := doDPoPRequest(method, ep, "", "", nil, "", "", nil, nonce, nil, client)
+	respBody, status, err := doDPoPRequest(method, ep, "", "", nil, "", "", nil, nonce, nil, client, nil)
 	if payload := firstLogPayload(payloads); payload != nil {
 		payload.Label, payload.Body = "Response", string(respBody)
 	}
@@ -1640,7 +1674,9 @@ func credentialAccept(credentialResponseEncryption map[string]any) string {
 // doDPoPRequest retries once for a DPoP nonce challenge and once for an
 // attestation challenge (RFC 9449 §8, ABCA §6.2 and §7.4). One retry does not
 // use up the other.
-func doDPoPRequest(method, target, contentType, accept string, body []byte, authScheme, token string, key *ecdsa.PrivateKey, nonce *string, authenticator *clientAuthenticator, client *http.Client) ([]byte, int, error) {
+// sent receives the headers of the request that got the response, also after
+// a retry. It may be nil.
+func doDPoPRequest(method, target, contentType, accept string, body []byte, authScheme, token string, key *ecdsa.PrivateKey, nonce *string, authenticator *clientAuthenticator, client *http.Client, sent *http.Header) ([]byte, int, error) {
 	if accept == "" {
 		accept = "application/json, application/jwt"
 	}
@@ -1690,6 +1726,9 @@ func doDPoPRequest(method, target, contentType, accept string, body []byte, auth
 				return nil, 0, fmt.Errorf("creating DPoP proof: %w", err)
 			}
 			req.Header.Set("DPoP", dpopJWT)
+		}
+		if sent != nil {
+			*sent = req.Header.Clone()
 		}
 
 		resp, err := client.Do(req)

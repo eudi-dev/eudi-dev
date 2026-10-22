@@ -195,7 +195,7 @@ func TestClientAssertionIsFreshOnRetry(t *testing.T) {
 
 	authenticator := w.clientAuthenticatorFor(&ClientAuthentication{Method: ClientAuthPrivateKeyJWT, Audience: srv.URL}, "wallet-client", w.HolderKey)
 	var nonce string
-	if _, err := postFormWithDPoP(srv.Client(), srv.URL, url.Values{"grant_type": {"authorization_code"}}, w.HolderKey, "", &nonce, authenticator); err != nil {
+	if _, err := postFormWithDPoP(srv.Client(), srv.URL, url.Values{"grant_type": {"authorization_code"}}, w.HolderKey, "", &nonce, authenticator, nil); err != nil {
 		t.Fatalf("postFormWithDPoP: %v", err)
 	}
 	if len(jtis) != 2 || jtis[0] == nil || jtis[0] == jtis[1] {
@@ -260,5 +260,51 @@ func TestADPoPRetryFollowsUseDPoPNonce(t *testing.T) {
 				t.Errorf("needsDPoPRetry = %v, want %v", got, tc.retry)
 			}
 		})
+	}
+}
+
+// The token request entry shows the DPoP proof and client attestation the
+// server received. After a DPoP nonce retry these are the ones of the retry.
+func TestTheTokenRequestLogsItsAuthenticationHeaders(t *testing.T) {
+	w := generateTestWallet(t)
+	var received http.Header
+	tokenRequests := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rw.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/challenge" {
+			_, _ = io.WriteString(rw, `{"attestation_challenge":"c"}`)
+			return
+		}
+		tokenRequests++
+		received = r.Header.Clone()
+		if tokenRequests == 1 {
+			rw.Header().Set("DPoP-Nonce", "server-nonce")
+			rw.WriteHeader(http.StatusBadRequest)
+			_, _ = io.WriteString(rw, `{"error":"use_dpop_nonce"}`)
+			return
+		}
+		_, _ = io.WriteString(rw, `{"access_token":"t","token_type":"DPoP"}`)
+	}))
+	defer srv.Close()
+
+	renewal := CredentialRenewal{
+		Issuer: srv.URL, TokenEndpoint: srv.URL + "/token", ClientID: "wallet-client", UseDPoP: true,
+		ClientAuth: &ClientAuthentication{Method: ClientAuthAttestation, Audience: srv.URL, ChallengeEndpoint: srv.URL + "/challenge"},
+	}
+	nonce := ""
+	if _, err := w.requestAccessToken(renewal, url.Values{"grant_type": {"refresh_token"}}, &nonce); err != nil {
+		t.Fatalf("requestAccessToken: %v", err)
+	}
+
+	var logged map[string]string
+	for _, entry := range w.GetLog() {
+		if entry.Details["event"] == "token_request" {
+			logged, _ = entry.Details["headers"].(map[string]string)
+		}
+	}
+	for _, name := range []string{"DPoP", "OAuth-Client-Attestation", "OAuth-Client-Attestation-PoP"} {
+		if want := received.Get(name); want == "" || logged[name] != want {
+			t.Errorf("logged %s = %q, want the sent %q", name, logged[name], want)
+		}
 	}
 }

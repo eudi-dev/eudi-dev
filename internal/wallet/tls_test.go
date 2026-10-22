@@ -119,7 +119,7 @@ func TestWalletTLSModeAndOverrides(t *testing.T) {
 				}},
 				{"OAuth metadata", func() error { _, err := fetchOAuthMetadata(w.HTTPClient(), server.URL); return err }},
 				{"token POST", func() error {
-					_, err := postFormWithDPoP(w.HTTPClient(), server.URL, url.Values{"grant_type": {"test"}}, nil, "", nil, nil)
+					_, err := postFormWithDPoP(w.HTTPClient(), server.URL, url.Values{"grant_type": {"test"}}, nil, "", nil, nil, nil)
 					return err
 				}},
 				{"nonce POST", func() error { _, _, err := nonceRequest(w.HTTPClient(), "POST", server.URL, nil); return err }},

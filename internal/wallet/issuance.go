@@ -1363,9 +1363,10 @@ func (w *Wallet) requestCredentialWithNonceRetry(a credentialRequestAttempt, pro
 
 func (w *Wallet) sendCredentialRequest(a credentialRequestAttempt, proofs credentialProofs) (map[string]any, error) {
 	trace := &credentialExchangeLog{
-		Request: func(payload *LogPayload) {
-			w.addProtocolLog("issuance", "credential_request", fmt.Sprintf("Request credential from %s", a.endpoint), true,
-				credentialRequestLogDetails(a.endpoint, a.accessToken, proofs, a.credentialIdentifier, a.credentialConfigurationID, a.responseEncryption), payload)
+		Request: func(payload *LogPayload, sent http.Header) {
+			details := credentialRequestLogDetails(a.endpoint, a.accessToken, proofs, a.credentialIdentifier, a.credentialConfigurationID, a.responseEncryption)
+			addRequestHeaders(details, sent)
+			w.addProtocolLog("issuance", "credential_request", fmt.Sprintf("Request credential from %s", a.endpoint), true, details, payload)
 		},
 	}
 	credResp, err := w.requestCredentialWithDPoP(a, proofs, trace)

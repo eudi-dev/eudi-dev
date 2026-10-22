@@ -443,7 +443,7 @@ func TestDoDPoPRequest_RegeneratesAttestationHeadersOnRetry(t *testing.T) {
 
 	nonce := ""
 	authenticator := w.clientAuthenticatorFor(&ClientAuthentication{Method: ClientAuthAttestation, Audience: srv.URL}, "wallet-client", w.HolderKey)
-	_, _, err := doDPoPRequest(http.MethodPost, srv.URL, "application/json", "", []byte(`{}`), "", "", w.HolderKey, &nonce, authenticator, srv.Client())
+	_, _, err := doDPoPRequest(http.MethodPost, srv.URL, "application/json", "", []byte(`{}`), "", "", w.HolderKey, &nonce, authenticator, srv.Client(), nil)
 	if err != nil {
 		t.Fatalf("doDPoPRequest: %v", err)
 	}

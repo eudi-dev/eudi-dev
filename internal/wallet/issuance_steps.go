@@ -137,13 +137,13 @@ func (w *Wallet) dpopKeyForRenewal(r CredentialRenewal) *ecdsa.PrivateKey {
 func (w *Wallet) requestAccessToken(r CredentialRenewal, form url.Values, nonce *string) (*accessGrant, error) {
 	dpopKey := w.dpopKeyForRenewal(r)
 	authenticator := w.clientAuthenticatorFor(r.ClientAuth, r.ClientID, w.clientKey(r))
+	payload := &LogPayload{}
+	var sent http.Header
+	resp, err := postFormWithDPoP(w.HTTPClient(), r.TokenEndpoint, form, dpopKey, "", nonce, authenticator, &sent, payload)
 	details := formRequestLogDetails(r.TokenEndpoint, "token", form)
 	details["grant_type"] = form.Get("grant_type")
-	details["client_attestation"] = r.ClientAuth != nil && r.ClientAuth.Method == ClientAuthAttestation
-	details["dpop"] = dpopKey != nil
+	addRequestHeaders(details, sent)
 	w.addProtocolLog("issuance", "token_request", fmt.Sprintf("Request token from %s", r.TokenEndpoint), true, details, formLogPayload("Request", form))
-	payload := &LogPayload{}
-	resp, err := postFormWithDPoP(w.HTTPClient(), r.TokenEndpoint, form, dpopKey, "", nonce, authenticator, payload)
 	w.addProtocolLog("issuance", "token_response", fmt.Sprintf("Token response from %s", r.TokenEndpoint), err == nil, responseMapLogDetails(r.TokenEndpoint, "token", resp, err), payload)
 	if err != nil {
 		return nil, err

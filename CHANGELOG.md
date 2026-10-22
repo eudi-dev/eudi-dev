@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [3.3.4] - Unreleased
 
+### Changed
+
+- **Sent headers in the activity log.** Token, PAR, authorization challenge, credential, deferred credential and notification requests show the DPoP proof and client attestation they sent, each with a decoder button. After a DPoP nonce retry they show the headers of the retry.
+
 ### Fixed
 
 - **Access token keys in the decoder.** The decoder verifies a plain JWT, such as an access token, with the keys from the authorization server metadata (RFC 8414) or OpenID Connect Discovery. Only SD-JWT VCs use the JWT VC Issuer Metadata.

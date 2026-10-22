@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -234,13 +235,14 @@ func (w *Wallet) postAuthorizationChallenge(endpoint string, form url.Values, vp
 	if len(vpToken) > 0 {
 		requestDetails["vp_token"] = vpToken
 	}
+	body := []byte(form.Encode())
+	var sent http.Header
+	respBody, status, reqErr := doDPoPRequest("POST", endpoint, "application/x-www-form-urlencoded", "", body,
+		"", "", setup.dpopKey, &setup.nonces.authzServer, w.clientAuthenticatorFor(setup.clientAuth, setup.clientID, setup.clientKey), w.HTTPClient(), &sent)
+	addRequestHeaders(requestDetails, sent)
 	w.addProtocolLog("issuance", "authorization_challenge_request",
 		fmt.Sprintf("Authorization challenge request to %s", endpoint), true,
 		requestDetails, formLogPayload("Request", form))
-
-	body := []byte(form.Encode())
-	respBody, status, reqErr := doDPoPRequest("POST", endpoint, "application/x-www-form-urlencoded", "", body,
-		"", "", setup.dpopKey, &setup.nonces.authzServer, w.clientAuthenticatorFor(setup.clientAuth, setup.clientID, setup.clientKey), w.HTTPClient())
 
 	var response map[string]any
 	if len(respBody) > 0 {
