@@ -27,7 +27,7 @@ The material replaces the **Registered** identity on the issuer and verifier pag
 
 Besides the identity, an offer sets how the issuer handles it:
 
-- **Transaction code.** A pre-authorized offer set to "With" needs a six-digit transaction code (OpenID4VCI 1.0 §4.1.1). The issuer page shows the code right under the option. The offer API generates one with `tx_code=true`, takes six digits as the code, and returns it as `tx_code`. The token endpoint refuses a request without the code or with a wrong one, and the pre-authorized code is then used up.
+- **Transaction code.** A pre-authorized offer set to "With" needs a six-digit transaction code (OpenID4VCI 1.0 §4.1.1). The issuer page shows the code right under the option. The offer API generates one with `tx_code=true`, takes 6 digits as the code, and returns it as `tx_code`. The token endpoint refuses a request without the code or with a wrong one, and the pre-authorized code is then used up.
 - **Key proofs.** By default the metadata offers the `jwt` and the `attestation` proof types, and the wallet chooses. The `attestation` proof type needs a key attestation from the wallet provider. "jwt only", or `proof_types=jwt`, leaves it out.
 - **Status list.** "With" is the default, so you can revoke the ticket in the wallet. The offer API needs `status=true`.
 - **Copies.** The number of credentials to issue, each bound to its own key.

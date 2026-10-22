@@ -42,7 +42,7 @@ To try it, choose **Digital Credentials API** under Delivery on the demo verifie
 
 - **Signed** (`openid4vp-v1-signed`) signs the request with the verifier's access certificate and lists the page origin in `expected_origins`.
 - **Unsigned** (`openid4vp-v1-unsigned`) has no signature and no `client_id`. The wallet identifies the verifier by the page origin, so the request carries no registration certificate.
-- **Multisigned** (`openid4vp-v1-multisigned`) uses the JWS JSON serialization with two signatures. The first uses the verifier's access certificate. The second uses a new key that no registrar knows. Each signature has its `client_id` in its protected header (OpenID4VP 1.0 Appendix A.3.2). With it you test how a wallet handles a signer it can't trust.
+- **Multisigned** (`openid4vp-v1-multisigned`) uses the JWS JSON serialization with 2 signatures. The first uses the verifier's access certificate. The second uses a new key that no registrar knows. Each signature has its `client_id` in its protected header (OpenID4VP 1.0 Appendix A.3.2). With it you test how a wallet handles a signer it can't trust.
 
 The demo verifier always asks for an encrypted response (`dc_api.jwt`).
 
@@ -94,7 +94,7 @@ X-Eudi-Owner: 2f6c1b9e-6a51-4d8e-9a43-0e1b8f0d2c77
 - `X-Eudi-Owner` is a random ID that stays the same for an installed extension. It lets the wallet show the consent in the window that the extension opens.
 - `requests` holds only requests with a supported protocol.
 
-**Response.** The wallet answers when the user decides, at the latest after five minutes:
+**Response.** The wallet answers when the user decides, at the latest after 5 minutes:
 
 - `200` with `{"protocol": "...", "data": {...}}` resolves the call with a `DigitalCredential` of that protocol and data. A protocol error, such as `{"data": {"error": "access_denied"}}`, is a result too (OpenID4VP 1.0 Appendix A.4).
 - Any other answer rejects the call with `NotAllowedError`. The message holds the `error_description` or `error` of a JSON error body.

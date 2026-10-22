@@ -45,12 +45,12 @@ OpenID4VCI 1.0 is the baseline, with 1.1 available as an optional draft feature 
 
 The generated root CA permits one intermediate CA. Credential and wallet provider signing certificates use a provider intermediate for their role and country. Each provider role has its own signing key and provider intermediate. The roles are the categories `pid`, `qeaa`, `pub-eaa` and `eaa`, `wallet` for the wallet provider, `tl-<8 hex digits>` for a credential type with its own trusted list, and `unlisted` for unlisted credentials. So a trusted list anchors only the credentials signed for it. No list contains the `unlisted` intermediate. Status and trusted list signing certificates are signed directly by the root.
 
-The wallet has two more self-signed CAs besides the root. They have the subject organization `EUDI Dev Test CA`, the same key usage as the root and basic constraints `CA:TRUE, pathlen:0`:
+The wallet has 2 more self-signed CAs besides the root. They have the subject organization `EUDI Dev Test CA`, the same key usage as the root and basic constraints `CA:TRUE, pathlen:0`:
 
 - The **relying party access CA** (`CN=EUDI Dev Test Relying Party Access CA`) signs every access certificate of the registrar, including those of the demo issuer and the demo verifier. The wallet's `access-ca` list contains it.
 - The **registrar CA** (`CN=EUDI Dev Test Registrar CA`) signs the registrar's signing certificate. The wallet's `registrar` list contains it.
 
-Neither chains to the root. The root anchors credential issuers, and a visitor's CSR must never produce a certificate under it. Each credential signing key has two leaves. The mdoc leaf carries the ISO/IEC 18013-5 document signing purpose. The leaf for SD-JWT VC and the other formats has none. The credential signer's subject country matches the credential's `issuing_country`, with `NL` as the default. Its AIA and CRL URLs identify the provider intermediate and its revocation list.
+Neither chains to the root. The root anchors credential issuers, and a visitor's CSR must never produce a certificate under it. Each credential signing key has 2 leaves. The mdoc leaf carries the ISO/IEC 18013-5 document signing purpose. The leaf for SD-JWT VC and the other formats has none. The credential signer's subject country matches the credential's `issuing_country`, with `NL` as the default. Its AIA and CRL URLs identify the provider intermediate and its revocation list.
 
 In the PID Rulebook, the trust anchors are notified provider keys. ISO/IEC 18013-5:2021 Annex B uses a direct IACA hierarchy whose root has a path length of zero. The generated root has a path length of one, and the OpenID suite reports this as an ISO profile warning. Certificate signatures and trust paths are checked separately.
 

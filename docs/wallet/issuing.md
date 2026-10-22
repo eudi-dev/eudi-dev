@@ -39,7 +39,7 @@ Renewal uses `grant_type=refresh_token` at the original token endpoint, with the
 
 A renewal runs the same steps as an issuance. The wallet checks the issuer and the token response, logs the import and sends the issuer its notification.
 
-The server checks for renewal every 30 seconds and renews credentials within a minute of expiry. Failed renewals wait ten minutes before retrying. The wallet also attempts renewal before presenting a credential that expires within a minute, including without a running server. If renewal fails, it presents the stored credential.
+The server checks for renewal every 30 seconds and renews credentials within a minute of expiry. Failed renewals wait 10 minutes before retrying. The wallet also attempts renewal before presenting a credential that expires within a minute, including without a running server. If renewal fails, it presents the stored credential.
 
 ### Reuse policy
 
@@ -126,7 +126,7 @@ The wallet supports [OAuth 2.0 Attestation-Based Client Authentication](https://
 
 The attestation is signed by a separate wallet provider key. Its `x5c` contains the wallet provider leaf and any intermediate certificates, with the self-signed root omitted. An issuer can pin the root exported by `trust ca-cert` or use the wallet provider certificates at `/api/trustlists/wallet-provider`. Key attestations use the same wallet provider signer. Both are compact JAdES baseline B signatures with the signing time in an `iat` header (CIR (EU) 2024/2979 Annex Ib FR-WIA-1 and FR-KA-1, ETSI TS 119 182-1 V1.2.1 clause 5.1.11).
 
-The wallet supports three drafts of the attestation specification ([ADR-0014](../adr/0014-pinned-draft-versions-stay-supported-alongside-the-latest.md)). Outgoing JWTs use the draft-07 claims required by OpenID4VCI 1.0 section 14.7. Both the attestation and its PoP include `iss` and `nbf`, regardless of `--vci-version`. Draft-08 allows these additional claims under sections 5.1 and 5.2 rule 1, so the same JWTs work across the supported drafts.
+The wallet supports 3 drafts of the attestation specification ([ADR-0014](../adr/0014-pinned-draft-versions-stay-supported-alongside-the-latest.md)). Outgoing JWTs use the draft-07 claims required by OpenID4VCI 1.0 section 14.7. Both the attestation and its PoP include `iss` and `nbf`, regardless of `--vci-version`. Draft-08 allows these additional claims under sections 5.1 and 5.2 rule 1, so the same JWTs work across the supported drafts.
 
 Draft-10 features are selected through server metadata. If a server offers only `attest_jwt_client_auth_dpop`, or lists only `dpop_combined` in `client_attestation_pop_methods_supported`, the wallet uses DPoP as the possession proof and omits the dedicated PoP header. It warns when this mechanism is newer than the configured draft.
 
@@ -136,7 +136,7 @@ Under `--haip` the wallet always attests. HAIP 1.0 §4.4.1 requires it of both s
 
 > Wallets MUST use, and Issuers MUST require, an OAuth2 Client authentication mechanism at OAuth2 Endpoints that support client authentication (such as the PAR and Token Endpoints).
 
-Debug mode, used by the public demo, handles two issuer deviations:
+Debug mode, used by the public demo, handles 2 issuer deviations:
 
 - An issuer that requires an attestation but advertises no client authentication method. Advertising is a SHOULD in every draft (draft-07 section 10.1, draft-08 section 9, draft-10 section 8). The wallet attests anyway and warns about the missing advertisement.
 - An issuer that advertises only unauthenticated access (`none`). The wallet proceeds without client authentication and warns.
@@ -225,7 +225,7 @@ The presentation interaction works without `--vci-redirect-uri`. An issuer that 
 
 The presentation is bound to the challenge endpoint. An SD-JWT key binding JWT uses `ia:<endpoint>` as `aud`. An mdoc uses the `OpenID4VCIIAEHandover` session transcript. If the request contains `expected_origins`, it must contain only the origin of the challenge endpoint. This stops one authorization server from forwarding another server's request. Strict mode refuses any other value. Debug mode warns and continues.
 
-The wallet supports two interaction types. It advertises a type only when it can complete that interaction (§6.2.1):
+The wallet supports 2 interaction types. It advertises a type only when it can complete that interaction (§6.2.1):
 
 - The presentation interaction (`urn:openid:dcp:ia:openid4vp_presentation`), always.
 - The browser interaction (`urn:openid:dcp:ia:auth_via_web`, §6.2.1.2), when an https redirect URI is configured and the server publishes an `authorization_endpoint`. The server answers the challenge with a `request_uri`. The wallet builds an authorization request from it (RFC 9126 §4) and opens the sign-in URL in the user's browser, as in the redirect flow. The redirect back to the wallet carries the authorization code, or an `auth_session` when further steps remain at the challenge endpoint.

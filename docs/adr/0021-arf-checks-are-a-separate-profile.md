@@ -12,7 +12,7 @@ The ARF builds on HAIP. ARF Annex 2 has wallets follow OpenID4VP and OpenID4VCI 
 
 ## Trust anchors
 
-Under RPA_04, ISSU_23, ISSU_33, RPRC_02a, ISSU_23c and ISSU_33a, the wallet trusts only notified access certificate authorities and registrars. The ARF keeps separate trusted lists for the two (RPACANot_05, RPACANot_05a), and so does the wallet. It takes every anchor from trusted lists ([ADR 0023](0023-trust-anchors-come-from-trusted-lists.md)):
+Under RPA_04, ISSU_23, ISSU_33, RPRC_02a, ISSU_23c and ISSU_33a, the wallet trusts only notified access certificate authorities and registrars. The ARF keeps separate trusted lists for the 2 (RPACANot_05, RPACANot_05a), and so does the wallet. It takes every anchor from trusted lists ([ADR 0023](0023-trust-anchors-come-from-trusted-lists.md)):
 
 - Access certificates (RPA_04, ISSU_24, ISSU_34) must chain to a CA on an access certificate provider list (`access-ca`, ETSI TS 119 602 V1.1.1 Annex F). The wallet's own list contains the relying party access CA. This CA signs every access certificate issued by the wallet's registrar.
 - Registration certificates (RPRC_02a, ISSU_23c, ISSU_33a) must chain to a CA on a registration certificate provider list (`registrar`, Annex G). The wallet's own list contains the registrar CA. The status list of a registration certificate must chain to a revocation service on the same lists (RPACANot_03b).

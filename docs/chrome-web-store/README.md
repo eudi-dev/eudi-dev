@@ -93,7 +93,7 @@ Lets developers answer Digital Credentials API requests (navigator.credentials.g
 **Data usage:**
 
 - Check **Website content**. The extension sends the request that a page passes to `navigator.credentials.get()`, and the page origin, to the wallet set in the popup. By default that is https://eudi-test.dev, which the publisher operates. It collects nothing else.
-- Check the three certifications: no sale to third parties, no use unrelated to the single purpose, no use for creditworthiness or lending.
+- Check the 3 certifications: no sale to third parties, no use unrelated to the single purpose, no use for creditworthiness or lending.
 
 **Privacy policy URL:** https://github.com/eudi-dev/eudi-dev/blob/main/docs/chrome-web-store/privacy.md
 
@@ -130,6 +130,6 @@ To create the OAuth client and the refresh token:
 4. In the [OAuth 2.0 Playground](https://developers.google.com/oauthplayground), open the settings, choose **Use your own OAuth credentials** and enter the client ID and secret.
 5. Authorize the scope `https://www.googleapis.com/auth/chromewebstore` with the publisher account, then choose **Exchange authorization code for tokens**. Copy the refresh token.
 
-A refresh token of an OAuth client in testing mode expires after seven days. Set the consent screen to **In production** so the token stays valid. The app stays unverified, which is fine because only the publisher account signs in. The API also accepts a service account instead of a refresh token.
+A refresh token of an OAuth client in testing mode expires after 7 days. Set the consent screen to **In production** so the token stays valid. The app stays unverified, which is fine because only the publisher account signs in. The API also accepts a service account instead of a refresh token.
 
 The first version has to go through steps 3 and 4 by hand, because the API updates existing items only.

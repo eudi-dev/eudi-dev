@@ -573,7 +573,7 @@ eudi wallet register --port 9000   # Use custom listener port
 eudi wallet unregister             # Remove URL handlers
 ```
 
-`wallet register` has no flags of its own. It takes `wallet serve` flags, stores them and passes them to `wallet serve` when a clicked link has to start the wallet. The handler also reads two of them:
+`wallet register` has no flags of its own. It takes `wallet serve` flags, stores them and passes them to `wallet serve` when a clicked link has to start the wallet. The handler also reads 2 of them:
 
 | Flag            | Default | Effect on the handler                                                   |
 |-----------------|---------|-------------------------------------------------------------------------|

@@ -155,7 +155,7 @@ const ticket = page.locator('.credential-card[data-vct="urn:eudi-test:demo-ticke
 await expect(ticket.first()).toBeVisible();
 ```
 
-API: `POST /issuer/api/offers` returns `wallet_url`, `scheme_uri`, `offer_uri` and `issuer`. `scheme_uri` uses `openid-credential-offer://`, which any OpenID4VCI wallet handles. The query parameters `grant`, `tx_code`, `authorization`, `status`, `deferred`, `batch`, `proof_types`, `credential`, `identity` and `identity_check` match the page options. With `tx_code=true`, or six digits of your own, a pre-authorized offer needs a six-digit transaction code, and the response returns it as `tx_code`. Without `authorization_details` the token response has no credential identifiers. `credential_identifiers=always` adds them to every token response, as Keycloak does (OpenID4VCI 1.0 §6.2). The wallet then has to request by `credential_identifier`. With `identity=own` the body carries `signing_key` and `issuer_info`. With `identity_check=own` it carries an `identity_check` object with `signing_key` and `verifier_info` (see [demo issuer and verifier](wallet/registrar.md#demo-issuer-and-verifier)).
+API: `POST /issuer/api/offers` returns `wallet_url`, `scheme_uri`, `offer_uri` and `issuer`. `scheme_uri` uses `openid-credential-offer://`, which any OpenID4VCI wallet handles. The query parameters `grant`, `tx_code`, `authorization`, `status`, `deferred`, `batch`, `proof_types`, `credential`, `identity` and `identity_check` match the page options. With `tx_code=true`, or 6 digits of your own, a pre-authorized offer needs a six-digit transaction code, and the response returns it as `tx_code`. Without `authorization_details` the token response has no credential identifiers. `credential_identifiers=always` adds them to every token response, as Keycloak does (OpenID4VCI 1.0 §6.2). The wallet then has to request by `credential_identifier`. With `identity=own` the body carries `signing_key` and `issuer_info`. With `identity_check=own` it carries an `identity_check` object with `signing_key` and `verifier_info` (see [demo issuer and verifier](wallet/registrar.md#demo-issuer-and-verifier)).
 
 E2E tests: [`prefix.spec.js`](../e2e/prefix.spec.js), test *a demo issuer offer opened in the browser is issued*. [`demo.spec.js`](../e2e/demo.spec.js), test *a deferred offer is awaited and then collected*.
 
@@ -210,7 +210,7 @@ Each stored credential is a `.credential-card` with the id `credential-<credenti
 | `data-expiry` | `valid`, `expiring`, `expired` or `not-yet-valid` |
 | `data-protected` | `true` on the baseline PIDs of a demo |
 
-The list shows ten cards per page. Use `#cred-prev` and `#cred-next` to page. `#cred-range` shows the range. `#deferred-section` lists deferred credentials while the wallet waits for them.
+The list shows 10 cards per page. Use `#cred-prev` and `#cred-next` to page. `#cred-range` shows the range. `#deferred-section` lists deferred credentials while the wallet waits for them.
 
 ### Errors
 

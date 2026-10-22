@@ -1,6 +1,6 @@
 # Reverse proxy setup
 
-The wallet can run behind a reverse proxy in two ways:
+The wallet can run behind a reverse proxy in 2 ways:
 
 - on its own host, such as `https://eudi.example.com`
 - under a path prefix on a shared host, such as `https://example.com/some/context`

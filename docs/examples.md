@@ -60,7 +60,7 @@ It includes:
 
 - one compose project where all services share one network namespace, so every URL is plain `localhost` for both the host browser and the containers
 - a demo UI (port 9090) with localhost wallet links for issuance and an OIDC login for verification
-- static issuer and verifier realms reused from the two smaller examples, plus an admin-API step that points the verifier's `walletScheme` / `trustListUrl` at the wallet
+- static issuer and verifier realms reused from the 2 smaller examples, plus an admin-API step that points the verifier's `walletScheme` / `trustListUrl` at the wallet
 - headless demos that call `GET /credential-offer` and `GET /authorize`
 - automatic export of the wallet CA into Keycloak's truststore for the status list revocation check
 
@@ -80,10 +80,10 @@ It includes:
 
 Folder: [`examples/load-test`](../examples/load-test/README.md)
 
-Two wallet servers share one Postgres database behind an nginx ingress. Requests can go to either server, and both serve the same wallet. Use it as the target for load and performance tests of verifiers, issuers and the wallet.
+2 wallet servers share one Postgres database behind an nginx ingress. Requests can go to either server, and both serve the same wallet. Use it as the target for load and performance tests of verifiers, issuers and the wallet.
 
 It includes:
 
-- a compose file with Postgres, two wallet servers and nginx
+- a compose file with Postgres, 2 wallet servers and nginx
 - an nginx config with round robin for API clients and a sticky session for browsers
 - `loadtest`, a Go load generator that drives issuance, presentation and listing concurrently and checks that nothing was lost

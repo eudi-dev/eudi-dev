@@ -30,7 +30,7 @@ The wrapper runs the current Final wallet plans plus the current HAIP wallet pla
 - `oid4vp-1final-wallet-haip-test-plan`
 - `oid4vci-1_0-wallet-haip-test-plan`
 
-Only the two HAIP plans are part of the OIDF certification program. The suite publishes the plain Final wallet plans as alpha tests. On the production certification service, the wrapper runs only the HAIP plans, complete and unfiltered. Local and demo-service runs cover the whole matrix.
+Only the 2 HAIP plans are part of the OIDF certification program. The suite publishes the plain Final wallet plans as alpha tests. On the production certification service, the wrapper runs only the HAIP plans, complete and unfiltered. Local and demo-service runs cover the whole matrix.
 
 ## Default matrix
 

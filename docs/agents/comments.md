@@ -14,7 +14,7 @@ Keep a comment only when it adds information that the code cannot show.
 
 - What the code already says. `// reads the cookie` above a function that reads the cookie adds nothing.
 - What was removed, rejected or used to happen. State the design that is there. History belongs in the changelog and in `docs/adr/`.
-- A restatement of the identifier. A one-line constant does not need nine lines of prose.
+- A restatement of the identifier. A one-line constant does not need 9 lines of prose.
 - Reassurance. "This is safe because" without naming the mechanism.
 
 ## Length

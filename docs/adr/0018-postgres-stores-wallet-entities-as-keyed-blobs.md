@@ -39,7 +39,7 @@ The default wallet uses the prefix `wallet` on hosts and in containers. Custom w
 
 The primary key supports direct lookups, and a `text_pattern_ops` index supports prefix queries. Saves compare wallet state in Go and write changed entities and revision markers in separate statements. Reloading a changed section first reads its row versions.
 
-[The load test example](../../examples/load-test/README.md) exercises two servers sharing Postgres. The wallet microbenchmarks use memory, so they do not measure database latency.
+[The load test example](../../examples/load-test/README.md) exercises 2 servers sharing Postgres. The wallet microbenchmarks use memory, so they do not measure database latency.
 
 Issuance can save a credential, its status entry, type registration and log. Batch issuance saves several credentials. A shared counter allocates distinct status indices using compare-and-swap. Interrupted issuance can leave unused indices. Logs are appended independently.
 

@@ -9,7 +9,7 @@ The wallet has 2 validation modes. Both run the same checks. They differ in how 
 
 The mode only affects what the wallet does automatically. In the consent dialog you can always pick a non-matching credential or another claim set, even in strict mode.
 
-Strict mode covers OpenID4VP 1.0, OpenID4VCI 1.0 and HAIP 1.0. Advisory findings are warnings in both modes. 2 flags add more checks. `--haip` adds the HAIP 1.0 checks (see [HAIP 1.0 enforcement](wallet/presenting.md#haip-10-enforcement)). `--arf` adds the ARF checks of verifier and issuer certificates (see [ARF checks](wallet/presenting.md#arf-checks)). The mode decides what happens to their findings.
+Strict mode covers OpenID4VP 1.0, OpenID4VCI 1.0 and HAIP 1.0. Advisory findings are warnings in both modes. The flags `--haip` and `--arf` add more checks. `--haip` adds the HAIP 1.0 checks (see [HAIP 1.0 enforcement](wallet/presenting.md#haip-10-enforcement)). `--arf` adds the ARF checks of verifier and issuer certificates (see [ARF checks](wallet/presenting.md#arf-checks)). The mode decides what happens to their findings.
 
 For OpenID Foundation conformance work, see [docs/conformance.md](./conformance.md).
 For interaction diagrams of the implemented OID4VP and OID4VCI flows, see [docs/diagrams](./diagrams/README.md).
@@ -37,7 +37,7 @@ For interaction diagrams of the implemented OID4VP and OID4VCI flows, see [docs/
 | `register`   | Register the OS URL scheme handlers on macOS and Linux (a no-op elsewhere) |
 | `unregister` | Remove the OS URL scheme handlers on macOS and Linux (a no-op elsewhere) |
 
-3 top-level commands also work on the active wallet and take the same wallet flags:
+These 3 top-level commands also work on the active wallet and take the same wallet flags:
 
 | Command     | Purpose |
 |-------------|---------|

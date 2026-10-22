@@ -4,7 +4,7 @@ Reproduce these runs with the [wallet conformance runner](./conformance-run.md).
 
 ## Run of 2026-10-13 (3.0.0)
 
-The release was checked against suite `release-v5.3.2` (revision `11999aa`) in strict mode. The full wallet matrix ran with file storage on 3.0.0-rc.3. The demo issuer and verifier ran all nine plans on the release code.
+The release was checked against suite `release-v5.3.2` (revision `11999aa`) in strict mode. The full wallet matrix ran with file storage on 3.0.0-rc.3. The demo issuer and verifier ran all 9 plans on the release code.
 
 | Target | Configurations | Modules | `PASSED` | `REVIEW` | `WARNING` | `FAILED` |
 |---|---:|---:|---:|---:|---:|---:|
@@ -17,7 +17,7 @@ The full Go race suite and all 290 browser tests passed. Vet and lint also passe
 
 ## Run of 2026-10-12 (3.0.0-rc.1)
 
-The release candidate was checked against suite `release-v5.3.2` (revision `11999aa`) in strict mode. The full wallet matrix ran with file storage. The demo issuer and verifier ran all nine plans.
+The release candidate was checked against suite `release-v5.3.2` (revision `11999aa`) in strict mode. The full wallet matrix ran with file storage. The demo issuer and verifier ran all 9 plans.
 
 | Target | Configurations | Modules | `PASSED` | `REVIEW` | `WARNING` | `FAILED` |
 |---|---:|---:|---:|---:|---:|---:|
@@ -32,24 +32,24 @@ The full Go race suite and all 266 browser tests passed. Vet and lint also passe
 
 ## Run of 2026-10-12 (3.0.0-beta.4)
 
-The beta was checked against suite `release-v5.3.2` (revision `11999aa`) in strict mode. The full wallet matrix ran with file storage. The demo issuer and verifier ran all nine plans.
+The beta was checked against suite `release-v5.3.2` (revision `11999aa`) in strict mode. The full wallet matrix ran with file storage. The demo issuer and verifier ran all 9 plans.
 
 | Target | Configurations | Modules | `PASSED` | `REVIEW` | `WARNING` | `FAILED` |
 |---|---:|---:|---:|---:|---:|---:|
 | Wallet, file | 78 | 750 | 536 | 188 | 26 | 0 |
 | Demo issuer and verifier | 9 | 111 | 67 | 36 | 8 | 0 |
 
-No module failed. Release-v5.3.2 adds `fapi2-security-profile-final-client-test-happy-path-no-mtls-endpoint-aliases` to the six HAIP issuance plans, and all six passed. The 26 wallet warnings are the IACA path length advisory described for 2.5.0. The 8 demo warnings are the metadata warnings described for the run of 2026-10-08.
+No module failed. Release-v5.3.2 adds `fapi2-security-profile-final-client-test-happy-path-no-mtls-endpoint-aliases` to the 6 HAIP issuance plans, and all 6 passed. The 26 wallet warnings are the IACA path length advisory described for 2.5.0. The 8 demo warnings are the metadata warnings described for the run of 2026-10-08.
 
 The suite sends its unsigned `request_uri` request objects without `typ`. OpenID4VP 1.0 §5 tells wallets not to process them. The wallet now warns about the missing `typ` and processes the object, also in strict mode, so these 8 plans pass (see [spec compliance](spec-compliance.md)).
 
-One suite metadata request took 60 seconds while the machine was under load. The harness sent the same offer again, and the pending deferred requests of the first attempt interrupted three modules, as in the run of 2026-10-09. The suite stopped the run, and the remaining 5 plans ran again on their own. The numbers above contain only completed modules.
+One suite metadata request took 60 seconds while the machine was under load. The harness sent the same offer again, and the pending deferred requests of the first attempt interrupted 3 modules, as in the run of 2026-10-09. The suite stopped the run, and the remaining 5 plans ran again on their own. The numbers above contain only completed modules.
 
 The full Go race suite and all 256 browser tests passed. Vet and lint also passed.
 
 ## Run of 2026-10-10 (3.0.0-beta.3)
 
-The beta was checked against suite `release-v5.3.1` (revision `440eec8`) in strict mode. The full wallet matrix ran with file storage. The demo issuer and verifier ran all nine plans.
+The beta was checked against suite `release-v5.3.1` (revision `440eec8`) in strict mode. The full wallet matrix ran with file storage. The demo issuer and verifier ran all 9 plans.
 
 | Target | Configurations | Modules | `PASSED` | `REVIEW` | `WARNING` | `FAILED` |
 |---|---:|---:|---:|---:|---:|---:|
@@ -58,15 +58,15 @@ The beta was checked against suite `release-v5.3.1` (revision `440eec8`) in stri
 
 No module failed, and the counts match the beta.1 run. The 26 wallet warnings are the IACA path length advisory described for 2.5.0. The 8 demo warnings are the metadata warnings described for the run of 2026-10-08.
 
-The first demo run interrupted `oid4vci-1_0-issuer-happy-flow-multiple-clients`. Its two clients start their flows with the `issuer_state` of the same offer, and the demo issuer accepted it only once. OpenID4VCI 1.0 §4.1.1 defines `issuer_state` as a link to the issuer's context, not as a grant. The demo issuer now accepts it until the offer expires, and the run above used that build.
+The first demo run interrupted `oid4vci-1_0-issuer-happy-flow-multiple-clients`. Its 2 clients start their flows with the `issuer_state` of the same offer, and the demo issuer accepted it only once. OpenID4VCI 1.0 §4.1.1 defines `issuer_state` as a link to the issuer's context, not as a grant. The demo issuer now accepts it until the offer expires, and the run above used that build.
 
-The suite answered three wait requests with HTTP 504. The runner retried each one and the modules completed.
+The suite answered 3 wait requests with HTTP 504. The runner retried each one and the modules completed.
 
 The full Go suite and all 235 browser tests passed. Vet and lint also passed.
 
 ## Run of 2026-10-09 (3.0.0-beta.1)
 
-The beta was checked against suite `release-v5.3.1` (revision `440eec8`) in strict mode. The full wallet matrix ran with file storage. The demo issuer and verifier ran all nine plans.
+The beta was checked against suite `release-v5.3.1` (revision `440eec8`) in strict mode. The full wallet matrix ran with file storage. The demo issuer and verifier ran all 9 plans.
 
 | Target | Configurations | Modules | `PASSED` | `REVIEW` | `WARNING` | `FAILED` |
 |---|---:|---:|---:|---:|---:|---:|
@@ -77,13 +77,13 @@ No module failed. The 26 wallet warnings are the IACA path length advisory descr
 
 The demo verifier signs its request objects with an access certificate from the relying party access CA. The harness gives the suite that CA as its trust anchor. The wallet signs each credential category with its own key, so the harness picks the key of the PID provider for the suite.
 
-The suite answered one metadata request with HTTP 504. The wallet retried, and the harness sent the same offer again. The pending deferred requests of the first attempt then interrupted three modules, and the suite stopped the run. The remaining 16 plans ran again on their own. The numbers above contain only completed modules.
+The suite answered one metadata request with HTTP 504. The wallet retried, and the harness sent the same offer again. The pending deferred requests of the first attempt then interrupted 3 modules, and the suite stopped the run. The remaining 16 plans ran again on their own. The numbers above contain only completed modules.
 
 The full Go race suite and all 226 browser tests passed on each of file, memory and Postgres storage. Vet and lint also passed.
 
 ## Run of 2026-10-08 (3.0.0 development build)
 
-The release was checked against suite `release-v5.3.1` (revision `440eec8`) in strict mode. The full wallet matrix ran with file storage. Memory and Postgres each ran the 10 HAIP plans. The demo issuer and verifier ran all nine plans.
+The release was checked against suite `release-v5.3.1` (revision `440eec8`) in strict mode. The full wallet matrix ran with file storage. Memory and Postgres each ran the 10 HAIP plans. The demo issuer and verifier ran all 9 plans.
 
 | Target | Configurations | Modules | `PASSED` | `REVIEW` | `WARNING` | `FAILED` |
 |---|---:|---:|---:|---:|---:|---:|
@@ -92,15 +92,15 @@ The release was checked against suite `release-v5.3.1` (revision `440eec8`) in s
 | Wallet, Postgres, HAIP | 10 | 228 | 166 | 36 | 26 | 0 |
 | Demo issuer and verifier | 9 | 111 | 67 | 36 | 8 | 0 |
 
-No wallet module failed. Release-v5.3.1 builds the multisigned DC API presentation correctly, so the two suite failures of 2.6.0 do not occur. The `invalid-client-id-prefix` module also runs in the multisigned DC API plans, which adds 8 modules. The 26 wallet warnings are the IACA path length advisory described for 2.5.0.
+No wallet module failed. Release-v5.3.1 builds the multisigned DC API presentation correctly, so the 2 suite failures of 2.6.0 do not occur. The `invalid-client-id-prefix` module also runs in the multisigned DC API plans, which adds 8 modules. The 26 wallet warnings are the IACA path length advisory described for 2.5.0.
 
-The demo verifier sends its registration certificate in `verifier_info` by default. All 36 of its outcomes matched expectations. The 8 demo warnings come from the metadata modules of the four issuer plans, which run on both the unsigned and the signed issuer metadata. The suite's schemas do not know `issuer_info` (ETSI TS 119 472-3) and `client_attestation_pop_methods_supported` (the client attestation draft). Neither warning was suppressed.
+The demo verifier sends its registration certificate in `verifier_info` by default. All 36 of its outcomes matched expectations. The 8 demo warnings come from the metadata modules of the 4 issuer plans, which run on both the unsigned and the signed issuer metadata. The suite's schemas do not know `issuer_info` (ETSI TS 119 472-3) and `client_attestation_pop_methods_supported` (the client attestation draft). Neither warning was suppressed.
 
 The suite server stopped answering twice during these runs. The plans it cut off were run again on their own. The numbers above contain only completed modules.
 
 The full Go race suite and all 221 browser tests passed on each of file, memory and Postgres storage. Vet, lint and the benchmark smoke check also passed.
 
-Two load tests ran against two wallet servers built from the release tree and sharing one Postgres database:
+2 load tests ran against 2 wallet servers built from the release tree and sharing one Postgres database:
 
 | Run | Issuances | Presentations and callbacks | Duration | Issuance p95 | Presentation p95 |
 |---|---:|---:|---:|---:|---:|
@@ -111,7 +111,7 @@ Both runs passed every correctness check. Each credential appeared once, status 
 
 ## Run of 2026-10-04 (2.6.0)
 
-The release was checked against suite `release-v5.2.4` (revision `ab35a8d`) in strict mode. The full wallet matrix ran with file storage. Memory and Postgres each ran the 10 HAIP plans. The demo issuer and verifier ran all nine plans.
+The release was checked against suite `release-v5.2.4` (revision `ab35a8d`) in strict mode. The full wallet matrix ran with file storage. Memory and Postgres each ran the 10 HAIP plans. The demo issuer and verifier ran all 9 plans.
 
 | Target | Configurations | Modules | `PASSED` | `REVIEW` | `WARNING` | `FAILED` |
 |---|---:|---:|---:|---:|---:|---:|
@@ -120,15 +120,15 @@ The release was checked against suite `release-v5.2.4` (revision `ab35a8d`) in s
 | Wallet, Postgres, HAIP | 10 | 228 | 166 | 34 | 26 | 2 |
 | Demo issuer and verifier | 9 | 101 | 61 | 36 | 4 | 0 |
 
-The two failures in each wallet run come from the suite. It fails to construct the multisigned presentation (see [the baseline](#baseline)). The 26 warnings are the IACA path length advisory described for 2.5.0. All 36 demo verifier outcomes matched expectations.
+The 2 failures in each wallet run come from the suite. It fails to construct the multisigned presentation (see [the baseline](#baseline)). The 26 warnings are the IACA path length advisory described for 2.5.0. All 36 demo verifier outcomes matched expectations.
 
 Earlier runs had 32 mdoc pre-authorized issuance failures. The suite caused them. In a pre-authorized flow the suite decides which credential the token covers. Its `simple` variant always picks the scope `eudi.pid.1`, so an mdoc offer got a token for an SD-JWT. The harness now runs the mdoc pre-authorized plans with the `rar` variant. In that variant the suite uses the offered configuration. All 8 plans passed with 40 modules. The wallet now also requests the identifier of the offered configuration. It warns when a token covers only a different one.
 
-The suite stopped the first file run after three of those failures in a row. The remaining plans ran one at a time. Two modules stopped on suite alias conflicts. Both passed when their plans were rerun.
+The suite stopped the first file run after 3 of those failures in a row. The remaining plans ran one at a time. 2 modules stopped on suite alias conflicts. Both passed when their plans were rerun.
 
 The full Go race suite and all 187 browser tests passed on each of file, memory and Postgres storage. Vet, lint, the installation check, all 31 Python tests and the benchmark smoke check also passed.
 
-Two load tests ran against two wallet servers built from the release tree and sharing one Postgres database:
+2 load tests ran against 2 wallet servers built from the release tree and sharing one Postgres database:
 
 | Run | Issuances | Presentations and callbacks | Duration | Issuance p95 | Presentation p95 |
 |---|---:|---:|---:|---:|---:|
@@ -141,9 +141,9 @@ Both runs passed every correctness check.
 
 The full Go race suite, all 159 browser tests and all 31 Python tests passed. Lint reported no issues. Integration tests checked deferred requests and responses, pending replies, errors, encrypted wire values and plaintext. Immediate and deferred batch import entries were checked against the credentials actually stored. Browser tests opened every returned and imported credential in a batch through its decoder button. CLI tests confirmed unchanged text, verbose and JSON output.
 
-The deferred endpoint capture was checked against suite `release-v5.2.4` (revision `ab35a8d`) in strict mode with file storage. Four Final configurations covered SD-JWT and mdoc, each with plain and encrypted exchanges. All 20 modules passed with zero failing conditions. Two encrypted batch modules also passed after the activity export fix and again on the final build. The final exports contain the encrypted deferred response, its plaintext and all eight imported copies. Every imported token matches a returned token, and all eight stored IDs are distinct. These were targeted checks of deferred issuance and batch activity.
+The deferred endpoint capture was checked against suite `release-v5.2.4` (revision `ab35a8d`) in strict mode with file storage. 4 Final configurations covered SD-JWT and mdoc, each with plain and encrypted exchanges. All 20 modules passed with zero failing conditions. 2 encrypted batch modules also passed after the activity export fix and again on the final build. The final exports contain the encrypted deferred response, its plaintext and all 8 imported copies. Every imported token matches a returned token, and all 8 stored IDs are distinct. These were targeted checks of deferred issuance and batch activity.
 
-Two load tests used two wallet servers sharing Postgres:
+2 load tests used 2 wallet servers sharing Postgres:
 
 | Run | Issuances | Presentations and callbacks | Duration |
 |---|---:|---:|---:|
@@ -164,7 +164,7 @@ Local evidence is in `/tmp/eudi-offer-docs-2026-10-02`.
 
 ## Run of 2026-10-01 (2.5.0 EUDI certificate profiles)
 
-The certificate and metadata changes were checked against suite `release-v5.2.4` (revision `ab35a8d`). The full wallet matrix ran with file storage. Memory and Postgres each ran 16 selected modules covering both credential formats, encrypted exchanges and all HAIP happy flows. The demo issuer and verifier ran all nine plans.
+The certificate and metadata changes were checked against suite `release-v5.2.4` (revision `ab35a8d`). The full wallet matrix ran with file storage. Memory and Postgres each ran 16 selected modules covering both credential formats, encrypted exchanges and all HAIP happy flows. The demo issuer and verifier ran all 9 plans.
 
 | Target | Configurations | Modules | `PASSED` | `REVIEW` | `WARNING` | `FAILED` |
 |---|---:|---:|---:|---:|---:|---:|
@@ -173,15 +173,15 @@ The certificate and metadata changes were checked against suite `release-v5.2.4`
 | Wallet, Postgres, selected modules | 16 | 16 | 14 | 0 | 2 | 0 |
 | Demo issuer and verifier | 9 | 101 | 61 | 36 | 4 | 0 |
 
-Every wallet module has an export. Individual failing conditions were compared with the TLS baseline below. All 34 existing wallet failures match that baseline. The suite still has its 32 mdoc pre-authorized issuance failures and two multisigned presentation construction failures. No new protocol failure was found. Focused reruns completed modules that had stalled or hit local suite timeouts. All 36 final demo verifier outcomes matched expectations.
+Every wallet module has an export. Individual failing conditions were compared with the TLS baseline below. All 34 existing wallet failures match that baseline. The suite still has its 32 mdoc pre-authorized issuance failures and 2 multisigned presentation construction failures. No new protocol failure was found. Focused reruns completed modules that had stalled or hit local suite timeouts. All 36 final demo verifier outcomes matched expectations.
 
 The wallet warnings come from `ValidateMdocTrustAnchorIacaCertificateProfile`. ISO/IEC 18013-5:2021 Annex B requires an IACA root with a path length of zero. The generated EUDI certificate hierarchy uses provider intermediates for the retrieval path required by ETSI TS 119 412-6 V1.1.1 clause 4.4.3, so its root permits one intermediate. The suite reports that difference as an advisory warning. The [certificate guide](test-certificates.md) explains the applicable versions and the chain used for each root configuration.
 
-The four demo metadata modules now finish with `WARNING`, replacing the four previous failures caused by string mdoc algorithm identifiers. The warnings identify `issuer_info` and `client_attestation_pop_methods_supported`, which the suite's metadata schemas do not recognize. The first is EUDI registration metadata. The second is defined by the client attestation draft. Neither warning was suppressed.
+The 4 demo metadata modules now finish with `WARNING`, replacing the 4 previous failures caused by string mdoc algorithm identifiers. The warnings identify `issuer_info` and `client_attestation_pop_methods_supported`, which the suite's metadata schemas do not recognize. The first is EUDI registration metadata. The second is defined by the client attestation draft. Neither warning was suppressed.
 
 The full Go race suite and all 140 browser tests passed on each of file, memory and Postgres storage. Build, installation, vet, lint, all 30 Python tests and the benchmark smoke check also passed. Independent checks validated the generated lists against ETSI's pinned JSON binding and verified their signatures, certificate retrieval, metadata, registration identities and PID certificate references.
 
-Two load tests ran against the final Docker image, with two wallet servers sharing Postgres:
+2 load tests ran against the final Docker image, with 2 wallet servers sharing Postgres:
 
 | Run | Issuances | Presentations and callbacks | Duration | Issuance p95 | Presentation p95 |
 |---|---:|---:|---:|---:|---:|
@@ -192,13 +192,13 @@ Both runs passed every correctness check. Each credential appeared once, status 
 
 Local evidence is in `/tmp/eudi-eudi-profile-fixes-2026-10-01`. `final-verification.json` records the completed checks and `regression-verification.json` records the module comparison. Run directories contain `runner.log` and exported ZIP archives in `results/`:
 
-- Full wallet matrix: `wallet-final-presentations`, `wallet-final-vci-sdjwt` and `wallet-final-vci-mdoc`, with the last five HAIP plans in `wallet-final-haip-74` through `wallet-final-haip-78` and focused reruns in `wallet-final-rerun*` directories.
+- Full wallet matrix: `wallet-final-presentations`, `wallet-final-vci-sdjwt` and `wallet-final-vci-mdoc`, with the last 5 HAIP plans in `wallet-final-haip-74` through `wallet-final-haip-78` and focused reruns in `wallet-final-rerun*` directories.
 - Selected backends: `wallet-memory-final` and `wallet-postgres-final`.
 - Demo: `demo-final-profile` and `demo-verifier-verified`, with an earlier focused rerun in `demo-final-nonce-rerun`.
 
 ## Run of 2026-10-01 (2.5.0 outbound TLS)
 
-The TLS changes were checked against suite `release-v5.2.4` (revision `ab35a8d`). The full wallet matrix ran with file storage. Memory and Postgres each ran 16 selected modules covering plain and encrypted presentations, SD-JWT and mdoc issuance, and every HAIP happy flow. The demo issuer and verifier ran their full matrix of nine plans.
+The TLS changes were checked against suite `release-v5.2.4` (revision `ab35a8d`). The full wallet matrix ran with file storage. Memory and Postgres each ran 16 selected modules covering plain and encrypted presentations, SD-JWT and mdoc issuance, and every HAIP happy flow. The demo issuer and verifier ran their full matrix of 9 plans.
 
 | Target | Configurations | Modules | `PASSED` | `REVIEW` | `FAILED` |
 |---|---:|---:|---:|---:|---:|
@@ -207,9 +207,9 @@ The TLS changes were checked against suite `release-v5.2.4` (revision `ab35a8d`)
 | Wallet, Postgres, selected modules | 16 | 16 | 16 | 0 | 0 |
 | Demo issuer and verifier | 9 | 101 | 61 | 36 | 4 |
 
-These totals include reruns of two wallet modules and two interrupted demo modules. All four reruns reached their expected result with no failing conditions. Every module run with file storage has an export. The runner used `CONFORMANCE_MAX_CONSECUTIVE_FAILURES=100` to continue past the known mdoc failures.
+These totals include reruns of 2 wallet modules and 2 interrupted demo modules. All 4 reruns reached their expected result with no failing conditions. Every module run with file storage has an export. The runner used `CONFORMANCE_MAX_CONSECUTIVE_FAILURES=100` to continue past the known mdoc failures.
 
-The 34 wallet failures and four demo failures match the baseline below, including individual failing conditions. All 36 demo verifier outcomes matched expectations. No new conformance regression was found.
+The 34 wallet failures and 4 demo failures match the baseline below, including individual failing conditions. All 36 demo verifier outcomes matched expectations. No new conformance regression was found.
 
 Wallets ran in strict mode with `--tls-verify=false` because the local suite certificate has no subject alternative names. Integration tests with real TLS servers checked mode defaults, overrides, CA trust, hostname and expiry checks, and redirects between local and remote hosts. They also checked runtime changes, presentation clones and storage reloads.
 
@@ -223,7 +223,7 @@ The comparison is recorded in `/tmp/eudi-tls-conformance-verification.json`. Run
 
 ## Run of 2026-10-01 (2.5.0 activity logs)
 
-The activity-log changes were checked against suite `release-v5.2.4` (revision `ab35a8d`) in strict mode. The full wallet matrix ran on file, memory and Postgres storage: 78 configurations per backend, covering 36 Final presentation configurations, 32 Final issuance configurations and 10 HAIP configurations. The demo issuer and verifier also ran their full matrix of nine plans.
+The activity-log changes were checked against suite `release-v5.2.4` (revision `ab35a8d`) in strict mode. The full wallet matrix ran on file, memory and Postgres storage: 78 configurations per backend, covering 36 Final presentation configurations, 32 Final issuance configurations and 10 HAIP configurations. The demo issuer and verifier also ran their full matrix of 9 plans.
 
 | Target | Configurations | Modules | `PASSED` | `REVIEW` | `FAILED` |
 |---|---:|---:|---:|---:|---:|
@@ -232,11 +232,11 @@ The activity-log changes were checked against suite `release-v5.2.4` (revision `
 | Wallet, Postgres | 78 | 736 | 524 | 178 | 34 |
 | Demo issuer and verifier | 9 | 101 | 61 | 36 | 4 |
 
-These totals include focused reruns of seven modules with transient failures. One had a `PASSED` verdict despite a failing authorization code condition. All seven reruns passed or reached the expected `REVIEW` result with zero failing conditions. The request monitor timeout was raised from 20 to 60 seconds to reduce duplicate submissions during slow flows. No modules were skipped. The remaining failures are:
+These totals include focused reruns of 7 modules with transient failures. One had a `PASSED` verdict despite a failing authorization code condition. All 7 reruns passed or reached the expected `REVIEW` result with zero failing conditions. The request monitor timeout was raised from 20 to 60 seconds to reduce duplicate submissions during slow flows. No modules were skipped. The remaining failures are:
 
-- **32 mdoc pre-authorized issuance failures per backend.** Four modules fail in each of eight Final configurations. All 32 were reproduced on unchanged commit `5098a0d`, with identical failing conditions. The token response identifies SD-JWT configuration `eu.europa.ec.eudi.pid.1`, while the offer selects an mdoc configuration requiring an attestation proof. The suite rejects that proof for the token's configuration and then throws a NullPointerException. The scope-based module passes in all eight configurations.
-- **Two presentation suite failures per backend.** These are the previously documented `AddInvalidClientIdPrefixToRequestObject` NullPointerExceptions in multisigned `dc_api.jwt` plans. They occur before the suite contacts the wallet.
-- **Four demo issuer metadata failures.** These were also reproduced on unchanged commit `5098a0d`, with identical failing conditions. The mdoc metadata advertises JOSE signing-algorithm strings where the suite expects COSE algorithm integers. All 36 demo verifier verdicts matched their expected outcome.
+- **32 mdoc pre-authorized issuance failures per backend.** 4 modules fail in each of 8 Final configurations. All 32 were reproduced on unchanged commit `5098a0d`, with identical failing conditions. The token response identifies SD-JWT configuration `eu.europa.ec.eudi.pid.1`, while the offer selects an mdoc configuration requiring an attestation proof. The suite rejects that proof for the token's configuration and then throws a NullPointerException. The scope-based module passes in all 8 configurations.
+- **2 presentation suite failures per backend.** These are the previously documented `AddInvalidClientIdPrefixToRequestObject` NullPointerExceptions in multisigned `dc_api.jwt` plans. They occur before the suite contacts the wallet.
+- **4 demo issuer metadata failures.** These were also reproduced on unchanged commit `5098a0d`, with identical failing conditions. The mdoc metadata advertises JOSE signing-algorithm strings where the suite expects COSE algorithm integers. All 36 demo verifier verdicts matched their expected outcome.
 
 No new conformance regression was found. The baseline failures remain unresolved.
 
@@ -248,15 +248,15 @@ The demo issuer and demo verifier are tested with the suite acting as the wallet
 
 All 36 verifier modules ended in `REVIEW`, as expected after screenshot upload. The harness separately checked the demo verifier's verdicts. All 36 matched: tampered presentations failed and valid presentations verified.
 
-The four warnings report the same metadata field: `client_attestation_pop_methods_supported`. ABCA draft-10 defines it, but the suite's RFC 8414 schema does not recognize it.
+The 4 warnings report the same metadata field: `client_attestation_pop_methods_supported`. ABCA draft-10 defines it, but the suite's RFC 8414 schema does not recognize it.
 
-Suite defect in `release-v5.2.4`: under the pre-authorized code grant the client attestation negative modules keep running after their expected token refusal and interrupt themselves ("This is a bug in the test module"). These six modules are excluded under that grant. The authorization code scenarios cover them.
+Suite defect in `release-v5.2.4`: under the pre-authorized code grant the client attestation negative modules keep running after their expected token refusal and interrupt themselves ("This is a bug in the test module"). These 6 modules are excluded under that grant. The authorization code scenarios cover them.
 
 ## Run of 2026-09-06 (2.4.0 storage backends)
 
-The ten HAIP plans ran once on each storage backend: files, memory and Postgres. All used suite `release-v5.2.4` (revision `ab35a8d`) with strict wallet validation.
+The 10 HAIP plans ran once on each storage backend: files, memory and Postgres. All used suite `release-v5.2.4` (revision `ab35a8d`) with strict wallet validation.
 
-Each run had the same result: 228 modules, 26962 condition successes and 4 condition failures. All four failures came from the suite's multisigned request NullPointerException described below. There were no wallet condition failures.
+Each run had the same result: 228 modules, 26962 condition successes and 4 condition failures. All 4 failures came from the suite's multisigned request NullPointerException described below. There were no wallet condition failures.
 
 The wallets ran in 2.4.0 containers with random keys and a different `EUDI_DEV_STORAGE` value for each run. The harness connected through `OIDF_WALLET_URL`. Artifacts are in `/tmp/oidf-file-2.4.0`, `/tmp/oidf-memory-2.4.0` and `/tmp/oidf-postgres-2.4.0`.
 
@@ -289,12 +289,12 @@ The certifiable HAIP plans ran on 2026-09-04 on `https://www.certification.openi
 
 The expanded local matrix (76 plans: the full supported cross product of the alpha Final plans plus the HAIP plans) ran in one pass: 768 modules, 69411 condition successes against 4 condition failures and 26 warnings. Details:
 
-- the 4 condition failures are the two occurrences of the multisigned suite NullPointerException above
+- the 4 condition failures are the 2 occurrences of the multisigned suite NullPointerException above
 - the 26 warnings are the IACA subject key identifier check on a wallet binary built before the SHA-1 fix (the deployed build and the production run above are clean)
 - one VCI module ended `INTERRUPTED` after a machine-load stall (the harness cancelled it, and the same module passes in the neighbouring plans)
 - 18 mdoc VCI plans contain the mdoc batch skips
 
-Variants exercised for the first time in this matrix: `url_query`, `x509_san_dns`, `web-origin`, multisigned requests and the Digital Credentials API response modes in the Final plan, plus grant, offer delivery, issuance mode and encryption cross products in VCI. They revealed the two wallet gaps fixed in 2.3.0 (request URI parsing, derived `response_uri`).
+Variants exercised for the first time in this matrix: `url_query`, `x509_san_dns`, `web-origin`, multisigned requests and the Digital Credentials API response modes in the Final plan, plus grant, offer delivery, issuance mode and encryption cross products in VCI. They revealed the 2 wallet gaps fixed in 2.3.0 (request URI parsing, derived `response_uri`).
 
 ## Baseline
 
@@ -322,7 +322,7 @@ The full matrix runs in one pass: 14 plans, 160 modules, 111 `PASSED`, 44 negati
 
 First run on suite `release-v5.2.4` (version `5.2.4`, revision `ab35a8d`), strict mode, for the 2.1.0 release (strict array disclosure, demo custom request builder). The scenario set exported 12 plans and 116 modules: **49 `PASSED`, 43 negative modules `REVIEW`, 21 `WARNING`, 2 `SKIPPED`, 1 `FAILED`**. The SD-JWT VC flows (happy path, request_uri, request_uri_method=post, fewer claims, optional set, no claims) are clean. The warnings, the skips and the one failure are all mdoc.
 
-The 21 `WARNING` modules all carry the same two conditions, new in 5.2.4, which validate the wallet's mdoc certificates against the ISO 18013-5 Annex B profile:
+The 21 `WARNING` modules all carry the same 2 conditions, new in 5.2.4, which validate the wallet's mdoc certificates against the ISO 18013-5 Annex B profile:
 
 - `ValidateMdocDsCertificateProfile` on the document signer certificate (CN=EUDI Dev Wallet PID Provider): no countryName in the subject, no subject key identifier extension, no extended key usage extension (which must be present, critical, and name the document signing purpose), no CRL distribution points extension, no issuer alternative name extension.
 - `ValidateMdocTrustAnchorIacaCertificateProfile` on the IACA trust anchor (CN=OID4VC Dev Wallet CA): no countryName in the subject, a subject key identifier that is not the SHA-1 of the subject public key, a basicConstraints pathLenConstraint of 1 where Table B.1 requires 0, no issuer alternative name extension.
@@ -345,7 +345,7 @@ Re-run against the same suite baseline (`release-v5.2.1`), with the server runni
 
 **106 modules PASSED, 38 negative modules REVIEW, 0 FAILED**, across all 12 plans, with zero condition failures.
 
-This run exercises credential status for the first time (earlier runs' credentials carried no `status` claim, so the suite skipped `FetchStatusListToken` and everything after it). The status list conditions surfaced two defects in the status list token, both fixed in this run's release:
+This run exercises credential status for the first time (earlier runs' credentials carried no `status` claim, so the suite skipped `FetchStatusListToken` and everything after it). The status list conditions surfaced 2 defects in the status list token, both fixed in this run's release:
 
 - the token carried the self-signed trust anchor inside its `x5c` chain, which HAIP 6.1 rejects ("Trust anchor certificate must not be included in x5c chain"), affecting 14 modules
 - the token offered no key resolution method that the Final (non-HAIP) plans accept. These plans verify with a `jwk` embedded in the header or with `server_jwks`, and `server_jwks` is unreachable there. This affected 17 modules
@@ -362,7 +362,7 @@ Re-run for the 1.19.19 release against the same suite baseline: **114 modules PA
 
 The matrix is 14 plans: the pre-authorized code flow is covered for both credential formats (plans 7 and 8).
 
-The 2 `SKIPPED` modules are `credential-issuance-notification` in the `vci_credential_issuance_mode=deferred` variant of the two VCI HAIP plans. The suite exits non-zero on an unexpected skip even with no failures, so a run reporting these ends with status 1.
+The 2 `SKIPPED` modules are `credential-issuance-notification` in the `vci_credential_issuance_mode=deferred` variant of the 2 VCI HAIP plans. The suite exits non-zero on an unexpected skip even with no failures, so a run reporting these ends with status 1.
 
 The 114 `PASSED` include the 5 mdoc `batch-credential-issuance` modules (see the release-v5.2.1 coverage below for the key attestation configurations).
 
@@ -374,7 +374,7 @@ The wrapper's `EUDI_REMOTE_TIMEOUT=120s` kept the run going through 6 suite paus
 
 The 5 `SKIPPED` are the mdoc `batch-credential-issuance` skips (see below).
 
-The 1 `FAILED` is `oid4vci-1_0-wallet-test-credential-issuance-notification` on `VCIVerifyIssuerStateInAuthorizationRequest`, an artifact of two modules overlapping. The module logs the check twice: the first authorization request carries the `issuer_state` of the offer under test and passes, and a second one 18 seconds later carries the `issuer_state` of a later offer, which the module compares against the first. The wallet echoed the value each offer gave it (OID4VCI 1.0 §5.1.3). This artifact can appear in a different module in another run.
+The 1 `FAILED` is `oid4vci-1_0-wallet-test-credential-issuance-notification` on `VCIVerifyIssuerStateInAuthorizationRequest`, an artifact of 2 modules overlapping. The module logs the check twice: the first authorization request carries the `issuer_state` of the offer under test and passes, and a second one 18 seconds later carries the `issuer_state` of a later offer, which the module compares against the first. The wallet echoed the value each offer gave it (OID4VCI 1.0 §5.1.3). This artifact can appear in a different module in another run.
 
 ## Run of 2026-08-09
 
@@ -388,12 +388,12 @@ The 1 condition failure occurs in a module that still finished `PASSED`: a suite
 
 ## release-v5.2.1 coverage
 
-Release-v5.2.1 added two wallet test modules. Both pass:
+Release-v5.2.1 added 2 wallet test modules. Both pass:
 
 - `oid4vci-1_0-wallet-test-batch-credential-issuance`: the emulated issuer advertises `batch_credential_issuance` with `batch_size: 10` and returns the issued credentials in reverse proof order. The wallet requests the advertised batch (one key per copy, capped at its own ceiling of 8) with distinct, freshly generated keys and identifies the holder-key-bound credential from the credential itself (`cnf.jwk` for SD-JWT, MSO `deviceKey` for mdoc). It passes in the SD-JWT plans.
 
   The mdoc plans request `eu.europa.ec.eudi.pid.mdoc.1.attestation.keyattest`, a configuration requiring key attestations that offers the `attestation` proof type. There the key attestation naming every batch key is the proof (Appendix F.3, HAIP §4.5.1) and the suite issues one credential per attested key, so the module passes in the mdoc plans as well. Under the `jwt.keyattest` configuration the wallet sends one `jwt` proof whose attestation names every batch key (Appendix F.1). The suite reads `attested_keys` only for the `attestation` proof type and issues for the proof key of a `jwt` proof, so the wallet receives one credential there and the module skips as "batch behavior cannot be evaluated". Credo-based issuers apply F.1 as written and issue per attested key for both proof types (checked 2026-09-03: a batch of 8 for one `jwt` proof and for one `attestation` proof).
-- `oid4vp-1final-wallet-ignores-unusable-encryption-key`: the verifier's `client_metadata.jwks` advertises two unusable keys (a post-quantum-shaped `kty: AKP` key and a made-up `kty`) alongside the usable key. The wallet ignores keys it cannot use per RFC 7517 §5 and encrypts to the usable key. Passes in all encrypted response mode variants (plans 2, 4, 9, 10, 11, 12).
+- `oid4vp-1final-wallet-ignores-unusable-encryption-key`: the verifier's `client_metadata.jwks` advertises 2 unusable keys (a post-quantum-shaped `kty: AKP` key and a made-up `kty`) alongside the usable key. The wallet ignores keys it cannot use per RFC 7517 §5 and encrypts to the usable key. Passes in all encrypted response mode variants (plans 2, 4, 9, 10, 11, 12).
 
 Release-v5.2.1 also enforces RFC 8414 §3.1 on the wallet's OAuth authorization server metadata request: the wallet strips the issuer's terminating `/` before inserting `/.well-known/oauth-authorization-server`, and preserves the Credential Issuer Identifier path verbatim for `/.well-known/openid-credential-issuer` per OID4VCI 1.0 §12.2.2.
 
@@ -405,7 +405,7 @@ Release-v5.2.1 also enforces RFC 8414 §3.1 on the wallet's OAuth authorization 
 
 ## Matrix
 
-Condition counts are from the 2026-08-09 run on suite release-v5.2.2. The screenshots are the plan-detail pages of the 2026-07-30 12-plan run. Each links to the plan it depicts, and the two pre-authorized code plans have none.
+Condition counts are from the 2026-08-09 run on suite release-v5.2.2. The screenshots are the plan-detail pages of the 2026-07-30 12-plan run. Each links to the plan it depicts, and the 2 pre-authorized code plans have none.
 
 | # | Plan | Variant | Current result | Screenshot |
 |---|---|---|---|---|
@@ -422,7 +422,7 @@ Condition counts are from the 2026-08-09 run on suite release-v5.2.2. The screen
 | 11 | VP HAIP | SD-JWT, `dc_api.jwt` | 579 success / 0 failure. Includes `ignores-unusable-encryption-key`. | [PNG](./conformance-results/2026-07-30/plan-09-vp-haip-sdjwt-dc-api-jwt.png) |
 | 12 | VP HAIP | mdoc, `dc_api.jwt` | 399 success / 0 failure. Includes `ignores-unusable-encryption-key`. | [PNG](./conformance-results/2026-07-30/plan-10-vp-haip-mdoc-dc-api-jwt.png) |
 | 13 | VCI HAIP | SD-JWT | 3978 success / 0 failure. Batch issuance passes in immediate, deferred, and encrypted variants. | [PNG](./conformance-results/2026-07-30/plan-11-vci-haip-sdjwt.png) |
-| 14 | VCI HAIP | mdoc | 4244 success / 1 failure. Batch issuance `SKIPPED` in all three variants in this run (the `jwt.keyattest` configuration, see below). The 1 failure is the retried-submission artifact described above. The module finished `PASSED`. | [PNG](./conformance-results/2026-07-30/plan-12-vci-haip-mdoc.png) |
+| 14 | VCI HAIP | mdoc | 4244 success / 1 failure. Batch issuance `SKIPPED` in all 3 variants in this run (the `jwt.keyattest` configuration, see below). The 1 failure is the retried-submission artifact described above. The module finished `PASSED`. | [PNG](./conformance-results/2026-07-30/plan-12-vci-haip-mdoc.png) |
 
 ## Passing VCI coverage
 

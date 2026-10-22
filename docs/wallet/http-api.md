@@ -53,7 +53,7 @@ Protocol endpoints for verifiers and issuers answer as their specification defin
 
 ### Waiting flows
 
-A flow that waits for the consent dialog or for a sign-in at the issuer counts as waiting until it ends or times out. At most 100 consent dialogs and 100 sign-ins wait at once, 30 of each on a public demo. On a public demo, one browser can also have at most 3 consent dialogs and 3 sign-ins waiting. The `X-Eudi-Owner` header or the session cookie identifies the browser. Requests with neither share one count. Beyond these limits the wallet refuses a new interactive presentation or offer with `503`, `temporarily_unavailable` and a `Retry-After` header. A waiting flow ends after five minutes at the latest.
+A flow that waits for the consent dialog or for a sign-in at the issuer counts as waiting until it ends or times out. At most 100 consent dialogs and 100 sign-ins wait at once, 30 of each on a public demo. On a public demo, one browser can also have at most 3 consent dialogs and 3 sign-ins waiting. The `X-Eudi-Owner` header or the session cookie identifies the browser. Requests with neither share one count. Beyond these limits the wallet refuses a new interactive presentation or offer with `503`, `temporarily_unavailable` and a `Retry-After` header. A waiting flow ends after 5 minutes at the latest.
 
 ### Presentations and offers
 
@@ -243,7 +243,7 @@ curl http://localhost:8085/api/certificates/ca > wallet-ca-cert.pem
 curl 'http://localhost:8085/api/certificates/tls?format=jwks'
 ```
 
-Provider roles are the credential categories `pid`, `qeaa`, `pub-eaa` and `eaa`, `wallet` for the wallet provider, `tl-<8 hex digits>` for a credential type with its own trusted list, and `unlisted` for unlisted credentials. Each role has its own provider CA. The country is two uppercase letters such as `NL`. Only existing providers can be retrieved. Signing certificate URLs use the SHA-256 fingerprint of the DER certificate and remain available after renewal. JOSE `x5u` uses PEM and COSE `x5u` uses DER. See [test certificates](../test-certificates.md) for the certificate profiles.
+Provider roles are the credential categories `pid`, `qeaa`, `pub-eaa` and `eaa`, `wallet` for the wallet provider, `tl-<8 hex digits>` for a credential type with its own trusted list, and `unlisted` for unlisted credentials. Each role has its own provider CA. The country is 2 uppercase letters such as `NL`. Only existing providers can be retrieved. Signing certificate URLs use the SHA-256 fingerprint of the DER certificate and remain available after renewal. JOSE `x5u` uses PEM and COSE `x5u` uses DER. See [test certificates](../test-certificates.md) for the certificate profiles.
 
 ### Issuer metadata and trusted lists
 
@@ -512,7 +512,7 @@ Both endpoints answer `{"status": "ok"}` with `200`. They also answer under a [p
 
 OID4VP 1.0 §5.10 lets the wallet send its capabilities and a public encryption key to the verifier. The verifier can then encrypt the request object for that wallet.
 
-When `request_uri_method=post`, the wallet sends two form parameters to `request_uri`:
+When `request_uri_method=post`, the wallet sends 2 form parameters to `request_uri`:
 
 - `wallet_metadata` describes supported credential formats, response types and modes, signing and encryption algorithms, and the public encryption key in `jwks`.
 - `wallet_nonce` is a random nonce that the verifier can echo in its request object.

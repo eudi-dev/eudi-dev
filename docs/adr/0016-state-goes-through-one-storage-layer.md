@@ -2,7 +2,7 @@
 
 `internal/storage` stores the wallet's credentials, keys, certificates, display assets and user templates. Each value is a blob under a slash-separated key. Wallet data sits under the wallet's prefix. The shared CA sits one level above it.
 
-Three backends implement `Store`: `file` uses the existing wallet directory layout, `memory` shares one store within a process, and `postgres` stores one row per key. Wallet servers using the same database and wallet prefix share persisted state.
+3 backends implement `Store`: `file` uses the existing wallet directory layout, `memory` shares one store within a process, and `postgres` stores one row per key. Wallet servers using the same database and wallet prefix share persisted state.
 
 Choose the backend with `--storage` or `EUDI_DEV_STORAGE`. Commands and tests that open a store without an explicit backend use the environment variable. The CLI defaults to `file`. The container image sets `memory`. Persistent deployments use `file` with a volume or a Postgres URL. `auto` selects `file` when a state directory is set explicitly, is empty, or contains wallet state. It selects `memory` when the directory is absent or contains only `instances/` and `remote.json`.
 

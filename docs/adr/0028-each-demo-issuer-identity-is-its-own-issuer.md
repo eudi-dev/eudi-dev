@@ -9,7 +9,7 @@ Each identity has its own Credential Issuer Identifier below `/issuer`:
 - `/issuer` is the registered identity. It also serves the issuer page and its API.
 - `/issuer/unregistered` publishes no `issuer_info`.
 - `/issuer/unsigned` answers with plain JSON metadata without `issuer_info`, also when the wallet asks for signed metadata.
-- `/issuer/own/{token}` is created for one offer. It signs with the visitor's key and access certificate chain and publishes the visitor's `issuer_info`. It ends ten minutes after its last request.
+- `/issuer/own/{token}` is created for one offer. It signs with the visitor's key and access certificate chain and publishes the visitor's `issuer_info`. It ends 10 minutes after its last request.
 - `/issuer/variant/{token}` is created for one offer whose options change the metadata, such as an offer for the `jwt` proof type alone. It presents itself like the chosen identity and ends like an own identity.
 
 An identifier created for one offer also advertises the copies of that offer as its `batch_size`.

@@ -95,7 +95,7 @@ docker run -d --name eudi-demo -p 8085:8085 -p 8086:8086 \
 
 The demo persists its state in files on the volume and generates its own keys, so its CA stays private and stable across restarts. Visitors confirm each browser flow, because a demo ignores the image default `EUDI_DEV_AUTO_ACCEPT=true`. With `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=false`, visitors can't make the wallet connect to the host or its networks.
 
-`--demo` turns on `--pid` (four PID credentials), `--mode debug`, `--haip`, `--arf` and `--vci-version 1.1`. It disables administrative operations and resets the wallet hourly. Change the schedule with `--demo-reset`.
+`--demo` turns on `--pid` (4 PID credentials), `--mode debug`, `--haip`, `--arf` and `--vci-version 1.1`. It disables administrative operations and resets the wallet hourly. Change the schedule with `--demo-reset`.
 
 Open the wallet at `http://localhost:8085`, the issuer at `/issuer/`, the verifier at `/verifier/` or the decoder at `/decoder/`. HTTPS issuer endpoints use port 8086 and a self-signed certificate.
 
@@ -128,7 +128,7 @@ docker run --read-only -p 8085:8085 -p 8086:8086 -e EUDI_DEV_SEED=my-bench ghcr.
 
 ### Shared database
 
-Containers using the same database and wallet prefix share credentials, keys and the CA. [examples/load-test](../examples/load-test/README.md) runs two wallet servers on one database behind an nginx ingress. It is the target for load and performance tests.
+Containers using the same database and wallet prefix share credentials, keys and the CA. [examples/load-test](../examples/load-test/README.md) runs 2 wallet servers on one database behind an nginx ingress. It is the target for load and performance tests.
 
 Each server checks revisions at request boundaries and reloads changed state. Saves update changed entities and their section revisions. Writes are atomic per row. Concurrent changes to the same entity can overwrite each other. Browser flows and demo requests stay in memory, so route each flow to the same server. See [the storage design](adr/0016-state-goes-through-one-storage-layer.md) for the schema and reload behavior.
 
@@ -140,7 +140,7 @@ Set `-e EUDI_DEV_LOG_FORMAT=json` to write one JSON record per line for a log co
 
 ## Flow
 
-1. The container starts with `EUDI_DEV_PID=true` (two preloaded EUDI PID credentials, one SD-JWT and one mdoc) and `EUDI_DEV_AUTO_ACCEPT=true` (presents matching credentials without user consent)
+1. The container starts with `EUDI_DEV_PID=true` (2 preloaded EUDI PID credentials, one SD-JWT and one mdoc) and `EUDI_DEV_AUTO_ACCEPT=true` (presents matching credentials without user consent)
 2. Your verifier sends an OID4VP authorization request to the wallet's `/authorize` endpoint
 3. The wallet evaluates the DCQL query, finds matching credentials, creates a VP token, and POSTs it to your verifier's `response_uri`
 

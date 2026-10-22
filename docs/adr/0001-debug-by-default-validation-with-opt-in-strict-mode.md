@@ -1,6 +1,6 @@
 # Debug-by-default validation with an opt-in strict mode
 
-Validation has two modes (`internal/wallet/mode.go`). In `debug`, the default, normative findings are logged as warnings and the flow continues. This lets developers see how a malformed request affects the exchange. In `strict`, the same findings stop the flow.
+Validation has 2 modes (`internal/wallet/mode.go`). In `debug`, the default, normative findings are logged as warnings and the flow continues. This lets developers see how a malformed request affects the exchange. In `strict`, the same findings stop the flow.
 
 `validatePresentationRequestCore` collects findings and applies the selected mode. DCQL matching, request object signature verification and `wallet_nonce` checks use the same mode. See `docs/spec-compliance.md` for behavior by feature.
 
