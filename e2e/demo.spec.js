@@ -1310,6 +1310,16 @@ test.describe("Consent credential selection", () => {
     await denyAtVerifier(page);
   });
 
+  test("the edit screen at phone width shows the name of each credential", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openConsent(page);
+
+    await page.locator("#consent-edit-selection").click();
+    await expect(page.locator(".candidate .credential-name").first()).toBeVisible();
+
+    await denyAtVerifier(page);
+  });
+
   async function ensureTicket() {
     const creds = await (await fetch(`${BASE}/api/credentials`)).json();
     if (creds.some((c) => (c.claims || {}).vct === "urn:eudi-test:demo-ticket:1")) return;

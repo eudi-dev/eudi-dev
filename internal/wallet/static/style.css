@@ -265,12 +265,13 @@ header .btn {
 }
 
 /* Container queries read the parent width. Using the list as the container makes all cards
-   switch layouts together. */
+   switch layouts together. The name keeps these queries out of the consent dialog, which is a
+   container as well. */
 .credentials {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  container-type: inline-size;
+  container: credentials / inline-size;
 }
 
 .credential-card {
@@ -410,7 +411,7 @@ header .btn {
 .cred-desc-back:hover { color: var(--text); }
 .cred-desc-back .ic { width: 13px; height: 13px; display: block; }
 
-@container (min-width: 601px) {
+@container credentials (min-width: 601px) {
   .cred-front {
     display: flex;
     align-items: center;
@@ -442,7 +443,7 @@ header .btn {
   .about-btn[aria-expanded="true"] .ic-chev { transform: rotate(180deg); }
 }
 
-@container (max-width: 600px) {
+@container credentials (max-width: 600px) {
   .card-face {
     width: 100%;
     aspect-ratio: 2.4;
@@ -1493,14 +1494,14 @@ textarea.form-input {
 /* The dialog switches at the breakpoint of the credential list. On a narrow
    screen each credential folds to a summary that opens on tap. */
 .consent-overlay {
-  container-type: inline-size;
+  container: consent / inline-size;
 }
 
 .consent-fold-summary {
   display: none;
 }
 
-@container (max-width: 600px) {
+@container consent (max-width: 600px) {
   .consent-fold-summary {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;

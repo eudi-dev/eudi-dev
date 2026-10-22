@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Credential names when editing a consent.** On a phone, the edit screen of the consent dialog showed the credentials without their names.
 - **Access token keys in the decoder.** The decoder verifies a plain JWT, such as an access token, with the keys from the authorization server metadata (RFC 8414) or OpenID Connect Discovery. Only SD-JWT VCs use the JWT VC Issuer Metadata.
 
 ## [3.3.3] - 2026-10-22
