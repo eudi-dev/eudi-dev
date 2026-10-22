@@ -135,3 +135,37 @@ func TestQueryFindingsAcceptsAnUnknownTrustedAuthorityType(t *testing.T) {
 		t.Errorf("findings %v, want none", findings)
 	}
 }
+
+// OpenID4VP 1.0 Appendix B.3.5 leaves inheritance matching to the wallet, so a
+// query for the base PID alone may miss domestic PIDs.
+func TestDomesticPIDAdvisories(t *testing.T) {
+	query := func(vctValues ...any) map[string]any {
+		return map[string]any{"credentials": []any{
+			credentialQuery("pid", map[string]any{"meta": map[string]any{"vct_values": vctValues}}),
+		}}
+	}
+	for _, tt := range []struct {
+		name  string
+		query map[string]any
+		warn  bool
+	}{
+		{"base PID only", query("urn:eudi:pid:1"), true},
+		{"base and domestic PID", query("urn:eudi:pid:1", "urn:eudi:pid:de:1"), false},
+		{"domestic PID only", query("urn:eudi:pid:de:1"), false},
+		{"other type", query("urn:example:ticket:1"), false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got := DomesticPIDAdvisories(tt.query)
+			want := 0
+			if tt.warn {
+				want = 1
+			}
+			if len(got) != want {
+				t.Fatalf("advisories = %v, want %d", got, want)
+			}
+			if tt.warn && !strings.Contains(got[0], `"pid"`) {
+				t.Errorf("advisory %q does not name the query", got[0])
+			}
+		})
+	}
+}

@@ -196,3 +196,20 @@ func sdjwtVCTQuery(vct string) map[string]any {
 		},
 	}
 }
+
+// ARF Annex 2 PID_14 defines the domestic PID types, so the advisory comes
+// with the ARF checks.
+func TestABasePIDQueryGetsAnAdvisoryWithTheARFChecks(t *testing.T) {
+	params := &Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ClientID: "redirect_uri:https://verifier.example/response", ResponseType: "vp_token", ResponseMode: "direct_post", ResponseURI: "https://verifier.example/response", Nonce: "n"}}
+	params.DCQLQuery = sdjwtVCTQuery("urn:eudi:pid:1")
+	const want = "OID4VP 1.0 Appendix B.3.5"
+
+	findings, err := ValidateAuthorizationRequest(Checks{ARF: true}, params)
+	if err != nil || !containsSubstring(findings, want) {
+		t.Errorf("findings %v err %v, want the base PID advisory", findings, err)
+	}
+	findings, err = ValidateAuthorizationRequest(Checks{}, params)
+	if err != nil || containsSubstring(findings, want) {
+		t.Errorf("findings %v err %v, want no base PID advisory without --arf", findings, err)
+	}
+}

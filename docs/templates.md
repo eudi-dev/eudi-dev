@@ -2,7 +2,7 @@
 
 A credential template gives test credentials a name, type (VCT or doc type) and default claims. It can also set an expiry and claims that are always disclosed. The CLI, HTTP API and wallet UI share the same templates.
 
-The binary includes nine predefined templates. They are ordinary template files in [`internal/defaults/templates/`](../internal/defaults/templates/), so each one also shows the format of a user template:
+The binary includes 9 predefined templates. They are ordinary template files in [`internal/defaults/templates/`](../internal/defaults/templates/), so each one also shows the format of a user template:
 
 | Name | Format | Contents |
 |------|--------|----------|
@@ -24,9 +24,9 @@ The `dutch-pid-*` templates follow the [working draft of the Dutch PID](https://
 
 The German rulebook adds national attributes (`birth_name`, `academic_title`, `source_document_type`, `raw_eid_birth_date`, and the age thresholds in `age_equal_or_over`). The EU rulebook defines attributes that the German eID does not have (`sex`, `document_number`, `personal_administrative_number`, `date_of_issuance`, `birth_family_name`). Some shared attributes differ in encoding. The birth name is `birth_name` in the German PID and `birth_family_name` in the EU PID. Both PIDs include the house number in the street address. The EU PID has no separate house number (CIR (EU) 2026/1731). The rulebook's encoding table still lists `address.house_number`.
 
-The German SD-JWT PID contains an `aka_vcts` claim with the value `urn:eudi:pid:1` ([SD-JWT VC](https://datatracker.ietf.org/doc/draft-ietf-oauth-sd-jwt-vc/) §2.2.2.2), so it matches a request for the country-independent PID. See [credential type inheritance](wallet.md#credential-type-inheritance).
+The German SD-JWT PID has the type `urn:eudi:pid:de:1`. It matches a request for the country-independent PID `urn:eudi:pid:1`. See [credential type inheritance](wallet.md#credential-type-inheritance).
 
-The German mdoc PID uses two namespaces:
+The German mdoc PID uses 2 namespaces:
 
 - `eu.europa.ec.eudi.pid.1` for European elements
 - `eu.europa.ec.eudi.pid.de.1` for national additions: `birth_name`, `academic_title`, `source_document_type`, `raw_eid_birth_date` and `age_over_*`
@@ -45,7 +45,7 @@ With `--demo` the wallet holds a PID for each predefined template that sets `bas
 
 Predefined templates are compiled into the binary as template files, together with the images and portraits they reference. User templates are JSON or YAML documents under the wallet's `templates/` prefix in the selected storage backend. With file storage, the default directory is `~/.eudi-dev/wallet/templates/`, or `<dir>/templates/` with `--wallet-dir <dir>`. The extensions `.json`, `.template`, `.yaml` and `.yml` are recognized. A `.yaml` or `.yml` file is YAML. The others are JSON. The template name is its `name` field. Without one, it is the file name without its extension.
 
-Each name has one file. Two files such as `employee-card.json` and `employee-card.yaml` cause an error, and the error lists both files. The wallet saves templates as JSON. A template saved under the name of a YAML file replaces that file with a JSON file. Deleting a template deletes its file in either format.
+Each name has one file. 2 files such as `employee-card.json` and `employee-card.yaml` cause an error, and the error lists both files. The wallet saves templates as JSON. A template saved under the name of a YAML file replaces that file with a JSON file. Deleting a template deletes its file in either format.
 
 `--templates-dir` points the wallet, the issue commands, and the `templates` commands at another directory, for example a folder in your project or a container mount.
 
@@ -123,10 +123,10 @@ A string `embedded:<file>` refers to a file in the built-in defaults, such as `e
 
 Issuance from a template fills some empty claims:
 
-- In a template of category `pid`, an empty `date_of_issuance` or `issuance_date` becomes the date of issuance. An empty `date_of_expiry` or `expiry_date` becomes the date five years later. A date that is set stays.
+- In a template of category `pid`, an empty `date_of_issuance` or `issuance_date` becomes the date of issuance. An empty `date_of_expiry` or `expiry_date` becomes the date 5 years later. A date that is set stays.
 - A claim listed in `unique_claims` gets a new random value in every credential. The Italian PID lists `sub` with an empty value.
 
-A template reference (`--template`, `--from`) with a path separator or a template file extension loads that file. Any other value is looked up in the template directory (all four extensions), then among the predefined templates.
+A template reference (`--template`, `--from`) with a path separator or a template file extension loads that file. Any other value is looked up in the template directory (all 4 extensions), then among the predefined templates.
 
 `wallet serve --credentials` issues credentials from templates on every start (see [startup credentials](wallet/serve.md#startup-credentials)).
 
@@ -209,7 +209,7 @@ The optional `display` object sets the card appearance of credentials issued fro
 | `background_image` | Full card background image behind the name (see image sources below) |
 | `claims` | Display names of the top-level claims, keyed by claim name, such as `{"seat": "Seat"}`. The demo issuer publishes them in its issuer metadata |
 
-The two image fields (`logo`, `background_image`) take one of three sources:
+The 2 image fields (`logo`, `background_image`) take one of 3 sources:
 
 - a `data:` URI, embedded directly
 - an `http://` or `https://` URL, fetched once at issuance

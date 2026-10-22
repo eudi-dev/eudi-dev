@@ -133,44 +133,6 @@ func TestGenerateSDJWT_DefaultClaims(t *testing.T) {
 	}
 }
 
-// The German PID lists the country-independent type in aka_vcts. SD-JWT VC
-// §2.2.2.3 forbids disclosing it, and a verifier matches its request before
-// the holder discloses anything.
-func TestGenerateSDJWT_GermanPIDCarriesAkaVCTsPlainly(t *testing.T) {
-	key, err := GenerateKey()
-	if err != nil {
-		t.Fatalf("GenerateKey: %v", err)
-	}
-
-	result, err := GenerateSDJWT(SDJWTConfig{
-		Issuer:    "https://issuer.example",
-		VCT:       "urn:eudi:pid:de:1",
-		ExpiresIn: 24 * time.Hour,
-		Claims:    templateClaims("german-pid-sdjwt"),
-		Key:       key,
-	})
-	if err != nil {
-		t.Fatalf("GenerateSDJWT: %v", err)
-	}
-	token, err := sdjwt.Parse(result)
-	if err != nil {
-		t.Fatalf("sdjwt.Parse: %v", err)
-	}
-
-	aka, ok := token.Payload["aka_vcts"].([]any)
-	if !ok {
-		t.Fatalf("aka_vcts missing from the payload: %v", token.Payload["aka_vcts"])
-	}
-	if len(aka) != 1 || aka[0] != DefaultPIDVCT {
-		t.Errorf("aka_vcts = %v, want [%q]", aka, DefaultPIDVCT)
-	}
-	for _, d := range token.Disclosures {
-		if d.Name == "aka_vcts" {
-			t.Error("aka_vcts must not be selectively disclosable")
-		}
-	}
-}
-
 func TestGenerateSDJWT_PIDClaims(t *testing.T) {
 	key, err := GenerateKey()
 	if err != nil {

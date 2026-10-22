@@ -318,8 +318,9 @@ func TestStrictARFRefusalOfAnAuthenticatedRelyingParty(t *testing.T) {
 		t.Errorf("refusal = %q", refusal.Error())
 	}
 
+	// Advisories follow the findings.
 	findings, err := ValidateAuthorizationRequest(Checks{ARF: true}, params)
-	if err != nil || !reflect.DeepEqual(findings, refusal.Findings) {
+	if err != nil || len(findings) < len(refusal.Findings) || !reflect.DeepEqual(findings[:len(refusal.Findings)], refusal.Findings) {
 		t.Errorf("findings %v err %v, want the ARF findings as warnings", findings, err)
 	}
 

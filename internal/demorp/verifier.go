@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/httpsec"
@@ -150,9 +151,9 @@ type createRequestBody struct {
 	// Format is "sd-jwt", "mdoc" or "both" (the default) for a PID request.
 	// The ticket exists only as an SD-JWT VC.
 	Format string `json:"format"`
-	// VCT is the requested PID type. Empty means urn:eudi:pid:1. Every PID
-	// answers it. A national type such as urn:eudi:pid:de:1 is answered only
-	// by a credential of that type.
+	// VCT is the requested PID type. Empty requests urn:eudi:pid:1 together
+	// with the national PID types. A national type such as urn:eudi:pid:de:1
+	// is answered only by a credential of that type.
 	VCT string `json:"vct"`
 	// Ticket adds the demo ticket to a PID request. "combined" puts PID and
 	// ticket in one option next to a PID-only option. "optional" adds a
@@ -274,7 +275,7 @@ func (r *requestState) dcqlQuery() map[string]any {
 		if q.format == credtype.FormatMDOC {
 			entry["meta"] = map[string]any{"doctype_value": q.docType}
 		} else {
-			entry["meta"] = map[string]any{"vct_values": []string{q.vct}}
+			entry["meta"] = map[string]any{"vct_values": q.typeValues()}
 		}
 		if len(q.paths) > 0 {
 			claims := make([]map[string]any, 0, len(q.paths))
@@ -466,7 +467,11 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 	var sdjwtID, mdocID, ticketID string
 	if vct != "" {
 		sdjwtID = body.Type
-		req.queries = append(req.queries, credentialQuery{id: sdjwtID, format: credtype.FormatSDJWT, vct: vct, paths: namePaths("", claims), multiple: body.Multiple})
+		query := credentialQuery{id: sdjwtID, format: credtype.FormatSDJWT, vct: vct, paths: namePaths("", claims), multiple: body.Multiple}
+		if vct == PIDVCT {
+			query.vcts = credtemplate.PIDTypes(d.wallet.Templates)
+		}
+		req.queries = append(req.queries, query)
 	}
 	if docType != "" {
 		mdocID = body.Type + "_mdoc"

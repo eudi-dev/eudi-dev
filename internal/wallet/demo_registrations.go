@@ -359,6 +359,13 @@ func (w *Wallet) demoIssuerRegistration() (registrar.WalletRelyingParty, error) 
 	rp := demoIssuer()
 	rp.Services[0].Entitlements = sortedUnique(entitlements)
 	rp.Services[0].ProvidesAttestations = provides
+	// The identity check requests every PID type of the templates, so it
+	// registers them all (ARF RPRC_21).
+	for i, c := range rp.Services[0].IntendedUses[0].Credentials {
+		if c.Format == credtype.FormatSDJWT {
+			rp.Services[0].IntendedUses[0].Credentials[i].Meta = map[string]any{"vct_values": credtemplate.PIDTypes(w.Templates)}
+		}
+	}
 	return rp, nil
 }
 

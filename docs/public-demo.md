@@ -65,15 +65,15 @@ Pages opened by the CLI or URL handler keep the supplied browser ID in `sessionS
 
 ## robots.txt and security.txt
 
-`/robots.txt` allows page indexing and excludes API and protocol endpoints. `/.well-known/security.txt` follows RFC 9116, lists the project contact and policy, and expires six months after the request. Every page has a meta description.
+`/robots.txt` allows page indexing and excludes API and protocol endpoints. `/.well-known/security.txt` follows RFC 9116, lists the project contact and policy, and expires 6 months after the request. Every page has a meta description.
 
 ## Demo issuer and verifier
 
 Every wallet server includes an issuer at `/issuer` and a verifier at `/verifier`. The issuer offers a Demo Event Ticket through pre-authorized and authorization code flows. The verifier requests the ticket or a PID through OpenID4VP.
 
-The verifier signs requests delivered from `/verifier/request/{id}` with its access certificate, identifies itself with `x509_hash:` and receives encrypted `direct_post.jwt` responses. It is registered with the wallet's registrar for the credentials of the wallet's templates and sends its registration certificate with each request. You can also send a request without the registration certificate, or with your own key, access certificate and `verifier_info`. Each request has its own encryption key and accepts one verified response. If a response fails verification, the verifier shows the failure and the request stays open. An error response (for example after Deny) also leaves it open. The verifier answers it with a `redirect_uri` back to its page, and the page shows the error. Offers and requests expire after ten minutes and are kept only in memory.
+The verifier signs requests delivered from `/verifier/request/{id}` with its access certificate, identifies itself with `x509_hash:` and receives encrypted `direct_post.jwt` responses. It is registered with the wallet's registrar for the credentials of the wallet's templates and sends its registration certificate with each request. You can also send a request without the registration certificate, or with your own key, access certificate and `verifier_info`. Each request has its own encryption key and accepts one verified response. If a response fails verification, the verifier shows the failure and the request stays open. An error response (for example after Deny) also leaves it open. The verifier answers it with a `redirect_uri` back to its page, and the page shows the error. Offers and requests expire after 10 minutes and are kept only in memory.
 
-By default, a PID request accepts either an SD-JWT VC or an mdoc. The ticket is always an SD-JWT VC. With **multiple**, the wallet may send several credentials for each query, such as two stored PIDs.
+By default, a PID request accepts either an SD-JWT VC or an mdoc. The ticket is always an SD-JWT VC. With **multiple**, the wallet may send several credentials for each query, such as 2 stored PIDs.
 
 **Custom** builds your own request. In the builder you pick the credentials, claims, claim sets, credential sets and the client identifier prefix. An mdoc claim is an element name in the namespace of its doctype. Its **JSON** mode shows the DCQL query and lets you edit it, for example to add claim `values`. The request sends this query unchanged. The verifier checks the response against the query. Without `claim_sets`, the verifier needs every claim. With `claim_sets`, it needs one complete claim set. Each required credential set needs one of its options.
 
@@ -81,9 +81,9 @@ With the status list option, each ticket references a reserved index in the wall
 
 ### PID credentials
 
-The demo starts with four PID credentials: the country-independent EUDI PID (`urn:eudi:pid:1`) and the German PID that extends it (`urn:eudi:pid:de:1`), each as an SD-JWT VC and an mdoc. Each PID type has its own attributes, defined by its rulebook.
+The demo starts with 4 PID credentials: the country-independent EUDI PID (`urn:eudi:pid:1`) and the German PID that extends it (`urn:eudi:pid:de:1`), each as an SD-JWT VC and an mdoc. Each PID type has its own attributes, defined by its rulebook.
 
-The PID request asks for `urn:eudi:pid:1`. Both credentials match it, and the wallet presents one of them. The German PID request asks for `urn:eudi:pid:de:1`. Only the German credential matches it. See [credential type inheritance](wallet.md#credential-type-inheritance).
+The PID request asks for `urn:eudi:pid:1` and the domestic PID types next to it. Both credentials match it, and the wallet presents one of them. The German PID request asks for `urn:eudi:pid:de:1`. Only the German credential matches it. See [credential type inheritance](wallet.md#credential-type-inheritance).
 
 `POST /verifier/api/requests` selects the PID type through `vct`. Any type under `urn:eudi:pid:` is accepted, including `urn:eudi:pid:fr:1`. National types request SD-JWT VC only. All PID mdocs use the doctype `eu.europa.ec.eudi.pid.1`. The doctype carries no country.
 
@@ -96,7 +96,7 @@ To include a ticket, set `ticket` in the same request:
 
 ### Shared state
 
-All four baseline credentials are protected. The UI, the API and the CLI refuse to delete or revoke them. Visitor credentials can be deleted. Removing baseline protection requires direct access to `wallet.json`.
+All 4 baseline credentials are protected. The UI, the API and the CLI refuse to delete or revoke them. Visitor credentials can be deleted. Removing baseline protection requires direct access to `wallet.json`.
 
 All visitors share credentials, registered relying parties, trusted lists and the activity log. Anyone can issue credentials, delete unprotected credentials, register, revoke and delete relying parties, and read the log. Anyone can also put providers and external lists on the wallet's [trusted lists](wallet/serve.md#trusted-lists). With `--arf` the wallet then trusts these entries for every visitor. The demo holds at most 20 added providers and 5 added lists. It keeps the newest 500 credentials and 100 deferred issuances, in addition to the protected PIDs. At most 30 consent dialogs and 30 sign-ins wait at once, and at most 3 of each per browser. Requests without a browser ID share one count of 3 (see [waiting flows](wallet/http-api.md#waiting-flows)). The demo refuses a credential larger than 512 KB. Each browser shows only the errors of its own flows. Use test data only.
 
@@ -104,7 +104,7 @@ All visitors share credentials, registered relying parties, trusted lists and th
 
 The compose example limits requests per client address in Caddy. The wallet only sees the proxy's address, so set rate limits in the proxy. Build Caddy with the supplied `Dockerfile` to include the rate-limit plugin.
 
-Five zones return `429` with `Retry-After` when exceeded:
+5 zones return `429` with `Retry-After` when exceeded:
 
 | Zone | Requests | What it covers |
 |---|---|---|
@@ -146,7 +146,7 @@ The issuer offers the `jwt` and the `attestation` proof types (CIR (EU) 2024/297
 
 By default the jwt proof type works without a key attestation, so wallets without one can still collect credentials. `--demo-issuer-key-attestation required` puts `key_attestations_required` on the jwt proof type too and refuses a proof without a key attestation.
 
-An offer set to "Deferred" on the issuer page, or created with `POST /issuer/api/offers?deferred=true`, is issued deferred. The credential endpoint answers `202` with a `transaction_id`. The wallet then collects the credentials at `POST /issuer/deferred_credential`. The Credential Issuer metadata advertises this endpoint as `deferred_credential_endpoint`. The credentials are ready after five seconds. Only the access token that started the issuance can collect them.
+An offer set to "Deferred" on the issuer page, or created with `POST /issuer/api/offers?deferred=true`, is issued deferred. The credential endpoint answers `202` with a `transaction_id`. The wallet then collects the credentials at `POST /issuer/deferred_credential`. The Credential Issuer metadata advertises this endpoint as `deferred_credential_endpoint`. The credentials are ready after 5 seconds. Only the access token that started the issuance can collect them.
 
 Sign in with **alice / alice**, the only account. The issuer stores no user data, and the session ends with the flow.
 
@@ -279,7 +279,7 @@ STRICT_URL=https://strict.demo.example
 
 ## Usage statistics
 
-The compose example includes an optional usage report at `/stats`, protected by basic auth. [GoAccess](https://goaccess.io) generates it from Caddy's access log every two minutes.
+The compose example includes an optional usage report at `/stats`, protected by basic auth. [GoAccess](https://goaccess.io) generates it from Caddy's access log every 2 minutes.
 
 Caddy masks client addresses when writing the log: it zeroes the last IPv4 octet and the last 80 IPv6 bits in both `remote_ip` and `client_ip`. The report sets no cookies, adds no JavaScript to wallet pages and sends no data to third parties.
 
@@ -298,8 +298,8 @@ Visitor counts are approximate because addresses are masked. Everyone sharing an
 
 ### Log bounds
 
-- the access log rotates at 10 MiB, keeps three files and drops anything older than 30 days (about 40 MiB worst case)
-- every container caps its own log at 10 MB with three files, through the `logging` anchor in the compose file (Docker's default is unlimited)
+- the access log rotates at 10 MiB, keeps 3 files and drops anything older than 30 days (about 40 MiB worst case)
+- every container caps its own log at 10 MB with 3 files, through the `logging` anchor in the compose file (Docker's default is unlimited)
 - the report only reads the current access log file, so the statistics only cover the period since the last rotation
 
 ## Deployment notes

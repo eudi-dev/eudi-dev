@@ -13,7 +13,7 @@ Detects the URI type and starts the matching flow:
   - Supports `response_type=id_token` (SIOPv2 only). Generates a self-issued ID token without VP token
 - `openid-credential-offer://`, `haip-vci://`, `eu-eaa-offer://`: OID4VCI credential issuance (fetches the credential from the issuer)
 
-EUDI issuance uses `eu-eaa-offer://` under [ETSI TS 119 472-3 V1.1.1](https://www.etsi.org/deliver/etsi_ts/119400_119499/11947203/01.01.01_60/ts_11947203v010101p.pdf), requirement GEN-REQ-4.1-06. All three offer schemes accept `credential_offer` and `credential_offer_uri` parameters.
+EUDI issuance uses `eu-eaa-offer://` under [ETSI TS 119 472-3 V1.1.1](https://www.etsi.org/deliver/etsi_ts/119400_119499/11947203/01.01.01_60/ts_11947203v010101p.pdf), requirement GEN-REQ-4.1-06. All 3 offer schemes accept `credential_offer` and `credential_offer_uri` parameters.
 
 In interactive mode (the default), OID4VP requests start a temporary consent UI server and open it in the browser. With `--auto-accept`, the wallet submits one credential per credential query (the most recently issued match), or all matching ones when the query sets `multiple: true`.
 
@@ -112,7 +112,7 @@ Browser navigations are GET requests that accept HTML, such as clicked links. Af
 
 Other callers, including curl and test harnesses, receive the same JSON responses as `POST /api/presentations` and `POST /api/offers`. `keycloak-extension-oid4vp` can set `walletScheme` to the wallet's `/authorize` URL.
 
-In interactive mode (no `--auto-accept`) the two caller types also behave differently before consent. A browser navigation redirects to the wallet UI for consent and then to the verifier's `redirect_uri`. An API call blocks until the request is approved or denied, in the UI or via `POST /api/requests/{id}/approve` or `/deny`. Both responses carry the verifier's `redirect_uri` when it returned one.
+In interactive mode (no `--auto-accept`) the 2 caller types also behave differently before consent. A browser navigation redirects to the wallet UI for consent and then to the verifier's `redirect_uri`. An API call blocks until the request is approved or denied, in the UI or via `POST /api/requests/{id}/approve` or `/deny`. Both responses carry the verifier's `redirect_uri` when it returned one.
 
 ## Digital Credentials API
 
@@ -175,6 +175,8 @@ The wallet checks that:
 - the registrar has not revoked the registration certificate (RPRC_17). Its status list must be readable and chain to a trusted registrar (RPACANot_03b)
 - the request asks only for credentials and claims registered in that certificate (RPRC_21)
 - the response mode encrypts the presentation, so it is `direct_post.jwt`, `dc_api.jwt` or `ia_post.jwt` (OIA_09). With `--haip`, the HAIP check reports this instead.
+
+A query for `urn:eudi:pid:1` without any domestic PID type gets a warning in every mode. Other wallets may not answer it with a domestic PID (see [credential type inheritance](../wallet.md#credential-type-inheritance)).
 
 A request without a registration certificate gets a warning in every mode. So does a revoked registrar certificate, or one with an unreadable CRL (WRP-VALIDATION-02). Wallets must check registration certificates only from 11 August 2028 (CIR (EU) 2026/1731).
 

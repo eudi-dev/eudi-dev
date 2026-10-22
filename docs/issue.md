@@ -37,7 +37,7 @@ eudi issue mdoc  | eudi decode
 
 Flags marked "With `--wallet`" only work together with `--wallet`.
 
-Flags shared by all three subcommands:
+Flags shared by all 3 subcommands:
 
 | Flag | Default | Description |
 |------|---------|-------------|
@@ -111,11 +111,11 @@ The JWT subcommand produces a standard JWT with all claims directly in the paylo
 | `--status-list-uri` | None                    | Status list URI to embed in credential         |
 | `--status-list-idx` | `0`                     | Status list index to embed in credential       |
 
-Without `--claims`, a minimal PID-like claim set is used (given_name, family_name, birthdate). `--pid` issues the full PID claim set. It has fifteen top-level SD-JWT claims (including the nested `address` and `place_of_birth` objects) or nineteen mdoc elements. The claims follow the [EUDI PID Rulebook v1.7](https://github.com/eu-digital-identity-wallet/eudi-doc-attestation-rulebooks-catalog/blob/6d8f7f8422e5bf6c48186005b6835c078f762a67/rulebooks/pid/pid-rulebook.md).
+Without `--claims`, a minimal PID-like claim set is used (given_name, family_name, birthdate). `--pid` issues the full PID claim set. It has 15 top-level SD-JWT claims (including the nested `address` and `place_of_birth` objects) or 19 mdoc elements. The claims follow the [EUDI PID Rulebook v1.7](https://github.com/eu-digital-identity-wallet/eudi-doc-attestation-rulebooks-catalog/blob/6d8f7f8422e5bf6c48186005b6835c078f762a67/rulebooks/pid/pid-rulebook.md).
 
 `issue jwt --pid` puts the same claim set in a plain JWT VC for verifier testing.
 
-`--vct urn:eudi:pid:de:1` selects the German PID. It has fourteen top-level SD-JWT claims (including `aka_vcts` and the age thresholds) or twenty-three mdoc elements across two namespaces. `--vct urn:eudi:pid:it:1` and `--vct urn:eudi:pid:nl:1` select the Italian and Dutch PIDs. The claim sets come from the predefined `pid-*`, `german-pid-*`, `italian-pid-*` and `dutch-pid-*` templates. A user template with one of those names overrides the predefined claims for `--pid`.
+`--vct urn:eudi:pid:de:1` selects the German PID. It has 13 top-level SD-JWT claims (including the age thresholds) or 23 mdoc elements across 2 namespaces. `--vct urn:eudi:pid:it:1` and `--vct urn:eudi:pid:nl:1` select the Italian and Dutch PIDs. The claim sets come from the predefined `pid-*`, `german-pid-*`, `italian-pid-*` and `dutch-pid-*` templates. A user template with one of those names overrides the predefined claims for `--pid`.
 
 `--template` supplies the claim set and defaults for type, namespace, and expiry. Explicit flags override the template. `--claims` overrides individual top level claims. `--omit` removes claims from the result. See [templates](templates.md) for the file format and the `templates` commands.
 
@@ -165,7 +165,7 @@ These flags set the stored trust and issuer metadata for the credential type:
 
 ### Display metadata
 
-With `--wallet`, these flags set the card appearance of the imported credential on all three subcommands. Colors must conform to OpenID4VCI 1.0 §12.2.4. An invalid color is dropped with a warning. Images are subject to the same address policy and size limit as an issuer's display metadata. A public demo ignores the logo and background-image flags and keeps the template's images.
+With `--wallet`, these flags set the card appearance of the imported credential on all 3 subcommands. Colors must conform to OpenID4VCI 1.0 §12.2.4. An invalid color is dropped with a warning. Images are subject to the same address policy and size limit as an issuer's display metadata. A public demo ignores the logo and background-image flags and keeps the template's images.
 
 | Flag | Default | Description |
 |------|---------|-------------|

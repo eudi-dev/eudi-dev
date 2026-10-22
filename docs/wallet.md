@@ -2,14 +2,14 @@
 
 The wallet stores test credentials and presents them through OID4VP. It accepts OID4VCI offers from the CLI, QR codes and links. Credentials and keys are stored in `~/.eudi-dev/wallet/` by default. `--wallet-dir` selects another directory. [Memory and Postgres storage](#storage-backends) are also available.
 
-The wallet has two validation modes. Both run the same checks. They differ in how they handle violations:
+The wallet has 2 validation modes. Both run the same checks. They differ in how they handle violations:
 
 - `debug` (default) reports each finding and continues processing the request. In DCQL evaluation it keeps a credential match with a warning when some required claim paths are missing but other requested claims match
 - `strict` treats violations as errors and rejects the request
 
 The mode only affects what the wallet does automatically. In the consent dialog you can always pick a non-matching credential or another claim set, even in strict mode.
 
-Strict mode covers OpenID4VP 1.0, OpenID4VCI 1.0 and HAIP 1.0. Advisory findings are warnings in both modes. Two flags add more checks. `--haip` adds the HAIP 1.0 checks (see [HAIP 1.0 enforcement](wallet/presenting.md#haip-10-enforcement)). `--arf` adds the ARF checks of verifier and issuer certificates (see [ARF checks](wallet/presenting.md#arf-checks)). The mode decides what happens to their findings.
+Strict mode covers OpenID4VP 1.0, OpenID4VCI 1.0 and HAIP 1.0. Advisory findings are warnings in both modes. 2 flags add more checks. `--haip` adds the HAIP 1.0 checks (see [HAIP 1.0 enforcement](wallet/presenting.md#haip-10-enforcement)). `--arf` adds the ARF checks of verifier and issuer certificates (see [ARF checks](wallet/presenting.md#arf-checks)). The mode decides what happens to their findings.
 
 For OpenID Foundation conformance work, see [docs/conformance.md](./conformance.md).
 For interaction diagrams of the implemented OID4VP and OID4VCI flows, see [docs/diagrams](./diagrams/README.md).
@@ -37,7 +37,7 @@ For interaction diagrams of the implemented OID4VP and OID4VCI flows, see [docs/
 | `register`   | Register the OS URL scheme handlers on macOS and Linux (a no-op elsewhere) |
 | `unregister` | Remove the OS URL scheme handlers on macOS and Linux (a no-op elsewhere) |
 
-Three top-level commands also work on the active wallet and take the same wallet flags:
+3 top-level commands also work on the active wallet and take the same wallet flags:
 
 | Command     | Purpose |
 |-------------|---------|
@@ -105,10 +105,12 @@ A domestic PID extends the country-independent type, as required by ARF Annex 2 
 
 The wallet matches a DCQL `vct_values` entry against the credential's own type and every extended type. Any PID matches a request for `urn:eudi:pid:1`. A German PID matches a request for `urn:eudi:pid:de:1`. When a credential matches through an extended type, the `[DCQL]` server log records the requested type.
 
-The wallet derives these relationships from two sources:
+OpenID4VP 1.0 Appendix B.3.5 makes this optional: "The Wallet MAY return Credentials that inherit from any of the specified types". Other wallets may only match the exact type. A verifier that wants domestic PIDs from any wallet lists their types in `vct_values` next to `urn:eudi:pid:1`. With `--arf`, the wallet warns about a query for `urn:eudi:pid:1` without a domestic type.
+
+The wallet derives these relationships from 2 sources:
 
 - the PID type itself. A country or region code after `urn:eudi:pid:` (`urn:eudi:pid:de:1`, `urn:eudi:pid:fr:1`) marks a domestic type. A domestic type extends `urn:eudi:pid:1`. A version number after `urn:eudi:pid:` (`urn:eudi:pid:1`, `urn:eudi:pid:2`) marks the country-independent type
-- the `aka_vcts` claim ([SD-JWT VC](https://datatracker.ietf.org/doc/draft-ietf-oauth-sd-jwt-vc/) §2.2.2.2). It lists additional types of the credential and applies to every credential type. The German PID issued by eudi-dev carries it
+- the `aka_vcts` claim ([SD-JWT VC](https://datatracker.ietf.org/doc/draft-ietf-oauth-sd-jwt-vc/) §2.2.2.2). It lists additional types of the credential and applies to every credential type
 
 Inheritance describes the credential type only. Signature and trusted list checks decide whether the issuer is authorized (§7.7: "Verifiers and Holders MUST NOT assume that any issuer who issues a credential extending a known type is authorized to do so").
 

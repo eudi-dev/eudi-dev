@@ -27,7 +27,6 @@ import (
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/config"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
-	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
 	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
@@ -183,7 +182,7 @@ func TestResolveIssueClaims_PIDWhenFlagged_GermanSDJWT(t *testing.T) {
 	if len(claims) != len(predefinedClaims("german-pid-sdjwt")) {
 		t.Errorf("expected %d German SD-JWT PID claims, got %d", len(predefinedClaims("german-pid-sdjwt")), len(claims))
 	}
-	for _, name := range []string{"birth_name", "source_document_type", credtype.AkaVCTsClaim} {
+	for _, name := range []string{"birth_name", "source_document_type"} {
 		if _, ok := claims[name]; !ok {
 			t.Errorf("the German PID claim set is missing %q", name)
 		}
@@ -738,7 +737,6 @@ func TestSDJWTPIDClaims_HasExpectedFields(t *testing.T) {
 	for _, name := range []string{
 		"birth_name", "title", "also_known_as", "source_document_type",
 		"age_equal_or_over", "age_in_years", "age_birth_year",
-		credtype.AkaVCTsClaim,
 	} {
 		if _, ok := predefinedClaims("pid-sdjwt")[name]; ok {
 			t.Errorf("%q is a German addition and must not be in the country-independent PID", name)
@@ -772,8 +770,7 @@ func TestSDJWTPIDClaims_HasExpectedFields(t *testing.T) {
 
 func TestSDJWTGermanPIDClaims_HasExpectedFields(t *testing.T) {
 	want := map[string]bool{
-		credtype.AkaVCTsClaim: true,
-		"family_name":         true, "given_name": true, "birth_name": true,
+		"family_name": true, "given_name": true, "birth_name": true,
 		"academic_title": true, "birthdate": true, "raw_eid_birth_date": true,
 		"age_equal_or_over": true,
 		"place_of_birth":    true, "address": true, "nationalities": true,
@@ -781,13 +778,6 @@ func TestSDJWTGermanPIDClaims_HasExpectedFields(t *testing.T) {
 		"source_document_type": true,
 	}
 	assertClaimSet(t, "SDJWTGermanPIDClaims", predefinedClaims("german-pid-sdjwt"), want)
-
-	// aka_vcts lets the German PID match the base PID type without fetching Type
-	// Metadata.
-	aka := credtype.AkaVCTs(predefinedClaims("german-pid-sdjwt"))
-	if len(aka) != 1 || aka[0] != credtype.PIDVCT {
-		t.Errorf("aka_vcts should be [%q], got %v", credtype.PIDVCT, aka)
-	}
 
 	// The rulebook lists these, but the German eID does not supply them. A
 	// realistic PID does not carry them.

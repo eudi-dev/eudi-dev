@@ -981,8 +981,8 @@ func TestGenerateDefaultCredentials_VCTSelectsTheClaimSet(t *testing.T) {
 		t.Error("the German PID was issued without its national claims")
 	}
 	// The German PID also answers requests for the base PID type.
-	if !credtype.Answers(sdjwt.VCT, credtype.AkaVCTs(sdjwt.Claims), mock.DefaultPIDVCT) {
-		t.Errorf("the German PID does not answer for %q: aka_vcts=%v", mock.DefaultPIDVCT, sdjwt.Claims[credtype.AkaVCTsClaim])
+	if !credtype.Answers(sdjwt.VCT, nil, mock.DefaultPIDVCT) {
+		t.Errorf("the German PID does not answer for %q", mock.DefaultPIDVCT)
 	}
 	// National additions use a separate namespace under the shared doctype.
 	if mdoc.DocType != mock.PIDNamespace {

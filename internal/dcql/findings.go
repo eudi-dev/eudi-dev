@@ -14,7 +14,11 @@
 
 package dcql
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
+)
 
 // QueryFindings reports where a DCQL query departs from OID4VP 1.0 §6.
 // Strict mode refuses the query. Debug mode logs the findings and evaluates
@@ -245,6 +249,33 @@ func credentialSetFindings(query map[string]any, ids map[string]bool) []string {
 		}
 	}
 	return findings
+}
+
+// DomesticPIDAdvisories warns about an SD-JWT VC query that requests
+// urn:eudi:pid:1 without any domestic PID type. ARF Annex 2 PID_14 makes a
+// domestic PID extend the base type, but OpenID4VP 1.0 Appendix B.3.5 only
+// says "The Wallet MAY return Credentials that inherit from any of the
+// specified types".
+func DomesticPIDAdvisories(query map[string]any) []string {
+	credQueries, _ := query["credentials"].([]any)
+	var advisories []string
+	for _, cq := range credQueries {
+		cqMap, _ := cq.(map[string]any)
+		meta, _ := cqMap["meta"].(map[string]any)
+		vctValues, _ := meta["vct_values"].([]any)
+		base, domestic := false, false
+		for _, v := range vctValues {
+			vct, _ := v.(string)
+			_, extends := credtype.Extends(vct)
+			base = base || vct == credtype.PIDVCT
+			domestic = domestic || extends
+		}
+		if base && !domestic {
+			id, _ := cqMap["id"].(string)
+			advisories = append(advisories, fmt.Sprintf("OID4VP 1.0 Appendix B.3.5: the credential query %q requests %s without a domestic PID type. Other wallets may not answer it with a domestic PID such as urn:eudi:pid:de:1. List the accepted domestic types in vct_values", id, credtype.PIDVCT))
+		}
+	}
+	return advisories
 }
 
 func allNonEmptyStrings(values []any) bool {

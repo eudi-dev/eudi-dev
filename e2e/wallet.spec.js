@@ -593,7 +593,7 @@ test.describe("Credential Issuing via UI", () => {
     await expect(page.locator("#issue-vct")).toHaveValue("urn:eudi:pid:de:1");
     // The template keeps the default expiry. The placeholder shows it.
     await expect(page.locator("#issue-exp")).toHaveValue("");
-    await expect(page.locator("#issue-claim-rows .claim-row")).toHaveCount(14);
+    await expect(page.locator("#issue-claim-rows .claim-row")).toHaveCount(13);
     const keys = await page
       .locator("#issue-claim-rows .claim-row input[id^=issue-claim-key]")
       .evaluateAll((inputs) => inputs.map((i) => i.value));
@@ -601,7 +601,6 @@ test.describe("Credential Issuing via UI", () => {
       "academic_title",
       "address",
       "age_equal_or_over",
-      "aka_vcts",
       "birth_name",
       "birthdate",
       "family_name",

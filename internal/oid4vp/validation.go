@@ -94,6 +94,7 @@ func validatePresentationRequestCore(checks Checks, params *Request, payload map
 	if checks.ARF {
 		arfFindings = append(ARFFindings(params), responseEncryptionFindings(checks, params)...)
 		advisories = append(advisories, ARFAdvisories(params)...)
+		advisories = append(advisories, dcql.DomesticPIDAdvisories(params.DCQLQuery)...)
 	}
 
 	code := RefusalCode(params)

@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
@@ -350,7 +351,7 @@ func (d *DemoRP) newInteractivePIDRequest(identity *issuerIdentity) (*requestSta
 	return &requestState{
 		id: randToken(),
 		queries: []credentialQuery{
-			{id: "pid", format: credtype.FormatSDJWT, vct: PIDVCT, paths: namePaths("", wallet.IdentityCheckClaims()), trustedAuthorities: authorities},
+			{id: "pid", format: credtype.FormatSDJWT, vct: PIDVCT, vcts: credtemplate.PIDTypes(d.wallet.Templates), paths: namePaths("", wallet.IdentityCheckClaims()), trustedAuthorities: authorities},
 			{id: "pid_mdoc", format: credtype.FormatMDOC, docType: PIDDocType, paths: namePaths(PIDDocType, wallet.IdentityCheckClaims()), trustedAuthorities: authorities},
 		},
 		// Either format satisfies the request.
