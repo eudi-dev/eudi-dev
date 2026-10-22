@@ -375,7 +375,7 @@ Each exchange is an entry in **Activity**. Entries start collapsed. Scope the co
 | Open a token in the decoder | `data-testid="log-decoder-link"` |
 | Show an alternate wire value | `data-testid="log-wire-toggle"` |
 
-Entries for a stored credential also have `data-credential-id`. Presentation decoder links have `data-query-id` and `data-token-index`. Credential response and batch import links have `data-credential-index`. Batch import links also have `data-credential-id` for each stored copy. Token indexes start at zero within each query. Credential indexes start at zero within the entry. The encryption toggle keeps the same selector in both views.
+Entries for a stored credential also have `data-credential-id`. Presentation decoder links have `data-query-id` and `data-token-index`. Credential response and batch import links have `data-credential-index`. Links to other tokens in an entry, such as a request object, a key proof or a registration certificate, have `data-path` with the field that holds the token, for example `proofs.jwt[0]`. Batch import links also have `data-credential-id` for each stored copy. Token indexes start at zero within each query. Credential indexes start at zero within the entry. The encryption toggle keeps the same selector in both views.
 
 A fetched request object and its receipt share one entry. A batch import is one entry with the ID of every stored copy. Encrypted exchanges show the wire value first.
 

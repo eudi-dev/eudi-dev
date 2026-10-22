@@ -91,13 +91,17 @@ func (s *Server) addPresentationRequestLog(authReq *oid4vp.Request, source strin
 	if source != "" {
 		details["source"] = source
 	}
-	var payload *LogPayload
+	s.wallet.AddLogPayload("presentation", fmt.Sprintf("Received presentation request from %s", clientID), true, details, presentationRequestLogPayload(authReq))
+}
+
+func presentationRequestLogPayload(authReq *oid4vp.Request) *LogPayload {
 	if authReq.RequestObject != nil {
-		payload = &LogPayload{Label: "Request object", Body: authReq.RequestObject.Raw}
-	} else if authReq.RequestPayload != nil {
-		payload = &LogPayload{Label: "Request", Body: authReq.RequestPayload}
+		return &LogPayload{Label: "Request object", Body: authReq.RequestObject.Raw}
 	}
-	s.wallet.AddLogPayload("presentation", fmt.Sprintf("Received presentation request from %s", clientID), true, details, payload)
+	if authReq.RequestPayload != nil {
+		return &LogPayload{Label: "Request", Body: authReq.RequestPayload}
+	}
+	return nil
 }
 
 func (w *Wallet) addProtocolLog(action, event, detail string, success bool, details map[string]any, payloads ...*LogPayload) {

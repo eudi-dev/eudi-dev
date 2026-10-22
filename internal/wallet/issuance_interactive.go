@@ -129,8 +129,9 @@ func (w *Wallet) obtainInteractiveAuthorizationCode(endpoint string, setup autho
 	form := w.initialAuthorizationChallengeForm(setup, offer)
 
 	var authSession string
+	var vpToken map[string][]string
 	for round := 1; round <= maxInteractiveAuthorizationRounds; round++ {
-		response, err := w.postAuthorizationChallenge(endpoint, form, setup)
+		response, err := w.postAuthorizationChallenge(endpoint, form, vpToken, setup)
 		if err != nil {
 			return "", false, err
 		}
@@ -187,6 +188,7 @@ func (w *Wallet) obtainInteractiveAuthorizationCode(endpoint string, setup autho
 			next.Set("client_id", setup.clientID)
 		}
 		form = next
+		vpToken = outcome.vpToken
 	}
 
 	return "", false, fmt.Errorf("interactive authorization did not finish after %d rounds", maxInteractiveAuthorizationRounds)
@@ -198,6 +200,9 @@ type interactionOutcome struct {
 	form        url.Values
 	code        string
 	authSession string
+	// vpToken is the presentation inside the form, for the activity log. An
+	// encrypted openid4vp_response hides it.
+	vpToken map[string][]string
 }
 
 func (w *Wallet) initialAuthorizationChallengeForm(setup authorizationCodeSetup, offer *oid4vc.CredentialOffer) url.Values {
@@ -224,10 +229,14 @@ func (w *Wallet) initialAuthorizationChallengeForm(setup authorizationCodeSetup,
 // Endpoint and returns its JSON response. The body decides the outcome. An
 // Interaction Required Response (§6.2.1) is a 403 with a request for the
 // wallet in its body.
-func (w *Wallet) postAuthorizationChallenge(endpoint string, form url.Values, setup authorizationCodeSetup) (map[string]any, error) {
+func (w *Wallet) postAuthorizationChallenge(endpoint string, form url.Values, vpToken map[string][]string, setup authorizationCodeSetup) (map[string]any, error) {
+	requestDetails := formRequestLogDetails(endpoint, "authorization_challenge", form)
+	if len(vpToken) > 0 {
+		requestDetails["vp_token"] = vpToken
+	}
 	w.addProtocolLog("issuance", "authorization_challenge_request",
 		fmt.Sprintf("Authorization challenge request to %s", endpoint), true,
-		formRequestLogDetails(endpoint, "authorization_challenge", form), formLogPayload("Request", form))
+		requestDetails, formLogPayload("Request", form))
 
 	body := []byte(form.Encode())
 	respBody, status, reqErr := doDPoPRequest("POST", endpoint, "application/x-www-form-urlencoded", "", body,
@@ -293,11 +302,7 @@ func (w *Wallet) runAuthorizationInteraction(endpoint string, response map[strin
 	interaction := jsonutil.GetString(response, "interaction_type_required")
 	switch interaction {
 	case interactionTypePresentation:
-		form, err := w.runPresentationInteraction(endpoint, response, setup)
-		if err != nil {
-			return nil, err
-		}
-		return &interactionOutcome{form: form}, nil
+		return w.runPresentationInteraction(endpoint, response, setup)
 	case interactionTypeAuthViaWeb:
 		if setup.redirectURI == "" || setup.authorizationEndpoint == "" {
 			return nil, fmt.Errorf("authorization server asked for the %s interaction, which this wallet did not advertise (it needs a redirect URI and an authorization endpoint)", interactionTypeAuthViaWeb)
@@ -351,7 +356,7 @@ func (w *Wallet) runAuthViaWebInteraction(response map[string]any, setup authori
 
 // runPresentationInteraction answers a Require Presentation response
 // (§6.2.1.1). The authorization server acts as the Verifier.
-func (w *Wallet) runPresentationInteraction(endpoint string, response map[string]any, setup authorizationCodeSetup) (url.Values, error) {
+func (w *Wallet) runPresentationInteraction(endpoint string, response map[string]any, setup authorizationCodeSetup) (*interactionOutcome, error) {
 	request, ok := response["openid4vp_request"].(map[string]any)
 	if !ok || len(request) == 0 {
 		return nil, fmt.Errorf("authorization server asked for a presentation without an openid4vp_request (OpenID4VCI 1.1 §6.2.1.1)")
@@ -373,7 +378,7 @@ func (w *Wallet) runPresentationInteraction(endpoint string, response map[string
 	case outcome.refusal != nil:
 		// §6.2.1.1: openid4vp_response "in the case of an error instead
 		// encodes the Authorization Error Response parameters".
-		return w.interactionErrorResponse(authReq, outcome.refusal.code, outcome.refusal.description)
+		return interactionErrorOutcome(w.interactionErrorResponse(authReq, outcome.refusal.code, outcome.refusal.description))
 	}
 
 	matches, approved, err := w.awaitInteractivePresentationConsent(endpoint, authReq, outcome, setup.presentationConsented, setup.owner)
@@ -382,7 +387,7 @@ func (w *Wallet) runPresentationInteraction(endpoint string, response map[string
 	}
 	if !approved {
 		w.AddLog("issuance", "Denied the presentation the issuer asked for", false)
-		return w.interactionErrorResponse(authReq, oid4vp.ErrorAccessDenied, "user denied the presentation")
+		return interactionErrorOutcome(w.interactionErrorResponse(authReq, oid4vp.ErrorAccessDenied, "user denied the presentation"))
 	}
 
 	prepared, err := w.preparePresentation(authReq, matches)
@@ -414,7 +419,14 @@ func (w *Wallet) runPresentationInteraction(endpoint string, response map[string
 
 	form := url.Values{}
 	form.Set("openid4vp_response", encoded)
-	return form, nil
+	return &interactionOutcome{form: form, vpToken: vpResult.VPToken()}, nil
+}
+
+func interactionErrorOutcome(form url.Values, err error) (*interactionOutcome, error) {
+	if err != nil {
+		return nil, err
+	}
+	return &interactionOutcome{form: form}, nil
 }
 
 func (w *Wallet) interactionErrorResponse(params *oid4vp.Request, errorCode, description string) (url.Values, error) {
@@ -541,5 +553,5 @@ func (w *Wallet) addPresentationRequestLogEntry(authReq *oid4vp.Request) {
 	details["direction"] = "inbound"
 	details["source"] = "interactive_authorization"
 	w.addProtocolLog("issuance", "interactive_authorization_presentation_request",
-		"Issuer asked for a presentation before issuing", true, details)
+		"Issuer asked for a presentation before issuing", true, details, presentationRequestLogPayload(authReq))
 }

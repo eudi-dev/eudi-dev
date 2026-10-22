@@ -1695,6 +1695,52 @@ test("activity starts collapsed and opens the sent presentation in the decoder",
     .toHaveJSProperty("href", WALLET_URL + "/decoder/#credential=presented-token");
 });
 
+test("an authorization challenge request opens its presentation in the decoder", async ({ page }) => {
+  const form = { openid4vp_response: '{"response":"encrypted.jwe.value.here.tag"}', auth_session: "session-1" };
+  await page.route("**/api/log*", route => route.fulfill({ json: [{
+    time: "2026-10-01T08:00:00Z", action: "issuance", detail: "Authorization challenge request to https://issuer.example/challenge", success: true,
+    details: { event: "authorization_challenge_request", direction: "outbound", method: "POST", url: "https://issuer.example/challenge",
+      endpoint: "authorization_challenge", request: form, vp_token: { pid: ["presented-token"] } },
+    payload: { label: "Request", body: form, wire: new URLSearchParams(form).toString() },
+  }] }));
+  await page.goto(WALLET_URL);
+  const entry = page.getByTestId("log-entry");
+  await entry.getByTestId("log-entry-toggle").click();
+  await expect(entry.locator('[data-testid="log-decoder-link"][data-query-id="pid"][data-token-index="0"]'))
+    .toHaveJSProperty("href", WALLET_URL + "/decoder/#credential=presented-token");
+  await expect(entry.locator(".log-details")).not.toContainText("vp_token");
+});
+
+test("activity entries open the tokens inside their payload in the decoder", async ({ page }) => {
+  const requestObject = activityJWT("request-object");
+  const registration = activityJWT("registration-certificate");
+  const proofs = [activityJWT("first-proof"), activityJWT("second-proof")];
+  await page.route("**/api/log*", route => route.fulfill({ json: [{
+    time: "2026-10-01T08:00:00Z", action: "issuance", detail: "Authorization challenge response from https://issuer.example/challenge", success: true,
+    details: { event: "authorization_challenge_response", response: { error: "insufficient_authorization", openid4vp_request: { request: requestObject } } },
+  }, {
+    time: "2026-10-01T08:00:01Z", action: "issuance", detail: "Issuer metadata response from https://issuer.example", success: true,
+    details: { event: "issuer_metadata_response", metadata: JSON.stringify({ issuer_info: [{ format: "registration_cert", data: registration }] }) },
+  }, {
+    time: "2026-10-01T08:00:02Z", action: "issuance", detail: "Request credential from https://issuer.example/credential", success: true,
+    details: { event: "credential_request", proof_jwt: proofs[0], request: { proofs: { jwt: proofs } } },
+  }] }));
+  await page.goto(WALLET_URL);
+  const links = {
+    "openid4vp_request.request": requestObject,
+    "issuer_info[0].data": registration,
+    "proofs.jwt[0]": proofs[0],
+    "proofs.jwt[1]": proofs[1],
+  };
+  for (const entry of await page.getByTestId("log-entry").all()) await entry.getByTestId("log-entry-toggle").click();
+  for (const [path, token] of Object.entries(links)) {
+    const link = page.locator(`[data-testid="log-decoder-link"][data-path="${path}"]`);
+    await expect(link).toHaveText(`Open '${path}' in decoder`);
+    await expect(link).toHaveJSProperty("href", WALLET_URL + "/decoder/#credential=" + encodeURIComponent(token));
+  }
+  await expect(page.getByTestId("log-decoder-link")).toHaveCount(Object.keys(links).length);
+});
+
 test("an expanded activity entry shows its whole detail", async ({ page }) => {
   const detail = "The nonce endpoint https://issuer.example/nonce answers a POST with 405 and serves a c_nonce only over GET. "
     + "OID4VCI 1.0 §7.1 requires POST. Debug mode uses GET";

@@ -1875,7 +1875,7 @@
       const el = document.createElement('div');
       el.id = 'log-entry-' + index;
       const view = activityView(entry);
-      const hasDetails = view.payload || view.presentations.length > 0 || Object.keys(view.details).length > 0;
+      const hasDetails = view.payload || view.presentations.length > 0 || view.tokens.length > 0 || Object.keys(view.details).length > 0;
       el.className = 'log-entry' + (hasDetails ? ' has-details' : '');
       el.dataset.testid = 'log-entry';
       el.dataset.event = entry.details?.event || '';
@@ -1897,8 +1897,8 @@
       if (hasDetails) {
         html += '<div class="log-details" id="' + el.id + '-details">';
         if (Object.keys(view.details).length) html += renderLogDetails(view.details, el.id);
-        if (view.payload) html += renderLogPayload(view.payload, view.decoderInput, view.presentations, view.credentials, el.id);
-        else if (view.presentations.length) html += '<div class="log-payload-controls" id="' + el.id + '-controls">' + renderLogPresentations(view.presentations, el.id) + '</div>';
+        if (view.payload) html += renderLogPayload(view.payload, view.decoderInput, view.presentations, view.credentials, view.tokens, el.id);
+        else if (view.presentations.length || view.tokens.length) html += '<div class="log-payload-controls" id="' + el.id + '-controls">' + renderLogPresentations(view.presentations, el.id) + renderLogTokens(view.tokens, el.id) + '</div>';
         html += '</div>';
       }
       el.innerHTML = html;
@@ -2022,6 +2022,7 @@
       delete details.notification_event;
     }
     if (payload && event === 'authorization_response') delete details.callback_values;
+    delete details.vp_token;
     const presentations = Object.entries(payload?.body?.vp_token || sentTokens || {}).flatMap(([queryID, tokens]) =>
       Array.isArray(tokens) ? tokens.flatMap((token, tokenIndex) =>
         typeof token === 'string' && token ? [{ queryID, token, tokenIndex }] : []) : []);
@@ -2048,7 +2049,29 @@
     if (!decoderInput && !credentials.length && !presentations.length && !payload?.encrypted && isCompactJWT(payload?.body)) {
       decoderInput = payload.body.trim();
     }
-    return { payload, detail, details, presentations, credentials, decoderInput };
+    const linked = new Set([decoderInput, ...presentations.map(p => p.token), ...credentials.map(c => c.token)]);
+    const tokens = [...embeddedTokens(payload?.body), ...embeddedTokens(details)].filter(({ token }) => {
+      if (linked.has(token)) return false;
+      linked.add(token);
+      return true;
+    });
+    return { payload, detail, details, presentations, credentials, decoderInput, tokens };
+  }
+
+  // embeddedTokens finds the JWTs and SD-JWTs inside a logged value, such as
+  // request objects, proofs or registration certificates, with their path.
+  function embeddedTokens(value, path = '') {
+    if (typeof value === 'string') {
+      if (isCompactJWT(value)) return [{ path, token: value.trim() }];
+      // Response bodies are logged as text.
+      if (!/^\s*[[{]/.test(value)) return [];
+      try { return embeddedTokens(JSON.parse(value), path); } catch (e) { return []; }
+    }
+    if (Array.isArray(value)) return value.flatMap((item, i) => embeddedTokens(item, path + '[' + i + ']'));
+    if (typeof value === 'object' && value !== null) {
+      return Object.entries(value).flatMap(([key, item]) => embeddedTokens(item, path ? path + '.' + key : key));
+    }
+    return [];
   }
 
   function isCompactJWT(value) {
@@ -2072,7 +2095,7 @@
       : { wire: 'Encoded view', plain: 'Decoded view', showWire: 'View encoded', showPlain: 'View decoded' };
   }
 
-  function renderLogPayload(payload, decoderInput, presentations, credentials, idPrefix) {
+  function renderLogPayload(payload, decoderInput, presentations, credentials, tokens, idPrefix) {
     const hasWire = payload.wire !== undefined && payload.wire !== null;
     const canToggle = hasWire && payload.body != null;
     const labels = logPayloadViewLabels(payload);
@@ -2094,6 +2117,7 @@
         ...(credential.id ? { 'credential-id': credential.id } : {}),
       });
     });
+    controls += renderLogTokens(tokens, idPrefix);
     if (controls) html += '<div class="log-payload-controls" id="' + idPrefix + '-controls">' + controls + '</div>';
     const missing = payload.encrypted ? 'Plaintext unavailable' : 'No response body available';
     const value = hasWire ? payload.wire : payload.body;
@@ -2115,6 +2139,11 @@
       html += renderLogDecoderLink(presentation.token, idPrefix + '-presentation-' + n, label, { 'query-id': presentation.queryID, 'token-index': presentation.tokenIndex });
     });
     return html;
+  }
+
+  function renderLogTokens(tokens, idPrefix) {
+    return tokens.map((token, n) => renderLogDecoderLink(token.token, idPrefix + '-token-' + n,
+      token.path ? "Open '" + token.path + "' in decoder" : 'Open in decoder', { path: token.path })).join('');
   }
 
   function renderLogDetails(details, idPrefix) {

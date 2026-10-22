@@ -414,6 +414,20 @@ func TestInteractiveAuthorizationLogsFormRequestsAsFields(t *testing.T) {
 	}
 }
 
+func TestInteractiveAuthorizationLogsThePresentationRequest(t *testing.T) {
+	w := newInteractiveWallet(t)
+	issuer := newInteractiveIssuer(t, w)
+
+	if _, err := w.ProcessCredentialOffer(interactiveOfferURI(issuer.url)); err != nil {
+		t.Fatalf("ProcessCredentialOffer() error = %v", err)
+	}
+	payload := walletLogPayload(t, w.GetLog(), "interactive_authorization_presentation_request")
+	request, ok := payload.Body.(map[string]any)
+	if !ok || request["nonce"] != interactiveTestNonce {
+		t.Errorf("presentation request body = %#v, want the request the issuer sent", payload.Body)
+	}
+}
+
 func walletLogPayload(t *testing.T, entries []LogEntry, event string) *LogPayload {
 	t.Helper()
 	for _, entry := range entries {
@@ -650,6 +664,23 @@ func TestInteractiveAuthorizationEncryptsWithIAPostJWT(t *testing.T) {
 	}
 	if _, ok := response["vp_token"]; ok {
 		t.Error("openid4vp_response carried the vp_token in the clear as well")
+	}
+
+	// The activity log keeps the presentation of the encrypted request, so
+	// the UI can open it in the decoder.
+	var logged map[string][]string
+	for _, entry := range w.GetLog() {
+		if entry.Details["event"] == "authorization_challenge_request" && entry.Details["vp_token"] != nil {
+			logged, _ = entry.Details["vp_token"].(map[string][]string)
+		}
+	}
+	if len(logged) == 0 {
+		t.Fatal("the challenge request with the openid4vp_response logged no vp_token")
+	}
+	for queryID, tokens := range logged {
+		if len(tokens) == 0 || !strings.Contains(tokens[0], "~") {
+			t.Errorf("logged vp_token[%s] = %v, want the SD-JWT presentation", queryID, tokens)
+		}
 	}
 }
 
