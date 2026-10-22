@@ -1726,19 +1726,22 @@ test("activity entries open the tokens inside their payload in the decoder", asy
     details: { event: "credential_request", proof_jwt: proofs[0], request: { proofs: { jwt: proofs } } },
   }] }));
   await page.goto(WALLET_URL);
-  const links = {
-    "openid4vp_request.request": requestObject,
-    "issuer_info[0].data": registration,
-    "proofs.jwt[0]": proofs[0],
-    "proofs.jwt[1]": proofs[1],
-  };
   for (const entry of await page.getByTestId("log-entry").all()) await entry.getByTestId("log-entry-toggle").click();
-  for (const [path, token] of Object.entries(links)) {
+  for (const [path, token] of [["openid4vp_request.request", requestObject], ["issuer_info[0].data", registration]]) {
     const link = page.locator(`[data-testid="log-decoder-link"][data-path="${path}"]`);
     await expect(link).toHaveText(`Open '${path}' in decoder`);
     await expect(link).toHaveJSProperty("href", WALLET_URL + "/decoder/#credential=" + encodeURIComponent(token));
   }
-  await expect(page.getByTestId("log-decoder-link")).toHaveCount(Object.keys(links).length);
+  // The proofs of one request share a button, and a picker chooses the proof.
+  const request = page.locator('[data-testid="log-entry"][data-event="credential_request"]');
+  const proofLink = request.getByTestId("log-decoder-link");
+  await expect(proofLink).toHaveText("Open 'proofs.jwt' in decoder");
+  for (const [index, proof] of proofs.entries()) {
+    await request.getByTestId("log-decoder-pick").selectOption({ label: `${index + 1}/2` });
+    await expect(proofLink).toHaveAttribute("data-path", `proofs.jwt[${index}]`);
+    await expect(proofLink).toHaveJSProperty("href", WALLET_URL + "/decoder/#credential=" + encodeURIComponent(proof));
+  }
+  await expect(page.getByTestId("log-decoder-link")).toHaveCount(3);
 });
 
 test("an expanded activity entry shows its whole detail", async ({ page }) => {
@@ -1774,8 +1777,8 @@ for (const event of ["presentation_response", "interactive_authorization_present
     await expect(entry.locator(".log-payload > pre")).toHaveText("encrypted-response");
     const controls = entry.locator(".log-payload-controls");
     const links = controls.getByTestId("log-decoder-link");
-    await expect(links).toHaveCount(3);
-    await expect(links).toHaveText(["Open 'pid' in decoder", "Open 'pid' in decoder (2)", "Open 'mdl' in decoder"]);
+    await expect(links).toHaveText(["Open 'pid' in decoder", "Open 'mdl' in decoder"]);
+    await expect(controls.getByTestId("log-decoder-pick")).toHaveCount(1);
     await expect(entry.locator(".log-payload-heading .log-payload-view")).toHaveText("Encrypted view");
     const toggleBounds = await controls.getByTestId("log-payload-toggle").boundingBox();
     const linkBounds = await links.first().boundingBox();
@@ -1788,6 +1791,7 @@ for (const event of ["presentation_response", "interactive_authorization_present
       ["pid", 1, second, "second-presentation"],
       ["mdl", 0, third, "mdoc-presentation"],
     ]) {
+      if (queryID === "pid") await controls.getByTestId("log-decoder-pick").selectOption({ label: `${tokenIndex + 1}/2` });
       const link = entry.locator(`[data-testid="log-decoder-link"][data-query-id="${queryID}"][data-token-index="${tokenIndex}"]`);
       await expect(link).toHaveJSProperty("href", WALLET_URL + "/decoder/#credential=" + encodeURIComponent(token));
       const popupPromise = page.waitForEvent("popup");
@@ -1945,12 +1949,11 @@ for (const shape of ["encrypted JSON", "JSON", "object", "legacy details", "defe
     await expect(responseEntry).toHaveCount(1);
     await expect(responseEntry.getByTestId("log-entry-toggle")).toContainText("Credential response (3 copies)");
     await responseEntry.getByTestId("log-entry-toggle").click();
-    await expect(responseEntry.getByTestId("log-decoder-link")).toHaveText([
-      "Open copy 1 in decoder", "Open copy 2 in decoder", "Open copy 3 in decoder",
-    ]);
+    await expect(responseEntry.getByTestId("log-decoder-link")).toHaveText(["Open in decoder"]);
     if (encrypted) await expect(responseEntry.locator(".log-payload > pre")).toHaveText("encrypted-batch-response");
     else await expect(responseEntry.locator(".log-payload > pre")).toHaveText(JSON.stringify(response, null, 2));
     for (const [index, token] of tokens.entries()) {
+      await responseEntry.getByTestId("log-decoder-pick").selectOption({ label: `${index + 1}/3` });
       const link = responseEntry.locator(`[data-testid="log-decoder-link"][data-credential-index="${index}"]`);
       await expect(link).toHaveJSProperty("href", WALLET_URL + "/decoder/#credential=" + encodeURIComponent(token));
       const popupPromise = page.waitForEvent("popup");
@@ -2002,11 +2005,10 @@ for (const shape of ["object", "JSON"]) {
     const entry = page.getByTestId("log-entry");
     await expect(entry.getByTestId("log-entry-toggle")).toContainText("Imported credential (3 copies)");
     await entry.getByTestId("log-entry-toggle").click();
-    await expect(entry.getByTestId("log-decoder-link")).toHaveText([
-      "Open copy 1 in decoder", "Open copy 2 in decoder", "Open copy 3 in decoder",
-    ]);
+    await expect(entry.getByTestId("log-decoder-link")).toHaveText(["Open in decoder"]);
     await expect(entry.locator(".log-payload-label")).toHaveText("Credential (3 copies)");
     for (const [index, token] of tokens.entries()) {
+      await entry.getByTestId("log-decoder-pick").selectOption(String(index));
       const link = entry.locator(`[data-testid="log-decoder-link"][data-credential-id="stored-${index}"]`);
       await expect(link).toHaveAttribute("data-credential-index", String(index));
       const popupPromise = page.waitForEvent("popup");

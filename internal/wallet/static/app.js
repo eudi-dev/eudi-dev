@@ -2110,13 +2110,12 @@
     if (canToggle) controls += '<button type="button" class="btn log-payload-toggle" id="' + idPrefix + '-payload-toggle" data-testid="log-payload-toggle" title="Switch the log display between the wire value and the readable value">' + labels.showPlain + '</button>';
     if (decoderInput) controls += renderLogDecoderLink(decoderInput, idPrefix + '-decoder-link');
     if (presentations.length) controls += renderLogPresentations(presentations, idPrefix);
-    credentials.forEach((credential, n) => {
-      const label = credentials.length > 1 ? 'Open copy ' + (credential.index + 1) + ' in decoder' : 'Open in decoder';
-      controls += renderLogDecoderLink(credential.token, idPrefix + '-credential-' + n, label, {
-        'credential-index': credential.index,
-        ...(credential.id ? { 'credential-id': credential.id } : {}),
-      });
-    });
+    if (credentials.length) {
+      controls += renderLogDecoderGroup(credentials.map(credential => ({
+        token: credential.token,
+        attributes: { 'credential-index': credential.index, ...(credential.id ? { 'credential-id': credential.id } : {}) },
+      })), idPrefix + '-credential', 'Open in decoder', 'Copy');
+    }
     controls += renderLogTokens(tokens, idPrefix);
     if (controls) html += '<div class="log-payload-controls" id="' + idPrefix + '-controls">' + controls + '</div>';
     const missing = payload.encrypted ? 'Plaintext unavailable' : 'No response body available';
@@ -2132,18 +2131,45 @@
       '" target="_blank" rel="noopener">' + escHtml(label) + '</a>';
   }
 
-  function renderLogPresentations(presentations, idPrefix) {
-    let html = '';
-    presentations.forEach((presentation, n) => {
-      const label = "Open '" + presentation.queryID + "' in decoder" + (presentation.tokenIndex > 0 ? ' (' + (presentation.tokenIndex + 1) + ')' : '');
-      html += renderLogDecoderLink(presentation.token, idPrefix + '-presentation-' + n, label, { 'query-id': presentation.queryID, 'token-index': presentation.tokenIndex });
-    });
-    return html;
+  // renderLogDecoderGroup shows one decoder button for tokens of one kind, such
+  // as the copies of a batch. With several, a picker next to it chooses the token.
+  function renderLogDecoderGroup(items, id, label, noun) {
+    const link = renderLogDecoderLink(items[0].token, id, label, items[0].attributes);
+    if (items.length === 1) return link;
+    const options = items.map((item, n) =>
+      '<option value="' + n + '" data-token="' + escHtml(item.token) + '" data-attributes="' + escHtml(JSON.stringify(item.attributes)) + '">' +
+      (n + 1) + '/' + items.length + '</option>').join('');
+    return '<span class="log-decoder-group" id="' + id + '-group">' + link +
+      '<select class="log-decoder-pick" id="' + id + '-pick" data-testid="log-decoder-pick" aria-label="' + escHtml(noun + ' to open') + '">' + options + '</select></span>';
   }
 
+  // A picker points its decoder button at the chosen token.
+  logContainer.addEventListener('change', (event) => {
+    const picker = event.target.closest('.log-decoder-pick');
+    if (!picker) return;
+    const option = picker.selectedOptions[0];
+    const link = picker.parentElement.querySelector('.log-decoder-link');
+    link.href = 'decoder/#credential=' + encodeURIComponent(option.dataset.token);
+    for (const attribute of [...link.attributes]) {
+      if (attribute.name.startsWith('data-') && attribute.name !== 'data-testid') link.removeAttribute(attribute.name);
+    }
+    for (const [key, value] of Object.entries(JSON.parse(option.dataset.attributes))) link.setAttribute('data-' + key, String(value));
+  });
+
+  function renderLogPresentations(presentations, idPrefix) {
+    const queries = Map.groupBy(presentations, presentation => presentation.queryID);
+    return [...queries].map(([queryID, tokens], n) => renderLogDecoderGroup(tokens.map(presentation => ({
+      token: presentation.token,
+      attributes: { 'query-id': queryID, 'token-index': presentation.tokenIndex },
+    })), idPrefix + '-presentation-' + n, "Open '" + queryID + "' in decoder", 'Presentation')).join('');
+  }
+
+  // Tokens of one array, such as the key proofs of a batch, share a button.
   function renderLogTokens(tokens, idPrefix) {
-    return tokens.map((token, n) => renderLogDecoderLink(token.token, idPrefix + '-token-' + n,
-      token.path ? "Open '" + token.path + "' in decoder" : 'Open in decoder', { path: token.path })).join('');
+    const arrays = Map.groupBy(tokens, token => token.path.replace(/\[\d+\]$/, ''));
+    return [...arrays].map(([path, members], n) => renderLogDecoderGroup(members.map(token => ({
+      token: token.token, attributes: { path: token.path },
+    })), idPrefix + '-token-' + n, path ? "Open '" + path + "' in decoder" : 'Open in decoder', 'Token')).join('');
   }
 
   function renderLogDetails(details, idPrefix) {

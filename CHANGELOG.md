@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Fewer decoder buttons in the activity log.** The copies of a batch credential share one button, and so do the key proofs of a request and the presentations for one query. A picker next to the button chooses which one opens.
 - **Sent headers in the activity log.** Token, PAR, authorization challenge, credential, deferred credential and notification requests show the DPoP proof and client attestation they sent, each with a decoder button. After a DPoP nonce retry they show the headers of the retry.
 
 ### Fixed

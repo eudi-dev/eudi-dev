@@ -373,16 +373,18 @@ Each exchange is an entry in **Activity**. Entries start collapsed. Scope the co
 | Open or close an entry | `data-testid="log-entry-toggle"` |
 | Switch encrypted or decrypted view | `data-testid="log-payload-toggle"` |
 | Open a token in the decoder | `data-testid="log-decoder-link"` |
+| Choose the copy, proof or presentation the decoder button opens | `data-testid="log-decoder-pick"` |
 | Show an alternate wire value | `data-testid="log-wire-toggle"` |
 
-Entries for a stored credential also have `data-credential-id`. Presentation decoder links have `data-query-id` and `data-token-index`. Credential response and batch import links have `data-credential-index`. Links to other tokens in an entry, such as a request object, a key proof or a registration certificate, have `data-path` with the field that holds the token, for example `proofs.jwt[0]`. Batch import links also have `data-credential-id` for each stored copy. Token indexes start at zero within each query. Credential indexes start at zero within the entry. The encryption toggle keeps the same selector in both views.
+Entries for a stored credential also have `data-credential-id`. Presentation decoder links have `data-query-id` and `data-token-index`. Credential response and batch import links have `data-credential-index`. Links to other tokens in an entry, such as a request object, a key proof or a registration certificate, have `data-path` with the field that holds the token, for example `proofs.jwt[0]`. Tokens of one kind share a button: the copies of a batch, the presentations of one query and the items of one array, such as the key proofs. A picker next to the button chooses the token, and the button's data attributes follow the choice. Batch import links also have `data-credential-id` for each stored copy. Token indexes start at zero within each query. Credential indexes start at zero within the entry. The encryption toggle keeps the same selector in both views.
 
 A fetched request object and its receipt share one entry. A batch import is one entry with the ID of every stored copy. Encrypted exchanges show the wire value first.
 
 ```js
 const entry = page.locator('[data-testid="log-entry"][data-event="presentation_response"]').first();
 await entry.getByTestId("log-entry-toggle").click();
-const link = entry.locator('[data-testid="log-decoder-link"][data-query-id="pid"][data-token-index="0"]');
+await entry.getByTestId("log-decoder-pick").selectOption({ label: "2/2" }); // only when the query has several tokens
+const link = entry.locator('[data-testid="log-decoder-link"][data-query-id="pid"][data-token-index="1"]');
 await expect(link).toHaveAttribute("href", /decoder\/#credential=/);
 ```
 
