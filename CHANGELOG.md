@@ -5,12 +5,19 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.3.4] - Unreleased
+## [3.4.0] - 2026-10-23
+
+### Added
+
+- **Type Metadata.** The wallet retrieves the Type Metadata of an SD-JWT VC with an HTTPS `vct` and checks the credential against it. The credential then answers requests for every type it extends. See [Type Metadata](docs/wallet.md#type-metadata).
+- **Browser extension in the Chrome Web Store.** Install [eudi-dev Digital Credentials](https://chromewebstore.google.com/detail/nbddeclckpkklpejkmhchmhmajginnok) from the store. Chrome, Edge and Brave without the extension show an install button.
 
 ### Changed
 
 - **Fewer decoder buttons in the activity log.** The copies of a batch credential share one button, and so do the key proofs of a request and the presentations for one query. A picker next to the button chooses which one opens.
 - **Sent headers in the activity log.** Token, PAR, authorization challenge, credential, deferred credential and notification requests show the DPoP proof and client attestation they sent, each with a decoder button. After a DPoP nonce retry they show the headers of the retry.
+- **Warning for a base PID request.** With `--arf`, the wallet warns about a query for `urn:eudi:pid:1` without a domestic PID type. OpenID4VP 1.0 lets a wallet answer it with a domestic PID but does not require it. The demo verifier and issuer now request the domestic types too.
+- **German PID without `aka_vcts`.** The German SD-JWT PID matches the rulebook example and carries only its own `vct`. It still answers requests for `urn:eudi:pid:1`, because every type in `urn:eudi:pid:` extends the base PID (ARF PID_14).
 
 ### Fixed
 
