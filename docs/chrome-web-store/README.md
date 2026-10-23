@@ -114,24 +114,49 @@ The release job uploads only the package. Changes to the description, the screen
 
 ## 5. Updates from releases
 
-The `chrome-web-store` job of the release workflow builds the package for each stable release, uploads it and publishes it with the Chrome Web Store API V2. Google reviews every version before users get it. The job skips the upload until these settings exist:
+The `chrome-web-store` job of the release workflow builds the package for a stable release, uploads it and publishes it with the Chrome Web Store API V2. Google reviews every version before users get it. When the extension is unchanged since the published version, the job skips the upload. The job signs in as a Google Cloud service account with Workload Identity Federation, so the repository holds no Google key or token. It is skipped until all of these repository variables exist:
 
-| Name | Kind | Value |
-|---|---|---|
-| `CHROME_WEB_STORE_PUBLISHER_ID` | Repository variable | Publisher ID from the **Account** page of the dashboard. It is also the ID in the dashboard URL, `https://chrome.google.com/webstore/devconsole/<publisher ID>`. |
-| `CHROME_WEB_STORE_EXTENSION_ID` | Repository variable | Extension ID of the item |
-| `CHROME_WEB_STORE_CLIENT_ID` | Repository secret | OAuth client ID |
-| `CHROME_WEB_STORE_CLIENT_SECRET` | Repository secret | OAuth client secret |
-| `CHROME_WEB_STORE_REFRESH_TOKEN` | Repository secret | Refresh token of the publisher account |
+| Variable | Value |
+|---|---|
+| `CHROME_WEB_STORE_PUBLISHER_ID` | Publisher ID from the **Account** page of the dashboard. It is also the ID in the dashboard URL, `https://chrome.google.com/webstore/devconsole/<publisher ID>`. |
+| `CHROME_WEB_STORE_EXTENSION_ID` | `nbddeclckpkklpejkmhchmhmajginnok` |
+| `CHROME_WEB_STORE_SERVICE_ACCOUNT` | Email of the service account |
+| `CHROME_WEB_STORE_WORKLOAD_IDENTITY_PROVIDER` | Full name of the workload identity provider |
 
-To create the OAuth client and the refresh token:
+To set them up:
 
-1. In the [Google Cloud console](https://console.cloud.google.com/), create a project and enable the **Chrome Web Store API**.
-2. Configure the OAuth consent screen (external, testing mode) and add the publisher account as a test user.
-3. Create an OAuth client ID of type **Web application** with the redirect URI `https://developers.google.com/oauthplayground`.
-4. In the [OAuth 2.0 Playground](https://developers.google.com/oauthplayground), open the settings, choose **Use your own OAuth credentials** and enter the client ID and secret.
-5. Authorize the scope `https://www.googleapis.com/auth/chromewebstore` with the publisher account, then choose **Exchange authorization code for tokens**. Copy the refresh token.
+1. In the [Google Cloud console](https://console.cloud.google.com/), create a project, enable the **Chrome Web Store API** and create a service account without roles.
+2. On the **Account** page of the developer dashboard, add the email of the service account. A publisher can have 1 service account.
+3. Let release runs of this repository sign in as the service account:
 
-A refresh token of an OAuth client in testing mode expires after 7 days. Set the consent screen to **In production** so the token stays valid. The app stays unverified, which is fine because only the publisher account signs in. The API also accepts a service account instead of a refresh token.
+```bash
+PROJECT_ID=<project id>
+SERVICE_ACCOUNT=<service account email>
+PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')
 
-The first version has to go through steps 3 and 4 by hand, because the API updates existing items only.
+gcloud services enable iamcredentials.googleapis.com sts.googleapis.com --project "$PROJECT_ID"
+gcloud iam workload-identity-pools create github --project "$PROJECT_ID" --location global \
+  --display-name "GitHub Actions"
+gcloud iam workload-identity-pools providers create-oidc eudi-dev --project "$PROJECT_ID" --location global \
+  --workload-identity-pool github \
+  --issuer-uri https://token.actions.githubusercontent.com \
+  --attribute-mapping 'google.subject=assertion.sub,attribute.repository=assertion.repository' \
+  --attribute-condition "assertion.repository == 'eudi-dev/eudi-dev' && assertion.ref.startsWith('refs/tags/v')"
+gcloud iam service-accounts add-iam-policy-binding "$SERVICE_ACCOUNT" --project "$PROJECT_ID" \
+  --role roles/iam.workloadIdentityUser \
+  --member "principalSet://iam.googleapis.com/projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/github/attribute.repository/eudi-dev/eudi-dev"
+```
+
+4. Set the repository variables:
+
+```bash
+gh variable set CHROME_WEB_STORE_PUBLISHER_ID -R eudi-dev/eudi-dev --body <publisher id>
+gh variable set CHROME_WEB_STORE_EXTENSION_ID -R eudi-dev/eudi-dev --body nbddeclckpkklpejkmhchmhmajginnok
+gh variable set CHROME_WEB_STORE_SERVICE_ACCOUNT -R eudi-dev/eudi-dev --body "$SERVICE_ACCOUNT"
+gh variable set CHROME_WEB_STORE_WORKLOAD_IDENTITY_PROVIDER -R eudi-dev/eudi-dev \
+  --body "projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/github/providers/eudi-dev"
+```
+
+The provider accepts only runs of `eudi-dev/eudi-dev` for a tag that starts with `v`, so other workflows and forks can't publish.
+
+The API updates existing items only. Sections 3 and 4 publish the first version by hand.

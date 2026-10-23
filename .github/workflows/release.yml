@@ -85,7 +85,7 @@ jobs:
       - name: Create checksums
         run: |
           cd dist
-          sha256sum * > checksums.txt
+          sha256sum -- * > checksums.txt
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -174,43 +174,55 @@ jobs:
   chrome-web-store:
     # The store gets the newest stable release only. Google reviews each
     # version before users get it. See docs/chrome-web-store/README.md.
-    if: ${{ needs.channels.outputs.latest == 'true' }}
+    if: ${{ needs.channels.outputs.latest == 'true' && vars.CHROME_WEB_STORE_PUBLISHER_ID != '' && vars.CHROME_WEB_STORE_EXTENSION_ID != '' && vars.CHROME_WEB_STORE_SERVICE_ACCOUNT != '' && vars.CHROME_WEB_STORE_WORKLOAD_IDENTITY_PROVIDER != '' }}
     runs-on: ubuntu-latest
     needs: [channels, release]
+    permissions:
+      contents: read
+      # Workload Identity Federation signs in as the service account with the
+      # GitHub OIDC token, so the repository holds no Google key.
+      id-token: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-go@v5
         with:
           go-version: "1.26"
 
+      - id: google
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.CHROME_WEB_STORE_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.CHROME_WEB_STORE_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/chromewebstore
+
       - name: Upload and publish the browser extension
         env:
           PUBLISHER_ID: ${{ vars.CHROME_WEB_STORE_PUBLISHER_ID }}
           EXTENSION_ID: ${{ vars.CHROME_WEB_STORE_EXTENSION_ID }}
-          CLIENT_ID: ${{ secrets.CHROME_WEB_STORE_CLIENT_ID }}
-          CLIENT_SECRET: ${{ secrets.CHROME_WEB_STORE_CLIENT_SECRET }}
-          REFRESH_TOKEN: ${{ secrets.CHROME_WEB_STORE_REFRESH_TOKEN }}
+          TOKEN: ${{ steps.google.outputs.access_token }}
         run: |
-          if [ -z "$PUBLISHER_ID" ] || [ -z "$EXTENSION_ID" ] || [ -z "$REFRESH_TOKEN" ]; then
-            echo "Chrome Web Store not configured, skipping the extension upload"
+          api=https://chromewebstore.googleapis.com
+          item="publishers/$PUBLISHER_ID/items/$EXTENSION_ID"
+          # Every upload goes through a review and updates every user, so an
+          # unchanged extension keeps the published version.
+          published=$(curl -fsS -H "Authorization: Bearer $TOKEN" "$api/v2/$item:fetchStatus" |
+            jq -r '.publishedItemRevisionStatus.distributionChannels[0].crxVersion // empty')
+          if [ -n "$published" ] && git rev-parse -q --verify "refs/tags/v$published" >/dev/null &&
+            git diff --quiet "v$published" HEAD -- internal/dcextension internal/config/defaults.go scripts/chrome-web-store-package.sh cmd/wallet_extension.go; then
+            echo "The extension is unchanged since the published version $published, skipping the upload"
             exit 0
           fi
           package=$(scripts/chrome-web-store-package.sh "${GITHUB_REF#refs/tags/}")
-          token=$(curl -fsS https://oauth2.googleapis.com/token \
-            --data-urlencode "client_id=$CLIENT_ID" \
-            --data-urlencode "client_secret=$CLIENT_SECRET" \
-            --data-urlencode "refresh_token=$REFRESH_TOKEN" \
-            --data-urlencode "grant_type=refresh_token" | jq -r .access_token)
-          echo "::add-mask::$token"
-          api=https://chromewebstore.googleapis.com
-          item="publishers/$PUBLISHER_ID/items/$EXTENSION_ID"
-          curl -fsS -X POST -H "Authorization: Bearer $token" -T "$package" "$api/upload/v2/$item:upload"
+          curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -T "$package" "$api/upload/v2/$item:upload"
           echo
           # The store may still process the upload, so publishing retries for
           # a few minutes.
           for attempt in 1 2 3 4 5 6 7 8 9 10; do
-            if curl -fsS -X POST -H "Authorization: Bearer $token" "$api/v2/$item:publish"; then
+            if curl -fsS -X POST -H "Authorization: Bearer $TOKEN" "$api/v2/$item:publish"; then
               echo
               exit 0
             fi
