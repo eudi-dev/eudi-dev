@@ -97,8 +97,9 @@ const maxDisplayImageBytes = 256 << 10
 // maxDisplayImageBytes.
 const maxDisplayImageFetchBytes = 4 << 20
 
-// displayImageMaxSide is the longest image side shown on a credential card.
-const displayImageMaxSide = 1024
+// displayImageSides are the longest image sides the wallet shrinks to, largest
+// first. A transparent PNG can stay past the cap at 1024 pixels.
+var displayImageSides = []int{1024, 512}
 
 // maxDisplayImagePixels guards against decompression bombs. Decoding takes
 // four bytes per pixel, so 32 megapixels caps the decode at about 128MB.
@@ -538,20 +539,35 @@ func decodeImageDataURI(uri string) ([]byte, string, bool) {
 	return body, strings.TrimSuffix(meta, ";base64"), true
 }
 
-// shrinkDisplayImage writes an opaque image as JPEG to keep it small. A
-// transparent image becomes PNG to keep its transparency.
+// shrinkDisplayImage scales the image down until it fits the cap or no
+// smaller side is left.
 func shrinkDisplayImage(body []byte) ([]byte, string, bool) {
 	src, _, err := image.Decode(bytes.NewReader(body))
 	if err != nil {
 		return nil, "", false
 	}
+	var out []byte
+	var mediaType string
+	ok := false
+	for _, side := range displayImageSides {
+		out, mediaType, ok = scaleDisplayImage(src, side)
+		if !ok || len(out) <= maxDisplayImageBytes {
+			break
+		}
+	}
+	return out, mediaType, ok
+}
+
+// scaleDisplayImage writes an opaque image as JPEG to keep it small. A
+// transparent image becomes PNG to keep its transparency.
+func scaleDisplayImage(src image.Image, maxSide int) ([]byte, string, bool) {
 	bounds := src.Bounds()
 	side := max(bounds.Dx(), bounds.Dy())
 	scale := 1.0
-	if side > displayImageMaxSide {
-		scale = float64(displayImageMaxSide) / float64(side)
+	if side > maxSide {
+		scale = float64(maxSide) / float64(side)
 	}
-	dst := image.NewRGBA(image.Rect(0, 0, max(1, int(float64(bounds.Dx())*scale)), max(1, int(float64(bounds.Dy())*scale))))
+	dst := image.NewRGBA(image.Rect(0, 0, max(1, int(math.Round(float64(bounds.Dx())*scale))), max(1, int(math.Round(float64(bounds.Dy())*scale)))))
 	draw.BiLinear.Scale(dst, dst.Bounds(), src, bounds, draw.Src, nil)
 
 	var out bytes.Buffer

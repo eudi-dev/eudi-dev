@@ -43,19 +43,31 @@ var tinyPNG, _ = base64.StdEncoding.DecodeString(
 // cardArtPNG is larger than the cache cap and shrinks to a small JPEG.
 func cardArtPNG(t *testing.T) []byte {
 	t.Helper()
+	return noisyArtPNG(t, 255, 9)
+}
+
+// transparentArtPNG keeps its transparency, so it shrinks to a PNG. At 1024
+// pixels the PNG is still past the cache cap.
+func transparentArtPNG(t *testing.T) []byte {
+	t.Helper()
+	return noisyArtPNG(t, 200, 5)
+}
+
+func noisyArtPNG(t *testing.T, alpha uint8, noise int) []byte {
+	t.Helper()
 	const width, height = 1700, 1080
-	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	img := image.NewNRGBA(image.Rect(0, 0, width, height))
 	state := uint32(1)
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			offset := img.PixOffset(x, y)
 			for c := 0; c < 3; c++ {
 				state = state*1664525 + 1013904223
-				dither := int(state>>16)%9 - 4
+				dither := int(state>>16)%noise - noise/2
 				band := 128 + 90*math.Sin((float64(x)+0.7*float64(y))/24+float64(c))
 				img.Pix[offset+c] = uint8(min(255, max(0, int(band)+dither)))
 			}
-			img.Pix[offset+3] = 255
+			img.Pix[offset+3] = alpha
 		}
 	}
 	var buf bytes.Buffer
@@ -142,6 +154,10 @@ func displayIssuer(t *testing.T, w *Wallet, display []map[string]any) (*httptest
 		case strings.HasSuffix(r.URL.Path, "/art.png"):
 			rw.Header().Set("Content-Type", "image/png")
 			rw.Write(cardArtPNG(t))
+
+		case strings.HasSuffix(r.URL.Path, "/transparent-art.png"):
+			rw.Header().Set("Content-Type", "image/png")
+			rw.Write(transparentArtPNG(t))
 
 		case strings.HasSuffix(r.URL.Path, "/bomb.png"):
 			rw.Header().Set("Content-Type", "image/png")
@@ -319,6 +335,30 @@ func TestProcessCredentialOffer_CredentialDisplay(t *testing.T) {
 		}
 		if found := displayFindings(w); strings.Contains(found, "not kept") {
 			t.Errorf("downscalable art was rejected: %s", found)
+		}
+	})
+
+	t.Run("transparent card art shrinks further until it fits the cap", func(t *testing.T) {
+		w := generateTestWallet(t)
+		imported := issueWithDisplay(t, w, []map[string]any{{
+			"name":             "Test Badge",
+			"background_image": map[string]any{"uri": "SERVER/transparent-art.png"},
+		}})
+
+		d := imported.Display
+		if d == nil || !strings.HasPrefix(d.BackgroundURI, "data:image/png;base64,") {
+			t.Fatalf("expected PNG card art, got %.40q", d.BackgroundURI)
+		}
+		raw, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(d.BackgroundURI, "data:image/png;base64,"))
+		if err != nil {
+			t.Fatalf("decoding cached art: %v", err)
+		}
+		config, err := png.DecodeConfig(bytes.NewReader(raw))
+		if err != nil || config.Width != 512 {
+			t.Errorf("cached art is %dx%d (%v), want 512 pixels wide", config.Width, config.Height, err)
+		}
+		if found := displayFindings(w); strings.Contains(found, "not kept") {
+			t.Errorf("transparent art was rejected: %s", found)
 		}
 	})
 
