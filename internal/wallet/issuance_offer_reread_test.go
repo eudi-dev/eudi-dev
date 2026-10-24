@@ -15,6 +15,7 @@
 package wallet
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -108,7 +109,7 @@ func TestApproveRequestCompletesWhenTheIssuerServesTheOfferOnce(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		server.awaitOfferConsent(noopResponseWriter{}, consentReq, "test issuer", OfferOptions{})
+		server.awaitOfferConsent(context.Background(), noopResponseWriter{}, consentReq, "test issuer", OfferOptions{})
 	}()
 
 	consentReq.ResultCh <- consent.Result{Approved: true}

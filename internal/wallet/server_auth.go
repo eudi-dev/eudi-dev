@@ -15,6 +15,7 @@
 package wallet
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"sort"
@@ -187,7 +188,7 @@ func (s *Server) autoAccepts(authReq *oid4vp.Request) bool {
 // nil when the wallet refuses to ask.
 func (s *Server) awaitPresentationConsent(w http.ResponseWriter, authReq *oid4vp.Request, outcome presentationOutcome, shown func(*consent.Request)) {
 	s.allowSlowResponse(w, config.ConsentTimeout)
-	consentReq, matches, approved, answered, err := s.wallet.askPresentationConsent(consent.TypePresentation, authReq.Session, authReq.ClientID, authReq, outcome, config.ConsentTimeout, func(req *consent.Request) {
+	consentReq, matches, approved, answered, err := s.wallet.askPresentationConsent(context.Background(), consent.TypePresentation, authReq.Session, authReq.ClientID, authReq, outcome, config.ConsentTimeout, func(req *consent.Request) {
 		s.triggerUIRequest(req.ID)
 		if s.onConsentRequest != nil {
 			s.onConsentRequest(req)

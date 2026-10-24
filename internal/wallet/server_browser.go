@@ -88,7 +88,7 @@ func (s *Server) handleBrowserPresentationAPI(w http.ResponseWriter, r *http.Req
 
 	s.log("  Mode:          interactive (waiting for consent)")
 	s.allowSlowResponse(w, config.ConsentTimeout)
-	consentReq, matches, approved, answered, err := s.wallet.askPresentationConsent(consent.TypePresentation, requestOwner(r), authReq.ClientID, authReq, outcome, config.ConsentTimeout, func(req *consent.Request) {
+	consentReq, matches, approved, answered, err := s.wallet.askPresentationConsent(r.Context(), consent.TypePresentation, requestOwner(r), authReq.ClientID, authReq, outcome, config.ConsentTimeout, func(req *consent.Request) {
 		s.triggerUIRequest(req.ID)
 		if s.onConsentRequest != nil {
 			s.onConsentRequest(req)
@@ -97,6 +97,10 @@ func (s *Server) handleBrowserPresentationAPI(w http.ResponseWriter, r *http.Req
 	switch {
 	case err != nil:
 		s.refuseBusy(w, err)
+	case !answered && r.Context().Err() != nil:
+		s.log("  Consent:       cancelled by the caller")
+		s.wallet.AddLog("presentation", fmt.Sprintf("The presentation request from %s was cancelled", authReq.ClientID), false)
+		consentReq.SubmissionCh <- consent.SubmissionResult{Error: "cancelled"}
 	case !answered:
 		s.answerConsentTimeout(w, "presentation", consentReq)
 	case !approved:

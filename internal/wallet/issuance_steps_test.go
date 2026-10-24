@@ -15,6 +15,7 @@
 package wallet
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"maps"
@@ -194,7 +195,7 @@ func TestIssuanceConsentCarriesTheChosenConfiguration(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		server.awaitOfferConsent(noopResponseWriter{}, consentReq, "test issuer", OfferOptions{})
+		server.awaitOfferConsent(context.Background(), noopResponseWriter{}, consentReq, "test issuer", OfferOptions{})
 	}()
 	if rec := serverRequest(t, server, "POST", "/api/requests/"+consentReq.ID+"/approve", `{"credential_configuration_id":"second"}`); rec.Code != http.StatusOK {
 		t.Fatalf("approve: %d %s", rec.Code, rec.Body.String())

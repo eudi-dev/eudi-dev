@@ -17,11 +17,16 @@ package wallet
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
+
+	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
 )
 
 // The browser sets Origin, so a web page can't claim another origin. The
@@ -77,5 +82,53 @@ func TestTheServedExtensionPointsToThisWallet(t *testing.T) {
 	var config map[string]string
 	if err := json.Unmarshal(data, &config); err != nil || config["wallet_url"] != "https://wallet.example" {
 		t.Errorf("config.json = %s, want the wallet URL https://wallet.example", data)
+	}
+}
+
+// When the caller stops waiting, for example because the user closed the
+// extension window, the wallet cancels its consent request. The next request
+// is then the only one the user sees.
+func TestALeavingDCAPICallerCancelsItsConsent(t *testing.T) {
+	srv := newTestServer(t, false)
+	shown := make(chan *consent.Request, 1)
+	srv.onConsentRequest = func(req *consent.Request) { shown <- req }
+	body, _ := json.Marshal(map[string]any{"digital": map[string]any{"requests": []any{map[string]any{
+		"protocol": "openid4vp-v1-unsigned",
+		"data": map[string]any{
+			"response_type": "vp_token",
+			"response_mode": "dc_api",
+			"nonce":         "browser-nonce",
+			"dcql_query": map[string]any{"credentials": []any{map[string]any{
+				"id": "pid", "format": "dc+sd-jwt", "meta": map[string]any{"vct_values": []any{"urn:eudi:pid:1"}},
+			}}},
+		},
+	}}}})
+	ctx, leave := context.WithCancel(context.Background())
+	r := httptest.NewRequestWithContext(ctx, "POST", "/api/dc-api", strings.NewReader(string(body)))
+	r.Header.Set("Content-Type", "application/json")
+	r.Header.Set("Origin", "https://rp.example")
+	done := make(chan struct{})
+	go func() {
+		srv.mux.ServeHTTP(httptest.NewRecorder(), r)
+		close(done)
+	}()
+
+	var req *consent.Request
+	select {
+	case req = <-shown:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the wallet did not ask for consent")
+	}
+	leave()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the handler kept waiting after the caller left")
+	}
+	if req.Status != consent.StatusCancelled {
+		t.Errorf("status %q, want %q", req.Status, consent.StatusCancelled)
+	}
+	if pending := srv.wallet.Consents().Pending(); len(pending) != 0 {
+		t.Errorf("%d consent requests still pending, want none", len(pending))
 	}
 }

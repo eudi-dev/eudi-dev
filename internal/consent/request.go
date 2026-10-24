@@ -42,6 +42,9 @@ const (
 	// StatusExpired distinguishes a timeout from a denial when the wallet
 	// reports why a late answer failed.
 	StatusExpired = "expired"
+	// StatusCancelled marks a request whose caller stopped waiting, such as a
+	// closed Digital Credentials API window.
+	StatusCancelled = "cancelled"
 )
 
 // Request is a question to the user. Runtime.DocFor gives its wire shape.

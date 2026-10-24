@@ -15,6 +15,7 @@
 package wallet
 
 import (
+	"context"
 	"log"
 	"slices"
 	"time"
@@ -77,16 +78,21 @@ func (w *Wallet) consentedMatches(req *consent.Request, matches []consent.Match,
 }
 
 // awaitConsent waits for the decision on req. After timeout a request that is
-// still pending expires and awaitConsent reports false. A decision that
-// arrives together with the timeout wins.
-func (w *Wallet) awaitConsent(req *consent.Request, timeout time.Duration) (consent.Result, bool) {
+// still pending expires, and when ctx ends it is cancelled. Both report false.
+// A decision that arrives at the same time wins.
+func (w *Wallet) awaitConsent(ctx context.Context, req *consent.Request, timeout time.Duration) (consent.Result, bool) {
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	status := consent.StatusExpired
 	select {
 	case result := <-req.ResultCh:
 		return result, true
-	case <-time.After(timeout):
-		if _, ok := w.Consents().Resolve(req.ID, consent.StatusExpired); !ok {
-			return <-req.ResultCh, true
-		}
-		return consent.Result{}, false
+	case <-timer.C:
+	case <-ctx.Done():
+		status = consent.StatusCancelled
 	}
+	if _, ok := w.Consents().Resolve(req.ID, status); !ok {
+		return <-req.ResultCh, true
+	}
+	return consent.Result{}, false
 }

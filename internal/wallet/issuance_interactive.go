@@ -15,6 +15,7 @@
 package wallet
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -538,7 +539,7 @@ func (w *Wallet) awaitInteractivePresentationConsent(endpoint string, authReq *o
 		asking = derivedOrigin(endpoint)
 	}
 	// On a shared wallet the browser that started issuance gets this prompt.
-	consentReq, matches, approved, answered, err := w.askPresentationConsent(consent.TypeIssuancePresentation, owner, asking, authReq, outcome, interactiveAuthorizationConsentTimeout, nil)
+	consentReq, matches, approved, answered, err := w.askPresentationConsent(context.Background(), consent.TypeIssuancePresentation, owner, asking, authReq, outcome, interactiveAuthorizationConsentTimeout, nil)
 	if err != nil {
 		return nil, false, err
 	}

@@ -298,11 +298,12 @@ func (s *Server) processOfferURI(ctx context.Context, w http.ResponseWriter, uri
 		if browserRedirect {
 			// Redirect browser navigations to the wallet UI immediately. Import in the
 			// background after consent.
-			go s.awaitOfferConsent(noopResponseWriter{}, consentReq, issuerDisplay, opts)
+			go s.awaitOfferConsent(context.WithoutCancel(ctx), noopResponseWriter{}, consentReq, issuerDisplay, opts)
 			redirectBrowser(w, "/?request="+consentReq.ID)
 			return
 		}
-		s.awaitOfferConsent(w, consentReq, issuerDisplay, opts)
+		// A URL handler that loses the connection must not lose the offer.
+		s.awaitOfferConsent(context.WithoutCancel(ctx), w, consentReq, issuerDisplay, opts)
 		return
 	}
 
@@ -313,7 +314,7 @@ func (s *Server) processOfferURI(ctx context.Context, w http.ResponseWriter, uri
 }
 
 // The submission channel also delivers the outcome to the approve API.
-func (s *Server) awaitOfferConsent(w http.ResponseWriter, consentReq *consent.Request, issuerDisplay string, opts OfferOptions) {
+func (s *Server) awaitOfferConsent(ctx context.Context, w http.ResponseWriter, consentReq *consent.Request, issuerDisplay string, opts OfferOptions) {
 	handle := func(answer consent.Result) {
 		if !answer.Approved {
 			s.log("  Consent:       denied")
@@ -375,7 +376,7 @@ func (s *Server) awaitOfferConsent(w http.ResponseWriter, consentReq *consent.Re
 
 	// Wait first for offer consent, then for any presentation the issuer requests.
 	s.allowSlowResponse(w, config.ConsentTimeout+interactiveAuthorizationConsentTimeout)
-	answer, answered := s.wallet.awaitConsent(consentReq, config.ConsentTimeout)
+	answer, answered := s.wallet.awaitConsent(ctx, consentReq, config.ConsentTimeout)
 	if !answered {
 		s.answerConsentTimeout(w, "issuance", consentReq)
 		return

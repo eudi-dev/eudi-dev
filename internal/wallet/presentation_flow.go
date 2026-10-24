@@ -15,6 +15,7 @@
 package wallet
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -132,10 +133,10 @@ func (w *Wallet) evaluatePresentationRequest(authReq *oid4vp.Request, entry pres
 }
 
 // askPresentationConsent shows the consent dialog and waits for the
-// decision. answered is false after the timeout. The caller reports the
-// submission on the request's SubmissionCh. An error means the dialog was not
-// shown, because too many requests wait for consent.
-func (w *Wallet) askPresentationConsent(typ, owner, asking string, authReq *oid4vp.Request, outcome presentationOutcome, timeout time.Duration, shown func(*consent.Request)) (consentReq *consent.Request, matches []consent.Match, approved, answered bool, err error) {
+// decision. answered is false after the timeout or when ctx ends. The caller
+// reports the submission on the request's SubmissionCh. An error means the
+// dialog was not shown, because too many requests wait for consent.
+func (w *Wallet) askPresentationConsent(ctx context.Context, typ, owner, asking string, authReq *oid4vp.Request, outcome presentationOutcome, timeout time.Duration, shown func(*consent.Request)) (consentReq *consent.Request, matches []consent.Match, approved, answered bool, err error) {
 	consentReq = newPresentationConsent(typ, owner, asking, authReq, outcome.matches, outcome.options)
 	if err := w.Consents().Create(consentReq); err != nil {
 		return nil, nil, false, false, err
@@ -143,7 +144,7 @@ func (w *Wallet) askPresentationConsent(typ, owner, asking string, authReq *oid4
 	if shown != nil {
 		shown(consentReq)
 	}
-	result, answered := w.awaitConsent(consentReq, timeout)
+	result, answered := w.awaitConsent(ctx, consentReq, timeout)
 	if !answered || !result.Approved {
 		return consentReq, nil, false, answered, nil
 	}

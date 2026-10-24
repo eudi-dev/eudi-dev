@@ -160,8 +160,11 @@ func (s *Server) allowSlowResponse(w http.ResponseWriter, wait time.Duration) {
 
 // Distinguish timeout from an answer in another tab so the user knows what happened.
 func refusalReason(status string) string {
-	if status == consent.StatusExpired {
+	switch status {
+	case consent.StatusExpired:
 		return "This request timed out before it was answered"
+	case consent.StatusCancelled:
+		return "This request was cancelled before it was answered"
 	}
 	return "This request was already answered"
 }

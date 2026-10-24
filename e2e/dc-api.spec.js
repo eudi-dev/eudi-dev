@@ -93,13 +93,20 @@ test("an unsigned request hides the client ID scheme and the identity", async ({
   await expect(page.locator("#scheme-redirect-uri")).toBeEnabled();
 });
 
-test("closing the wallet window rejects the call", async () => {
+// The next request is the only one its window shows, so approving it answers
+// that request and closes the window.
+test("closing the wallet window rejects the call and the next request still works", async () => {
   await withExtension(async (context) => {
     const { page, walletWindow } = await startDCAPIRequest(context);
     await expect(walletWindow.locator("#consent-approve")).toBeVisible();
     await walletWindow.close();
     await expect(page.locator("#status")).toHaveClass(/failed/);
     await expect(page.locator("#status")).toContainText("NotAllowedError");
+
+    const next = await startDCAPIRequest(context);
+    await next.walletWindow.locator("#consent-approve").click();
+    await expect(next.page.locator("#status")).toHaveClass(/verified/);
+    await expect.poll(() => next.walletWindow.isClosed()).toBe(true);
   });
 });
 
