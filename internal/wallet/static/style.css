@@ -1516,7 +1516,7 @@ textarea.form-input {
 @container consent (max-width: 600px) {
   .consent-fold-summary {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     column-gap: 10px;
     row-gap: 3px;
     width: 100%;
@@ -1528,9 +1528,31 @@ textarea.form-input {
     text-align: left;
     cursor: pointer;
   }
-  .consent-fold-summary > :not(.consent-fold-chevron) {
-    grid-column: 1;
+  .consent-fold-summary > :not(.consent-fold-chevron, .consent-fold-face) {
+    grid-column: 2;
     min-width: 0;
+  }
+  .consent-fold-summary > .consent-fold-face {
+    display: block;
+    grid-column: 1;
+    grid-row: 1 / span 4;
+    align-self: center;
+    width: 56px;
+    height: 35px;
+    border-radius: 6px;
+    box-shadow: var(--shadow-card);
+  }
+  .consent-fold-face .credential-logo {
+    top: 3px;
+    left: 3px;
+    width: 12px;
+    height: 12px;
+    padding: 1px;
+  }
+  .consent-fold-face .face-init,
+  .consent-fold-face .face-generic { font-size: 13px; }
+  .consent-fold-open .consent-fold-face {
+    display: none;
   }
   .consent-fold-title {
     display: flex;
@@ -1563,7 +1585,7 @@ textarea.form-input {
     color: var(--yellow);
   }
   .consent-fold-chevron {
-    grid-column: 2;
+    grid-column: 3;
     grid-row: 1 / span 4;
     align-self: center;
     width: 8px;

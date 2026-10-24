@@ -487,6 +487,18 @@
     return { html: faceHtml + bodyHtml, dataset: dataset };
   }
 
+  // A folded consent credential shows its card in the summary and in the body.
+  function applyConsentDisplay(el, display) {
+    const summary = el.querySelector(':scope > .consent-fold-summary');
+    const body = el.querySelector(':scope > .consent-fold-body');
+    if (!summary || !body) {
+      applyCredentialDisplay(el, display);
+      return;
+    }
+    applyCredentialDisplay(summary, display);
+    applyCredentialDisplay(body, display);
+  }
+
   // Apply issuer display metadata from OID4VCI 1.0 §12.2.4 as style properties, with
   // validated values.
   function applyCredentialDisplay(card, display) {
@@ -2527,9 +2539,13 @@
 
   // On a narrow screen a consent credential folds to a summary. The user opens
   // it for the card and the full claim list.
-  function consentFoldSummary(id, format, name, countText, names, warnings, open, namesAreKeys) {
+  function consentFoldSummary(id, format, name, countText, names, warnings, open, namesAreKeys, display) {
     const preview = claimNamesPreview(names);
+    const logo = display && display.logo_uri
+      ? '<img class="credential-logo" id="' + id + '-fold-logo" src="' + escHtml(display.logo_uri) + '" alt="">'
+      : '';
     return '<button type="button" class="consent-fold-summary" id="' + id + '-fold" aria-expanded="' + open + '" aria-controls="' + id + '-fold-body">' +
+        '<span class="card-face consent-fold-face" id="' + id + '-fold-face" aria-hidden="true">' + logo + '<span class="face-name">' + escHtml(name) + '</span></span>' +
         '<span class="consent-fold-title">' + (format ? '<span class="format-badge format-badge-row" id="' + id + '-fold-format">' + escHtml(format) + '</span>' : '') +
           '<span class="consent-fold-name" id="' + id + '-fold-name">' + escHtml(name) + '</span></span>' +
         '<span class="consent-fold-count" id="' + id + '-fold-count">' + escHtml(countText) + '</span>' +
@@ -2592,7 +2608,7 @@
     const claimNames = (cred.claims || []).map(claim => (cred.claim_display_names || {})[claim] || shortClaimName(claim));
     const countText = 'You will receive ' + claimNames.length + ' claim' + (claimNames.length === 1 ? '' : 's');
     return '<div class="consent-credential consent-fold" id="' + prefix + '" data-config-id="' + domID(cred.id) + '">' +
-      consentFoldSummary(prefix, fmt, faceName, countText, claimNames, [], false) +
+      consentFoldSummary(prefix, fmt, faceName, countText, claimNames, [], false, false, display) +
       '<div class="consent-fold-body" id="' + prefix + '-fold-body">' + card + claims + '</div></div>';
   }
 
@@ -3009,7 +3025,7 @@
       const id = 'consent-credential-' + mc.credential_id;
       const name = (cred.display && cred.display.name) || cred.vct || cred.doctype || cred.format;
       return '<div class="consent-credential consent-fold' + (selection.unfolded[mc.credential_id] ? ' consent-fold-open' : '') + '" id="' + id + '" data-credential-id="' + mc.credential_id + '" data-vct="' + escHtml(mc.vct || '') + '" data-doctype="' + escHtml(mc.doctype || '') + '">' +
-        consentFoldSummary(id, formatLabelFor(cred), name, sharedCountText(shared.length, total), shared.map(shortClaimName), warnings, !!selection.unfolded[mc.credential_id], true) +
+        consentFoldSummary(id, formatLabelFor(cred), name, sharedCountText(shared.length, total), shared.map(shortClaimName), warnings, !!selection.unfolded[mc.credential_id], true, cred.display) +
         '<div class="consent-fold-body" id="' + id + '-fold-body">' +
         '<div class="credential-card' + (cred.batch ? ' batch' : '') + '">' + body.html + '</div>' +
         untrustedAuthorityNote(mc, 'consent-untrusted-' + mc.credential_id) + unboundNote(mc) + mismatchNote(mc, 'consent-mismatch-' + mc.query_id + '-' + mc.credential_id) +
@@ -3148,13 +3164,13 @@
       consentDialog.querySelectorAll('[data-credential-id], .candidate[data-cred]').forEach(el => {
         const id = el.dataset.credentialId || el.dataset.cred;
         const detail = candidateDetails.get(id);
-        applyCredentialDisplay(el, detail && detail.display);
+        applyConsentDisplay(el, detail && detail.display);
       });
       if (isIssuance && req.offer_details) {
         const byId = {};
-        (req.offer_details.credentials || []).forEach(c => { byId[c.id] = c.display; });
+        (req.offer_details.credentials || []).forEach(c => { byId[domID(c.id)] = c.display; });
         consentDialog.querySelectorAll('[data-config-id]').forEach(el => {
-          applyCredentialDisplay(el, byId[el.dataset.configId]);
+          applyConsentDisplay(el, byId[el.dataset.configId]);
         });
       }
 

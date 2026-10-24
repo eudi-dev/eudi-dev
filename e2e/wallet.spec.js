@@ -1510,6 +1510,11 @@ test.describe("Offer dialog descriptions", () => {
               vct: "urn:example:e2e-badge",
               credential_metadata: { display: [{ name: "Badge", description: "A badge." }] },
             },
+            "employee_id_(eaa)_1.0.0": {
+              format: "dc+sd-jwt",
+              vct: "urn:example:e2e-employee",
+              credential_metadata: { display: [{ name: "Employee ID", background_color: "#12345a" }] },
+            },
           },
         })
       );
@@ -1560,6 +1565,37 @@ test.describe("Offer dialog descriptions", () => {
     await page.locator("#offer-credential-short-config-fold").click();
     await expect(page.locator("#offer-description-short-config")).toHaveText("A badge.");
     await expect(page.locator("#offer-description-short-config-toggle")).toBeHidden();
+
+    await page.locator("#consent-deny").click();
+  });
+
+  // A configuration ID can hold characters that are not valid in an element
+  // ID. The folded summary shows the card too.
+  test("the card of a configuration ID with parentheses shows its display", async ({ page }) => {
+    await denyPendingRequests();
+    jsonPost(`${WALLET_URL}/api/offers`, {
+      uri:
+        "openid-credential-offer://?credential_offer=" +
+        encodeURIComponent(
+          JSON.stringify({
+            credential_issuer: issuerURL,
+            credential_configuration_ids: ["employee_id_(eaa)_1.0.0"],
+            grants: { "urn:ietf:params:oauth:grant-type:pre-authorized_code": { "pre-authorized_code": "code" } },
+          })
+        ),
+      interactive: true,
+    }).catch(() => {});
+
+    await page.setViewportSize({ width: 390, height: 800 });
+    await page.goto(`${WALLET_URL}/?focus=overview&request=${await waitForPendingRequest()}`);
+    const prefix = "#offer-credential-employee_id__eaa__1_0_0";
+    const summaryFace = page.locator(`${prefix}-fold-face`);
+    await expect(summaryFace).toBeVisible();
+    await expect(summaryFace).toHaveCSS("background-image", /rgb\(18, 52, 90\)/);
+
+    await page.locator(`${prefix}-fold`).click();
+    await expect(summaryFace).toBeHidden();
+    await expect(page.locator(`${prefix}-face`)).toHaveCSS("background-image", /rgb\(18, 52, 90\)/);
 
     await page.locator("#consent-deny").click();
   });

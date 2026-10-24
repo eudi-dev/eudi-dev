@@ -1463,6 +1463,8 @@ test.describe("Consent credential selection", () => {
     const dialog = page.locator("#consent-dialog");
     const summaries = dialog.locator(".consent-fold-summary");
     await expect(summaries).toHaveCount(2);
+    await expect(dialog.locator(".consent-fold-face")).toHaveCount(2);
+    await expect(dialog.locator(".consent-fold-face").first()).toBeVisible();
     await expect(summaries.first()).toContainText("Shares 3 of 3 fields");
     await expect(summaries.first()).toContainText("birthdate, family_name, given_name");
     await expect(dialog.locator(".consent-claims").first()).toBeHidden();
