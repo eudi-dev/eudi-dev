@@ -5,6 +5,14 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.4.1] - 2026-10-24
+
+### Fixed
+
+- **Closed extension window.** Closing the wallet window of the browser extension now also cancels the consent request in the wallet. The next request opens a window with only that request, and approving it closes the window.
+- **Card art in the consent dialog.** The consent dialog shows the card of a credential configuration whose ID contains characters such as parentheses or dots. In a narrow window, such as the extension window or a phone, each folded credential shows a small card.
+- **Large transparent card art.** A transparent background image that stays larger than 256 KB at 1024 pixels is shrunk to 512 pixels instead of being dropped.
+
 ## [3.4.0] - 2026-10-23
 
 ### Added
