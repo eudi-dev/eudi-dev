@@ -5,6 +5,20 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.5.0] - 2026-10-25
+
+### Added
+
+- **Debugging Digital Credentials API calls.** The activity log shows every call with all its requests. For each unanswered request it gives the reason, for example the protocol `openid4vp` instead of `openid4vp-v1-signed`. Unused parameters such as `state` get a warning. The response entry shows the origin of the presentation and the encryption key. The browser extension also reports refused calls, gives the reason for a cancelled call and logs each call to the page console. Older extensions keep working. See [debugging a verifier](docs/wallet/browser-extension.md#debugging-a-verifier).
+
+### Changed
+
+- **Usage report keeps its counts.** The `/stats` report of the compose example keeps a database, so the counts survive log rotation.
+
+### Fixed
+
+- **Status of a registration certificate.** The wallet now reads the status even when its status list is signed under an unknown CA. A revoked registration certificate shows as revoked. The untrusted chain is a separate finding (ARF RPRC_17).
+
 ## [3.4.1] - 2026-10-24
 
 ### Fixed
