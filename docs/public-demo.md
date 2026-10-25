@@ -279,7 +279,7 @@ STRICT_URL=https://strict.demo.example
 
 ## Usage statistics
 
-The compose example includes an optional usage report at `/stats`, protected by basic auth. [GoAccess](https://goaccess.io) generates it from Caddy's access log every 2 minutes.
+The compose example includes an optional usage report at `/stats`, protected by basic auth. [GoAccess](https://goaccess.io) generates it from Caddy's access log every 2 minutes. It keeps its counts in a database, so they survive log rotation. On its first run it also reads the remaining rotated logs.
 
 Caddy masks client addresses when writing the log: it zeroes the last IPv4 octet and the last 80 IPv6 bits in both `remote_ip` and `client_ip`. The report sets no cookies, adds no JavaScript to wallet pages and sends no data to third parties.
 
@@ -300,7 +300,7 @@ Visitor counts are approximate because addresses are masked. Everyone sharing an
 
 - the access log rotates at 10 MiB, keeps 3 files and drops anything older than 30 days (about 40 MiB worst case)
 - every container caps its own log at 10 MB with 3 files, through the `logging` anchor in the compose file (Docker's default is unlimited)
-- the report only reads the current access log file, so the statistics only cover the period since the last rotation
+- the report database grows with the number of distinct pages, visitors and days
 
 ## Deployment notes
 

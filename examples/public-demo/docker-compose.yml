@@ -171,27 +171,36 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
+        # The database keeps the counts when Caddy rotates the log. GoAccess
+        # remembers how far it read each file, so a run adds only new lines.
+        options="--log-format=CADDY --ignore-crawlers --anonymize-ip --persist --restore --db-path=/srv/goaccess-db"
+        # The first run with an empty database reads the rotated logs, oldest
+        # first.
+        if [ ! -e /srv/goaccess-db/backfilled ]; then
+          for log in $$(ls /var/log/caddy/access-*.log.gz 2>/dev/null | sort); do
+            zcat "$$log" | goaccess - $$options --html-report-title="Demo usage" -o /srv/stats/report.html || true
+          done
+          touch /srv/goaccess-db/backfilled
+        fi
         # Caddy creates the log on its first request. Skip reporting until the file
         # exists.
         while true; do
           if [ -s /var/log/caddy/access.log ]; then
-            goaccess /var/log/caddy/access.log \
-              --log-format=CADDY \
-              --ignore-crawlers --anonymize-ip \
-              --html-report-title="Demo usage" \
-              -o /srv/stats/report.html || true
+            goaccess /var/log/caddy/access.log $$options --html-report-title="Demo usage" -o /srv/stats/report.html || true
           fi
           sleep 120
         done
     volumes:
       - caddy-logs:/var/log/caddy:ro
       - stats-report:/srv/stats
+      - stats-db:/srv/goaccess-db
 
 volumes:
   caddy-data:
   caddy-config:
   caddy-logs:
   stats-report:
+  stats-db:
   wallet-data:
   # deploy.sh creates these volumes with uid 1000 ownership before Compose attaches them.
   wallet-data-preview:

@@ -318,7 +318,9 @@ case "${COMMAND}" in
     require_host
     # GoAccess reads the epoch timestamps. Remove CRLF from its CSV output before parsing.
     summary="$(mktemp)"
-    remote "docker compose exec -T stats sh -c 'goaccess /var/log/caddy/access.log --log-format=CADDY --ignore-crawlers -o /tmp/summary.csv >/dev/null 2>&1; cat /tmp/summary.csv'" |
+    # --restore reads the report database without writing it. The counts
+    # include the rotated logs.
+    remote "docker compose exec -T stats sh -c 'goaccess /var/log/caddy/access.log --log-format=CADDY --ignore-crawlers --restore --db-path=/srv/goaccess-db -o /tmp/summary.csv >/dev/null 2>&1; cat /tmp/summary.csv'" |
       tr -d '\r' > "${summary}"
     sed -n 's/^"[0-9]*",,"general",,,,,,,,"\([^"]*\)","\([^"]*\)"$/\2 \1/p' "${summary}" |
       grep -E 'requests|visitors|log_size' |
@@ -350,6 +352,8 @@ case "${COMMAND}" in
     require_host
     read -r -p "Discard the access log and every past statistic? [y/N] " confirm
     [[ "${confirm}" =~ ^[yY]$ ]] || die "aborted"
+    # The report container must not write its database while it is cleared.
+    compose "stop stats" >/dev/null
     # Truncate in place and drop the rolled files, then restart Caddy so its
     # log writer starts over from a known size.
     remote "docker compose exec -T caddy sh -c 'rm -f /var/log/caddy/access-*.log*; : > /var/log/caddy/access.log'"
@@ -359,8 +363,10 @@ case "${COMMAND}" in
       # report visible.
       curl -fsS -o /dev/null --max-time 15 --retry 5 --retry-delay 2 --retry-connrefused "${DEMO_URL%/}/api/version" || true
     fi
-    remote "docker compose exec -T stats sh -c 'goaccess /var/log/caddy/access.log --log-format=CADDY --ignore-crawlers --anonymize-ip --html-report-title=\"Demo usage\" -o /srv/stats/report.html'" >/dev/null 2>&1 || true
-    echo "Access log cleared, report rebuilt."
+    # The marker stops the next start from reading rotated logs again.
+    compose "run --rm --no-deps --entrypoint sh stats -c 'rm -rf /srv/goaccess-db/* && touch /srv/goaccess-db/backfilled'" >/dev/null
+    compose "start stats" >/dev/null
+    echo "Access log and report database cleared. The report rebuilds within a minute."
     ;;
   stats-password)
     read -r -p "Username for /stats [admin]: " user

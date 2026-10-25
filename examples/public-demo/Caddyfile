@@ -60,7 +60,7 @@ eudi-test.dev {
 
 	# Mask client addresses before writing the log. GoAccess uses the remaining network prefix to estimate visitors.
 	log {
-		# Keep the active log and up to three rotated files, about 40 MiB total. Reports read only the active file.
+		# Keep the active log and up to three rotated files, about 40 MiB total. The report keeps its counts in its own database.
 		output file /var/log/caddy/access.log {
 			roll_size 10MiB
 			roll_keep 3
