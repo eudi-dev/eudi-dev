@@ -92,7 +92,9 @@ func certificateJWT(value any) string {
 
 // StatusFindings checks a registration certificate against its registrar's
 // status list (ARF §6.6.3.3 step 4). The list must chain to the
-// revocation service of a trusted registrar (ARF RPACANot_03b). An unreadable
+// revocation service of a trusted registrar (ARF RPACANot_03b). An untrusted
+// chain is a finding. The wallet then reads the status with the token's own
+// certificate and still reports a revocation. An unreadable
 // status is a finding too, because then the wallet can't tell whether the
 // certificate is revoked.
 func StatusFindings(cert map[string]any, client *http.Client, statusCAs []*x509.Certificate, rule string) []string {
@@ -106,12 +108,15 @@ func StatusFindings(cert map[string]any, client *http.Client, statusCAs []*x509.
 		anchors = append(anchors, statuslist.TrustCert{Raw: ca.Raw})
 	}
 	var findings []string
-	result, err := statuslist.CheckWithOptions(ref, statuslist.CheckOptions{HTTPClient: client, TrustListCerts: anchors, Prefer: statuslist.FormatJWT})
+	result, err := statuslist.CheckWithOptions(ref, statuslist.CheckOptions{HTTPClient: client, CandidateAnchors: anchors, Prefer: statuslist.FormatJWT})
 	switch {
 	case err != nil:
 		findings = append(findings, fmt.Sprintf("%s: the status of the registration certificate of %s cannot be checked: %v", rule, name, err))
 	case !result.IsValid:
 		findings = append(findings, fmt.Sprintf("%s: the registrar revoked the registration certificate of %s (status %s at index %d of %s)", rule, name, result.StatusName, ref.Idx, ref.URI))
+	}
+	if err == nil && len(anchors) > 0 && !result.TrustAnchored {
+		findings = append(findings, fmt.Sprintf("%s: the status list of the registration certificate of %s is %s. Its certificate chain doesn't lead to a trusted registrar", rule, name, result.SignatureInfo))
 	}
 	if len(statusCAs) == 0 {
 		findings = append(findings, fmt.Sprintf("ARF RPACANot_03b: the status list of the registration certificate of %s is not anchored, because no trusted list has a revocation service of a registration certificate provider", name))

@@ -20,6 +20,7 @@ import (
 	"encoding/asn1"
 	"encoding/base64"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -28,6 +29,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
+	"github.com/eudi-dev/eudi-dev/v3/internal/statuslist"
 )
 
 // OpenID4VP 1.0 §B.1.1: a W3C credential query lists its types in
@@ -298,5 +300,48 @@ func TestAnUnanchoredStatusListIsAFinding(t *testing.T) {
 	findings := StatusFindings(cert, &http.Client{Timeout: time.Second}, nil, "ARF RPRC_17")
 	if !containsSubstring(findings, "RPACANot_03b") {
 		t.Fatalf("findings %v, want the missing revocation anchor", findings)
+	}
+}
+
+// A status list signed under an unknown CA is a finding. The wallet still
+// reads the status and reports the revocation.
+func TestAnUntrustedStatusListStillShowsTheStatus(t *testing.T) {
+	signerKey, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	signer, err := mock.GenerateCACert(signerKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	trustedKey, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	trusted, err := mock.GenerateCACert(trustedKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Index 7 is revoked: Section 4.1 puts index 0 in the least significant bit.
+		token, err := statuslist.GenerateStatusListJWT([]byte{1 << 7}, signerKey, statuslist.StatusListConfig{URI: server.URL + "/status", CertChain: []*x509.Certificate{signer}})
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		w.Header().Set("Content-Type", "application/statuslist+jwt")
+		_, _ = w.Write([]byte(token))
+	}))
+	defer server.Close()
+	cert := conformantRegistrationCert()
+	cert["status"] = map[string]any{"status_list": map[string]any{"idx": float64(7), "uri": server.URL + "/status"}}
+
+	findings := StatusFindings(cert, server.Client(), []*x509.Certificate{trusted}, "ARF RPRC_17")
+	if containsSubstring(findings, "cannot be checked") {
+		t.Fatalf("findings %v, want the status read despite the untrusted chain", findings)
+	}
+	if !containsSubstring(findings, "doesn't lead to a trusted registrar") || !containsSubstring(findings, "revoked the registration certificate") {
+		t.Errorf("findings %v, want the untrusted chain and the revocation", findings)
 	}
 }
