@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -33,17 +34,24 @@ import (
 // Returns the result that navigator.credentials.get() would deliver to the requesting
 // page.
 func (s *Server) handleBrowserPresentationAPI(w http.ResponseWriter, r *http.Request) {
-	var body oid4vp.BrowserAPIRequestEnvelope
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	requestOrigin, originErr := browserAPIOrigin(r)
+	raw, err := io.ReadAll(r.Body)
+	if err != nil {
 		apierror.InvalidJSON(w, err)
 		return
 	}
-
-	requestOrigin, err := browserAPIOrigin(r)
-	if err != nil {
-		apierror.WriteErr(w, http.StatusBadRequest, apierror.InvalidRequest, err)
+	var body oid4vp.BrowserAPIRequestEnvelope
+	if err := json.Unmarshal(raw, &body); err != nil {
+		s.logUnreadableDCAPICall(requestOrigin, raw, err)
+		apierror.InvalidJSON(w, err)
 		return
 	}
+	if originErr != nil {
+		s.logUnreadableDCAPICall("", raw, originErr)
+		apierror.WriteErr(w, http.StatusBadRequest, apierror.InvalidRequest, originErr)
+		return
+	}
+	s.logDCAPICall(requestOrigin, raw, body)
 	protocol, authReq, err := oid4vp.ParseBrowserAPIRequest(body, s.parseOpts, requestOrigin)
 	if err != nil {
 		s.refuseUnreadableRequest(w, requestOwner(r), err)
@@ -54,14 +62,15 @@ func (s *Server) handleBrowserPresentationAPI(w http.ResponseWriter, r *http.Req
 	s.log("  Protocol:      %s", protocol)
 	s.log("  Client ID:     %s", authReq.ClientID)
 	s.log("  Response Mode: %s", authReq.ResponseMode)
-	authReq.Source = "browser_api"
+	authReq.Source = "dc_api"
 	if authReq.Nonce != "" {
 		s.log("  Nonce:         %s", authReq.Nonce)
 	}
 	if requestOrigin != "" {
 		s.log("  Origin:        %s", requestOrigin)
 	}
-	s.addPresentationRequestLog(authReq, "browser_api")
+	s.addPresentationRequestLog(authReq, "dc_api")
+	s.wallet.warnFindings("presentation", "dc_api_parameter", "The request has parameters unused by the Digital Credentials API", authReq.Warnings, nil)
 
 	outcome := s.wallet.evaluatePresentationRequest(authReq, presentationEntry{
 		action: "presentation", subject: "The request", owner: requestOwner(r), interactive: !s.autoAccepts(authReq),
@@ -88,7 +97,9 @@ func (s *Server) handleBrowserPresentationAPI(w http.ResponseWriter, r *http.Req
 
 	s.log("  Mode:          interactive (waiting for consent)")
 	s.allowSlowResponse(w, config.ConsentTimeout)
-	consentReq, matches, approved, answered, err := s.wallet.askPresentationConsent(r.Context(), consent.TypePresentation, requestOwner(r), authReq.ClientID, authReq, outcome, config.ConsentTimeout, func(req *consent.Request) {
+	ctx, done := s.dcapi.track(r.Context(), r.Header.Get(CallIDHeader), requestOwner(r))
+	defer done()
+	consentReq, matches, approved, answered, err := s.wallet.askPresentationConsent(ctx, consent.TypePresentation, requestOwner(r), authReq.ClientID, authReq, outcome, config.ConsentTimeout, func(req *consent.Request) {
 		s.triggerUIRequest(req.ID)
 		if s.onConsentRequest != nil {
 			s.onConsentRequest(req)
@@ -97,10 +108,15 @@ func (s *Server) handleBrowserPresentationAPI(w http.ResponseWriter, r *http.Req
 	switch {
 	case err != nil:
 		s.refuseBusy(w, err)
-	case !answered && r.Context().Err() != nil:
-		s.log("  Consent:       cancelled by the caller")
-		s.wallet.AddLog("presentation", fmt.Sprintf("The presentation request from %s was cancelled", authReq.ClientID), false)
+	case !answered && ctx.Err() != nil:
+		reason := cancelReason(ctx)
+		s.log("  Consent:       cancelled (%s)", reason)
+		details := map[string]any{"direction": "inbound", "source": "dc_api", "reason": reason}
+		addStringDetail(details, "request_origin", authReq.RequestOrigin)
+		s.wallet.addProtocolLog("presentation", "presentation_cancelled", fmt.Sprintf("The presentation request from %s was cancelled: %s", verifierName(authReq), reason), false, details)
 		consentReq.SubmissionCh <- consent.SubmissionResult{Error: "cancelled"}
+		// After its own cancel, the extension still reads this answer.
+		apierror.Write(w, http.StatusConflict, apierror.Conflict, reason)
 	case !answered:
 		s.answerConsentTimeout(w, "presentation", consentReq)
 	case !approved:
@@ -166,11 +182,12 @@ func (s *Server) writeBrowserAuthorizationError(w http.ResponseWriter, authReq *
 
 	details := presentationRequestLogDetails(authReq)
 	details["direction"] = "outbound"
-	details["source"] = "browser_api"
+	details["source"] = "dc_api"
 	details["error"] = errorCode
 	addStringDetail(details, "error_description", errorDescription)
-	details["browser_api_result"] = result
-	s.wallet.addProtocolLog("presentation", "presentation_error_response", fmt.Sprintf("Returned an error to %s through the Digital Credentials API", authReq.ClientID), true, details)
+	details["dc_api_result"] = result
+	addDCAPIResultDetails(details, authReq, result)
+	s.wallet.addProtocolLog("presentation", "presentation_error_response", fmt.Sprintf("Returned an error to %s through the Digital Credentials API", verifierName(authReq)), true, details)
 	writeJSON(w, http.StatusOK, result)
 }
 
@@ -192,7 +209,8 @@ func (s *Server) writeBrowserPresentationResult(w http.ResponseWriter, authReq *
 
 	details := presentationResponseLogDetails(authReq, s.wallet, matches, prepared)
 	details["status_code"] = http.StatusOK
-	details["browser_api_result"] = result
+	details["dc_api_result"] = result
+	addDCAPIResultDetails(details, authReq, result)
 	payload := PresentationLogPayload(prepared.Response)
 	if payload.Encrypted {
 		payload.Wire = result
@@ -200,7 +218,7 @@ func (s *Server) writeBrowserPresentationResult(w http.ResponseWriter, authReq *
 	} else {
 		payload.Body = result
 	}
-	s.wallet.addProtocolLog("presentation", "presentation_response", fmt.Sprintf("Returned the presentation to %s through the Digital Credentials API", authReq.ClientID), true, details, payload)
+	s.wallet.addProtocolLog("presentation", "presentation_response", fmt.Sprintf("Returned the presentation to %s through the Digital Credentials API", verifierName(authReq)), true, details, payload)
 	writeJSON(w, http.StatusOK, result)
 	return consent.SubmissionResult{StatusCode: http.StatusOK}
 }

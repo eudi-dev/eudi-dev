@@ -45,6 +45,7 @@ import (
 
 type Server struct {
 	wallet           *Wallet
+	dcapi            dcAPICalls
 	listenHost       string
 	port             int
 	mux              *http.ServeMux
@@ -159,6 +160,8 @@ func (s *Server) setupRoutes() {
 
 	s.routeFunc("POST /api/presentations", s.withFreshStore(s.handlePresentationAPI))
 	s.routeFunc("POST /api/dc-api", s.withFreshStore(s.handleBrowserPresentationAPI))
+	s.routeFunc("POST /api/dc-api/refusals", s.handleDCAPIRefusal)
+	s.routeFunc("POST /api/dc-api/cancel", s.handleDCAPICancel)
 	s.routeFunc("GET /"+dcextension.ZipName, s.handleDCExtension)
 
 	s.routeFunc("POST /api/offers", s.withFreshStore(s.handleOfferAPI))

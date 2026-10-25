@@ -16,6 +16,9 @@ const BINARY = "/tmp/eudi-dc-api-e2e";
 
 let walletProcess;
 let extensionDir;
+// The extension people installed from the store before 3.5.0. The wallet
+// must keep answering it.
+let oldExtensionDir;
 
 test.describe.configure({ mode: "serial" });
 test.setTimeout(60_000);
@@ -26,6 +29,9 @@ test.beforeAll(async () => {
   const walletDir = fs.mkdtempSync(path.join(os.tmpdir(), "eudi-dc-api-e2e-"));
   extensionDir = path.join(walletDir, "extension");
   execSync(`${BINARY} wallet extension ${extensionDir} --wallet-url ${BASE}`);
+  oldExtensionDir = path.join(walletDir, "extension-3.3.0");
+  fs.cpSync(path.join(__dirname, "fixtures", "dc-extension-3.3.0"), oldExtensionDir, { recursive: true });
+  fs.writeFileSync(path.join(oldExtensionDir, "config.json"), JSON.stringify({ wallet_url: BASE }));
 
   const resultsDir = path.join(__dirname, "test-results");
   fs.mkdirSync(resultsDir, { recursive: true });
@@ -42,11 +48,11 @@ test.afterAll(() => {
   if (walletProcess) walletProcess.kill("SIGTERM");
 });
 
-async function withExtension(run) {
+async function withExtension(run, dir = extensionDir) {
   const context = await chromium.launchPersistentContext("", {
     channel: "chromium",
     headless: true,
-    args: [`--disable-extensions-except=${extensionDir}`, `--load-extension=${extensionDir}`],
+    args: [`--disable-extensions-except=${dir}`, `--load-extension=${dir}`],
   });
   try {
     await run(context);
@@ -69,15 +75,20 @@ async function startDCAPIRequest(context, signing = "signed") {
   return { page, walletWindow: await walletWindow };
 }
 
-for (const signing of ["signed", "unsigned", "multisigned"]) {
-  test(`the extension answers a ${signing} request with the wallet`, async () => {
-    await withExtension(async (context) => {
-      const { page, walletWindow } = await startDCAPIRequest(context, signing);
-      await walletWindow.locator("#consent-approve").click();
-      await expect(page.locator("#status")).toHaveClass(/verified/);
-      await expect.poll(() => walletWindow.isClosed()).toBe(true);
+// The released extension must keep working with every new wallet.
+const extensions = { current: () => extensionDir, "3.3.0": () => oldExtensionDir };
+
+for (const [version, dir] of Object.entries(extensions)) {
+  for (const signing of ["signed", "unsigned", "multisigned"]) {
+    test(`the ${version} extension answers ${signing} requests with the wallet`, async () => {
+      await withExtension(async (context) => {
+        const { page, walletWindow } = await startDCAPIRequest(context, signing);
+        await walletWindow.locator("#consent-approve").click();
+        await expect(page.locator("#status")).toHaveClass(/verified/);
+        await expect.poll(() => walletWindow.isClosed()).toBe(true);
+      }, dir());
     });
-  });
+  }
 }
 
 test("an unsigned request hides the client ID scheme and the identity", async ({ page }) => {
@@ -103,11 +114,104 @@ test("closing the wallet window rejects the call and the next request still work
     await expect(page.locator("#status")).toHaveClass(/failed/);
     await expect(page.locator("#status")).toContainText("NotAllowedError");
 
+    await expect.poll(activityLog).toContain("was cancelled: The wallet window was closed");
+
     const next = await startDCAPIRequest(context);
     await next.walletWindow.locator("#consent-approve").click();
     await expect(next.page.locator("#status")).toHaveClass(/verified/);
     await expect.poll(() => next.walletWindow.isClosed()).toBe(true);
   });
+});
+
+async function activityLog() {
+  return JSON.stringify(await (await fetch(`${BASE}/api/log?view=activity`)).json());
+}
+
+// callOnClick adds a button that calls navigator.credentials.get() with the
+// requests. Clicking it gives the call the required user action.
+async function callOnClick(page, requests) {
+  await page.evaluate((requests) => {
+    const button = document.createElement("button");
+    button.id = "e2e-call";
+    button.textContent = "Call";
+    button.addEventListener("click", () => {
+      window.__outcome = navigator.credentials.get({ digital: { requests } }).then(
+        (credential) => ({ protocol: credential.protocol }),
+        (error) => ({ error: `${error.name}: ${error.message}` })
+      );
+    });
+    document.body.prepend(button);
+  }, requests);
+  await page.locator("#e2e-call").click();
+}
+
+const unsignedPIDRequest = {
+  response_type: "vp_token",
+  response_mode: "dc_api",
+  nonce: "e2e-nonce",
+  dcql_query: { credentials: [{ id: "pid", format: "dc+sd-jwt", meta: { vct_values: ["urn:eudi:pid:1"] } }] },
+};
+
+// A call refused by the extension shows in the page console and the activity
+// log.
+test("a refused call shows in the page console and the activity log", async () => {
+  await withExtension(async (context) => {
+    const page = await context.newPage();
+    const messages = [];
+    page.on("console", (message) => messages.push(message.text()));
+    await page.goto(`${BASE}/verifier/`);
+    await callOnClick(page, [{ protocol: "openid4vp", data: unsignedPIDRequest }]);
+    expect(await page.evaluate(() => window.__outcome)).toEqual({ error: expect.stringContaining("TypeError: No request uses a supported protocol") });
+    await expect.poll(() => messages.join("\n")).toContain("navigator.credentials.get() failed");
+    await expect.poll(activityLog).toContain("The browser extension refused the Digital Credentials API call");
+    expect(await activityLog()).toContain("Appendix A.1 defines openid4vp-v1-unsigned");
+  });
+});
+
+// The wallet receives all requests of a call and logs the unanswered ones.
+test("the activity log names unanswered requests", async () => {
+  await withExtension(async (context) => {
+    const page = await context.newPage();
+    await page.goto(`${BASE}/verifier/`);
+    const walletWindow = context.waitForEvent("page");
+    await callOnClick(page, [
+      { protocol: "org-iso-mdoc", data: { deviceRequest: "e2e" } },
+      { protocol: "openid4vp-v1-unsigned", data: unsignedPIDRequest },
+    ]);
+    await (await walletWindow).locator("#consent-approve").click();
+    expect(await page.evaluate(() => window.__outcome)).toEqual({ protocol: "openid4vp-v1-unsigned" });
+    expect(await activityLog()).toContain("org-iso-mdoc is the protocol of ISO/IEC 18013-7 Annex C");
+  });
+});
+
+// A multisigned request is a JWS in JSON serialization. The call entry
+// offers each signature in the decoder, with a picker like batch copies.
+test("the call entry offers each signature of a multisigned request in the decoder", async () => {
+  await withExtension(async (context) => {
+    const { page, walletWindow } = await startDCAPIRequest(context, "multisigned");
+    await walletWindow.locator("#consent-approve").click();
+    await expect(page.locator("#status")).toHaveClass(/verified/);
+
+    await page.goto(`${BASE}/`);
+    const toggle = page.locator("#activity-toggle");
+    if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+    const call = page.locator('[data-testid="log-entry"][data-event="dc_api_call"]').first();
+    await call.locator(".log-chevron").click();
+    await expect(call.getByText("Open 'digital.requests[0].data.request.signatures' in decoder")).toBeVisible();
+    await expect(call.getByTestId("log-decoder-pick").locator("option")).toHaveCount(2);
+  });
+});
+
+// The extension before 3.5.0 sends no call id. Closing its window still
+// cancels the call.
+test("the 3.3.0 extension cancels a call when its window closes", async () => {
+  await withExtension(async (context) => {
+    const closed = await startDCAPIRequest(context);
+    await expect(closed.walletWindow.locator("#consent-approve")).toBeVisible();
+    await closed.walletWindow.close();
+    await expect(closed.page.locator("#status")).toContainText("NotAllowedError");
+    await expect.poll(activityLog).toContain("was cancelled: The caller stopped waiting");
+  }, oldExtensionDir);
 });
 
 // W3C Digital Credentials §6.2: the browser checks a request before a wallet
@@ -158,28 +262,30 @@ document.getElementById("present").addEventListener("click", async () => {
 });
 </script>`;
 
-test("the extension answers a verifier of another origin", async () => {
-  const server = http.createServer((req, res) => {
-    res.writeHead(200, { "Content-Type": "text/html" });
-    res.end(VERIFIER_PAGE);
-  });
-  await new Promise((resolve) => server.listen(VERIFIER_PORT, resolve));
-  try {
-    await withExtension(async (context) => {
-      const page = await context.newPage();
-      await page.goto(`http://localhost:${VERIFIER_PORT}/`);
-      const walletWindow = context.waitForEvent("page");
-      await page.locator("#present").click();
-      await (await walletWindow).locator("#consent-approve").click();
-      await expect(page.locator("#out")).not.toBeEmpty();
-      const result = JSON.parse(await page.locator("#out").textContent());
-      // OpenID4VP 1.0 §5.9.3 binds the presentation to the page origin.
-      expect(result).toEqual({ protocol: "openid4vp-v1-unsigned", aud: `origin:http://localhost:${VERIFIER_PORT}`, nonce: "other-verifier-nonce" });
+for (const [version, dir] of Object.entries(extensions)) {
+  test(`the ${version} extension answers a verifier of another origin`, async () => {
+    const server = http.createServer((req, res) => {
+      res.writeHead(200, { "Content-Type": "text/html" });
+      res.end(VERIFIER_PAGE);
     });
-  } finally {
-    server.close();
-  }
-});
+    await new Promise((resolve) => server.listen(VERIFIER_PORT, resolve));
+    try {
+      await withExtension(async (context) => {
+        const page = await context.newPage();
+        await page.goto(`http://localhost:${VERIFIER_PORT}/`);
+        const walletWindow = context.waitForEvent("page");
+        await page.locator("#present").click();
+        await (await walletWindow).locator("#consent-approve").click();
+        await expect(page.locator("#out")).not.toBeEmpty();
+        const result = JSON.parse(await page.locator("#out").textContent());
+        // OpenID4VP 1.0 §5.9.3 binds the presentation to the page origin.
+        expect(result).toEqual({ protocol: "openid4vp-v1-unsigned", aud: `origin:http://localhost:${VERIFIER_PORT}`, nonce: "other-verifier-nonce" });
+      }, dir());
+    } finally {
+      server.close();
+    }
+  });
+}
 
 test("without the extension the verifier offers it from the store and for download", async ({ page }) => {
   await page.goto(`${BASE}/verifier/`);

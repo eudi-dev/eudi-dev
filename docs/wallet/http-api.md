@@ -63,6 +63,8 @@ These endpoints run the OID4VP and OID4VCI flows. `wallet accept`, `wallet scan`
 |--------|------|-------------|----------------|
 | `POST` | `/api/presentations` | Answer an OID4VP authorization request | `wallet accept <uri>` |
 | `POST` | `/api/dc-api` | Answer a Digital Credentials API request | None |
+| `POST` | `/api/dc-api/cancel` | End an open call of the browser extension with a reason | None |
+| `POST` | `/api/dc-api/refusals` | Log a call refused by the browser extension | None |
 | `GET` | `/eudi-dev-dc-api-extension.zip` | Browser extension for the Digital Credentials API, set to this wallet | `wallet extension <dir>` |
 | `POST` | `/api/offers` | Accept an OID4VCI credential offer | `wallet accept <uri>` |
 | `GET` | `/api/offers/{id}` | State of an offer that waits for the issuer's sign-in | None |
@@ -94,7 +96,7 @@ curl -X POST http://localhost:8085/api/presentations \
   -d '{"uri": "openid4vp://?client_id=...&request_uri=...", "session_transcript": "iso"}'
 ```
 
-`POST /api/dc-api` takes the argument of `navigator.credentials.get()`: `{"digital": {"requests": [{"protocol": "...", "data": {...}}]}}`. The protocol is one of the OpenID4VP Digital Credentials API protocols. The answer is the API result for the page: `{"protocol": "...", "data": {...}}`. The wallet binds the presentation to the `Origin` of the request. The [browser extension](browser-extension.md) sends the page origin in `X-Eudi-Caller-Origin`, because its own requests carry the extension's origin. The wallet reads that header only from requests with an extension origin or without an `Origin`. The endpoint accepts cross-origin requests.
+`POST /api/dc-api` takes the argument of `navigator.credentials.get()`: `{"digital": {"requests": [{"protocol": "...", "data": {...}}]}}`. The protocol is one of the OpenID4VP Digital Credentials API protocols. The answer is the API result for the page: `{"protocol": "...", "data": {...}}`. The wallet binds the presentation to the `Origin` of the request. The [browser extension](browser-extension.md) sends the page origin in `X-Eudi-Caller-Origin`, because its own requests carry the extension's origin. The wallet reads that header only from requests with an extension origin or without an `Origin`. The endpoint accepts cross-origin requests. The extension also cancels calls and reports refused calls. See [wallet interface](browser-extension.md#wallet-interface).
 
 #### Credential offers
 

@@ -80,11 +80,20 @@ func PresentationLogPayload(response *oid4vp.AuthorizationResponseEnvelope) *Log
 	return payload
 }
 
-func (s *Server) addPresentationRequestLog(authReq *oid4vp.Request, source string) {
-	clientID := authReq.ClientID
-	if clientID == "" {
-		clientID = "unknown verifier"
+// verifierName names the verifier in a log line. An unsigned Digital
+// Credentials API request has no client_id, so its origin names it.
+func verifierName(authReq *oid4vp.Request) string {
+	switch {
+	case authReq.ClientID != "":
+		return authReq.ClientID
+	case authReq.RequestOrigin != "":
+		return authReq.RequestOrigin
 	}
+	return "unknown verifier"
+}
+
+func (s *Server) addPresentationRequestLog(authReq *oid4vp.Request, source string) {
+	clientID := verifierName(authReq)
 	details := presentationRequestLogDetails(authReq)
 	details["event"] = "presentation_request"
 	details["direction"] = "inbound"

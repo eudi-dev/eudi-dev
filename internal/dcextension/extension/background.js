@@ -10,7 +10,7 @@ const timers = new Map();
 // in. An extension written for another wallet, for example by
 // `eudi wallet browser`, uses its own config.json.
 async function settings() {
-  const stored = await chrome.storage.local.get(['walletURL', 'savedFor', 'owner']);
+  const stored = await chrome.storage.local.get(['walletURL', 'savedFor', 'owner', 'consoleLog']);
   const configured = (await (await fetch(DEFAULT_SETTINGS_URL)).json()).wallet_url;
   const walletURL = stored.walletURL && stored.savedFor === configured ? stored.walletURL : configured;
   let owner = stored.owner;
@@ -18,7 +18,29 @@ async function settings() {
     owner = crypto.randomUUID();
     await chrome.storage.local.set({ owner });
   }
-  return { walletURL: walletURL.replace(/\/+$/, ''), owner };
+  return { walletURL: walletURL.replace(/\/+$/, ''), owner, consoleLog: stored.consoleLog !== false };
+}
+
+// A refused call is reported at most once a minute, even when the page
+// retries it in a loop.
+const REFUSAL_INTERVAL_MS = 60 * 1000;
+const reported = new Map();
+
+// reportRefusal sends a refused call to the wallet's activity log. Wallets
+// before 3.5.0 don't have the endpoint and reject the report.
+async function reportRefusal(msg, origin) {
+  const key = origin + '\n' + msg.name + '\n' + msg.message;
+  const now = Date.now();
+  for (const [k, at] of reported) if (now - at >= REFUSAL_INTERVAL_MS) reported.delete(k);
+  if (reported.has(key)) return;
+  reported.set(key, now);
+  const { walletURL, owner } = await settings();
+  await fetch(walletURL + '/api/dc-api/refusals', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Eudi-Owner': owner, 'X-Eudi-Caller-Origin': origin },
+    body: JSON.stringify({ name: msg.name, message: msg.message, request: msg.request }),
+    credentials: 'omit',
+  });
 }
 
 async function ensureOffscreen() {
@@ -65,6 +87,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return current;
       })().then(sendResponse, (e) => sendResponse({ error: e.message }));
       return true;
+    case 'dc-settings':
+      settings().then(sendResponse, () => sendResponse({}));
+      return true;
+    case 'dc-refused':
+      reportRefusal(msg, sender.origin || new URL(sender.url).origin).catch(() => {});
+      return false;
     case 'dc-finished':
       closeWallet(msg.id);
       return false;

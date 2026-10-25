@@ -69,6 +69,7 @@ func ParseBrowserAPIRequest(body BrowserAPIRequestEnvelope, opts oid4vc.ParseOpt
 			if params.ResponseMode != "" && !IsDCAPIResponseMode(params.ResponseMode) {
 				return "", nil, fmt.Errorf("OID4VP 1.0 Appendix A.2: response_mode must be dc_api or dc_api.jwt over the Digital Credentials API, got %q", params.ResponseMode)
 			}
+			params.Warnings = dcAPIParameterWarnings(req.Protocol, req.Data, params)
 			return req.Protocol, params, nil
 		}
 	}

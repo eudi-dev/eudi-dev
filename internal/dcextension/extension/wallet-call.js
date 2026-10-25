@@ -6,12 +6,12 @@ const calls = new Map();
 
 async function callWallet({ id, request, walletURL, owner }, origin) {
   const controller = new AbortController();
-  calls.set(id, controller);
+  calls.set(id, { controller, walletURL, owner });
   let resp;
   try {
     resp = await fetch(walletURL + '/api/dc-api', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Eudi-Owner': owner, 'X-Eudi-Caller-Origin': origin },
+      headers: { 'Content-Type': 'application/json', 'X-Eudi-Owner': owner, 'X-Eudi-Caller-Origin': origin, 'X-Eudi-Call-Id': id },
       body: JSON.stringify(request),
       credentials: 'omit',
       signal: controller.signal,
@@ -30,7 +30,18 @@ async function callWallet({ id, request, walletURL, owner }, origin) {
   return { error: { name: 'NotAllowedError', message: 'eudi-dev wallet: ' + reason } };
 }
 
-function abortCall(id, reason) {
-  const controller = calls.get(id);
-  if (controller) controller.abort(reason);
+// abortCall sends the reason to the wallet's activity log and then stops the
+// call. Wallets before 3.5.0 don't have the endpoint and see only the closed
+// connection.
+async function abortCall(id, reason) {
+  const call = calls.get(id);
+  if (!call) return;
+  await fetch(call.walletURL + '/api/dc-api/cancel', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Eudi-Owner': call.owner },
+    body: JSON.stringify({ id, reason }),
+    credentials: 'omit',
+    signal: AbortSignal.timeout(2000),
+  }).catch(() => {});
+  call.controller.abort(reason);
 }

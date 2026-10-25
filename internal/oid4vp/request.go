@@ -111,6 +111,9 @@ type Request struct {
 	// Findings are the checks that failed in debug mode. The consent dialog
 	// and the API response list them.
 	Findings []string
+	// Warnings list ignored deviations, such as parameters unused by the
+	// Digital Credentials API. They never refuse a request.
+	Warnings []string
 	// AutoAccept and SessionTranscript override the wallet's settings for
 	// this request (POST /api/presentations).
 	AutoAccept        bool

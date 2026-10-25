@@ -40,11 +40,22 @@
     else entry.reject(new DOMException(msg.error.message, msg.error.name));
   });
 
+  function cloneCall(digital) {
+    try {
+      return JSON.parse(JSON.stringify({ digital }));
+    } catch (e) {
+      return undefined;
+    }
+  }
+
   function post(message) {
     window.postMessage({ source: SOURCE, direction: 'to-extension', ...message }, location.origin);
   }
 
-  function refuse(name, message) {
+  // refuse rejects a call like a browser would. The extension logs the
+  // refusal to the page console and the wallet's activity log.
+  function refuse(digital, name, message) {
+    post({ type: 'refused', name, message, request: cloneCall(digital) });
     return Promise.reject(name === 'TypeError' ? new TypeError(message) : new DOMException(message, name));
   }
 
@@ -64,32 +75,36 @@
     const signal = options.signal;
     if (signal && signal.aborted) return Promise.reject(signal.reason);
     const all = options.digital && options.digital.requests;
-    if (!Array.isArray(all)) return refuse('TypeError', 'digital.requests must be an array');
+    if (!Array.isArray(all)) return refuse(options.digital, 'TypeError', 'digital.requests must be an array');
     // §6.2 drops requests with a protocol the browser doesn't support.
     const requests = all.filter((r) => r && PROTOCOLS.includes(r.protocol));
     if (requests.length === 0) {
-      return refuse('TypeError', 'No request uses a supported protocol (' + PROTOCOLS.join(', ') + ')');
+      return refuse(options.digital, 'TypeError', 'No request uses a supported protocol (' + PROTOCOLS.join(', ') + ')');
     }
     if (requests.some((r) => r.data === null || typeof r.data !== 'object')) {
-      return refuse('TypeError', 'The data of an OpenID4VP request must be an object');
+      return refuse(options.digital, 'TypeError', 'The data of an OpenID4VP request must be an object');
     }
     if (!allowedInThisFrame()) {
-      return refuse('NotAllowedError', 'The permissions policy digital-credentials-get does not allow this frame');
+      return refuse(options.digital, 'NotAllowedError', 'The permissions policy digital-credentials-get does not allow this frame');
     }
     if (document.visibilityState !== 'visible' || !document.hasFocus()) {
-      return refuse('NotAllowedError', 'The page must be visible and have focus');
+      return refuse(options.digital, 'NotAllowedError', 'The page must be visible and have focus');
     }
     if (navigator.userActivation && !navigator.userActivation.isActive) {
-      return refuse('NotAllowedError', 'navigator.credentials.get() needs a user action, such as a click, shortly before the call');
+      return refuse(options.digital, 'NotAllowedError', 'navigator.credentials.get() needs a user action, such as a click, shortly before the call');
     }
     if (pending.size > 0) {
-      return refuse('NotAllowedError', 'Another Digital Credentials API request of this page is still open');
+      return refuse(options.digital, 'NotAllowedError', 'Another Digital Credentials API request of this page is still open');
     }
-    let request;
-    try {
-      request = JSON.parse(JSON.stringify({ digital: { requests } }));
-    } catch (e) {
-      return Promise.reject(e);
+    // The wallet gets every request. Its activity log explains each
+    // unanswered one.
+    let request = cloneCall({ requests: all });
+    if (!request) {
+      try {
+        request = JSON.parse(JSON.stringify({ digital: { requests } }));
+      } catch (e) {
+        return Promise.reject(e);
+      }
     }
     const id = crypto.randomUUID();
     return new Promise((resolve, reject) => {

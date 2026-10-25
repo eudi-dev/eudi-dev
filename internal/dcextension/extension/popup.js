@@ -42,4 +42,9 @@ document.getElementById('save').addEventListener('click', async () => {
   check(walletURL);
 });
 
+// Turns the page console logging of calls on or off.
+const consoleLog = document.getElementById('console-log');
+chrome.storage.local.get('consoleLog').then(({ consoleLog: on }) => { consoleLog.checked = on !== false; });
+consoleLog.addEventListener('change', () => chrome.storage.local.set({ consoleLog: consoleLog.checked }));
+
 load();

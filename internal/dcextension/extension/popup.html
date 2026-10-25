@@ -18,6 +18,8 @@
     #status.ok { color: var(--ok); }
     #status.bad { color: var(--bad); }
     p { margin: 10px 0 0; color: var(--dim); }
+    .check { display: flex; gap: 8px; align-items: center; margin-top: 12px; font-weight: 400; color: var(--text); }
+    .check input { width: auto; margin: 0; }
   </style>
 </head>
 <body>
@@ -29,6 +31,7 @@
     <a id="open" href="#" target="_blank" rel="noopener">Open the wallet</a>
   </div>
   <div id="status"></div>
+  <label class="check" for="console-log"><input id="console-log" type="checkbox"> Log calls to the page's console</label>
   <p>Pages that call <code>navigator.credentials.get()</code> with a <code>digital</code> request get the answer from this wallet. The wallet opens in a window to ask for your consent.</p>
   <script src="popup.js"></script>
 </body>

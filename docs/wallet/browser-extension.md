@@ -48,6 +48,17 @@ To try it, choose **Digital Credentials API** under Delivery on the demo verifie
 
 The demo verifier always asks for an encrypted response (`dc_api.jwt`).
 
+## Debugging a verifier
+
+The page console and the wallet's activity log show what happened in a call.
+
+- **Page console.** The extension logs each call to the page console: the request, then the result or the error. To turn this off, clear **Log calls to the page's console** in the popup.
+- **All requests in the activity log.** The wallet logs each call with all its requests. It answers only the first request with a supported protocol. For each other request, the log gives the reason. A common mistake is the protocol `openid4vp` instead of `openid4vp-v1-signed` (OpenID4VP 1.0 Appendix A.1).
+- **Refused calls.** Calls refused by the extension also appear in the activity log, for example a call without a user action. The same page and reason appear at most once a minute.
+- **Unused parameters.** Parameters outside the list in OpenID4VP 1.0 Appendix A.2, such as `state` or `response_uri`, get a warning.
+- **Response details.** The response entry shows the origin of the presentation and the `alg`, `enc` and `kid` of an encrypted response.
+- **Cancelled calls.** The log gives the reason for a cancelled call: the page aborted it, or the user closed the wallet window.
+
 ## Test coverage
 
 The extension takes the place of the browser's credential picker and the phone wallet. The verifier page and its backend run unchanged, so a test covers the verifier's side of the flow:
@@ -94,13 +105,41 @@ X-Eudi-Owner: 2f6c1b9e-6a51-4d8e-9a43-0e1b8f0d2c77
 
 - `X-Eudi-Caller-Origin` is the origin of the calling page, read from the browser. The request itself carries the extension's origin, such as `chrome-extension://<id>`, in `Origin`. A wallet must read `X-Eudi-Caller-Origin` only from requests whose `Origin` is an extension origin or missing. A web page can't send the header to the wallet, because the endpoint answers no CORS preflight.
 - `X-Eudi-Owner` is a random ID that stays the same for an installed extension. It lets the wallet show the consent in the window that the extension opens.
-- `requests` holds only requests with a supported protocol.
+- `X-Eudi-Call-Id` is a random ID of the call. The extension uses it to cancel the call.
+- `requests` holds every request of the call. The wallet answers the first one with a supported protocol.
 
 **Response.** The wallet answers when the user decides, at the latest after 5 minutes:
 
 - `200` with `{"protocol": "...", "data": {...}}` resolves the call with a `DigitalCredential` of that protocol and data. A protocol error, such as `{"data": {"error": "access_denied"}}`, is a result too (OpenID4VP 1.0 Appendix A.4).
 - Any other answer rejects the call with `NotAllowedError`. The message holds the `error_description` or `error` of a JSON error body.
 
-**Consent window.** When the wallet hasn't answered after half a second, the extension opens `<wallet URL>/?focus=overview&owner=<X-Eudi-Owner>` in a window. It closes the window after the answer. When the user closes the window, the extension cancels the HTTP request.
+**Consent window.** When the wallet hasn't answered after half a second, the extension opens `<wallet URL>/?focus=overview&owner=<X-Eudi-Owner>` in a window. It closes the window after the answer.
+
+**Cancel.** When the user closes the window or the page aborts the call, the extension tells the wallet why and then cancels the HTTP request:
+
+```http
+POST <wallet URL>/api/dc-api/cancel
+Content-Type: application/json
+X-Eudi-Owner: 2f6c1b9e-6a51-4d8e-9a43-0e1b8f0d2c77
+
+{"id": "<X-Eudi-Call-Id>", "reason": "The wallet window was closed"}
+```
+
+The wallet answers `204`, ends the call with `409` and the reason, and logs it. Only the extension with the same `X-Eudi-Owner` can cancel a call. An unknown call gets `404`.
+
+**Refusals.** The extension also reports refused calls:
+
+```http
+POST <wallet URL>/api/dc-api/refusals
+Content-Type: application/json
+X-Eudi-Caller-Origin: https://verifier.example
+X-Eudi-Owner: 2f6c1b9e-6a51-4d8e-9a43-0e1b8f0d2c77
+
+{"name": "TypeError", "message": "No request uses a supported protocol", "request": {"digital": {"requests": [...]}}}
+```
+
+The wallet answers `204` and logs the refusal, at most once a minute for the same page, error and message.
+
+**Older extensions.** Extensions before 3.5.0 send only requests with a supported protocol and no `X-Eudi-Call-Id`. They report no refusals and no cancel reasons. The wallet answers them as before. For a closed window, the log then says that the caller stopped waiting.
 
 **Configuration.** `config.json` in the extension sets the default wallet URL in `wallet_url`. The popup overrides it.

@@ -1969,8 +1969,9 @@
     let decoderInput;
     const event = details.event;
     if (event === 'presentation_response' || event === 'presentation_error_response') {
-      if (!payload && details.browser_api_result) {
-        const result = details.browser_api_result;
+      // Entries before 3.5.0 name the result browser_api_result.
+      const result = details.dc_api_result || details.browser_api_result;
+      if (!payload && result) {
         if (typeof result.data?.response === 'string') {
           const body = {};
           for (const key of ['vp_token', 'id_token']) {
@@ -1988,7 +1989,7 @@
         }
         if (Object.keys(body).length) payload = { label: 'Response parameters', body };
       }
-      for (const key of ['vp_token', 'id_token', 'state', 'browser_api_result', 'error', 'error_description']) delete details[key];
+      for (const key of ['vp_token', 'id_token', 'state', 'dc_api_result', 'browser_api_result', 'error', 'error_description']) delete details[key];
     } else if (event === 'presentation_request' || event === 'interactive_authorization_presentation_request' || event === 'request_object_fetch_response') {
       if (details.request_object) {
         if (payload && typeof payload.body === 'string') decoderInput = payload.body;
@@ -2080,10 +2081,29 @@
       try { return embeddedTokens(JSON.parse(value), path); } catch (e) { return []; }
     }
     if (Array.isArray(value)) return value.flatMap((item, i) => embeddedTokens(item, path + '[' + i + ']'));
+    const signed = jwsJSONTokens(value, path);
+    if (signed) return signed;
     if (typeof value === 'object' && value !== null) {
       return Object.entries(value).flatMap(([key, item]) => embeddedTokens(item, path ? path + '.' + key : key));
     }
     return [];
+  }
+
+  // jwsJSONTokens turns a JWS in JSON serialization (RFC 7515 §7.2), such as
+  // a multisigned request object, into one compact JWS per signature.
+  function jwsJSONTokens(value, path) {
+    if (typeof value !== 'object' || value === null || typeof value.payload !== 'string') return null;
+    const compact = (sig) => typeof sig?.protected === 'string' && typeof sig.signature === 'string'
+      ? sig.protected + '.' + value.payload + '.' + sig.signature : '';
+    if (Array.isArray(value.signatures)) {
+      const tokens = value.signatures.flatMap((sig, i) => {
+        const token = compact(sig);
+        return isCompactJWT(token) ? [{ path: (path ? path + '.' : '') + 'signatures[' + i + ']', token }] : [];
+      });
+      return tokens.length ? tokens : null;
+    }
+    const token = compact(value);
+    return isCompactJWT(token) ? [{ path, token }] : null;
   }
 
   function isCompactJWT(value) {

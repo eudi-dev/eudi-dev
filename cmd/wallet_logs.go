@@ -220,7 +220,7 @@ func compactWalletLogDetails(details map[string]any) []string {
 			parts = append(parts, key+"="+value)
 		}
 	}
-	for _, key := range []string{"request", "response", "request_object", "response_body", "dcql_query", "client_metadata", "vp_token", "id_token", "browser_api_result", "wallet_metadata", "raw_credential", "proof_jwt", "proof_attestation", "access_token"} {
+	for _, key := range []string{"request", "response", "request_object", "response_body", "dcql_query", "client_metadata", "vp_token", "id_token", "dc_api_result", "browser_api_result", "wallet_metadata", "raw_credential", "proof_jwt", "proof_attestation", "access_token"} {
 		if details[key] != nil {
 			parts = append(parts, key+"=yes")
 		}
