@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Debugging Digital Credentials API calls.** The activity log shows every call with all its requests. For each unanswered request it gives the reason, for example the protocol `openid4vp` instead of `openid4vp-v1-signed`. Unused parameters such as `state` get a warning. The response entry shows the origin of the presentation and the encryption key. The browser extension also reports refused calls, gives the reason for a cancelled call and logs each call to the page console. Older extensions keep working. See [debugging a verifier](docs/wallet/browser-extension.md#debugging-a-verifier).
+- **Themes.** Show your own logo and colours on every page of a self-hosted wallet with `wallet serve --theme <dir>` or `EUDI_DEV_THEME`. A theme is a directory with `theme.css`, a logo and a favicon. It also works as a Docker volume or a Kubernetes ConfigMap. See [themes](docs/wallet/themes.md) and the example in [examples/themes/acme](examples/themes/acme).
 
 ### Changed
 
