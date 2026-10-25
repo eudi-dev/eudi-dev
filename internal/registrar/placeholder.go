@@ -72,6 +72,7 @@ var placeholderTemplate = template.Must(template.New("placeholder").Parse(`<!doc
 <meta name="robots" content="noindex">
 <title>{{.Title}} · eudi-dev test registrar</title>
 <link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="theme/theme.css">
 <script src="theme.js"></script>
 <style>
 * { box-sizing: border-box; }

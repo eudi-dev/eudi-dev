@@ -85,7 +85,7 @@ func (d *Dashboard) Handler() http.Handler {
 
 	sub, _ := fs.Sub(staticFiles, "static")
 	index, _ := fs.ReadFile(sub, "index.html")
-	mux.Handle("/", publicpath.ServeIndex(index, http.FileServer(http.FS(webui.Overlay(sub)))))
+	mux.Handle("/", publicpath.ServeIndex(index, webui.FileServer(sub)))
 
 	// Captured traffic is untrusted input, so the dashboard sends the
 	// security headers.

@@ -48,13 +48,13 @@ var (
 
 func tokens(t *testing.T) (dark, light []string) {
 	t.Helper()
-	data, err := files.ReadFile("tokens.css")
+	data, err := files.ReadFile("theme/theme.css")
 	if err != nil {
 		t.Fatal(err)
 	}
 	blocks := regexp.MustCompile(`(?s)(:root|\[data-theme="light"\]) \{(.*?)\}`).FindAllSubmatch(data, -1)
 	if len(blocks) != 2 {
-		t.Fatalf("tokens.css has %d blocks, want the dark and the light one", len(blocks))
+		t.Fatalf("theme.css has %d blocks, want the dark and the light one", len(blocks))
 	}
 	for _, m := range definition.FindAllSubmatch(blocks[0][2], -1) {
 		dark = append(dark, string(m[1]))
@@ -75,7 +75,7 @@ func TestTheLightThemeSetsEveryColourToken(t *testing.T) {
 	}
 }
 
-// Every page uses only variables defined in tokens.css or in the page itself,
+// Every page uses only variables defined in the theme or in the page itself,
 // because a browser drops a declaration with an undefined variable. No page
 // sets a shared token again, so the pages can't drift apart.
 func TestThePagesUseTheSharedTokens(t *testing.T) {
@@ -102,8 +102,8 @@ func TestThePagesUseTheSharedTokens(t *testing.T) {
 				t.Errorf("%s uses %s, which nothing defines", page, name)
 			}
 		}
-		if !regexp.MustCompile(`href="tokens\.css"`).Match(content) || !regexp.MustCompile(`src="theme\.js"`).Match(content) {
-			t.Errorf("%s does not load tokens.css and theme.js", page)
+		if !regexp.MustCompile(`href="tokens\.css"`).Match(content) || !regexp.MustCompile(`href="theme/theme\.css"`).Match(content) || !regexp.MustCompile(`src="theme\.js"`).Match(content) {
+			t.Errorf("%s does not load tokens.css, theme/theme.css and theme.js", page)
 		}
 	}
 }
@@ -127,12 +127,12 @@ func TestThePagesShowTheProductNames(t *testing.T) {
 	}
 }
 
-// An embedded file must sit in its package, so the logo exists once per
-// server, in the defaults and in the docs. The copies stay the same.
+// An embedded file must sit in its package, so the logo exists in the
+// built-in theme, in the defaults and in the docs. The copies stay the same.
 func TestTheLogoCopiesMatch(t *testing.T) {
 	for _, copies := range [][]string{
-		{"../defaults/images/logo.svg", "../wallet/static/logo.svg", "../web/static/logo.svg", "../proxy/static/logo.svg", "../../docs/assets/logo-mark.svg", "../../examples/public-demo/news/logo-mark.svg"},
-		{"../../docs/assets/logo.svg", "../wallet/static/favicon.svg", "../web/static/favicon.svg", "../proxy/static/favicon.svg"},
+		{"../defaults/images/logo.svg", "theme/logo.svg", "../../docs/assets/logo-mark.svg", "../../examples/public-demo/news/logo-mark.svg"},
+		{"../../docs/assets/logo.svg", "theme/favicon.svg"},
 	} {
 		want, err := os.ReadFile(filepath.FromSlash(copies[0]))
 		if err != nil {

@@ -1,0 +1,98 @@
+/* The built-in eudi-dev theme. theme.js sets data-theme to "dark" or "light".
+   :root holds the dark colours, so a page also has them before the script
+   runs. */
+:root {
+  color-scheme: dark;
+  --bg: #17191e;
+  --bg-header: #1a1d22;
+  --bg-surface: #21242a;
+  --bg-hover: #2c3038;
+  --bg-btn: #2c3038;
+  --bg-btn-hover: #3a3f48;
+  --bg-btn-dialog: #343841;
+  --bg-input: #1c1f24;
+  --bg-dialog: #24272d;
+  --bg-raised: #383d45;
+  --bg-track: #15171b;
+  --bg-segment: #3a404d;
+  --text-segment: #ffffff;
+  --shadow-segment: none;
+  --scrim: rgba(8, 9, 11, 0.6);
+  --shadow-card: 0 6px 14px rgba(0, 0, 0, 0.35);
+  --shadow-dialog: 0 24px 60px rgba(0, 0, 0, 0.45);
+  --text: #eceef1;
+  --text-dim: #a9afb9;
+  --border: #383d45;
+  --border-subtle: #2a2e35;
+  --border-dialog: #3a3f47;
+  --border-raised: #24272d;
+  --accent: #8fb4ff;
+  --on-accent: #17191e;
+  --link: #9dbcff;
+  --info-bg: #243559;
+  --info-fg: #b9cdfa;
+  --ok-bg: #1d3a27;
+  --ok-fg: #9fdcae;
+  --neutral-bg: #2c3038;
+  --neutral-fg: #c9ccd2;
+  --warn-bg: #33291a;
+  --warn-fg: #f3e3bd;
+  --danger-bg: #43231f;
+  --danger: #ff9b8f;
+  --cyan: #8bd3ea;
+  --green: #9fdcae;
+  --yellow: #f0c674;
+  --red: #ff9b8f;
+  --orange: #f5a97f;
+  --purple: #c4a7f5;
+  --pink: #f0a3c6;
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f2f3f5;
+  --bg-header: #ffffff;
+  --bg-surface: #ffffff;
+  --bg-hover: #eceef2;
+  --bg-btn: #eceef2;
+  --bg-btn-hover: #dde1e7;
+  --bg-btn-dialog: #e6e9ee;
+  --bg-input: #ffffff;
+  --bg-dialog: #ffffff;
+  --bg-raised: #f3f4f7;
+  --bg-track: #eceef2;
+  --bg-segment: #ffffff;
+  --text-segment: #15171a;
+  --shadow-segment: 0 1px 3px rgba(20, 30, 60, 0.18);
+  --scrim: rgba(20, 24, 32, 0.42);
+  --shadow-card: 0 4px 10px rgba(20, 30, 60, 0.18);
+  --shadow-dialog: 0 24px 60px rgba(20, 30, 60, 0.22);
+  --text: #15171a;
+  --text-dim: #5a606a;
+  --border: #d5d8de;
+  --border-subtle: #e4e6ea;
+  --border-dialog: #dfe2e7;
+  --border-raised: #dde0e6;
+  --accent: #1f4fd1;
+  --on-accent: #ffffff;
+  --link: #1f4fd1;
+  --info-bg: #e8eefc;
+  --info-fg: #1a3a8f;
+  --ok-bg: #e3f4e8;
+  --ok-fg: #17602e;
+  --neutral-bg: #eef0f3;
+  --neutral-fg: #3e434a;
+  --warn-bg: #fff3d6;
+  --warn-fg: #4a3a10;
+  --danger-bg: #fbe9e7;
+  --danger: #b3261e;
+  --cyan: #0a6a87;
+  --green: #17602e;
+  --yellow: #7a5600;
+  --red: #b3261e;
+  --orange: #9a4a12;
+  --purple: #6b3fb8;
+  --pink: #a3245f;
+}

@@ -35,6 +35,7 @@ const pageTemplate = `<!doctype html>
 <meta name="color-scheme" content="light dark">
 <title>Imprint</title>
 <link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="theme/theme.css">
 <script src="theme.js"></script>
 <style>
   body { font-family: var(--font-sans); line-height: 1.6; max-width: 42rem; margin: 2rem auto; padding: 0 1rem; background: var(--bg); color: var(--text); }

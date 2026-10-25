@@ -51,6 +51,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/urlhandler"
 	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
 	"github.com/eudi-dev/eudi-dev/v3/internal/web"
+	"github.com/eudi-dev/eudi-dev/v3/internal/webui"
 )
 
 type walletServeOptions struct {
@@ -81,6 +82,7 @@ type walletServeOptions struct {
 	Demo                  bool
 	DemoReset             string
 	ImprintFile           string
+	Theme                 string
 	NewsFile              string
 	DemoConsentAPI        bool
 	Detached              bool
@@ -163,6 +165,7 @@ Every flag can also be set as EUDI_DEV_<FLAG>, such as EUDI_DEV_BASE_URL for --b
 	cmd.Flags().BoolVar(&opts.Demo, "demo", false, "Public demo profile: implies --pid, --mode debug, --haip, --arf and --vci-version 1.1 (all overridable), disables process/filesystem endpoints, blocks fetches to loopback and private networks unless --allow-private-networks is given, ignores $EUDI_DEV_AUTO_ACCEPT")
 	addAllowPrivateNetworksFlag(cmd, &opts.AllowPrivateNetworks, "With --demo it also allows loopback. Keep that off on a host that faces the internet. ")
 	cmd.Flags().StringVar(&opts.DemoReset, "demo-reset", "1h", "When to restore the clean demo baseline: an interval (24h), a daily wall-clock time (00:00), or one with a timezone (\"00:00 Europe/Berlin\"). 0 disables. Requires --demo")
+	cmd.Flags().StringVar(&opts.Theme, "theme", "", "Theme directory with theme.css, a logo and a favicon. Missing files and colours come from the built-in theme. See docs/wallet/themes.md")
 	cmd.Flags().StringVar(&opts.ImprintFile, "imprint-file", "", "HTML snippet with the site operator's legal notice, served at /imprint (required for public EU hosting)")
 	cmd.Flags().BoolVar(&opts.DemoConsentAPI, "demo-consent-api", false, "Let API and CLI clients answer consent requests on a public demo. By default only the web UI answers them, so a client doesn't answer another visitor's request by mistake. Requires --demo")
 	cmd.Flags().StringVar(&opts.NewsFile, "news-file", "", "HTML snippet with news for visitors of a public demo, shown once in a popup and again from the footer link. Requires --demo")
@@ -532,6 +535,13 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	}
 	if opts.DemoConsentAPI && !opts.Demo {
 		return fmt.Errorf("--demo-consent-api requires --demo")
+	}
+	if opts.Theme != "" {
+		theme, err := webui.LoadTheme(opts.Theme)
+		if err != nil {
+			return fmt.Errorf("--theme: %w", err)
+		}
+		webui.UseTheme(theme)
 	}
 	demoOpts, err := parseDemoReset(opts.DemoReset)
 	if err != nil {

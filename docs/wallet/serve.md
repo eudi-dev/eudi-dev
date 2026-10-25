@@ -345,6 +345,7 @@ Every flag can also be set as `EUDI_DEV_<FLAG>`, with the flag name in upper cas
 | `--serve-tls`           | `false`  | Serve an https `--base-url` locally with the wallet's own TLS certificate instead of expecting an external TLS terminator. Requires an https base URL with an explicit port. The wallet also keeps listening on the HTTP port |
 | `--demo-reset`          | `1h`     | Schedule for restoring the demo baseline: an interval (`24h`), a daily wall-clock time (`00:00`), or one with a timezone (`"00:00 Europe/Berlin"`). `0` disables. Requires `--demo` |
 | `--imprint-file`        | None     | HTML snippet with the operator's legal notice, served at `/imprint` |
+| `--theme`               | None     | Theme directory with `theme.css`, a logo and a favicon. Missing files and colours come from the built-in theme. See [themes](themes.md) |
 | `--log-format`          | `text`   | Console output format: `text` or `json` (one JSON record per line). See [JSON logs](#json-logs) |
 | `--news-file`           | None     | HTML snippet with news for visitors, shown once in a popup and linked from the footer. Requires `--demo` |
 | `--demo-consent-api`    | `false`  | Let API and CLI clients answer consent requests. By default only the web UI answers them, so a client doesn't answer another visitor's request by mistake. Requires `--demo` |

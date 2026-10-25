@@ -1042,9 +1042,10 @@ var loginPageTemplate = template.Must(template.New("login").Parse(`<!DOCTYPE htm
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" type="image/svg+xml" href="{{.Root}}favicon.svg?v=2">
+<link rel="icon" href="theme/favicon">
 <title>{{.IssuerName}}</title>
 <link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="theme/theme.css">
 <script src="theme.js"></script>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }

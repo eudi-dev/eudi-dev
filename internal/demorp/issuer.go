@@ -255,7 +255,7 @@ func (d *DemoRP) issuerID() string {
 func (d *DemoRP) handleLogo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "image/svg+xml")
 	w.Header().Set("Cache-Control", "public, max-age=86400")
-	_, _ = w.Write(wallet.LogoSVG())
+	_, _ = w.Write(webui.LogoSVG())
 }
 
 func (d *DemoRP) handleIssuerMetadata(w http.ResponseWriter, r *http.Request) {

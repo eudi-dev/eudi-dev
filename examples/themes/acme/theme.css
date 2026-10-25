@@ -1,0 +1,28 @@
+/* Acme, a made-up brand. Run it with
+   eudi wallet serve --theme examples/themes/acme */
+
+/* Both modes */
+:root {
+  --accent: #2bb39a;
+  --link: #3cc4aa;
+  --on-accent: #0d1f1b;
+}
+
+/* Dark mode */
+[data-theme="dark"] {
+  --bg: #0f1a1c;
+  --bg-header: #11201f;
+  --bg-surface: #162725;
+  --bg-dialog: #182b29;
+  --border: #284340;
+}
+
+/* Light mode */
+[data-theme="light"] {
+  --bg: #f1f7f5;
+  --bg-header: #ffffff;
+  --accent: #0e7c68;
+  --link: #0e7c68;
+  --on-accent: #ffffff;
+  --border: #cfe3dd;
+}

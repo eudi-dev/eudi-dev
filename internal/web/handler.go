@@ -86,7 +86,7 @@ func NewMuxWithOptions(opts MuxOptions) http.Handler {
 	// Embedded files have no modification time for cache validation. Browsers must
 	// revalidate, so they never mix assets from different releases.
 	sub, _ := fs.Sub(staticFiles, "static")
-	mux.Handle("/", noStaleCache(http.FileServer(http.FS(webui.Overlay(sub)))))
+	mux.Handle("/", noStaleCache(webui.FileServer(sub)))
 
 	// Decoder links can carry attacker-selected credentials. The guard sits inside the
 	// handler, so mounted routes are checked after their prefix is stripped.

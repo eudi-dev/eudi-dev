@@ -43,7 +43,7 @@ https://github.com/user-attachments/assets/e915c82c-75f0-4f6b-94eb-cd4a4252a863
 
 **Developer tools.** Decode credentials, requests, offers and trusted lists, validate signatures and status, scan QR codes, generate DCQL queries, and watch live wallet traffic through a proxy. → [Decode](docs/decode.md), [validate](docs/validate.md), [issue](docs/issue.md), [proxy](docs/proxy.md)
 
-**Deployment options.** A single binary, a Docker image, a Helm chart and a Testcontainers module, with state in files, memory or Postgres. → [Docker](docs/docker.md), [storage](docs/wallet.md#storage-backends), [public demo hosting](docs/public-demo.md)
+**Deployment options.** A single binary, a Docker image, a Helm chart and a Testcontainers module, with state in files, memory or Postgres. Brand the pages with your own logo and colours (new in 3.5.0). → [Docker](docs/docker.md), [storage](docs/wallet.md#storage-backends), [themes](docs/wallet/themes.md), [public demo hosting](docs/public-demo.md)
 
 **OpenID Certified.** The wallet is certified for OpenID4VP 1.0 and OpenID4VCI 1.0 with HAIP 1.0. → [Certification](#openid-certification), [conformance results](docs/conformance-results.md), [spec compliance](docs/spec-compliance.md)
 

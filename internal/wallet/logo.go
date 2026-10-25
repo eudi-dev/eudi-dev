@@ -23,14 +23,6 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/httpsec"
 )
 
-func LogoSVG() []byte {
-	data, err := staticFiles.ReadFile("static/logo.svg")
-	if err != nil {
-		return nil
-	}
-	return data
-}
-
 // TemplateImage returns the bytes of a bundled (embedded:<file>) or data URI
 // template image. ok is false for an https image and for anything that is not
 // an image.
