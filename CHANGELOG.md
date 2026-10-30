@@ -10,11 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Findings with rules and links.** Findings show their rule, such as ARF RPRC_22a, with a link to the specification. The activity log puts protocol findings and findings about registration and certificates in separate rows. You can leave the registration row collapsed. API responses add `finding_details` and `finding_subject`, and `findings` stays the same. See [HTTP API](docs/wallet/http-api.md).
+- **Certificate revocation.** You can revoke a provider signing certificate or a provider CA in the wallet UI or through the API. It then appears on the CRL of its issuer. See [certificate revocation](docs/wallet/http-api.md#certificate-revocation).
+- **Trusted list withdrawal.** You can remove a trust anchor from the wallet's own trusted lists in the wallet UI or through the API. See [withdrawing a trusted list entry](docs/wallet/http-api.md#withdrawing-a-trusted-list-entry).
+- **CRL check in the demo verifier.** The demo verifier rejects a credential with a revoked certificate in its chain. The consent dialog warns about a credential with a certificate revoked by this wallet.
+- **Trusted lists in the decoder.** Each trusted list in the Trust & certificates dialog has an **Actions** menu with **Open in decoder**. The decoder, `eudi-dev decode` and `eudi-dev validate` also check the CRLs of a credential.
+- **CRL faults for tests.** You can make a CRL endpoint return an error, hang, or serve an expired or wrongly signed CRL. Set a fault under Settings or through the API. The API can also set `nextUpdate`. See [CRL faults](docs/wallet/http-api.md#crl-faults).
 
 ### Fixed
 
 - **Exact citations.** Findings cite the current section or requirement, for example OID4VP 1.0 §5.9.2 for an unknown client identifier prefix.
 - **Copying from the activity log.** You can select and copy the text of a collapsed entry.
+- **Decoder links in the activity log.** Request objects and credentials up to about 190 KB now stay whole in the log and open in the decoder. Before, the link could open a cut-off token.
 - **Issuer binding.** The wallet matches an issuer's registration certificate and access certificate by their identifier only (ARF RPRC_22b). Their service names may differ.
 
 ## [3.5.0] - 2026-10-25
