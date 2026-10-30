@@ -5,6 +5,18 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.0] - Unreleased
+
+### Added
+
+- **Findings with rules and links.** Findings show their rule, such as ARF RPRC_22a, with a link to the specification. The activity log puts protocol findings and findings about registration and certificates in separate rows. You can leave the registration row collapsed. API responses add `finding_details` and `finding_subject`, and `findings` stays the same. See [HTTP API](docs/wallet/http-api.md).
+
+### Fixed
+
+- **Exact citations.** Findings cite the current section or requirement, for example OID4VP 1.0 §5.9.2 for an unknown client identifier prefix.
+- **Copying from the activity log.** You can select and copy the text of a collapsed entry.
+- **Issuer binding.** The wallet matches an issuer's registration certificate and access certificate by their identifier only (ARF RPRC_22b). Their service names may differ.
+
 ## [3.5.0] - 2026-10-25
 
 ### Added
