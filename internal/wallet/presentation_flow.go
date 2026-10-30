@@ -78,7 +78,7 @@ func (w *Wallet) evaluatePresentationRequest(authReq *oid4vp.Request, entry pres
 		if authenticated.Code == oid4vp.ErrorAccessDenied {
 			event, summary = "arf_refusal", "The request does not meet the ARF rules"
 		}
-		w.reportRefusal(entry.action, event, entry.owner, requestRefused, summary, err)
+		w.reportRefusal(entry.action, event, entry.owner, requestRefused, subjectRequest, summary, err)
 		// The description lists the findings, so the verifier under test sees
 		// which rule its request breaks.
 		return presentationOutcome{refusal: &presentationRefusal{
@@ -87,13 +87,13 @@ func (w *Wallet) evaluatePresentationRequest(authReq *oid4vp.Request, entry pres
 		}}
 	}
 	if err != nil {
-		w.reportRefusal(entry.action, "authorization_request_refused", entry.owner, requestRefused, specCitedSummary(entry.subject, findings.Of(err)), err)
+		w.reportRefusal(entry.action, "authorization_request_refused", entry.owner, requestRefused, subjectRequest, specCitedSummary(entry.subject, findings.Of(err)), err)
 		return presentationOutcome{invalid: err, invalidCode: oid4vp.RefusalCode(authReq)}
 	}
 	// OID4VP 1.0 §8.3.1 lets the wallet send an unencrypted error response
 	// here ("MAY"). The wallet answers only its caller, with invalid_request.
 	if err := w.responseEncryptionError(authReq); err != nil {
-		w.reportRefusal(entry.action, "response_encryption_unavailable", entry.owner, "The response cannot be encrypted", "", err)
+		w.reportRefusal(entry.action, "response_encryption_unavailable", entry.owner, "The response cannot be encrypted", subjectRequest, "", err)
 		return presentationOutcome{invalid: err, invalidCode: oid4vp.ErrorInvalidRequest}
 	}
 	// The override answers only a valid request.
@@ -103,7 +103,7 @@ func (w *Wallet) evaluatePresentationRequest(authReq *oid4vp.Request, entry pres
 	}
 
 	authReq.Findings = list
-	w.warnFindings(entry.action, "authorization_request_finding", specCitedSummary(entry.subject, list), list, nil)
+	w.warnFindings(entry.action, "authorization_request_finding", subjectRequest, specCitedSummary(entry.subject, list), list, nil)
 	w.warnUndefinedRequestParameters(entry.action, authReq)
 
 	if !oid4vp.ResponseTypeRequiresVP(authReq.ResponseType) {
@@ -113,7 +113,7 @@ func (w *Wallet) evaluatePresentationRequest(authReq *oid4vp.Request, entry pres
 	// defines none. §8.5 answers an unknown one with invalid_scope.
 	if authReq.DCQLQuery == nil && strings.TrimSpace(authReq.Scope) != "" {
 		description := fmt.Sprintf("the wallet supports no scope %q", authReq.Scope)
-		w.reportRefusal(entry.action, "unsupported_scope", entry.owner, "Unsupported scope", "", errors.New(description))
+		w.reportRefusal(entry.action, "unsupported_scope", entry.owner, "Unsupported scope", subjectRequest, "", errors.New(description))
 		return presentationOutcome{refusal: &presentationRefusal{status: "refused", code: oid4vp.ErrorInvalidScope, description: description}}
 	}
 	var outcome presentationOutcome
@@ -122,7 +122,7 @@ func (w *Wallet) evaluatePresentationRequest(authReq *oid4vp.Request, entry pres
 	}
 	// Debug mode lets a person answer with a credential that does not match.
 	if len(outcome.matches) == 0 && (outcome.options == nil || !entry.interactive) {
-		w.reportRefusal(entry.action, "no_matching_credentials", entry.owner, "No matching credentials", "",
+		w.reportRefusal(entry.action, "no_matching_credentials", entry.owner, "No matching credentials", subjectRequest, "",
 			fmt.Errorf("no credential matches the query of %s", authReq.ClientID))
 		// §8.5 access_denied: "The Wallet did not have the requested
 		// Credentials to satisfy the Authorization Request."

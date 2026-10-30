@@ -44,7 +44,7 @@ func TestAForeignPIDFailsTheTrustAnchorCheck(t *testing.T) {
 	w.RequireARF = true
 	for _, c := range generateTestWalletWithPID(t).GetCredentials() {
 		findings := w.trustAnchorFindings(receivedCredential(c.Raw))
-		if len(findings) != 1 || !strings.HasPrefix(findings[0], "ARF ISSU_07: ") {
+		if len(findings) != 1 || !strings.HasPrefix(findings[0].String(), "ARF ISSU_07: ") {
 			t.Fatalf("%s: findings %v", c.Format, findings)
 		}
 		resp := map[string]any{"credentials": []any{map[string]any{"credential": c.Raw}}}
@@ -129,7 +129,7 @@ func TestAnAttestationIsCheckedAgainstAFetchedList(t *testing.T) {
 				t.Fatal(err)
 			}
 			findings := w.trustAnchorFindings(receivedCredential(result.Raw))
-			if tc.want == "" && len(findings) != 0 || tc.want != "" && (len(findings) != 1 || !strings.Contains(findings[0], tc.want)) {
+			if tc.want == "" && len(findings) != 0 || tc.want != "" && (len(findings) != 1 || !strings.Contains(findings[0].String(), tc.want)) {
 				t.Errorf("findings %v, want %q", findings, tc.want)
 			}
 		})
@@ -209,7 +209,7 @@ func TestAPIDNeedsAReadableList(t *testing.T) {
 		t.Fatal(err)
 	}
 	pid := StoredCredential{Format: "dc+sd-jwt", VCT: "urn:example:pid:1", Raw: "not checked"}
-	if findings := w.trustAnchorFindings(pid); len(findings) != 1 || !strings.HasPrefix(findings[0], "ARF ISSU_07: ") {
+	if findings := w.trustAnchorFindings(pid); len(findings) != 1 || !strings.HasPrefix(findings[0].String(), "ARF ISSU_07: ") {
 		t.Errorf("findings %v, want ISSU_07", findings)
 	}
 }
@@ -253,7 +253,7 @@ func TestAnOfferOutsideTheCatalogueWarns(t *testing.T) {
 	}
 	w.RequireARF = true
 	got := w.catalogueFindings(metadata, []string{"pid", "unknown"})
-	if len(got) != 1 || !strings.Contains(got[0], "urn:example:unknown:1") {
+	if len(got) != 1 || !strings.Contains(got[0].String(), "urn:example:unknown:1") {
 		t.Fatalf("findings %v, want one for the unknown type", got)
 	}
 }

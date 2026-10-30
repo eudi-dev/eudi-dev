@@ -23,6 +23,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 )
 
@@ -65,7 +66,7 @@ type Request struct {
 	DCQLQuery    map[string]any
 	// Findings are the checks on the verifier or issuer that failed in debug
 	// mode. The consent dialog shows them in a collapsed list.
-	Findings []string
+	Findings findings.List
 	// Purposes and privacy policy links from the request's registration
 	// certificates, for the consent dialog.
 	Purposes        []string
@@ -205,7 +206,7 @@ type SubmissionResult struct {
 	Error       string `json:"error,omitempty"`
 	StatusCode  int    `json:"status_code,omitempty"`
 	// Findings are the failed checks behind Error, one per entry.
-	Findings []string `json:"findings,omitempty"`
+	Findings findings.List `json:"findings,omitempty"`
 	// Deferred issuance is still pending. The wallet continues collecting in the
 	// background.
 	Pending       bool   `json:"pending,omitempty"`
@@ -238,7 +239,8 @@ func marshal(r *Request) map[string]any {
 		m["privacy_policies"] = r.PrivacyPolicies
 	}
 	if len(r.Findings) > 0 {
-		m["findings"] = r.Findings
+		m["findings"] = r.Findings.Texts()
+		m["finding_details"] = r.Findings.Details()
 	}
 	if r.CredentialOptions != nil {
 		m["credential_options"] = r.CredentialOptions
@@ -301,10 +303,10 @@ type OfferDetails struct {
 	// Findings are the metadata, ARF and catalogue findings about the issuer.
 	// The ARF requires the wallet to warn the user before it requests the
 	// credential.
-	Findings []string `json:"-"`
+	Findings findings.List `json:"-"`
 	// ARFFindings are the ARF findings among them. Strict mode refuses an
 	// offer that has any before the consent dialog opens.
-	ARFFindings []string `json:"-"`
+	ARFFindings findings.List `json:"-"`
 	// OfferURI and ResolveError are set when an offer passed by reference
 	// could not be fetched. The dialog then shows the host and the reason.
 	OfferURI     string `json:"offer_uri,omitempty"`

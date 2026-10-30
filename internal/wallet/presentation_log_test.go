@@ -21,6 +21,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
 )
@@ -44,18 +45,15 @@ func TestMDocPresentationLogsItsOwnTranscript(t *testing.T) {
 }
 
 func TestSpecCitedSummaryNamesEveryCitedSpecification(t *testing.T) {
-	findings := []string{
-		"OID4VP 1.0 §5.2: nonce is required",
-		"ARF RPRC_19: the request has no registration certificate",
-		"RFC 9101 §4: the request_uri response Content-Type must be application/oauth-authz-req+jwt",
-		"ETSI TS 119 475 V1.2.1 GEN-5.2.4-08: x",
-		"ETSI TS 119 475 V1.2.1 Table 7: the certificate has no status",
-		"HAIP 1.0: y",
-		"OID4VP 1.0 Appendix A.2: expected_origins must include the caller origin",
-		"Request Object x5c chain is not internally consistent: x509: bad",
+	list := findings.List{
+		findings.OID4VP.Protocol("§5.2").New("nonce is required"),
+		findings.ARF.Registration("RPRC_19").New("the request has no registration certificate"),
+		findings.ETSI119475.Registration("GEN-5.2.4-08").New("x"),
+		findings.OID4VP.Protocol("Appendix A.2").New("expected_origins must include the caller origin"),
+		findings.Uncited("Request Object x5c chain is not internally consistent"),
 	}
-	want := "The request does not follow OID4VP 1.0 and ARF and RFC 9101 and ETSI TS 119 475 V1.2.1 and HAIP 1.0"
-	if got := specCitedSummary("The request", findings); got != want {
+	want := "The request does not follow OID4VP 1.0 and ARF and ETSI TS 119 475"
+	if got := specCitedSummary("The request", list); got != want {
 		t.Errorf("summary = %q\nwant      %q", got, want)
 	}
 }

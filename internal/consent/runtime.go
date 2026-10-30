@@ -21,6 +21,8 @@ import (
 	"slices"
 	"sync"
 	"time"
+
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 )
 
 // Keep resolved requests long enough for late polling, then prune them. Consent
@@ -319,6 +321,7 @@ func (rt *Runtime) NotifyAuthorization(prompt AuthorizationPrompt) bool {
 }
 
 func (rt *Runtime) NotifyError(err Error) {
+	err.FindingDetails = err.Findings.Details()
 	rt.mu.Lock()
 	now := time.Now()
 	// The empty key is the unowned slot, so it cannot also mark an unset oldest entry.
@@ -521,7 +524,9 @@ type Error struct {
 	Message string `json:"message"`
 	Detail  string `json:"detail,omitempty"`
 	// Findings are the failed checks behind a refusal, one per entry.
-	Findings []string `json:"findings,omitempty"`
+	// NotifyError fills FindingDetails.
+	Findings       findings.List      `json:"findings,omitempty"`
+	FindingDetails []findings.Finding `json:"finding_details,omitempty"`
 	// Never serialize the owner because another caller could use it to claim the flow.
 	Owner string `json:"-"`
 }

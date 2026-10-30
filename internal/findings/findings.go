@@ -26,18 +26,18 @@ import (
 // checked, for example "authorization request validation failed".
 type Error struct {
 	Summary  string
-	Findings []string
+	Findings List
 }
 
 func (e *Error) Error() string {
 	if len(e.Findings) == 0 {
 		return e.Summary
 	}
-	return e.Summary + ": " + Join(e.Findings)
+	return e.Summary + ": " + Join(e.Findings.Texts())
 }
 
 // Of returns the findings of err, or nil when err is no refusal on findings.
-func Of(err error) []string {
+func Of(err error) List {
 	var e *Error
 	if errors.As(err, &e) {
 		return e.Findings

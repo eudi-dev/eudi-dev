@@ -3343,12 +3343,12 @@ func TestAuthorize_StrictRefusalListsItsFindings(t *testing.T) {
 	}
 
 	stored := srv.wallet.Consents().PeekLastError(nil)
-	if stored == nil || stored.Message != requestRefused || !slices.Equal(stored.Findings, body.Findings) {
+	if stored == nil || stored.Message != requestRefused || !slices.Equal(stored.Findings.Texts(), body.Findings.Texts()) || !slices.Equal(stored.FindingDetails, body.FindingDetails) {
 		t.Errorf("stored error %+v, want %q with the findings", stored, requestRefused)
 	}
 	log := srv.wallet.GetLog()
 	last := log[len(log)-1]
-	if last.Success || last.Details["event"] != "authorization_request_refused" || !slices.Equal(last.Details["findings"].([]string), body.Findings) {
+	if last.Success || last.Details["event"] != "authorization_request_refused" || !slices.Equal(last.Details["findings"].([]string), body.Findings.Texts()) {
 		t.Errorf("last log entry %+v, want the refusal with its findings", last)
 	}
 }

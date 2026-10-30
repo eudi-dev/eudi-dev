@@ -175,7 +175,7 @@ func TestTheUnregisteredIdentityIssuesWithAWarning(t *testing.T) {
 		if result.Issuer != created["issuer"] {
 			t.Errorf("%s: issued by %s, want %v", tc.identity, result.Issuer, created["issuer"])
 		}
-		if warned := strings.Contains(strings.Join(result.Findings, "\n"), "RPRC_22a"); warned != tc.warned {
+		if warned := strings.Contains(strings.Join(result.Findings.Texts(), "\n"), "RPRC_22a"); warned != tc.warned {
 			t.Errorf("%s: findings %v, RPRC_22a warning want %t", tc.identity, result.Findings, tc.warned)
 		}
 	}

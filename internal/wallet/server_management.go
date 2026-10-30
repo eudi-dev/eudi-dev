@@ -104,7 +104,7 @@ func (s *Server) handleGetCredentialStatus(w http.ResponseWriter, r *http.Reques
 	}
 	if len(result.HAIPFindings) > 0 && s.wallet.HAIPChecks() {
 		if err := s.wallet.reportDeviation(deviation{
-			action: "wallet", event: "haip_violation",
+			action: "wallet", event: "haip_violation", subject: subjectStatusList,
 			summary:  specCitedSummary("The status list of credential "+credentialLabel(cred), result.HAIPFindings),
 			findings: result.HAIPFindings,
 			details:  map[string]any{"credential_id": cred.ID, "uri": ref.URI, "idx": ref.Idx},

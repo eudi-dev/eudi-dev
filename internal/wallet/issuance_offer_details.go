@@ -20,6 +20,7 @@ import (
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
 	"github.com/eudi-dev/eudi-dev/v3/internal/dcql"
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 )
 
@@ -27,7 +28,7 @@ import (
 // metadata cannot be fetched. refusal holds the ARF findings when every
 // offered configuration has some. The user picks one configuration, so an
 // offer with one acceptable configuration is still shown.
-func (w *Wallet) describeCredentialOffer(ctx context.Context, offer *oid4vc.CredentialOffer) (details *consent.OfferDetails, refusal []string) {
+func (w *Wallet) describeCredentialOffer(ctx context.Context, offer *oid4vc.CredentialOffer) (details *consent.OfferDetails, refusal findings.List) {
 	if offer == nil {
 		return nil, nil
 	}
@@ -48,8 +49,8 @@ func (w *Wallet) describeCredentialOffer(ctx context.Context, offer *oid4vc.Cred
 	// The dialog lists the metadata problems. The flow reports them and, in
 	// strict mode, refuses.
 	images := newOfferImages(ctx)
-	var freshness []string
-	collect := func(problem string) error { freshness = append(freshness, problem); return nil }
+	var freshness findings.List
+	collect := func(problem findings.Finding) error { freshness = append(freshness, problem); return nil }
 	metadata, signerChain, err := fetchIssuerMetadataDocument(w.HTTPClient(), offer.CredentialIssuer, w.ARFChecks(), collect)
 	if err != nil {
 		details.MetadataError = err.Error()

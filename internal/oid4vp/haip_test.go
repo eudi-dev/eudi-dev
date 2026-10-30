@@ -47,7 +47,7 @@ func TestHAIPEnforcesTheRequestSignature(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !containsSubstring(findings, "signature") {
+		if !containsSubstring(findings.Texts(), "signature") {
 			t.Errorf("findings = %v, want the signature refused", findings)
 		}
 	})
@@ -61,7 +61,7 @@ func TestHAIPEnforcesTheRequestSignature(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !containsSubstring(findings, "x509_hash") {
+		if !containsSubstring(findings.Texts(), "x509_hash") {
 			t.Errorf("findings = %v, want the hash mismatch refused", findings)
 		}
 	})
@@ -75,7 +75,7 @@ func TestHAIPEnforcesTheRequestSignature(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !containsSubstring(findings, "expected_origins") {
+		if !containsSubstring(findings.Texts(), "expected_origins") {
 			t.Errorf("findings = %v, want the origin mismatch reported", findings)
 		}
 	})
@@ -107,7 +107,7 @@ func TestHAIPRejectsSelfSignedAndAnchoredChains(t *testing.T) {
 		reqObj := &oid4vc.RequestObjectJWT{Raw: raw, Header: header, Payload: payload}
 
 		violations := validateHAIPCompliance(params, reqObj)
-		if !containsSubstring(violations, "self-signed") {
+		if !containsSubstring(violations.Texts(), "self-signed") {
 			t.Errorf("violations = %v, want the self-signed certificate refused", violations)
 		}
 	})
@@ -145,13 +145,13 @@ func TestHAIPRejectsSelfSignedAndAnchoredChains(t *testing.T) {
 		violations := validateHAIPCompliance(params, reqObj)
 		// Report the self-signed certificate that was observed. Without configured
 		// trust anchors, the wallet cannot identify a certificate as the trusted root.
-		if !containsSubstring(violations, "self-signed certificate at position 2") {
+		if !containsSubstring(violations.Texts(), "self-signed certificate at position 2") {
 			t.Errorf("violations = %v, want the self-signed certificate named with its position", violations)
 		}
-		if !containsSubstring(violations, caCert.Subject.String()) {
+		if !containsSubstring(violations.Texts(), caCert.Subject.String()) {
 			t.Errorf("violations = %v, want the offending certificate's subject named", violations)
 		}
-		if !containsSubstring(violations, "trust anchor") {
+		if !containsSubstring(violations.Texts(), "trust anchor") {
 			t.Errorf("violations = %v, want the anchor refused", violations)
 		}
 	})
@@ -172,7 +172,7 @@ func TestHAIPContentEncryptionAlgorithmsListing(t *testing.T) {
 		if err != nil {
 			t.Fatalf("listing %v: strict mode refused the request: %v", listed, err)
 		}
-		if !containsSubstring(findings, "encrypted_response_enc_values_supported") {
+		if !containsSubstring(findings.Texts(), "encrypted_response_enc_values_supported") {
 			t.Errorf("listing %v: findings = %v, want the missing algorithm reported", listed, findings)
 		}
 	}
@@ -191,7 +191,7 @@ func TestHAIPRequiresVPTokenResponseType(t *testing.T) {
 	params.ResponseType = "id_token"
 
 	violations := validateHAIPCompliance(params, reqObj)
-	if !containsSubstring(violations, "response_type") {
+	if !containsSubstring(violations.Texts(), "response_type") {
 		t.Errorf("violations = %v, want the response type refused", violations)
 	}
 }
@@ -225,7 +225,7 @@ func TestHAIPChecksRunInBothModesAndTheModeDecidesSeverity(t *testing.T) {
 		if err != nil {
 			t.Fatalf("debug mode refused the request: %v", err)
 		}
-		if !containsSubstring(findings, "encrypted_response_enc_values_supported") {
+		if !containsSubstring(findings.Texts(), "encrypted_response_enc_values_supported") {
 			t.Errorf("findings = %v, want the violation reported", findings)
 		}
 	})
@@ -235,7 +235,7 @@ func TestHAIPChecksRunInBothModesAndTheModeDecidesSeverity(t *testing.T) {
 		if err != nil {
 			t.Fatalf("a request that only breaks the profile was refused without --haip: %v", err)
 		}
-		if containsSubstring(findings, "HAIP") {
+		if containsSubstring(findings.Texts(), "HAIP") {
 			t.Errorf("findings = %v, want no profile checks without --haip", findings)
 		}
 	})
@@ -512,7 +512,7 @@ func TestValidateHAIPCompliance(t *testing.T) {
 			if tt.wantContain != "" {
 				found := false
 				for _, v := range violations {
-					if contains(v, tt.wantContain) {
+					if contains(v.String(), tt.wantContain) {
 						found = true
 						break
 					}

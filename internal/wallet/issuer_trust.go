@@ -18,13 +18,13 @@ import (
 	"crypto/x509"
 	"fmt"
 	"slices"
-	"sort"
 	"strings"
 	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/dcql"
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
@@ -66,32 +66,32 @@ func catalogueEntriesIn(entries []registrar.CatalogAttestation, format string, t
 // catalogueFindings reports offered attestations that are missing from the
 // catalogue.
 // No specification has the wallet check this, so these findings only warn.
-func (w *Wallet) catalogueFindings(metadata map[string]any, configurations []string) []string {
+func (w *Wallet) catalogueFindings(metadata map[string]any, configurations []string) findings.List {
 	if !w.ARFChecks() {
 		return nil
 	}
 	entries := w.Registrar().CatalogAttestations()
-	var findings []string
+	var list findings.List
 	for _, o := range offeredAttestations(metadata, configurations, nil) {
 		if !o.known || len(o.types) == 0 {
 			continue
 		}
 		if _, ok := catalogueEntryIn(entries, o.format, o.types); !ok {
-			findings = append(findings, fmt.Sprintf("Attestation catalogue: the issuer offers %s (%s), and the catalogue has no entry for it. Add an entry to describe its schema and trusted list.", regcert.TypeName(o.format, o.types), o.format))
+			list = append(list, findings.UncitedRegistration(fmt.Sprintf("the attestation catalogue has no entry for %s (%s), which the issuer offers. Add an entry to describe its schema and trusted list", regcert.TypeName(o.format, o.types), o.format)))
 		}
 	}
-	return findings
+	return list
 }
 
 // trustAnchorFindings validates the signature of a received credential with
 // the trusted lists of its catalogue entry when --arf is on. The lists of an
 // EAA entry that give no anchors go to the activity log.
-func (w *Wallet) trustAnchorFindings(cred StoredCredential) []string {
+func (w *Wallet) trustAnchorFindings(cred StoredCredential) findings.List {
 	if !w.ARFChecks() {
 		return nil
 	}
 	anchoring, _ := w.catalogueAnchoring(cred)
-	w.warnFindings("issuance", "trusted_list", "Some trusted lists of the catalogue entry have no trust anchors", anchoring.Warnings, nil)
+	w.warnFindings("issuance", "trusted_list", subjectCredential, "Some trusted lists of the catalogue entry have no trust anchors", uncitedRegistrations(anchoring.Warnings), nil)
 	return anchoring.Findings
 }
 
@@ -156,8 +156,8 @@ func (w *Wallet) catalogueAnchoring(cred StoredCredential) (CatalogueAnchoring, 
 	if result.Entry != "" {
 		described = fmt.Sprintf("its catalogue entry %q", result.Entry)
 	}
-	rule := category.TrustRule
-	eaa := rule == registrar.CategoryOf(credtemplate.CategoryEAA).TrustRule
+	rule := findings.ARF.Registration(category.TrustRequirement)
+	eaa := category.TrustRule == registrar.CategoryOf(credtemplate.CategoryEAA).TrustRule
 	var candidates []trustedlists.List
 	for _, entry := range entries {
 		for _, authority := range entry.Schema.TrustedAuthorities {
@@ -211,9 +211,9 @@ func (w *Wallet) catalogueAnchoring(cred StoredCredential) (CatalogueAnchoring, 
 	switch {
 	case !read && eaa:
 	case !read && len(problems) == 0:
-		result.Findings = []string{fmt.Sprintf("%s: no trusted list of %s is readable, so the wallet cannot validate the received %s", rule, described, credentialLabel(cred))}
+		result.Findings = findings.List{rule.Newf("no trusted list of %s is readable, so the wallet cannot validate the received %s", described, credentialLabel(cred))}
 	default:
-		result.Findings = []string{fmt.Sprintf("%s: the signature of the received %s does not validate with the trusted lists of %s: %s", rule, credentialLabel(cred), described, strings.Join(problems, ", "))}
+		result.Findings = findings.List{rule.Newf("the signature of the received %s does not validate with the trusted lists of %s: %s", credentialLabel(cred), described, strings.Join(problems, ", "))}
 	}
 	return result, true
 }
@@ -280,21 +280,21 @@ func validateWithAnchors(cred StoredCredential, anchors []*x509.Certificate) err
 // every copy (CIR (EU) 2024/2982 Article 4(3)(d)). In strict mode a failed
 // check refuses the response (ARF ISSU_11b). In debug mode it returns the
 // findings. configID is the requested credential configuration.
-func (w *Wallet) checkReceivedCredentials(credResp, metadata map[string]any, configID, issuer string) ([]string, error) {
+func (w *Wallet) checkReceivedCredentials(credResp, metadata map[string]any, configID, issuer string) (findings.List, error) {
 	credentials := credentialStringsFromResponse(credResp)
 	received := make([]StoredCredential, 0, len(credentials))
 	for _, raw := range credentials {
 		received = append(received, receivedCredential(raw))
 	}
-	var debugFindings []string
+	var debugFindings findings.List
 	if w.HAIPChecks() {
-		var violations []string
+		var violations findings.List
 		for _, raw := range credentials {
 			violations = append(violations, w.haipCredentialViolations(raw)...)
 		}
 		if len(violations) > 0 {
-			violations = dedupeStrings(violations)
-			if err := w.reportHAIPViolations("Credential", issuer, violations); err != nil {
+			violations = dedupeFindings(violations)
+			if err := w.reportHAIPViolations(subjectCredential, issuer, violations); err != nil {
 				return nil, err
 			}
 			debugFindings = append(debugFindings, violations...)
@@ -309,21 +309,21 @@ func (w *Wallet) checkReceivedCredentials(credResp, metadata map[string]any, con
 	if !w.ARFChecks() {
 		return debugFindings, nil
 	}
-	var findings []string
+	var list findings.List
 	for _, cred := range received {
-		findings = append(findings, w.trustAnchorFindings(cred)...)
+		list = append(list, w.trustAnchorFindings(cred)...)
 	}
-	findings = append(findings, requestedTypeFindings(received, metadata, configID)...)
-	findings = append(findings, batchValidityFindings(received)...)
-	findings = append(findings, w.receivedValidityFindings(received, time.Now())...)
-	if len(findings) == 0 {
+	list = append(list, requestedTypeFindings(received, metadata, configID)...)
+	list = append(list, batchValidityFindings(received)...)
+	list = append(list, w.receivedValidityFindings(received, time.Now())...)
+	if len(list) == 0 {
 		return debugFindings, nil
 	}
-	findings = dedupeStrings(findings)
-	if err := w.reportARFFindings(issuer, "The received credential does not meet the ARF rules", findings); err != nil {
+	list = dedupeFindings(list)
+	if err := w.reportARFFindings(issuer, subjectCredential, "The received credential does not meet the ARF rules", list); err != nil {
 		return nil, err
 	}
-	return append(debugFindings, findings...), nil
+	return append(debugFindings, list...), nil
 }
 
 // receivedCredential reads the format, type and claims of a raw SD-JWT VC or
@@ -351,17 +351,26 @@ func receivedCredential(raw string) StoredCredential {
 }
 
 // dedupeStrings trims the values and returns each non-empty one once, sorted.
-func dedupeStrings(values []string) []string {
+func dedupeFindings(list findings.List) findings.List {
 	seen := make(map[string]bool)
-	out := make([]string, 0, len(values))
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value == "" || seen[value] {
+	out := make(findings.List, 0, len(list))
+	for _, finding := range list {
+		text := finding.String()
+		if seen[text] {
 			continue
 		}
-		seen[value] = true
-		out = append(out, value)
+		seen[text] = true
+		out = append(out, finding)
 	}
-	sort.Strings(out)
+	slices.SortFunc(out, func(a, b findings.Finding) int { return strings.Compare(a.String(), b.String()) })
 	return out
+}
+
+// uncitedRegistrations makes an uncited registration finding of each text.
+func uncitedRegistrations(texts []string) findings.List {
+	list := make(findings.List, 0, len(texts))
+	for _, text := range texts {
+		list = append(list, findings.UncitedRegistration(text))
+	}
+	return list
 }

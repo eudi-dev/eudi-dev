@@ -1984,6 +1984,63 @@ textarea.form-input {
   overflow-wrap: anywhere;
 }
 
+.finding-spec {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 7px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: nowrap;
+  vertical-align: baseline;
+  background: var(--neutral-bg);
+  color: var(--neutral-fg);
+}
+.log-specs {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.log-specs .finding-spec { margin: 0 0 0 4px; }
+
+.findings-grouped ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.findings-grouped li.finding { padding: 7px 0; }
+.findings-grouped li.finding + li.finding { border-top: 1px solid var(--border-subtle); }
+.finding-text { display: block; }
+.finding-text::first-letter { text-transform: uppercase; }
+.findings-group + .findings-group { margin-top: 16px; }
+.findings-group-title {
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.finding-ref {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.finding-ref a { color: var(--link); text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px; }
+.finding-ref a:hover { text-decoration-thickness: 2px; }
+.consent-findings[open] { padding-bottom: 8px; }
+.consent-findings .findings-grouped {
+  margin: 0 8px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: var(--bg-dialog);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.error-findings.findings-grouped { padding: 10px 14px; }
+.error-findings .findings-group-title { border-bottom-color: var(--border-raised); }
+.log-findings { margin-bottom: 10px; overflow-wrap: anywhere; }
+
 .error-more > summary {
   cursor: pointer;
   font-size: 13px;
@@ -2083,6 +2140,8 @@ textarea.form-input {
   cursor: pointer;
   user-select: none;
 }
+
+.log-detail { user-select: text; }
 
 .log-entry.has-details .log-header:hover {
   background: var(--bg-hover);
@@ -2268,6 +2327,13 @@ textarea.form-input {
   .log-status {
     margin-left: auto;
   }
+  .log-specs {
+    order: 2;
+    flex-basis: 100%;
+    padding-left: 20px;
+    white-space: normal;
+  }
+  .log-specs .finding-spec { margin: 0 4px 0 0; }
   .log-detail {
     order: 1;
     flex-basis: 100%;

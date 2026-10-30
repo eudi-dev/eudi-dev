@@ -22,7 +22,7 @@ import (
 
 func TestARFRequiresAnAccessCertificate(t *testing.T) {
 	findings := ARFFindings(&Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ClientID: "redirect_uri:https://verifier.example/response"}})
-	if !containsSubstring(findings, "RPA_03") {
+	if !containsSubstring(findings.Texts(), "RPA_03") {
 		t.Errorf("findings %v, want the RPA_03 finding", findings)
 	}
 }
@@ -31,10 +31,10 @@ func TestARFRequiresAnAccessCertificate(t *testing.T) {
 // (CIR (EU) 2026/1731), so a request without one gets a warning.
 func TestAMissingRegistrationCertificateIsAWarning(t *testing.T) {
 	request := &Request{RequestPayload: map[string]any{"dcql_query": map[string]any{}}}
-	if findings := ARFFindings(request); containsSubstring(findings, "no registration certificate") {
+	if findings := ARFFindings(request); containsSubstring(findings.Texts(), "no registration certificate") {
 		t.Errorf("findings %v, want the missing registration certificate only as a warning", findings)
 	}
-	if advisories := ARFAdvisories(request); !containsSubstring(advisories, "carries no registration certificate (typ rc-wrp+jwt) in verifier_info. Wallets must check registration certificates from 11 August 2028") {
+	if advisories := ARFAdvisories(request); !containsSubstring(advisories.Texts(), "carries no registration certificate (typ rc-wrp+jwt) in verifier_info. Wallets must check registration certificates from 11 August 2028") {
 		t.Errorf("advisories %v, want the missing registration certificate", advisories)
 	}
 }

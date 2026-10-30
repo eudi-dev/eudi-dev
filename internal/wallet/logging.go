@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
 )
 
@@ -348,7 +349,7 @@ func addStringDetail(details map[string]any, key string, value string) {
 }
 
 func (w *Wallet) warnUndefinedRequestParameters(scope string, params *oid4vp.Request) {
-	w.warnFindings(scope, "undefined_request_parameter", "The request contains parameters OID4VP 1.0 does not define", oid4vp.UndefinedRequestParameterFindings(params), nil)
+	w.warnFindings(scope, "undefined_request_parameter", subjectRequest, "The request contains parameters OID4VP 1.0 does not define", oid4vp.UndefinedRequestParameterFindings(params), nil)
 }
 
 func (w *Wallet) warnUndefinedResponseMembers(result *oid4vp.DirectPostResult) {
@@ -356,7 +357,6 @@ func (w *Wallet) warnUndefinedResponseMembers(result *oid4vp.DirectPostResult) {
 	if len(members) == 0 {
 		return
 	}
-	w.AddWarning("presentation", fmt.Sprintf(
-		"The verifier's response contains fields OID4VP 1.0 §8.2 does not define: %s. They are ignored.",
-		strings.Join(members, ", ")), nil)
+	w.warnFinding("presentation", "undefined_response_member", subjectVerifierResponse, findings.OID4VP.Protocol("§8.2").Newf(
+		"the verifier's response contains undefined fields, which the wallet ignores: %s", strings.Join(members, ", ")), nil)
 }

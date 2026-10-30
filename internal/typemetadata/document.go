@@ -36,7 +36,7 @@ func parseDocument(body []byte) (Document, error) {
 	var doc Document
 	if err := json.Unmarshal(body, &doc); err != nil {
 		if _, hasClaims := object["claims"]; hasClaims && claimsMalformed(object["claims"]) {
-			return Document{}, processingErrorf("SD-JWT VC §5.6: the claims of the Type Metadata are malformed: %v", err)
+			return Document{}, processingErrorf("§5.6", "the claims of the Type Metadata are malformed: %v", err)
 		}
 		return Document{}, err
 	}
@@ -48,8 +48,8 @@ func parseDocument(body []byte) (Document, error) {
 			return Document{}, errors.New("§5.5: every display entry needs a locale and a name")
 		}
 	}
-	if err := checkClaims(doc); err != nil {
-		return Document{}, processingErrorf("SD-JWT VC %v in the Type Metadata of %s", err, doc.VCT)
+	if claim := checkClaims(doc); claim != nil {
+		return Document{}, processingErrorf(claim.section, "%s in the Type Metadata of %s", claim.text, doc.VCT)
 	}
 	return doc, nil
 }

@@ -102,7 +102,7 @@ type Result struct {
 	// Status is the fetched status list entry.
 	Status *statuslist.StatusResult
 	// HAIPFindings are set when Options.HAIP applies to the credential.
-	HAIPFindings []string
+	HAIPFindings findings.List
 }
 
 // Find returns the check with the name.
@@ -217,9 +217,9 @@ func (v run) trustedListCheck() []Check {
 }
 
 func haipCheck(token *sdjwt.Token, r *Result) Check {
-	r.HAIPFindings = append([]string{}, HAIPCredentialFindings(token.Header, token.Payload)...)
+	r.HAIPFindings = append(findings.List{}, HAIPCredentialFindings(token.Header, token.Payload)...)
 	if len(r.HAIPFindings) == 0 {
 		return Check{Name: CheckHAIP, Status: Pass, Detail: "No findings"}
 	}
-	return Check{Name: CheckHAIP, Status: Warning, Detail: findings.Join(r.HAIPFindings)}
+	return Check{Name: CheckHAIP, Status: Warning, Detail: findings.Join(r.HAIPFindings.Texts())}
 }

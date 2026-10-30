@@ -37,7 +37,7 @@ type Checks struct {
 
 // ValidateAuthorizationRequest adds profile checks when the checks require
 // HAIP or ARF.
-func ValidateAuthorizationRequest(checks Checks, params *Request) ([]string, error) {
+func ValidateAuthorizationRequest(checks Checks, params *Request) (findings.List, error) {
 	if err := validateAuthorizationRequestSyntax(params); err != nil {
 		return nil, fmt.Errorf("authorization request validation failed: %w", err)
 	}
@@ -56,41 +56,41 @@ func ValidateAuthorizationRequest(checks Checks, params *Request) ([]string, err
 // §8.5 code of the request error.
 type AuthenticatedRefusal struct {
 	Code     string
-	Findings []string
+	Findings findings.List
 }
 
 func (e *AuthenticatedRefusal) Error() string { return refusal(e.Findings).Error() }
 func (e *AuthenticatedRefusal) Unwrap() error { return refusal(e.Findings) }
 
-func validatePresentationRequestCore(checks Checks, params *Request, payload map[string]any) ([]string, error) {
+func validatePresentationRequestCore(checks Checks, params *Request, payload map[string]any) (findings.List, error) {
 	// clientFindings make the client identifier invalid. RFC 6749 §4.1.2.1
 	// then forbids sending the error to the client.
-	var clientFindings []string
+	var clientFindings findings.List
 	clientID, reqObj := params.ClientID, params.RequestObject
-	if finding := verifyClientID(clientID, reqObj, params.ResponseDestination(), params.RequestOrigin); finding != "" {
+	if finding := verifyClientID(clientID, reqObj, params.ResponseDestination(), params.RequestOrigin); finding.Text != "" {
 		clientFindings = append(clientFindings, finding)
 	}
-	if finding := validateRequestObject(clientID, reqObj); finding != "" {
+	if finding := validateRequestObject(clientID, reqObj); finding.Text != "" {
 		clientFindings = append(clientFindings, finding)
 	}
-	if finding := verifyRequestObjectSignature(clientID, reqObj); finding != "" {
+	if finding := verifyRequestObjectSignature(clientID, reqObj); finding.Text != "" {
 		clientFindings = append(clientFindings, finding)
 	}
-	findings := append([]string{}, clientFindings...)
-	findings = append(findings, requestObjectClaimFindings(params)...)
-	findings = append(findings, authorizationFindings(params, payload)...)
-	var advisories []string
-	if advisory := unsignedRequestObjectAdvisory(reqObj); advisory != "" {
+	list := append(findings.List{}, clientFindings...)
+	list = append(list, requestObjectClaimFindings(params)...)
+	list = append(list, authorizationFindings(params, payload)...)
+	var advisories findings.List
+	if advisory := unsignedRequestObjectAdvisory(reqObj); advisory.Text != "" {
 		advisories = append(advisories, advisory)
 	}
-	if advisory := missingAudienceAdvisory(params); advisory != "" {
+	if advisory := missingAudienceAdvisory(params); advisory.Text != "" {
 		advisories = append(advisories, advisory)
 	}
 	if checks.HAIP {
-		findings = append(findings, validateHAIPCompliance(params, reqObj)...)
+		list = append(list, validateHAIPCompliance(params, reqObj)...)
 		advisories = append(advisories, haipAdvisories(params)...)
 	}
-	var arfFindings []string
+	var arfFindings findings.List
 	if checks.ARF {
 		arfFindings = append(ARFFindings(params), responseEncryptionFindings(checks, params)...)
 		advisories = append(advisories, ARFAdvisories(params)...)
@@ -98,50 +98,50 @@ func validatePresentationRequestCore(checks Checks, params *Request, payload map
 	}
 
 	code := RefusalCode(params)
-	if len(findings) == 0 {
+	if len(list) == 0 {
 		code = ErrorAccessDenied
 	}
-	findings = append(findings, arfFindings...)
-	if checks.Strict && len(findings) > 0 && len(clientFindings) == 0 && relyingPartyAuthenticated(params) {
-		return nil, &AuthenticatedRefusal{Code: code, Findings: findings}
+	list = append(list, arfFindings...)
+	if checks.Strict && len(list) > 0 && len(clientFindings) == 0 && relyingPartyAuthenticated(params) {
+		return nil, &AuthenticatedRefusal{Code: code, Findings: list}
 	}
-	if checks.Strict && len(findings) > 0 {
-		return nil, refusal(findings)
+	if checks.Strict && len(list) > 0 {
+		return nil, refusal(list)
 	}
 
-	return append(findings, advisories...), nil
+	return append(list, advisories...), nil
 }
 
-func refusal(list []string) *findings.Error {
+func refusal(list findings.List) *findings.Error {
 	return &findings.Error{Summary: "authorization request validation failed", Findings: list}
 }
 
 // authorizationFindings collects the OID4VP 1.0 findings of a request.
 // validatePresentationRequestCore refuses them in strict mode and returns them
 // as warnings otherwise.
-func authorizationFindings(params *Request, payload map[string]any) []string {
-	var findings []string
+func authorizationFindings(params *Request, payload map[string]any) findings.List {
+	var list findings.List
 	if !hasKnownClientIDPrefix(params.ClientID) {
-		findings = append(findings, fmt.Sprintf("OID4VP 1.0 §5.9.3: client_id uses an unsupported prefix: %q", params.ClientID))
+		list = append(list, findings.OID4VP.Protocol("§5.9.2").Newf("client_id uses an unsupported prefix: %q", params.ClientID))
 	}
 	// §5.2 marks nonce REQUIRED. It binds the presentation to this request.
 	if requestRequiresNonce(params.ResponseType) && params.Nonce == "" {
-		findings = append(findings, "OID4VP 1.0 §5.2: nonce is required")
+		list = append(list, findings.OID4VP.Protocol("§5.2").New("nonce is required"))
 	}
 	// §5.2 marks response_mode REQUIRED. Debug mode answers with direct_post.
 	if params.ResponseMode == "" {
-		findings = append(findings, "OID4VP 1.0 §5.2: response_mode is required")
+		list = append(list, findings.OID4VP.Protocol("§5.2").New("response_mode is required"))
 	}
 	// §5.3: the Verifier MUST include state "if at least one Presentation
 	// without Holder Binding is requested and unless the Digital Credentials
 	// API is used".
 	if params.State == "" && !IsDCAPIResponseMode(params.ResponseMode) && dcql.RequestsUnboundPresentation(params.DCQLQuery) {
-		findings = append(findings, "OID4VP 1.0 §5.3: state is required when the request accepts a presentation without holder binding")
+		list = append(list, findings.OID4VP.Protocol("§5.3").New("state is required when the request accepts a presentation without holder binding"))
 	}
 	// §8.2: "When the response_uri parameter is present, the redirect_uri
 	// Authorization Request parameter MUST NOT be present."
 	if responseModeUsesDirectPost(params.ResponseMode) && params.RedirectURI != "" {
-		findings = append(findings, fmt.Sprintf("OID4VP 1.0 §8.2: redirect_uri must not be used with response_mode %q", params.ResponseMode))
+		list = append(list, findings.OID4VP.Protocol("§8.2").Newf("redirect_uri must not be used with response_mode %q", params.ResponseMode))
 	}
 	// §5.1: "Either a dcql_query or a scope parameter representing a DCQL
 	// Query MUST be present in the Authorization Request, but not both."
@@ -150,31 +150,31 @@ func authorizationFindings(params *Request, payload map[string]any) []string {
 		hasScope := strings.TrimSpace(params.Scope) != ""
 		switch {
 		case hasDCQL && hasScope:
-			findings = append(findings, "OID4VP 1.0 §5.1: dcql_query and scope must not both be present")
+			list = append(list, findings.OID4VP.Protocol("§5.1").New("dcql_query and scope must not both be present"))
 		case !hasDCQL && !hasScope:
-			findings = append(findings, "OID4VP 1.0 §5.1: a vp_token request must carry either dcql_query or scope")
+			list = append(list, findings.OID4VP.Protocol("§5.1").New("a vp_token request must carry either dcql_query or scope"))
 		}
 	}
 	// Invalid format, meta or query ID fields violate §6.1. This is a request
 	// error.
-	findings = append(findings, dcql.QueryFindings(params.DCQLQuery)...)
+	list = append(list, dcql.QueryFindings(params.DCQLQuery)...)
 	// §5: "Wallets that do not support this parameter MUST reject requests
 	// that contain it." §8.4 repeats it.
 	if hasTransactionData(params, payload) {
-		findings = append(findings, "OID4VP 1.0 §5: transaction_data is not supported by this wallet")
+		list = append(list, findings.OID4VP.Protocol("§5").New("transaction_data is not supported by this wallet"))
 	}
-	if finding := expectedOriginsFinding(params, payload); finding != "" {
-		findings = append(findings, finding)
+	if finding := expectedOriginsFinding(params, payload); finding.Text != "" {
+		list = append(list, finding)
 	}
-	return findings
+	return list
 }
 
 // expectedOriginsFinding compares expected_origins with the request's origin,
 // using simple string comparison.
-func expectedOriginsFinding(params *Request, payload map[string]any) string {
+func expectedOriginsFinding(params *Request, payload map[string]any) findings.Finding {
 	origin := params.RequestOrigin
 	if origin == "" {
-		return ""
+		return findings.Finding{}
 	}
 	values := jsonutil.Strings(payload["expected_origins"])
 	switch {
@@ -182,19 +182,19 @@ func expectedOriginsFinding(params *Request, payload map[string]any) string {
 	// contain only the derived Origin of the Authorization Challenge Endpoint".
 	case IsInteractiveAuthorizationResponseMode(params.ResponseMode):
 		if !payloadHasKey(payload, "expected_origins") || slices.Equal(values, []string{origin}) {
-			return ""
+			return findings.Finding{}
 		}
-		return fmt.Sprintf("OID4VCI 1.1 §6.2.1.1: expected_origins must contain only %q, the origin of the authorization challenge endpoint, and contains %v", origin, payload["expected_origins"])
+		return findings.OID4VCI11.Protocol("§6.2.1.1").Newf("expected_origins must contain only %q, the origin of the authorization challenge endpoint, and contains %v", origin, payload["expected_origins"])
 	// OpenID4VP 1.0 Appendix A.2: for a signed Digital Credentials API request
 	// expected_origins is REQUIRED, and "If the Origin does not match any of
 	// the entries in expected_origins, the Wallet MUST return an error."
 	case IsDCAPIResponseMode(params.ResponseMode) && !params.UnsignedDCAPI:
 		if slices.Contains(values, origin) {
-			return ""
+			return findings.Finding{}
 		}
-		return fmt.Sprintf("OID4VP 1.0 Appendix A.2: expected_origins must include the caller origin %q", origin)
+		return findings.OID4VP.Protocol("Appendix A.2").Newf("expected_origins must include the caller origin %q", origin)
 	}
-	return ""
+	return findings.Finding{}
 }
 
 func requestRequiresNonce(responseType string) bool {
@@ -328,12 +328,12 @@ func validateResponseMode(responseMode, responseURI, redirectURI string) error {
 // encrypting the presentation response." HAIP 1.0 §5.1 and §5.2 require the
 // same outside Interactive Authorization, so with the HAIP checks the HAIP
 // finding covers it.
-func responseEncryptionFindings(checks Checks, params *Request) []string {
+func responseEncryptionFindings(checks Checks, params *Request) findings.List {
 	if ResponseModeEncrypts(params.ResponseMode) {
 		return nil
 	}
 	if checks.HAIP && !IsInteractiveAuthorizationResponseMode(params.ResponseMode) {
 		return nil
 	}
-	return []string{fmt.Sprintf("ARF OIA_09: response_mode %q returns the presentation unencrypted. The wallet must encrypt it", params.ResponseMode)}
+	return findings.List{findings.ARF.Protocol("OIA_09").Newf("response_mode %q returns the presentation unencrypted. The wallet must encrypt it", params.ResponseMode)}
 }

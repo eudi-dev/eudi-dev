@@ -28,6 +28,7 @@ import (
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
 	"github.com/eudi-dev/eudi-dev/v3/internal/regcert"
@@ -75,7 +76,7 @@ func signedTestIssuerMetadata(t *testing.T, key *ecdsa.PrivateKey, chain []*x509
 // requests the offered configuration.
 func arfIssuerFindings(checking *Wallet, metadata map[string]any, chain []*x509.Certificate) []string {
 	checking.RequireARF = true
-	return checking.issuerARFCheck(metadata, chain, []string{"offered"})
+	return checking.issuerARFCheck(metadata, chain, []string{"offered"}).Texts()
 }
 
 // One element of issuer_info contains the registration certificate (ETSI TS
@@ -119,7 +120,7 @@ func TestARFChecksHowAnIssuerAuthenticates(t *testing.T) {
 		{"unsigned metadata", func() []string {
 			metadata, _ := signedTestIssuerMetadata(t, eaaKey, eaaChain, "dc+sd-jwt", testDiplomaVCT, eaaInfo)
 			return arfIssuerFindings(w, metadata, nil)
-		}, "ARF ISSU_34: the Credential Issuer Metadata is not signed"},
+		}, "OID4VCI 1.0 §12.2.3: the Credential Issuer Metadata is not signed"},
 		{"an unregistered attestation type", func() []string {
 			metadata, chain := signedTestIssuerMetadata(t, eaaKey, eaaChain, "dc+sd-jwt", "urn:example:other", eaaInfo)
 			return arfIssuerFindings(w, metadata, chain)
@@ -218,11 +219,11 @@ func TestARFAcceptsTheWalletsOwnIssuer(t *testing.T) {
 func TestStrictARFRefusesAnUnregisteredIssuer(t *testing.T) {
 	w := generateTestWallet(t)
 	w.ValidationMode = ValidationModeStrict
-	if err := w.reportARFIssuanceFindings("https://issuer.example", []string{"ARF RPRC_22a: no certificate"}); err == nil {
+	if err := w.reportARFIssuanceFindings("https://issuer.example", findings.List{findings.ARF.Registration("RPRC_22a").New("no certificate")}); err == nil {
 		t.Fatal("strict mode accepted an ARF finding")
 	}
 	w.ValidationMode = ValidationModeDebug
-	if err := w.reportARFIssuanceFindings("https://issuer.example", []string{"ARF RPRC_22a: no certificate"}); err != nil {
+	if err := w.reportARFIssuanceFindings("https://issuer.example", findings.List{findings.ARF.Registration("RPRC_22a").New("no certificate")}); err != nil {
 		t.Fatalf("debug mode refused: %v", err)
 	}
 }
@@ -243,7 +244,7 @@ func TestMissingIssuerInfoIsAWarning(t *testing.T) {
 	if got := w.issuerARFCheck(metadata, signer, []string{"offered"}); len(got) != 0 {
 		t.Errorf("findings %v, want none for the missing issuer_info", got)
 	}
-	if got := strings.Join(w.issuerARFAdvisories(metadata), "\n"); !strings.Contains(got, "carries no registration certificate (an issuer_info entry with typ rc-wrp+jwt). Wallets must check registration certificates from 11 August 2028") {
+	if got := strings.Join(w.issuerARFAdvisories(metadata).Texts(), "\n"); !strings.Contains(got, "carries no registration certificate (an issuer_info entry with typ rc-wrp+jwt). Wallets must check registration certificates from 11 August 2028") {
 		t.Errorf("advisories %q, want the missing issuer_info", got)
 	}
 }
@@ -261,7 +262,7 @@ func TestARFChecksOfferedTypesStrictly(t *testing.T) {
 		t.Errorf("offer without a type: %q", got)
 	}
 	w.RequireARF = true
-	if got := strings.Join(w.issuerARFCheck(metadata, signer, []string{"missing"}), "\n"); !strings.Contains(got, "has no configuration missing") {
+	if got := strings.Join(w.issuerARFCheck(metadata, signer, []string{"missing"}).Texts(), "\n"); !strings.Contains(got, "has no configuration missing") {
 		t.Errorf("unknown configuration: %q", got)
 	}
 }
@@ -279,7 +280,7 @@ func TestARFChecksEachKindInAMixedOffer(t *testing.T) {
 	supported["diploma"] = map[string]any{"format": "dc+sd-jwt", "vct": testDiplomaVCT}
 	w.RequireARF = true
 	got := w.issuerARFCheck(metadata, signer, []string{"offered", "diploma"})
-	if len(got) != 1 || !strings.Contains(got[0], "ARF ISSU_34a") {
+	if len(got) != 1 || !strings.Contains(got[0].String(), "ARF ISSU_34a") {
 		t.Fatalf("findings %v, want only the missing EAA provider entitlement", got)
 	}
 }
@@ -291,7 +292,7 @@ func TestTheIssuerChecksWarnInDebugModeAndRefuseInStrictMode(t *testing.T) {
 	w.RequireARF = true
 	unsigned := map[string]any{"credential_issuer": "https://issuer.example"}
 	findings, err := w.checkIssuer("https://issuer.example", unsigned, nil, nil)
-	if err != nil || !slices.ContainsFunc(findings, func(f string) bool { return strings.Contains(f, "ARF ISSU_34") }) {
+	if err != nil || !slices.ContainsFunc(findings.Texts(), func(f string) bool { return strings.Contains(f, "ARF ISSU_34") }) {
 		t.Fatalf("debug mode: findings %v, error %v, want the unsigned metadata finding", findings, err)
 	}
 	w.ValidationMode = ValidationModeStrict
@@ -329,7 +330,7 @@ func TestIssuerInfoNamesTheRegistrationCertificateFormat(t *testing.T) {
 		t.Fatalf("findings %v for the registrar's issuer_info, want none", got)
 	}
 	entries[0]["format"] = "jwt"
-	if got := issuerInfoShapeFindings(entries); !containsSubstring(got, "4.2.3-05") {
+	if got := issuerInfoShapeFindings(entries); !containsSubstring(got.Texts(), "4.2.3-05") {
 		t.Errorf("findings %v, want 4.2.3-05", got)
 	}
 }
@@ -346,7 +347,7 @@ func TestDebugARFReturnsTheIssuanceFindingsInTheResult(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !containsSubstring(result.Findings, "RPRC_22a") {
+	if !containsSubstring(result.Findings.Texts(), "RPRC_22a") {
 		t.Errorf("findings %v, want the unregistered issuer's RPRC_22a", result.Findings)
 	}
 }

@@ -23,6 +23,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/dcql"
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
 )
 
@@ -78,7 +79,7 @@ func (w *Wallet) trustedAuthorityAnchors(query map[string]any) map[string][]*x50
 		taList, _ := cqMap["trusted_authorities"].([]any)
 		queryID, _ := cqMap["id"].(string)
 		listAnchors, listFindings := w.etsiTrustedListAnchors(taList)
-		w.warnFindings("presentation", "trusted_list", fmt.Sprintf("The trusted lists of credential query %s", queryID), listFindings, nil)
+		w.warnFindings("presentation", "trusted_list", subjectRequest, fmt.Sprintf("The trusted lists of credential query %s", queryID), listFindings, nil)
 		maps.Copy(anchors, listAnchors)
 	}
 	return anchors
@@ -89,9 +90,9 @@ func (w *Wallet) trustedAuthorityAnchors(query map[string]any) map[string][]*x50
 // cached, signed by a trusted list operator and current. The issuance services
 // anchor credentials (ETSI TS 119 602 V1.1.1 Table D.3). Each list that gives
 // no anchors is a finding.
-func (w *Wallet) etsiTrustedListAnchors(taList []any) (map[string][]*x509.Certificate, []string) {
+func (w *Wallet) etsiTrustedListAnchors(taList []any) (map[string][]*x509.Certificate, findings.List) {
 	anchors := map[string][]*x509.Certificate{}
-	var findings []string
+	var list findings.List
 	for _, entry := range taList {
 		entryMap, _ := entry.(map[string]any)
 		if t, _ := entryMap["type"].(string); t != "etsi_tl" {
@@ -108,12 +109,12 @@ func (w *Wallet) etsiTrustedListAnchors(taList []any) (map[string][]*x509.Certif
 			}
 			certs, err := w.issuanceAnchors(listURL)
 			if err != nil {
-				findings = append(findings, fmt.Sprintf("the trusted list %s of trusted_authorities cannot be used: %v", listURL, err))
+				list = append(list, findings.UncitedRegistration(fmt.Sprintf("the trusted list %s of trusted_authorities cannot be used: %v", listURL, err)))
 			}
 			anchors[listURL] = certs
 		}
 	}
-	return anchors, findings
+	return anchors, list
 }
 
 func (w *Wallet) issuanceAnchors(listURL string) ([]*x509.Certificate, error) {

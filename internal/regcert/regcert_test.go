@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
@@ -74,9 +75,24 @@ func TestTheBindingComparesTheRelyingPartyAndTheService(t *testing.T) {
 		"no service":             {map[string]any{"sub": "LEIXG-SHOP"}, 1},
 		"another party":          {map[string]any{"sub": "LEIXG-OTHER", registrar.ServiceIdentifierClaim: "shop"}, 1},
 	} {
-		if got := BindingFindings(tc.cert, access, "ARF RPRC_17a"); len(got) != tc.findings {
+		if got := BindingFindings(tc.cert, access, findings.ARF.Registration("RPRC_17a")); len(got) != tc.findings {
 			t.Errorf("%s: findings %v, want %d", name, got, tc.findings)
 		}
+	}
+}
+
+// ARF RPRC_22b links a provider's certificates through the identifier alone.
+// Other attributes may differ (ETSI TS 119 475 V1.2.1 GEN-5.1.1-03).
+func TestAProviderBindingComparesOnlyTheIdentifier(t *testing.T) {
+	access := &x509.Certificate{Subject: pkix.Name{
+		OrganizationalUnit: []string{"diplomas"},
+		Names:              []pkix.AttributeTypeAndValue{{Type: asn1.ObjectIdentifier{2, 5, 4, 97}, Value: "LEIXG-UNI"}},
+	}}
+	if got := IdentifierFindings(map[string]any{"sub": "LEIXG-UNI"}, access, findings.ARF.Registration("RPRC_22b")); len(got) != 0 {
+		t.Errorf("findings %v, want none for the same identifier without a service", got)
+	}
+	if got := IdentifierFindings(map[string]any{"sub": "LEIXG-OTHER"}, access, findings.ARF.Registration("RPRC_22b")); len(got) != 1 || got[0].Rule != "ARF RPRC_22b" {
+		t.Errorf("findings %v, want the identifier mismatch", got)
 	}
 }
 
@@ -189,14 +205,14 @@ func TestOverAskingFindings(t *testing.T) {
 func TestRegistrationValidityFindings(t *testing.T) {
 	now := time.Now()
 	longLived := map[string]any{"iat": float64(now.Unix()), "exp": float64(now.AddDate(2, 0, 0).Unix())}
-	if !containsSubstring(validityFindings(longLived, "ARF RPRC_17"), "more than 12 months") {
+	if !containsSubstring(validityFindings(longLived, findings.ARF.Registration("RPRC_17")), "more than 12 months") {
 		t.Error("a certificate valid for two years should be flagged")
 	}
 	expired := map[string]any{"iat": float64(now.AddDate(0, -2, 0).Unix()), "exp": float64(now.AddDate(0, -1, 0).Unix())}
-	if !containsSubstring(validityFindings(expired, "ARF RPRC_17"), "expired") {
+	if !containsSubstring(validityFindings(expired, findings.ARF.Registration("RPRC_17")), "expired") {
 		t.Error("an expired certificate should be flagged")
 	}
-	if findings := validityFindings(map[string]any{"iat": float64(now.Unix())}, "ARF RPRC_17"); len(findings) != 0 {
+	if findings := validityFindings(map[string]any{"iat": float64(now.Unix())}, findings.ARF.Registration("RPRC_17")); len(findings) != 0 {
 		t.Errorf("a certificate with iat and no exp should pass, got %v", findings)
 	}
 }
@@ -224,13 +240,13 @@ func TestTheSupervisoryAuthorityNeedsAContact(t *testing.T) {
 		t.Errorf("findings %v, want none for an authority with an email", findings)
 	}
 	cert["supervisory_authority"] = map[string]any{}
-	if findings := ContentFindings(cert); len(findings) != 1 || !strings.Contains(findings[0], "RPRC_12") {
-		t.Errorf("findings %v, want the RPRC_12 finding", findings)
+	if list := ContentFindings(cert); len(list) != 1 || list[0].Rule != "ARF RPRC_12" || list[0].Group != findings.GroupRegistration {
+		t.Errorf("findings %v, want the RPRC_12 registration finding", list)
 	}
 }
 
-func containsSubstring(values []string, want string) bool {
-	for _, value := range values {
+func containsSubstring(list findings.List, want string) bool {
+	for _, value := range list.Texts() {
 		if strings.Contains(value, want) {
 			return true
 		}
@@ -297,8 +313,8 @@ func TestVerifyReadsBothSerializations(t *testing.T) {
 func TestAnUnanchoredStatusListIsAFinding(t *testing.T) {
 	cert := conformantRegistrationCert()
 	cert["status"] = map[string]any{"status_list": map[string]any{"idx": float64(7), "uri": "http://127.0.0.1:1/status"}}
-	findings := StatusFindings(cert, &http.Client{Timeout: time.Second}, nil, "ARF RPRC_17")
-	if !containsSubstring(findings, "RPACANot_03b") {
+	findings := StatusFindings(cert, &http.Client{Timeout: time.Second}, nil, findings.ARF.Registration("RPRC_17"))
+	if !containsSubstring(findings, "RPACANot_02") {
 		t.Fatalf("findings %v, want the missing revocation anchor", findings)
 	}
 }
@@ -337,7 +353,7 @@ func TestAnUntrustedStatusListStillShowsTheStatus(t *testing.T) {
 	cert := conformantRegistrationCert()
 	cert["status"] = map[string]any{"status_list": map[string]any{"idx": float64(7), "uri": server.URL + "/status"}}
 
-	findings := StatusFindings(cert, server.Client(), []*x509.Certificate{trusted}, "ARF RPRC_17")
+	findings := StatusFindings(cert, server.Client(), []*x509.Certificate{trusted}, findings.ARF.Registration("RPRC_17"))
 	if containsSubstring(findings, "cannot be checked") {
 		t.Fatalf("findings %v, want the status read despite the untrusted chain", findings)
 	}

@@ -1883,11 +1883,11 @@
     }
     logEmpty.hidden = true;
 
-    combineRequestLogs(log).reverse().forEach((entry, index) => {
+    splitFindingGroups(combineRequestLogs(log)).reverse().forEach((entry, index) => {
       const el = document.createElement('div');
       el.id = 'log-entry-' + index;
       const view = activityView(entry);
-      const hasDetails = view.payload || view.presentations.length > 0 || view.tokens.length > 0 || Object.keys(view.details).length > 0;
+      const hasDetails = view.payload || view.findings.length > 0 || view.presentations.length > 0 || view.tokens.length > 0 || Object.keys(view.details).length > 0;
       el.className = 'log-entry' + (hasDetails ? ' has-details' : '');
       el.dataset.testid = 'log-entry';
       el.dataset.event = entry.details?.event || '';
@@ -1903,11 +1903,13 @@
         '<span class="log-chevron" id="' + el.id + '-chevron">' + (hasDetails ? '▸' : '') + '</span>' +
         '<span class="log-time" id="' + el.id + '-time">' + time + '</span>' +
         '<span class="log-action ' + entry.action + '" id="' + el.id + '-action">' + escHtml(entry.action) + '</span>' +
-        '<span class="log-detail" id="' + el.id + '-detail" title="' + escHtml(view.detail) + '">' + escHtml(view.detail) + '</span>' +
+        '<span class="log-detail" id="' + el.id + '-detail" title="' + escHtml(logTitle(view)) + '">' + escHtml(logTitle(view)) + '</span>' +
+        logSpecsHtml(view.findings, el.id + '-specs') +
         '<span class="log-status ' + statusClass + '" id="' + el.id + '-status">' + statusLabel + '</span>' +
         '</div>';
       if (hasDetails) {
         html += '<div class="log-details" id="' + el.id + '-details">';
+        if (view.findings.length) html += '<div class="log-findings findings-grouped" id="' + el.id + '-findings">' + findingItemsHtml(view.findings, el.id + '-findings', el.id + '-finding', false) + '</div>';
         if (Object.keys(view.details).length) html += renderLogDetails(view.details, el.id);
         if (view.payload) html += renderLogPayload(view.payload, view.decoderInput, view.presentations, view.credentials, view.tokens, el.id);
         else if (view.presentations.length || view.tokens.length) html += '<div class="log-payload-controls" id="' + el.id + '-controls">' + renderLogPresentations(view.presentations, el.id) + renderLogTokens(view.tokens, el.id) + '</div>';
@@ -1915,7 +1917,9 @@
       }
       el.innerHTML = html;
       if (hasDetails) {
-        el.querySelector('.log-header').addEventListener('click', () => el.classList.toggle('expanded'));
+        el.querySelector('.log-header').addEventListener('click', () => {
+          if (!String(window.getSelection())) el.classList.toggle('expanded');
+        });
       }
       const payloadToggle = el.querySelector('.log-payload-toggle');
       if (payloadToggle) {
@@ -1961,6 +1965,8 @@
 
   function activityView(entry) {
     const details = { ...entry.details };
+    const findings = entry.finding_details || [];
+    if (findings.length) delete details.findings;
     const sentTokens = details.vp_token;
     delete details.sent_credentials;
     delete details.presented_credentials;
@@ -2068,7 +2074,7 @@
       linked.add(token);
       return true;
     });
-    return { payload, detail, details, presentations, credentials, decoderInput, tokens };
+    return { payload, detail, details, findings, findingSubject: entry.finding_subject, presentations, credentials, decoderInput, tokens };
   }
 
   // embeddedTokens finds the JWTs and SD-JWTs inside a logged value, such as
@@ -2202,6 +2208,43 @@
     return [...arrays].map(([path, members], n) => renderLogDecoderGroup(members.map(token => ({
       token: token.token, attributes: { path: token.path },
     })), idPrefix + '-token-' + n, path ? "Open '" + path + "' in decoder" : 'Open in decoder', 'Token')).join('');
+  }
+
+  // splitFindingGroups puts the registration findings of an entry in a row of
+  // their own. A user who doesn't work with the registrar can leave that row
+  // collapsed.
+  function splitFindingGroups(entries) {
+    const rows = [];
+    for (const entry of entries) {
+      const findings = entry.finding_details || [];
+      const registration = findings.filter(finding => findingGroup(finding) === 'registration');
+      const protocol = findings.filter(finding => findingGroup(finding) === 'protocol');
+      // The log shows the newest entry first. The protocol row comes last
+      // here, so it shows above the registration row.
+      if (registration.length) rows.push({ ...entry, finding_details: registration, payload: protocol.length ? undefined : entry.payload });
+      if (protocol.length) rows.push(registration.length ? { ...entry, finding_details: protocol } : entry);
+      if (!findings.length) rows.push(entry);
+    }
+    return rows;
+  }
+
+  // logTitle is the one-line text of an entry, such as "3 protocol findings
+  // about the request" for a row of findings.
+  function logTitle(view) {
+    const count = view.findings.length;
+    if (!count) return view.detail;
+    let title = count + ' ' + findingGroup(view.findings[0]) + (count === 1 ? ' finding' : ' findings');
+    if (view.findingSubject) title += ' about the ' + view.findingSubject.toLowerCase();
+    return title;
+  }
+
+  // logSpecsHtml names the specification of each finding once. The exact
+  // rules show in the expanded entry.
+  function logSpecsHtml(findings, id) {
+    const specs = [...new Set(findings.map(finding => finding.spec).filter(Boolean))];
+    if (!specs.length) return '';
+    return '<span class="log-specs" id="' + id + '">' + specs.map((spec, n) =>
+      '<span class="finding-spec" id="' + id + '-' + n + '">' + escHtml(spec) + '</span>').join('') + '</span>';
   }
 
   function renderLogDetails(details, idPrefix) {
@@ -2410,7 +2453,7 @@
       dropStoredError();
       return;
     }
-    showErrorDialog(err.message, err.detail, err.findings);
+    showErrorDialog(err.message, err.detail, err.findings, err.finding_details);
   }
 
   // Go errors wrap their causes as "context: context: cause". The last part says
@@ -2449,12 +2492,53 @@
 
   // showAPIError shows a failed API call. A refusal lists its findings.
   function showAPIError(message, result, resp) {
-    showErrorDialog(message, apiErrorText(result, resp), result && result.findings);
+    showErrorDialog(message, apiErrorText(result, resp), result && result.findings, result && result.finding_details);
+  }
+
+  const findingGroups = [['protocol', 'Protocol'], ['registration', 'Registration and certificates']];
+
+  function findingGroup(finding) {
+    return finding.group === 'registration' ? 'registration' : 'protocol';
+  }
+
+  // findingRefHtml cites the rule of a finding, or its full citation when that
+  // says more. With a URL the rule links to the published text, and the rest of
+  // the citation stays plain.
+  function findingRefHtml(finding, id) {
+    const citation = finding.citation || finding.rule;
+    if (!citation) return '';
+    if (!finding.url) return '<span class="finding-ref" id="' + id + '">' + escHtml(citation) + '</span>';
+    const rest = citation.slice(finding.rule.length);
+    const linked = citation.startsWith(finding.rule) && (rest === '' || rest.startsWith(' ') || rest.startsWith(',')) ? finding.rule : citation;
+    return '<span class="finding-ref" id="' + id + '"><a href="' + escHtml(finding.url) + '" target="_blank" rel="noopener noreferrer" id="' + id + '-link">' +
+      escHtml(linked) + '</a>' + escHtml(citation.slice(linked.length)) + '</span>';
+  }
+
+  // findingItemsHtml lists findings by group. Items are numbered
+  // itemPrefix-0, itemPrefix-1 and so on in the order shown.
+  function findingItemsHtml(details, idPrefix, itemPrefix, titled = true) {
+    let html = '';
+    let n = 0;
+    for (const [group, title] of findingGroups) {
+      const members = details.filter(finding => findingGroup(finding) === group);
+      if (!members.length) continue;
+      const groupID = idPrefix + '-' + group;
+      html += '<div class="findings-group" id="' + groupID + '">' +
+        (titled ? '<div class="findings-group-title" id="' + groupID + '-title">' + title + '</div>' : '') + '<ul id="' + groupID + '-list">';
+      for (const finding of members) {
+        const item = itemPrefix + '-' + n++;
+        html += '<li class="finding" id="' + item + '"><span class="finding-text" id="' + item + '-text">' + escHtml(finding.text) + '</span>';
+        html += findingRefHtml(finding, item + '-ref');
+        html += '</li>';
+      }
+      html += '</ul></div>';
+    }
+    return html;
   }
 
   // A refusal lists its findings one by one. The full error text stays one
   // click away.
-  function showErrorDialog(message, detail, findings) {
+  function showErrorDialog(message, detail, findings, findingDetails) {
     if (leavingPage) return;
     eudiDialogs.setCommand(consentDialog, null);
     consentRequestOpen = false;
@@ -2467,9 +2551,13 @@
     var html = '<div class="dialog-title" id="error-title" tabindex="-1" style="color:var(--red)">Error</div>' +
       '<div class="dialog-message" id="error-message">' + escHtml(message) + '</div>';
 
-    if (findings && findings.length) {
+    if (findingDetails && findingDetails.length) {
+      html += '<div class="error-findings findings-grouped" id="error-findings">' + findingItemsHtml(findingDetails, 'error-findings', 'error-finding') + '</div>';
+    } else if (findings && findings.length) {
       html += '<ul class="error-findings" id="error-findings">' +
         findings.map((f, i) => '<li id="error-finding-' + i + '">' + escHtml(f) + '</li>').join('') + '</ul>';
+    }
+    if (findings && findings.length) {
       if (detail) {
         html += '<details class="error-more" id="error-detail-more"><summary id="error-detail-more-toggle">Technical details</summary>' +
           '<pre class="error-detail" id="error-detail">' + escHtml(detail) + '</pre></details>';
@@ -2929,13 +3017,17 @@
     // Debug mode continues after failed checks. They stay one collapsed line
     // under the verifier or the issuer, so the dialog stays readable.
     function findingsBlock() {
+      const details = req.finding_details || [];
       const findings = req.findings || [];
-      if (findings.length === 0) return '';
+      const count = details.length || findings.length;
+      if (count === 0) return '';
       const subject = isIssuance ? 'this issuer' : 'this verifier';
+      const list = details.length
+        ? '<div class="findings-grouped" id="consent-findings-list">' + findingItemsHtml(details, 'consent-findings', 'consent-finding') + '</div>'
+        : '<ul id="consent-findings-list">' + findings.map((f, i) => '<li id="consent-finding-' + i + '">' + escHtml(f) + '</li>').join('') + '</ul>';
       return '<details class="consent-findings" id="consent-findings">' +
         '<summary id="consent-findings-summary"><span class="ico-warn" aria-hidden="true"></span>' +
-        findings.length + (findings.length === 1 ? ' finding about ' : ' findings about ') + subject + '</summary>' +
-        '<ul id="consent-findings-list">' + findings.map((f, i) => '<li id="consent-finding-' + i + '">' + escHtml(f) + '</li>').join('') + '</ul>' +
+        count + (count === 1 ? ' finding about ' : ' findings about ') + subject + '</summary>' + list +
         '</details>';
     }
 
@@ -3422,7 +3514,7 @@
             return;
           }
           if (result.error || (result.status_code && result.status_code >= 400)) {
-            showErrorDialog('Credential issuance failed', result.error || ('HTTP ' + result.status_code), result.findings);
+            showErrorDialog('Credential issuance failed', result.error || ('HTTP ' + result.status_code), result.findings, result.finding_details);
             return;
           }
           closeConsentOverlay();

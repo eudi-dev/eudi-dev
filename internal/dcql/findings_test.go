@@ -111,7 +111,7 @@ func TestQueryFindingsChecksTheNestedQueries(t *testing.T) {
 		}, "credential_sets must be a non-empty array"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			got := strings.Join(QueryFindings(tt.query), "\n")
+			got := strings.Join(QueryFindings(tt.query).Texts(), "\n")
 			if tt.want == "" {
 				if got != "" {
 					t.Fatalf("findings %q, want none", got)
@@ -163,7 +163,7 @@ func TestDomesticPIDAdvisories(t *testing.T) {
 			if len(got) != want {
 				t.Fatalf("advisories = %v, want %d", got, want)
 			}
-			if tt.warn && !strings.Contains(got[0], `"pid"`) {
+			if tt.warn && !strings.Contains(got[0].String(), `"pid"`) {
 				t.Errorf("advisory %q does not name the query", got[0])
 			}
 		})

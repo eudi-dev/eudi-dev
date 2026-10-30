@@ -45,12 +45,12 @@ func TestARFRefusesARequestWithARevokedAccessCertificate(t *testing.T) {
 	w := generateTestWallet(t)
 	w.IssuerURL = "https://wallet.example"
 	fresh := arfRequest(t, w, w)
-	if findings := oid4vp.ARFFindings(fresh); containsSubstring(findings, "RPA_06a") {
+	if findings := oid4vp.ARFFindings(fresh); containsSubstring(findings.Texts(), "RPA_06a") {
 		t.Fatalf("findings %v for a valid access certificate", findings)
 	}
 	params := revokedVerifier(t, w)
 	findings, err := oid4vp.ValidateAuthorizationRequest(oid4vp.Checks{ARF: true}, params)
-	if err != nil || !containsSubstring(findings, "RPA_06a") || !containsSubstring(findings, "is revoked") {
+	if err != nil || !containsSubstring(findings.Texts(), "RPA_06a") || !containsSubstring(findings.Texts(), "is revoked") {
 		t.Errorf("debug mode: findings %v (%v), want the revoked access certificate", findings, err)
 	}
 	_, err = oid4vp.ValidateAuthorizationRequest(oid4vp.Checks{Strict: true, ARF: true}, params)
@@ -79,7 +79,7 @@ func TestARFReportsAnUnreadableCRL(t *testing.T) {
 	w.IssuerURL = "https://wallet.example"
 	params := arfRequest(t, w, w)
 	params.StatusClient = &http.Client{Transport: unreachable{}}
-	if findings := oid4vp.ARFFindings(params); !containsSubstring(findings, "cannot be checked") {
+	if findings := oid4vp.ARFFindings(params); !containsSubstring(findings.Texts(), "cannot be checked") {
 		t.Errorf("findings %v, want the unreadable CRL", findings)
 	}
 }
@@ -102,7 +102,7 @@ func TestARFRefusesAnIssuerWithARevokedAccessCertificate(t *testing.T) {
 			signerChain:  chain,
 			accessCAs:    []*x509.Certificate{accessCA},
 			statusClient: w.RegistrationStatusClient(),
-		})
+		}).Texts()
 	}
 	if findings := check(); containsSubstring(findings, "is revoked") {
 		t.Fatalf("findings %v before the revocation", findings)

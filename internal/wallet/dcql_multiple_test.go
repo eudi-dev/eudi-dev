@@ -97,7 +97,7 @@ func TestDCQLMultipleMustBeBoolean(t *testing.T) {
 	query["credentials"].([]any)[0].(map[string]any)["multiple"] = "true"
 
 	findings := dcql.QueryFindings(query)
-	if len(findings) != 1 || !strings.Contains(findings[0], `"pid" has a multiple that is not a boolean`) {
+	if len(findings) != 1 || !strings.Contains(findings[0].String(), `"pid" has a multiple that is not a boolean`) {
 		t.Fatalf("findings = %v", findings)
 	}
 

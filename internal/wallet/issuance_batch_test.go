@@ -22,6 +22,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 )
@@ -189,8 +190,8 @@ func TestSortBatchDebugWarnsAboutRejectedCopies(t *testing.T) {
 				map[string]any{"credential": ephCred},
 				map[string]any{"credential": rejected},
 			}}
-			var findings []string
-			batch, err := w.sortBatch(resp, []*ecdsa.PrivateKey{holder, eph, testKey(t)}, func(f ...string) { findings = append(findings, f...) })
+			var list findings.List
+			batch, err := w.sortBatch(resp, []*ecdsa.PrivateKey{holder, eph, testKey(t)}, func(f ...findings.Finding) { list = append(list, f...) })
 			if err != nil {
 				t.Fatalf("sortBatch: %v", err)
 			}
@@ -200,8 +201,8 @@ func TestSortBatchDebugWarnsAboutRejectedCopies(t *testing.T) {
 			if len(batch.copies) != 1 || batch.copies[0].raw != ephCred {
 				t.Errorf("copies = %d, want only the copy bound to its own key", len(batch.copies))
 			}
-			if len(findings) != 1 || !strings.Contains(findings[0], "3 of the response") {
-				t.Errorf("findings = %v, want one naming credential 3", findings)
+			if len(list) != 1 || !strings.Contains(list[0].String(), "3 of the response") {
+				t.Errorf("findings = %v, want one naming credential 3", list)
 			}
 			if findLogEntry(w.GetLog(), "server_deviation") == nil {
 				t.Error("the rejected copy left no warning in the activity log")
@@ -230,13 +231,13 @@ func TestSortBatchRejectsAnUnreadableCopy(t *testing.T) {
 	}
 
 	w = generateTestWallet(t)
-	var findings []string
-	batch, err := w.sortBatch(resp, keys, func(f ...string) { findings = append(findings, f...) })
+	var list findings.List
+	batch, err := w.sortBatch(resp, keys, func(f ...findings.Finding) { list = append(list, f...) })
 	if err != nil {
 		t.Fatalf("sortBatch: %v", err)
 	}
-	if len(batch.copies) != 0 || len(findings) != 1 {
-		t.Errorf("copies = %d, findings = %v, want the unreadable copy left out and reported", len(batch.copies), findings)
+	if len(batch.copies) != 0 || len(list) != 1 {
+		t.Errorf("copies = %d, findings = %v, want the unreadable copy left out and reported", len(batch.copies), list)
 	}
 }
 

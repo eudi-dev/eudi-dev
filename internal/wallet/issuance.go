@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jwe"
@@ -89,8 +90,9 @@ type IssuanceResult struct {
 	TransactionID string `json:"transaction_id,omitempty"`
 	RetryInterval string `json:"retry_interval,omitempty"`
 	// Findings are the checks that failed in debug mode, as for a
-	// presentation.
-	Findings []string `json:"findings,omitempty"`
+	// presentation. FindingDetails adds the structured form of each.
+	Findings       findings.List      `json:"findings,omitempty"`
+	FindingDetails []findings.Finding `json:"finding_details,omitempty"`
 }
 
 type OfferOptions struct {
@@ -123,12 +125,12 @@ type OfferOptions struct {
 	ConfigurationID string
 
 	// findings collects the debug findings of the flow for its result.
-	findings *[]string
+	findings *findings.List
 }
 
-func (o OfferOptions) addFindings(findings ...string) {
+func (o OfferOptions) addFindings(list ...findings.Finding) {
 	if o.findings != nil {
-		*o.findings = append(*o.findings, findings...)
+		*o.findings = append(*o.findings, list...)
 	}
 }
 
@@ -216,11 +218,14 @@ func (w *Wallet) ProcessCredentialOffer(offerURI string) (*IssuanceResult, error
 }
 
 func (w *Wallet) ProcessCredentialOfferWithOptions(offerURI string, opts OfferOptions) (*IssuanceResult, error) {
-	var findings []string
-	opts.findings = &findings
+	var list findings.List
+	opts.findings = &list
 	result, err := w.processCredentialOffer(offerURI, opts)
 	if result != nil && result.Findings == nil {
-		result.Findings = findings
+		result.Findings = list
+	}
+	if result != nil {
+		result.FindingDetails = result.Findings.Details()
 	}
 	return result, err
 }
@@ -258,28 +263,28 @@ func (w *Wallet) processCredentialOffer(offerURI string, opts OfferOptions) (_ *
 	if err != nil {
 		return nil, err
 	}
-	metadata, findings, err := w.loadIssuerMetadata(offer.CredentialIssuer, []string{configID})
+	metadata, list, err := w.loadIssuerMetadata(offer.CredentialIssuer, []string{configID})
 	if err != nil {
 		return nil, err
 	}
 	// Strict mode refuses the HAIP findings of the issuer metadata with those of
 	// the offer, once the authorization server metadata is known. Debug mode
 	// logs them with the other findings about the issuer.
-	var haip []string
+	var haip findings.List
 	if w.HAIPChecks() {
 		haip = haipIssuerMetadataViolations(metadata, configID)
 	}
 	strict := w.Mode() == ValidationModeStrict
 	if !strict {
-		findings = append(findings, haip...)
+		list = append(list, haip...)
 	}
 	// The card display is resolved before the credential request, so its
 	// problems are logged with the other findings about the issuer.
 	images := newOfferImages(context.Background())
 	display := w.resolveCredentialDisplay(images, metadata, configID)
-	findings = append(findings, images.problems...)
-	opts.addFindings(findings...)
-	w.logIssuerFindings(offer.CredentialIssuer, findings)
+	list = append(list, images.problems...)
+	opts.addFindings(list...)
+	w.logIssuerFindings(offer.CredentialIssuer, list)
 
 	grantType := preAuthorizedCodeGrant
 	if offer.Grants.PreAuthorizedCode == "" {
@@ -317,7 +322,7 @@ func (w *Wallet) processCredentialOffer(offerURI string, opts OfferOptions) (_ *
 			violations = append(violations, haip...)
 		}
 		if len(violations) > 0 {
-			if err := w.reportHAIPViolations("Credential offer", offer.CredentialIssuer, violations); err != nil {
+			if err := w.reportHAIPViolations(subjectOffer, offer.CredentialIssuer, violations); err != nil {
 				return nil, err
 			}
 			opts.addFindings(violations...)
@@ -350,7 +355,7 @@ func (w *Wallet) processCredentialOffer(offerURI string, opts OfferOptions) (_ *
 		authServerErr = nil
 	}
 	if authServerErr != nil {
-		if err := w.reportServerDeviation(fmt.Sprintf("authorization server metadata of %s: %v", authServer, authServerErr)); err != nil {
+		if err := w.reportServerDeviation(findings.Uncited(fmt.Sprintf("authorization server metadata of %s: %v", authServer, authServerErr))); err != nil {
 			return nil, err
 		}
 	}
@@ -462,15 +467,15 @@ func (w *Wallet) fetchLoggedMetadata(f metadataFetch) (map[string]any, error) {
 
 // metadataProblem receives a problem with signed issuer metadata, such as a
 // missing iat or a past exp (§12.2.3). An error refuses the metadata.
-type metadataProblem func(problem string) error
+type metadataProblem func(problem findings.Finding) error
 
 // collectMetadataProblems refuses a metadata problem in strict mode. Debug
 // mode adds it to found, so it is logged with the other findings about the
 // issuer.
-func (w *Wallet) collectMetadataProblems(found *[]string) metadataProblem {
-	return func(problem string) error {
+func (w *Wallet) collectMetadataProblems(found *findings.List) metadataProblem {
+	return func(problem findings.Finding) error {
 		if w.Mode() == ValidationModeStrict {
-			return w.reportDeviation(deviation{action: "issuance", event: "issuer_metadata_freshness", detail: problem})
+			return w.reportDeviation(deviation{action: "issuance", event: "issuer_metadata_freshness", subject: subjectIssuer, finding: problem})
 		}
 		*found = append(*found, problem)
 		return nil
@@ -567,7 +572,7 @@ func parseIssuerMetadataDocument(body []byte, contentType, issuer string, onProb
 			return nil, nil, err
 		}
 		if problem := signedIssuerMetadataFreshness(token); problem != "" {
-			if err := onProblem("OpenID4VCI 1.0 §12.2.3: " + problem); err != nil {
+			if err := onProblem(findings.OID4VCI.Protocol("§12.2.3").New(problem)); err != nil {
 				return nil, nil, err
 			}
 		}
@@ -903,7 +908,7 @@ func (w *Wallet) resolveTokenEndpoint(metadata map[string]any, oauthMeta map[str
 		return ep, nil
 	}
 	fallback := strings.TrimRight(authServer, "/") + "/token"
-	if err := w.reportServerDeviation(fmt.Sprintf("the authorization server metadata has no token_endpoint, which RFC 8414 requires (assuming %s)", fallback)); err != nil {
+	if err := w.reportServerDeviation(findings.RFC(8414).Protocol("§2").Newf("the authorization server metadata has no token_endpoint (assuming %s)", fallback)); err != nil {
 		return "", err
 	}
 	return fallback, nil
@@ -956,7 +961,7 @@ func (w *Wallet) resolveCredentialEndpoint(metadata map[string]any, issuer strin
 		return ep, nil
 	}
 	fallback := strings.TrimRight(issuer, "/") + "/credential"
-	if err := w.reportServerDeviation(fmt.Sprintf("the credential issuer metadata has no credential_endpoint, which OID4VCI 1.0 requires (assuming %s)", fallback)); err != nil {
+	if err := w.reportServerDeviation(findings.OID4VCI.Protocol("§12.2.4").Newf("the credential issuer metadata has no credential_endpoint (assuming %s)", fallback)); err != nil {
 		return "", err
 	}
 	return fallback, nil
@@ -1246,10 +1251,10 @@ func credentialRequestEncryptionRequired(raw map[string]any) bool {
 }
 
 // Group HAIP findings in one activity entry. Return an error only in strict mode.
-func (w *Wallet) reportHAIPViolations(subject, issuer string, violations []string) error {
+func (w *Wallet) reportHAIPViolations(subject findingSubject, issuer string, violations findings.List) error {
 	return w.reportDeviation(deviation{
-		action: "issuance", event: "haip_violation",
-		summary: specCitedSummary(subject, violations), findings: violations,
+		action: "issuance", event: "haip_violation", subject: subject,
+		summary: specCitedSummary(string(subject), violations), findings: violations,
 		details: map[string]any{"issuer": issuer},
 	})
 }
@@ -1266,7 +1271,7 @@ func (w *Wallet) issuanceChallenge(metadata, tokenResp map[string]any, issuer st
 	// §7.2. Strict mode refuses. Debug mode warns and sends the proof without a
 	// c_nonce, so the issuer's rejection shows the result.
 	if ep, _ := metadata["nonce_endpoint"].(string); ep != "" {
-		return "", w.reportServerDeviation(fmt.Sprintf("the nonce endpoint %s of %s returned no c_nonce (OID4VCI 1.0 §7.2)", ep, issuer))
+		return "", w.reportServerDeviation(findings.OID4VCI.Protocol("§7.2").Newf("the nonce endpoint %s of %s returned no c_nonce", ep, issuer))
 	}
 	cNonce, _ := tokenResp["c_nonce"].(string)
 	if cNonce == "" {
@@ -1274,10 +1279,10 @@ func (w *Wallet) issuanceChallenge(metadata, tokenResp map[string]any, issuer st
 	}
 	details := map[string]any{"issuer": issuer}
 	if w.Mode() == ValidationModeStrict {
-		w.addProtocolWarning("issuance", "token_response_c_nonce", fmt.Sprintf("Ignored the c_nonce in the token response of %s. OID4VCI 1.0 defines the Nonce Endpoint as the only source of a challenge", issuer), details)
+		w.warnFinding("issuance", "token_response_c_nonce", subjectIssuer, findings.OID4VCI.Protocol("§8.2").Newf("the wallet ignored the c_nonce in the token response of %s. Only the Nonce Endpoint provides a challenge", issuer), details)
 		return "", nil
 	}
-	w.addProtocolWarning("issuance", "token_response_c_nonce", fmt.Sprintf("Used the c_nonce in the token response of %s. OID4VCI 1.0 does not define it, so this issuer is pre-1.0", issuer), details)
+	w.warnFinding("issuance", "token_response_c_nonce", subjectIssuer, findings.OID4VCI.Protocol("§8.2").Newf("the wallet used the c_nonce in the token response of %s. Only the Nonce Endpoint provides a challenge, so this issuer predates 1.0", issuer), details)
 	return cNonce, nil
 }
 
@@ -1315,7 +1320,7 @@ type credentialProofs struct {
 // a key attestation is required, a single holder-key proof carries an
 // attestation that lists every batch key (Appendix F.1, HAIP §4.5.1).
 func (w *Wallet) buildCredentialProofs(a credentialRequestAttempt, cNonce string) (credentialProofs, error) {
-	if finding := proofSigningAlgFinding(a.metadata, a.configID, w.HAIPChecks()); finding != "" {
+	if finding := proofSigningAlgFinding(a.metadata, a.configID, w.HAIPChecks()); finding.Text != "" {
 		if err := w.reportServerDeviation(finding); err != nil {
 			return credentialProofs{}, err
 		}
@@ -1410,16 +1415,16 @@ func parseCredentialResponseBody(body []byte, holderKey *ecdsa.PrivateKey, paylo
 // encode the information" as specified by Section 10 "regardless of the
 // content". §10: an unencrypted message where encryption was required "SHOULD
 // be rejected". §8.3.1.2: "Credential Error Responses are never encrypted".
-func (w *Wallet) checkResponseEncryption(requested map[string]any, encrypted bool, out map[string]any, endpoint string) error {
+func (w *Wallet) checkResponseEncryption(requested map[string]any, encrypted bool, out map[string]any, endpoint string, rule findings.Rule) error {
 	if requested == nil || encrypted {
 		return nil
 	}
 	if code, _ := out["error"].(string); code != "" {
 		return nil
 	}
-	detail := fmt.Sprintf("%s answered in plaintext although the request asked for an encrypted response (OID4VCI 1.0 §8.3, §10)", endpoint)
+	finding := rule.Newf("%s answered in plaintext although the request asked for an encrypted response", endpoint)
 	return w.reportDeviation(deviation{
-		action: "issuance", event: "credential_response_not_encrypted", detail: detail,
+		action: "issuance", event: "credential_response_not_encrypted", subject: subjectIssuer, finding: finding,
 		details: map[string]any{"endpoint": endpoint},
 	})
 }

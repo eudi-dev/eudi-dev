@@ -19,6 +19,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
 )
@@ -27,16 +28,16 @@ import (
 // ARF RPRC_21 requires requested claims to be registered. It reports one
 // finding for an unregistered credential type, or one per unregistered
 // attribute of a registered type.
-func OverAskingFindings(cert map[string]any, dcql map[string]any) []string {
+func OverAskingFindings(cert map[string]any, dcql map[string]any) findings.List {
 	registered := registeredCredentials(cert)
 	if len(registered) == 0 {
 		// A missing credentials list already has a content finding and provides
 		// nothing to compare.
 		return nil
 	}
-	var findings []string
+	var list findings.List
 	overAsk := func(what string) {
-		findings = append(findings, fmt.Sprintf("ARF RPRC_21: the request asks for %s. The registration certificate does not register it (over-asking)", what))
+		list = append(list, findings.ARF.Registration("RPRC_21").Newf("the request asks for %s. The registration certificate does not register it (over-asking)", what))
 	}
 	for _, cq := range jsonutil.Maps(dcql["credentials"]) {
 		format, _ := cq["format"].(string)
@@ -55,7 +56,7 @@ func OverAskingFindings(cert map[string]any, dcql map[string]any) []string {
 			}
 		}
 	}
-	return findings
+	return list
 }
 
 // registersCredential reports whether every accepted type of the query is

@@ -67,16 +67,16 @@ func TestRequestObjectContentTypeFinding(t *testing.T) {
 	}{
 		{name: "cty JWT", header: map[string]any{"cty": "JWT"}},
 		{name: "cty compared case-insensitively", header: map[string]any{"cty": "jwt"}},
-		{name: "missing cty", header: map[string]any{}, finding: "The JWE header of the encrypted request object has no cty."},
-		{name: "other cty", header: map[string]any{"cty": "json"}, finding: `The JWE header of the encrypted request object sets cty to "json".`},
+		{name: "missing cty", header: map[string]any{}, finding: "RFC 7519 §5.2 and RFC 9101 §4: the JWE header of the encrypted request object has no cty."},
+		{name: "other cty", header: map[string]any{"cty": "json"}, finding: `RFC 7519 §5.2 and RFC 9101 §4: the JWE header of the encrypted request object sets cty to "json".`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := RequestObjectContentTypeFinding(jwe.Header{Raw: tt.header})
-			if tt.finding == "" && got != "" {
+			if tt.finding == "" && got.Text != "" {
 				t.Fatalf("unexpected finding %q", got)
 			}
-			if !strings.HasPrefix(got, tt.finding) {
+			if !strings.HasPrefix(got.String(), tt.finding) {
 				t.Fatalf("finding = %q, want prefix %q", got, tt.finding)
 			}
 		})

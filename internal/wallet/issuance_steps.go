@@ -24,12 +24,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 )
 
 // ignoreFindings is the report for a flow without a result to carry findings.
 // The steps still log them.
-func ignoreFindings(...string) {}
+func ignoreFindings(...findings.Finding) {}
 
 // chooseOfferConfiguration picks the credential configuration to request.
 // OID4VCI 1.0 §4.1.1 makes credential_configuration_ids a non-empty array.
@@ -51,9 +52,9 @@ func chooseOfferConfiguration(offer *oid4vc.CredentialOffer, chosen string) (str
 
 // readIssuerMetadata also returns the certificate chain of signed metadata and
 // the problems that debug mode accepts in it.
-func (w *Wallet) readIssuerMetadata(issuer string) (map[string]any, []*x509.Certificate, []string, error) {
+func (w *Wallet) readIssuerMetadata(issuer string) (map[string]any, []*x509.Certificate, findings.List, error) {
 	var signerChain []*x509.Certificate
-	var problems []string
+	var problems findings.List
 	preferSigned := w.ARFChecks()
 	onProblem := w.collectMetadataProblems(&problems)
 	metadata, err := w.fetchLoggedMetadata(metadataFetch{
@@ -78,7 +79,7 @@ func (w *Wallet) readIssuerMetadata(issuer string) (map[string]any, []*x509.Cert
 // returns the findings. The ARF has the wallet check the issuer before it
 // requests a credential, so strict mode refuses an ARF finding. The other
 // findings only warn.
-func (w *Wallet) checkIssuer(issuer string, metadata map[string]any, signerChain []*x509.Certificate, configurations []string) ([]string, error) {
+func (w *Wallet) checkIssuer(issuer string, metadata map[string]any, signerChain []*x509.Certificate, configurations []string) (findings.List, error) {
 	arf := w.issuerARFCheck(metadata, signerChain, configurations)
 	if len(arf) > 0 && w.Mode() == ValidationModeStrict {
 		return nil, w.reportARFIssuanceFindings(issuer, arf)
@@ -88,21 +89,21 @@ func (w *Wallet) checkIssuer(issuer string, metadata map[string]any, signerChain
 
 // loadIssuerMetadata reads and checks the metadata of an issuer. The caller
 // logs the findings with logIssuerFindings.
-func (w *Wallet) loadIssuerMetadata(issuer string, configurations []string) (map[string]any, []string, error) {
+func (w *Wallet) loadIssuerMetadata(issuer string, configurations []string) (map[string]any, findings.List, error) {
 	metadata, signerChain, problems, err := w.readIssuerMetadata(issuer)
 	if err != nil {
 		return nil, nil, err
 	}
-	findings, err := w.checkIssuer(issuer, metadata, signerChain, configurations)
+	list, err := w.checkIssuer(issuer, metadata, signerChain, configurations)
 	if err != nil {
 		return nil, nil, err
 	}
-	return metadata, append(problems, findings...), nil
+	return metadata, append(problems, list...), nil
 }
 
 // logIssuerFindings logs the findings about an issuer in one entry.
-func (w *Wallet) logIssuerFindings(issuer string, findings []string) {
-	w.warnFindings("issuance", "issuer_findings", "Findings about the issuer", findings, map[string]any{"issuer": issuer})
+func (w *Wallet) logIssuerFindings(issuer string, list findings.List) {
+	w.warnFindings("issuance", "issuer_findings", subjectIssuer, "Findings about the issuer", list, map[string]any{"issuer": issuer})
 }
 
 // accessGrant is an accepted token response (RFC 6749 §5.1).
@@ -258,7 +259,7 @@ type credentialDelivery struct {
 	// logSummary starts the activity log line, as in "Imported credential".
 	logSummary string
 	logDetails map[string]any
-	report     func(...string)
+	report     func(...findings.Finding)
 }
 
 // storeIssuedCredential returns the stored primary credential and its raw
@@ -293,7 +294,7 @@ func (w *Wallet) storeReceivedCredential(credResp map[string]any, d credentialDe
 	}
 	typed := w.typeMetadata(primary.Raw, "issuance")
 	if len(typed.problems) > 0 {
-		if err := w.reportDeviation(deviation{action: "issuance", event: "type_metadata", summary: typeMetadataSummary(primary.VCT), findings: typed.problems}); err != nil {
+		if err := w.reportDeviation(deviation{action: "issuance", event: "type_metadata", subject: subjectCredential, summary: typeMetadataSummary(primary.VCT), findings: typed.problems}); err != nil {
 			return nil, "", err
 		}
 		d.report(typed.problems...)
@@ -341,7 +342,7 @@ type issuanceSession struct {
 	// client of this issuance.
 	renewal CredentialRenewal
 	nonces  *dpopNonceState
-	report  func(...string)
+	report  func(...findings.Finding)
 }
 
 // issueWithToken ends a pre-authorized and an authorization code issuance. A
@@ -378,7 +379,8 @@ func (w *Wallet) issueWithToken(s issuanceSession, tokenForm url.Values) (*Issua
 		// credentials.
 		if err := w.reportDeviation(deviation{
 			action: "issuance", event: "credential_response_deviation",
-			detail:  "OpenID4VCI 1.0 §8.3: the credential response carries both credentials and transaction_id. Only one of them is allowed",
+			subject: subjectIssuer,
+			finding: findings.OID4VCI.Protocol("§8.3").New("the credential response carries both credentials and transaction_id. Only one of them is allowed"),
 			details: map[string]any{"transaction_id": transactionID},
 		}); err != nil {
 			return nil, err

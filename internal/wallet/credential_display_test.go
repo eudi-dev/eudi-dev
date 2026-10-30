@@ -852,7 +852,7 @@ func TestTheConsentDialogListsDisplayProblems(t *testing.T) {
 		t.Fatal(err)
 	}
 	details, _ := w.describeCredentialOffer(t.Context(), offer)
-	if !slices.ContainsFunc(details.Findings, func(f string) bool { return strings.Contains(f, "text_color") }) {
+	if !slices.ContainsFunc(details.Findings.Texts(), func(f string) bool { return strings.Contains(f, "text_color") }) {
 		t.Errorf("findings %v, want the invalid text_color", details.Findings)
 	}
 }

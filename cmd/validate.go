@@ -172,7 +172,7 @@ func printCredential(result *validate.Result, opts output.Options) {
 func printValidation(result *validate.Result, opts output.Options, report jsonReport) {
 	report.add("checks", result.Checks, func() {})
 	if result.HAIPFindings != nil {
-		printHAIPFindings(result.HAIPFindings, report)
+		printHAIPFindings(result.HAIPFindings.Texts(), report)
 	}
 	for _, name := range []string{validate.CheckType, validate.CheckIntegrity, validate.CheckTrustedList} {
 		if c, ok := result.Find(name); ok && (c.Status == validate.Fail || c.Status == validate.Warning) {
@@ -224,7 +224,7 @@ func printValidation(result *validate.Result, opts output.Options, report jsonRe
 			} else if status.IsValid {
 				fmt.Printf("  ! Status list signature: %s (not anchored by a trusted list)\n", status.SignatureInfo)
 			}
-			for _, warning := range slices.Concat(status.Warnings, status.HAIPFindings) {
+			for _, warning := range slices.Concat(status.Warnings, status.HAIPFindings.Texts()) {
 				fmt.Printf("  ! Status list: %s\n", warning)
 			}
 		})

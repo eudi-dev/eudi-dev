@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
@@ -282,7 +283,7 @@ func (w *Wallet) authorizationChallengeCode(response map[string]any) (string, er
 	// Some servers send code. It is accepted as an alias for authorization_code
 	// with a warning.
 	if code := jsonutil.GetString(response, "code"); code != "" {
-		if err := w.reportServerDeviation("authorization challenge response carried the authorization code in \"code\". Section 5.2.1 of the OAuth 2.0 for First-Party Applications specification calls it \"authorization_code\""); err != nil {
+		if err := w.reportServerDeviation(findings.FirstPartyApps.Protocol("§5.2.1").New("the authorization challenge response carries the authorization code in \"code\" instead of \"authorization_code\"")); err != nil {
 			return "", err
 		}
 		return code, nil

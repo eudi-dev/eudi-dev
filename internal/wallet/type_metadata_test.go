@@ -226,7 +226,7 @@ func TestIssuanceRejectsACredentialThatBreaksItsTypeMetadata(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ProcessCredentialOffer: %v", err)
 		}
-		if !strings.Contains(strings.Join(result.Findings, "\n"), want) {
+		if !strings.Contains(strings.Join(result.Findings.Texts(), "\n"), want) {
 			t.Errorf("findings = %v, want the missing claim", result.Findings)
 		}
 	})

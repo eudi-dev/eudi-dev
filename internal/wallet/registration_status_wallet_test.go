@@ -20,6 +20,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/regcert"
 	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
@@ -48,7 +49,7 @@ func TestARegistrationCertificateCarriesItsStatus(t *testing.T) {
 	if got := regcert.ContentFindings(cert); len(got) != 0 {
 		t.Errorf("content findings %v, want none", got)
 	}
-	if got := regcert.StatusFindings(cert, ts.Client(), srv.wallet.TrustedLists().RegistrationStatusCAs(), "ARF RPRC_17"); len(got) != 0 {
+	if got := regcert.StatusFindings(cert, ts.Client(), srv.wallet.TrustedLists().RegistrationStatusCAs(), findings.ARF.Registration("RPRC_17")); len(got) != 0 {
 		t.Fatalf("status findings %v, want a valid status", got)
 	}
 }
@@ -77,7 +78,7 @@ func TestRevokingARegistrationCertificate(t *testing.T) {
 			rp := registerTestRelyingParty(t, srv.wallet)
 			cert := issuedCertificate(t, srv.wallet, rp)
 			revoke(t, srv.wallet, rp)
-			if got := regcert.StatusFindings(cert, ts.Client(), srv.wallet.TrustedLists().RegistrationStatusCAs(), "ARF RPRC_17"); len(got) != 1 || !strings.Contains(got[0], "revoked") {
+			if got := regcert.StatusFindings(cert, ts.Client(), srv.wallet.TrustedLists().RegistrationStatusCAs(), findings.ARF.Registration("RPRC_17")); len(got) != 1 || !strings.Contains(got[0].String(), "revoked") {
 				t.Fatalf("status findings %v, want the revocation", got)
 			}
 		})
@@ -90,7 +91,7 @@ func TestAnUnreachableStatusListIsAFinding(t *testing.T) {
 	srv, ts := registrarServer(t)
 	cert := issuedCertificate(t, srv.wallet, registerTestRelyingParty(t, srv.wallet))
 	ts.Close()
-	if got := regcert.StatusFindings(cert, ts.Client(), srv.wallet.TrustedLists().RegistrationStatusCAs(), "ARF RPRC_17"); len(got) != 1 || !strings.Contains(got[0], "cannot be checked") {
+	if got := regcert.StatusFindings(cert, ts.Client(), srv.wallet.TrustedLists().RegistrationStatusCAs(), findings.ARF.Registration("RPRC_17")); len(got) != 1 || !strings.Contains(got[0].String(), "cannot be checked") {
 		t.Errorf("status findings %v, want one unknown status", got)
 	}
 }
@@ -136,7 +137,7 @@ func TestAReactivatedRegistrationCertificateIsValid(t *testing.T) {
 	if n, err := srv.wallet.Registrar().SetRegistrationCertificatesRevoked(rp.Identifier[0].Identifier, registrar.RegistrationScope{IntendedUseIdentifier: use}, false); err != nil || n != 1 {
 		t.Fatalf("reactivated %d (%v), want 1", n, err)
 	}
-	if got := regcert.StatusFindings(cert, ts.Client(), srv.wallet.TrustedLists().RegistrationStatusCAs(), "ARF RPRC_17"); len(got) != 0 {
+	if got := regcert.StatusFindings(cert, ts.Client(), srv.wallet.TrustedLists().RegistrationStatusCAs(), findings.ARF.Registration("RPRC_17")); len(got) != 0 {
 		t.Errorf("status findings %v, want a valid status", got)
 	}
 	if statuses := srv.wallet.Registrar().RegistrationCertificateStatuses(rp.Identifier[0].Identifier); len(statuses) != 1 || statuses[0].Revoked {
@@ -165,7 +166,7 @@ func TestTheWalletReadsItsOwnStatusListInProcess(t *testing.T) {
 	w.IssuerURL = "https://Wallet.Example:443"
 	rp := registerTestRelyingParty(t, w)
 	cert := issuedCertificate(t, w, rp)
-	if got := regcert.StatusFindings(cert, w.RegistrationStatusClient(), w.TrustedLists().RegistrationStatusCAs(), "ARF RPRC_17"); len(got) != 0 {
+	if got := regcert.StatusFindings(cert, w.RegistrationStatusClient(), w.TrustedLists().RegistrationStatusCAs(), findings.ARF.Registration("RPRC_17")); len(got) != 0 {
 		t.Fatalf("status findings %v, want the in-process list to answer", got)
 	}
 	for _, raw := range []string{"https://wallet.example/api/registrar/status-list", "HTTPS://WALLET.EXAMPLE:443/api/registrar/status-list/"} {
@@ -185,10 +186,10 @@ func TestANewCertificateReplacesTheOldOne(t *testing.T) {
 	id := rp.Identifier[0].Identifier
 	old := issuedCertificate(t, w, rp)
 	current := issuedCertificate(t, w, rp)
-	if got := regcert.StatusFindings(old, ts.Client(), w.TrustedLists().RegistrationStatusCAs(), "ARF RPRC_17"); len(got) != 1 || !strings.Contains(got[0], "revoked") {
+	if got := regcert.StatusFindings(old, ts.Client(), w.TrustedLists().RegistrationStatusCAs(), findings.ARF.Registration("RPRC_17")); len(got) != 1 || !strings.Contains(got[0].String(), "revoked") {
 		t.Fatalf("status findings %v, want the replaced certificate revoked", got)
 	}
-	if got := regcert.StatusFindings(current, ts.Client(), w.TrustedLists().RegistrationStatusCAs(), "ARF RPRC_17"); len(got) != 0 {
+	if got := regcert.StatusFindings(current, ts.Client(), w.TrustedLists().RegistrationStatusCAs(), findings.ARF.Registration("RPRC_17")); len(got) != 0 {
 		t.Fatalf("status findings %v, want the new certificate valid", got)
 	}
 	if _, err := w.Registrar().SetRegistrationCertificatesRevoked(id, registrar.RegistrationScope{}, true); err != nil {
@@ -197,7 +198,7 @@ func TestANewCertificateReplacesTheOldOne(t *testing.T) {
 	if n, err := w.Registrar().SetRegistrationCertificatesRevoked(id, registrar.RegistrationScope{}, false); err != nil || n != 1 {
 		t.Fatalf("activated %d (%v), want only the current certificate", n, err)
 	}
-	if got := regcert.StatusFindings(old, ts.Client(), w.TrustedLists().RegistrationStatusCAs(), "ARF RPRC_17"); len(got) != 1 {
+	if got := regcert.StatusFindings(old, ts.Client(), w.TrustedLists().RegistrationStatusCAs(), findings.ARF.Registration("RPRC_17")); len(got) != 1 {
 		t.Errorf("status findings %v, want the replaced certificate still revoked", got)
 	}
 }

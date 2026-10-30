@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/statuslist"
 )
@@ -147,7 +148,7 @@ func TestTheCatalogueListAnchorsTheSignature(t *testing.T) {
 // embedded leaf to prove integrity.
 func TestAnUnanchoredCatalogueEntryKeepsTheLeafCheck(t *testing.T) {
 	c := newIssuerChain(t)
-	unanchored := fakeCatalogue{anchoring: CatalogueAnchoring{Entry: "Test", Findings: []string{"ARF ISSU_07: not on the list"}}}
+	unanchored := fakeCatalogue{anchoring: CatalogueAnchoring{Entry: "Test", Findings: findings.List{findings.ARF.Registration("ISSU_07").New("not on the list")}}}
 	for name, raw := range map[string]string{
 		"SD-JWT VC": c.sdjwt(t, mock.SDJWTConfig{}),
 		"mdoc":      c.mdoc(t, mock.MDOCConfig{}),
@@ -166,7 +167,7 @@ func TestAnUnanchoredCatalogueEntryKeepsTheLeafCheck(t *testing.T) {
 // strict mode with the ARF checks.
 func TestAWalletThatRefusesTheFindingFailsTheTrustCheck(t *testing.T) {
 	c := newIssuerChain(t)
-	refusing := fakeCatalogue{anchoring: CatalogueAnchoring{Entry: "Test", Findings: []string{"ARF ISSU_07: not on the list"}}, refuses: true}
+	refusing := fakeCatalogue{anchoring: CatalogueAnchoring{Entry: "Test", Findings: findings.List{findings.ARF.Registration("ISSU_07").New("not on the list")}}, refuses: true}
 	result := validated(t, c.sdjwt(t, mock.SDJWTConfig{}), Trust{Catalogue: refusing}, Options{})
 	if got := mustFind(t, result, CheckTrust); got.Status != Fail || !strings.Contains(got.Detail, "ISSU_07") {
 		t.Errorf("trust = %+v, want the catalogue finding as a failure", got)

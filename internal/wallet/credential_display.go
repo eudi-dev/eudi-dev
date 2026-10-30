@@ -33,6 +33,7 @@ import (
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/defaults"
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/publicpath"
 )
@@ -396,7 +397,7 @@ func (w *Wallet) displayColor(images *offerImages, entry map[string]any, field s
 type offerImages struct {
 	ctx      context.Context
 	resolved map[string]string
-	problems []string
+	problems findings.List
 }
 
 func newOfferImages(ctx context.Context) *offerImages {
@@ -595,7 +596,7 @@ func (w *Wallet) rejectDisplayImage(images *offerImages, field, uri, reason stri
 // once.
 func (w *Wallet) warnDisplay(images *offerImages, event, detail string, details map[string]any) {
 	if images != nil {
-		images.problems = append(images.problems, detail)
+		images.problems = append(images.problems, findings.Uncited(detail))
 		return
 	}
 	w.addProtocolWarning("issuance", event, detail, details)

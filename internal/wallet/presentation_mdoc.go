@@ -23,6 +23,7 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"github.com/veraison/go-cose"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
@@ -35,14 +36,14 @@ func (w *Wallet) createMDocPresentation(cred StoredCredential, selectedKeys []st
 	// mdoc matches no query, so it only gets here when the user picked it. The
 	// wallet presents it with a warning.
 	if !credentialHolderBinding(cred.Raw).Bound {
-		detail := fmt.Sprintf(
-			"mdoc %s has no MSO deviceKey, which ISO 18013-5 §9.1.2.4 requires. The issuer signed no device key, so the verifier can't check DeviceSigned and should refuse this presentation.",
+		finding := findings.ISO180135.Protocol("§9.1.2.4").Newf(
+			"mdoc %s has no MSO deviceKey. The issuer signed no device key, so the verifier can't check DeviceSigned and should refuse this presentation",
 			credentialLabel(cred))
-		w.addProtocolWarning("presentation", "mdoc_names_no_device_key", detail, map[string]any{
+		w.warnFinding("presentation", "mdoc_names_no_device_key", subjectPresentation, finding, map[string]any{
 			"credential_id": cred.ID,
 			"doctype":       cred.DocType,
 		})
-		log.Printf("[Wallet] WARNING: %s", detail)
+		log.Printf("[Wallet] WARNING: %s", finding)
 	}
 
 	selected := make(map[string]bool, len(selectedKeys))

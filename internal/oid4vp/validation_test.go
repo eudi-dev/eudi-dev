@@ -40,7 +40,7 @@ func TestValidateAuthorizationRequest_DebugAllowsMissingNonce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected debug mode to allow missing nonce, got %v", err)
 	}
-	if !strings.Contains(strings.Join(findings, "\n"), "OID4VP 1.0 §5.2: nonce is required") {
+	if !strings.Contains(strings.Join(findings.Texts(), "\n"), "OID4VP 1.0 §5.2: nonce is required") {
 		t.Errorf("findings %q, want the missing nonce reported", findings)
 	}
 }
@@ -126,7 +126,7 @@ func TestMissingResponseModeIsAFinding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("debug mode: %v", err)
 	}
-	if !strings.Contains(strings.Join(findings, "\n"), "response_mode is required") {
+	if !strings.Contains(strings.Join(findings.Texts(), "\n"), "response_mode is required") {
 		t.Errorf("debug findings %v name no missing response_mode", findings)
 	}
 	if _, err := ValidateAuthorizationRequest(Checks{Strict: true}, params); err == nil || !strings.Contains(err.Error(), "response_mode is required") {
@@ -159,7 +159,7 @@ func TestUnsignedRequestObjectWithoutTypIsAWarning(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(findings) != 1 || !strings.Contains(findings[0], "no typ header") {
+	if len(findings) != 1 || !strings.Contains(findings[0].String(), "no typ header") {
 		t.Errorf("findings = %v, want the missing typ warning", findings)
 	}
 }
@@ -205,11 +205,11 @@ func TestABasePIDQueryGetsAnAdvisoryWithTheARFChecks(t *testing.T) {
 	const want = "OID4VP 1.0 Appendix B.3.5"
 
 	findings, err := ValidateAuthorizationRequest(Checks{ARF: true}, params)
-	if err != nil || !containsSubstring(findings, want) {
+	if err != nil || !containsSubstring(findings.Texts(), want) {
 		t.Errorf("findings %v err %v, want the base PID advisory", findings, err)
 	}
 	findings, err = ValidateAuthorizationRequest(Checks{}, params)
-	if err != nil || containsSubstring(findings, want) {
+	if err != nil || containsSubstring(findings.Texts(), want) {
 		t.Errorf("findings %v err %v, want no base PID advisory without --arf", findings, err)
 	}
 }

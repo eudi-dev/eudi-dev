@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
 )
 
@@ -61,7 +62,7 @@ var definedRequestObjectMembers = func() map[string]bool {
 // UndefinedRequestParameterFindings reports request parameters without a
 // definition in any specification. RFC 6749 §3.1 requires ignoring unrecognized
 // parameters, so they are warnings even in strict mode.
-func UndefinedRequestParameterFindings(params *Request) []string {
+func UndefinedRequestParameterFindings(params *Request) findings.List {
 	if params == nil {
 		return nil
 	}
@@ -93,11 +94,11 @@ func UndefinedRequestParameterFindings(params *Request) []string {
 	}
 	sort.Strings(names)
 
-	findings := make([]string, 0, len(names))
+	list := make(findings.List, 0, len(names))
 	for _, name := range names {
-		findings = append(findings, fmt.Sprintf("The request parameter %q is not defined in OID4VP 1.0 and is ignored", name))
+		list = append(list, findings.Uncited(fmt.Sprintf("The request parameter %q is not defined in OID4VP 1.0 and is ignored", name)))
 	}
-	return findings
+	return list
 }
 
 // UndefinedResponseMembers returns the members of a successful verifier

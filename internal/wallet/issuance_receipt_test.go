@@ -74,7 +74,7 @@ func checkReceipt(t *testing.T, w *Wallet, resp, metadata map[string]any, config
 	if err != nil {
 		t.Fatalf("debug mode refused: %v", err)
 	}
-	joined := strings.Join(findings, "\n")
+	joined := strings.Join(findings.Texts(), "\n")
 	if want == "" && len(findings) != 0 || want != "" && !strings.Contains(joined, want) {
 		t.Errorf("debug mode findings %v, want %q", findings, want)
 	}
@@ -109,7 +109,7 @@ func TestReceiptReportsABatchWithOtherAttributeValues(t *testing.T) {
 	same := receiptSDJWT(t, w, mock.SDJWTConfig{Claims: map[string]any{"given_name": "Erika"}})
 	other := receiptSDJWT(t, w, mock.SDJWTConfig{Claims: map[string]any{"given_name": "Max"}})
 	checkReceipt(t, w, receiptResponse(first, same), nil, "", "")
-	checkReceipt(t, w, receiptResponse(first, other), nil, "", "OpenID4VCI 1.0 §3.3.2")
+	checkReceipt(t, w, receiptResponse(first, other), nil, "", "OID4VCI 1.0 §3.3.2")
 
 	firstID := receiptSDJWT(t, w, mock.SDJWTConfig{Claims: map[string]any{"given_name": "Erika", "jti": "copy-1"}})
 	secondID := receiptSDJWT(t, w, mock.SDJWTConfig{Claims: map[string]any{"given_name": "Erika", "jti": "copy-2"}})

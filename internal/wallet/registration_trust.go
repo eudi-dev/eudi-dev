@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
 	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
@@ -42,7 +43,7 @@ func (w *Wallet) registrationCertificateAnchoring(raw string) (anchoring Catalog
 	result := CatalogueAnchoring{Category: "registrar"}
 	chain, err := validate.X5CCertificates(header)
 	if err != nil || len(chain) == 0 {
-		result.Findings = []string{"ARF RPRC_02a: the registration certificate has no readable x5c certificate"}
+		result.Findings = findings.List{findings.ARF.Registration("RPRC_02").New("the registration certificate has no readable x5c certificate")}
 		return result, true
 	}
 	var problems []string
@@ -64,10 +65,10 @@ func (w *Wallet) registrationCertificateAnchoring(raw string) (anchoring Catalog
 		result.StatusAnchors = tl.Anchors(lote.RevocationServices)
 		return result, true
 	}
-	finding := "ARF RPRC_02a: the registration certificate does not chain to a trusted registrar"
+	finding := findings.ARF.Registration("RPRC_02a").New("the registration certificate does not chain to a trusted registrar")
 	if len(problems) > 0 {
-		finding += ": " + strings.Join(problems, ", ")
+		finding.Text += ": " + strings.Join(problems, ", ")
 	}
-	result.Findings = []string{finding}
+	result.Findings = findings.List{finding}
 	return result, true
 }

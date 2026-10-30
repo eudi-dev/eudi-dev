@@ -66,7 +66,7 @@ func TestAnAddedIssuerCAAnchorsItsPIDs(t *testing.T) {
 	pid := foreign.GetCredentials()[0]
 	w := generateTestWallet(t)
 	w.RequireARF = true
-	if findings := w.trustAnchorFindings(receivedCredential(pid.Raw)); !containsSubstring(findings, "ISSU_07") {
+	if findings := w.trustAnchorFindings(receivedCredential(pid.Raw)); !containsSubstring(findings.Texts(), "ISSU_07") {
 		t.Fatalf("findings %v, want ISSU_07 for a foreign PID", findings)
 	}
 	caPEM := string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: foreign.Signer().TrustAnchor().Raw}))
@@ -96,7 +96,7 @@ func TestAnExternalPIDListAnchorsItsProviders(t *testing.T) {
 	if _, err := addTrustedList(w, srv.URL); err != nil {
 		t.Fatal(err)
 	}
-	if findings := w.trustAnchorFindings(receivedCredential(pid.Raw)); !containsSubstring(findings, "ISSU_07") {
+	if findings := w.trustAnchorFindings(receivedCredential(pid.Raw)); !containsSubstring(findings.Texts(), "ISSU_07") {
 		t.Errorf("findings %v, want ISSU_07 while the list operator is unknown", findings)
 	}
 	w.TrustSettings.ListCAPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: foreign.Signer().TrustAnchor().Raw})

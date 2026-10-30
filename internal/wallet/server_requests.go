@@ -254,7 +254,8 @@ func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
 			out["error"] = submission.Error
 		}
 		if len(submission.Findings) > 0 {
-			out["findings"] = submission.Findings
+			out["findings"] = submission.Findings.Texts()
+			out["finding_details"] = submission.Findings.Details()
 		}
 		if submission.Pending {
 			// Report deferred issuance explicitly. Approval does not mean the

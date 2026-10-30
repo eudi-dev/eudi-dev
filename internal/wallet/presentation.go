@@ -27,6 +27,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/dcql"
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
@@ -75,14 +76,14 @@ func (w *Wallet) createVPToken(match consent.Match, params *oid4vp.Request, mdoc
 
 	// Group missing claims and empty disclosed arrays in one warning so the user can
 	// see what the presentation omits.
-	var undisclosed []string
+	var undisclosed findings.List
 	for _, claim := range match.EmptyArrayClaims {
-		undisclosed = append(undisclosed, fmt.Sprintf("The request selects the array %s but none of its selectively disclosable elements, so it is disclosed as an empty array. The verifier selects the elements by ending the path with null (all) or an index (OpenID4VP 1.0 §7.1).", claim))
+		undisclosed = append(undisclosed, findings.OID4VP.Protocol("§7.1").Newf("the request selects the array %s but none of its selectively disclosable elements, so it is disclosed as an empty array. The verifier selects the elements by ending the path with null (all) or an index", claim))
 	}
 	for _, claim := range match.MissingClaims {
-		undisclosed = append(undisclosed, fmt.Sprintf("The request asks for %s. The selected credential does not provide it (a missing claim, or an array index out of range), so it is not disclosed.", claim))
+		undisclosed = append(undisclosed, findings.Uncited(fmt.Sprintf("The request asks for %s. The selected credential does not provide it (a missing claim, or an array index out of range), so it is not disclosed.", claim)))
 	}
-	w.warnFindings("presentation", "undisclosed_claims", "The presentation does not disclose every requested claim as asked", undisclosed, nil)
+	w.warnFindings("presentation", "undisclosed_claims", subjectPresentation, "The presentation does not disclose every requested claim as asked", undisclosed, nil)
 
 	switch cred.Format {
 	case credtype.FormatSDJWT:
@@ -262,8 +263,8 @@ func (w *Wallet) createVPTokenMap(matches []consent.Match, params *oid4vp.Reques
 	for _, match := range matches {
 		// The mdoc path logs its own warning for a missing deviceKey.
 		if match.Unbound && match.Format != credtype.FormatMDOC {
-			finding := fmt.Sprintf("Credential %s has no holder binding. Query %s requires one (OpenID4VP 1.0 §6.1). Debug mode presents it without key binding.", credTypeLabel(match), match.QueryID)
-			w.addProtocolWarning("presentation", "unbound_credential", finding,
+			finding := findings.OID4VP.Protocol("§6.1").Newf("credential %s has no holder binding, and query %s requires one. Debug mode presents it without key binding", credTypeLabel(match), match.QueryID)
+			w.warnFinding("presentation", "unbound_credential", subjectPresentation, finding,
 				map[string]any{"credential_id": match.CredentialID, "query_id": match.QueryID})
 			params.Findings = append(params.Findings, finding)
 		}
@@ -271,8 +272,8 @@ func (w *Wallet) createVPTokenMap(matches []consent.Match, params *oid4vp.Reques
 		// match at least one of the conditions present in the corresponding
 		// trusted_authorities array".
 		if match.UntrustedAuthority {
-			finding := fmt.Sprintf("Credential %s matches none of the trusted_authorities of query %s (OpenID4VP 1.0 §6.1). Debug mode presents it anyway.", credTypeLabel(match), match.QueryID)
-			w.addProtocolWarning("presentation", "untrusted_authority", finding,
+			finding := findings.OID4VP.Protocol("§6.1").Newf("credential %s matches none of the trusted_authorities of query %s. Debug mode presents it anyway", credTypeLabel(match), match.QueryID)
+			w.warnFinding("presentation", "untrusted_authority", subjectPresentation, finding,
 				map[string]any{"credential_id": match.CredentialID, "query_id": match.QueryID})
 			params.Findings = append(params.Findings, finding)
 		}

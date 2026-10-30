@@ -154,5 +154,9 @@ The path that identifies a wallet. On the file backend the files are stored ther
 **Activity log**:
 The persisted, user-facing record of what the wallet did, shown in the UI and printed by the CLI.
 
+**Finding**:
+A failed check of a message, a credential or a party. It cites a rule of a specification, such as ARF RPRC_22a. A finding about registration with the registrar, certificates or trusted lists is in the **registration** group. Every other finding is in the **protocol** group.
+_Avoid_: Violation, error (for a finding that only warns)
+
 **Protocol log entry**:
 An activity log entry that also contains the request or response exactly as sent or received.

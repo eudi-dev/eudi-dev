@@ -132,7 +132,7 @@ func (v run) trustCheck(c catalogueState, r *Result) Check {
 		if v.trust.Catalogue.RefusesTrustFindings() {
 			check.Status = Fail
 		}
-		check.Detail = findings.Join(anchoring.Findings)
+		check.Detail = findings.Join(anchoring.Findings.Texts())
 	default:
 		check.Detail = findings.Join(append([]string{"The catalogue entry has no readable trusted list. ARF ISSU_10 asks to check an EAA only with access to its provider's trust anchors"}, anchoring.Warnings...))
 	}
@@ -342,7 +342,7 @@ func (v run) status(claims map[string]any, prefer string, c catalogueState, r *R
 		return []Check{{Name: CheckStatus, Status: Fail, Detail: fmt.Sprintf("Status check error: %v", err)}}
 	}
 	if len(result.HAIPFindings) > 0 && v.trust.Catalogue != nil && v.trust.Catalogue.RefusesHAIPFindings() {
-		return []Check{{Name: CheckStatus, Status: Fail, Detail: findings.Join(result.HAIPFindings)}}
+		return []Check{{Name: CheckStatus, Status: Fail, Detail: findings.Join(result.HAIPFindings.Texts())}}
 	}
 	r.Status = result
 	// draft-ietf-oauth-sd-jwt-vc-19 §2.2.2.3: "If the status claim is present
@@ -358,7 +358,7 @@ func (v run) status(claims map[string]any, prefer string, c catalogueState, r *R
 	status := Check{Name: CheckStatus, Status: Pass, Detail: fmt.Sprintf("Valid (index %d)", result.Index)}
 
 	signature := Check{Name: CheckStatusSignature, Status: Pass, Detail: "Valid, " + result.SignatureInfo}
-	notes := slices.Concat(result.Warnings, result.HAIPFindings)
+	notes := slices.Concat(result.Warnings, result.HAIPFindings.Texts())
 	switch {
 	case !result.TrustAnchored || len(result.HAIPFindings) > 0:
 		signature.Status = Warning

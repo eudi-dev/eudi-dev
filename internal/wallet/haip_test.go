@@ -140,7 +140,7 @@ func TestValidateHAIPIssuanceCompliance(t *testing.T) {
 			}
 			var found bool
 			for _, v := range violations {
-				if strings.Contains(v, tc.wantSub) {
+				if strings.Contains(v.String(), tc.wantSub) {
 					found = true
 				}
 			}
@@ -168,7 +168,7 @@ func TestHAIPIssuanceLeavesTheDPoPAlgorithmsOpen(t *testing.T) {
 func TestHAIPChecksTheIssuerMetadataForBothGrants(t *testing.T) {
 	config := map[string]any{"format": "dc+sd-jwt", "vct": "urn:test:credential", "cryptographic_binding_methods_supported": []any{"jwk"}}
 	metadata := map[string]any{"credential_configurations_supported": map[string]any{"cfg": config}}
-	got := strings.Join(haipIssuerMetadataViolations(metadata, "cfg"), "\n")
+	got := strings.Join(haipIssuerMetadataViolations(metadata, "cfg").Texts(), "\n")
 	for _, want := range []string{"has no scope", "no nonce_endpoint"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("violations %q, want %q", got, want)

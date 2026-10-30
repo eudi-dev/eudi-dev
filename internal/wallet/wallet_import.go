@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
@@ -61,8 +62,7 @@ func (w *Wallet) importCredential(raw, group, bindingKeyPEM string, typed typeMe
 	}
 	// Manual import keeps the credential and only warns.
 	if len(typed.problems) > 0 {
-		detail, details := findingsLogEntry(typeMetadataSummary(parsed.VCT), typed.problems, nil)
-		w.addProtocolWarning("wallet", "type_metadata", detail, details)
+		w.warnFindings("wallet", "type_metadata", subjectCredential, typeMetadataSummary(parsed.VCT), typed.problems, nil)
 	}
 	cred := w.appendCredential(withTypeMetadata(parsed, typed.metadata))
 	w.adoptOwnStatusEntry(cred)
@@ -104,11 +104,11 @@ func (w *Wallet) noteDIDIssuerKey(cred *StoredCredential) {
 		"issuer_key_did": did,
 	}
 	addStringDetail(details, "vct", cred.VCT)
-	detail := fmt.Sprintf(
-		"Credential %s names its issuer key by the DID %s. This wallet does not resolve DIDs (HAIP 1.0 §6.1.1 puts the issuer's signing certificate in the x5c header). The wallet keeps the credential with an unverified issuer signature. A status list token signed this way can't be checked either.",
+	finding := findings.HAIP.Protocol("§6.1.1").Newf(
+		"credential %s names its issuer key by the DID %s, and the issuer's signing certificate belongs in the x5c header. This wallet does not resolve DIDs, so it keeps the credential with an unverified issuer signature. A status list token signed this way can't be checked either",
 		credentialLabel(*cred), did)
-	w.addProtocolWarning("wallet", "credential_issuer_key_is_a_did", detail, details)
-	log.Printf("[Wallet] WARNING: %s", detail)
+	w.warnFinding("wallet", "credential_issuer_key_is_a_did", subjectCredential, finding, details)
+	log.Printf("[Wallet] WARNING: %s", finding)
 }
 
 // parseDetectedFormat parses a credential into a new wallet entry without
@@ -230,8 +230,8 @@ func (w *Wallet) reportCredentialDeviations(spec string, deviations []string) er
 		return nil
 	}
 	return w.reportDeviation(deviation{
-		action: "wallet", event: "credential_structure_deviation",
-		summary: "The credential deviates from " + spec, findings: deviations,
+		action: "wallet", event: "credential_structure_deviation", subject: subjectCredential,
+		summary: "The credential deviates from " + spec, findings: findings.UncitedAll(deviations),
 	})
 }
 

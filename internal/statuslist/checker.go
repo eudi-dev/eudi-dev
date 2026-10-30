@@ -31,6 +31,7 @@ import (
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/issuermetadata"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
@@ -282,7 +283,7 @@ type statusListToken struct {
 	signatureInfo string
 	trustAnchored bool
 	warnings      []string
-	haipFindings  []string
+	haipFindings  findings.List
 }
 
 func (t *statusListToken) validate(ref *StatusRef, opts CheckOptions) error {
@@ -546,7 +547,7 @@ func parseJWTStatusListToken(body []byte, opts CheckOptions) (*statusListToken, 
 	// Status List Token [...] MUST be included in the x5c JOSE header of the
 	// Token."
 	if len(certs) == 0 {
-		tok.haipFindings = append(tok.haipFindings, "HAIP 1.0 §6.1: the status list token has no x5c header. HAIP requires the signing certificate there")
+		tok.haipFindings = append(tok.haipFindings, findings.HAIP.Protocol("§6.1").New("the status list token has no x5c header. HAIP requires the signing certificate there"))
 	}
 	tok.subject, _ = payload["sub"].(string)
 	tok.issuedAt = unixClaim(payload["iat"])

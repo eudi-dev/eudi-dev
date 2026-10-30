@@ -17,6 +17,7 @@ package typemetadata
 import (
 	"fmt"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
 )
 
@@ -35,35 +36,35 @@ type node struct {
 // the issuer-signed JWT payload and disclosures are all Disclosures of the
 // credential, so the holder sees every issued claim. Each problem fails the
 // validation (§5.7).
-func (m *Metadata) Validate(payload map[string]any, disclosures []sdjwt.Disclosure) []string {
+func (m *Metadata) Validate(payload map[string]any, disclosures []sdjwt.Disclosure) findings.List {
 	return m.validate(payload, disclosures, true)
 }
 
 // ValidatePresentation checks a presented SD-JWT VC. A verifier can't tell an
 // undisclosed claim from a missing one, so it skips the mandatory check
 // (§5.6.3).
-func (m *Metadata) ValidatePresentation(payload map[string]any, disclosures []sdjwt.Disclosure) []string {
+func (m *Metadata) ValidatePresentation(payload map[string]any, disclosures []sdjwt.Disclosure) findings.List {
 	return m.validate(payload, disclosures, false)
 }
 
-func (m *Metadata) validate(payload map[string]any, disclosures []sdjwt.Disclosure, mandatory bool) []string {
+func (m *Metadata) validate(payload map[string]any, disclosures []sdjwt.Disclosure, mandatory bool) findings.List {
 	byDigest := make(map[string]sdjwt.Disclosure, len(disclosures))
 	for _, d := range disclosures {
 		byDigest[d.Digest] = d
 	}
-	var problems []string
+	var problems findings.List
 	for _, claim := range m.Claims {
 		name := PathString(claim.Path)
 		selected, err := selectIssued(payload, claim.Path, byDigest)
 		if err != nil {
-			problems = append(problems, fmt.Sprintf("SD-JWT VC §5.6.1: the claim path %s: %v", name, err))
+			problems = append(problems, findings.SDJWTVC.Protocol("§5.6.1.2").Newf("the claim path %s: %v", name, err))
 			continue
 		}
 		if mandatory && claim.Mandatory != nil && *claim.Mandatory && len(selected) == 0 {
-			problems = append(problems, fmt.Sprintf("SD-JWT VC §5.6.3: the mandatory claim %s is missing", name))
+			problems = append(problems, findings.SDJWTVC.Protocol("§5.6.3").Newf("the mandatory claim %s is missing", name))
 		}
 		if violatesSD(claim.SD, selected) {
-			problems = append(problems, fmt.Sprintf("SD-JWT VC §5.6.4: the claim %s has sd %q, and the credential does not follow it", name, claim.SD))
+			problems = append(problems, findings.SDJWTVC.Protocol("§5.6.4").Newf("the claim %s has sd %q, and the credential does not follow it", name, claim.SD))
 		}
 	}
 	return problems

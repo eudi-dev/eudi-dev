@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
@@ -37,7 +38,7 @@ const typeMetadataRefresh = time.Hour
 // them.
 type typeMetadataResult struct {
 	metadata *typemetadata.Metadata
-	problems []string
+	problems findings.List
 }
 
 // typeMetadata processes the Type Metadata of an SD-JWT VC whose vct is an
@@ -57,7 +58,7 @@ func (w *Wallet) typeMetadata(raw, action string) typeMetadataResult {
 	}
 	metadata, err := w.resolveTypeMetadata(vct, jsonutil.Text(token.Payload["vct#integrity"]), action)
 	if processing := (*typemetadata.ProcessingError)(nil); errors.As(err, &processing) {
-		return typeMetadataResult{problems: []string{err.Error()}}
+		return typeMetadataResult{problems: findings.List{findings.FromError(err)}}
 	}
 	if err != nil {
 		log.Printf("[Wallet] No Type Metadata for %s: %v", vct, err)
@@ -166,8 +167,7 @@ func (s *Server) refreshTypeMetadata(now time.Time) error {
 			continue
 		}
 		if problems := metadata.Validate(token.Payload, token.Disclosures); len(problems) > 0 {
-			detail, details := findingsLogEntry(typeMetadataSummary(cred.VCT), problems, map[string]any{"credential_id": cred.ID})
-			s.wallet.addProtocolWarning("wallet", "type_metadata", detail, details)
+			s.wallet.warnFindings("wallet", "type_metadata", subjectCredential, typeMetadataSummary(cred.VCT), problems, map[string]any{"credential_id": cred.ID})
 		}
 	}
 	s.saveMutation(func() bool {

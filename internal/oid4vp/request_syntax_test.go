@@ -129,7 +129,7 @@ func TestInteractiveAuthorizationExpectedOrigins(t *testing.T) {
 			switch {
 			case tt.want == "" && len(findings) != 0:
 				t.Errorf("findings = %v, want none", findings)
-			case tt.want != "" && (len(findings) != 1 || !strings.HasPrefix(findings[0], tt.want)):
+			case tt.want != "" && (len(findings) != 1 || !strings.HasPrefix(findings[0].String(), tt.want)):
 				t.Errorf("findings = %v, want %q", findings, tt.want)
 			}
 		})
@@ -152,7 +152,7 @@ func TestDCQLQueryOrScope(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(findings) != 1 || findings[0] != tt.want {
+			if len(findings) != 1 || findings[0].String() != tt.want {
 				t.Errorf("findings = %v, want %q", findings, tt.want)
 			}
 		})
@@ -177,7 +177,7 @@ func TestDCQLQueryFindingsReachTheRequestFindings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !containsSubstring(findings, "format") {
+	if !containsSubstring(findings.Texts(), "format") {
 		t.Errorf("findings = %v, want the missing format", findings)
 	}
 	if _, err := ValidateAuthorizationRequest(Checks{Strict: true}, params); err == nil || !strings.Contains(err.Error(), "format") {

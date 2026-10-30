@@ -36,7 +36,7 @@ func TestAPresentationOutsideTheTrustedAuthoritiesIsAFinding(t *testing.T) {
 	if _, err := w.createVPTokenMap(matches, params); err != nil {
 		t.Fatal(err)
 	}
-	if len(params.Findings) != 1 || !strings.Contains(params.Findings[0], "matches none of the trusted_authorities of query "+matches[0].QueryID) {
+	if len(params.Findings) != 1 || !strings.Contains(params.Findings[0].String(), "matches none of the trusted_authorities of query "+matches[0].QueryID) {
 		t.Errorf("findings %v, want the trusted_authorities finding", params.Findings)
 	}
 }

@@ -107,7 +107,7 @@ func TestX5CChainMustCertifyTheLeaf(t *testing.T) {
 	_, otherCA := testCA(t, "unrelated CA")
 
 	consistent := x5cSignedRequest(t, issuerKey, issuerCA, issuerCA)
-	if finding := verifyRequestObjectSignature(consistent.ClientID, consistent.RequestObject); finding != "" {
+	if finding := verifyRequestObjectSignature(consistent.ClientID, consistent.RequestObject); finding.Text != "" {
 		t.Fatalf("a consistent chain drew the finding %q", finding)
 	}
 
@@ -116,7 +116,7 @@ func TestX5CChainMustCertifyTheLeaf(t *testing.T) {
 	if err != nil {
 		t.Fatalf("debug mode refused the request: %v", err)
 	}
-	if !containsSubstring(findings, "x5c chain is not internally consistent") {
+	if !containsSubstring(findings.Texts(), "x5c chain is not internally consistent") {
 		t.Errorf("findings %v, want the inconsistent x5c chain", findings)
 	}
 	if _, err := ValidateAuthorizationRequest(Checks{Strict: true}, broken); err == nil || !strings.Contains(err.Error(), "x5c chain is not internally consistent") {
@@ -157,7 +157,7 @@ func singleCertRequest(t *testing.T, notBefore, notAfter time.Time) *Request {
 func TestX5CSignerMustBeWithinItsValidityPeriod(t *testing.T) {
 	now := time.Now()
 	valid := singleCertRequest(t, now.Add(-time.Hour), now.Add(time.Hour))
-	if finding := verifyRequestObjectSignature(valid.ClientID, valid.RequestObject); finding != "" {
+	if finding := verifyRequestObjectSignature(valid.ClientID, valid.RequestObject); finding.Text != "" {
 		t.Fatalf("a valid signer drew the finding %q", finding)
 	}
 
@@ -170,7 +170,7 @@ func TestX5CSignerMustBeWithinItsValidityPeriod(t *testing.T) {
 			if err != nil {
 				t.Fatalf("debug mode refused the request: %v", err)
 			}
-			if !containsSubstring(findings, "RFC 5280 §6.1.3 (a)(2)") {
+			if !containsSubstring(findings.Texts(), "RFC 5280 §6.1.3 (a)(2)") {
 				t.Errorf("findings %v, want the validity period", findings)
 			}
 			if _, err := ValidateAuthorizationRequest(Checks{Strict: true}, req); err == nil || !strings.Contains(err.Error(), "RFC 5280 §6.1.3 (a)(2)") {
@@ -205,7 +205,7 @@ func TestX5CChainChecksTheValidityOfEveryCertificate(t *testing.T) {
 	}
 	req := x5cSignedRequest(t, key, ca, ca)
 	finding := verifyRequestObjectSignature(req.ClientID, req.RequestObject)
-	if !strings.Contains(finding, "position 2") || !strings.Contains(finding, "expired CA") {
+	if !strings.Contains(finding.String(), "position 2") || !strings.Contains(finding.String(), "expired CA") {
 		t.Errorf("finding = %q, want the expired CA at position 2", finding)
 	}
 }

@@ -1334,7 +1334,7 @@ func TestEvaluateDCQL_HolderBinding(t *testing.T) {
 func TestDCQLHolderBindingFlagMustBeBoolean(t *testing.T) {
 	query := sdjwtVCTQuery("urn:example:bearer")
 	query["credentials"].([]any)[0].(map[string]any)["require_cryptographic_holder_binding"] = "false"
-	if findings := dcql.QueryFindings(query); len(findings) != 1 || !strings.Contains(findings[0], "require_cryptographic_holder_binding that is not a boolean") {
+	if findings := dcql.QueryFindings(query); len(findings) != 1 || !strings.Contains(findings[0].String(), "require_cryptographic_holder_binding that is not a boolean") {
 		t.Fatalf("findings = %v", findings)
 	}
 }

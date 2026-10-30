@@ -32,6 +32,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
 	"github.com/eudi-dev/eudi-dev/v3/internal/config"
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
@@ -74,9 +75,9 @@ func (w *Wallet) processAuthorizationCodeOffer(offer *oid4vc.CredentialOffer, se
 	switch clientAuthMethod {
 	case "", unauthenticatedClientMethod, "private_key_jwt", "attest_jwt_client_auth", "attest_jwt_client_auth_dpop":
 	case unregisteredPublicClientMethod:
-		// RFC 8414 uses the IANA registry. It registers "none" for an
-		// unauthenticated client. "public" is not registered.
-		if err := w.reportServerDeviation(fmt.Sprintf("authorization server advertises the unregistered token endpoint auth method %q. RFC 8414 takes these values from the OAuth Token Endpoint Authentication Methods registry, where an unauthenticated client is %q", unregisteredPublicClientMethod, unauthenticatedClientMethod)); err != nil {
+		// RFC 7591 §2 defines "none" for a public client. Other values come
+		// from the IANA registry, which has no "public".
+		if err := w.reportServerDeviation(findings.RFC(7591).Protocol("§2").Newf("the authorization server advertises the unregistered token endpoint auth method %q. The OAuth Token Endpoint Authentication Methods registry names an unauthenticated client %q", unregisteredPublicClientMethod, unauthenticatedClientMethod)); err != nil {
 			return nil, err
 		}
 	default:
@@ -316,8 +317,8 @@ func (w *Wallet) noteDeclinedInteractiveAuthorization(oauthMeta map[string]any, 
 
 // reportServerDeviation warns in debug mode and returns an error in strict
 // mode.
-func (w *Wallet) reportServerDeviation(detail string) error {
-	return w.reportDeviation(deviation{action: "issuance", event: "server_deviation", detail: detail, details: map[string]any{"deviation": detail}})
+func (w *Wallet) reportServerDeviation(finding findings.Finding) error {
+	return w.reportDeviation(deviation{action: "issuance", event: "server_deviation", subject: subjectIssuer, finding: finding, details: map[string]any{"deviation": finding.String()}})
 }
 
 // detectTokenEndpointAuthMethod prefers attestation. It falls back to
@@ -475,15 +476,17 @@ func (w *Wallet) resolveClientAuthentication(method string, ctx clientAuthContex
 		if w != nil && w.HAIPChecks() &&
 			!w.ForceClientAttestation &&
 			detectTokenEndpointAuthMethod(ctx.oauthMeta) == "" {
-			w.addProtocolWarning("issuance", "client_authentication_not_advertised",
-				fmt.Sprintf("The issuer's authorization server advertises no token endpoint client authentication method (draft-ietf-oauth-attestation-based-client-auth-%02d %s recommends it). Attesting anyway, since HAIP requires client authentication", auth.ABCADraft, abcaMetadataSection(auth.ABCADraft)),
+			section := abcaMetadataSection(auth.ABCADraft)
+			rule := findings.Draft(fmt.Sprintf("ABCA-%02d", auth.ABCADraft), fmt.Sprintf("draft-ietf-oauth-attestation-based-client-auth-%02d", auth.ABCADraft)).Protocol(section)
+			w.warnFinding("issuance", "client_authentication_not_advertised", subjectIssuer,
+				rule.New("the issuer's authorization server advertises no token endpoint client authentication method. The wallet attests anyway, since HAIP requires client authentication"),
 				map[string]any{"token_endpoint": ctx.tokenEndpoint})
 		}
 		return auth
 	}
 	if w != nil && w.HAIPChecks() && !w.ForceClientAttestation {
-		w.addProtocolWarning("issuance", "haip_client_authentication_unavailable",
-			"HAIP 1.0 §4.4.1 requires client authentication at the token endpoint, but this issuer's authorization server offers only unauthenticated access. Proceeding without it.",
+		w.warnFinding("issuance", "haip_client_authentication_unavailable", subjectIssuer,
+			findings.HAIP.Protocol("§4.4.1").New("client authentication at the token endpoint is required, but this issuer's authorization server offers only unauthenticated access. The wallet goes on without it"),
 			map[string]any{"token_endpoint": ctx.tokenEndpoint})
 	}
 	return nil
@@ -955,23 +958,23 @@ func credentialProofType(metadata map[string]any, configID string) string {
 // and Appendix F.1 and F.3 require the proof alg to be in that list. HAIP 1.0
 // §7 also requires issuers to support ES256 for key proofs and key
 // attestations.
-func proofSigningAlgFinding(metadata map[string]any, configID string, requireHAIP bool) string {
+func proofSigningAlgFinding(metadata map[string]any, configID string, requireHAIP bool) findings.Finding {
 	proofType := credentialProofType(metadata, configID)
 	proof, _ := credentialProofTypes(metadata, configID)[proofType].(map[string]any)
 	algs, ok := proof["proof_signing_alg_values_supported"].([]any)
 	if !ok {
-		return ""
+		return findings.Finding{}
 	}
 	for _, alg := range algs {
 		if alg == jws.AlgES256 {
-			return ""
+			return findings.Finding{}
 		}
 	}
-	finding := fmt.Sprintf("OID4VCI 1.0 Appendix F: the %s proof type lists proof_signing_alg_values_supported %v without ES256. This wallet signs its proofs with ES256", proofType, algs)
+	rule := findings.OID4VCI.Protocol("Appendix F")
 	if requireHAIP {
-		finding += " (HAIP 1.0 §7: issuers MUST support ES256 for key proofs and key attestations)"
+		rule = rule.Cited("OID4VCI 1.0 Appendix F and HAIP 1.0 §7")
 	}
-	return finding
+	return rule.Newf("the %s proof type lists proof_signing_alg_values_supported %v without ES256. This wallet signs its proofs with ES256", proofType, algs)
 }
 
 // credentialKeyAttestationRequirement returns the key attestation requirement
@@ -1122,10 +1125,10 @@ func responseMapLogDetails(endpoint, endpointName string, response map[string]an
 func (w *Wallet) checkTokenType(tokenResp map[string]any, sentDPoP bool) error {
 	tokenType, _ := tokenResp["token_type"].(string)
 	if tokenType == "" {
-		return w.reportServerDeviation(fmt.Sprintf("the token response omitted token_type, which RFC 6749 §5.1 requires (assuming %s)", accessTokenScheme(tokenResp, sentDPoP)))
+		return w.reportServerDeviation(findings.RFC(6749).Protocol("§5.1").Newf("the token response has no token_type (assuming %s)", accessTokenScheme(tokenResp, sentDPoP)))
 	}
 	if !strings.EqualFold(tokenType, "Bearer") && !strings.EqualFold(tokenType, "DPoP") {
-		return w.reportServerDeviation(fmt.Sprintf("the token response token_type %q is neither Bearer (RFC 6749) nor DPoP (RFC 9449). The wallet treats it as Bearer", tokenType))
+		return w.reportServerDeviation(findings.RFC(6749).Protocol("§7.1").Newf("the token response token_type %q is neither Bearer nor DPoP (RFC 9449). The wallet treats it as Bearer", tokenType))
 	}
 	return nil
 }
@@ -1283,7 +1286,7 @@ func (w *Wallet) requestCredentialWithDPoP(a credentialRequestAttempt, proofs cr
 	if parseErr != nil {
 		return nil, parseErr
 	}
-	if err := w.checkResponseEncryption(a.responseEncryption, encrypted, out, a.endpoint); err != nil {
+	if err := w.checkResponseEncryption(a.responseEncryption, encrypted, out, a.endpoint, findings.OID4VCI.Protocol("§8.3").Cited("OID4VCI 1.0 §8.3 and §10")); err != nil {
 		return nil, err
 	}
 	if pending, _ := deferredIssuancePending(out); pending {
@@ -1388,7 +1391,7 @@ func (w *Wallet) deferredCredentialAttempt(mode ValidationMode, metadata map[str
 	if reqErr != nil {
 		return nil, deferredCredentialError{status: statusCode, description: truncateBody(string(respBody))}
 	}
-	if err := w.checkResponseEncryption(responseEncryption, encrypted, out, endpoint); err != nil {
+	if err := w.checkResponseEncryption(responseEncryption, encrypted, out, endpoint, findings.OID4VCI.Protocol("§9.2").Cited("OID4VCI 1.0 §9.2 and §10")); err != nil {
 		return nil, finalDeferredError{err}
 	}
 	if pending, interval := deferredIssuancePending(out); pending {
@@ -1425,9 +1428,9 @@ func (w *Wallet) checkDeferral(out map[string]any, statusCode int, endpoint, req
 	if len(problems) == 0 {
 		return nil
 	}
-	detail := fmt.Sprintf("%s deferred the credential but %s (OID4VCI 1.0 %s)", endpoint, strings.Join(problems, " and "), section)
+	finding := findings.OID4VCI.Protocol(section).Newf("%s deferred the credential but %s", endpoint, strings.Join(problems, " and "))
 	return w.reportDeviation(deviation{
-		action: "issuance", event: "deferred_response_deviation", detail: detail,
+		action: "issuance", event: "deferred_response_deviation", subject: subjectIssuer, finding: finding,
 		details: map[string]any{"endpoint": endpoint, "status_code": statusCode},
 	})
 }
@@ -1611,7 +1614,7 @@ func (w *Wallet) fetchNonce(metadata map[string]any, nonce *string) string {
 	reason := nonceFailureReason(status, err)
 	if cNonce == "" && status == http.StatusMethodNotAllowed && w.Mode() == ValidationModeDebug {
 		if getNonce, getStatus, getErr := nonceRequest(w.HTTPClient(), "GET", ep, nonce, noncePayload); getNonce != "" {
-			w.addProtocolWarning("issuance", "nonce_endpoint_get", fmt.Sprintf("The nonce endpoint %s answers a POST with 405 and serves a c_nonce only over GET. OID4VCI 1.0 §7.1 requires POST. Debug mode uses GET", ep), map[string]any{"url": ep})
+			w.warnFinding("issuance", "nonce_endpoint_get", subjectIssuer, findings.OID4VCI.Protocol("§7.1").Newf("the nonce endpoint %s answers a POST with 405 and serves a c_nonce only over GET. Debug mode uses GET", ep), map[string]any{"url": ep})
 			cNonce, reason = getNonce, ""
 		} else {
 			reason = nonceFailureReason(getStatus, getErr)
@@ -1863,11 +1866,11 @@ func (w *Wallet) validateAuthorizationCodeResponse(values url.Values, expectedSt
 	if expectedState = strings.TrimSpace(expectedState); expectedState != "" {
 		switch state := values.Get("state"); {
 		case state == "":
-			if err := w.reportServerDeviation("the authorization response omitted state. RFC 6749 §4.1.2 requires it when the request carried one"); err != nil {
+			if err := w.reportServerDeviation(findings.RFC(6749).Protocol("§4.1.2").New("the authorization response has no state, and the request carried one")); err != nil {
 				return err
 			}
 		case state != expectedState:
-			if err := w.reportServerDeviation(fmt.Sprintf("the authorization response state %q does not match the request's %q", state, expectedState)); err != nil {
+			if err := w.reportServerDeviation(findings.RFC(6749).Protocol("§4.1.2").Newf("the authorization response state %q does not match the request's %q", state, expectedState)); err != nil {
 				return err
 			}
 		}
@@ -1878,9 +1881,9 @@ func (w *Wallet) validateAuthorizationCodeResponse(values url.Values, expectedSt
 	issuer := values.Get("iss")
 	switch {
 	case issuer == "" && issRequired:
-		return w.reportServerDeviation("the authorization response omitted iss, which RFC 9207 requires when the authorization server advertises authorization_response_iss_parameter_supported, and FAPI 2.0 §5.3.2.2 requires under HAIP 1.0 §4")
+		return w.reportServerDeviation(findings.RFC(9207).Protocol("§2.4").Cited("RFC 9207 §2.4 and FAPI 2.0 §5.3.2.2 (HAIP 1.0 §4)").New("the authorization response has no iss. The authorization server advertises authorization_response_iss_parameter_supported, or HAIP applies"))
 	case issuer != "" && expectedIssuer != "" && !sameIdentifier(issuer, expectedIssuer):
-		return w.reportServerDeviation(fmt.Sprintf("the authorization response iss %q does not match the expected issuer %q", issuer, expectedIssuer))
+		return w.reportServerDeviation(findings.RFC(9207).Protocol("§2.4").Newf("the authorization response iss %q does not match the expected issuer %q", issuer, expectedIssuer))
 	}
 	return nil
 }

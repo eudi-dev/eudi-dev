@@ -193,7 +193,7 @@ func parseMultiSignedBrowserAuthorizationRequest(requestObject map[string]any, o
 			firstCandidate = candidate
 		}
 
-		if parsed.RequestObject != nil && clientID != "" && verifyRequestObjectSignature(clientID, parsed.RequestObject) == "" {
+		if parsed.RequestObject != nil && clientID != "" && verifyRequestObjectSignature(clientID, parsed.RequestObject).Text == "" {
 			return candidate, nil
 		}
 	}

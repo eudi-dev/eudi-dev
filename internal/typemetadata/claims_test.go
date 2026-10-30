@@ -78,7 +78,7 @@ func TestValidateChecksTheClaimMetadata(t *testing.T) {
 			if tt.want == "" && len(problems) > 0 {
 				t.Errorf("problems = %v, want none", problems)
 			}
-			if tt.want != "" && (len(problems) != 1 || !strings.Contains(problems[0], tt.want)) {
+			if tt.want != "" && (len(problems) != 1 || !strings.Contains(problems[0].String(), tt.want)) {
 				t.Errorf("problems = %v, want one with %s", problems, tt.want)
 			}
 		})
@@ -94,7 +94,7 @@ func TestValidatePresentationSkipsTheMandatoryCheck(t *testing.T) {
 		{Path: []any{"family_name"}, SD: SDAlways},
 	}}
 	problems := metadata.ValidatePresentation(token.Payload, token.Disclosures)
-	if len(problems) != 1 || !strings.Contains(problems[0], "§5.6.4") {
+	if len(problems) != 1 || !strings.Contains(problems[0].String(), "§5.6.4") {
 		t.Errorf("problems = %v, want only the sd problem of family_name", problems)
 	}
 }

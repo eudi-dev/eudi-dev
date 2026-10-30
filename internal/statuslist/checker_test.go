@@ -479,7 +479,7 @@ func TestCheckWithOptions_KeyFromIssuerMetadata(t *testing.T) {
 	if !strings.Contains(result.SignatureInfo, "issuer metadata") {
 		t.Errorf("signature info = %q, want it to name the issuer metadata", result.SignatureInfo)
 	}
-	if len(result.HAIPFindings) != 1 || !strings.Contains(result.HAIPFindings[0], "HAIP 1.0 §6.1") {
+	if len(result.HAIPFindings) != 1 || !strings.Contains(result.HAIPFindings[0].String(), "HAIP 1.0 §6.1") {
 		t.Errorf("HAIP findings = %v, want the missing x5c header", result.HAIPFindings)
 	}
 }

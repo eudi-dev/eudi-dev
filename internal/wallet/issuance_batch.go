@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 )
 
@@ -198,7 +199,7 @@ type batchCopy struct {
 // deviation. Strict mode refuses the response. Debug mode warns and leaves the
 // copy out. The copy bound to the first proof key is the primary, or else the
 // first one.
-func (w *Wallet) sortBatch(credResp map[string]any, keys []*ecdsa.PrivateKey, report func(...string)) (sortedBatch, error) {
+func (w *Wallet) sortBatch(credResp map[string]any, keys []*ecdsa.PrivateKey, report func(...findings.Finding)) (sortedBatch, error) {
 	creds := credentialStringsFromResponse(credResp)
 	if len(creds) == 0 {
 		return sortedBatch{}, fmt.Errorf("no credential in response")
@@ -207,7 +208,7 @@ func (w *Wallet) sortBatch(credResp map[string]any, keys []*ecdsa.PrivateKey, re
 		return sortedBatch{primary: creds[0]}, nil
 	}
 
-	var deviations []string
+	var deviations findings.List
 	type boundCopy struct {
 		position int
 		raw      string
@@ -219,11 +220,11 @@ func (w *Wallet) sortBatch(credResp map[string]any, keys []*ecdsa.PrivateKey, re
 		position := i + 1
 		key := proofKeyIndex(raw, keys)
 		if key < 0 {
-			deviations = append(deviations, fmt.Sprintf("OID4VCI 1.0 §8.3: credential %d of the response is bound to none of the proof keys of the request", position))
+			deviations = append(deviations, findings.OID4VCI.Protocol("§8.3").Newf("credential %d of the response is bound to none of the proof keys of the request", position))
 			continue
 		}
 		if other, used := usedBy[key]; used {
-			deviations = append(deviations, fmt.Sprintf("OID4VCI 1.0 §8.3: credentials %d and %d of the response are bound to the same proof key, and each key binds at most one credential", other, position))
+			deviations = append(deviations, findings.OID4VCI.Protocol("§8.3").Newf("credentials %d and %d of the response are bound to the same proof key, and each key binds at most one credential", other, position))
 			continue
 		}
 		usedBy[key] = position
@@ -251,7 +252,7 @@ func (w *Wallet) sortBatch(credResp map[string]any, keys []*ecdsa.PrivateKey, re
 		}
 		parsed, err := w.parseDetectedFormat(strings.TrimSpace(c.raw), "", pem)
 		if err != nil {
-			deviations = append(deviations, fmt.Sprintf("credential %d of the response cannot be read: %v", c.position, err))
+			deviations = append(deviations, findings.Uncited(fmt.Sprintf("credential %d of the response cannot be read: %v", c.position, err)))
 			continue
 		}
 		batch.copies = append(batch.copies, batchCopy{raw: c.raw, parsed: parsed})

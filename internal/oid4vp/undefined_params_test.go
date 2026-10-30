@@ -34,7 +34,7 @@ func TestUndefinedRequestParameterFindings(t *testing.T) {
 		if len(findings) != 2 {
 			t.Fatalf("findings = %v, want 2", findings)
 		}
-		if !containsSubstring(findings, `"my_custom_field"`) || !containsSubstring(findings, `"presentation_definition"`) {
+		if !containsSubstring(findings.Texts(), `"my_custom_field"`) || !containsSubstring(findings.Texts(), `"presentation_definition"`) {
 			t.Errorf("findings = %v, want both undefined parameters named", findings)
 		}
 	})
@@ -51,7 +51,7 @@ func TestUndefinedRequestParameterFindings(t *testing.T) {
 			},
 		}}}
 		findings := UndefinedRequestParameterFindings(params)
-		if len(findings) != 1 || !strings.Contains(findings[0], `"client_id_scheme"`) {
+		if len(findings) != 1 || !strings.Contains(findings[0].String(), `"client_id_scheme"`) {
 			t.Errorf("findings = %v, want only client_id_scheme flagged", findings)
 		}
 	})
@@ -65,7 +65,7 @@ func TestUndefinedRequestParameterFindings(t *testing.T) {
 			"presentation_definition": `{}`,
 		}}}
 		findings := UndefinedRequestParameterFindings(params)
-		if len(findings) != 1 || !strings.Contains(findings[0], `"presentation_definition"`) {
+		if len(findings) != 1 || !strings.Contains(findings[0].String(), `"presentation_definition"`) {
 			t.Errorf("findings = %v, want the outer presentation_definition flagged", findings)
 		}
 	})

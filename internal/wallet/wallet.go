@@ -442,6 +442,11 @@ type LogEntry struct {
 	Details  map[string]any `json:"details,omitempty"`
 	// The CLI and default log endpoint omit the additional payload used by the activity view.
 	Payload *LogPayload `json:"payload,omitempty"`
+	// FindingDetails is set on an entry about findings. Details["findings"]
+	// keeps the texts for older clients. FindingSubject names what the
+	// findings are about.
+	FindingDetails []findings.Finding `json:"finding_details,omitempty"`
+	FindingSubject findingSubject     `json:"finding_subject,omitempty"`
 }
 
 type LogPayload struct {
@@ -1063,67 +1068,100 @@ func (w *Wallet) AddWarning(action, detail string, details map[string]any) {
 }
 
 // warnFindings writes one warning entry for the findings in list.
-func (w *Wallet) warnFindings(action, event, summary string, list []string, details map[string]any) {
+func (w *Wallet) warnFindings(action, event string, subject findingSubject, summary string, list findings.List, details map[string]any) {
 	if len(list) == 0 {
 		return
 	}
-	detail, details := findingsLogEntry(summary, list, details)
-	w.addProtocolWarning(action, event, detail, details)
+	entry := findingsLogEntry(action, event, subject, summary, list, details)
+	entry.Success, entry.Severity = true, severityWarning
+	w.appendLogEntry(entry)
+}
+
+// findingSubject is what findings are about, such as the request. The
+// activity log names it in the title of a row of findings.
+type findingSubject string
+
+const (
+	subjectRequest          findingSubject = "Request"
+	subjectPresentation     findingSubject = "Presentation"
+	subjectVerifierResponse findingSubject = "Verifier response"
+	subjectIssuer           findingSubject = "Issuer"
+	subjectOffer            findingSubject = "Credential offer"
+	subjectCredential       findingSubject = "Credential"
+	subjectStatusList       findingSubject = "Status list"
+)
+
+// warnFinding writes one warning entry for a single finding.
+func (w *Wallet) warnFinding(action, event string, subject findingSubject, finding findings.Finding, details map[string]any) {
+	w.warnFindings(action, event, subject, "", findings.List{finding}, details)
 }
 
 // reportRefusal records a refused flow: one failed log entry and the error
 // for the owner's browser. message is the title of the error. A refusal on
 // findings logs summary, with the findings in the details.
-func (w *Wallet) reportRefusal(action, event, owner, message, summary string, err error) {
+func (w *Wallet) reportRefusal(action, event, owner, message string, subject findingSubject, summary string, err error) {
 	list := findings.Of(err)
-	detail, details := err.Error(), map[string]any{"error": err.Error()}
 	if len(list) > 0 {
-		detail, details = findingsLogEntry(summary, list, nil)
+		w.appendLogEntry(findingsLogEntry(action, event, subject, summary, list, nil))
+	} else {
+		w.addProtocolLog(action, event, err.Error(), false, map[string]any{"error": err.Error()})
 	}
-	w.addProtocolLog(action, event, detail, false, details)
 	w.Consents().NotifyError(consent.Error{Owner: owner, Message: message, Detail: err.Error(), Findings: list})
 }
 
-// findingsLogEntry is the log line and the details of findings. One finding
-// is its own line. Several share the summary. The details list them all.
-func findingsLogEntry(summary string, list []string, details map[string]any) (string, map[string]any) {
-	details = maps.Clone(details)
-	if details == nil {
-		details = map[string]any{}
+// findingsLogEntry is the log entry of findings. Its detail line is the
+// finding when there is one and the summary when there are several.
+func findingsLogEntry(action, event string, subject findingSubject, summary string, list findings.List, details map[string]any) LogEntry {
+	details = protocolLogDetails(event, details)
+	details["findings"] = list.Texts()
+	detail := list[0].String()
+	if len(list) > 1 {
+		detail = fmt.Sprintf("%s (%d findings, see details)", summary, len(list))
 	}
-	details["findings"] = list
-	if len(list) == 1 {
-		return list[0], details
+	return LogEntry{
+		Time: time.Now(), Action: action, Detail: detail, Details: details,
+		FindingDetails: list.Details(), FindingSubject: subject,
 	}
-	return fmt.Sprintf("%s (%d findings, see details)", summary, len(list)), details
 }
 
 // deviation is a failed check of the other party. Strict mode refuses the
 // flow with refusal, or with detail when refusal is nil. Debug mode records
 // a warning and goes on. A deviation with findings sets summary and findings
-// instead of detail and refusal.
+// instead of detail and refusal. A deviation with one cited finding sets
+// finding instead of detail.
 type deviation struct {
 	action, event, detail string
 	details               map[string]any
 	refusal               error
 	summary               string
-	findings              []string
+	findings              findings.List
+	finding               findings.Finding
+	subject               findingSubject
 }
 
 func (w *Wallet) reportDeviation(d deviation) error {
-	if len(d.findings) > 0 {
-		d.detail, d.details = findingsLogEntry(d.summary, d.findings, d.details)
-		d.refusal = &findings.Error{Summary: d.summary, Findings: d.findings}
+	var entry LogEntry
+	switch {
+	case len(d.findings) > 0:
+		entry = findingsLogEntry(d.action, d.event, d.subject, d.summary, d.findings, d.details)
+	case d.finding.Text != "":
+		entry = findingsLogEntry(d.action, d.event, d.subject, "", findings.List{d.finding}, d.details)
+	default:
+		entry = LogEntry{Time: time.Now(), Action: d.action, Detail: d.detail, Details: protocolLogDetails(d.event, d.details)}
 	}
 	if w.Mode() == ValidationModeStrict {
-		w.addProtocolLog(d.action, d.event, d.detail, false, d.details)
-		if d.refusal != nil {
+		w.appendLogEntry(entry)
+		switch {
+		case len(d.findings) > 0:
+			return &findings.Error{Summary: d.summary, Findings: d.findings}
+		case d.refusal != nil:
 			return d.refusal
 		}
-		return errors.New(d.detail)
+		return errors.New(entry.Detail)
 	}
-	w.addProtocolWarning(d.action, d.event, d.detail, d.details)
-	log.Printf("[Wallet] WARNING: %s", d.detail)
+	entry.Success, entry.Severity = true, severityWarning
+	w.appendLogEntry(entry)
+	log.Printf("[Wallet] WARNING: %s", entry.Detail)
 	return nil
 }
 

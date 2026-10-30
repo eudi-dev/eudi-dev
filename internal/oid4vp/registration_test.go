@@ -31,6 +31,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
@@ -175,7 +176,7 @@ func TestARegistrationForAnotherRelyingPartyIsNotShown(t *testing.T) {
 		t.Errorf("registered name = %q from an unbound registration", got)
 	}
 	want := `ARF RPRC_17a: the registration certificate identifies "LEIEU-OTHER", but the access certificate's organizationIdentifier is "LEIEU-TEST"`
-	if findings := ARFFindings(params); !containsSubstring(findings, want) {
+	if findings := ARFFindings(params); !containsSubstring(findings.Texts(), want) {
 		t.Errorf("findings = %v, want %q", findings, want)
 	}
 }
@@ -198,10 +199,10 @@ func TestConsentRegistrationNeedsASignedRequest(t *testing.T) {
 	// The registration certificate in the plain verifier_info parameter is
 	// read, and the missing access certificate is the finding.
 	findings := ARFFindings(params)
-	if !containsSubstring(findings, "ARF RPA_03: the request is not signed with a relying party access certificate in x5c") {
+	if !containsSubstring(findings.Texts(), "ARF RPA_03: the request is not signed with a relying party access certificate in x5c") {
 		t.Errorf("findings = %v, want the RPA_03 finding", findings)
 	}
-	if containsSubstring(findings, "carries no registration certificate") {
+	if containsSubstring(findings.Texts(), "carries no registration certificate") {
 		t.Errorf("findings = %v, the verifier_info parameter carries one", findings)
 	}
 }
@@ -209,9 +210,13 @@ func TestConsentRegistrationNeedsASignedRequest(t *testing.T) {
 func TestARFFindingsOfATrustedRelyingParty(t *testing.T) {
 	f := newARFFixture(t)
 	params := f.request(t, f.registration(t, registrationClaims(relyingPartyID)))
-	want := []string{"ETSI TS 119 475 V1.2.1 Table 7: the registration certificate has no status (its entry in the registrar's status list), so the wallet cannot check revocation"}
-	if findings := ARFFindings(params); !reflect.DeepEqual(findings, want) {
-		t.Errorf("findings = %v, want %v", findings, want)
+	want := []string{"ETSI TS 119 475 V1.2.1 GEN-5.2.4-01: the registration certificate has no status (its entry in the registrar's status list), so the wallet cannot check revocation"}
+	list := ARFFindings(params)
+	if !reflect.DeepEqual(list.Texts(), want) {
+		t.Errorf("findings = %v, want %v", list, want)
+	}
+	if list[0].Spec != "ETSI TS 119 475" || list[0].Rule != "ETSI TS 119 475 GEN-5.2.4-01" || list[0].Group != findings.GroupRegistration {
+		t.Errorf("finding = %+v, want its rule in the registration group", list[0])
 	}
 }
 
@@ -225,7 +230,7 @@ func TestARFFindingsRequireAnEncryptedResponse(t *testing.T) {
 		params.ResponseMode = mode
 		want := fmt.Sprintf("ARF OIA_09: response_mode %q returns the presentation unencrypted. The wallet must encrypt it", mode)
 		findings, err := ValidateAuthorizationRequest(Checks{ARF: true}, params)
-		if err != nil || !containsSubstring(findings, want) {
+		if err != nil || !containsSubstring(findings.Texts(), want) {
 			t.Errorf("findings = %v, %v, want %q", findings, err, want)
 		}
 
@@ -235,7 +240,7 @@ func TestARFFindingsRequireAnEncryptedResponse(t *testing.T) {
 		}
 		reports := 0
 		for _, finding := range findings {
-			if strings.Contains(finding, fmt.Sprintf("response_mode %q", mode)) || strings.Contains(finding, fmt.Sprintf("got %q", mode)) {
+			if strings.Contains(finding.String(), fmt.Sprintf("response_mode %q", mode)) || strings.Contains(finding.String(), fmt.Sprintf("got %q", mode)) {
 				reports++
 			}
 		}
@@ -259,7 +264,7 @@ func TestARFFindingsNeedTrustAnchors(t *testing.T) {
 		"does not chain to a trusted access certificate authority",
 		"ARF RPRC_02a: the registration certificate of Test Verifier does not chain to a trusted registrar",
 	} {
-		if !containsSubstring(findings, want) {
+		if !containsSubstring(findings.Texts(), want) {
 			t.Errorf("findings = %v, want %q", findings, want)
 		}
 	}
@@ -270,7 +275,7 @@ func TestARFFindingsCountTheRegistrationCertificates(t *testing.T) {
 	f := newARFFixture(t)
 	entry := f.registration(t, registrationClaims(relyingPartyID))
 	params := f.request(t, entry, entry)
-	if findings := ARFFindings(params); !containsSubstring(findings, "ARF RPRC_19: the request carries 2 registration certificates. It must carry exactly one") {
+	if findings := ARFFindings(params); !containsSubstring(findings.Texts(), "ARF RPRC_19: the request carries 2 registration certificates. It must carry exactly one") {
 		t.Errorf("findings = %v, want the RPRC_19 finding", findings)
 	}
 }
@@ -285,7 +290,7 @@ func TestARFFindingsReportABrokenRegistrationCertificate(t *testing.T) {
 	parts := strings.Split(string(compact), ".")
 	entry["data"] = parts[0] + "." + parts[1] + ".AAAA"
 	findings := ARFFindings(f.request(t, entry))
-	if !containsSubstring(findings, "ARF RPRC_17: the registration certificate has a signature that does not verify with its x5c leaf") {
+	if !containsSubstring(findings.Texts(), "ARF RPRC_17: the registration certificate has a signature that does not verify with its x5c leaf") {
 		t.Errorf("findings = %v, want the signature problem", findings)
 	}
 }
@@ -295,7 +300,7 @@ func TestARFFindingsReportOverAsking(t *testing.T) {
 	f := newARFFixture(t)
 	params := f.request(t, f.registration(t, registrationClaims(relyingPartyID)))
 	params.DCQLQuery = sdjwtVCTQuery("urn:eudi:other:1")
-	if findings := ARFFindings(params); !containsSubstring(findings, "RPRC_21") {
+	if findings := ARFFindings(params); !containsSubstring(findings.Texts(), "RPRC_21") {
 		t.Errorf("findings = %v, want the RPRC_21 finding", findings)
 	}
 }
@@ -311,10 +316,10 @@ func TestStrictARFRefusalOfAnAuthenticatedRelyingParty(t *testing.T) {
 	if !errors.As(err, &refusal) || refusal.Code != ErrorAccessDenied {
 		t.Fatalf("err = %v, want an access_denied AuthenticatedRefusal", err)
 	}
-	if len(refusal.Findings) != 1 || !strings.Contains(refusal.Findings[0], "Table 7") {
+	if len(refusal.Findings) != 1 || !strings.Contains(refusal.Findings[0].String(), "GEN-5.2.4-01: the registration certificate has no status") {
 		t.Errorf("refusal findings = %v", refusal.Findings)
 	}
-	if !strings.HasPrefix(refusal.Error(), "authorization request validation failed: ETSI TS 119 475 V1.2.1 Table 7") {
+	if !strings.HasPrefix(refusal.Error(), "authorization request validation failed: ETSI TS 119 475 V1.2.1 GEN-5.2.4-01") {
 		t.Errorf("refusal = %q", refusal.Error())
 	}
 
@@ -342,7 +347,7 @@ func TestStrictRefusalOfAnAuthenticatedRelyingPartyCarriesTheRequestError(t *tes
 	params.Nonce = ""
 	_, err := ValidateAuthorizationRequest(Checks{Strict: true, ARF: true}, params)
 	var refusal *AuthenticatedRefusal
-	if !errors.As(err, &refusal) || refusal.Code != ErrorInvalidRequest || !containsSubstring(refusal.Findings, "OID4VP 1.0 §5.2: nonce is required") {
+	if !errors.As(err, &refusal) || refusal.Code != ErrorInvalidRequest || !containsSubstring(refusal.Findings.Texts(), "OID4VP 1.0 §5.2: nonce is required") {
 		t.Fatalf("err = %v, want an invalid_request AuthenticatedRefusal naming the nonce", err)
 	}
 
@@ -359,7 +364,7 @@ func TestTheAccessCertificateMustSignTheRequest(t *testing.T) {
 	params := f.request(t, f.registration(t, registrationClaims(relyingPartyID)))
 	parts := strings.Split(params.RequestObject.Raw, ".")
 	params.RequestObject.Raw = parts[0] + "." + parts[1] + ".AAAA"
-	if findings := ARFFindings(params); !containsSubstring(findings, "ARF RPA_03") {
+	if findings := ARFFindings(params); !containsSubstring(findings.Texts(), "ARF RPA_03") {
 		t.Errorf("findings = %v, want RPA_03 for a signature the leaf did not make", findings)
 	}
 	if purposes, _ := ConsentRegistration(params); len(purposes) != 0 {
@@ -367,7 +372,7 @@ func TestTheAccessCertificateMustSignTheRequest(t *testing.T) {
 	}
 
 	params.RequestObject.Header["alg"] = "none"
-	if findings := ARFFindings(params); !containsSubstring(findings, "ARF RPA_03") {
+	if findings := ARFFindings(params); !containsSubstring(findings.Texts(), "ARF RPA_03") {
 		t.Errorf("findings = %v, want RPA_03 for alg none", findings)
 	}
 }

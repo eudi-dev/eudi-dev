@@ -1237,7 +1237,7 @@ func refuseMissingAuthorizationResponseIssuer(t *testing.T, haip bool) {
 	offerURI := "openid-credential-offer://?credential_offer=" + url.QueryEscape(string(offerJSON))
 
 	_, err := w.ProcessCredentialOffer(offerURI)
-	if err == nil || !strings.Contains(err.Error(), "omitted iss") {
+	if err == nil || !strings.Contains(err.Error(), "has no iss") {
 		t.Fatalf("ProcessCredentialOffer() error = %v, want a refused missing-iss deviation", err)
 	}
 	if tokenCalls != 0 {

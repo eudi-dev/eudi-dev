@@ -28,6 +28,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/config"
@@ -313,14 +314,15 @@ func (s *Server) reportRefusalToVerifier(authReq *oid4vp.Request, errorCode, err
 // SubmittedPresentation builds the answer of POST /api/presentations after the
 // verifier received the response. findings are the checks that failed in
 // debug mode.
-func SubmittedPresentation(result *oid4vp.DirectPostResult, vp *VPTokenMapResult, findings []string) map[string]any {
+func SubmittedPresentation(result *oid4vp.DirectPostResult, vp *VPTokenMapResult, list findings.List) map[string]any {
 	keys := []string{}
 	if vp != nil && len(vp.QueryIDs()) > 0 {
 		keys = vp.QueryIDs()
 	}
 	body := map[string]any{"status": "submitted", "response": result, "vp_token_keys": keys}
-	if len(findings) > 0 {
-		body["findings"] = findings
+	if len(list) > 0 {
+		body["findings"] = list.Texts()
+		body["finding_details"] = list.Details()
 	}
 	return withRedirectURI(body, result.RedirectURI)
 }

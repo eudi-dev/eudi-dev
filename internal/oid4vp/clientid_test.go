@@ -106,10 +106,10 @@ func TestVerifyClientID_X509SanDNS(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			warning := verifyClientID(tt.clientID, tt.reqObj, "", "")
-			if tt.wantEmpty && warning != "" {
+			if tt.wantEmpty && warning.Text != "" {
 				t.Errorf("expected no warning, got: %s", warning)
 			}
-			if !tt.wantEmpty && warning == "" {
+			if !tt.wantEmpty && warning.Text == "" {
 				t.Error("expected a warning, got empty string")
 			}
 		})
@@ -139,10 +139,10 @@ func TestVerifyClientID_X509SanDNSResponseFQDN(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			warning := verifyClientID(clientID, req, tt.responseURI, tt.requestOrigin)
-			if tt.wantEmpty && warning != "" {
+			if tt.wantEmpty && warning.Text != "" {
 				t.Errorf("expected no finding, got %q", warning)
 			}
-			if !tt.wantEmpty && warning == "" {
+			if !tt.wantEmpty && warning.Text == "" {
 				t.Error("expected a finding for a mismatched response host")
 			}
 		})
@@ -168,10 +168,10 @@ func TestVerifyClientID_X509Hash(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			warning := verifyClientID(tt.clientID, reqObjWithX5C(certB64), "", "")
-			if tt.wantEmpty && warning != "" {
+			if tt.wantEmpty && warning.Text != "" {
 				t.Errorf("expected no warning, got: %s", warning)
 			}
-			if !tt.wantEmpty && warning == "" {
+			if !tt.wantEmpty && warning.Text == "" {
 				t.Error("expected a warning, got empty string")
 			}
 		})
@@ -209,10 +209,10 @@ func TestVerifyClientID_RedirectURI(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			warning := verifyClientID(tt.clientID, tt.reqObj, tt.responseURI, "")
-			if tt.wantEmpty && warning != "" {
+			if tt.wantEmpty && warning.Text != "" {
 				t.Errorf("expected no warning, got: %s", warning)
 			}
-			if !tt.wantEmpty && warning == "" {
+			if !tt.wantEmpty && warning.Text == "" {
 				t.Error("expected a warning, got empty string")
 			}
 		})
@@ -294,10 +294,10 @@ func TestValidateRequestObject(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			warning := validateRequestObject(tt.clientID, tt.reqObj)
-			if tt.wantEmpty && warning != "" {
+			if tt.wantEmpty && warning.Text != "" {
 				t.Errorf("expected no warning, got: %s", warning)
 			}
-			if tt.wantMsg != "" && !strings.Contains(warning, tt.wantMsg) {
+			if tt.wantMsg != "" && !strings.Contains(warning.String(), tt.wantMsg) {
 				t.Errorf("expected warning containing %q, got: %s", tt.wantMsg, warning)
 			}
 		})
@@ -332,10 +332,10 @@ func TestVerifyAlgMatchesCert(t *testing.T) {
 				reqObj.Header["alg"] = tt.alg
 			}
 			warning := verifyAlgMatchesCert(reqObj)
-			if tt.wantEmpty && warning != "" {
+			if tt.wantEmpty && warning.Text != "" {
 				t.Errorf("expected no warning, got: %s", warning)
 			}
-			if !tt.wantEmpty && warning == "" {
+			if !tt.wantEmpty && warning.Text == "" {
 				t.Error("expected a warning, got empty string")
 			}
 		})
@@ -373,10 +373,10 @@ func TestVerifyClientID_VerifierAttestation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			warning := verifyClientID(tt.clientID, tt.reqObj, "", "")
-			if tt.wantEmpty && warning != "" {
+			if tt.wantEmpty && warning.Text != "" {
 				t.Errorf("expected no warning, got: %s", warning)
 			}
-			if tt.wantMsg != "" && !strings.Contains(warning, tt.wantMsg) {
+			if tt.wantMsg != "" && !strings.Contains(warning.String(), tt.wantMsg) {
 				t.Errorf("expected warning containing %q, got: %q", tt.wantMsg, warning)
 			}
 		})
@@ -432,10 +432,10 @@ func TestVerifyClientID_DecentralizedIdentifier(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			warning := verifyClientID(tt.clientID, tt.reqObj, "", "")
-			if tt.wantEmpty && warning != "" {
+			if tt.wantEmpty && warning.Text != "" {
 				t.Errorf("expected no warning, got: %s", warning)
 			}
-			if tt.wantMsg != "" && !strings.Contains(warning, tt.wantMsg) {
+			if tt.wantMsg != "" && !strings.Contains(warning.String(), tt.wantMsg) {
 				t.Errorf("expected warning containing %q, got: %q", tt.wantMsg, warning)
 			}
 		})
@@ -446,7 +446,7 @@ func TestVerifyAlgMatchesCert_NoX5C(t *testing.T) {
 	reqObj := &oid4vc.RequestObjectJWT{
 		Header: map[string]any{"alg": "ES256", "typ": "oauth-authz-req+jwt"},
 	}
-	if warning := verifyAlgMatchesCert(reqObj); warning != "" {
+	if warning := verifyAlgMatchesCert(reqObj); warning.Text != "" {
 		t.Errorf("expected no warning without x5c, got: %s", warning)
 	}
 }
@@ -478,13 +478,13 @@ func TestVerifyRequestObjectSignature(t *testing.T) {
 		Header:  parsedHeader,
 		Payload: parsedPayload,
 	}
-	if warning := verifyRequestObjectSignature("x509_san_dns:example.com", reqObj); warning != "" {
+	if warning := verifyRequestObjectSignature("x509_san_dns:example.com", reqObj); warning.Text != "" {
 		t.Fatalf("expected valid signature, got %s", warning)
 	}
 
 	parts := strings.Split(raw, ".")
 	reqObj.Raw = parts[0] + "." + parts[1] + ".AAAA"
-	if warning := verifyRequestObjectSignature("x509_san_dns:example.com", reqObj); warning == "" {
+	if warning := verifyRequestObjectSignature("x509_san_dns:example.com", reqObj); warning.Text == "" {
 		t.Fatal("expected signature verification failure")
 	}
 }
@@ -518,7 +518,7 @@ func TestVerifyRequestObjectSignature_X5CScopedToX509Prefixes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			warning := verifyRequestObjectSignature(tt.clientID, reqObj)
-			gotX5CReq := warning == "OID4VP 1.0 §5.9.3: Request Object signature verification requires an x5c header"
+			gotX5CReq := warning.String() == "OID4VP 1.0 §5.9.3: Request Object signature verification requires an x5c header"
 			if gotX5CReq != tt.wantx5cReq {
 				t.Errorf("x5c-required finding = %v (warning %q), want %v", gotX5CReq, warning, tt.wantx5cReq)
 			}
@@ -544,7 +544,7 @@ func TestVerifyRequestObjectSignature_AllowsAlgNone(t *testing.T) {
 		Header:  header,
 		Payload: payload,
 	}
-	if warning := verifyRequestObjectSignature("redirect_uri:https://verifier.example/cb", reqObj); warning != "" {
+	if warning := verifyRequestObjectSignature("redirect_uri:https://verifier.example/cb", reqObj); warning.Text != "" {
 		t.Fatalf("expected alg=none request object to bypass signature verification, got %s", warning)
 	}
 }
@@ -563,7 +563,7 @@ func TestVerifyClientID_RedirectURIAllowsUnsignedRequestObject(t *testing.T) {
 		"https://verifier.example/cb",
 		"",
 	)
-	if warning != "" {
+	if warning.Text != "" {
 		t.Fatalf("expected redirect_uri client_id to allow unsigned request objects, got %s", warning)
 	}
 }
@@ -583,10 +583,10 @@ func TestVerifyClientIDRejectsReservedAndUnsupportedPrefixes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			warning := verifyClientID(tt.clientID, nil, "", "https://verifier.example")
-			if warning == "" {
+			if warning.Text == "" {
 				t.Fatal("expected the prefix to be refused")
 			}
-			if !strings.Contains(warning, tt.want) {
+			if !strings.Contains(warning.String(), tt.want) {
 				t.Errorf("warning = %q, want it to mention %q", warning, tt.want)
 			}
 		})
@@ -627,10 +627,10 @@ func TestVerifyRequestObjectSignature_NamesWhatItCouldNotVerify(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			finding := verifyRequestObjectSignature(tt.clientID, reqObj)
-			if finding == "" {
+			if finding.Text == "" {
 				t.Fatal("a signature this wallet cannot verify was reported as fine")
 			}
-			if !strings.Contains(finding, "not verified") || !strings.Contains(finding, tt.want) {
+			if !strings.Contains(finding.String(), "not verified") || !strings.Contains(finding.String(), tt.want) {
 				t.Errorf("finding = %q, want it to say the signature was not verified and to name %q", finding, tt.want)
 			}
 		})
@@ -642,13 +642,13 @@ func TestVerifyRequestObjectSignature_NamesWhatItCouldNotVerify(t *testing.T) {
 func TestVerifyRequestObjectSignature_QuietWhereAnotherCheckSpeaks(t *testing.T) {
 	header := map[string]any{"alg": "none", "typ": "oauth-authz-req+jwt"}
 	reqObj := &oid4vc.RequestObjectJWT{Raw: "e30.e30.", Header: header, Payload: map[string]any{}}
-	if finding := verifyRequestObjectSignature("redirect_uri:https://verifier.example/cb", reqObj); finding != "" {
+	if finding := verifyRequestObjectSignature("redirect_uri:https://verifier.example/cb", reqObj); finding.Text != "" {
 		t.Errorf("an unsigned request under redirect_uri: was reported: %s", finding)
 	}
 
 	signed := map[string]any{"alg": "ES256", "typ": "oauth-authz-req+jwt"}
 	signedReq := &oid4vc.RequestObjectJWT{Raw: "e30.e30.AAAA", Header: signed, Payload: map[string]any{}}
-	if finding := verifyRequestObjectSignature("redirect_uri:https://verifier.example/cb", signedReq); finding != "" {
+	if finding := verifyRequestObjectSignature("redirect_uri:https://verifier.example/cb", signedReq); finding.Text != "" {
 		t.Errorf("a signed request under redirect_uri: is VerifyClientID's finding, but the signature check also reported: %s", finding)
 	}
 }
@@ -681,7 +681,7 @@ func TestVerifyRequestObjectSignature_X5CNeverVerifiesOtherPrefixes(t *testing.T
 		"verifier.example",
 	} {
 		t.Run(clientID, func(t *testing.T) {
-			if finding := verifyRequestObjectSignature(clientID, reqObj); finding == "" {
+			if finding := verifyRequestObjectSignature(clientID, reqObj); finding.Text == "" {
 				t.Fatal("the request was verified against its own x5c")
 			}
 			if signed, _ := ClientAuthState(&Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ClientID: clientID, RequestObject: reqObj}}); signed {
@@ -761,12 +761,12 @@ func TestVerifyClientID_VerifierAttestationClaims(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			finding := verifyClientID(clientID, f.request(t, f.attestation(t, tt.claims), f.verifierKey), "", "")
 			if tt.want == "" {
-				if finding != "" {
+				if finding.Text != "" {
 					t.Fatalf("finding = %q, want none", finding)
 				}
 				return
 			}
-			if !strings.Contains(finding, tt.want) {
+			if !strings.Contains(finding.String(), tt.want) {
 				t.Fatalf("finding = %q, want it to name %q", finding, tt.want)
 			}
 		})
@@ -803,7 +803,7 @@ func TestVerifyRequestObjectSignature_VerifierAttestation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			reqObj := f.request(t, tt.attestation, tt.signer)
 			finding := verifyRequestObjectSignature(clientID, reqObj)
-			if !strings.Contains(finding, tt.want) {
+			if !strings.Contains(finding.String(), tt.want) {
 				t.Fatalf("finding = %q, want it to name %q", finding, tt.want)
 			}
 			if signed, _ := ClientAuthState(&Request{AuthorizationRequest: oid4vc.AuthorizationRequest{ClientID: clientID, RequestObject: reqObj}}); signed {

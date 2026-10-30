@@ -1796,6 +1796,65 @@ test("an expanded activity entry shows its whole detail", async ({ page }) => {
   expect(await clipped()).toBe(false);
 });
 
+test("selecting the text of an activity entry keeps it collapsed", async ({ page }) => {
+  await page.route("**/api/log*", route => route.fulfill({ json: [{
+    time: "2026-10-01T08:00:00Z", action: "issuance", detail: "Fetch issuer metadata", success: true,
+    details: { event: "issuer_metadata" },
+  }] }));
+  await page.goto(WALLET_URL);
+  const entry = page.getByTestId("log-entry");
+  const detail = entry.locator(".log-detail");
+  const box = await detail.boundingBox();
+  await page.mouse.move(box.x + 1, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 120, box.y + box.height / 2, { steps: 5 });
+  await page.mouse.up();
+  expect(await page.evaluate(() => String(window.getSelection()))).toContain("Fetch");
+  await expect(entry).not.toHaveClass(/expanded/);
+});
+
+test("an activity entry shows registration findings in a row of their own", async ({ page }) => {
+  const citation = "ARF RPRC_22a and ETSI TS 119 472-3 V1.1.1 ISS-MDATA-REG_CERT-4.2.3-04 as adapted by CIR (EU) 2026/1731 Annex XI";
+  const findings = [
+    { spec: "ARF", rule: "ARF RPRC_22a", citation, text: "the issuer metadata carries no registration certificate", group: "registration" },
+    { spec: "ARF", rule: "ARF ISSU_34", url: "https://eudi.dev/latest/annexes/annex-2/annex-2.02-high-level-requirements-by-topic/#ISSU_34", text: "the Credential Issuer Metadata is not signed", group: "registration" },
+    { spec: "OID4VCI 1.0", rule: "OID4VCI 1.0 §12.2.4", text: "the metadata has no credential_endpoint", group: "protocol" },
+  ];
+  await page.route("**/api/log*", route => route.fulfill({ json: [{
+    time: "2026-10-01T08:00:00Z", action: "issuance", success: true, severity: "warning",
+    detail: "Findings about the issuer (3 findings, see details)",
+    details: { event: "issuer_findings", issuer: "https://issuer.example", findings: findings.map(f => (f.citation || f.rule) + ": " + f.text) },
+    finding_details: findings, finding_subject: "Issuer",
+  }] }));
+  await page.goto(WALLET_URL);
+  const rows = page.getByTestId("log-entry");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.locator(".log-detail")).toHaveText(["1 protocol finding about the issuer", "2 registration findings about the issuer"]);
+  const registration = rows.filter({ hasText: "registration findings" });
+  const protocol = rows.filter({ hasText: "protocol finding" });
+  await expect(registration.locator(".log-specs")).toHaveText("ARF");
+  await expect(protocol.locator(".log-specs")).toHaveText("OID4VCI 1.0");
+
+  await registration.getByTestId("log-entry-toggle").click();
+  await expect(registration.locator(".log-findings .finding-ref")).toHaveText([citation, "ARF ISSU_34"]);
+  await expect(registration.locator(".log-findings .finding-ref a")).toHaveAttribute("href", findings[1].url);
+  await expect(registration.locator(".log-fields")).not.toContainText("ISS-MDATA");
+});
+
+test("an activity entry without finding details shows its findings as text", async ({ page }) => {
+  const finding = "ARF RPRC_02a: the registration certificate does not chain to a trusted registrar";
+  await page.route("**/api/log*", route => route.fulfill({ json: [{
+    time: "2026-10-01T08:00:00Z", action: "presentation", success: true, severity: "warning",
+    detail: finding, details: { event: "arf_finding", findings: [finding] },
+  }] }));
+  await page.goto(WALLET_URL);
+  const entry = page.getByTestId("log-entry");
+  await expect(entry.locator(".log-detail")).toHaveText(finding);
+  await expect(entry.locator(".finding-spec")).toHaveCount(0);
+  await page.getByTestId("log-entry-toggle").click();
+  await expect(entry.locator(".log-fields")).toContainText(finding);
+});
+
 for (const event of ["presentation_response", "interactive_authorization_presentation"]) {
   test(`encrypted presentation activity opens every sent token for ${event}`, async ({ page }) => {
     const first = activityJWT("first-presentation");
@@ -2447,8 +2506,9 @@ test.describe("ARF checks", () => {
       await expect(summary).toContainText("findings about this issuer");
       await expect(page.locator("#consent-findings-list")).toBeHidden();
       await summary.click();
-      await expect(page.locator("#consent-findings-list")).toContainText("ARF ISSU_34: the Credential Issuer Metadata is not signed");
-      await expect(page.locator("#consent-findings-list")).toContainText("ARF RPRC_22a");
+      const unsigned = page.locator("#consent-findings-list li").filter({ hasText: "the Credential Issuer Metadata is not signed" });
+      await expect(unsigned.locator(".finding-ref")).toContainText("ARF ISSU_34");
+      await expect(page.locator("#consent-findings-registration")).toContainText("ARF RPRC_22a");
     } finally {
       issuer.close();
     }

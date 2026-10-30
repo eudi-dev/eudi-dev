@@ -30,6 +30,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
@@ -149,11 +150,11 @@ func (w *Wallet) judgeSigningChainAnchor(format string, chain []*x509.Certificat
 	if format == "jwt" || len(certchain.WithoutSelfSignedAnchor(chain)) == len(chain) {
 		return nil
 	}
-	finding := "HAIP 1.0 §6.1.1: the signing certificate chain includes its self-signed root, which MUST NOT be included in the credential's x5c"
+	finding := findings.HAIP.Protocol("§6.1.1").New("the signing certificate chain includes its self-signed root, which MUST NOT be included in the credential's x5c")
 	if format == "mdoc" {
-		finding = "ISO 18013-5: the signing certificate chain includes its self-signed root, which does not belong in the x5chain header"
+		finding = findings.ISO180135.Protocol("§9.1.2.4").New("the signing certificate chain includes its self-signed root, which does not belong in the x5chain header")
 	}
-	return w.reportDeviation(deviation{action: "management", event: "signing_chain_anchor", detail: finding})
+	return w.reportDeviation(deviation{action: "management", event: "signing_chain_anchor", subject: subjectCredential, finding: finding})
 }
 
 type IssueDisplay struct {

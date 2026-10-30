@@ -25,6 +25,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
 	"github.com/eudi-dev/eudi-dev/v3/internal/regcert"
@@ -88,7 +89,7 @@ func TestTheRegistrationCertificateMatchesTheAccessCertificate(t *testing.T) {
 		t.Fatal(err)
 	}
 	certs, _ := verifiedRegistrationCertificates(map[string]any{"verifier_info": issueTestRegistrationCertificate(t, w, rp).VerifierInfo})
-	if got := regcert.BindingFindings(certs[0], accessCert, "ARF RPRC_17a"); len(got) != 0 {
+	if got := regcert.BindingFindings(certs[0], accessCert, findings.ARF.Registration("RPRC_17a")); len(got) != 0 {
 		t.Errorf("findings %v for the relying party's own access certificate, want none", got)
 	}
 
@@ -96,13 +97,13 @@ func TestTheRegistrationCertificateMatchesTheAccessCertificate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := regcert.BindingFindings(certs[0], demoChain[0], "ARF RPRC_17a"); len(got) == 0 || !strings.Contains(got[0], "RPRC_17a") {
+	if got := regcert.BindingFindings(certs[0], demoChain[0], findings.ARF.Registration("RPRC_17a")); len(got) == 0 || !strings.Contains(got[0].String(), "RPRC_17a") {
 		t.Errorf("findings %v for another relying party's access certificate, want the RPRC_17a warning", got)
 	}
 	// An intermediary's certificate identifies the relying party in act.sub (ETSI
 	// TS 119 475 GEN-5.2.4-09).
 	intermediary := map[string]any{"sub": "LEIXG-INTERMEDIARY", "act": map[string]any{"sub": semanticIdentifier(t, rp)}}
-	if got := regcert.BindingFindings(intermediary, accessCert, "ARF RPRC_17a"); len(got) != 0 {
+	if got := regcert.BindingFindings(intermediary, accessCert, findings.ARF.Registration("RPRC_17a")); len(got) != 0 {
 		t.Errorf("findings %v for an intermediary acting for the relying party, want none", got)
 	}
 }
@@ -156,10 +157,10 @@ func TestTheRegistrationCertificateBindsToTheAccessCertificateOfItsService(t *te
 		t.Fatalf("IssueRegistrationCertificate: %v", err)
 	}
 	certs, _ := verifiedRegistrationCertificates(map[string]any{"verifier_info": result.VerifierInfo})
-	if got := regcert.BindingFindings(certs[0], accessCert("shop"), "ARF RPRC_17a"); len(got) != 0 {
+	if got := regcert.BindingFindings(certs[0], accessCert("shop"), findings.ARF.Registration("RPRC_17a")); len(got) != 0 {
 		t.Errorf("findings %v for the access certificate of the same service, want none", got)
 	}
-	if got := regcert.BindingFindings(certs[0], accessCert("loyalty"), "ARF RPRC_17a"); len(got) != 1 {
+	if got := regcert.BindingFindings(certs[0], accessCert("loyalty"), findings.ARF.Registration("RPRC_17a")); len(got) != 1 {
 		t.Errorf("findings %v for the access certificate of another service, want the RPRC_17a warning", got)
 	}
 }

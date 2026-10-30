@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 )
 
@@ -108,8 +109,8 @@ func TestHAIPCredentialFindings_UnreadableX5C(t *testing.T) {
 	}
 }
 
-func containsSubstr(findings []string, sub string) bool {
-	for _, f := range findings {
+func containsSubstr(list findings.List, sub string) bool {
+	for _, f := range list.Texts() {
 		if strings.Contains(f, sub) {
 			return true
 		}

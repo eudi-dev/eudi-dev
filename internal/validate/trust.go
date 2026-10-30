@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
 )
 
@@ -110,8 +111,8 @@ type CatalogueAnchoring struct {
 	Entry    string `json:"entry"`
 	Category string `json:"category"`
 	// AnchoredBy is the list whose issuance service anchors the credential.
-	AnchoredBy string   `json:"anchored_by,omitempty"`
-	Findings   []string `json:"findings,omitempty"`
+	AnchoredBy string        `json:"anchored_by,omitempty"`
+	Findings   findings.List `json:"findings,omitempty"`
 	// Warnings list the lists of an EAA entry without anchors. ARF ISSU_10
 	// asks to check an EAA only when the wallet has its anchors, so these are
 	// no findings.

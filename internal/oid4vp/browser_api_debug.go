@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 )
 
 // Protocols lists the protocol of each request in the call, in order.
@@ -86,7 +88,7 @@ var dcAPIUnlistedParameters = []string{"redirect_uri", "request_uri", "request_u
 
 // dcAPIParameterWarnings reports parameters unused by the Digital
 // Credentials API. They are warnings and never refuse a request.
-func dcAPIParameterWarnings(protocol string, data any, params *Request) []string {
+func dcAPIParameterWarnings(protocol string, data any, params *Request) findings.List {
 	keys := map[string]bool{}
 	outer, _ := data.(map[string]any)
 	if protocol == browserAPIProtocolUnsigned {
@@ -106,29 +108,29 @@ func dcAPIParameterWarnings(protocol string, data any, params *Request) []string
 		}
 	}
 
-	var warnings []string
+	var warnings findings.List
 	for _, name := range dcAPIUnlistedParameters {
 		if !keys[name] {
 			continue
 		}
 		switch name {
 		case "state":
-			warnings = append(warnings, "OID4VP 1.0 Appendix A.2 doesn't define state for the Digital Credentials API, so a verifier can't expect it in the response")
+			warnings = append(warnings, findings.OID4VP.Protocol("Appendix A.2").New("state is not defined for the Digital Credentials API, so a verifier can't expect it in the response"))
 		case "request_uri":
-			warnings = append(warnings, "OID4VP 1.0 Appendix A.2 doesn't list request_uri for the Digital Credentials API. This wallet fetches it, but other wallets may not")
+			warnings = append(warnings, findings.OID4VP.Protocol("Appendix A.2").New("request_uri is not listed for the Digital Credentials API. This wallet fetches it, but other wallets may not"))
 		default:
-			warnings = append(warnings, fmt.Sprintf("OID4VP 1.0 Appendix A.2 doesn't list %s for the Digital Credentials API. Other wallets ignore it", name))
+			warnings = append(warnings, findings.OID4VP.Protocol("Appendix A.2").Newf("%s is not listed for the Digital Credentials API. Other wallets may ignore it", name))
 		}
 	}
 	if protocol == browserAPIProtocolUnsigned {
 		if keys["client_id"] {
-			warnings = append(warnings, "OID4VP 1.0 Appendix A.2: client_id MUST be omitted in an unsigned request. The wallet ignores it")
+			warnings = append(warnings, findings.OID4VP.Protocol("Appendix A.2").New("client_id MUST be omitted in an unsigned request. The wallet ignores it"))
 		}
 		if keys["expected_origins"] {
-			warnings = append(warnings, "OID4VP 1.0 Appendix A.2: expected_origins is not for unsigned requests. The wallet ignores it")
+			warnings = append(warnings, findings.OID4VP.Protocol("Appendix A.2").New("expected_origins is not for unsigned requests. The wallet ignores it"))
 		}
 	} else if keys["request"] {
-		warnings = append(warnings, "OID4VP 1.0 Appendix A.3.2: a signed request object can contain every parameter of Appendix A.2 except request")
+		warnings = append(warnings, findings.OID4VP.Protocol("Appendix A.3.2").New("a signed request object can contain every parameter of Appendix A.2 except request"))
 	}
 	return warnings
 }

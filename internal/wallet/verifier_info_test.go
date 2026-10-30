@@ -219,7 +219,7 @@ func TestARFFindingsShareOneLogEntry(t *testing.T) {
 	findings := oid4vp.ARFFindings(&oid4vp.Request{
 		RequestPayload: verifierInfoPayload(map[string]any{"format": "registration_cert", "data": cert}),
 	})
-	w.warnFindings("presentation", "authorization_request_finding", specCitedSummary("The request", findings), findings, nil)
+	w.warnFindings("presentation", "authorization_request_finding", subjectRequest, specCitedSummary("The request", findings), findings, nil)
 
 	summaries := 0
 	var details map[string]any
@@ -270,10 +270,10 @@ func TestARFChecksOverAsking(t *testing.T) {
 	if _, err := oid4vp.ValidateAuthorizationRequest(oid4vp.Checks{Strict: true, ARF: true}, request("birthdate")); err == nil || !strings.Contains(err.Error(), "RPRC_21") {
 		t.Errorf("strict mode with --arf: err = %v, want the RPRC_21 refusal", err)
 	}
-	if findings, err := oid4vp.ValidateAuthorizationRequest(oid4vp.Checks{ARF: true}, request("birthdate")); err != nil || !containsSubstring(findings, "RPRC_21") {
+	if findings, err := oid4vp.ValidateAuthorizationRequest(oid4vp.Checks{ARF: true}, request("birthdate")); err != nil || !containsSubstring(findings.Texts(), "RPRC_21") {
 		t.Errorf("debug mode with --arf: findings %v (%v), want the RPRC_21 warning", findings, err)
 	}
-	if findings, err := oid4vp.ValidateAuthorizationRequest(oid4vp.Checks{Strict: true}, request("birthdate")); err != nil || containsSubstring(findings, "RPRC") {
+	if findings, err := oid4vp.ValidateAuthorizationRequest(oid4vp.Checks{Strict: true}, request("birthdate")); err != nil || containsSubstring(findings.Texts(), "RPRC") {
 		t.Errorf("strict mode without --arf: findings %v (%v), want no ARF check", findings, err)
 	}
 }
@@ -325,7 +325,7 @@ func TestTheConsentBindsByTheRelyingPartyIdentifier(t *testing.T) {
 	if purposes, _ := oid4vp.ConsentRegistration(request); !slices.Equal(purposes, []string{"Age check"}) {
 		t.Errorf("purposes %v, want Age check", purposes)
 	}
-	if findings := oid4vp.ARFFindings(request); !containsSubstring(findings, "RPRC_17a") {
+	if findings := oid4vp.ARFFindings(request); !containsSubstring(findings.Texts(), "RPRC_17a") {
 		t.Errorf("findings %v, want RPRC_17a for another service", findings)
 	}
 }

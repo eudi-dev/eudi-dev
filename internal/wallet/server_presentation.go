@@ -68,7 +68,7 @@ func (s *Server) refuseUnreadableRequest(w http.ResponseWriter, owner string, er
 	if errors.Is(err, oid4vc.ErrUnrecognizedInput) {
 		action, message = "input", "Not an OpenID4VCI offer or OpenID4VP request"
 	}
-	s.wallet.reportRefusal(action, "authorization_request_unreadable", owner, message, "", err)
+	s.wallet.reportRefusal(action, "authorization_request_unreadable", owner, message, subjectRequest, "", err)
 	s.triggerUIRequest("")
 	apierror.WriteErr(w, http.StatusBadRequest, oid4vp.ParseErrorCode(err), err)
 }

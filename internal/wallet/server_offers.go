@@ -459,7 +459,7 @@ func (w *Wallet) prepareIssuanceConsentRequest(ctx context.Context, raw, owner s
 	}
 	req.ClientID = offer.CredentialIssuer
 	req.OfferConfigs = append([]string(nil), offer.CredentialConfigurationIDs...)
-	var refusal []string
+	var refusal findings.List
 	req.OfferDetails, refusal = w.describeCredentialOffer(ctx, offer)
 	// Strict mode refuses an issuer that fails the ARF checks before the user
 	// is asked, as it refuses a verifier (RPRC_22a, ISSU_24a).

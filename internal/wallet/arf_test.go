@@ -116,7 +116,7 @@ func TestARFRequiresTheAccessCertificateToSignTheRequest(t *testing.T) {
 	w := generateTestWallet(t)
 	params := arfRequest(t, w, w)
 	params.RequestObject.Header["alg"] = "none"
-	if findings := oid4vp.ARFFindings(params); !containsSubstring(findings, "RPA_03") {
+	if findings := oid4vp.ARFFindings(params); !containsSubstring(findings.Texts(), "RPA_03") {
 		t.Errorf("findings %v, want RPA_03 for an unsigned request with a copied x5c", findings)
 	}
 }
@@ -149,7 +149,7 @@ func TestAnExpiredAccessCertificate(t *testing.T) {
 	params := signedARFRequest(t, w, key, []*x509.Certificate{expired}, issueTestRegistrationCertificate(t, w, rp).VerifierInfo)
 
 	findings, err := oid4vp.ValidateAuthorizationRequest(oid4vp.Checks{ARF: true}, params)
-	if err != nil || !containsSubstring(findings, "RPA_04") {
+	if err != nil || !containsSubstring(findings.Texts(), "RPA_04") {
 		t.Errorf("debug mode: findings %v (%v), want the RPA_04 warning", findings, err)
 	}
 	if _, err := oid4vp.ValidateAuthorizationRequest(oid4vp.Checks{Strict: true, ARF: true}, params); err == nil || !strings.Contains(err.Error(), "RPA_04") {
@@ -193,7 +193,7 @@ func TestARFTrustsTheWalletsOwnRegistrar(t *testing.T) {
 	w := generateTestWallet(t)
 	findings := oid4vp.ARFFindings(arfRequest(t, w, w))
 	for _, rule := range []string{"RPA_03", "RPA_04", "RPRC_02a", "RPRC_17a"} {
-		if containsSubstring(findings, rule) {
+		if containsSubstring(findings.Texts(), rule) {
 			t.Errorf("findings %v, want no %s finding", findings, rule)
 		}
 	}
@@ -204,7 +204,7 @@ func TestARFRefusesUnknownAuthorities(t *testing.T) {
 	w := generateTestWallet(t)
 	params := arfRequest(t, foreign, w)
 	findings := oid4vp.ARFFindings(params)
-	if !containsSubstring(findings, "RPA_04") || !containsSubstring(findings, "RPRC_02a") {
+	if !containsSubstring(findings.Texts(), "RPA_04") || !containsSubstring(findings.Texts(), "RPRC_02a") {
 		t.Errorf("findings %v, want RPA_04 and RPRC_02a", findings)
 	}
 
@@ -221,7 +221,7 @@ func TestARFRefusesUnknownAuthorities(t *testing.T) {
 		pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: foreignRegistrarCA.Raw}),
 		pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: foreignAccessCA.Raw})...)
 	w.PrepareARFChecks(params)
-	if findings := oid4vp.ARFFindings(params); containsSubstring(findings, "RPA_04") || containsSubstring(findings, "RPRC_02a") {
+	if findings := oid4vp.ARFFindings(params); containsSubstring(findings.Texts(), "RPA_04") || containsSubstring(findings.Texts(), "RPRC_02a") {
 		t.Errorf("findings %v with --relying-party-ca, want the foreign CA trusted", findings)
 	}
 }
@@ -321,10 +321,10 @@ func TestARFRefusesARegistrationSignedWithAnAccessCertificate(t *testing.T) {
 		t.Fatal(err)
 	}
 	params := signedARFRequest(t, w, key, chain, `[{"format":"registration_cert","data":"`+forged+`"}]`)
-	if findings := oid4vp.ARFFindings(params); !containsSubstring(findings, "RPRC_02a") {
+	if findings := oid4vp.ARFFindings(params); !containsSubstring(findings.Texts(), "RPRC_02a") {
 		t.Errorf("findings %v, want RPRC_02a for a registration certificate signed with an access certificate", findings)
 	}
-	if findings := oid4vp.ARFFindings(arfRequest(t, w, w)); containsSubstring(findings, "RPRC_02a") {
+	if findings := oid4vp.ARFFindings(arfRequest(t, w, w)); containsSubstring(findings.Texts(), "RPRC_02a") {
 		t.Errorf("findings %v, want the registrar's own certificate trusted", findings)
 	}
 }
@@ -340,7 +340,7 @@ func TestARFRefusesSeveralRegistrationCertificates(t *testing.T) {
 	}
 	twice, _ := json.Marshal(append(entries, entries...))
 	findings := oid4vp.ARFFindings(signedARFRequest(t, reg, key, chain, string(twice)))
-	if !slices.ContainsFunc(findings, func(f string) bool { return strings.HasPrefix(f, "ARF RPRC_19: the request carries 2") }) {
+	if !slices.ContainsFunc(findings.Texts(), func(f string) bool { return strings.HasPrefix(f, "ARF RPRC_19: the request carries 2") }) {
 		t.Errorf("findings %v, want RPRC_19 for two certificates", findings)
 	}
 }

@@ -29,6 +29,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 )
 
@@ -93,22 +94,33 @@ type Retrieval struct {
 
 // RetrievalError means the Type Metadata is not available. The wallet does
 // not require Type Metadata, so the credential stays usable without it.
-type RetrievalError struct{ msg string }
+type RetrievalError struct{ finding findings.Finding }
 
-func (e *RetrievalError) Error() string { return e.msg }
+func (e *RetrievalError) Error() string             { return e.finding.String() }
+func (e *RetrievalError) Finding() findings.Finding { return e.finding }
 
 // ProcessingError means the Type Metadata was retrieved but its processing
 // failed. §5.7 and §7.4 require rejecting the credential.
-type ProcessingError struct{ msg string }
+type ProcessingError struct{ finding findings.Finding }
 
-func (e *ProcessingError) Error() string { return e.msg }
+func (e *ProcessingError) Error() string             { return e.finding.String() }
+func (e *ProcessingError) Finding() findings.Finding { return e.finding }
 
-func retrievalErrorf(format string, args ...any) error {
-	return &RetrievalError{msg: fmt.Sprintf(format, args...)}
+// retrievalErrorf and processingErrorf cite a section of SD-JWT VC. An empty
+// section marks a limit of this wallet.
+func retrievalErrorf(section, format string, args ...any) error {
+	return &RetrievalError{finding: sdJWTVCFinding(section, fmt.Sprintf(format, args...))}
 }
 
-func processingErrorf(format string, args ...any) error {
-	return &ProcessingError{msg: fmt.Sprintf(format, args...)}
+func processingErrorf(section, format string, args ...any) error {
+	return &ProcessingError{finding: sdJWTVCFinding(section, fmt.Sprintf(format, args...))}
+}
+
+func sdJWTVCFinding(section, text string) findings.Finding {
+	if section == "" {
+		return findings.Uncited(text)
+	}
+	return findings.SDJWTVC.Protocol(section).New(text)
 }
 
 // IsRetrievable reports whether Type Metadata can be retrieved for vct
@@ -148,10 +160,10 @@ func (r Resolver) Resolve(vct, integrity string) (*Metadata, error) {
 	ref, refIntegrity := vct, integrity
 	for {
 		if seen[ref] {
-			return nil, processingErrorf("SD-JWT VC §7.4: the type %s extends itself through %s", vct, ref)
+			return nil, processingErrorf("§7.4", "the type %s extends itself through %s", vct, ref)
 		}
 		if len(docs) == maxChain {
-			return nil, processingErrorf("SD-JWT VC §7.4: the type %s extends more than %d types", vct, maxChain)
+			return nil, processingErrorf("", "the type %s extends more than %d types, the most this wallet follows", vct, maxChain)
 		}
 		seen[ref] = true
 		doc, lifetime, err := r.fetch(ref, refIntegrity, now())
@@ -174,7 +186,7 @@ func (r Resolver) Resolve(vct, integrity string) (*Metadata, error) {
 // its freshness lifetime.
 func (r Resolver) fetch(ref, integrity string, now time.Time) (Document, time.Time, error) {
 	if !IsRetrievable(ref) {
-		return Document{}, time.Time{}, retrievalErrorf("SD-JWT VC §5.3: the wallet retrieves Type Metadata only from an HTTPS URL, not from %s", ref)
+		return Document{}, time.Time{}, retrievalErrorf("§5.3.1", "the wallet retrieves Type Metadata only from an HTTPS URL, not from %s", ref)
 	}
 	client := *r.Client
 	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
@@ -197,29 +209,29 @@ func (r Resolver) fetch(ref, integrity string, now time.Time) (Document, time.Ti
 
 	req, err := http.NewRequest(http.MethodGet, ref, nil)
 	if err != nil {
-		return Document{}, time.Time{}, report(retrievalErrorf("SD-JWT VC §5.3.1: requesting %s: %v", ref, err))
+		return Document{}, time.Time{}, report(retrievalErrorf("§5.3.1", "requesting %s: %v", ref, err))
 	}
 	req.Header.Set("Accept", "application/json")
 	resp, err := client.Do(req)
 	if err != nil {
-		return Document{}, time.Time{}, report(retrievalErrorf("SD-JWT VC §5.3.1: retrieving %s: %v", ref, err))
+		return Document{}, time.Time{}, report(retrievalErrorf("§5.3.1", "retrieving %s: %v", ref, err))
 	}
 	defer resp.Body.Close()
 	retrieval.Status = resp.StatusCode
 	body, err := format.ReadRemoteBody(resp.Body, "Type Metadata")
 	retrieval.Body = string(body)
 	if err != nil {
-		return Document{}, time.Time{}, report(retrievalErrorf("SD-JWT VC §3: reading %s: %v", ref, err))
+		return Document{}, time.Time{}, report(retrievalErrorf("§3", "reading %s: %v", ref, err))
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return Document{}, time.Time{}, report(retrievalErrorf("SD-JWT VC §3: %s answered with HTTP %d", ref, resp.StatusCode))
+		return Document{}, time.Time{}, report(retrievalErrorf("§3", "%s answered with HTTP %d", ref, resp.StatusCode))
 	}
 	if mediaType, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type")); mediaType != "application/json" {
-		return Document{}, time.Time{}, report(retrievalErrorf("SD-JWT VC §5.3.1: %s has the media type %q, not application/json", ref, resp.Header.Get("Content-Type")))
+		return Document{}, time.Time{}, report(retrievalErrorf("§5.3.1", "%s has the media type %q, not application/json", ref, resp.Header.Get("Content-Type")))
 	}
 	if integrity != "" {
 		if err := VerifyIntegrity(body, integrity); err != nil {
-			return Document{}, time.Time{}, report(retrievalErrorf("SD-JWT VC §6: the Type Metadata at %s: %v", ref, err))
+			return Document{}, time.Time{}, report(retrievalErrorf("§6", "the Type Metadata at %s: %v", ref, err))
 		}
 	}
 	doc, err := parseDocument(body)
@@ -227,11 +239,11 @@ func (r Resolver) fetch(ref, integrity string, now time.Time) (Document, time.Ti
 		return Document{}, time.Time{}, report(err)
 	}
 	if err != nil {
-		return Document{}, time.Time{}, report(retrievalErrorf("SD-JWT VC §5.2: the Type Metadata at %s: %v", ref, err))
+		return Document{}, time.Time{}, report(retrievalErrorf("§5.2", "the Type Metadata at %s: %v", ref, err))
 	}
 	// §5.3: the vct of the document must be identical to the reference.
 	if doc.VCT != ref {
-		return Document{}, time.Time{}, report(retrievalErrorf("SD-JWT VC §5.3: the Type Metadata at %s describes the type %q", ref, doc.VCT))
+		return Document{}, time.Time{}, report(retrievalErrorf("§5.3", "the Type Metadata at %s describes the type %q", ref, doc.VCT))
 	}
 	return doc, freshUntil(resp.Header, now), report(nil)
 }
@@ -277,7 +289,7 @@ func merge(docs []Document, expires time.Time) (*Metadata, error) {
 			}
 			combined, err := combine(m.Claims[j], claim)
 			if err != nil {
-				return nil, processingErrorf("SD-JWT VC §5.6.5.1: %s %v", doc.VCT, err)
+				return nil, processingErrorf("§5.6.5.1", "%s %v", doc.VCT, err)
 			}
 			m.Claims[j] = combined
 		}
@@ -327,11 +339,19 @@ const (
 	SDNever   = "never"
 )
 
+// claimError is a §5.6 violation of a claims property. section is the
+// violated subsection, such as "§5.6.1".
+type claimError struct{ section, text string }
+
+func claimErrorf(section, format string, args ...any) *claimError {
+	return &claimError{section: section, text: fmt.Sprintf(format, args...)}
+}
+
 var svgID = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // checkClaims checks the claims property of one document against §5.6 and
 // its subsections.
-func checkClaims(doc Document) error {
+func checkClaims(doc Document) *claimError {
 	ids := map[string]bool{}
 	for _, claim := range doc.Claims {
 		if err := checkPath(claim.Path); err != nil {
@@ -340,17 +360,17 @@ func checkClaims(doc Document) error {
 		name := PathString(claim.Path)
 		for _, display := range claim.Display {
 			if display.Locale == "" || display.Label == "" {
-				return fmt.Errorf("§5.6.2: the display of the claim %s needs a locale and a label", name)
+				return claimErrorf("§5.6.2", "the display of the claim %s needs a locale and a label", name)
 			}
 		}
 		switch claim.SD {
 		case "", SDAlways, SDAllowed, SDNever:
 		default:
-			return fmt.Errorf("§5.6.4: the claim %s has the sd value %q", name, claim.SD)
+			return claimErrorf("§5.6.4", "the claim %s has the sd value %q", name, claim.SD)
 		}
 		if claim.SVGID != "" {
 			if !svgID.MatchString(claim.SVGID) || ids[claim.SVGID] {
-				return fmt.Errorf("§5.6: the svg_id %q of the claim %s is not a unique identifier of letters, digits and underscores", claim.SVGID, name)
+				return claimErrorf("§5.6", "the svg_id %q of the claim %s is not a unique identifier of letters, digits and underscores", claim.SVGID, name)
 			}
 			ids[claim.SVGID] = true
 		}
@@ -360,19 +380,19 @@ func checkClaims(doc Document) error {
 
 // checkPath checks a claim path (§5.6.1): "a non-empty array of strings, null
 // values, or non-negative integers".
-func checkPath(path []any) error {
+func checkPath(path []any) *claimError {
 	if len(path) == 0 {
-		return errors.New("§5.6.1: a claim path is empty")
+		return claimErrorf("§5.6.1", "a claim path is empty")
 	}
 	for _, component := range path {
 		switch c := component.(type) {
 		case string, nil:
 		case float64:
 			if c < 0 || c != float64(int(c)) {
-				return fmt.Errorf("§5.6.1: the claim path %s has the component %v", PathString(path), c)
+				return claimErrorf("§5.6.1", "the claim path %s has the component %v", PathString(path), c)
 			}
 		default:
-			return fmt.Errorf("§5.6.1: the claim path %s has the component %v", PathString(path), c)
+			return claimErrorf("§5.6.1", "the claim path %s has the component %v", PathString(path), c)
 		}
 	}
 	return nil

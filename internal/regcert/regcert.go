@@ -19,12 +19,12 @@ package regcert
 
 import (
 	"crypto/x509"
-	"fmt"
 	"net/http"
 	"slices"
 	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
@@ -97,7 +97,7 @@ func certificateJWT(value any) string {
 // certificate and still reports a revocation. An unreadable
 // status is a finding too, because then the wallet can't tell whether the
 // certificate is revoked.
-func StatusFindings(cert map[string]any, client *http.Client, statusCAs []*x509.Certificate, rule string) []string {
+func StatusFindings(cert map[string]any, client *http.Client, statusCAs []*x509.Certificate, rule findings.Rule) findings.List {
 	ref := statuslist.ExtractStatusRef(cert)
 	if ref == nil {
 		return nil
@@ -107,21 +107,21 @@ func StatusFindings(cert map[string]any, client *http.Client, statusCAs []*x509.
 	for _, ca := range statusCAs {
 		anchors = append(anchors, statuslist.TrustCert{Raw: ca.Raw})
 	}
-	var findings []string
+	var list findings.List
 	result, err := statuslist.CheckWithOptions(ref, statuslist.CheckOptions{HTTPClient: client, CandidateAnchors: anchors, Prefer: statuslist.FormatJWT})
 	switch {
 	case err != nil:
-		findings = append(findings, fmt.Sprintf("%s: the status of the registration certificate of %s cannot be checked: %v", rule, name, err))
+		list = append(list, rule.Newf("the status of the registration certificate of %s cannot be checked: %v", name, err))
 	case !result.IsValid:
-		findings = append(findings, fmt.Sprintf("%s: the registrar revoked the registration certificate of %s (status %s at index %d of %s)", rule, name, result.StatusName, ref.Idx, ref.URI))
+		list = append(list, rule.Newf("the registrar revoked the registration certificate of %s (status %s at index %d of %s)", name, result.StatusName, ref.Idx, ref.URI))
 	}
 	if err == nil && len(anchors) > 0 && !result.TrustAnchored {
-		findings = append(findings, fmt.Sprintf("%s: the status list of the registration certificate of %s is %s. Its certificate chain doesn't lead to a trusted registrar", rule, name, result.SignatureInfo))
+		list = append(list, rule.Newf("the status list of the registration certificate of %s is %s. Its certificate chain doesn't lead to a trusted registrar", name, result.SignatureInfo))
 	}
 	if len(statusCAs) == 0 {
-		findings = append(findings, fmt.Sprintf("ARF RPACANot_03b: the status list of the registration certificate of %s is not anchored, because no trusted list has a revocation service of a registration certificate provider", name))
+		list = append(list, findings.ARF.Registration("RPACANot_02").Newf("the status list of the registration certificate of %s is not anchored, because no trusted list has a revocation service of a registration certificate provider", name))
 	}
-	return findings
+	return list
 }
 
 // Purposes collects the purposes and the privacy policy links of
@@ -160,65 +160,73 @@ func accessIdentifier(cert map[string]any) (identifier string, intermediated boo
 	return jsonutil.Text(cert["sub"]), false
 }
 
-// BindingFindings links a registration certificate to the access certificate
-// of the request through the relying party identifier and the service
-// identifier (ARF RPRC_17a). The access certificate carries the service in
-// organizationalUnit (ETSI TS 119 411-8 V1.1.1 GEN-6.6.1-08). For an
-// intermediary the service in the registration certificate is the
+// BindingFindings links a relying party's registration certificate to the
+// access certificate of the request through the relying party identifier and
+// the service identifier (ARF RPRC_17a). The access certificate carries the
+// service in organizationalUnit (ETSI TS 119 411-8 V1.1.1 GEN-6.6.1-08). For
+// an intermediary the service in the registration certificate is the
 // intermediated relying party's, so only the identifiers are compared.
-func BindingFindings(cert map[string]any, access *x509.Certificate, rule string) []string {
-	identifier, intermediated := accessIdentifier(cert)
-	var findings []string
-	if !Bound(cert, access) {
-		findings = append(findings, fmt.Sprintf("%s: the registration certificate identifies %q, but the access certificate's organizationIdentifier is %q", rule, identifier, certchain.OrganizationIdentifier(access)))
-	}
-	if intermediated {
-		return findings
+func BindingFindings(cert map[string]any, access *x509.Certificate, rule findings.Rule) findings.List {
+	list := IdentifierFindings(cert, access, rule)
+	if _, intermediated := accessIdentifier(cert); intermediated {
+		return list
 	}
 	var accessService string
 	if len(access.Subject.OrganizationalUnit) > 0 {
 		accessService = access.Subject.OrganizationalUnit[0]
 	}
 	if service := jsonutil.Text(cert[registrar.ServiceIdentifierClaim]); service != accessService {
-		findings = append(findings, fmt.Sprintf("%s: the registration certificate is for the service %q, but the access certificate's organizationalUnit is %q", rule, service, accessService))
+		list = append(list, rule.Newf("the registration certificate is for the service %q, but the access certificate's organizationalUnit is %q", service, accessService))
 	}
-	return findings
+	return list
+}
+
+// IdentifierFindings links a registration certificate to an access
+// certificate through the identifier alone. A provider's certificates are
+// linked this way (ARF RPRC_22b). Other attributes may differ (ETSI TS 119 475
+// V1.2.1 GEN-5.1.1-03).
+func IdentifierFindings(cert map[string]any, access *x509.Certificate, rule findings.Rule) findings.List {
+	if Bound(cert, access) {
+		return nil
+	}
+	identifier, _ := accessIdentifier(cert)
+	return findings.List{rule.Newf("the registration certificate identifies %q, but the access certificate's organizationIdentifier is %q", identifier, certchain.OrganizationIdentifier(access))}
 }
 
 // ContentFindings checks the required content of a relying party's
 // registration certificate (ETSI TS 119 475 V1.2.1 §5.2.4 and ARF Topic 44).
 // Missing fields are ARF findings.
-func ContentFindings(cert map[string]any) []string {
-	var findings []string
-	miss := func(field, rule string) {
-		findings = append(findings, fmt.Sprintf("%s: the registration certificate has no %s", rule, field))
+func ContentFindings(cert map[string]any) findings.List {
+	var list findings.List
+	miss := func(field string, rule findings.Rule) {
+		list = append(list, rule.Newf("the registration certificate has no %s", field))
 	}
 	if jsonutil.Text(cert["name"]) == "" {
-		miss("name (trade name)", "ARF RPRC_06")
+		miss("name (trade name)", findings.ARF.Registration("RPRC_06"))
 	}
 	if jsonutil.Text(cert["sub"]) == "" {
-		miss("sub (relying party identifier)", "ARF RPRC_07")
+		miss("sub (relying party identifier)", findings.ARF.Registration("RPRC_07"))
 	}
 	if jsonutil.Text(cert["privacy_policy"]) == "" {
-		miss("privacy_policy", "ETSI TS 119 475 V1.2.1 GEN-5.2.4-01")
+		miss("privacy_policy", findings.ETSI119475.Registration("GEN-5.2.4-01"))
 	}
 	if len(purposeStrings(cert["srv_description"])) == 0 {
-		miss("srv_description", "ETSI TS 119 475 V1.2.1 GEN-5.2.4-01")
+		miss("srv_description", findings.ETSI119475.Registration("GEN-5.2.4-01"))
 	}
 	if !nonEmptyList(cert["entitlements"]) {
-		miss("entitlements (at least one)", "ETSI TS 119 475 V1.2.1 GEN-5.2.4-03")
+		miss("entitlements (at least one)", findings.ETSI119475.Registration("GEN-5.2.4-03"))
 	}
 	// ARF RPRC_12 also asks for the authority's name and country. ETSI TS 119
 	// 475 V1.2.1 maps supervisory_authority only to email, phone and uri, so
 	// a registration certificate has no claim for them to check.
-	partyFindings(cert, miss, "ARF RPRC_11", "ARF RPRC_12")
+	partyFindings(cert, miss, findings.ARF.Registration("RPRC_11"), findings.ARF.Registration("RPRC_12"))
 	if !nonEmptyList(cert["credentials"]) {
-		miss("credentials (the registered attestations and attributes)", "ETSI TS 119 475 V1.2.1 GEN-5.2.4-06")
+		miss("credentials (the registered attestations and attributes)", findings.ETSI119475.Registration("GEN-5.2.4-06"))
 	}
 	if statuslist.ExtractStatusRef(cert) == nil {
-		miss("status (its entry in the registrar's status list), so the wallet cannot check revocation", "ETSI TS 119 475 V1.2.1 Table 7")
+		miss("status (its entry in the registrar's status list), so the wallet cannot check revocation", findings.ETSI119475.Registration("GEN-5.2.4-01"))
 	}
-	return append(findings, validityFindings(cert, "ARF RPRC_17")...)
+	return append(list, validityFindings(cert, findings.ARF.Registration("RPRC_17"))...)
 }
 
 // partyFindings checks the fields of ETSI TS 119 475 V1.2.1 Table 7
@@ -226,8 +234,8 @@ func ContentFindings(cert map[string]any) []string {
 // provider. Not every registry entry has an infoURI, so info_uri is optional.
 // The ARF asks a relying party for the contacts (RPRC_11, RPRC_12). For a
 // provider they are Table 7 fields. The caller passes the rules to cite.
-func partyFindings(cert map[string]any, miss func(field, rule string), supportRule, supervisoryRule string) {
-	const table7 = "ETSI TS 119 475 V1.2.1 GEN-5.2.4-01"
+func partyFindings(cert map[string]any, miss func(string, findings.Rule), supportRule, supervisoryRule findings.Rule) {
+	table7 := findings.ETSI119475.Registration("GEN-5.2.4-01")
 	if jsonutil.Text(cert["country"]) == "" {
 		miss("country", table7)
 	}
@@ -251,24 +259,24 @@ func partyFindings(cert map[string]any, miss func(field, rule string), supportRu
 // ETSI TS 119 475 V1.2.1 GEN-5.2.4-01 (Table 7) requires iat, and GEN-5.2.4-08
 // limits exp to 12 months after it. An expired certificate is invalid (ARF
 // RPRC_17).
-func validityFindings(cert map[string]any, rule string) []string {
-	var findings []string
+func validityFindings(cert map[string]any, rule findings.Rule) findings.List {
+	var list findings.List
 	iat, hasIat := numberClaim(cert["iat"])
 	if !hasIat {
-		findings = append(findings, "ETSI TS 119 475 V1.2.1 GEN-5.2.4-01: the registration certificate has no iat")
+		list = append(list, findings.ETSI119475.Registration("GEN-5.2.4-01").New("the registration certificate has no iat"))
 	}
 	exp, hasExp := numberClaim(cert["exp"])
 	if !hasExp {
-		return findings
+		return list
 	}
 	expTime := time.Unix(int64(exp), 0)
 	if expTime.Before(time.Now()) {
-		findings = append(findings, rule+": the registration certificate has expired")
+		list = append(list, rule.New("the registration certificate has expired"))
 	}
 	if hasIat && expTime.After(time.Unix(int64(iat), 0).AddDate(1, 0, 0)) {
-		findings = append(findings, "ETSI TS 119 475 V1.2.1 GEN-5.2.4-08: the registration certificate is valid for more than 12 months")
+		list = append(list, findings.ETSI119475.Registration("GEN-5.2.4-08").New("the registration certificate is valid for more than 12 months"))
 	}
-	return findings
+	return list
 }
 
 // Provides reports whether a listed attestation has the format and one of
@@ -296,29 +304,29 @@ func ProvidedAttestations(cert map[string]any) []Credential {
 // against ETSI TS 119 475 V1.2.1 §5.2.4 and ARF Topic 44. A
 // provider certificate has no intended use (RPRC_05), so it has no privacy
 // policy either.
-func ProviderContentFindings(cert map[string]any) []string {
-	var findings []string
-	miss := func(field, rule string) {
-		findings = append(findings, fmt.Sprintf("%s: the issuer's registration certificate has no %s", rule, field))
+func ProviderContentFindings(cert map[string]any) findings.List {
+	var list findings.List
+	miss := func(field string, rule findings.Rule) {
+		list = append(list, rule.Newf("the issuer's registration certificate has no %s", field))
 	}
 	if jsonutil.Text(cert["name"]) == "" {
-		miss("name (trade name)", "ARF RPRC_06")
+		miss("name (trade name)", findings.ARF.Registration("RPRC_06"))
 	}
 	if jsonutil.Text(cert["sub"]) == "" {
-		miss("sub (provider identifier)", "ARF RPRC_07")
+		miss("sub (provider identifier)", findings.ARF.Registration("RPRC_07"))
 	}
 	if len(purposeStrings(cert["srv_description"])) == 0 {
-		miss("srv_description", "ETSI TS 119 475 V1.2.1 GEN-5.2.4-01")
+		miss("srv_description", findings.ETSI119475.Registration("GEN-5.2.4-01"))
 	}
 	if !nonEmptyList(cert["entitlements"]) {
-		miss("entitlements (at least one)", "ETSI TS 119 475 V1.2.1 GEN-5.2.4-03")
+		miss("entitlements (at least one)", findings.ETSI119475.Registration("GEN-5.2.4-03"))
 	}
-	partyFindings(cert, miss, "ETSI TS 119 475 V1.2.1 GEN-5.2.4-01", "ETSI TS 119 475 V1.2.1 GEN-5.2.4-01")
+	partyFindings(cert, miss, findings.ETSI119475.Registration("GEN-5.2.4-01"), findings.ETSI119475.Registration("GEN-5.2.4-01"))
 	if !nonEmptyList(cert["provides_attestations"]) {
-		miss("provides_attestations (its attestation types)", "ARF RPRC_15")
+		miss("provides_attestations (its attestation types)", findings.ARF.Registration("RPRC_15"))
 	}
 	if statuslist.ExtractStatusRef(cert) == nil {
-		miss("status (its entry in the registrar's status list), so the wallet cannot check revocation", "ETSI TS 119 475 V1.2.1 Table 7")
+		miss("status (its entry in the registrar's status list), so the wallet cannot check revocation", findings.ETSI119475.Registration("GEN-5.2.4-01"))
 	}
-	return append(findings, validityFindings(cert, "ARF RPRC_22a")...)
+	return append(list, validityFindings(cert, findings.ARF.Registration("RPRC_22a"))...)
 }

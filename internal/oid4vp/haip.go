@@ -15,9 +15,9 @@
 package oid4vp
 
 import (
-	"fmt"
 	"strings"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jwe"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/validate"
@@ -26,10 +26,10 @@ import (
 // validateHAIPCompliance checks an authorization request against HAIP 1.0 and
 // returns the violations. Every finding is a MUST in the profile. The
 // validation mode decides what a violation does.
-func validateHAIPCompliance(params *Request, reqObj *oid4vc.RequestObjectJWT) []string {
-	var violations []string
+func validateHAIPCompliance(params *Request, reqObj *oid4vc.RequestObjectJWT) findings.List {
+	var violations findings.List
 	if params == nil {
-		return []string{"HAIP 1.0: authorization request is missing"}
+		return findings.List{findings.HAIP.Protocol("").New("authorization request is missing")}
 	}
 	// §5.2: "The Wallet MUST support unsigned, signed, and multi-signed
 	// requests as defined in Appendices A.3.1 and A.3.2 of [OIDF.OID4VP]." An
@@ -44,34 +44,31 @@ func validateHAIPCompliance(params *Request, reqObj *oid4vc.RequestObjectJWT) []
 
 	// §5: "The Response type MUST be vp_token."
 	if params.ResponseType != "vp_token" {
-		violations = append(violations, fmt.Sprintf(
-			"HAIP 1.0 §5: response_type MUST be 'vp_token', got %q", params.ResponseType))
+		violations = append(violations, findings.HAIP.Protocol("§5").Newf("response_type MUST be 'vp_token', got %q", params.ResponseType))
 	}
 
 	// §5.1: "Response encryption MUST be used by utilizing response mode
 	// direct_post.jwt." §5.2: "The Verifier MUST use the Response Mode
 	// dc_api.jwt." Those are the only two the profile permits.
 	if !interactive && params.ResponseMode != "direct_post.jwt" && params.ResponseMode != "dc_api.jwt" {
-		violations = append(violations, fmt.Sprintf(
-			"HAIP 1.0 §5.1/§5.2: response_mode MUST be 'direct_post.jwt' or 'dc_api.jwt', got %q", params.ResponseMode))
+		violations = append(violations, findings.HAIP.Protocol("§5.1/§5.2").Newf("response_mode MUST be 'direct_post.jwt' or 'dc_api.jwt', got %q", params.ResponseMode))
 	}
 
 	if !unsigned && !interactive {
 		// §5: "For signed requests, the Verifier MUST use, and the Wallet
 		// MUST accept the Client Identifier Prefix x509_hash."
 		if !strings.HasPrefix(params.ClientID, "x509_hash:") {
-			violations = append(violations, fmt.Sprintf(
-				"HAIP 1.0 §5: a signed request MUST use the 'x509_hash:' Client Identifier Prefix, got %q", params.ClientID))
+			violations = append(violations, findings.HAIP.Protocol("§5").Newf("a signed request MUST use the 'x509_hash:' Client Identifier Prefix, got %q", params.ClientID))
 		}
 		if reqObj == nil || reqObj.Header == nil {
-			violations = append(violations, "HAIP 1.0 §5.1: a signed request object MUST be used")
+			violations = append(violations, findings.HAIP.Protocol("§5.1").New("a signed request object MUST be used"))
 		}
 		// §5.1: "Signed Authorization Requests MUST be used by utilizing
 		// JWT-Secured Authorization Request (JAR) [RFC9101] with the
 		// request_uri parameter." An inline request object is signed but has no
 		// request_uri. The Digital Credentials API has no request_uri at all.
 		if reqObj != nil && !IsDCAPIResponseMode(params.ResponseMode) && params.RequestURI == "" {
-			violations = append(violations, "HAIP 1.0 §5.1: the signed Request Object MUST be delivered through the request_uri parameter")
+			violations = append(violations, findings.HAIP.Protocol("§5.1").New("the signed Request Object MUST be delivered through the request_uri parameter"))
 		}
 		violations = append(violations, haipSignedRequestViolations(reqObj)...)
 	}
@@ -79,7 +76,7 @@ func validateHAIPCompliance(params *Request, reqObj *oid4vc.RequestObjectJWT) []
 	// §5: "The DCQL query and response MUST be used as defined in Section 6
 	// of [OIDF.OID4VP]."
 	if params.DCQLQuery == nil {
-		violations = append(violations, "HAIP 1.0 §5: DCQL query MUST be used (not presentation_definition)")
+		violations = append(violations, findings.HAIP.Protocol("§5").New("DCQL query MUST be used (not presentation_definition)"))
 	}
 
 	if !interactive {
@@ -90,19 +87,19 @@ func validateHAIPCompliance(params *Request, reqObj *oid4vc.RequestObjectJWT) []
 	return violations
 }
 
-// haipEncryptionKeyViolations checks §5's requirement that the response is
-// encrypted with ECDH-ES to the Verifier's key on the P-256 curve. It checks
-// the key chosen by FindEncryptionJWK.
-func haipEncryptionKeyViolations(reqObj *oid4vc.RequestObjectJWT, clientMetadata map[string]any) []string {
+// haipEncryptionKeyViolations checks the key chosen by FindEncryptionJWK
+// against §5: ECDH-ES "with key agreement utilizing keys on the P-256 curve
+// ... MUST be supported".
+func haipEncryptionKeyViolations(reqObj *oid4vc.RequestObjectJWT, clientMetadata map[string]any) findings.List {
 	jwk := FindEncryptionJWK(reqObj, clientMetadata)
 	if jwk == nil {
 		return nil
 	}
 	if kty, _ := jwk["kty"].(string); kty != "" && kty != "EC" {
-		return []string{fmt.Sprintf("HAIP 1.0 §5: response encryption key MUST be an EC key on P-256 (ECDH-ES), got kty %q", kty)}
+		return findings.List{findings.HAIP.Protocol("§5").Newf("the response encryption key is not an EC key (kty %q). Verifiers must support ECDH-ES with keys on the P-256 curve", kty)}
 	}
 	if crv, ok := jwk["crv"].(string); ok && crv != "P-256" {
-		return []string{fmt.Sprintf("HAIP 1.0 §5: response encryption key MUST be on the P-256 curve, got %q", crv)}
+		return findings.List{findings.HAIP.Protocol("§5").Newf("the response encryption key uses the curve %q. Verifiers must support ECDH-ES with keys on the P-256 curve", crv)}
 	}
 	return nil
 }
@@ -111,11 +108,11 @@ func IsDCAPIResponseMode(mode string) bool {
 	return mode == "dc_api" || mode == "dc_api.jwt"
 }
 
-func haipSignedRequestViolations(reqObj *oid4vc.RequestObjectJWT) []string {
+func haipSignedRequestViolations(reqObj *oid4vc.RequestObjectJWT) findings.List {
 	if reqObj == nil || reqObj.Header == nil {
 		return nil
 	}
-	var violations []string
+	var violations findings.List
 
 	// §5: "The X.509 certificate of the trust anchor MUST NOT be included in
 	// the x5c JOSE header of the signed request. The X.509 certificate
@@ -127,12 +124,11 @@ func haipSignedRequestViolations(reqObj *oid4vc.RequestObjectJWT) []string {
 	if len(certs) > 0 {
 		leaf := certs[0]
 		if validate.SelfSignedCertificate(leaf) {
-			violations = append(violations, "HAIP 1.0 §5: the certificate signing the request MUST NOT be self-signed")
+			violations = append(violations, findings.HAIP.Protocol("§5").New("the certificate signing the request MUST NOT be self-signed"))
 		}
 		for i, cert := range certs[1:] {
 			if validate.SelfSignedCertificate(cert) {
-				violations = append(violations, fmt.Sprintf(
-					"HAIP 1.0 §5: the x5c header of the signed request carries a self-signed certificate at position %d (subject %q). The trust anchor certificate MUST NOT be included",
+				violations = append(violations, findings.HAIP.Protocol("§5").Newf("the x5c header of the signed request carries a self-signed certificate at position %d (subject %q). The trust anchor certificate MUST NOT be included",
 					i+2, cert.Subject.String()))
 				break
 			}
@@ -144,12 +140,12 @@ func haipSignedRequestViolations(reqObj *oid4vc.RequestObjectJWT) []string {
 
 // haipClientMetadataViolations reports client metadata without A128GCM and
 // A256GCM, the encryption algorithms required by HAIP 1.0 §5.
-func haipClientMetadataViolations(metadata map[string]any) []string {
+func haipClientMetadataViolations(metadata map[string]any) findings.List {
 	if metadata == nil {
 		return nil
 	}
 	if listed := haipContentEncryptionAlgorithms(metadata); !listed[jwe.EncA128GCM] && !listed[jwe.EncA256GCM] {
-		return []string{"HAIP 1.0 §5: client metadata MUST list both 'A128GCM' and 'A256GCM' in encrypted_response_enc_values_supported, and lists neither"}
+		return findings.List{findings.HAIP.Protocol("§5").New("client metadata MUST list both 'A128GCM' and 'A256GCM' in encrypted_response_enc_values_supported, and lists neither")}
 	}
 	return nil
 }
@@ -157,12 +153,12 @@ func haipClientMetadataViolations(metadata map[string]any) []string {
 // haipAdvisories reports client metadata that lists only one of A128GCM and
 // A256GCM. HAIP 1.0 §5 requires both. This is a warning in every mode, and the
 // wallet encrypts the response with the listed one.
-func haipAdvisories(params *Request) []string {
+func haipAdvisories(params *Request) findings.List {
 	if params == nil || params.ClientMetadata == nil || IsInteractiveAuthorizationResponseMode(params.ResponseMode) {
 		return nil
 	}
 	if listed := haipContentEncryptionAlgorithms(params.ClientMetadata); listed[jwe.EncA128GCM] != listed[jwe.EncA256GCM] {
-		return []string{"HAIP 1.0 §5: client metadata MUST list both 'A128GCM' and 'A256GCM' in encrypted_response_enc_values_supported"}
+		return findings.List{findings.HAIP.Protocol("§5").New("client metadata MUST list both 'A128GCM' and 'A256GCM' in encrypted_response_enc_values_supported")}
 	}
 	return nil
 }

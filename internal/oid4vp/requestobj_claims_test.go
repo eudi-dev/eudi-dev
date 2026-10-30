@@ -56,7 +56,7 @@ func TestRequestObjectExpAndAud(t *testing.T) {
 		{"interactive authorization names no aud", "ia_post", map[string]any{"aud": "https://issuer.example"}, ""},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			got := strings.Join(requestObjectClaimFindings(requestWithClaims("none", tt.mode, tt.claims)), "\n")
+			got := strings.Join(requestObjectClaimFindings(requestWithClaims("none", tt.mode, tt.claims)).Texts(), "\n")
 			if tt.want == "" {
 				if got != "" {
 					t.Fatalf("findings %q, want none", got)
@@ -77,7 +77,7 @@ func TestExpiredRequestObjectSeverity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("debug mode refused the request: %v", err)
 	}
-	if !containsSubstring(findings, "Request Object expired") {
+	if !containsSubstring(findings.Texts(), "Request Object expired") {
 		t.Errorf("findings %v, want the expired Request Object", findings)
 	}
 	if _, err := ValidateAuthorizationRequest(Checks{Strict: true}, req); err == nil || !strings.Contains(err.Error(), "Request Object expired") {
@@ -89,7 +89,7 @@ func TestExpiredRequestObjectSeverity(t *testing.T) {
 // and aud (audience)". A missing aud is a warning in every mode.
 func TestMissingAudIsAWarning(t *testing.T) {
 	signed := requestWithClaims("ES256", "direct_post", nil)
-	if got := missingAudienceAdvisory(signed); !strings.Contains(got, "no aud claim") {
+	if got := missingAudienceAdvisory(signed); !strings.Contains(got.String(), "no aud claim") {
 		t.Errorf("advisory = %q, want the missing aud", got)
 	}
 	for name, req := range map[string]*Request{
@@ -97,7 +97,7 @@ func TestMissingAudIsAWarning(t *testing.T) {
 		"interactive authorization": requestWithClaims("ES256", "ia_post", nil),
 		"aud present":               requestWithClaims("ES256", "direct_post", map[string]any{"aud": SelfIssuedAudience}),
 	} {
-		if got := missingAudienceAdvisory(req); got != "" {
+		if got := missingAudienceAdvisory(req); got.Text != "" {
 			t.Errorf("%s: advisory = %q, want none", name, got)
 		}
 	}

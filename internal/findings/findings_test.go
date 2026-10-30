@@ -28,7 +28,7 @@ func TestJoinSeparatesSentencesWithOnePeriod(t *testing.T) {
 }
 
 func TestOfFindsTheListThroughWrapping(t *testing.T) {
-	refusal := &Error{Summary: "authorization request validation failed", Findings: []string{"a", "b"}}
+	refusal := &Error{Summary: "authorization request validation failed", Findings: List{Uncited("a"), Uncited("b")}}
 	if got := Of(fmt.Errorf("presenting: %w", refusal)); !slices.Equal(got, refusal.Findings) {
 		t.Errorf("Of = %v, want %v", got, refusal.Findings)
 	}

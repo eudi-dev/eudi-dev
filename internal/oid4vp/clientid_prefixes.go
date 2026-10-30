@@ -20,6 +20,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 )
 
@@ -27,8 +28,8 @@ import (
 // of OID4VP 1.0 §5.9.3.
 type clientIDPrefix struct {
 	// verify checks the rest of the client_id against the request. It returns
-	// a finding, or "" when they match.
-	verify func(clientID string, reqObj *oid4vc.RequestObjectJWT, responseURI, requestOrigin string) string
+	// a finding, or the zero Finding when they match.
+	verify func(clientID string, reqObj *oid4vc.RequestObjectJWT, responseURI, requestOrigin string) findings.Finding
 	// signed prefixes require a signed Request Object. unsigned prefixes
 	// forbid one.
 	signed, unsigned bool
@@ -40,7 +41,7 @@ type clientIDPrefix struct {
 	// unverified explains why the wallet cannot verify a signature under this
 	// prefix. Nil when it can. See
 	// docs/adr/0013-only-the-eudi-stack-is-supported.md.
-	unverified func(value string) string
+	unverified func(value string) findings.Finding
 	// advertised prefixes go into client_id_prefixes_supported.
 	advertised bool
 }
@@ -51,40 +52,40 @@ var clientIDPrefixes = map[string]clientIDPrefix{
 		signed: true, x5c: true, advertised: true,
 	},
 	"x509_hash": {
-		verify: func(clientID string, reqObj *oid4vc.RequestObjectJWT, _, _ string) string {
+		verify: func(clientID string, reqObj *oid4vc.RequestObjectJWT, _, _ string) findings.Finding {
 			return verifyX509Hash(clientID, reqObj)
 		},
 		signed: true, x5c: true, advertised: true,
 	},
 	"redirect_uri": {
-		verify: func(clientID string, reqObj *oid4vc.RequestObjectJWT, responseURI, _ string) string {
+		verify: func(clientID string, reqObj *oid4vc.RequestObjectJWT, responseURI, _ string) findings.Finding {
 			return verifyRedirectURI(clientID, reqObj, responseURI)
 		},
 		unsigned: true, advertised: true,
 	},
 	"verifier_attestation": {
-		verify: func(clientID string, reqObj *oid4vc.RequestObjectJWT, _, _ string) string {
+		verify: func(clientID string, reqObj *oid4vc.RequestObjectJWT, _, _ string) findings.Finding {
 			return verifyVerifierAttestation(clientID, reqObj)
 		},
 		signed: true, attestation: true,
 	},
 	"decentralized_identifier": {
-		verify: func(clientID string, reqObj *oid4vc.RequestObjectJWT, _, _ string) string {
+		verify: func(clientID string, reqObj *oid4vc.RequestObjectJWT, _, _ string) findings.Finding {
 			return verifyDecentralizedIdentifier(clientID, reqObj)
 		},
 		signed: true,
-		unverified: func(did string) string {
-			return fmt.Sprintf("Request Object signature was not verified: the key of decentralized_identifier: comes from the DID %s, and this wallet does not resolve DIDs", did)
+		unverified: func(did string) findings.Finding {
+			return findings.Uncited(fmt.Sprintf("Request Object signature was not verified: the key of decentralized_identifier: comes from the DID %s, and this wallet does not resolve DIDs", did))
 		},
 	},
 	// §5.9.3 defers to OpenID Federation for this prefix. This wallet does not
 	// resolve federation trust chains.
 	"openid_federation": {
-		verify: func(string, *oid4vc.RequestObjectJWT, string, string) string {
-			return "openid_federation: client_id is not supported by this wallet"
+		verify: func(string, *oid4vc.RequestObjectJWT, string, string) findings.Finding {
+			return findings.Uncited("openid_federation: client_id is not supported by this wallet")
 		},
-		unverified: func(string) string {
-			return "Request Object signature was not verified: the key of openid_federation: comes from an OpenID Federation trust chain, and this wallet does not resolve those"
+		unverified: func(string) findings.Finding {
+			return findings.Uncited("Request Object signature was not verified: the key of openid_federation: comes from an OpenID Federation trust chain, and this wallet does not resolve those")
 		},
 	},
 	// §5.9.3: "The Wallet MUST NOT accept this Client Identifier Prefix in
@@ -92,8 +93,8 @@ var clientIDPrefixes = map[string]clientIDPrefix{
 	// presentation. The wallet derives that audience from the platform's
 	// origin.
 	"origin": {
-		verify: func(string, *oid4vc.RequestObjectJWT, string, string) string {
-			return "OID4VP 1.0 §5.9.3: origin: is a reserved Client Identifier Prefix and MUST NOT be accepted in a request"
+		verify: func(string, *oid4vc.RequestObjectJWT, string, string) findings.Finding {
+			return findings.OID4VP.Protocol("§5.9.3").New("origin: is a reserved Client Identifier Prefix and MUST NOT be accepted in a request")
 		},
 	},
 }

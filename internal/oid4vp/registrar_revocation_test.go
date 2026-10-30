@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/regcert"
 )
@@ -61,8 +62,8 @@ func TestARevokedRegistrarCertificateIsAnAdvisory(t *testing.T) {
 		t.Fatal(err)
 	}
 	registrations := []regcert.Registration{{Claims: map[string]any{"name": "Example Shop"}, Chain: []*x509.Certificate{signer}}}
-	advisories := RegistrarRevocationAdvisories(registrations, []*x509.Certificate{ca}, srv.Client(), "ARF RPRC_17")
-	if len(advisories) != 1 || !strings.Contains(advisories[0], "is revoked") || !strings.Contains(advisories[0], RegistrationDeadline) {
+	advisories := RegistrarRevocationAdvisories(registrations, []*x509.Certificate{ca}, srv.Client(), findings.ARF.Registration("RPRC_17"))
+	if len(advisories) != 1 || !strings.Contains(advisories[0].String(), "is revoked") || !strings.Contains(advisories[0].String(), RegistrationDeadline) {
 		t.Errorf("advisories %v, want the revoked registrar certificate with the deadline", advisories)
 	}
 }

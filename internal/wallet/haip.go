@@ -15,10 +15,10 @@
 package wallet
 
 import (
-	"fmt"
 	"net/url"
 	"strings"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/netaddr"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
@@ -38,16 +38,16 @@ import (
 //
 // HAIP 1.0 §7 lists what ES256 must validate, and DPoP proofs are not on the
 // list. dpop_signing_alg_values_supported is not a profile check.
-func ValidateHAIPIssuanceCompliance(offer *oid4vc.CredentialOffer, oauthMeta map[string]any) []string {
-	var violations []string
+func ValidateHAIPIssuanceCompliance(offer *oid4vc.CredentialOffer, oauthMeta map[string]any) findings.List {
+	var violations findings.List
 	if offer == nil {
-		return []string{"HAIP 1.0: credential offer is missing"}
+		return findings.List{findings.HAIP.Protocol("").New("credential offer is missing")}
 	}
 
 	// OID4VCI 1.0 §12.2.1: "The Credential Issuer Identifier MUST be a case
 	// sensitive URL using the https scheme".
 	if issuer := strings.TrimSpace(offer.CredentialIssuer); issuer != "" && !secureIssuerOrigin(issuer) {
-		violations = append(violations, fmt.Sprintf("OID4VCI 1.0 §12.2.1: the credential issuer must be an https URL, got %q", issuer))
+		violations = append(violations, findings.OID4VCI.Protocol("§12.2.1").Newf("the credential issuer must be an https URL, got %q", issuer))
 	}
 
 	if !usesAuthorizationEndpoint(offer) {
@@ -55,10 +55,10 @@ func ValidateHAIPIssuanceCompliance(offer *oid4vc.CredentialOffer, oauthMeta map
 	}
 
 	if oauthMeta == nil {
-		return append(violations, "HAIP 1.0 §4: the authorization server metadata could not be read")
+		return append(violations, findings.HAIP.Protocol("§4.1").New("the authorization server metadata could not be read"))
 	}
 	if !supportsAuthorizationCodeFlow(oauthMeta) {
-		violations = append(violations, "HAIP 1.0 §4: the authorization server must support the authorization code flow")
+		violations = append(violations, findings.HAIP.Protocol("§4").New("the authorization server must support the authorization code flow"))
 	}
 	// §4 scopes PAR to "when using the Authorization Endpoint". Interactive
 	// Authorization sends its request to the Authorization Challenge Endpoint
@@ -68,13 +68,13 @@ func ValidateHAIPIssuanceCompliance(offer *oid4vc.CredentialOffer, oauthMeta map
 	// require_pushed_authorization_requests optional.
 	_, hasPAR := oauthMeta["pushed_authorization_request_endpoint"].(string)
 	if !hasPAR && interactiveAuthorizationEndpoint(oauthMeta) == "" {
-		violations = append(violations, "HAIP 1.0 §4: the authorization server must support pushed authorization requests")
+		violations = append(violations, findings.HAIP.Protocol("§4").New("the authorization server must support pushed authorization requests"))
 	}
 	// The metadata field is optional, so a missing list says nothing about
 	// PKCE support. A list that is present and lacks S256 is a violation.
 	if _, declared := oauthMeta["code_challenge_methods_supported"]; declared &&
 		!metadataListContains(oauthMeta, "code_challenge_methods_supported", "S256") {
-		violations = append(violations, "HAIP 1.0 §4: the authorization server advertises PKCE without S256")
+		violations = append(violations, findings.HAIP.Protocol("§4").New("the authorization server advertises PKCE without S256"))
 	}
 	// §4.4.1 requires the issuer to require client authentication. Advertising
 	// it is only a SHOULD (draft-ietf-oauth-attestation-based-client-auth-07
@@ -85,14 +85,14 @@ func ValidateHAIPIssuanceCompliance(offer *oid4vc.CredentialOffer, oauthMeta map
 
 // haipIssuerMetadataViolations checks the issuer metadata for the requested
 // configuration against HAIP 1.0 §4.1. Both grants use the same metadata.
-func haipIssuerMetadataViolations(metadata map[string]any, configID string) []string {
-	var violations []string
+func haipIssuerMetadataViolations(metadata map[string]any, configID string) findings.List {
+	var violations findings.List
 	configs, _ := metadata["credential_configurations_supported"].(map[string]any)
 	config, _ := configs[configID].(map[string]any)
 	// §4.1: "The Credential Issuer metadata MUST include a scope for every
 	// Credential Configuration it supports."
 	if scope, _ := config["scope"].(string); scope == "" {
-		violations = append(violations, fmt.Sprintf("HAIP 1.0 §4.1: credential configuration %q has no scope, which the issuer metadata must include for every credential configuration", configID))
+		violations = append(violations, findings.HAIP.Protocol("§4.1").Newf("credential configuration %q has no scope, which the issuer metadata must include for every credential configuration", configID))
 	}
 	// §4.1: "If the Issuer supports Credential Configurations that require key
 	// binding, as indicated by the presence of
@@ -100,7 +100,7 @@ func haipIssuerMetadataViolations(metadata map[string]any, configID string) []st
 	// present in the Credential Issuer Metadata."
 	if _, binds := config["cryptographic_binding_methods_supported"]; binds {
 		if endpoint, _ := metadata["nonce_endpoint"].(string); endpoint == "" {
-			violations = append(violations, fmt.Sprintf("HAIP 1.0 §4.1: credential configuration %q requires key binding, and the issuer metadata has no nonce_endpoint", configID))
+			violations = append(violations, findings.HAIP.Protocol("§4.1").Newf("credential configuration %q requires key binding, and the issuer metadata has no nonce_endpoint", configID))
 		}
 	}
 	return violations
@@ -159,7 +159,7 @@ func metadataListContains(meta map[string]any, key, want string) bool {
 // haipCredentialViolations checks a received credential against §6.1.1. That
 // section profiles IETF SD-JWT VC, so other formats and unparseable
 // credentials get no findings here.
-func (w *Wallet) haipCredentialViolations(raw string) []string {
+func (w *Wallet) haipCredentialViolations(raw string) findings.List {
 	token, err := sdjwt.ParseLenient(strings.TrimSpace(raw))
 	if err != nil {
 		return nil

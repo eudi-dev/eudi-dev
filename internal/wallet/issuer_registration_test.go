@@ -22,6 +22,7 @@ import (
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/regcert"
 	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
@@ -199,10 +200,10 @@ func TestProviderCertificatesFollowTheRegistration(t *testing.T) {
 	}
 	first := certOf(issueTestIssuerInfo(t, w, rp))
 	second := certOf(issueTestIssuerInfo(t, w, rp))
-	if got := regcert.StatusFindings(first, ts.Client(), w.TrustedLists().RegistrationStatusCAs(), "ARF RPRC_17"); len(got) != 1 || !strings.Contains(got[0], "revoked") {
+	if got := regcert.StatusFindings(first, ts.Client(), w.TrustedLists().RegistrationStatusCAs(), findings.ARF.Registration("RPRC_17")); len(got) != 1 || !strings.Contains(got[0].String(), "revoked") {
 		t.Fatalf("the replaced certificate: %v, want revoked", got)
 	}
-	if got := regcert.StatusFindings(second, ts.Client(), w.TrustedLists().RegistrationStatusCAs(), "ARF RPRC_17"); len(got) != 0 {
+	if got := regcert.StatusFindings(second, ts.Client(), w.TrustedLists().RegistrationStatusCAs(), findings.ARF.Registration("RPRC_17")); len(got) != 0 {
 		t.Fatalf("the new certificate: %v", got)
 	}
 
@@ -227,7 +228,7 @@ func TestProviderCertificatesFollowTheRegistration(t *testing.T) {
 	if _, err := w.Registrar().UpdateRelyingParty(rp); err != nil {
 		t.Fatal(err)
 	}
-	if got := regcert.StatusFindings(second, ts.Client(), w.TrustedLists().RegistrationStatusCAs(), "ARF RPRC_17"); len(got) != 1 {
+	if got := regcert.StatusFindings(second, ts.Client(), w.TrustedLists().RegistrationStatusCAs(), findings.ARF.Registration("RPRC_17")); len(got) != 1 {
 		t.Fatalf("after the update: %v, want revoked", got)
 	}
 	if n, err := w.Registrar().SetRegistrationCertificatesRevoked(rp.Identifier[0].Identifier, scope, false); err != nil || n != 0 {
@@ -272,7 +273,7 @@ func TestRegistrationCertificateTypMatchesAsAMediaType(t *testing.T) {
 			if registrations, problems := regcert.Verify([]map[string]any{{"format": "registration_cert", "data": raw}}); len(registrations) != 1 || len(problems) != 0 {
 				t.Errorf("registrations %d, problems %v, want the certificate", len(registrations), problems)
 			}
-			if got := issuerInfoShapeFindings([]map[string]any{{"format": "jwt", "data": raw}}); !containsSubstring(got, "4.2.3-05") {
+			if got := issuerInfoShapeFindings([]map[string]any{{"format": "jwt", "data": raw}}); !containsSubstring(got.Texts(), "4.2.3-05") {
 				t.Errorf("findings %v, want 4.2.3-05 for the certificate in a jwt element", got)
 			}
 		})

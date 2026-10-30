@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 )
 
 // Media types for the two Status List Token representations. Section 8.1:
@@ -90,8 +92,8 @@ type StatusResult struct {
 	Warnings []string `json:"warnings,omitempty"`
 	// HAIPFindings are deviations from HAIP 1.0 §6.1. Callers decide whether
 	// a finding refuses the status.
-	HAIPFindings []string `json:"haipFindings,omitempty"`
-	Error        string   `json:"error,omitempty"`
+	HAIPFindings findings.List `json:"haipFindings,omitempty"`
+	Error        string        `json:"error,omitempty"`
 }
 
 type CheckOptions struct {

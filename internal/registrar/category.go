@@ -32,8 +32,10 @@ type Category struct {
 	// V1.2.1 Annex A.2).
 	Entitlement string `json:"entitlement"`
 	// TrustRule is the ARF rule for validating a received credential with
-	// the trusted list of its providers.
-	TrustRule string `json:"trustRule"`
+	// the trusted list of its providers. TrustRequirement is its requirement
+	// identifier, such as ISSU_07.
+	TrustRule        string `json:"trustRule"`
+	TrustRequirement string `json:"trustRequirement"`
 	// AttestationLoS is the default level of security of a catalogue entry
 	// (TS11 v1.0 §4.3). A PID is issued at assurance level high, and the
 	// test wallet treats QEAAs and PuB-EAAs the same way. The level of other

@@ -367,7 +367,7 @@ func TestDCQLQueryFindings(t *testing.T) {
 			if len(findings) == 0 {
 				t.Fatalf("expected a finding mentioning %q, got none", tt.want)
 			}
-			if !strings.Contains(strings.Join(findings, "; "), tt.want) {
+			if !strings.Contains(strings.Join(findings.Texts(), "; "), tt.want) {
 				t.Errorf("expected a finding mentioning %q, got %v", tt.want, findings)
 			}
 		})
@@ -435,7 +435,7 @@ func TestDebugWarnsAboutAQueryWithoutMeta(t *testing.T) {
 	if len(outcome.matches) != 1 {
 		t.Fatalf("expected debug mode to keep evaluating, got %d matches", len(outcome.matches))
 	}
-	if !slices.ContainsFunc(authReq.Findings, func(f string) bool { return strings.Contains(f, "missing the required meta") }) {
+	if !slices.ContainsFunc(authReq.Findings.Texts(), func(f string) bool { return strings.Contains(f, "missing the required meta") }) {
 		t.Errorf("findings = %v, want the missing meta", authReq.Findings)
 	}
 }

@@ -21,6 +21,7 @@ import (
 	"mime"
 	"strings"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jwe"
 )
@@ -79,14 +80,14 @@ func DecryptRequestObjectJWE(jwe string, key *ecdsa.PrivateKey) (string, error) 
 // RequestObjectContentTypeFinding applies RFC 9101 §4, which makes a signed
 // and encrypted Request Object a Nested JWT, and RFC 7519 §5.2, which requires
 // cty "JWT" on a Nested JWT. RFC 7515 §4.1.10 compares it case-insensitively.
-func RequestObjectContentTypeFinding(header jwe.Header) string {
+func RequestObjectContentTypeFinding(header jwe.Header) findings.Finding {
 	cty, _ := header.Raw["cty"].(string)
 	if strings.EqualFold(cty, "JWT") {
-		return ""
+		return findings.Finding{}
 	}
-	const rule = `RFC 9101 §4 makes a signed and encrypted request object a Nested JWT. RFC 7519 §5.2 requires cty "JWT" on a Nested JWT.`
+	rule := findings.RFC(7519).Protocol("§5.2").Cited("RFC 7519 §5.2 and RFC 9101 §4")
 	if cty == "" {
-		return "The JWE header of the encrypted request object has no cty. " + rule
+		return rule.New(`the JWE header of the encrypted request object has no cty. A Nested JWT needs cty "JWT"`)
 	}
-	return fmt.Sprintf("The JWE header of the encrypted request object sets cty to %q. %s", cty, rule)
+	return rule.Newf(`the JWE header of the encrypted request object sets cty to %q. A Nested JWT needs cty "JWT"`, cty)
 }

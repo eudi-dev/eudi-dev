@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jwe"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
@@ -240,8 +241,8 @@ func (w *Wallet) resolveFetchedRequestObject(fetched *fetchedRequestObject, logF
 		if err != nil {
 			return "", fmt.Errorf("parsing the request object JWE header: %w", err)
 		}
-		if finding := oid4vp.RequestObjectContentTypeFinding(header); finding != "" {
-			w.addProtocolWarning("presentation", "request_object_content_type", finding, nil)
+		if finding := oid4vp.RequestObjectContentTypeFinding(header); finding.Text != "" {
+			w.warnFinding("presentation", "request_object_content_type", subjectRequest, finding, nil)
 		}
 		result = decrypted
 	}
@@ -285,12 +286,13 @@ func (w *Wallet) checkWalletNonce(requestObject, sent string) error {
 	if present && returned == sent {
 		return nil
 	}
-	detail := fmt.Sprintf("OID4VP 1.0 §5.10.1: the request object does not contain the wallet_nonce %s sent by the wallet", sent)
+	rule := findings.OID4VP.Protocol("§5.10.1")
+	finding := rule.Newf("the request object does not contain the wallet_nonce %s sent by the wallet", sent)
 	if present {
-		detail = fmt.Sprintf("OID4VP 1.0 §5.10.1: wallet_nonce mismatch in request object: expected %s, got %s", sent, returned)
+		finding = rule.Newf("wallet_nonce mismatch in request object: expected %s, got %s", sent, returned)
 	}
 	return w.reportDeviation(deviation{
-		action: "presentation", event: "wallet_nonce_mismatch", detail: detail,
+		action: "presentation", event: "wallet_nonce_mismatch", subject: subjectRequest, finding: finding,
 		details: map[string]any{"wallet_nonce": sent, "returned_wallet_nonce": returned},
 	})
 }

@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jwe"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
@@ -837,11 +838,11 @@ func TestParseIssuerMetadataResponse_RequiresIatAndRejectsExpiredMetadata(t *tes
 		if err != nil {
 			t.Fatal(err)
 		}
-		var reported []string
+		var reported findings.List
 		if _, _, err := parseIssuerMetadataDocument([]byte(raw), "application/jwt", w.IssuerURL, w.collectMetadataProblems(&reported)); err != nil {
 			t.Errorf("%s in debug mode: %v", name, err)
 		}
-		if tc.want != "" && (len(reported) != 1 || !strings.Contains(reported[0], "§12.2.3")) {
+		if tc.want != "" && (len(reported) != 1 || reported[0].Rule != "OID4VCI 1.0 §12.2.3") {
 			t.Errorf("%s in debug mode reported %v, want the §12.2.3 finding", name, reported)
 		}
 		w.ValidationMode = ValidationModeStrict
@@ -862,7 +863,7 @@ func TestParseIssuerMetadataResponse_RequiresIatAndRejectsExpiredMetadata(t *tes
 
 // refuseMetadataProblem refuses issuer metadata with a §12.2.3 problem, as
 // strict mode does.
-func refuseMetadataProblem(problem string) error { return errors.New(problem) }
+func refuseMetadataProblem(problem findings.Finding) error { return errors.New(problem.String()) }
 
 // RFC 7515 §4.1.9: typ values are case insensitive and "application/" is
 // implied when the value has no '/'.

@@ -18,6 +18,7 @@ import (
 	"crypto/x509"
 	"fmt"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
 )
 
@@ -42,26 +43,25 @@ func NonStatusListFormat(claims map[string]any) string {
 // HAIPCredentialFindings checks a credential's issuer key against HAIP 1.0
 // §6.1.1. It checks the signing certificate chain and reports a DID key
 // reference. This profile cannot resolve DIDs.
-func HAIPCredentialFindings(header, payload map[string]any) []string {
-	var findings []string
+func HAIPCredentialFindings(header, payload map[string]any) findings.List {
+	var list findings.List
 	kid, _ := header["kid"].(string)
 	iss, _ := payload["iss"].(string)
 	if did := keys.DIDReference(kid, iss); did != "" {
-		findings = append(findings, fmt.Sprintf(
-			"HAIP 1.0 §6.1.1: the credential identifies its issuer key by the DID %s. The profile requires the issuer's signing certificate and its trust chain in the x5c header", did))
+		list = append(list, findings.HAIP.Protocol("§6.1.1").Newf("the credential identifies its issuer key by the DID %s. The profile requires the issuer's signing certificate and its trust chain in the x5c header", did))
 	}
 	// HAIP 1.0 §6.1: "The status claim, if present, MUST contain status_list as
 	// defined in [I-D.ietf-oauth-status-list]." The status claim is always in the
 	// payload because it is never selectively disclosed.
 	if nonStandard := NonStatusListFormat(payload); nonStandard != "" {
-		findings = append(findings, fmt.Sprintf("HAIP 1.0 §6.1: %s", nonStandard))
+		list = append(list, findings.HAIP.Protocol("§6.1").New(nonStandard))
 	}
 
 	chain, err := X5CCertificates(header)
 	if err != nil {
-		return append(findings, fmt.Sprintf("HAIP 1.0 §6.1.1: the x5c header does not hold readable certificates: %v", err))
+		return append(list, findings.HAIP.Protocol("§6.1.1").Newf("the x5c header does not hold readable certificates: %v", err))
 	}
-	return append(findings, HAIPCredentialChain(chain)...)
+	return append(list, HAIPCredentialChain(chain)...)
 }
 
 // HAIPCredentialChain checks what HAIP 1.0 §6.1.1 asks of an issued SD-JWT VC:
@@ -74,21 +74,20 @@ func HAIPCredentialFindings(header, payload map[string]any) []string {
 // With x5c the issuer is the subject of the end-entity certificate, so SD-JWT
 // VC makes iss optional. §6.1.1 is the IETF SD-JWT VC profile and has no
 // counterpart for an mdoc.
-func HAIPCredentialChain(chain []*x509.Certificate) []string {
+func HAIPCredentialChain(chain []*x509.Certificate) findings.List {
 	if len(chain) == 0 {
-		return []string{"HAIP 1.0 §6.1.1: the credential has no x5c header. The profile requires the issuer's signing certificate and its trust chain there"}
+		return findings.List{findings.HAIP.Protocol("§6.1.1").New("the credential has no x5c header. The profile requires the issuer's signing certificate and its trust chain there")}
 	}
 
-	var violations []string
+	var violations findings.List
 	if SelfSignedCertificate(chain[0]) {
-		violations = append(violations, "HAIP 1.0 §6.1.1: the certificate signing the credential MUST NOT be self-signed")
+		violations = append(violations, findings.HAIP.Protocol("§6.1.1").New("the certificate signing the credential MUST NOT be self-signed"))
 	}
 	// The trust anchor depends on the checking party, and the wallet has no such
 	// list. So every self-signed certificate in the chain is a finding.
 	for i, cert := range chain[1:] {
 		if SelfSignedCertificate(cert) {
-			violations = append(violations, fmt.Sprintf(
-				"HAIP 1.0 §6.1.1: the credential's x5c header carries a self-signed certificate at position %d (subject %q). The trust anchor certificate MUST NOT be included",
+			violations = append(violations, findings.HAIP.Protocol("§6.1.1").Newf("the credential's x5c header carries a self-signed certificate at position %d (subject %q). The trust anchor certificate MUST NOT be included",
 				i+2, cert.Subject.String()))
 			break
 		}

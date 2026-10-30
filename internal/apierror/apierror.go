@@ -43,8 +43,10 @@ const (
 type Body struct {
 	Error       string `json:"error"`
 	Description string `json:"error_description,omitempty"`
-	// Findings list the failed checks of a refusal, one per entry.
-	Findings []string `json:"findings,omitempty"`
+	// Findings list the failed checks of a refusal as text, one per entry.
+	// FindingDetails adds the structured form of each.
+	Findings       findings.List      `json:"findings,omitempty"`
+	FindingDetails []findings.Finding `json:"finding_details,omitempty"`
 }
 
 // Write answers with the error object.
@@ -63,7 +65,8 @@ func writeBody(w http.ResponseWriter, status int, body Body) {
 // WriteErr answers with the error object for err. A refusal on findings
 // adds them as a list.
 func WriteErr(w http.ResponseWriter, status int, code string, err error) {
-	writeBody(w, status, Body{Error: code, Description: err.Error(), Findings: findings.Of(err)})
+	list := findings.Of(err)
+	writeBody(w, status, Body{Error: code, Description: err.Error(), Findings: list, FindingDetails: list.Details()})
 }
 
 // WriteStatusErr is WriteErr with the code of the status.

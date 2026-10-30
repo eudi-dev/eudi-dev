@@ -24,6 +24,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 )
 
 // maxCRLSize bounds a fetched CRL. The URL comes from a certificate that any
@@ -77,15 +79,15 @@ func CheckRevocation(chain []*x509.Certificate, client *http.Client, now time.Ti
 
 // RevocationFindings states each problem of CheckRevocation together with the
 // broken rule. Without a client the wallet doesn't check revocation.
-func RevocationFindings(path []*x509.Certificate, client *http.Client, rule string) []string {
+func RevocationFindings(path []*x509.Certificate, client *http.Client, rule findings.Rule) findings.List {
 	if client == nil {
 		return nil
 	}
-	var findings []string
+	var list findings.List
 	for _, problem := range CheckRevocation(path, client, time.Now()) {
-		findings = append(findings, rule+": "+problem.Error())
+		list = append(list, rule.New(problem.Error()))
 	}
-	return findings
+	return list
 }
 
 // fetchCRL returns the first current CRL from the distribution points that is

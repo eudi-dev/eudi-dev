@@ -102,7 +102,7 @@ Paste the offer URI into the actions bar and click **Process**. The wallet then 
 | Dialog title (**Credential offer** or **Presentation request**) | `#consent-title` |
 | Issuer header | `#consent-who`, with `#consent-who-name`, `#consent-who-id`, `#consent-who-auth` |
 | Issuer origin and offer facts | `#offer-issuer-origin`, `#offer-facts` |
-| Findings about the issuer | `#consent-findings-summary` (collapsed), `#consent-findings-list` |
+| Findings about the issuer | `#consent-findings-summary` (collapsed), `#consent-findings-list`, groups `#consent-findings-registration` and `#consent-findings-protocol`, one `#consent-finding-<n>` each |
 | Offered credential | `#offer-credential-<configuration id>` |
 | **You will receive** claims | `#offer-credential-<configuration id>-claims`, rows `.consent-claim-name` and `.offer-claim-label` |
 | Credential description and **More** | `#offer-description-<configuration id>`, `#offer-description-<configuration id>-toggle` |
@@ -219,7 +219,7 @@ A failed flow opens an error dialog in the page that started it.
 | Control | Selector |
 |---|---|
 | Title and message | `#error-title`, `#error-message` |
-| Findings of a refusal | `#error-findings`, one `#error-finding-<n>` each |
+| Findings of a refusal | `#error-findings`, groups `#error-findings-registration` and `#error-findings-protocol`, one `#error-finding-<n>` each |
 | **Technical details** | `#error-detail-more-toggle`, full text in `#error-detail` |
 | **Dismiss** | `#error-dismiss` |
 | Verifier answer after a presentation | `#result-title`, `#result-detail`, `#result-dismiss` |
@@ -375,6 +375,8 @@ Each exchange is an entry in **Activity**. Entries start collapsed. Scope the co
 | Open a token in the decoder | `data-testid="log-decoder-link"` |
 | Choose the copy, proof or presentation the decoder button opens | `data-testid="log-decoder-pick"` |
 | Show an alternate wire value | `data-testid="log-wire-toggle"` |
+| Specifications of a collapsed entry | `.log-specs`, one `.finding-spec` each |
+| Text and rule of a finding | `.finding-text`, `.finding-ref` (the full citation when it says more than the rule, with a link to the rule when the specification has anchors) |
 
 Entries for a stored credential also have `data-credential-id`. Presentation decoder links have `data-query-id` and `data-token-index`. Credential response and batch import links have `data-credential-index`. Links to other tokens in an entry, such as a request object, a key proof or a registration certificate, have `data-path` with the field that holds the token, for example `proofs.jwt[0]`. Tokens of one kind share a button: the copies of a batch, the presentations of one query and the items of one array, such as the key proofs. A picker next to the button chooses the token, and the button's data attributes follow the choice. Batch import links also have `data-credential-id` for each stored copy. Token indexes start at zero within each query. Credential indexes start at zero within the entry. The encryption toggle keeps the same selector in both views.
 

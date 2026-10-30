@@ -1353,7 +1353,7 @@ func (d *DemoRP) verifySDJWTEntry(req *requestState, presentation string, q cred
 			log.warn(label+"Type Metadata of the credential", err)
 		default:
 			problems := metadata.ValidatePresentation(token.Payload, token.Disclosures)
-			if err = check("credential follows its Type Metadata", errIf(len(problems) > 0, "%s", strings.Join(problems, " "))); err != nil {
+			if err = check("credential follows its Type Metadata", errIf(len(problems) > 0, "%s", strings.Join(problems.Texts(), " "))); err != nil {
 				return nil, err
 			}
 			gotTypes = append(gotTypes, metadata.Types...)

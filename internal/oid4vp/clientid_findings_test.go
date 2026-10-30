@@ -40,7 +40,7 @@ func TestVerifyRequestObjectSignatureNamesAnUncheckableJWS(t *testing.T) {
 		{"unreadable x5c", &oid4vc.RequestObjectJWT{Raw: "a.b.c", Header: map[string]any{"alg": "ES256", "x5c": []any{"!!not base64"}}}, "x5c header is unreadable"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := verifyRequestObjectSignature(clientID, tt.reqObj); !strings.Contains(got, tt.want) {
+			if got := verifyRequestObjectSignature(clientID, tt.reqObj); !strings.Contains(got.String(), tt.want) {
 				t.Errorf("finding = %q, want %q", got, tt.want)
 			}
 		})
@@ -52,7 +52,7 @@ func TestVerifyRequestObjectSignatureNamesAnUncheckableJWS(t *testing.T) {
 func TestVerifyX509HashNeedsTheLeafCertificate(t *testing.T) {
 	clientID := "x509_hash:" + format.EncodeBase64URL(make([]byte, 32))
 	got := verifyClientID(clientID, &oid4vc.RequestObjectJWT{Header: map[string]any{"alg": "ES256"}}, "", "")
-	if !strings.Contains(got, "x5c header is empty or missing") {
+	if !strings.Contains(got.String(), "x5c header is empty or missing") {
 		t.Errorf("finding = %q, want the missing x5c", got)
 	}
 }
@@ -72,7 +72,7 @@ func TestValidateRequestObjectHeaderFindings(t *testing.T) {
 		}}, "not compatible with EC key"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := validateRequestObject("x509_san_dns:example.com", tt.reqObj); !strings.Contains(got, tt.want) {
+			if got := validateRequestObject("x509_san_dns:example.com", tt.reqObj); !strings.Contains(got.String(), tt.want) {
 				t.Errorf("finding = %q, want %q", got, tt.want)
 			}
 		})
@@ -99,7 +99,7 @@ func TestVerifyVerifierAttestationRefusesAnUnreadableOrMistypedJWT(t *testing.T)
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			reqObj := &oid4vc.RequestObjectJWT{Header: map[string]any{"alg": "ES256", "jwt": tt.attestation}}
-			if got := verifyClientID(clientID, reqObj, "", ""); !strings.Contains(got, tt.want) {
+			if got := verifyClientID(clientID, reqObj, "", ""); !strings.Contains(got.String(), tt.want) {
 				t.Errorf("finding = %q, want %q", got, tt.want)
 			}
 		})
@@ -136,7 +136,7 @@ func TestVerifyAttestedSignatureNeedsBothKeys(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			finding := verifyRequestObjectSignature(clientID, f.request(t, tt.attestation, f.verifierKey))
-			if !strings.Contains(finding, tt.want) {
+			if !strings.Contains(finding.String(), tt.want) {
 				t.Errorf("finding = %q, want %q", finding, tt.want)
 			}
 		})
