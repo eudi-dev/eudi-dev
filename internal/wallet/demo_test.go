@@ -917,6 +917,25 @@ func TestALogEntryIsBounded(t *testing.T) {
 	}
 }
 
+// A body that fits stays whole beside a large wire form, so its token opens in
+// the decoder. One that does not fit says so.
+func TestALargeLogBodyStaysWholeWhenItFits(t *testing.T) {
+	w := generateTestWallet(t)
+	token := strings.Repeat("x", 150<<10)
+	w.addProtocolLog("presentation", "test", "detail", true, nil, &LogPayload{Label: "request", Body: token, Wire: strings.Repeat("y", 150<<10)})
+	log := w.GetLog()
+	payload := log[len(log)-1].Payload
+	if payload.Body != token || payload.Truncated {
+		t.Errorf("body has %d bytes (truncated %v), want the whole token", len(payload.Body.(string)), payload.Truncated)
+	}
+
+	w.addProtocolLog("presentation", "test", "detail", true, nil, &LogPayload{Label: "request", Body: strings.Repeat("x", 1<<20)})
+	log = w.GetLog()
+	if !log[len(log)-1].Payload.Truncated {
+		t.Error("a truncated body is not marked as truncated")
+	}
+}
+
 // Anyone can start a flow without an owner, so a public demo shows its errors
 // to nobody. A local wallet shows them to its browser.
 func TestTheDemoShowsNobodyTheErrorsOfUnownedFlows(t *testing.T) {

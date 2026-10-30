@@ -1449,6 +1449,8 @@ func (d *DemoRP) credentialTrust() validate.Trust {
 		Issuance:   append(d.wallet.TrustedLists().CredentialProviderAnchors(lote.IssuanceServices), d.verifierTrustAnchors...),
 		Revocation: append(d.wallet.TrustedLists().CredentialProviderAnchors(lote.RevocationServices), d.verifierTrustAnchors...),
 		HTTPClient: d.wallet.HTTPClient(),
+
+		CertificateProblems: d.wallet.CertificateProblems,
 	}
 }
 
@@ -1609,11 +1611,12 @@ func (c *checklist) warn(name string, err error) {
 // decidingChecks are the shared credential checks that decide whether the
 // verifier accepts a credential.
 var decidingChecks = map[string]bool{
-	validate.CheckType:      true,
-	validate.CheckExpiry:    true,
-	validate.CheckIntegrity: true,
-	validate.CheckSignature: true,
-	validate.CheckStatus:    true,
+	validate.CheckType:         true,
+	validate.CheckExpiry:       true,
+	validate.CheckIntegrity:    true,
+	validate.CheckSignature:    true,
+	validate.CheckStatus:       true,
+	validate.CheckCertificates: true,
 }
 
 // credential records the shared credential checks. The signature must verify,

@@ -121,6 +121,9 @@ type Match struct {
 	// Debug mode can offer credentials that fail trusted_authorities matching. The
 	// consent dialog flags this violation.
 	UntrustedAuthority bool `json:"untrusted_authority,omitempty"`
+	// RevokedCertificates names the revoked certificates in the chain of the
+	// credential. The consent dialog flags them.
+	RevokedCertificates []string `json:"revoked_certificates,omitempty"`
 	// Debug mode offers a credential without holder binding to a query that
 	// requires it (OpenID4VP 1.0 §6.1). The consent dialog flags it.
 	Unbound bool `json:"unbound,omitempty"`

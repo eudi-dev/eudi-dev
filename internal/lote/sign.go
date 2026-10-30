@@ -107,6 +107,9 @@ type Options struct {
 	// WalletSolution is the reference number of the operator's own wallet
 	// solution on a wallet providers list.
 	WalletSolution string `json:",omitempty"`
+	// NoOwnProvider leaves the operator's own provider off the list, because
+	// all its certificates are withdrawn.
+	NoOwnProvider bool `json:"-"`
 }
 
 // Entity is a provider on a list with the base64 DER certificates of its
@@ -126,7 +129,7 @@ const UpdateInterval = 24 * time.Hour
 // signer. It is the inverse of Parse.
 func Sign(signingKey *ecdsa.PrivateKey, signer *x509.Certificate, opts Options) (string, error) {
 	signerB64 := base64.StdEncoding.EncodeToString(signer.Raw)
-	if len(opts.IssuanceCertificates) == 0 {
+	if len(opts.IssuanceCertificates) == 0 && !opts.NoOwnProvider {
 		opts.IssuanceCertificates = []string{signerB64}
 		if len(opts.RevocationCertificates) == 0 {
 			opts.RevocationCertificates = []string{signerB64}
@@ -177,7 +180,10 @@ func Sign(signingKey *ecdsa.PrivateKey, signer *x509.Certificate, opts Options) 
 		schemeInfo["PointersToOtherLoTE"] = []map[string]any{PointerEntry(opts.Issuer+opts.Path, opts.Scheme.LoTEType, opts.OperatorName, opts.Scheme.SchemeTerritory, signerB64)}
 	}
 
-	entities := append([]Entity{{Name: opts.ProviderName, Issuance: opts.IssuanceCertificates, Revocation: opts.RevocationCertificates, WalletSolution: opts.WalletSolution}}, opts.Entities...)
+	entities := opts.Entities
+	if !opts.NoOwnProvider {
+		entities = append([]Entity{{Name: opts.ProviderName, Issuance: opts.IssuanceCertificates, Revocation: opts.RevocationCertificates, WalletSolution: opts.WalletSolution}}, opts.Entities...)
+	}
 	trustedEntities := make([]map[string]any, 0, len(entities))
 	for _, entity := range entities {
 		trustedEntities = append(trustedEntities, map[string]any{

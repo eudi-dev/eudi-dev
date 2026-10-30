@@ -96,7 +96,8 @@ func (t *Set) SignedGroupList(issuer string, group Group, path string) (string, 
 			return "", err
 		}
 		opts.ProviderName = caEntityName(accessCA, t.env.ListedProviderName())
-		opts.IssuanceCertificates = []string{base64.StdEncoding.EncodeToString(accessCA.Raw)}
+		opts.IssuanceCertificates = t.withoutWithdrawn([]string{base64.StdEncoding.EncodeToString(accessCA.Raw)})
+		opts.NoOwnProvider = len(opts.IssuanceCertificates) == 0
 		return signer.Keys().TrustList(listKey, listChain[0], opts)
 	case provider.RegistrarListID:
 		// The registrar key signs the registration certificates and their
@@ -106,8 +107,9 @@ func (t *Set) SignedGroupList(issuer string, group Group, path string) (string, 
 			return "", err
 		}
 		opts.ProviderName = caEntityName(registrarCA, t.env.ListedProviderName())
-		opts.IssuanceCertificates = []string{base64.StdEncoding.EncodeToString(registrarCA.Raw)}
+		opts.IssuanceCertificates = t.withoutWithdrawn([]string{base64.StdEncoding.EncodeToString(registrarCA.Raw)})
 		opts.RevocationCertificates = opts.IssuanceCertificates
+		opts.NoOwnProvider = len(opts.IssuanceCertificates) == 0
 		return signer.Keys().TrustList(listKey, listChain[0], opts)
 	}
 	var issuanceCertificates []string
@@ -150,8 +152,9 @@ func (t *Set) SignedGroupList(issuer string, group Group, path string) (string, 
 	if err != nil {
 		return "", err
 	}
-	opts.IssuanceCertificates = issuanceCertificates
+	opts.IssuanceCertificates = t.withoutWithdrawn(issuanceCertificates)
 	opts.RevocationCertificates = []string{base64.StdEncoding.EncodeToString(statusChain[0].Raw)}
+	opts.NoOwnProvider = len(opts.IssuanceCertificates) == 0
 	return signer.Keys().TrustList(listKey, listChain[0], opts)
 }
 

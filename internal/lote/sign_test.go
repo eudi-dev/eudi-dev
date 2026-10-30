@@ -241,3 +241,26 @@ func listPayload(t *testing.T, raw string) map[string]any {
 	}
 	return payload["LoTE"].(map[string]any)
 }
+
+// A list without the operator's provider does not list its signer instead.
+func TestListWithoutOwnProviderOmitsTheSigner(t *testing.T) {
+	key, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cert, err := mock.GenerateCACert(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := Sign(key, cert, Options{OperatorName: "Operator", ProviderName: "Provider", NoOwnProvider: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	list, err := Parse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if anchors, err := Anchors(list, IssuanceServices, time.Now()); err != nil || len(anchors) != 0 {
+		t.Errorf("anchors = %v (%v), want none", anchors, err)
+	}
+}

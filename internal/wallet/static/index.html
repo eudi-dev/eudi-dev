@@ -278,10 +278,31 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
             <option value="none">Leave out</option>
           </select>
         </td></tr>
+        <tr id="conf-crl-fault-row"><td id="conf-crl-fault-name">CRL fault</td><td>
+          <select id="conf-crl-fault-select" class="conf-input" aria-labelledby="conf-crl-fault-name" aria-describedby="conf-crl-fault-hint">
+            <option value="">None</option>
+            <option value="unavailable">Unavailable (503)</option>
+            <option value="hang">No answer for 2 minutes</option>
+            <option value="expired">Expired CRL</option>
+            <option value="bad-signature">Wrong signature</option>
+          </select>
+          <div class="conf-hint" id="conf-crl-fault-hint">The fault stays until you set this back to None or reset the settings.</div>
+        </td></tr>
       </table>
       <div class="consent-buttons">
         <button class="btn" id="conf-reset">Reset to startup settings</button>
         <button class="btn" id="conformance-close" data-dialog-close>Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="consent-overlay" id="certificates-overlay">
+    <div class="consent-dialog" role="dialog" aria-modal="true" aria-labelledby="certificates-title" id="certificates-dialog">
+      <div class="consent-title" id="certificates-title" tabindex="-1">Certificates</div>
+      <p class="dialog-hint" id="certificates-hint">Revoke adds a certificate to its CRL. Withdraw removes it from the trusted lists of this wallet. Verifiers that check the CRL or the trusted lists then reject this credential.</p>
+      <div class="certificate-list" id="certificates-list"></div>
+      <div class="consent-buttons">
+        <button class="btn" id="certificates-close" data-dialog-close>Close</button>
       </div>
     </div>
   </div>

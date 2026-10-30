@@ -15,9 +15,13 @@
 package validate
 
 import (
+	"crypto/x509"
 	"fmt"
+	"net/http"
+	"slices"
 	"time"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
@@ -56,6 +60,7 @@ const (
 	CheckSignature       = "signature"
 	CheckTrust           = "trust"
 	CheckStatus          = "status"
+	CheckCertificates    = "certificate revocation"
 	CheckStatusSignature = "status list signature"
 	CheckHAIP            = "haip"
 )
@@ -158,6 +163,8 @@ func SDJWT(token *sdjwt.Token, trust Trust, opts Options) *Result {
 	cat := v.catalogue(token.Raw)
 	r.add(v.jwtSignature(token, cat, r), v.trustCheck(cat, r))
 	r.add(v.status(token.ResolvedClaims, statuslist.FormatJWT, cat, r)...)
+	chain, _ := X5CCertificates(token.Header)
+	r.add(v.certificateRevocation(chain, r)...)
 	if opts.HAIP {
 		r.add(haipCheck(token, r))
 	}
@@ -192,6 +199,8 @@ func MDOC(doc *mdoc.Document, trust Trust, opts Options) *Result {
 	cat := v.catalogue(format.EncodeBase64URL(doc.Raw))
 	r.add(v.mdocSignature(doc, cat, r), v.trustCheck(cat, r))
 	r.add(v.status(doc.StatusClaims(), statuslist.FormatCWT, cat, r)...)
+	chain, _ := ExtractMDOCX5ChainCertificates(doc)
+	r.add(v.certificateRevocation(chain, r)...)
 	return r
 }
 
@@ -207,6 +216,54 @@ func newRun(trust Trust, opts Options) run {
 		now = time.Now()
 	}
 	return run{trust: trust, opts: opts, now: now}
+}
+
+// maxRevocationChain limits the CRLs read for one credential.
+const maxRevocationChain = 5
+
+// CRLReader reads the CRLs of a chain with the client.
+func CRLReader(client *http.Client) func([]*x509.Certificate) []certchain.RevocationProblem {
+	return func(chain []*x509.Certificate) []certchain.RevocationProblem {
+		return certchain.CheckRevocation(chain, client, time.Now())
+	}
+}
+
+// certificateRevocation fails for a revoked certificate. RFC 5280 §6.1.3
+// (a)(3): "At the current time, the certificate is not revoked." A CRL that
+// can't be read is a warning. It reads CRLs only for a chain with a valid
+// signature, because anyone can present a long x5c with slow CRL URLs.
+func (v run) certificateRevocation(chain []*x509.Certificate, r *Result) []Check {
+	if v.trust.CertificateProblems == nil || len(chain) == 0 {
+		return nil
+	}
+	if len(chain) > maxRevocationChain {
+		return []Check{{Name: CheckCertificates, Status: Warning, Detail: fmt.Sprintf("The chain has %d certificates, so the CRLs were not read", len(chain))}}
+	}
+	signed := slices.ContainsFunc(r.Checks, func(c Check) bool { return c.Name == CheckSignature && c.Status == Pass })
+	if !signed {
+		return nil
+	}
+	// The last certificate needs its issuer for a CRL check, and an x5c often
+	// ends below the anchor.
+	last := chain[len(chain)-1]
+	if i := slices.IndexFunc(v.trust.Issuance, func(a *x509.Certificate) bool { return !a.Equal(last) && last.CheckSignatureFrom(a) == nil }); i >= 0 {
+		chain = append(slices.Clone(chain), v.trust.Issuance[i])
+	}
+	check := Check{Name: CheckCertificates, Status: Skipped}
+	if v.opts.Offline {
+		check.Detail = "Needs the CRLs of the certificates"
+		check.NeedsNetwork = true
+		return []Check{check}
+	}
+	check.Status, check.Detail = Pass, "No certificate is revoked"
+	for _, problem := range v.trust.CertificateProblems(chain) {
+		if problem.Revoked {
+			check.Status, check.Detail = Fail, problem.Error()
+			break
+		}
+		check.Status, check.Detail = Warning, problem.Error()
+	}
+	return []Check{check}
 }
 
 func (v run) trustedListCheck() []Check {

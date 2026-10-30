@@ -20,6 +20,7 @@ import (
 	"net/http"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
+	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
 	"github.com/eudi-dev/eudi-dev/v3/internal/trustedlists"
 )
 
@@ -80,4 +81,48 @@ func writeTrustResult(w http.ResponseWriter, err error) {
 	default:
 		w.WriteHeader(http.StatusNoContent)
 	}
+}
+
+const trustWithdrawalsPath = "/api/trust/withdrawals"
+
+func (s *Server) handleListWithdrawals(w http.ResponseWriter, _ *http.Request) {
+	withdrawn := s.wallet.TrustedLists().WithdrawnList()
+	if withdrawn == nil {
+		withdrawn = []trustedlists.WithdrawnCertificate{}
+	}
+	writeJSON(w, http.StatusOK, withdrawn)
+}
+
+func (s *Server) handleWithdrawCertificate(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Certificate string `json:"certificate"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		apierror.InvalidJSON(w, err)
+		return
+	}
+	cert, err := keys.ParseCertificatePEM([]byte(body.Certificate), "certificate")
+	if err != nil {
+		apierror.WriteStatusErr(w, http.StatusBadRequest, err)
+		return
+	}
+	var entry trustedlists.WithdrawnCertificate
+	s.saveMutation(func() bool {
+		entry, err = s.wallet.TrustedLists().Withdraw(cert)
+		return err == nil
+	})
+	if err != nil {
+		apierror.WriteStatusErr(w, http.StatusBadRequest, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, entry)
+}
+
+func (s *Server) handleRestoreCertificate(w http.ResponseWriter, r *http.Request) {
+	var err error
+	s.saveMutation(func() bool {
+		err = s.wallet.TrustedLists().Restore(r.PathValue("id"))
+		return err == nil
+	})
+	writeTrustResult(w, err)
 }

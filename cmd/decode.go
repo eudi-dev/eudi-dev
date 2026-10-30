@@ -201,7 +201,7 @@ func decodeCredential(raw string, opts output.Options) error {
 		output.PrintJSON(result)
 		return nil
 	}
-	result, err := validate.Credential(raw, validate.Trust{}, validate.Options{})
+	result, err := validate.Credential(raw, validate.Trust{CertificateProblems: validate.CRLReader(format.HTTPClient())}, validate.Options{})
 	if err != nil {
 		return err
 	}

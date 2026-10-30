@@ -247,6 +247,69 @@ curl 'http://localhost:8085/api/certificates/tls?format=jwks'
 
 Provider roles are the credential categories `pid`, `qeaa`, `pub-eaa` and `eaa`, `wallet` for the wallet provider, `tl-<8 hex digits>` for a credential type with its own trusted list, and `unlisted` for unlisted credentials. Each role has its own provider CA. The country is 2 uppercase letters such as `NL`. Only existing providers can be retrieved. Signing certificate URLs use the SHA-256 fingerprint of the DER certificate and remain available after renewal. JOSE `x5u` uses PEM and COSE `x5u` uses DER. See [test certificates](../test-certificates.md) for the certificate profiles.
 
+### Certificate revocation
+
+You can revoke any certificate issued by this wallet, such as a provider signing certificate or a provider CA. It then appears on the CRL of its issuer. You can't revoke a self-signed certificate. [Withdraw it](#withdrawing-a-trusted-list-entry) instead. from the trusted list instead. A credential signed with a revoked certificate stays in the wallet.
+
+```bash
+curl -X POST http://localhost:8085/api/certificates/revocations \
+  -H 'Content-Type: application/json' \
+  -d '{"certificate": "-----BEGIN CERTIFICATE-----\n...", "reason": 1}'
+```
+
+`reason` is an optional CRL reason code (RFC 5280 §5.3.1).
+
+| Method   | Path                                     | Purpose                                     |
+| -------- | ---------------------------------------- | ------------------------------------------- |
+| `GET`    | `/api/certificates/revocations`          | List the revoked certificates               |
+| `POST`   | `/api/certificates/revocations`          | Revoke a certificate                        |
+| `DELETE` | `/api/certificates/revocations/{serial}` | Take a certificate off its CRL              |
+
+You can also do this in the wallet UI. Click **Certificates** on a credential to see its certificate chain. You can revoke the certificates of this wallet and withdraw its CAs there. `GET /api/credentials/{id}/certificates` returns the same list.
+
+The public demo blocks `POST` and `DELETE`, and it blocks `GET /api/credentials/{id}/certificates`.
+
+The demo verifier checks the CRLs of a presented credential. It rejects a credential with a revoked certificate in its chain. If it can't read a CRL, it shows a warning and still accepts the credential. The consent dialog warns you when a selected credential has a certificate revoked by this wallet. It reads no CRLs, so it does not warn about certificates revoked by other issuers.
+
+### Withdrawing a trusted list entry
+
+You can remove a certificate from the wallet's own trusted lists. This is how a list operator removes a trust anchor. The next published list no longer contains it, and its sequence number goes up. Any certificate issued by it is removed too. Withdraw the CA of a signing certificate. A verifier still accepts the signing certificate if only that entry leaves the list and its CA stays. On a Pub-EAA providers list the service stays, with the status `withdrawn`.
+
+```bash
+curl -X POST http://localhost:8085/api/trust/withdrawals \
+  -H 'Content-Type: application/json' \
+  -d '{"certificate": "-----BEGIN CERTIFICATE-----\n..."}'
+```
+
+| Method   | Path                          | Purpose                                 |
+| -------- | ----------------------------- | --------------------------------------- |
+| `GET`    | `/api/trust/withdrawals`      | List the withdrawn certificates         |
+| `POST`   | `/api/trust/withdrawals`      | Withdraw a certificate                  |
+| `DELETE` | `/api/trust/withdrawals/{id}` | Put a certificate back on its list      |
+
+The public demo blocks `POST` and `DELETE`.
+
+### CRL faults
+
+You can make the CRL endpoints fail to test a CRL client. A fault applies to every CRL of this server and stays until you clear it. It is kept in memory, so a restart clears it too.
+
+```bash
+curl -X PUT http://localhost:8085/api/crl/fault \
+  -H 'Content-Type: application/json' \
+  -d '{"fault": "unavailable", "next_update_seconds": 60}'
+
+curl -X DELETE http://localhost:8085/api/crl/fault
+```
+
+| `fault`         | Effect                                                      |
+| --------------- | ----------------------------------------------------------- |
+| `unavailable`   | The endpoint answers `503`                                  |
+| `hang`          | The endpoint answers `503` after 2 minutes                  |
+| `expired`       | The CRL has a `nextUpdate` in the past                      |
+| `bad-signature` | The CRL is signed with the wrong key                        |
+
+`next_update_seconds` sets the `nextUpdate` of the CRL (default 7 days). You can set it without a `fault`. `GET /api/crl/fault` returns the current fault. You can also set a fault under **Settings** in the wallet UI. The public demo blocks `PUT` and `DELETE`.
+
 ### Issuer metadata and trusted lists
 
 These endpoints are available on both wallet ports.
@@ -475,6 +538,8 @@ curl -X POST http://localhost:8085/api/deferred/<id>/collect
 ### Activity log
 
 Each activity log entry has a timestamp, category (`presentation`, `issuance`, `management`), description, success flag and structured `details`.
+
+A payload with `"truncated": true` has a cut-off body, so its token can't open in the decoder.
 
 `GET /api/log` returns the log format used by the CLI. The web UI uses `GET /api/log?view=activity` for the full protocol requests and responses. Encrypted exchanges include plaintext and the encrypted wire value. Summaries add context, such as selected disclosure paths.
 

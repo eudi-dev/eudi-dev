@@ -1839,6 +1839,7 @@ test("an activity entry shows registration findings in a row of their own", asyn
   await expect(registration.locator(".log-findings .finding-ref")).toHaveText([citation, "ARF ISSU_34"]);
   await expect(registration.locator(".log-findings .finding-ref a")).toHaveAttribute("href", findings[1].url);
   await expect(registration.locator(".log-fields")).not.toContainText("ISS-MDATA");
+  await expect(registration.locator(".log-fields")).not.toContainText("issuer_findings");
 });
 
 test("an activity entry without finding details shows its findings as text", async ({ page }) => {
@@ -2002,6 +2003,58 @@ test("activity details stay visible and decoded request JWTs open in the decoder
   const decoder = await popupPromise;
   await expect(decoder.locator("#input")).toHaveValue(jwt);
   await decoder.close();
+});
+
+test("a certificate of a credential can be revoked and restored from its card", async ({ page }) => {
+  await page.goto(WALLET_URL);
+  await page.locator("[data-certificates]").first().click();
+  const row = page.locator("#certificate-0");
+  await expect(row).toContainText("Signing certificate");
+  await expect(row.getByRole("button", { name: "Withdraw" })).toHaveCount(0);
+  await expect(page.locator("#certificate-1").getByRole("button", { name: "Withdraw" })).toBeVisible();
+  await row.getByRole("button", { name: "Revoke", exact: true }).click();
+  await expect(row).toContainText("Revoked");
+  await row.getByRole("button", { name: "Undo revocation" }).click();
+  await expect(row.getByRole("button", { name: "Revoke", exact: true })).toBeVisible();
+  await page.locator("#certificates-close").click();
+  await expect(page.locator("#certificates-overlay")).not.toHaveClass(/active/);
+});
+
+test("a trusted list opens in the decoder", async ({ page }) => {
+  await page.goto(WALLET_URL);
+  await page.getByRole("link", { name: "Trust & certificates" }).click();
+  const popupPromise = page.waitForEvent("popup");
+  await expect(async () => {
+    await page.getByTestId("trust-list-menu").first().click();
+    await expect(page.getByTestId("trust-list-decode").first()).toBeVisible({ timeout: 500 });
+  }).toPass();
+  await page.getByTestId("trust-list-decode").first().click();
+  const decoder = await popupPromise;
+  await expect(decoder.locator("#input")).toHaveValue(/^eyJ/);
+  await decoder.close();
+});
+
+test("the settings set and clear a CRL fault", async ({ page }) => {
+  await page.goto(WALLET_URL);
+  await page.locator("#conformance-link").click();
+  await page.locator("#conf-crl-fault-select").selectOption("unavailable");
+  await expect.poll(async () => (await fetch(`${WALLET_URL}/api/crl`)).status).toBe(503);
+  await page.locator("#conf-crl-fault-select").selectOption("");
+  await expect.poll(async () => (await fetch(`${WALLET_URL}/api/crl`)).status).toBe(200);
+});
+
+test("a truncated token shows no decoder link", async ({ page }) => {
+  const claims = { client_id: "https://verifier.example" };
+  await page.route("**/api/log*", route => route.fulfill({ json: [{
+    time: "2026-10-01T08:00:00Z", action: "presentation", detail: "Presentation request", success: true,
+    details: { event: "presentation_request", direction: "inbound", request_object: claims },
+    payload: { label: "Request object", body: "eyJhbGciOiJFUzI1NiJ9.eyJhIj… (truncated, 90000 bytes)", truncated: true },
+  }] }));
+  await page.goto(WALLET_URL);
+  const entry = page.getByTestId("log-entry");
+  await entry.getByTestId("log-entry-toggle").click();
+  await expect(entry.locator(".log-payload > pre")).toContainText("truncated, 90000 bytes");
+  await expect(entry.getByTestId("log-decoder-link")).toHaveCount(0);
 });
 
 test("import activity keeps credential context and links to its original token", async ({ page }) => {

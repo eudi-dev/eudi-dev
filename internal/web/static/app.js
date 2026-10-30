@@ -532,6 +532,7 @@
     trust: "Trust",
     status: "Status",
     "status list signature": "Status list signature",
+    "certificate revocation": "Certificate revocation",
     haip: "HAIP",
     structure: "Structure",
   };

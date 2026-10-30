@@ -582,9 +582,11 @@
             descIcon('ic-chev', '<path d="M6 9l6 6 6-6"/>') +
           '</button>'
         : '';
+      const certificatesBtn = demoMode ? '' : '<button class="btn btn-sm" id="certificates-' + domID(cred.id) + '" data-certificates="' + escHtml(cred.id) + '">Certificates</button>';
       const actionsHtml = '<div class="credential-actions">' +
           aboutBtn +
           revokeBtn +
+          certificatesBtn +
           '<button class="btn btn-sm" id="show-' + domID(cred.id) + '" data-show="' + escHtml(cred.id) + '">Show</button>' +
           (isProtected ? '' : '<button class="btn btn-danger btn-sm" id="delete-' + domID(cred.id) + '" data-delete="' + escHtml(cred.id) + '">Delete</button>') +
         '</div>';
@@ -616,6 +618,10 @@
       const revoke = card.querySelector('[data-revoke]');
       if (revoke) {
         revoke.addEventListener('click', () => setCredentialStatus(cred.id, st.status === 0 ? 1 : 0));
+      }
+      const certificatesButton = card.querySelector('[data-certificates]');
+      if (certificatesButton) {
+        certificatesButton.addEventListener('click', () => openCertificates(cred.id));
       }
       const check = card.querySelector('[data-check-status]');
       if (check) {
@@ -743,6 +749,109 @@
         badge.textContent = 'Check failed';
         badge.title = e.message;
       }
+    }
+  }
+
+  let certificatesCredential = null;
+
+  async function openCertificates(id) {
+    certificatesCredential = id;
+    document.getElementById('certificates-list').textContent = '';
+    document.getElementById('certificates-overlay').classList.add('active');
+    await renderCertificates();
+  }
+
+  async function renderCertificates() {
+    const list = document.getElementById('certificates-list');
+    try {
+      const resp = await fetch('api/credentials/' + encodeURIComponent(certificatesCredential) + '/certificates');
+      const certificates = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        showAPIError('Loading the certificates failed', certificates, resp);
+        return;
+      }
+      list.textContent = '';
+      if (!certificates.length) {
+        list.innerHTML = '<p class="dialog-hint" id="certificates-none">This credential has no certificates.</p>';
+        return;
+      }
+      if (!certificates.some(c => c.revocable || c.withdrawable || c.withdrawn_id)) {
+        list.innerHTML = '<p class="dialog-hint" id="certificates-external">This wallet didn\'t issue these certificates, so you can\'t revoke or withdraw them.</p>';
+      }
+      certificates.slice().reverse().forEach((certificate, depth) => {
+        list.appendChild(certificateRow(certificate, certificates.length - 1 - depth, depth));
+      });
+      list.appendChild(chainCredentialRow(certificates.length));
+    } catch (e) {
+      showErrorDialog('Loading the certificates failed', e.message);
+    }
+  }
+
+  const certificateRoles = { root: 'Root CA', intermediate: 'Intermediate CA', signer: 'Signing certificate' };
+
+  // The chain reads from the root down to the credential, one step in per level.
+  function certificateRow(certificate, index, depth) {
+    const row = document.createElement('div');
+    row.className = 'certificate-row';
+    row.id = 'certificate-' + index;
+    row.dataset.testid = 'certificate-row';
+    row.style.setProperty('--chain-depth', depth);
+    const name = certificate.name || certificate.subject;
+    const badges = (certificate.revoked ? '<span class="certificate-state" id="' + row.id + '-revoked">Revoked</span>' : '') +
+      (certificate.withdrawn_id ? '<span class="certificate-state" id="' + row.id + '-withdrawn">Withdrawn</span>' : '');
+    const others = certificate.credentials.length
+      ? '<div class="conf-hint" id="' + row.id + '-others">Also used by: ' + certificate.credentials.map(escHtml).join(', ') + '</div>'
+      : '';
+    row.innerHTML = '<div class="certificate-info" id="' + row.id + '-info">' +
+      '<div class="certificate-role" id="' + row.id + '-role">' + escHtml(certificateRoles[certificate.role]) + '</div>' +
+      '<div class="certificate-name" id="' + row.id + '-name" title="' + escHtml(certificate.subject) + '">' + escHtml(name) + badges + '</div>' +
+      '<div class="conf-hint mono" id="' + row.id + '-serial">Serial ' + escHtml(certificate.serial) + '</div>' + others + '</div>' +
+      '<div class="certificate-actions" id="' + row.id + '-actions"></div>';
+    const actions = row.querySelector('.certificate-actions');
+    const addAction = (label, id, run) => {
+      const button = document.createElement('button');
+      button.className = 'btn btn-sm';
+      button.id = row.id + '-' + id;
+      button.textContent = label;
+      button.addEventListener('click', run);
+      actions.appendChild(button);
+    };
+    if (certificate.revoked) {
+      addAction('Undo revocation', 'undo', () => changeCertificate('DELETE', 'api/certificates/revocations/' + certificate.serial));
+    } else if (certificate.revocable) {
+      addAction('Revoke', 'revoke', () => changeCertificate('POST', 'api/certificates/revocations', { certificate: certificate.certificate }));
+    }
+    if (certificate.withdrawn_id) {
+      addAction('Restore', 'restore', () => changeCertificate('DELETE', 'api/trust/withdrawals/' + certificate.withdrawn_id));
+    } else if (certificate.withdrawable) {
+      addAction('Withdraw', 'withdraw', () => changeCertificate('POST', 'api/trust/withdrawals', { certificate: certificate.certificate }));
+    }
+    return row;
+  }
+
+  function chainCredentialRow(depth) {
+    const row = document.createElement('div');
+    row.className = 'certificate-row certificate-row-credential';
+    row.id = 'certificate-credential';
+    row.style.setProperty('--chain-depth', depth);
+    row.innerHTML = '<div class="certificate-info" id="certificate-credential-info"><div class="certificate-name" id="certificate-credential-name">This credential</div></div>';
+    return row;
+  }
+
+  async function changeCertificate(method, path, body) {
+    try {
+      const resp = await fetch(path, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined
+      });
+      if (!resp.ok) {
+        showAPIError('Revoking or withdrawing the certificate failed', await resp.json().catch(() => ({})), resp);
+        return;
+      }
+      await renderCertificates();
+    } catch (e) {
+      showErrorDialog('Revoking or withdrawing the certificate failed', e.message);
     }
   }
 
@@ -2068,6 +2177,8 @@
     if (!decoderInput && !credentials.length && !presentations.length && !payload?.encrypted && isCompactJWT(payload?.body)) {
       decoderInput = payload.body.trim();
     }
+    if (payload?.truncated) decoderInput = undefined;
+    if (entry.details && entry.details.findings) delete details.event;
     const linked = new Set([decoderInput, ...presentations.map(p => p.token), ...credentials.map(c => c.token)]);
     const tokens = [...embeddedTokens(payload?.body), ...embeddedTokens(details)].filter(({ token }) => {
       if (linked.has(token)) return false;
@@ -3132,6 +3243,7 @@
       if (missing.length) warnings.push(missing.length + (missing.length === 1 ? ' requested field missing' : ' requested fields missing'));
       if (!claimSet && (mc.empty_array_claims || []).some(key => shared.includes(key))) warnings.push('Empty array disclosed');
       if (mc.untrusted_authority) warnings.push('Issuer not trusted by the verifier');
+      if (mc.revoked_certificates && mc.revoked_certificates.length) warnings.push('Certificate revoked');
       if (mc.unbound) warnings.push('No holder binding');
       if (mc.mismatches && mc.mismatches.length) warnings.push('Does not match the query');
       const id = 'consent-credential-' + mc.credential_id;
@@ -3140,7 +3252,7 @@
         consentFoldSummary(id, formatLabelFor(cred), name, sharedCountText(shared.length, total), shared.map(shortClaimName), warnings, !!selection.unfolded[mc.credential_id], true, cred.display) +
         '<div class="consent-fold-body" id="' + id + '-fold-body">' +
         '<div class="credential-card' + (cred.batch ? ' batch' : '') + '">' + body.html + '</div>' +
-        untrustedAuthorityNote(mc, 'consent-untrusted-' + mc.credential_id) + unboundNote(mc) + mismatchNote(mc, 'consent-mismatch-' + mc.query_id + '-' + mc.credential_id) +
+        untrustedAuthorityNote(mc, 'consent-untrusted-' + mc.credential_id) + revokedCertificateNote(mc) + unboundNote(mc) + mismatchNote(mc, 'consent-mismatch-' + mc.query_id + '-' + mc.credential_id) +
         (claimSet
           ? claimChecklist(mc.credential_id, claimSet.claims, kept, null, null, mc.always_disclosed)
           : claimChecklist(mc.credential_id, mc.claims, kept, mc.empty_array_claims, mc.missing_claims, mc.always_disclosed)) +
@@ -3156,6 +3268,12 @@
     function untrustedAuthorityNote(mc, id) {
       if (!mc || !mc.untrusted_authority) return '';
       return '<div class="consent-untrusted" role="note" id="' + domID(id) + '">⚠ Issuer not in the verifier\'s trusted authorities. Allowed in debug mode.</div>';
+    }
+
+    function revokedCertificateNote(mc) {
+      const names = mc.revoked_certificates || [];
+      if (!names.length) return '';
+      return '<div class="consent-untrusted" role="note" id="' + domID('consent-revoked-' + mc.credential_id) + '">⚠ Revoked certificate: ' + names.map(escHtml).join(', ') + '. Verifiers that check the CRL will reject this credential.</div>';
     }
 
     // Debug mode offers a credential without holder binding to a query that
@@ -3908,6 +4026,7 @@
 
   function resetConformance() {
     if (demoMode) return;
+    fetch('api/crl/fault', { method: 'DELETE' }).then(loadCRLFault).catch(() => {});
     fetch('api/config/conformance', { method: 'DELETE' })
       .then((r) => (r.ok ? r.json() : null))
       .then((c) => { if (c) conformanceDefaults = Object.assign({}, conformanceDefaults, c); applyConformanceToControls(); })
@@ -3931,6 +4050,7 @@
     if (intro) intro.hidden = !demoMode;
     const reset = document.getElementById('conf-reset');
     if (reset) reset.hidden = demoMode;
+    document.getElementById('conf-crl-fault-row').hidden = demoMode;
   }
 
   function describeReset(demo) {
@@ -3986,6 +4106,25 @@
   }
 
   // Issuance can add trusted lists, so refresh links when credentials change.
+  // The browser blocks a window opened after an await, so it opens first.
+  async function openListInDecoder(source) {
+    const decoder = window.open('', '_blank');
+    try {
+      const resp = await fetch(source);
+      if (!resp.ok) throw new Error('The list answered ' + resp.status);
+      decoder.location = 'decoder/#credential=' + encodeURIComponent((await resp.text()).trim());
+    } catch (e) {
+      decoder.close();
+      showErrorDialog('Reading the trusted list failed', e.message);
+    }
+  }
+
+  document.addEventListener('click', (event) => {
+    document.querySelectorAll('.trust-list-menu[open]').forEach((menu) => {
+      if (!menu.contains(event.target)) menu.open = false;
+    });
+  });
+
   async function loadTrustLists() {
     const row = document.getElementById('trust-list-links');
     const error = document.getElementById('trust-error');
@@ -4044,20 +4183,29 @@
           name.textContent = entry.entityName;
           links.appendChild(name);
         }
-        const copy = document.createElement('button');
-        copy.type = 'button';
-        copy.className = 'copy-btn';
-        copy.id = prefix + '-copy';
-        copy.textContent = '⧉';
-        copy.title = 'Copy trusted list URL';
-        copy.addEventListener('click', async () => {
+        const menu = document.createElement('details');
+        menu.className = 'trust-list-menu';
+        menu.id = prefix + '-menu';
+        menu.innerHTML = '<summary id="' + prefix + '-menu-toggle" data-testid="trust-list-menu">Actions</summary><div class="trust-list-menu-items" id="' + prefix + '-menu-items"></div>';
+        const addMenuItem = (label, id, run) => {
+          const item = document.createElement('button');
+          item.type = 'button';
+          item.id = prefix + '-' + id;
+          item.dataset.testid = 'trust-list-' + id;
+          item.textContent = label;
+          item.addEventListener('click', () => {
+            menu.open = false;
+            run();
+          });
+          menu.lastElementChild.appendChild(item);
+        };
+        addMenuItem('Copy URL', 'copy', async () => {
           try {
             await navigator.clipboard.writeText(url);
-            copy.textContent = '✓';
-            setTimeout(() => { copy.textContent = '⧉'; }, 1200);
           } catch (e) { /* The clipboard API may be unavailable. */ }
         });
-        links.appendChild(copy);
+        addMenuItem('Open in decoder', 'decode', () => openListInDecoder(entry.path ? entry.path.replace(/^\//, '') : url));
+        links.appendChild(menu);
         detail.appendChild(links);
         if (entry.description) {
           const desc = document.createElement('span');
@@ -5843,10 +5991,45 @@
   document.getElementById('conformance-link').addEventListener('click', (event) => {
     event.preventDefault();
     conformanceOverlay.classList.add('active');
+    loadCRLFault();
   });
   document.getElementById('conformance-close').addEventListener('click', () => {
     conformanceOverlay.classList.remove('active');
   });
+
+  const crlFaultSelect = document.getElementById('conf-crl-fault-select');
+
+  async function loadCRLFault() {
+    if (demoMode) return;
+    try {
+      const resp = await fetch('api/crl/fault');
+      if (resp.ok) crlFaultSelect.value = (await resp.json()).fault || '';
+    } catch (e) {
+      showErrorDialog('Reading the CRL fault failed', e.message);
+    }
+  }
+
+  crlFaultSelect.addEventListener('change', async () => {
+    const fault = crlFaultSelect.value;
+    try {
+      const resp = await fetch('api/crl/fault', fault
+        ? { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fault }) }
+        : { method: 'DELETE' });
+      if (!resp.ok) {
+        showAPIError('Setting the CRL fault failed', await resp.json().catch(() => ({})), resp);
+        loadCRLFault();
+      }
+    } catch (e) {
+      showErrorDialog('Setting the CRL fault failed', e.message);
+      loadCRLFault();
+    }
+  });
+
+  const certificatesOverlay = document.getElementById('certificates-overlay');
+  document.getElementById('certificates-close').addEventListener('click', () => {
+    certificatesOverlay.classList.remove('active');
+  });
+  makeModal(certificatesOverlay, document.getElementById('certificates-close'));
 
   const cliOverlay = document.getElementById('cli-overlay');
   document.getElementById('get-cli-link').addEventListener('click', (event) => {

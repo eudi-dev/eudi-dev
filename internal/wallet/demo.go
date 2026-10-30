@@ -191,6 +191,14 @@ func demoBlockedRoute(r *http.Request) bool {
 		return true
 	case (r.Method == http.MethodPost || r.Method == http.MethodDelete) && p == "/api/next-error":
 		return true
+	case (r.Method == http.MethodPut || r.Method == http.MethodDelete) && p == "/api/crl/fault":
+		return true
+	case (r.Method == http.MethodGet || r.Method == http.MethodHead) && strings.HasPrefix(p, "/api/credentials/") && strings.HasSuffix(p, "/certificates"):
+		return true
+	case r.Method != http.MethodGet && (p == certificateRevocationsPath || strings.HasPrefix(p, certificateRevocationsPath+"/")):
+		return true
+	case r.Method != http.MethodGet && (p == trustWithdrawalsPath || strings.HasPrefix(p, trustWithdrawalsPath+"/")):
+		return true
 	case r.Method == http.MethodPut && p == "/api/config/preferred-format":
 		return true
 	case r.Method == http.MethodPut && p == "/api/config/auto-accept":

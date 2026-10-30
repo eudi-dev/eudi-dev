@@ -3014,6 +3014,54 @@ textarea.form-input {
   gap: 10px;
   font-size: 13px;
 }
+.trust-list-menu {
+  position: relative;
+  margin-left: auto;
+}
+.trust-list-menu summary {
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  list-style: none;
+  background: var(--bg-input);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.trust-list-menu summary::-webkit-details-marker {
+  display: none;
+}
+.trust-list-menu summary::after {
+  content: " ▾";
+  color: var(--text-dim);
+}
+.trust-list-menu-items {
+  position: absolute;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  min-width: 150px;
+  margin-top: 4px;
+  padding: 4px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.trust-list-menu-items button {
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.trust-list-menu-items button:hover {
+  background: var(--bg-raised);
+}
 .trust-links a {
   color: var(--link);
   text-decoration: none;
@@ -3566,4 +3614,84 @@ textarea.form-input {
 .consent-dialog.dialog-maximized #issue-claims,
 .consent-dialog.dialog-maximized .import-textarea {
   height: 60vh;
+}
+
+.certificate-list {
+  margin-bottom: 16px;
+}
+
+.certificate-row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-left: calc(var(--chain-depth, 0) * 20px);
+  padding: 10px 12px;
+  background: var(--bg-raised);
+  border-radius: 12px;
+}
+
+.certificate-row + .certificate-row {
+  margin-top: 12px;
+}
+
+/* An elbow from the row above shows which certificate issued this one. */
+.certificate-row + .certificate-row::before {
+  content: "";
+  position: absolute;
+  top: -12px;
+  left: -10px;
+  width: 10px;
+  height: 30px;
+  border-left: 2px solid var(--border);
+  border-bottom: 2px solid var(--border);
+  border-bottom-left-radius: 6px;
+}
+
+.certificate-row-credential {
+  background: none;
+  border: 1px solid var(--border);
+}
+
+.certificate-info {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.certificate-role {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.certificate-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.certificate-state {
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--danger);
+}
+
+.certificate-actions {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+@media (max-width: 480px) {
+  .certificate-row {
+    flex-direction: column;
+    margin-left: calc(var(--chain-depth, 0) * 12px);
+  }
+
+  .certificate-actions {
+    justify-content: flex-start;
+  }
 }

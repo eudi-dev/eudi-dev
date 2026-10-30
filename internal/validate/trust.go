@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
 	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
 )
@@ -37,6 +38,9 @@ type Trust struct {
 	// anchor credentials, revocation services their status lists (ETSI TS
 	// 119 602 V1.1.1 Table D.3).
 	Issuance, Revocation []*x509.Certificate
+	// CertificateProblems reads the CRLs of a credential's certificates. Without
+	// it the certificate revocation check is skipped.
+	CertificateProblems func([]*x509.Certificate) []certchain.RevocationProblem
 	// Supplied is set once the caller supplies a key or a trusted list, even
 	// a list without services.
 	Supplied bool

@@ -200,6 +200,8 @@ func (s *WalletStore) loadSections(w *Wallet, sections []string) error {
 		case trustSection:
 			w.TrustedEntities = loaded.trust.Entities
 			w.AddedTrustedLists = loaded.trust.Lists
+			w.RevokedCertificates = loaded.trust.Revoked
+			w.WithdrawnCertificates = loaded.trust.Withdrawn
 		case settingsSection:
 			w.BaseURL = loaded.settings.BaseURL
 			w.IssuerURL = loaded.settings.IssuerURL
@@ -299,8 +301,10 @@ type loadedSections struct {
 
 // storedTrust holds the providers and lists added by users.
 type storedTrust struct {
-	Entities []trustedlists.Entity `json:"entities,omitempty"`
-	Lists    []string              `json:"lists,omitempty"`
+	Entities  []trustedlists.Entity               `json:"entities,omitempty"`
+	Lists     []string                            `json:"lists,omitempty"`
+	Revoked   []RevokedCertificate                `json:"revoked_certificates,omitempty"`
+	Withdrawn []trustedlists.WithdrawnCertificate `json:"withdrawn_certificates,omitempty"`
 }
 
 // Keep held credentials whose stored row has not changed.
@@ -668,8 +672,8 @@ func (s *WalletStore) currentEntities(w *Wallet, snapshot stateSnapshot) (map[st
 			return nil, nil, nil, err
 		}
 	}
-	if len(w.TrustedEntities) > 0 || len(w.AddedTrustedLists) > 0 {
-		if err := put(s.stateKey(trustSection, "lists"), storedTrust{Entities: w.TrustedEntities, Lists: w.AddedTrustedLists}); err != nil {
+	if len(w.TrustedEntities) > 0 || len(w.AddedTrustedLists) > 0 || len(w.RevokedCertificates) > 0 || len(w.WithdrawnCertificates) > 0 {
+		if err := put(s.stateKey(trustSection, "lists"), storedTrust{Entities: w.TrustedEntities, Lists: w.AddedTrustedLists, Revoked: w.RevokedCertificates, Withdrawn: w.WithdrawnCertificates}); err != nil {
 			return nil, nil, nil, err
 		}
 	}

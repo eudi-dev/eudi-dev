@@ -135,7 +135,7 @@ The examples use the public demo origin `https://eudi-test.dev`. A configured HT
 
 Each CRL distribution point lists the path twice. The first URL uses plain http, because ETSI EN 319 412-2 V2.5.1 GEN-4.3.11-4 asks for one http or ldap reference. The second uses the issuer URL over https. With an http `--base-url`, such as the local default, the http URL is that base URL. With an https `--base-url` on the default port, such as `https://eudi-test.dev`, the wallet runs behind a TLS terminator. The http URL is then the issuer host on port 80, for example `http://eudi-test.dev/api/crl`, and the terminator has to answer the CRL paths over plain http. The [public demo Caddyfile](../examples/public-demo/Caddyfile) does that. In other setups, such as `--serve-tls` on its own port, the certificate contains only the https URL. The CA of each certificate signs the CRL at its path.
 
-The wallet CA, the provider CAs and the registrar CA revoke no certificates, so their CRLs are empty. Credentials are revoked on the status list. The relying party access CA revokes the access certificates of a deleted relying party, and those of a service whose certified data changed (CIR (EU) 2025/848 Article 9(6) and Annex IV). See [registrar](wallet/registrar.md).
+The CRLs of the wallet CA, the provider CAs and the registrar CA stay empty until you revoke a certificate in the wallet UI or through the [HTTP API](wallet/http-api.md#certificate-revocation). Credentials are revoked on the status list. The relying party access CA revokes the access certificates of a deleted relying party, and those of a service whose certified data changed (CIR (EU) 2025/848 Article 9(6) and Annex IV). See [registrar](wallet/registrar.md).
 
 ### Localhost special case
 

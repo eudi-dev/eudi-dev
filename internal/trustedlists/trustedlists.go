@@ -41,11 +41,13 @@ import (
 type Additions struct {
 	TrustedEntities   []Entity `json:"trusted_entities,omitempty"`
 	AddedTrustedLists []string `json:"trusted_lists,omitempty"`
+	// WithdrawnCertificates were removed from the wallet's own trusted lists.
+	WithdrawnCertificates []WithdrawnCertificate `json:"withdrawn_certificates,omitempty"`
 }
 
 // Clone copies the lists, so the copy and the original change independently.
 func (a Additions) Clone() Additions {
-	return Additions{TrustedEntities: slices.Clone(a.TrustedEntities), AddedTrustedLists: slices.Clone(a.AddedTrustedLists)}
+	return Additions{TrustedEntities: slices.Clone(a.TrustedEntities), AddedTrustedLists: slices.Clone(a.AddedTrustedLists), WithdrawnCertificates: slices.Clone(a.WithdrawnCertificates)}
 }
 
 // Settings are the trust settings of the wallet: the CAs from
@@ -207,16 +209,18 @@ func (t *Set) Entities() []Entity {
 func (t *Set) listEntities(listID string) []lote.Entity {
 	var out []lote.Entity
 	for _, entity := range t.Entities() {
-		if entity.List == listID {
-			out = append(out, lote.Entity{Name: entity.Name, Issuance: entity.Certificates, Revocation: entity.Certificates})
+		if certificates := t.withoutWithdrawn(entity.Certificates); entity.List == listID && len(certificates) > 0 {
+			out = append(out, lote.Entity{Name: entity.Name, Issuance: certificates, Revocation: certificates})
 		}
 	}
 	if listID == provider.AccessCAListID || listID == provider.RegistrarListID {
 		configured, err := keys.ParseCertificatesPEM(t.settings.RelyingPartyCAPEM)
 		if err == nil {
 			for _, cert := range configured {
-				encoded := base64.StdEncoding.EncodeToString(cert.Raw)
-				out = append(out, lote.Entity{Name: caEntityName(cert, "Relying party CA"), Issuance: []string{encoded}, Revocation: []string{encoded}})
+				encoded := t.withoutWithdrawn([]string{base64.StdEncoding.EncodeToString(cert.Raw)})
+				if len(encoded) > 0 {
+					out = append(out, lote.Entity{Name: caEntityName(cert, "Relying party CA"), Issuance: encoded, Revocation: encoded})
+				}
 			}
 		}
 	}

@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"log"
 	"maps"
+	"math"
 	"net/http"
 	"reflect"
 	"slices"
@@ -111,6 +112,7 @@ type Wallet struct {
 	// wallet's local StatusListCounter.
 	allocateStatusIndex func(*Wallet) (int, error)
 	logSink             func(LogEntry)
+	crlFault            CRLFault
 	runtime             *consent.Runtime
 	signers             *provider.Keys
 	// Marks batch use counts for saving so rotation survives restart.
@@ -183,10 +185,12 @@ type PersistedState struct {
 	registrar.State
 	// The providers and lists added by users through `trust` or the API.
 	trustedlists.Additions
-	Log               []LogEntry             `json:"log,omitempty"`
-	DeferredIssuances []DeferredIssuance     `json:"deferred_issuances,omitempty"`
-	StatusEntries     map[string]StatusEntry `json:"status_entries,omitempty"`
-	StatusListCounter int                    `json:"status_list_counter,omitempty"`
+	// RevokedCertificates are listed on the CRL of their issuer.
+	RevokedCertificates []RevokedCertificate   `json:"revoked_certificates,omitempty"`
+	Log                 []LogEntry             `json:"log,omitempty"`
+	DeferredIssuances   []DeferredIssuance     `json:"deferred_issuances,omitempty"`
+	StatusEntries       map[string]StatusEntry `json:"status_entries,omitempty"`
+	StatusListCounter   int                    `json:"status_list_counter,omitempty"`
 }
 
 // clone copies the lists, so the copy and p change independently.
@@ -196,6 +200,7 @@ func (p PersistedState) clone() PersistedState {
 	c.IssuedAttestations = slices.Clone(p.IssuedAttestations)
 	c.State = p.State.Clone()
 	c.Additions = p.Additions.Clone()
+	c.RevokedCertificates = slices.Clone(p.RevokedCertificates)
 	c.Log = slices.Clone(p.Log)
 	c.DeferredIssuances = slices.Clone(p.DeferredIssuances)
 	c.StatusEntries = maps.Clone(p.StatusEntries)
@@ -454,6 +459,7 @@ type LogPayload struct {
 	Body      any    `json:"body"`
 	Encrypted bool   `json:"encrypted,omitempty"`
 	Wire      any    `json:"wire,omitempty"`
+	Truncated bool   `json:"truncated,omitempty"`
 }
 
 const severityWarning = "warning"
@@ -1171,7 +1177,7 @@ func (w *Wallet) reportDeviation(d deviation) error {
 const (
 	maxLogEntries    = 1000
 	logTrimSlack     = 256
-	maxLogEntryBytes = 64 << 10
+	maxLogEntryBytes = 256 << 10
 )
 
 // restoreLogEntries adds missing entries to the log, in time order.
@@ -1222,38 +1228,52 @@ func (w *Wallet) appendLogEntry(entry LogEntry) {
 }
 
 // boundedLogEntry truncates the detail and the payload of an entry larger
-// than maxLogEntryBytes. The truncated values say how long they were.
+// than maxLogEntryBytes. The truncated values say how long they were. The body
+// is kept whole if the entry then fits. A token in it can then open in the
+// decoder.
 func boundedLogEntry(entry LogEntry) LogEntry {
-	if raw, err := json.Marshal(entry); err == nil && len(raw) <= maxLogEntryBytes {
+	if logEntrySize(entry) <= maxLogEntryBytes {
 		return entry
 	}
 	limit := maxLogEntryBytes / 4
-	entry.Detail = truncatedLogValue(entry.Detail, limit).(string)
-	if entry.Payload != nil {
-		payload := *entry.Payload
-		payload.Body = truncatedLogValue(payload.Body, limit)
-		payload.Wire = truncatedLogValue(payload.Wire, limit)
-		entry.Payload = &payload
+	detail, _ := truncatedLogValue(entry.Detail, limit)
+	entry.Detail = detail.(string)
+	if entry.Payload == nil {
+		return entry
+	}
+	payload := *entry.Payload
+	payload.Wire, _ = truncatedLogValue(payload.Wire, limit)
+	entry.Payload = &payload
+	if logEntrySize(entry) > maxLogEntryBytes {
+		payload.Body, payload.Truncated = truncatedLogValue(payload.Body, limit)
 	}
 	return entry
 }
 
-func truncatedLogValue(value any, limit int) any {
+func logEntrySize(entry LogEntry) int {
+	raw, err := json.Marshal(entry)
+	if err != nil {
+		return math.MaxInt
+	}
+	return len(raw)
+}
+
+func truncatedLogValue(value any, limit int) (any, bool) {
 	text, ok := value.(string)
 	if !ok {
 		if value == nil {
-			return nil
+			return nil, false
 		}
 		raw, err := json.Marshal(value)
 		if err != nil || len(raw) <= limit {
-			return value
+			return value, false
 		}
 		text = string(raw)
 	}
 	if len(text) <= limit {
-		return value
+		return value, false
 	}
-	return fmt.Sprintf("%s… (truncated, %d bytes)", strings.ToValidUTF8(text[:limit], ""), len(text))
+	return fmt.Sprintf("%s… (truncated, %d bytes)", strings.ToValidUTF8(text[:limit], ""), len(text)), true
 }
 
 func cloneLogDetails(details map[string]any) map[string]any {

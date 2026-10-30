@@ -27,13 +27,14 @@ import (
 // resolveTrust builds the trust of one validation: the supplied key and
 // trusted lists, and the wallet's catalogue and HTTP client.
 func resolveTrust(opts ValidateOpts) validate.Trust {
-	var trust validate.Trust
+	trust := validate.Trust{CertificateProblems: validate.CRLReader(format.HTTPClient())}
 	if !opts.Offline {
 		w, err := decoderWallet(opts)
 		trust.CatalogueErr = err
 		if w != nil {
 			trust.Catalogue = w
 			trust.HTTPClient = w.HTTPClient()
+			trust.CertificateProblems = w.CertificateProblems
 		}
 	}
 	trust.Err = addSuppliedTrust(&trust, opts)

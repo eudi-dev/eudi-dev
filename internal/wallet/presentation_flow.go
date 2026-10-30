@@ -137,6 +137,7 @@ func (w *Wallet) evaluatePresentationRequest(authReq *oid4vp.Request, entry pres
 // reports the submission on the request's SubmissionCh. An error means the
 // dialog was not shown, because too many requests wait for consent.
 func (w *Wallet) askPresentationConsent(ctx context.Context, typ, owner, asking string, authReq *oid4vp.Request, outcome presentationOutcome, timeout time.Duration, shown func(*consent.Request)) (consentReq *consent.Request, matches []consent.Match, approved, answered bool, err error) {
+	w.flagRevokedCertificates(outcome.matches, outcome.options)
 	consentReq = newPresentationConsent(typ, owner, asking, authReq, outcome.matches, outcome.options)
 	if err := w.Consents().Create(consentReq); err != nil {
 		return nil, nil, false, false, err

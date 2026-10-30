@@ -105,13 +105,14 @@ func runValidate(cmd *cobra.Command, args []string) error {
 // wallet when it exists. Its catalogue anchors credentials and its HTTP client
 // fetches remote documents. validate creates no wallet.
 func validateTrust() (validate.Trust, error) {
-	var trust validate.Trust
+	trust := validate.Trust{CertificateProblems: validate.CRLReader(format.HTTPClient())}
 	w, err := storedWallet()
 	if err != nil {
 		trust.CatalogueErr = err
 	} else if w != nil {
 		trust.Catalogue = w
 		trust.HTTPClient = w.HTTPClient()
+		trust.CertificateProblems = w.CertificateProblems
 	}
 
 	if keyFile != "" {
@@ -174,7 +175,7 @@ func printValidation(result *validate.Result, opts output.Options, report jsonRe
 	if result.HAIPFindings != nil {
 		printHAIPFindings(result.HAIPFindings.Texts(), report)
 	}
-	for _, name := range []string{validate.CheckType, validate.CheckIntegrity, validate.CheckTrustedList} {
+	for _, name := range []string{validate.CheckType, validate.CheckIntegrity, validate.CheckTrustedList, validate.CheckCertificates} {
 		if c, ok := result.Find(name); ok && (c.Status == validate.Fail || c.Status == validate.Warning) {
 			report.text(func() { printCheck(c) })
 		}
@@ -244,7 +245,7 @@ func printCheck(c validate.Check) {
 // validationError fails on the credential's own checks. The catalogue trust
 // and HAIP checks are informational.
 func validationError(result *validate.Result) error {
-	failing := []string{validate.CheckType, validate.CheckIntegrity, validate.CheckSignature, validate.CheckExpiry, validate.CheckStatus}
+	failing := []string{validate.CheckType, validate.CheckIntegrity, validate.CheckSignature, validate.CheckCertificates, validate.CheckExpiry, validate.CheckStatus}
 	for _, c := range result.Checks {
 		if c.Status != validate.Fail || !slices.Contains(failing, c.Name) {
 			continue
