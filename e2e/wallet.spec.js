@@ -1083,6 +1083,35 @@ test.describe("Credential Issuing via UI", () => {
     }
   });
 
+  // A status change rebuilds the list twice: once directly and once on the state event.
+  for (const [layout, viewport] of [
+    ["wide", { width: 1280, height: 300 }],
+    ["small", { width: 390, height: 520 }],
+  ]) {
+    test(`revoking keeps the scroll position and focus on a ${layout} screen`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await page.goto(WALLET_URL);
+      await expect(page.locator(".credential-card")).toHaveCount(2);
+      const card = page.locator(".credential-card").last();
+      const id = await card.getAttribute("data-credential-id");
+      const position = () => page.evaluate(() => Math.round(window.scrollY + document.querySelector(".main").scrollTop));
+      const button = page.locator(`#revoke-${id}`);
+
+      for (const [label, status] of [["Revoke", "Revoked"], ["Activate", "Active"]]) {
+        await button.evaluate((el) => el.scrollIntoView({ block: "center" }));
+        const before = await position();
+        expect(before).toBeGreaterThan(0);
+        await button.focus();
+        await expect(button).toHaveText(label);
+        await button.click();
+        await expect(page.locator(`#status-${id}`)).toHaveText(status);
+        await page.waitForTimeout(600);
+        expect(Math.abs((await position()) - before)).toBeLessThanOrEqual(1);
+        await expect(button).toBeFocused();
+      }
+    });
+  }
+
   test("shows status badges and revokes and re-activates a credential", async ({
     page,
   }) => {

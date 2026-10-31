@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Scroll position in the wallet.** Revoking or activating a credential moved the page up, on phones almost to the top. The page now stays where it is, and the button keeps its focus.
 - **Over-asking findings.** The finding now names the types that aren't registered. It used to name the first accepted type, which could be a registered one.
 
 ## [3.6.0] - 2026-10-31

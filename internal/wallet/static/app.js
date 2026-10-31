@@ -556,7 +556,8 @@
       return;
     }
     credEmpty.hidden = true;
-    credContainer.querySelectorAll('.credential-card').forEach(el => el.remove());
+    const focusedId = credContainer.contains(document.activeElement) ? document.activeElement.id : '';
+    const cards = document.createDocumentFragment();
 
     credentials.forEach(cred => {
       const card = document.createElement('div');
@@ -664,8 +665,22 @@
           });
         }
       }
-      credContainer.appendChild(card);
+      cards.appendChild(card);
     });
+    keepScrollPosition(() => {
+      credContainer.querySelectorAll('.credential-card').forEach(el => el.remove());
+      credContainer.appendChild(cards);
+    });
+    if (focusedId) document.getElementById(focusedId)?.focus({ preventScroll: true });
+  }
+
+  // Browser scroll anchoring loses its anchor when a list is replaced and moves the page by
+  // about a card per refresh. The page scrolls in .main, or in the document on small screens.
+  function keepScrollPosition(replace) {
+    const scrollers = [document.scrollingElement, mainArea];
+    const positions = scrollers.map(el => el.scrollTop);
+    replace();
+    scrollers.forEach((el, i) => { if (el.scrollTop !== positions[i]) el.scrollTop = positions[i]; });
   }
 
   function descIcon(cls, body) {
@@ -2255,12 +2270,13 @@
   });
 
   function renderLog(log) {
-    logContainer.querySelectorAll('.log-entry').forEach(el => el.remove());
     if (!log || log.length === 0) {
+      logContainer.querySelectorAll('.log-entry').forEach(el => el.remove());
       logEmpty.hidden = false;
       return;
     }
     logEmpty.hidden = true;
+    const entries = document.createDocumentFragment();
 
     splitFindingGroups(combineRequestLogs(log)).reverse().forEach((entry, index) => {
       const el = document.createElement('div');
@@ -2311,7 +2327,11 @@
           payloadToggle.textContent = showWire ? labels.showPlain : labels.showWire;
         });
       }
-      logContainer.appendChild(el);
+      entries.appendChild(el);
+    });
+    keepScrollPosition(() => {
+      logContainer.querySelectorAll('.log-entry').forEach(el => el.remove());
+      logContainer.appendChild(entries);
     });
   }
 
