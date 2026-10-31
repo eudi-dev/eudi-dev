@@ -2034,6 +2034,65 @@ test("a trusted list opens in the decoder", async ({ page }) => {
   await decoder.close();
 });
 
+test("a request without a matching credential offers to request it", async ({ page }) => {
+  const options = { queries: [{ id: "pid", candidates: [], obtainable: [{ id: "de", name: "German PID" }, { id: "nl", name: "Dutch PID" }] }] };
+  await page.route("**/api/requests*", route => route.fulfill({ json: [{
+    id: "req-obtain", type: "presentation", status: "pending", client_id: "x509_hash:abc", matched_credentials: [], credential_options: options,
+  }] }));
+  await page.route("**/api/issuance", route => route.fulfill({ json: [
+    { id: "de", name: "German PID", issuers: [{ name: "Issuer A", url: "https://a.example", credential_configuration_ids: ["de"], formats: ["dc+sd-jwt"] }, { name: "Issuer B", url: "https://b.example", credential_configuration_ids: ["de"], formats: ["mso_mdoc"] }] },
+    { id: "nl", name: "Dutch PID", issuers: [] },
+    { id: "other", name: "Other", issuers: [] },
+  ] }));
+  await page.goto(`${WALLET_URL}/?request=req-obtain`);
+  await page.locator("[data-obtain]").click();
+  const rows = page.getByTestId("issuable-row");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.first().getByRole("button", { name: "Request from Issuer B" })).toBeVisible();
+  await expect(rows.first()).toContainText("Issuer A (SD-JWT), Issuer B (mdoc)");
+  await expect(rows.last()).toContainText("No known issuer offers this credential.");
+});
+
+for (const [outcome, additional, text] of [
+  ["a refused format", [{ error: "refused" }], "Added 1 of 2 formats. See the activity log."],
+  ["a deferred format", [{ pending: true }], "Added 1 of 2 formats. The issuer will deliver the rest later."],
+]) {
+  test(`${outcome} keeps the request dialog open with the outcome`, async ({ page }) => {
+    await page.route("**/api/issuance", route => route.request().method() === "POST"
+      ? route.fulfill({ json: { credential_id: "first", additional } })
+      : route.fulfill({ json: [{ id: "x", name: "Diploma", issuers: [{ name: "Issuer", url: "https://a.example", credential_configuration_ids: ["a", "b"], formats: ["dc+sd-jwt", "mso_mdoc"] }] }] }));
+    await page.goto(WALLET_URL);
+    await page.locator("#request-credential-btn").click();
+    await page.getByTestId("issuable-row").getByRole("button", { name: "Request" }).click();
+    await expect(page.getByTestId("issuable-row")).toContainText(text);
+    await expect(page.locator("#request-credential-overlay")).toHaveClass(/active/);
+  });
+}
+
+test("an added attestation names its credential issuer", async ({ page }) => {
+  await page.goto(WALLET_URL);
+  await page.locator("#registrar-menu-toggle").click();
+  await page.locator("#registrar-catalog-link").click();
+  await page.locator("#registrar-catalog-add").click();
+  await page.locator("#registrar-catalog-name").fill("Issuer field test");
+  await page.locator("#registrar-catalog-format-1-type").fill("urn:example:issuer-field:1");
+  await page.locator("#registrar-catalog-issuer").fill("https://issuer.example/");
+  const added = page.waitForResponse(res => res.url().endsWith("/api/catalog/attestations") && res.request().method() === "POST");
+  await page.locator("#registrar-catalog-save").click();
+  expect((await (await added).json()).credentialIssuer).toBe("https://issuer.example");
+});
+
+test("copying a trusted list URL shows that it was copied", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto(WALLET_URL);
+  await page.locator("#trust-link").click();
+  const toggle = page.getByTestId("trust-list-menu").first();
+  await toggle.click();
+  await page.getByTestId("trust-list-copy").first().click();
+  await expect(toggle).toHaveText("Copied!");
+  await expect(toggle).toHaveText("Actions");
+});
+
 test("the settings set and clear a CRL fault", async ({ page }) => {
   await page.goto(WALLET_URL);
   await page.locator("#conformance-link").click();

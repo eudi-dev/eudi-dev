@@ -128,7 +128,7 @@ func TestAuthorizationDetailsNameTheIssuerOfASeparateAuthorizationServer(t *test
 		"authorization_servers":               []any{"https://as.example"},
 		"credential_configurations_supported": map[string]any{"test-config": map[string]any{}},
 	}
-	request, err := generateTestWallet(t).authorizationCredentialRequest(metadata, "test-config")
+	request, err := generateTestWallet(t).authorizationCredentialRequest(metadata, []string{"test-config"})
 	if err != nil {
 		t.Fatal(err)
 	}

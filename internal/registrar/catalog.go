@@ -73,6 +73,10 @@ type CatalogAttestation struct {
 	// with the provider CA of that category. An entry without trusted
 	// authorities links the wallet's trusted list of that category.
 	Category string `json:"category,omitempty"`
+	// CredentialIssuer is the Credential Issuer Identifier of an issuer of this
+	// type. The ARF ISSU_23 note leaves the choice of issuer to the Wallet
+	// Provider, so it is no part of the schema.
+	CredentialIssuer string `json:"credentialIssuer,omitempty"`
 	// Template marks an entry built from a credential template. Editing the
 	// template changes the entry. The catalogue API can't change it.
 	Template bool `json:"template,omitempty"`
@@ -471,6 +475,16 @@ func (r *Registrar) isTemplateCatalogID(id, base string) bool {
 // normalizeCatalogAttestation checks an entry against the TS11 v1.0 §4.3 data
 // model and fills in defaults. It accepts the two EUDI formats, dc+sd-jwt and
 // mso_mdoc.
+// normalizeCredentialIssuer drops a trailing slash, because OpenID4VCI 1.0 §12.2.4
+// asks for the identifier of the metadata and a slash would not match it.
+func normalizeCredentialIssuer(issuer string) (string, error) {
+	issuer = strings.TrimSuffix(strings.TrimSpace(issuer), "/")
+	if issuer != "" && !format.IsWebURL(issuer) {
+		return "", fmt.Errorf("the credential issuer %q is not an http or https URL", issuer)
+	}
+	return issuer, nil
+}
+
 func normalizeCatalogAttestation(entry *CatalogAttestation, base string) error {
 	entry.Name = strings.TrimSpace(entry.Name)
 	if entry.Name == "" {
@@ -480,6 +494,11 @@ func normalizeCatalogAttestation(entry *CatalogAttestation, base string) error {
 	if err := credtemplate.CheckCategory(entry.Category); err != nil {
 		return err
 	}
+	issuer, err := normalizeCredentialIssuer(entry.CredentialIssuer)
+	if err != nil {
+		return err
+	}
+	entry.CredentialIssuer = issuer
 	if len(entry.Credentials) == 0 {
 		return fmt.Errorf("an attestation needs at least one format with its type")
 	}

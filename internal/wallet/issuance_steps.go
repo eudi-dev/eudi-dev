@@ -15,6 +15,7 @@
 package wallet
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/x509"
 	"fmt"
@@ -341,8 +342,10 @@ type issuanceSession struct {
 	// renewal holds the issuer, its endpoints, the configuration and the
 	// client of this issuance.
 	renewal CredentialRenewal
-	nonces  *dpopNonceState
-	report  func(...findings.Finding)
+	// additional are further configurations under the same authorization.
+	additional []string
+	nonces     *dpopNonceState
+	report     func(...findings.Finding)
 }
 
 // issueWithToken ends a pre-authorized and an authorization code issuance. A
@@ -352,8 +355,51 @@ func (w *Wallet) issueWithToken(s issuanceSession, tokenForm url.Values) (*Issua
 	if err != nil {
 		return nil, fmt.Errorf("token exchange: %w", err)
 	}
+	s.renewal.RefreshToken = grant.refreshToken
+	defer w.refreshWaitingPresentations()
+
+	result, err := w.issueConfiguration(s, grant)
+	if err != nil {
+		return nil, err
+	}
+	for _, configID := range s.additional {
+		next := s
+		next.renewal.ConfigurationID = configID
+		next.renewal.ReusePolicy = w.reuseOption(s.metadata, configID)
+		images := newOfferImages(context.Background())
+		next.display = w.resolveCredentialDisplay(images, s.metadata, configID)
+		s.report(images.problems...)
+		w.logIssuerFindings(s.renewal.Issuer, images.problems)
+		additional, err := w.issueAdditionalConfiguration(next, grant)
+		if err != nil {
+			// The credentials so far are in the wallet, so the result reports them
+			// with this failure.
+			w.addProtocolLog("issuance", "issuance_failed", fmt.Sprintf("Credential configuration %s from %s failed: %v", configID, s.renewal.Issuer, err), false, map[string]any{
+				"issuer": s.renewal.Issuer,
+				"error":  err.Error(),
+			})
+			additional = &IssuanceResult{Issuer: s.renewal.Issuer, Error: err.Error()}
+		}
+		result.Additional = append(result.Additional, additional)
+	}
+	return result, nil
+}
+
+// issueAdditionalConfiguration refuses a token that leaves out the
+// configuration. Another configuration's credential_identifier would store its
+// credential under this one.
+func (w *Wallet) issueAdditionalConfiguration(s issuanceSession, grant *accessGrant) (*IssuanceResult, error) {
+	configID := s.renewal.ConfigurationID
+	if _, authorizedOther := resolveCredentialIdentifier(grant.response, configID); authorizedOther != "" {
+		return nil, fmt.Errorf("the token does not cover credential configuration %s", configID)
+	}
+	return w.issueConfiguration(s, grant)
+}
+
+// issueConfiguration requests the credential of s.renewal.ConfigurationID with
+// a granted token and stores it.
+func (w *Wallet) issueConfiguration(s issuanceSession, grant *accessGrant) (*IssuanceResult, error) {
 	renewal := s.renewal
-	renewal.RefreshToken = grant.refreshToken
 
 	proofKeys, err := issuanceProofKeys(s.metadata, renewal.ReusePolicy)
 	if err != nil {

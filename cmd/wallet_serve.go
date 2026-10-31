@@ -853,6 +853,7 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	if verifierIdentity != nil {
 		demoRP.SetVerifierIdentity(verifierIdentity)
 	}
+	w.SetDemoIssuer(demoRP.IssuerID)
 	srv.Mount("/issuer", demoRP.IssuerHandler())
 	srv.Mount("/verifier", demoRP.VerifierHandler())
 	demoRP.HandleWellKnown(srv.Handle)

@@ -1091,12 +1091,19 @@ def set_wallet_conformance(wallet_url: str, mode: str, requires_haip: bool) -> N
         )
 
 
-def submit_wallet_request(wallet_url: str, request_url: str, requires_haip: bool = False, test_name: str | None = None) -> WalletSubmissionResult:
-    api_path = wallet_api_path_for_request(request_url)
+def submit_wallet_request(
+    wallet_url: str,
+    request_url: str,
+    requires_haip: bool = False,
+    test_name: str | None = None,
+    api_path: str | None = None,
+    payload: dict | None = None,
+) -> WalletSubmissionResult:
+    api_path = api_path or wallet_api_path_for_request(request_url)
     # The non-HAIP modules must run without HAIP and the HAIP modules with it,
     # so set the wallet's own conformance for this submission first.
     set_wallet_conformance(wallet_url, WALLET_MODE, requires_haip)
-    payload = {"uri": request_url}
+    payload = payload or {"uri": request_url}
     tx_code = tx_code_from_offer(request_url)
     if tx_code:
         payload["tx_code"] = tx_code
@@ -1236,7 +1243,16 @@ def submit_synthetic_vci_offer(wallet_url: str, info: dict, state: dict) -> None
         )
     if not offer_url or state.get("submitted_synthetic_offer"):
         return
-    result = submit_wallet_request(wallet_url, offer_url, state.get("requires_haip", False), state.get("test_name"))
+    # The wallet starts this flow itself, so the offer only carries its two inputs.
+    offer = json.loads(urllib.parse.parse_qs(urllib.parse.urlsplit(offer_url).query)["credential_offer"][0])
+    result = submit_wallet_request(
+        wallet_url,
+        offer_url,
+        state.get("requires_haip", False),
+        state.get("test_name"),
+        api_path="/api/issuance",
+        payload={"issuer": offer["credential_issuer"], "credential_configuration_ids": offer["credential_configuration_ids"]},
+    )
     if result.completed or not result.retryable:
         state["submitted_synthetic_offer"] = True
 

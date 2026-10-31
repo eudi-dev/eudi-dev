@@ -65,9 +65,11 @@
       <div class="actions-bar">
         <input type="text" id="offer-input" aria-label="Offer or request URI" placeholder="Paste an offer or request URI…">
         <button class="btn btn-primary" id="process-btn">Process</button>
+        <button class="btn" id="request-credential-btn">Request credential</button>
         <button class="btn" id="import-btn">Import credential</button>
         <button class="btn" id="issue-btn">Issue credential</button>
       </div>
+      <p class="conf-hint" id="request-credential-result" role="status" hidden></p>
       <div class="actions-hint" id="actions-hint">
         No offer at hand? <a href="issuer/" id="actions-hint-issuer-link">Get one from the demo issuer</a>
         &middot; <a href="verifier/" id="actions-hint-verifier-link">Present to the demo verifier</a>
@@ -292,6 +294,17 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
       <div class="consent-buttons">
         <button class="btn" id="conf-reset">Reset to startup settings</button>
         <button class="btn" id="conformance-close" data-dialog-close>Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="consent-overlay" id="request-credential-overlay">
+    <div class="consent-dialog" role="dialog" aria-modal="true" aria-labelledby="request-credential-title" id="request-credential-dialog">
+      <div class="consent-title" id="request-credential-title" tabindex="-1">Request credential</div>
+      <p class="dialog-hint" id="request-credential-hint">The wallet requests the credential in every format the issuer offers. You sign in once at the issuer.</p>
+      <div class="certificate-list" id="request-credential-list"></div>
+      <div class="consent-buttons">
+        <button class="btn" id="request-credential-close" data-dialog-close>Close</button>
       </div>
     </div>
   </div>
@@ -638,6 +651,8 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
 
           <label class="form-label" for="registrar-catalog-trust" title="An ETSI TS 119 602 list of trusted entities (TS11 trustedAuthorities with isLOTE)" id="registrar-catalog-trust-label">Trusted list (LoTE)</label>
           <input type="text" id="registrar-catalog-trust" class="form-input" placeholder="Leave empty for the category's list on this wallet">
+          <label class="form-label" for="registrar-catalog-issuer" id="registrar-catalog-issuer-label">Credential issuer URL (optional)</label>
+          <input type="url" id="registrar-catalog-issuer" class="form-input" placeholder="https://issuer.example" autocomplete="off">
           <label class="form-label form-label-top" for="registrar-catalog-issuer-ca" id="registrar-catalog-issuer-ca-label">Trust this issuer's CA (optional)</label>
           <textarea id="registrar-catalog-issuer-ca" class="form-input form-textarea" placeholder="-----BEGIN CERTIFICATE-----" aria-describedby="registrar-catalog-issuer-ca-hint"></textarea>
           <p class="form-hint" id="registrar-catalog-issuer-ca-hint"></p>

@@ -248,6 +248,11 @@ func (d *DemoRP) servePage(name string) http.HandlerFunc {
 	}
 }
 
+// IssuerID returns the Credential Issuer Identifier of the demo issuer.
+func (d *DemoRP) IssuerID() string {
+	return d.issuerID()
+}
+
 func (d *DemoRP) issuerID() string {
 	return d.baseURL() + "/issuer"
 }

@@ -97,7 +97,7 @@ func (s *Server) handleRequestStream(w http.ResponseWriter, r *http.Request) {
 			}
 			flusher.Flush()
 		case req := <-reqCh:
-			if !consent.Owns(owners, req, "") {
+			if !consent.Owns(owners, req, namedRequest(r)) {
 				continue
 			}
 			data, err := json.Marshal(s.wallet.Consents().DocFor(req, owners))
@@ -215,7 +215,7 @@ func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
 			apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, fmt.Sprintf("the offer does not list credential configuration %q", body.ConfigurationID))
 			return
 		}
-		if err := consent.ValidateSelection(pending.CredentialOptions, picks, body.SetChoices, body.ClaimSets); err != nil {
+		if err := consent.ValidateSelection(s.wallet.Consents().Options(pending), picks, body.SetChoices, body.ClaimSets); err != nil {
 			apierror.WriteErr(w, http.StatusBadRequest, apierror.InvalidRequest, err)
 			return
 		}

@@ -77,7 +77,7 @@ The matrix is fixed in the wrapper. Use the official runner `--rerun` selector f
 - disables the suite's VCI browser helper page and drives the same offer URL directly through the wallet API
 - drives Digital Credentials API `dc_api` / `dc_api.jwt` presentation requests through the wallet's `/api/dc-api` endpoint
 - sets the wallet's conformance mode before each submission through `PUT /api/config/conformance`. Final modules run without HAIP checks and HAIP modules run with them, regardless of the wallet's startup flags
-- starts the wallet-initiated VCI modules itself. The suite provides no offer for them, so the harness sends the wallet an offer for the suite's issuer and the configured credential, without `issuer_state`
+- starts the wallet-initiated VCI modules itself. The suite provides no offer for them, so the harness calls `POST /api/issuance` with the suite's issuer and the configured credential
 - passes explicit VP module lists for the alpha Final scenarios and runs the certifiable HAIP plans complete
 - monitors waiting modules and automatically submits presentation requests, Digital Credentials API requests, credential offers, verifier redirects, and negative-review screenshot placeholders
 - prints the created local `plan-detail.html?plan=...` URLs

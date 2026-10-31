@@ -68,6 +68,7 @@ These endpoints run the OID4VP and OID4VCI flows. `wallet accept`, `wallet scan`
 | `GET` | `/eudi-dev-dc-api-extension.zip` | Browser extension for the Digital Credentials API, set to this wallet | `wallet extension <dir>` |
 | `POST` | `/api/offers` | Accept an OID4VCI credential offer | `wallet accept <uri>` |
 | `GET` | `/api/offers/{id}` | State of an offer that waits for the issuer's sign-in | None |
+| `DELETE` | `/api/offers/{id}` | End the wait for a sign-in the user gave up. `GET` answers `status` `cancelled` once the flow has ended. The browser that started the flow can end it | None |
 | `GET` | `/api/requests` | Pending consent requests of the caller | None |
 | `GET` | `/api/requests/stream` | Server-sent events for consent requests | None |
 | `POST` | `/api/requests/{id}/approve` | Approve a consent request | None |
@@ -247,9 +248,32 @@ curl 'http://localhost:8085/api/certificates/tls?format=jwks'
 
 Provider roles are the credential categories `pid`, `qeaa`, `pub-eaa` and `eaa`, `wallet` for the wallet provider, `tl-<8 hex digits>` for a credential type with its own trusted list, and `unlisted` for unlisted credentials. Each role has its own provider CA. The country is 2 uppercase letters such as `NL`. Only existing providers can be retrieved. Signing certificate URLs use the SHA-256 fingerprint of the DER certificate and remain available after renewal. JOSE `x5u` uses PEM and COSE `x5u` uses DER. See [test certificates](../test-certificates.md) for the certificate profiles.
 
+### Wallet-initiated issuance
+
+The wallet can request a credential without an offer (OpenID4VCI 1.0 §3.4 and Appendix H.6). **Request credential** in the wallet UI lists the attestation types of the registrar catalogue with their issuers. Each entry of the attestation catalogue has the same button. The wallet asks for every format the issuer offers under one authorization, so you sign in once.
+
+When a verifier asks for a type the wallet doesn't hold, the consent dialog offers the same step in debug mode. The new credential then appears in the open dialog. In strict mode the wallet refuses the request first.
+
+The wallet knows the demo issuer and each registered service or catalogue entry with a `credentialIssuer` URL. On a public demo it knows the demo issuer and the entries of `--catalog`.
+
+```bash
+curl http://localhost:8085/api/issuance
+
+curl -X POST http://localhost:8085/api/issuance \
+  -H 'Content-Type: application/json' \
+  -d '{"issuer": "http://localhost:8085/issuer", "credential_configuration_ids": ["demo-ticket"]}'
+```
+
+| Method | Path            | Purpose                                       |
+| ------ | --------------- | --------------------------------------------- |
+| `GET`  | `/api/issuance` | List the attestation types with their issuers |
+| `POST` | `/api/issuance` | Request credential configurations             |
+
+`POST` answers like `POST /api/offers`. If the issuer asks the user to sign in, the answer is `202` with `authorization_url` and `offer_id`. Open the URL, then read `GET /api/offers/{offer_id}`. Each issuer in the list has one configuration per format. Send them all, because ARF ISSU_12a asks for all formats. If the issuer then asks for a presentation, the wallet asks for consent as usual. The result of each further configuration is in `additional`. A format that failed has an `error` there. The other formats stay in the wallet. The public demo only accepts issuers from this list.
+
 ### Certificate revocation
 
-You can revoke any certificate issued by this wallet, such as a provider signing certificate or a provider CA. It then appears on the CRL of its issuer. You can't revoke a self-signed certificate. [Withdraw it](#withdrawing-a-trusted-list-entry) instead. from the trusted list instead. A credential signed with a revoked certificate stays in the wallet.
+You can revoke any certificate issued by this wallet, such as a provider signing certificate or a provider CA. It then appears on the CRL of its issuer. You can't revoke a self-signed certificate. [Withdraw it](#withdrawing-a-trusted-list-entry) from the trusted list instead. A credential signed with a revoked certificate stays in the wallet.
 
 ```bash
 curl -X POST http://localhost:8085/api/certificates/revocations \

@@ -46,6 +46,9 @@ type pendingOffer struct {
 	Owner     string
 	CreatedAt time.Time
 
+	cancelled chan struct{}
+	cancel    sync.Once
+
 	mu     sync.Mutex
 	done   bool
 	result *IssuanceResult
@@ -123,8 +126,9 @@ func (s *Server) runOffer(uri string, opts OfferOptions) (*IssuanceResult, *pend
 	// A subscriber lets the flow return the sign-in URL when interaction is
 	// required. Other flows run at the same time, so it takes only the prompt
 	// of this one.
-	p := &pendingOffer{ID: newConsentID(), Owner: opts.Owner, CreatedAt: time.Now()}
+	p := &pendingOffer{ID: newConsentID(), Owner: opts.Owner, CreatedAt: time.Now(), cancelled: make(chan struct{})}
 	opts.Flow = p.ID
+	opts.Cancelled = p.cancelled
 	authCh, unsubscribe := s.wallet.Consents().SubscribeAuthorization(func(prompt consent.AuthorizationPrompt) bool {
 		return prompt.Flow == p.ID
 	})
@@ -158,6 +162,10 @@ func (s *Server) runOffer(uri string, opts OfferOptions) (*IssuanceResult, *pend
 // applyOfferOutcome reports the outcome on the console and to the UI, even if
 // the caller has stopped waiting. The flow writes the activity log.
 func (s *Server) applyOfferOutcome(owner string, result *IssuanceResult, err error) {
+	if errors.Is(err, errSignInCancelled) {
+		s.log("  Cancelled:     %v", err)
+		return
+	}
 	if err != nil {
 		s.log("  ERROR: %v", err)
 		s.wallet.Consents().NotifyError(consent.Error{
@@ -200,6 +208,11 @@ func (s *Server) handleOfferStatus(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case !done:
 		writeJSON(w, http.StatusOK, p.authorizationRequiredBody())
+	case errors.Is(err, errSignInCancelled):
+		writeJSON(w, http.StatusOK, map[string]any{
+			"status":   "cancelled",
+			"offer_id": p.ID,
+		})
 	case err != nil:
 		writeJSON(w, http.StatusOK, map[string]any{
 			"status":   "failed",
@@ -219,6 +232,18 @@ func (s *Server) handleOfferStatus(w http.ResponseWriter, r *http.Request) {
 			"offer_id": p.ID,
 		})
 	}
+}
+
+// handleCancelOffer ends the wait for a sign-in the user gave up. A flow past
+// that wait finishes, so the caller reads the outcome from handleOfferStatus.
+func (s *Server) handleCancelOffer(w http.ResponseWriter, r *http.Request) {
+	p := s.lookupPendingOffer(r.PathValue("id"))
+	if p == nil || p.Owner != requestOwner(r) {
+		apierror.Write(w, http.StatusNotFound, apierror.NotFound, "unknown offer")
+		return
+	}
+	p.cancel.Do(func() { close(p.cancelled) })
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) handleAuthorizationCodeCallback(w http.ResponseWriter, r *http.Request) {

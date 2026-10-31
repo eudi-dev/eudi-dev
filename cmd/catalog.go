@@ -90,6 +90,7 @@ func catalogAddCmd() *cobra.Command {
 		los, trustedList         string
 		bindingType, rulebookURI string
 		issuerCA                 string
+		credentialIssuer         string
 	)
 	cmd := &cobra.Command{
 		Use:   "add",
@@ -109,13 +110,16 @@ trusted list, or the list given with --trusted-list.
 --issuer-ca adds the CA of your own issuer to the category's list. With --arf,
 credentials of this type from your issuer then pass the trusted list check.
 --issuer-ca and --trusted-list can't be combined, because --trusted-list links
-a different list.`,
+a different list.
+
+--credential-issuer names an issuer of this type. A wallet can then request the
+type there, from the UI or with POST /api/issuance.`,
 		Example: `  eudi catalog add --name "University diploma" --type dc+sd-jwt:urn:example:diploma:1 --claim dc+sd-jwt:degree
   eudi catalog add --name "University diploma" --type mso_mdoc:org.example.diploma.1 --claim mso_mdoc:degree --category qeaa
   eudi catalog add --name "University diploma" --type mso_mdoc:org.example.diploma.1 --los moderate --trusted-list https://example.com/lote`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			entry := registrar.CatalogAttestation{Name: name, Category: category}
+			entry := registrar.CatalogAttestation{Name: name, Category: category, CredentialIssuer: credentialIssuer}
 			for _, value := range types {
 				format, typ, ok := strings.Cut(value, ":")
 				if !ok || strings.TrimSpace(typ) == "" {
@@ -199,6 +203,7 @@ a different list.`,
 	cmd.Flags().StringVar(&bindingType, "binding", "", "How the attestation is bound to its holder: "+strings.Join(bindings, ", ")+" (default key)")
 	cmd.Flags().StringVar(&rulebookURI, "rulebook", "", "URL of the rulebook (default a placeholder page on the wallet)")
 	cmd.Flags().StringVar(&trustedList, "trusted-list", "", "URL of the trusted list of its issuers (ETSI TS 119 602, default the category's list on the wallet)")
+	cmd.Flags().StringVar(&credentialIssuer, "credential-issuer", "", "Credential Issuer Identifier of an issuer of this type")
 	cmd.Flags().StringVar(&issuerCA, "issuer-ca", "", "The CA of your issuer in PEM: a file, '-' for stdin or the PEM itself. The wallet adds it to the trusted list of the category")
 	_ = cmd.MarkFlagFilename("issuer-ca", "pem")
 	_ = cmd.RegisterFlagCompletionFunc("category", staticCompletion(credtemplate.Categories...))

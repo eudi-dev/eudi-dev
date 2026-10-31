@@ -53,9 +53,11 @@ func (w *Wallet) RenewCredential(id string) (renewed *StoredCredential, err erro
 	// The issuer may rotate the refresh token and retire the old one, so the
 	// wallet keeps the new one even when a later step fails.
 	if grant != nil && grant.refreshToken != "" {
+		rotated := cred.Renewal.RefreshToken
 		renewal.RefreshToken = grant.refreshToken
 		w.saveChange(func() bool {
 			w.rememberRenewal(cred.ID, renewal)
+			w.replaceRefreshToken(rotated, renewal.RefreshToken)
 			return true
 		})
 	}

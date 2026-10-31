@@ -88,7 +88,7 @@ func (w *Wallet) processAuthorizationCodeOffer(offer *oid4vc.CredentialOffer, se
 	dpopKey := w.dpopKeyForRenewal(session.renewal)
 
 	configID := session.renewal.ConfigurationID
-	credentialRequest, err := w.authorizationCredentialRequest(session.metadata, configID)
+	credentialRequest, err := w.authorizationCredentialRequest(session.metadata, append([]string{configID}, session.additional...))
 	if err != nil {
 		return nil, err
 	}
@@ -147,6 +147,7 @@ func (w *Wallet) processAuthorizationCodeOffer(offer *oid4vc.CredentialOffer, se
 		flow:                  opts.Flow,
 		tab:                   opts.Tab,
 		callerNavigates:       opts.CallerNavigates,
+		cancelled:             opts.Cancelled,
 	}
 	issuance := authorizationCodeIssuance{
 		session:      session,
@@ -210,7 +211,7 @@ func (w *Wallet) processAuthorizationCodeOffer(offer *oid4vc.CredentialOffer, se
 		"redirect_uri": redirectURI,
 		"state":        state,
 	}, &LogPayload{Label: "Request URL", Body: authURL})
-	callbackValues, err := runAuthorizationCodeRequest(w, authorizationEndpoint, clientID, requestURI, parForm, redirectURI, state, oauthIssuer(oauthMeta, ""), consent.AuthorizationPrompt{Owner: opts.Owner, Flow: opts.Flow, Tab: opts.Tab, CallerNavigates: opts.CallerNavigates}, w.issRequired(oauthMeta))
+	callbackValues, err := runAuthorizationCodeRequest(w, authorizationEndpoint, clientID, requestURI, parForm, redirectURI, state, oauthIssuer(oauthMeta, ""), consent.AuthorizationPrompt{Owner: opts.Owner, Flow: opts.Flow, Tab: opts.Tab, CallerNavigates: opts.CallerNavigates, Cancelled: opts.Cancelled}, w.issRequired(oauthMeta))
 	authorizationResponseDetails := map[string]any{
 		"direction": "inbound",
 		"endpoint":  "authorization",
@@ -263,6 +264,7 @@ type authorizationCodeSetup struct {
 	// tab and callerNavigates route the sign-in prompt (consent.AuthorizationPrompt).
 	tab             string
 	callerNavigates bool
+	cancelled       <-chan struct{}
 }
 
 // authorizationCodeIssuance holds what the token request needs, whichever
@@ -369,24 +371,43 @@ func supportsDPoP(oauthMeta map[string]any) bool {
 // authorizationCredentialRequest returns the authorization request parameter
 // that identifies the credential. OID4VCI 1.0 §12.2.4: "If scope is absent, the
 // only way to request the Credential is using authorization_details" (§5.1.1).
-func (w *Wallet) authorizationCredentialRequest(metadata map[string]any, configID string) (url.Values, error) {
-	if scope := resolveCredentialScope(metadata, configID); scope != "" {
-		return url.Values{"scope": {scope}}, nil
+func (w *Wallet) authorizationCredentialRequest(metadata map[string]any, configIDs []string) (url.Values, error) {
+	var scopes []string
+	for _, configID := range configIDs {
+		scope := resolveCredentialScope(metadata, configID)
+		if scope == "" {
+			scopes = nil
+			break
+		}
+		if !slices.Contains(scopes, scope) {
+			scopes = append(scopes, scope)
+		}
 	}
-	detail := map[string]any{"type": "openid_credential", "credential_configuration_id": configID}
+	if len(scopes) > 0 {
+		return url.Values{"scope": {strings.Join(scopes, " ")}}, nil
+	}
 	// §5.1.1: "If the Credential Issuer metadata contains an
 	// authorization_servers parameter, the authorization detail's locations
 	// common data field MUST be set to the Credential Issuer Identifier value."
+	var locations []string
 	if _, ok := metadata["authorization_servers"]; ok {
 		if issuer, _ := metadata["credential_issuer"].(string); issuer != "" {
-			detail["locations"] = []string{issuer}
+			locations = []string{issuer}
 		}
 	}
-	details, err := json.Marshal([]map[string]any{detail})
+	details := make([]map[string]any, 0, len(configIDs))
+	for _, configID := range configIDs {
+		detail := map[string]any{"type": "openid_credential", "credential_configuration_id": configID}
+		if locations != nil {
+			detail["locations"] = locations
+		}
+		details = append(details, detail)
+	}
+	encoded, err := json.Marshal(details)
 	if err != nil {
 		return nil, err
 	}
-	return url.Values{"authorization_details": {string(details)}}, nil
+	return url.Values{"authorization_details": {string(encoded)}}, nil
 }
 
 func setValues(form, values url.Values) {
@@ -1801,6 +1822,9 @@ func derefString(v *string) string {
 	return *v
 }
 
+// errSignInCancelled ends a flow whose user gave up the sign-in at the issuer.
+var errSignInCancelled = errors.New("the sign-in at the issuer was cancelled")
+
 // runAuthorizationCodeRequest uses the authorization URL exactly once, because
 // RFC 9126 §4 allows one use of a request_uri. A browser opens it when the
 // callback reaches this wallet. Otherwise the wallet calls the endpoint itself.
@@ -1826,6 +1850,8 @@ func runAuthorizationCodeRequest(w *Wallet, endpoint, clientID, requestURI strin
 				return nil, err
 			}
 			return values, nil
+		case <-route.Cancelled:
+			return nil, errSignInCancelled
 		case <-time.After(config.AuthorizationCallbackWait):
 			return nil, fmt.Errorf("timed out waiting for authorization callback at %s", redirectURI)
 		}

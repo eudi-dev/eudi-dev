@@ -174,7 +174,7 @@ func (s *Server) logPresentationOutcome(authReq *oid4vp.Request, outcome present
 		s.log("    - %s %s (%s), disclosing %d claims", m.Format, credTypeLabel(m), shortID(m.CredentialID), len(m.SelectedKeys))
 	}
 	if len(outcome.matches) == 0 && outcome.options != nil {
-		s.log("  Result:        no matching credentials. Debug mode offers the other credentials")
+		s.log("  Result:        no matching credentials. The dialog offers what the wallet can do")
 	}
 }
 

@@ -123,6 +123,26 @@ test("closing the wallet window rejects the call and the next request still work
   });
 });
 
+test("a credential requested from the wallet window answers the request", async () => {
+  await withExtension(async (context) => {
+    await fetch(`${BASE}/api/credentials`, { method: "DELETE" });
+    const page = await context.newPage();
+    await page.goto(`${BASE}/verifier/`);
+    await page.locator("#credential-ticket").click();
+    await page.locator("#delivery-dc-api").click();
+    const opened = context.waitForEvent("page");
+    await page.locator("#create-request").click();
+    const walletWindow = await opened;
+
+    const signIn = context.waitForEvent("page");
+    await walletWindow.locator("[data-obtain]").first().click();
+    await (await signIn).getByRole("button", { name: "Sign in" }).click();
+    await expect(walletWindow.locator(".consent-unanswered")).toHaveCount(0, { timeout: 15_000 });
+    await walletWindow.locator("#consent-approve").click();
+    await expect(page.locator("#status")).toHaveClass(/verified/);
+  });
+});
+
 async function activityLog() {
   return JSON.stringify(await (await fetch(`${BASE}/api/log?view=activity`)).json());
 }

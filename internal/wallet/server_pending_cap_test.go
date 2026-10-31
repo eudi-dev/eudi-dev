@@ -139,3 +139,55 @@ func TestRunOfferRefusesSignInsBeyondTheOwnerCap(t *testing.T) {
 		t.Errorf("another owner was refused: %v", err)
 	}
 }
+
+// Giving up the sign-in ends the wait at once. Only the browser that started
+// the flow can end it.
+func TestCancellingASignInEndsTheFlow(t *testing.T) {
+	srv := newTestServer(t, false)
+	srv.wallet.BaseURL = "http://localhost:8085"
+	flowOwner := "visitor"
+	cancelled := make(chan struct{})
+	p := &pendingOffer{ID: "offer", Owner: flowOwner, CreatedAt: time.Now(), cancelled: cancelled}
+	srv.trackPendingOffer(p)
+	prompts, unsubscribe := srv.wallet.Consents().SubscribeAuthorization(func(consent.AuthorizationPrompt) bool { return true })
+	defer unsubscribe()
+	outcome := make(chan error, 1)
+	go func() {
+		_, err := runAuthorizationCodeRequest(srv.wallet, "https://issuer.example/authorize", "client", "urn:request", nil,
+			srv.wallet.BaseURL+"/callback", "state", "", consent.AuthorizationPrompt{Cancelled: cancelled}, false)
+		p.complete(nil, err)
+		outcome <- err
+	}()
+	<-prompts
+
+	cancel := func(owner string) int {
+		req := httptest.NewRequest(http.MethodDelete, "/api/offers/offer", nil)
+		req.Header.Set("X-Eudi-Owner", owner)
+		rec := httptest.NewRecorder()
+		srv.mux.ServeHTTP(rec, req)
+		return rec.Code
+	}
+	if code := cancel("someone-else"); code != http.StatusNotFound {
+		t.Errorf("another owner got %d, want 404", code)
+	}
+	for range 2 {
+		if code := cancel(flowOwner); code != http.StatusNoContent {
+			t.Errorf("the owner got %d, want 204", code)
+		}
+	}
+	select {
+	case err := <-outcome:
+		if !errors.Is(err, errSignInCancelled) {
+			t.Errorf("flow ended with %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the flow kept waiting")
+	}
+	rec := serverRequest(t, srv, http.MethodGet, "/api/offers/offer", "")
+	var body struct {
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil || body.Status != "cancelled" {
+		t.Errorf("status %q (%v), want cancelled", body.Status, err)
+	}
+}

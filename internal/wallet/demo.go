@@ -125,6 +125,7 @@ const (
 // them.
 func (s *Server) SetDemo(opts DemoOptions) error {
 	s.demo = &demoState{opts: opts}
+	s.wallet.operatorIssuersOnly = true
 	s.wallet.SetCapacity(Capacity{
 		Credentials:        maxDemoCredentials,
 		Deferred:           maxDemoDeferred,

@@ -78,7 +78,10 @@ type Wallet struct {
 	AdhocDisplayImages bool `json:"-"`
 	BaseURL            string
 	IssuerURL          string
-	VCIRedirectURI     string `json:"-"`
+	demoIssuerURL      func() string
+	// operatorIssuersOnly keeps out the issuers visitors of a public demo name.
+	operatorIssuersOnly bool
+	VCIRedirectURI      string `json:"-"`
 	// Callback URLs use this origin when BaseURL is unset.
 	ServingOrigin string `json:"-"`
 	// storedURLs holds the base and issuer URL written by a save while

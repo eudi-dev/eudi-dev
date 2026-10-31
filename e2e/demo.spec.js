@@ -2130,3 +2130,109 @@ test.describe("Demo verifier identity", () => {
     await expect(page.locator("#status")).toContainText("Paste the signing key and access certificate chain.");
   });
 });
+
+test("one click and one sign-in add a credential in every format", async ({ page, context }) => {
+  await page.goto(BASE);
+  await page.locator("#request-credential-btn").click();
+  const row = page.getByTestId("issuable-row").filter({ hasText: "Demo Event Ticket" });
+  const signIn = context.waitForEvent("page");
+  await row.getByRole("button", { name: "Request" }).click();
+  const issuer = await signIn;
+  await issuer.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.locator("#request-credential-result")).toContainText("is in the wallet", { timeout: 15_000 });
+  await expect(page.locator("#request-credential-overlay")).not.toHaveClass(/active/);
+  await expect.poll(() => issuer.isClosed()).toBe(true);
+  const credentials = await (await fetch(`${BASE}/api/credentials`)).json();
+  expect(credentials.some(credential => credential.vct === "urn:eudi-test:demo-ticket:1")).toBe(true);
+});
+
+test("the catalogue requests a credential", async ({ page, context }) => {
+  await page.goto(BASE);
+  await page.locator("#registrar-menu-toggle").click();
+  await page.locator("#registrar-catalog-link").click();
+  const card = page.locator("#registrar-catalog-list .registrar-party").filter({ hasText: "Demo Event Ticket" });
+  const signIn = context.waitForEvent("page");
+  await card.getByRole("button", { name: "Request" }).click();
+  const issuer = await signIn;
+  await issuer.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.locator("#request-credential-result")).toContainText("Demo Event Ticket is in the wallet", { timeout: 15_000 });
+  await expect(page.locator("#registrar-catalog-overlay")).not.toHaveClass(/active/);
+});
+
+test("a credential requested during a presentation answers the open dialog", async ({ page, context }) => {
+  await clearPending();
+  await fetch(`${BASE}/api/credentials`, { method: "DELETE" });
+  const { body } = await postJSON("/verifier/api/requests", { type: "ticket" });
+  const owner = await openAsSchemeHandler(page);
+  submitAsSchemeHandler("/api/presentations", body.scheme_uri, owner);
+  const signIn = context.waitForEvent("page");
+  await page.locator("[data-obtain]").click();
+  const issuer = await signIn;
+  await issuer.getByRole("button", { name: "Sign in" }).click();
+
+  await expect(page.locator(".consent-unanswered")).toHaveCount(0, { timeout: 15_000 });
+  await page.locator("#consent-approve").click();
+  await expect.poll(async () => (await verifierResult(body.transaction_id)).status, { timeout: 15_000 }).toBe("verified");
+});
+
+test("cancelling a sign-in ends the request and the next one works", async ({ page, context }) => {
+  await page.goto(BASE);
+  await page.locator("#request-credential-btn").click();
+  const row = page.getByTestId("issuable-row").filter({ hasText: "Demo Event Ticket" });
+  const first = context.waitForEvent("page");
+  await row.getByRole("button", { name: "Request" }).click();
+  const issuerTab = await first;
+  await row.getByRole("button", { name: "Cancel" }).click();
+  await expect(row).toContainText("Sign-in cancelled.", { timeout: 15_000 });
+  await expect.poll(() => issuerTab.isClosed()).toBe(true);
+  await expect(page.locator("#request-credential-overlay")).toHaveClass(/active/);
+  await expect(page.locator("#consent-overlay")).not.toHaveClass(/active/);
+
+  const second = context.waitForEvent("page");
+  await row.getByRole("button", { name: "Request" }).click();
+  await (await second).getByRole("button", { name: "Sign in" }).click();
+  await expect(page.locator("#request-credential-result")).toContainText("is in the wallet", { timeout: 15_000 });
+});
+
+test("a requested credential keeps the selection of the other queries", async ({ page, context }) => {
+  await clearPending();
+  const stored = await (await fetch(`${BASE}/api/credentials`)).json();
+  for (const credential of stored.filter(c => c.vct === "urn:eudi-test:demo-ticket:1")) {
+    await fetch(`${BASE}/api/credentials/${credential.id}`, { method: "DELETE" });
+  }
+  const { body } = await postJSON("/verifier/api/requests", { type: "custom", credentials: [
+    { format: "dc+sd-jwt", vct: "urn:eudi:pid:1", claims: [["given_name"]] },
+    { format: "dc+sd-jwt", vct: "urn:eudi-test:demo-ticket:1", claims: [["event"]] },
+  ] });
+  const owner = await openAsSchemeHandler(page);
+  submitAsSchemeHandler("/api/presentations", body.scheme_uri, owner);
+  await page.locator("#consent-edit-selection").click();
+  const second = page.locator('.candidate[id^="consent-candidate-cred_0-"]').nth(1);
+  const picked = (await second.getAttribute("id")).replace("consent-candidate-cred_0-", "");
+  await second.click();
+  await page.locator("#consent-selection-done").click();
+
+  const signIn = context.waitForEvent("page");
+  await page.locator("[data-obtain]").click();
+  await (await signIn).getByRole("button", { name: "Sign in" }).click();
+  await expect(page.locator(".consent-unanswered")).toHaveCount(0, { timeout: 15_000 });
+  await expect(page.locator(`#consent-dialog .consent-credential[data-credential-id="${picked}"]`)).toBeVisible();
+  await clearPending(owner);
+});
+
+test("a credential with several formats needs one sign-in", async ({ page, context }) => {
+  const issuable = await (await fetch(`${BASE}/api/issuance`)).json();
+  const entry = issuable.find(credential => credential.issuers[0]?.credential_configuration_ids.length > 1);
+  await fetch(`${BASE}/api/credentials`, { method: "DELETE" });
+  const before = (await (await fetch(`${BASE}/api/credentials`)).json()).length;
+  await page.goto(BASE);
+  await page.locator("#request-credential-btn").click();
+  const row = page.getByTestId("issuable-row").filter({ hasText: entry.name }).first();
+  const signIn = context.waitForEvent("page");
+  await row.getByRole("button", { name: "Request" }).click();
+  await (await signIn).getByRole("button", { name: "Sign in" }).click();
+  await expect(page.locator("#request-credential-result")).toContainText("is in the wallet", { timeout: 15_000 });
+  await expect(page.locator("#request-credential-overlay")).not.toHaveClass(/active/);
+  const after = (await (await fetch(`${BASE}/api/credentials`)).json()).length;
+  expect(after - before).toBeGreaterThanOrEqual(entry.issuers[0].credential_configuration_ids.length);
+});

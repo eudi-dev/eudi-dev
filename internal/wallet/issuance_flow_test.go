@@ -37,6 +37,9 @@ import (
 type mockIssuerOpts struct {
 	tokenCNonce   string
 	nonceEndpoint bool
+	// additionalResponses publishes further configurations, each with its
+	// answer. An answer with an error comes with status 400.
+	additionalResponses map[string]map[string]any
 	// nonceOnlyGET makes the nonce endpoint answer the POST that §7.1 requires
 	// with 405 and serve the c_nonce over GET.
 	nonceOnlyGET bool
@@ -125,6 +128,10 @@ func setupMockIssuer(t *testing.T, w *Wallet, opts mockIssuerOpts) (*httptest.Se
 					},
 				},
 			}
+			for id := range opts.additionalResponses {
+				meta["credential_configurations_supported"].(map[string]any)[id] = map[string]any{"format": configFormat, "vct": "urn:test:credential"}
+				meta["deferred_credential_endpoint"] = serverURL + "/deferred"
+			}
 			if opts.refusesNotification {
 				meta["notification_endpoint"] = serverURL + "/notification"
 			}
@@ -187,6 +194,20 @@ func setupMockIssuer(t *testing.T, w *Wallet, opts mockIssuerOpts) (*httptest.Se
 			credentialRequests++
 			attempt := credentialRequests
 			offerMu.Unlock()
+			if opts.additionalResponses != nil {
+				var request struct {
+					ConfigurationID string `json:"credential_configuration_id"`
+				}
+				_ = json.NewDecoder(r.Body).Decode(&request)
+				if answer, ok := opts.additionalResponses[request.ConfigurationID]; ok {
+					rw.Header().Set("Content-Type", "application/json")
+					if answer["error"] != nil {
+						rw.WriteHeader(http.StatusBadRequest)
+					}
+					json.NewEncoder(rw).Encode(answer)
+					return
+				}
+			}
 			if opts.inspectCredentialRequest != nil {
 				body, _ := io.ReadAll(r.Body)
 				var reqBody map[string]any

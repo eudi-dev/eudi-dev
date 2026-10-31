@@ -3019,14 +3019,8 @@ textarea.form-input {
   margin-left: auto;
 }
 .trust-list-menu summary {
-  padding: 2px 10px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text);
   list-style: none;
-  background: var(--bg-input);
-  border-radius: 999px;
-  cursor: pointer;
+  white-space: nowrap;
 }
 .trust-list-menu summary::-webkit-details-marker {
   display: none;
@@ -3049,6 +3043,7 @@ textarea.form-input {
   border-radius: 10px;
 }
 .trust-list-menu-items button {
+  min-height: 36px;
   padding: 6px 10px;
   font: inherit;
   font-size: 13px;
@@ -3694,4 +3689,21 @@ textarea.form-input {
   .certificate-actions {
     justify-content: flex-start;
   }
+}
+
+#request-credential-overlay {
+  z-index: 110;
+}
+
+/* These rows are alternatives, so they have no issuer elbow. */
+#request-credential-list .certificate-row::before {
+  content: none;
+}
+
+.consent-obtain {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
 }

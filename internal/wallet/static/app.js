@@ -752,6 +752,201 @@
     }
   }
 
+  async function loadIssuable() {
+    const resp = await fetch('api/issuance');
+    const credentials = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(apiErrorText(credentials, resp));
+    return credentials;
+  }
+
+  async function openRequestDialog(onlyIDs, onAdded) {
+    const list = document.getElementById('request-credential-list');
+    list.textContent = 'Loading…';
+    document.getElementById('request-credential-overlay').classList.add('active');
+    try {
+      const credentials = (await loadIssuable()).filter(c => !onlyIDs || onlyIDs.includes(c.id));
+      list.textContent = '';
+      credentials.sort((a, b) => (b.issuers.length > 0) - (a.issuers.length > 0))
+        .forEach((credential, i) => list.appendChild(issuableRow(credential, i, onAdded)));
+    } catch (e) {
+      list.textContent = '';
+      showErrorDialog('Loading the credentials failed', e.message);
+    }
+  }
+
+  function issuableRow(credential, index, onAdded) {
+    const row = document.createElement('div');
+    row.className = 'certificate-row';
+    row.id = 'issuable-' + index;
+    row.dataset.testid = 'issuable-row';
+    row.innerHTML = '<div class="certificate-info" id="' + row.id + '-info"><div class="certificate-name" id="' + row.id + '-name">' + escHtml(credential.name) + '</div>' +
+      '<div class="conf-hint" id="' + row.id + '-status" role="status"></div></div>' +
+      '<div class="certificate-actions" id="' + row.id + '-actions"></div>';
+    const status = row.querySelector('.conf-hint');
+    status.textContent = credential.issuers.map(i => i.name + ' (' + i.formats.map(credentialFormatLabel).join(', ') + ')').join(', ') || 'No known issuer offers this credential.';
+    requestButtons(credential, row.id, status, () => {
+      document.getElementById('request-credential-overlay').classList.remove('active');
+      if (onAdded) onAdded();
+    }).forEach(button => row.querySelector('.certificate-actions').appendChild(button));
+    return row;
+  }
+
+  function credentialFormatLabel(format) {
+    return format === 'mso_mdoc' ? 'mdoc' : 'SD-JWT';
+  }
+
+  function requestButtons(credential, prefix, status, onAdded) {
+    return credential.issuers.map((issuer, i) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'btn btn-sm';
+      button.id = prefix + '-request-' + i;
+      button.textContent = credential.issuers.length > 1 ? 'Request from ' + issuer.name : 'Request';
+      button.addEventListener('click', async () => {
+        if (requestRunning) return;
+        const tab = openSignInTab();
+        button.disabled = true;
+        const added = await requestCredential(issuer, tab, status);
+        button.disabled = false;
+        if (!added) return;
+        showRequestResult(credential.name + ' is in the wallet.');
+        if (onAdded) onAdded();
+      });
+      return button;
+    });
+  }
+
+  let requestRunning = false;
+  let requestResultTimer = null;
+  function showRequestResult(text) {
+    const result = document.getElementById('request-credential-result');
+    result.textContent = text;
+    result.hidden = false;
+    clearTimeout(requestResultTimer);
+    requestResultTimer = setTimeout(() => { result.hidden = true; }, 6000);
+  }
+
+  // A browser blocks a tab opened after a request.
+  function openSignInTab() {
+    const tab = window.open('', '_blank');
+    if (tab) tab.opener = null;
+    return tab;
+  }
+
+  // ARF ISSU_12a: every format in one request. It returns true when all of them
+  // arrived. Any other outcome stays on status, so the dialog stays open.
+  async function requestCredential(issuer, tab, status) {
+    const closeTab = () => { if (tab) tab.close(); };
+    requestRunning = true;
+    status.textContent = 'Contacting ' + issuer.name + '…';
+    try {
+      const resp = await fetch('api/issuance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ issuer: issuer.url, credential_configuration_ids: issuer.credential_configuration_ids })
+      });
+      let result = await resp.json().catch(() => ({}));
+      if (!resp.ok) result = { ...result, error: apiErrorText(result, resp) };
+      if (result.status === 'authorization_required') {
+        if (!isWebURL(result.authorization_url)) throw new Error('The issuer sent an invalid sign-in URL.');
+        if (tab) {
+          tab.location = result.authorization_url;
+          status.textContent = 'Waiting for sign-in at ' + issuer.name + '… ';
+        } else {
+          status.innerHTML = 'Your browser blocked the new tab. <a href="' + escHtml(result.authorization_url) + '" target="_blank" rel="noopener" id="' + status.id + '-sign-in">Sign in at ' + escHtml(issuer.name) + '</a>';
+        }
+        status.appendChild(cancelSignInButton(result.offer_id, status.id + '-cancel'));
+        result = await waitForSignIn(result.offer_id);
+      }
+      closeTab();
+      window.focus();
+      if (result.status === 'cancelled') {
+        status.textContent = 'Sign-in cancelled.';
+        return false;
+      }
+      if (result.error) {
+        status.textContent = 'Request failed.';
+        await showFlowError('The wallet could not get the credential', result, resp);
+        return false;
+      }
+      return reportIssuance(result.result || result, status);
+    } catch (e) {
+      closeTab();
+      status.textContent = 'Request failed.';
+      showErrorDialog('The request failed', e.message);
+      return false;
+    } finally {
+      requestRunning = false;
+    }
+  }
+
+  function reportIssuance(first, status) {
+    const results = [first].concat(first.additional || []);
+    const later = results.filter(r => r.pending).length;
+    const failed = results.filter(r => r.error).length;
+    const added = results.filter(r => r.credential_id && !r.pending && !r.error).length;
+    if (added === results.length && added > 0) return true;
+    if (later === results.length) {
+      status.textContent = 'The issuer will deliver the credential later.';
+    } else if (failed > 0) {
+      status.textContent = 'Added ' + added + ' of ' + results.length + ' formats. See the activity log.';
+    } else if (later > 0) {
+      status.textContent = 'Added ' + added + ' of ' + results.length + ' formats. The issuer will deliver the rest later.';
+    } else {
+      status.textContent = 'Request failed.';
+    }
+    return false;
+  }
+
+  // A closed tab is no signal to cancel: an issuer page with
+  // Cross-Origin-Opener-Policy reads as closed while the user signs in.
+  function cancelSignInButton(offerID, id) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn btn-sm';
+    button.id = id;
+    button.textContent = 'Cancel';
+    button.addEventListener('click', () => {
+      button.disabled = true;
+      fetch('api/offers/' + encodeURIComponent(offerID), { method: 'DELETE' });
+    });
+    return button;
+  }
+
+  async function waitForSignIn(offerID) {
+    for (;;) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      const resp = await fetch('api/offers/' + encodeURIComponent(offerID));
+      const result = await resp.json().catch(() => ({}));
+      if (!resp.ok) return { error: apiErrorText(result, resp) };
+      if (result.status !== 'authorization_required') return result;
+    }
+  }
+
+  // With one issuer the button starts the request directly, so the tab opens
+  // before the list arrives.
+  async function requestForQuery(button) {
+    if (requestRunning) return;
+    const ids = button.dataset.obtain.split(' ');
+    const status = button.parentElement.querySelector('[role="status"]');
+    const tab = openSignInTab();
+    button.disabled = true;
+    try {
+      const credentials = (await loadIssuable()).filter(c => ids.includes(c.id));
+      if (credentials.length === 1 && credentials[0].issuers.length === 1) {
+        if (await requestCredential(credentials[0].issuers[0], tab, status)) showRequestResult(credentials[0].name + ' is in the wallet.');
+        return;
+      }
+      if (tab) tab.close();
+      openRequestDialog(ids);
+    } catch (e) {
+      if (tab) tab.close();
+      showErrorDialog('Loading the credentials failed', e.message);
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   let certificatesCredential = null;
 
   async function openCertificates(id) {
@@ -2470,10 +2665,16 @@
   function connectSSE() {
     const streamParams = new URLSearchParams({ tab: tabID });
     if (actingOwner) streamParams.set('owner', actingOwner);
+    if (openedForRequest) streamParams.set('request', openedForRequest);
     const es = new EventSource('api/requests/stream?' + streamParams);
     es.addEventListener('consent', (event) => {
       try {
         const req = JSON.parse(event.data);
+        if (req.updated) {
+          if (consentRequestOpen && consentRequestID === req.id) updateConsentDialog(req);
+          refreshPendingBanner();
+          return;
+        }
         if (req.mine) {
           showConsentDialog(req);
           return;
@@ -2906,6 +3107,9 @@
 
   const DEMO_CONSENT_NOTE = 'On this public demo, only the web UI can answer consent requests, unless the operator starts it with --demo-consent-api. ';
 
+  // Set by the open dialog. It takes new answers and keeps the user's selection.
+  let updateConsentDialog = () => {};
+
   function showConsentDialog(req) {
     consentRequestOpen = true;
     consentRequestID = req.id;
@@ -2916,7 +3120,7 @@
 
     const isIssuance = req.type === 'issuance';
 
-    const options = !isIssuance && req.credential_options &&
+    let options = !isIssuance && req.credential_options &&
       (req.credential_options.queries || []).length > 0 ? req.credential_options : null;
     const selection = { editing: false, setChoices: [], picks: {}, claims: {}, claimSets: {}, showNonMatching: {}, showClaimSets: {}, unfolded: {} };
     let submitting = false;
@@ -2950,6 +3154,19 @@
       options.queries.forEach(q => { selection.picks[q.id] = defaultPicks(q); });
       selection.claims = defaultClaims();
     }
+    updateConsentDialog = (updated) => {
+      if (submitting || !options) return;
+      req.matched_credentials = updated.matched_credentials;
+      // A choice is an index into the options of a set, so it ends with them.
+      const setsChanged = JSON.stringify(options.sets) !== JSON.stringify(updated.credential_options.sets);
+      options = updated.credential_options;
+      if (setsChanged) selection.setChoices = defaultSetChoices(options);
+      options.queries.forEach(q => {
+        if (!(selection.picks[q.id] || []).length) selection.picks[q.id] = defaultPicks(q);
+      });
+      selection.claims = { ...defaultClaims(), ...selection.claims };
+      renderDialog();
+    };
 
     function queryById(id) { return options.queries.find(q => q.id === id); }
     function activeQueryIds() {
@@ -3293,9 +3510,15 @@
         '<ul>' + mc.mismatches.map((r, i) => '<li id="' + domID(id) + '-reason-' + i + '">' + escHtml(r) + '</li>').join('') + '</ul></div>';
     }
     function unansweredNote(qid) {
+      const query = options.queries.find(q => q.id === qid);
+      const obtainable = (query && query.obtainable) || [];
       return '<div class="consent-unanswered" role="note" id="consent-unanswered-' + domID(qid) + '">' +
         'No credential matches <span class="query-chip" id="consent-unanswered-' + domID(qid) + '-query">' + escHtml(qid) + '</span>. ' +
-        'Debug mode can send a non-matching one. Choose it under Edit.</div>';
+        (obtainable.length ? ((query.non_matching || []).length ? 'Request it from an issuer, or choose a non-matching credential under Edit.' : 'Request it from an issuer.') : 'Debug mode can send a non-matching one. Choose it under Edit.') +
+        (obtainable.length ? '<div class="consent-obtain" id="consent-obtain-' + domID(qid) + '">' +
+          '<button type="button" class="btn btn-sm" id="consent-obtain-' + domID(qid) + '-button" data-obtain="' + escHtml(obtainable.map(o => o.id).join(' ')) + '">Request ' + escHtml(obtainable.length === 1 ? obtainable[0].name : 'credential') + '</button>' +
+          '<span class="conf-hint" id="consent-obtain-' + domID(qid) + '-status" role="status"></span></div>' : '') +
+        '</div>';
     }
     // A query with one possible answer shows its credential without a selector.
     function candidateRowHtml(qid, c, i, multi, selectable) {
@@ -4137,6 +4360,8 @@
     } catch (e) {
       error.textContent = e.message;
     }
+    // A refresh would close the menu the user just opened.
+    if (document.querySelector('.trust-list-menu[open]')) return;
     trustEntityLists = state.entity_lists || [];
     const added = state.entities || [];
     row.querySelectorAll('.trust-items').forEach(el => el.remove());
@@ -4186,7 +4411,11 @@
         const menu = document.createElement('details');
         menu.className = 'trust-list-menu';
         menu.id = prefix + '-menu';
-        menu.innerHTML = '<summary id="' + prefix + '-menu-toggle" data-testid="trust-list-menu">Actions</summary><div class="trust-list-menu-items" id="' + prefix + '-menu-items"></div>';
+        menu.innerHTML = '<summary class="btn btn-sm" id="' + prefix + '-menu-toggle" data-testid="trust-list-menu">Actions</summary><div class="trust-list-menu-items" id="' + prefix + '-menu-items"></div>';
+        // The menu of the last row opens below the scrolled part of the dialog.
+        menu.addEventListener('toggle', () => {
+          if (menu.open) menu.lastElementChild.scrollIntoView({ block: 'nearest' });
+        });
         const addMenuItem = (label, id, run) => {
           const item = document.createElement('button');
           item.type = 'button';
@@ -4200,9 +4429,14 @@
           menu.lastElementChild.appendChild(item);
         };
         addMenuItem('Copy URL', 'copy', async () => {
+          const toggle = menu.firstElementChild;
           try {
             await navigator.clipboard.writeText(url);
-          } catch (e) { /* The clipboard API may be unavailable. */ }
+            toggle.textContent = 'Copied!';
+          } catch (e) {
+            toggle.textContent = 'Copy failed';
+          }
+          setTimeout(() => { toggle.textContent = 'Actions'; }, 2000);
         });
         addMenuItem('Open in decoder', 'decode', () => openListInDecoder(entry.path ? entry.path.replace(/^\//, '') : url));
         links.appendChild(menu);
@@ -5744,8 +5978,11 @@
       card.innerHTML =
         '<div class="registrar-party-head" id="' + prefix + '-head">' +
           '<span class="registrar-party-name" id="' + prefix + '-name">' + escHtml(entry.name) + '</span>' +
-          ((entry.template || entry.operator) && demoMode ? '' : '<span class="registrar-party-actions"><button type="button" class="btn btn-danger btn-sm" id="' + prefix + '-delete">Delete</button></span>') +
+          '<span class="registrar-party-actions" id="' + prefix + '-actions">' +
+            ((entry.template || entry.operator) && demoMode ? '' : '<button type="button" class="btn btn-danger btn-sm" id="' + prefix + '-delete">Delete</button>') +
+          '</span>' +
         '</div>' +
+        '<div class="conf-hint" id="' + prefix + '-request-status" role="status"></div>' +
         '<div class="cred-pills registrar-pills" id="' + prefix + '-pills">' +
           '<span class="status-badge catalog-badge" id="' + prefix + '-category" title="Selects the signer and the trusted list">Category: ' + escHtml(categoryLabel(entry.category)) + '</span>' +
           '<span class="status-badge catalog-badge" id="' + prefix + '-los" title="Level of security (TS11 attestationLoS)">Level of security: ' + escHtml(optionLabel('attestationLoS', schema.attestationLoS)) + '</span>' +
@@ -5766,6 +6003,14 @@
           catalogLink(schema.rulebookURI, 'Rulebook', prefix + '-rulebook') +
           (trust ? catalogLink(trust.value, 'Trusted list', prefix + '-trust') : '<span id="' + prefix + '-trust">No trusted list</span>') +
         '</div>';
+      const issuable = catalogIssuable.find(c => c.id === schema.id);
+      if (issuable) {
+        const actions = card.querySelector('#' + prefix + '-actions');
+        requestButtons(issuable, prefix, card.querySelector('#' + prefix + '-request-status'), () => {
+          catalogOverlay.classList.remove('active');
+          focusRegistrarOpener();
+        }).reverse().forEach(button => actions.prepend(button));
+      }
       const remove = card.querySelector('#' + prefix + '-delete');
       if (remove) {
         remove.addEventListener('click', async () => {
@@ -5792,6 +6037,7 @@
     empty.hidden = matching.length > 0;
   }
 
+  let catalogIssuable = [];
   async function openCatalog() {
     document.getElementById('registrar-catalog-error').textContent = '';
     catalogSearch.value = '';
@@ -5803,6 +6049,13 @@
       document.getElementById('registrar-catalog-error').textContent = e.message;
     }
     renderCatalog();
+    // The issuers come from their metadata, so the cards don't wait for them.
+    loadIssuable().then((credentials) => {
+      catalogIssuable = credentials;
+      renderCatalog();
+    }).catch((e) => {
+      document.getElementById('registrar-catalog-error').textContent = e.message;
+    });
   }
   document.getElementById('registrar-catalog-link').addEventListener('click', (event) => {
     event.preventDefault();
@@ -5910,6 +6163,8 @@
       credentials: credentials,
       schema: catalogSchema('registrar'),
     };
+    const credentialIssuer = document.getElementById('registrar-catalog-issuer').value.trim();
+    if (credentialIssuer) body.credentialIssuer = credentialIssuer;
     const issuerCA = document.getElementById('registrar-catalog-issuer-ca').value.trim();
     if (issuerCA && body.schema.trustedAuthorities.length) {
       throw new Error("Use either an issuer CA or a trusted list. The wallet adds the issuer CA to its list for the category. A trusted list links another list.");
@@ -5936,6 +6191,7 @@
     if (body.schema.bindingType) flags.push(['--binding', body.schema.bindingType]);
     if (body.schema.rulebookURI) flags.push(['--rulebook', body.schema.rulebookURI]);
     if (body.schema.trustedAuthorities.length) flags.push(['--trusted-list', body.schema.trustedAuthorities[0].value]);
+    if (body.credentialIssuer) flags.push(['--credential-issuer', body.credentialIssuer]);
     if (issuerCA) flags.push(['--issuer-ca', '-']);
     flags.push(['--remote', eudiDialogs.remoteURL()]);
     return {
@@ -5995,6 +6251,17 @@
   });
   document.getElementById('conformance-close').addEventListener('click', () => {
     conformanceOverlay.classList.remove('active');
+  });
+
+  document.getElementById('request-credential-btn').addEventListener('click', () => openRequestDialog());
+  const requestCredentialOverlay = document.getElementById('request-credential-overlay');
+  document.getElementById('request-credential-close').addEventListener('click', () => {
+    requestCredentialOverlay.classList.remove('active');
+  });
+  makeModal(requestCredentialOverlay, document.getElementById('request-credential-close'));
+  document.addEventListener('click', (event) => {
+    const button = event.target.closest && event.target.closest('[data-obtain]');
+    if (button) requestForQuery(button);
   });
 
   const crlFaultSelect = document.getElementById('conf-crl-fault-select');

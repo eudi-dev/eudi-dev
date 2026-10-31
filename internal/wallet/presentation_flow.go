@@ -119,6 +119,9 @@ func (w *Wallet) evaluatePresentationRequest(authReq *oid4vp.Request, entry pres
 	var outcome presentationOutcome
 	if authReq.DCQLQuery != nil {
 		outcome.matches, outcome.options = w.matchDCQL(authReq.DCQLQuery)
+		if outcome.options == nil && entry.interactive && w.Mode() != ValidationModeStrict {
+			outcome.options = w.obtainableOptions(authReq.DCQLQuery)
+		}
 	}
 	// Debug mode lets a person answer with a credential that does not match.
 	if len(outcome.matches) == 0 && (outcome.options == nil || !entry.interactive) {
@@ -138,6 +141,7 @@ func (w *Wallet) evaluatePresentationRequest(authReq *oid4vp.Request, entry pres
 // dialog was not shown, because too many requests wait for consent.
 func (w *Wallet) askPresentationConsent(ctx context.Context, typ, owner, asking string, authReq *oid4vp.Request, outcome presentationOutcome, timeout time.Duration, shown func(*consent.Request)) (consentReq *consent.Request, matches []consent.Match, approved, answered bool, err error) {
 	w.flagRevokedCertificates(outcome.matches, outcome.options)
+	w.flagObtainableCredentials(authReq.DCQLQuery, outcome.options)
 	consentReq = newPresentationConsent(typ, owner, asking, authReq, outcome.matches, outcome.options)
 	if err := w.Consents().Create(consentReq); err != nil {
 		return nil, nil, false, false, err
@@ -149,7 +153,9 @@ func (w *Wallet) askPresentationConsent(ctx context.Context, typ, owner, asking 
 	if !answered || !result.Approved {
 		return consentReq, nil, false, answered, nil
 	}
-	return consentReq, w.consentedMatches(consentReq, outcome.matches, result), true, true, nil
+	// The answers can change while the dialog is open, so they come from the
+	// request.
+	return consentReq, w.consentedMatches(consentReq, consentReq.MatchedCreds, result), true, true, nil
 }
 
 // preparePresentation creates the vp_token and the requested id_token.

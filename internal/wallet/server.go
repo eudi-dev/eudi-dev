@@ -165,7 +165,10 @@ func (s *Server) setupRoutes() {
 	s.routeFunc("GET /"+dcextension.ZipName, s.handleDCExtension)
 
 	s.routeFunc("POST /api/offers", s.withFreshStore(s.handleOfferAPI))
+	s.routeFunc("GET "+issuancePath, s.withFreshStore(s.handleListIssuable))
+	s.routeFunc("POST "+issuancePath, s.withFreshStore(s.handleStartIssuance))
 	s.routeFunc("GET /api/offers/{id}", s.handleOfferStatus)
+	s.routeFunc("DELETE /api/offers/{id}", s.handleCancelOffer)
 	s.routeFunc("POST /api/credentials/{id}/refresh", s.withFreshStore(s.handleRenewCredential))
 	s.routeFunc("GET /callback", s.withFreshStore(s.handleAuthorizationCodeCallback))
 

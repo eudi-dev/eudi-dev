@@ -306,7 +306,7 @@ The registry endpoints follow the TS05 v1.5 registry API. The `GET` endpoints un
 | `DELETE` | `/api/catalog/schemas/{id}` | Delete an added entry (TS11 §5.3.3) |
 | `GET` | `/api/catalog/schemas/{id}/{format}` | The schema behind a schema URI |
 | `GET` | `/api/catalog/attestations` | The catalogue with names and types, as the UI shows it |
-| `POST` | `/api/catalog/attestations` | Add an entry: `name`, `category`, `credentials` (each `format`, `type` and optional `claims` paths) and `schema` without `id`, `supportedFormats` and `schemaURIs`. Answers `201` with the entry |
+| `POST` | `/api/catalog/attestations` | Add an entry: `name`, `category`, optional `credentialIssuer`, `credentials` (each `format`, `type` and optional `claims` paths) and `schema` without `id`, `supportedFormats` and `schemaURIs`. Answers `201` with the entry |
 | `GET` | `/privacy-policy`, `/support`, `/supervisory-authority`, `/rulebook` | Placeholder pages for the registrar's default URLs |
 
 TS11 describes `GET /schemas/{schemaId}` in §5.3.1, but its OpenAPI file (Annex A.3) leaves it out. The wallet serves it as the text describes. For `PUT` the text asks for a signed response and the OpenAPI file for JSON. The wallet answers with JSON, like the OpenAPI file.
@@ -379,6 +379,7 @@ With `--to`, both add the other role to a registered relying party instead. `ver
 | `revoke`, `activate` | `--intended-use` | All | Only change the certificates of this intended use |
 | `revoke`, `activate` | `--service-id` | All | Only change the certificates of this service |
 | `catalog add` | `--name` | None | Name of the attestation type (required, unique) |
+| `catalog add` | `--credential-issuer` | None | Credential Issuer Identifier of an issuer of this type. A wallet can then request the type there |
 | `catalog add` | `--type` | None | Format and type, such as `mso_mdoc:org.example.diploma.1` (repeatable, once per format, required) |
 | `catalog add` | `--claim` | None | Format and claim, such as `dc+sd-jwt:address.locality` or `mso_mdoc:degree` (repeatable) |
 | `catalog add` | `--category` | `eaa` | Credential category: `pid`, `qeaa`, `pub-eaa` or `eaa` |

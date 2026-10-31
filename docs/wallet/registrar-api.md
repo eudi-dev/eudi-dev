@@ -260,7 +260,7 @@ error=access_denied&error_description=The+request+does+not+meet+the+ARF+registra
 
 ### 1. Registration
 
-An issuer lists its attestation types. Without an entitlement, the registrar takes the entitlement of each type's category from the catalogue. `urn:example:diploma:1` has no catalogue entry, so it is an EAA and the issuer gets `Non_Q_EAA_Provider`.
+An issuer lists its attestation types. Set `credentialIssuer` on the service, or on a [catalogue entry](registrar.md#attestation-catalogue), to its Credential Issuer Identifier, so that a wallet can [request its credentials](http-api.md#wallet-initiated-issuance). This field is not part of a certificate. Without an entitlement, the registrar takes the entitlement of each type's category from the catalogue. `urn:example:diploma:1` has no catalogue entry, so it is an EAA and the issuer gets `Non_Q_EAA_Provider`.
 
 ```bash
 curl -s -X POST localhost:8085/api/registrar/wrp -H 'Content-Type: application/json' -d '{

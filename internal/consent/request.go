@@ -90,6 +90,9 @@ type Request struct {
 	// RegisteredName is the relying party name of the registration
 	// certificate bound to the request's access certificate.
 	RegisteredName string
+	// Updated tells an open dialog to keep the user's selection when the event
+	// stream announces this request again.
+	Updated bool
 }
 
 // NewRequest is a pending request of typ that belongs to owner. An empty
@@ -177,6 +180,16 @@ type QueryOptions struct {
 	// Debug mode lists the credentials that do not match the query. The user can
 	// pick them to test how the verifier handles a wrong answer.
 	NonMatching []Match `json:"non_matching,omitempty"`
+	// Obtainable are the catalogue entries of a query without a matching
+	// credential. National PIDs share a doctype, so there can be several.
+	Obtainable []Obtainable `json:"obtainable,omitempty"`
+}
+
+// Obtainable names an attestation type of the catalogue. The user can request
+// it from an issuer.
+type Obtainable struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 type Result struct {
@@ -225,6 +238,7 @@ func marshal(r *Request) map[string]any {
 		"client_id":           r.ClientID,
 		"created_at":          r.CreatedAt.Format(time.RFC3339),
 		"matched_credentials": r.MatchedCreds,
+		"updated":             r.Updated,
 	}
 	if r.Nonce != "" {
 		m["nonce"] = r.Nonce

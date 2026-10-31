@@ -93,6 +93,8 @@ type IssuanceResult struct {
 	// presentation. FindingDetails adds the structured form of each.
 	Findings       findings.List      `json:"findings,omitempty"`
 	FindingDetails []findings.Finding `json:"finding_details,omitempty"`
+	// Additional holds the results of AdditionalConfigurations.
+	Additional []*IssuanceResult `json:"additional,omitempty"`
 }
 
 type OfferOptions struct {
@@ -116,10 +118,15 @@ type OfferOptions struct {
 	// CallerNavigates is set when the caller opens the sign-in URL itself, so
 	// no wallet page navigates to it.
 	CallerNavigates bool
+	// Cancelled ends the wait for the sign-in when it closes.
+	Cancelled <-chan struct{}
 	// ResolvedOffer is the offer that the caller already resolved from the same
 	// URI, for example for a consent dialog. The flow uses it only when reading
 	// the URI again fails.
 	ResolvedOffer *oid4vc.CredentialOffer
+	// AdditionalConfigurations are requested with ConfigurationID under one
+	// authorization, so the user signs in once.
+	AdditionalConfigurations []string
 	// ConfigurationID is the entry of credential_configuration_ids chosen by
 	// the user or the API caller. Empty requests the first entry.
 	ConfigurationID string
@@ -263,16 +270,24 @@ func (w *Wallet) processCredentialOffer(offerURI string, opts OfferOptions) (_ *
 	if err != nil {
 		return nil, err
 	}
-	metadata, list, err := w.loadIssuerMetadata(offer.CredentialIssuer, []string{configID})
+	configurations := append([]string{configID}, opts.AdditionalConfigurations...)
+	metadata, list, err := w.loadIssuerMetadata(offer.CredentialIssuer, configurations)
 	if err != nil {
 		return nil, err
+	}
+	for _, configuration := range opts.AdditionalConfigurations {
+		if jsonutil.GetMap(jsonutil.GetMap(metadata, "credential_configurations_supported"), configuration) == nil {
+			return nil, fmt.Errorf("the issuer %s has no credential configuration %q", offer.CredentialIssuer, configuration)
+		}
 	}
 	// Strict mode refuses the HAIP findings of the issuer metadata with those of
 	// the offer, once the authorization server metadata is known. Debug mode
 	// logs them with the other findings about the issuer.
 	var haip findings.List
 	if w.HAIPChecks() {
-		haip = haipIssuerMetadataViolations(metadata, configID)
+		for _, configuration := range configurations {
+			haip = append(haip, haipIssuerMetadataViolations(metadata, configuration)...)
+		}
 	}
 	strict := w.Mode() == ValidationModeStrict
 	if !strict {
@@ -341,8 +356,9 @@ func (w *Wallet) processCredentialOffer(offerURI string, opts OfferOptions) (_ *
 			AuthorizationServer: oauthIssuer(oauthMeta, tokenEndpoint),
 			ReusePolicy:         w.reuseOption(metadata, configID),
 		},
-		nonces: &dpopNonceState{},
-		report: opts.addFindings,
+		additional: opts.AdditionalConfigurations,
+		nonces:     &dpopNonceState{},
+		report:     opts.addFindings,
 	}
 
 	// A pre-authorized flow can take its token endpoint from the issuer

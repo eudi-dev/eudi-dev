@@ -123,8 +123,12 @@ type WalletRelyingPartyService struct {
 	SrvDescription       ServiceDescription    `json:"srvDescription,omitempty"`
 	Entitlements         []string              `json:"entitlements"`
 	ProvidesAttestations []ProvidedAttestation `json:"providesAttestations,omitempty"`
-	IsIntermediary       bool                  `json:"isIntermediary"`
-	IntendedUses         []IntendedUse         `json:"intendedUses,omitempty"`
+	// CredentialIssuer is the Credential Issuer Identifier of a service. A wallet
+	// uses it to request the attestations of the service. It is not part of a
+	// certificate.
+	CredentialIssuer string        `json:"credentialIssuer,omitempty"`
+	IsIntermediary   bool          `json:"isIntermediary"`
+	IntendedUses     []IntendedUse `json:"intendedUses,omitempty"`
 }
 
 // IntendedUse is what a registration certificate certifies (TS05 v1.5 §2.4.4).
@@ -503,6 +507,11 @@ func normalizeRelyingParty(rp *WalletRelyingParty, base string, before *WalletRe
 		}
 		services[service.ServiceIdentifier] = true
 		service.ServiceTradeName = jsonutil.FirstNonEmpty(service.ServiceTradeName, rp.TradeName)
+		issuer, err := normalizeCredentialIssuer(service.CredentialIssuer)
+		if err != nil {
+			return err
+		}
+		service.CredentialIssuer = issuer
 		service.SupportURI = jsonutil.FirstNonEmpty(service.SupportURI, base+"/support")
 		if address, err := mail.ParseAddress(service.SupportURI); err == nil && address.Address == service.SupportURI {
 			service.SupportURI = "mailto:" + service.SupportURI

@@ -296,6 +296,7 @@ func (s *Server) attemptDeferredCollection(pending DeferredIssuance) DeferredAtt
 		return s.abandonDeferred(pending, err.Error())
 	}
 	s.log("  Collected:     deferred %s credential from %s", imported.Format, pending.Issuer)
+	s.wallet.refreshWaitingPresentations()
 	return DeferredAttempt{Collected: true, Credential: imported}
 }
 
@@ -444,6 +445,7 @@ func (s *Server) refreshDeferredAccessToken(pending DeferredIssuance) (DeferredI
 		updated.AccessTokenExpiresAt = grant.expiresAt(time.Now())
 	}
 	s.saveMutation(func() bool {
+		s.wallet.replaceRefreshToken(pending.RefreshToken, updated.RefreshToken)
 		s.wallet.UpdateDeferredIssuance(updated.ID, func(p *DeferredIssuance) {
 			p.AccessToken = updated.AccessToken
 			p.AuthScheme = updated.AuthScheme

@@ -419,6 +419,28 @@ func (w *Wallet) rememberRenewal(credentialID string, renewal CredentialRenewal)
 	}
 }
 
+// replaceRefreshToken updates every format of one authorization. They share
+// one refresh token, and a rotation retires it.
+func (w *Wallet) replaceRefreshToken(rotated, current string) {
+	if w == nil || rotated == "" || rotated == current {
+		return
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	for i := range w.Credentials {
+		if renewal := w.Credentials[i].Renewal; renewal != nil && renewal.RefreshToken == rotated {
+			copied := *renewal
+			copied.RefreshToken = current
+			w.Credentials[i].Renewal = &copied
+		}
+	}
+	for i := range w.DeferredIssuances {
+		if w.DeferredIssuances[i].RefreshToken == rotated {
+			w.DeferredIssuances[i].RefreshToken = current
+		}
+	}
+}
+
 // jwtIssuedAt reads iat from the claims. An SD-JWT passes its resolved
 // claims, because a PID carries iat as a disclosure (CIR (EU) 2024/2977 Annex
 // section 4.2, as replaced by CIR (EU) 2026/1731).

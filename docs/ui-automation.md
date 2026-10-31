@@ -180,7 +180,7 @@ await page.locator("#login-submit").click();
 await page.waitForURL(`${WALLET}/?focus=overview`);
 ```
 
-API: `POST /api/offers` returns `202` with `authorization_url` and `offer_id`. Open the URL in the browser, sign in and poll `GET /api/offers/{offer_id}` until its `status` is `completed`. See [sign-in during issuance](wallet/issuing.md#sign-in-during-issuance).
+API: `POST /api/offers` returns `202` with `authorization_url` and `offer_id`. Open the URL in the browser, sign in and poll `GET /api/offers/{offer_id}` until its `status` is `completed`. `DELETE /api/offers/{offer_id}` gives up the sign-in. See [sign-in during issuance](wallet/issuing.md#sign-in-during-issuance).
 
 E2E tests: [`demo.spec.js`](../e2e/demo.spec.js), test *the credential arrives once the user signs in at the issuer*. [`prefix.spec.js`](../e2e/prefix.spec.js), test *issuer sign-in returns to the wallet under the prefix*.
 
@@ -481,7 +481,7 @@ Open **Registrar**, then **Attestation catalogue** (`#registrar-catalog-link`). 
 | Search | `#registrar-catalog-search` |
 | Filters | `#registrar-catalog-filter-category-<category>`, `-los-<level>`, `-binding-<value>`, `-source-<source>` (with `aria-pressed`), `#registrar-catalog-filter-clear` |
 | No match | `#registrar-catalog-empty` |
-| Add an attestation | `#registrar-catalog-add`, form fields `#registrar-catalog-name`, `#registrar-catalog-category`, `#registrar-catalog-format-<n>-type`, `#registrar-catalog-save` |
+| Add an attestation | `#registrar-catalog-add`, form fields `#registrar-catalog-name`, `#registrar-catalog-category`, `#registrar-catalog-format-<n>-type`, `#registrar-catalog-issuer`, `#registrar-catalog-save` |
 
 API: `GET` and `POST /api/catalog/attestations` (see [registrar](wallet/http-api.md#registrar)).
 

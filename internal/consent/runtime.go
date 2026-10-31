@@ -135,6 +135,40 @@ func (rt *Runtime) Get(id string) (*Request, bool) {
 	return req, ok
 }
 
+// UpdateOptions replaces the answers of a pending request and announces it
+// again, so an open dialog shows them. Options returns them under the same lock.
+func (rt *Runtime) UpdateOptions(id string, matches []Match, options *CredentialOptions) bool {
+	rt.mu.Lock()
+	req, ok := rt.requests[id]
+	if !ok || req.Status != StatusPending {
+		rt.mu.Unlock()
+		return false
+	}
+	req.MatchedCreds = matches
+	req.CredentialOptions = options
+	req.Updated = true
+	subs := make([]chan *Request, 0, len(rt.subscribers))
+	for _, ch := range rt.subscribers {
+		subs = append(subs, ch)
+	}
+	rt.mu.Unlock()
+
+	for _, ch := range subs {
+		select {
+		case ch <- req:
+		default:
+		}
+	}
+	return true
+}
+
+// Options returns the current answers of a request.
+func (rt *Runtime) Options(req *Request) *CredentialOptions {
+	rt.mu.RLock()
+	defer rt.mu.RUnlock()
+	return req.CredentialOptions
+}
+
 // Resolve returns false for missing or resolved requests.
 func (rt *Runtime) Resolve(id, status string) (*Request, bool) {
 	rt.mu.Lock()
@@ -455,6 +489,8 @@ type AuthorizationPrompt struct {
 	// CallerNavigates is set when the caller opens the URL itself, for example
 	// a redirected browser. No wallet page navigates then.
 	CallerNavigates bool
+	// Cancelled ends the wait for the sign-in when it closes.
+	Cancelled <-chan struct{}
 }
 
 // An authSubscriber is a flow caller, which filters with accept, or a wallet
