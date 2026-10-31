@@ -41,7 +41,7 @@ Every endpoint under `/api` answers errors with the same JSON object. So do the 
 | `400`, `422` | `invalid_request` | A malformed body or parameter, an unusable request or offer, or an invalid selection. A strict refusal of a presentation request carries the OpenID4VP 1.0 §8.5 error code instead |
 | `403` | `forbidden` | A cross-origin request, a protected credential or template, or an endpoint disabled on the public demo |
 | `404` | `not_found` | An unknown credential, template, request, offer, deferred credential or registration |
-| `409` | `conflict` | The request timed out or was answered already, or a registration changed meanwhile |
+| `409` | `conflict` | The request timed out or was answered already, a registration changed meanwhile, or the public demo holds too many revocations |
 | `501` | `not_implemented` | An unsupported feature, such as historical status lists |
 | `503` | `temporarily_unavailable` | A required part, such as the store, is missing, or too many flows are waiting for the user (see [waiting flows](#waiting-flows)) |
 | `500`, `502` | `server_error` | The wallet could not build or deliver the response |
@@ -295,13 +295,13 @@ curl -X POST http://localhost:8085/api/certificates/revocations \
 | `POST`   | `/api/certificates/revocations`          | Revoke a certificate                        |
 | `DELETE` | `/api/certificates/revocations/{serial}` | Take a certificate off its CRL              |
 
-The credential list has a `certificate_status` for each credential. Its `status` is `valid`, `revoked`, `expired`, `unchecked` or `none` (no CRL). This reads only the revocations of this wallet. `unchecked` means that a certificate has a CRL of another issuer. `GET /api/credentials/{id}/certificate-status` then reads those CRLs, and `status` can also be `unknown` (a CRL can't be read). The public demo blocks this endpoint. `problems` names the reason. **Check status** on the credential card does the same.
+The credential list has a `certificate_status` for each credential. Its `status` is `valid`, `revoked`, `expired`, `unchecked` or `none` (no CRL). This reads only the revocations of this wallet. `unchecked` means that a certificate has a CRL of another issuer. `GET /api/credentials/{id}/certificate-status` then reads those CRLs, and `status` can also be `unknown` (a CRL can't be read). `problems` names the reason. **Check status** on the credential card does the same. The public demo reads at most 4 CRL addresses for a credential.
 
 With memory storage, revocations and withdrawals end with the restart. With a stable [seed](../wallet.md#seeded-keys), the CAs keep their keys and subjects. A certificate from before the restart can be revoked again, and the new CRLs verify against the old CA certificates.
 
 You can also do this in the wallet UI. Click **Certificates** on a credential to see its certificate chain. You can revoke the certificates of this wallet and withdraw its CAs there. `GET /api/credentials/{id}/certificates` returns the same list.
 
-The public demo blocks `POST` and `DELETE`, and it blocks `GET /api/credentials/{id}/certificates`.
+On the public demo, `POST` revokes only the signing certificate of an attestation provider (EAA, QEAA or Pub-EAA). `revocable` in the certificate list shows which ones qualify. Everyone shares these certificates, so a revocation affects every credential signed with that certificate. The public demo keeps at most 100 revocations. Anyone can undo it, and the next reset removes it.
 
 The demo verifier checks the CRLs of a presented credential. It rejects a credential with a revoked certificate in its chain. If it can't read a CRL, it shows a warning and still accepts the credential. The consent dialog warns you when a selected credential has a certificate revoked by this wallet. It reads no CRLs, so it does not warn about certificates revoked by other issuers.
 

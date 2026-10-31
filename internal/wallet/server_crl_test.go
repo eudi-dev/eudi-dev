@@ -20,6 +20,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -302,12 +303,8 @@ func TestHangingCRLEndsWithTheRequest(t *testing.T) {
 
 func TestDemoBlocksCRLControls(t *testing.T) {
 	for _, tc := range []struct{ method, path string }{
-		{http.MethodPost, "/api/certificates/revocations"},
-		{http.MethodDelete, "/api/certificates/revocations/0a"},
 		{http.MethodPut, "/api/crl/fault"},
 		{http.MethodDelete, "/api/crl/fault"},
-		{http.MethodGet, "/api/credentials/abc/certificates"},
-		{http.MethodHead, "/api/credentials/abc/certificates"},
 	} {
 		if !demoBlockedRoute(httptest.NewRequest(tc.method, tc.path, nil)) {
 			t.Errorf("%s %s is open on the demo", tc.method, tc.path)
@@ -506,5 +503,65 @@ func TestTheCertificateStatusOfAChain(t *testing.T) {
 	}
 	if got := w.chainStatus(chain); got.Status != certificateStatusRevoked || len(got.Problems) != 1 {
 		t.Errorf("status after the revocation = %+v", got)
+	}
+}
+
+// A demo visitor can revoke the signing certificate of an attestation provider.
+// CAs, PID and wallet providers and the certificates of protected credentials stay
+// out of reach.
+func TestTheDemoRevokesOnlySigningCertificatesOfProviders(t *testing.T) {
+	srv := newTestServer(t, false)
+	if err := srv.SetDemo(DemoOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	w := srv.wallet
+	w.IssuerURL = "https://wallet.example"
+	revoke := func(cert *x509.Certificate) int {
+		return crlRequest(t, srv, http.MethodPost, certificateRevocationsPath, map[string]any{"certificate": certificatePEM(cert)}).Code
+	}
+	chain := providerChain(t, w)
+	_, pid, err := w.Signer().ForList(provider.CategoryList(credtemplate.CategoryPID), "NL", "dc+sd-jwt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, access, err := w.Signer().RelyingPartyAccessCA()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, wallet, err := w.Signer().WalletProvider()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, cert := range map[string]*x509.Certificate{"provider CA": chain[1], "PID provider": pid[0], "access CA": access, "wallet provider": wallet[0]} {
+		if got := revoke(cert); got == http.StatusCreated {
+			t.Errorf("%s was revoked", name)
+		}
+	}
+	if got := revoke(chain[0]); got != http.StatusCreated {
+		t.Errorf("an attestation provider's signing certificate: %d", got)
+	}
+	if got := crlRequest(t, srv, http.MethodDelete, certificateRevocationsPath+"/"+chain[0].SerialNumber.Text(16), nil).Code; got != http.StatusNoContent {
+		t.Errorf("undo: %d", got)
+	}
+	for i := range maxDemoRevocations {
+		w.RevokedCertificates = append(w.RevokedCertificates, RevokedCertificate{Serial: fmt.Sprintf("f%d", i), CRLPath: provider.RootCRLPath})
+	}
+	if got := revoke(chain[0]); got != http.StatusConflict {
+		t.Errorf("a full list: %d", got)
+	}
+}
+
+// A reset takes the visitors' revocations back, so the demo works again.
+func TestADemoResetClearsRevocations(t *testing.T) {
+	srv := newTestServer(t, false)
+	if err := srv.SetDemo(DemoOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	srv.wallet.RevokedCertificates = []RevokedCertificate{{Serial: "0a", CRLPath: provider.RootCRLPath}}
+	if err := srv.demoReset(); err != nil {
+		t.Fatal(err)
+	}
+	if len(srv.wallet.RevokedCertificates) != 0 {
+		t.Errorf("revocations = %+v", srv.wallet.RevokedCertificates)
 	}
 }

@@ -42,7 +42,7 @@ Use `--mode strict` to reject violations, or `--haip=false` and `--arf=false` to
 
 Resets run every hour by default. `--demo-reset` accepts an interval such as `24h`, a daily time such as `00:00`, or a time with a zone such as `"00:00 Europe/Berlin"`. `0` disables resets. Daily schedules follow local time, including daylight saving changes, and retain their schedule across restarts.
 
-A reset removes visitor credentials, registered relying parties and the providers and lists added to the trusted lists. It then registers the demo issuer, the demo verifier and the parties from `--relying-parties` again. It regenerates the protected PID baseline and clears the activity log. The CA, keys and URLs stay stable. The credential signing certificate is renewed.
+A reset removes visitor credentials, registered relying parties and the providers and lists added to the trusted lists. It then registers the demo issuer, the demo verifier and the parties from `--relying-parties` again. It regenerates the protected PID baseline, removes certificate revocations and clears the activity log. The CA, keys and URLs stay stable. The credential signing certificate is renewed.
 
 ## Browser hardening
 
@@ -98,7 +98,7 @@ To include a ticket, set `ticket` in the same request:
 
 All 4 baseline credentials are protected. The UI, the API and the CLI refuse to delete or revoke them. Visitor credentials can be deleted. Removing baseline protection requires direct access to `wallet.json`.
 
-All visitors share credentials, registered relying parties, trusted lists and the activity log. Anyone can issue credentials, delete unprotected credentials, register, revoke and delete relying parties, and read the log. Anyone can also put providers and external lists on the wallet's [trusted lists](wallet/serve.md#trusted-lists). With `--arf` the wallet then trusts these entries for every visitor. The demo holds at most 20 added providers and 5 added lists. It keeps the newest 500 credentials and 100 deferred issuances, in addition to the protected PIDs. At most 30 consent dialogs and 30 sign-ins wait at once, and at most 3 of each per browser. Requests without a browser ID share one count of 3 (see [waiting flows](wallet/http-api.md#waiting-flows)). The demo refuses a credential larger than 512 KB. Each browser shows only the errors of its own flows. Use test data only.
+All visitors share credentials, registered relying parties, trusted lists and the activity log. Anyone can issue credentials, delete unprotected credentials, register, revoke and delete relying parties, and read the log. Anyone can also revoke the signing certificate of an attestation provider, and undo such a revocation. The demo keeps at most 100 revocations, and the activity log shows each one. CAs, access certificates, PID and wallet providers can't be revoked, and trusted list withdrawal is blocked. Anyone can also put providers and external lists on the wallet's [trusted lists](wallet/serve.md#trusted-lists). With `--arf` the wallet then trusts these entries for every visitor. The demo holds at most 20 added providers and 5 added lists. It keeps the newest 500 credentials and 100 deferred issuances, in addition to the protected PIDs. At most 30 consent dialogs and 30 sign-ins wait at once, and at most 3 of each per browser. Requests without a browser ID share one count of 3 (see [waiting flows](wallet/http-api.md#waiting-flows)). The demo refuses a credential larger than 512 KB. Each browser shows only the errors of its own flows. Use test data only.
 
 ## Rate limits
 

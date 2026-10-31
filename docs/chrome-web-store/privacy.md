@@ -18,7 +18,7 @@ Don't use real personal data with the public demo.
 
 ## Data stored in the browser
 
-The extension stores the wallet URL you set and a random ID in the browser's extension storage. The random ID lets the wallet show its consent dialog in the window that the extension opens. Both stay in your browser.
+The extension stores the wallet URL you set, your popup settings and a random ID in the browser's extension storage. The random ID lets the wallet show its consent dialog in the window that the extension opens. All three stay in your browser.
 
 ## Use of data
 

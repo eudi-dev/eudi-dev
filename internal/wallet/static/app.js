@@ -577,7 +577,7 @@
         }
       }
       const externalStatus = !!(st && !st.managed && st.uri);
-      const certificatesUnchecked = !demoMode && !!(cred.certificate_status && cred.certificate_status.status === 'unchecked');
+      const certificatesUnchecked = !!(cred.certificate_status && cred.certificate_status.status === 'unchecked');
       const checkBtn = !externalStatus && !certificatesUnchecked ? '' : '<button class="btn btn-sm" id="status-check-' + domID(cred.id) + '" data-check-status="' + escHtml(cred.id) + '">Check status</button>';
 
       // Container queries choose whether the description flips the card or expands beneath
@@ -590,7 +590,7 @@
             descIcon('ic-chev', '<path d="M6 9l6 6 6-6"/>') +
           '</button>'
         : '';
-      const certificatesBtn = demoMode ? '' : '<button class="btn btn-sm" id="certificates-' + domID(cred.id) + '" data-certificates="' + escHtml(cred.id) + '">Certificates</button>';
+      const certificatesBtn = '<button class="btn btn-sm" id="certificates-' + domID(cred.id) + '" data-certificates="' + escHtml(cred.id) + '">Certificates</button>';
       const actionsHtml = '<div class="credential-actions">' +
           aboutBtn +
           revokeBtn +
@@ -769,7 +769,7 @@
       case 'revoked': return { label: 'Certificate revoked', cls: 'status-revoked ico-block', title };
       case 'expired': return { label: 'Certificate expired', cls: 'status-revoked ico-block', title };
       case 'unknown': return { label: 'CRL not readable', cls: 'status-external ico-warn', title };
-      case 'unchecked': return { label: 'Certificate not checked', cls: 'status-external ico-half', title: 'The certificates use the CRLs of another issuer.' + (demoMode ? '' : ' Check status reads them.') };
+      case 'unchecked': return { label: 'Certificate not checked', cls: 'status-external ico-half', title: 'The certificates use the CRLs of another issuer. Check status reads them.' };
       default: return { label: 'No CRL', cls: 'status-none ico-circle', title: 'The certificates name no CRL.' };
     }
   }
@@ -1046,7 +1046,7 @@
         return;
       }
       if (!certificates.some(c => c.revocable || c.withdrawable || c.withdrawn_id)) {
-        list.innerHTML = '<p class="dialog-hint" id="certificates-external">This wallet didn\'t issue these certificates, so you can\'t revoke or withdraw them.</p>';
+        list.innerHTML = demoMode && certificates.some(c => c.issued) ? '<p class="dialog-hint" id="certificates-external">The public demo protects these certificates, because all visitors share them.</p>' : '<p class="dialog-hint" id="certificates-external">This wallet didn\'t issue these certificates, so you can\'t revoke or withdraw them.</p>';
       }
       certificates.slice().reverse().forEach((certificate, depth) => {
         list.appendChild(certificateRow(certificate, certificates.length - 1 - depth, depth));

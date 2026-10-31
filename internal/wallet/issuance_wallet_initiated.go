@@ -86,7 +86,7 @@ func (w *Wallet) knownIssuers() []KnownIssuer {
 	if w.demoIssuerURL != nil {
 		issuers = append(issuers, KnownIssuer{Name: DemoIssuerName, URL: w.demoIssuerURL(), operator: true})
 	}
-	if !w.sharedRegistrar {
+	if !w.publicDemo {
 		for _, party := range w.Registrar().RegisteredRelyingParties() {
 			for _, service := range party.Services {
 				if service.CredentialIssuer != "" {
@@ -128,7 +128,7 @@ func (w *Wallet) IssuableCredentials() (credentials []IssuableCredential, loadin
 		for i, issuer := range issuers {
 			// Visitors of a public demo choose their issuers and the metadata, so
 			// one can't attach itself to the entries of others.
-			if w.sharedRegistrar && !issuer.operator && issuer.URL != entry.CredentialIssuer {
+			if w.publicDemo && !issuer.operator && issuer.URL != entry.CredentialIssuer {
 				continue
 			}
 			if ids := matchingConfigurations(offered[i], entry); len(ids) > 0 {

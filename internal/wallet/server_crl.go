@@ -39,6 +39,7 @@ import (
 const (
 	providerCRLPrefix          = "/api/crl/providers/"
 	certificateRevocationsPath = "/api/certificates/revocations"
+	maxDemoRevocations         = 100
 )
 
 // CRL signs the CRL served at path. Each call signs a fresh
@@ -275,12 +276,34 @@ func (s *Server) handleRevokeCertificate(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	var entry RevokedCertificate
+	var forbidden, full bool
 	s.saveMutation(func() bool {
-		entry, err = s.wallet.revokeCertificate(cert, body.Reason)
-		return err == nil
+		if _, err = s.wallet.issuerCRLPath(cert); err != nil {
+			return false
+		}
+		if forbidden = !s.wallet.revocableHere(cert); forbidden {
+			return false
+		}
+		revoked := s.wallet.revokedSerials()
+		_, listed := revoked[cert.SerialNumber.Text(16)]
+		if full = s.wallet.publicDemo && !listed && len(revoked) >= maxDemoRevocations; full {
+			return false
+		}
+		if entry, err = s.wallet.revokeCertificate(cert, body.Reason); err != nil {
+			return false
+		}
+		s.wallet.AddLog("management", "Revoked the certificate "+cert.Subject.CommonName, true)
+		return true
 	})
-	if err != nil {
+	switch {
+	case err != nil:
 		apierror.WriteStatusErr(w, http.StatusBadRequest, err)
+		return
+	case forbidden:
+		apierror.WriteStatus(w, http.StatusForbidden, "the public demo revokes only signing certificates of attestation providers")
+		return
+	case full:
+		apierror.WriteStatus(w, http.StatusConflict, "the public demo holds too many revocations until its next reset")
 		return
 	}
 	writeJSON(w, http.StatusCreated, entry)
@@ -290,7 +313,9 @@ func (s *Server) handleUndoCertificateRevocation(w http.ResponseWriter, r *http.
 	var found bool
 	s.saveMutation(func() bool {
 		serial, ok := new(big.Int).SetString(r.PathValue("serial"), 16)
-		found = ok && s.wallet.undoCertificateRevocation(serial.Text(16))
+		if found = ok && s.wallet.undoCertificateRevocation(serial.Text(16)); found {
+			s.wallet.AddLog("management", "Took the certificate "+serial.Text(16)+" off its CRL", true)
+		}
 		return found
 	})
 	if !found {

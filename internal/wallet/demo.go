@@ -125,7 +125,7 @@ const (
 // them.
 func (s *Server) SetDemo(opts DemoOptions) error {
 	s.demo = &demoState{opts: opts}
-	s.wallet.sharedRegistrar = true
+	s.wallet.publicDemo = true
 	s.wallet.SetCapacity(Capacity{
 		Credentials:        maxDemoCredentials,
 		Deferred:           maxDemoDeferred,
@@ -193,10 +193,6 @@ func demoBlockedRoute(r *http.Request) bool {
 	case (r.Method == http.MethodPost || r.Method == http.MethodDelete) && p == "/api/next-error":
 		return true
 	case (r.Method == http.MethodPut || r.Method == http.MethodDelete) && p == "/api/crl/fault":
-		return true
-	case (r.Method == http.MethodGet || r.Method == http.MethodHead) && strings.HasPrefix(p, "/api/credentials/") && (strings.HasSuffix(p, "/certificates") || strings.HasSuffix(p, "/certificate-status")):
-		return true
-	case r.Method != http.MethodGet && (p == certificateRevocationsPath || strings.HasPrefix(p, certificateRevocationsPath+"/")):
 		return true
 	case r.Method != http.MethodGet && (p == trustWithdrawalsPath || strings.HasPrefix(p, trustWithdrawalsPath+"/")):
 		return true

@@ -22,11 +22,13 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
 	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
@@ -42,7 +44,7 @@ const (
 )
 
 // CredentialCertificate is one certificate of a credential's chain, leaf
-// first. Revocable and Withdrawable say which actions this wallet offers for
+// first. Issued says that this wallet issued it. Revocable and Withdrawable say which actions this wallet offers for
 // it. Only a CA is withdrawable: a verifier still accepts a signing certificate
 // without its own list entry while the list contains its CA.
 // Credentials names the other credentials with this certificate in their chain.
@@ -52,6 +54,7 @@ type CredentialCertificate struct {
 	Subject      string   `json:"subject"`
 	Serial       string   `json:"serial"`
 	Certificate  string   `json:"certificate"`
+	Issued       bool     `json:"issued"`
 	Revocable    bool     `json:"revocable"`
 	Revoked      bool     `json:"revoked"`
 	Withdrawable bool     `json:"withdrawable"`
@@ -136,6 +139,28 @@ func (w *Wallet) revokedNames(chain []*x509.Certificate, revoked map[string]stri
 	return names
 }
 
+// revocableHere keeps the shared certificates of a public demo working. There a
+// visitor can revoke only the signing certificate of an attestation provider,
+// and not one of a protected credential. PID and wallet providers, access
+// certificates and CAs stay out of reach. An x5c in a credential proves nothing,
+// because import skips the checks.
+func (w *Wallet) revocableHere(cert *x509.Certificate) bool {
+	if !w.publicDemo {
+		return true
+	}
+	path, err := w.issuerCRLPath(cert)
+	if err != nil || cert.IsCA {
+		return false
+	}
+	role, _, _ := strings.Cut(strings.TrimPrefix(path, providerCRLPrefix), "/")
+	if !strings.HasPrefix(path, providerCRLPrefix) || !slices.Contains([]string{credtemplate.CategoryEAA, credtemplate.CategoryQEAA, credtemplate.CategoryPubEAA}, role) {
+		return false
+	}
+	return !slices.ContainsFunc(w.GetCredentials(), func(cred StoredCredential) bool {
+		return cred.Protected && slices.ContainsFunc(w.credentialChain(cred), cert.Equal)
+	})
+}
+
 func (w *Wallet) revokedSerials() map[string]string {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
@@ -145,6 +170,14 @@ func (w *Wallet) revokedSerials() map[string]string {
 	}
 	return revoked
 }
+
+// maxDemoCRLPoints keeps a check on a public demo within the server's write
+// timeout, because each address can take as long as the fetch timeout.
+const maxDemoCRLPoints = 4
+
+// maxListedChain limits the work of a certificate list on a public demo. A real
+// chain has a few certificates.
+const maxListedChain = 16
 
 // Certificate status of a credential.
 const (
@@ -171,6 +204,9 @@ func (w *Wallet) certificateStatus(cred StoredCredential) CertificateStatus {
 }
 
 func (w *Wallet) chainStatus(chain []*x509.Certificate) CertificateStatus {
+	if w.publicDemo && len(chain) > maxListedChain {
+		return CertificateStatus{Status: certificateStatusUnchecked}
+	}
 	if names := w.revokedNames(chain, w.revokedSerials()); len(names) > 0 {
 		return CertificateStatus{Status: certificateStatusRevoked, Problems: names}
 	}
@@ -198,15 +234,25 @@ func (s *Server) handleCertificateStatus(w http.ResponseWriter, r *http.Request)
 		apierror.WriteStatus(w, http.StatusNotFound, "credential not found")
 		return
 	}
+	chain := embeddedCertificates(cred)
+	if len(chain) > validate.MaxRevocationChain {
+		apierror.WriteStatus(w, http.StatusUnprocessableEntity, fmt.Sprintf("the chain has %d certificates, so the wallet reads no CRLs", len(chain)))
+		return
+	}
 	status := s.wallet.certificateStatus(cred)
 	if status.Status != certificateStatusUnchecked {
 		writeJSON(w, http.StatusOK, status)
 		return
 	}
-	chain := embeddedCertificates(cred)
-	if len(chain) > validate.MaxRevocationChain {
-		apierror.WriteStatus(w, http.StatusUnprocessableEntity, fmt.Sprintf("the chain has %d certificates, so the wallet reads no CRLs", len(chain)))
-		return
+	if s.wallet.publicDemo {
+		var points int
+		for _, cert := range chain {
+			points += len(cert.CRLDistributionPoints)
+		}
+		if points > maxDemoCRLPoints {
+			apierror.WriteStatus(w, http.StatusUnprocessableEntity, fmt.Sprintf("the chain lists %d CRL addresses. The public demo reads at most %d", points, maxDemoCRLPoints))
+			return
+		}
 	}
 	writeJSON(w, http.StatusOK, s.wallet.readCertificateStatus(chain))
 }
@@ -262,7 +308,9 @@ func (w *Wallet) credentialCertificates(cred StoredCredential) []CredentialCerti
 	others := map[string][]*x509.Certificate{}
 	for _, other := range w.ListedCredentials() {
 		if other.ID != cred.ID {
-			others[credentialLabel(other)] = append(others[credentialLabel(other)], w.credentialChain(other)...)
+			if chain := w.credentialChain(other); !w.publicDemo || len(chain) <= maxListedChain {
+				others[credentialLabel(other)] = append(others[credentialLabel(other)], chain...)
+			}
 		}
 	}
 	withdrawn := w.TrustedLists().WithdrawnList()
@@ -279,9 +327,10 @@ func (w *Wallet) credentialCertificates(cred StoredCredential) []CredentialCerti
 		entry := CredentialCertificate{
 			Name: cert.Subject.CommonName, Role: certificateRole(cert), Subject: cert.Subject.String(), Serial: serial,
 			Certificate:  string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw})),
-			Revocable:    err == nil,
+			Issued:       err == nil,
+			Revocable:    err == nil && w.revocableHere(cert),
 			Revoked:      err == nil && slices.ContainsFunc(revoked, func(r RevokedCertificate) bool { return r.Serial == serial && r.CRLPath == path }),
-			Withdrawable: cert.IsCA && w.TrustedLists().Listed(cert),
+			Withdrawable: !w.publicDemo && cert.IsCA && w.TrustedLists().Listed(cert),
 			Credentials:  []string{},
 		}
 		if slices.ContainsFunc(withdrawn, func(c trustedlists.WithdrawnCertificate) bool { return c.ID == id }) {
@@ -302,6 +351,10 @@ func (s *Server) handleCredentialCertificates(w http.ResponseWriter, r *http.Req
 	cred, ok := s.wallet.GetCredential(r.PathValue("id"))
 	if !ok {
 		apierror.WriteStatus(w, http.StatusNotFound, "credential not found")
+		return
+	}
+	if chain := embeddedCertificates(cred); s.wallet.publicDemo && len(chain) > maxListedChain {
+		apierror.WriteStatus(w, http.StatusUnprocessableEntity, fmt.Sprintf("the chain has %d certificates. The wallet lists at most %d", len(chain), maxListedChain))
 		return
 	}
 	writeJSON(w, http.StatusOK, s.wallet.credentialCertificates(cred))

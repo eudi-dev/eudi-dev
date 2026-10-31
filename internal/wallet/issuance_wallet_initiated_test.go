@@ -517,7 +517,7 @@ func TestAnUnanswerableQueryOpensNoDialog(t *testing.T) {
 // says.
 func TestAPublicDemoListsAVisitorsIssuerOnItsOwnEntry(t *testing.T) {
 	w := generateTestWallet(t)
-	w.sharedRegistrar = true
+	w.publicDemo = true
 	entry := func(name, issuer, typ string) {
 		if _, err := w.Registrar().AddCatalogAttestation(registrar.CatalogAttestation{Name: name, CredentialIssuer: issuer,
 			Credentials: []registrar.CatalogCredential{{Format: credtype.FormatSDJWT, Type: typ}}}); err != nil {

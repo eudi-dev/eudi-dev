@@ -50,6 +50,7 @@ Features
 • The wallet binds each presentation to the page origin, which the extension reads from the browser
 • Works with the public demo wallet at https://eudi-test.dev, a local wallet started with eudi wallet serve, or your own server. Set the wallet in the extension's popup.
 • Other credential requests, such as passkeys, still go to Chrome
+• An off switch in the popup lets you test the browser's own behavior without uninstalling the extension
 
 The extension answers presentation requests only. It doesn't handle navigator.credentials.create().
 
@@ -86,6 +87,7 @@ Lets developers answer Digital Credentials API requests (navigator.credentials.g
 |---|---|
 | `storage` | Stores the wallet URL that the user sets in the popup, and a random ID that lets the wallet show its consent dialog in the window the extension opens. |
 | `offscreen` | Waits for the wallet's answer to a request. The user decides in the wallet, which can take minutes, longer than a service worker may wait for a fetch. |
+| `scripting` | The popup can turn the extension off, so that pages get the browser's own Digital Credentials API. The scripts that replace the API run at document start, before the extension could read a stored setting, so a script in the manifest can't be turned off. The extension registers and removes its own two packaged scripts. It runs no remote code. |
 | Host permission `<all_urls>` | Any verifier website can call the Digital Credentials API, so the content script runs on every page. The extension also sends the request to the wallet at the URL the user sets, which can be any host, including localhost. |
 
 **Remote code:** No, I am not using remote code. All scripts are in the package.

@@ -95,6 +95,26 @@ eudi-test.dev {
 			events 120
 			window 1m
 		}
+		# A CRL check fetches external URLs, and a certificate list reads every credential.
+		zone crl_checks {
+			match {
+				method GET HEAD
+				path /api/credentials/*/certificate-status /api/credentials/*/certificates
+			}
+			key {remote_host}
+			events 30
+			window 1m
+		}
+		# Revocations change what every visitor sees.
+		zone revocations {
+			match {
+				method POST DELETE
+				path /api/certificates/revocations /api/certificates/revocations/*
+			}
+			key {remote_host}
+			events 30
+			window 1m
+		}
 		zone flows_hour {
 			match {
 				method POST
@@ -156,6 +176,26 @@ preview.eudi-test.dev {
 		reverse_proxy wallet-preview:8085
 	}
 	rate_limit {
+		# A CRL check fetches external URLs, and a certificate list reads every credential.
+		zone preview_crl_checks {
+			match {
+				method GET HEAD
+				path /api/credentials/*/certificate-status /api/credentials/*/certificates
+			}
+			key {remote_host}
+			events 30
+			window 1m
+		}
+		# Revocations change what every visitor sees.
+		zone preview_revocations {
+			match {
+				method POST DELETE
+				path /api/certificates/revocations /api/certificates/revocations/*
+			}
+			key {remote_host}
+			events 30
+			window 1m
+		}
 		zone preview_site {
 			key {remote_host}
 			events 1200
