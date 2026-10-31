@@ -42,8 +42,12 @@ func OverAskingFindings(cert map[string]any, dcql map[string]any) findings.List 
 	for _, cq := range jsonutil.Maps(dcql["credentials"]) {
 		format, _ := cq["format"].(string)
 		types := registrar.CredentialTypes(cq["meta"])
-		if !registersCredential(registered, format, types) {
-			overAsk(TypeName(format, types))
+		if missing := unregisteredTypes(registered, format, types); len(missing) > 0 {
+			overAsk(strings.Join(missing, ", "))
+			continue
+		}
+		if len(types) == 0 {
+			overAsk(format)
 			continue
 		}
 		for _, claim := range jsonutil.Maps(cq["claims"]) {
@@ -59,19 +63,17 @@ func OverAskingFindings(cert map[string]any, dcql map[string]any) findings.List 
 	return list
 }
 
-// registersCredential reports whether every accepted type of the query is
-// registered in its format. ETSI TS 119 475 V1.2.1 Annex B.2.9 requires format
-// and meta, so an entry without them registers nothing.
-func registersCredential(registered []Credential, format string, types []string) bool {
-	if len(types) == 0 {
-		return false
-	}
+// unregisteredTypes returns the accepted types of a query that aren't registered
+// in its format. ETSI TS 119 475 V1.2.1 Annex B.2.9 requires format and meta, so
+// an entry without them registers nothing.
+func unregisteredTypes(registered []Credential, format string, types []string) []string {
+	var missing []string
 	for _, t := range types {
 		if len(registeredFor(registered, format, t)) == 0 {
-			return false
+			missing = append(missing, t)
 		}
 	}
-	return true
+	return missing
 }
 
 func registeredFor(registered []Credential, format, credentialType string) []Credential {
