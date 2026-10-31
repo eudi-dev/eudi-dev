@@ -5,11 +5,12 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.6.1] - Unreleased
+## [3.6.1] - 2026-10-31
 
 ### Changed
 
 - **Certificates on the public demo.** The **Certificates** button and **Check status** now work on the demo. Visitors can revoke the signing certificate of an attestation provider. Anyone can undo that, and the next reset removes it. CAs, access certificates, PID and wallet providers and trusted list withdrawal stay blocked. The activity log shows revocations.
+- **Browser extension popup.** The on/off switch and the console option are now toggles. An info icon replaces the long explanation.
 
 ### Fixed
 

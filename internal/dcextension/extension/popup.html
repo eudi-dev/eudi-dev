@@ -18,16 +18,27 @@
     #status.ok { color: var(--ok); }
     #status.bad { color: var(--bad); }
     p { margin: 10px 0 0; color: var(--dim); }
-    .check { display: flex; gap: 8px; align-items: center; margin-top: 12px; font-weight: 400; color: var(--text); }
-    .check input { width: auto; margin: 0; }
-    .check.first { margin: 0 0 4px; }
-    #enabled-hint { margin: 0 0 12px; }
+    .switch-row { display: flex; align-items: center; gap: 6px; margin: 0 0 12px; }
+    .switch-row + label { margin-top: 0; }
+    #status + .switch-row { margin: 12px 0 0; }
+    .switch-row label { margin: 0; font-weight: 600; color: var(--text); }
+    .switch { appearance: none; position: relative; flex: none; width: 34px; height: 20px; margin: 0 0 0 auto; padding: 0; border: 0; border-radius: 10px; background: var(--border); cursor: pointer; transition: background .15s; }
+    .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s; }
+    .switch:checked { background: var(--accent); }
+    .switch:checked::after { transform: translateX(14px); }
+    .switch:focus-visible, .info:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .info { position: relative; flex: none; width: 16px; height: 16px; border: 1px solid var(--dim); border-radius: 50%; color: var(--dim); font: 600 11px/16px system-ui, sans-serif; text-align: center; cursor: help; }
+    .info:hover, .info:focus { border-color: var(--accent); color: var(--accent); }
+    .info:hover::after, .info:focus::after { content: attr(data-tip); position: absolute; z-index: 1; top: 22px; left: -80px; width: 210px; padding: 6px 8px; border-radius: 6px; background: var(--text); color: var(--bg); font-weight: 400; font-size: 12px; line-height: 1.35; text-align: left; }
   </style>
 </head>
 <body>
   <h1><img src="icons/32.png" alt="">eudi-dev Digital Credentials</h1>
-  <label class="check first" for="enabled"><input id="enabled" type="checkbox"> Answer Digital Credentials API calls</label>
-  <p id="enabled-hint">Turn this off to test the browser's own behavior. Reload open pages to apply the change.</p>
+  <div class="switch-row">
+    <label for="enabled">Answer calls</label>
+    <span class="info" tabindex="0" role="img" aria-label="Off: pages get the browser's own API. Reload open pages after a change." data-tip="Off: pages get the browser's own API. Reload open pages after a change.">i</span>
+    <input id="enabled" class="switch" type="checkbox" role="switch">
+  </div>
   <label for="wallet-url">Wallet URL</label>
   <input id="wallet-url" type="url" spellcheck="false">
   <div class="row">
@@ -35,8 +46,10 @@
     <a id="open" href="#" target="_blank" rel="noopener">Open the wallet</a>
   </div>
   <div id="status"></div>
-  <label class="check" for="console-log"><input id="console-log" type="checkbox"> Log calls to the page's console</label>
-  <p>Pages that call <code>navigator.credentials.get()</code> with a <code>digital</code> request get the answer from this wallet. The wallet opens in a window to ask for your consent.</p>
+  <div class="switch-row">
+    <label for="console-log">Log to the page console</label>
+    <input id="console-log" class="switch" type="checkbox" role="switch">
+  </div>
   <script src="popup.js"></script>
 </body>
 </html>
