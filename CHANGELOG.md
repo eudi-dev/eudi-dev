@@ -5,7 +5,7 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.6.0] - Unreleased
+## [3.6.0] - 2026-10-31
 
 ### Added
 
@@ -14,8 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Trusted list withdrawal.** You can remove a trust anchor from the wallet's own trusted lists in the wallet UI or through the API. See [withdrawing a trusted list entry](docs/wallet/http-api.md#withdrawing-a-trusted-list-entry).
 - **CRL check in the demo verifier.** The demo verifier rejects a credential with a revoked certificate in its chain. The consent dialog warns about a credential with a certificate revoked by this wallet.
 - **Trusted lists in the decoder.** Each trusted list in the Trust & certificates dialog has an **Actions** menu with **Open in decoder**. The decoder, `eudi-dev decode` and `eudi-dev validate` also check the CRLs of a credential.
-- **Wallet-initiated issuance.** **Request credential** and each entry of the attestation catalogue request a credential from an issuer without an offer. The wallet asks for every format the issuer offers, and you sign in once. `GET` and `POST /api/issuance` do the same. A registered service or a catalogue entry can set `credentialIssuer` for this, and the **Add an attestation** form has a field for it. **Cancel** ends a waiting sign-in. See [wallet-initiated issuance](docs/wallet/http-api.md#wallet-initiated-issuance).
-- **Requesting a missing credential during a presentation.** If a verifier asks for a catalogue type the wallet doesn't hold, the consent dialog offers to request it. The credential then appears in the open dialog. This also works with an empty wallet and over the Digital Credentials API.
+- **Wallet-initiated issuance.** With **Request credential**, or from an entry of the attestation catalogue, the wallet requests a credential from an issuer without an offer. The wallet asks for every format the issuer offers, and you sign in once. `GET` and `POST /api/issuance` do the same. A registered service or a catalogue entry can set `credentialIssuer` for this, and the **Add an attestation** form has a field for it. **Cancel** ends a waiting sign-in. See [wallet-initiated issuance](docs/wallet/http-api.md#wallet-initiated-issuance).
+- **Requesting a missing credential during a presentation.** If a verifier asks for a catalogue type the wallet doesn't hold, the consent dialog can open the list of issuers for it. The credential then appears in the open dialog. This also works with an empty wallet and in strict mode. It isn't available for Digital Credentials API requests.
+- **Certificate status on credential cards.** Each card has a badge for its certificates, like the badge for the credential status. **Check status** reads the CRLs of another issuer.
+- **Off switch in the browser extension.** The extension's popup can turn it off, so pages get the browser's own Digital Credentials API. You no longer need to uninstall it. The extension now needs the `scripting` permission.
 - **CRL faults for tests.** You can make a CRL endpoint return an error, hang, or serve an expired or wrongly signed CRL. Set a fault under Settings or through the API. The API can also set `nextUpdate`. See [CRL faults](docs/wallet/http-api.md#crl-faults).
 
 ### Fixed
