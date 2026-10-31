@@ -19,6 +19,7 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"encoding/pem"
+	"fmt"
 	"net/http"
 	"slices"
 	"time"
@@ -91,12 +92,7 @@ func (w *Wallet) CertificateProblems(chain []*x509.Certificate) []certchain.Revo
 // request with revoked certificates in their chain. It reads the revocations of
 // this wallet and no CRL. A slow CRL endpoint must not delay the consent dialog.
 func (w *Wallet) flagRevokedCertificates(matches []consent.Match, options *consent.CredentialOptions) {
-	w.mu.RLock()
-	revoked := make(map[string]string, len(w.RevokedCertificates))
-	for _, r := range w.RevokedCertificates {
-		revoked[r.Serial] = r.CRLPath
-	}
-	w.mu.RUnlock()
+	revoked := w.revokedSerials()
 	if len(revoked) == 0 {
 		return
 	}
@@ -123,14 +119,116 @@ func (w *Wallet) revokedCertificateNames(id string, revoked map[string]string) [
 	if !ok {
 		return nil
 	}
+	return w.revokedNames(w.credentialChain(cred), revoked)
+}
+
+func (w *Wallet) revokedNames(chain []*x509.Certificate, revoked map[string]string) []string {
+	if len(revoked) == 0 {
+		return nil
+	}
 	var names []string
-	for _, cert := range w.credentialChain(cred) {
+	for _, cert := range chain {
 		path, err := w.issuerCRLPath(cert)
 		if err == nil && revoked[cert.SerialNumber.Text(16)] == path {
 			names = append(names, cert.Subject.CommonName)
 		}
 	}
 	return names
+}
+
+func (w *Wallet) revokedSerials() map[string]string {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	revoked := make(map[string]string, len(w.RevokedCertificates))
+	for _, r := range w.RevokedCertificates {
+		revoked[r.Serial] = r.CRLPath
+	}
+	return revoked
+}
+
+// Certificate status of a credential.
+const (
+	certificateStatusValid     = "valid"
+	certificateStatusRevoked   = "revoked"
+	certificateStatusExpired   = "expired"
+	certificateStatusUnchecked = "unchecked"
+	certificateStatusUnknown   = "unknown"
+	certificateStatusNone      = "none"
+)
+
+// CertificateStatus sums up the certificates of a credential. Problems names
+// the certificates behind the status.
+type CertificateStatus struct {
+	Status   string   `json:"status"`
+	Problems []string `json:"problems,omitempty"`
+}
+
+// certificateStatus reads the revocations of this wallet and no CRL. Reading the
+// credential list must not wait for an external CRL, so the CRLs of another issuer
+// stay unchecked until handleCertificateStatus reads them.
+func (w *Wallet) certificateStatus(cred StoredCredential) CertificateStatus {
+	return w.chainStatus(w.credentialChain(cred))
+}
+
+func (w *Wallet) chainStatus(chain []*x509.Certificate) CertificateStatus {
+	if names := w.revokedNames(chain, w.revokedSerials()); len(names) > 0 {
+		return CertificateStatus{Status: certificateStatusRevoked, Problems: names}
+	}
+	status := CertificateStatus{Status: certificateStatusNone}
+	for _, cert := range chain {
+		if time.Now().After(cert.NotAfter) {
+			return CertificateStatus{Status: certificateStatusExpired, Problems: []string{cert.Subject.CommonName}}
+		}
+		if len(cert.CRLDistributionPoints) == 0 {
+			continue
+		}
+		if _, err := w.issuerCRLPath(cert); err != nil {
+			status.Status = certificateStatusUnchecked
+		} else if status.Status == certificateStatusNone {
+			status.Status = certificateStatusValid
+		}
+	}
+	return status
+}
+
+// handleCertificateStatus reads the CRLs of a credential's certificates.
+func (s *Server) handleCertificateStatus(w http.ResponseWriter, r *http.Request) {
+	cred, ok := s.wallet.GetCredential(r.PathValue("id"))
+	if !ok {
+		apierror.WriteStatus(w, http.StatusNotFound, "credential not found")
+		return
+	}
+	status := s.wallet.certificateStatus(cred)
+	if status.Status != certificateStatusUnchecked {
+		writeJSON(w, http.StatusOK, status)
+		return
+	}
+	chain := embeddedCertificates(cred)
+	if len(chain) > validate.MaxRevocationChain {
+		apierror.WriteStatus(w, http.StatusUnprocessableEntity, fmt.Sprintf("the chain has %d certificates, so the wallet reads no CRLs", len(chain)))
+		return
+	}
+	writeJSON(w, http.StatusOK, s.wallet.readCertificateStatus(chain))
+}
+
+func (w *Wallet) readCertificateStatus(chain []*x509.Certificate) CertificateStatus {
+	status := CertificateStatus{Status: certificateStatusValid}
+	for _, problem := range w.CertificateProblems(chain) {
+		status.Problems = append(status.Problems, problem.Error())
+		if problem.Revoked {
+			status.Status = certificateStatusRevoked
+		} else if status.Status != certificateStatusRevoked {
+			status.Status = certificateStatusUnknown
+		}
+	}
+	// A CRL check needs the issuer of the certificate, and an x5c often ends below
+	// the trust anchor.
+	completed := w.completedChain(chain)
+	if last := completed[len(completed)-1]; len(last.CRLDistributionPoints) > 0 && last.CheckSignatureFrom(last) != nil && status.Status != certificateStatusRevoked {
+		status.Status = certificateStatusUnknown
+		status.Problems = append(status.Problems, fmt.Sprintf("the chain has no issuer of %q, so its CRL can't be checked", last.Subject.CommonName))
+	}
+	return status
 }
 
 func certificateRole(cert *x509.Certificate) string {

@@ -35,7 +35,7 @@ type presentationEntry struct {
 	subject string
 	// owner is the browser session that sees notifications and consent.
 	owner string
-	// interactive is set when a person decides. Debug mode then offers
+	// interactive is set when a person decides. The dialog then also lists
 	// credentials that do not match.
 	interactive bool
 }
@@ -119,11 +119,12 @@ func (w *Wallet) evaluatePresentationRequest(authReq *oid4vp.Request, entry pres
 	var outcome presentationOutcome
 	if authReq.DCQLQuery != nil {
 		outcome.matches, outcome.options = w.matchDCQL(authReq.DCQLQuery)
-		if outcome.options == nil && entry.interactive && w.Mode() != ValidationModeStrict {
+		if outcome.options == nil && entry.interactive && offersIssuance(authReq) {
 			outcome.options = w.obtainableOptions(authReq.DCQLQuery)
 		}
 	}
-	// Debug mode lets a person answer with a credential that does not match.
+	// A person can answer in the dialog. It also lists credentials that do not
+	// match.
 	if len(outcome.matches) == 0 && (outcome.options == nil || !entry.interactive) {
 		w.reportRefusal(entry.action, "no_matching_credentials", entry.owner, "No matching credentials", subjectRequest, "",
 			fmt.Errorf("no credential matches the query of %s", authReq.ClientID))
@@ -141,7 +142,9 @@ func (w *Wallet) evaluatePresentationRequest(authReq *oid4vp.Request, entry pres
 // dialog was not shown, because too many requests wait for consent.
 func (w *Wallet) askPresentationConsent(ctx context.Context, typ, owner, asking string, authReq *oid4vp.Request, outcome presentationOutcome, timeout time.Duration, shown func(*consent.Request)) (consentReq *consent.Request, matches []consent.Match, approved, answered bool, err error) {
 	w.flagRevokedCertificates(outcome.matches, outcome.options)
-	w.flagObtainableCredentials(authReq.DCQLQuery, outcome.options)
+	if offersIssuance(authReq) {
+		w.flagObtainableCredentials(authReq.DCQLQuery, outcome.options)
+	}
 	consentReq = newPresentationConsent(typ, owner, asking, authReq, outcome.matches, outcome.options)
 	if err := w.Consents().Create(consentReq); err != nil {
 		return nil, nil, false, false, err

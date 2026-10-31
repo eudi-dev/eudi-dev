@@ -375,6 +375,7 @@ func (w *Wallet) CredentialSummaryWithStatus(c StoredCredential) map[string]any 
 	if info := w.CredentialStatusInfo(c); info != nil {
 		summary["status"] = info
 	}
+	summary["certificate_status"] = w.certificateStatus(c)
 	// Report missing signing capability only when the wallet cannot present the
 	// credential.
 	if w.keyBindingNotHeld(&c) {

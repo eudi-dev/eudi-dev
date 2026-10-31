@@ -218,8 +218,8 @@ func newRun(trust Trust, opts Options) run {
 	return run{trust: trust, opts: opts, now: now}
 }
 
-// maxRevocationChain limits the CRLs read for one credential.
-const maxRevocationChain = 5
+// MaxRevocationChain limits the CRLs read for one credential.
+const MaxRevocationChain = 5
 
 // CRLReader reads the CRLs of a chain with the client.
 func CRLReader(client *http.Client) func([]*x509.Certificate) []certchain.RevocationProblem {
@@ -236,7 +236,7 @@ func (v run) certificateRevocation(chain []*x509.Certificate, r *Result) []Check
 	if v.trust.CertificateProblems == nil || len(chain) == 0 {
 		return nil
 	}
-	if len(chain) > maxRevocationChain {
+	if len(chain) > MaxRevocationChain {
 		return []Check{{Name: CheckCertificates, Status: Warning, Detail: fmt.Sprintf("The chain has %d certificates, so the CRLs were not read", len(chain))}}
 	}
 	signed := slices.ContainsFunc(r.Checks, func(c Check) bool { return c.Name == CheckSignature && c.Status == Pass })

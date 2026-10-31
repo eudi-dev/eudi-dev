@@ -410,6 +410,13 @@
         '" title="' + escHtml(expiry.title) + '">' + escHtml(expiry.label) + '</span>';
     }
 
+    let certificateBadge = '';
+    if (cred.certificate_status) {
+      const unchecked = cred.certificate_status.status === 'unchecked';
+      const state = certificateState((unchecked && certificateChecks[cred.id]) || cred.certificate_status);
+      certificateBadge = '<span class="status-badge ' + state.cls + '" id="' + idPrefix + 'certificate-status-' + domID(cred.id) + '" title="' + escHtml(state.title) + '">' + state.label + '</span>';
+    }
+
     // An embedded key verifies signature consistency. It does not establish issuer trust
     // (ADR 0009).
     let signatureBadge = '';
@@ -478,7 +485,7 @@
           '<span class="format-badge format-badge-row" id="' + cp + 'format">' + formatLabel + '</span>' +
           nameHtml +
         '</div>' +
-        '<div class="cred-pills">' + protectedBadge + statusBadge + expiryBadge + signatureBadge + keyBindingBadge + '</div>' +
+        '<div class="cred-pills">' + protectedBadge + statusBadge + certificateBadge + expiryBadge + signatureBadge + keyBindingBadge + '</div>' +
         '<div class="cred-meta">' +
           idMeta + issuedMeta + typeMeta + issuerMeta +
         '</div>' +
@@ -568,9 +575,10 @@
         if (!isProtected) {
           revokeBtn = '<button class="btn btn-sm" id="revoke-' + domID(cred.id) + '" data-revoke="' + escHtml(cred.id) + '">' + (st.status === 0 ? 'Revoke' : 'Activate') + '</button>';
         }
-      } else if (st && st.uri) {
-        revokeBtn = '<button class="btn btn-sm" id="status-check-' + domID(cred.id) + '" data-check-status="' + escHtml(cred.id) + '">Check status</button>';
       }
+      const externalStatus = !!(st && !st.managed && st.uri);
+      const certificatesUnchecked = !demoMode && !!(cred.certificate_status && cred.certificate_status.status === 'unchecked');
+      const checkBtn = !externalStatus && !certificatesUnchecked ? '' : '<button class="btn btn-sm" id="status-check-' + domID(cred.id) + '" data-check-status="' + escHtml(cred.id) + '">Check status</button>';
 
       // Container queries choose whether the description flips the card or expands beneath
       // it.
@@ -586,8 +594,8 @@
       const actionsHtml = '<div class="credential-actions">' +
           aboutBtn +
           revokeBtn +
+          checkBtn +
           certificatesBtn +
-          '<button class="btn btn-sm" id="show-' + domID(cred.id) + '" data-show="' + escHtml(cred.id) + '">Show</button>' +
           (isProtected ? '' : '<button class="btn btn-danger btn-sm" id="delete-' + domID(cred.id) + '" data-delete="' + escHtml(cred.id) + '">Delete</button>') +
         '</div>';
       // The flipped card hides the About button, so phones need a Back control inside the
@@ -608,8 +616,13 @@
         // The mounted decoder can look up credentials by ID, keeping links short.
         window.open('decoder/?id=' + encodeURIComponent(cred.id), '_blank');
       };
-      card.querySelector('[data-show]').addEventListener('click', openDecoder);
-      card.querySelector('.credential-info').addEventListener('click', openDecoder);
+      const info = card.querySelector('.credential-info');
+      info.addEventListener('click', openDecoder);
+      info.tabIndex = 0;
+      info.setAttribute('role', 'link');
+      info.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') openDecoder();
+      });
       card.querySelector('.card-face').addEventListener('click', openDecoder);
       const del = card.querySelector('[data-delete]');
       if (del) {
@@ -625,7 +638,10 @@
       }
       const check = card.querySelector('[data-check-status]');
       if (check) {
-        check.addEventListener('click', () => checkCredentialStatus(cred.id));
+        check.addEventListener('click', () => {
+          if (externalStatus) checkCredentialStatus(cred.id);
+          if (certificatesUnchecked) checkCertificateStatus(cred.id);
+        });
       }
 
       const about = card.querySelector('[data-about]');
@@ -723,6 +739,41 @@
     }
   }
 
+  const certificateChecks = {};
+  async function checkCertificateStatus(id) {
+    // The cards can redraw during the check, so each step finds the badge again.
+    const badge = () => document.getElementById('certificate-status-' + domID(id));
+    if (badge()) badge().textContent = 'Checking…';
+    try {
+      const resp = await fetch('api/credentials/' + encodeURIComponent(id) + '/certificate-status');
+      const result = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(apiErrorText(result, resp));
+      certificateChecks[id] = result;
+      if (!badge()) return;
+      const state = certificateState(result);
+      badge().textContent = state.label;
+      badge().title = state.title;
+      badge().className = 'status-badge ' + state.cls;
+    } catch (e) {
+      if (badge()) {
+        badge().textContent = 'Check failed';
+        badge().title = e.message;
+      }
+    }
+  }
+
+  function certificateState({ status, problems }) {
+    const title = (problems || []).join('. ');
+    switch (status) {
+      case 'valid': return { label: 'Certificate valid', cls: 'status-active ico-dot', title: title || 'Not revoked and not expired.' };
+      case 'revoked': return { label: 'Certificate revoked', cls: 'status-revoked ico-block', title };
+      case 'expired': return { label: 'Certificate expired', cls: 'status-revoked ico-block', title };
+      case 'unknown': return { label: 'CRL not readable', cls: 'status-external ico-warn', title };
+      case 'unchecked': return { label: 'Certificate not checked', cls: 'status-external ico-half', title: 'The certificates use the CRLs of another issuer.' + (demoMode ? '' : ' Check status reads them.') };
+      default: return { label: 'No CRL', cls: 'status-none ico-circle', title: 'The certificates name no CRL.' };
+    }
+  }
+
   async function checkCredentialStatus(id) {
     const badge = document.getElementById('status-' + id);
     if (badge) badge.textContent = 'Checking…';
@@ -754,36 +805,76 @@
 
   async function loadIssuable() {
     const resp = await fetch('api/issuance');
-    const credentials = await resp.json().catch(() => ({}));
-    if (!resp.ok) throw new Error(apiErrorText(credentials, resp));
-    return credentials;
+    const issuable = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(apiErrorText(issuable, resp));
+    return issuable;
+  }
+
+  // The wallet reads issuer metadata in the background, so the list grows while
+  // loading is set. A failed refresh keeps the rows.
+  let issuableWatch = 0;
+  async function watchIssuable(isOpen, show) {
+    const watch = ++issuableWatch;
+    let shown = '';
+    while (watch === issuableWatch && isOpen()) {
+      let issuable;
+      try {
+        issuable = await loadIssuable();
+      } catch (e) {
+        if (!shown) throw e;
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        continue;
+      }
+      if (watch !== issuableWatch || !isOpen()) return;
+      const current = JSON.stringify(issuable);
+      if (current !== shown) {
+        shown = current;
+        const focused = document.activeElement && document.activeElement.id;
+        show(issuable);
+        if (focused && document.getElementById(focused)) document.getElementById(focused).focus();
+      }
+      if (!issuable.loading) return;
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+  }
+  function stopIssuableWatch() {
+    issuableWatch++;
   }
 
   async function openRequestDialog(onlyIDs, onAdded) {
     const list = document.getElementById('request-credential-list');
-    list.textContent = 'Loading…';
-    document.getElementById('request-credential-overlay').classList.add('active');
+    const overlay = document.getElementById('request-credential-overlay');
+    list.innerHTML = '<div class="loading-state" id="request-credential-loading" role="status"><span class="loading-spinner" aria-hidden="true"></span><span id="request-credential-loading-text">Loading…</span></div>';
+    overlay.classList.add('active');
     try {
-      const credentials = (await loadIssuable()).filter(c => !onlyIDs || onlyIDs.includes(c.id));
-      list.textContent = '';
-      credentials.sort((a, b) => (b.issuers.length > 0) - (a.issuers.length > 0))
-        .forEach((credential, i) => list.appendChild(issuableRow(credential, i, onAdded)));
+      await watchIssuable(() => overlay.classList.contains('active'), ({ credentials, loading }) => {
+        const requested = new Map([...list.querySelectorAll('[data-requested]')].map(el => [el.id, el]));
+        list.textContent = '';
+        credentials.filter(c => !onlyIDs || onlyIDs.includes(c.id))
+          .sort((a, b) => (b.issuers.length > 0) - (a.issuers.length > 0))
+          .forEach((credential) => {
+            const row = issuableRow(credential, loading, onAdded);
+            list.appendChild(requested.get(row.id) || row);
+          });
+      });
     } catch (e) {
       list.textContent = '';
       showErrorDialog('Loading the credentials failed', e.message);
     }
   }
 
-  function issuableRow(credential, index, onAdded) {
+  function issuableRow(credential, loading, onAdded) {
     const row = document.createElement('div');
     row.className = 'certificate-row';
-    row.id = 'issuable-' + index;
+    row.id = 'issuable-' + domID(credential.id);
     row.dataset.testid = 'issuable-row';
     row.innerHTML = '<div class="certificate-info" id="' + row.id + '-info"><div class="certificate-name" id="' + row.id + '-name">' + escHtml(credential.name) + '</div>' +
       '<div class="conf-hint" id="' + row.id + '-status" role="status"></div></div>' +
       '<div class="certificate-actions" id="' + row.id + '-actions"></div>';
     const status = row.querySelector('.conf-hint');
-    status.textContent = credential.issuers.map(i => i.name + ' (' + i.formats.map(credentialFormatLabel).join(', ') + ')').join(', ') || 'No known issuer offers this credential.';
+    status.textContent = credential.issuers.map(i => i.name + (i.formats.length ? ' (' + i.formats.map(credentialFormatLabel).join(', ') + ')' : '')).join(', ') ||
+      (loading ? 'Checking the issuers…' : 'No known issuer offers this credential.');
+    if (loading && !credential.issuers.length) status.insertAdjacentHTML('afterbegin', '<span class="deferred-spinner" aria-hidden="true"></span> ');
     requestButtons(credential, row.id, status, () => {
       document.getElementById('request-credential-overlay').classList.remove('active');
       if (onAdded) onAdded();
@@ -804,10 +895,16 @@
       button.textContent = credential.issuers.length > 1 ? 'Request from ' + issuer.name : 'Request';
       button.addEventListener('click', async () => {
         if (requestRunning) return;
+        // Redraws keep a requested row of the dialog. A catalogue redraw replaces
+        // all cards.
+        const row = status.closest('[data-testid="issuable-row"]');
+        if (row) row.dataset.requested = 'true';
+        else stopIssuableWatch();
         const tab = openSignInTab();
         button.disabled = true;
-        const added = await requestCredential(issuer, tab, status);
+        const added = await requestCredential(issuer, credential.id, tab, status);
         button.disabled = false;
+        if (row) delete row.dataset.requested;
         if (!added) return;
         showRequestResult(credential.name + ' is in the wallet.');
         if (onAdded) onAdded();
@@ -835,7 +932,7 @@
 
   // ARF ISSU_12a: every format in one request. It returns true when all of them
   // arrived. Any other outcome stays on status, so the dialog stays open.
-  async function requestCredential(issuer, tab, status) {
+  async function requestCredential(issuer, attestation, tab, status) {
     const closeTab = () => { if (tab) tab.close(); };
     requestRunning = true;
     status.textContent = 'Contacting ' + issuer.name + '…';
@@ -843,7 +940,9 @@
       const resp = await fetch('api/issuance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ issuer: issuer.url, credential_configuration_ids: issuer.credential_configuration_ids })
+        body: JSON.stringify(issuer.credential_configuration_ids.length
+          ? { issuer: issuer.url, credential_configuration_ids: issuer.credential_configuration_ids }
+          : { issuer: issuer.url, attestation })
       });
       let result = await resp.json().catch(() => ({}));
       if (!resp.ok) result = { ...result, error: apiErrorText(result, resp) };
@@ -898,7 +997,7 @@
     return false;
   }
 
-  // A closed tab is no signal to cancel: an issuer page with
+  // A closed tab doesn't mean cancel. An issuer page with
   // Cross-Origin-Opener-Policy reads as closed while the user signs in.
   function cancelSignInButton(offerID, id) {
     const button = document.createElement('button');
@@ -920,30 +1019,6 @@
       const result = await resp.json().catch(() => ({}));
       if (!resp.ok) return { error: apiErrorText(result, resp) };
       if (result.status !== 'authorization_required') return result;
-    }
-  }
-
-  // With one issuer the button starts the request directly, so the tab opens
-  // before the list arrives.
-  async function requestForQuery(button) {
-    if (requestRunning) return;
-    const ids = button.dataset.obtain.split(' ');
-    const status = button.parentElement.querySelector('[role="status"]');
-    const tab = openSignInTab();
-    button.disabled = true;
-    try {
-      const credentials = (await loadIssuable()).filter(c => ids.includes(c.id));
-      if (credentials.length === 1 && credentials[0].issuers.length === 1) {
-        if (await requestCredential(credentials[0].issuers[0], tab, status)) showRequestResult(credentials[0].name + ' is in the wallet.');
-        return;
-      }
-      if (tab) tab.close();
-      openRequestDialog(ids);
-    } catch (e) {
-      if (tab) tab.close();
-      showErrorDialog('Loading the credentials failed', e.message);
-    } finally {
-      button.disabled = false;
     }
   }
 
@@ -3514,10 +3589,9 @@
       const obtainable = (query && query.obtainable) || [];
       return '<div class="consent-unanswered" role="note" id="consent-unanswered-' + domID(qid) + '">' +
         'No credential matches <span class="query-chip" id="consent-unanswered-' + domID(qid) + '-query">' + escHtml(qid) + '</span>. ' +
-        (obtainable.length ? ((query.non_matching || []).length ? 'Request it from an issuer, or choose a non-matching credential under Edit.' : 'Request it from an issuer.') : 'Debug mode can send a non-matching one. Choose it under Edit.') +
+        (obtainable.length ? ((query.non_matching || []).length ? 'An issuer may offer it. You can also choose a non-matching credential under Edit.' : 'An issuer may offer it.') : ((query && query.non_matching) || []).length ? 'Debug mode can send a non-matching one. Choose it under Edit.' : '') +
         (obtainable.length ? '<div class="consent-obtain" id="consent-obtain-' + domID(qid) + '">' +
-          '<button type="button" class="btn btn-sm" id="consent-obtain-' + domID(qid) + '-button" data-obtain="' + escHtml(obtainable.map(o => o.id).join(' ')) + '">Request ' + escHtml(obtainable.length === 1 ? obtainable[0].name : 'credential') + '</button>' +
-          '<span class="conf-hint" id="consent-obtain-' + domID(qid) + '-status" role="status"></span></div>' : '') +
+          '<button type="button" class="btn btn-sm" id="consent-obtain-' + domID(qid) + '-button" data-obtain="' + escHtml(obtainable.map(o => o.id).join(' ')) + '">Look in the attestation catalogue</button></div>' : '') +
         '</div>';
     }
     // A query with one possible answer shows its credential without a selector.
@@ -4360,7 +4434,7 @@
     } catch (e) {
       error.textContent = e.message;
     }
-    // A refresh would close the menu the user just opened.
+    // A refresh would close the open menu.
     if (document.querySelector('.trust-list-menu[open]')) return;
     trustEntityLists = state.entity_lists || [];
     const added = state.entities || [];
@@ -6014,6 +6088,7 @@
       const remove = card.querySelector('#' + prefix + '-delete');
       if (remove) {
         remove.addEventListener('click', async () => {
+          stopIssuableWatch();
           const error = document.getElementById('registrar-catalog-error');
           error.textContent = '';
           remove.disabled = true;
@@ -6021,10 +6096,12 @@
             await registrarRequest('DELETE', 'api/catalog/schemas/' + encodeURIComponent(schema.id));
             await loadCatalogEntries();
             renderCatalog();
+            loadCatalogIssuers();
             document.getElementById('registrar-catalog-title').focus();
           } catch (e) {
             error.textContent = e.message;
             remove.disabled = false;
+            loadCatalogIssuers();
           }
         });
       }
@@ -6038,6 +6115,15 @@
   }
 
   let catalogIssuable = [];
+  // The issuers come from their metadata, so the cards don't wait for them.
+  function loadCatalogIssuers() {
+    watchIssuable(() => catalogOverlay.classList.contains('active'), ({ credentials }) => {
+      catalogIssuable = credentials;
+      renderCatalog();
+    }).catch((e) => {
+      document.getElementById('registrar-catalog-error').textContent = e.message;
+    });
+  }
   async function openCatalog() {
     document.getElementById('registrar-catalog-error').textContent = '';
     catalogSearch.value = '';
@@ -6048,14 +6134,8 @@
     } catch (e) {
       document.getElementById('registrar-catalog-error').textContent = e.message;
     }
+    loadCatalogIssuers();
     renderCatalog();
-    // The issuers come from their metadata, so the cards don't wait for them.
-    loadIssuable().then((credentials) => {
-      catalogIssuable = credentials;
-      renderCatalog();
-    }).catch((e) => {
-      document.getElementById('registrar-catalog-error').textContent = e.message;
-    });
   }
   document.getElementById('registrar-catalog-link').addEventListener('click', (event) => {
     event.preventDefault();
@@ -6105,6 +6185,7 @@
   function closeCatalogForm() {
     catalogAddOverlay.classList.remove('active');
     catalogOverlay.classList.add('active');
+    loadCatalogIssuers();
   }
   let catalogFormatCount = 0;
   const catalogFormats = document.getElementById('registrar-catalog-formats');
@@ -6261,7 +6342,7 @@
   makeModal(requestCredentialOverlay, document.getElementById('request-credential-close'));
   document.addEventListener('click', (event) => {
     const button = event.target.closest && event.target.closest('[data-obtain]');
-    if (button) requestForQuery(button);
+    if (button && !requestRunning) openRequestDialog(button.dataset.obtain.split(' '));
   });
 
   const crlFaultSelect = document.getElementById('conf-crl-fault-select');

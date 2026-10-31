@@ -115,3 +115,36 @@ chrome.windows.onRemoved.addListener(async (windowId) => {
     chrome.runtime.sendMessage({ type: 'dc-cancel', id, reason: 'The wallet window was closed' }).catch(() => {});
   }
 });
+
+// A flag in page.js can't turn the extension off. page.js replaces the API in
+// the page before it could read storage. So the scripts are registered here, and
+// a page gets the browser's own API when they are removed.
+const PAGE_SCRIPTS = [
+  { id: 'eudi-dev-page', js: ['page.js'], world: 'MAIN', matches: ['<all_urls>'], runAt: 'document_start', allFrames: true },
+  { id: 'eudi-dev-bridge', js: ['bridge.js'], matches: ['<all_urls>'], runAt: 'document_start', allFrames: true },
+];
+
+async function syncPageScripts() {
+  const { enabled } = await chrome.storage.local.get('enabled');
+  const registered = await chrome.scripting.getRegisteredContentScripts();
+  const ids = registered.map((script) => script.id);
+  if (enabled === false || registered.length < PAGE_SCRIPTS.length) {
+    if (ids.length > 0) await chrome.scripting.unregisterContentScripts({ ids });
+  }
+  if (enabled !== false && registered.length < PAGE_SCRIPTS.length) {
+    await chrome.scripting.registerContentScripts(PAGE_SCRIPTS);
+  }
+  await chrome.action.setBadgeText({ text: enabled === false ? 'OFF' : '' });
+}
+
+// Runs one at a time, because two runs at once would register the same IDs.
+let pageScriptSync = Promise.resolve();
+function queuePageScriptSync() {
+  pageScriptSync = pageScriptSync.then(syncPageScripts).catch((e) => console.error('eudi-dev extension:', e));
+}
+
+chrome.storage.onChanged.addListener((changes) => {
+  if (changes.enabled) queuePageScriptSync();
+});
+chrome.runtime.onInstalled.addListener(queuePageScriptSync);
+queuePageScriptSync();

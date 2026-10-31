@@ -448,3 +448,63 @@ func TestCredentialsSharingACAShareItsRevocation(t *testing.T) {
 		t.Error("undoing the revocation left a credential flagged")
 	}
 }
+
+// A seeded wallet without storage keeps its CA keys and subjects. It can still
+// revoke a certificate from before the restart, and its CRLs verify against the
+// CA certificates from before the restart.
+func TestCRLsWorkAfterASeededRestart(t *testing.T) {
+	start := func() *Wallet {
+		store := NewWalletStoreOn(filepath.Join(t.TempDir(), "wallet"), storage.NewMemory())
+		store.SetSeed("restart")
+		w, err := store.LoadOrCreate()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return w
+	}
+	before, after := start(), start()
+	chain := providerChain(t, before)
+	providerChain(t, after)
+	entry, err := after.revokeCertificate(chain[0], 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	crl := parsedCRL(t, after, entry.CRLPath)
+	if !lists(crl, chain[0]) {
+		t.Error("the CRL doesn't list the certificate from before the restart")
+	}
+	if err := crl.CheckSignatureFrom(chain[1]); err != nil {
+		t.Errorf("provider CRL: %v", err)
+	}
+	for _, path := range []string{provider.RootCRLPath, provider.AccessCACRLPath, provider.RegistrarCACRLPath} {
+		_, ca, err := before.crlSigner(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := parsedCRL(t, after, path).CheckSignatureFrom(ca); err != nil {
+			t.Errorf("%s: %v", path, err)
+		}
+	}
+}
+
+// The credential list reads no CRL of another issuer, so such a certificate stays
+// unchecked. A revocation of this wallet shows at once.
+func TestTheCertificateStatusOfAChain(t *testing.T) {
+	w := generateTestWallet(t)
+	chain := providerChain(t, w)
+	if got := w.chainStatus(chain); got.Status != certificateStatusValid {
+		t.Fatalf("status = %+v", got)
+	}
+	if got := generateTestWallet(t).chainStatus(chain); got.Status != certificateStatusUnchecked {
+		t.Errorf("another wallet's view = %+v", got)
+	}
+	if got := generateTestWallet(t).readCertificateStatus(chain[:1]); got.Status != certificateStatusUnknown {
+		t.Errorf("a chain without the issuer = %+v", got)
+	}
+	if _, err := w.revokeCertificate(chain[0], 0); err != nil {
+		t.Fatal(err)
+	}
+	if got := w.chainStatus(chain); got.Status != certificateStatusRevoked || len(got.Problems) != 1 {
+		t.Errorf("status after the revocation = %+v", got)
+	}
+}

@@ -2165,8 +2165,9 @@ test("a credential requested during a presentation answers the open dialog", asy
   const { body } = await postJSON("/verifier/api/requests", { type: "ticket" });
   const owner = await openAsSchemeHandler(page);
   submitAsSchemeHandler("/api/presentations", body.scheme_uri, owner);
-  const signIn = context.waitForEvent("page");
   await page.locator("[data-obtain]").click();
+  const signIn = context.waitForEvent("page");
+  await page.getByTestId("issuable-row").first().getByRole("button", { name: "Request" }).click();
   const issuer = await signIn;
   await issuer.getByRole("button", { name: "Sign in" }).click();
 
@@ -2212,8 +2213,9 @@ test("a requested credential keeps the selection of the other queries", async ({
   await second.click();
   await page.locator("#consent-selection-done").click();
 
-  const signIn = context.waitForEvent("page");
   await page.locator("[data-obtain]").click();
+  const signIn = context.waitForEvent("page");
+  await page.getByTestId("issuable-row").first().getByRole("button", { name: "Request" }).click();
   await (await signIn).getByRole("button", { name: "Sign in" }).click();
   await expect(page.locator(".consent-unanswered")).toHaveCount(0, { timeout: 15_000 });
   await expect(page.locator(`#consent-dialog .consent-credential[data-credential-id="${picked}"]`)).toBeVisible();
@@ -2221,8 +2223,12 @@ test("a requested credential keeps the selection of the other queries", async ({
 });
 
 test("a credential with several formats needs one sign-in", async ({ page, context }) => {
-  const issuable = await (await fetch(`${BASE}/api/issuance`)).json();
-  const entry = issuable.find(credential => credential.issuers[0]?.credential_configuration_ids.length > 1);
+  let issuable;
+  await expect.poll(async () => {
+    issuable = await (await fetch(`${BASE}/api/issuance`)).json();
+    return issuable.loading;
+  }).toBe(false);
+  const entry = issuable.credentials.find(credential => credential.issuers[0]?.credential_configuration_ids.length > 1);
   await fetch(`${BASE}/api/credentials`, { method: "DELETE" });
   const before = (await (await fetch(`${BASE}/api/credentials`)).json()).length;
   await page.goto(BASE);

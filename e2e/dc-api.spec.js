@@ -55,10 +55,21 @@ async function withExtension(run, dir = extensionDir) {
     args: [`--disable-extensions-except=${dir}`, `--load-extension=${dir}`],
   });
   try {
+    if (dir === extensionDir) await pageScriptsRegistered(context);
     await run(context);
   } finally {
     await context.close();
   }
+}
+
+async function extensionWorker(context) {
+  return context.serviceWorkers()[0] ?? await context.waitForEvent("serviceworker");
+}
+
+// The extension registers its page scripts when it starts.
+async function pageScriptsRegistered(context, count = 2) {
+  const worker = await extensionWorker(context);
+  await expect.poll(() => worker.evaluate(async () => (await chrome.scripting.getRegisteredContentScripts()).length)).toBe(count);
 }
 
 async function startDCAPIRequest(context, signing = "signed") {
@@ -123,7 +134,32 @@ test("closing the wallet window rejects the call and the next request still work
   });
 });
 
-test("a credential requested from the wallet window answers the request", async () => {
+test("the popup turns the extension off, and pages get the browser's own API", async () => {
+  await withExtension(async (context) => {
+    const worker = await extensionWorker(context);
+    const popup = await context.newPage();
+    await popup.goto(worker.url().replace("background.js", "popup.html"));
+    const replaced = async () => {
+      const page = await context.newPage();
+      await page.goto(`${BASE}/verifier/`);
+      const result = await page.evaluate(() => window.eudiDevDigitalCredentials === true);
+      await page.close();
+      return result;
+    };
+    expect(await replaced()).toBe(true);
+
+    await popup.locator("#enabled").uncheck();
+    await pageScriptsRegistered(context, 0);
+    expect(await replaced()).toBe(false);
+    expect(await worker.evaluate(() => chrome.action.getBadgeText({}))).toBe("OFF");
+
+    await popup.locator("#enabled").check();
+    await pageScriptsRegistered(context);
+    expect(await replaced()).toBe(true);
+  });
+});
+
+test("the wallet window offers no issuance", async () => {
   await withExtension(async (context) => {
     await fetch(`${BASE}/api/credentials`, { method: "DELETE" });
     const page = await context.newPage();
@@ -133,13 +169,8 @@ test("a credential requested from the wallet window answers the request", async 
     const opened = context.waitForEvent("page");
     await page.locator("#create-request").click();
     const walletWindow = await opened;
-
-    const signIn = context.waitForEvent("page");
-    await walletWindow.locator("[data-obtain]").first().click();
-    await (await signIn).getByRole("button", { name: "Sign in" }).click();
-    await expect(walletWindow.locator(".consent-unanswered")).toHaveCount(0, { timeout: 15_000 });
-    await walletWindow.locator("#consent-approve").click();
-    await expect(page.locator("#status")).toHaveClass(/verified/);
+    await expect(walletWindow.locator(".consent-unanswered")).toBeVisible();
+    await expect(walletWindow.locator("[data-obtain]")).toHaveCount(0);
   });
 });
 

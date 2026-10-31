@@ -79,9 +79,10 @@ type Wallet struct {
 	BaseURL            string
 	IssuerURL          string
 	demoIssuerURL      func() string
-	// operatorIssuersOnly keeps out the issuers visitors of a public demo name.
-	operatorIssuersOnly bool
-	VCIRedirectURI      string `json:"-"`
+	issuerOffers       issuerOfferCache
+	// sharedRegistrar is set on a public demo, where visitors share the registrar.
+	sharedRegistrar bool
+	VCIRedirectURI  string `json:"-"`
 	// Callback URLs use this origin when BaseURL is unset.
 	ServingOrigin string `json:"-"`
 	// storedURLs holds the base and issuer URL written by a save while

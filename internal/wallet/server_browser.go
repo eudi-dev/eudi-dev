@@ -62,14 +62,14 @@ func (s *Server) handleBrowserPresentationAPI(w http.ResponseWriter, r *http.Req
 	s.log("  Protocol:      %s", protocol)
 	s.log("  Client ID:     %s", authReq.ClientID)
 	s.log("  Response Mode: %s", authReq.ResponseMode)
-	authReq.Source = "dc_api"
+	authReq.Source = oid4vp.SourceDCAPI
 	if authReq.Nonce != "" {
 		s.log("  Nonce:         %s", authReq.Nonce)
 	}
 	if requestOrigin != "" {
 		s.log("  Origin:        %s", requestOrigin)
 	}
-	s.addPresentationRequestLog(authReq, "dc_api")
+	s.addPresentationRequestLog(authReq, oid4vp.SourceDCAPI)
 	s.wallet.warnFindings("presentation", "dc_api_parameter", subjectRequest, "The request has parameters unused by the Digital Credentials API", authReq.Warnings, nil)
 
 	outcome := s.wallet.evaluatePresentationRequest(authReq, presentationEntry{

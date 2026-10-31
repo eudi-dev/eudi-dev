@@ -1243,7 +1243,7 @@ def submit_synthetic_vci_offer(wallet_url: str, info: dict, state: dict) -> None
         )
     if not offer_url or state.get("submitted_synthetic_offer"):
         return
-    # The wallet starts this flow itself, so the offer only carries its two inputs.
+    # The wallet starts this flow itself, so the offer carries only the issuer and the configurations.
     offer = json.loads(urllib.parse.parse_qs(urllib.parse.urlsplit(offer_url).query)["credential_offer"][0])
     result = submit_wallet_request(
         wallet_url,

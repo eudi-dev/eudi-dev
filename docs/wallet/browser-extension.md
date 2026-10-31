@@ -30,6 +30,8 @@ Every wallet server also offers the extension as a zip file at `/eudi-dev-dc-api
 
 The extension's popup shows the wallet it uses and lets you set another one.
 
+To test how a page behaves without the extension, clear **Answer Digital Credentials API calls** in the popup and reload the page. The extension then adds nothing to pages, so they get the browser's own API. The icon shows **OFF**.
+
 ## Use
 
 The extension works with any verifier. A verifier page uses the standard API as it would with a phone wallet and needs no change. With the extension installed, every page gets the extension's `navigator.credentials.get()` for `digital` requests. Other calls, such as passkeys, still go to the browser.

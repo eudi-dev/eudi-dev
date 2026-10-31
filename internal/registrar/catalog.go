@@ -75,7 +75,7 @@ type CatalogAttestation struct {
 	Category string `json:"category,omitempty"`
 	// CredentialIssuer is the Credential Issuer Identifier of an issuer of this
 	// type. The ARF ISSU_23 note leaves the choice of issuer to the Wallet
-	// Provider, so it is no part of the schema.
+	// Provider, so it isn't part of the schema.
 	CredentialIssuer string `json:"credentialIssuer,omitempty"`
 	// Template marks an entry built from a credential template. Editing the
 	// template changes the entry. The catalogue API can't change it.

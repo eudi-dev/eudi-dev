@@ -234,8 +234,8 @@ func (s *Server) handleOfferStatus(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleCancelOffer ends the wait for a sign-in the user gave up. A flow past
-// that wait finishes, so the caller reads the outcome from handleOfferStatus.
+// handleCancelOffer cancels a waiting sign-in. A flow already past the sign-in
+// still finishes. The caller reads the outcome from handleOfferStatus.
 func (s *Server) handleCancelOffer(w http.ResponseWriter, r *http.Request) {
 	p := s.lookupPendingOffer(r.PathValue("id"))
 	if p == nil || p.Owner != requestOwner(r) {

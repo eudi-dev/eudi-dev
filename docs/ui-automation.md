@@ -180,7 +180,7 @@ await page.locator("#login-submit").click();
 await page.waitForURL(`${WALLET}/?focus=overview`);
 ```
 
-API: `POST /api/offers` returns `202` with `authorization_url` and `offer_id`. Open the URL in the browser, sign in and poll `GET /api/offers/{offer_id}` until its `status` is `completed`. `DELETE /api/offers/{offer_id}` gives up the sign-in. See [sign-in during issuance](wallet/issuing.md#sign-in-during-issuance).
+API: `POST /api/offers` returns `202` with `authorization_url` and `offer_id`. Open the URL in the browser, sign in and poll `GET /api/offers/{offer_id}` until its `status` is `completed`. `DELETE /api/offers/{offer_id}` cancels the sign-in. See [sign-in during issuance](wallet/issuing.md#sign-in-during-issuance).
 
 E2E tests: [`demo.spec.js`](../e2e/demo.spec.js), test *the credential arrives once the user signs in at the issuer*. [`prefix.spec.js`](../e2e/prefix.spec.js), test *issuer sign-in returns to the wallet under the prefix*.
 
@@ -398,10 +398,11 @@ E2E tests: [`wallet.spec.js`](../e2e/wallet.spec.js), tests *activity starts col
 
 | Action | Selector |
 |---|---|
-| **Show** (opens the decoder in a new tab) | `#show-<credential id>` |
+| Open the decoder in a new tab | `#credential-<credential id> .credential-info` |
 | **Delete** | `#delete-<credential id>` |
 | **Revoke** or **Activate** on the wallet's status list | `#revoke-<credential id>` |
-| **Check status** of an external status list | `#status-check-<credential id>` |
+| **Check status** reads an external status list and the CRLs of another issuer | `#status-check-<credential id>` |
+| Certificate status | `#certificate-status-<credential id>` |
 | Status badge | `#status-<credential id>` |
 | **About** (description) | `#about-<credential id>` |
 

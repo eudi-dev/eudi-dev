@@ -251,6 +251,7 @@ func (s *Server) setupRoutes() {
 	s.routeFunc("GET "+provider.RootCRLPath, s.withFreshStore(s.handleCRL))
 	s.routeFunc("GET /api/credentials/{id}/status", s.withFreshStore(s.handleGetCredentialStatus))
 	s.routeFunc("GET /api/credentials/{id}/certificates", s.withFreshStore(s.handleCredentialCertificates))
+	s.routeFunc("GET /api/credentials/{id}/certificate-status", s.withFreshStore(s.handleCertificateStatus))
 	s.routeFunc("POST /api/credentials/{id}/status", s.withFreshStore(s.handleSetCredentialStatus))
 
 	s.routeFunc("GET /.well-known/jwt-vc-issuer", s.withFreshStore(s.handleJWTVCIssuerMetadata))

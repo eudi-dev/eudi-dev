@@ -16,16 +16,20 @@ package wallet
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
 	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
 )
 
@@ -76,14 +80,6 @@ func TestAWalletInitiatedOfferHasNoIssuerState(t *testing.T) {
 	}
 	if offer["credential_issuer"] != "https://issuer.example" || strings.Contains(uri, "issuer_state") {
 		t.Errorf("offer = %v", offer)
-	}
-}
-
-func TestTheDemoRequestsCredentialsFromKnownIssuersOnly(t *testing.T) {
-	srv := newDemoTestServer(t)
-	w := serverRequest(t, srv, http.MethodPost, issuancePath, `{"issuer":"https://elsewhere.example","credential_configuration_ids":["pid"]}`)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("POST = %d: %s", w.Code, w.Body)
 	}
 }
 
@@ -330,9 +326,9 @@ func TestAnEmptyWalletOffersWhatTheCatalogueHas(t *testing.T) {
 	}
 }
 
-// Visitors of a public demo share the registrar, so an issuer one of them names
-// reaches nobody else.
-func TestAPublicDemoKnowsTheOperatorsIssuersOnly(t *testing.T) {
+// Visitors can add catalogue entries on a public demo, so the issuers they name
+// count too.
+func TestAPublicDemoKnowsTheIssuersVisitorsName(t *testing.T) {
 	srv := newTestServer(t, false)
 	if err := srv.SetDemo(DemoOptions{}); err != nil {
 		t.Fatal(err)
@@ -341,7 +337,252 @@ func TestAPublicDemoKnowsTheOperatorsIssuersOnly(t *testing.T) {
 		Credentials: []registrar.CatalogCredential{{Format: credtype.FormatSDJWT, Type: "urn:example:visitor:1"}}}); err != nil {
 		t.Fatal(err)
 	}
-	if got := srv.wallet.knownIssuers(); len(got) != 0 {
-		t.Errorf("known issuers = %+v", got)
+	if !slices.Contains(srv.wallet.knownIssuers(), KnownIssuer{Name: "visitor.example", URL: "https://visitor.example"}) {
+		t.Errorf("known issuers = %+v", srv.wallet.knownIssuers())
+	}
+}
+
+// A person in strict mode can still request the missing credential. A request
+// nobody answers ends with no_match.
+func TestStrictModeAsksAboutACredentialFromTheCatalogue(t *testing.T) {
+	w := generateTestWallet(t)
+	w.ValidationMode = ValidationModeStrict
+	if _, err := w.Registrar().AddCatalogAttestation(registrar.CatalogAttestation{Name: "Diploma",
+		Credentials: []registrar.CatalogCredential{{Format: credtype.FormatSDJWT, Type: "urn:example:diploma:1"}}}); err != nil {
+		t.Fatal(err)
+	}
+	authReq := queryRequest(map[string]any{"credentials": []any{map[string]any{"id": "q", "format": credtype.FormatSDJWT, "meta": map[string]any{"vct_values": []any{"urn:example:diploma:1"}}}}})
+	person := w.evaluatePresentationRequest(authReq, presentationEntry{action: "presentation", subject: "The request", interactive: true})
+	if person.invalid != nil || person.refusal != nil || person.options == nil {
+		t.Errorf("with a person: invalid %v, refusal %+v, options %+v", person.invalid, person.refusal, person.options)
+	}
+	headless := w.evaluatePresentationRequest(authReq, presentationEntry{action: "presentation", subject: "The request"})
+	if headless.refusal == nil || headless.refusal.status != "no_match" {
+		t.Errorf("without a person: refusal %+v, want no_match", headless.refusal)
+	}
+}
+
+// The sign-in of a requested credential would hide the window of a Digital
+// Credentials API call, so that call ends with no_match.
+func TestADigitalCredentialsCallOffersNoIssuance(t *testing.T) {
+	w := generateTestWallet(t)
+	if _, err := w.Registrar().AddCatalogAttestation(registrar.CatalogAttestation{Name: "Diploma",
+		Credentials: []registrar.CatalogCredential{{Format: credtype.FormatSDJWT, Type: "urn:example:diploma:1"}}}); err != nil {
+		t.Fatal(err)
+	}
+	authReq := queryRequest(map[string]any{"credentials": []any{map[string]any{"id": "q", "format": credtype.FormatSDJWT, "meta": map[string]any{"vct_values": []any{"urn:example:diploma:1"}}}}})
+	authReq.Source = oid4vp.SourceDCAPI
+	outcome := w.evaluatePresentationRequest(authReq, presentationEntry{action: "presentation", subject: "The request", interactive: true})
+	if outcome.refusal == nil || outcome.refusal.status != "no_match" {
+		t.Errorf("refusal %+v, want no_match", outcome.refusal)
+	}
+}
+
+// The list names the entry's issuer without asking it. The request asks it and
+// reports what is wrong.
+func TestARequestByAttestationAsksTheIssuer(t *testing.T) {
+	srv := newTestServer(t, false)
+	issuer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{"credential_issuer": "http://" + r.Host, "credential_configurations_supported": map[string]any{"other": displayed(credtype.FormatSDJWT, "urn:example:other:1", "Other")}})
+	}))
+	defer issuer.Close()
+	entry, err := srv.wallet.Registrar().AddCatalogAttestation(registrar.CatalogAttestation{Name: "Diploma", CredentialIssuer: issuer.URL,
+		Credentials: []registrar.CatalogCredential{{Format: credtype.FormatSDJWT, Type: "urn:example:diploma:1"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	credentials, _ := srv.wallet.IssuableCredentials()
+	listed := slices.ContainsFunc(credentials, func(c IssuableCredential) bool {
+		return c.ID == entry.Schema.ID && len(c.Issuers) == 1 && c.Issuers[0].URL == issuer.URL && len(c.Issuers[0].Configurations) == 0
+	})
+	if !listed {
+		t.Errorf("credentials = %+v, want the named issuer", credentials)
+	}
+	request := func(url string) *httptest.ResponseRecorder {
+		return serverRequest(t, srv, http.MethodPost, issuancePath, `{"issuer":"`+url+`","attestation":"`+entry.Schema.ID+`"}`)
+	}
+	if w := request(issuer.URL); w.Code != http.StatusUnprocessableEntity || !strings.Contains(w.Body.String(), "offer Diploma") {
+		t.Errorf("issuer without the type: %d %s", w.Code, w.Body)
+	}
+	if w := request("https://elsewhere.example"); w.Code != http.StatusBadRequest {
+		t.Errorf("another issuer: %d %s", w.Code, w.Body)
+	}
+	dead, err := srv.wallet.Registrar().AddCatalogAttestation(registrar.CatalogAttestation{Name: "Dead", CredentialIssuer: "http://127.0.0.1:1",
+		Credentials: []registrar.CatalogCredential{{Format: credtype.FormatSDJWT, Type: "urn:example:dead:1"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w := serverRequest(t, srv, http.MethodPost, issuancePath, `{"issuer":"http://127.0.0.1:1","attestation":"`+dead.Schema.ID+`"}`); w.Code != http.StatusBadGateway {
+		t.Errorf("issuer without an answer: %d %s", w.Code, w.Body)
+	}
+}
+
+// One failed refresh keeps the requests of the issuer working.
+func TestAFailedRefreshKeepsTheOffer(t *testing.T) {
+	var cache issuerOfferCache
+	issuers := []KnownIssuer{{Name: "Issuer", URL: "https://issuer.example"}}
+	read := func(fetch issuerOfferFetch) map[string]any {
+		deadline := time.Now().Add(5 * time.Second)
+		for time.Now().Before(deadline) {
+			offered, loading := cache.read(issuers, fetch)
+			if !loading {
+				return offered[0]
+			}
+			time.Sleep(time.Millisecond)
+		}
+		t.Fatal("the fetch didn't end")
+		return nil
+	}
+	read(func(string) (map[string]any, error) { return map[string]any{"ticket": map[string]any{}}, nil })
+	cache.mu.Lock()
+	entry := cache.entries[issuers[0].URL]
+	entry.retryAt = time.Time{}
+	cache.entries[issuers[0].URL] = entry
+	cache.mu.Unlock()
+	if got := read(func(string) (map[string]any, error) { return nil, errors.New("down") }); len(got) != 1 {
+		t.Errorf("offer = %v, want the last one", got)
+	}
+}
+
+// An entry can't request more than the limit, whatever the metadata lists.
+func TestARequestByAttestationHasTheLimit(t *testing.T) {
+	srv := newTestServer(t, false)
+	configurations := map[string]any{}
+	for i := range maxIssuanceConfigurations + 1 {
+		configurations[fmt.Sprintf("c%d", i)] = displayed(credtype.FormatSDJWT, "urn:example:diploma:1", "Other")
+	}
+	issuer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{"credential_issuer": "http://" + r.Host, "credential_configurations_supported": configurations})
+	}))
+	defer issuer.Close()
+	entry, err := srv.wallet.Registrar().AddCatalogAttestation(registrar.CatalogAttestation{Name: "Diploma", CredentialIssuer: issuer.URL,
+		Credentials: []registrar.CatalogCredential{{Format: credtype.FormatSDJWT, Type: "urn:example:diploma:1"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := serverRequest(t, srv, http.MethodPost, issuancePath, `{"issuer":"`+issuer.URL+`","attestation":"`+entry.Schema.ID+`"}`)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("POST = %d: %s", w.Code, w.Body)
+	}
+}
+
+// Anyone can choose a trade name on a shared registrar, so the address stays
+// visible.
+func TestAnIssuerNameShowsItsAddress(t *testing.T) {
+	w := generateTestWallet(t)
+	if _, err := w.Registrar().RegisterRelyingParty(registrar.WalletRelyingParty{
+		TradeName: "Party",
+		Services: []registrar.WalletRelyingPartyService{{ServiceIdentifier: "issuer", ServiceTradeName: "Federal Office", CredentialIssuer: "https://evil.example",
+			IntendedUses: []registrar.IntendedUse{{
+				Purpose:     []registrar.MultiLangString{{Lang: "en", Content: "Diplomas"}},
+				Credentials: []registrar.RegisteredCredential{{Format: credtype.FormatSDJWT, Meta: map[string]any{"vct_values": []any{"urn:example:diploma:1"}}, Claims: []registrar.RegisteredClaim{{Path: []any{"name"}}}}},
+			}}}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(w.knownIssuers(), KnownIssuer{Name: "Federal Office (evil.example)", URL: "https://evil.example"}) {
+		t.Errorf("known issuers = %+v", w.knownIssuers())
+	}
+}
+
+// The queries with a catalogue entry must be able to answer the request.
+func TestAnUnanswerableQueryOpensNoDialog(t *testing.T) {
+	w := generateTestWallet(t)
+	if _, err := w.Registrar().AddCatalogAttestation(registrar.CatalogAttestation{Name: "Diploma",
+		Credentials: []registrar.CatalogCredential{{Format: credtype.FormatSDJWT, Type: "urn:example:diploma:1"}}}); err != nil {
+		t.Fatal(err)
+	}
+	queries := []any{
+		map[string]any{"id": "a", "format": credtype.FormatSDJWT, "meta": map[string]any{"vct_values": []any{"urn:example:diploma:1"}}},
+		map[string]any{"id": "b", "format": credtype.FormatSDJWT, "meta": map[string]any{"vct_values": []any{"urn:example:unknown:1"}}},
+	}
+	if got := w.obtainableOptions(map[string]any{"credentials": queries}); got != nil {
+		t.Errorf("options = %+v", got)
+	}
+	alternatives := []any{map[string]any{"options": []any{[]any{"a"}, []any{"b"}}}}
+	if w.obtainableOptions(map[string]any{"credentials": queries, "credential_sets": alternatives}) == nil {
+		t.Error("alternatives: no options, want the query with an entry")
+	}
+	optional := []any{map[string]any{"required": false, "options": []any{[]any{"b"}}}}
+	if got := w.obtainableOptions(map[string]any{"credentials": queries[1:], "credential_sets": optional}); got != nil {
+		t.Errorf("optional sets without an entry: options = %+v", got)
+	}
+	both := []any{map[string]any{"options": []any{[]any{"a", "b"}}}}
+	if got := w.obtainableOptions(map[string]any{"credentials": queries, "credential_sets": both}); got != nil {
+		t.Errorf("an option with an unknown query: options = %+v", got)
+	}
+}
+
+// A visitor's issuer can't attach itself to another entry, whatever its metadata
+// says.
+func TestAPublicDemoListsAVisitorsIssuerOnItsOwnEntry(t *testing.T) {
+	w := generateTestWallet(t)
+	w.sharedRegistrar = true
+	entry := func(name, issuer, typ string) {
+		if _, err := w.Registrar().AddCatalogAttestation(registrar.CatalogAttestation{Name: name, CredentialIssuer: issuer,
+			Credentials: []registrar.CatalogCredential{{Format: credtype.FormatSDJWT, Type: typ}}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	entry("Operator's", "", "urn:example:operator:1")
+	entry("Visitor's", "https://visitor.example", "urn:example:visitor:1")
+	w.issuerOffers = issuerOfferCache{entries: map[string]issuerOffer{
+		"https://visitor.example": {
+			configurations: map[string]any{"fake": displayed(credtype.FormatSDJWT, "urn:example:operator:1", "Fake")},
+			retryAt:        time.Now().Add(time.Hour),
+		},
+	}}
+	credentials, _ := w.IssuableCredentials()
+	for _, credential := range credentials {
+		if credential.Name == "Operator's" && len(credential.Issuers) != 0 {
+			t.Errorf("issuers = %+v", credential.Issuers)
+		}
+	}
+}
+
+// The list keeps a bounded part of the metadata and still matches.
+func TestTheListKeepsWhatMatchingNeeds(t *testing.T) {
+	configurations := map[string]any{"extra": "not a configuration"}
+	for i := range maxListedConfigurations + 1 {
+		configuration := displayed(credtype.FormatSDJWT, "urn:example:diploma:1", "Diploma")
+		configuration["claims"] = strings.Repeat("x", 1000)
+		configurations[fmt.Sprintf("c%04d", i)] = configuration
+	}
+	listed := listedConfigurations(configurations)
+	if len(listed) != maxListedConfigurations {
+		t.Fatalf("listed %d", len(listed))
+	}
+	first := listed["c0000"].(map[string]any)
+	if first["claims"] != nil || !hasDisplayName(first, "Diploma") {
+		t.Errorf("first = %v", first)
+	}
+}
+
+// A hanging issuer doesn't hold up the list, and the wallet asks it once.
+func TestTheIssuerListWaitsForNoIssuer(t *testing.T) {
+	var cache issuerOfferCache
+	release := make(chan struct{})
+	var calls atomic.Int32
+	fetch := func(string) (map[string]any, error) {
+		calls.Add(1)
+		<-release
+		return map[string]any{"ticket": map[string]any{}}, nil
+	}
+	issuers := []KnownIssuer{{Name: "Issuer", URL: "https://issuer.example"}}
+	offered, loading := cache.read(issuers, fetch)
+	if !loading || offered[0] != nil {
+		t.Fatalf("first read: offered %v, loading %v", offered, loading)
+	}
+	if _, loading := cache.read(issuers, fetch); !loading {
+		t.Error("the fetch ended before its release")
+	}
+	close(release)
+	deadline := time.Now().Add(5 * time.Second)
+	for loading && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+		offered, loading = cache.read(issuers, fetch)
+	}
+	if loading || len(offered[0]) != 1 || calls.Load() != 1 {
+		t.Errorf("offered %v, loading %v after %d fetches", offered, loading, calls.Load())
 	}
 }

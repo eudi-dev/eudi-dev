@@ -68,7 +68,7 @@ These endpoints run the OID4VP and OID4VCI flows. `wallet accept`, `wallet scan`
 | `GET` | `/eudi-dev-dc-api-extension.zip` | Browser extension for the Digital Credentials API, set to this wallet | `wallet extension <dir>` |
 | `POST` | `/api/offers` | Accept an OID4VCI credential offer | `wallet accept <uri>` |
 | `GET` | `/api/offers/{id}` | State of an offer that waits for the issuer's sign-in | None |
-| `DELETE` | `/api/offers/{id}` | End the wait for a sign-in the user gave up. `GET` answers `status` `cancelled` once the flow has ended. The browser that started the flow can end it | None |
+| `DELETE` | `/api/offers/{id}` | Cancel a waiting sign-in. `GET` answers `status` `cancelled` once the flow has ended. Only the browser that started the flow can cancel it | None |
 | `GET` | `/api/requests` | Pending consent requests of the caller | None |
 | `GET` | `/api/requests/stream` | Server-sent events for consent requests | None |
 | `POST` | `/api/requests/{id}/approve` | Approve a consent request | None |
@@ -250,11 +250,11 @@ Provider roles are the credential categories `pid`, `qeaa`, `pub-eaa` and `eaa`,
 
 ### Wallet-initiated issuance
 
-The wallet can request a credential without an offer (OpenID4VCI 1.0 §3.4 and Appendix H.6). **Request credential** in the wallet UI lists the attestation types of the registrar catalogue with their issuers. Each entry of the attestation catalogue has the same button. The wallet asks for every format the issuer offers under one authorization, so you sign in once.
+The wallet can request a credential without an offer (OpenID4VCI 1.0 §3.4 and Appendix H.6). **Request credential** in the wallet UI lists the attestation types of the registrar catalogue with their issuers. An entry of the attestation catalogue with an issuer has the same button. The wallet asks for every format the issuer offers under one authorization, so you sign in once.
 
-When a verifier asks for a type the wallet doesn't hold, the consent dialog offers the same step in debug mode. The new credential then appears in the open dialog. In strict mode the wallet refuses the request first.
+When a verifier asks for a type the wallet doesn't hold, the consent dialog links to the same list. The new credential then appears in the open dialog. A request that is accepted automatically gets `no_match`. A Digital Credentials API request doesn't offer this, because the issuer sign-in would hide its window.
 
-The wallet knows the demo issuer and each registered service or catalogue entry with a `credentialIssuer` URL. On a public demo it knows the demo issuer and the entries of `--catalog`.
+The wallet knows the demo issuer and each registered service or catalogue entry with a `credentialIssuer` URL. On a public demo an issuer appears only on its own catalogue entry.
 
 ```bash
 curl http://localhost:8085/api/issuance
@@ -262,6 +262,10 @@ curl http://localhost:8085/api/issuance
 curl -X POST http://localhost:8085/api/issuance \
   -H 'Content-Type: application/json' \
   -d '{"issuer": "http://localhost:8085/issuer", "credential_configuration_ids": ["demo-ticket"]}'
+
+curl -X POST http://localhost:8085/api/issuance \
+  -H 'Content-Type: application/json' \
+  -d '{"issuer": "https://issuer.example", "attestation": "<catalogue id>"}'
 ```
 
 | Method | Path            | Purpose                                       |
@@ -269,7 +273,9 @@ curl -X POST http://localhost:8085/api/issuance \
 | `GET`  | `/api/issuance` | List the attestation types with their issuers |
 | `POST` | `/api/issuance` | Request credential configurations             |
 
-`POST` answers like `POST /api/offers`. If the issuer asks the user to sign in, the answer is `202` with `authorization_url` and `offer_id`. Open the URL, then read `GET /api/offers/{offer_id}`. Each issuer in the list has one configuration per format. Send them all, because ARF ISSU_12a asks for all formats. If the issuer then asks for a presentation, the wallet asks for consent as usual. The result of each further configuration is in `additional`. A format that failed has an `error` there. The other formats stay in the wallet. The public demo only accepts issuers from this list.
+`GET` answers `{"credentials": [...], "loading": false}` at once and never waits for an issuer. The wallet reads issuer metadata in the background and keeps it for a minute (5 seconds for the demo issuer and the issuers of `--catalog`). While `loading` is `true`, an issuer has not answered for the first time. Ask again to get the rest. If a later read fails, the wallet keeps the last answer. An issuer set as `credentialIssuer` on a catalogue entry is always listed. Until its metadata shows the type, `credential_configuration_ids` is empty. Send `attestation` with the entry's ID and the same issuer instead. The wallet then asks the issuer and answers `422` if it doesn't offer the type or `502` if it can't read the metadata.
+
+`POST` answers like `POST /api/offers`. If the issuer asks the user to sign in, the answer is `202` with `authorization_url` and `offer_id`. Open the URL, then read `GET /api/offers/{offer_id}`. Each issuer in the list has one configuration per format. Send them all, because ARF ISSU_12a asks for all formats. If the issuer then asks for a presentation, the wallet asks for consent as usual. The result of each further configuration is in `additional`. A format that failed has an `error` there. The other formats stay in the wallet.
 
 ### Certificate revocation
 
@@ -288,6 +294,10 @@ curl -X POST http://localhost:8085/api/certificates/revocations \
 | `GET`    | `/api/certificates/revocations`          | List the revoked certificates               |
 | `POST`   | `/api/certificates/revocations`          | Revoke a certificate                        |
 | `DELETE` | `/api/certificates/revocations/{serial}` | Take a certificate off its CRL              |
+
+The credential list has a `certificate_status` for each credential. Its `status` is `valid`, `revoked`, `expired`, `unchecked` or `none` (no CRL). This reads only the revocations of this wallet. `unchecked` means that a certificate has a CRL of another issuer. `GET /api/credentials/{id}/certificate-status` then reads those CRLs, and `status` can also be `unknown` (a CRL can't be read). The public demo blocks this endpoint. `problems` names the reason. **Check status** on the credential card does the same.
+
+With memory storage, revocations and withdrawals end with the restart. With a stable [seed](../wallet.md#seeded-keys), the CAs keep their keys and subjects. A certificate from before the restart can be revoked again, and the new CRLs verify against the old CA certificates.
 
 You can also do this in the wallet UI. Click **Certificates** on a credential to see its certificate chain. You can revoke the certificates of this wallet and withdraw its CAs there. `GET /api/credentials/{id}/certificates` returns the same list.
 

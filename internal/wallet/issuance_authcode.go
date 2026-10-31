@@ -1822,7 +1822,7 @@ func derefString(v *string) string {
 	return *v
 }
 
-// errSignInCancelled ends a flow whose user gave up the sign-in at the issuer.
+// errSignInCancelled ends a flow after the user cancels the sign-in.
 var errSignInCancelled = errors.New("the sign-in at the issuer was cancelled")
 
 // runAuthorizationCodeRequest uses the authorization URL exactly once, because

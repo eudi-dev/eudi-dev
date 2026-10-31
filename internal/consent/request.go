@@ -54,6 +54,7 @@ type Request struct {
 	Type         string // TypePresentation, TypeIssuance or TypeIssuancePresentation
 	OfferURI     string
 	MatchedCreds []Match
+	NoIssuance   bool   // The dialog offers no request for a missing credential.
 	Status       string // StatusPending until Runtime.Resolve sets another status
 	ResultCh     chan Result
 	SubmissionCh chan SubmissionResult

@@ -495,7 +495,7 @@ func (w *Wallet) parseInteractiveAuthorizationRequest(request map[string]any, en
 	}
 
 	params := oid4vp.RequestFrom(parsed)
-	params.Source = "interactive_authorization"
+	params.Source = sourceInteractiveAuthorization
 	params.RequestOrigin = derivedOrigin(endpoint)
 	params.InteractiveAuthorizationEndpoint = endpoint
 

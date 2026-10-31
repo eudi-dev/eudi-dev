@@ -105,6 +105,9 @@ func (r *Request) ResponseDestination() string {
 	return r.RedirectURI
 }
 
+// SourceDCAPI is the Source of a request from the Digital Credentials API.
+const SourceDCAPI = "dc_api"
+
 // Request is an authorization request on its way through the wallet: the
 // parsed parameters and where the request came from.
 type Request struct {
@@ -126,7 +129,7 @@ type Request struct {
 	// RequestPayload is the payload of the request object, or else the JSON
 	// of a request sent as JSON.
 	RequestPayload map[string]any
-	Source         string
+	Source         string // SourceDCAPI for the Digital Credentials API
 	// Unsigned DC API requests use the platform's origin to identify the caller and
 	// omit client_id (OpenID4VP 1.0 Appendix A.2 and A.3.1).
 	UnsignedDCAPI bool

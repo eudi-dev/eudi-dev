@@ -20,10 +20,14 @@
     p { margin: 10px 0 0; color: var(--dim); }
     .check { display: flex; gap: 8px; align-items: center; margin-top: 12px; font-weight: 400; color: var(--text); }
     .check input { width: auto; margin: 0; }
+    .check.first { margin: 0 0 4px; }
+    #enabled-hint { margin: 0 0 12px; }
   </style>
 </head>
 <body>
   <h1><img src="icons/32.png" alt="">eudi-dev Digital Credentials</h1>
+  <label class="check first" for="enabled"><input id="enabled" type="checkbox"> Answer Digital Credentials API calls</label>
+  <p id="enabled-hint">Turn this off to test the browser's own behavior. Reload open pages to apply the change.</p>
   <label for="wallet-url">Wallet URL</label>
   <input id="wallet-url" type="url" spellcheck="false">
   <div class="row">

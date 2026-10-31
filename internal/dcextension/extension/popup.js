@@ -47,4 +47,9 @@ const consoleLog = document.getElementById('console-log');
 chrome.storage.local.get('consoleLog').then(({ consoleLog: on }) => { consoleLog.checked = on !== false; });
 consoleLog.addEventListener('change', () => chrome.storage.local.set({ consoleLog: consoleLog.checked }));
 
+// With the extension off, background.js removes the page scripts.
+const enabled = document.getElementById('enabled');
+chrome.storage.local.get('enabled').then(({ enabled: on }) => { enabled.checked = on !== false; });
+enabled.addEventListener('change', () => chrome.storage.local.set({ enabled: enabled.checked }));
+
 load();

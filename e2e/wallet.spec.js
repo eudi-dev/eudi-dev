@@ -2039,18 +2039,44 @@ test("a request without a matching credential offers to request it", async ({ pa
   await page.route("**/api/requests*", route => route.fulfill({ json: [{
     id: "req-obtain", type: "presentation", status: "pending", client_id: "x509_hash:abc", matched_credentials: [], credential_options: options,
   }] }));
-  await page.route("**/api/issuance", route => route.fulfill({ json: [
+  await page.route("**/api/issuance", route => route.fulfill({ json: { credentials: [
     { id: "de", name: "German PID", issuers: [{ name: "Issuer A", url: "https://a.example", credential_configuration_ids: ["de"], formats: ["dc+sd-jwt"] }, { name: "Issuer B", url: "https://b.example", credential_configuration_ids: ["de"], formats: ["mso_mdoc"] }] },
     { id: "nl", name: "Dutch PID", issuers: [] },
     { id: "other", name: "Other", issuers: [] },
-  ] }));
+  ] } }));
   await page.goto(`${WALLET_URL}/?request=req-obtain`);
+  await expect(page.locator("[data-obtain]")).toHaveText("Look in the attestation catalogue");
   await page.locator("[data-obtain]").click();
   const rows = page.getByTestId("issuable-row");
   await expect(rows).toHaveCount(2);
   await expect(rows.first().getByRole("button", { name: "Request from Issuer B" })).toBeVisible();
   await expect(rows.first()).toContainText("Issuer A (SD-JWT), Issuer B (mdoc)");
   await expect(rows.last()).toContainText("No known issuer offers this credential.");
+});
+
+test("a credential card shows its certificate status and opens the decoder by keyboard", async ({ page, context }) => {
+  await page.goto(WALLET_URL);
+  const card = page.locator(".credential-card").first();
+  await expect(card.locator("[id^='certificate-status-']")).toHaveText("Certificate valid");
+  const decoder = context.waitForEvent("page");
+  await card.locator(".credential-info").press("Enter");
+  await expect(await decoder).toHaveURL(/decoder\/\?id=/);
+});
+
+test("the request dialog fills in while issuers answer", async ({ page }) => {
+  let loading = true;
+  await page.route("**/api/issuance", route => route.fulfill({ json: {
+    loading,
+    credentials: [{ id: "x", name: "Diploma", issuers: loading ? [] : [{ name: "Slow issuer", url: "https://a.example", credential_configuration_ids: ["a"], formats: ["dc+sd-jwt"] }] }],
+  } }));
+  await page.goto(WALLET_URL);
+  await page.locator("#request-credential-btn").click();
+  const row = page.getByTestId("issuable-row");
+  await expect(row).toContainText("Checking the issuers…");
+  await expect(row.locator(".deferred-spinner")).toBeVisible();
+  loading = false;
+  await expect(row).toContainText("Slow issuer (SD-JWT)");
+  await expect(row.getByRole("button", { name: "Request" })).toBeVisible();
 });
 
 for (const [outcome, additional, text] of [
@@ -2060,7 +2086,7 @@ for (const [outcome, additional, text] of [
   test(`${outcome} keeps the request dialog open with the outcome`, async ({ page }) => {
     await page.route("**/api/issuance", route => route.request().method() === "POST"
       ? route.fulfill({ json: { credential_id: "first", additional } })
-      : route.fulfill({ json: [{ id: "x", name: "Diploma", issuers: [{ name: "Issuer", url: "https://a.example", credential_configuration_ids: ["a", "b"], formats: ["dc+sd-jwt", "mso_mdoc"] }] }] }));
+      : route.fulfill({ json: { credentials: [{ id: "x", name: "Diploma", issuers: [{ name: "Issuer", url: "https://a.example", credential_configuration_ids: ["a", "b"], formats: ["dc+sd-jwt", "mso_mdoc"] }] }] } }));
     await page.goto(WALLET_URL);
     await page.locator("#request-credential-btn").click();
     await page.getByTestId("issuable-row").getByRole("button", { name: "Request" }).click();
@@ -2080,6 +2106,39 @@ test("an added attestation names its credential issuer", async ({ page }) => {
   const added = page.waitForResponse(res => res.url().endsWith("/api/catalog/attestations") && res.request().method() === "POST");
   await page.locator("#registrar-catalog-save").click();
   expect((await (await added).json()).credentialIssuer).toBe("https://issuer.example");
+});
+
+test("a new catalogue entry can request from its issuer, and the refusal shows on click", async ({ page }) => {
+  let id;
+  let sent;
+  await page.route("**/api/catalog/attestations", async route => {
+    if (route.request().method() !== "POST") return route.fallback();
+    const response = await route.fetch();
+    id = (await response.json()).schema.id;
+    return route.fulfill({ response });
+  });
+  await page.route("**/api/issuance", route => {
+    if (route.request().method() !== "POST") return route.fulfill({ json: { loading: false, credentials: id
+      ? [{ id, name: "Fresh", issuers: [{ name: "issuer.example", url: "https://issuer.example", credential_configuration_ids: [], formats: [] }] }] : [] } });
+    sent = route.request().postDataJSON();
+    return route.fulfill({ status: 422, json: { error: "invalid_request", error_description: "the issuer https://issuer.example doesn't offer Fresh" } });
+  });
+  await page.goto(WALLET_URL);
+  await page.locator("#registrar-menu-toggle").click();
+  await page.locator("#registrar-catalog-link").click();
+  await page.locator("#registrar-catalog-add").click();
+  await page.locator("#registrar-catalog-name").fill("Fresh entry");
+  await page.locator("#registrar-catalog-format-1-type").fill("urn:example:fresh:1");
+  await page.locator("#registrar-catalog-issuer").fill("https://issuer.example");
+  await page.locator("#registrar-catalog-save").click();
+  try {
+    const card = page.locator(".registrar-party").filter({ hasText: "Fresh entry" });
+    await card.getByRole("button", { name: "Request" }).click();
+    await expect(page.getByText("doesn't offer Fresh")).toBeVisible();
+    expect(sent).toEqual({ issuer: "https://issuer.example", attestation: id });
+  } finally {
+    await page.request.delete(`${WALLET_URL}/api/catalog/schemas/${encodeURIComponent(id)}`);
+  }
 });
 
 test("copying a trusted list URL shows that it was copied", async ({ page, context }) => {
