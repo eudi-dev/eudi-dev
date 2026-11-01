@@ -159,6 +159,67 @@ test("the popup turns the extension off, and pages get the browser's own API", a
   });
 });
 
+test("the popup checks the wallet and offers a local wallet on any port", async () => {
+  await withExtension(async (context) => {
+    const worker = await extensionWorker(context);
+    const popup = await context.newPage();
+    await popup.goto(worker.url().replace("background.js", "popup.html"));
+    const status = popup.locator("#status");
+    const url = popup.locator("#wallet-url");
+
+    await expect(status).toHaveText(`Connected to ${new URL(BASE).host}`);
+    await expect(popup.locator("#wallet-local")).toHaveAttribute("aria-pressed", "true");
+
+    await url.fill("http://localhost:1");
+    await url.press("Enter");
+    await expect(status).toHaveText("Can't reach this wallet");
+    await expect(popup.locator("#hint")).toHaveText("Start it with eudi wallet serve --port 1");
+
+    await url.fill("localhost:8085");
+    await url.press("Enter");
+    await expect(popup.locator("#hint")).toHaveText("Enter a URL such as http://localhost:8085.");
+
+    await url.fill(`${BASE}/verifier`);
+    await url.press("Enter");
+    await expect(status).toHaveText("This isn't an eudi-dev wallet");
+
+    await popup.locator("#wallet-demo").click();
+    await expect(url).toBeHidden();
+    await popup.locator("#wallet-local").click();
+    await expect(url).toHaveValue(`${BASE}/verifier`);
+
+    await popup.locator("#enabled").uncheck();
+    await expect(status).toHaveText("Off. Pages use the browser's Digital Credentials API");
+    await expect(popup.locator("#wallet")).toBeHidden();
+    await expect(popup.locator("#reload-notice")).toBeVisible();
+  });
+});
+
+test("after a change of Enabled in either direction the popup reloads the tab", async () => {
+  await withExtension(async (context) => {
+    const worker = await extensionWorker(context);
+    const popup = await context.newPage();
+    await popup.goto(worker.url().replace("background.js", "popup.html"));
+    const notice = popup.locator("#reload-notice");
+    await expect(notice).toBeHidden();
+
+    for (const change of ["uncheck", "check"]) {
+      const page = await context.newPage();
+      await page.goto(`${BASE}/verifier/`);
+      await page.evaluate(() => { window.notReloaded = true; });
+      await popup.locator("#enabled")[change]();
+      await expect(notice).toBeVisible();
+      await page.bringToFront();
+      const reloaded = page.waitForEvent("load");
+      await popup.locator("#reload").evaluate((button) => button.click());
+      await reloaded;
+      await expect(notice).toBeHidden();
+      expect(await page.evaluate(() => window.notReloaded)).toBeUndefined();
+      await page.close();
+    }
+  });
+});
+
 test("the wallet window offers no issuance", async () => {
   await withExtension(async (context) => {
     await fetch(`${BASE}/api/credentials`, { method: "DELETE" });

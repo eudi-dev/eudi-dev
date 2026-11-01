@@ -4,52 +4,73 @@
   <meta charset="utf-8">
   <title>eudi-dev Digital Credentials</title>
   <style>
-    :root { color-scheme: light dark; --bg: #ffffff; --text: #1a1b26; --dim: #565f89; --border: #c0c4d6; --accent: #3d59a1; --ok: #2e7d32; --bad: #c62828; }
-    @media (prefers-color-scheme: dark) { :root { --bg: #1a1b26; --text: #c0caf5; --dim: #9aa5ce; --border: #414868; --accent: #7aa2f7; --ok: #9ece6a; --bad: #f7768e; } }
-    body { margin: 0; padding: 14px 16px; width: 320px; font: 13px/1.45 system-ui, sans-serif; background: var(--bg); color: var(--text); }
-    h1 { font-size: 14px; margin: 0 0 10px; display: flex; gap: 8px; align-items: center; }
-    h1 img { width: 20px; height: 20px; }
-    label { display: block; font-weight: 600; color: var(--dim); margin-bottom: 4px; }
-    input { box-sizing: border-box; width: 100%; padding: 6px 8px; font: 12px ui-monospace, monospace; color: var(--text); background: transparent; border: 1px solid var(--border); border-radius: 6px; }
-    .row { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
-    button { font: inherit; font-weight: 600; padding: 5px 12px; border: 0; border-radius: 6px; background: var(--accent); color: #fff; cursor: pointer; }
-    a { color: var(--accent); }
-    #status { margin-top: 10px; color: var(--dim); }
-    #status.ok { color: var(--ok); }
-    #status.bad { color: var(--bad); }
-    p { margin: 10px 0 0; color: var(--dim); }
-    .switch-row { display: flex; align-items: center; gap: 6px; margin: 0 0 12px; }
-    .switch-row + label { margin-top: 0; }
-    #status + .switch-row { margin: 12px 0 0; }
-    .switch-row label { margin: 0; font-weight: 600; color: var(--text); }
-    .switch { appearance: none; position: relative; flex: none; width: 34px; height: 20px; margin: 0 0 0 auto; padding: 0; border: 0; border-radius: 10px; background: var(--border); cursor: pointer; transition: background .15s; }
+    :root { color-scheme: light dark; --bg: #ffffff; --btn: #eceef2; --text: #15171a; --dim: #5a606a; --border: #d5d8de; --subtle: #e4e6ea; --accent: #2456c4; --on-accent: #ffffff; --ok: #1c6b38; --ok-bg: #dcf1e2; --bad: #b3261e; --bad-bg: #fbe3e0; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #21242a; --btn: #2c3038; --text: #eceef1; --dim: #a9afb9; --border: #383d45; --subtle: #2a2e35; --accent: #9dbcff; --on-accent: #15171a; --ok: #9fdcae; --ok-bg: #1d3a27; --bad: #ff9b8f; --bad-bg: #472320; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; width: 320px; font: 13px/1.45 system-ui, sans-serif; background: var(--bg); color: var(--text); }
+    button, a.button { font: inherit; border: 0; cursor: pointer; }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    header { display: flex; align-items: center; gap: 8px; padding: 12px 14px 10px; }
+    header img { width: 20px; height: 20px; }
+    h1 { flex: 1; min-width: 0; margin: 0; font-size: 13.5px; }
+    #open { flex: none; padding: 3px 10px; border-radius: 999px; background: var(--btn); color: var(--text); font-size: 12px; font-weight: 500; text-decoration: none; }
+    #status { display: flex; align-items: center; gap: 7px; margin: 0 14px; padding: 7px 10px; border-radius: 9px; background: var(--btn); color: var(--dim); font-weight: 600; overflow-wrap: anywhere; }
+    #status::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+    #status.ok { background: var(--ok-bg); color: var(--ok); }
+    #status.bad { background: var(--bad-bg); color: var(--bad); }
+    .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 14px 0; font-weight: 600; }
+    .switch { appearance: none; position: relative; flex: none; width: 34px; height: 20px; margin: 0; border-radius: 10px; background: var(--border); cursor: pointer; transition: background .15s; }
     .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s; }
     .switch:checked { background: var(--accent); }
     .switch:checked::after { transform: translateX(14px); }
-    .switch:focus-visible, .info:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-    .info { position: relative; flex: none; width: 16px; height: 16px; border: 1px solid var(--dim); border-radius: 50%; color: var(--dim); font: 600 11px/16px system-ui, sans-serif; text-align: center; cursor: help; }
-    .info:hover, .info:focus { border-color: var(--accent); color: var(--accent); }
-    .info:hover::after, .info:focus::after { content: attr(data-tip); position: absolute; z-index: 1; top: 22px; left: -80px; width: 210px; padding: 6px 8px; border-radius: 6px; background: var(--text); color: var(--bg); font-weight: 400; font-size: 12px; line-height: 1.35; text-align: left; }
+    #reload-notice { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 11px 14px 0; padding: 7px 10px; border: 1px solid var(--border); border-radius: 9px; }
+    #reload { flex: none; padding: 3px 10px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 12px; font-weight: 600; }
+    [hidden] { display: none !important; }
+    #wallet { display: grid; gap: 6px; padding: 11px 14px 0; }
+    .label { color: var(--dim); font-size: 12px; font-weight: 600; }
+    .choice { display: grid; grid-template-columns: repeat(3, 1fr); padding: 2px; border-radius: 9px; background: var(--btn); }
+    .choice button { padding: 4px 0; border-radius: 7px; background: none; color: var(--text); font-weight: 500; }
+    .choice button[aria-pressed="true"] { background: var(--bg); font-weight: 600; box-shadow: 0 1px 2px rgba(20, 30, 60, .18); }
+    #wallet-url { width: 100%; padding: 6px 8px; font: 12px ui-monospace, monospace; color: var(--text); background: transparent; border: 1px solid var(--border); border-radius: 7px; }
+    #wallet-url.bad { border-color: var(--bad); }
+    #hint { color: var(--dim); font-size: 12px; overflow-wrap: anywhere; }
+    #hint.bad { color: var(--bad); }
+    #hint:empty { display: none; }
+    footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; padding: 10px 14px 12px; border-top: 1px solid var(--subtle); color: var(--dim); font-size: 12px; }
+    footer .switch { width: 28px; height: 16px; }
+    footer .switch::after { width: 12px; height: 12px; }
+    footer .switch:checked::after { transform: translateX(12px); }
   </style>
 </head>
 <body>
-  <h1><img src="icons/32.png" alt="">eudi-dev Digital Credentials</h1>
+  <header>
+    <img src="icons/48.png" alt="">
+    <h1>Digital Credentials</h1>
+    <a id="open" class="button" href="#" target="_blank" rel="noopener">Open wallet</a>
+  </header>
+  <div id="status" role="status"></div>
   <div class="switch-row">
-    <label for="enabled">Answer calls</label>
-    <span class="info" tabindex="0" role="img" aria-label="Off: pages get the browser's own API. Reload open pages after a change." data-tip="Off: pages get the browser's own API. Reload open pages after a change.">i</span>
+    <label for="enabled">Enabled</label>
     <input id="enabled" class="switch" type="checkbox" role="switch">
   </div>
-  <label for="wallet-url">Wallet URL</label>
-  <input id="wallet-url" type="url" spellcheck="false">
-  <div class="row">
-    <button id="save" type="button">Save</button>
-    <a id="open" href="#" target="_blank" rel="noopener">Open the wallet</a>
+  <div id="reload-notice" hidden>
+    <span>Reload open pages to apply</span>
+    <button id="reload" type="button">Reload tab</button>
   </div>
-  <div id="status"></div>
-  <div class="switch-row">
-    <label for="console-log">Log to the page console</label>
+  <div id="wallet">
+    <span class="label">Wallet</span>
+    <div class="choice" role="group" aria-label="Wallet">
+      <button id="wallet-demo" type="button" data-mode="demo">Public demo</button>
+      <button id="wallet-local" type="button" data-mode="local">Local</button>
+      <button id="wallet-custom" type="button" data-mode="custom">Custom</button>
+    </div>
+    <input id="wallet-url" type="url" spellcheck="false" aria-label="Wallet URL" aria-describedby="hint">
+    <div id="hint" aria-live="polite"></div>
+  </div>
+  <footer>
+    <label for="console-log">Log calls to the page console</label>
     <input id="console-log" class="switch" type="checkbox" role="switch">
-  </div>
+  </footer>
   <script src="popup.js"></script>
 </body>
 </html>

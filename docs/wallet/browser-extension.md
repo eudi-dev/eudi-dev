@@ -28,9 +28,9 @@ eudi wallet extension ~/eudi-dev-extension --wallet-url http://localhost:8085
 
 Every wallet server also offers the extension as a zip file at `/eudi-dev-dc-api-extension.zip`, set to that wallet, and the demo verifier links it. Unzip the file, open `chrome://extensions`, turn on Developer mode, choose Load unpacked and select the folder. Outside the Chrome Web Store, Chrome installs extensions only this way.
 
-The extension's popup shows the wallet it uses and lets you set another one.
+The extension's popup shows whether it reaches the wallet. Choose **Public demo**, **Local** or **Custom**. **Local** starts with `http://localhost:8085`. Change the URL when your wallet runs on another port. A URL saves when you press Enter or leave the field.
 
-To test how a page behaves without the extension, turn off **Answer calls** in the popup and reload the page. The extension then adds nothing to pages, so they get the browser's own API. The icon shows **OFF**.
+To test how a page behaves without the extension, turn off **Enabled** in the popup and reload the page. The extension then adds nothing to pages, so they get the browser's own API. The icon shows **OFF**.
 
 ## Use
 
@@ -54,7 +54,7 @@ The demo verifier always asks for an encrypted response (`dc_api.jwt`).
 
 The page console and the wallet's activity log show what happened in a call.
 
-- **Page console.** The extension logs each call to the page console: the request, then the result or the error. To stop this, turn off **Log to the page console** in the popup.
+- **Page console.** The extension logs each call to the page console: the request, then the result or the error. To stop this, turn off **Log calls to the page console** in the popup.
 - **All requests in the activity log.** The wallet logs each call with all its requests. It answers only the first request with a supported protocol. For each other request, the log gives the reason. A common mistake is the protocol `openid4vp` instead of `openid4vp-v1-signed` (OpenID4VP 1.0 Appendix A.1).
 - **Refused calls.** Calls refused by the extension also appear in the activity log, for example a call without a user action. The same page and reason appear at most once a minute.
 - **Unused parameters.** Parameters outside the list in OpenID4VP 1.0 Appendix A.2, such as `state` or `response_uri`, get a warning.
