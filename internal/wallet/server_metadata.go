@@ -29,7 +29,14 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/trustedlists"
 )
 
+// allowTrustListReads lets browser pages read the lists. They are public, signed documents, and a
+// GET with an Accept header needs no preflight.
+func allowTrustListReads(w http.ResponseWriter) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+}
+
 func (s *Server) handleTrustList(w http.ResponseWriter, r *http.Request) {
+	allowTrustListReads(w)
 	if _, chain := s.wallet.certificateAuthority(); len(chain) < 2 {
 		apierror.WriteStatus(w, http.StatusInternalServerError, "wallet has no CA certificate chain")
 		return
@@ -50,6 +57,7 @@ func (s *Server) handleTrustList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleTrustListIndex(w http.ResponseWriter, r *http.Request) {
+	allowTrustListReads(w)
 	issuer := strings.TrimRight(strings.TrimSpace(s.wallet.IssuerURL), "/")
 	entries := s.wallet.TrustedLists().IndexEntries(issuer)
 	for i := range entries {
@@ -59,6 +67,7 @@ func (s *Server) handleTrustListIndex(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleTrustListByID(w http.ResponseWriter, r *http.Request) {
+	allowTrustListReads(w)
 	if _, chain := s.wallet.certificateAuthority(); len(chain) < 2 {
 		apierror.WriteStatus(w, http.StatusInternalServerError, "wallet has no CA certificate chain")
 		return
@@ -88,6 +97,7 @@ func (s *Server) handleTrustListByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleTrustListHistory(w http.ResponseWriter, r *http.Request) {
+	allowTrustListReads(w)
 	group, ok := s.wallet.TrustedLists().FindGroup(r.PathValue("id"), "", "")
 	if !ok {
 		http.NotFound(w, r)

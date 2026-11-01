@@ -3281,6 +3281,49 @@ func (s *Server) reloadFromStore() error {
 }
 
 // Every instance of a list stays fetchable under its sequence number.
+func TestTrustListsAreReadableFromOtherOrigins(t *testing.T) {
+	w := generateTestWallet(t)
+	w.IssuerURL = "https://localhost:8443"
+	srv := NewServer(w, 0, nil)
+
+	for _, path := range []string{"/api/trustlist", "/api/trustlists", "/api/trustlists/eaa", "/api/trustlists/lists", "/api/trustlists/eaa/history"} {
+		resp := serverRequest(t, srv, "GET", path, "")
+		if resp.Code != http.StatusOK {
+			t.Fatalf("%s: expected 200, got %d: %s", path, resp.Code, resp.Body.String())
+		}
+		if got := resp.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+			t.Errorf("%s: Access-Control-Allow-Origin = %q", path, got)
+		}
+	}
+}
+
+func TestGuardAPIOpensOnlyTrustListReads(t *testing.T) {
+	srv := newTestServer(t, false)
+	reached := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	guard := srv.guardAPI(reached)
+
+	for _, tc := range []struct {
+		method, path string
+		want         int
+	}{
+		{"GET", "/api/trustlist", http.StatusNoContent},
+		{"GET", "/api/trustlists", http.StatusNoContent},
+		{"GET", "/api/trustlists/wallet-provider", http.StatusNoContent},
+		{"HEAD", "/api/trustlists/wallet-provider", http.StatusNoContent},
+		{"POST", "/api/trustlists/wallet-provider", http.StatusForbidden},
+		{"GET", "/api/trustlistsecret", http.StatusForbidden},
+		{"GET", "/api/config", http.StatusForbidden},
+	} {
+		req := httptest.NewRequest(tc.method, tc.path, nil)
+		req.Header.Set("Origin", "https://other.example")
+		resp := httptest.NewRecorder()
+		guard.ServeHTTP(resp, req)
+		if resp.Code != tc.want {
+			t.Errorf("%s %s: got %d, want %d", tc.method, tc.path, resp.Code, tc.want)
+		}
+	}
+}
+
 func TestTrustListHistoryAPI(t *testing.T) {
 	w := generateTestWallet(t)
 	w.IssuerURL = "https://localhost:8443"

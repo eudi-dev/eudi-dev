@@ -180,7 +180,22 @@ func (s *Server) guardAPI(next http.Handler) http.Handler {
 	// reported by the platform and on the consent dialog. The browser
 	// extension calls the refusal and cancel endpoints from its own origin. The
 	// create endpoint accepts only the extension.
-	return httpsec.GuardAPIExcept(next, []string{"/api/dc-api", "/api/dc-api/create", "/api/dc-api/refusals", "/api/dc-api/cancel"}, s.wallet.BaseURL, s.wallet.IssuerURL)
+	guard := httpsec.GuardAPIExcept(next, []string{"/api/dc-api", "/api/dc-api/create", "/api/dc-api/refusals", "/api/dc-api/cancel"}, s.wallet.BaseURL, s.wallet.IssuerURL)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isTrustListRead(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		guard.ServeHTTP(w, r)
+	})
+}
+
+// isTrustListRead matches reads of the public, signed trusted lists. Other pages may fetch them.
+func isTrustListRead(r *http.Request) bool {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		return false
+	}
+	return r.URL.Path == "/api/trustlist" || r.URL.Path == "/api/trustlists" || strings.HasPrefix(r.URL.Path, "/api/trustlists/")
 }
 
 // demoBlockedRoute reports whether the endpoint is closed to anonymous demo
