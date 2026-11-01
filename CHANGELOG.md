@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Open calls of closed pages.** Leaving or closing a page ends its Digital Credentials API call and closes the wallet window.
 
+## [3.6.4] - 2026-11-01
+
+### Changed
+
+- **Stable client ID with client attestation.** Without `--vci-client-id`, flows with attestation-based client authentication use a client ID derived from the wallet provider key. It stays the same across flows and across instances that share the key, as OpenID4VCI 1.0 Appendix E and HAIP 1.0 ask. A wallet with memory storage and no seed gets a new key at each start. Issuers can now register it. `GET /api/config` shows it as `attestation_client_id`.
+
 ## [3.6.3] - 2026-11-01
 
 ### Changed

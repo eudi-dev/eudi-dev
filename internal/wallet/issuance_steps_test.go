@@ -249,7 +249,11 @@ func TestPreAuthorizedAttestedIssuanceRenewsAsTheSameClient(t *testing.T) {
 		t.Fatalf("ProcessCredentialOffer: %v", err)
 	}
 	stored, _ := w.GetCredential(result.CredentialID)
-	if stored.Renewal == nil || stored.Renewal.ClientID != "https://wallet.example" || stored.Renewal.ClientAuth == nil {
+	clientID, err := w.attestationClientID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.Renewal == nil || stored.Renewal.ClientID != clientID || stored.Renewal.ClientAuth == nil {
 		t.Fatalf("renewal = %+v, want the attested client", stored.Renewal)
 	}
 	if _, err := w.RenewCredential(result.CredentialID); err != nil {
@@ -262,11 +266,11 @@ func TestPreAuthorizedAttestedIssuanceRenewsAsTheSameClient(t *testing.T) {
 		if attestation == "" {
 			t.Fatalf("token request %d carried no attestation", i+1)
 		}
-		if sub := decodeJWTPart(t, attestation, 1)["sub"]; sub != "https://wallet.example" {
-			t.Errorf("token request %d attests %v, want the wallet", i+1, sub)
+		if sub := decodeJWTPart(t, attestation, 1)["sub"]; sub != clientID {
+			t.Errorf("token request %d attests %v, want %s", i+1, sub, clientID)
 		}
 	}
-	if got := issuer.tokenForms[1].Get("client_id"); got != "https://wallet.example" {
+	if got := issuer.tokenForms[1].Get("client_id"); got != clientID {
 		t.Errorf("refresh client_id = %q, want the attested client", got)
 	}
 }

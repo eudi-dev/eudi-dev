@@ -244,6 +244,11 @@ func issuingCertificateURLs(issuerURL string) []string {
 	return []string{issuer + "/api/certificates/ca.der"}
 }
 
+// WalletProviderKey returns the key without issuing its certificates.
+func (s *Signer) WalletProviderKey() (*ecdsa.PrivateKey, error) {
+	return s.keys.Key(signingKeyName(Role(WalletProviderList())))
+}
+
 // WalletProvider signs wallet and key attestations.
 func (s *Signer) WalletProvider() (*ecdsa.PrivateKey, []*x509.Certificate, error) {
 	return s.ForList(WalletProviderList(), "", "")

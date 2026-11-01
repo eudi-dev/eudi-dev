@@ -96,11 +96,10 @@ func (w *Wallet) processAuthorizationCodeOffer(offer *oid4vc.CredentialOffer, se
 	authCtx := clientAuthContext{oauthMeta: oauthMeta, tokenEndpoint: session.renewal.TokenEndpoint, issuerMetadata: session.metadata}
 	clientAuth := w.resolveClientAuthentication(clientAuthMethod, authCtx)
 	if clientID == "" {
-		// The attestation identifies the wallet, so the issuer has to accept
-		// a client_id it has never seen.
 		if clientAuth != nil && clientAuth.Method == ClientAuthAttestation {
-			clientID = randomBase64URL(18)
-			log.Printf("[VCI] Random client_id for this flow: %s", clientID)
+			if clientID, err = w.attestationClientID(); err != nil {
+				return nil, err
+			}
 		} else {
 			clientID = w.walletClientIdentifier()
 		}

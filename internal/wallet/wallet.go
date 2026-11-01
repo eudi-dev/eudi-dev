@@ -239,10 +239,9 @@ type ConformanceSettings struct {
 	ForceClientAttestation bool `json:"force_client_attestation"`
 	// TLSVerify overrides TLS verification. Nil follows the validation mode.
 	TLSVerify *bool `json:"tls_verify_override"`
-	// VCIClientID is the fixed client_id of authorization code flows
-	// (--vci-client-id). Empty gives each flow with attestation-based client
-	// authentication a random client_id. Other flows then use the wallet
-	// origin.
+	// VCIClientID is the fixed client_id of OID4VCI flows
+	// (--vci-client-id). Without it, flows with attestation-based client
+	// authentication use attestationClientID and other flows the wallet origin.
 	VCIClientID string `json:"vci_client_id"`
 }
 

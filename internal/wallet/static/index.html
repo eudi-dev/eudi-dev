@@ -271,7 +271,7 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
         </td></tr>
         <tr><td id="conf-transcript-name">mdoc session transcript</td><td id="conf-transcript" title="Set at startup with --session-transcript">—</td></tr>
         <tr id="conf-vci-client-id-row"><td id="conf-vci-client-id-name">OpenID4VCI client ID</td><td>
-          <input type="text" id="conf-vci-client-id" class="conf-input mono" placeholder="Random for each flow" aria-labelledby="conf-vci-client-id-name" title="A fixed client ID for authorization code flows (--vci-client-id). If empty, each flow with client attestation uses a random client ID">
+          <input type="text" id="conf-vci-client-id" class="conf-input mono" placeholder="Derived from the wallet provider key" aria-labelledby="conf-vci-client-id-name" title="A fixed client ID for OID4VCI flows (--vci-client-id). If empty, flows with client attestation use a client ID derived from the wallet provider key">
         </td></tr>
         <tr><td id="conf-format-name">Preferred format</td><td id="conf-format" title="Used when credentials in several formats match. Set at startup or with PUT /api/config/preferred-format">—</td></tr>
         <tr><td id="conf-key-attestation-name">Key attestation level</td><td>

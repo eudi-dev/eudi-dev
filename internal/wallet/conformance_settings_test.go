@@ -40,8 +40,8 @@ func TestConformancePatchUsesTheReportedNames(t *testing.T) {
 	}
 }
 
-// The settings dialog can clear a fixed client ID, so each attested flow gets
-// a random one. A reset restores --vci-client-id.
+// The settings dialog can clear a fixed client ID. A reset restores
+// --vci-client-id.
 func TestTheClientIDChangesAtRuntimeAndResets(t *testing.T) {
 	w := generateTestWallet(t)
 	w.VCIClientID = "startup-wallet"

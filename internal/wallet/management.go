@@ -337,6 +337,9 @@ func (m *Management) Config() map[string]any {
 	doc["credential_count"] = len(w.GetCredentials())
 	doc["form_defaults"] = formDefaults()
 	doc["templates_dir"] = w.Templates.String()
+	if id, err := w.attestationClientID(); err == nil {
+		doc["attestation_client_id"] = id
+	}
 	doc["wallet_dir"], doc["storage"], doc["seeded_keys"] = "", "", false
 	if m.store != nil {
 		doc["wallet_dir"] = m.store.Dir

@@ -516,7 +516,7 @@ E2E tests: [`wallet.spec.js`](../e2e/wallet.spec.js), test *trust dialog adds a 
 | HTTPS certificates | `#conf-tls-select` (`auto`, `true`, `false`) |
 | HAIP, ARF, encrypted request objects | `#conf-haip-input`, `#conf-arf-input`, `#conf-encrypted-input` |
 | OpenID4VCI version, key attestation level | `#conf-vci-version-select`, `#conf-key-attestation-select` |
-| OpenID4VCI client ID | `#conf-vci-client-id`. When it is empty, each flow with client attestation uses a random client ID. A demo shows the row only for a fixed client ID |
+| OpenID4VCI client ID | `#conf-vci-client-id`. When it is empty, flows with client attestation use a client ID derived from the wallet provider key. A demo shows the row only for a fixed client ID |
 | **Reset to startup settings**, **Close** | `#conf-reset`, `#conformance-close` |
 
 **Auto-accept** (`#auto-accept-toggle`) shows the state in `aria-pressed`. Only local wallets show it.

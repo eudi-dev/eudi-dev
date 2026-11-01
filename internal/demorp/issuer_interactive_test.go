@@ -134,11 +134,10 @@ func TestInteractiveAuthorizationAcceptsAnMdocPID(t *testing.T) {
 	}
 }
 
-// Without a configured client_id, each authorization code flow with
-// attestation-based client authentication uses a new random client_id. The
-// ecosystem has no pre-registered wallet clients, so the issuer identifies the
-// wallet through its attestation.
-func TestEachAttestedFlowHasItsOwnRandomClientID(t *testing.T) {
+// OpenID4VCI 1.0 Appendix E: the client_id of a wallet attestation "is the same
+// across Wallet instances of that Wallet Provider". It is not the wallet origin,
+// which an issuer could guess.
+func TestAttestedFlowsShareOneClientID(t *testing.T) {
 	w := interactiveTestWallet(t)
 	d, ts := serveDemoStack(t, w)
 	origin := w.VCIClientID
@@ -159,8 +158,8 @@ func TestEachAttestedFlowHasItsOwnRandomClientID(t *testing.T) {
 		}
 	}
 	d.mu.Unlock()
-	if len(clientIDs) != 2 || clientIDs[origin] || clientIDs[""] {
-		t.Errorf("the attestations named the clients %v, want two random ones", clientIDs)
+	if len(clientIDs) != 1 || clientIDs[origin] || clientIDs[""] {
+		t.Errorf("the attestations named the clients %v, want one derived client", clientIDs)
 	}
 }
 
