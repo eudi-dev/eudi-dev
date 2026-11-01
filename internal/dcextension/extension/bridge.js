@@ -19,10 +19,10 @@
 
   // logCall writes the request and its result to the page console. The popup
   // can turn this off.
-  function logCall({ consoleLog, walletURL }, request, outcome) {
+  function logCall({ consoleLog, walletURL }, request, outcome, type) {
     if (consoleLog === false) return;
     const failed = Boolean(outcome.error);
-    console.groupCollapsed('%ceudi-dev%c navigator.credentials.get() ' + (failed ? 'failed' : 'answered'),
+    console.groupCollapsed('%ceudi-dev%c navigator.credentials.' + type + '() ' + (failed ? 'failed' : 'answered'),
       'background:#1f4fd1;color:#fff;border-radius:3px;padding:0 4px', '');
     console.log('Request', request);
     if (failed) console.warn(outcome.error.name + ': ' + outcome.error.message);
@@ -30,6 +30,12 @@
     if (walletURL) console.log('The activity log of the wallet shows each step: ' + walletURL + '/');
     console.groupEnd();
   }
+
+  // W3C Digital Credentials §6.2 aborts a request when its document goes away.
+  const openCalls = new Set();
+  window.addEventListener('pagehide', () => {
+    for (const id of openCalls) send({ type: 'dc-abort', id, reason: 'The page was closed' }).catch(() => {});
+  });
 
   window.addEventListener('message', async (event) => {
     const msg = event.data;
@@ -39,20 +45,22 @@
       return;
     }
     if (msg.type === 'refused') {
-      send({ type: 'dc-refused', name: msg.name, message: msg.message, request: msg.request }).catch(() => {});
-      send({ type: 'dc-settings' }).then((settings) => logCall(settings, msg.request, { error: msg }), () => {});
+      send({ type: 'dc-refused', method: msg.method, name: msg.name, message: msg.message, request: msg.request }).catch(() => {});
+      send({ type: 'dc-settings' }).then((settings) => logCall(settings, msg.request, { error: msg }, msg.method || 'get'), () => {});
       return;
     }
-    if (msg.type !== 'get') return;
+    if (msg.type !== 'get' && msg.type !== 'create') return;
+    openCalls.add(msg.id);
     let settings = {};
     let answer;
     try {
       settings = await send({ type: 'dc-start', id: msg.id });
-      answer = await send({ type: 'dc-call', id: msg.id, request: msg.request, walletURL: settings.walletURL, owner: settings.owner });
+      answer = await send({ type: 'dc-call', id: msg.id, request: msg.request, path: msg.type === 'create' ? '/api/dc-api/create' : '/api/dc-api', walletURL: settings.walletURL, owner: settings.owner });
     } catch (e) {
       answer = { error: { name: 'NotAllowedError', message: 'eudi-dev extension: ' + e.message } };
     }
-    logCall(settings, msg.request, answer);
+    openCalls.delete(msg.id);
+    logCall(settings, msg.request, answer, msg.type);
     reply(msg.id, answer);
   });
 })();

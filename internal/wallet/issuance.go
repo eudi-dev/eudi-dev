@@ -118,7 +118,11 @@ type OfferOptions struct {
 	// CallerNavigates is set when the caller opens the sign-in URL itself, so
 	// no wallet page navigates to it.
 	CallerNavigates bool
-	// Cancelled ends the wait for the sign-in when it closes.
+	// Caller ends the wait for consent and the sign-in when it is done. Without
+	// it the offer outlives the caller. A URL handler needs that.
+	Caller context.Context
+	// Cancelled ends the wait for the sign-in and the presentation the issuer
+	// asks for when it closes.
 	Cancelled <-chan struct{}
 	// ResolvedOffer is the offer that the caller already resolved from the same
 	// URI, for example for a consent dialog. The flow uses it only when reading

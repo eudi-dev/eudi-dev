@@ -52,7 +52,7 @@ Features
 • Other credential requests, such as passkeys, still go to Chrome
 • An off switch in the popup lets you test the browser's own behavior without uninstalling the extension
 
-The extension answers presentation requests only. It doesn't handle navigator.credentials.create().
+Experimental: where the browser supports it, the extension also answers navigator.credentials.create() for issuance with openid4vci-v1. No published specification defines this exchange yet, so phone wallets can behave differently.
 
 Try it on the demo verifier at https://eudi-test.dev/verifier/ and choose Digital Credentials API under Delivery.
 

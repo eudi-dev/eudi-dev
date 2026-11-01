@@ -50,6 +50,27 @@ To try it, choose **Digital Credentials API** under Delivery on the demo verifie
 
 The demo verifier always asks for an encrypted response (`dc_api.jwt`).
 
+## Issuance
+
+In a browser with issuance over the Digital Credentials API, such as Chrome 155 and later, the extension also answers `navigator.credentials.create()` for `digital` requests with the protocol `openid4vci-v1`. In other browsers `create()` stays the browser's own. Chrome 141 to 154 report the protocol as supported without having issuance turned on, so the extension answers there too. Other calls, such as passkeys, still go to the browser.
+
+The page passes a credential offer object as `data`. The wallet handles it like any other offer, with the same consent dialog. The promise resolves with an empty `data` object once the wallet holds or awaits the credential. A denied offer rejects with `NotAllowedError`.
+
+The `data` is a Credential Offer with the parameters of OpenID4VCI 1.0 §4.1.1. W3C Digital Credentials §5 names OpenID4VCI 1.0 for the protocol, but no published specification describes the exchange in more detail yet. The wallet ignores other parameters, as §4.1.1 requires.
+
+To try it, choose **Digital Credentials API** under Delivery on the demo issuer page.
+
+### Differences from a phone wallet
+
+Use the extension to test your page and your issuer, and test with a real wallet before you rely on it. A call that works here can fail with a phone wallet:
+
+- **Format.** No published OpenID4VCI version defines this exchange yet, so the format can change. Chrome's sample also passes the issuer and authorization server metadata in the offer ([OpenID4VCI issue 410](https://github.com/openid/OpenID4VCI/issues/410)), and wallets can rely on that to decide whether they can handle it. The wallet here needs only the offer and fetches the metadata itself.
+- **Wallet choice.** In Chrome a request goes to Android Credential Manager, which shows the wallets that can handle it. On a desktop the user scans a QR code and finishes on the phone. The extension skips this and always uses your eudi-dev wallet, so it can't show whether a wallet would be offered.
+- **Result.** The extension resolves the promise after the wallet has the credential or a deferred issuance. The result `data` is empty. A real wallet decides when it answers and what `data` holds, so don't read anything from it.
+- **Errors.** The extension doesn't reproduce every error of a browser. Chrome rejects with `NotSupportedError` when issuance is off, and with `NotAllowedError` when no wallet can handle the request. Chrome also rejects calls from opaque origins, and it uses up the user action of the call. The extension does neither.
+- **Protocol.** Chrome 155 also accepts the identifier `openid4vci` and passes unknown identifiers on to the platform. The extension accepts only `openid4vci-v1`, the identifier of the W3C specification, and rejects other requests with `TypeError`.
+- **Sign-in.** An offer that needs a sign-in at the issuer needs a wallet that asks for consent. A wallet with `--auto-accept` refuses it.
+
 ## Debugging a verifier
 
 The page console and the wallet's activity log show what happened in a call.
@@ -110,14 +131,16 @@ X-Eudi-Owner: 2f6c1b9e-6a51-4d8e-9a43-0e1b8f0d2c77
 - `X-Eudi-Call-Id` is a random ID of the call. The extension uses it to cancel the call.
 - `requests` holds every request of the call. The wallet answers the first one with a supported protocol.
 
-**Response.** The wallet answers when the user decides, at the latest after 5 minutes:
+The extension sends the argument of `navigator.credentials.create()` the same way to `<wallet URL>/api/dc-api/create`.
+
+**Response.** The wallet answers when the user decides, for `get()` at the latest after 5 minutes. A `create()` call can take longer, because it also waits for a sign-in at the issuer:
 
 - `200` with `{"protocol": "...", "data": {...}}` resolves the call with a `DigitalCredential` of that protocol and data. A protocol error, such as `{"data": {"error": "access_denied"}}`, is a result too (OpenID4VP 1.0 Appendix A.4).
 - Any other answer rejects the call with `NotAllowedError`. The message holds the `error_description` or `error` of a JSON error body.
 
 **Consent window.** When the wallet hasn't answered after half a second, the extension opens `<wallet URL>/?focus=overview&owner=<X-Eudi-Owner>` in a window. It closes the window after the answer.
 
-**Cancel.** When the user closes the window or the page aborts the call, the extension tells the wallet why and then cancels the HTTP request:
+**Cancel.** When the user closes the window, the page aborts the call or the page goes away, the extension tells the wallet why and then cancels the HTTP request:
 
 ```http
 POST <wallet URL>/api/dc-api/cancel

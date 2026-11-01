@@ -5,6 +5,16 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.0] - Unreleased
+
+### Added
+
+- **Issuance over the Digital Credentials API (experimental).** In browsers that support it, such as Chrome 155 and later, the browser extension answers `navigator.credentials.create()` with the protocol `openid4vci-v1`. The demo issuer has the same Delivery choice as the demo verifier.
+
+### Fixed
+
+- **Open calls of closed pages.** Leaving or closing a page ends its Digital Credentials API call and closes the wallet window.
+
 ## [3.6.3] - 2026-11-01
 
 ### Changed

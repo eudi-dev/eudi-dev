@@ -31,6 +31,7 @@ Besides the identity, an offer sets how the issuer handles it:
 - **Key proofs.** By default the metadata offers the `jwt` and the `attestation` proof types, and the wallet chooses. The `attestation` proof type needs a key attestation from the wallet provider. "jwt only", or `proof_types=jwt`, leaves it out.
 - **Status list.** "With" is the default, so you can revoke the ticket in the wallet. The offer API needs `status=true`.
 - **Copies.** The number of credentials to issue, each bound to its own key.
+- **Delivery.** **QR code and link** shows the offer. **Digital Credentials API** passes it to `navigator.credentials.create()` (see [issuance](browser-extension.md#issuance)). `POST /issuer/api/offers` returns the argument of the call in `dc_api`.
 
 The metadata comes from the issuer identifier, and one identifier serves the same metadata for every offer. So an offer with "jwt only" gets an identifier of its own under `/issuer/variant/`. It presents itself like the chosen identity. An identifier created for one offer advertises that offer's copies as `batch_size`. With a single copy it leaves out `batch_credential_issuance` and supports no batch issuance. See [ADR 0028](../adr/0028-each-demo-issuer-identity-is-its-own-issuer.md).
 

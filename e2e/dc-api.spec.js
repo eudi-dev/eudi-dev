@@ -48,11 +48,11 @@ test.afterAll(() => {
   if (walletProcess) walletProcess.kill("SIGTERM");
 });
 
-async function withExtension(run, dir = extensionDir) {
+async function withExtension(run, dir = extensionDir, extraArgs = []) {
   const context = await chromium.launchPersistentContext("", {
     channel: "chromium",
     headless: true,
-    args: [`--disable-extensions-except=${dir}`, `--load-extension=${dir}`],
+    args: [`--disable-extensions-except=${dir}`, `--load-extension=${dir}`, ...extraArgs],
   });
   try {
     if (dir === extensionDir) await pageScriptsRegistered(context);
@@ -217,6 +217,232 @@ test("after a change of Enabled in either direction the popup reloads the tab", 
       expect(await page.evaluate(() => window.notReloaded)).toBeUndefined();
       await page.close();
     }
+  });
+});
+
+async function startDCAPIOffer(context, configure = async () => {}) {
+  const page = await context.newPage();
+  await page.goto(`${BASE}/issuer/`);
+  await configure(page);
+  await page.locator("#delivery-dc-api").click();
+  await expect(page.locator("#delivery-hint")).toContainText("The eudi-dev extension answers");
+  const walletWindow = context.waitForEvent("page");
+  await page.locator("#create-btn").click();
+  return { page, walletWindow: await walletWindow };
+}
+
+// The next offer is the only one its window shows, so approving it answers that
+// offer and closes the window.
+async function expectNextOfferWorks(context) {
+  const next = await startDCAPIOffer(context);
+  await next.walletWindow.locator("#consent-approve").click();
+  await expect(next.page.locator("#dc-api-status")).toHaveText("The wallet took the offer.", { timeout: 15_000 });
+  await expect.poll(() => next.walletWindow.isClosed()).toBe(true);
+}
+
+test("the extension answers navigator.credentials.create() with the wallet", async () => {
+  await withExtension(async (context) => {
+    const { page, walletWindow } = await startDCAPIOffer(context);
+    await expect(walletWindow.locator("#consent-overlay")).toHaveClass(/active/);
+    await walletWindow.locator("#consent-approve").click();
+    await expect(page.locator("#dc-api-status")).toHaveText("The wallet took the offer.");
+    await expect.poll(() => walletWindow.isClosed()).toBe(true);
+    await page.goto(`${BASE}/`);
+    await expect(page.locator(".log-entry", { hasText: "through the Digital Credentials API" }).first()).toBeAttached();
+    await expect(page.locator(".log-entry", { hasText: "Received a Digital Credentials API call" }).first()).toBeAttached();
+    const credentials = await (await fetch(`${BASE}/api/credentials`)).json();
+    expect(credentials.some((c) => c.vct === "urn:eudi-test:demo-ticket:1" && c.issuer_name === "EUDI Dev Demo Issuer")).toBe(true);
+  });
+});
+
+test("a denied offer rejects navigator.credentials.create() like a closed picker", async () => {
+  await withExtension(async (context) => {
+    const { page, walletWindow } = await startDCAPIOffer(context);
+    await walletWindow.locator("#consent-deny").click();
+    await expect(page.locator("#dc-api-status")).toContainText("NotAllowedError");
+    await expect.poll(() => walletWindow.isClosed()).toBe(true);
+    await expectNextOfferWorks(context);
+  });
+});
+
+test("closing the wallet window rejects navigator.credentials.create()", async () => {
+  await withExtension(async (context) => {
+    const { page, walletWindow } = await startDCAPIOffer(context);
+    await expect(walletWindow.locator("#consent-overlay")).toHaveClass(/active/);
+    await walletWindow.close();
+    await expect(page.locator("#dc-api-status")).toContainText("NotAllowedError");
+    await expect.poll(activityLog).toContain("was cancelled: The wallet window was closed");
+    await expectNextOfferWorks(context);
+  });
+});
+
+test("aborting create() closes the wallet window and the next offer works", async () => {
+  await withExtension(async (context) => {
+    const page = await context.newPage();
+    await page.goto(`${BASE}/issuer/`);
+    const walletWindow = context.waitForEvent("page");
+    await page.evaluate(async () => {
+      const offer = await (await fetch("api/offers", { method: "POST" })).json();
+      window.call = new AbortController();
+      window.outcome = navigator.credentials.create({ digital: offer.dc_api.digital, signal: window.call.signal }).then(() => "resolved", (e) => e.name);
+    });
+    const opened = await walletWindow;
+    await expect(opened.locator("#consent-approve")).toBeVisible();
+    expect(await page.evaluate(() => { window.call.abort(new DOMException("stopped", "AbortError")); return window.outcome; })).toBe("AbortError");
+    await expect.poll(() => opened.isClosed()).toBe(true);
+    await expect.poll(activityLog).toContain("was cancelled: The page aborted the request");
+    await expectNextOfferWorks(context);
+  });
+});
+
+// W3C Digital Credentials §6.2 aborts a request when its document goes away.
+test("leaving the page ends create() and closes the wallet window", async () => {
+  await withExtension(async (context) => {
+    const { page, walletWindow } = await startDCAPIOffer(context);
+    await expect(walletWindow.locator("#consent-approve")).toBeVisible();
+    await page.goto(`${BASE}/verifier/`);
+    await expect.poll(() => walletWindow.isClosed()).toBe(true);
+    await expect.poll(activityLog).toContain("was cancelled: The page was closed");
+    await expectNextOfferWorks(context);
+  });
+});
+
+test("closing the page ends create() and closes the wallet window", async () => {
+  await withExtension(async (context) => {
+    const { page, walletWindow } = await startDCAPIOffer(context);
+    await expect(walletWindow.locator("#consent-approve")).toBeVisible();
+    await page.close({ runBeforeUnload: true });
+    await expect.poll(() => walletWindow.isClosed()).toBe(true);
+    await expectNextOfferWorks(context);
+  });
+});
+
+test("leaving the page ends get() and closes the wallet window", async () => {
+  await withExtension(async (context) => {
+    const { page, walletWindow } = await startDCAPIRequest(context);
+    await expect(walletWindow.locator("#consent-approve")).toBeVisible();
+    await page.goto(`${BASE}/issuer/`);
+    await expect.poll(() => walletWindow.isClosed()).toBe(true);
+    await expect.poll(activityLog).toContain("was cancelled: The page was closed");
+  });
+});
+
+test("an offer with a transaction code asks for it in the wallet", async () => {
+  await withExtension(async (context) => {
+    let code;
+    const { page, walletWindow } = await startDCAPIOffer(context, async (issuer) => {
+      await issuer.locator("#tx-code-with").click();
+      code = await issuer.locator("#tx-code-value").textContent();
+    });
+    await walletWindow.locator("#offer-tx-code-input").fill(code);
+    await walletWindow.locator("#consent-approve").click();
+    await expect(page.locator("#dc-api-status")).toHaveText("The wallet took the offer.");
+  });
+});
+
+test("a deferred offer resolves create() and the wallet collects it later", async () => {
+  await withExtension(async (context) => {
+    const { page, walletWindow } = await startDCAPIOffer(context, (issuer) => issuer.locator("#deferred-deferred").click());
+    await walletWindow.locator("#consent-approve").click();
+    await expect(page.locator("#dc-api-status")).toHaveText("The wallet took the offer.");
+    await expect.poll(async () => {
+      const credentials = await (await fetch(`${BASE}/api/credentials`)).json();
+      const pending = await (await fetch(`${BASE}/api/deferred`)).json();
+      return pending.length > 0 || credentials.some((c) => c.vct === "urn:eudi-test:demo-ticket:1");
+    }).toBe(true);
+  });
+});
+
+test("an offer with a sign-in keeps create() open until the wallet has the credential", async () => {
+  await withExtension(async (context) => {
+    const { page, walletWindow } = await startDCAPIOffer(context, (issuer) => issuer.locator("#grant-authorization-code").click());
+    await walletWindow.locator("#consent-approve").click();
+    const signIn = walletWindow.getByRole("button", { name: "Sign in" });
+    await expect(signIn).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator("#dc-api-status")).toHaveText("Waiting for the eudi-dev wallet.");
+    await signIn.click();
+    await expect(page.locator("#dc-api-status")).toHaveText("The wallet took the offer.", { timeout: 15_000 });
+  });
+});
+
+test("closing the wallet window during a sign-in rejects create()", async () => {
+  await withExtension(async (context) => {
+    const { page, walletWindow } = await startDCAPIOffer(context, (issuer) => issuer.locator("#grant-authorization-code").click());
+    await walletWindow.locator("#consent-approve").click();
+    await expect(walletWindow.getByRole("button", { name: "Sign in" })).toBeVisible({ timeout: 15_000 });
+    await walletWindow.close();
+    await expect(page.locator("#dc-api-status")).toContainText("NotAllowedError", { timeout: 15_000 });
+    await expectNextOfferWorks(context);
+  });
+});
+
+test("closing the wallet window ends a presentation the issuer asked for", async () => {
+  await withExtension(async (context) => {
+    const { page, walletWindow } = await startDCAPIOffer(context, async (issuer) => {
+      await issuer.locator("#grant-authorization-code").click();
+      await issuer.locator("#authorization-presentation").click();
+    });
+    const worker = await extensionWorker(context);
+    const { owner } = await worker.evaluate(() => chrome.storage.local.get("owner"));
+    const open = async () => (await (await fetch(`${BASE}/api/requests`, { headers: { "X-Eudi-Owner": owner } })).json()).map((r) => r.type);
+    await walletWindow.locator("#consent-approve").click();
+    await expect.poll(open, { timeout: 15_000 }).toContain("issuance_presentation");
+    await walletWindow.close();
+    await expect(page.locator("#dc-api-status")).toContainText("NotAllowedError", { timeout: 15_000 });
+    await expect.poll(open, { timeout: 15_000 }).toEqual([]);
+    await expectNextOfferWorks(context);
+  });
+});
+
+test("a create() call the extension refuses is logged as issuance", async () => {
+  await withExtension(async (context) => {
+    const page = await context.newPage();
+    await page.goto(`${BASE}/issuer/`);
+    const name = await page.evaluate(() => navigator.credentials.create({
+      digital: { requests: [{ protocol: "openid4vci-v1", data: "an offer" }] },
+    }).then(() => "resolved", (e) => e.name));
+    expect(name).toBe("TypeError");
+    await expect.poll(async () => {
+      const entries = await (await fetch(`${BASE}/api/log?view=activity`)).json();
+      return entries.find((e) => /refused the Digital Credentials API call/.test(JSON.stringify(e)))?.action;
+    }).toBe("issuance");
+  });
+});
+
+test("a browser without issuance keeps its own create()", async () => {
+  await withExtension(async (context) => {
+    const page = await context.newPage();
+    await page.goto(`${BASE}/issuer/`);
+    expect(await page.evaluate(() => DigitalCredential.userAgentAllowsProtocol("openid4vci-v1"))).toBe(false);
+    expect(await page.evaluate(() => navigator.credentials.create === CredentialsContainer.prototype.create)).toBe(true);
+    await page.locator("#delivery-dc-api").click();
+    await expect(page.locator("#delivery-hint")).toContainText("no navigator.credentials.create()");
+    await page.locator("#create-btn").click();
+    await expect(page.locator("#dc-api-status")).toContainText("no navigator.credentials.create()");
+    await expect(page.locator("#result")).toBeHidden();
+  }, extensionDir, ["--disable-blink-features=DigitalCredentials,WebIdentityDigitalCredentials"]);
+});
+
+test("the browser's own create() takes the offer of the demo issuer", async () => {
+  const browser = await chromium.launch({ channel: "chromium", headless: true });
+  try {
+    const page = await browser.newPage();
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("DigitalCredentials.setVirtualWalletBehavior", { action: "respond", protocol: "openid4vci-v1", response: {} });
+    await page.goto(`${BASE}/issuer/`);
+    await page.locator("#delivery-dc-api").click();
+    await page.locator("#create-btn").click();
+    await expect(page.locator("#dc-api-status")).toHaveText("The wallet took the offer.");
+  } finally {
+    await browser.close();
+  }
+});
+
+test("create() without a digital member stays the browser's own", async () => {
+  await withExtension(async (context) => {
+    const page = await context.newPage();
+    await page.goto(`${BASE}/issuer/`);
+    expect(await page.evaluate(() => navigator.credentials.create({}).then((r) => r === null, (e) => e.name))).toBe(await page.evaluate(() => CredentialsContainer.prototype.create.call(navigator.credentials, {}).then((r) => r === null, (e) => e.name)));
   });
 });
 

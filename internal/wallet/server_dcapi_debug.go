@@ -116,27 +116,31 @@ func cancelReason(ctx context.Context) string {
 // logDCAPICall logs the argument of navigator.credentials.get(). The entry
 // lists every request and explains each unanswered one.
 func (s *Server) logDCAPICall(origin string, raw []byte, body oid4vp.BrowserAPIRequestEnvelope) {
-	protocols := body.Protocols()
-	details := map[string]any{"direction": "inbound", "source": "dc_api", "protocols": protocols}
-	addStringDetail(details, "request_origin", origin)
+	details := map[string]any{"protocols": body.Protocols()}
 	if ignored := oid4vp.IgnoredBrowserAPIRequests(body); len(ignored) > 0 {
 		details["ignored_requests"] = ignored
 	}
+	s.addDCAPICallLog("presentation", origin, raw, details)
+}
+
+func (s *Server) addDCAPICallLog(action, origin string, raw []byte, details map[string]any) {
+	details["direction"], details["source"] = "inbound", "dc_api"
+	addStringDetail(details, "request_origin", origin)
 	var payload any
 	_ = json.Unmarshal(raw, &payload)
-	s.wallet.addProtocolLog("presentation", "dc_api_call", fmt.Sprintf("Received a Digital Credentials API call from %s", callerName(origin)), true, details,
+	s.wallet.addProtocolLog(action, "dc_api_call", fmt.Sprintf("Received a Digital Credentials API call from %s", callerName(origin)), true, details,
 		&LogPayload{Label: "Digital Credentials API call", Body: payload})
 }
 
 // logUnreadableDCAPICall logs an unreadable call with its raw body.
-func (s *Server) logUnreadableDCAPICall(origin string, raw []byte, err error) {
+func (s *Server) logUnreadableDCAPICall(action, origin string, raw []byte, err error) {
 	details := map[string]any{"direction": "inbound", "source": "dc_api", "error": err.Error()}
 	addStringDetail(details, "request_origin", origin)
 	body := string(raw)
 	if len(body) > 4096 {
 		body = body[:4096] + "…"
 	}
-	s.wallet.addProtocolLog("presentation", "dc_api_call", fmt.Sprintf("Failed to read the Digital Credentials API call from %s: %v", callerName(origin), err), false, details,
+	s.wallet.addProtocolLog(action, "dc_api_call", fmt.Sprintf("Failed to read the Digital Credentials API call from %s: %v", callerName(origin), err), false, details,
 		&LogPayload{Label: "Digital Credentials API call", Body: body})
 }
 
@@ -157,6 +161,7 @@ func (s *Server) handleDCAPIRefusal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
+		Method  string `json:"method"`
 		Name    string `json:"name"`
 		Message string `json:"message"`
 		Request any    `json:"request"`
@@ -193,7 +198,11 @@ func (s *Server) handleDCAPIRefusal(w http.ResponseWriter, r *http.Request) {
 	if body.Request != nil {
 		payload = &LogPayload{Label: "Digital Credentials API call", Body: body.Request}
 	}
-	s.wallet.addProtocolLog("presentation", "dc_api_refused", fmt.Sprintf("The browser extension refused the Digital Credentials API call from %s: %s", callerName(origin), message), false, details, payload)
+	action := "presentation"
+	if body.Method == "create" {
+		action = "issuance"
+	}
+	s.wallet.addProtocolLog(action, "dc_api_refused", fmt.Sprintf("The browser extension refused the Digital Credentials API call from %s: %s", callerName(origin), message), false, details, payload)
 	w.WriteHeader(http.StatusNoContent)
 }
 

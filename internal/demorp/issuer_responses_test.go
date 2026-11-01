@@ -674,3 +674,20 @@ func TestCheckTimeClaims(t *testing.T) {
 		}
 	}
 }
+
+// W3C Digital Credentials §7.6: an offer also comes as the argument of
+// navigator.credentials.create(), with the parameters of OpenID4VCI 1.0 §4.1.1.
+func TestAnOfferComesWithItsDigitalCredentialsAPICall(t *testing.T) {
+	_, ts := serveDemoStack(t, newIssuanceWallet(t))
+	created := postJSONTo(t, ts.URL+"/issuer/api/offers", "")
+	digital, _ := created["dc_api"].(map[string]any)["digital"].(map[string]any)
+	requests, _ := digital["requests"].([]any)
+	if len(requests) != 1 {
+		t.Fatalf("requests = %v", digital)
+	}
+	request := requests[0].(map[string]any)
+	data := request["data"].(map[string]any)
+	if request["protocol"] != "openid4vci-v1" || data["credential_issuer"] != created["issuer"] || len(data) != 3 {
+		t.Errorf("request = %v", request)
+	}
+}

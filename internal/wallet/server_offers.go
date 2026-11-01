@@ -48,6 +48,8 @@ type pendingOffer struct {
 
 	cancelled chan struct{}
 	cancel    sync.Once
+	// finished closes when the flow has its outcome.
+	finished chan struct{}
 
 	mu     sync.Mutex
 	done   bool
@@ -59,6 +61,11 @@ func (p *pendingOffer) complete(result *IssuanceResult, err error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.done, p.result, p.err = true, result, err
+	close(p.finished)
+}
+
+func (p *pendingOffer) requestCancel() {
+	p.cancel.Do(func() { close(p.cancelled) })
 }
 
 func (p *pendingOffer) authorizationRequiredBody() map[string]any {
@@ -126,9 +133,12 @@ func (s *Server) runOffer(uri string, opts OfferOptions) (*IssuanceResult, *pend
 	// A subscriber lets the flow return the sign-in URL when interaction is
 	// required. Other flows run at the same time, so it takes only the prompt
 	// of this one.
-	p := &pendingOffer{ID: newConsentID(), Owner: opts.Owner, CreatedAt: time.Now(), cancelled: make(chan struct{})}
+	p := &pendingOffer{ID: newConsentID(), Owner: opts.Owner, CreatedAt: time.Now(), cancelled: make(chan struct{}), finished: make(chan struct{})}
 	opts.Flow = p.ID
 	opts.Cancelled = p.cancelled
+	if opts.Caller != nil {
+		defer context.AfterFunc(opts.Caller, p.requestCancel)()
+	}
 	authCh, unsubscribe := s.wallet.Consents().SubscribeAuthorization(func(prompt consent.AuthorizationPrompt) bool {
 		return prompt.Flow == p.ID
 	})
@@ -242,7 +252,7 @@ func (s *Server) handleCancelOffer(w http.ResponseWriter, r *http.Request) {
 		apierror.Write(w, http.StatusNotFound, apierror.NotFound, "unknown offer")
 		return
 	}
-	p.cancel.Do(func() { close(p.cancelled) })
+	p.requestCancel()
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -328,7 +338,10 @@ func (s *Server) processOfferURI(ctx context.Context, w http.ResponseWriter, uri
 			return
 		}
 		// A URL handler that loses the connection must not lose the offer.
-		s.awaitOfferConsent(context.WithoutCancel(ctx), w, consentReq, issuerDisplay, opts)
+		if opts.Caller == nil {
+			ctx = context.WithoutCancel(ctx)
+		}
+		s.awaitOfferConsent(ctx, w, consentReq, issuerDisplay, opts)
 		return
 	}
 
@@ -402,11 +415,18 @@ func (s *Server) awaitOfferConsent(ctx context.Context, w http.ResponseWriter, c
 	// Wait first for offer consent, then for any presentation the issuer requests.
 	s.allowSlowResponse(w, config.ConsentTimeout+interactiveAuthorizationConsentTimeout)
 	answer, answered := s.wallet.awaitConsent(ctx, consentReq, config.ConsentTimeout)
-	if !answered {
+	switch {
+	case !answered && ctx.Err() != nil:
+		reason := cancelReason(ctx)
+		s.log("  Consent:       cancelled (%s)", reason)
+		s.wallet.AddLog("issuance", "The credential offer was cancelled: "+reason, false)
+		consentReq.SubmissionCh <- consent.SubmissionResult{Error: "cancelled"}
+		apierror.Write(w, http.StatusConflict, apierror.Conflict, reason)
+	case !answered:
 		s.answerConsentTimeout(w, "issuance", consentReq)
-		return
+	default:
+		handle(answer)
 	}
-	handle(answer)
 }
 
 func (s *Server) processOfferDirectly(w http.ResponseWriter, uri string, opts OfferOptions, browserRedirect bool) {

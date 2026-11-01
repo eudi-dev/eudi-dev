@@ -160,6 +160,7 @@ func (s *Server) setupRoutes() {
 
 	s.routeFunc("POST /api/presentations", s.withFreshStore(s.handlePresentationAPI))
 	s.routeFunc("POST /api/dc-api", s.withFreshStore(s.handleBrowserPresentationAPI))
+	s.routeFunc("POST /api/dc-api/create", s.withFreshStore(s.handleBrowserIssuanceAPI))
 	s.routeFunc("POST /api/dc-api/refusals", s.handleDCAPIRefusal)
 	s.routeFunc("POST /api/dc-api/cancel", s.handleDCAPICancel)
 	s.routeFunc("GET /"+dcextension.ZipName, s.handleDCExtension)

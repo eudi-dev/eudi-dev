@@ -42,12 +42,12 @@ func (s *Server) handleBrowserPresentationAPI(w http.ResponseWriter, r *http.Req
 	}
 	var body oid4vp.BrowserAPIRequestEnvelope
 	if err := json.Unmarshal(raw, &body); err != nil {
-		s.logUnreadableDCAPICall(requestOrigin, raw, err)
+		s.logUnreadableDCAPICall("presentation", requestOrigin, raw, err)
 		apierror.InvalidJSON(w, err)
 		return
 	}
 	if originErr != nil {
-		s.logUnreadableDCAPICall("", raw, originErr)
+		s.logUnreadableDCAPICall("presentation", "", raw, originErr)
 		apierror.WriteErr(w, http.StatusBadRequest, apierror.InvalidRequest, originErr)
 		return
 	}

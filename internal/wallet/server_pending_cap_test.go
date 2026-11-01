@@ -147,7 +147,7 @@ func TestCancellingASignInEndsTheFlow(t *testing.T) {
 	srv.wallet.BaseURL = "http://localhost:8085"
 	flowOwner := "visitor"
 	cancelled := make(chan struct{})
-	p := &pendingOffer{ID: "offer", Owner: flowOwner, CreatedAt: time.Now(), cancelled: cancelled}
+	p := &pendingOffer{ID: "offer", Owner: flowOwner, CreatedAt: time.Now(), cancelled: cancelled, finished: make(chan struct{})}
 	srv.trackPendingOffer(p)
 	prompts, unsubscribe := srv.wallet.Consents().SubscribeAuthorization(func(consent.AuthorizationPrompt) bool { return true })
 	defer unsubscribe()

@@ -410,6 +410,7 @@ func (d *DemoRP) handleCreateOffer(w http.ResponseWriter, r *http.Request) {
 	if offer.txCode != "" {
 		doc["tx_code"] = offer.txCode
 	}
+	doc["dc_api"] = d.dcAPIOffer(offer)
 	addLinkQRCodes(doc, "wallet_url", "scheme_uri")
 	writeJSON(w, http.StatusCreated, doc)
 }
@@ -479,6 +480,17 @@ func (d *DemoRP) handleOfferByReference(w http.ResponseWriter, r *http.Request) 
 		apierror.WriteStatus(w, http.StatusNotFound, "unknown or expired credential offer")
 		return
 	}
+	writeJSON(w, http.StatusOK, d.offerDocument(offer))
+}
+
+// dcAPIOffer is the argument of navigator.credentials.create(). W3C Digital
+// Credentials §5 names OpenID4VCI 1.0 for the data, so it is the Credential
+// Offer (OpenID4VCI 1.0 §4.1.1).
+func (d *DemoRP) dcAPIOffer(offer *offerState) map[string]any {
+	return map[string]any{"digital": map[string]any{"requests": []map[string]any{{"protocol": "openid4vci-v1", "data": d.offerDocument(offer)}}}}
+}
+
+func (d *DemoRP) offerDocument(offer *offerState) map[string]any {
 	grants := map[string]any{}
 	if offer.issuerState != "" {
 		grants[authCodeGrant] = map[string]any{"issuer_state": offer.issuerState}
@@ -493,11 +505,11 @@ func (d *DemoRP) handleOfferByReference(w http.ResponseWriter, r *http.Request) 
 		}
 		grants[preAuthGrant] = grant
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"credential_issuer":            d.requestIssuerURL(r),
+	return map[string]any{
+		"credential_issuer":            d.issuerURL(offer.issuer),
 		"credential_configuration_ids": offer.configIDs,
 		"grants":                       grants,
-	})
+	}
 }
 
 func (d *DemoRP) handleToken(w http.ResponseWriter, r *http.Request) {

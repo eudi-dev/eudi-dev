@@ -38,7 +38,7 @@ async function reportRefusal(msg, origin) {
   await fetch(walletURL + '/api/dc-api/refusals', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Eudi-Owner': owner, 'X-Eudi-Caller-Origin': origin },
-    body: JSON.stringify({ name: msg.name, message: msg.message, request: msg.request }),
+    body: JSON.stringify({ method: msg.method, name: msg.name, message: msg.message, request: msg.request }),
     credentials: 'omit',
   });
 }
@@ -97,7 +97,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       closeWallet(msg.id);
       return false;
     case 'dc-abort':
-      chrome.runtime.sendMessage({ type: 'dc-cancel', id: msg.id, reason: 'The page aborted the request' }).catch(() => {});
+      chrome.runtime.sendMessage({ type: 'dc-cancel', id: msg.id, reason: msg.reason || 'The page aborted the request' }).catch(() => {});
       closeWallet(msg.id);
       return false;
   }

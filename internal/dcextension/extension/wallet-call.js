@@ -1,15 +1,15 @@
-// Sends a Digital Credentials API request to the wallet's /api/dc-api and
-// turns the answer into what navigator.credentials.get() delivers. The call
-// waits for the user's consent, so it runs in a page that Chrome keeps alive:
-// the offscreen document.
+// Sends a Digital Credentials API request to the wallet and turns the answer
+// into what navigator.credentials.get() or create() delivers. The call waits
+// for the user's consent, so it runs in a page that Chrome keeps alive: the
+// offscreen document.
 const calls = new Map();
 
-async function callWallet({ id, request, walletURL, owner }, origin) {
+async function callWallet({ id, request, path, walletURL, owner }, origin) {
   const controller = new AbortController();
   calls.set(id, { controller, walletURL, owner });
   let resp;
   try {
-    resp = await fetch(walletURL + '/api/dc-api', {
+    resp = await fetch(walletURL + path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Eudi-Owner': owner, 'X-Eudi-Caller-Origin': origin, 'X-Eudi-Call-Id': id },
       body: JSON.stringify(request),

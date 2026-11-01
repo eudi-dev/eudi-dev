@@ -99,6 +99,8 @@ curl -X POST http://localhost:8085/api/presentations \
   -d '{"uri": "openid4vp://?client_id=...&request_uri=...", "session_transcript": "iso"}'
 ```
 
+`POST /api/dc-api/create` takes the argument of `navigator.credentials.create()` with the protocol `openid4vci-v1` and answers `{"protocol": "openid4vci-v1", "data": {}}` once the wallet holds or awaits the credential (see [issuance](browser-extension.md#issuance)). Only the extension and clients without an `Origin` header may call it. Web pages get `403`.
+
 `POST /api/dc-api` takes the argument of `navigator.credentials.get()`: `{"digital": {"requests": [{"protocol": "...", "data": {...}}]}}`. The protocol is one of the OpenID4VP Digital Credentials API protocols. The answer is the API result for the page: `{"protocol": "...", "data": {...}}`. The wallet binds the presentation to the `Origin` of the request. The [browser extension](browser-extension.md) sends the page origin in `X-Eudi-Caller-Origin`, because its own requests carry the extension's origin. The wallet reads that header only from requests with an extension origin or without an `Origin`. The endpoint accepts cross-origin requests. The extension also cancels calls and reports refused calls. See [wallet interface](browser-extension.md#wallet-interface).
 
 #### Credential offers

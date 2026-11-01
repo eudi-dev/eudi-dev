@@ -35,6 +35,7 @@
     .btn:focus-visible, .toggle-option:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     .result { margin-top: 18px; display: none; }
     .result-hint { margin-top: 12px; color: var(--text-dim); font-size: 13px; }
+    .result-hint.failed { color: var(--danger, var(--red)); }
     .label { font-size: 13px; font-weight: 600; color: var(--text-dim); margin: 12px 0 6px; }
     .tx-code { font-family: var(--font-mono); font-size: 14px; font-weight: 600; letter-spacing: 0.08em; color: var(--text); }
     .copy-btn { font: inherit; padding: 0; border: 0; background: none; color: var(--link); cursor: pointer; }
@@ -189,7 +190,16 @@
       <label class="label" for="issuer-info" id="issuer-info-label">issuer_info (optional)</label>
       <textarea id="issuer-info" spellcheck="false" placeholder='[{"format":"registration_cert","data":"…"}]'></textarea>
     </div>
+    <div class="grant-row" id="delivery-row">
+      <span class="grant-label" id="delivery-label">Delivery</span>
+      <div class="toggle" id="delivery-toggle" role="radiogroup" aria-label="How the offer reaches the wallet">
+        <button type="button" class="toggle-option selected" id="delivery-redirect" data-delivery="" role="radio" aria-checked="true">QR code and link</button>
+        <button type="button" class="toggle-option" id="delivery-dc-api" data-delivery="dc_api" role="radio" aria-checked="false">Digital Credentials API</button>
+      </div>
+    </div>
+    <p class="grant-hint" id="delivery-hint">The wallet gets the offer by link or QR code.</p>
     <button class="btn primary" id="create-btn">Create offer</button>
+    <p class="result-hint" id="dc-api-status" hidden></p>
     <div class="result" id="result">
       <div class="label" id="wallet-link-label">Open in the wallet on this host</div>
       <div class="link-row">

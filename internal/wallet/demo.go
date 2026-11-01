@@ -178,8 +178,9 @@ func (s *Server) guardAPI(next http.Handler) http.Handler {
 	// /api/dc-api is the Digital Credentials API endpoint. A verifier's page
 	// invokes it from its own origin, so it is exempt. It relies on the origin
 	// reported by the platform and on the consent dialog. The browser
-	// extension calls the refusal and cancel endpoints from its own origin.
-	return httpsec.GuardAPIExcept(next, []string{"/api/dc-api", "/api/dc-api/refusals", "/api/dc-api/cancel"}, s.wallet.BaseURL, s.wallet.IssuerURL)
+	// extension calls the refusal and cancel endpoints from its own origin. The
+	// create endpoint accepts only the extension.
+	return httpsec.GuardAPIExcept(next, []string{"/api/dc-api", "/api/dc-api/create", "/api/dc-api/refusals", "/api/dc-api/cancel"}, s.wallet.BaseURL, s.wallet.IssuerURL)
 }
 
 // demoBlockedRoute reports whether the endpoint is closed to anonymous demo

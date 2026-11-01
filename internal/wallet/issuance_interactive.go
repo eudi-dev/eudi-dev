@@ -385,7 +385,7 @@ func (w *Wallet) runPresentationInteraction(endpoint string, response map[string
 		return interactionErrorOutcome(w.interactionErrorResponse(authReq, outcome.refusal.code, outcome.refusal.description))
 	}
 
-	matches, approved, err := w.awaitInteractivePresentationConsent(endpoint, authReq, outcome, setup.presentationConsented, setup.owner)
+	matches, approved, err := w.awaitInteractivePresentationConsent(setup.cancelled, endpoint, authReq, outcome, setup.presentationConsented, setup.owner)
 	if err != nil {
 		return nil, err
 	}
@@ -528,7 +528,7 @@ func derivedOrigin(rawURL string) string {
 // awaitInteractivePresentationConsent asks the user to approve a
 // presentation required by the issuer for issuance. Consent to receive a
 // credential does not cover disclosing one, so this is a separate prompt.
-func (w *Wallet) awaitInteractivePresentationConsent(endpoint string, authReq *oid4vp.Request, outcome presentationOutcome, consented bool, owner string) ([]consent.Match, bool, error) {
+func (w *Wallet) awaitInteractivePresentationConsent(cancelled <-chan struct{}, endpoint string, authReq *oid4vp.Request, outcome presentationOutcome, consented bool, owner string) ([]consent.Match, bool, error) {
 	if w.AutoAcceptSetting() || consented {
 		return outcome.matches, true, nil
 	}
@@ -539,10 +539,23 @@ func (w *Wallet) awaitInteractivePresentationConsent(endpoint string, authReq *o
 	if asking == "" {
 		asking = derivedOrigin(endpoint)
 	}
+	ctx, stop := context.WithCancel(context.Background())
+	defer stop()
+	go func() {
+		select {
+		case <-cancelled:
+			stop()
+		case <-ctx.Done():
+		}
+	}()
 	// On a shared wallet the browser that started issuance gets this prompt.
-	consentReq, matches, approved, answered, err := w.askPresentationConsent(context.Background(), consent.TypeIssuancePresentation, owner, asking, authReq, outcome, interactiveAuthorizationConsentTimeout, nil)
+	consentReq, matches, approved, answered, err := w.askPresentationConsent(ctx, consent.TypeIssuancePresentation, owner, asking, authReq, outcome, interactiveAuthorizationConsentTimeout, nil)
 	if err != nil {
 		return nil, false, err
+	}
+	if !answered && ctx.Err() != nil {
+		consentReq.SubmissionCh <- consent.SubmissionResult{Error: "cancelled"}
+		return nil, false, errSignInCancelled
 	}
 	if !answered {
 		consentReq.SubmissionCh <- consent.SubmissionResult{Error: "consent timeout"}

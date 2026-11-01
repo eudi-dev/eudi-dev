@@ -1,6 +1,44 @@
+const DC_API_PROTOCOL = "openid4vci-v1";
+
+function dcAPIIssuance() {
+  return window.DigitalCredential?.userAgentAllowsProtocol?.(DC_API_PROTOCOL) === true;
+}
+
+const DELIVERY_HINTS = {
+  "": "The wallet gets the offer by link or QR code.",
+  dc_api: !dcAPIIssuance()
+    ? "This browser has no navigator.credentials.create() for digital credentials."
+    : window.eudiDevDigitalCredentials
+      ? "This page calls navigator.credentials.create(). The eudi-dev extension answers with the wallet set in the extension. Phone wallets can behave differently, because no published specification defines this exchange yet."
+      : "This page calls navigator.credentials.create(). The browser asks a wallet on your phone.",
+};
+
+function showDCAPIStatus(text, failed) {
+  const status = document.getElementById("dc-api-status");
+  status.textContent = text;
+  status.hidden = !text;
+  status.classList.toggle("failed", failed === true);
+}
+
+// The promise means the wallet took the offer. It carries no credential.
+async function sendWithDCAPI(doc) {
+  showDCAPIStatus(window.eudiDevDigitalCredentials ? "Waiting for the eudi-dev wallet." : "Waiting for a wallet on your phone.");
+  try {
+    await navigator.credentials.create({ digital: doc.dc_api.digital });
+    showDCAPIStatus("The wallet took the offer.");
+  } catch (e) {
+    showDCAPIStatus(`The Digital Credentials API call failed: ${e.name}: ${e.message}`, true);
+  }
+}
+
 async function createOffer(grant, txCode, status, authorization, deferred, batch, proofTypes, credential, identity, identityCheck) {
   const errEl = document.getElementById("error");
   errEl.hidden = true;
+  showDCAPIStatus("");
+  if (delivery === "dc_api" && !dcAPIIssuance()) {
+    showDCAPIStatus(DELIVERY_HINTS.dc_api, true);
+    return;
+  }
   try {
     const init = { method: "POST" };
     const params = new URLSearchParams();
@@ -27,6 +65,10 @@ async function createOffer(grant, txCode, status, authorization, deferred, batch
     const resp = await fetch("api/offers" + query, init);
     const doc = await resp.json();
     if (!resp.ok) throw new Error(doc.error_description || doc.error || resp.status);
+    if (delivery === "dc_api") {
+      await sendWithDCAPI(doc);
+      return;
+    }
     const link = document.getElementById("wallet-link");
     link.href = doc.wallet_url;
     link.textContent = doc.wallet_url;
@@ -174,6 +216,7 @@ function bindToggle(id, key, hintID, hints, onChange) {
       document.getElementById(hintID).textContent = hints[option.dataset[key] || ""];
       // Clear the old offer when its settings change.
       document.getElementById("result").style.display = "none";
+      showDCAPIStatus("");
     });
   }
 }
@@ -234,6 +277,11 @@ bindToggle("proof-types-toggle", "proofTypes", "proof-types-hint", PROOF_TYPES_H
 bindToggle("identity-toggle", "identity", "identity-hint", IDENTITY_HINTS, (value) => {
   identity = value;
   document.getElementById("identity-own-panel").hidden = value !== "own";
+});
+
+let delivery = "";
+bindToggle("delivery-toggle", "delivery", "delivery-hint", DELIVERY_HINTS, (value) => {
+  delivery = value;
 });
 
 document.getElementById("create-btn")
