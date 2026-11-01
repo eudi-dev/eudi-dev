@@ -6,6 +6,20 @@ const REDIRECT_URI = `${location.origin}${location.pathname}`;
 
 const $ = (id) => document.getElementById(id);
 
+// A wallet in another tab ends the login in a new tab, so this has to outlive the starting tab.
+const saveLogin = (state, login) => localStorage.setItem(`oidc-${state}`, JSON.stringify(login));
+
+function takeLogin(state) {
+  const key = `oidc-${state}`;
+  const login = JSON.parse(localStorage.getItem(key) ?? "null");
+  localStorage.removeItem(key);
+  history.replaceState(null, "", location.pathname);
+  if (!login) {
+    throw new Error("This login started in another browser. Log in again here.");
+  }
+  return login;
+}
+
 const base64Url = (bytes) =>
   btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 const random = () => base64Url(crypto.getRandomValues(new Uint8Array(32)));
@@ -13,7 +27,7 @@ const random = () => base64Url(crypto.getRandomValues(new Uint8Array(32)));
 async function signIn(flow, extra) {
   const verifier = random();
   const state = random();
-  sessionStorage.setItem("oidc", JSON.stringify({ verifier, state, flow }));
+  saveLogin(state, { verifier, flow });
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
   const params = new URLSearchParams({
     client_id: LOGIN_CLIENT,
@@ -42,7 +56,7 @@ async function request(url, options) {
 // as that client with the implicit flow, which needs no client authentication.
 function signInAsWallet(flow) {
   const state = random();
-  sessionStorage.setItem("oidc", JSON.stringify({ state, flow }));
+  saveLogin(state, { flow });
   const params = new URLSearchParams({
     client_id: CONFIG.walletClient,
     redirect_uri: REDIRECT_URI,
@@ -55,22 +69,12 @@ function signInAsWallet(flow) {
 }
 
 function readToken(fragment) {
-  const stored = JSON.parse(sessionStorage.getItem("oidc") ?? "null");
-  sessionStorage.removeItem("oidc");
-  history.replaceState(null, "", location.pathname);
-  if (!stored || stored.state !== fragment.get("state")) {
-    throw new Error("The login response does not match this browser session.");
-  }
-  return { flow: stored.flow, tokens: { access_token: fragment.get("access_token") } };
+  const { flow } = takeLogin(fragment.get("state"));
+  return { flow, tokens: { access_token: fragment.get("access_token") } };
 }
 
 async function redeemCode(params) {
-  const stored = JSON.parse(sessionStorage.getItem("oidc") ?? "null");
-  sessionStorage.removeItem("oidc");
-  history.replaceState(null, "", location.pathname);
-  if (!stored || stored.state !== params.get("state")) {
-    throw new Error("The login response does not match this browser session.");
-  }
+  const stored = takeLogin(params.get("state"));
   const response = await request(`${OIDC}/token`, {
     method: "POST",
     body: new URLSearchParams({
