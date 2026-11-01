@@ -19,6 +19,7 @@
       </div>
       <span class="header-links">
         <a id="wallet-link" target="_blank" rel="noopener">Wallet</a>
+        <a href="#" data-open-trust>Trust &amp; certificates</a>
         <a href="https://github.com/eudi-dev/eudi-dev" target="_blank" rel="noopener">GitHub</a>
       </span>
     </div>
@@ -41,14 +42,7 @@
         <div><dt>User</dt><dd><code class="demo-user"></code><button class="btn btn-sm" type="button" data-copy-from=".demo-user">Copy</button></dd></div>
         <div><dt>Password</dt><dd><code id="demo-password">demo</code><button class="btn btn-sm" type="button" data-copy-from="#demo-password">Copy</button></dd></div>
       </dl>
-      <button class="btn primary" type="button" id="issue">Sign in and create offer</button>
-      <div id="offer" class="offer" hidden>
-        <img id="offer-qr" alt="QR code of the credential offer" width="200" height="200">
-        <div class="actions">
-          <a class="btn primary" id="offer-link" target="_blank" rel="noopener">Open in wallet</a>
-          <button class="btn" type="button" id="offer-copy">Copy offer URI</button>
-        </div>
-      </div>
+      <button class="btn primary" type="button" id="issue">Sign in and get offer</button>
     </section>
 
     <section id="step-login" class="step" hidden>
@@ -65,9 +59,26 @@
       </dl>
       <div class="actions">
         <a class="btn" id="console" target="_blank" rel="noopener">Open admin console</a>
+        <a class="btn" href="#" data-open-trust>Trust &amp; certificates</a>
       </div>
     </section>
   </main>
+
+  <dialog id="trust-dialog" aria-labelledby="trust-title">
+    <div class="dialog-title" id="trust-title">Trust &amp; certificates</div>
+    <div class="trust-section">
+      <div class="trust-section-title">Trusted lists</div>
+      <p class="trust-section-hint" id="trust-hint"></p>
+      <div class="trust-rows" id="trust-lists"></div>
+    </div>
+    <div class="trust-section">
+      <div class="trust-section-title">Issuer</div>
+      <div class="trust-rows" id="trust-issuer"></div>
+    </div>
+    <div class="dialog-buttons">
+      <button class="btn" type="button" id="trust-close">Close</button>
+    </div>
+  </dialog>
 
   <footer>
     <div class="footer-row">

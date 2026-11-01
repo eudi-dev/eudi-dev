@@ -52,27 +52,6 @@ async function request(url, options) {
   }
 }
 
-// The wallet's client authenticates with an attestation only the wallet has, so the page signs in
-// as that client with the implicit flow, which needs no client authentication.
-function signInAsWallet(flow) {
-  const state = random();
-  saveLogin(state, { flow });
-  const params = new URLSearchParams({
-    client_id: CONFIG.walletClient,
-    redirect_uri: REDIRECT_URI,
-    response_type: "token",
-    scope: "openid",
-    state,
-    prompt: "login",
-  });
-  location.assign(`${OIDC}/auth?${params}`);
-}
-
-function readToken(fragment) {
-  const { flow } = takeLogin(fragment.get("state"));
-  return { flow, tokens: { access_token: fragment.get("access_token") } };
-}
-
 async function redeemCode(params) {
   const stored = takeLogin(params.get("state"));
   const response = await request(`${OIDC}/token`, {
@@ -91,29 +70,13 @@ async function redeemCode(params) {
   return { flow: stored.flow, tokens: await response.json() };
 }
 
-async function showOffer(kind, accessToken) {
-  selectOffer(kind);
-  const query = new URLSearchParams({
-    credential_configuration_id: CREDENTIAL,
-    pre_authorized: String(kind === "pre-authorized"),
-    type: "uri_qr",
-    width: "200",
-    height: "200",
-  });
-  const response = await request(`${REALM}/protocol/oid4vc/create-credential-offer?${query}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!response.ok) {
-    throw new Error(`Creating the offer failed: ${await response.text()}`);
-  }
-  const offer = await response.json();
-  const offerUri = `${offer.issuer}/${offer.nonce}`;
-  const parameter = `credential_offer_uri=${encodeURIComponent(offerUri)}`;
-  $("offer-link").href = `${CONFIG.wallet}/credential-offer?${parameter}`;
-  $("offer-qr").src = offer.qr_code;
-  $("offer-copy").onclick = (event) => copy(event.target, `openid-credential-offer://?${parameter}`);
-  $("offer").hidden = false;
-  $("step-issue").classList.add("done");
+function offerAction(kind) {
+  const config = {
+    credentialConfigurationId: CREDENTIAL,
+    preAuthorized: kind === "pre-authorized",
+    clientId: CONFIG.walletClient,
+  };
+  return `verifiable_credential_offer:${base64Url(new TextEncoder().encode(JSON.stringify(config)))}`;
 }
 
 function showClaims(idToken) {
@@ -164,6 +127,85 @@ async function showVariants() {
   select.addEventListener("change", () => location.assign(select.value));
 }
 
+// The browser blocks a window opened after an await, so it opens first.
+async function openInDecoder(source) {
+  const decoder = window.open("", "_blank");
+  try {
+    const response = await fetch(source);
+    if (!response.ok) throw new Error(`The list answered ${response.status}`);
+    decoder.location = `${CONFIG.wallet}/decoder/#credential=${encodeURIComponent((await response.text()).trim())}`;
+  } catch (error) {
+    decoder.close();
+    fail(error);
+  }
+}
+
+function trustRow({ name, description, publisher, url, source }) {
+  const row = document.createElement("div");
+  row.className = "trust-row";
+  const label = document.createElement("div");
+  const link = Object.assign(document.createElement("a"), { href: url, target: "_blank", rel: "noopener", textContent: name, title: url });
+  const origin = Object.assign(document.createElement("span"), { textContent: `From ${publisher}, ` });
+  origin.append(Object.assign(document.createElement("code"), { textContent: new URL(url).host }));
+  label.append(link, Object.assign(document.createElement("span"), { textContent: description }), origin);
+  const menu = document.createElement("details");
+  menu.className = "trust-list-menu";
+  const toggle = Object.assign(document.createElement("summary"), { className: "btn btn-sm", textContent: "Actions" });
+  const items = Object.assign(document.createElement("div"), { className: "trust-list-menu-items" });
+  const addItem = (text, run) => {
+    const item = Object.assign(document.createElement("button"), { type: "button", textContent: text });
+    item.addEventListener("click", () => {
+      menu.open = false;
+      run();
+    });
+    items.append(item);
+  };
+  addItem("Copy URL", async () => {
+    await navigator.clipboard.writeText(url);
+    toggle.textContent = "Copied!";
+    setTimeout(() => { toggle.textContent = "Actions"; }, 2000);
+  });
+  if (source) addItem("Open in decoder", () => openInDecoder(source));
+  menu.append(toggle, items);
+  row.append(label, menu);
+  return row;
+}
+
+function setUpTrustDialog() {
+  const issuer = new URL(REALM);
+  $("trust-lists").replaceChildren(...[
+    {
+      name: "Demo issuers",
+      description: "Issuers Keycloak accepts at the wallet login",
+      publisher: "this demo's setup",
+      url: new URL("trust-lists/issuers.jwt", location.href).href,
+      source: "trust-lists/issuers.jwt",
+    },
+    {
+      name: "Wallet providers",
+      description: "Wallet providers Keycloak accepts in key and wallet attestations",
+      publisher: "the wallet",
+      url: `${CONFIG.wallet}/api/trustlists/wallet-provider`,
+      source: `${CONFIG.wallet}/api/trustlists/wallet-provider`,
+    },
+  ].map(trustRow));
+  $("trust-issuer").replaceChildren(...[
+    { name: "Issuer metadata", description: "OpenID4VCI", publisher: "Keycloak", url: `${issuer.origin}/.well-known/openid-credential-issuer${issuer.pathname}` },
+    { name: "Signing keys", description: "JWKS of the realm", publisher: "Keycloak", url: `${OIDC}/certs` },
+  ].map(trustRow));
+  $("trust-hint").textContent = CONFIG.trust === "etsi-trust-list"
+    ? "Keycloak fetches these lists (ETSI TS 119 602)."
+    : "This Keycloak cannot read these lists, so setup gave it their certificates.";
+  document.querySelectorAll("[data-open-trust]").forEach((link) => {
+    link.hidden = CONFIG.trust === "none";
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      $("trust-dialog").showModal();
+    });
+  });
+  $("trust-close").addEventListener("click", () => $("trust-dialog").close());
+}
+
 function fail(error) {
   $("error").textContent = error.message;
   $("error").hidden = false;
@@ -181,46 +223,38 @@ function setUpPage() {
   $("step-login").hidden = !CONFIG.walletLogin;
   document.querySelectorAll(".demo-user").forEach((element) => { element.textContent = CONFIG.demoUser; });
   document.querySelectorAll("[data-offer]").forEach((button) => {
-    button.addEventListener("click", () => {
-      selectOffer(button.dataset.offer);
-      $("offer").hidden = true;
-      $("step-issue").classList.remove("done");
-    });
+    button.addEventListener("click", () => selectOffer(button.dataset.offer));
   });
   document.querySelectorAll("[data-copy-from]").forEach((button) => {
     button.addEventListener("click", () => copy(button, document.querySelector(button.dataset.copyFrom).textContent));
   });
   $("issue").addEventListener("click", () => {
-    // A pre-authorized offer is bound to the client that creates it, and the wallet redeems it as itself.
-    if (selectedOffer() === "pre-authorized") signInAsWallet("pre-authorized");
-    else signIn("authorization-code");
+    signIn(selectedOffer(), { kc_action: offerAction(selectedOffer()) });
   });
   $("login").addEventListener("click", () => signIn("login", { kc_idp_hint: "oid4vp" }));
 }
 
 (async () => {
   setUpPage();
+  setUpTrustDialog();
   showVariants();
-  const fragment = new URLSearchParams(location.hash.slice(1));
   const params = new URLSearchParams(location.search);
-  const failure = fragment.has("error") ? fragment : params;
-  if (failure.has("error")) {
+  if (params.has("error")) {
     history.replaceState(null, "", location.pathname);
     // Keycloak reports this when the wallet finished the login in another tab.
-    if (failure.get("error") === "authentication_expired") {
+    if (params.get("error") === "authentication_expired") {
       throw new Error("The login finished in another tab. Start it again here to see the result.");
     }
-    throw new Error(failure.get("error_description") ?? failure.get("error"));
+    throw new Error(params.get("error_description") ?? params.get("error"));
   }
-  if (fragment.has("access_token")) {
-    const { flow, tokens } = readToken(fragment);
-    await showOffer(flow, tokens.access_token);
-  } else if (params.has("code")) {
+  if (params.has("code")) {
+    const finished = params.get("kc_action_status") === "success";
     const { flow, tokens } = await redeemCode(params);
     if (flow === "login") {
       showClaims(tokens.id_token);
     } else {
-      await showOffer(flow, tokens.access_token);
+      selectOffer(flow);
+      $("step-issue").classList.toggle("done", finished);
     }
   }
 })().catch(fail);

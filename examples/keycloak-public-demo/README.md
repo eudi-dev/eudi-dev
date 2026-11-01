@@ -4,9 +4,9 @@ This example runs Keycloak as issuer and as OpenID4VP verifier next to an eudi-d
 
 The start page has three steps:
 
-1. **Get a credential.** Sign in and get a pre-authorized code or authorization code offer. Keycloak requires a key attestation and checks it against the wallet provider.
+1. **Get a credential.** Sign in and Keycloak shows a pre-authorized code or authorization code offer as a QR code and a link, through its `verifiable_credential_offer` action. Keycloak requires a key attestation and checks it against the wallet provider.
 2. **Log in with the wallet.** Keycloak requests the credential with `direct_post.jwt`, checks its issuer and links the login to the demo account.
-3. **See the configuration.** Open the realm's admin console with the read-only `viewer` account.
+3. **See the configuration.** Open the realm's admin console with the read-only `viewer` account. "Trust & certificates" lists the trusted lists and the issuer's metadata and keys.
 
 ## Run it locally
 
@@ -15,9 +15,9 @@ Start a wallet and the stack, then create the realm:
 ```bash
 eudi-dev wallet serve --port 18095 --base-url http://localhost:18095
 
-export KEYCLOAK_ADMIN_PASSWORD=admin
+export KEYCLOAK_ADMIN_PASSWORD=admin WALLET_URL=http://localhost:18095
 docker compose up -d
-WALLET_URL=http://localhost:18095 ./setup-realm.sh
+./setup-realm.sh
 ```
 
 Open <http://localhost:8181>. The setup needs `curl`, `jq` and `openssl`.
@@ -33,7 +33,7 @@ Each setup creates a new issuer CA, so credentials issued before it fail the wal
 | `KEYCLOAK_IMAGE` | `quay.io/keycloak/keycloak:26.8.1` | The image to run |
 | `KEYCLOAK_FEATURES` | All features the demo uses | Keycloak refuses to start with a feature it does not know, so older versions need a shorter list |
 | `KEYCLOAK_BUILD` | The reported version | The name in the page footer |
-| `WALLET_SCHEME` | See below | Where the wallet login link points |
+| `WALLET_SCHEME` | `openid4vp://` | Where Keycloak's wallet login link points |
 
 `setup-realm.sh` reads what the server supports and adapts:
 
@@ -44,7 +44,13 @@ Each setup creates a new issuer CA, so credentials issued before it fail the wal
 | `oid4vp` | | The page hides the login step |
 | `attestation-based` client authenticator | | The wallet client is a public client named after the wallet's URL |
 
-Released versions use the standard `openid4vp://` link, because Keycloak 26.8.1 cannot point the link at a web address. Scan the QR code with a wallet or paste the link into one. A build from a checkout reports version `999.*` and links straight to the wallet's `/authorize` endpoint. Set `WALLET_SCHEME` to choose yourself.
+The `eudi-dev` login theme in `themes/` matches the wallet.
+
+Keycloak shows offers and wallet logins as standard `openid-credential-offer://` and `openid4vp://` links and QR codes. Scan the QR code with a wallet or paste the link into one. Keycloak versions after 26.8.1 also accept a web address in `WALLET_SCHEME`, for example the wallet's `/authorize` endpoint, which opens a web wallet directly.
+
+With an authorization code offer, the wallet signs in at Keycloak too. In the same browser that ends the first tab's login, so Keycloak asks for the password there again. The credential is already in the wallet.
+
+The credential uses a Keycloak background and logo from `web/card/`, which the wallet fetches from the start page. `credential-background.png` is Keycloak's own login background.
 
 To run a build of your own branch:
 

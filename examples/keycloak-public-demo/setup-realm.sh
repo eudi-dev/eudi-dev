@@ -58,7 +58,7 @@ read_capabilities() {
 create_realm() {
   admin DELETE "/${REALM}" >/dev/null 2>&1 || true
   admin POST "" "$(jq -n --arg realm "${REALM}" '{
-    realm: $realm, enabled: true, verifiableCredentialsEnabled: true, defaultSignatureAlgorithm: "ES256",
+    realm: $realm, enabled: true, verifiableCredentialsEnabled: true, loginTheme: "eudi-dev", defaultSignatureAlgorithm: "ES256",
     sslRequired: "external", registrationAllowed: false, resetPasswordAllowed: false, editUsernameAllowed: false,
     accessTokenLifespan: 120, ssoSessionIdleTimeout: 600, ssoSessionMaxLifespan: 1800,
     offlineSessionIdleTimeout: 600, eventsEnabled: false, adminEventsEnabled: false
@@ -82,7 +82,7 @@ create_issuer_list() {
   # A static list has no operator to reissue it, so it stays valid until the next setup is due.
   next_update="$(date -u -v+1y +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d '+1 year' +%Y-%m-%dT%H:%M:%SZ)"
   entity="$(printf '%s\n' "${ISSUER_CA}" | sed '/-----/d' | tr -d '\n')"
-  input="$(printf '{"alg":"ES256","typ":"JWT"}' | base64url).$(jq -cn --arg type "${LOTE_ISSUERS}" --arg issued "${issued}" \
+  input="$(jq -cn --arg signer "$(sed '/-----/d' "${keys}/list.pem" | tr -d '\n')" '{alg: "ES256", typ: "JWT", x5c: [$signer]}' | tr -d '\n' | base64url).$(jq -cn --arg type "${LOTE_ISSUERS}" --arg issued "${issued}" \
     --arg next "${next_update}" --arg service "${SERVICE_ISSUERS}" --arg cert "${entity}" '{LoTE: {
       ListAndSchemeInformation: {LoTEVersionIdentifier: 1, LoTESequenceNumber: 1, LoTEType: $type,
         ListIssueDateTime: $issued, NextUpdate: $next,
@@ -191,14 +191,19 @@ create_attester_provider() {
 create_credential() {
   local attestation=false
   [[ "${TRUST}" != none ]] && attestation=true
-  admin POST "/${REALM}/client-scopes" "$(jq -n --arg id "${CREDENTIAL}" --arg attestation "${attestation}" '{
+  admin POST "/${REALM}/client-scopes" "$(jq -n --arg id "${CREDENTIAL}" --arg attestation "${attestation}" \
+    --arg images "${DEMO_ORIGIN}${DEMO_PATH}card/" '{
     name: $id, protocol: "oid4vc",
     attributes: {
       "vc.credential_configuration_id": $id, "vc.credential_identifier": $id, "vc.format": "dc+sd-jwt",
       "vc.verifiable_credential_type": $id, "vc.key_attestations_required": $attestation, "include.in.token.scope": "true",
       "vc.binding_required": "true", "vc.binding_required_proof_types": "jwt",
       "vc.cryptographic_binding_methods_supported": "jwk", "vc.credential_signing_alg": "ES256",
-      "vc.display": "[{\"name\":\"Keycloak demo membership\",\"locale\":\"en\"}]"
+      "vc.display": ([{
+        name: "Keycloak Demo Pass", locale: "en", text_color: "#ffffff", background_color: "#2b2b2b",
+        logo: {uri: ($images + "credential-logo.png"), alt_text: "Keycloak in the eudi-dev wallet"},
+        background_image: {uri: ($images + "credential-background.png")}
+      }] | tojson)
     },
     protocolMappers: [
       {name: "email", protocol: "oid4vc", protocolMapper: "oid4vc-user-attribute-mapper",
@@ -225,9 +230,8 @@ create_client() {
   admin PUT "/${REALM}/clients/${client_id}/optional-client-scopes/${scope_id}"
 
   # Keycloak authenticates this client with the wallet attestation. A real issuer cannot know this
-  # value in advance, so reading it here only works for a wallet we control. The implicit flow lets
-  # the start page create pre-authorized offers, which are bound to the client that creates them.
-  # Without attestation the wallet identifies itself with its origin.
+  # value in advance, so reading it here only works for a wallet we control. The start page binds
+  # its offers to this client. Without attestation the wallet identifies itself with its origin.
   local wallet_client="${WALLET}" client='{"publicClient": true}'
   if [[ "${ATTESTED_CLIENT}" == true ]]; then
     wallet_client="$(curl -fsS "${WALLET}/api/config" | jq -er .attestation_client_id)"
@@ -236,7 +240,7 @@ create_client() {
   fi
   admin POST "/${REALM}/clients" "$(jq -n --arg id "${wallet_client}" --arg wallet "${WALLET}" --arg origin "${DEMO_ORIGIN}" --arg path "${DEMO_PATH}" \
     --argjson client "${client}" --argjson trust "${trust_attributes}" '$client + {
-    clientId: $id, standardFlowEnabled: true, implicitFlowEnabled: true,
+    clientId: $id, standardFlowEnabled: true, implicitFlowEnabled: false,
     directAccessGrantsEnabled: false, serviceAccountsEnabled: false, protocol: "openid-connect",
     redirectUris: [($wallet + "/callback"), ($origin + $path)], webOrigins: [$origin],
     attributes: ({"oid4vci.enabled": "true"} + $trust)
@@ -253,8 +257,8 @@ write_page_config() {
   curl -fsS "${WALLET}/api/config" | jq -e .imprint >/dev/null && imprint="${WALLET}/imprint"
   mkdir -p "$(dirname "${WEB_CONFIG_FILE}")"
   jq -n --arg keycloak "${PUBLIC_URL}" --arg keycloakVersion "${version}" --arg wallet "${WALLET}" --arg walletClient "${WALLET_CLIENT}" \
-    --argjson walletLogin "${WALLET_LOGIN}" --arg demoUser "${USERNAME}" --arg imprint "${imprint}" \
-    '{$keycloak, $keycloakVersion, $wallet, $walletClient, $walletLogin, $demoUser, $imprint}' \
+    --argjson walletLogin "${WALLET_LOGIN}" --arg demoUser "${USERNAME}" --arg imprint "${imprint}" --arg trust "${TRUST}" \
+    '{$keycloak, $keycloakVersion, $wallet, $walletClient, $walletLogin, $demoUser, $imprint, $trust}' \
     | { printf 'const CONFIG = '; cat; } > "${WEB_CONFIG_FILE}"
 }
 
@@ -302,13 +306,10 @@ create_login_flow() {
 
 create_wallet_login() {
   [[ "${WALLET_LOGIN}" == true ]] || return 0
-  # Keycloak 26.8.1 and earlier turn any wallet scheme into "<scheme>://", so released versions keep
-  # the standard scheme, which the wallet reads from a QR code or a pasted link.
-  local query scheme="${WALLET_SCHEME:-openid4vp://}"
-  server_has '.systemInfo.version | startswith("999.")' && scheme="${WALLET_SCHEME:-${WALLET}/authorize}"
+  local query
   query="$(jq -cn --arg vct "${CREDENTIAL}" '{credentials: [{id: "membership", format: "dc+sd-jwt",
     meta: {vct_values: [$vct]}, claims: [{path: ["email"]}, {path: ["firstName"]}, {path: ["lastName"]}]}]}')"
-  admin POST "/${REALM}/identity-provider/instances" "$(jq -n --arg query "${query}" --arg scheme "${scheme}" '{
+  admin POST "/${REALM}/identity-provider/instances" "$(jq -n --arg query "${query}" --arg scheme "${WALLET_SCHEME:-openid4vp://}" '{
     alias: "oid4vp", displayName: "EUDI wallet", providerId: "oid4vp", enabled: true,
     firstBrokerLoginFlowAlias: "wallet login",
     config: {dcqlQuery: $query, principalAttribute: "email", trustMaterialIdps: "demo-issuers", walletScheme: $scheme, responseMode: "direct_post.jwt", syncMode: "FORCE"}

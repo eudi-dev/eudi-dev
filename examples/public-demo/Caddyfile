@@ -8,6 +8,20 @@
 # clients such as Java's don't follow a redirect from http to https. An http
 # site block turns off the automatic redirect for its host, so the snippet
 # sends the redirect itself.
+# Wallets before 3.7.0 refuse cross-origin reads of these lists, so the wallet does not see the
+# Origin. defer replaces the header of newer wallets.
+(trust_list_cors) {
+	@trust_list_read {
+		method GET HEAD
+		path /api/trustlists/*
+	}
+	request_header @trust_list_read -Origin
+	header @trust_list_read {
+		defer
+		Access-Control-Allow-Origin "*"
+	}
+}
+
 (http_site) {
 	@crl {
 		method GET HEAD
@@ -41,6 +55,7 @@ http://preview.eudi-test.dev {
 }
 
 eudi-test.dev {
+	import trust_list_cors
 	# Serve the GoAccess report behind authentication configured in stats.env.
 	handle_path /stats* {
 		basic_auth {
@@ -172,6 +187,7 @@ strict.eudi-test.dev {
 
 # The preview host runs the newest release, betas included. Caddy provisions HTTPS automatically.
 preview.eudi-test.dev {
+	import trust_list_cors
 	handle {
 		reverse_proxy wallet-preview:8085
 	}
@@ -269,7 +285,7 @@ demo.eudi-test.dev {
 		}
 	}
 	header {
-		Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://keycloak.eudi-test.dev; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+		Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://keycloak.eudi-test.dev https://eudi-test.dev; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 		Referrer-Policy "no-referrer"
 		Strict-Transport-Security "max-age=31536000"
 		X-Content-Type-Options "nosniff"

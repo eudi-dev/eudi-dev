@@ -1,0 +1,47 @@
+/* The look of the eudi-dev wallet and of the demo's start page. */
+@font-face { font-family: "IBM Plex Sans"; font-weight: 400; font-display: swap; src: url("../fonts/IBMPlexSans-Regular-Latin1.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-weight: 500; font-display: swap; src: url("../fonts/IBMPlexSans-Medium-Latin1.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-weight: 600; font-display: swap; src: url("../fonts/IBMPlexSans-SemiBold-Latin1.woff2") format("woff2"); }
+
+:root {
+  --demo-bg: #f2f3f5; --demo-surface: #ffffff; --demo-input: #ffffff; --demo-btn: #eceef2; --demo-btn-hover: #dde1e7;
+  --demo-text: #15171a; --demo-dim: #5a606a; --demo-border: #d5d8de; --demo-subtle: #e4e6ea; --demo-accent: #2f6a94; --demo-on-accent: #ffffff;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --demo-bg: #17191e; --demo-surface: #21242a; --demo-input: #1c1f24; --demo-btn: #2c3038; --demo-btn-hover: #3a3f48;
+    --demo-text: #eceef1; --demo-dim: #a9afb9; --demo-border: #383d45; --demo-subtle: #2a2e35; --demo-accent: #a8c8e0; --demo-on-accent: #17191e;
+  }
+}
+:root, .pf-v5-theme-dark {
+  --keycloak-card-top-color: transparent;
+  --pf-v5-global--FontFamily--text: "IBM Plex Sans", system-ui, sans-serif;
+  --pf-v5-global--FontFamily--heading: "IBM Plex Sans", system-ui, sans-serif;
+  --pf-v5-global--BackgroundColor--100: var(--demo-surface);
+  --pf-v5-global--Color--100: var(--demo-text);
+  --pf-v5-global--Color--200: var(--demo-dim);
+  --pf-v5-global--primary-color--100: var(--demo-accent);
+  --pf-v5-global--link--Color: var(--demo-accent);
+  --pf-v5-global--link--Color--hover: var(--demo-accent);
+}
+html, body, .pf-v5-c-login, .pf-v5-c-login__container { background: var(--demo-bg) !important; color: var(--demo-text); font-family: "IBM Plex Sans", system-ui, sans-serif; font-size: 14px; }
+.pf-v5-c-login::before, .pf-v5-c-login::after, .pf-v5-c-background-image { display: none; }
+.pf-v5-c-login__main { background: var(--demo-surface); color: var(--demo-text); border: 1px solid var(--demo-subtle); border-radius: 24px; box-shadow: none; overflow: hidden; }
+.pf-v5-c-login__main-header, .pf-v5-c-login__main-body, .pf-v5-c-login__main-footer { background: transparent; }
+.pf-v5-c-login__main-header { padding-block-start: 26px; }
+.pf-v5-c-title { color: var(--demo-text); font-size: 20px; font-weight: 700; }
+#kc-header-wrapper { width: 42px; height: 54px; margin: 0 auto 8px; padding: 0; overflow: hidden; color: transparent; font-size: 0; background: url("../img/logo.svg") center / contain no-repeat; }
+#kc-header-wrapper * { display: none; }
+.pf-v5-c-form-control { --pf-v5-c-form-control--BackgroundColor: var(--demo-input); --pf-v5-c-form-control--Color: var(--demo-text); border-radius: 12px; overflow: hidden; }
+.pf-v5-c-form-control::after, .pf-v5-c-form-control::before { display: none; }
+.pf-v5-c-form-control input { background: var(--demo-input); color: var(--demo-text); border: 1px solid var(--demo-border); border-radius: 12px; }
+.pf-v5-c-form__label-text { color: var(--demo-dim); font-size: 13px; font-weight: 500; }
+.pf-v5-c-button { border-radius: 999px; font-weight: 600; font-size: 14px; }
+.pf-v5-c-button.pf-m-primary { background: var(--demo-accent); color: var(--demo-on-accent); }
+.pf-v5-c-button.pf-m-primary:hover { background: var(--demo-accent); opacity: .9; }
+.pf-v5-c-button.pf-m-secondary, .pf-v5-c-button.pf-m-tertiary, .pf-v5-c-button.pf-m-control { background: var(--demo-btn); color: var(--demo-text); }
+.pf-v5-c-button.pf-m-secondary::after, .pf-v5-c-button.pf-m-tertiary::after, .pf-v5-c-button.pf-m-control::after { display: none; }
+.pf-v5-c-button.pf-m-secondary:hover, .pf-v5-c-button.pf-m-tertiary:hover, .pf-v5-c-button.pf-m-control:hover { background: var(--demo-btn-hover); }
+.pf-v5-c-login__main-footer-band, .pf-v5-c-login__footer { background: transparent; color: var(--demo-dim); }
+a { color: var(--demo-accent); }
+img[src^="data:image/png"] { padding: 8px; border-radius: 12px; background: #fff; }

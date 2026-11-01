@@ -100,6 +100,7 @@ start_stack() {
   require_settings
   ssh "${DEMO_HOST}" "mkdir -p ${DEMO_DIR} ${WEB_DIR}"
   scp -q docker-compose.yml docker-compose.proxy.yml "${DEMO_HOST}:${DEMO_DIR}/"
+  scp -qr themes "${DEMO_HOST}:${DEMO_DIR}/"
   # This leaves the files setup-realm.sh generates in place.
   scp -qr web/* "${DEMO_HOST}:${WEB_DIR}/"
   write_remote_env
@@ -129,7 +130,7 @@ setup_realm() {
   sleep 2
   [[ -z "${KEYCLOAK_DIR:-}" ]] || KEYCLOAK_BUILD="${KEYCLOAK_BUILD:-$(git -C "${KEYCLOAK_DIR}" branch --show-current)}"
   KEYCLOAK_BUILD="${KEYCLOAK_BUILD:-}" VARIANT="${VARIANT:-}" KEYCLOAK_URL="http://127.0.0.1:${KEYCLOAK_PORT}${KEYCLOAK_PATH}" KEYCLOAK_PUBLIC_URL="${KEYCLOAK_PUBLIC_URL}" KEYCLOAK_ADMIN_PASSWORD="${password}" \
-    WALLET_URL="${WALLET_URL}" DEMO_ORIGIN="${DEMO_ORIGIN}" ISSUER_LIST_URL="${ISSUER_LIST_URL:-}" \
+    WALLET_URL="${WALLET_URL}" DEMO_ORIGIN="${DEMO_ORIGIN}" ISSUER_LIST_URL="${ISSUER_LIST_URL:-}" WALLET_SCHEME="${WALLET_SCHEME:-}" \
     ISSUER_LIST_FILE="${SCRIPT_DIR}/build/issuers.jwt" WEB_CONFIG_FILE="${SCRIPT_DIR}/build/config.js" ./setup-realm.sh
   ssh "${DEMO_HOST}" "mkdir -p ${WEB_DIR}/trust-lists"
   scp -q build/issuers.jwt "${DEMO_HOST}:${WEB_DIR}/trust-lists/issuers.jwt"

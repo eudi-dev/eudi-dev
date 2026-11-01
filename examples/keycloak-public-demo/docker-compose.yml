@@ -23,7 +23,7 @@ services:
       - --http-relative-path=${KEYCLOAK_PATH:-/}
       - --hostname-backchannel-dynamic=true
       # Keycloak refuses to start with a feature it does not know, so older versions need a shorter list.
-      - --features=${KEYCLOAK_FEATURES:-oid4vc-vci,oid4vc-vci-preauth-code,oid4vc-vci-rest-credential-offer,oid4vc-vp,client-auth-abca}
+      - --features=${KEYCLOAK_FEATURES:-oid4vc-vci,oid4vc-vci-preauth-code,oid4vc-vp,client-auth-abca}
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?set KEYCLOAK_ADMIN_PASSWORD}
@@ -35,6 +35,7 @@ services:
       - "127.0.0.1:${KEYCLOAK_PORT:-8180}:8080"
     volumes:
       - keycloak-data:/opt/keycloak/data
+      - ./themes:/opt/keycloak/themes:ro
   demo-web:
     <<: *hardening
     image: nginxinc/nginx-unprivileged:1.27-alpine
