@@ -486,8 +486,8 @@
         '<div class="credential-type cred-hdr">' +
           '<span class="format-badge format-badge-row" id="' + cp + 'format">' + formatLabel + '</span>' +
           nameHtml +
+          (cred.issuer_name ? '<span class="cred-issuer" id="' + cp + 'issuer-name">' + escHtml(cred.issuer_name) + '</span>' : '') +
         '</div>' +
-        (cred.issuer_name ? '<div class="cred-issuer" id="' + cp + 'issuer-name">' + escHtml(cred.issuer_name) + '</div>' : '') +
         '<div class="cred-pills">' + protectedBadge + statusBadge + certificateBadge + expiryBadge + signatureBadge + keyBindingBadge + '</div>' +
         '<div class="cred-meta">' +
           idMeta + issuedMeta + typeMeta + issuerMeta +

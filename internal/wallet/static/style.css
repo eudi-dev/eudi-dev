@@ -474,7 +474,7 @@ header .btn {
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .cred-hdr, .cred-issuer { display: none; }
+  .cred-hdr { display: none; }
   .credential-info { padding: 10px 15px 4px; }
   .credential-actions { padding: 8px 15px 11px; gap: 8px; }
   .credential-actions .btn {

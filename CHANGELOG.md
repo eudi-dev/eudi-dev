@@ -5,6 +5,13 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.3] - 2026-11-01
+
+### Changed
+
+- **Issuer name on generated credentials.** Credentials the wallet generates, such as the default PIDs, now show the name of its own issuer.
+- **Issuer name on cards.** The name now sits beside the credential name, so cards keep their height.
+
 ## [3.6.2] - 2026-11-01
 
 ### Added

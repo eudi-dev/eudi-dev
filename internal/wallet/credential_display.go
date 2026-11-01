@@ -619,6 +619,20 @@ func (w *Wallet) rememberDisplay(cred *StoredCredential, d *oid4vc.CredentialDis
 	}
 }
 
+// rememberIssuerName updates both the stored credential and the caller's copy,
+// like rememberDisplay.
+func (w *Wallet) rememberIssuerName(cred *StoredCredential, name string) {
+	cred.IssuerName = name
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	for i := range w.Credentials {
+		if w.Credentials[i].ID == cred.ID {
+			w.Credentials[i].IssuerName = name
+			return
+		}
+	}
+}
+
 // withPublicImagePaths adds the request's path prefix to the display image
 // URLs of a credential summary.
 func withPublicImagePaths(r *http.Request, summary map[string]any) map[string]any {

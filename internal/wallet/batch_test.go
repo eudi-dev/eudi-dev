@@ -151,6 +151,23 @@ func TestIssuedCredentialsKeepTheIssuerName(t *testing.T) {
 	}
 }
 
+// Credentials the wallet generates carry the name of its own issuer, each
+// batch copy too.
+func TestGeneratedCredentialsTakeTheNameOfTheWalletIssuer(t *testing.T) {
+	w := generateTestWallet(t)
+	if _, err := w.IssueCredential(IssueOptions{Format: "sdjwt", VCT: "urn:example:own", BatchSize: 2}); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.Credentials) != 2 {
+		t.Fatalf("stored %d credentials, want 2", len(w.Credentials))
+	}
+	for _, c := range w.Credentials {
+		if c.IssuerName != DemoIssuerName {
+			t.Errorf("credential %s has issuer name %q", c.ID, c.IssuerName)
+		}
+	}
+}
+
 func batchTestQuery() map[string]any {
 	return map[string]any{"credentials": []any{map[string]any{
 		"id":     "pid",

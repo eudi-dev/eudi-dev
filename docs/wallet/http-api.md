@@ -26,7 +26,7 @@ To approve or deny a request through `POST /api/requests/{id}/approve` or `/deny
 
 `GET /api/credentials` accepts optional `limit` and `offset` query parameters and reports the total number of stored credentials in the `X-Total-Count` response header. Without parameters it returns every credential. An offset past the end returns an empty array.
 
-A credential from an issuance has `issuer_name` when the issuer metadata names the issuer (OID4VCI 1.0 §12.2.4). The wallet saves the name at issuance and updates it at renewal. Anyone can choose this name, so `issuer` stays the identity of the issuer. Pending [deferred credentials](#deferred-issuance) report it too.
+A credential has `issuer_name` when the issuer metadata names the issuer (OID4VCI 1.0 §12.2.4). The wallet saves the name at issuance and updates it at renewal. Credentials the wallet generates have the name of its own issuer. Anyone can choose this name, so `issuer` stays the identity of the issuer. Pending [deferred credentials](#deferred-issuance) report it too.
 
 Protected baseline credentials cannot be deleted or revoked through the API. Individual operations return `403`. Deleting all credentials preserves protected entries and reports `kept_protected`. The public demo marks its generated PIDs as protected. Changing the flag requires direct access to stored state, such as editing `wallet.json` on the file backend.
 
