@@ -58,6 +58,8 @@ compose() {
 copy_stack() {
   echo "Copying the stack to ${DEMO_HOST}:${DEMO_DIR}..."
   ssh "${DEMO_HOST}" "mkdir -p ${DEMO_DIR}"
+  # docker-compose.yml attaches Caddy to this network, which examples/keycloak-public-demo uses.
+  ssh "${DEMO_HOST}" "docker network inspect keycloak-public-demo >/dev/null 2>&1 || docker network create keycloak-public-demo >/dev/null"
   scp -q Caddyfile Dockerfile docker-compose.yml "${DEMO_HOST}:${DEMO_DIR}/"
   # The news snippet and its images. The main wallet shows them to visitors.
   scp -qr news "${DEMO_HOST}:${DEMO_DIR}/"

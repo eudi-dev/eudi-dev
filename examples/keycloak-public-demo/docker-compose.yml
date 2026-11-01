@@ -1,0 +1,53 @@
+x-hardening: &hardening
+  restart: unless-stopped
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  keycloak-demo:
+    <<: *hardening
+    image: ${KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.8.1}
+    command:
+      - start
+      - --db=dev-file
+      - --http-enabled=true
+      - --proxy-headers=xforwarded
+      - --hostname=${KEYCLOAK_PUBLIC_URL:-http://localhost:8180}
+      - --http-relative-path=${KEYCLOAK_PATH:-/}
+      - --hostname-backchannel-dynamic=true
+      # Keycloak refuses to start with a feature it does not know, so older versions need a shorter list.
+      - --features=${KEYCLOAK_FEATURES:-oid4vc-vci,oid4vc-vci-preauth-code,oid4vc-vci-rest-credential-offer,oid4vc-vp,client-auth-abca}
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?set KEYCLOAK_ADMIN_PASSWORD}
+      JAVA_OPTS_KC_HEAP: -XX:MaxRAMPercentage=70
+    mem_limit: 1200m
+    cpus: 1.0
+    pids_limit: 300
+    ports:
+      - "127.0.0.1:${KEYCLOAK_PORT:-8180}:8080"
+    volumes:
+      - keycloak-data:/opt/keycloak/data
+  demo-web:
+    <<: *hardening
+    image: nginxinc/nginx-unprivileged:1.27-alpine
+    read_only: true
+    tmpfs:
+      - /tmp
+    mem_limit: 32m
+    cpus: 0.25
+    pids_limit: 20
+    ports:
+      - "127.0.0.1:${DEMO_PORT:-8181}:8080"
+    volumes:
+      - ./web:/usr/share/nginx/html:ro
+
+volumes:
+  keycloak-data:

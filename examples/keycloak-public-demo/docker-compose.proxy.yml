@@ -1,0 +1,14 @@
+# Joins the network of a TLS proxy on the same host. The proxy reaches Keycloak as keycloak-base or
+# keycloak-<variant>, and the start page as demo-web. Unreleased Keycloak builds stay apart from
+# whatever else runs behind that proxy.
+services:
+  keycloak-demo:
+    networks:
+      default:
+        aliases:
+          - keycloak-${VARIANT:-base}
+
+networks:
+  default:
+    name: ${PROXY_NETWORK:-keycloak-public-demo}
+    external: true

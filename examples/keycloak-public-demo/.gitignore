@@ -1,0 +1,6 @@
+build/
+deploy.env
+deploy.env.*
+!deploy.env.example
+web/config.js
+web/trust-lists/

@@ -203,3 +203,79 @@ preview.eudi-test.dev {
 		}
 	}
 }
+
+# See examples/keycloak-public-demo. Keycloak's own first path segments go to the base deployment,
+# and any other first segment to the variant of that name, so a new variant needs no change here.
+keycloak.eudi-test.dev {
+	log {
+		output stdout
+	}
+	request_body {
+		max_size 256KB
+	}
+	@internal path_regexp internal ^(/[a-z0-9-]+)?/(metrics|health(/.*)?|realms/[^/]+/(clients-registrations|account)(/.*)?)$
+	@sensitive path_regexp sensitive ^(/[a-z0-9-]+)?/realms/[^/]+/(protocol/openid-connect/token|login-actions/.*|protocol/oid4vc/create-credential-offer)$
+	rate_limit @sensitive {
+		zone keycloak_demo_sensitive {
+			key {remote_host}
+			events 120
+			window 1m
+		}
+	}
+	rate_limit {
+		zone keycloak_demo {
+			key {remote_host}
+			events 600
+			window 1m
+		}
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+	# OpenID4VCI puts well-known paths at the host root, before the issuer's path.
+	@variant_metadata path_regexp metadata ^/[.]well-known/([^/]+)/([a-z0-9-]+)/realms/(.+)$
+	@base path / /.well-known/* /realms/* /admin/* /resources/* /js/* /robots.txt
+	@variant path_regexp variant ^/([a-z0-9-]+)(/|$)
+	handle @internal {
+		respond 404
+	}
+	handle @variant_metadata {
+		rewrite /{re.metadata.2}/.well-known/{re.metadata.1}/realms/{re.metadata.3}
+		reverse_proxy keycloak-{re.metadata.2}:8080
+	}
+	handle @base {
+		reverse_proxy keycloak-base:8080
+	}
+	handle @variant {
+		reverse_proxy keycloak-{re.variant.1}:8080
+	}
+	handle {
+		respond 404
+	}
+	# The start page reads this response, and without the header browsers hide it as a network error.
+	handle_errors 429 {
+		header Access-Control-Allow-Origin https://demo.eudi-test.dev
+		respond "Too many requests, try again in a minute." 429
+	}
+}
+
+demo.eudi-test.dev {
+	rate_limit {
+		zone keycloak_demo_start_page {
+			key {remote_host}
+			events 300
+			window 1m
+		}
+	}
+	header {
+		Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://keycloak.eudi-test.dev; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+		Referrer-Policy "no-referrer"
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		-Server
+	}
+	@variant path_regexp ^/[a-z0-9-]+$
+	redir @variant {path}/
+	reverse_proxy demo-web:8080
+}

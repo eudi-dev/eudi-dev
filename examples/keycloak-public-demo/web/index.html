@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Keycloak wallet demo</title>
+  <link rel="icon" href="favicon.svg">
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="theme.js"></script>
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <div class="brand">
+        <img src="logo.svg" alt="" class="header-logo">
+        <h1>Keycloak Wallet Demo</h1>
+      </div>
+      <span class="header-links">
+        <a id="wallet-link" target="_blank" rel="noopener">Wallet</a>
+        <a href="https://github.com/eudi-dev/eudi-dev" target="_blank" rel="noopener">GitHub</a>
+      </span>
+    </div>
+    <div class="header-right">
+      <select id="variants" aria-label="Keycloak variant" hidden></select>
+      <button class="btn" id="theme-toggle" type="button" data-theme-toggle>Theme</button>
+    </div>
+  </header>
+
+  <main>
+    <p id="error" role="alert" hidden></p>
+
+    <section id="step-issue" class="step">
+      <h2>Get a credential</h2>
+      <div class="choice" role="group" aria-label="Offer type">
+        <button type="button" data-offer="pre-authorized" aria-pressed="true">Pre-authorized code</button>
+        <button type="button" data-offer="authorization-code" aria-pressed="false">Authorization code</button>
+      </div>
+      <dl class="login">
+        <div><dt>User</dt><dd><code class="demo-user"></code><button class="btn btn-sm" type="button" data-copy-from=".demo-user">Copy</button></dd></div>
+        <div><dt>Password</dt><dd><code id="demo-password">demo</code><button class="btn btn-sm" type="button" data-copy-from="#demo-password">Copy</button></dd></div>
+      </dl>
+      <button class="btn primary" type="button" id="issue">Sign in and create offer</button>
+      <div id="offer" class="offer" hidden>
+        <img id="offer-qr" alt="QR code of the credential offer" width="200" height="200">
+        <div class="actions">
+          <a class="btn primary" id="offer-link" target="_blank" rel="noopener">Open in wallet</a>
+          <button class="btn" type="button" id="offer-copy">Copy offer URI</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="step-login" class="step" hidden>
+      <h2>Log in with the wallet</h2>
+      <button class="btn primary" type="button" id="login">Log in</button>
+      <dl id="claims" class="claims" hidden></dl>
+    </section>
+
+    <section id="step-console" class="step">
+      <h2>See the configuration</h2>
+      <dl class="login">
+        <div><dt>User</dt><dd><code id="viewer">viewer</code><button class="btn btn-sm" type="button" data-copy-from="#viewer">Copy</button></dd></div>
+        <div><dt>Password</dt><dd><code id="viewer-password">viewer</code><button class="btn btn-sm" type="button" data-copy-from="#viewer-password">Copy</button></dd></div>
+      </dl>
+      <div class="actions">
+        <a class="btn" id="console" target="_blank" rel="noopener">Open admin console</a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-row">
+      <span class="footer-version" id="footer-version"></span>
+      <a id="imprint-link" hidden>Imprint</a>
+      <a id="master-console" target="_blank" rel="noopener">Keycloak administrators</a>
+      <span>Shared test system, use test data only</span>
+    </div>
+    <div>Unofficial, independent open source project. Not affiliated with or endorsed by the European Commission or the European Union.</div>
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
