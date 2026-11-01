@@ -121,7 +121,7 @@ sequenceDiagram
 
 | Field / setting | Usage |
 |-----------------|----------|
-| `eudi wallet serve --vci-client-id ...` | Sets a fixed client ID. Without it, a flow with client attestation uses a random client ID and other flows use the wallet origin. |
+| `eudi wallet serve --vci-client-id ...` | Sets a fixed client ID. Without it, flows with client attestation use a client ID derived from the wallet provider key, and other flows use the wallet origin. |
 | `eudi wallet serve --vci-redirect-uri ...` | Overrides the callback URL, which defaults to the wallet origin plus `/callback`. Interactive authorization (below) can run without a redirect. |
 | OAuth metadata `pushed_authorization_request_endpoint` | Used when published (publishing it is a SHOULD in RFC 9126). Otherwise the request goes straight to the authorization endpoint. `--haip` requires PAR unless the server publishes an `authorization_challenge_endpoint`. |
 | OAuth metadata `authorization_endpoint` | Required for the browser redirect. |

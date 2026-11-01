@@ -17,7 +17,10 @@ package wallet
 import (
 	"context"
 	"crypto/ecdsa"
+	"crypto/hkdf"
+	"crypto/sha256"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -388,6 +391,11 @@ func (w *Wallet) processCredentialOffer(offerURI string, opts OfferOptions) (_ *
 		// registered with the issuer. The attestation identifies the wallet
 		// itself, so the wallet's own identifier is the client.
 		session.renewal.ClientID = w.walletClientIdentifier()
+		if session.renewal.ClientAuth.Method == ClientAuthAttestation {
+			if session.renewal.ClientID, err = w.attestationClientID(); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	txCode := opts.TxCode
@@ -410,6 +418,30 @@ func (w *Wallet) processCredentialOffer(offerURI string, opts OfferOptions) (_ *
 		tokenForm.Set("tx_code", txCode)
 	}
 	return w.issueWithToken(session, tokenForm)
+}
+
+// attestationClientID is the client_id of attestation-based client
+// authentication, and so the sub of the wallet attestation. OpenID4VCI 1.0
+// Appendix E: "this value is the same across Wallet instances of that Wallet
+// Provider". The wallet provider key is what instances share, so the value
+// derives from it. An issuer can't work it out without the key.
+func (w *Wallet) attestationClientID() (string, error) {
+	if id := w.Conformance().VCIClientID; id != "" {
+		return id, nil
+	}
+	key, err := w.Signer().WalletProviderKey()
+	if err != nil {
+		return "", err
+	}
+	secret, err := key.ECDH()
+	if err != nil {
+		return "", err
+	}
+	id, err := hkdf.Key(sha256.New, secret.Bytes(), nil, "eudi-dev/vci-client-id", 18)
+	if err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(id), nil
 }
 
 // walletClientIdentifier returns the configured OID4VCI client_id, or else the

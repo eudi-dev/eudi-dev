@@ -124,13 +124,13 @@ With an HTTP base URL, the wallet also starts its self-signed HTTPS listener on 
 
 ## Client identity for authorization code issuance
 
-The HAIP authorization code flow needs a client ID and redirect URI. Issuers in the EUDI ecosystem have no registered wallet clients. The wallet attestation identifies the wallet, so each authorization code flow with attestation-based client authentication uses a new random client ID. The redirect URI defaults to the `/callback` endpoint of the wallet origin (`--base-url`). The example deployment sets it explicitly:
+The HAIP authorization code flow needs a client ID and redirect URI. Issuers in the EUDI ecosystem have no registered wallet clients. The wallet attestation identifies the wallet, so flows with attestation-based client authentication use a client ID derived from the wallet provider key. The redirect URI defaults to the `/callback` endpoint of the wallet origin (`--base-url`). The example deployment sets it explicitly:
 
 ```
 --vci-redirect-uri https://eudi-test.dev/callback
 ```
 
-An issuer that requires client registration needs a fixed client ID. Set it with `--vci-client-id` and register it together with the redirect URI. Flows without client attestation use the wallet origin as client ID. Pre-authorized code offers need neither flag. The wallet still sends an attestation when the issuer's metadata asks for one.
+An issuer that requires client registration needs a known client ID. Register `attestation_client_id` from `GET /api/config`, or set your own with `--vci-client-id`, together with the redirect URI. The derived value changes when the wallet provider key changes, so a replaced key needs a new registration. Flows without client attestation use the wallet origin as client ID. Pre-authorized code offers need neither flag. The wallet still sends an attestation when the issuer's metadata asks for one.
 
 ## Demo issuer as an authorization server
 

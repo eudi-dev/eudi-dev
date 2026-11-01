@@ -61,8 +61,8 @@ services:
       - "8085"
       - --base-url
       - https://eudi-test.dev
-      # Without --vci-client-id, each attested authorization code flow uses a
-      # random client ID, as issuers in the EUDI ecosystem have no registered
+      # Without --vci-client-id, attested flows use a client ID derived from the
+      # wallet provider key. Issuers in the EUDI ecosystem have no registered
       # wallet clients. The callback URL stays stable.
       - --vci-redirect-uri
       - https://eudi-test.dev/callback
