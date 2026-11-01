@@ -5,6 +5,17 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.2] - 2026-11-01
+
+### Added
+
+- **Issuer name on credentials.** Cards and deferred items show the display name from the issuer metadata under the credential name. The name is saved at issuance, so credentials issued earlier show it after their next renewal. The API returns it as `issuer_name`. The wallet's own issuer metadata now has a display name too.
+- **Kubernetes example.** `examples/kubernetes` configures a wallet with YAML files in ConfigMaps, without a database or a persistent volume. It has variants for a custom Helm chart, Kustomize and the published chart.
+
+### Changed
+
+- **Browser extension popup.** The popup has a new layout in the wallet's colors. The connection status comes first. You choose between the public demo, a local wallet and a custom URL, and a URL saves without a button. The popup now recognizes a real eudi-dev wallet, so another site no longer counts as connected. After a change of **Enabled** it offers to reload the tab.
+
 ## [3.6.1] - 2026-10-31
 
 ### Changed
