@@ -24,4 +24,5 @@ The example scripts are written for Bash. On Windows, run them from Git Bash or 
 | `keycloak-web-wallet` | Issuer, verifier, and the wallet as a web wallet in one Docker compose project with a demo UI. Issuance and verification use web URLs (`/credential-offer`, `/authorize`) in place of custom schemes |
 | `keycloak-web-wallet-public` | The `keycloak-web-wallet` scenario against the shared public demo wallet (`https://eudi-test.dev`). An ngrok tunnel exposes the local Keycloak to the public wallet |
 | `public-demo` | Internet-facing shared demo deployment: Caddy with automatic TLS in front of the wallet in `--demo` mode (see [docs/public-demo.md](../docs/public-demo.md)) |
+| `kubernetes` | A wallet configured with YAML files in ConfigMaps, without a database or a persistent volume. Variants for a custom Helm chart, Kustomize and the published chart |
 | `load-test` | Two wallet servers on one Postgres database behind an nginx ingress. The target for load and performance tests (see [examples/load-test](load-test/README.md)) |

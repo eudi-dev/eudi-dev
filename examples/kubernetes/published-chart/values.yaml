@@ -1,0 +1,18 @@
+baseURL: http://localhost:8085
+storage:
+  type: memory
+seed:
+  value: eudi-dev
+demo:
+  enabled: true
+  reset: 1h
+credentialTemplates:
+  existingConfigMap: eudi-dev-templates
+credentials:
+  existingConfigMap: eudi-dev-credentials
+catalog:
+  existingConfigMap: eudi-dev-catalog
+relyingParties:
+  existingConfigMap: eudi-dev-relying-parties
+# The baseline PIDs come from the wallet, so the chart adds none.
+pidCredentials: []

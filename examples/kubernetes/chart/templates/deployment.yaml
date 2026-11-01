@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+      annotations:
+        # The wallet reads the files at startup, so a changed file needs a new pod.
+        checksum/config: {{ include (print $.Template.BasePath "/configmaps.yaml") . | sha256sum }}
+    spec:
+      # A Service named eudi-dev would add EUDI_DEV_PORT and more to the pod, and
+      # the wallet reads those as its own settings.
+      enableServiceLinks: false
+      containers:
+        - name: eudi-dev
+          image: {{ .Values.image }}
+          env:
+            - name: EUDI_DEV_BASE_URL
+              value: {{ .Values.baseURL }}
+            - name: EUDI_DEV_DEMO
+              value: "true"
+            - name: EUDI_DEV_TEMPLATES_DIR
+              value: /config/templates
+            - name: EUDI_DEV_CREDENTIALS
+              value: /config/credentials
+            - name: EUDI_DEV_CATALOG
+              value: /config/catalog
+            - name: EUDI_DEV_RELYING_PARTIES
+              value: /config/relying-parties
+          ports:
+            - name: http
+              containerPort: 8085
+          volumeMounts:
+            {{- range $name := list "templates" "credentials" "catalog" "relying-parties" }}
+            - name: {{ $name }}
+              mountPath: /config/{{ $name }}
+            {{- end }}
+      volumes:
+        {{- range $name := list "templates" "credentials" "catalog" "relying-parties" }}
+        - name: {{ $name }}
+          configMap:
+            name: {{ $.Release.Name }}-{{ $name }}
+        {{- end }}

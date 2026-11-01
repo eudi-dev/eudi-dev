@@ -1,0 +1,19 @@
+identifier:
+  - identifier: NLTEST.00000043
+tradeName: Example Company
+legalPerson:
+  legalName: ["Example Company B.V."]
+services:
+  - serviceIdentifier: staff-entrance
+    intendedUses:
+      - intendedUseIdentifier: staff-check
+        purpose:
+          - lang: en
+            content: Check that you work here
+        credentials:
+          - format: dc+sd-jwt
+            meta:
+              vct_values: [urn:example:employee:1]
+            claims:
+              - path: [employee_id]
+              - path: [department]

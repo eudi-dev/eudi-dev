@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eudi-dev
+spec:
+  template:
+    spec:
+      # A Service named eudi-dev would add EUDI_DEV_PORT and more to the pod, and
+      # the wallet reads those as its own settings.
+      enableServiceLinks: false
+      containers:
+        - name: eudi-dev
+          image: ghcr.io/eudi-dev/eudi-dev
+          env:
+            - name: EUDI_DEV_BASE_URL
+              value: http://localhost:8085
+            - name: EUDI_DEV_DEMO
+              value: "true"
+            - name: EUDI_DEV_TEMPLATES_DIR
+              value: /config/templates
+            - name: EUDI_DEV_CREDENTIALS
+              value: /config/credentials
+            - name: EUDI_DEV_CATALOG
+              value: /config/catalog
+            - name: EUDI_DEV_RELYING_PARTIES
+              value: /config/relying-parties
+          ports:
+            - name: http
+              containerPort: 8085
+          volumeMounts:
+            - name: templates
+              mountPath: /config/templates
+            - name: credentials
+              mountPath: /config/credentials
+            - name: catalog
+              mountPath: /config/catalog
+            - name: relying-parties
+              mountPath: /config/relying-parties
+      volumes:
+        - name: templates
+          configMap:
+            name: eudi-dev-templates
+        - name: credentials
+          configMap:
+            name: eudi-dev-credentials
+        - name: catalog
+          configMap:
+            name: eudi-dev-catalog
+        - name: relying-parties
+          configMap:
+            name: eudi-dev-relying-parties

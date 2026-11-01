@@ -76,6 +76,18 @@ It includes:
 - an ngrok tunnel in front of the local Keycloak, since the public wallet fetches the request object and calls the token endpoint server side (or set `KEYCLOAK_PUBLIC_URL` to your own public URL)
 - the same admin-API step pointing the verifier's `walletScheme` / `trustListUrl` at the public wallet
 
+### Kubernetes
+
+Folder: [`examples/kubernetes`](../examples/kubernetes/README.md)
+
+Runs a wallet on Kubernetes without a database or a persistent volume. Credential templates, baseline credentials, the attestation catalogue and relying parties are YAML files that become ConfigMaps.
+
+It includes:
+
+- a self-contained Helm chart
+- the same deployment with Kustomize
+- values for the published Helm chart
+
 ### Load test target
 
 Folder: [`examples/load-test`](../examples/load-test/README.md)

@@ -1,0 +1,33 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - kustomize/deployment.yaml
+  - kustomize/service.yaml
+
+labels:
+  - includeSelectors: true
+    pairs:
+      app: eudi-dev
+
+# The generator adds a hash of the files to each name. A changed file renames
+# its ConfigMap, and that rolls out a new pod.
+configMapGenerator:
+  - name: eudi-dev-templates
+    files:
+      - config/templates/employee-card.yaml
+      - config/templates/pid-sdjwt.yaml
+  - name: eudi-dev-credentials
+    files:
+      - config/credentials/baseline.yaml
+  - name: eudi-dev-catalog
+    files:
+      - config/catalog/employee-card.yaml
+  - name: eudi-dev-relying-parties
+    files:
+      - config/relying-parties/example-company.yaml
+      - config/relying-parties/example-shop.yaml
+
+images:
+  - name: ghcr.io/eudi-dev/eudi-dev
+    newTag: v3.6.1

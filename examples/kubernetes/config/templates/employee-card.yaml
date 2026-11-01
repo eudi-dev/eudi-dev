@@ -1,0 +1,21 @@
+description: Employee badge of the example company
+format: sdjwt
+vct: urn:example:employee:1
+category: eaa
+exp: 720h
+claims:
+  employee_id: E-1
+  given_name: Alice
+  family_name: Example
+  department: IT
+always_disclosed: [department]
+display:
+  name: Employee Card
+  description: A sample employee badge from the Kubernetes example
+  background_color: "#0f766e"
+  text_color: "#ffffff"
+  claims:
+    employee_id: Employee ID
+    given_name: Given name
+    family_name: Family name
+    department: Department

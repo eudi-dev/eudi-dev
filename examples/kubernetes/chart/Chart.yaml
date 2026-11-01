@@ -1,0 +1,6 @@
+apiVersion: v2
+name: eudi-dev-example
+description: eudi-dev configured with files from config/, without a database or a persistent volume
+type: application
+version: 0.1.0
+appVersion: 3.6.1

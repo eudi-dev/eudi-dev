@@ -1,0 +1,36 @@
+name: "pid-sdjwt"
+description: "EUDI PID with the identity of the Kubernetes example"
+format: "sdjwt"
+vct: "urn:eudi:pid:1"
+category: "pid"
+baseline: true
+claims:
+  address:
+    country: "NL"
+    locality: "Leiden"
+    postal_code: "2312 JD"
+    region: "Zuid-Holland"
+    street_address: "Rietveld 1"
+  birth_family_name: "Example"
+  birthdate: "1978-02-12"
+  date_of_expiry: ""
+  date_of_issuance: ""
+  document_number: "A01234567"
+  family_name: "Example"
+  given_name: "Alice"
+  issuing_authority: "Rijksdienst voor Identiteitsgegevens"
+  issuing_country: "NL"
+  nationalities: ["NL"]
+  personal_administrative_number: "123456782"
+  picture: "embedded:portraits/default.jpg"
+  place_of_birth:
+    country: "NL"
+    locality: "Amsterdam"
+  sex: 1
+display:
+  name: "Example PID"
+  description: "A PID for the Kubernetes example. Created by eudi-dev, not a real identity."
+  background_color: "#7c3aed"
+  text_color: "#ffffff"
+  logo: "embedded:images/logo.svg"
+  logo_alt_text: "eudi-dev logo"

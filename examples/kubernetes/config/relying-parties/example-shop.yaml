@@ -1,0 +1,18 @@
+identifier:
+  - identifier: NLTEST.00000042
+tradeName: Example Shop
+legalPerson:
+  legalName: ["Example Shop B.V."]
+services:
+  - serviceIdentifier: checkout
+    intendedUses:
+      - intendedUseIdentifier: age-check
+        purpose:
+          - lang: en
+            content: Check that you are of age
+        credentials:
+          - format: dc+sd-jwt
+            meta:
+              vct_values: [urn:eudi:pid:1]
+            claims:
+              - path: [birthdate]

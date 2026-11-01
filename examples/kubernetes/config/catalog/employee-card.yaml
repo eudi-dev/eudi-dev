@@ -1,0 +1,8 @@
+- name: Employee card
+  category: eaa
+  credentials:
+    - format: dc+sd-jwt
+      type: urn:example:employee:1
+      claims: [[employee_id], [given_name], [family_name], [department]]
+  schema:
+    rulebookURI: https://company.example/rulebooks/employee-card
