@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-WALLET_PORT="${OID4VC_WALLET_PORT:-8087}"
+WALLET_PORT="${EUDI_DEV_PORT:-8087}"
 APP_PORT="${APP_PORT:-8090}"
 APP_PID=""
 WALLET_PID=""
@@ -11,7 +11,7 @@ KEYCLOAK_LOGS_PID=""
 
 export KEYCLOAK_BASE_URL="${KEYCLOAK_BASE_URL:-http://localhost:8080}"
 export KEYCLOAK_REALM="${KEYCLOAK_REALM:-wallet-app-demo}"
-export OID4VC_WALLET_PORT="${WALLET_PORT}"
+export EUDI_DEV_PORT="${WALLET_PORT}"
 
 usage() {
   cat <<'EOF'
@@ -23,7 +23,7 @@ Usage: ./start.sh [--app|--smoke|--setup-only]
 EOF
 }
 
-ensure_oid4vc_dev() {
+ensure_eudi_dev() {
   if command -v eudi >/dev/null 2>&1; then
     return 0
   fi
@@ -60,7 +60,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 cd "${SCRIPT_DIR}"
-ensure_oid4vc_dev
+ensure_eudi_dev
 ./scripts/download-extension.sh
 
 # Use host.docker.internal so Keycloak can fetch wallet trust and status lists from its

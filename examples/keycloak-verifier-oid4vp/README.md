@@ -147,7 +147,7 @@ KEYCLOAK_BASE_URL=http://localhost:8080
 KEYCLOAK_REALM=wallet-demo
 OIDC_CLIENT_ID=wallet-mock
 OIDC_REDIRECT_URI=http://127.0.0.1:18080/callback
-OID4VC_WALLET_PORT=8085
+EUDI_DEV_PORT=8085
 ```
 
 ## Cleanup

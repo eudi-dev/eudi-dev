@@ -11,7 +11,7 @@ keycloak_ngrok_domain="${KEYCLOAK_NGROK_DOMAIN:-${NGROK_DOMAIN:-}}"
 compose_args=(-f docker-compose.yml)
 ngrok_override=""
 
-ensure_oid4vc_dev() {
+ensure_eudi_dev() {
   if command -v eudi >/dev/null 2>&1; then
     return 0
   fi
@@ -83,7 +83,7 @@ done
 
 cd "${SCRIPT_DIR}"
 
-ensure_oid4vc_dev
+ensure_eudi_dev
 
 if [[ "${public_mode}" == "true" ]]; then
   if [[ -z "${keycloak_ngrok_domain}" ]]; then

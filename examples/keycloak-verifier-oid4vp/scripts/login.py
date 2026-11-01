@@ -20,7 +20,7 @@ KEYCLOAK_BASE_URL = os.environ.get("KEYCLOAK_BASE_URL", "http://127.0.0.1:8080")
 KEYCLOAK_REALM = os.environ.get("KEYCLOAK_REALM", "wallet-demo")
 OIDC_CLIENT_ID = os.environ.get("OIDC_CLIENT_ID", "wallet-mock")
 OIDC_REDIRECT_URI = os.environ.get("OIDC_REDIRECT_URI", "http://127.0.0.1:18080/callback")
-OID4VC_WALLET_PORT = int(os.environ.get("OID4VC_WALLET_PORT", "8085"))
+EUDI_DEV_PORT = int(os.environ.get("EUDI_DEV_PORT", "8085"))
 BROKER_USERNAME_PREFIX = os.environ.get("BROKER_USERNAME_PREFIX", "wallet-user")
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -207,7 +207,7 @@ def run_wallet_accept(wallet_url):
         "--auto-accept",
         "--docker",
         "--port",
-        str(OID4VC_WALLET_PORT),
+        str(EUDI_DEV_PORT),
         wallet_url,
     ]
     result = subprocess.run(

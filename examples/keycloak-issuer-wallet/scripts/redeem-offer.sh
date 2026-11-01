@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-require_oid4vc_dev() {
+require_eudi_dev() {
   if command -v eudi >/dev/null 2>&1; then
     return 0
   fi
@@ -10,7 +10,7 @@ require_oid4vc_dev() {
   exit 1
 }
 
-require_oid4vc_dev
+require_eudi_dev
 OFFER_URI="$("${SCRIPT_DIR}/create-offer.sh")"
 
 echo "Redeeming offer:"
