@@ -301,6 +301,7 @@ func (w *Wallet) storeReceivedCredential(credResp map[string]any, d credentialDe
 		d.report(typed.problems...)
 	}
 	primary.TypeMetadata = typed.metadata
+	primary.IssuerName, _ = issuerDisplay(d.metadata)
 	if d.display == nil {
 		d.display = typeDisplay(typed.metadata)
 	}

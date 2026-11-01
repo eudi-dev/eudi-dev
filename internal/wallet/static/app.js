@@ -191,6 +191,7 @@
               '<span class="deferred-name" id="' + prefix + '-name">' + escHtml(name) + '</span>' +
               '<span class="status-badge deferred-awaiting" id="' + prefix + '-status">Awaiting issuance</span>' +
             '</div>' +
+            (p.issuer_name ? '<div class="deferred-meta" id="' + prefix + '-issuer-name">' + escHtml(p.issuer_name) + '</div>' : '') +
             '<div class="deferred-meta deferred-status" id="' + prefix + '-progress">' +
               '<span class="deferred-spinner" aria-hidden="true"></span>' +
               'Checks every ' + escHtml(p.interval || '') +
@@ -460,6 +461,7 @@
       '<span class="format-badge format-badge-face" id="' + cp + 'face-format">' + formatLabel + '</span>' +
       logoImg +
       '<div class="face-name" id="' + cp + 'face-name">' + faceLabel + '</div>' +
+      (cred.issuer_name ? '<div class="face-issuer" id="' + cp + 'face-issuer">' + escHtml(cred.issuer_name) + '</div>' : '') +
       '</div>';
 
     const nameHtml = '<span class="credential-name" id="' + cp + 'name">' + faceLabel + '</span>';
@@ -485,6 +487,7 @@
           '<span class="format-badge format-badge-row" id="' + cp + 'format">' + formatLabel + '</span>' +
           nameHtml +
         '</div>' +
+        (cred.issuer_name ? '<div class="cred-issuer" id="' + cp + 'issuer-name">' + escHtml(cred.issuer_name) + '</div>' : '') +
         '<div class="cred-pills">' + protectedBadge + statusBadge + certificateBadge + expiryBadge + signatureBadge + keyBindingBadge + '</div>' +
         '<div class="cred-meta">' +
           idMeta + issuedMeta + typeMeta + issuerMeta +

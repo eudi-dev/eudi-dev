@@ -310,11 +310,17 @@ test.describe("Demo mode consent visibility", () => {
     await page.locator("#consent-approve").click();
 
     await expect(page.locator("#deferred-section")).toBeVisible({ timeout: 10_000 });
-    await expect(
-      page.locator("#credentials .credential-card", {
-        hasText: "Demo Event Ticket",
-      })
-    ).toBeVisible({ timeout: 25_000 });
+    await expect(page.locator('#deferred-list [id$="-issuer-name"]')).toHaveText("EUDI Dev Demo Issuer");
+    const card = page.locator("#credentials .credential-card", {
+      hasText: "Demo Event Ticket",
+    });
+    await expect(card).toBeVisible({ timeout: 25_000 });
+    await expect(card.locator(".cred-issuer")).toHaveText("EUDI Dev Demo Issuer");
+    await expect(card.locator(".face-issuer")).toBeHidden();
+
+    await page.setViewportSize({ width: 390, height: 800 });
+    await expect(card.locator(".face-issuer")).toHaveText("EUDI Dev Demo Issuer");
+    await expect(card.locator(".cred-issuer")).toBeHidden();
 
     await fetch(`${BASE}/api/credentials`, { method: "DELETE" });
   });

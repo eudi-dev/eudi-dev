@@ -43,6 +43,7 @@ type DeferredIssuance struct {
 	// Display keeps the display metadata from the original flow until
 	// collection completes.
 	Display     *oid4vc.CredentialDisplay `json:"display,omitempty"`
+	IssuerName  string                    `json:"issuer_name,omitempty"`
 	AccessToken string                    `json:"access_token"`
 	AuthScheme  string                    `json:"auth_scheme,omitempty"`
 	// AccessTokenExpiresAt tells when a long deferral needs a new access
@@ -111,6 +112,7 @@ func newDeferredIssuance(t deferredTransaction) (*DeferredIssuance, error) {
 	}
 	seconds := max(int(t.interval/time.Second), 1)
 	vct, docType := credentialTypeForConfiguration(t.metadata, t.renewal.ConfigurationID)
+	issuerName, _ := issuerDisplay(t.metadata)
 	now := time.Now()
 	return &DeferredIssuance{
 		ID:                   newCredentialID(),
@@ -121,6 +123,7 @@ func newDeferredIssuance(t deferredTransaction) (*DeferredIssuance, error) {
 		VCT:                  vct,
 		DocType:              docType,
 		Display:              t.display,
+		IssuerName:           issuerName,
 		AccessToken:          t.grant.accessToken,
 		AuthScheme:           t.grant.authScheme,
 		AccessTokenExpiresAt: t.grant.expiresAt(now),
@@ -276,7 +279,7 @@ func (p *DeferredIssuance) CanRefresh() bool {
 }
 
 func DeferredIssuanceSummary(p DeferredIssuance) map[string]any {
-	return map[string]any{
+	summary := map[string]any{
 		"id":                          p.ID,
 		"transaction_id":              p.TransactionID,
 		"issuer":                      p.Issuer,
@@ -292,4 +295,6 @@ func DeferredIssuanceSummary(p DeferredIssuance) map[string]any {
 		"attempts":                    p.Attempts,
 		"last_error":                  p.LastError,
 	}
+	addStringDetail(summary, "issuer_name", p.IssuerName)
+	return summary
 }

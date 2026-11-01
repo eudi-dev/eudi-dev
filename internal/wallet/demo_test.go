@@ -860,6 +860,9 @@ func TestTheIssuerMetadataGoesOutWithoutADeletedRegistration(t *testing.T) {
 	if metadata["credential_issuer"] == nil || metadata["issuer_info"] != nil {
 		t.Errorf("metadata = %v, want it without issuer_info", metadata)
 	}
+	if name, _ := issuerDisplay(metadata); name != DemoIssuerName {
+		t.Errorf("issuer display name = %q, want %q", name, DemoIssuerName)
+	}
 }
 
 // A wallet that restarts on another URL moves the kept demo registrations

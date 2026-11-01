@@ -309,6 +309,7 @@ func (w *Wallet) storeIssuedBatch(primary StoredCredential, copies []batchCopy, 
 		copyCred := c.parsed
 		copyCred.BatchGroup = primary.BatchGroup
 		copyCred.Display = display
+		copyCred.IssuerName = primary.IssuerName
 		copyCred.TypeMetadata = primary.TypeMetadata
 		stored = append(stored, copyCred)
 	}
@@ -358,6 +359,7 @@ func (w *Wallet) storeRenewedBatch(id string, fresh StoredCredential, copies []b
 		copyCred := c.parsed
 		copyCred.BatchGroup = fresh.BatchGroup
 		copyCred.Display = fresh.Display
+		copyCred.IssuerName = fresh.IssuerName
 		copyCred.TypeMetadata = fresh.TypeMetadata
 		w.makeCredentialRoomLocked()
 		w.Credentials = append(w.Credentials, copyCred)

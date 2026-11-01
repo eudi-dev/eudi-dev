@@ -88,6 +88,69 @@ func renewTestCredential(t *testing.T, w *Wallet, id string, keys []*ecdsa.Priva
 	return renewed
 }
 
+// OpenID4VCI 1.0 §12.2.4: display in the issuer metadata names the issuer.
+// Every batch copy keeps the name, and a renewal takes the current one.
+func TestIssuedCredentialsKeepTheIssuerName(t *testing.T) {
+	w := generateTestWallet(t)
+	keys := make([]*ecdsa.PrivateKey, 2)
+	raws := make([]any, 2)
+	for i := range keys {
+		key, err := mock.GenerateKey()
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, err := mock.GenerateSDJWT(mock.SDJWTConfig{
+			Issuer:    "https://issuer.example",
+			VCT:       testBatchVCT,
+			ExpiresIn: time.Hour,
+			Claims:    map[string]any{"family_name": "Doe"},
+			Key:       key,
+			HolderKey: &key.PublicKey,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		keys[i] = key
+		raws[i] = map[string]any{"credential": raw}
+	}
+	named := func(name string) map[string]any {
+		return map[string]any{"display": []any{map[string]any{"name": name}}}
+	}
+	store := func(replaceID, name string) *StoredCredential {
+		t.Helper()
+		primary, _, err := w.storeIssuedCredential(map[string]any{"credentials": raws}, credentialDelivery{
+			metadata:  named(name),
+			proofKeys: keys,
+			replaceID: replaceID,
+			report:    ignoreFindings,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return primary
+	}
+
+	primary := store("", "First Name")
+	if len(w.Credentials) != 2 {
+		t.Fatalf("stored %d credentials, want 2", len(w.Credentials))
+	}
+	for _, c := range w.Credentials {
+		if c.IssuerName != "First Name" {
+			t.Errorf("credential %s has issuer name %q", c.ID, c.IssuerName)
+		}
+	}
+	if got := CredentialSummary(*primary)["issuer_name"]; got != "First Name" {
+		t.Errorf("summary issuer_name = %v", got)
+	}
+
+	store(primary.ID, "Second Name")
+	for _, c := range w.Credentials {
+		if c.IssuerName != "Second Name" {
+			t.Errorf("renewed credential %s has issuer name %q", c.ID, c.IssuerName)
+		}
+	}
+}
+
 func batchTestQuery() map[string]any {
 	return map[string]any{"credentials": []any{map[string]any{
 		"id":     "pid",
