@@ -1,0 +1,12 @@
+# The credential of examples/keycloak-public-demo.
+- name: Keycloak Demo Pass
+  category: eaa
+  credentials:
+    - format: dc+sd-jwt
+      type: demo-membership
+      claims: [[email], [firstName], [lastName]]
+  schema:
+    trustedAuthorities:
+      - frameworkType: etsi_tl
+        value: https://keycloak.eudi-test.dev/trust-lists/issuers.jwt
+        isLOTE: true

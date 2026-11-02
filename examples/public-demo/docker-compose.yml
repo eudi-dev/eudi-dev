@@ -79,9 +79,11 @@ services:
       - --relying-parties
       - /config/relying-parties
       - --trusted-list
-      - https://demo.eudi-test.dev/trust-lists/issuers.jwt
+      - https://keycloak.eudi-test.dev/trust-lists/issuers.jwt
       - --trusted-list-ca
       - /config/keycloak-demo-list-ca.pem
+      - --catalog
+      - /config/catalog
     volumes:
       # The shared CA lives one level above the wallet directory and must
       # survive restarts, so the parent directory is mounted.
@@ -89,6 +91,7 @@ services:
       - ./imprint.html:/config/imprint.html:ro
       - ./news:/config/news:ro
       - ./relying-parties:/config/relying-parties:ro
+      - ./catalog:/config/catalog:ro
       - ./keycloak-demo-list-ca.pem:/config/keycloak-demo-list-ca.pem:ro
 
   # The preview host runs the newest release, betas included, with its own URL

@@ -306,8 +306,8 @@ write_page_config() {
   mkdir -p "$(dirname "${WEB_CONFIG_FILE}")"
   jq -n --arg keycloak "${PUBLIC_URL}" --arg keycloakVersion "${version}" --arg wallet "${WALLET}" --arg walletClient "${WALLET_CLIENT}" \
     --arg demoUser "${USERNAME}" --arg imprint "${imprint}" --arg trust "${TRUST}" --arg keycloakBuildUrl "${KEYCLOAK_BUILD_URL:-}" \
-    --arg keycloakBuildTitle "${KEYCLOAK_BUILD_TITLE:-}" \
-    '{$keycloak, $keycloakVersion, $keycloakBuildUrl, $keycloakBuildTitle, $wallet, $walletClient, $demoUser, $imprint, $trust}' \
+    --arg keycloakBuildTitle "${KEYCLOAK_BUILD_TITLE:-}" --arg issuerList "${ISSUER_LIST_URL/http:\/\/demo-web:8080/${DEMO_ORIGIN}}" \
+    '{$issuerList, $keycloak, $keycloakVersion, $keycloakBuildUrl, $keycloakBuildTitle, $wallet, $walletClient, $demoUser, $imprint, $trust}' \
     | { printf 'const CONFIG = '; cat; } > "${WEB_CONFIG_FILE}"
 }
 

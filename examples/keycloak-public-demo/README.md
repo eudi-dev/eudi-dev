@@ -75,7 +75,7 @@ With `KEYCLOAK_DIR` set, `./deploy.sh all` packs that checkout's distribution in
 
 `RELYING_PARTY_ID` makes setup enrol one access certificate for all variants at the wallet's registrar. That key signs the issuer metadata and the wallet sign-in requests, and the metadata carries the registration certificate as `issuer_info`. Keycloak does not send `verifier_info` yet, so the wallet warns about a missing registration certificate at sign-in.
 
-The wallet needs the registration and the list on every start. See `--relying-parties`, `--trusted-list` and `--trusted-list-ca` in [`../public-demo/docker-compose.yml`](../public-demo/docker-compose.yml). They live there, so a new variant changes nothing on the wallet.
+The wallet needs the registration and the list on every start. See `--relying-parties`, `--catalog`, `--trusted-list` and `--trusted-list-ca` in [`../public-demo/docker-compose.yml`](../public-demo/docker-compose.yml). They live there, so a new variant changes nothing on the wallet.
 
 ## Variants
 
