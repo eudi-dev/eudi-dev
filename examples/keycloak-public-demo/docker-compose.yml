@@ -28,6 +28,8 @@ services:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?set KEYCLOAK_ADMIN_PASSWORD}
       JAVA_OPTS_KC_HEAP: -XX:MaxRAMPercentage=70
+      # The login theme links offers to this web wallet.
+      WALLET_URL: ${WALLET_URL:-http://localhost:18095}
     mem_limit: 1200m
     cpus: 1.0
     pids_limit: 300

@@ -45,6 +45,9 @@ html, body, .pf-v5-c-login, .pf-v5-c-login__container { background: var(--demo-b
 .pf-v5-c-login__main-footer-band, .pf-v5-c-login__footer { background: transparent; color: var(--demo-dim); }
 a { color: var(--demo-accent); }
 img[src^="data:image/png"] { padding: 8px; border-radius: 12px; background: #fff; }
+.kc-qr-code img { border: 1px solid var(--demo-border); box-shadow: none; }
 #social-oid4vp svg, #social-oid4vp img { display: none; }
-#social-oid4vp { position: relative; justify-content: center; }
-#social-oid4vp::before { content: ""; position: absolute; left: 14px; top: 50%; width: 21px; height: 24px; transform: translateY(-50%); background: url("../img/eudi-dev-logo.svg") center / contain no-repeat; }
+#social-oid4vp, #credential-offer-web-wallet-link { position: relative; justify-content: center; }
+#social-oid4vp::before, #credential-offer-web-wallet-link::before { content: ""; position: absolute; left: 14px; top: 50%; width: 21px; height: 24px; transform: translateY(-50%); background: url("../img/eudi-dev-logo.svg") center / contain no-repeat; }
+#kc-credential-offer-links { display: grid; gap: 8px; }
+#kc-credential-offer-next { margin-block: 16px 8px; text-align: center; }

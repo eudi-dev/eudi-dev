@@ -46,7 +46,7 @@ Keys live in `state/`, which `deploy.sh` keeps on the host. All variants share t
 | `oid4vp` | | Keycloak offers only the password |
 | `attestation-based` client authenticator | | The wallet client is a public client named after the wallet's URL |
 
-The `eudi-dev` login theme in `themes/` matches the wallet.
+The `eudi-dev` login theme in `themes/` matches the wallet. On the credential offer page it adds a link that opens the offer in the web wallet at `WALLET_URL`.
 
 Keycloak shows offers and wallet sign-ins as standard `openid-credential-offer://` and `openid4vp://` links and QR codes. Scan the QR code with a wallet or paste the link into one. Keycloak versions after 26.8.1 also accept a web address in `WALLET_SCHEME`, for example the wallet's `/authorize` endpoint, which opens a web wallet directly.
 

@@ -90,7 +90,7 @@ write_remote_env() {
   {
     echo "COMPOSE_FILE=docker-compose.yml:docker-compose.proxy.yml"
     echo "KEYCLOAK_PORT=${KEYCLOAK_PORT}"
-    for name in KEYCLOAK_PUBLIC_URL KEYCLOAK_PATH KEYCLOAK_IMAGE KEYCLOAK_FEATURES PROXY_NETWORK DEMO_PORT VARIANT; do
+    for name in KEYCLOAK_PUBLIC_URL KEYCLOAK_PATH KEYCLOAK_IMAGE KEYCLOAK_FEATURES PROXY_NETWORK DEMO_PORT VARIANT WALLET_URL; do
       [[ -z "${!name:-}" ]] || echo "${name}=${!name}"
     done
   } | remote "cat >> .env"
