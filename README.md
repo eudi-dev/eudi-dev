@@ -23,7 +23,7 @@
 
 A wallet for testing EUDI issuers and verifiers, in the browser, on the command line and over an HTTP API. It supports OpenID4VP 1.0, OpenID4VCI 1.0 and HAIP 1.0 with SD-JWT VC and mdoc credentials. It also includes other parts of the ecosystem: a registrar (new in 3.0.0), PID templates, a demo issuer and verifier, a decoder and a debug proxy.
 
-> **Try it online:** a shared public demo runs at **<https://eudi-test.dev>**. The newest beta runs at <https://preview.eudi-test.dev>.
+> **Try it online:** a shared public demo runs at **<https://eudi-test.dev>**. The newest beta runs at <https://preview.eudi-test.dev>. <https://demo.eudi-test.dev> demonstrates Keycloak as issuer and verifier with eudi-dev as the wallet.
 
 https://github.com/user-attachments/assets/e915c82c-75f0-4f6b-94eb-cd4a4252a863
 
