@@ -109,6 +109,8 @@ start_stack() {
   # Docker creates volumes owned by root for images without that directory, and Keycloak runs as uid 1000.
   local volume="$(basename "${DEMO_DIR}")_keycloak-data"
   ssh "${DEMO_HOST}" "docker volume create ${volume} >/dev/null && docker run --rm -v ${volume}:/d alpine chown 1000:1000 /d >/dev/null"
+  # Keycloak caches compressed theme files per version in its data, so a new build of the same version serves the old ones.
+  remote "docker compose down keycloak-demo 2>/dev/null; docker run --rm -v ${volume}:/d alpine rm -rf /d/tmp/kc-gzip-cache"
   remote "docker compose up -d --force-recreate ${VARIANT:+keycloak-demo}"
 }
 
