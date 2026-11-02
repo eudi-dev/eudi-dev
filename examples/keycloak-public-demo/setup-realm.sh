@@ -307,7 +307,9 @@ write_page_config() {
   jq -n --arg keycloak "${PUBLIC_URL}" --arg keycloakVersion "${version}" --arg wallet "${WALLET}" --arg walletClient "${WALLET_CLIENT}" \
     --arg demoUser "${USERNAME}" --arg imprint "${imprint}" --arg trust "${TRUST}" --arg keycloakBuildUrl "${KEYCLOAK_BUILD_URL:-}" \
     --arg keycloakBuildTitle "${KEYCLOAK_BUILD_TITLE:-}" --arg issuerList "${ISSUER_LIST_URL/http:\/\/demo-web:8080/${DEMO_ORIGIN}}" \
-    '{$issuerList, $keycloak, $keycloakVersion, $keycloakBuildUrl, $keycloakBuildTitle, $wallet, $walletClient, $demoUser, $imprint, $trust}' \
+    --argjson walletLogin "${WALLET_LOGIN}" --argjson attestedClient "${ATTESTED_CLIENT}" --argjson signedMetadata "$([[ -n "${RELYING_PARTY_ID:-}" ]] && echo true || echo false)" \
+    '{$issuerList, $keycloak, $keycloakVersion, $keycloakBuildUrl, $keycloakBuildTitle, $wallet, $walletClient, $demoUser, $imprint, $trust,
+      $walletLogin, $attestedClient, $signedMetadata}' \
     | { printf 'const CONFIG = '; cat; } > "${WEB_CONFIG_FILE}"
 }
 

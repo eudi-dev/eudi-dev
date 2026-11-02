@@ -215,6 +215,36 @@ function setUpTrustDialog() {
   $("howto-close").addEventListener("click", () => $("howto-dialog").close());
 }
 
+// Every line follows from what setup-realm.sh found in this Keycloak, so each variant describes itself.
+function showAbout() {
+  const fetched = CONFIG.trust === "etsi-trust-list";
+  const copied = CONFIG.trust === "default-trust";
+  const facts = [
+    ["Issuance", "SD-JWT VC over OpenID4VCI"],
+    ["Key attestation", CONFIG.trust === "none" ? "Not checked" : "Required"],
+    ["Wallet client", CONFIG.attestedClient ? "Wallet attestation" : "Public client"],
+    ["Trust", fetched ? "ETSI trusted lists, fetched" : copied ? "Certificates copied at setup" : "None"],
+    ["Wallet sign-in", CONFIG.walletLogin ? "OpenID4VP with DCQL" : "Password only"],
+    CONFIG.signedMetadata && ["Metadata", "Signed with an access certificate"],
+  ];
+  const gaps = [
+    "Wallets must be registered as clients in advance",
+    copied && "Copied certificates miss list updates",
+    copied && CONFIG.attestedClient && "Wallet attestations are checked by key, not by chain",
+    "No status list, so credentials can't be revoked",
+  ];
+  $("about-facts").replaceChildren(...facts.filter(Boolean).map(([label, value]) => {
+    const row = document.createElement("div");
+    row.append(Object.assign(document.createElement("dt"), { textContent: label }), Object.assign(document.createElement("dd"), { textContent: value }));
+    return row;
+  }));
+  $("about-gaps").replaceChildren(...gaps.filter(Boolean).map((gap) => Object.assign(document.createElement("li"), { textContent: gap })));
+  $("about-flow-sign-in").style.display = CONFIG.walletLogin ? "" : "none";
+  $("about-flow-trust").style.display = CONFIG.trust === "none" ? "none" : "";
+  $("about-flow-trust-label").textContent = fetched ? "fetched" : "copied once";
+  $("about-flow-trust-line").classList.toggle("copied", copied);
+}
+
 let idToken;
 
 function showSession(token) {
@@ -274,6 +304,7 @@ function setUpPage() {
 (async () => {
   setUpPage();
   setUpTrustDialog();
+  showAbout();
   showVariants();
   const params = new URLSearchParams(location.search);
   if (params.has("error")) {
