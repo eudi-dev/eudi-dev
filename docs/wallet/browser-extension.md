@@ -52,11 +52,11 @@ The demo verifier always asks for an encrypted response (`dc_api.jwt`).
 
 ## Issuance
 
-In a browser with issuance over the Digital Credentials API, such as Chrome 155 and later, the extension also answers `navigator.credentials.create()` for `digital` requests with the protocol `openid4vci-v1`. In other browsers `create()` stays the browser's own. Chrome 141 to 154 report the protocol as supported without having issuance turned on, so the extension answers there too. Other calls, such as passkeys, still go to the browser.
+If the browser supports issuance over the Digital Credentials API, such as Chrome 155 and later, the extension also answers `navigator.credentials.create()` for `digital` requests with the protocol `openid4vci-v1`. In other browsers `create()` stays the browser's own. Chrome 141 to 154 report the protocol as supported without having issuance turned on, so the extension answers there too. Other calls, such as passkeys, still go to the browser.
 
 The page passes a credential offer object as `data`. The wallet handles it like any other offer, with the same consent dialog. The promise resolves with an empty `data` object once the wallet holds or awaits the credential. A denied offer rejects with `NotAllowedError`.
 
-The `data` is a Credential Offer with the parameters of OpenID4VCI 1.0 §4.1.1. W3C Digital Credentials §5 names OpenID4VCI 1.0 for the protocol, but no published specification describes the exchange in more detail yet. The wallet ignores other parameters, as §4.1.1 requires.
+The `data` is a Credential Offer with the parameters of OpenID4VCI 1.0 §4.1.1. W3C Digital Credentials §5 lists OpenID4VCI 1.0 for the protocol, but no published specification describes the exchange in more detail yet. The wallet ignores other parameters, as §4.1.1 requires.
 
 To try it, choose **Digital Credentials API** under Delivery on the demo issuer page.
 

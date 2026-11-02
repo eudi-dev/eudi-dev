@@ -237,9 +237,9 @@ func (t *Set) rawList(rawURL string) (string, error) {
 	return fetched.(string), nil
 }
 
-// ExternalList returns a list on the wallet's list of trusted lists, also one
-// the wallet doesn't trust yet, so that a user can see why. A visitor can put
-// any URL on that list, so a document that is no list stays here.
+// ExternalList returns a list from the wallet's list of trusted lists, even an
+// untrusted one, so a user can inspect it. A visitor can add any URL, so only a
+// document that parses as a trusted list is returned.
 func (t *Set) ExternalList(rawURL string) (string, error) {
 	if !slices.ContainsFunc(t.Lists(), func(tl List) bool { return tl.URL == rawURL }) {
 		return "", fmt.Errorf("%w: %q", ErrNotFound, rawURL)

@@ -42,12 +42,15 @@
       <div class="session-state" id="signed-out">Not signed in</div>
       <div class="session-state" id="signed-in" hidden>Signed in</div>
       <button class="btn btn-sm" type="button" id="sign-in">Sign in</button>
-      <button class="btn btn-sm" type="button" id="sign-out" hidden>Sign out</button>
+      <div class="actions" id="session-actions" hidden>
+        <button class="btn btn-sm" type="button" id="step-up" hidden>Sign in with wallet</button>
+        <button class="btn btn-sm" type="button" id="sign-out">Sign out</button>
+      </div>
       <dl id="claims" class="claims" hidden></dl>
     </div>
 
     <section id="step-issue" class="step">
-      <h2>Get a credential</h2>
+      <h2>Test Keycloak Issuance</h2>
       <div class="choice" role="group" aria-label="Offer type">
         <button type="button" data-offer="pre-authorized" aria-pressed="true">Pre-authorized code</button>
         <button type="button" data-offer="authorization-code" aria-pressed="false">Authorization code</button>
@@ -61,7 +64,7 @@
 
 
     <section id="step-console" class="step">
-      <h2>See the configuration</h2>
+      <h2>Configuration</h2>
       <dl class="login">
         <div><dt>User</dt><dd><code id="viewer">viewer</code><button class="btn btn-sm" type="button" data-copy-from="#viewer">Copy</button></dd></div>
         <div><dt>Password</dt><dd><code id="viewer-password">viewer</code><button class="btn btn-sm" type="button" data-copy-from="#viewer-password">Copy</button></dd></div>

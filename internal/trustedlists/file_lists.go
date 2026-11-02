@@ -80,8 +80,8 @@ func (t *Set) isFileList(rawURL string) bool {
 	return own && slices.ContainsFunc(t.settings.FileLists, func(f FileList) bool { return f.ID == id })
 }
 
-// FileListProblem names the first file list that the wallet can't use: its name
-// is taken by one of the wallet's own lists, or it doesn't verify.
+// FileListProblem returns an error for the first unusable file list: one of the
+// wallet's own lists already has its name, or it doesn't verify.
 func (t *Set) FileListProblem() error {
 	for _, file := range t.settings.FileLists {
 		if _, taken := t.FindGroup(file.ID, "", ""); taken {

@@ -484,7 +484,7 @@ func (d *DemoRP) handleOfferByReference(w http.ResponseWriter, r *http.Request) 
 }
 
 // dcAPIOffer is the argument of navigator.credentials.create(). W3C Digital
-// Credentials §5 names OpenID4VCI 1.0 for the data, so it is the Credential
+// Credentials §5 lists OpenID4VCI 1.0 for the data, so it is the Credential
 // Offer (OpenID4VCI 1.0 §4.1.1).
 func (d *DemoRP) dcAPIOffer(offer *offerState) map[string]any {
 	return map[string]any{"digital": map[string]any{"requests": []map[string]any{{"protocol": "openid4vci-v1", "data": d.offerDocument(offer)}}}}

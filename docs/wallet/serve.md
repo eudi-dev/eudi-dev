@@ -153,7 +153,7 @@ The HTTP API:
 | `GET` | `/api/trust` | `entities` (the added providers), `entity_lists` (the list IDs), `lists` (the external lists) and `lists_url` |
 | `POST` | `/api/trust/entities` | Add a provider: `list`, `name` and `certificates` (PEM). Answers `201` with the entity and its `id` |
 | `DELETE` | `/api/trust/entities/{id}` | Remove a provider |
-| `GET` | `/api/trust/lists/document?url=<url>` | The list as the wallet read it, for a list on its list of trusted lists. `404` for other URLs, `502` if the wallet can't read a list there |
+| `GET` | `/api/trust/lists/document?url=<url>` | An external list as read by the wallet. The URL must be on the wallet's list of trusted lists, otherwise the answer is `404`. An unreadable list gives `502` |
 | `POST` | `/api/trust/lists` | Add an external list: `url`. Answers `201` with the list |
 | `DELETE` | `/api/trust/lists?url=<url>` | Remove an external list |
 
@@ -437,12 +437,12 @@ Outside the demo you can change or delete a pre-registered entry. The next start
 
 ## Publishing trusted lists from files
 
-`--trusted-list` also takes a file or a directory instead of a URL. The wallet then publishes the complete list itself. The file name without its extension is the list's ID, with lowercase letters, digits and dashes only. It can't be `lists`. The wallet serves the list at `/api/trustlists/<id>`, on its list of trusted lists and in `GET /api/trustlists`, where the entry has `file: true`.
+`--trusted-list` also takes a file or a directory instead of a URL. The wallet then publishes the complete list itself. The file name without its extension is the list's ID, with lowercase letters, digits and dashes only. It can't be `lists`. The wallet serves the list at `/api/trustlists/<id>`. The list also appears on the wallet's list of trusted lists and in `GET /api/trustlists`, where its entry has `file: true`.
 
 - A `.jwt` file holds a signed list. The wallet serves it as it is. Its signer must chain to the wallet CA or to a CA from `--trusted-list-ca`.
-- A `.json` file holds the list's content (ETSI TS 119 602). The wallet signs it with the key of its list of trusted lists when it serves it.
+- A `.json` file holds the list's content (ETSI TS 119 602). The wallet signs it on every request, with the key of its list of trusted lists.
 
-The lists come back after a demo reset, because they are configuration. The wallet refuses to start with a list it can't read, or with a name that one of its own lists uses. A `.json` list keeps its `NextUpdate`, so it stops working on that date. The trust dialog then shows why.
+The lists come back after a demo reset, because they are configuration. The wallet refuses to start with an unreadable list, or with a name already used by one of its own lists. A `.json` list keeps its `NextUpdate`, so it stops working on that date. The trust dialog then shows the reason.
 
 ## Pre-registered relying parties
 

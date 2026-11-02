@@ -69,7 +69,7 @@ func (t *Set) Summary() Summary {
 	summary.Lists = []Link{}
 	external := t.externalLists()
 	for _, tl := range t.Lists() {
-		// A file list has its own row, and comes here only to report an expiry.
+		// A file list has its own row, and comes here only to report its error.
 		fromFile := t.isFileList(tl.URL)
 		if tl.Via == "" && !slices.Contains(external, tl.URL) && !(fromFile && tl.Err != nil) {
 			continue

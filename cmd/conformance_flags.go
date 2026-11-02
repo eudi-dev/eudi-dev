@@ -36,7 +36,7 @@ const (
 	arfFlagUsage                 = "Check the access and registration certificates of verifiers and issuers against the ARF, including over-asking and revocation. Turns on --haip too, because the ARF builds on HAIP. With --mode strict the wallet refuses the request or the offer on any finding"
 	relyingPartyCAFlagUsage      = "PEM file with CA certificates for relying party access and registration certificates. The wallet puts them on its access-ca and registrar lists (repeatable)"
 	trustListCAFlagUsage         = "PEM file with CA certificates of trusted list operators. With --arf the wallet also accepts trusted lists signed under these CAs (repeatable)"
-	trustedListFlagUsage         = "List of trusted entities (ETSI TS 119 602) for the wallet's list of trusted lists: an external list's URL, or with wallet serve a .jwt or .json file or a directory of them. With --arf the wallet trusts its providers for the list's type (repeatable)"
+	trustedListFlagUsage         = "List of trusted entities (ETSI TS 119 602) for the wallet's list of trusted lists. Takes a URL, or with wallet serve a .jwt or .json file or a directory. With --arf the wallet trusts its providers for the list's type (repeatable)"
 	keyAttestationLevelFlagUsage = "The key_storage and user_authentication values of the key attestation (OpenID4VCI Appendix D.2): by default the values the issuer requires, 'none' to leave them out, or one of iso_18045_high, iso_18045_moderate, iso_18045_enhanced-basic and iso_18045_basic for both. The wallet keeps its keys in software, so it reaches none of these levels"
 )
 

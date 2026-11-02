@@ -45,3 +45,5 @@ html, body, .pf-v5-c-login, .pf-v5-c-login__container { background: var(--demo-b
 .pf-v5-c-login__main-footer-band, .pf-v5-c-login__footer { background: transparent; color: var(--demo-dim); }
 a { color: var(--demo-accent); }
 img[src^="data:image/png"] { padding: 8px; border-radius: 12px; background: #fff; }
+#social-oid4vp svg, #social-oid4vp img { display: none; }
+#social-oid4vp::before { content: ""; width: 21px; height: 24px; flex: none; background: url("../img/eudi-dev-logo.svg") center / contain no-repeat; }

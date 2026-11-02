@@ -4571,8 +4571,8 @@
         const row = document.createElement('div');
         row.className = 'trust-links';
         row.id = prefix;
-        // A URL the wallet accepted can still be one that the browser refuses,
-        // and every visitor sees this dialog.
+        // Some URLs pass the wallet's check, but the browser refuses them. Every
+        // visitor sees this dialog, so such a URL must not break it.
         const web = isWebURL(l.url);
         const link = document.createElement(web ? 'a' : 'span');
         link.id = prefix + '-url';

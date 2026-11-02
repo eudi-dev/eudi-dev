@@ -23,7 +23,7 @@
 
 A wallet for testing EUDI issuers and verifiers, in the browser, on the command line and over an HTTP API. It supports OpenID4VP 1.0, OpenID4VCI 1.0 and HAIP 1.0 with SD-JWT VC and mdoc credentials. It also includes other parts of the ecosystem: a registrar (new in 3.0.0), PID templates, a demo issuer and verifier, a decoder and a debug proxy.
 
-> **Try it online:** a shared public demo runs at **<https://eudi-test.dev>**. The newest beta runs at <https://preview.eudi-test.dev>. <https://demo.eudi-test.dev> demonstrates Keycloak as issuer and verifier with eudi-dev as the wallet.
+> **Try it online:** a shared public demo runs at **<https://eudi-test.dev>**. <https://demo.eudi-test.dev> demonstrates Keycloak as issuer and verifier with eudi-dev as the wallet.
 
 https://github.com/user-attachments/assets/e915c82c-75f0-4f6b-94eb-cd4a4252a863
 
@@ -31,7 +31,7 @@ https://github.com/user-attachments/assets/e915c82c-75f0-4f6b-94eb-cd4a4252a863
 
 **A wallet for testing your issuer or verifier.** Accept credential offers and answer presentation requests from the web UI, the CLI or the HTTP API. Every exchange shows up in the activity log with its requests and responses. In debug mode the wallet reports what an issuer or verifier gets wrong and continues. In strict mode it stops the flow. → [Wallet](docs/wallet.md), [presenting](docs/wallet/presenting.md), [issuing](docs/wallet/issuing.md), [UI automation](docs/ui-automation.md)
 
-**Test the Digital Credentials API.** A browser extension answers `navigator.credentials.get()` calls with an eudi-dev wallet, so you can test a verifier that uses the Digital Credentials API without a phone. It works in Chrome, Edge and Brave. Install it from the [Chrome Web Store](https://chromewebstore.google.com/detail/nbddeclckpkklpejkmhchmhmajginnok). → [Browser extension](docs/wallet/browser-extension.md)
+**Test the Digital Credentials API.** A browser extension answers `navigator.credentials.get()` calls with an eudi-dev wallet, so you can test a verifier that uses the Digital Credentials API without a phone. It also answers `navigator.credentials.create()` for issuance, which is experimental. It works in Chrome, Edge and Brave. Install it from the [Chrome Web Store](https://chromewebstore.google.com/detail/nbddeclckpkklpejkmhchmhmajginnok). → [Browser extension](docs/wallet/browser-extension.md)
 
 **HAIP and ARF checks.** `--haip` checks verifiers and issuers against HAIP 1.0. `--arf` (new in 3.0.0) checks how they authenticate under the ARF: access and registration certificates, revocation, and whether a verifier asks for more than it registered. → [HAIP](docs/wallet/presenting.md#haip-10-enforcement), [ARF checks for verifiers](docs/wallet/presenting.md#arf-checks) and [for issuers](docs/wallet/issuing.md#arf-checks)
 
@@ -80,20 +80,6 @@ docker run -p 8085:8085 -p 8086:8086 ghcr.io/eudi-dev/eudi-dev
 | Source | `git clone https://github.com/eudi-dev/eudi-dev.git && cd eudi-dev && go build -o eudi .` |
 
 The Go module path is `github.com/eudi-dev/eudi-dev/v3`. Each major version has its own suffix, so v2 releases install from `github.com/eudi-dev/eudi-dev/v2` (2.7.1 and later) or `github.com/dominikschlosser/eudi-dev/v2` (up to 2.7.0). Earlier v2 tags (up to v2.4.2) have an incorrect module path. Install them from release binaries or build them from source.
-
-### Beta releases
-
-A beta, such as `v3.0.0-beta.1`, is a GitHub prerelease. You only get it when you ask for it:
-
-| Method | Command |
-|---|---|
-| Online | <https://preview.eudi-test.dev> runs the newest beta |
-| Docker | `docker pull ghcr.io/eudi-dev/eudi-dev:beta` gets the newest release, betas included. For repeatable runs, pin the exact tag, such as `:v3.0.0-beta.1` |
-| Go | `go install github.com/eudi-dev/eudi-dev/v3@v3.0.0-beta.1`. `@latest` installs a beta only while its major version has no stable release |
-| Binaries | Download them from the prerelease on [GitHub Releases](https://github.com/eudi-dev/eudi-dev/releases). The binaries aren't signed, so macOS blocks a binary downloaded in the browser. Run `xattr -d com.apple.quarantine eudi` to unblock it |
-| Java tests | [testcontainers-eudi](https://github.com/dominikschlosser/testcontainers-eudi) publishes a matching beta, such as `3.0.0-beta.1`. Maven only uses it when you set that version |
-
-Homebrew and the `latest` Docker tag stay on the newest stable release. When a stable release is the newest version, `beta` points to it too.
 
 ## Commands
 

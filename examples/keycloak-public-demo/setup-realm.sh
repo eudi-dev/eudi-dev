@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Recreates the wallet-demo realm through the admin API and writes the files the start page serves.
+# Recreates the wallet-demo realm through the admin API and writes the generated start page files.
 # It reads what this Keycloak supports from the server info, so any recent version works.
 #
 # Usage: KEYCLOAK_ADMIN_PASSWORD=... WALLET_URL=... ./setup-realm.sh
@@ -25,7 +25,7 @@ LOTE_WALLET=http://uri.etsi.org/19602/LoTEType/EUWalletProvidersList
 SERVICE_ISSUANCE=http://uri.etsi.org/19602/SvcType/WalletSolution/Issuance
 LOTE_ISSUERS="${DEMO_ORIGIN}/LoTEType/DemoIssuersList"
 SERVICE_ISSUERS="${DEMO_ORIGIN}/SvcType/DemoIssuer/Issuance"
-# The keys all variants share, so credentials and the one issuer list outlive a new realm.
+# All variants share these keys, so credentials and the issuer list outlive a new realm.
 STATE_DIR="${STATE_DIR:-${SCRIPT_DIR}/state}"
 
 admin_token() {
@@ -54,7 +54,7 @@ read_capabilities() {
   [[ "${TRUST}" != none ]] && server_has '.identityProviders | any(.id == "oid4vp")' && WALLET_LOGIN=true
   ATTESTED_CLIENT=false
   [[ "${TRUST}" != none ]] && server_has '.providers["client-authenticator"].providers | has("attestation-based")' && ATTESTED_CLIENT=true
-  echo "Trust: ${TRUST}, wallet login: ${WALLET_LOGIN}, attested wallet client: ${ATTESTED_CLIENT}"
+  echo "Trust: ${TRUST}, wallet sign-in: ${WALLET_LOGIN}, attested wallet client: ${ATTESTED_CLIENT}"
 }
 
 create_realm() {
@@ -91,7 +91,7 @@ ensure_keys() {
   rm -f "${request}"
 }
 
-# Publishes the issuer CA in an ETSI TS 119 602 list of this demo's own scheme, so the wallet login
+# Publishes the issuer CA in an ETSI TS 119 602 list of this demo's own scheme, so the wallet sign-in
 # trusts it the same way a verifier trusts a real issuer.
 create_issuer_list() {
   local input signature next_update issued entity
@@ -149,9 +149,9 @@ create_signing_key() {
   ISSUER_KEY_ID="$(key_id "${STATE_DIR}/issuer.pem")"
 }
 
-# The wallet's registrar issues an access certificate for one key, which all variants share. It
-# signs the issuer metadata and the wallet login's request objects. Credentials stay under the
-# demo's CA, because an access CA does not anchor them.
+# The wallet's registrar issues one access certificate, shared by all variants. Its key signs the
+# issuer metadata and the request objects of the wallet sign-in. Credentials stay under the demo's
+# CA, because an access CA does not anchor them.
 create_access_key() {
   [[ -n "${RELYING_PARTY_ID:-}" ]] || return 0
   [[ -f "${STATE_DIR}/access.key" ]] || openssl ecparam -name prime256v1 -genkey -noout 2>/dev/null \
@@ -300,7 +300,7 @@ create_client() {
 
 write_page_config() {
   local version imprint=""
-  # A build from a checkout reports a placeholder version, so KEYCLOAK_BUILD names it instead.
+  # A build from a checkout reports a placeholder version, so KEYCLOAK_BUILD sets the name instead.
   version="${KEYCLOAK_BUILD:-$(jq -r .systemInfo.version <<< "${SERVER_INFO}")}"
   curl -fsS "${WALLET}/api/config" | jq -e .imprint >/dev/null && imprint="${WALLET}/imprint"
   mkdir -p "$(dirname "${WEB_CONFIG_FILE}")"
@@ -337,8 +337,8 @@ create_viewer() {
   admin POST "/${REALM}/users/${user_id}/role-mappings/clients/${client_id}" "${roles}"
 }
 
-# Only the demo account holds a credential this realm trusts. The flow links to that account and
-# can never create one, so a wallet login cannot fill the database.
+# Only the demo account holds a credential trusted by this realm. The flow links to that account
+# and never creates one, so wallet sign-ins cannot fill the database.
 create_login_flow() {
   [[ "${WALLET_LOGIN}" == true ]] || return 0
   admin POST "/${REALM}/authentication/flows" '{"alias":"wallet login","providerId":"basic-flow","topLevel":true,"builtIn":false}'
@@ -377,7 +377,7 @@ create_wallet_login() {
   done
 }
 
-# A shared account must not be editable, so the password stays the one the start page shows.
+# The account is shared, so nobody may edit it. Its password must stay as shown on the start page.
 disable_account_console() {
   local name id representation
   for name in account account-console; do
@@ -387,7 +387,7 @@ disable_account_console() {
   done
 }
 
-# The master realm is public like on any Keycloak, so its login needs guessing protection.
+# The master realm is public like on any Keycloak, so its sign-in needs brute force protection.
 protect_master_realm() {
   admin PUT /master '{"bruteForceProtected":true,"permanentLockout":false,"failureFactor":10,"maxFailureWaitSeconds":900}'
 }

@@ -42,7 +42,7 @@ type browserIssuanceEnvelope struct {
 }
 
 // offer returns the first request with a supported protocol as a credential
-// offer URI. W3C Digital Credentials §5 names OpenID4VCI 1.0 for the data, so it
+// offer URI. W3C Digital Credentials §5 lists OpenID4VCI 1.0 for the data, so it
 // is a Credential Offer (OpenID4VCI 1.0 §4.1.1).
 func (e browserIssuanceEnvelope) offer() (string, error) {
 	for _, request := range e.Digital.Requests {

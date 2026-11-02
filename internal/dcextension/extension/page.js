@@ -12,7 +12,7 @@
   // answers.
   const PROTOCOLS = ['openid4vp-v1-unsigned', 'openid4vp-v1-signed', 'openid4vp-v1-multisigned'];
   // The issuance protocols of the same section. A browser without issuance
-  // keeps its own create(), so a page sees what it would see there.
+  // keeps its own create().
   const ISSUANCE_PROTOCOLS = ['openid4vci-v1'];
   const browserIssues = typeof window.DigitalCredential?.userAgentAllowsProtocol === 'function' &&
     ISSUANCE_PROTOCOLS.every((protocol) => window.DigitalCredential.userAgentAllowsProtocol(protocol));
@@ -80,8 +80,8 @@
   const CREATE = { type: 'create', protocols: ISSUANCE_PROTOCOLS, feature: 'digital-credentials-create' };
 
   // Runs the checks of W3C Digital Credentials §6.2 that a browser makes
-  // before a request reaches a wallet, so a verifier page fails here where
-  // it would fail in a browser.
+  // before a request reaches a wallet, so a page fails here where it would
+  // fail in a browser.
   function callDigital(options, call) {
     const { type, protocols, feature } = call;
     const signal = options.signal;

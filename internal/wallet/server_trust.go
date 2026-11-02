@@ -74,7 +74,7 @@ func (s *Server) handleExternalList(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, trustedlists.ErrNotFound):
 		apierror.WriteStatusErr(w, http.StatusNotFound, err)
 	case err != nil:
-		// A fetch error can quote the answer of the target.
+		// A fetch error can quote the target's response.
 		apierror.WriteStatus(w, http.StatusBadGateway, "the wallet could not read a trusted list from this URL")
 	default:
 		w.Header().Set("Content-Type", "application/jwt")

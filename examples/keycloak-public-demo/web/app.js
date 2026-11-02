@@ -176,14 +176,14 @@ function setUpTrustDialog() {
   $("trust-lists").replaceChildren(...[
     {
       name: "Demo issuers",
-      description: "Issuers Keycloak accepts for a wallet sign-in",
+      description: "Accepted issuers for a wallet sign-in",
       publisher: "this demo's setup",
       url: CONFIG.issuerList,
       source: "/trust-lists/issuers.jwt",
     },
     {
       name: "Wallet providers",
-      description: "Wallet providers Keycloak accepts in key and wallet attestations",
+      description: "Accepted wallet providers for key and wallet attestations",
       publisher: "the wallet",
       url: `${CONFIG.wallet}/api/trustlists/wallet-provider`,
       source: `${CONFIG.wallet}/api/trustlists/wallet-provider`,
@@ -221,7 +221,8 @@ function showSession(token) {
   idToken = token;
   $("signed-in").hidden = false;
   $("signed-out").hidden = true;
-  $("sign-out").hidden = false;
+  $("session-actions").hidden = false;
+  $("step-up").hidden = decodeJwt(token).sign_in_method === "wallet";
   $("sign-in").hidden = true;
   $("demo-login").hidden = true;
   showClaims(token);
@@ -266,6 +267,8 @@ function setUpPage() {
   });
   $("sign-in").addEventListener("click", () => signIn("session"));
   $("sign-out").addEventListener("click", signOut);
+  // Without prompt=login, the existing session would skip the wallet.
+  $("step-up").addEventListener("click", () => signIn("session", { kc_idp_hint: "oid4vp", prompt: "login" }));
 }
 
 (async () => {
