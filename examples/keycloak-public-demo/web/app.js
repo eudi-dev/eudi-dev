@@ -232,7 +232,10 @@ function showAbout() {
     copied && "Copied certificates miss list updates",
     copied && CONFIG.attestedClient && "Wallet attestations are checked by key, not by chain",
     CONFIG.trust !== "none" && "No CRL check, so revoked certificates still pass",
-    "No status list, so credentials can't be revoked",
+    "No status lists, so credentials can't be revoked or checked",
+    CONFIG.walletLogin && "The sign-in request has no verifier_info",
+    CONFIG.walletLogin && "The sign-in accepts SD-JWT VC only, no mdoc",
+    CONFIG.walletLogin && "No sign-in over the Digital Credentials API",
   ];
   $("about-facts").replaceChildren(...facts.filter(Boolean).map(([label, value]) => {
     const row = document.createElement("div");
