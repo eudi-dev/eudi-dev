@@ -77,7 +77,7 @@
 
     <section id="step-about" class="step">
       <h2>About this setup</h2>
-      <svg class="about-flow" viewBox="0 0 560 120" role="img" aria-labelledby="about-flow-title">
+      <svg class="about-flow" viewBox="0 0 584 120" role="img" aria-labelledby="about-flow-title">
         <title id="about-flow-title">The wallet gets credentials from Keycloak and signs in with them. Keycloak trusts the wallet and the issuer through trusted lists.</title>
         <defs>
           <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -87,10 +87,11 @@
         <rect class="about-node" x="1" y="25" width="128" height="70" rx="16"/>
         <image href="wallet.svg" x="16" y="41" width="34" height="38"/>
         <text class="about-name" x="58" y="65">Wallet</text>
-        <rect class="about-node" x="216" y="25" width="128" height="70" rx="16"/>
-        <text class="about-name" x="280" y="65" text-anchor="middle">Keycloak</text>
-        <rect class="about-node" x="431" y="25" width="128" height="70" rx="16"/>
-        <text class="about-name" x="495" y="65" text-anchor="middle">Trusted lists</text>
+        <rect class="about-node" x="216" y="25" width="152" height="70" rx="16"/>
+        <image href="keycloak.svg" x="231" y="41" width="34" height="38"/>
+        <text class="about-name" x="273" y="65">Keycloak</text>
+        <rect class="about-node" x="455" y="25" width="128" height="70" rx="16"/>
+        <text class="about-name" x="519" y="65" text-anchor="middle">Trusted lists</text>
         <line class="about-edge" x1="214" y1="48" x2="133" y2="48" marker-end="url(#arrow)"/>
         <text class="about-label" x="173" y="40" text-anchor="middle">OpenID4VCI</text>
         <g id="about-flow-sign-in">
@@ -98,8 +99,8 @@
           <text class="about-label" x="173" y="90" text-anchor="middle">OpenID4VP</text>
         </g>
         <g id="about-flow-trust">
-          <line class="about-edge" id="about-flow-trust-line" x1="429" y1="60" x2="348" y2="60" marker-end="url(#arrow)"/>
-          <text class="about-label" id="about-flow-trust-label" x="388" y="52" text-anchor="middle"></text>
+          <line class="about-edge" id="about-flow-trust-line" x1="453" y1="60" x2="372" y2="60" marker-end="url(#arrow)"/>
+          <text class="about-label" id="about-flow-trust-label" x="412" y="52" text-anchor="middle"></text>
         </g>
       </svg>
       <dl class="login about-facts" id="about-facts"></dl>
