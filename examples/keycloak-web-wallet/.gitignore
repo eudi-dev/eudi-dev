@@ -1,5 +1,0 @@
-# Downloaded provider jars
-providers/*.jar
-!providers/.gitkeep
-# Generated wallet trust material
-wallet-ca-cert.pem

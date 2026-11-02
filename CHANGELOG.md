@@ -5,6 +5,17 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.1] - Unreleased
+
+### Changed
+
+- **Fewer Keycloak examples.** The Keycloak wallet demo replaces `keycloak-issuer-wallet`, `keycloak-verifier-oid4vp`, `keycloak-web-wallet` and `keycloak-web-wallet-public`. `keycloak-issuer-verifier-app` now runs Keycloak 26.8.1 with `keycloak-extension-oid4vp` 0.16.1.
+
+### Fixed
+
+- **External lists with a name.** The trust dialog shows the name as the link and the list's address below it. Before, both sat side by side in one line.
+- **Keycloak demo sign-in button.** The "Sign in with EUDI Wallet" text is centred, with the eudi-dev logo on the left. A redeploy now also clears Keycloak's cached theme files.
+
 ## [3.7.0] - 2026-11-02
 
 ### Added

@@ -1,10 +1,10 @@
 services:
   keycloak:
-    image: quay.io/keycloak/keycloak:26.7.2
+    image: quay.io/keycloak/keycloak:26.8.1
     command:
       - start-dev
       - --import-realm
-      - --features=oid4vc-vci:v1,oid4vc-vci-preauth-code:v1
+      - --features=oid4vc-vci,oid4vc-vci-preauth-code
       - --http-port=8080
       - --proxy-headers=xforwarded
       - --truststore-paths=/opt/keycloak/conf/oid4vc-wallet-ca.pem

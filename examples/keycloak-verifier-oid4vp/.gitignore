@@ -1,6 +1,0 @@
-.wallet/
-__pycache__/
-providers/*.jar
-!providers/.gitkeep
-wallet-ca-cert.pem
-wallet-ca-key.pem

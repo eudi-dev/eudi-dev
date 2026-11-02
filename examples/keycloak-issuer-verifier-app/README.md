@@ -6,7 +6,7 @@ The wallet starts with an EUDI PID. On the first login, Keycloak also asks for t
 
 Later logins present both credentials. Keycloak reads the account subject from the membership credential and signs the user in without another password.
 
-The example starts Keycloak (26.7.2), a local `eudi wallet serve --docker` wallet holding the PID, and a Go relying party. Everything runs locally over HTTP.
+The example starts Keycloak (26.8.1), a local `eudi wallet serve --docker` wallet holding the PID, and a Go relying party. Everything runs locally over HTTP.
 
 ## Flow
 
@@ -86,7 +86,7 @@ Start the stack and leave it running for manual exploration:
 - `start.sh`: seeds the wallet with a PID, starts the wallet and Keycloak, bootstraps the signing key, and runs the app or the smoke check
 - `docker-compose.yml`: Keycloak with the OID4VP provider jar, the realm import, and the wallet CA in its truststore
 - `realm/wallet-app-demo-realm.json`: the verifier, the subject-binding first broker login flow, the membership credential scope, and the trust material
-- `scripts/download-extension.sh`: downloads `keycloak-extension-oid4vp` `0.11.1`
+- `scripts/download-extension.sh`: downloads `keycloak-extension-oid4vp` `0.16.1`
 - `scripts/generate-keycloak-signing-cert.sh`: creates the CA-issued RS256 realm signing key
 - `scripts/bootstrap.sh`: imports the signing key and allows the master admin over HTTP for the local demo
 - `scripts/start-app.sh`: starts the Go relying party

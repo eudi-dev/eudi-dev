@@ -3,9 +3,6 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCENARIO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-REPO_ROOT="$(cd "${SCENARIO_DIR}/../.." && pwd)"
-source "${REPO_ROOT}/examples/lib/public-ngrok.sh"
-example_load_env_files "${REPO_ROOT}/.env" "${SCENARIO_DIR}/.env"
 
 KEYCLOAK_BASE_URL="${KEYCLOAK_BASE_URL:-http://localhost:8080}"
 KEYCLOAK_ADMIN="${KEYCLOAK_ADMIN:-admin}"
