@@ -128,12 +128,18 @@ setup_realm() {
   TUNNEL=$!
   trap 'kill "${TUNNEL}" 2>/dev/null || true' EXIT
   sleep 2
+  # The keys stay on the host, so they do not depend on one checkout.
+  rm -rf build/state
+  mkdir -p build
+  ssh "${DEMO_HOST}" "test -d ${BASE_DIR}/state" && scp -qr "${DEMO_HOST}:${BASE_DIR}/state" build/
   [[ -z "${KEYCLOAK_DIR:-}" ]] || KEYCLOAK_BUILD="${KEYCLOAK_BUILD:-$(git -C "${KEYCLOAK_DIR}" branch --show-current)}"
-  KEYCLOAK_BUILD="${KEYCLOAK_BUILD:-}" KEYCLOAK_BUILD_URL="${KEYCLOAK_BUILD_URL:-}" KEYCLOAK_BUILD_TITLE="${KEYCLOAK_BUILD_TITLE:-}" VARIANT="${VARIANT:-}" KEYCLOAK_URL="http://127.0.0.1:${KEYCLOAK_PORT}${KEYCLOAK_PATH}" KEYCLOAK_PUBLIC_URL="${KEYCLOAK_PUBLIC_URL}" KEYCLOAK_ADMIN_PASSWORD="${password}" \
+  STATE_DIR="${SCRIPT_DIR}/build/state" RELYING_PARTY_ID="${RELYING_PARTY_ID:-}" RELYING_PARTY_SERVICE="${RELYING_PARTY_SERVICE:-}" \
+    KEYCLOAK_BUILD="${KEYCLOAK_BUILD:-}" KEYCLOAK_BUILD_URL="${KEYCLOAK_BUILD_URL:-}" KEYCLOAK_BUILD_TITLE="${KEYCLOAK_BUILD_TITLE:-}" VARIANT="${VARIANT:-}" KEYCLOAK_URL="http://127.0.0.1:${KEYCLOAK_PORT}${KEYCLOAK_PATH}" KEYCLOAK_PUBLIC_URL="${KEYCLOAK_PUBLIC_URL}" KEYCLOAK_ADMIN_PASSWORD="${password}" \
     WALLET_URL="${WALLET_URL}" DEMO_ORIGIN="${DEMO_ORIGIN}" ISSUER_LIST_URL="${ISSUER_LIST_URL:-}" WALLET_SCHEME="${WALLET_SCHEME:-}" \
     ISSUER_LIST_FILE="${SCRIPT_DIR}/build/issuers.jwt" WEB_CONFIG_FILE="${SCRIPT_DIR}/build/config.js" ./setup-realm.sh
-  ssh "${DEMO_HOST}" "mkdir -p ${WEB_DIR}/trust-lists"
-  scp -q build/issuers.jwt "${DEMO_HOST}:${WEB_DIR}/trust-lists/issuers.jwt"
+  scp -qr build/state "${DEMO_HOST}:${BASE_DIR}/"
+  ssh "${DEMO_HOST}" "mkdir -p ${BASE_DIR}/web/trust-lists"
+  scp -q build/issuers.jwt "${DEMO_HOST}:${BASE_DIR}/web/trust-lists/issuers.jwt"
   scp -q build/config.js "${DEMO_HOST}:${WEB_DIR}/config.js"
   publish_variants
 }

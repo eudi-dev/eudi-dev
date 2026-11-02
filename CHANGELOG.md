@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Issuance over the Digital Credentials API (experimental).** In browsers that support it, such as Chrome 155 and later, the browser extension answers `navigator.credentials.create()` with the protocol `openid4vci-v1`. The demo issuer has the same Delivery choice as the demo verifier.
-- **Keycloak wallet demo.** `examples/keycloak-public-demo` runs Keycloak as issuer and verifier next to a wallet, with a start page for issuance and wallet sign-in. It works with released versions and builds of your own branch, and several variants can run side by side under sub-paths.
+- **Keycloak wallet demo.** `examples/keycloak-public-demo` runs Keycloak as issuer and verifier next to a wallet, with a start page for issuance and wallet sign-in. It works with released versions and builds of your own branch, and several variants can run side by side under sub-paths. The public demo wallet registers it as a relying party and trusts its issuer list.
 - **Trusted lists for browser pages.** The cross-origin guard now lets GET and HEAD through on `/api/trustlist` and `/api/trustlists`, and those endpoints send CORS headers, so a web page can fetch and decode the lists.
 
 ### Fixed

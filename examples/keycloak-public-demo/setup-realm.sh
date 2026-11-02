@@ -14,7 +14,7 @@ WALLET="${WALLET_URL:?}"
 WALLET_LIST_URL="${WALLET_LIST_URL:-${WALLET}/api/trustlists/wallet-provider}"
 DEMO_ORIGIN="${DEMO_ORIGIN:-http://localhost:8181}"
 DEMO_PATH="/${VARIANT:+${VARIANT}/}"
-ISSUER_LIST_URL="${ISSUER_LIST_URL:-http://demo-web:8080${DEMO_PATH}trust-lists/issuers.jwt}"
+ISSUER_LIST_URL="${ISSUER_LIST_URL:-http://demo-web:8080/trust-lists/issuers.jwt}"
 ISSUER_LIST_FILE="${ISSUER_LIST_FILE:-${SCRIPT_DIR}/web/trust-lists/issuers.jwt}"
 WEB_CONFIG_FILE="${WEB_CONFIG_FILE:-${SCRIPT_DIR}/web/config.js}"
 REALM=wallet-demo
@@ -23,8 +23,10 @@ CREDENTIAL=demo-membership
 USERNAME=demo@example.com
 LOTE_WALLET=http://uri.etsi.org/19602/LoTEType/EUWalletProvidersList
 SERVICE_ISSUANCE=http://uri.etsi.org/19602/SvcType/WalletSolution/Issuance
-LOTE_ISSUERS="${PUBLIC_URL}/LoTEType/DemoIssuersList"
-SERVICE_ISSUERS="${PUBLIC_URL}/SvcType/DemoIssuer/Issuance"
+LOTE_ISSUERS="${DEMO_ORIGIN}/LoTEType/DemoIssuersList"
+SERVICE_ISSUERS="${DEMO_ORIGIN}/SvcType/DemoIssuer/Issuance"
+# The keys all variants share, so credentials and the one issuer list outlive a new realm.
+STATE_DIR="${STATE_DIR:-${SCRIPT_DIR}/state}"
 
 admin_token() {
   curl -fsS "${KC}/realms/master/protocol/openid-connect/token" \
@@ -69,20 +71,37 @@ base64url() {
   base64 | tr -d '\n=' | tr '/+' '_-'
 }
 
+ensure_keys() {
+  mkdir -p "${STATE_DIR}"
+  chmod 700 "${STATE_DIR}"
+  local host
+  host="$(sed -E 's#^[a-z]+://([^:/]+).*#\1#' <<< "${PUBLIC_URL}")"
+  [[ -f "${STATE_DIR}/list.key" ]] || openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes \
+    -keyout "${STATE_DIR}/list.key" -out "${STATE_DIR}/list.pem" -subj "/O=Keycloak Demo/CN=Keycloak Demo List Signer" -days 3650 2>/dev/null
+  [[ -f "${STATE_DIR}/issuer-ca.key" ]] || openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes \
+    -keyout "${STATE_DIR}/issuer-ca.key" -out "${STATE_DIR}/issuer-ca.pem" -subj "/O=Keycloak Demo/CN=Keycloak Demo Issuer CA" -days 3650 2>/dev/null
+  [[ ! -f "${STATE_DIR}/issuer.key" ]] || return 0
+  openssl ecparam -name prime256v1 -genkey -noout 2>/dev/null | openssl pkcs8 -topk8 -nocrypt -out "${STATE_DIR}/issuer.key"
+  local request
+  request="$(mktemp)"
+  openssl req -new -key "${STATE_DIR}/issuer.key" -subj "/O=Keycloak Demo/CN=${host}" -out "${request}"
+  openssl x509 -req -in "${request}" -CA "${STATE_DIR}/issuer-ca.pem" -CAkey "${STATE_DIR}/issuer-ca.key" -CAcreateserial -days 825 \
+    -extfile <(printf 'basicConstraints=CA:FALSE\nkeyUsage=digitalSignature\nsubjectAltName=DNS:%s\n' "${host}") \
+    -out "${STATE_DIR}/issuer.pem" 2>/dev/null
+  rm -f "${request}"
+}
+
 # Publishes the issuer CA in an ETSI TS 119 602 list of this demo's own scheme, so the wallet login
 # trusts it the same way a verifier trusts a real issuer.
 create_issuer_list() {
-  local keys input signature next_update issued entity
-  keys="$(mktemp -d)"
-  trap 'rm -rf "${keys}"' RETURN
-  openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -keyout "${keys}/list.key" -out "${keys}/list.pem" \
-    -subj /O=Keycloak\ Demo/CN=Keycloak\ Demo\ List\ Signer -days 730 2>/dev/null
-  ISSUER_LIST_SIGNER="$(cat "${keys}/list.pem")"
+  local input signature next_update issued entity
+  ISSUER_LIST_SIGNER="$(cat "${STATE_DIR}/list.pem")"
+  ISSUER_CA="$(cat "${STATE_DIR}/issuer-ca.pem")"
   issued="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   # A static list has no operator to reissue it, so it stays valid until the next setup is due.
   next_update="$(date -u -v+1y +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d '+1 year' +%Y-%m-%dT%H:%M:%SZ)"
   entity="$(printf '%s\n' "${ISSUER_CA}" | sed '/-----/d' | tr -d '\n')"
-  input="$(jq -cn --arg signer "$(sed '/-----/d' "${keys}/list.pem" | tr -d '\n')" '{alg: "ES256", typ: "JWT", x5c: [$signer]}' | tr -d '\n' | base64url).$(jq -cn --arg type "${LOTE_ISSUERS}" --arg issued "${issued}" \
+  input="$(jq -cn --arg signer "$(sed '/-----/d' "${STATE_DIR}/list.pem" | tr -d '\n')" '{alg: "ES256", typ: "JWT", x5c: [$signer]}' | tr -d '\n' | base64url).$(jq -cn --arg type "${LOTE_ISSUERS}" --arg issued "${issued}" \
     --arg next "${next_update}" --arg service "${SERVICE_ISSUERS}" --arg cert "${entity}" '{LoTE: {
       ListAndSchemeInformation: {LoTEVersionIdentifier: 1, LoTESequenceNumber: 1, LoTEType: $type,
         ListIssueDateTime: $issued, NextUpdate: $next,
@@ -94,43 +113,70 @@ create_issuer_list() {
           ServiceTypeIdentifier: $service,
           ServiceDigitalIdentity: {X509Certificates: [{val: $cert}]}}}]}]}}' | tr -d '\n' | base64url)"
   # JWS ES256 uses the two integers as fixed width values, while openssl writes them as DER.
-  signature="$(printf '%s' "${input}" | openssl dgst -sha256 -sign "${keys}/list.key" -binary \
+  signature="$(printf '%s' "${input}" | openssl dgst -sha256 -sign "${STATE_DIR}/list.key" -binary \
     | openssl asn1parse -inform DER | sed -n 's/.*INTEGER *:\(.*\)/\1/p' \
     | while read -r integer; do printf '%64s' "${integer}" | tr ' ' 0; done | xxd -r -p | base64url)"
   mkdir -p "$(dirname "${ISSUER_LIST_FILE}")"
   printf '%s.%s' "${input}" "${signature}" > "${ISSUER_LIST_FILE}"
 }
 
-# HAIP 1.0 forbids a self-signed signing certificate, so the realm signs with a key of its own CA.
-create_signing_key() {
-  local keys realm_id private public certificate
-  keys="$(mktemp -d)"
-  trap 'rm -rf "${keys}"' RETURN
-  openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -keyout "${keys}/ca.key" -out "${keys}/ca.pem" \
-    -subj /O=Keycloak\ Demo/CN=Keycloak\ Demo\ Issuer\ CA -days 3650 2>/dev/null
-  openssl ecparam -name prime256v1 -genkey -noout 2>/dev/null | openssl pkcs8 -topk8 -nocrypt -out "${keys}/leaf.key"
-  local host
-  host="$(sed -E 's#^[a-z]+://([^:/]+).*#\1#' <<< "${PUBLIC_URL}")"
-  openssl req -new -key "${keys}/leaf.key" -subj "/O=Keycloak Demo/CN=${host}" -out "${keys}/leaf.csr"
-  printf 'basicConstraints=CA:FALSE\nkeyUsage=digitalSignature\nsubjectAltName=DNS:%s\n' "${host}" > "${keys}/leaf.ext"
-  openssl x509 -req -in "${keys}/leaf.csr" -CA "${keys}/ca.pem" -CAkey "${keys}/ca.key" -CAcreateserial -days 825 \
-    -extfile "${keys}/leaf.ext" -out "${keys}/leaf.pem" 2>/dev/null
-
-  private="$(openssl pkey -in "${keys}/leaf.key" -outform DER | base64 | tr -d '\n')"
-  public="$(openssl pkey -in "${keys}/leaf.key" -pubout -outform DER | base64 | tr -d '\n')"
-  certificate="$(openssl x509 -in "${keys}/leaf.pem" -outform DER | base64 | tr -d '\n')"
+# Keycloak imports the key with this certificate, and the highest priority signs by default.
+import_key() {
+  local name="$1" priority="$2" key="$3" certificate="$4" realm_id private public
+  private="$(openssl pkey -in "${key}" -outform DER | base64 | tr -d '\n')"
+  public="$(openssl pkey -in "${key}" -pubout -outform DER | base64 | tr -d '\n')"
   realm_id="$(admin GET "/${REALM}" | jq -r .id)"
-  admin POST "/${REALM}/components" "$(jq -n --arg parent "${realm_id}" --arg private "${private}" --arg public "${public}" \
-    --arg certificate "${certificate}" '{
-    name: "issuer-signing-key", parentId: $parent, providerId: "ecdsa-generated",
+  admin POST "/${REALM}/components" "$(jq -n --arg name "${name}" --arg priority "${priority}" --arg parent "${realm_id}" --arg private "${private}" --arg public "${public}" \
+    --arg certificate "$(openssl x509 -in "${certificate}" -outform DER | base64 | tr -d '\n')" '{
+    name: $name, parentId: $parent, providerId: "ecdsa-generated",
     providerType: "org.keycloak.keys.KeyProvider",
     config: {
-      priority: ["200"], enabled: ["true"], active: ["true"], algorithm: ["ES256"], keyUse: ["SIG"],
+      priority: [$priority], enabled: ["true"], active: ["true"], algorithm: ["ES256"], keyUse: ["SIG"],
       ecdsaPrivateKey: [$private], ecdsaPublicKey: [$public], ecdsaEllipticCurveKey: ["P-256"],
       certificate: [$certificate]
     }
   }')"
-  ISSUER_CA="$(cat "${keys}/ca.pem")"
+}
+
+key_id() {
+  admin GET "/${REALM}/keys" | jq -r --arg certificate "$(openssl x509 -in "$1" -outform DER | base64 | tr -d '\n')" \
+    '.keys[] | select(.certificate == $certificate) | .kid'
+}
+
+# HAIP 1.0 forbids a self-signed signing certificate, so credentials are signed under the demo's CA.
+create_signing_key() {
+  import_key issuer-signing-key 200 "${STATE_DIR}/issuer.key" "${STATE_DIR}/issuer.pem"
+  ISSUER_KEY_ID="$(key_id "${STATE_DIR}/issuer.pem")"
+}
+
+# The wallet's registrar issues an access certificate for one key, which all variants share. It
+# signs the issuer metadata and the wallet login's request objects. Credentials stay under the
+# demo's CA, because an access CA does not anchor them.
+create_access_key() {
+  [[ -n "${RELYING_PARTY_ID:-}" ]] || return 0
+  [[ -f "${STATE_DIR}/access.key" ]] || openssl ecparam -name prime256v1 -genkey -noout 2>/dev/null \
+    | openssl pkcs8 -topk8 -nocrypt -out "${STATE_DIR}/access.key"
+  if ! openssl x509 -in "${STATE_DIR}/access.pem" -noout -checkend 2592000 >/dev/null 2>&1; then
+    local request
+    request="$(mktemp)"
+    openssl req -new -key "${STATE_DIR}/access.key" -subj "/" -out "${request}"
+    jq -n --arg id "${RELYING_PARTY_ID}" --arg service "${RELYING_PARTY_SERVICE}" --rawfile csr "${request}" \
+      '{identifier: $id, serviceIdentifier: $service, csr: $csr}' \
+      | curl -fsS -X POST "${WALLET}/api/registrar/access-certificates" -H 'Content-Type: application/json' -d @- \
+      | jq -er .certificate > "${STATE_DIR}/access.pem"
+    rm -f "${request}"
+  fi
+  import_key access-signing-key 300 "${STATE_DIR}/access.key" "${STATE_DIR}/access.pem"
+}
+
+sign_issuer_metadata() {
+  [[ -n "${RELYING_PARTY_ID:-}" ]] || return 0
+  local issuer_info realm
+  issuer_info="$(curl -fsS "${WALLET}/api/registrar/registration-certificates?identifier=${RELYING_PARTY_ID}" \
+    | jq -er '[.[] | select(.issuerInfo)][0].issuerInfo')"
+  realm="$(admin GET "/${REALM}")"
+  admin PUT "/${REALM}" "$(jq --arg issuer_info "${issuer_info}" \
+    '.attributes += {"oid4vci.signed_metadata.alg": "ES256", "oid4vci.issuer_info": $issuer_info}' <<< "${realm}")"
 }
 
 jwt_part() {
@@ -192,13 +238,13 @@ create_credential() {
   local attestation=false
   [[ "${TRUST}" != none ]] && attestation=true
   admin POST "/${REALM}/client-scopes" "$(jq -n --arg id "${CREDENTIAL}" --arg attestation "${attestation}" \
-    --arg images "${DEMO_ORIGIN}${DEMO_PATH}card/" '{
+    --arg images "${DEMO_ORIGIN}${DEMO_PATH}card/" --arg signing_key "${ISSUER_KEY_ID}" '{
     name: $id, protocol: "oid4vc",
     attributes: {
       "vc.credential_configuration_id": $id, "vc.credential_identifier": $id, "vc.format": "dc+sd-jwt",
       "vc.verifiable_credential_type": $id, "vc.key_attestations_required": $attestation, "include.in.token.scope": "true",
       "vc.binding_required": "true", "vc.binding_required_proof_types": "jwt",
-      "vc.cryptographic_binding_methods_supported": "jwk", "vc.credential_signing_alg": "ES256",
+      "vc.cryptographic_binding_methods_supported": "jwk", "vc.credential_signing_alg": "ES256", "vc.signing_key_id": $signing_key,
       "vc.display": ([{
         name: "Keycloak Demo Pass", locale: "en", text_color: "#ffffff", background_color: "#2b2b2b",
         logo: {uri: ($images + "credential-logo.png"), alt_text: "Keycloak in the eudi-dev wallet"},
@@ -349,8 +395,10 @@ protect_master_realm() {
 TOKEN="$(admin_token)"
 read_capabilities
 protect_master_realm
+ensure_keys
 create_realm
 create_signing_key
+create_access_key
 create_issuer_list
 create_trust_providers
 create_credential
@@ -360,5 +408,6 @@ create_viewer
 create_login_flow
 create_wallet_login
 disable_account_console
+sign_issuer_metadata
 write_page_config
 echo "Realm ${REALM} is ready."

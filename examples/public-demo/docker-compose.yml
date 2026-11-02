@@ -75,12 +75,21 @@ services:
       - /config/imprint.html
       - --news-file
       - /config/news/news.html
+      # The Keycloak demo of examples/keycloak-public-demo. Both come back after a reset.
+      - --relying-parties
+      - /config/relying-parties
+      - --trusted-list
+      - https://demo.eudi-test.dev/trust-lists/issuers.jwt
+      - --trusted-list-ca
+      - /config/keycloak-demo-list-ca.pem
     volumes:
       # The shared CA lives one level above the wallet directory and must
       # survive restarts, so the parent directory is mounted.
       - wallet-data:/home/app/.eudi-dev
       - ./imprint.html:/config/imprint.html:ro
       - ./news:/config/news:ro
+      - ./relying-parties:/config/relying-parties:ro
+      - ./keycloak-demo-list-ca.pem:/config/keycloak-demo-list-ca.pem:ro
 
   # The preview host runs the newest release, betas included, with its own URL
   # and data volume.

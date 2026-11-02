@@ -24,7 +24,7 @@ Open <http://localhost:8181>. The setup needs `curl`, `jq` and `openssl`.
 
 Keycloak has no way to accept a wallet it does not know, so `setup-realm.sh` reads the wallet's client ID from `/api/config` and registers a client that authenticates with the wallet attestation. A real issuer cannot do this. Rerun the setup if the wallet provider key changes.
 
-Each setup creates a new issuer CA, so credentials issued before it fail the wallet sign-in. Delete them and get a new one.
+Keys live in `state/`, which `deploy.sh` keeps on the host. All variants share them, so credentials outlive a new realm and one issuer list covers every variant.
 
 ## Keycloak versions
 
@@ -70,6 +70,12 @@ Copy `deploy.env.example` to `deploy.env` and fill in the hosts. Git ignores `de
 `deploy.sh` needs a TLS proxy on the host. The stack joins the proxy's Docker network, `keycloak-public-demo` unless `PROXY_NETWORK` says otherwise. The proxy reaches them as `keycloak-base:8080`, `keycloak-<variant>:8080` and `demo-web:8080`. [`../public-demo/Caddyfile`](../public-demo/Caddyfile) has blocks for this next to the public demo wallet, including the path routing and the page's Content Security Policy.
 
 With `KEYCLOAK_DIR` set, `./deploy.sh all` packs that checkout's distribution into an image, copies it to the host over ssh and shows the branch name in the footer. Otherwise the host pulls `KEYCLOAK_IMAGE`.
+
+## Wallet registration
+
+`RELYING_PARTY_ID` makes setup enrol one access certificate for all variants at the wallet's registrar. That key signs the issuer metadata and the wallet sign-in requests, and the metadata carries the registration certificate as `issuer_info`. Keycloak does not send `verifier_info` yet, so the wallet warns about a missing registration certificate at sign-in.
+
+The wallet needs the registration and the list on every start. See `--relying-parties`, `--trusted-list` and `--trusted-list-ca` in [`../public-demo/docker-compose.yml`](../public-demo/docker-compose.yml). They live there, so a new variant changes nothing on the wallet.
 
 ## Variants
 

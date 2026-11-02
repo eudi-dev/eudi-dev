@@ -1,0 +1,26 @@
+# The Keycloak demo of examples/keycloak-public-demo, for all its variants.
+identifier:
+  - identifier: NLTEST.4B43444D4F
+tradeName: Keycloak Demo
+legalPerson:
+  legalName: ["Keycloak Demo"]
+country: NL
+services:
+  - serviceIdentifier: keycloak-demo
+    serviceTradeName: Keycloak Demo
+    providesAttestations:
+      - format: dc+sd-jwt
+        type: demo-membership
+    intendedUses:
+      - intendedUseIdentifier: wallet-sign-in
+        purpose:
+          - lang: en
+            content: Sign in to the Keycloak demo
+        credentials:
+          - format: dc+sd-jwt
+            meta:
+              vct_values: [demo-membership]
+            claims:
+              - path: [email]
+              - path: [firstName]
+              - path: [lastName]

@@ -28,7 +28,7 @@ h1 { font-size: 16px; font-weight: 700; white-space: nowrap; }
 .header-links a:hover { color: var(--text); }
 
 .header-right { display: flex; align-items: center; gap: 12px; min-width: 0; }
-#variants { min-width: 0; max-width: 200px; height: 34px; padding: 0 12px; border: 1px solid var(--border); border-radius: 17px; background: transparent; color: var(--text); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; }
+#variants { font: inherit; font-size: 13px; width: auto; max-width: 200px; border: 1px solid var(--border); color: var(--text); appearance: none; -webkit-appearance: none; min-height: 32px; padding: 6px 34px 6px 14px; border-radius: 999px; cursor: pointer; background: linear-gradient(45deg, transparent 50%, var(--text-dim) 50%) calc(100% - 19px) 50% / 5px 5px no-repeat, linear-gradient(135deg, var(--text-dim) 50%, transparent 50%) calc(100% - 14px) 50% / 5px 5px no-repeat, var(--bg-input); }
 #variants option { background: var(--bg-surface); color: var(--text); }
 
 .btn { display: inline-flex; align-items: center; justify-content: center; font: inherit; font-size: 13px; font-weight: 500; line-height: 1.4; padding: 7px 14px; border: 1px solid transparent; border-radius: 999px; background: var(--bg-btn); color: var(--text); text-decoration: none; cursor: pointer; }

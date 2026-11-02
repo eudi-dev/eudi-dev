@@ -178,8 +178,8 @@ function setUpTrustDialog() {
       name: "Demo issuers",
       description: "Issuers Keycloak accepts for a wallet sign-in",
       publisher: "this demo's setup",
-      url: new URL("trust-lists/issuers.jwt", location.href).href,
-      source: "trust-lists/issuers.jwt",
+      url: `${location.origin}/trust-lists/issuers.jwt`,
+      source: "/trust-lists/issuers.jwt",
     },
     {
       name: "Wallet providers",
