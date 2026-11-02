@@ -196,6 +196,9 @@ func (t *Set) rawList(rawURL string) (string, error) {
 	if id, ok := t.ownListID(rawURL); ok {
 		group, found := t.FindGroup(id, "", "")
 		if !found {
+			if signed, isFile, err := t.SignedFileList(id); isFile {
+				return signed, err
+			}
 			return "", fmt.Errorf("the wallet has no trusted list %q", id)
 		}
 		return t.SignedGroupList(t.env.IssuerURL(), group, provider.TrustedListPath(group.ID))
@@ -232,6 +235,50 @@ func (t *Set) rawList(rawURL string) (string, error) {
 		return "", err
 	}
 	return fetched.(string), nil
+}
+
+// ExternalList returns a list on the wallet's list of trusted lists, also one
+// the wallet doesn't trust yet, so that a user can see why. A visitor can put
+// any URL on that list, so a document that is no list stays here.
+func (t *Set) ExternalList(rawURL string) (string, error) {
+	if !slices.ContainsFunc(t.Lists(), func(tl List) bool { return tl.URL == rawURL }) {
+		return "", fmt.Errorf("%w: %q", ErrNotFound, rawURL)
+	}
+	raw, err := t.rawList(rawURL)
+	if err != nil {
+		return "", err
+	}
+	if _, err := lote.Parse(raw); err != nil {
+		return "", fmt.Errorf("the document is not a trusted list: %w", err)
+	}
+	return raw, nil
+}
+
+// CachedAnchors returns the issuance certificates of a list without touching
+// the network: an own list, or the last read of an external one, also when that
+// read is older than the cache's lifetime.
+func (t *Set) CachedAnchors(rawURL string) []*x509.Certificate {
+	raw := ""
+	if id, own := t.ownListID(rawURL); own {
+		raw, _ = t.rawList(t.OwnListURL(id))
+	} else {
+		t.cache.mu.Lock()
+		cached, ok := t.cache.lists[rawURL]
+		t.cache.mu.Unlock()
+		if !ok || cached.err != nil {
+			return nil
+		}
+		raw = cached.raw
+	}
+	operators, err := t.ListCAs()
+	if err != nil || VerifyListSigner(raw, operators) != nil {
+		return nil
+	}
+	list, err := lote.Parse(raw)
+	if err != nil {
+		return nil
+	}
+	return List{URL: rawURL, List: list}.Anchors(lote.IssuanceServices)
 }
 
 // ReadList returns a list signed by a trusted list operator. Under the ARF,
@@ -296,6 +343,12 @@ func (t *Set) listURLs() []string {
 	for _, group := range t.Groups() {
 		urls = append(urls, t.OwnListURL(group.ID))
 		own[group.ID] = true
+	}
+	for _, file := range t.settings.FileLists {
+		if !own[file.ID] {
+			urls = append(urls, t.OwnListURL(file.ID))
+			own[file.ID] = true
+		}
 	}
 	for _, u := range t.externalLists() {
 		// An external URL can point to one of the wallet's own lists.

@@ -1093,7 +1093,9 @@
     row.innerHTML = '<div class="certificate-info" id="' + row.id + '-info">' +
       '<div class="certificate-role" id="' + row.id + '-role">' + escHtml(certificateRoles[certificate.role]) + '</div>' +
       '<div class="certificate-name" id="' + row.id + '-name" title="' + escHtml(certificate.subject) + '">' + escHtml(name) + badges + '</div>' +
-      '<div class="conf-hint mono" id="' + row.id + '-serial">Serial ' + escHtml(certificate.serial) + '</div>' + others + '</div>' +
+      '<div class="conf-hint mono" id="' + row.id + '-serial">Serial ' + escHtml(certificate.serial) + '</div>' +
+      (certificate.anchored_by ? '<div class="conf-hint" id="' + row.id + '-anchor">Trust anchor from ' + escHtml(certificate.anchored_by) + '</div>' : '') +
+      others + '</div>' +
       '<div class="certificate-actions" id="' + row.id + '-actions"></div>';
     const actions = row.querySelector('.certificate-actions');
     const addAction = (label, id, run) => {
@@ -4393,7 +4395,7 @@
   // The provider popup lists the entity lists of the latest trust state.
   let trustLoaded = Promise.resolve();
 
-  function trustRemoveButton(id, label, data) {
+  function trustRemoveButton(id, label, entity) {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'btn btn-danger btn-sm trust-remove';
@@ -4402,8 +4404,7 @@
     button.setAttribute('aria-label', 'Remove ' + label);
     button.innerHTML = '&times;';
     button.addEventListener('click', async () => {
-      const path = data.entity ? 'api/trust/entities/' + encodeURIComponent(data.entity) : 'api/trust/lists?url=' + encodeURIComponent(data.list);
-      await changeTrust('DELETE', path, null, document.getElementById('trust-error'));
+      await changeTrust('DELETE', 'api/trust/entities/' + encodeURIComponent(entity), null, document.getElementById('trust-error'));
       document.getElementById('trust-title').focus();
     });
     return button;
@@ -4419,7 +4420,7 @@
       const name = document.createElement('span');
       name.id = item.id + '-name';
       name.textContent = e.name;
-      item.append(name, trustRemoveButton(item.id + '-remove', e.name, { entity: e.id }));
+      item.append(name, trustRemoveButton(item.id + '-remove', e.name, e.id));
       list.appendChild(item);
     });
     return list;
@@ -4431,12 +4432,51 @@
     const decoder = window.open('', '_blank');
     try {
       const resp = await fetch(source);
-      if (!resp.ok) throw new Error('The list answered ' + resp.status);
+      if (!resp.ok) {
+        const body = await resp.json().catch(() => ({}));
+        throw new Error(body.error_description || 'The list answered ' + resp.status);
+      }
       decoder.location = 'decoder/#credential=' + encodeURIComponent((await resp.text()).trim());
     } catch (e) {
       decoder.close();
       showErrorDialog('Reading the trusted list failed', e.message);
     }
+  }
+
+  function trustListMenu(prefix, url, source, extra = []) {
+    const menu = document.createElement('details');
+    menu.className = 'trust-list-menu';
+    menu.id = prefix + '-menu';
+    menu.innerHTML = '<summary class="btn btn-sm" id="' + prefix + '-menu-toggle" data-testid="trust-list-menu">Actions</summary><div class="trust-list-menu-items" id="' + prefix + '-menu-items"></div>';
+    // The menu of the last row opens below the scrolled part of the dialog.
+    menu.addEventListener('toggle', () => {
+      if (menu.open) menu.lastElementChild.scrollIntoView({ block: 'nearest' });
+    });
+    const addMenuItem = (label, id, run) => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.id = prefix + '-' + id;
+      item.dataset.testid = 'trust-list-' + id;
+      item.textContent = label;
+      item.addEventListener('click', () => {
+        menu.open = false;
+        run();
+      });
+      menu.lastElementChild.appendChild(item);
+    };
+    addMenuItem('Copy URL', 'copy', async () => {
+      const toggle = menu.firstElementChild;
+      try {
+        await navigator.clipboard.writeText(url);
+        toggle.textContent = 'Copied!';
+      } catch (e) {
+        toggle.textContent = 'Copy failed';
+      }
+      setTimeout(() => { toggle.textContent = 'Actions'; }, 2000);
+    });
+    addMenuItem('Open in decoder', 'decode', () => openListInDecoder(source));
+    extra.forEach(([label, id, run]) => addMenuItem(label, id, run));
+    return menu;
   }
 
   document.addEventListener('click', (event) => {
@@ -4488,7 +4528,7 @@
         const url = entry.advertised_url || entry.url ||
           (entry.path ? window.location.origin + entry.path : '');
         if (!isWebURL(url)) return;
-        const prefix = 'trust-list-' + domID(entry.id || 'list');
+        const prefix = (entry.file ? 'trust-file-list-' : 'trust-list-') + domID(entry.id || 'list');
         const links = document.createElement('span');
         links.className = 'trust-links';
         links.id = prefix;
@@ -4505,37 +4545,7 @@
           name.textContent = entry.entityName;
           links.appendChild(name);
         }
-        const menu = document.createElement('details');
-        menu.className = 'trust-list-menu';
-        menu.id = prefix + '-menu';
-        menu.innerHTML = '<summary class="btn btn-sm" id="' + prefix + '-menu-toggle" data-testid="trust-list-menu">Actions</summary><div class="trust-list-menu-items" id="' + prefix + '-menu-items"></div>';
-        // The menu of the last row opens below the scrolled part of the dialog.
-        menu.addEventListener('toggle', () => {
-          if (menu.open) menu.lastElementChild.scrollIntoView({ block: 'nearest' });
-        });
-        const addMenuItem = (label, id, run) => {
-          const item = document.createElement('button');
-          item.type = 'button';
-          item.id = prefix + '-' + id;
-          item.dataset.testid = 'trust-list-' + id;
-          item.textContent = label;
-          item.addEventListener('click', () => {
-            menu.open = false;
-            run();
-          });
-          menu.lastElementChild.appendChild(item);
-        };
-        addMenuItem('Copy URL', 'copy', async () => {
-          const toggle = menu.firstElementChild;
-          try {
-            await navigator.clipboard.writeText(url);
-            toggle.textContent = 'Copied!';
-          } catch (e) {
-            toggle.textContent = 'Copy failed';
-          }
-          setTimeout(() => { toggle.textContent = 'Actions'; }, 2000);
-        });
-        addMenuItem('Open in decoder', 'decode', () => openListInDecoder(entry.path ? entry.path.replace(/^\//, '') : url));
+        const menu = trustListMenu(prefix, url, entry.path ? entry.path.replace(/^\//, '') : url);
         links.appendChild(menu);
         detail.appendChild(links);
         if (entry.description) {
@@ -4554,39 +4564,61 @@
     const external = state.lists || [];
     if (operators.length > 0 || external.length > 0) {
       const detail = group('External lists', 'external');
-      const items = document.createElement('ul');
-      items.className = 'trust-added';
+      const items = document.createElement('div');
       items.id = 'trust-external-lists';
       external.forEach((l, i) => {
-        const item = document.createElement('li');
-        item.id = 'trust-external-' + i;
-        const text = document.createElement('span');
-        text.id = item.id + '-url';
-        text.textContent = l.url;
+        const prefix = 'trust-external-' + i;
+        const row = document.createElement('div');
+        row.className = 'trust-links';
+        row.id = prefix;
+        // A URL the wallet accepted can still be one that the browser refuses,
+        // and every visitor sees this dialog.
+        const web = isWebURL(l.url);
+        const link = document.createElement(web ? 'a' : 'span');
+        link.id = prefix + '-url';
+        link.title = l.url;
+        if (web) {
+          const target = new URL(l.url);
+          link.href = l.url;
+          link.target = '_blank';
+          link.rel = 'noopener';
+          link.textContent = target.host + (target.pathname === '/' ? '' : target.pathname) + target.search;
+        } else {
+          link.textContent = l.url;
+        }
+        row.appendChild(link);
+        if (l.name) {
+          const name = document.createElement('span');
+          name.className = 'trust-list-name';
+          name.id = prefix + '-name';
+          name.textContent = l.name;
+          row.appendChild(name);
+        }
+        const removable = !l.via && !l.configured;
+        row.appendChild(trustListMenu(prefix, l.url, 'api/trust/lists/document?url=' + encodeURIComponent(l.url),
+          removable ? [['Remove', 'remove', async () => {
+            await changeTrust('DELETE', 'api/trust/lists?url=' + encodeURIComponent(l.url), null, document.getElementById('trust-error'));
+            document.getElementById('trust-title').focus();
+          }]] : []));
+        items.appendChild(row);
+        const notes = [];
+        if (l.via) notes.push('From ' + l.via + '.');
+        else if (l.configured) notes.push('Set with --trusted-list.');
+        if (!l.error && l.type && !l.direct) notes.push('Applies only to attestation types linked to this list in the catalogue.');
+        if (notes.length > 0) {
+          const note = document.createElement('span');
+          note.className = 'trust-item-hint';
+          note.id = prefix + '-hint';
+          note.textContent = notes.join(' ');
+          items.appendChild(note);
+        }
         if (l.error) {
           const failure = document.createElement('span');
           failure.className = 'trust-list-error';
-          failure.id = item.id + '-error';
+          failure.id = prefix + '-error';
           failure.textContent = 'Not used: ' + l.error;
-          text.appendChild(failure);
-        } else if (l.type && !l.direct) {
-          const note = document.createElement('span');
-          note.className = 'trust-item-hint';
-          note.id = item.id + '-catalogue-hint';
-          note.textContent = 'Used only when a catalogue entry links it.';
-          text.appendChild(note);
+          items.appendChild(failure);
         }
-        item.appendChild(text);
-        if (l.via || l.configured) {
-          const source = document.createElement('span');
-          source.className = 'trust-list-name';
-          source.id = item.id + '-source';
-          source.textContent = l.via ? 'from ' + l.via : '--trusted-list';
-          item.appendChild(source);
-        } else {
-          item.appendChild(trustRemoveButton(item.id + '-remove', l.url, { list: l.url }));
-        }
-        items.appendChild(item);
       });
       detail.appendChild(items);
       if (operators.length > 0) {

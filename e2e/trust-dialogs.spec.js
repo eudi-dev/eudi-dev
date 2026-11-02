@@ -120,13 +120,29 @@ test("an external list that cannot be read is listed with the reason it is not u
 
   await expect(page.locator("#trust-overlay")).toHaveClass(/active/);
   await expect(page.locator("#trust-list-url")).toHaveValue("");
-  const item = page.locator("#trust-external-lists li").filter({ hasText: listURL });
-  await expect(item.locator(".trust-list-error")).toContainText("Not used:");
+  await expect(page.locator("#trust-external-0-url")).toHaveAttribute("href", listURL);
+  await expect(page.locator("#trust-external-0-error")).toContainText("Not used:");
 
-  await item.locator(".trust-remove").click();
+  await page.locator("#trust-external-0-menu-toggle").click();
+  await page.locator("#trust-external-0-remove").click();
   await expect(page.locator("#trust-group-external")).toHaveCount(0);
   const state = await (await request.get(`${BASE}/api/trust`)).json();
   expect((state.lists || []).map((l) => l.url)).toEqual([]);
+});
+
+test("an external list with a URL the browser refuses stays removable and keeps the dialog working", async ({ page }) => {
+  await page.route("**/api/trust", async (route) => {
+    const response = await route.fetch();
+    const state = await response.json();
+    state.lists = [{ url: "http://256.256.256.256/", error: "unreachable" }];
+    await route.fulfill({ response, json: state });
+  });
+  await openTrust(page);
+  await expect(page.locator("#trust-external-0-url")).toHaveText("http://256.256.256.256/");
+  await expect(page.locator("#trust-list-pid")).toBeVisible();
+  await page.locator("#trust-external-0-menu-toggle").click();
+  await expect(page.locator("#trust-external-0-remove")).toBeVisible();
+  await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
 test("an external list of a type without its own category asks for a catalogue link", async ({ page }) => {
@@ -140,8 +156,8 @@ test("an external list of a type without its own category asks for a catalogue l
     await route.fulfill({ response, json: state });
   });
   await openTrust(page);
-  await expect(page.locator("#trust-external-0-catalogue-hint")).toContainText("catalogue entry");
-  await expect(page.locator("#trust-external-1-catalogue-hint")).toHaveCount(0);
+  await expect(page.locator("#trust-external-0-hint")).toContainText("in the catalogue");
+  await expect(page.locator("#trust-external-1-hint")).toHaveCount(0);
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 

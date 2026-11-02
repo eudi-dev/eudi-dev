@@ -616,6 +616,9 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 			return fmt.Errorf("reading the credentials file: %w", err)
 		}
 	}
+	if err := w.TrustedLists().FileListProblem(); err != nil {
+		return fmt.Errorf("--trusted-list: %w", err)
+	}
 	var catalogFile *wallet.CatalogFile
 	if opts.CatalogFile != "" {
 		catalogFile, err = wallet.LoadCatalogFile(opts.CatalogFile)

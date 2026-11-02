@@ -17,6 +17,7 @@ package cmd
 import (
 	"encoding/base64"
 	"fmt"
+	"os"
 	"slices"
 	"strings"
 
@@ -35,7 +36,7 @@ const (
 	arfFlagUsage                 = "Check the access and registration certificates of verifiers and issuers against the ARF, including over-asking and revocation. Turns on --haip too, because the ARF builds on HAIP. With --mode strict the wallet refuses the request or the offer on any finding"
 	relyingPartyCAFlagUsage      = "PEM file with CA certificates for relying party access and registration certificates. The wallet puts them on its access-ca and registrar lists (repeatable)"
 	trustListCAFlagUsage         = "PEM file with CA certificates of trusted list operators. With --arf the wallet also accepts trusted lists signed under these CAs (repeatable)"
-	trustedListFlagUsage         = "URL of an external list of trusted entities (ETSI TS 119 602) to add to the wallet's list of trusted lists. With --arf the wallet trusts its providers for the list's type (repeatable)"
+	trustedListFlagUsage         = "List of trusted entities (ETSI TS 119 602) for the wallet's list of trusted lists: an external list's URL, or with wallet serve a .jwt or .json file or a directory of them. With --arf the wallet trusts its providers for the list's type (repeatable)"
 	keyAttestationLevelFlagUsage = "The key_storage and user_authentication values of the key attestation (OpenID4VCI Appendix D.2): by default the values the issuer requires, 'none' to leave them out, or one of iso_18045_high, iso_18045_moderate, iso_18045_enhanced-basic and iso_18045_basic for both. The wallet keeps its keys in software, so it reaches none of these levels"
 )
 
@@ -113,10 +114,25 @@ func (f *conformanceFlags) resolve() (walletConformance, error) {
 	if err != nil {
 		return walletConformance{}, fmt.Errorf("--key-attestation-level: %w", err)
 	}
+	var trust trustedlists.Settings
 	for _, list := range f.trustedLists {
-		if !format.IsWebURL(list) {
-			return walletConformance{}, fmt.Errorf("--trusted-list %q is not an http or https URL", list)
+		if format.IsWebURL(list) {
+			trust.ConfiguredLists = append(trust.ConfiguredLists, list)
+			continue
 		}
+		if _, err := os.Stat(list); err != nil {
+			return walletConformance{}, fmt.Errorf("--trusted-list %q is not an http or https URL or a file", list)
+		}
+		files, err := wallet.LoadTrustedListFiles(list)
+		if err != nil {
+			return walletConformance{}, fmt.Errorf("--trusted-list: %w", err)
+		}
+		for _, file := range files {
+			if slices.ContainsFunc(trust.FileLists, func(other trustedlists.FileList) bool { return other.ID == file.ID }) {
+				return walletConformance{}, fmt.Errorf("--trusted-list: two files have the list ID %q", file.ID)
+			}
+		}
+		trust.FileLists = append(trust.FileLists, files...)
 	}
 	c := walletConformance{
 		settings: wallet.ConformanceSettings{
@@ -128,7 +144,7 @@ func (f *conformanceFlags) resolve() (walletConformance, error) {
 			KeyAttestationLevel:     level,
 			ForceClientAttestation:  f.clientAttestation,
 		},
-		trust: trustedlists.Settings{ConfiguredLists: f.trustedLists},
+		trust: trust,
 	}
 	if c.trust.RelyingPartyCAPEM, err = loadPEMCertificates("relying-party-ca", f.relyingPartyCAs); err != nil {
 		return walletConformance{}, err
@@ -229,6 +245,9 @@ func settingDifference(flag string, want walletConformance, cfg wallet.Conforman
 			return fmt.Sprintf("%s names %d CA certificates the running wallet does not trust", flag, missing)
 		}
 	case "--trusted-list":
+		if len(want.trust.FileLists) > 0 {
+			return flag + " can't add a list file to the running wallet"
+		}
 		for _, url := range want.trust.ConfiguredLists {
 			if !slices.ContainsFunc(summary.Lists, func(l trustedlists.Link) bool { return l.URL == url }) {
 				return fmt.Sprintf("%s %s is not on the running wallet's list of trusted lists", flag, url)

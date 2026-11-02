@@ -63,6 +63,7 @@ type indexEntry struct {
 	Attestations          []provider.IssuedAttestationSpec `json:"attestations"`
 	AdvertisedURL         string                           `json:"advertised_url,omitempty"`
 	URL                   string                           `json:"url,omitempty"`
+	File                  bool                             `json:"file,omitempty"`
 }
 
 // SignedGroupList returns the current list of the group, published by the
@@ -294,7 +295,7 @@ func (t *Set) IndexEntries(issuer string) []indexEntry {
 		}
 		entries = append(entries, entry)
 	}
-	return entries
+	return append(entries, t.fileListEntries(issuer)...)
 }
 
 func groupDescription(group Group) string {

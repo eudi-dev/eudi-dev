@@ -57,6 +57,7 @@ type Settings struct {
 	RelyingPartyCAPEM []byte
 	ListCAPEM         []byte
 	ConfiguredLists   []string
+	FileLists         []FileList
 	MaxEntities       int
 	MaxLists          int
 }

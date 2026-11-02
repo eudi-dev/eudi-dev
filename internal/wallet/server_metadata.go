@@ -84,6 +84,15 @@ func (s *Server) handleTrustListByID(w http.ResponseWriter, r *http.Request) {
 	}
 	group, ok := s.wallet.TrustedLists().FindGroup(r.PathValue("id"), "", "")
 	if !ok {
+		if signed, isFile, err := s.wallet.TrustedLists().SignedFileList(r.PathValue("id")); isFile {
+			if err != nil {
+				apierror.WriteStatus(w, http.StatusInternalServerError, fmt.Sprintf("generating trusted list: %v", err))
+				return
+			}
+			w.Header().Set("Content-Type", "application/jwt")
+			_, _ = w.Write([]byte(signed))
+			return
+		}
 		apierror.WriteStatus(w, http.StatusNotFound, "trusted list not found")
 		return
 	}

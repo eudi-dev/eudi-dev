@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Issuance over the Digital Credentials API (experimental).** In browsers that support it, such as Chrome 155 and later, the browser extension answers `navigator.credentials.create()` with the protocol `openid4vci-v1`. The demo issuer has the same Delivery choice as the demo verifier.
 - **Keycloak wallet demo.** `examples/keycloak-public-demo` runs Keycloak as issuer and verifier next to a wallet, with a start page for issuance and wallet sign-in. It works with released versions and builds of your own branch, and several variants can run side by side under sub-paths. The public demo wallet registers it as a relying party and trusts its issuer list.
+- **Trusted lists from files.** `--trusted-list` also takes a file or directory. The wallet publishes the complete lists, given as a signed JWT or as JSON that it signs. They stay after a demo reset.
+- **External lists in the trust dialog.** They look like the wallet's own lists, with Copy URL and Open in decoder. `GET /api/trust/lists/document` gives the page a list to decode.
+- **Trust anchor of a credential.** The certificates dialog shows the anchor from the trusted list of its catalogue entry. `GET /api/credentials/{id}/certificates` gives the list as `anchored_by`.
 - **Trusted lists for browser pages.** The cross-origin guard now lets GET and HEAD through on `/api/trustlist` and `/api/trustlists`, and those endpoints send CORS headers, so a web page can fetch and decode the lists.
 
 ### Fixed

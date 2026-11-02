@@ -66,6 +66,22 @@ func (s *Server) handleAddTrustedList(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, added)
 }
 
+// handleExternalList lets the wallet page decode an external list, which the
+// browser can't fetch from another origin.
+func (s *Server) handleExternalList(w http.ResponseWriter, r *http.Request) {
+	raw, err := s.wallet.TrustedLists().ExternalList(r.URL.Query().Get("url"))
+	switch {
+	case errors.Is(err, trustedlists.ErrNotFound):
+		apierror.WriteStatusErr(w, http.StatusNotFound, err)
+	case err != nil:
+		// A fetch error can quote the answer of the target.
+		apierror.WriteStatus(w, http.StatusBadGateway, "the wallet could not read a trusted list from this URL")
+	default:
+		w.Header().Set("Content-Type", "application/jwt")
+		_, _ = w.Write([]byte(raw)) //nolint:gosec // G705: ExternalList returns only documents that parse as a trusted list, served as application/jwt.
+	}
+}
+
 func (s *Server) handleRemoveTrustedList(w http.ResponseWriter, r *http.Request) {
 	writeTrustResult(w, s.management().RemoveTrustedList(r.URL.Query().Get("url")))
 }

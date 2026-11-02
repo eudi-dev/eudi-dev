@@ -49,7 +49,7 @@ eudi wallet accept 'openid-credential-offer://...' --tx-code 123456
 | `--arf`                 | `false`  | Check the access and registration certificates of verifiers and issuers against the ARF (see [ARF checks](#arf-checks) and [issuers](issuing.md#arf-checks)). With `--mode strict` the wallet refuses the request or the offer on any finding |
 | `--relying-party-ca`    | None     | PEM file with CA certificates that issue relying party access and registration certificates. The wallet puts them on its `access-ca` and `registrar` lists (repeatable) |
 | `--trusted-list-ca`       | None     | PEM file with CA certificates of trusted list operators. With `--arf` the wallet also accepts trusted lists signed under these CAs (repeatable) |
-| `--trusted-list`        | None     | URL of an external list of trusted entities (ETSI TS 119 602) for the wallet's list of trusted lists (repeatable). See [trusted lists](serve.md#trusted-lists) |
+| `--trusted-list`        | None     | URL of an external list of trusted entities (ETSI TS 119 602) for the wallet's list of trusted lists (repeatable). Only `wallet serve` takes a list file or directory. See [trusted lists](serve.md#trusted-lists) |
 | `--require-encrypted-request` | `false` | Reject a request object that the verifier did not encrypt |
 | `--client-attestation`  | `false`  | Send the wallet attestation on OID4VCI token requests even when the issuer does not advertise `attest_jwt_client_auth` |
 | `--vci-version`         | `1.0`    | OpenID4VCI feature level as a client: `1.0` or `1.1` |

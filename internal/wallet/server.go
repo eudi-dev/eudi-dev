@@ -227,6 +227,7 @@ func (s *Server) setupRoutes() {
 	s.routeFunc("GET /api/trust", s.withFreshStore(s.handleTrustState))
 	s.routeFunc("POST /api/trust/entities", s.withFreshStore(s.handleAddTrustedEntity))
 	s.routeFunc("DELETE /api/trust/entities/{id}", s.withFreshStore(s.handleRemoveTrustedEntity))
+	s.routeFunc("GET /api/trust/lists/document", s.withFreshStore(s.handleExternalList))
 	s.routeFunc("POST /api/trust/lists", s.withFreshStore(s.handleAddTrustedList))
 	s.routeFunc("GET "+trustWithdrawalsPath, s.withFreshStore(s.handleListWithdrawals))
 	s.routeFunc("POST "+trustWithdrawalsPath, s.withFreshStore(s.handleWithdrawCertificate))

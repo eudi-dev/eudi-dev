@@ -16,6 +16,7 @@ package cmd
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -74,6 +75,9 @@ func stdinIsTerminal() bool {
 // before the selected wallet starts issuance. Both accept and scan use this route. See
 // docs/adr/0012-every-entry-point-runs-the-same-flow.md.
 func acceptOID4URI(uri string, opts dispatchOID4Opts) error {
+	if len(opts.conformance.trust.FileLists) > 0 {
+		return errors.New("--trusted-list takes a file only with wallet serve, which publishes the list")
+	}
 	c, err := remoteClientIfConfigured()
 	if err != nil {
 		return err

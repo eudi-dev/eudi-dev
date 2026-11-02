@@ -3078,6 +3078,7 @@ textarea.form-input {
 .trust-links a {
   color: var(--link);
   text-decoration: none;
+  overflow-wrap: anywhere;
 }
 /* A long name wraps inside its own box, so the copy button stays on the row. */
 .trust-links .trust-list-name {
@@ -3315,18 +3316,13 @@ textarea.form-input {
   overflow-wrap: anywhere;
 }
 
-.trust-added .trust-list-name {
-  color: var(--text-dim);
-  flex-shrink: 0;
-}
-
 .trust-added .trust-remove {
   flex-shrink: 0;
   padding: 1px 9px;
   line-height: 1.4;
 }
 
-.trust-added .trust-list-error {
+.trust-list-error {
   display: block;
   color: var(--danger);
 }
@@ -3589,6 +3585,12 @@ textarea.form-input {
 #trust-external-lists .trust-item-hint {
   display: block;
   margin-top: 4px;
+}
+
+#trust-external-lists .trust-links > span,
+#trust-external-lists .trust-list-error {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .dialog-actions ~ .howto-head {

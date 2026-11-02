@@ -75,7 +75,7 @@ services:
       - /config/imprint.html
       - --news-file
       - /config/news/news.html
-      # The Keycloak demo of examples/keycloak-public-demo. Both come back after a reset.
+      # The Keycloak demo of examples/keycloak-public-demo. A reset restores all of this.
       - --relying-parties
       - /config/relying-parties
       - --trusted-list

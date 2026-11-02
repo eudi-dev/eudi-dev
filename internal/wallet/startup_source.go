@@ -18,8 +18,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
+
+var startupFileExtensions = []string{".yaml", ".yml", ".json"}
 
 // startupSource is one file read by a wallet serve flag such as --catalog.
 type startupSource struct {
@@ -32,6 +35,12 @@ type startupSource struct {
 // readStartupSources reads a YAML or JSON file, every .yaml, .yml and .json
 // file of a directory in name order, or stdin for "-".
 func readStartupSources(path string) ([]startupSource, error) {
+	return readSources(path, startupFileExtensions)
+}
+
+// readSources reads a file, every file of a directory with one of the
+// extensions in name order, or stdin for "-".
+func readSources(path string, extensions []string) ([]startupSource, error) {
 	if path == "-" {
 		data, err := io.ReadAll(os.Stdin)
 		if err != nil {
@@ -51,8 +60,7 @@ func readStartupSources(path string) ([]startupSource, error) {
 		}
 		files = nil
 		for _, entry := range dirEntries {
-			switch strings.ToLower(filepath.Ext(entry.Name())) {
-			case ".yaml", ".yml", ".json":
+			if slices.Contains(extensions, strings.ToLower(filepath.Ext(entry.Name()))) {
 				files = append(files, filepath.Join(path, entry.Name()))
 			}
 		}

@@ -1281,8 +1281,9 @@ test.describe("Credential Issuing via UI", () => {
     await page.locator("#trust-list-add").click();
     await expect(page.locator("#trust-overlay")).toHaveClass(/active/);
     await expect(page.locator("#trust-group-external")).toHaveText("External lists");
-    await expect(page.locator("#trust-external-0-url")).toHaveText(`${WALLET_URL}/api/trustlists/pid`);
+    await expect(page.locator("#trust-external-0-url")).toHaveAttribute("href", `${WALLET_URL}/api/trustlists/pid`);
 
+    await page.locator("#trust-external-0-menu-toggle").click();
     await page.locator("#trust-external-0-remove").click();
     await expect(page.locator("#trust-group-external")).toHaveCount(0);
     await provider.locator(".trust-remove").click();

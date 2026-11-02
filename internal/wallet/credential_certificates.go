@@ -60,6 +60,9 @@ type CredentialCertificate struct {
 	Withdrawable bool     `json:"withdrawable"`
 	WithdrawnID  string   `json:"withdrawn_id,omitempty"`
 	Credentials  []string `json:"credentials"`
+	// AnchoredBy is the trusted list that holds this certificate, for a trust
+	// anchor that the credential's chain does not contain.
+	AnchoredBy string `json:"anchored_by,omitempty"`
 }
 
 // credentialChain returns the certificates of a credential. A chain usually
@@ -309,6 +312,9 @@ func (w *Wallet) credentialCertificates(cred StoredCredential) []CredentialCerti
 	for _, other := range w.ListedCredentials() {
 		if other.ID != cred.ID {
 			if chain := w.credentialChain(other); !w.publicDemo || len(chain) <= maxListedChain {
+				if anchor, _ := w.catalogueAnchor(other, chain); anchor != nil {
+					chain = append(chain, anchor)
+				}
 				others[credentialLabel(other)] = append(others[credentialLabel(other)], chain...)
 			}
 		}
@@ -319,7 +325,12 @@ func (w *Wallet) credentialCertificates(cred StoredCredential) []CredentialCerti
 	w.mu.RUnlock()
 
 	certificates := []CredentialCertificate{}
-	for _, cert := range w.credentialChain(cred) {
+	chain := w.credentialChain(cred)
+	anchor, anchorList := w.catalogueAnchor(cred, chain)
+	if anchor != nil {
+		chain = append(chain, anchor)
+	}
+	for i, cert := range chain {
 		path, err := w.issuerCRLPath(cert)
 		serial := cert.SerialNumber.Text(16)
 		sum := sha256.Sum256(cert.Raw)
@@ -333,6 +344,9 @@ func (w *Wallet) credentialCertificates(cred StoredCredential) []CredentialCerti
 			Withdrawable: !w.publicDemo && cert.IsCA && w.TrustedLists().Listed(cert),
 			Credentials:  []string{},
 		}
+		if anchorList != "" && i == len(chain)-1 {
+			entry.AnchoredBy = anchorList
+		}
 		if slices.ContainsFunc(withdrawn, func(c trustedlists.WithdrawnCertificate) bool { return c.ID == id }) {
 			entry.WithdrawnID = id
 		}
@@ -345,6 +359,41 @@ func (w *Wallet) credentialCertificates(cred StoredCredential) []CredentialCerti
 		certificates = append(certificates, entry)
 	}
 	return certificates
+}
+
+// catalogueAnchor finds the trust anchor of a chain on the lists of the
+// credential's catalogue entries. It reads only what the wallet already holds,
+// because a slow list must not delay the certificates dialog.
+func (w *Wallet) catalogueAnchor(cred StoredCredential, chain []*x509.Certificate) (*x509.Certificate, string) {
+	if len(chain) == 0 || chain[len(chain)-1].CheckSignatureFrom(chain[len(chain)-1]) == nil {
+		return nil, ""
+	}
+	for _, entry := range catalogueEntriesIn(w.Registrar().CatalogAttestations(), cred.Format, []string{cred.VCT, cred.DocType}) {
+		for _, authority := range entry.Schema.TrustedAuthorities {
+			if authority.FrameworkType != "etsi_tl" || authority.IsLOTE == nil || !*authority.IsLOTE {
+				continue
+			}
+			if anchor := chainAnchor(chain, w.TrustedLists().CachedAnchors(authority.Value)); anchor != nil {
+				return anchor, authority.Value
+			}
+		}
+	}
+	return nil, ""
+}
+
+// chainAnchor returns the list's certificate that issued the end of the chain.
+// A chain leaves its trust anchor out, so the list is the only place to find it.
+func chainAnchor(chain, anchors []*x509.Certificate) *x509.Certificate {
+	if len(chain) == 0 {
+		return nil
+	}
+	last := chain[len(chain)-1]
+	for _, anchor := range anchors {
+		if !anchor.Equal(last) && last.CheckSignatureFrom(anchor) == nil {
+			return anchor
+		}
+	}
+	return nil
 }
 
 func (s *Server) handleCredentialCertificates(w http.ResponseWriter, r *http.Request) {

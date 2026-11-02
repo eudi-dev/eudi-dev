@@ -303,6 +303,8 @@ The credential list has a `certificate_status` for each credential. Its `status`
 
 With memory storage, revocations and withdrawals end with the restart. With a stable [seed](../wallet.md#seeded-keys), the CAs keep their keys and subjects. A certificate from before the restart can be revoked again, and the new CRLs verify against the old CA certificates.
 
+`GET /api/credentials/{id}/certificates` lists the chain. A trust anchor from the trusted list of the credential's catalogue entry has `anchored_by`, the URL of that list, if the wallet has read it.
+
 You can also do this in the wallet UI. Click **Certificates** on a credential to see its certificate chain. You can revoke the certificates of this wallet and withdraw its CAs there. `GET /api/credentials/{id}/certificates` returns the same list.
 
 On the public demo, `POST` revokes only the signing certificate of an attestation provider (EAA, QEAA or Pub-EAA). `revocable` in the certificate list shows which ones qualify. Everyone shares these certificates, so a revocation affects every credential signed with that certificate. The public demo keeps at most 100 revocations. Anyone can undo it, and the next reset removes it.
@@ -368,6 +370,7 @@ These endpoints are available on both wallet ports.
 | `GET` | `/api/trust` | Providers and external lists added to the trusted lists. A readable external list has its `type` (LoTEType). `direct` is `true` when the wallet uses lists of that type without a catalogue entry |
 | `POST` | `/api/trust/entities` | Put a provider on one of the lists: `list`, `name` and `certificates` (PEM) |
 | `DELETE` | `/api/trust/entities/{id}` | Take a provider off its list |
+| `GET` | `/api/trust/lists/document?url=<url>` | The list as the wallet read it, for a list on its list of trusted lists |
 | `POST` | `/api/trust/lists` | Put an external list on the list of trusted lists: `url` |
 | `DELETE` | `/api/trust/lists?url=<url>` | Take an external list off |
 

@@ -153,10 +153,11 @@ The HTTP API:
 | `GET` | `/api/trust` | `entities` (the added providers), `entity_lists` (the list IDs), `lists` (the external lists) and `lists_url` |
 | `POST` | `/api/trust/entities` | Add a provider: `list`, `name` and `certificates` (PEM). Answers `201` with the entity and its `id` |
 | `DELETE` | `/api/trust/entities/{id}` | Remove a provider |
+| `GET` | `/api/trust/lists/document?url=<url>` | The list as the wallet read it, for a list on its list of trusted lists. `404` for other URLs, `502` if the wallet can't read a list there |
 | `POST` | `/api/trust/lists` | Add an external list: `url`. Answers `201` with the list |
 | `DELETE` | `/api/trust/lists?url=<url>` | Remove an external list |
 
-Each entry of `lists` has `url` and, where they apply, `configured` (from `--trusted-list`), `via` (the list of trusted lists that points to it) and `error` (why the wallet can't use it). A readable list also has its `type` (LoTEType). `direct` is `true` when the wallet uses lists of that type without a catalogue entry. For example:
+Each entry of `lists` has `url` and, where they apply, `name` (the scheme operator), `configured` (from `--trusted-list`), `via` (the list of trusted lists that points to it) and `error` (why the wallet can't use it). A readable list also has its `type` (LoTEType). `direct` is `true` when the wallet uses lists of that type without a catalogue entry. For example:
 
 ```json
 {
@@ -331,7 +332,7 @@ Every flag can also be set as `EUDI_DEV_<FLAG>`, with the flag name in upper cas
 | `--arf`                 | `false`  | Check the access and registration certificates of verifiers and issuers against the ARF (see [verifiers](presenting.md#arf-checks) and [issuers](issuing.md#arf-checks)). Turns on `--haip` too, because the ARF builds on HAIP. With `--mode strict` the wallet refuses the request or the offer on any finding |
 | `--relying-party-ca`    | None     | PEM file with CA certificates that issue relying party access and registration certificates. The wallet puts them on its `access-ca` and `registrar` lists (repeatable) |
 | `--trusted-list-ca`       | None     | PEM file with CA certificates of trusted list operators. With `--arf` the wallet also accepts trusted lists signed under these CAs (repeatable) |
-| `--trusted-list`        | None     | URL of an external list of trusted entities for the [list of trusted lists](#list-of-trusted-lists) (repeatable) |
+| `--trusted-list`        | None     | An external list's URL, or a [list file or directory](#publishing-trusted-lists-from-files), for the [list of trusted lists](#list-of-trusted-lists) (repeatable) |
 | `--client-attestation`  | `false`  | Send the wallet attestation on OID4VCI token requests even when the issuer does not advertise `attest_jwt_client_auth` (see [wallet attestation](issuing.md#wallet-attestation)) |
 | `--adhoc-display-images` | `false` | Fetch HTTPS display images on demand instead of storing them. The issuer sees each render. See [display images](#display-images) |
 | `--require-encrypted-request` | `false` | Refuse an unencrypted Request Object. The wallet always sends an encryption key in `wallet_metadata`, so this requires the Verifier to use it |
@@ -433,6 +434,15 @@ The wallet checks every entry before it starts. An invalid entry stops the start
 Each start loads the file again. An entry keeps its id, so a restart adds no duplicates. A changed entry is updated. The next start removes an entry that is no longer in the file. The wallet marks these entries as pre-registered and removes only those. Entries added through the UI, the API or `eudi catalog add` stay. The only exception is an entry with the name or a type of an entry in the file. The file's entry replaces it. A CA added through `issuerCA` stays on its list when you remove the entry. Remove it with `eudi trust rm-ca`.
 
 Outside the demo you can change or delete a pre-registered entry. The next start restores it from the file. With `--demo` visitors can't change or delete these entries, and a demo reset restores them with their CAs.
+
+## Publishing trusted lists from files
+
+`--trusted-list` also takes a file or a directory instead of a URL. The wallet then publishes the complete list itself. The file name without its extension is the list's ID, with lowercase letters, digits and dashes only. It can't be `lists`. The wallet serves the list at `/api/trustlists/<id>`, on its list of trusted lists and in `GET /api/trustlists`, where the entry has `file: true`.
+
+- A `.jwt` file holds a signed list. The wallet serves it as it is. Its signer must chain to the wallet CA or to a CA from `--trusted-list-ca`.
+- A `.json` file holds the list's content (ETSI TS 119 602). The wallet signs it with the key of its list of trusted lists when it serves it.
+
+The lists come back after a demo reset, because they are configuration. The wallet refuses to start with a list it can't read, or with a name that one of its own lists uses. A `.json` list keeps its `NextUpdate`, so it stops working on that date. The trust dialog then shows why.
 
 ## Pre-registered relying parties
 

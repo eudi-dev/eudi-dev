@@ -49,6 +49,7 @@ type Link struct {
 	Via        string `json:"via,omitempty"`
 	Error      string `json:"error,omitempty"`
 	Type       string `json:"type,omitempty"`
+	Name       string `json:"name,omitempty"`
 	Direct     bool   `json:"direct,omitempty"`
 }
 
@@ -68,14 +69,17 @@ func (t *Set) Summary() Summary {
 	summary.Lists = []Link{}
 	external := t.externalLists()
 	for _, tl := range t.Lists() {
-		if tl.Via == "" && !slices.Contains(external, tl.URL) {
+		// A file list has its own row, and comes here only to report an expiry.
+		fromFile := t.isFileList(tl.URL)
+		if tl.Via == "" && !slices.Contains(external, tl.URL) && !(fromFile && tl.Err != nil) {
 			continue
 		}
-		link := Link{URL: tl.URL, Configured: slices.Contains(settings.ConfiguredLists, tl.URL), Via: tl.Via}
+		link := Link{URL: tl.URL, Configured: fromFile || slices.Contains(settings.ConfiguredLists, tl.URL), Via: tl.Via}
 		if tl.Err != nil {
 			link.Error = tl.Err.Error()
 		} else if tl.List != nil {
 			link.Type = tl.List.SchemeInfo.LoTEType
+			link.Name = tl.List.SchemeInfo.SchemeOperatorName
 			link.Direct = UsedDirectly(link.Type)
 		}
 		summary.Lists = append(summary.Lists, link)

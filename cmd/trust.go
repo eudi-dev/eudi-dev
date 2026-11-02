@@ -37,7 +37,8 @@ certificates against lists of trusted entities (ETSI TS 119 602). The wallet
 signs one list for each credential category (pid, qeaa, pub-eaa, eaa), one for
 wallet providers, one for access certificate providers (access-ca) and one for
 registration certificate providers (registrar). The list of trusted lists at
-/api/trustlists/lists points to all of them and to the external lists you add.
+/api/trustlists/lists points to all of them, to the --trusted-list files and to
+the external lists you add.
 
 show prints one of these lists. ca-cert prints the wallet CA that signs them.
 
