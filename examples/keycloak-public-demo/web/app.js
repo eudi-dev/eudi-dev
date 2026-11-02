@@ -6,7 +6,7 @@ const REDIRECT_URI = `${location.origin}${location.pathname}`;
 
 const $ = (id) => document.getElementById(id);
 
-// A wallet in another tab ends the login in a new tab, so this has to outlive the starting tab.
+// A wallet in another tab ends the sign-in in a new tab, so this has to outlive the starting tab.
 const saveLogin = (state, login) => localStorage.setItem(`oidc-${state}`, JSON.stringify(login));
 
 function takeLogin(state) {
@@ -15,7 +15,7 @@ function takeLogin(state) {
   localStorage.removeItem(key);
   history.replaceState(null, "", location.pathname);
   if (!login) {
-    throw new Error("This login started in another browser. Log in again here.");
+    throw new Error("This sign-in started in another browser. Sign in again here.");
   }
   return login;
 }
@@ -37,8 +37,6 @@ async function signIn(flow, extra) {
     state,
     code_challenge: base64Url(new Uint8Array(digest)),
     code_challenge_method: "S256",
-    // An earlier step of the demo leaves a session, and each step has to sign in again.
-    prompt: "login",
     ...extra,
   });
   location.assign(`${OIDC}/auth?${params}`);
@@ -79,11 +77,14 @@ function offerAction(kind) {
   return `verifiable_credential_offer:${base64Url(new TextEncoder().encode(JSON.stringify(config)))}`;
 }
 
-function showClaims(idToken) {
-  const payload = idToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
-  const claims = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(payload), (c) => c.charCodeAt(0))));
-  const { name, email, sub } = claims;
-  const rows = Object.entries({ Name: name, Email: email, Subject: sub }).map(([label, value]) => {
+function decodeJwt(token) {
+  const payload = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+  return JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(payload), (c) => c.charCodeAt(0))));
+}
+
+function showClaims(token) {
+  const { name, email, sub, sign_in_method: method } = decodeJwt(token);
+  const rows = Object.entries({ Name: name, Email: email, Subject: sub, "Sign-in": method ?? "password" }).map(([label, value]) => {
     const row = document.createElement("div");
     const term = document.createElement("dt");
     const detail = document.createElement("code");
@@ -94,7 +95,6 @@ function showClaims(idToken) {
   });
   $("claims").replaceChildren(...rows);
   $("claims").hidden = false;
-  $("step-login").classList.add("done");
 }
 
 async function copy(button, text) {
@@ -176,7 +176,7 @@ function setUpTrustDialog() {
   $("trust-lists").replaceChildren(...[
     {
       name: "Demo issuers",
-      description: "Issuers Keycloak accepts at the wallet login",
+      description: "Issuers Keycloak accepts for a wallet sign-in",
       publisher: "this demo's setup",
       url: new URL("trust-lists/issuers.jwt", location.href).href,
       source: "trust-lists/issuers.jwt",
@@ -201,9 +201,35 @@ function setUpTrustDialog() {
     link.addEventListener("click", (event) => {
       event.preventDefault();
       $("trust-dialog").showModal();
+      $("trust-dialog").scrollTop = 0;
     });
   });
   $("trust-close").addEventListener("click", () => $("trust-dialog").close());
+  document.querySelectorAll("[data-open-howto]").forEach((link) => {
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      $("howto-dialog").showModal();
+      $("howto-dialog").scrollTop = 0;
+    });
+  });
+  $("howto-close").addEventListener("click", () => $("howto-dialog").close());
+}
+
+let idToken;
+
+function showSession(token) {
+  idToken = token;
+  $("signed-in").hidden = false;
+  $("signed-out").hidden = true;
+  $("sign-out").hidden = false;
+  $("sign-in").hidden = true;
+  $("demo-login").hidden = true;
+  showClaims(token);
+}
+
+function signOut() {
+  const params = new URLSearchParams({ id_token_hint: idToken, post_logout_redirect_uri: REDIRECT_URI });
+  location.assign(`${OIDC}/logout?${params}`);
 }
 
 function fail(error) {
@@ -214,13 +240,20 @@ function fail(error) {
 function setUpPage() {
   $("wallet-link").href = CONFIG.wallet;
   $("footer-version").textContent = `Keycloak ${CONFIG.keycloakVersion}`;
+  if (CONFIG.keycloakBuildUrl) {
+    const [, number] = /\/pull\/(\d+)/.exec(CONFIG.keycloakBuildUrl) ?? [];
+    $("footer-version").href = CONFIG.keycloakBuildUrl;
+    $("build-name").textContent = CONFIG.keycloakBuildTitle || `Keycloak ${CONFIG.keycloakVersion}`;
+    $("build-link").href = CONFIG.keycloakBuildUrl;
+    $("build-link").textContent = number ? `Pull request #${number}` : "Details";
+    $("build-title").hidden = false;
+  }
   if (CONFIG.imprint) {
     $("imprint-link").href = CONFIG.imprint;
     $("imprint-link").hidden = false;
   }
   $("console").href = `${CONFIG.keycloak}/admin/wallet-demo/console/`;
   $("master-console").href = `${CONFIG.keycloak}/admin/master/console/`;
-  $("step-login").hidden = !CONFIG.walletLogin;
   document.querySelectorAll(".demo-user").forEach((element) => { element.textContent = CONFIG.demoUser; });
   document.querySelectorAll("[data-offer]").forEach((button) => {
     button.addEventListener("click", () => selectOffer(button.dataset.offer));
@@ -231,7 +264,8 @@ function setUpPage() {
   $("issue").addEventListener("click", () => {
     signIn(selectedOffer(), { kc_action: offerAction(selectedOffer()) });
   });
-  $("login").addEventListener("click", () => signIn("login", { kc_idp_hint: "oid4vp" }));
+  $("sign-in").addEventListener("click", () => signIn("session"));
+  $("sign-out").addEventListener("click", signOut);
 }
 
 (async () => {
@@ -240,21 +274,24 @@ function setUpPage() {
   showVariants();
   const params = new URLSearchParams(location.search);
   if (params.has("error")) {
-    history.replaceState(null, "", location.pathname);
-    // Keycloak reports this when the wallet finished the login in another tab.
+    const { flow } = takeLogin(params.get("state"));
+    // prompt=none answers this when nobody is signed in.
+    if (flow === "check") return;
+    // Keycloak reports this when the wallet finished the sign-in in another tab.
     if (params.get("error") === "authentication_expired") {
-      throw new Error("The login finished in another tab. Start it again here to see the result.");
+      throw new Error("The sign-in finished in another tab. Start it again here to see the result.");
     }
     throw new Error(params.get("error_description") ?? params.get("error"));
   }
   if (params.has("code")) {
     const finished = params.get("kc_action_status") === "success";
     const { flow, tokens } = await redeemCode(params);
-    if (flow === "login") {
-      showClaims(tokens.id_token);
-    } else {
+    showSession(tokens.id_token);
+    if (flow === "pre-authorized" || flow === "authorization-code") {
       selectOffer(flow);
       $("step-issue").classList.toggle("done", finished);
     }
+    return;
   }
+  await signIn("check", { prompt: "none" });
 })().catch(fail);

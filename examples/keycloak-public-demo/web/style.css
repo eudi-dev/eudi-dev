@@ -39,12 +39,18 @@ h1 { font-size: 16px; font-weight: 700; white-space: nowrap; }
 #theme-toggle { background: transparent; border-color: var(--border); }
 #theme-toggle:hover { background: var(--bg-btn); }
 
-main { flex: 1; display: grid; align-content: start; gap: 16px; width: 100%; max-width: 640px; margin: 0 auto; padding: 24px 16px; counter-reset: step; }
-.step { display: grid; justify-items: start; gap: 14px; padding: 20px 24px; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 24px; counter-increment: step; }
+main { flex: 1; display: grid; align-content: start; gap: 16px; width: 100%; max-width: 640px; margin: 0 auto; padding: 24px 16px; }
+.build-title { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; padding: 0 24px; }
+.build-title h2 { font-size: 20px; font-weight: 700; }
+.build-title a { font-size: 14px; font-weight: 600; white-space: nowrap; }
+.session-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 8px 12px 8px 24px; background: color-mix(in srgb, var(--accent) 14%, var(--bg-surface)); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--bg-surface)); border-radius: 24px; font-size: 13px; color: var(--text); }
+.session-state { min-width: 0; }
+.session-bar code { color: var(--text); }
+.session-bar .claims { flex-basis: 100%; padding: 8px 0 6px; border-top: 1px solid color-mix(in srgb, var(--accent) 35%, var(--bg-surface)); }
+.step { display: grid; justify-items: start; gap: 14px; padding: 20px 24px; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 24px; }
 .step > * { max-width: 100%; }
 h2 { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; }
-h2::before { content: counter(step); display: grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--bg-btn); color: var(--text-dim); font-size: 12px; }
-.step.done h2::before { content: "✓"; background: var(--ok-bg); color: var(--ok-fg); }
+.step.done h2::before { content: "✓"; display: grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--ok-bg); color: var(--ok-fg); font-size: 12px; }
 
 .choice { display: inline-flex; flex-wrap: wrap; gap: 4px; max-width: 100%; padding: 4px; border-radius: 22px; background: var(--bg-track); }
 .choice button { font: inherit; font-size: 14px; font-weight: 500; height: 34px; padding: 0 16px; border: 0; border-radius: 17px; background: none; color: var(--text-dim); cursor: pointer; }
@@ -67,6 +73,10 @@ dialog::backdrop { background: var(--scrim); }
 .trust-section { margin-bottom: 10px; padding: 12px 14px; border-radius: 14px; background: var(--bg-raised); }
 .trust-section-title { margin-bottom: 4px; font-size: 14px; font-weight: 700; }
 .trust-section-hint { margin-bottom: 8px; font-size: 12px; color: var(--text-dim); }
+.howto { display: grid; gap: 12px; margin-bottom: 16px; font-size: 13px; }
+.howto div { display: grid; grid-template-columns: 110px 1fr; gap: 12px; }
+.howto dt { width: auto; font-weight: 600; color: var(--text); }
+.howto dd { display: block; }
 .trust-rows { display: grid; gap: 8px; }
 .trust-row { display: flex; align-items: center; gap: 10px; font-size: 13px; }
 .trust-row a { color: var(--link); text-decoration: none; }
@@ -84,7 +94,7 @@ footer { display: flex; flex-direction: column; align-items: center; gap: 3px; p
 footer a { color: var(--text-dim); text-decoration: none; }
 footer a:hover { color: var(--text); text-decoration: underline; }
 .footer-row { display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: 2px 16px; }
-.footer-version { font-family: var(--font-mono); font-size: 11px; color: var(--text); }
+.footer-version, a.footer-version { font-family: var(--font-mono); font-size: 11px; color: var(--text); }
 
 @media (max-width: 640px) {
   header { padding: 12px 16px; }

@@ -19,6 +19,7 @@
       </div>
       <span class="header-links">
         <a id="wallet-link" target="_blank" rel="noopener">Wallet</a>
+        <a href="#" data-open-howto>How to use</a>
         <a href="#" data-open-trust>Trust &amp; certificates</a>
         <a href="https://github.com/eudi-dev/eudi-dev" target="_blank" rel="noopener">GitHub</a>
       </span>
@@ -30,7 +31,20 @@
   </header>
 
   <main>
+    <div class="build-title" id="build-title" hidden>
+      <h2 id="build-name"></h2>
+      <a id="build-link" target="_blank" rel="noopener"></a>
+    </div>
+
     <p id="error" role="alert" hidden></p>
+
+    <div class="session-bar">
+      <div class="session-state" id="signed-out">Not signed in</div>
+      <div class="session-state" id="signed-in" hidden>Signed in</div>
+      <button class="btn btn-sm" type="button" id="sign-in">Sign in</button>
+      <button class="btn btn-sm" type="button" id="sign-out" hidden>Sign out</button>
+      <dl id="claims" class="claims" hidden></dl>
+    </div>
 
     <section id="step-issue" class="step">
       <h2>Get a credential</h2>
@@ -38,18 +52,13 @@
         <button type="button" data-offer="pre-authorized" aria-pressed="true">Pre-authorized code</button>
         <button type="button" data-offer="authorization-code" aria-pressed="false">Authorization code</button>
       </div>
-      <dl class="login">
+      <dl class="login" id="demo-login">
         <div><dt>User</dt><dd><code class="demo-user"></code><button class="btn btn-sm" type="button" data-copy-from=".demo-user">Copy</button></dd></div>
         <div><dt>Password</dt><dd><code id="demo-password">demo</code><button class="btn btn-sm" type="button" data-copy-from="#demo-password">Copy</button></dd></div>
       </dl>
-      <button class="btn primary" type="button" id="issue">Sign in and get offer</button>
+      <button class="btn primary" type="button" id="issue">Get offer</button>
     </section>
 
-    <section id="step-login" class="step" hidden>
-      <h2>Log in with the wallet</h2>
-      <button class="btn primary" type="button" id="login">Log in</button>
-      <dl id="claims" class="claims" hidden></dl>
-    </section>
 
     <section id="step-console" class="step">
       <h2>See the configuration</h2>
@@ -63,6 +72,17 @@
       </div>
     </section>
   </main>
+
+  <dialog id="howto-dialog" aria-labelledby="howto-title">
+    <div class="dialog-title" id="howto-title">How to use this demo</div>
+    <dl class="howto">
+      <div><dt>Wallet links</dt><dd>Browsers can't open <code>openid-credential-offer://</code> or <code>openid4vp://</code> links. Scan the QR code with your wallet, or paste the link into it. To open them with a click on macOS or Linux, run <code>eudi wallet register</code>.</dd></div>
+      <div><dt>Credential offers</dt><dd>Your wallet downloads the offer from Keycloak, so it needs to reach Keycloak. An offer works once.</dd></div>
+    </dl>
+    <div class="dialog-buttons">
+      <button class="btn" type="button" id="howto-close">Close</button>
+    </div>
+  </dialog>
 
   <dialog id="trust-dialog" aria-labelledby="trust-title">
     <div class="dialog-title" id="trust-title">Trust &amp; certificates</div>
@@ -82,7 +102,7 @@
 
   <footer>
     <div class="footer-row">
-      <span class="footer-version" id="footer-version"></span>
+      <a class="footer-version" id="footer-version" target="_blank" rel="noopener"></a>
       <a id="imprint-link" hidden>Imprint</a>
       <a id="master-console" target="_blank" rel="noopener">Keycloak administrators</a>
       <span>Shared test system, use test data only</span>

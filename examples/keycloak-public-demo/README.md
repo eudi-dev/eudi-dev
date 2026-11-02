@@ -2,11 +2,11 @@
 
 This example runs Keycloak as issuer and as OpenID4VP verifier next to an eudi-dev wallet, with a static start page. It works with a released Keycloak image or a build of your own branch.
 
-The start page has three steps:
+The start page has three parts, in any order. "How to use" explains the caveats.
 
-1. **Get a credential.** Sign in and Keycloak shows a pre-authorized code or authorization code offer as a QR code and a link, through its `verifiable_credential_offer` action. Keycloak requires a key attestation and checks it against the wallet provider.
-2. **Log in with the wallet.** Keycloak requests the credential with `direct_post.jwt`, checks its issuer and links the login to the demo account.
-3. **See the configuration.** Open the realm's admin console with the read-only `viewer` account. "Trust & certificates" lists the trusted lists and the issuer's metadata and keys.
+- **Get a credential.** Sign in and Keycloak shows a pre-authorized code or authorization code offer as a QR code and a link, through its `verifiable_credential_offer` action. Keycloak requires a key attestation and checks it against the wallet provider.
+- **Sign in.** Keycloak offers the password or the wallet. The page then shows the claims from Keycloak's ID token. Keycloak requests the credential with `direct_post.jwt`, checks its issuer and links the login to the demo account.
+- **See the configuration.** Open the realm's admin console with the read-only `viewer` account. "Trust & certificates" lists the trusted lists and the issuer's metadata and keys.
 
 ## Run it locally
 
@@ -24,7 +24,7 @@ Open <http://localhost:8181>. The setup needs `curl`, `jq` and `openssl`.
 
 Keycloak has no way to accept a wallet it does not know, so `setup-realm.sh` reads the wallet's client ID from `/api/config` and registers a client that authenticates with the wallet attestation. A real issuer cannot do this. Rerun the setup if the wallet provider key changes.
 
-Each setup creates a new issuer CA, so credentials issued before it fail the wallet login. Delete them and get a new one.
+Each setup creates a new issuer CA, so credentials issued before it fail the wallet sign-in. Delete them and get a new one.
 
 ## Keycloak versions
 
@@ -33,22 +33,24 @@ Each setup creates a new issuer CA, so credentials issued before it fail the wal
 | `KEYCLOAK_IMAGE` | `quay.io/keycloak/keycloak:26.8.1` | The image to run |
 | `KEYCLOAK_FEATURES` | All features the demo uses | Keycloak refuses to start with a feature it does not know, so older versions need a shorter list |
 | `KEYCLOAK_BUILD` | The reported version | The name in the page footer |
-| `WALLET_SCHEME` | `openid4vp://` | Where Keycloak's wallet login link points |
+| `KEYCLOAK_BUILD_URL` | None | The build's pull request. The page shows it as a headline link |
+| `KEYCLOAK_BUILD_TITLE` | The build name | The headline's text, for example the pull request's title |
+| `WALLET_SCHEME` | `openid4vp://` | Where Keycloak's wallet sign-in link points |
 
 `setup-realm.sh` reads what the server supports and adapts:
 
 | Keycloak has | Trust | Without it |
 | --- | --- | --- |
 | `etsi-trust-list` ([keycloak#48106](https://github.com/keycloak/keycloak/issues/48106)) | Fetches the wallet's Wallet Provider list and a list of the demo's issuer CA | Falls back to `default-trust` |
-| `default-trust` | Copies the wallet's root CA, the wallet provider key and the issuer CA once | No key attestation, wallet client or wallet login |
+| `default-trust` | Copies the wallet's root CA, the wallet provider key and the issuer CA once | No key attestation, wallet client or wallet sign-in |
 | `oid4vp` | | The page hides the login step |
 | `attestation-based` client authenticator | | The wallet client is a public client named after the wallet's URL |
 
 The `eudi-dev` login theme in `themes/` matches the wallet.
 
-Keycloak shows offers and wallet logins as standard `openid-credential-offer://` and `openid4vp://` links and QR codes. Scan the QR code with a wallet or paste the link into one. Keycloak versions after 26.8.1 also accept a web address in `WALLET_SCHEME`, for example the wallet's `/authorize` endpoint, which opens a web wallet directly.
+Keycloak shows offers and wallet sign-ins as standard `openid-credential-offer://` and `openid4vp://` links and QR codes. Scan the QR code with a wallet or paste the link into one. Keycloak versions after 26.8.1 also accept a web address in `WALLET_SCHEME`, for example the wallet's `/authorize` endpoint, which opens a web wallet directly.
 
-With an authorization code offer, the wallet signs in at Keycloak too. In the same browser that ends the first tab's login, so Keycloak asks for the password there again. The credential is already in the wallet.
+With an authorization code offer, the wallet signs in at Keycloak too. Sign in on the start page first and the wallet uses that session. Otherwise, in the same browser, the wallet's sign-in ends the first tab's login, so Keycloak asks for the password there again. The credential is already in the wallet.
 
 The credential uses a Keycloak background and logo from `web/card/`, which the wallet fetches from the start page. `credential-background.png` is Keycloak's own login background.
 
@@ -89,8 +91,8 @@ The deployed demo is public and may run an unreleased build, so:
 - **Read-only console:** the demo realm's console accepts the account `viewer` with password `viewer`. Its roles only allow reading the realm.
 - **Isolation:** Keycloak and the start page share a network only with the proxy, so they cannot reach the wallets. Containers drop all capabilities, and have memory, CPU and process limits.
 - **Abuse:** the Caddy blocks limit requests per client address, more strictly for tokens, logins and offers, and cap the request body size.
-- **Accounts:** registration, password reset, the account console and dynamic client registration are off. The wallet login links to the demo account and cannot create users.
-- **Trust:** the wallet login trusts only the issuer CA that `setup-realm.sh` creates, so it is not an official list. The private keys of the CA and the list signer exist only while the script runs.
+- **Accounts:** registration, password reset, the account console and dynamic client registration are off. The wallet sign-in links to the demo account and cannot create users.
+- **Trust:** the wallet sign-in trusts only the issuer CA that `setup-realm.sh` creates, so it is not an official list. The private keys of the CA and the list signer exist only while the script runs.
 - **Sessions:** tokens and sessions are short lived.
 
 The demo account is shared and its password is public. Data is test data only.

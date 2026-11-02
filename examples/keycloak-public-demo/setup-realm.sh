@@ -223,7 +223,9 @@ create_client() {
     clientId: $id, publicClient: true, standardFlowEnabled: true, implicitFlowEnabled: false,
     directAccessGrantsEnabled: false, serviceAccountsEnabled: false, protocol: "openid-connect",
     redirectUris: [($origin + $path)], webOrigins: [$origin],
-    attributes: ({"oid4vci.enabled": "true", "pkce.code.challenge.method": "S256"} + $trust)
+    protocolMappers: [{name: "sign-in method", protocol: "openid-connect", protocolMapper: "oidc-usersessionmodel-note-mapper",
+      config: {"user.session.note": "sign_in_method", "claim.name": "sign_in_method", "jsonType.label": "String", "id.token.claim": "true"}}],
+    attributes: ({"oid4vci.enabled": "true", "pkce.code.challenge.method": "S256", "post.logout.redirect.uris": ($origin + $path)} + $trust)
   }')"
   client_id="$(admin GET "/${REALM}/clients?clientId=${CLIENT}" | jq -r '.[0].id')"
   scope_id="$(admin GET "/${REALM}/client-scopes" | jq -r --arg id "${CREDENTIAL}" '.[] | select(.name == $id) | .id')"
@@ -257,8 +259,9 @@ write_page_config() {
   curl -fsS "${WALLET}/api/config" | jq -e .imprint >/dev/null && imprint="${WALLET}/imprint"
   mkdir -p "$(dirname "${WEB_CONFIG_FILE}")"
   jq -n --arg keycloak "${PUBLIC_URL}" --arg keycloakVersion "${version}" --arg wallet "${WALLET}" --arg walletClient "${WALLET_CLIENT}" \
-    --argjson walletLogin "${WALLET_LOGIN}" --arg demoUser "${USERNAME}" --arg imprint "${imprint}" --arg trust "${TRUST}" \
-    '{$keycloak, $keycloakVersion, $wallet, $walletClient, $walletLogin, $demoUser, $imprint, $trust}' \
+    --arg demoUser "${USERNAME}" --arg imprint "${imprint}" --arg trust "${TRUST}" --arg keycloakBuildUrl "${KEYCLOAK_BUILD_URL:-}" \
+    --arg keycloakBuildTitle "${KEYCLOAK_BUILD_TITLE:-}" \
+    '{$keycloak, $keycloakVersion, $keycloakBuildUrl, $keycloakBuildTitle, $wallet, $walletClient, $demoUser, $imprint, $trust}' \
     | { printf 'const CONFIG = '; cat; } > "${WEB_CONFIG_FILE}"
 }
 
@@ -314,6 +317,11 @@ create_wallet_login() {
     firstBrokerLoginFlowAlias: "wallet login",
     config: {dcqlQuery: $query, principalAttribute: "email", trustMaterialIdps: "demo-issuers", walletScheme: $scheme, responseMode: "direct_post.jwt", syncMode: "FORCE"}
   }')"
+  # A session note, unlike a user attribute, describes only this sign-in.
+  admin POST "/${REALM}/identity-provider/instances/oid4vp/mappers" '{
+    "name": "sign-in method", "identityProviderAlias": "oid4vp", "identityProviderMapper": "hardcoded-user-session-attribute-idp-mapper",
+    "config": {"attribute": "sign_in_method", "attribute.value": "wallet", "syncMode": "INHERIT"}
+  }' >/dev/null
   local target
   for target in email firstName lastName; do
     admin POST "/${REALM}/identity-provider/instances/oid4vp/mappers" "$(jq -n --arg target "${target}" '{
