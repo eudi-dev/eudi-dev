@@ -298,3 +298,25 @@ demo.eudi-test.dev {
 	redir @variant {path}/
 	reverse_proxy demo-web:8080
 }
+
+# A static tracker of OpenID4VC work in Keycloak. Its files live in oid4vc-sig/ next to the compose file.
+oid4vc-sig.eudi-test.dev {
+	rate_limit {
+		zone oid4vc_sig {
+			key {remote_host}
+			events 300
+			window 1m
+		}
+	}
+	header {
+		Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+		Referrer-Policy "no-referrer"
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		# The files change in place on every data refresh.
+		Cache-Control "no-cache"
+		-Server
+	}
+	root * /srv/oid4vc-sig
+	file_server
+}

@@ -38,6 +38,7 @@ services:
       - caddy-config:/config
       - caddy-logs:/var/log/caddy
       - stats-report:/srv/stats:ro
+      - ./oid4vc-sig:/srv/oid4vc-sig:ro
 
   wallet:
     # WALLET_TAG in the host .env pins a release for rollback. Without a pin, use the
