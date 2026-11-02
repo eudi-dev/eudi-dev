@@ -1826,15 +1826,21 @@ func TestTrustListAPI_ParseableByTrustlistParser(t *testing.T) {
 	if issuanceSvc.ServiceType != "http://uri.etsi.org/19602/SvcType/PID/Issuance" {
 		t.Errorf("unexpected issuance service type: %s", issuanceSvc.ServiceType)
 	}
-	if len(issuanceSvc.Certificates) != 9 {
-		t.Fatalf("expected the NL, DE and IT signing certificates for mdoc and SD-JWT VC and their CAs, got %d", len(issuanceSvc.Certificates))
+	var subjects []string
+	for _, info := range issuanceSvc.Certificates {
+		cert, err := x509.ParseCertificate(info.Raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !cert.IsCA {
+			t.Errorf("the issuance service lists %s, want only provider CAs", cert.Subject)
+		}
+		subjects = append(subjects, cert.Subject.CommonName)
 	}
-	certPub, ok := issuanceSvc.Certificates[0].PublicKey.(*ecdsa.PublicKey)
-	if !ok {
-		t.Fatal("expected ECDSA public key in issuance certificate")
-	}
-	if !certPub.Equal(&srv.wallet.IssuerKey.PublicKey) {
-		t.Error("issuance certificate public key does not match credential signing key")
+	for _, country := range []string{"NL", "DE", "IT"} {
+		if want := "EUDI Dev Test pid CA " + country; !slices.Contains(subjects, want) {
+			t.Errorf("the issuance service lists %v, want %q", subjects, want)
+		}
 	}
 
 	revocationSvc := tl.Entities[0].Services[1]

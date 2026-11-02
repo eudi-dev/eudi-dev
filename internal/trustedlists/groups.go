@@ -124,9 +124,13 @@ func (t *Set) SignedGroupList(issuer string, group Group, path string) (string, 
 			if err != nil {
 				return "", err
 			}
-			// Roles without a format of their own return the same leaf for
-			// both formats.
-			if encoded := base64.StdEncoding.EncodeToString(chain[0].Raw); !slices.Contains(issuanceCertificates, encoded) {
+			// A provider CA anchors its leaves. Without one, the root signs
+			// the leaf directly and the list holds the leaf.
+			listed := chain[0]
+			if len(chain) > 2 {
+				listed = chain[1]
+			}
+			if encoded := base64.StdEncoding.EncodeToString(listed.Raw); !slices.Contains(issuanceCertificates, encoded) {
 				issuanceCertificates = append(issuanceCertificates, encoded)
 			}
 		}

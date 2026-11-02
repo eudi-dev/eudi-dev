@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path"
+	"slices"
 	"sort"
 	"time"
 
@@ -52,8 +53,8 @@ func NewKeys(backend storage.Store, prefix string, seed mock.Seed) *Keys {
 }
 
 // ListedCertificates returns the base64 DER certificates listed for a signer
-// in a trusted list: every stored current certificate of the leaf's subject
-// and key, each with its issuing CA below root.
+// in a trusted list: the issuing CA below root of every stored current
+// certificate of the leaf's subject and key.
 func (s *Keys) ListedCertificates(leaf, root *x509.Certificate) ([]string, error) {
 	blobs, err := s.backend.ReadAll(path.Join(s.prefix, "certificates"))
 	if err != nil {
@@ -79,14 +80,17 @@ func (s *Keys) ListedCertificates(leaf, root *x509.Certificate) ([]string, error
 		if !ok || cert.IsCA || cert.Subject.CommonName != leaf.Subject.CommonName || !pub.Equal(leaf.PublicKey) || !time.Now().Before(cert.NotAfter) {
 			continue
 		}
-		published = append(published, base64.StdEncoding.EncodeToString(cert.Raw))
 		// The root anchors every role. A root with path length zero signs the
-		// leaves directly, so the list then holds only the leaves.
+		// leaves directly, so the list then holds the leaves.
+		listed := cert
 		for _, parent := range certificates {
 			if parent.IsCA && !parent.Equal(root) && cert.CheckSignatureFrom(parent) == nil {
-				published = append(published, base64.StdEncoding.EncodeToString(parent.Raw))
+				listed = parent
 				break
 			}
+		}
+		if encoded := base64.StdEncoding.EncodeToString(listed.Raw); !slices.Contains(published, encoded) {
+			published = append(published, encoded)
 		}
 	}
 	return published, nil

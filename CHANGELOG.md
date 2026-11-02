@@ -5,11 +5,12 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.7.1] - Unreleased
+## [3.7.1] - 2026-11-02
 
 ### Changed
 
 - **Fewer Keycloak examples.** The Keycloak wallet demo replaces `keycloak-issuer-wallet`, `keycloak-verifier-oid4vp`, `keycloak-web-wallet` and `keycloak-web-wallet-public`. `keycloak-issuer-verifier-app` now runs Keycloak 26.8.1 with `keycloak-extension-oid4vp` 0.16.1.
+- **Trusted lists name only the provider CAs.** The PID, attestation and wallet provider lists no longer contain the signing certificates, as in the trust model of the ARF. A verifier now has to check the chain from the signing certificate up to a listed CA.
 
 ### Fixed
 

@@ -108,7 +108,7 @@ The wallet also keeps an issued-attestation registry. It lists the type of each 
 
 An imported credential and a credential signed with your own `--key` and `--cert` are on none of the wallet's lists, because the wallet did not sign them.
 
-Each trusted list publishes its service's signing certificates, provider CAs and status signing certificates. With a configured root of path length zero, the list contains only the signing certificates. A separate list operator key under the wallet CA signs the list. An unchanged list keeps its signed instance until it expires. Changed content or expiry increments the sequence number. Previous instances are available at the list's `/history` endpoint. Every list except `pub-eaa` points to itself. Tables D.1 to G.1 require that for the lists of Annexes D to G, and Table H.1 forbids pointers. The `pub-eaa` list keeps its history. A removed service stays on it with the status withdrawn (Table H.3).
+Each trusted list publishes the provider CAs of its service and the status list signing certificates. With a configured root of path length zero there are no provider CAs, so the list contains the signing certificates instead. A separate list operator key under the wallet CA signs the list. An unchanged list keeps its signed instance until it expires. Changed content or expiry increments the sequence number. Previous instances are available at the list's `/history` endpoint. Every list except `pub-eaa` points to itself. Tables D.1 to G.1 require that for the lists of Annexes D to G, and Table H.1 forbids pointers. The `pub-eaa` list keeps its history. A removed service stays on it with the status withdrawn (Table H.3).
 
 Wallet and key attestations use a separate wallet provider key. Their `x5c` contains the leaf and any intermediate certificates, with the self-signed root omitted. Issuers can pin the root from `/api/certificates/ca` or use `/api/trustlists/wallet-provider`.
 
@@ -491,7 +491,7 @@ Data URIs, template images and HTTP URLs are stored in both modes. Storing HTTP 
 
 ## `trust show`
 
-Prints a trusted list of the wallet (ETSI TS 119 602) as a signed JWT. It contains the signing certificates, provider CAs and status signing certificates of the selected list. Verifiers use its provider CAs to validate the `x5c` or `x5chain` embedded in credentials. Issuer authorization data such as provider entitlements and `providesAttestations` comes from signed `/.well-known/openid-credential-issuer` metadata and `/api/registrar/wrp`. See [test certificates](../test-certificates.md).
+Prints a trusted list of the wallet (ETSI TS 119 602) as a signed JWT. It contains the provider CAs and status list signing certificates of the selected list. Verifiers use its provider CAs to validate the `x5c` or `x5chain` embedded in credentials. Issuer authorization data such as provider entitlements and `providesAttestations` comes from signed `/.well-known/openid-credential-issuer` metadata and `/api/registrar/wrp`. See [test certificates](../test-certificates.md).
 
 Without arguments it prints the PID list, like `/api/trustlist`. A list ID, `--vct` or `--doctype` selects another list. The IDs are `pid`, `qeaa`, `pub-eaa`, `eaa`, `wallet-provider`, `access-ca`, `registrar` and the `tl-` IDs of custom lists. `trust list` shows all lists of the wallet. `trust show lists` prints the list of trusted lists (also at `/api/trustlists/lists`).
 

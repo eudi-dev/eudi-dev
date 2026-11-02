@@ -313,7 +313,7 @@ The demo verifier checks the CRLs of a presented credential. It rejects a creden
 
 ### Withdrawing a trusted list entry
 
-You can remove a certificate from the wallet's own trusted lists. This is how a list operator removes a trust anchor. The next published list no longer contains it, and its sequence number goes up. Any certificate issued by it is removed too. Withdraw the CA of a signing certificate. A verifier still accepts the signing certificate if only that entry leaves the list and its CA stays. On a Pub-EAA providers list the service stays, with the status `withdrawn`.
+You can remove a certificate from the wallet's own trusted lists. This is how a list operator removes a trust anchor. The next published list no longer contains it, and its sequence number goes up. The lists name the provider CAs, so a verifier then rejects every certificate the CA issued. On a Pub-EAA providers list the service stays, with the status `withdrawn`.
 
 ```bash
 curl -X POST http://localhost:8085/api/trust/withdrawals \

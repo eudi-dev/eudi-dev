@@ -75,7 +75,7 @@ When a trusted list is given and the credential contains an x5c (SD-JWT/JWT) or 
 3. The leaf certificate is verified to chain up to a trusted list CA via any intermediates
 4. The leaf certificate's public key is used to verify the credential signature
 
-Wallet-issued SD-JWT credentials follow the same model. The header contains a deterministic `kid` and an `x5c` chain with the leaf and any intermediate certificates (without the root). The wallet trusted list publishes signing certificates and their provider CAs. The wallet also publishes JWT VC issuer metadata at `/.well-known/jwt-vc-issuer`.
+Wallet-issued SD-JWT credentials follow the same model. The header contains a deterministic `kid` and an `x5c` chain with the leaf and any intermediate certificates (without the root). The wallet trusted list publishes the provider CAs. The wallet also publishes JWT VC issuer metadata at `/.well-known/jwt-vc-issuer`.
 
 Without a key or a trusted list, `validate` and the web decoder use the trusted list of the credential's catalogue entry. Its issuance service anchors the credential, and its revocation service the status list.
 

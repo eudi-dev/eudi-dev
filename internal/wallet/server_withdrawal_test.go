@@ -63,33 +63,27 @@ func withdraw(t *testing.T, srv *Server, cert *x509.Certificate) trustedlists.Wi
 	return entry
 }
 
-// A withdrawn anchor leaves its trusted list, and so does a certificate issued
-// by it.
+// A withdrawn provider CA leaves its trusted list until it is restored.
 func TestWithdrawnAnchorLeavesTheTrustedList(t *testing.T) {
 	srv := newTestServer(t, true)
 	chain := providerChain(t, srv.wallet)
 	leaf, providerCA := chain[0], chain[1]
-	if anchors := listAnchors(t, srv); !hasAnchor(anchors, leaf) || !hasAnchor(anchors, providerCA) {
-		t.Fatalf("the list holds %d anchors, want the leaf and the provider CA", len(anchors))
+	if anchors := listAnchors(t, srv); hasAnchor(anchors, leaf) || !hasAnchor(anchors, providerCA) {
+		t.Fatalf("the list holds %d anchors, want the provider CA without its leaf", len(anchors))
 	}
 
-	entry := withdraw(t, srv, leaf)
-	if anchors := listAnchors(t, srv); hasAnchor(anchors, leaf) || !hasAnchor(anchors, providerCA) {
-		t.Error("withdrawing the leaf should remove only the leaf")
+	entry := withdraw(t, srv, providerCA)
+	if hasAnchor(listAnchors(t, srv), providerCA) {
+		t.Error("the withdrawn provider CA stays on the list")
 	}
 	if rec := crlRequest(t, srv, http.MethodDelete, "/api/trust/withdrawals/"+entry.ID, nil); rec.Code != http.StatusNoContent {
 		t.Fatalf("restoring: %d %s", rec.Code, rec.Body)
 	}
-	if !hasAnchor(listAnchors(t, srv), leaf) {
-		t.Error("the restored leaf is not on the list")
+	if !hasAnchor(listAnchors(t, srv), providerCA) {
+		t.Error("the restored provider CA is not on the list")
 	}
 	if rec := crlRequest(t, srv, http.MethodDelete, "/api/trust/withdrawals/"+entry.ID, nil); rec.Code != http.StatusNotFound {
 		t.Errorf("restoring twice: %d", rec.Code)
-	}
-
-	withdraw(t, srv, providerCA)
-	if anchors := listAnchors(t, srv); hasAnchor(anchors, providerCA) || hasAnchor(anchors, leaf) {
-		t.Error("withdrawing the provider CA should also remove its leaf")
 	}
 }
 
@@ -126,7 +120,7 @@ func TestOnlyListedCertificatesCanBeWithdrawn(t *testing.T) {
 
 func TestWithdrawalsAreListedAndBlockedOnTheDemo(t *testing.T) {
 	srv := newTestServer(t, true)
-	withdraw(t, srv, providerChain(t, srv.wallet)[0])
+	withdraw(t, srv, providerChain(t, srv.wallet)[1])
 	rec := crlRequest(t, srv, http.MethodGet, "/api/trust/withdrawals", nil)
 	var listed []trustedlists.WithdrawnCertificate
 	if err := json.Unmarshal(rec.Body.Bytes(), &listed); err != nil || len(listed) != 1 {
