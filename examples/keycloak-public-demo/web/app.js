@@ -231,6 +231,7 @@ function showAbout() {
     "Wallets must be registered as clients in advance",
     copied && "Copied certificates miss list updates",
     copied && CONFIG.attestedClient && "Wallet attestations are checked by key, not by chain",
+    CONFIG.trust !== "none" && "No CRL check, so revoked certificates still pass",
     "No status list, so credentials can't be revoked",
   ];
   $("about-facts").replaceChildren(...facts.filter(Boolean).map(([label, value]) => {
