@@ -3584,7 +3584,7 @@ textarea.form-input {
 
 #trust-external-lists .trust-item-hint {
   display: block;
-  margin-top: 4px;
+  margin-top: 0;
 }
 
 #trust-external-lists .trust-links > span,

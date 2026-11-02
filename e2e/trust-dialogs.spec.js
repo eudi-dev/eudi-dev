@@ -150,13 +150,15 @@ test("an external list of a type without its own category asks for a catalogue l
     const response = await route.fetch();
     const state = await response.json();
     state.lists = [
-      { url: "https://lists.example/eaa", type: "https://lists.example/LoTEType/EAAProvidersList" },
+      { url: "https://lists.example/eaa", name: "Example Operator", type: "https://lists.example/LoTEType/EAAProvidersList" },
       { url: "https://lists.example/pid", type: "http://uri.etsi.org/19602/LoTEType/EUPIDProvidersList", direct: true },
     ];
     await route.fulfill({ response, json: state });
   });
   await openTrust(page);
   await expect(page.locator("#trust-external-0-hint")).toContainText("in the catalogue");
+  await expect(page.locator("#trust-external-0-url")).toHaveText("Example Operator");
+  await expect(page.locator("#trust-external-0-location")).toHaveText("lists.example/eaa");
   await expect(page.locator("#trust-external-1-hint")).toHaveCount(0);
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });

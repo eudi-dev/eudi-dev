@@ -4574,6 +4574,7 @@
         // Some URLs pass the wallet's check, but the browser refuses them. Every
         // visitor sees this dialog, so such a URL must not break it.
         const web = isWebURL(l.url);
+        let address = l.url;
         const link = document.createElement(web ? 'a' : 'span');
         link.id = prefix + '-url';
         link.title = l.url;
@@ -4582,18 +4583,10 @@
           link.href = l.url;
           link.target = '_blank';
           link.rel = 'noopener';
-          link.textContent = target.host + (target.pathname === '/' ? '' : target.pathname) + target.search;
-        } else {
-          link.textContent = l.url;
+          address = target.host + (target.pathname === '/' ? '' : target.pathname) + target.search;
         }
+        link.textContent = l.name || address;
         row.appendChild(link);
-        if (l.name) {
-          const name = document.createElement('span');
-          name.className = 'trust-list-name';
-          name.id = prefix + '-name';
-          name.textContent = l.name;
-          row.appendChild(name);
-        }
         const removable = !l.via && !l.configured;
         row.appendChild(trustListMenu(prefix, l.url, 'api/trust/lists/document?url=' + encodeURIComponent(l.url),
           removable ? [['Remove', 'remove', async () => {
@@ -4601,6 +4594,13 @@
             document.getElementById('trust-title').focus();
           }]] : []));
         items.appendChild(row);
+        if (l.name) {
+          const line = document.createElement('span');
+          line.className = 'trust-item-hint';
+          line.id = prefix + '-location';
+          line.textContent = address;
+          items.appendChild(line);
+        }
         const notes = [];
         if (l.via) notes.push('From ' + l.via + '.');
         else if (l.configured) notes.push('Set with --trusted-list.');
