@@ -5,6 +5,13 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.2] - 2026-11-03
+
+### Changed
+
+- **Key attestation proofs name the key by position.** A jwt proof with a key attestation sends `kid` `"0"` instead of `jwk`, as in the OpenID4VCI 1.0 Appendix F.1 example and the EUDI reference wallet. `--key-attestation-proof-jwk` brings back `jwk`. See [key attestation claims](docs/wallet/serve.md#key-attestation-claims).
+- **Keycloak demo setup and gaps.** The start page of each Keycloak demo variant describes its setup and lists what the Keycloak version does not support yet.
+
 ## [3.7.1] - 2026-11-02
 
 ### Changed
