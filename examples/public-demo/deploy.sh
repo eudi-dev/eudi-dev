@@ -58,8 +58,8 @@ compose() {
 copy_stack() {
   echo "Copying the stack to ${DEMO_HOST}:${DEMO_DIR}..."
   ssh "${DEMO_HOST}" "mkdir -p ${DEMO_DIR}"
-  # docker-compose.yml attaches Caddy to this network, which examples/keycloak-public-demo uses.
-  ssh "${DEMO_HOST}" "docker network inspect keycloak-public-demo >/dev/null 2>&1 || docker network create keycloak-public-demo >/dev/null"
+  # The Caddyfile imports sites/*.caddy, which other stacks on this host put there.
+  ssh "${DEMO_HOST}" "mkdir -p ${DEMO_DIR}/sites"
   scp -q Caddyfile Dockerfile docker-compose.yml keycloak-demo-list-ca.pem "${DEMO_HOST}:${DEMO_DIR}/"
   scp -qr relying-parties catalog "${DEMO_HOST}:${DEMO_DIR}/"
   # The news snippet and its images. The main wallet shows them to visitors.
@@ -73,7 +73,9 @@ copy_stack() {
   fi
   # Basic auth credentials for the /stats report live in stats.env, next to
   # the compose file, and never in the repository.
-  [[ -f stats.env ]] && scp -q stats.env "${DEMO_HOST}:${DEMO_DIR}/stats.env"
+  if [[ -f stats.env ]]; then
+    scp -q stats.env "${DEMO_HOST}:${DEMO_DIR}/stats.env"
+  fi
 }
 
 deployed_version() {
