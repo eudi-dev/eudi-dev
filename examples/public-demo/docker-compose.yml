@@ -21,10 +21,6 @@ services:
     image: eudi-demo-caddy
     restart: unless-stopped
     logging: *logging
-    networks:
-      - default
-      # Reaches examples/keycloak-public-demo, which stays apart from the wallets.
-      - keycloak-public-demo
     ports:
       - "80:80"
       - "443:443"
@@ -38,7 +34,7 @@ services:
       - caddy-config:/config
       - caddy-logs:/var/log/caddy
       - stats-report:/srv/stats:ro
-      - ./oid4vc-sig:/srv/oid4vc-sig:ro
+      - ./sites:/etc/caddy/sites:ro
 
   wallet:
     # WALLET_TAG in the host .env pins a release for rollback. Without a pin, use the
@@ -211,11 +207,6 @@ services:
       - caddy-logs:/var/log/caddy:ro
       - stats-report:/srv/stats
       - stats-db:/srv/goaccess-db
-
-networks:
-  keycloak-public-demo:
-    name: keycloak-public-demo
-    external: true
 
 volumes:
   caddy-data:

@@ -67,7 +67,23 @@ KEYCLOAK_IMAGE=keycloak-public-demo:local KEYCLOAK_BUILD=my-branch docker compos
 
 Copy `deploy.env.example` to `deploy.env` and fill in the hosts. Git ignores `deploy.env`. Then run `./deploy.sh all`.
 
-`deploy.sh` needs a TLS proxy on the host. The stack joins the proxy's Docker network (default `keycloak-public-demo`, set with `PROXY_NETWORK`). The proxy reaches the containers as `keycloak-base:8080`, `keycloak-<variant>:8080` and `demo-web:8080`. [`../public-demo/Caddyfile`](../public-demo/Caddyfile) has blocks for this next to the public demo wallet, including the path routing and the page's Content Security Policy.
+`deploy.sh` needs a TLS proxy on the host. The stack joins the proxy's Docker network (default `keycloak-public-demo`, set with `PROXY_NETWORK`). The proxy reaches the containers as `keycloak-base:8080`, `keycloak-<variant>:8080` and `demo-web:8080`. [`proxy.caddy`](proxy.caddy) has the Caddy sites for this, including the path routing and the page's Content Security Policy.
+
+To run it behind the Caddy of the [public demo](../public-demo), copy `proxy.caddy` into the `sites/` folder next to that Caddyfile, which imports it. Create the network with `docker network create keycloak-public-demo` and attach Caddy to it with a `docker-compose.override.yml` next to the public demo's compose file:
+
+```yaml
+services:
+  caddy:
+    networks:
+      - default
+      - keycloak-public-demo
+
+networks:
+  keycloak-public-demo:
+    external: true
+```
+
+Then run `./deploy.sh push` in the public demo.
 
 With `KEYCLOAK_DIR` set, `./deploy.sh all` packs that checkout's distribution into an image, copies it to the host over ssh and shows the branch name in the footer. Otherwise the host pulls `KEYCLOAK_IMAGE`.
 
