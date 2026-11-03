@@ -54,6 +54,10 @@ read_capabilities() {
   [[ "${TRUST}" != none ]] && server_has '.identityProviders | any(.id == "oid4vp")' && WALLET_LOGIN=true
   ATTESTED_CLIENT=false
   [[ "${TRUST}" != none ]] && server_has '.providers["client-authenticator"].providers | has("attestation-based")' && ATTESTED_CLIENT=true
+  # Client attestation checks an ETSI list only through x5c (keycloak#52883), which the server info does not show.
+  # Without it the attester key is copied as for the releases.
+  ATTESTATION_X5C_GAP=false
+  [[ "${TRUST}" == etsi-trust-list && "${CLIENT_ATTESTATION_X5C:-true}" == false ]] && ATTESTATION_X5C_GAP=true
   echo "Trust: ${TRUST}, wallet sign-in: ${WALLET_LOGIN}, attested wallet client: ${ATTESTED_CLIENT}"
 }
 
@@ -210,17 +214,30 @@ create_trust_providers() {
   anchor="$(curl -fsS "${WALLET}/api/certificates/ca")"
   create_trust_provider wallet-providers "${WALLET_LIST_URL}" "${signer}" "${LOTE_WALLET}" "${SERVICE_ISSUANCE}" "${anchor}"
   create_trust_provider demo-issuers "${ISSUER_LIST_URL}" "${ISSUER_LIST_SIGNER}" "${LOTE_ISSUERS}" "${SERVICE_ISSUERS}" "${ISSUER_CA}"
-  [[ "${TRUST}" == default-trust ]] && create_attester_provider
+  [[ "${TRUST}" == default-trust || "${ATTESTATION_X5C_GAP}" == true ]] && create_attester_provider
   return 0
+}
+
+# The current list names only the wallet provider CA. Older list versions still name the certificate
+# that signs the attestations, so the newest of those is taken.
+wallet_provider_signer() {
+  local url certificate
+  for url in $(curl -fsS "${WALLET}/api/trustlists/wallet-provider/history" | jq -r '.instances | sort_by(-.sequence) | .[].url'); do
+    for certificate in $(curl -fsS "${url}" | jwt_part 2 | jq -r --arg service "${SERVICE_ISSUANCE}" \
+      '.LoTE.TrustedEntitiesList[].TrustedEntityServices[].ServiceInformation | select(.ServiceTypeIdentifier == $service)
+        | .ServiceDigitalIdentity.X509Certificates[].val'); do
+      base64 -d <<< "${certificate}" | openssl x509 -inform DER -noout -ext basicConstraints 2>/dev/null | grep -q CA:TRUE || { echo "${certificate}"; return 0; }
+    done
+  done
+  echo "No wallet provider signing certificate in the list history" >&2
+  return 1
 }
 
 # Keycloak releases look up the attester of a client attestation by kid and ignore its x5c, so they
 # need the wallet provider's key itself. The wallet's kid is the RFC 7638 thumbprint of that key.
 create_attester_provider() {
   local certificate point x y kid
-  certificate="$(curl -fsS "${WALLET}/api/trustlists/wallet-provider" | jwt_part 2 | jq -r --arg service "${SERVICE_ISSUANCE}" \
-    '[.LoTE.TrustedEntitiesList[].TrustedEntityServices[].ServiceInformation | select(.ServiceTypeIdentifier == $service)
-      | .ServiceDigitalIdentity.X509Certificates[].val][0]')"
+  certificate="$(wallet_provider_signer)"
   point="$(mktemp)"
   base64 -d <<< "${certificate}" | openssl x509 -inform DER -pubkey -noout | openssl pkey -pubin -outform DER | tail -c 64 > "${point}"
   x="$(head -c 32 "${point}" | base64url)"
@@ -307,9 +324,9 @@ write_page_config() {
   jq -n --arg keycloak "${PUBLIC_URL}" --arg keycloakVersion "${version}" --arg wallet "${WALLET}" --arg walletClient "${WALLET_CLIENT}" \
     --arg demoUser "${USERNAME}" --arg imprint "${imprint}" --arg trust "${TRUST}" --arg keycloakBuildUrl "${KEYCLOAK_BUILD_URL:-}" \
     --arg keycloakBuildTitle "${KEYCLOAK_BUILD_TITLE:-}" --arg issuerList "${ISSUER_LIST_URL/http:\/\/demo-web:8080/${DEMO_ORIGIN}}" \
-    --argjson walletLogin "${WALLET_LOGIN}" --argjson attestedClient "${ATTESTED_CLIENT}" --argjson signedMetadata "$([[ -n "${RELYING_PARTY_ID:-}" ]] && echo true || echo false)" \
+    --argjson walletLogin "${WALLET_LOGIN}" --argjson attestedClient "${ATTESTED_CLIENT}" --argjson attestationX5cGap "${ATTESTATION_X5C_GAP}" --argjson signedMetadata "$([[ -n "${RELYING_PARTY_ID:-}" ]] && echo true || echo false)" \
     '{$issuerList, $keycloak, $keycloakVersion, $keycloakBuildUrl, $keycloakBuildTitle, $wallet, $walletClient, $demoUser, $imprint, $trust,
-      $walletLogin, $attestedClient, $signedMetadata}' \
+      $walletLogin, $attestedClient, $attestationX5cGap, $signedMetadata}' \
     | { printf 'const CONFIG = '; cat; } > "${WEB_CONFIG_FILE}"
 }
 

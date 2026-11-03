@@ -194,7 +194,7 @@ function setUpTrustDialog() {
     { name: "Signing keys", description: "JWKS of the realm", publisher: "Keycloak", url: `${OIDC}/certs` },
   ].map(trustRow));
   $("trust-hint").textContent = CONFIG.trust === "etsi-trust-list"
-    ? "Keycloak fetches these lists (ETSI TS 119 602)."
+    ? `Keycloak fetches these lists (ETSI TS 119 602).${CONFIG.attestationX5cGap ? " For wallet attestations, setup gave it the wallet provider's key." : ""}`
     : "This Keycloak cannot read these lists, so setup gave it their certificates.";
   document.querySelectorAll("[data-open-trust]").forEach((link) => {
     link.hidden = CONFIG.trust === "none";
@@ -223,7 +223,7 @@ function showAbout() {
     ["Issuance", "SD-JWT VC over OpenID4VCI"],
     ["Key attestation", CONFIG.trust === "none" ? "Not checked" : "Required"],
     ["Wallet client", CONFIG.attestedClient ? "Wallet attestation" : "Public client"],
-    ["Trust", fetched ? "ETSI trusted lists, fetched" : copied ? "Certificates copied at setup" : "None"],
+    ["Trust", fetched ? `ETSI trusted lists, fetched${CONFIG.attestationX5cGap ? ", attester key copied at setup" : ""}` : copied ? "Certificates copied at setup" : "None"],
     ["Wallet sign-in", CONFIG.walletLogin ? "OpenID4VP with DCQL" : "Password only"],
     CONFIG.signedMetadata && ["Metadata", "Signed with an access certificate"],
   ];
@@ -231,6 +231,9 @@ function showAbout() {
     "Wallets must be registered as clients in advance",
     copied && "Copied certificates miss list updates",
     copied && CONFIG.attestedClient && "Wallet attestations are checked by key, not by chain",
+    CONFIG.attestationX5cGap && "Wallet attestations are checked by a copied key, not by chain against the lists (keycloak#52883)",
+    CONFIG.attestationX5cGap && "The copied attester key misses list updates",
+    CONFIG.attestedClient && (copied || CONFIG.attestationX5cGap) && "Keycloak needs the wallet provider's signing key, but real lists name only its CA",
     CONFIG.trust !== "none" && "No CRL check, so revoked certificates still pass",
     "No status lists, so credentials can't be revoked or checked",
     CONFIG.walletLogin && "The sign-in request has no verifier_info",
@@ -246,6 +249,7 @@ function showAbout() {
   $("about-flow-sign-in").style.display = CONFIG.walletLogin ? "" : "none";
   $("about-flow-trust").style.display = CONFIG.trust === "none" ? "none" : "";
   $("about-flow-trust-label").textContent = fetched ? "fetched" : "copied once";
+  $("about-flow-trust-note").style.display = CONFIG.attestationX5cGap ? "" : "none";
   $("about-flow-trust-line").classList.toggle("copied", copied);
 }
 
