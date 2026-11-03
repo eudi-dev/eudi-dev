@@ -219,6 +219,7 @@ function setUpTrustDialog() {
 function showAbout() {
   const fetched = CONFIG.trust === "etsi-trust-list";
   const copied = CONFIG.trust === "default-trust";
+  const copiedAttester = CONFIG.attestedClient && (copied || CONFIG.attestationX5cGap);
   const facts = [
     ["Issuance", "SD-JWT VC over OpenID4VCI"],
     ["Key attestation", CONFIG.trust === "none" ? "Not checked" : "Required"],
@@ -230,10 +231,9 @@ function showAbout() {
   const gaps = [
     "Wallets must be registered as clients in advance",
     copied && "Copied certificates miss list updates",
-    copied && CONFIG.attestedClient && "Wallet attestations are checked by key, not by chain",
-    CONFIG.attestationX5cGap && "Wallet attestations are checked by a copied key, not by chain against the lists (keycloak#52883)",
-    CONFIG.attestationX5cGap && "The copied attester key misses list updates",
-    CONFIG.attestedClient && (copied || CONFIG.attestationX5cGap) && "Keycloak needs the wallet provider's signing key, but real lists name only its CA",
+    copiedAttester && "Wallet attestations are checked by a copied key, not by chain against the lists (keycloak#52883)",
+    copiedAttester && "The copied attester key misses list updates",
+    copiedAttester && "Keycloak needs the wallet provider's signing key, but real lists name only its CA",
     CONFIG.trust !== "none" && "No CRL check, so revoked certificates still pass",
     "No status lists, so credentials can't be revoked or checked",
     CONFIG.walletLogin && "The sign-in request has no verifier_info",
