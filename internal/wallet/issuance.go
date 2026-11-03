@@ -1042,7 +1042,10 @@ func createProofJWT(holderKey *ecdsa.PrivateKey, audience, clientID, cNonce stri
 	header := map[string]any{
 		"alg": jws.AlgES256,
 		"typ": format.TypeKeyProof,
-		"jwk": jwk,
+	}
+	// Appendix F.1: jwk "MUST NOT be present if kid or x5c is present".
+	if _, named := extraHeader["kid"]; !named {
+		header["jwk"] = jwk
 	}
 	for key, value := range extraHeader {
 		header[key] = value
@@ -1388,6 +1391,11 @@ func (w *Wallet) buildCredentialProofs(a credentialRequestAttempt, cNonce string
 	var header map[string]any
 	if attestation != "" {
 		header = map[string]any{"key_attestation": attestation}
+		// The OpenID4VCI 1.0 Appendix F.1 example and the EUDI reference
+		// wallet name the signing key by its position in attested_keys.
+		if !w.Conformance().KeyAttestationProofJWK {
+			header["kid"] = "0"
+		}
 		if len(keys) > 1 {
 			keys = keys[:1]
 		}

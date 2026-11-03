@@ -280,6 +280,9 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
             <option value="none">Leave out</option>
           </select>
         </td></tr>
+        <tr><td id="conf-proof-key-name">Proof key with key attestation</td><td>
+          <label class="conf-toggle" id="conf-proof-jwk-label" title="By default a jwt proof with a key attestation names its key by kid &quot;0&quot;, its position in attested_keys (--key-attestation-proof-jwk)"><input type="checkbox" id="conf-proof-jwk-input"> Name the key by jwk</label>
+        </td></tr>
         <tr id="conf-crl-fault-row"><td id="conf-crl-fault-name">CRL fault</td><td>
           <select id="conf-crl-fault-select" class="conf-input" aria-labelledby="conf-crl-fault-name" aria-describedby="conf-crl-fault-hint">
             <option value="">None</option>

@@ -224,6 +224,24 @@ test.describe("Wallet Dashboard", () => {
     }
   });
 
+  test("the settings dialog switches the key attestation proof to jwk and back", async ({ page }) => {
+    await page.goto(WALLET_URL);
+    const proofJWK = async () =>
+      (await page.evaluate(async () => (await (await fetch("/api/config")).json()).key_attestation_proof_jwk));
+    await page.click("#conformance-link");
+    const toggle = page.locator("#conf-proof-jwk-input");
+    try {
+      await expect(toggle).toBeEnabled();
+      await expect(toggle).not.toBeChecked();
+      await toggle.check();
+      await expect.poll(proofJWK).toBe(true);
+      await toggle.uncheck();
+      await expect.poll(proofJWK).toBe(false);
+    } finally {
+      await page.click("#conf-reset");
+    }
+  });
+
   test("HTTPS verification overrides the validation mode and resets to its default", async ({ page }) => {
     await page.goto(WALLET_URL);
     await page.click("#conformance-link");

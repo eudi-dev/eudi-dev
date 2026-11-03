@@ -25,6 +25,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 )
 
@@ -434,6 +435,69 @@ func TestProofSigningAlgMustBeListed(t *testing.T) {
 	}
 	if entries := w.GetLog(); len(entries) == 0 || !strings.Contains(entries[len(entries)-1].Detail, "ES256") {
 		t.Fatalf("debug mode: want a warning naming the missing ES256, got %v", entries)
+	}
+}
+
+// TestKeyAttestationProofNamesKeyByIndex covers the jwt proof with a key
+// attestation. It names its signing key by kid "0", the position in
+// attested_keys, as in the Appendix F.1 example. The jwk option names the key
+// by jwk instead, since kid and jwk exclude each other (F.1).
+func TestKeyAttestationProofNamesKeyByIndex(t *testing.T) {
+	metadata := map[string]any{"credential_configurations_supported": map[string]any{
+		"cfg": map[string]any{"proof_types_supported": map[string]any{
+			"jwt": map[string]any{
+				"proof_signing_alg_values_supported": []any{"ES256"},
+				"key_attestations_required":          map[string]any{},
+			},
+		}},
+	}}
+	for _, proofJWK := range []bool{false, true} {
+		t.Run(fmt.Sprintf("jwk option %v", proofJWK), func(t *testing.T) {
+			w := generateTestWallet(t)
+			w.KeyAttestationProofJWK = proofJWK
+			batch := make([]*ecdsa.PrivateKey, 3)
+			for i := range batch {
+				key, err := mock.GenerateKey()
+				if err != nil {
+					t.Fatal(err)
+				}
+				batch[i] = key
+			}
+			attempt := credentialRequestAttempt{metadata: metadata, configID: "cfg", issuer: "https://issuer.example", proofKeys: batch}
+
+			proofs, err := w.buildCredentialProofs(attempt, "nonce")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if proofs.Type != "jwt" || len(proofs.Values) != 1 {
+				t.Fatalf("proofs = %v, want one jwt proof", proofs)
+			}
+			header := decodeJWTPart(t, proofs.Values[0], 0)
+			attested, _ := decodeJWTPart(t, header["key_attestation"].(string), 1)["attested_keys"].([]any)
+			if len(attested) != len(batch) {
+				t.Fatalf("attested_keys has %d keys, want %d", len(attested), len(batch))
+			}
+			for i, key := range attested {
+				if kid := key.(map[string]any)["kid"]; kid != fmt.Sprint(i) {
+					t.Errorf("attested_keys[%d] kid = %v, want %d", i, kid, i)
+				}
+			}
+			if !jws.Valid(proofs.Values[0], &batch[0].PublicKey) {
+				t.Error("the proof does not verify with attested_keys[0]")
+			}
+
+			jwk, hasJWK := header["jwk"].(map[string]any)
+			kid, hasKID := header["kid"]
+			if proofJWK {
+				if hasKID || !hasJWK || jwk["x"] != attested[0].(map[string]any)["x"] {
+					t.Errorf("header = %v, want the jwk of attested_keys[0] and no kid", header)
+				}
+				return
+			}
+			if hasJWK || kid != "0" {
+				t.Errorf("header = %v, want kid \"0\" and no jwk", header)
+			}
+		})
 	}
 }
 

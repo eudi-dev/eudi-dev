@@ -52,6 +52,7 @@ eudi wallet accept 'openid-credential-offer://...' --tx-code 123456
 | `--trusted-list`        | None     | URL of an external list of trusted entities (ETSI TS 119 602) for the wallet's list of trusted lists (repeatable). Only `wallet serve` takes a list file or directory. See [trusted lists](serve.md#trusted-lists) |
 | `--require-encrypted-request` | `false` | Reject a request object that the verifier did not encrypt |
 | `--client-attestation`  | `false`  | Send the wallet attestation on OID4VCI token requests even when the issuer does not advertise `attest_jwt_client_auth` |
+| `--key-attestation-proof-jwk` | `false` | Name the signing key of a jwt proof with a key attestation by `jwk` instead of `kid` `"0"` |
 | `--vci-version`         | `1.0`    | OpenID4VCI feature level as a client: `1.0` or `1.1` |
 
 Pre-authorized code offers work directly with `wallet accept`. Authorization code offers require a running `wallet serve` instance. Flows with attestation-based client authentication use a client ID derived from the wallet provider key, and other flows use the wallet origin. The redirect URI defaults to the `/callback` endpoint of the wallet origin. Set fixed values with `--vci-client-id` and `--vci-redirect-uri`. The wallet uses PAR and DPoP when advertised by the issuer.

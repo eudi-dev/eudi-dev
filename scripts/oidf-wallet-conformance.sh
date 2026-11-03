@@ -139,6 +139,7 @@ if [ "$WALLET_MANAGED" = "1" ]; then
     if [ -n "${OIDF_TLS_CA:-}" ]; then
       set -- "$@" --tls-ca "$OIDF_TLS_CA"
     fi
+    # The suite looks a proof kid up in the client JWKS only, not in attested_keys.
     exec "$LOCAL_EUDI_DEV" wallet serve "$@" \
       --mode "$OIDF_WALLET_MODE" \
       --auto-accept \
@@ -147,7 +148,8 @@ if [ "$WALLET_MANAGED" = "1" ]; then
       --wallet-dir "$WALLET_DIR" \
       --port "$PORT" \
       --vci-client-id "$OIDF_VCI_CLIENT_ID" \
-      --vci-redirect-uri "$OIDF_VCI_REDIRECT_URI"
+      --vci-redirect-uri "$OIDF_VCI_REDIRECT_URI" \
+      --key-attestation-proof-jwk
   ) >"$WALLET_LOG" 2>&1 &
   WALLET_PID=$!
 

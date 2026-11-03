@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -839,8 +840,13 @@ func createKeyAttestation(w *Wallet, metadata map[string]any, configID, cNonce s
 		proofKeys = []*ecdsa.PrivateKey{w.HolderKeyPair()}
 	}
 	attestedKeys := make([]any, 0, len(proofKeys))
-	for _, key := range proofKeys {
-		attestedKeys = append(attestedKeys, mock.SigningJWKMap(&key.PublicKey))
+	for i, key := range proofKeys {
+		// The jwt proof names its key by this position (Appendix F.1
+		// example), so issuers that look the kid up among the attested keys
+		// find it too.
+		jwk := mock.SigningJWKMap(&key.PublicKey)
+		jwk["kid"] = strconv.Itoa(i)
+		attestedKeys = append(attestedKeys, jwk)
 	}
 	// Appendix D.1 takes the key header parameters from Appendix F.1, where
 	// kid "MUST NOT be present if jwk or x5c is present".

@@ -237,6 +237,10 @@ type ConformanceSettings struct {
 	// advertised support. Disabled by default because reusing an attestation
 	// can link activity across issuers.
 	ForceClientAttestation bool `json:"force_client_attestation"`
+	// KeyAttestationProofJWK names the signing key of a jwt proof with a key
+	// attestation by jwk (--key-attestation-proof-jwk). By default the proof
+	// names it by kid "0", its position in attested_keys.
+	KeyAttestationProofJWK bool `json:"key_attestation_proof_jwk"`
 	// TLSVerify overrides TLS verification. Nil follows the validation mode.
 	TLSVerify *bool `json:"tls_verify_override"`
 	// VCIClientID is the fixed client_id of OID4VCI flows
@@ -263,6 +267,7 @@ type ConformancePatch struct {
 	VCIVersion              *string      `json:"vci_version,omitempty"`
 	KeyAttestationLevel     *string      `json:"key_attestation_level,omitempty"`
 	ForceClientAttestation  *bool        `json:"force_client_attestation,omitempty"`
+	KeyAttestationProofJWK  *bool        `json:"key_attestation_proof_jwk,omitempty"`
 	TLSVerify               NullableBool `json:"tls_verify_override"`
 	VCIClientID             *string      `json:"vci_client_id,omitempty"`
 }
@@ -314,6 +319,7 @@ func (w *Wallet) UpdateConformance(p ConformancePatch) error {
 		{p.RequireARF, &next.RequireARF},
 		{p.RequireEncryptedRequest, &next.RequireEncryptedRequest},
 		{p.ForceClientAttestation, &next.ForceClientAttestation},
+		{p.KeyAttestationProofJWK, &next.KeyAttestationProofJWK},
 	} {
 		if field.value != nil {
 			*field.target = *field.value

@@ -19,6 +19,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"strings"
 	"testing"
@@ -67,11 +68,15 @@ func generateKeys(t *testing.T, n int) []*ecdsa.PrivateKey {
 }
 
 // attestedProof is a jwt proof signed by signer that carries the key
-// attestation in its key_attestation header.
-func attestedProof(t *testing.T, d *DemoRP, signer *ecdsa.PrivateKey, attestation string) string {
+// attestation in its key_attestation header. named adds header parameters
+// that name the signing key.
+func attestedProof(t *testing.T, d *DemoRP, signer *ecdsa.PrivateKey, attestation string, named ...map[string]any) string {
 	t.Helper()
-	return signJWT(t, signer,
-		map[string]any{"typ": "openid4vci-proof+jwt", "key_attestation": attestation},
+	header := map[string]any{"typ": "openid4vci-proof+jwt", "key_attestation": attestation}
+	for _, params := range named {
+		maps.Copy(header, params)
+	}
+	return signJWT(t, signer, header,
 		map[string]any{"aud": d.issuerID(), "iat": time.Now().Unix(), "nonce": issuedNonce(t, d)})
 }
 
@@ -158,23 +163,36 @@ func TestTheMetadataOffersTheAttestationProofType(t *testing.T) {
 
 // ETSI TS 119 472-3 V1.1.1 CRED-REQ-PROC-4.6.2.1-04: "as many PIDs/EAAs as
 // elements present in the attested_keys array", each bound to one of them.
+// The proof may name its key by kid "0", the position in attested_keys (the
+// OpenID4VCI 1.0 Appendix F.1 example), by jwk, or not at all.
 func TestAJWTProofWithAKeyAttestationIssuesOneCredentialPerAttestedKey(t *testing.T) {
 	d, _, _ := newDemoRP(t)
 	keys := generateKeys(t, 3)
-	attestation := foreignWalletProvider(t).keyAttestation(t, d, keys, nil)
 
-	code, doc := sendProofs(t, d, "credential=pid-sdjwt", "jwt", attestedProof(t, d, keys[0], attestation))
-	if code != http.StatusOK {
-		t.Fatalf("status = %d, want 200: %v", code, doc)
-	}
-	bound := boundCredentialKeys(t, doc)
-	if len(bound) != len(keys) {
-		t.Fatalf("issued %d credentials, want one per attested key (%d)", len(bound), len(keys))
-	}
-	for i, key := range keys {
-		if !bound[i].Equal(&key.PublicKey) {
-			t.Errorf("credential %d is not bound to attested key %d", i, i)
-		}
+	for _, tc := range []struct {
+		name  string
+		named map[string]any
+	}{
+		{"unnamed", nil},
+		{"kid", map[string]any{"kid": "0"}},
+		{"jwk", map[string]any{"jwk": holderJWK(t, keys[0])}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			attestation := foreignWalletProvider(t).keyAttestation(t, d, keys, nil)
+			code, doc := sendProofs(t, d, "credential=pid-sdjwt", "jwt", attestedProof(t, d, keys[0], attestation, tc.named))
+			if code != http.StatusOK {
+				t.Fatalf("status = %d, want 200: %v", code, doc)
+			}
+			bound := boundCredentialKeys(t, doc)
+			if len(bound) != len(keys) {
+				t.Fatalf("issued %d credentials, want one per attested key (%d)", len(bound), len(keys))
+			}
+			for i, key := range keys {
+				if !bound[i].Equal(&key.PublicKey) {
+					t.Errorf("credential %d is not bound to attested key %d", i, i)
+				}
+			}
+		})
 	}
 }
 

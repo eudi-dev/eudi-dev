@@ -334,6 +334,7 @@ Every flag can also be set as `EUDI_DEV_<FLAG>`, with the flag name in upper cas
 | `--trusted-list-ca`       | None     | PEM file with CA certificates of trusted list operators. With `--arf` the wallet also accepts trusted lists signed under these CAs (repeatable) |
 | `--trusted-list`        | None     | An external list's URL, or a [list file or directory](#publishing-trusted-lists-from-files), for the [list of trusted lists](#list-of-trusted-lists) (repeatable) |
 | `--client-attestation`  | `false`  | Send the wallet attestation on OID4VCI token requests even when the issuer does not advertise `attest_jwt_client_auth` (see [wallet attestation](issuing.md#wallet-attestation)) |
+| `--key-attestation-proof-jwk` | `false` | Name the signing key of a jwt proof with a key attestation by `jwk`. By default the proof sends `kid` `"0"`, the key's position in `attested_keys`. Change it in the Settings dialog. See [key attestation claims](#key-attestation-claims) |
 | `--adhoc-display-images` | `false` | Fetch HTTPS display images on demand instead of storing them. The issuer sees each render. See [display images](#display-images) |
 | `--require-encrypted-request` | `false` | Refuse an unencrypted Request Object. The wallet always sends an encryption key in `wallet_metadata`, so this requires the Verifier to use it |
 | `--demo`                | `false`  | Public demo profile: implies `--pid`, `--mode debug`, `--haip`, `--arf` and `--vci-version 1.1` (all overridable), disables process and filesystem endpoints, blocks fetches to loopback and private networks unless `--allow-private-networks` is given. Browser flows keep the consent dialog unless `--auto-accept` is on the command line. API flows auto-accept (see [public demo hosting](../public-demo.md)) |
@@ -482,6 +483,8 @@ As with every flag, the environment variable is `EUDI_DEV_RELYING_PARTIES`.
 `--key-attestation-level` sets the test claims `key_storage` and `user_authentication` (OpenID4VCI Appendix D.2). By default they match the issuer's requirements. With `--arf` and no requirement both claim `iso_18045_high`. CIR (EU) 2024/2979 Annex Ib C_KA-1 requires this level for a WSCD. `none` omits both claims. A level such as `iso_18045_high` sets both explicitly. The Settings dialog can change this at runtime.
 
 These claims describe simulated protection levels. Keys are stored unencrypted. See [SECURITY.md](../../SECURITY.md).
+
+A jwt proof with a key attestation is signed by the first attested key. It names that key by `kid` `"0"`, its position in `attested_keys`, as in the example in OpenID4VCI 1.0 Appendix F.1 and as the EUDI reference wallet does. Each attested key carries its position as `kid` too, so an issuer that looks the `kid` up among the attested keys finds it. `--key-attestation-proof-jwk` sends the key as `jwk` instead, for issuers that only read `jwk`. The Settings dialog can change this at runtime.
 
 ## Display images
 
