@@ -325,6 +325,19 @@ func TestConformanceAPICarriesTheKeyAttestationLevel(t *testing.T) {
 	}
 }
 
+func TestConformanceAPIRefusesAnUnknownProofKeyReference(t *testing.T) {
+	srv := newTestServer(t, true)
+	req := httptest.NewRequest(http.MethodPut, "/api/config/conformance", strings.NewReader(`{"key_attestation_proof_key":"x5c"}`))
+	rec := httptest.NewRecorder()
+	srv.mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("PUT of key_attestation_proof_key x5c = %d, want 400: %s", rec.Code, rec.Body.String())
+	}
+	if got := conformanceField(t, srv, http.MethodGet, "/api/config", "", "key_attestation_proof_key"); got != "kid" {
+		t.Fatalf("key_attestation_proof_key after a refused change = %q, want kid", got)
+	}
+}
+
 func conformanceVCIVersion(t *testing.T, srv *Server, method, path, body string) string {
 	t.Helper()
 	return conformanceField(t, srv, method, path, body, "vci_version")

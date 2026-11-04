@@ -442,7 +442,7 @@ func TestProofSigningAlgMustBeListed(t *testing.T) {
 // attestation. It names its signing key by kid "0", the position in
 // attested_keys, as in the Appendix F.1 example. The jwk option names the key
 // by jwk instead, since kid and jwk exclude each other (F.1).
-func TestKeyAttestationProofNamesKeyByIndex(t *testing.T) {
+func TestKeyAttestationProofNamesItsKey(t *testing.T) {
 	metadata := map[string]any{"credential_configurations_supported": map[string]any{
 		"cfg": map[string]any{"proof_types_supported": map[string]any{
 			"jwt": map[string]any{
@@ -451,10 +451,10 @@ func TestKeyAttestationProofNamesKeyByIndex(t *testing.T) {
 			},
 		}},
 	}}
-	for _, proofJWK := range []bool{false, true} {
-		t.Run(fmt.Sprintf("jwk option %v", proofJWK), func(t *testing.T) {
+	for _, reference := range []ProofKeyReference{"", ProofKeyKID, ProofKeyJWK, ProofKeyNone} {
+		t.Run(fmt.Sprintf("reference %q", reference), func(t *testing.T) {
 			w := generateTestWallet(t)
-			w.KeyAttestationProofJWK = proofJWK
+			w.KeyAttestationProofKey = reference
 			batch := make([]*ecdsa.PrivateKey, 3)
 			for i := range batch {
 				key, err := mock.GenerateKey()
@@ -488,14 +488,19 @@ func TestKeyAttestationProofNamesKeyByIndex(t *testing.T) {
 
 			jwk, hasJWK := header["jwk"].(map[string]any)
 			kid, hasKID := header["kid"]
-			if proofJWK {
+			switch reference {
+			case ProofKeyJWK:
 				if hasKID || !hasJWK || jwk["x"] != attested[0].(map[string]any)["x"] {
 					t.Errorf("header = %v, want the jwk of attested_keys[0] and no kid", header)
 				}
-				return
-			}
-			if hasJWK || kid != "0" {
-				t.Errorf("header = %v, want kid \"0\" and no jwk", header)
+			case ProofKeyNone:
+				if hasKID || hasJWK {
+					t.Errorf("header = %v, want neither kid nor jwk", header)
+				}
+			default:
+				if hasJWK || kid != "0" {
+					t.Errorf("header = %v, want kid \"0\" and no jwk", header)
+				}
 			}
 		})
 	}

@@ -237,10 +237,9 @@ type ConformanceSettings struct {
 	// advertised support. Disabled by default because reusing an attestation
 	// can link activity across issuers.
 	ForceClientAttestation bool `json:"force_client_attestation"`
-	// KeyAttestationProofJWK names the signing key of a jwt proof with a key
-	// attestation by jwk (--key-attestation-proof-jwk). By default the proof
-	// names it by kid "0", its position in attested_keys.
-	KeyAttestationProofJWK bool `json:"key_attestation_proof_jwk"`
+	// KeyAttestationProofKey names the signing key of a jwt proof with a key
+	// attestation (--key-attestation-proof-key). Defaults to kid "0".
+	KeyAttestationProofKey ProofKeyReference `json:"key_attestation_proof_key"`
 	// TLSVerify overrides TLS verification. Nil follows the validation mode.
 	TLSVerify *bool `json:"tls_verify_override"`
 	// VCIClientID is the fixed client_id of OID4VCI flows
@@ -267,7 +266,7 @@ type ConformancePatch struct {
 	VCIVersion              *string      `json:"vci_version,omitempty"`
 	KeyAttestationLevel     *string      `json:"key_attestation_level,omitempty"`
 	ForceClientAttestation  *bool        `json:"force_client_attestation,omitempty"`
-	KeyAttestationProofJWK  *bool        `json:"key_attestation_proof_jwk,omitempty"`
+	KeyAttestationProofKey  *string      `json:"key_attestation_proof_key,omitempty"`
 	TLSVerify               NullableBool `json:"tls_verify_override"`
 	VCIClientID             *string      `json:"vci_client_id,omitempty"`
 }
@@ -310,6 +309,11 @@ func (w *Wallet) UpdateConformance(p ConformancePatch) error {
 			return err
 		}
 	}
+	if p.KeyAttestationProofKey != nil {
+		if next.KeyAttestationProofKey, err = ParseProofKeyReference(*p.KeyAttestationProofKey); err != nil {
+			return err
+		}
+	}
 	arfWasOn := next.RequireARF
 	for _, field := range []struct {
 		value  *bool
@@ -319,7 +323,6 @@ func (w *Wallet) UpdateConformance(p ConformancePatch) error {
 		{p.RequireARF, &next.RequireARF},
 		{p.RequireEncryptedRequest, &next.RequireEncryptedRequest},
 		{p.ForceClientAttestation, &next.ForceClientAttestation},
-		{p.KeyAttestationProofJWK, &next.KeyAttestationProofJWK},
 	} {
 		if field.value != nil {
 			*field.target = *field.value
@@ -506,7 +509,7 @@ func newWallet(holderKey, issuerKey *ecdsa.PrivateKey, autoAccept bool) *Wallet 
 		HolderKey:           holderKey,
 		IssuerKey:           issuerKey,
 		AutoAccept:          autoAccept,
-		ConformanceSettings: ConformanceSettings{ValidationMode: ValidationModeDebug, VCIVersion: VCIVersion10},
+		ConformanceSettings: ConformanceSettings{ValidationMode: ValidationModeDebug, VCIVersion: VCIVersion10, KeyAttestationProofKey: ProofKeyKID},
 		runtime:             consent.NewRuntime(),
 	}
 }
@@ -925,6 +928,9 @@ func (w *Wallet) ConformanceDocument() ConformanceDocument {
 	doc := ConformanceDocument{ConformanceSettings: w.ConformanceSettings, TLSVerification: w.tlsVerificationLocked()}
 	if doc.VCIVersion == "" {
 		doc.VCIVersion = VCIVersion10
+	}
+	if doc.KeyAttestationProofKey == "" {
+		doc.KeyAttestationProofKey = ProofKeyKID
 	}
 	return doc
 }

@@ -224,19 +224,19 @@ test.describe("Wallet Dashboard", () => {
     }
   });
 
-  test("the settings dialog switches the key attestation proof to jwk and back", async ({ page }) => {
+  test("the settings dialog switches how the key attestation proof names its key", async ({ page }) => {
     await page.goto(WALLET_URL);
-    const proofJWK = async () =>
-      (await page.evaluate(async () => (await (await fetch("/api/config")).json()).key_attestation_proof_jwk));
+    const proofKey = async () =>
+      (await page.evaluate(async () => (await (await fetch("/api/config")).json()).key_attestation_proof_key));
     await page.click("#conformance-link");
-    const toggle = page.locator("#conf-proof-jwk-input");
+    const select = page.locator("#conf-proof-key-select");
     try {
-      await expect(toggle).toBeEnabled();
-      await expect(toggle).not.toBeChecked();
-      await toggle.check();
-      await expect.poll(proofJWK).toBe(true);
-      await toggle.uncheck();
-      await expect.poll(proofJWK).toBe(false);
+      await expect(select).toBeEnabled();
+      await expect(select).toHaveValue("kid");
+      for (const reference of ["jwk", "none", "kid"]) {
+        await select.selectOption(reference);
+        await expect.poll(proofKey).toBe(reference);
+      }
     } finally {
       await page.click("#conf-reset");
     }

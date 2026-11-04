@@ -5,6 +5,13 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.3] - 2026-11-04
+
+### Changed
+
+- **Choose how key attestation proofs name the key.** `--key-attestation-proof-key` and a dropdown in the Settings dialog replace `--key-attestation-proof-jwk` and its checkbox. `kid` sends `kid` `"0"` (the default), `jwk` sends the key, and `none` sends neither, to test whether an issuer enforces OpenID4VCI 1.0 Appendix F.1. The setting is `key_attestation_proof_key` in `/api/config`. See [key attestation claims](docs/wallet/serve.md#key-attestation-claims).
+- **The demo issuer wants the proof key named.** A jwt proof with a key attestation that carries none of `kid`, `jwk` and `x5c` now gets `invalid_proof`, as OpenID4VCI 1.0 Appendix F.1 requires.
+
 ## [3.7.2] - 2026-11-03
 
 ### Changed

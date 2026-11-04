@@ -161,7 +161,7 @@ func TestConformanceFlagsApplyEverySetting(t *testing.T) {
 
 	cmd := &cobra.Command{Use: "accept"}
 	flags := addConformanceFlags(cmd)
-	if err := cmd.ParseFlags([]string{"--haip", "--arf", "--require-encrypted-request", "--client-attestation", "--vci-version", "1.1", "--key-attestation-level", "none"}); err != nil {
+	if err := cmd.ParseFlags([]string{"--haip", "--arf", "--require-encrypted-request", "--client-attestation", "--vci-version", "1.1", "--key-attestation-level", "none", "--key-attestation-proof-key", "none"}); err != nil {
 		t.Fatal(err)
 	}
 	conformance, err := flags.resolve()
@@ -171,7 +171,7 @@ func TestConformanceFlagsApplyEverySetting(t *testing.T) {
 	w := newTestServeWallet(t)
 	conformance.apply(w)
 	got := w.Conformance()
-	if !got.RequireHAIP || !got.RequireARF || !got.RequireEncryptedRequest || !got.ForceClientAttestation || got.VCIVersion != wallet.VCIVersion11 || got.KeyAttestationLevel != "none" {
+	if !got.RequireHAIP || !got.RequireARF || !got.RequireEncryptedRequest || !got.ForceClientAttestation || got.VCIVersion != wallet.VCIVersion11 || got.KeyAttestationLevel != "none" || got.KeyAttestationProofKey != wallet.ProofKeyNone {
 		t.Errorf("applied %+v", got)
 	}
 }

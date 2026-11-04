@@ -1046,8 +1046,8 @@ func (d *DemoRP) verifyProofJWT(raw, issuer string) (boundKeys, *proofError) {
 }
 
 // proofBoundKeys returns the keys bound by a jwt proof. With a key_attestation
-// header those are the attested keys, and the first one signs the proof. A jwk
-// or x5c header must hold that same key.
+// header those are the attested keys, and the first one signs the proof. The
+// header still names that key (Appendix F.1), and a jwk or x5c must hold it.
 func (d *DemoRP) proofBoundKeys(header map[string]any) (boundKeys, *proofError) {
 	rawAttestation, hasAttestation := header["key_attestation"]
 	if !hasAttestation {
@@ -1065,6 +1065,9 @@ func (d *DemoRP) proofBoundKeys(header map[string]any) (boundKeys, *proofError) 
 	first := attestation.attestedKeys[0]
 	_, hasJWK := header["jwk"]
 	_, hasX5C := header["x5c"]
+	if kid, _ := header["kid"].(string); kid == "" && !hasJWK && !hasX5C {
+		return boundKeys{}, invalidProof("proof JWT header carries none of jwk, x5c or kid")
+	}
 	if hasJWK || hasX5C {
 		named, err := proofKeyMaterial(header)
 		if err != nil {

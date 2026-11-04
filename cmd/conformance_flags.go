@@ -50,7 +50,7 @@ type conformanceFlags struct {
 	arf                 bool
 	encrypted           bool
 	clientAttestation   bool
-	proofJWK            bool
+	proofKey            string
 	vciVersion          string
 	keyAttestationLevel string
 	relyingPartyCAs     []string
@@ -71,7 +71,7 @@ func addConformanceFlags(cmd *cobra.Command) *conformanceFlags {
 	flags.StringVar(&f.keyAttestationLevel, "key-attestation-level", "", keyAttestationLevelFlagUsage)
 	flags.BoolVar(&f.encrypted, "require-encrypted-request", false, "Reject request objects that are not encrypted. The wallet always sends an encryption key in wallet_metadata, so this only requires the verifier to use it")
 	flags.BoolVar(&f.clientAttestation, "client-attestation", false, "Send the wallet attestation with OpenID4VCI token requests, also when the issuer doesn't advertise attest_jwt_client_auth (advertising it is a SHOULD)")
-	flags.BoolVar(&f.proofJWK, "key-attestation-proof-jwk", false, "Name the signing key of a jwt proof with a key attestation by jwk. By default the proof names it by kid \"0\", its position in attested_keys, as in the OpenID4VCI Appendix F.1 example")
+	flags.StringVar(&f.proofKey, "key-attestation-proof-key", string(wallet.ProofKeyKID), "How a jwt proof with a key attestation names its signing key: 'kid' sends kid \"0\", its position in attested_keys, as in the OpenID4VCI Appendix F.1 example, 'jwk' sends the key, 'none' sends neither, which Appendix F.1 does not allow")
 	flags.StringVar(&f.vciVersion, "vci-version", string(wallet.VCIVersion10), "OpenID4VCI version: '1.0' (the published version) or '1.1', which also uses features of the 1.1 draft where the issuer supports them")
 	return f
 }
@@ -90,7 +90,7 @@ func (f *conformanceFlags) changed() []string {
 	return set
 }
 
-var conformanceFlagNames = []string{"haip", "arf", "relying-party-ca", "trusted-list-ca", "trusted-list", "key-attestation-level", "require-encrypted-request", "client-attestation", "key-attestation-proof-jwk", "vci-version"}
+var conformanceFlagNames = []string{"haip", "arf", "relying-party-ca", "trusted-list-ca", "trusted-list", "key-attestation-level", "require-encrypted-request", "client-attestation", "key-attestation-proof-key", "vci-version"}
 
 // walletConformance holds the values of the conformance flags: settings for
 // every flow and trust inputs for the ARF checks.
@@ -115,6 +115,10 @@ func (f *conformanceFlags) resolve() (walletConformance, error) {
 	level, err := wallet.ParseKeyAttestationLevel(f.keyAttestationLevel)
 	if err != nil {
 		return walletConformance{}, fmt.Errorf("--key-attestation-level: %w", err)
+	}
+	proofKey, err := wallet.ParseProofKeyReference(f.proofKey)
+	if err != nil {
+		return walletConformance{}, fmt.Errorf("--key-attestation-proof-key: %w", err)
 	}
 	var trust trustedlists.Settings
 	for _, list := range f.trustedLists {
@@ -145,7 +149,7 @@ func (f *conformanceFlags) resolve() (walletConformance, error) {
 			VCIVersion:              vciVersion,
 			KeyAttestationLevel:     level,
 			ForceClientAttestation:  f.clientAttestation,
-			KeyAttestationProofJWK:  f.proofJWK,
+			KeyAttestationProofKey:  proofKey,
 		},
 		trust: trust,
 	}
@@ -229,8 +233,8 @@ func settingDifference(flag string, want walletConformance, cfg wallet.Conforman
 		return onOff(cfg.RequireEncryptedRequest, s.RequireEncryptedRequest)
 	case "--client-attestation":
 		return onOff(cfg.ForceClientAttestation, s.ForceClientAttestation)
-	case "--key-attestation-proof-jwk":
-		return onOff(cfg.KeyAttestationProofJWK, s.KeyAttestationProofJWK)
+	case "--key-attestation-proof-key":
+		return value(string(cfg.KeyAttestationProofKey), string(s.KeyAttestationProofKey))
 	case "--vci-version":
 		return value(string(cfg.VCIVersion), string(s.VCIVersion))
 	case "--key-attestation-level":

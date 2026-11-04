@@ -68,11 +68,14 @@ func generateKeys(t *testing.T, n int) []*ecdsa.PrivateKey {
 }
 
 // attestedProof is a jwt proof signed by signer that carries the key
-// attestation in its key_attestation header. named adds header parameters
-// that name the signing key.
+// attestation in its key_attestation header. It names the signing key by kid
+// "0", or by the header parameters in named.
 func attestedProof(t *testing.T, d *DemoRP, signer *ecdsa.PrivateKey, attestation string, named ...map[string]any) string {
 	t.Helper()
 	header := map[string]any{"typ": "openid4vci-proof+jwt", "key_attestation": attestation}
+	if len(named) == 0 {
+		header["kid"] = "0"
+	}
 	for _, params := range named {
 		maps.Copy(header, params)
 	}
@@ -164,7 +167,7 @@ func TestTheMetadataOffersTheAttestationProofType(t *testing.T) {
 // ETSI TS 119 472-3 V1.1.1 CRED-REQ-PROC-4.6.2.1-04: "as many PIDs/EAAs as
 // elements present in the attested_keys array", each bound to one of them.
 // The proof may name its key by kid "0", the position in attested_keys (the
-// OpenID4VCI 1.0 Appendix F.1 example), by jwk, or not at all.
+// OpenID4VCI 1.0 Appendix F.1 example), or by jwk.
 func TestAJWTProofWithAKeyAttestationIssuesOneCredentialPerAttestedKey(t *testing.T) {
 	d, _, _ := newDemoRP(t)
 	keys := generateKeys(t, 3)
@@ -173,7 +176,6 @@ func TestAJWTProofWithAKeyAttestationIssuesOneCredentialPerAttestedKey(t *testin
 		name  string
 		named map[string]any
 	}{
-		{"unnamed", nil},
 		{"kid", map[string]any{"kid": "0"}},
 		{"jwk", map[string]any{"jwk": holderJWK(t, keys[0])}},
 	} {
@@ -224,6 +226,9 @@ func TestAKeyAttestationIsVerified(t *testing.T) {
 		{"a proof signed by the second attested key", func() string {
 			return attestedProof(t, d, keys[1], provider.keyAttestation(t, d, keys, nil))
 		}, "first attested key"},
+		{"a proof that does not name its key", func() string {
+			return attestedProof(t, d, keys[0], provider.keyAttestation(t, d, keys, nil), map[string]any{})
+		}, "none of jwk, x5c or kid"},
 		{"a jwk that is not the first attested key", func() string {
 			return signJWT(t, keys[0],
 				map[string]any{"typ": "openid4vci-proof+jwt", "jwk": holderJWK(t, other), "key_attestation": provider.keyAttestation(t, d, keys, nil)},

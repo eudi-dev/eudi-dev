@@ -24,14 +24,14 @@ import (
 func TestConformancePatchUsesTheReportedNames(t *testing.T) {
 	srv := newTestServer(t, false)
 	resp := serverRequest(t, srv, http.MethodPut, "/api/config/conformance",
-		`{"validation_mode":"strict","require_haip":true,"require_arf":true,"require_encrypted_request":true,"vci_version":"1.1","key_attestation_level":"none","force_client_attestation":true,"tls_verify_override":false,"vci_client_id":"registered-wallet"}`)
+		`{"validation_mode":"strict","require_haip":true,"require_arf":true,"require_encrypted_request":true,"vci_version":"1.1","key_attestation_level":"none","force_client_attestation":true,"key_attestation_proof_key":"jwk","tls_verify_override":false,"vci_client_id":"registered-wallet"}`)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("PUT answered %d: %s", resp.Code, resp.Body.String())
 	}
 	config := decodeJSON(t, serverRequest(t, srv, http.MethodGet, "/api/config", ""))
 	for key, want := range map[string]any{
 		"validation_mode": "strict", "require_haip": true, "require_arf": true, "require_encrypted_request": true,
-		"vci_version": "1.1", "key_attestation_level": "none", "force_client_attestation": true,
+		"vci_version": "1.1", "key_attestation_level": "none", "force_client_attestation": true, "key_attestation_proof_key": "jwk",
 		"tls_verify_override": false, "tls_verify": false, "vci_client_id": "registered-wallet",
 	} {
 		if config[key] != want {

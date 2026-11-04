@@ -281,7 +281,11 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
           </select>
         </td></tr>
         <tr><td id="conf-proof-key-name">Proof key with key attestation</td><td>
-          <label class="conf-toggle" id="conf-proof-jwk-label" title="By default a jwt proof with a key attestation names its key by kid &quot;0&quot;, its position in attested_keys (--key-attestation-proof-jwk)"><input type="checkbox" id="conf-proof-jwk-input"> Name the key by jwk</label>
+          <select id="conf-proof-key-select" class="conf-input" aria-labelledby="conf-proof-key-name" title="How a jwt proof with a key attestation names its signing key, the first attested key (--key-attestation-proof-key, OpenID4VCI Appendix F.1)">
+            <option value="kid">kid &quot;0&quot;, its position in attested_keys</option>
+            <option value="jwk">jwk</option>
+            <option value="none">None (Appendix F.1 requires one)</option>
+          </select>
         </td></tr>
         <tr id="conf-crl-fault-row"><td id="conf-crl-fault-name">CRL fault</td><td>
           <select id="conf-crl-fault-select" class="conf-input" aria-labelledby="conf-crl-fault-name" aria-describedby="conf-crl-fault-hint">

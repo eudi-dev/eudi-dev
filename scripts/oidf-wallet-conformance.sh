@@ -149,7 +149,7 @@ if [ "$WALLET_MANAGED" = "1" ]; then
       --port "$PORT" \
       --vci-client-id "$OIDF_VCI_CLIENT_ID" \
       --vci-redirect-uri "$OIDF_VCI_REDIRECT_URI" \
-      --key-attestation-proof-jwk
+      --key-attestation-proof-key jwk
   ) >"$WALLET_LOG" 2>&1 &
   WALLET_PID=$!
 

@@ -4173,7 +4173,7 @@
       protectedParties = new Set(config.protected_relying_parties || []);
       renderAutoAccept(!!config.auto_accept);
       renderConformance(config);
-      ['conf-mode-select', 'conf-tls-select', 'conf-haip-input', 'conf-arf-input', 'conf-encrypted-input', 'conf-vci-version-select', 'conf-key-attestation-select', 'conf-proof-jwk-input', 'conf-vci-client-id'].forEach((id) => {
+      ['conf-mode-select', 'conf-tls-select', 'conf-haip-input', 'conf-arf-input', 'conf-encrypted-input', 'conf-vci-version-select', 'conf-key-attestation-select', 'conf-proof-key-select', 'conf-vci-client-id'].forEach((id) => {
         const el = document.getElementById(id);
         if (el && !el.dataset.wired) {
           el.dataset.wired = '1';
@@ -4250,7 +4250,7 @@
 
   // Conformance settings apply to the wallet process. The public demo displays them without
   // allowing changes.
-  let conformanceDefaults = { validation_mode: 'debug', require_haip: false, require_arf: false, require_encrypted_request: false, vci_version: '1.0', key_attestation_level: '', key_attestation_proof_jwk: false };
+  let conformanceDefaults = { validation_mode: 'debug', require_haip: false, require_arf: false, require_encrypted_request: false, vci_version: '1.0', key_attestation_level: '', key_attestation_proof_key: 'kid' };
 
   function effectiveConformance() {
     return {
@@ -4261,7 +4261,7 @@
       encrypted: !!conformanceDefaults.require_encrypted_request,
       vciVersion: conformanceDefaults.vci_version === '1.1' ? '1.1' : '1.0',
       keyAttestationLevel: conformanceDefaults.key_attestation_level || '',
-      proofJWK: !!conformanceDefaults.key_attestation_proof_jwk,
+      proofKey: conformanceDefaults.key_attestation_proof_key || 'kid',
       vciClientID: conformanceDefaults.vci_client_id || '',
     };
   }
@@ -4282,8 +4282,8 @@
     if (enc) { enc.checked = eff.encrypted; enc.disabled = demoMode; }
     if (vci) { vci.value = eff.vciVersion; vci.disabled = demoMode; }
     if (level) { level.dataset.wanted = eff.keyAttestationLevel; level.value = eff.keyAttestationLevel; level.disabled = demoMode; }
-    const proofJWK = document.getElementById('conf-proof-jwk-input');
-    if (proofJWK) { proofJWK.checked = eff.proofJWK; proofJWK.disabled = demoMode; }
+    const proofKey = document.getElementById('conf-proof-key-select');
+    if (proofKey) { proofKey.value = eff.proofKey; proofKey.disabled = demoMode; }
     const clientID = document.getElementById('conf-vci-client-id');
     if (clientID) { clientID.value = eff.vciClientID; clientID.disabled = demoMode; }
     // The demo cannot change the client ID, so it shows only a fixed one.
@@ -4313,7 +4313,7 @@
     const enc = document.getElementById('conf-encrypted-input');
     const vci = document.getElementById('conf-vci-version-select');
     const level = document.getElementById('conf-key-attestation-select');
-    const proofJWK = document.getElementById('conf-proof-jwk-input');
+    const proofKey = document.getElementById('conf-proof-key-select');
     const clientID = document.getElementById('conf-vci-client-id');
     return {
       validation_mode: mode ? mode.value : undefined,
@@ -4323,7 +4323,7 @@
       require_encrypted_request: enc ? enc.checked : undefined,
       vci_version: vci ? vci.value : undefined,
       key_attestation_level: level ? level.value : undefined,
-      key_attestation_proof_jwk: proofJWK ? proofJWK.checked : undefined,
+      key_attestation_proof_key: proofKey ? proofKey.value : undefined,
       vci_client_id: clientID ? clientID.value.trim() : undefined,
     };
   }
