@@ -5,6 +5,17 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.0] - 2026-11-04
+
+### Added
+
+- **YAML for startup files.** The command panel of the template editor, the registrar dialog and the catalogue dialog also shows YAML, next to curl and CLI. Save it as a file for `--templates-dir`, `--relying-parties` or `--catalog`, for example in a Kubernetes ConfigMap. A new intended use gets an identifier from its purpose, because the file must set it. See [dialog commands](docs/ui-automation.md#dialog-commands-and-size).
+- **Templates from credentials.** The **Template** list of the issue dialog and the template editor also lists the credentials in the wallet. Picking one fills the form with the credential's type, claims, always disclosed claims, lifetime and card appearance. `GET /api/credentials/{id}/template` returns the same template. See [templates in the wallet UI](docs/templates.md#wallet-ui).
+
+### Fixed
+
+- **Full focus rings in scrolling lists.** Focused inputs in the claims of the issue dialog, links in credential descriptions and the activity drawer toggle show their whole focus ring. Links in a closed credential description no longer get keyboard focus.
+
 ## [3.7.3] - 2026-11-04
 
 ### Changed

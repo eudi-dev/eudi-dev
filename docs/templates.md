@@ -363,6 +363,10 @@ For a template without its own `catalog` object, `templates import` and `PUT` tr
 
 An unchecked SD box in the issue dialog puts the claim in `always_disclosed`. "Save as template" saves the form only after the issuance succeeds.
 
+The **Template** list of the issue dialog and the template editor also lists the credentials in the wallet. Picking one fills the form with its type, claims, always disclosed claims, lifetime and card appearance. `GET /api/credentials/{id}/template` returns the same template.
+
+The editor's command panel shows the template as YAML too. Save it as `<name>.yaml` in the templates directory, for example from a ConfigMap (see [YAML template files](#yaml-template-files)).
+
 Pasting a template into the editor's JSON view imports it. The JSON view also accepts fields without a builder control, such as `unique_claims`. The builder keeps these fields.
 
 For a catalogue entry made in the UI, the category sets the default level of security, and an empty trusted list links the category's list.

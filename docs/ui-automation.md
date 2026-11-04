@@ -77,16 +77,16 @@ All dialogs are `.consent-overlay` elements. An open dialog has the class `activ
 
 ### Dialog commands and size
 
-A dialog with a title has buttons beside it. This holds for the wallet and the decoder. `#<dialog id>-close` closes the dialog like its Close or Cancel button. A pending consent request has no close button, because you have to approve or deny it. `#<dialog id>-size` switches the dialog between its normal size and almost full screen. A maximized dialog has the class `dialog-maximized`. `#<dialog id>-command-toggle` opens the command panel `#<dialog id>-command`, where present. The panel shows the curl command for what the dialog does, with the dialog's current values (`#<dialog id>-command-text`). `#<dialog id>-command-cli` switches to the CLI command where one exists. A link to the matching docs follows in `#<dialog id>-command-docs-link`, where present. The dialogs with a command panel are:
+A dialog with a title has buttons beside it. This holds for the wallet and the decoder. `#<dialog id>-close` closes the dialog like its Close or Cancel button. A pending consent request has no close button, because you have to approve or deny it. `#<dialog id>-size` switches the dialog between its normal size and almost full screen. A maximized dialog has the class `dialog-maximized`. `#<dialog id>-command-toggle` opens the command panel `#<dialog id>-command`, where present. The panel shows the curl command for what the dialog does, with the dialog's current values (`#<dialog id>-command-text`). `#<dialog id>-command-cli` switches to the CLI command where one exists. `#<dialog id>-command-yaml` switches to the YAML of a file that `wallet serve` reads at startup, for example from a Kubernetes ConfigMap. The note `#<dialog id>-command-note` names the flag for the file. A link to the matching docs follows in `#<dialog id>-command-docs-link`, where present. The dialogs with a command panel are:
 
-| Dialog | Dialog id | CLI command |
-|---|---|---|
-| **Issue credential**, **New template**, **Edit template** | `issue-dialog` | `eudi issue`, `eudi templates import` |
-| Register a verifier or issuer, add a use or service, issue an access certificate | `registrar-dialog` | `eudi registrar enrol`, `eudi registrar access-cert` |
-| Add a catalogue entry | `registrar-catalog-add-dialog` | `eudi catalog add` |
-| Consent dialog | `consent-dialog` | `eudi wallet requests approve`, `deny` |
+| Dialog | Dialog id | CLI command | YAML file |
+|---|---|---|---|
+| **Issue credential**, **New template**, **Edit template** | `issue-dialog` | `eudi issue`, `eudi templates import` | Template for `--templates-dir` (template editor only) |
+| Register a verifier or issuer, add a use or service, issue an access certificate | `registrar-dialog` | `eudi registrar enrol`, `eudi registrar access-cert` | Relying party for `--relying-parties` (not for an access certificate) |
+| Add a catalogue entry | `registrar-catalog-add-dialog` | `eudi catalog add` | Entry for `--catalog` |
+| Consent dialog | `consent-dialog` | `eudi wallet requests approve`, `deny` | None |
 
-The commands use the wallet URL of the page. A consent command answers the newest pending request of the same type. It looks the request up with `GET /api/requests` and `jq`. Set `REQUEST_ID` to answer a specific request. The command sees requests that came from API calls, the CLI and tests. Requests opened in a browser are visible only in that browser. On a public demo only the web UI answers consent requests, unless the operator starts it with `--demo-consent-api`. Without a CSR, the registrar command has a CSR placeholder. Its note shows how to create a CSR.
+The commands use the wallet URL of the page. A consent command answers the newest pending request of the same type. It looks the request up with `GET /api/requests` and `jq`. Set `REQUEST_ID` to answer a specific request. The command sees requests that came from API calls, the CLI and tests. Requests opened in a browser are visible only in that browser. On a public demo only the web UI answers consent requests, unless the operator starts it with `--demo-consent-api`. When the CSR field is empty, the registrar command has a placeholder for the CSR. Its note shows how to create one. A relying party file must set the identifier of each intended use. The YAML therefore gives a new intended use an identifier made from its purpose, such as `age-check-before-checkout`. The catalogue YAML names an issuer CA as `issuer-ca.pem`. Save the CA under that name next to the file.
 
 ## Credential issuance
 

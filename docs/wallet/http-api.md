@@ -141,6 +141,7 @@ Approval answers `200` with `status` `approved`, the verifier's `redirect_uri` a
 |----------|-------------------------|-----------------------|----------------------------------------------------|-----------------------|
 | `GET`    | `/api/credentials`      | None                  | List stored credentials                            | `wallet list --json`  |
 | `GET`    | `/api/credentials/{id}` | None                  | Show one credential (id, format, claims, raw)      | `wallet show <id>`    |
+| `GET`    | `/api/credentials/{id}/template` | None         | A [template](../templates.md) for issuing credentials like this one: format, type, claims, always disclosed claims, lifetime and display | None |
 | `POST`   | `/api/credentials`      | raw credential string | Import a credential (see [Credential import](#credential-import)) | `wallet import`       |
 | `DELETE` | `/api/credentials/{id}` | None                  | Remove a credential by ID (`204` on success)       | `wallet remove <id>`  |
 | `DELETE` | `/api/credentials`      | None                  | Remove all credentials (returns `{"deleted": n, "kept_protected": m}`)  | `wallet remove --all` |

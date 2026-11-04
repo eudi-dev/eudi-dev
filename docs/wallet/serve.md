@@ -42,7 +42,7 @@ API clients receive the alternatives in `credential_options`. Each query also li
 
 A credential issued in the web UI can reference the wallet's own status list when configured, a custom URI and index, or no status list. The UI can revoke and activate credentials on the wallet's own status list. For an external status list it fetches the list on request.
 
-Each dialog can show the curl command for its action, with its current values, and the matching CLI command. A dialog can also switch to almost full screen. See [dialog commands](../ui-automation.md#dialog-commands-and-size).
+Each dialog can show the curl command for its action, with its current values, and the matching CLI command. For templates, relying parties and catalogue entries it also shows the YAML of a startup file. A dialog can also switch to almost full screen. See [dialog commands](../ui-automation.md#dialog-commands-and-size).
 
 To drive the web UI from Playwright or Selenium, see [UI automation](../ui-automation.md).
 

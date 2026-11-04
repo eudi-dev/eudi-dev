@@ -15,6 +15,7 @@
 package wallet
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -65,6 +66,28 @@ func (s *Server) handleCredentialDisplayImage(w http.ResponseWriter, r *http.Req
 		return
 	}
 	httpsec.ServeImage(w, r, contentType, data)
+}
+
+// handleCredentialTemplate answers with a template for issuing credentials
+// like the stored one, with its card images as data URIs.
+func (s *Server) handleCredentialTemplate(w http.ResponseWriter, r *http.Request) {
+	cred, ok := s.wallet.GetCredential(r.PathValue("id"))
+	if !ok {
+		apierror.WriteStatus(w, http.StatusNotFound, "credential not found")
+		return
+	}
+	tpl, err := TemplateFromCredential(cred, func(uri string) string {
+		contentType, data, ok := s.resolveDisplayImage(uri)
+		if !ok {
+			return ""
+		}
+		return "data:" + contentType + ";base64," + base64.StdEncoding.EncodeToString(data)
+	})
+	if err != nil {
+		apierror.WriteStatusErr(w, http.StatusUnprocessableEntity, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, tpl)
 }
 
 // Returns an array. X-Total-Count gives the total before applying limit and offset.

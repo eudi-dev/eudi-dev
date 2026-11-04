@@ -188,6 +188,7 @@ func (s *Server) setupRoutes() {
 	// Credential images are static and cached, so this route skips reloading the
 	// store.
 	s.routeFunc("GET /api/credentials/{id}/display/{kind}", s.handleCredentialDisplayImage)
+	s.routeFunc("GET /api/credentials/{id}/template", s.withFreshStore(s.handleCredentialTemplate))
 	s.routeFunc("DELETE /api/credentials/{id}", s.withFreshStore(s.handleDeleteCredential))
 
 	s.routeFunc("POST /api/issue", s.withFreshStore(s.handleIssueCredential))

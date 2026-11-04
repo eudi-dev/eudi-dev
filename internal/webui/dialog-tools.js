@@ -1,6 +1,7 @@
-// Every dialog title gets three actions. One shows the curl and CLI command
-// for the dialog's action, with its current values. One makes the dialog
-// almost full screen and back. The last one closes the dialog.
+// Every dialog title gets three actions. The command button shows the curl
+// and CLI command for the dialog's action, or the YAML for a file, with its
+// current values. The size button switches the dialog between almost full
+// screen and its normal size. The close button closes the dialog.
 (function () {
   'use strict';
 
@@ -56,6 +57,74 @@
     return parts.join(' \\\n  ');
   }
 
+  // A plain YAML scalar is read back as the same text. Anything else is
+  // quoted the JSON way, which YAML reads as a double quoted string.
+  function yamlString(text) {
+    const plain = /^[A-Za-z_][\w .\/@:+-]*$/.test(text) && !/: |:$| $/.test(text) &&
+      !/^(true|false|null|yes|no|on|off|y|n)$/i.test(text);
+    return plain ? text : JSON.stringify(text);
+  }
+
+  function yamlScalar(value) {
+    if (value === null || value === undefined) return 'null';
+    if (typeof value === 'string') return yamlString(value);
+    return String(value);
+  }
+
+  function isBlock(value) {
+    return value !== null && typeof value === 'object' && Object.keys(value).length > 0;
+  }
+
+  // A short list of scalars or of such lists stays on one line, like
+  // always_disclosed: [employee_id].
+  function yamlFlow(value) {
+    if (!Array.isArray(value)) return null;
+    const items = [];
+    for (const item of value) {
+      if (Array.isArray(item)) {
+        const inner = yamlFlow(item);
+        if (inner === null) return null;
+        items.push(inner);
+      } else if (isBlock(item)) {
+        return null;
+      } else {
+        items.push(item !== null && typeof item === 'object' ? '{}' : yamlScalar(item));
+      }
+    }
+    const flow = '[' + items.join(', ') + ']';
+    return flow.length <= 72 ? flow : null;
+  }
+
+  function yamlValue(value, indent) {
+    if (!isBlock(value)) {
+      if (Array.isArray(value)) return ' []';
+      if (value !== null && typeof value === 'object') return ' {}';
+      return ' ' + yamlScalar(value);
+    }
+    const flow = yamlFlow(value);
+    if (flow !== null) return ' ' + flow;
+    return '\n' + yamlBlock(value, indent + 2);
+  }
+
+  function yamlBlock(value, indent) {
+    const pad = ' '.repeat(indent);
+    if (Array.isArray(value)) {
+      return value.map(item => {
+        if (isBlock(item) && !Array.isArray(item)) {
+          return pad + '- ' + yamlBlock(item, indent + 2).slice(indent + 2);
+        }
+        return pad + '-' + yamlValue(item, indent);
+      }).join('\n');
+    }
+    return Object.entries(value).map(([key, item]) => pad + yamlString(key) + ':' + yamlValue(item, indent)).join('\n');
+  }
+
+  // yaml writes a JSON value as a YAML document for a file, such as a
+  // template or a relying party in a ConfigMap.
+  function yaml(value) {
+    return (isBlock(value) ? yamlBlock(value, 0) : yamlScalar(value)) + '\n';
+  }
+
   const builders = new WeakMap();
   const states = new WeakMap();
 
@@ -65,7 +134,8 @@
   }
 
   // setCommand registers the command builder of a dialog, or removes it when
-  // build is null. build returns { curl, cli, note, cliNote, docs }. docs is
+  // build is null. build returns { curl, cli, note, cliNote, yaml, yamlNote,
+  // docs }. yaml is the content of a file the wallet reads at startup. docs is
   // { text, label, href } and links the documentation after the note. It runs only
   // while the panel is open. It throws an Error for unusable form values.
   function setCommand(dialog, build) {
@@ -101,6 +171,7 @@
         '<div class="claims-mode dialog-command-mode" role="radiogroup" aria-label="Command type" id="' + id + '-command-mode">' +
           '<label class="form-checkbox" id="' + id + '-command-curl-label"><input type="radio" name="' + id + '-command-mode" id="' + id + '-command-curl" value="curl" checked> curl</label>' +
           '<label class="form-checkbox" id="' + id + '-command-cli-label"><input type="radio" name="' + id + '-command-mode" id="' + id + '-command-cli" value="cli"> CLI</label>' +
+          '<label class="form-checkbox" id="' + id + '-command-yaml-label"><input type="radio" name="' + id + '-command-mode" id="' + id + '-command-yaml" value="yaml"> YAML</label>' +
         '</div>' +
         '<span class="dialog-command-label" id="' + id + '-command-label">curl</span>' +
         '<button type="button" class="btn btn-sm" id="' + id + '-command-copy">Copy</button>' +
@@ -181,16 +252,19 @@
       problem = e.message;
     }
 
-    const hasCLI = Boolean(command && command.cli);
-    panel.querySelector('.dialog-command-mode').hidden = !hasCLI;
-    panel.querySelector('.dialog-command-label').hidden = hasCLI;
-    const mode = hasCLI && state.mode === 'cli' ? 'cli' : 'curl';
+    const modes = ['curl', 'cli', 'yaml'].filter(m => m === 'curl' || Boolean(command && command[m]));
+    for (const m of ['cli', 'yaml']) {
+      panel.querySelector('#' + dialog.id + '-command-' + m + '-label').hidden = !modes.includes(m);
+    }
+    panel.querySelector('.dialog-command-mode').hidden = modes.length < 2;
+    panel.querySelector('.dialog-command-label').hidden = modes.length > 1;
+    const mode = modes.includes(state.mode) ? state.mode : 'curl';
     panel.querySelector('input[value="' + mode + '"]').checked = true;
     panel.querySelector('.dialog-command-text').textContent = problem
       ? 'The form has a problem: ' + problem
       : command[mode];
     const note = panel.querySelector('.dialog-command-note');
-    const noteText = command && (mode === 'cli' ? command.cliNote : command.note);
+    const noteText = command && { curl: command.note, cli: command.cliNote, yaml: command.yamlNote }[mode];
     note.textContent = noteText || '';
     note.hidden = !noteText;
     const docs = panel.querySelector('#' + dialog.id + '-command-docs');
@@ -231,5 +305,5 @@
     watch(dialog);
   });
 
-  window.eudiDialogs = { setCommand, refresh, curl, cli, heredoc, shellQuote, walletURL, remoteURL };
+  window.eudiDialogs = { setCommand, refresh, curl, cli, yaml, heredoc, shellQuote, walletURL, remoteURL };
 })();

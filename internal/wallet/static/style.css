@@ -407,7 +407,8 @@ header .btn {
 
 .cred-desc-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .cred-desc-label { font-size: 12px; font-weight: 600; color: var(--text-dim); }
-.cred-desc-body { font-size: 13px; line-height: 1.55; color: var(--text); overscroll-behavior: contain; }
+/* The padding keeps focus rings of links inside the scrolling area. */
+.cred-desc-body { font-size: 13px; line-height: 1.55; color: var(--text); overscroll-behavior: contain; padding-inline: 3px; margin-inline: -3px; }
 .cred-desc-back {
   display: inline-flex;
   font: inherit; font-size: 12px; font-weight: 500; color: var(--text);
@@ -1087,6 +1088,9 @@ textarea.form-input {
   gap: 4px;
   max-height: 240px;
   overflow-y: auto;
+  /* Room for the focus ring of the inputs, which the scrolling area clips. */
+  padding: 3px;
+  margin: -3px;
 }
 
 .claim-row {
@@ -2103,6 +2107,15 @@ textarea.form-input {
 }
 .drawer-head:hover {
   background: var(--bg-hover);
+}
+/* The drawer clips its corners, so the ring sits inside the head. */
+.drawer-head:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: 15px 15px 0 0;
+}
+.activity-drawer.collapsed .drawer-head:focus-visible {
+  border-radius: 15px;
 }
 .drawer-head .section-title {
   margin: 0;

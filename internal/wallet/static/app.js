@@ -651,12 +651,16 @@
       const about = card.querySelector('[data-about]');
       if (about) {
         about.setAttribute('aria-expanded', String(openDescriptions.has(cred.id)));
+        // A closed description is out of sight, so keyboard focus must not reach its links.
+        const desc = card.querySelector('.cred-desc');
+        desc.inert = !openDescriptions.has(cred.id);
         about.addEventListener('click', (e) => {
           e.stopPropagation();
           const open = card.classList.toggle('desc-open');
           if (open) openDescriptions.add(cred.id);
           else openDescriptions.delete(cred.id);
           about.setAttribute('aria-expanded', String(open));
+          desc.inert = !open;
         });
         const back = card.querySelector('[data-desc-close]');
         if (back) {
@@ -665,6 +669,7 @@
             card.classList.remove('desc-open');
             openDescriptions.delete(cred.id);
             about.setAttribute('aria-expanded', 'false');
+            desc.inert = true;
           });
         }
       }
@@ -1375,19 +1380,77 @@
     } catch (e) {
       return;
     }
+    // The list also offers the credentials in the wallet. Picking one fills
+    // the form with a template made from the credential.
+    let credentials = [];
+    try {
+      const resp = await fetch('api/credentials');
+      if (resp.ok) credentials = await resp.json();
+    } catch (e) { /* The form still offers the templates. */ }
     const current = issueTemplateSelect.value;
     issueTemplateSelect.textContent = '';
     const none = document.createElement('option');
     none.value = '';
     none.textContent = '(none)';
     issueTemplateSelect.appendChild(none);
+    const templateGroup = document.createElement('optgroup');
+    templateGroup.label = 'Templates';
     templates.forEach(t => {
       const opt = document.createElement('option');
       opt.value = t.name;
       opt.textContent = t.name + (t.predefined ? ' (predefined)' : '');
-      issueTemplateSelect.appendChild(opt);
+      templateGroup.appendChild(opt);
     });
+    issueTemplateSelect.appendChild(templateGroup);
+    if (credentials.length) {
+      const credentialGroup = document.createElement('optgroup');
+      credentialGroup.label = 'Credentials in the wallet';
+      credentials.forEach(cred => {
+        const opt = document.createElement('option');
+        opt.value = 'credential:' + cred.id;
+        opt.dataset.credential = cred.id;
+        const name = (cred.display && cred.display.name) || cred.vct || cred.doctype || cred.id;
+        opt.textContent = name + ' (' + formatLabelFor(cred) + ', #' + cred.id.slice(0, 7) + ')';
+        credentialGroup.appendChild(opt);
+      });
+      issueTemplateSelect.appendChild(credentialGroup);
+    }
     issueTemplateSelect.value = current || '';
+  }
+
+  // applyCredentialTemplate fills the form from a credential in the wallet. Its
+  // card images go into the image fields, because no template holds them.
+  async function applyCredentialTemplate(id) {
+    issueError.textContent = '';
+    let tpl;
+    try {
+      const resp = await fetch('api/credentials/' + encodeURIComponent(id) + '/template');
+      tpl = await resp.json();
+      if (!resp.ok) {
+        issueError.textContent = apiErrorText(tpl, resp);
+        return;
+      }
+    } catch (e) {
+      issueError.textContent = 'Request failed: ' + e.message;
+      return;
+    }
+    const display = Object.assign({}, tpl.display);
+    const images = { logo: display.logo, alt: display.logo_alt_text, background: display.background_image };
+    delete display.logo;
+    delete display.logo_alt_text;
+    delete display.background_image;
+    applyTemplateToForm(Object.assign({}, tpl, { display: display }));
+    document.getElementById('issue-logo').value = images.logo || '';
+    document.getElementById('issue-logo-alt').value = images.alt || '';
+    document.getElementById('issue-bg-image').value = images.background || '';
+    updateIssueImagePreviews();
+    if (templateEditor) {
+      const source = templateEditor.source;
+      templateEditor.source = Object.assign({}, tpl, source ? { name: source.name } : {});
+      if (!templateEditorName.value.trim() && display.name) {
+        templateEditorName.value = display.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      }
+    }
   }
 
   // Send the template name so the server applies the template's images.
@@ -1705,7 +1768,10 @@
   issueFormat.addEventListener('change', resetIssueFields);
 
   issueTemplateSelect.addEventListener('change', () => {
-    if (issueTemplateSelect.value) {
+    const credential = issueTemplateSelect.selectedOptions[0] && issueTemplateSelect.selectedOptions[0].dataset.credential;
+    if (credential) {
+      applyCredentialTemplate(credential);
+    } else if (issueTemplateSelect.value) {
       applyIssueTemplate(issueTemplateSelect.value);
     } else {
       const format = issueFormat.value;
@@ -1948,10 +2014,13 @@
     delete doc.name;
     delete doc.predefined;
     doc.format = issueFormat.value;
-    delete doc.vct;
-    delete doc.doctype;
+    const typeField = doc.format === 'mdoc' ? 'doctype' : 'vct';
     const type = document.getElementById(doc.format === 'mdoc' ? 'issue-doctype' : 'issue-vct').value.trim();
-    if (type) doc[doc.format === 'mdoc' ? 'doctype' : 'vct'] = type;
+    // Setting the type in place keeps it near the top of the YAML.
+    for (const field of ['vct', 'doctype']) {
+      if (field !== typeField || !type) delete doc[field];
+    }
+    if (type) doc[typeField] = type;
     const exp = document.getElementById('issue-exp').value.trim();
     if (exp) doc.exp = exp; else delete doc.exp;
     if (document.getElementById('issue-claims-mode-json').checked) {
@@ -2141,6 +2210,8 @@
       curl: eudiDialogs.curl('PUT', 'api/templates/' + encodeURIComponent(name), doc),
       cli: eudiDialogs.cli('eudi templates import -', [['--name', name], ['--remote', eudiDialogs.remoteURL()]]) +
         eudiDialogs.heredoc(JSON.stringify(doc, null, 2)),
+      yaml: eudiDialogs.yaml(doc),
+      yamlNote: 'Save it as ' + name + '.yaml in the templates directory (--templates-dir or EUDI_DEV_TEMPLATES_DIR). The wallet loads it on every start.',
     };
   }
 
@@ -5925,6 +5996,10 @@
       const flags = plan.method === 'PUT' ? [['--update']] : [];
       flags.push(['--remote', eudiDialogs.remoteURL()]);
       command.cli = eudiDialogs.cli('eudi registrar enrol -', flags) + eudiDialogs.heredoc(JSON.stringify(body, null, 2));
+      const party = relyingPartyForFile(plan.body.relyingParty);
+      command.yaml = eudiDialogs.yaml(party);
+      command.yamlNote = 'Save it as a file for --relying-parties (or EUDI_DEV_RELYING_PARTIES). The wallet registers the party on every start.' +
+        ((party.identifier || []).some(id => id.identifier) ? '' : ' Add the identifier of the party first. The wallet only picks one for an API request.');
     }
     command.cliNote = command.note;
     command.docs = {
@@ -5935,6 +6010,26 @@
     return command;
   }
   eudiDialogs.setCommand(document.getElementById('registrar-dialog'), registrarCommand);
+
+  // relyingPartyForFile copies the registration for a startup file. The
+  // certificates contain the intended use identifiers, so a file must set
+  // them. A new intended use gets an identifier made from its purpose. Every
+  // start then reads the same identifier from the file.
+  function relyingPartyForFile(registration) {
+    const party = JSON.parse(JSON.stringify(registration));
+    for (const service of party.services || []) {
+      const uses = service.intendedUses || [];
+      uses.forEach((use, i) => {
+        if (use.intendedUseIdentifier) return;
+        const purpose = ((use.purpose || [])[0] || {}).content || '';
+        const slug = purpose.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40).replace(/-+$/, '');
+        let id = slug || 'use-' + (i + 1);
+        while (uses.some(other => other !== use && other.intendedUseIdentifier === id)) id += '-' + (i + 1);
+        use.intendedUseIdentifier = id;
+      });
+    }
+    return party;
+  }
 
   function showRegistrarResponse(plan, result, key, revoked) {
     if (plan.kind === 'access') {
@@ -6335,9 +6430,14 @@
     if (body.credentialIssuer) flags.push(['--credential-issuer', body.credentialIssuer]);
     if (issuerCA) flags.push(['--issuer-ca', '-']);
     flags.push(['--remote', eudiDialogs.remoteURL()]);
+    let yamlNote = 'Save it as a file for --catalog (or EUDI_DEV_CATALOG). The wallet loads it on every start.';
+    if (issuerCA) yamlNote += ' Save the issuer CA as issuer-ca.pem next to it.';
     return {
       curl: curl,
       cli: eudiDialogs.cli('eudi catalog add', flags) + (issuerCA ? eudiDialogs.heredoc(issuerCA) : ''),
+      // A file holds a list of entries, as in examples/kubernetes.
+      yaml: eudiDialogs.yaml([issuerCA ? Object.assign({}, body, { issuerCA: 'issuer-ca.pem' }) : body]),
+      yamlNote: yamlNote,
     };
   }
   eudiDialogs.setCommand(document.getElementById('registrar-catalog-add-dialog'), catalogCommand);
