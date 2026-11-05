@@ -540,10 +540,6 @@ main {
 .vg-cant .vg-icon { color: var(--text-dim); }
 .vg-valid .vg-icon { color: var(--green); }
 
-.verify-details {
-  max-width: 460px;
-}
-
 .verify-details summary {
   cursor: pointer;
   width: fit-content;
@@ -761,7 +757,6 @@ main {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-width: 460px;
 }
 
 .verify-label {
@@ -802,10 +797,12 @@ main {
 }
 
 .verify-btn:hover {
+  background: var(--accent);
   opacity: 0.9;
 }
 
 .verify-btn:disabled {
+  background: var(--accent);
   opacity: 0.5;
   cursor: default;
 }

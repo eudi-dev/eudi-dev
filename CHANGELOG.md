@@ -5,6 +5,13 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.1] - Unreleased
+
+### Fixed
+
+- **Button hover colours.** The verify button of the decoder no longer turns grey on hover. The tour buttons and the button of the pending request banner now show a hover state.
+- **Wider verify inputs in the decoder.** The key and trusted list fields fill the verification panel.
+
 ## [3.8.0] - 2026-11-04
 
 ### Added

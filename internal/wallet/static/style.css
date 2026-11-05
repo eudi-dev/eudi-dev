@@ -689,6 +689,10 @@ header .btn {
   font-weight: 700;
 }
 
+#pending-banner .btn:hover {
+  opacity: 0.9;
+}
+
 #pending-banner[hidden] {
   display: none;
 }
@@ -3557,6 +3561,10 @@ textarea.form-input {
 
 .tour-card .btn:not(.btn-primary) {
   background: var(--bg-btn-dialog);
+}
+
+.tour-card .btn:not(.btn-primary):hover {
+  background: var(--bg-btn-hover);
 }
 
 .howto-head {
