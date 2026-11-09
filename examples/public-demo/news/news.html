@@ -1,14 +1,12 @@
-<img src="extension.png" alt="Digital Credentials API in your browser. Test verifiers that call navigator.credentials.get() without a phone.">
-<h2>New: Test the Digital Credentials API</h2>
+<img src="transaction-data.png" alt="Transaction data in presentations. Bind payments, logins, account access or any other transaction to a presentation.">
+<h2>New: Test transaction data</h2>
 <div class="news-features">
-  <div><strong>Browser extension</strong><span>The eudi-dev extension answers <code>navigator.credentials.get()</code> with this wallet. You approve the presentation in a wallet window, without a phone.</span></div>
-  <div><strong>Any verifier</strong><span>The extension works with every verifier page that uses the standard API. Your own page needs no change.</span></div>
-  <div><strong>Demo verifier</strong><span>Choose <b>Digital Credentials API</b> under Delivery. Requests can be signed, unsigned or multisigned.</span></div>
-  <div><strong>Your wallet</strong><span>The extension uses eudi-test.dev by default. Set a local wallet or your own server in its popup.</span></div>
+  <div><strong>Transaction data</strong><span>The wallet accepts <code>transaction_data</code> of any type in presentation requests (OpenID4VP 1.0). It shows each transaction in the consent dialog and signs its hash into the Key Binding JWT.</span></div>
+  <div><strong>EUDI TS12 types</strong><span>The wallet checks the payloads of the four TS12 SCA types: payment, login, account access and e-mandate. The consent dialog sums each one up, such as "Pay €12.50 to Demo Shop".</span></div>
+  <div><strong>Demo payment account</strong><span>Get it from the demo issuer. On the demo verifier, choose <b>Demo payment account</b> to confirm a payment with it.</span></div>
+  <div><strong>Transaction templates</strong><span>Build entries under <b>Templates &gt; Transaction templates</b>. Every request on the demo verifier can add transaction data from a template or as JSON.</span></div>
 </div>
-<p class="chrome-web-store"><a class="btn btn-primary" href="https://chromewebstore.google.com/detail/nbddeclckpkklpejkmhchmhmajginnok" target="_blank" rel="noopener">Install from the Chrome Web Store</a></p>
 <p>
-  For other ways to install it, open <b>How to use</b> and choose <b>Browser extension</b>.
-  Details are in the <a href="https://github.com/eudi-dev/eudi-dev/blob/main/docs/wallet/browser-extension.md" target="_blank" rel="noopener">extension documentation</a>.
+  Details are in the <a href="https://github.com/eudi-dev/eudi-dev/blob/main/docs/wallet/presenting.md#transaction-data" target="_blank" rel="noopener">transaction data documentation</a>.
   Please report problems on <a href="https://github.com/eudi-dev/eudi-dev/issues" target="_blank" rel="noopener">GitHub</a>.
 </p>
