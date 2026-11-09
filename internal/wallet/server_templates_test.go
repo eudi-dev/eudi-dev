@@ -279,3 +279,41 @@ func TestAFailedCatalogueEntryLeavesNoCredential(t *testing.T) {
 		t.Errorf("the wallet holds %d credentials, want %d", got, before)
 	}
 }
+
+// A read-only template directory is a fault of the server, not of the
+// request.
+func TestSavingIntoAnUnwritableTemplateDirectoryIsAServerError(t *testing.T) {
+	srv := newTestServer(t, false)
+	srv.wallet.Templates = credtemplate.FileLocation(unwritableDir(t))
+
+	rec := serverRequest(t, srv, http.MethodPut, "/api/templates/employee", `{"format":"sdjwt","vct":"urn:example:employee","claims":{"given_name":"Erika"}}`)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "--templates") {
+		t.Errorf("body = %s, want the --templates hint", rec.Body.String())
+	}
+}
+
+func TestSavingAnIssuedCredentialAsATemplateIntoAnUnwritableDirectoryIsAServerError(t *testing.T) {
+	srv := newTestServer(t, false)
+	srv.wallet.Templates = credtemplate.FileLocation(unwritableDir(t))
+
+	rec := serverRequest(t, srv, http.MethodPost, "/api/issue", `{"format":"sdjwt","vct":"urn:example:employee","claims":{"given_name":"Erika"},"save_as_template":"employee"}`)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func unwritableDir(t *testing.T) string {
+	t.Helper()
+	if os.Geteuid() == 0 {
+		t.Skip("root writes into any directory")
+	}
+	dir := t.TempDir()
+	if err := os.Chmod(dir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+	return dir
+}

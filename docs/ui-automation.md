@@ -84,6 +84,7 @@ A dialog with a title has buttons beside it. This holds for the wallet and the d
 | **Issue credential**, **New template**, **Edit template** | `issue-dialog` | `eudi issue`, `eudi templates import` | Template for `--templates-dir` (template editor only) |
 | Register a verifier or issuer, add a use or service, issue an access certificate | `registrar-dialog` | `eudi registrar enrol`, `eudi registrar access-cert` | Relying party for `--relying-parties` (not for an access certificate) |
 | Add a catalogue entry | `registrar-catalog-add-dialog` | `eudi catalog add` | Entry for `--catalog` |
+| Transaction template editor | `transaction-template-dialog` | None | None |
 | Consent dialog | `consent-dialog` | `eudi wallet requests approve`, `deny` | None |
 
 The commands use the wallet URL of the page. A consent command answers the newest pending request of the same type. It looks the request up with `GET /api/requests` and `jq`. Set `REQUEST_ID` to answer a specific request. The command sees requests that came from API calls, the CLI and tests. Requests opened in a browser are visible only in that browser. On a public demo only the web UI answers consent requests, unless the operator starts it with `--demo-consent-api`. When the CSR field is empty, the registrar command has a placeholder for the CSR. Its note shows how to create one. A relying party file must set the identifier of each intended use. The YAML therefore gives a new intended use an identifier made from its purpose, such as `age-check-before-checkout`. The catalogue YAML names an issuer CA as `issuer-ca.pem`. Save the CA under that name next to the file.
@@ -245,6 +246,12 @@ The demo verifier at `/verifier/` builds requests for you:
 | Client identifier prefix | `#scheme-toggle [data-scheme="x509_hash"]`, `"x509_san_dns"`, `"redirect_uri"`, `"pre-registered"` |
 | Registration | `#identity-toggle [data-identity="registered"]`, `"unregistered"`, `"own"` with `#signing-key` and `#verifier-info` |
 | Own query | `#custom-panel`, `#credentials-list`, `#add-credential` |
+| Transaction data on or off | `#transaction-enabled` (checkbox, shows `#transaction-editor`) |
+| Transaction template picker | `#transaction-template-select` (options `#transaction-template-option-<name>`) |
+| Transaction data editor | `#transaction-mode-form`, `#transaction-mode-json` |
+| Payload fields of the template | `#transaction-field-<path>`, the path joined with `-`, such as `#transaction-field-amount` and `#transaction-field-payee-name` |
+| Transaction data as JSON | `#transaction-data` (JSON array), `#transaction-template-add` appends an entry of the template |
+| Query the demo payment account | `#transaction-query-payment-account` |
 | **Create request** | `#create-request` |
 | Request links | `#wallet-link`, `#scheme-uri` |
 
@@ -258,6 +265,7 @@ The demo verifier at `/verifier/` builds requests for you:
 | Credential to send | `#consent-credential-<credential id>`, a `.consent-credential` with `data-credential-id`, `data-vct`, `data-doctype` |
 | Claim checkboxes | `.consent-claim input` with `data-cred` and `data-claim` |
 | Note on a query with **multiple** | `#consent-multiple-<query id>` |
+| Transaction to authorize | `#consent-transaction-<n>` with `-summary` (TS12 types only), `-type` and `-data` |
 | Query without a matching credential (debug mode) | `#consent-unanswered-<query id>`. **Approve** stays disabled until you pick one |
 | **Approve**, **Deny** | `#consent-approve`, `#consent-deny` |
 
@@ -355,7 +363,9 @@ await expect(page.locator("#issue-overlay")).not.toHaveClass(/active/);
 await expect(page.locator('.credential-card[data-vct="urn:example:member:1"]')).toBeVisible();
 ```
 
-**Templates** (`#templates-link`) lists the templates. Rows are `template-row-<name>` with `template-edit-<name>` and `template-delete-<name>`. `#template-new` opens the same form with a name field (`#template-editor-name`).
+**Templates** (`#templates-link`) lists the credential templates and the transaction templates. Rows are `template-row-<name>` with `template-edit-<name>` and `template-delete-<name>`. `#template-new` opens the same form with a name field (`#template-editor-name`).
+
+Transaction template rows are `transaction-template-row-<name>` with `transaction-template-edit-<name>` and, for user templates, `transaction-template-delete-<name>`. `#transaction-template-new` opens the editor `#transaction-template-dialog` with `#transaction-template-name`, `#transaction-template-description`, `#transaction-template-json` and `#transaction-template-save`. Findings of a TS12 template show as `#transaction-template-warning-<n>`, and the editor stays open.
 
 API: `POST /api/issue` (see [credential issuance](wallet/http-api.md#credential-issuance)) and `PUT /api/templates/{name}` (see [credential templates](wallet/http-api.md#credential-templates)).
 
@@ -515,6 +525,7 @@ E2E tests: [`wallet.spec.js`](../e2e/wallet.spec.js), test *trust dialog adds a 
 | Validation mode | `#conf-mode-select` (`strict`, `debug`) |
 | HTTPS certificates | `#conf-tls-select` (`auto`, `true`, `false`) |
 | HAIP, ARF, encrypted request objects | `#conf-haip-input`, `#conf-arf-input`, `#conf-encrypted-input` |
+| Transaction data | `#conf-transaction-data-input` |
 | OpenID4VCI version, key attestation level | `#conf-vci-version-select`, `#conf-key-attestation-select` |
 | OpenID4VCI client ID | `#conf-vci-client-id`. When it is empty, flows with client attestation use a client ID derived from the wallet provider key. A demo shows the row only for a fixed client ID |
 | **Reset to startup settings**, **Close** | `#conf-reset`, `#conformance-close` |

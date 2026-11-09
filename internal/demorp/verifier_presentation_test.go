@@ -133,7 +133,7 @@ func TestVerifierChecksTheKeyBinding(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			log := &checklist{}
-			_, err := d.verifySDJWTEntry(req, tc.presentation, credentialQuery{vct: TicketVCT}, "", d.credentialTrust(), log)
+			_, err := d.verifySDJWTEntry(req, tc.presentation, credentialQuery{vct: TicketVCT}, "", d.credentialTrust(), log, nil)
 			if tc.failedCheck == "" {
 				if err != nil {
 					t.Fatalf("refused: %v (checks %v)", err, log.entries)
@@ -336,7 +336,7 @@ func TestVerifierUsesTheTypeMetadataOfAnHTTPSType(t *testing.T) {
 			docs["/child"] = `{"vct":"{base}/child","extends":"{base}/base"}`
 			docs["/base"] = tc.base
 			log := &checklist{}
-			_, err := d.verifySDJWTEntry(req, presentation, credentialQuery{vct: server.URL + "/base"}, "", d.credentialTrust(), log)
+			_, err := d.verifySDJWTEntry(req, presentation, credentialQuery{vct: server.URL + "/base"}, "", d.credentialTrust(), log, nil)
 			if tc.failedCheck == "" {
 				if err != nil {
 					t.Fatalf("refused: %v (checks %v)", err, log.entries)

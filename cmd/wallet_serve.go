@@ -18,7 +18,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io/fs"
 	"log"
 	"net"
 	"net/http"
@@ -28,6 +27,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -43,11 +43,13 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
 	"github.com/eudi-dev/eudi-dev/v3/internal/netaddr"
 	"github.com/eudi-dev/eudi-dev/v3/internal/news"
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
 	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
 	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
 	"github.com/eudi-dev/eudi-dev/v3/internal/remote"
 	"github.com/eudi-dev/eudi-dev/v3/internal/serverlog"
 	"github.com/eudi-dev/eudi-dev/v3/internal/storage"
+	"github.com/eudi-dev/eudi-dev/v3/internal/txtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/urlhandler"
 	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
 	"github.com/eudi-dev/eudi-dev/v3/internal/web"
@@ -55,42 +57,47 @@ import (
 )
 
 type walletServeOptions struct {
-	Port                  int
-	Listen                string
-	AllowPrivateNetworks  bool
-	AutoAccept            bool
-	CredFiles             []string
-	CredentialsFile       string
-	CatalogFile           string
-	RelyingPartiesFile    string
-	PID                   bool
-	KeyPath               string
-	IssuerKey             string
-	SessionTranscript     string
-	Register              bool
-	NoRegister            bool
-	StatusList            bool
-	BaseURL               string
-	Docker                bool
-	PreferredFormat       string
-	Conformance           *conformanceFlags
-	AdhocDisplayImages    bool
-	DemoIssuerClientAuth  string
-	DemoIssuerKeyAttest   string
-	VCIClientID           string
-	VCIRedirectURI        string
-	Demo                  bool
-	DemoReset             string
-	ImprintFile           string
-	Theme                 string
-	NewsFile              string
-	DemoConsentAPI        bool
-	Detached              bool
-	ServeTLS              bool
-	DemoVerifierIssuerCAs []string
-	DemoIssuerIdentity    demoIdentityFlags
-	DemoVerifierIdentity  demoIdentityFlags
-	LogFormat             string
+	Port                     int
+	Listen                   string
+	AllowPrivateNetworks     bool
+	AutoAccept               bool
+	CredFiles                []string
+	CredentialsFile          string
+	CatalogFile              string
+	RelyingPartiesFile       string
+	TemplatesFile            string
+	TransactionTemplatesFile string
+	ConfigDir                string
+	ConfigReload             time.Duration
+	Check                    bool
+	PID                      bool
+	KeyPath                  string
+	IssuerKey                string
+	SessionTranscript        string
+	Register                 bool
+	NoRegister               bool
+	StatusList               bool
+	BaseURL                  string
+	Docker                   bool
+	PreferredFormat          string
+	Conformance              *conformanceFlags
+	AdhocDisplayImages       bool
+	DemoIssuerClientAuth     string
+	DemoIssuerKeyAttest      string
+	VCIClientID              string
+	VCIRedirectURI           string
+	Demo                     bool
+	DemoReset                string
+	ImprintFile              string
+	Theme                    string
+	NewsFile                 string
+	DemoConsentAPI           bool
+	Detached                 bool
+	ServeTLS                 bool
+	DemoVerifierIssuerCAs    []string
+	DemoIssuerIdentity       demoIdentityFlags
+	DemoVerifierIdentity     demoIdentityFlags
+	LogFormat                string
 }
 
 func walletServeCmd() *cobra.Command {
@@ -146,6 +153,11 @@ Every flag can also be set as EUDI_DEV_<FLAG>, such as EUDI_DEV_BASE_URL for --b
 	cmd.Flags().StringVar(&opts.CredentialsFile, "credentials", "", "Credentials to issue or import on every start and after a demo reset: a YAML or JSON file, a directory of such files, or '-' for stdin")
 	cmd.Flags().StringVar(&opts.CatalogFile, "catalog", "", "Attestation types to pre-register in the catalogue on every start and after a demo reset: a YAML or JSON file, a directory of such files, or '-' for stdin")
 	cmd.Flags().StringVar(&opts.RelyingPartiesFile, "relying-parties", "", "Relying parties to register with the wallet's registrar on every start and after a demo reset: a YAML or JSON file, a directory of such files, or '-' for stdin")
+	cmd.Flags().StringVar(&opts.TemplatesFile, "templates", "", "Credential templates to offer, read-only next to the templates in --templates-dir: a YAML or JSON file, a directory of such files, or '-' for stdin. A file holds one template or several")
+	cmd.Flags().StringVar(&opts.TransactionTemplatesFile, "transaction-templates", "", "Transaction templates to offer, read-only next to the stored ones: a YAML or JSON file, a directory of such files, or '-' for stdin. A file holds one template or several")
+	cmd.Flags().StringVar(&opts.ConfigDir, "config", "", "Directory with the configuration files: templates, transaction-templates, catalog, relying-parties and credentials, each as a subdirectory or as a .yaml, .yml or .json file of that name. An input can't also be set by its own flag")
+	cmd.Flags().DurationVar(&opts.ConfigReload, "config-reload", 0, "Read the configuration files again at this interval, such as 30s, and apply them when they changed. 0 (the default) reads them once at startup")
+	cmd.Flags().BoolVar(&opts.Check, "check", false, "Load the configuration into a fresh wallet in memory, print what it holds and exit without serving")
 	cmd.Flags().BoolVar(&opts.PID, "pid", false, "Issue the default PID credentials (SD-JWT VC and mdoc) at startup")
 	cmd.Flags().StringVar(&opts.KeyPath, "key", "", "Holder private key file (PEM/JWK). Uses the stored key or auto-generates one if omitted")
 	cmd.Flags().StringVar(&opts.IssuerKey, "issuer-key", "", "Issuer key for generated PIDs (PEM/JWK)")
@@ -162,7 +174,7 @@ Every flag can also be set as EUDI_DEV_<FLAG>, such as EUDI_DEV_BASE_URL for --b
 	cmd.Flags().StringVar(&opts.DemoIssuerKeyAttest, "demo-issuer-key-attestation", string(demorp.KeyAttestationOptional), "Key attestation requirement of the demo issuer's credential endpoint: 'optional' (default, also accepts jwt proofs without a key attestation) or 'required' (every proof must carry a key attestation, CIR (EU) 2024/2979 Annex Ib TR_KA-4)")
 	cmd.Flags().StringVar(&opts.VCIClientID, "vci-client-id", "", "Fixed client ID for OID4VCI flows. Unset, flows with attestation-based client authentication use a client ID derived from the wallet provider key, and other flows use the wallet origin")
 	cmd.Flags().StringVar(&opts.VCIRedirectURI, "vci-redirect-uri", "", "Redirect URI for OpenID4VCI authorization code flows (default /callback of the wallet origin)")
-	cmd.Flags().BoolVar(&opts.Demo, "demo", false, "Public demo profile: implies --pid, --mode debug, --haip, --arf and --vci-version 1.1 (all overridable), disables process/filesystem endpoints, blocks fetches to loopback and private networks unless --allow-private-networks is given, ignores $EUDI_DEV_AUTO_ACCEPT")
+	cmd.Flags().BoolVar(&opts.Demo, "demo", false, "Public demo profile: implies --pid, --mode debug, --haip, --arf, --vci-version 1.1 and --transaction-data (all overridable), disables process/filesystem endpoints, blocks fetches to loopback and private networks unless --allow-private-networks is given, ignores $EUDI_DEV_AUTO_ACCEPT")
 	addAllowPrivateNetworksFlag(cmd, &opts.AllowPrivateNetworks, "With --demo it also allows loopback. Keep that off on a host that faces the internet. ")
 	cmd.Flags().StringVar(&opts.DemoReset, "demo-reset", "1h", "When to restore the clean demo baseline: an interval (24h), a daily wall-clock time (00:00), or one with a timezone (\"00:00 Europe/Berlin\"). 0 disables. Requires --demo")
 	cmd.Flags().StringVar(&opts.Theme, "theme", "", "Theme directory with theme.css, a logo and a favicon. Missing files and colours come from the built-in theme. See docs/wallet/themes.md")
@@ -246,6 +258,9 @@ func serveConformance(cmd *cobra.Command, opts *walletServeOptions) (walletConfo
 		}
 		if !cmd.Flags().Changed("vci-version") {
 			f.vciVersion = string(wallet.VCIVersion11)
+		}
+		if !cmd.Flags().Changed("transaction-data") {
+			f.transactionData = true
 		}
 	}
 	return opts.Conformance.resolve()
@@ -444,10 +459,13 @@ func demoResetDescription(opts wallet.DemoOptions) string {
 }
 
 func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
+	if err := applyConfigDir(opts); err != nil {
+		return err
+	}
 	var stdinFlags []string
-	for flag, path := range map[string]string{"--credentials": opts.CredentialsFile, "--catalog": opts.CatalogFile, "--relying-parties": opts.RelyingPartiesFile} {
-		if path == "-" {
-			stdinFlags = append(stdinFlags, flag)
+	for _, input := range serveConfigInputs(opts) {
+		if *input.path == "-" {
+			stdinFlags = append(stdinFlags, input.flag)
 		}
 	}
 	slices.Sort(stdinFlags)
@@ -456,6 +474,15 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	}
 	if len(stdinFlags) > 1 {
 		return fmt.Errorf("only one of %s can read stdin", strings.Join(stdinFlags, ", "))
+	}
+	if opts.ConfigReload < 0 {
+		return fmt.Errorf("--config-reload must not be negative")
+	}
+	if opts.ConfigReload > 0 && len(stdinFlags) > 0 {
+		return fmt.Errorf("--config-reload reads the files again, but stdin can be read only once. Pass a file to %s", stdinFlags[0])
+	}
+	if opts.Check && opts.Detached {
+		return fmt.Errorf("--check exits after loading the configuration, so it can't run detached")
 	}
 	listenHost, err := resolveListenHost(cmd, opts.Listen, opts.Docker)
 	if err != nil {
@@ -501,7 +528,7 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	if err != nil {
 		return err
 	}
-	store, err := openStore()
+	store, err := openServeStore(opts.Check)
 	if err != nil {
 		return err
 	}
@@ -512,6 +539,8 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	if templatesDir != "" {
 		w.Templates = credtemplate.FileLocation(templatesDir)
 	}
+	w.Templates.Configured = &credtemplate.Configured{}
+	w.TransactionTemplates.Configured = &txtemplate.Configured{}
 	if opts.KeyPath != "" {
 		holderKey, err := loadWalletECKey(opts.KeyPath, "holder")
 		if err != nil {
@@ -609,50 +638,28 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 		return err
 	}
 
-	var startupFile *wallet.CredentialsFile
-	if opts.CredentialsFile != "" {
-		startupFile, err = wallet.LoadCredentialsFile(opts.CredentialsFile)
-		if err != nil {
-			return fmt.Errorf("reading the credentials file: %w", err)
-		}
-	}
 	if err := w.TrustedLists().FileListProblem(); err != nil {
 		return fmt.Errorf("--trusted-list: %w", err)
 	}
-	var catalogFile *wallet.CatalogFile
-	if opts.CatalogFile != "" {
-		catalogFile, err = wallet.LoadCatalogFile(opts.CatalogFile)
-		if err != nil {
-			return fmt.Errorf("reading the catalogue file: %w", err)
-		}
+	cfg, err := loadServeConfig(opts)
+	if err != nil {
+		return err
 	}
-	var relyingParties *wallet.RelyingPartiesFile
-	if opts.RelyingPartiesFile != "" {
-		relyingParties, err = wallet.LoadRelyingPartiesFile(opts.RelyingPartiesFile)
-		if err != nil {
-			return fmt.Errorf("reading the relying parties file: %w", err)
-		}
-	}
-	if err := w.Registrar().CheckTemplateCatalog(nil); err != nil {
-		return fmt.Errorf("the catalogue entries of the templates: %w", err)
-	}
-	// baseline adds the catalogue entries, the relying parties and the startup
-	// credentials. A demo reset runs it again. On a demo, startup credentials
-	// are protected unless an entry says otherwise. The catalogue comes first,
-	// because a credential and a registration take their category from the
-	// catalogue entry.
-	registrarChanged := false
+	// current is the applied configuration. A reload replaces it, and a demo
+	// reset applies it again.
+	var current atomic.Pointer[serveConfig]
+	current.Store(cfg)
+	// baseline adds the catalogue entries, the relying parties, the PID and the
+	// startup credentials. A demo reset runs it again. On a demo, startup
+	// credentials are protected unless an entry says otherwise.
+	baselineChanged := false
 	baseline := func() error {
-		changed, err := w.ApplyCatalogFile(catalogFile)
+		cfg := current.Load()
+		_, changed, err := applyServeConfig(w, &serveConfig{templates: cfg.templates, transactionTemplates: cfg.transactionTemplates, catalog: cfg.catalog, relyingParties: cfg.relyingParties}, nil, opts.Demo)
+		baselineChanged = baselineChanged || changed
 		if err != nil {
-			return fmt.Errorf("pre-registering the catalogue entries: %w", err)
+			return err
 		}
-		registrarChanged = registrarChanged || changed
-		changed, err = w.ApplyRelyingPartiesFile(relyingParties)
-		if err != nil {
-			return fmt.Errorf("registering the relying parties: %w", err)
-		}
-		registrarChanged = registrarChanged || changed
 		if opts.PID {
 			generate := func() error { return w.GenerateDefaultCredentials(nil, "") }
 			if opts.Demo {
@@ -661,18 +668,30 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 			if err := generate(); err != nil {
 				return fmt.Errorf("generating PID credentials: %w", err)
 			}
+			baselineChanged = true
 		}
-		if startupFile != nil {
-			if err := w.AddFileCredentials(startupFile, opts.Demo); err != nil {
+		if cfg.credentials != nil {
+			if err := w.AddFileCredentials(cfg.credentials, opts.Demo); err != nil {
 				return fmt.Errorf("adding the credentials of %s: %w", opts.CredentialsFile, err)
 			}
+			baselineChanged = true
 		}
 		return nil
 	}
 	if err := baseline(); err != nil {
 		return err
 	}
-	if opts.PID || startupFile != nil || registrarChanged {
+	if opts.Check {
+		fmt.Printf("The configuration loads into a fresh wallet:\n")
+		for _, line := range cfg.summary(opts) {
+			fmt.Printf("  %s\n", line)
+		}
+		if opts.PID {
+			fmt.Printf("  the default PID credentials\n")
+		}
+		return nil
+	}
+	if baselineChanged {
 		if err := store.Save(w); err != nil {
 			return fmt.Errorf("saving wallet: %w", err)
 		}
@@ -725,6 +744,16 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	credentialLines := credentialBannerLines(w)
 	fmt.Printf("  Credentials:   %d loaded\n", len(credentialLines))
 	fmt.Printf("  Storage:       %s\n", store.Location())
+	for i, line := range cfg.summary(opts) {
+		label := "  Config:        "
+		if i > 0 {
+			label = "                 "
+		}
+		fmt.Printf("%s%s\n", label, line)
+	}
+	if opts.ConfigReload > 0 {
+		dim.Printf("                 read again every %s\n", opts.ConfigReload)
+	}
 	if source := store.SeedSource(); source != "" {
 		fmt.Printf("  Keys:          derived from the %s\n", source)
 	}
@@ -757,6 +786,10 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	}
 	if w.RequireEncryptedRequest {
 		fmt.Printf("  Encrypted:     request object encryption required\n")
+	}
+	if w.TransactionData {
+		types := append(slices.Clone(oid4vp.TS12TransactionDataTypes), w.TransactionDataTypes...)
+		fmt.Printf("  Transactions:  transaction_data accepted (%s)\n", strings.Join(types, ", "))
 	}
 	if w.RequireHAIP {
 		fmt.Printf("  HAIP:          enforced (presentations: x509_hash, direct_post.jwt, DCQL, signed request object, P-256 response encryption)\n")
@@ -813,7 +846,7 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	srv.SetStore(store)
 	srv.SetVersion(Version)
 	srv.SetImprint(imprintHTML)
-	srv.SetOperatorRelyingParties(relyingParties.Identifiers())
+	srv.SetOperatorRelyingParties(cfg.relyingParties.Identifiers())
 	if opts.NewsFile != "" {
 		n, err := news.Load(opts.NewsFile)
 		if err != nil {
@@ -857,6 +890,7 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 		demoRP.SetVerifierIdentity(verifierIdentity)
 	}
 	w.SetDemoIssuer(demoRP.IssuerID)
+	w.SetDemoIssuerVCT(demoRP.IssuedVCT)
 	srv.Mount("/issuer", demoRP.IssuerHandler())
 	srv.Mount("/verifier", demoRP.VerifierHandler())
 	demoRP.HandleWellKnown(srv.Handle)
@@ -874,7 +908,7 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 		srv.SetIssuerListenPort(-1)
 	}
 
-	srv.SetLogger(func(format string, args ...any) {
+	logf := func(format string, args ...any) {
 		if logFormat == serverlog.FormatJSON {
 			log.Printf(format, args...)
 			return
@@ -882,7 +916,8 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 		timestamp := time.Now().Format("15:04:05")
 		dim.Printf("[%s] ", timestamp)
 		fmt.Printf(format+"\n", args...)
-	})
+	}
+	srv.SetLogger(logf)
 
 	// When an interactive request arrives, open the consent UI on a desktop or
 	// print its URL on a headless host. A demo host does neither because
@@ -920,10 +955,24 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 		URL:       localURL,
 		WalletDir: store.Dir,
 		StartedAt: time.Now(),
-	}); err != nil && !readOnlyHome(err) {
-		fmt.Fprintf(os.Stderr, "warning: registering wallet instance: %v\n", err)
+	}); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: CLI commands won't find this server, because its instance file can't be written to the home directory or the temp directory. Pass --remote %s to them: %v\n", localURL, err)
 	}
 	defer remote.UnregisterInstance(processID)
+
+	if opts.ConfigReload > 0 {
+		stop := make(chan struct{})
+		defer close(stop)
+		reload := func(next *serveConfig) error {
+			return srv.ApplyConfig(func() (bool, error) {
+				applied, changed, err := applyServeConfig(w, next, current.Load(), opts.Demo)
+				current.Store(&applied)
+				srv.SetOperatorRelyingParties(applied.relyingParties.Identifiers())
+				return changed, err
+			})
+		}
+		go watchServeConfig(stop, current.Load, opts.ConfigReload, opts, reload, logf)
+	}
 
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
@@ -931,11 +980,20 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	return serveWallet(srv, signals)
 }
 
-// readOnlyHome reports a home directory the wallet cannot write, such as a
-// container with a read-only root filesystem. Memory and database storage run
-// there, and only `wallet ps` misses the instance.
-func readOnlyHome(err error) bool {
-	return errors.Is(err, syscall.EROFS) || errors.Is(err, fs.ErrPermission)
+// --check loads the configuration into a wallet in memory, so it never
+// changes the stored wallet.
+func openServeStore(check bool) (*wallet.WalletStore, error) {
+	if !check {
+		return openStore()
+	}
+	store, err := wallet.OpenWalletStore(walletDir, string(storage.KindMemory))
+	if err != nil {
+		return nil, err
+	}
+	if keySeed != "" {
+		store.SetSeed(keySeed)
+	}
+	return store, nil
 }
 
 // serveWallet serves until a signal or POST /api/shutdown. Both stop the

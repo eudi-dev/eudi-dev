@@ -49,7 +49,7 @@ func importNationalitiesPID(t *testing.T, w *Wallet) StoredCredential {
 func presentedNationalities(t *testing.T, w *Wallet, m consent.Match) any {
 	t.Helper()
 	cred, _ := w.GetCredential(m.CredentialID)
-	presentation, err := w.createSDJWTPresentation(cred, m.SelectedKeys, "nonce", "verifier", w.HolderKey)
+	presentation, err := w.createSDJWTPresentation(cred, m.SelectedKeys, "nonce", "verifier", w.HolderKey, nil)
 	if err != nil {
 		t.Fatalf("createSDJWTPresentation: %v", err)
 	}

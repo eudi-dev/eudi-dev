@@ -122,9 +122,9 @@ func Evaluate(query map[string]any, credentials []Credential, opts Options) ([]c
 			unbound := false
 			switch {
 			case cred.Bound:
-			case requiresHolderBinding(cqMap) && debug:
+			case RequiresHolderBinding(cqMap) && debug:
 				unbound = true
-			case requiresHolderBinding(cqMap):
+			case RequiresHolderBinding(cqMap):
 				skipped["no holder binding"]++
 				mismatches = append(mismatches, "has no holder binding, and the query requires one")
 			case strict && cred.Format == credtype.FormatMDOC:
@@ -658,19 +658,30 @@ func w3cCredentialTypes(payload map[string]any) []string {
 func RequestsUnboundPresentation(query map[string]any) bool {
 	credentials, _ := query["credentials"].([]any)
 	for _, cq := range credentials {
-		if cqMap, ok := cq.(map[string]any); ok && !requiresHolderBinding(cqMap) {
+		if cqMap, ok := cq.(map[string]any); ok && !RequiresHolderBinding(cqMap) {
 			return true
 		}
 	}
 	return false
 }
 
-// requiresHolderBinding reads require_cryptographic_holder_binding. It
+// RequiresHolderBinding reads require_cryptographic_holder_binding. It
 // defaults to true (OpenID4VP 1.0 §6.1). The Verifier then expects a
 // Cryptographic Holder Binding proof. An unbound credential cannot give one.
-func requiresHolderBinding(cqMap map[string]any) bool {
+func RequiresHolderBinding(cqMap map[string]any) bool {
 	required, ok := cqMap["require_cryptographic_holder_binding"].(bool)
 	return !ok || required
+}
+
+// QueryByID returns the credential query with that id, or nil.
+func QueryByID(query map[string]any, id string) map[string]any {
+	credentials, _ := query["credentials"].([]any)
+	for _, cq := range credentials {
+		if cqMap, ok := cq.(map[string]any); ok && cqMap["id"] == id {
+			return cqMap
+		}
+	}
+	return nil
 }
 
 // metaMismatch describes how the credential type differs from the types in the

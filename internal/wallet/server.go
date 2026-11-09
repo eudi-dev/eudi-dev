@@ -92,7 +92,7 @@ type Server struct {
 	news        *news.News
 	// operatorRelyingParties are the first identifiers of the registrations
 	// from --relying-parties.
-	operatorRelyingParties []string
+	operatorRelyingParties atomic.Pointer[[]string]
 	// ShutdownFunc runs after POST /api/shutdown has responded. The serve command
 	// sets it to stop the server gracefully. When nil the process exits
 	// directly.
@@ -198,6 +198,12 @@ func (s *Server) setupRoutes() {
 	s.routeFunc("GET /api/templates/{name}/display/{field}", s.handleTemplateDisplayImage)
 	s.routeFunc("PUT /api/templates/{name}", s.withFreshStore(s.handlePutTemplate))
 	s.routeFunc("DELETE /api/templates/{name}", s.handleDeleteTemplate)
+
+	s.routeFunc("GET /api/transaction-templates", s.handleListTransactionTemplates)
+	s.routeFunc("GET /api/transaction-templates/{name}", s.handleGetTransactionTemplate)
+	s.routeFunc("PUT /api/transaction-templates/{name}", s.handlePutTransactionTemplate)
+	s.routeFunc("DELETE /api/transaction-templates/{name}", s.handleDeleteTransactionTemplate)
+	s.routeFunc("GET /api/transaction-data-types", s.handleListTransactionDataTypes)
 
 	s.routeFunc("GET "+certificateRevocationsPath, s.withFreshStore(s.handleListCertificateRevocations))
 	s.routeFunc("POST "+certificateRevocationsPath, s.withFreshStore(s.handleRevokeCertificate))

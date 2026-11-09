@@ -709,6 +709,9 @@ func (r *Registrar) buildTemplateCatalog(templates []credtemplate.Template, base
 		if !predefined && t.Catalog == nil {
 			continue
 		}
+		if t.VCT != "" {
+			t.VCT = r.env.IssuedVCT(t)
+		}
 		entry, ok, err := templateEntry(t, base)
 		if err != nil {
 			problems = append(problems, templateCatalogProblem{t.Name, err})

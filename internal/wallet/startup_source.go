@@ -15,11 +15,16 @@
 package wallet
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 )
 
 var startupFileExtensions = []string{".yaml", ".yml", ".json"}
@@ -32,8 +37,37 @@ type startupSource struct {
 	data []byte
 }
 
+// decodeStartupItems reads the items of a startup file. Each YAML document,
+// and the JSON form, holds one item or a list of items. An unknown field is
+// an error.
+func decodeStartupItems[T any](data []byte) ([]T, error) {
+	documents, err := credtemplate.YAMLDocumentsToJSON(data)
+	if err != nil {
+		return nil, err
+	}
+	var items []T
+	for _, doc := range documents {
+		document := doc.JSON
+		if bytes.HasPrefix(document, []byte{'{'}) {
+			document = slices.Concat([]byte{'['}, document, []byte{']'})
+		}
+		decoder := json.NewDecoder(bytes.NewReader(document))
+		decoder.DisallowUnknownFields()
+		var part []T
+		if err := decoder.Decode(&part); err != nil {
+			if len(documents) > 1 {
+				return nil, fmt.Errorf("YAML document %d: %w", doc.Number, err)
+			}
+			return nil, err
+		}
+		items = append(items, part...)
+	}
+	return items, nil
+}
+
 // readStartupSources reads a YAML or JSON file, every .yaml, .yml and .json
-// file of a directory in name order, or stdin for "-".
+// file of a directory in name order without the hidden ones, or stdin for
+// "-".
 func readStartupSources(path string) ([]startupSource, error) {
 	return readSources(path, startupFileExtensions)
 }
@@ -60,8 +94,11 @@ func readSources(path string, extensions []string) ([]startupSource, error) {
 		}
 		files = nil
 		for _, entry := range dirEntries {
-			if slices.Contains(extensions, strings.ToLower(filepath.Ext(entry.Name()))) {
-				files = append(files, filepath.Join(path, entry.Name()))
+			// Editors and Kubernetes ConfigMap volumes keep hidden entries
+			// next to the files.
+			name := entry.Name()
+			if !strings.HasPrefix(name, ".") && slices.Contains(extensions, strings.ToLower(filepath.Ext(name))) {
+				files = append(files, filepath.Join(path, name))
 			}
 		}
 	}

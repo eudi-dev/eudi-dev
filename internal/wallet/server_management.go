@@ -271,7 +271,11 @@ func (s *Server) handleIssueCredential(w http.ResponseWriter, r *http.Request) {
 	}
 	summary, err := s.management().Issue(req)
 	if err != nil {
-		apierror.WriteStatus(w, visitorLimitStatus(err, http.StatusBadRequest), err.Error())
+		status := http.StatusBadRequest
+		if credtemplate.IsStorageError(err) {
+			status = http.StatusInternalServerError
+		}
+		apierror.WriteStatus(w, visitorLimitStatus(err, status), err.Error())
 		return
 	}
 	if req.SaveAsTemplate != "" {

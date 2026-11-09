@@ -72,6 +72,9 @@ type Request struct {
 	// certificates, for the consent dialog.
 	Purposes        []string
 	PrivacyPolicies []string
+	// TransactionData is what the user authorizes with the presentation
+	// (OpenID4VP 1.0 §8.4).
+	TransactionData []TransactionData
 	// Alternatives for the Edit view. MatchedCreds retains the automatic selection.
 	CredentialOptions *CredentialOptions
 	// Marshal leaves the owner out, because another caller could use it to
@@ -108,6 +111,14 @@ func NewRequest(typ, owner string) *Request {
 		SubmissionCh: make(chan SubmissionResult, 1),
 		CreatedAt:    time.Now(),
 	}
+}
+
+// TransactionData is one decoded transaction_data entry. The consent dialog
+// shows its type and its other members.
+type TransactionData struct {
+	Type          string         `json:"type"`
+	CredentialIDs []string       `json:"credential_ids"`
+	Data          map[string]any `json:"data"`
 }
 
 type Match struct {
@@ -255,6 +266,9 @@ func marshal(r *Request) map[string]any {
 	}
 	if len(r.PrivacyPolicies) > 0 {
 		m["privacy_policies"] = r.PrivacyPolicies
+	}
+	if len(r.TransactionData) > 0 {
+		m["transaction_data"] = r.TransactionData
 	}
 	if len(r.Findings) > 0 {
 		m["findings"] = r.Findings.Texts()

@@ -16,7 +16,6 @@ package cmd
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -79,7 +78,10 @@ var templatesListCmd = &cobra.Command{
 				credType = t.DocType
 			}
 			source := "user"
-			if t.Predefined {
+			switch {
+			case t.Configured:
+				source = "config"
+			case t.Predefined:
 				source = "predefined"
 			}
 			format := t.Format
@@ -190,56 +192,69 @@ var templatesSaveCmd = &cobra.Command{
 
 var templatesImportCmd = &cobra.Command{
 	Use:   "import <file|json|->",
-	Short: "Import a credential template from a JSON or YAML file, a JSON string, or stdin (-)",
-	Long: "Imports a credential template. A file ending in .yaml or .yml is YAML, and any other file is JSON. " +
-		"On stdin, input starting with { is JSON and other input is YAML.",
+	Short: "Import credential templates from a JSON or YAML file, a JSON string, or stdin (-)",
+	Long: "Imports credential templates. A file ending in .yaml or .yml is YAML, and one ending in .json or .template is JSON. " +
+		"For other names and on stdin, input starting with { or [ is JSON and other input is YAML. " +
+		"A file holds one template, a list of templates, or YAML documents separated by ---. " +
+		"With more than one template, each needs a name.",
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var data []byte
-		var err error
-		arg := args[0]
-		file := ""
-		switch {
-		case arg == "-":
-			data, err = io.ReadAll(os.Stdin)
-			if err != nil {
-				return fmt.Errorf("reading stdin: %w", err)
-			}
-		case strings.HasPrefix(strings.TrimSpace(arg), "{"):
-			data = []byte(arg)
-		default:
-			data, err = os.ReadFile(arg)
-			if err != nil {
-				return fmt.Errorf("reading template file: %w", err)
-			}
-			file = arg
+		data, file, err := readImportArg(args[0])
+		if err != nil {
+			return err
 		}
 
-		tpl, err := credtemplate.Decode(data, file)
+		templates, err := credtemplate.DecodeAll(data, file, false)
 		if err != nil {
 			return fmt.Errorf("parsing template: %w", err)
 		}
-		if templateImportName != "" {
-			tpl.Name = templateImportName
+		switch {
+		case len(templates) == 0:
+			return fmt.Errorf("the input holds no template")
+		case len(templates) > 1 && templateImportName != "":
+			return fmt.Errorf("--name sets the name of one template, but the input holds %d. Give each template a name in the file", len(templates))
 		}
-		if strings.TrimSpace(tpl.Name) == "" && file != "" {
+		for i, tpl := range templates {
+			if len(templates) > 1 && strings.TrimSpace(tpl.Name) == "" {
+				return fmt.Errorf("template %d needs a name, because the input holds more than one template", i+1)
+			}
+		}
+		if templateImportName != "" {
+			templates[0].Name = templateImportName
+		}
+		if strings.TrimSpace(templates[0].Name) == "" && file != "" {
 			base := filepath.Base(file)
-			tpl.Name = strings.TrimSuffix(base, filepath.Ext(base))
+			templates[0].Name = strings.TrimSuffix(base, filepath.Ext(base))
 		}
 
 		svc, err := managedWallet()
 		if err != nil {
 			return err
 		}
-		if svc.URL() != "" && strings.TrimSpace(tpl.Name) == "" {
+		if svc.URL() != "" && strings.TrimSpace(templates[0].Name) == "" {
 			return fmt.Errorf("template name is required: pass --name")
 		}
-		path, err := svc.SaveTemplate(tpl)
-		if err != nil {
-			return err
+		var results []map[string]string
+		for _, tpl := range templates {
+			path, err := svc.SaveTemplate(tpl)
+			if err != nil {
+				if len(results) > 0 {
+					return fmt.Errorf("template %q: %w. The %d templates before it are imported", tpl.Name, err, len(results))
+				}
+				return fmt.Errorf("template %q: %w", tpl.Name, err)
+			}
+			printTemplateSaved("Imported", tpl.Name, path)
+			result := map[string]string{"name": tpl.Name}
+			if path != "" {
+				result["path"] = path
+			}
+			results = append(results, result)
 		}
-		printTemplateSaved("Imported", tpl.Name, path)
-		printTemplateResult(tpl.Name, path)
+		if len(results) == 1 {
+			printTemplateResult(templates[0].Name, results[0]["path"])
+			return nil
+		}
+		printResult(results, func() {})
 		return nil
 	},
 }

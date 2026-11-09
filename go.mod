@@ -11,6 +11,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/makiuchi-d/gozxing v0.1.1
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.9
 	github.com/veraison/go-cose v1.3.0
@@ -18,6 +19,7 @@ require (
 	golang.org/x/image v0.45.0
 	golang.org/x/net v0.60.0
 	golang.org/x/sync v0.23.0
+	golang.org/x/text v0.42.0
 )
 
 require (
@@ -29,6 +31,5 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	golang.org/x/sys v0.48.0 // indirect
-	golang.org/x/text v0.42.0 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 )

@@ -41,7 +41,7 @@ func ParseErrorCode(err error) string {
 
 // RefusalCode is the error code of a refused request. It inspects the request
 // for the parameter errors defined by OpenID4VP 1.0 §8.5.
-func RefusalCode(authReq *Request) string {
+func RefusalCode(checks Checks, authReq *Request) string {
 	if authReq == nil {
 		return ErrorInvalidRequest
 	}
@@ -52,9 +52,9 @@ func RefusalCode(authReq *Request) string {
 	default:
 		return ErrorInvalidRequestURIMethod
 	}
-	// OpenID4VP 1.0 §8.5 uses invalid_transaction_data for unsupported transaction
-	// types. This wallet supports none.
-	if hasTransactionData(authReq, authReq.RequestPayload) {
+	// §8.5 invalid_transaction_data covers every problem with the
+	// transaction_data parameter, including a wallet without support for it.
+	if len(transactionDataFindings(checks, authReq, requestPayload(authReq.RequestObject, authReq.RequestPayload))) > 0 {
 		return ErrorInvalidTransactionData
 	}
 	return ErrorInvalidRequest

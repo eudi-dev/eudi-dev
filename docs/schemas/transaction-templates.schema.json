@@ -1,0 +1,60 @@
+{
+  "$defs": {
+    "wallet.TransactionTemplateFileEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "transaction_data": {
+          "properties": {
+            "credential_ids": {
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            "transaction_data_hashes_alg": {
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            "type": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "transaction_data"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://raw.githubusercontent.com/eudi-dev/eudi-dev/main/docs/schemas/transaction-templates.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "A document of a --transaction-templates file: one transaction template or a list of templates.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/wallet.TransactionTemplateFileEntry"
+    },
+    {
+      "items": {
+        "$ref": "#/$defs/wallet.TransactionTemplateFileEntry"
+      },
+      "type": "array"
+    }
+  ],
+  "title": "eudi-dev transaction templates"
+}

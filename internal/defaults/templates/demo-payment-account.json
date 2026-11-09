@@ -1,0 +1,25 @@
+{
+  "name": "demo-payment-account",
+  "description": "Demo Payment Account (SD-JWT SCA Attestation, issued by the demo issuer)",
+  "format": "sdjwt",
+  "vct": "urn:eudi-test:demo-payment-account:1",
+  "category": "eaa",
+  "claims": {
+    "bic": "COBADEFFXXX",
+    "currency": "EUR",
+    "iban": "DE89370400440532013000"
+  },
+  "display": {
+    "name": "Demo Payment Account",
+    "description": "A sample payment account issued by the demo issuer",
+    "background_color": "#e6d8bd",
+    "text_color": "#3b2f20",
+    "logo": "embedded:images/logo.svg",
+    "logo_alt_text": "eudi-dev logo",
+    "claims": {
+      "bic": "BIC",
+      "currency": "Currency",
+      "iban": "IBAN"
+    }
+  }
+}

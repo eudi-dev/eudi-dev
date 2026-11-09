@@ -338,7 +338,7 @@ func TestDecodeDetectsTheFormatOfUnnamedInput(t *testing.T) {
 		`{"name": "card", "format": "sdjwt", "claims": {"zip": "01234"}}`,
 		"name: card\nformat: sdjwt\nclaims:\n  zip: 01234\n",
 	} {
-		tpl, err := Decode([]byte(input), "")
+		tpl, err := decode([]byte(input), "", true)
 		if err != nil {
 			t.Fatalf("Decode(%q): %v", input, err)
 		}

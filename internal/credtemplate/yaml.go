@@ -15,28 +15,58 @@
 package credtemplate
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
 	"regexp"
 
 	"go.yaml.in/yaml/v3"
 )
 
-// YAMLToJSON converts a YAML template, catalogue or credentials file to JSON,
-// so it goes through the same decoder as its JSON form. Scalars stay text
-// where YAML would read them as another type than JSON does: 1990-01-01 is
-// a timestamp in YAML, 01234 is the octal number 668, a mapping key can be a
-// number, and a version such as 1.0 is a float.
-func YAMLToJSON(data []byte) ([]byte, error) {
-	var root yaml.Node
-	if err := yaml.Unmarshal(data, &root); err != nil {
-		return nil, err
+// YAMLDocument is one document of a YAML stream converted to JSON. Number
+// counts every document of the stream from 1, including empty ones. Errors use
+// this number, so it matches the count of a person reading the file.
+type YAMLDocument struct {
+	Number int
+	JSON   []byte
+}
+
+// YAMLDocumentsToJSON converts every document of a YAML stream to JSON and
+// skips empty documents. Scalars stay text where YAML and JSON read them as
+// different types: 1990-01-01 is a timestamp in YAML, 01234 is the octal
+// number 668, a mapping key can be a number, and a version such as 1.0 is a
+// float.
+func YAMLDocumentsToJSON(data []byte) ([]YAMLDocument, error) {
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	var documents []YAMLDocument
+	for i := 1; ; i++ {
+		var root yaml.Node
+		err := decoder.Decode(&root)
+		if errors.Is(err, io.EOF) {
+			return documents, nil
+		}
+		if err != nil {
+			if i > 1 {
+				return nil, fmt.Errorf("YAML document %d: %w", i, err)
+			}
+			return nil, err
+		}
+		keepStrings(&root)
+		var document any
+		if err := root.Decode(&document); err != nil {
+			return nil, err
+		}
+		if document == nil {
+			continue
+		}
+		encoded, err := json.Marshal(document)
+		if err != nil {
+			return nil, err
+		}
+		documents = append(documents, YAMLDocument{Number: i, JSON: encoded})
 	}
-	keepStrings(&root)
-	var document any
-	if err := root.Decode(&document); err != nil {
-		return nil, err
-	}
-	return json.Marshal(document)
 }
 
 var decimalInt = regexp.MustCompile(`^[-+]?(0|[1-9][0-9]*)$`)

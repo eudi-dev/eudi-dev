@@ -169,7 +169,7 @@ func (w *Wallet) registerDemoParties(sync demoSync) (bool, error) {
 	changed := false
 	for _, party := range []demoParty{
 		{w.demoIssuerRegistration, followIssuedTypes},
-		{w.demoVerifierRegistration, nil},
+		{w.demoVerifierRegistration, followRegisteredCredentials},
 	} {
 		updated, err := w.ensureDemoRegistration(party, sync)
 		if err != nil {
@@ -195,6 +195,26 @@ func followIssuedTypes(kept *registrar.WalletRelyingParty, built registrar.Walle
 			if b.ServiceIdentifier == service.ServiceIdentifier {
 				kept.Services[i].ProvidesAttestations = b.ProvidesAttestations
 				kept.Services[i].Entitlements = b.Entitlements
+			}
+		}
+	}
+}
+
+// followRegisteredCredentials registers the demo verifier's intended use for
+// the credentials of the templates, so its requests ask only for registered
+// credentials (ARF RPRC_21).
+func followRegisteredCredentials(kept *registrar.WalletRelyingParty, built registrar.WalletRelyingParty) {
+	for i, service := range kept.Services {
+		for _, b := range built.Services {
+			if b.ServiceIdentifier != service.ServiceIdentifier {
+				continue
+			}
+			for j, use := range service.IntendedUses {
+				for _, bu := range b.IntendedUses {
+					if bu.IntendedUseIdentifier == use.IntendedUseIdentifier {
+						kept.Services[i].IntendedUses[j].Credentials = bu.Credentials
+					}
+				}
 			}
 		}
 	}
@@ -305,6 +325,20 @@ func decodeInfo(value, name string) ([]any, error) {
 	return info, nil
 }
 
+// SetDemoIssuerVCT sets how the demo issuer derives the issued vct from a
+// template. The demo registrations and the catalogue list the issued types.
+func (w *Wallet) SetDemoIssuerVCT(vct func(credtemplate.Template) string) {
+	w.demoIssuerVCT = vct
+}
+
+// demoIssuedVCT returns the vct issued by the demo issuer for t.
+func (w *Wallet) demoIssuedVCT(t credtemplate.Template) string {
+	if w.demoIssuerVCT == nil {
+		return t.VCT
+	}
+	return w.demoIssuerVCT(t)
+}
+
 // demoIssuerRegistration registers the demo issuer as a provider of the
 // its credential types, with the entitlements of their categories (ETSI
 // TS 119 475 V1.2.1 Table 8). A type gets its category from its template or
@@ -341,7 +375,7 @@ func (w *Wallet) demoIssuerRegistration() (registrar.WalletRelyingParty, error) 
 	for _, t := range templates {
 		switch format, _ := credtemplate.NormalizeFormat(t.Format); {
 		case format == "sdjwt" && t.VCT != "":
-			add(t.Category, credtype.FormatSDJWT, t.VCT, "")
+			add(t.Category, credtype.FormatSDJWT, w.demoIssuedVCT(t), "")
 		case format == "mdoc" && t.DocType != "":
 			add(t.Category, credtype.FormatMDOC, "", t.DocType)
 		}
@@ -371,15 +405,24 @@ func (w *Wallet) demoIssuerRegistration() (registrar.WalletRelyingParty, error) 
 
 // demoVerifierRegistration registers the demo verifier with one intended use.
 // It covers the claims of every predefined credential template, so the demo
-// requests ask only for registered claims (ARF RPRC_21).
+// requests ask only for registered claims (ARF RPRC_21). The demo issuer can
+// issue an SD-JWT VC type under another vct. Then the intended use also lists the
+// template's vct, because the wallet issues that one itself.
 func (w *Wallet) demoVerifierRegistration() (registrar.WalletRelyingParty, error) {
+	templateVCT := map[string]string{}
+	templates, _ := credtemplate.List(w.Templates)
+	for _, t := range templates {
+		if t.VCT != "" {
+			templateVCT[w.demoIssuedVCT(t)] = t.VCT
+		}
+	}
 	var credentials []registrar.RegisteredCredential
 	for _, entry := range w.Registrar().CatalogAttestations() {
 		if !entry.Template {
 			continue
 		}
 		for _, c := range entry.Credentials {
-			meta := map[string]any{"vct_values": []string{c.Type}}
+			meta := map[string]any{"vct_values": sortedUnique([]string{c.Type, templateVCT[c.Type]})}
 			if c.Format == credtype.FormatMDOC {
 				meta = map[string]any{"doctype_value": c.Type}
 			}

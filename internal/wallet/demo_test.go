@@ -1196,3 +1196,32 @@ func TestTemplateDisplayImagesAreServed(t *testing.T) {
 		}
 	}
 }
+
+// A kept demo verifier registration gains the credentials of new templates
+// and keeps the user's other changes.
+func TestAKeptDemoVerifierRegistrationFollowsTheTemplates(t *testing.T) {
+	w := generateTestWallet(t)
+	if _, err := w.RegisterMissingDemoParties(); err != nil {
+		t.Fatal(err)
+	}
+	verifier, _ := w.Registrar().RelyingParty(demoIdentifier(demoVerifier))
+	verifier.TradeName = "My demo verifier"
+	verifier.Services[0].IntendedUses[0].Credentials = verifier.Services[0].IntendedUses[0].Credentials[:1]
+	if _, err := w.Registrar().UpdateRelyingParty(verifier); err != nil {
+		t.Fatal(err)
+	}
+	built, err := w.demoVerifierRegistration()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.RegisterMissingDemoParties(); err != nil {
+		t.Fatal(err)
+	}
+	verifier, _ = w.Registrar().RelyingParty(demoIdentifier(demoVerifier))
+	if got, want := len(verifier.Services[0].IntendedUses[0].Credentials), len(built.Services[0].IntendedUses[0].Credentials); got != want {
+		t.Errorf("the kept registration has %d credentials, want %d", got, want)
+	}
+	if verifier.TradeName != "My demo verifier" {
+		t.Errorf("trade name = %q, want the edit kept", verifier.TradeName)
+	}
+}

@@ -22,7 +22,13 @@
         <a href="#" id="how-to-use-link">How to use</a>
         <a href="#" id="get-cli-link">Get the CLI</a>
         <a href="#" id="conformance-link">Settings</a>
-        <a href="#" id="templates-link">Templates</a>
+        <span class="header-submenu-group" id="templates-menu">
+          <button type="button" class="header-submenu-toggle" id="templates-menu-toggle" aria-expanded="false" aria-controls="templates-submenu">Templates</button>
+          <span class="header-submenu" id="templates-submenu" hidden>
+            <a href="#" id="templates-link">Credential templates</a>
+            <a href="#" id="transaction-templates-link">Transaction templates</a>
+          </span>
+        </span>
         <a href="#" id="trust-link">Trust &amp; certificates</a>
         <span class="header-submenu-group" id="registrar-menu">
           <button type="button" class="header-submenu-toggle" id="registrar-menu-toggle" aria-expanded="false" aria-controls="registrar-submenu">Registrar</button>
@@ -263,6 +269,9 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
         <tr><td id="conf-encrypted-name">Request objects</td><td>
           <label class="conf-toggle" id="conf-encrypted-label" title="The wallet always sends an encryption key in wallet_metadata. This setting makes the verifier use it (--require-encrypted-request)"><input type="checkbox" id="conf-encrypted-input"> Refuse unencrypted request objects</label>
         </td></tr>
+        <tr><td id="conf-transaction-data-name">Transaction data</td><td>
+          <label class="conf-toggle" id="conf-transaction-data-label" title="Accept transaction_data of the TS12 types and of the types registered with --transaction-data-type, and sign its hashes into the Key Binding JWT (--transaction-data)"><input type="checkbox" id="conf-transaction-data-input"> Accept transaction data</label>
+        </td></tr>
         <tr><td id="conf-vci-version-name">OpenID4VCI version</td><td>
           <select id="conf-vci-version-select" class="conf-input" aria-labelledby="conf-vci-version-name">
             <option value="1.0">1.0</option>
@@ -308,7 +317,7 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
   <div class="consent-overlay" id="request-credential-overlay">
     <div class="consent-dialog" role="dialog" aria-modal="true" aria-labelledby="request-credential-title" id="request-credential-dialog">
       <div class="consent-title" id="request-credential-title" tabindex="-1">Request credential</div>
-      <p class="dialog-hint" id="request-credential-hint">The wallet requests every format offered by the issuer. You sign in once.</p>
+      <p class="dialog-hint" id="request-credential-hint" title="OpenID4VCI 1.0 §3.4">The wallet starts this issuance itself, without an offer. This is wallet-initiated issuance. It lists the attestation types of the attestation catalogue with their issuers. It requests every format offered by the issuer, and you sign in once.</p>
       <div class="certificate-list" id="request-credential-list"></div>
       <div class="consent-buttons">
         <button class="btn" id="request-credential-close" data-dialog-close>Close</button>
@@ -875,14 +884,74 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
   </div>
 
   <div class="consent-overlay" id="templates-overlay">
-    <div class="consent-dialog" id="templates-dialog">
-      <div class="consent-title" id="templates-title">Credential templates</div>
+    <div class="consent-dialog" role="dialog" aria-modal="true" aria-labelledby="templates-title" id="templates-dialog">
+      <div class="consent-title" id="templates-title" tabindex="-1">Credential templates</div>
       <div id="templates-list" class="templates-list"></div>
-      <div class="form-error" id="template-error"></div>
+      <div class="form-error" id="template-error" role="alert"></div>
       <div class="consent-buttons">
         <button type="button" class="btn" id="template-close" data-dialog-close>Close</button>
-        <button type="button" class="btn btn-primary" id="template-new">New template</button>
+        <button type="button" class="btn btn-primary" id="template-new">New credential template</button>
       </div>
+    </div>
+  </div>
+
+  <div class="consent-overlay" id="transaction-templates-overlay">
+    <div class="consent-dialog" role="dialog" aria-modal="true" aria-labelledby="transaction-templates-title" id="transaction-templates-dialog">
+      <div class="consent-title" id="transaction-templates-title" tabindex="-1">Transaction templates</div>
+      <p class="dialog-hint" id="transaction-templates-hint">Transaction data entries for presentation requests.</p>
+      <div id="transaction-templates-list" class="templates-list"></div>
+      <div class="form-error" id="transaction-templates-error" role="alert"></div>
+      <div class="consent-buttons">
+        <button type="button" class="btn" id="transaction-templates-close" data-dialog-close>Close</button>
+        <button type="button" class="btn btn-primary" id="transaction-template-new">New transaction template</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="consent-overlay" id="transaction-template-overlay">
+    <div class="consent-dialog" role="dialog" aria-modal="true" aria-labelledby="transaction-template-title" id="transaction-template-dialog">
+      <div class="consent-title" id="transaction-template-title" tabindex="-1">Transaction template</div>
+      <form id="transaction-template-form">
+        <div class="form-grid">
+          <label class="form-label" for="transaction-template-name" id="transaction-template-name-label">Name</label>
+          <input type="text" id="transaction-template-name" class="form-input" placeholder="e.g. refund" required>
+          <label class="form-label" for="transaction-template-description" id="transaction-template-description-label">Description</label>
+          <input type="text" id="transaction-template-description" class="form-input" placeholder="Optional">
+        </div>
+        <div class="claims-mode" id="transaction-template-mode">
+          <label class="form-checkbox" id="transaction-template-mode-builder-label"><input type="radio" name="transaction-template-mode" id="transaction-template-mode-builder" value="builder" checked> Builder</label>
+          <label class="form-checkbox" id="transaction-template-mode-json-label"><input type="radio" name="transaction-template-mode" id="transaction-template-mode-json" value="json"> JSON</label>
+        </div>
+        <div class="form-grid" id="transaction-template-builder">
+          <label class="form-label" for="transaction-template-type" id="transaction-template-type-label">Type</label>
+          <div class="transaction-template-type" id="transaction-template-type-editor">
+            <select id="transaction-template-type" class="form-input"></select>
+            <input type="text" id="transaction-template-custom-type" class="form-input" aria-label="Custom type" placeholder="e.g. urn:example:refund" hidden>
+          </div>
+          <span class="form-label" id="transaction-template-hash-algs-label">Hash algorithms</span>
+          <div class="transaction-template-hash-algs" id="transaction-template-hash-algs" role="group" aria-labelledby="transaction-template-hash-algs-label"></div>
+          <label class="form-label" for="transaction-template-credential-ids" id="transaction-template-credential-ids-label">Credential IDs</label>
+          <input type="text" id="transaction-template-credential-ids" class="form-input" placeholder="Optional, comma separated">
+          <span class="form-label form-label-top" id="transaction-template-fields-label">Fields</span>
+          <div class="claims-editor" id="transaction-template-fields-editor">
+            <p class="form-hint" id="transaction-template-fields-hint"></p>
+            <div id="transaction-template-field-rows"></div>
+            <datalist id="transaction-template-field-names"></datalist>
+            <button type="button" class="btn btn-sm" id="transaction-template-add-field">+ Add field</button>
+          </div>
+        </div>
+        <div class="form-grid" id="transaction-template-json-editor" hidden>
+          <label class="form-label form-label-top" for="transaction-template-json" id="transaction-template-json-label">Transaction data</label>
+          <textarea id="transaction-template-json" class="form-input form-textarea transaction-template-json" spellcheck="false" placeholder='{"type": "urn:example:refund", "amount": 3}'></textarea>
+          <p class="form-hint" id="transaction-template-hint">One transaction data object (OpenID4VP 1.0 §5.1).</p>
+        </div>
+        <ul class="transaction-template-warnings" id="transaction-template-warnings" hidden></ul>
+        <div class="form-error" id="transaction-template-error" role="alert"></div>
+        <div class="consent-buttons">
+          <button type="button" class="btn" id="transaction-template-cancel" data-dialog-close>Cancel</button>
+          <button type="submit" class="btn btn-primary" id="transaction-template-save">Save</button>
+        </div>
+      </form>
     </div>
   </div>
 

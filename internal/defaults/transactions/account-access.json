@@ -1,0 +1,16 @@
+{
+  "description": "A TS12 account access for an account information service",
+  "transaction_data": {
+    "type": "urn:eudi:sca:account_access:1",
+    "transaction_data_hashes_alg": ["sha-256"],
+    "payload": {
+      "transaction_id": "C4B9E1D2-7F3A-4E6B-8D5C-2A1F9E0B7C63",
+      "aisp": {
+        "legal_name": "Demo Budget Services GmbH",
+        "brand_name": "Demo Budget",
+        "domain_name": "budget.example"
+      },
+      "description": "Grant access to the account's data."
+    }
+  }
+}

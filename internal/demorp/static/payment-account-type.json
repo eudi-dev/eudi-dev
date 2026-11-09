@@ -1,0 +1,1649 @@
+{
+  "name": "Demo Payment Account",
+  "description": "An SCA Attestation for a payment account, issued by the demo issuer",
+  "display": [
+    {
+      "locale": "en",
+      "name": "Demo Payment Account",
+      "description": "A sample payment account issued by the demo issuer"
+    },
+    {
+      "locale": "de",
+      "name": "Demo-Zahlungskonto",
+      "description": "Ein Beispielkonto des Demo-Ausstellers"
+    }
+  ],
+  "claims": [
+    {
+      "path": [
+        "iban"
+      ],
+      "display": [
+        {
+          "locale": "en",
+          "label": "IBAN"
+        },
+        {
+          "locale": "de",
+          "label": "IBAN"
+        }
+      ]
+    },
+    {
+      "path": [
+        "bic"
+      ],
+      "display": [
+        {
+          "locale": "en",
+          "label": "BIC"
+        },
+        {
+          "locale": "de",
+          "label": "BIC"
+        }
+      ]
+    },
+    {
+      "path": [
+        "currency"
+      ],
+      "display": [
+        {
+          "locale": "en",
+          "label": "Currency"
+        },
+        {
+          "locale": "de",
+          "label": "Währung"
+        }
+      ]
+    }
+  ],
+  "category": "urn:eu:europa:ec:eudi:sua:sca",
+  "transaction_data_types": {
+    "urn:eudi:sca:payment:1": {
+      "schema": "urn:eudi:sca:payment:1",
+      "claims": [
+        {
+          "path": [
+            "payload",
+            "transaction_id"
+          ],
+          "visualisation": 4,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Transaction ID",
+              "description": "Unique identifier of the transaction"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Transaktionsnummer"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "date_time"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Date and time"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Datum und Uhrzeit"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "payee",
+            "name"
+          ],
+          "visualisation": 1,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Payee"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Zahlungsempfänger"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "payee",
+            "id"
+          ],
+          "visualisation": 2,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Payee account"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Konto des Zahlungsempfängers"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "pisp",
+            "legal_name"
+          ],
+          "visualisation": 2,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Payment initiation service"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Zahlungsauslösedienst"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "pisp",
+            "brand_name"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Payment initiation brand"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Marke des Zahlungsauslösedienstes"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "pisp",
+            "domain_name"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Payment initiation domain"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Domain des Zahlungsauslösedienstes"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "execution_date"
+          ],
+          "visualisation": 2,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Execution date"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Ausführungsdatum"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "currency"
+          ],
+          "visualisation": 1,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Currency"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Währung"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "amount"
+          ],
+          "visualisation": 1,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Amount"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Betrag"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "amount_earmarked"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Amount earmarked"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Betrag vorgemerkt"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "amount_estimated"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Amount estimated"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Betrag geschätzt"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "payee",
+            "logo"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Payee logo"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Logo des Zahlungsempfängers"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "payee",
+            "website"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Payee website"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Website des Zahlungsempfängers"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "recurrence",
+            "start_date"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Start date"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Startdatum"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "recurrence",
+            "end_date"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "End date"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Enddatum"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "recurrence",
+            "number"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Number of payments"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Anzahl der Zahlungen"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "recurrence",
+            "frequency"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Frequency"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Häufigkeit"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "recurrence",
+            "mit_options",
+            "amount_variable"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Variable amount"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Variabler Betrag"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "recurrence",
+            "mit_options",
+            "min_amount"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Minimum amount"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Mindestbetrag"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "recurrence",
+            "mit_options",
+            "max_amount"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Maximum amount"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Höchstbetrag"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "recurrence",
+            "mit_options",
+            "total_amount"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Total amount"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Gesamtbetrag"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "recurrence",
+            "mit_options",
+            "initial_amount"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Initial amount"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Anfangsbetrag"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "recurrence",
+            "mit_options",
+            "initial_amount_number"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Number of initial payments"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Anzahl der Anfangszahlungen"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "recurrence",
+            "mit_options",
+            "apr"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Annual percentage rate"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Effektiver Jahreszins"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "sct_inst"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Instant payment"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Echtzeitüberweisung"
+            }
+          ]
+        }
+      ],
+      "ui_labels": {
+        "affirmative_action_label": [
+          {
+            "lang": "en",
+            "value": "Confirm payment"
+          },
+          {
+            "lang": "de",
+            "value": "Zahlung bestätigen"
+          }
+        ],
+        "denial_action_label": [
+          {
+            "lang": "en",
+            "value": "Cancel payment"
+          },
+          {
+            "lang": "de",
+            "value": "Zahlung abbrechen"
+          }
+        ],
+        "transaction_title": [
+          {
+            "lang": "en",
+            "value": "Confirm your payment"
+          },
+          {
+            "lang": "de",
+            "value": "Bestätigen Sie Ihre Zahlung"
+          }
+        ],
+        "security_hint": [
+          {
+            "lang": "en",
+            "value": "Your bank never asks you to confirm a transaction you did not start."
+          },
+          {
+            "lang": "de",
+            "value": "Ihre Bank fordert Sie nie auf, eine Transaktion zu bestätigen, die Sie nicht selbst gestartet haben."
+          }
+        ]
+      }
+    },
+    "urn:eudi:sca:login_risk_transaction:1": {
+      "schema": "urn:eudi:sca:login_risk_transaction:1",
+      "claims": [
+        {
+          "path": [
+            "payload",
+            "transaction_id"
+          ],
+          "visualisation": 4,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Transaction ID",
+              "description": "Unique identifier of the transaction"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Transaktionsnummer"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "date_time"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Date and time"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Datum und Uhrzeit"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "service"
+          ],
+          "visualisation": 2,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Service"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Dienst"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "action"
+          ],
+          "visualisation": 1,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Action"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Aktion"
+            }
+          ]
+        }
+      ],
+      "ui_labels": {
+        "affirmative_action_label": [
+          {
+            "lang": "en",
+            "value": "Confirm"
+          },
+          {
+            "lang": "de",
+            "value": "Bestätigen"
+          }
+        ],
+        "denial_action_label": [
+          {
+            "lang": "en",
+            "value": "Cancel"
+          },
+          {
+            "lang": "de",
+            "value": "Abbrechen"
+          }
+        ],
+        "transaction_title": [
+          {
+            "lang": "en",
+            "value": "Confirm your login"
+          },
+          {
+            "lang": "de",
+            "value": "Bestätigen Sie Ihre Anmeldung"
+          }
+        ],
+        "security_hint": [
+          {
+            "lang": "en",
+            "value": "Your bank never asks you to confirm a transaction you did not start."
+          },
+          {
+            "lang": "de",
+            "value": "Ihre Bank fordert Sie nie auf, eine Transaktion zu bestätigen, die Sie nicht selbst gestartet haben."
+          }
+        ]
+      }
+    },
+    "urn:eudi:sca:account_access:1": {
+      "schema": "urn:eudi:sca:account_access:1",
+      "claims": [
+        {
+          "path": [
+            "payload",
+            "transaction_id"
+          ],
+          "visualisation": 4,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Transaction ID",
+              "description": "Unique identifier of the transaction"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Transaktionsnummer"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "date_time"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Date and time"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Datum und Uhrzeit"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "aisp",
+            "legal_name"
+          ],
+          "visualisation": 1,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Account information service"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Kontoinformationsdienst"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "aisp",
+            "brand_name"
+          ],
+          "visualisation": 2,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Account information brand"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Marke des Kontoinformationsdienstes"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "aisp",
+            "domain_name"
+          ],
+          "visualisation": 2,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Account information domain"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Domain des Kontoinformationsdienstes"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "description"
+          ],
+          "visualisation": 2,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Description"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Beschreibung"
+            }
+          ]
+        }
+      ],
+      "ui_labels": {
+        "affirmative_action_label": [
+          {
+            "lang": "en",
+            "value": "Grant access"
+          },
+          {
+            "lang": "de",
+            "value": "Zugriff erlauben"
+          }
+        ],
+        "denial_action_label": [
+          {
+            "lang": "en",
+            "value": "Deny access"
+          },
+          {
+            "lang": "de",
+            "value": "Zugriff verweigern"
+          }
+        ],
+        "transaction_title": [
+          {
+            "lang": "en",
+            "value": "Allow access to your account"
+          },
+          {
+            "lang": "de",
+            "value": "Zugriff auf Ihr Konto erlauben"
+          }
+        ],
+        "security_hint": [
+          {
+            "lang": "en",
+            "value": "Your bank never asks you to confirm a transaction you did not start."
+          },
+          {
+            "lang": "de",
+            "value": "Ihre Bank fordert Sie nie auf, eine Transaktion zu bestätigen, die Sie nicht selbst gestartet haben."
+          }
+        ]
+      }
+    },
+    "urn:eudi:sca:emandate:1": {
+      "schema": "urn:eudi:sca:emandate:1",
+      "claims": [
+        {
+          "path": [
+            "payload",
+            "transaction_id"
+          ],
+          "visualisation": 4,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Transaction ID",
+              "description": "Unique identifier of the transaction"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Transaktionsnummer"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "date_time"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Date and time"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Datum und Uhrzeit"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "start_date"
+          ],
+          "visualisation": 2,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Start date"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Beginn"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "end_date"
+          ],
+          "visualisation": 2,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "End date"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Ende"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "reference_number"
+          ],
+          "visualisation": 2,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Mandate reference"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Mandatsreferenz"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "creditor_id"
+          ],
+          "visualisation": 2,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Creditor ID"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Gläubiger-ID"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "purpose"
+          ],
+          "visualisation": 1,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Purpose"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Zweck"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "payment_payload",
+            "transaction_id"
+          ],
+          "visualisation": 4,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Transaction ID",
+              "description": "Unique identifier of the transaction"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Transaktionsnummer"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "payment_payload",
+            "date_time"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Date and time"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Datum und Uhrzeit"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "payment_payload",
+            "payee",
+            "name"
+          ],
+          "visualisation": 1,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Payee"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Zahlungsempfänger"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "payment_payload",
+            "payee",
+            "id"
+          ],
+          "visualisation": 2,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Payee account"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Konto des Zahlungsempfängers"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "payment_payload",
+            "pisp",
+            "legal_name"
+          ],
+          "visualisation": 2,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Payment initiation service"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Zahlungsauslösedienst"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "payment_payload",
+            "pisp",
+            "brand_name"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Payment initiation brand"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Marke des Zahlungsauslösedienstes"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "payment_payload",
+            "pisp",
+            "domain_name"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Payment initiation domain"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Domain des Zahlungsauslösedienstes"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "payment_payload",
+            "execution_date"
+          ],
+          "visualisation": 2,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Execution date"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Ausführungsdatum"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "payment_payload",
+            "currency"
+          ],
+          "visualisation": 1,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Currency"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Währung"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "payment_payload",
+            "amount"
+          ],
+          "visualisation": 1,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Amount"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Betrag"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "payment_payload",
+            "amount_earmarked"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Amount earmarked"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Betrag vorgemerkt"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "payment_payload",
+            "amount_estimated"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Amount estimated"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Betrag geschätzt"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "payment_payload",
+            "payee",
+            "logo"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Payee logo"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Logo des Zahlungsempfängers"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "payment_payload",
+            "payee",
+            "website"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Payee website"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Website des Zahlungsempfängers"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "payment_payload",
+            "recurrence",
+            "start_date"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Start date"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Startdatum"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "payment_payload",
+            "recurrence",
+            "end_date"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "End date"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Enddatum"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "payment_payload",
+            "recurrence",
+            "number"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Number of payments"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Anzahl der Zahlungen"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "payment_payload",
+            "recurrence",
+            "frequency"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Frequency"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Häufigkeit"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "payment_payload",
+            "recurrence",
+            "mit_options",
+            "amount_variable"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Variable amount"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Variabler Betrag"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "payment_payload",
+            "recurrence",
+            "mit_options",
+            "min_amount"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Minimum amount"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Mindestbetrag"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "payment_payload",
+            "recurrence",
+            "mit_options",
+            "max_amount"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Maximum amount"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Höchstbetrag"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "payment_payload",
+            "recurrence",
+            "mit_options",
+            "total_amount"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Total amount"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Gesamtbetrag"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "payment_payload",
+            "recurrence",
+            "mit_options",
+            "initial_amount"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Initial amount"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Anfangsbetrag"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "payment_payload",
+            "recurrence",
+            "mit_options",
+            "initial_amount_number"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Number of initial payments"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Anzahl der Anfangszahlungen"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "payment_payload",
+            "recurrence",
+            "mit_options",
+            "apr"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Annual percentage rate"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Effektiver Jahreszins"
+            }
+          ]
+        },
+        {
+          "path": [
+            "payload",
+            "payment_payload",
+            "sct_inst"
+          ],
+          "visualisation": 3,
+          "display": [
+            {
+              "lang": "en",
+              "locale": "en",
+              "label": "Instant payment"
+            },
+            {
+              "lang": "de",
+              "locale": "de",
+              "label": "Echtzeitüberweisung"
+            }
+          ]
+        }
+      ],
+      "ui_labels": {
+        "affirmative_action_label": [
+          {
+            "lang": "en",
+            "value": "Sign mandate"
+          },
+          {
+            "lang": "de",
+            "value": "Mandat erteilen"
+          }
+        ],
+        "denial_action_label": [
+          {
+            "lang": "en",
+            "value": "Cancel"
+          },
+          {
+            "lang": "de",
+            "value": "Abbrechen"
+          }
+        ],
+        "transaction_title": [
+          {
+            "lang": "en",
+            "value": "Sign the mandate"
+          },
+          {
+            "lang": "de",
+            "value": "Erteilen Sie das Mandat"
+          }
+        ],
+        "security_hint": [
+          {
+            "lang": "en",
+            "value": "Your bank never asks you to confirm a transaction you did not start."
+          },
+          {
+            "lang": "de",
+            "value": "Ihre Bank fordert Sie nie auf, eine Transaktion zu bestätigen, die Sie nicht selbst gestartet haben."
+          }
+        ]
+      }
+    }
+  }
+}

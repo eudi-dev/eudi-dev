@@ -135,6 +135,7 @@ var (
 	SDJWTVC        = Draft("SD-JWT VC", "draft-ietf-oauth-sd-jwt-vc-19")
 	FirstPartyApps = Draft("First-Party Apps", "draft-ietf-oauth-first-party-apps-04")
 	ISO180135      = newSpec("ISO 18013-5")
+	TS12           = newSpec("EUDI TS12").versioned("v1.0.1")
 	ETSI119475     = newSpec("ETSI TS 119 475").versioned("V1.2.1")
 	ETSI1194723    = newSpec("ETSI TS 119 472-3").versioned("V1.1.1")
 	CIR20242982    = newSpec("CIR (EU) 2024/2982")

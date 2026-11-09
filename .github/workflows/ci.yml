@@ -127,6 +127,14 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage-filtered.out
 
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run the image with a read-only root and the Kubernetes example configuration
+        run: scripts/container-config-test.sh
+
   e2e:
     runs-on: ubuntu-latest
     strategy:

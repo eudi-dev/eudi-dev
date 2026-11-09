@@ -23,6 +23,7 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/fatih/color"
@@ -164,10 +165,20 @@ func resolvedWalletDir() string {
 	return wallet.ResolveWalletDir(walletDir)
 }
 
+// memoryWalletWarning warns once per command, even when the command loads the
+// wallet more than once. Commands with --remote local or --storage memory get
+// no warning.
+var memoryWalletWarning sync.Once
+
 func loadWallet() (*wallet.Wallet, *wallet.WalletStore, error) {
 	store, err := openStore()
 	if err != nil {
 		return nil, nil, err
+	}
+	if store.Backend().Kind() == storage.KindMemory && !forcedLocal() && storageSpec == "" {
+		memoryWalletWarning.Do(func() {
+			fmt.Fprintln(os.Stderr, "warning: no running wallet server found. This command works on a new wallet in memory, and its changes are lost when it exits. Start `eudi wallet serve` first, or pass --remote <url> of a running server. --remote local keeps the wallet in memory without this warning.")
+		})
 	}
 	w, err := store.LoadOrCreate()
 	if err != nil {

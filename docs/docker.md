@@ -257,7 +257,7 @@ To customize the PID claims, mount a folder of [credential templates](templates.
 
 ```bash
 # my-templates/pid-sdjwt.json or pid-sdjwt.yaml overrides the predefined PID template
-docker run -p 8085:8085 -v ./my-templates:/templates -e EUDI_DEV_TEMPLATES_DIR=/templates ghcr.io/eudi-dev/eudi-dev
+docker run -p 8085:8085 -v ./my-templates:/templates:ro -e EUDI_DEV_TEMPLATES=/templates ghcr.io/eudi-dev/eudi-dev
 ```
 
 Or generate customized PIDs into a mounted data directory first. Mount the parent of `wallet/` to persist the shared CA with the credentials. Select the file backend and an empty seed for a private persisted CA:

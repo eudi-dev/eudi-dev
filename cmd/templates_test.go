@@ -285,3 +285,27 @@ func TestTemplatesDeleteRemovesYAMLFile(t *testing.T) {
 		t.Errorf("member.yaml still exists: %v", err)
 	}
 }
+
+func TestTemplatesImportSavesEveryTemplateOfAFile(t *testing.T) {
+	dir := resetTemplateTestState(t)
+	src := filepath.Join(t.TempDir(), "cards.yaml")
+	content := "name: first-card\nformat: sdjwt\nvct: urn:example:first:1\n---\nname: second-card\nformat: sdjwt\nvct: urn:example:second:1\n"
+	if err := os.WriteFile(src, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	rootCmd.SetArgs([]string{"templates", "import", src, "--wallet-dir", dir})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("templates import: %v", err)
+	}
+	for _, name := range []string{"first-card", "second-card"} {
+		if _, err := credtemplate.Load(name, wallet.NewWalletStore(dir).Templates()); err != nil {
+			t.Errorf("loading %s: %v", name, err)
+		}
+	}
+
+	rootCmd.SetArgs([]string{"templates", "import", src, "--wallet-dir", dir, "--name", "renamed"})
+	if err := rootCmd.Execute(); err == nil {
+		t.Fatal("--name with two templates was accepted")
+	}
+}

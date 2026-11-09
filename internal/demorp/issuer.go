@@ -157,6 +157,7 @@ func (d *DemoRP) IssuerHandler() http.Handler {
 	mux.HandleFunc("GET /.well-known/openid-credential-issuer", d.handleIssuerMetadata)
 	mux.HandleFunc("GET /logo.svg", d.handleLogo)
 	mux.HandleFunc("GET /templates/{id}/{field}", d.handleTemplateImage)
+	mux.HandleFunc("GET "+paymentAccountTypePath, d.handlePaymentAccountType)
 
 	// The issuer is its own authorization server. The user signs in at
 	// /authorize while the wallet redeems the offer.
@@ -205,6 +206,9 @@ type pageData struct {
 	// StatusList reports that the wallet publishes a status list, so the
 	// issuer page offers a revocable ticket.
 	StatusList bool
+	// PaymentAccountVCT is the vct of the demo payment account. The verifier
+	// page queries it for payments.
+	PaymentAccountVCT string
 }
 
 // nationalPID is a PID type that extends the EUDI PID. The verifier page
@@ -244,6 +248,7 @@ func (d *DemoRP) servePage(name string) http.HandlerFunc {
 			ConfiguredIssuer:   d.configuredIssuer != nil,
 			ConfiguredVerifier: d.configuredVerifier != nil,
 			StatusList:         d.statusListURI() != "",
+			PaymentAccountVCT:  d.paymentAccountVCT(),
 		})
 	}
 }

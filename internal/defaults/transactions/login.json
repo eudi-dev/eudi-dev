@@ -1,0 +1,12 @@
+{
+  "description": "A TS12 login to an online banking service",
+  "transaction_data": {
+    "type": "urn:eudi:sca:login_risk_transaction:1",
+    "transaction_data_hashes_alg": ["sha-256"],
+    "payload": {
+      "transaction_id": "3F1E2B7C-9A4D-4C8E-B5F6-0D2A7E9C1B34",
+      "service": "Demo Bank Online Banking",
+      "action": "Log in to your online account."
+    }
+  }
+}

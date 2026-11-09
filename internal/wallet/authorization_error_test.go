@@ -17,6 +17,7 @@ package wallet
 import (
 	"encoding/json"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -508,4 +509,80 @@ func TestStrictARFAnswersOverTheDCAPIWithAccessDenied(t *testing.T) {
 	if rec.Code != http.StatusOK || data["error"] != "access_denied" {
 		t.Errorf("%d %s, want access_denied in the API result", rec.Code, rec.Body)
 	}
+}
+
+// §8.5 invalid_transaction_data also applies when the binding fails after
+// consent.
+func TestStrictModeSendsInvalidTransactionDataAfterConsent(t *testing.T) {
+	srv := newStrictTestServer(t, true)
+	enableTestTransactionData(t, srv)
+	verifier := newCaptureVerifier(t)
+	transactionData, err := json.Marshal(transactionDataWithoutACommonHashAlg(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	params := url.Values{
+		"client_id":        {"redirect_uri:" + verifier.URL},
+		"response_type":    {"vp_token"},
+		"response_mode":    {"direct_post"},
+		"nonce":            {"n"},
+		"state":            {"s"},
+		"response_uri":     {verifier.URL},
+		"transaction_data": {string(transactionData)},
+		"dcql_query": {dcqlQueryParam(t, map[string]any{
+			"credentials": []any{map[string]any{
+				"id": "pid", "format": "dc+sd-jwt", "meta": map[string]any{"vct_values": []any{"urn:eudi:pid:1"}},
+			}},
+		})},
+	}
+
+	authorizeRequest(t, srv, params)
+
+	if got := verifier.received(t).Get("error"); got != oid4vp.ErrorInvalidTransactionData {
+		t.Fatalf("verifier received error %q, want %s", got, oid4vp.ErrorInvalidTransactionData)
+	}
+}
+
+func TestStrictModeAnswersInvalidTransactionDataOverTheDCAPI(t *testing.T) {
+	srv := newStrictTestServer(t, true)
+	enableTestTransactionData(t, srv)
+	body, _ := json.Marshal(map[string]any{"digital": map[string]any{"requests": []any{
+		map[string]any{"protocol": "openid4vp-v1-unsigned", "data": map[string]any{
+			"response_type": "vp_token", "response_mode": "dc_api", "nonce": "n",
+			"transaction_data": transactionDataWithoutACommonHashAlg(t),
+			"dcql_query": map[string]any{"credentials": []any{map[string]any{
+				"id": "pid", "format": "dc+sd-jwt", "meta": map[string]any{"vct_values": []any{"urn:eudi:pid:1"}},
+			}}},
+		}},
+	}}})
+	req := httptest.NewRequest("POST", "/api/dc-api", strings.NewReader(string(body)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "https://rp.example")
+	rec := httptest.NewRecorder()
+	srv.mux.ServeHTTP(rec, req)
+	result := decodeJSON(t, rec)
+	data, _ := result["data"].(map[string]any)
+	if data["error"] != oid4vp.ErrorInvalidTransactionData {
+		t.Errorf("%d %s, want invalid_transaction_data in the API result", rec.Code, rec.Body)
+	}
+}
+
+func enableTestTransactionData(t *testing.T, srv *Server) {
+	t.Helper()
+	enabled, types := true, []string{"urn:example:test"}
+	if err := srv.wallet.UpdateConformance(ConformancePatch{TransactionData: &enabled, TransactionDataTypes: &types}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// transactionDataWithoutACommonHashAlg has one entry for sha-256 and one for
+// sha-512, so no Key Binding JWT can hash both (Appendix B.3.3.1).
+func transactionDataWithoutACommonHashAlg(t *testing.T) []string {
+	t.Helper()
+	entry := func(extra map[string]any) string {
+		object := map[string]any{"type": "urn:example:test", "credential_ids": []any{"pid"}}
+		maps.Copy(object, extra)
+		return encodedTransactionData(t, object)
+	}
+	return []string{entry(nil), entry(map[string]any{"transaction_data_hashes_alg": []any{"sha-512"}})}
 }

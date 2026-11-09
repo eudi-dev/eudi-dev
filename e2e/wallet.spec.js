@@ -873,12 +873,14 @@ test.describe("Credential Issuing via UI", () => {
 
   test("the header opens the templates, also from the phone menu", async ({ page }) => {
     await page.goto(WALLET_URL);
+    await page.locator("#templates-menu-toggle").click();
     await page.locator("#templates-link").click();
     await expect(page.locator("#templates-overlay")).toHaveClass(/active/);
     await page.locator("#template-close").click();
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.locator("#header-menu-toggle").click();
+    await page.locator("#templates-menu-toggle").click();
     await page.locator("#templates-link").click();
     await expect(page.locator("#templates-overlay")).toHaveClass(/active/);
     await expect(page.locator("#header-links")).not.toHaveClass(/open/);
@@ -889,6 +891,7 @@ test.describe("Credential Issuing via UI", () => {
   test("a new template keeps the images of the template it starts from", async ({ page }) => {
     const saveCopy = async (name, removeLogo) => {
       await page.goto(WALLET_URL);
+      await page.locator("#templates-menu-toggle").click();
       await page.locator("#templates-link").click();
       await page.locator("#template-new").click();
       await page.locator("#template-editor-name").fill(name);
@@ -916,6 +919,8 @@ test.describe("Credential Issuing via UI", () => {
     page,
   }) => {
     await page.goto(WALLET_URL);
+
+    await page.locator("#templates-menu-toggle").click();
 
     await page.locator("#templates-link").click();
     await expect(page.locator("#templates-overlay")).toHaveClass(/active/);
@@ -987,6 +992,8 @@ test.describe("Credential Issuing via UI", () => {
     await page.goto(WALLET_URL);
     await page.locator(`#delete-${issued.id}`).click();
     await expect(page.locator(`#credential-${issued.id}`)).toHaveCount(0);
+
+    await page.locator("#templates-menu-toggle").click();
 
     await page.locator("#templates-link").click();
     const templateRow = page
@@ -2987,7 +2994,7 @@ test.describe("Registrar", () => {
     await expect(page.locator(verifier + "-status")).toHaveText("Active");
     // The details show every credential and the current verifier_info. Each
     // credential opens its claims.
-    await expect(page.locator(verifier + "-credentials > li")).toHaveCount(9);
+    await expect(page.locator(verifier + "-credentials > li")).toHaveCount(10);
     await expect(page.locator(verifier + "-verifier-info")).toHaveValue(/registration_cert/);
     await expect(page.locator(verifier + "-credential-0-claims")).toBeHidden();
     await page.locator(verifier + "-credential-0 summary").click();
@@ -3593,8 +3600,10 @@ test.describe("Commands in dialogs", () => {
 
   test("dialogs without a command show no command button and close with ×", async ({ page }) => {
     await page.goto(WALLET_URL);
-    for (const [name, link] of [["conformance", "#conformance-link"], ["templates", "#templates-link"], ["howto", "#how-to-use-link"]]) {
-      await page.locator(link).click();
+    const dialogs = [["conformance", ["#conformance-link"]], ["templates", ["#templates-menu-toggle", "#templates-link"]],
+      ["transaction-templates", ["#templates-menu-toggle", "#transaction-templates-link"]], ["howto", ["#how-to-use-link"]]];
+    for (const [name, links] of dialogs) {
+      for (const link of links) await page.locator(link).click();
       await expect(page.locator(`#${name}-overlay`)).toHaveClass(/active/);
       await expect(page.locator(`#${name}-dialog-size`)).toBeVisible();
       await expect(page.locator(`#${name}-dialog-command-toggle`)).toBeHidden();
@@ -3605,6 +3614,7 @@ test.describe("Commands in dialogs", () => {
 
   test("a maximized dialog gives its list and JSON field the extra height", async ({ page }) => {
     await page.goto(WALLET_URL);
+    await page.locator("#templates-menu-toggle").click();
     await page.locator("#templates-link").click();
     const list = page.locator("#templates-list");
     const normal = (await list.boundingBox()).height;
@@ -3794,9 +3804,96 @@ test.describe("Commands in dialogs", () => {
     expect(entries.some((e) => (e.credentials || []).some((c) => c.type === "urn:example:gym-template:1"))).toBe(true);
   });
 
+  // The builder starts with the required payload fields of the TS12 type. A
+  // template that breaks TS12 is saved, and the editor stays open with the
+  // warnings. A predefined template can be edited but not deleted.
+  test("the transaction template builder saves, warns and deletes", async ({ page }) => {
+    await fetch(`${WALLET_URL}/api/transaction-templates/e2e-refund`, { method: "DELETE" });
+    await page.goto(WALLET_URL);
+    await page.locator("#templates-menu-toggle").click();
+    await page.locator("#transaction-templates-link").click();
+    await expect(page.locator("#transaction-templates-overlay")).toHaveClass(/active/);
+    await expect(page.locator("#templates-overlay")).not.toHaveClass(/active/);
+    await expect(page.locator("#transaction-template-row-payment-meta")).toHaveText("urn:eudi:sca:payment:1 · predefined");
+    await expect(page.locator("#transaction-template-edit-payment")).toBeVisible();
+    await expect(page.locator("#transaction-template-delete-payment")).toHaveCount(0);
+
+    await page.locator("#transaction-template-new").click();
+    await expect(page.locator("#transaction-template-overlay")).toHaveClass(/active/);
+    await expect(page.locator("#transaction-template-type")).toHaveValue("urn:eudi:sca:payment:1");
+    await expect(page.locator("#transaction-template-hash-alg-sha-256")).toBeChecked();
+    const names = page.locator(".transaction-template-field-name");
+    await expect(names).toHaveCount(4);
+    expect(await names.evaluateAll((inputs) => inputs.map((i) => i.value))).toEqual(["transaction_id", "payee", "currency", "amount"]);
+    await expect(page.locator("#transaction-template-field-value-1")).toHaveAttribute("placeholder", "JSON object");
+    await page.locator("#transaction-template-name").fill("e2e-refund");
+    await page.locator("#transaction-template-description").fill("A refund without a payee");
+    await page.locator("#transaction-template-field-value-0").fill("R-1");
+    await page.locator("#transaction-template-field-remove-1").click();
+    await page.locator("#transaction-template-field-value-2").fill("EUR");
+    await page.locator("#transaction-template-field-value-3").fill("5");
+
+    await page.locator("#transaction-template-mode-json").check();
+    const want = {
+      type: "urn:eudi:sca:payment:1",
+      transaction_data_hashes_alg: ["sha-256"],
+      payload: { transaction_id: "R-1", currency: "EUR", amount: 5 },
+    };
+    expect(JSON.parse(await page.locator("#transaction-template-json").inputValue())).toEqual(want);
+    await page.locator("#transaction-template-mode-builder").check();
+
+    await page.locator("#transaction-template-dialog-command-toggle").click();
+    await page.locator("#transaction-template-dialog-command-yaml").check();
+    await expect(page.locator("#transaction-template-dialog-command-text")).toContainText("name: e2e-refund");
+    await page.locator("#transaction-template-dialog-command-cli").check();
+    const text = page.locator("#transaction-template-dialog-command-text");
+    await expect(text).toContainText("eudi templates transactions import -");
+    await run(await text.textContent());
+    expect((await jsonGet(`${WALLET_URL}/api/transaction-templates/e2e-refund`)).body.transaction_data).toEqual(want);
+
+    await page.locator("#transaction-template-save").click();
+    await expect(page.locator("#transaction-template-warning-0")).toContainText("payee");
+    await expect(page.locator("#transaction-template-overlay")).toHaveClass(/active/);
+
+    await page.locator("#transaction-template-cancel").click();
+    await expect(page.locator("#transaction-templates-overlay")).toHaveClass(/active/);
+    await expect(page.locator("#transaction-template-row-e2e-refund-meta")).toHaveText("urn:eudi:sca:payment:1 · 1 warning");
+    await page.locator("#transaction-template-delete-e2e-refund").click();
+    await expect(page.locator("#transaction-template-row-e2e-refund")).toHaveCount(0);
+  });
+
+  // The builder can't show members next to the payload of a TS12 type, so
+  // such a template stays in JSON.
+  test("the transaction template editor keeps what the builder cannot show in JSON", async ({ page }) => {
+    await page.goto(WALLET_URL);
+    await page.locator("#templates-menu-toggle").click();
+    await page.locator("#transaction-templates-link").click();
+    await page.locator("#transaction-template-new").click();
+    await page.locator("#transaction-template-mode-json").check();
+    await page.locator("#transaction-template-json").fill(JSON.stringify({
+      type: "urn:eudi:sca:payment:1", amount: 5, payload: { transaction_id: "R-2" },
+    }));
+    // The editor refuses the switch, so the radio button stays unchecked.
+    await page.locator("#transaction-template-mode-builder").click();
+    await expect(page.locator("#transaction-template-error")).toContainText("members next to payload (amount)");
+    await expect(page.locator("#transaction-template-mode-json")).toBeChecked();
+    await expect(page.locator("#transaction-template-json")).toBeVisible();
+
+    await page.locator("#transaction-template-json").fill(JSON.stringify({
+      type: "urn:example:refund", credential_ids: ["pid"], amount: 5, reason: "damaged",
+    }));
+    await page.locator("#transaction-template-mode-builder").check();
+    await expect(page.locator("#transaction-template-type")).toHaveValue("");
+    await expect(page.locator("#transaction-template-custom-type")).toHaveValue("urn:example:refund");
+    await expect(page.locator("#transaction-template-credential-ids")).toHaveValue("pid");
+    await expect(page.locator(".transaction-template-field-name")).toHaveCount(2);
+    await expect(page.locator("#transaction-template-hash-alg-sha-256")).not.toBeChecked();
+  });
+
   test("the template editor's CLI command saves the template", async ({ page }) => {
     await fetch(`${WALLET_URL}/api/templates/e2e-command`, { method: "DELETE" });
     await page.goto(WALLET_URL);
+    await page.locator("#templates-menu-toggle").click();
     await page.locator("#templates-link").click();
     await page.locator("#template-new").click();
     await page.locator("#template-editor-name").fill("e2e-command");

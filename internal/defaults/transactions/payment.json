@@ -1,0 +1,17 @@
+{
+  "description": "A TS12 payment of 12.50 EUR to a demo shop",
+  "transaction_data": {
+    "type": "urn:eudi:sca:payment:1",
+    "transaction_data_hashes_alg": ["sha-256"],
+    "payload": {
+      "transaction_id": "8D8AC610-566D-4EF0-9C22-186B2A5ED793",
+      "payee": {
+        "name": "Demo Shop",
+        "id": "DE89370400440532013000",
+        "website": "https://shop.example"
+      },
+      "currency": "EUR",
+      "amount": 12.5
+    }
+  }
+}

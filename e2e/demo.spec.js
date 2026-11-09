@@ -150,6 +150,14 @@ async function waitForPending(expected, owner) {
   throw new Error(`expected ${expected} pending request(s)${reason}`);
 }
 
+async function present(page, schemeURI) {
+  const owner = await openAsSchemeHandler(page);
+  submitAsSchemeHandler("/api/presentations", schemeURI, owner);
+  // The pending submission must reach the wallet before its dialog can open.
+  await waitForPending(1, owner);
+  await expect(page.locator("#consent-overlay")).toHaveClass(/active/, { timeout: 45_000 });
+}
+
 async function clearPending(owner) {
   const headers = owner ? { "X-Eudi-Owner": owner } : {};
   for (const req of await listPending(owner)) {
@@ -669,6 +677,20 @@ test.describe("Demo mode consent visibility", () => {
 
     await page.close();
     await other.close();
+  });
+});
+
+test.describe("Demo issuer payment account", () => {
+  test("the page explains the payment account and where to use it", async ({ page }) => {
+    await page.goto(`${BASE}/issuer/`);
+    await expect(page.locator('#credential-select option[value="demo-payment-account"]')).toBeAttached();
+    await page.locator("#credential-select").selectOption("demo-payment-account");
+    await expect(page.locator("#credential-hint")).toContainText("SCA Attestation");
+    await expect(page.locator("#result-next-step")).toHaveText("After the wallet accepts the offer, pay with the account at the");
+
+    await page.locator("#credential-select").selectOption("");
+    await expect(page.locator("#credential-hint")).toHaveText("Signed with the key of the credential's category.");
+    await expect(page.locator("#result-next-step")).toHaveText("After the wallet accepts the offer, present the ticket at the");
   });
 });
 
@@ -1742,7 +1764,7 @@ test.describe("Demo mode hardening", () => {
 
   test("the UI hides what demo mode does not offer", async ({ page }) => {
     await page.goto(BASE);
-    await expect(page.locator("#templates-link")).toBeVisible();
+    await expect(page.locator("#templates-menu-toggle")).toBeVisible();
     await expect(page.locator("#tls-cert-pem-link")).toBeHidden();
     await expect(page.locator("#clear-log-btn")).toBeHidden();
     await expect(page.locator("#decoder-link")).toBeVisible();
@@ -1809,6 +1831,7 @@ test.describe("Demo mode hardening", () => {
     // Unique names keep a retry clear of the entries of an earlier attempt.
     const id = "e2e-visitor-" + Date.now();
     await page.goto(BASE);
+    await page.locator("#templates-menu-toggle").click();
     await page.locator("#templates-link").click();
     await expect(page.locator("#template-delete-pid-sdjwt")).toHaveCount(0);
     await page.locator("#template-new").click();
@@ -1907,14 +1930,6 @@ test.describe("Custom verifier request builder", () => {
     const body = await resp.json();
     const schemeURI = (await page.locator("#scheme-uri").textContent()) || "";
     return { id: body.transaction_id, walletURL: body.wallet_url, schemeURI };
-  }
-
-  async function present(page, schemeURI) {
-    const owner = await openAsSchemeHandler(page);
-    submitAsSchemeHandler("/api/presentations", schemeURI, owner);
-    // The pending submission must reach the wallet before its dialog can open.
-    await waitForPending(1, owner);
-    await expect(page.locator("#consent-overlay")).toHaveClass(/active/, { timeout: 45_000 });
   }
 
   test("a bare array path discloses an empty array and the consent warns", async ({ page }) => {
@@ -2111,6 +2126,278 @@ test.describe("Custom verifier request builder", () => {
     const body = await resp.json();
     // Unsigned redirect_uri requests carry client_id in the wallet URL.
     expect(body.wallet_url).toContain("client_id=redirect_uri");
+  });
+
+  // A template from the picker gets the query's credential id and a fresh
+  // transaction id. The consent reads the TS12 payment as a sentence.
+  test("a transaction template from the picker reaches the consent and the response", async ({ page }) => {
+    await page.goto(`${BASE}/verifier/`);
+    await page.locator('#credential-toggle [data-credential="custom"]').click();
+    await page.locator("#transaction-enabled").check();
+    await expect(page.locator("#transaction-template-option-payment")).toBeAttached();
+    await page.locator("#transaction-template-select").selectOption("payment");
+    await page.locator("#transaction-mode-json").click();
+    const entries = JSON.parse(await page.locator("#transaction-data").inputValue());
+    expect(entries).toHaveLength(1);
+    expect(entries[0].type).toBe("urn:eudi:sca:payment:1");
+    expect(entries[0].credential_ids).toEqual(["cred_0"]);
+    expect(entries[0].payload.transaction_id).toMatch(/^[0-9a-f-]{36}$/);
+
+    const [resp] = await Promise.all([
+      page.waitForResponse((r) => r.url().endsWith("/verifier/api/requests") && r.request().method() === "POST"),
+      page.locator("#create-request").click(),
+    ]);
+    const { transaction_id: id } = await resp.json();
+    const schemeURI = (await page.locator("#scheme-uri").textContent()) || "";
+
+    await present(page, schemeURI);
+    await expect(page.locator("#consent-transaction-0-summary")).toHaveText("Pay €12.50 to Demo Shop");
+    await expect(page.locator("#consent-transaction-0-type")).toHaveText("urn:eudi:sca:payment:1");
+    await page.locator("#consent-approve").click();
+    await expect(page).toHaveURL(/\/verifier\/\?response_code=/, { timeout: 45_000 });
+    expect((await verifierResult(id)).status).toBe("verified");
+  });
+
+  // TS12 §3.2: a payment binds to an SCA Attestation. The demo payment account
+  // is one, so the wallet logs no SCA warning for it.
+  test("a payment with its own amount and payee binds to the demo payment account", async ({ page }) => {
+    const { body: offer } = await postJSON("/issuer/api/offers?credential=demo-payment-account", {});
+    expect((await postJSON("/api/offers", { uri: offer.scheme_uri })).status).toBe(200);
+
+    await page.goto(`${BASE}/verifier/`);
+    await page.locator('#credential-toggle [data-credential="custom"]').click();
+    await page.locator("#transaction-enabled").check();
+    await page.locator("#transaction-template-select").selectOption("payment");
+    await expect(page.locator("#transaction-field-amount")).toHaveValue("12.5");
+    await expect(page.locator("#transaction-field-transaction_id")).toHaveCount(0);
+    await page.locator("#transaction-field-amount").fill("99.9");
+    await page.locator("#transaction-field-payee-name").fill("Bike Shop");
+    await page.locator("#transaction-query-payment-account").click();
+    await expect(page.locator("#credentials-list .type-input")).toHaveValue(/\/issuer\/types\/payment-account$/);
+    await page.locator("#transaction-mode-json").click();
+    const [entry] = JSON.parse(await page.locator("#transaction-data").inputValue());
+    expect(entry.credential_ids).toEqual(["cred_0"]);
+    expect(entry.payload).toMatchObject({ amount: 99.9, currency: "EUR", payee: { name: "Bike Shop", id: "DE89370400440532013000" } });
+    expect(Date.now() - Date.parse(entry.payload.date_time)).toBeLessThan(60_000);
+
+    const [resp] = await Promise.all([
+      page.waitForResponse((r) => r.url().endsWith("/verifier/api/requests") && r.request().method() === "POST"),
+      page.locator("#create-request").click(),
+    ]);
+    const { transaction_id: id } = await resp.json();
+    const schemeURI = (await page.locator("#scheme-uri").textContent()) || "";
+
+    await present(page, schemeURI);
+    await expect(page.locator("#consent-transaction-0-summary")).toHaveText("Pay €99.90 to Bike Shop");
+    await page.locator("#consent-approve").click();
+    await expect(page).toHaveURL(/\/verifier\/\?response_code=/, { timeout: 45_000 });
+    expect((await verifierResult(id)).status).toBe("verified");
+    const credentials = await (await fetch(`${BASE}/api/credentials`)).json();
+    const account = credentials.find((c) => String(c.vct).endsWith("/issuer/types/payment-account"));
+    const log = await (await fetch(`${BASE}/api/log`)).json();
+    expect(log.filter((e) => e.details?.credential_id === account.id && e.severity === "warning")).toEqual([]);
+  });
+});
+
+test.describe("Demo verifier transaction data", () => {
+  test.beforeEach(async () => {
+    test.setTimeout(180_000);
+    await clearPending();
+  });
+
+  // The payment preset turns on transaction data with the payment template.
+  // The visitor only edits the amount.
+  test("the payment preset asks the payment account to confirm the payment", async ({ page }) => {
+    const { body: offer } = await postJSON("/issuer/api/offers?credential=demo-payment-account", {});
+    expect((await postJSON("/api/offers", { uri: offer.scheme_uri })).status).toBe(200);
+
+    await page.goto(`${BASE}/verifier/`);
+    await expect(page.locator("#transaction-template-option-payment")).toBeAttached();
+    await page.locator("#credential-payment").click();
+    await expect(page.locator("#transaction-enabled")).toBeChecked();
+    await expect(page.locator("#transaction-template-select")).toHaveValue("payment");
+    await expect(page.locator("#transaction-query-payment-account")).toBeHidden();
+    await page.locator("#transaction-field-amount").fill("42");
+
+    const [resp] = await Promise.all([
+      page.waitForResponse((r) => r.url().endsWith("/verifier/api/requests") && r.request().method() === "POST"),
+      page.locator("#create-request").click(),
+    ]);
+    const { transaction_id: id } = await resp.json();
+    const schemeURI = (await page.locator("#scheme-uri").textContent()) || "";
+
+    await present(page, schemeURI);
+    await expect(page.locator("#consent-transaction-0-summary")).toHaveText("Pay €42.00 to Demo Shop");
+    await page.locator("#consent-approve").click();
+    await expect(page).toHaveURL(/\/verifier\/\?response_code=/, { timeout: 45_000 });
+    const result = await verifierResult(id);
+    expect(result.status).toBe("verified");
+    expect(result.claims.iban).toBe("DE89370400440532013000");
+  });
+
+  // createRequest clicks Create request and returns the posted request body.
+  async function createRequest(page) {
+    const [request] = await Promise.all([
+      page.waitForRequest((r) => r.url().endsWith("/verifier/api/requests") && r.method() === "POST"),
+      page.locator("#create-request").click(),
+    ]);
+    return request.postDataJSON();
+  }
+
+  test("a request carries transaction data only when the box is checked", async ({ page }) => {
+    await page.goto(`${BASE}/verifier/`);
+    await page.locator('#credential-toggle [data-credential="pid"]').click();
+    await expect(page.locator("#transaction-enabled")).not.toBeChecked();
+    await expect(page.locator("#transaction-editor")).toBeHidden();
+    await page.locator("#transaction-enabled").check();
+    await expect(page.locator("#transaction-editor")).toBeVisible();
+    await page.locator("#transaction-enabled").uncheck();
+    await expect(page.locator("#transaction-editor")).toBeHidden();
+    expect((await createRequest(page)).transaction_data).toBeUndefined();
+  });
+
+  test("the form leaves out an emptied field and fills the TS12 members", async ({ page }) => {
+    await page.goto(`${BASE}/verifier/`);
+    await page.locator('#credential-toggle [data-credential="pid"]').click();
+    await page.locator("#transaction-enabled").check();
+    await expect(page.locator("#transaction-template-option-payment")).toBeAttached();
+    await page.locator("#transaction-template-select").selectOption("payment");
+    await page.locator("#transaction-field-payee-name").fill("");
+    const [entry] = (await createRequest(page)).transaction_data;
+    expect(entry.credential_ids).toEqual(["pid"]);
+    expect(entry.payload.payee).not.toHaveProperty("name");
+    expect(entry.payload.transaction_id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(Date.now() - Date.parse(entry.payload.date_time)).toBeLessThan(60_000);
+  });
+
+  test("the JSON editor keeps its edits and adds fresh template entries", async ({ page }) => {
+    await page.goto(`${BASE}/verifier/`);
+    await page.locator('#credential-toggle [data-credential="pid"]').click();
+    await page.locator("#transaction-enabled").check();
+    await expect(page.locator("#transaction-template-option-payment")).toBeAttached();
+    await page.locator("#transaction-template-select").selectOption("payment");
+    await page.locator("#transaction-mode-json").click();
+    const [first] = JSON.parse(await page.locator("#transaction-data").inputValue());
+    first.payload.amount = 7;
+    await page.locator("#transaction-data").fill(JSON.stringify([first]));
+    await page.locator("#transaction-mode-json").click();
+    await page.locator("#transaction-template-add").click();
+    const entries = JSON.parse(await page.locator("#transaction-data").inputValue());
+    expect(entries).toHaveLength(2);
+    expect(entries[0].payload.amount).toBe(7);
+    expect(entries[1].payload.transaction_id).not.toBe(first.payload.transaction_id);
+    expect(Date.now() - Date.parse(entries[1].payload.date_time)).toBeLessThan(60_000);
+  });
+
+  test("switching the request moves the JSON entries to its queries", async ({ page }) => {
+    await page.goto(`${BASE}/verifier/`);
+    await page.locator('#credential-toggle [data-credential="pid"]').click();
+    await page.locator("#transaction-enabled").check();
+    await expect(page.locator("#transaction-template-option-payment")).toBeAttached();
+    await page.locator("#transaction-template-select").selectOption("payment");
+    await page.locator("#transaction-mode-json").click();
+    const [first] = JSON.parse(await page.locator("#transaction-data").inputValue());
+    await page.locator("#transaction-data").fill(JSON.stringify([first, { ...first, credential_ids: ["other"] }]));
+    await page.locator('#credential-toggle [data-credential="ticket"]').click();
+    const entries = JSON.parse(await page.locator("#transaction-data").inputValue());
+    expect(entries.map((e) => e.credential_ids)).toEqual([["ticket"], ["other"]]);
+  });
+
+  test("an mdoc PID request binds the JSON entries to the mdoc query", async ({ page }) => {
+    await page.goto(`${BASE}/verifier/`);
+    await page.locator('#credential-toggle [data-credential="pid"]').click();
+    await page.locator("#format-sd-jwt").click();
+    await page.locator("#transaction-enabled").check();
+    await expect(page.locator("#transaction-template-option-payment")).toBeAttached();
+    await page.locator("#transaction-template-select").selectOption("payment");
+    await page.locator("#transaction-mode-json").click();
+    await page.locator("#format-mdoc").click();
+    const [entry] = (await createRequest(page)).transaction_data;
+    expect(entry.credential_ids).toEqual(["pid_mdoc"]);
+  });
+
+  test("Query the payment account binds the JSON entries to its query", async ({ page }) => {
+    await page.goto(`${BASE}/verifier/`);
+    await page.locator('#credential-toggle [data-credential="custom"]').click();
+    await page.locator("#add-credential").click();
+    await page.locator("#transaction-enabled").check();
+    await expect(page.locator("#transaction-template-option-payment")).toBeAttached();
+    await page.locator("#transaction-template-select").selectOption("payment");
+    await page.locator("#transaction-mode-json").click();
+    expect(JSON.parse(await page.locator("#transaction-data").inputValue())[0].credential_ids).toHaveLength(2);
+    await page.locator("#transaction-query-payment-account").click();
+    const body = await createRequest(page);
+    expect(body.transaction_data[0].credential_ids).toEqual(body.dcql_query.credentials.map((c) => c.id));
+  });
+
+  test("leaving the payment preset turns its transaction data off", async ({ page }) => {
+    await page.goto(`${BASE}/verifier/`);
+    await expect(page.locator("#transaction-template-option-payment")).toBeAttached();
+    await page.locator("#credential-payment").click();
+    await expect(page.locator("#transaction-enabled")).toBeChecked();
+    await page.locator('#credential-toggle [data-credential="pid"]').click();
+    await expect(page.locator("#transaction-enabled")).not.toBeChecked();
+    await expect(page.locator("#transaction-editor")).toBeHidden();
+  });
+
+  test("leaving the payment preset keeps transaction data the user turned on", async ({ page }) => {
+    await page.goto(`${BASE}/verifier/`);
+    await expect(page.locator("#transaction-template-option-payment")).toBeAttached();
+    await page.locator('#credential-toggle [data-credential="pid"]').click();
+    await page.locator("#transaction-enabled").check();
+    await page.locator("#credential-payment").click();
+    await page.locator('#credential-toggle [data-credential="pid"]').click();
+    await expect(page.locator("#transaction-enabled")).toBeChecked();
+  });
+
+  test("invalid or empty JSON stops the request", async ({ page }) => {
+    await page.goto(`${BASE}/verifier/`);
+    await page.locator('#credential-toggle [data-credential="pid"]').click();
+    await page.locator("#transaction-enabled").check();
+    await page.locator("#transaction-mode-json").click();
+    await page.locator("#transaction-data").fill("[{");
+    await page.locator("#create-request").click();
+    await expect(page.locator("#status-error")).toContainText("The transaction data is not valid JSON");
+    await page.locator("#transaction-data").fill("[]");
+    await page.locator("#create-request").click();
+    await expect(page.locator("#status-error")).toContainText("Add a transaction data entry or uncheck Transaction data");
+  });
+
+  test("without templates the JSON editor is the only editor", async ({ page }) => {
+    await page.route("**/api/transaction-templates", (route) => route.fulfill({ status: 500, body: "" }));
+    await page.goto(`${BASE}/verifier/`);
+    await page.locator('#credential-toggle [data-credential="pid"]').click();
+    await page.locator("#transaction-enabled").check();
+    await expect(page.locator("#transaction-template-row")).toBeHidden();
+    await expect(page.locator("#transaction-template-add")).toBeHidden();
+    await expect(page.locator("#transaction-fields")).toBeHidden();
+    const entry = { type: "example", credential_ids: ["pid"], payload: {} };
+    await page.locator("#transaction-data").fill(JSON.stringify([entry]));
+    expect((await createRequest(page)).transaction_data).toEqual([entry]);
+  });
+
+  test("a PID request carries transaction data for the PID query", async ({ page }) => {
+    await page.goto(`${BASE}/verifier/`);
+    await page.locator('#credential-toggle [data-credential="pid"]').click();
+    await page.locator("#transaction-enabled").check();
+    await expect(page.locator("#transaction-template-option-payment")).toBeAttached();
+    await page.locator("#transaction-template-select").selectOption("payment");
+    await page.locator("#transaction-mode-json").click();
+    const [entry] = JSON.parse(await page.locator("#transaction-data").inputValue());
+    expect(entry.credential_ids).toEqual(["pid"]);
+
+    const [resp] = await Promise.all([
+      page.waitForResponse((r) => r.url().endsWith("/verifier/api/requests") && r.request().method() === "POST"),
+      page.locator("#create-request").click(),
+    ]);
+    const { transaction_id: id } = await resp.json();
+    const schemeURI = (await page.locator("#scheme-uri").textContent()) || "";
+
+    await present(page, schemeURI);
+    await expect(page.locator("#consent-transaction-0-summary")).toHaveText("Pay €12.50 to Demo Shop");
+    await page.locator("#consent-approve").click();
+    await expect(page).toHaveURL(/\/verifier\/\?response_code=/, { timeout: 45_000 });
+    expect((await verifierResult(id)).status).toBe("verified");
   });
 });
 

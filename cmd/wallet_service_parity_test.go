@@ -36,6 +36,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
 	"github.com/eudi-dev/eudi-dev/v3/internal/remote"
+	"github.com/eudi-dev/eudi-dev/v3/internal/txtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
 )
 
@@ -237,6 +238,19 @@ func saveParityTemplate(t *testing.T, s walletService) {
 	}
 }
 
+func saveParityTransactionTemplate(t *testing.T, s walletService) {
+	t.Helper()
+	if err := s.SaveTransactionTemplate(txtemplate.Template{
+		Name: "parity", Description: "Parity login",
+		TransactionData: map[string]any{
+			"type":    "urn:eudi:sca:login_risk_transaction:1",
+			"payload": map[string]any{"transaction_id": "P-1", "action": "Log in."},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func parityCases() []parityCase {
 	return []parityCase{
 		{method: "URL", skip: "the local store has no URL by definition, which is what distinguishes the backends"},
@@ -375,6 +389,38 @@ func parityCases() []parityCase {
 				t.Fatal(err)
 			}
 			_, err := s.Template("parity")
+			return err != nil
+		}},
+		{method: "SaveTransactionTemplate", observe: func(t *testing.T, s walletService) any {
+			saveParityTransactionTemplate(t, s)
+			tpl, err := s.TransactionTemplate("parity")
+			if err != nil {
+				t.Fatal(err)
+			}
+			return tpl
+		}},
+		{method: "TransactionTemplates", observe: func(t *testing.T, s walletService) any {
+			saveParityTransactionTemplate(t, s)
+			templates, err := s.TransactionTemplates()
+			if err != nil {
+				t.Fatal(err)
+			}
+			return templates
+		}},
+		{method: "TransactionTemplate", observe: func(t *testing.T, s walletService) any {
+			saveParityTransactionTemplate(t, s)
+			tpl, err := s.TransactionTemplate("parity")
+			if err != nil {
+				t.Fatal(err)
+			}
+			return tpl
+		}},
+		{method: "DeleteTransactionTemplate", observe: func(t *testing.T, s walletService) any {
+			saveParityTransactionTemplate(t, s)
+			if err := s.DeleteTransactionTemplate("parity"); err != nil {
+				t.Fatal(err)
+			}
+			_, err := s.TransactionTemplate("parity")
 			return err != nil
 		}},
 		{method: "Certificate", observe: func(t *testing.T, s walletService) any {

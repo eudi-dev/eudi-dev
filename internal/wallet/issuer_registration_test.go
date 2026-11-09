@@ -22,6 +22,7 @@ import (
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
+	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/regcert"
@@ -250,6 +251,44 @@ func TestTheDemoIssuerRegistersAnUncategorizedTemplateAsAnEAA(t *testing.T) {
 	service := rp.Services[0]
 	if !slices.ContainsFunc(service.ProvidesAttestations, func(p registrar.ProvidedAttestation) bool { return p.Type == "urn:example:badge:1" }) || !slices.Contains(service.Entitlements, registrar.NonQEAAProviderEntitlement) {
 		t.Errorf("provides %v with entitlements %v, want the badge as an EAA", service.ProvidesAttestations, service.Entitlements)
+	}
+}
+
+// The demo registrations list the vct issued by the demo issuer, so
+// its issuer_info lists the issued type (ARF RPRC_23) and the demo verifier
+// may ask for it (ARF RPRC_21).
+func TestTheDemoRegistrationsAndTheCatalogueListTheVCTTheDemoIssuerIssues(t *testing.T) {
+	w := generateTestWallet(t)
+	const template, issued = "urn:eudi-test:demo-payment-account:1", "https://issuer.example/types/payment-account"
+	w.SetDemoIssuerVCT(func(t credtemplate.Template) string {
+		if t.VCT == template {
+			return issued
+		}
+		return t.VCT
+	})
+	issuer, err := w.demoIssuerRegistration()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var types []string
+	for _, p := range issuer.Services[0].ProvidesAttestations {
+		types = append(types, p.Type)
+	}
+	if !slices.Contains(types, issued) || slices.Contains(types, template) {
+		t.Errorf("the demo issuer provides %v, want %s in place of %s", types, issued, template)
+	}
+	verifier, err := w.demoVerifierRegistration()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.ContainsFunc(verifier.Services[0].IntendedUses[0].Credentials, func(c registrar.RegisteredCredential) bool {
+		types, _ := c.Meta["vct_values"].([]string)
+		return slices.Equal(types, []string{issued, template})
+	}) {
+		t.Errorf("the demo verifier registers %v, want both types of the payment account", verifier.Services[0].IntendedUses[0].Credentials)
+	}
+	if _, ok := w.catalogueEntryFor(credtype.FormatSDJWT, []string{issued}); !ok {
+		t.Errorf("the catalogue has no entry for %s", issued)
 	}
 }
 

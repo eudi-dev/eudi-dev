@@ -23,6 +23,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
 	"github.com/eudi-dev/eudi-dev/v3/internal/remote"
 	"github.com/eudi-dev/eudi-dev/v3/internal/trustedlists"
+	"github.com/eudi-dev/eudi-dev/v3/internal/txtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
 )
 
@@ -50,6 +51,10 @@ type walletService interface {
 	// (the local store does, a remote instance does not).
 	SaveTemplate(tpl credtemplate.Template) (string, error)
 	DeleteTemplate(name string) error
+	TransactionTemplates() ([]txtemplate.Template, error)
+	TransactionTemplate(name string) (txtemplate.Template, error)
+	SaveTransactionTemplate(tpl txtemplate.Template) error
+	DeleteTransactionTemplate(name string) error
 	Certificate(kind, certFormat string, opts walletCertOptions) ([]byte, error)
 	RegistrationCertificate(req registrar.RegistrationCertificateRequest) (*registrar.RegistrationCertificateResult, error)
 	AccessCertificate(req registrar.AccessCertificateRequest) (*registrar.AccessCertificateResult, error)
@@ -187,6 +192,43 @@ func (r *remoteWallet) SaveTemplate(tpl credtemplate.Template) (string, error) {
 }
 
 func (r *remoteWallet) DeleteTemplate(name string) error { return r.c.DeleteTemplate(name) }
+
+func (r *remoteWallet) TransactionTemplates() ([]txtemplate.Template, error) {
+	docs, err := r.c.TransactionTemplates()
+	if err != nil {
+		return nil, err
+	}
+	templates := make([]txtemplate.Template, 0, len(docs))
+	for _, doc := range docs {
+		tpl, err := decodeDoc[txtemplate.Template](doc)
+		if err != nil {
+			return nil, err
+		}
+		templates = append(templates, *tpl)
+	}
+	return templates, nil
+}
+
+func (r *remoteWallet) TransactionTemplate(name string) (txtemplate.Template, error) {
+	doc, err := r.c.TransactionTemplate(name)
+	if err != nil {
+		return txtemplate.Template{}, err
+	}
+	tpl, err := decodeDoc[txtemplate.Template](doc)
+	if err != nil {
+		return txtemplate.Template{}, err
+	}
+	return *tpl, nil
+}
+
+func (r *remoteWallet) SaveTransactionTemplate(tpl txtemplate.Template) error {
+	_, err := r.c.PutTransactionTemplate(tpl.Name, tpl)
+	return err
+}
+
+func (r *remoteWallet) DeleteTransactionTemplate(name string) error {
+	return r.c.DeleteTransactionTemplate(name)
+}
 
 func (r *remoteWallet) Certificate(kind, certFormat string, _ walletCertOptions) ([]byte, error) {
 	return r.c.Certificate(kind, certFormat)
@@ -418,6 +460,24 @@ func (l *localWallet) SaveTemplate(tpl credtemplate.Template) (string, error) {
 
 func (l *localWallet) DeleteTemplate(name string) error {
 	_, err := with(l, func(m *wallet.Management) (struct{}, error) { return struct{}{}, m.DeleteTemplate(name) })
+	return err
+}
+
+func (l *localWallet) TransactionTemplates() ([]txtemplate.Template, error) {
+	return with(l, func(m *wallet.Management) ([]txtemplate.Template, error) { return m.TransactionTemplates() })
+}
+
+func (l *localWallet) TransactionTemplate(name string) (txtemplate.Template, error) {
+	return with(l, func(m *wallet.Management) (txtemplate.Template, error) { return m.TransactionTemplate(name) })
+}
+
+func (l *localWallet) SaveTransactionTemplate(tpl txtemplate.Template) error {
+	_, err := with(l, func(m *wallet.Management) (struct{}, error) { return struct{}{}, m.SaveTransactionTemplate(tpl) })
+	return err
+}
+
+func (l *localWallet) DeleteTransactionTemplate(name string) error {
+	_, err := with(l, func(m *wallet.Management) (struct{}, error) { return struct{}{}, m.DeleteTransactionTemplate(name) })
 	return err
 }
 

@@ -635,6 +635,31 @@ func TestInteractiveAuthorizationReportsThatItHoldsNothingMatching(t *testing.T)
 	}
 }
 
+// OpenID4VP 1.0 §8.5 invalid_transaction_data also answers an issuer whose
+// transaction data the wallet refuses after consent.
+func TestInteractiveAuthorizationRefusesTransactionDataAfterConsent(t *testing.T) {
+	w := newInteractiveWallet(t)
+	w.ValidationMode = ValidationModeStrict
+	enabled, types := true, []string{"urn:example:test"}
+	if err := w.UpdateConformance(ConformancePatch{TransactionData: &enabled, TransactionDataTypes: &types}); err != nil {
+		t.Fatal(err)
+	}
+	issuer := newInteractiveIssuer(t, w)
+	issuer.openid4vpRequest["transaction_data"] = transactionDataWithoutACommonHashAlg(t)
+
+	if _, err := w.ProcessCredentialOffer(interactiveOfferURI(issuer.url)); err != nil {
+		t.Fatalf("ProcessCredentialOffer() error = %v", err)
+	}
+
+	var response map[string]any
+	if err := json.Unmarshal([]byte(issuer.intermediateForm.Get("openid4vp_response")), &response); err != nil {
+		t.Fatalf("openid4vp_response is not a JSON object: %v", err)
+	}
+	if got, _ := response["error"].(string); got != oid4vp.ErrorInvalidTransactionData {
+		t.Errorf("openid4vp_response error = %q, want %s (%v)", got, oid4vp.ErrorInvalidTransactionData, response["error_description"])
+	}
+}
+
 // §6.2.1.1: with ia_post.jwt the response is encrypted. The draft's example
 // sends it as {"response": ...} inside openid4vp_response.
 func TestInteractiveAuthorizationEncryptsWithIAPostJWT(t *testing.T) {

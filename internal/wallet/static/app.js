@@ -2013,6 +2013,7 @@
     const doc = Object.assign({}, source);
     delete doc.name;
     delete doc.predefined;
+    delete doc.configured;
     doc.format = issueFormat.value;
     const typeField = doc.format === 'mdoc' ? 'doctype' : 'vct';
     const type = document.getElementById(doc.format === 'mdoc' ? 'issue-doctype' : 'issue-vct').value.trim();
@@ -2211,7 +2212,7 @@
       cli: eudiDialogs.cli('eudi templates import -', [['--name', name], ['--remote', eudiDialogs.remoteURL()]]) +
         eudiDialogs.heredoc(JSON.stringify(doc, null, 2)),
       yaml: eudiDialogs.yaml(doc),
-      yamlNote: 'Save it as ' + name + '.yaml in the templates directory (--templates-dir or EUDI_DEV_TEMPLATES_DIR). The wallet loads it on every start.',
+      yamlNote: 'Save it as ' + name + '.yaml in the templates directory of --config or in the directory of --templates. The wallet reads it on every start.',
     };
   }
 
@@ -2233,6 +2234,7 @@
       row.id = 'template-row-' + tpl.name;
       row.dataset.templateName = tpl.name;
       row.dataset.predefined = tpl.predefined ? 'true' : 'false';
+      row.dataset.configured = tpl.configured ? 'true' : 'false';
 
       const label = document.createElement('span');
       label.className = 'template-row-name';
@@ -2243,18 +2245,22 @@
       const meta = document.createElement('span');
       meta.className = 'template-row-meta';
       meta.id = row.id + '-meta';
-      meta.textContent = (tpl.format || 'any') + (tpl.predefined ? ' · predefined' : '');
+      meta.textContent = (tpl.format || 'any') + (tpl.predefined ? ' · predefined' : '') + (tpl.configured ? ' · from config' : '');
       row.appendChild(meta);
 
-      const editBtn = document.createElement('button');
-      editBtn.type = 'button';
-      editBtn.className = 'btn btn-sm';
-      editBtn.id = 'template-edit-' + tpl.name;
-      editBtn.textContent = 'Edit';
-      editBtn.addEventListener('click', () => openTemplateEditor(tpl));
-      row.appendChild(editBtn);
+      // A configured template comes from the operator's files. Only a change
+      // to those files edits or removes it.
+      if (!tpl.configured) {
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.className = 'btn btn-sm';
+        editBtn.id = 'template-edit-' + tpl.name;
+        editBtn.textContent = 'Edit';
+        editBtn.addEventListener('click', () => openTemplateEditor(tpl));
+        row.appendChild(editBtn);
+      }
 
-      if (!tpl.predefined) {
+      if (!tpl.predefined && !tpl.configured) {
         const deleteBtn = document.createElement('button');
         deleteBtn.type = 'button';
         deleteBtn.className = 'btn btn-sm';
@@ -2295,6 +2301,487 @@
 
   document.getElementById('template-close').addEventListener('click', () => {
     templatesOverlay.classList.remove('active');
+  });
+
+  const transactionTemplatesOverlay = document.getElementById('transaction-templates-overlay');
+  const transactionTemplatesList = document.getElementById('transaction-templates-list');
+  const transactionTemplatesError = document.getElementById('transaction-templates-error');
+  const transactionTemplateOverlay = document.getElementById('transaction-template-overlay');
+  const transactionTemplateName = document.getElementById('transaction-template-name');
+  const transactionTemplateDescription = document.getElementById('transaction-template-description');
+  const transactionTemplateJSON = document.getElementById('transaction-template-json');
+  const transactionTemplateWarnings = document.getElementById('transaction-template-warnings');
+  const transactionTemplateError = document.getElementById('transaction-template-error');
+  const transactionTemplateModeJSON = document.getElementById('transaction-template-mode-json');
+  const transactionTemplateBuilder = document.getElementById('transaction-template-builder');
+  const transactionTemplateJSONEditor = document.getElementById('transaction-template-json-editor');
+  const transactionTemplateType = document.getElementById('transaction-template-type');
+  const transactionTemplateCustomType = document.getElementById('transaction-template-custom-type');
+  const transactionTemplateHashAlgs = document.getElementById('transaction-template-hash-algs');
+  const transactionTemplateCredentialIDs = document.getElementById('transaction-template-credential-ids');
+  const transactionTemplateFieldRows = document.getElementById('transaction-template-field-rows');
+  const transactionTemplateFieldNames = document.getElementById('transaction-template-field-names');
+  const transactionTemplateFieldsHint = document.getElementById('transaction-template-fields-hint');
+  // Members defined by OpenID4VP 1.0 §5.1 for every type. TS12 v1.0.1 §4.2
+  // adds payload, which holds the fields of a TS12 type.
+  const TRANSACTION_DATA_MEMBERS = ['type', 'credential_ids', 'transaction_data_hashes_alg'];
+  let transactionDataTypes = null;
+  let transactionFieldCounter = 0;
+
+  async function loadTransactionDataTypes() {
+    if (transactionDataTypes) return transactionDataTypes;
+    const resp = await fetch('api/transaction-data-types');
+    const body = await resp.json();
+    if (!resp.ok) throw new Error(apiErrorText(body, resp));
+    transactionDataTypes = body;
+    return body;
+  }
+
+  async function renderTransactionTemplatesList() {
+    let templates;
+    try {
+      const resp = await fetch('api/transaction-templates');
+      templates = await resp.json();
+      if (!resp.ok) throw new Error(apiErrorText(templates, resp));
+    } catch (e) {
+      transactionTemplatesError.textContent = 'Failed to load transaction templates: ' + e.message;
+      return;
+    }
+    transactionTemplatesList.textContent = '';
+    templates.forEach(tpl => {
+      const row = document.createElement('div');
+      row.className = 'template-row';
+      row.id = 'transaction-template-row-' + tpl.name;
+      row.dataset.templateName = tpl.name;
+      row.dataset.predefined = tpl.predefined ? 'true' : 'false';
+      row.dataset.configured = tpl.configured ? 'true' : 'false';
+
+      const label = document.createElement('span');
+      label.className = 'template-row-name';
+      label.id = row.id + '-name';
+      label.textContent = tpl.name;
+      row.appendChild(label);
+
+      const meta = document.createElement('span');
+      meta.className = 'template-row-meta';
+      meta.id = row.id + '-meta';
+      const notes = [(tpl.transaction_data && tpl.transaction_data.type) || ''];
+      if (tpl.predefined) notes.push('predefined');
+      if (tpl.configured) notes.push('from config');
+      if (tpl.warnings && tpl.warnings.length) notes.push(tpl.warnings.length === 1 ? '1 warning' : tpl.warnings.length + ' warnings');
+      meta.textContent = notes.join(' · ');
+      row.appendChild(meta);
+
+      // A configured template comes from the operator's files. Only a change
+      // to those files edits or removes it.
+      if (!tpl.configured) {
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.className = 'btn btn-sm';
+        editBtn.id = 'transaction-template-edit-' + tpl.name;
+        editBtn.textContent = 'Edit';
+        editBtn.addEventListener('click', () => openTransactionTemplateEditor(tpl));
+        row.appendChild(editBtn);
+      }
+
+      if (!tpl.predefined && !tpl.configured) {
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'btn btn-sm';
+        deleteBtn.id = 'transaction-template-delete-' + tpl.name;
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.addEventListener('click', async () => {
+          transactionTemplatesError.textContent = '';
+          try {
+            const resp = await fetch('api/transaction-templates/' + encodeURIComponent(tpl.name), { method: 'DELETE' });
+            if (!resp.ok) {
+              transactionTemplatesError.textContent = apiErrorText(await resp.json(), resp);
+              return;
+            }
+            await renderTransactionTemplatesList();
+          } catch (e) {
+            transactionTemplatesError.textContent = 'Request failed: ' + e.message;
+          }
+        });
+        row.appendChild(deleteBtn);
+      }
+
+      transactionTemplatesList.appendChild(row);
+    });
+  }
+
+  function openTransactionTemplates() {
+    transactionTemplatesError.textContent = '';
+    transactionTemplatesOverlay.classList.add('active');
+    renderTransactionTemplatesList();
+  }
+  document.getElementById('transaction-templates-link').addEventListener('click', (event) => {
+    event.preventDefault();
+    openTransactionTemplates();
+  });
+  document.getElementById('transaction-templates-close').addEventListener('click', () => {
+    transactionTemplatesOverlay.classList.remove('active');
+  });
+
+  function showTransactionTemplateWarnings(warnings) {
+    transactionTemplateWarnings.textContent = '';
+    (warnings || []).forEach((text, i) => {
+      const item = document.createElement('li');
+      item.id = 'transaction-template-warning-' + i;
+      item.textContent = text;
+      transactionTemplateWarnings.appendChild(item);
+    });
+    transactionTemplateWarnings.hidden = !(warnings && warnings.length);
+  }
+
+  // transactionDataTypeInfo is the listed type, or null for a custom type.
+  function transactionDataTypeInfo(type) {
+    return (transactionDataTypes.types || []).find(t => t.type === type) || null;
+  }
+
+  function selectedTransactionDataType() {
+    return transactionTemplateType.value || transactionTemplateCustomType.value.trim();
+  }
+
+  function isTS12Type(type) {
+    const info = transactionDataTypeInfo(type);
+    return Boolean(info && info.ts12);
+  }
+
+  const FIELD_PLACEHOLDERS = {
+    string: 'text', number: 'number', integer: 'number', boolean: 'true or false',
+    object: 'JSON object', array: 'JSON array',
+  };
+
+  function fieldPlaceholder(name) {
+    const info = transactionDataTypeInfo(selectedTransactionDataType());
+    const field = info && (info.fields || []).find(f => f.name === name);
+    return (field && FIELD_PLACEHOLDERS[field.type]) || 'value (text or JSON)';
+  }
+
+  function addTransactionFieldRow(name, value) {
+    const idx = transactionFieldCounter++;
+    const row = document.createElement('div');
+    row.className = 'claim-row transaction-template-field-row';
+    row.id = 'transaction-template-field-row-' + idx;
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.className = 'form-input transaction-template-field-name';
+    nameInput.id = 'transaction-template-field-name-' + idx;
+    nameInput.placeholder = 'field name';
+    nameInput.setAttribute('aria-label', 'Field name');
+    nameInput.setAttribute('list', 'transaction-template-field-names');
+    nameInput.value = name || '';
+    const valueInput = document.createElement('input');
+    valueInput.type = 'text';
+    valueInput.className = 'form-input transaction-template-field-value';
+    valueInput.id = 'transaction-template-field-value-' + idx;
+    valueInput.setAttribute('aria-label', 'Field value');
+    valueInput.value = value || '';
+    valueInput.placeholder = fieldPlaceholder(nameInput.value.trim());
+    nameInput.addEventListener('input', () => { valueInput.placeholder = fieldPlaceholder(nameInput.value.trim()); });
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'btn btn-sm';
+    remove.id = 'transaction-template-field-remove-' + idx;
+    remove.title = 'Remove field';
+    remove.textContent = '×';
+    remove.addEventListener('click', () => row.remove());
+    row.append(nameInput, valueInput, remove);
+    transactionTemplateFieldRows.appendChild(row);
+  }
+
+  function transactionFieldNames() {
+    return Array.from(transactionTemplateFieldRows.querySelectorAll('.transaction-template-field-name'), input => input.value.trim());
+  }
+
+  // updateTransactionTypeFields shows the custom type input and offers the
+  // fields of the type.
+  function updateTransactionTypeFields() {
+    const custom = transactionTemplateType.value === '';
+    transactionTemplateCustomType.hidden = !custom;
+    const type = selectedTransactionDataType();
+    const info = transactionDataTypeInfo(type);
+    const fields = (info && info.fields) || [];
+    transactionTemplateFieldNames.textContent = '';
+    fields.forEach(f => {
+      const option = document.createElement('option');
+      option.value = f.name;
+      transactionTemplateFieldNames.appendChild(option);
+    });
+    transactionTemplateFieldRows.querySelectorAll('.transaction-template-field-row').forEach(row => {
+      row.querySelector('.transaction-template-field-value').placeholder = fieldPlaceholder(row.querySelector('.transaction-template-field-name').value.trim());
+    });
+    const required = fields.filter(f => f.required).map(f => f.name);
+    transactionTemplateFieldsHint.textContent = isTS12Type(type)
+      ? 'The payload of this TS12 type' + (required.length ? '. Required: ' + required.join(', ') + '.' : '.')
+      : 'Members next to type.';
+  }
+
+  // addRequiredTransactionFields adds a row for each required field of the
+  // type without a row.
+  function addRequiredTransactionFields() {
+    const info = transactionDataTypeInfo(selectedTransactionDataType());
+    const present = transactionFieldNames();
+    ((info && info.fields) || []).filter(f => f.required && !present.includes(f.name)).forEach(f => addTransactionFieldRow(f.name, ''));
+  }
+
+  // changeTransactionType drops empty rows without a matching field in the new
+  // type and adds its required fields. A filled row stays.
+  function changeTransactionType() {
+    const info = transactionDataTypeInfo(selectedTransactionDataType());
+    const names = ((info && info.fields) || []).map(f => f.name);
+    transactionTemplateFieldRows.querySelectorAll('.transaction-template-field-row').forEach(row => {
+      const name = row.querySelector('.transaction-template-field-name').value.trim();
+      if (!row.querySelector('.transaction-template-field-value').value.trim() && !names.includes(name)) row.remove();
+    });
+    addRequiredTransactionFields();
+    updateTransactionTypeFields();
+  }
+
+  function fillTransactionTypeSelect() {
+    transactionTemplateType.textContent = '';
+    (transactionDataTypes.types || []).forEach(t => {
+      const option = document.createElement('option');
+      option.value = t.type;
+      option.textContent = t.type;
+      transactionTemplateType.appendChild(option);
+    });
+    const custom = document.createElement('option');
+    custom.value = '';
+    custom.textContent = 'Custom type';
+    transactionTemplateType.appendChild(custom);
+  }
+
+  function fillTransactionHashAlgs(selected) {
+    transactionTemplateHashAlgs.textContent = '';
+    (transactionDataTypes.hash_algs || []).forEach(alg => {
+      const label = document.createElement('label');
+      label.className = 'form-checkbox';
+      label.id = 'transaction-template-hash-alg-label-' + alg;
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.id = 'transaction-template-hash-alg-' + alg;
+      box.value = alg;
+      box.checked = selected.includes(alg);
+      label.append(box, ' ' + alg);
+      transactionTemplateHashAlgs.appendChild(label);
+    });
+  }
+
+  function isStringList(value) {
+    return Array.isArray(value) && value.length > 0 && value.every(v => typeof v === 'string');
+  }
+
+  // fieldText is the text of a field value in the builder, or null. A string
+  // that parses as JSON would read back as another value.
+  function fieldText(value) {
+    if (typeof value !== 'string') return JSON.stringify(value);
+    try {
+      JSON.parse(value);
+      return null;
+    } catch (e) {
+      return value;
+    }
+  }
+
+  // builderProblem says why the builder can't show data, or returns '' when
+  // it can.
+  function builderProblem(data) {
+    if (typeof data !== 'object' || data === null || Array.isArray(data)) return 'it is not a JSON object';
+    if (typeof data.type !== 'string' || !data.type) return 'it has no type';
+    if ('credential_ids' in data && !isStringList(data.credential_ids)) return 'credential_ids is not a list of strings';
+    const algs = data.transaction_data_hashes_alg;
+    if (algs !== undefined && !(isStringList(algs) && algs.every(alg => transactionDataTypes.hash_algs.includes(alg)))) {
+      return 'transaction_data_hashes_alg contains an algorithm missing from the builder';
+    }
+    let fields = data;
+    if (isTS12Type(data.type)) {
+      const extra = Object.keys(data).filter(key => !TRANSACTION_DATA_MEMBERS.includes(key) && key !== 'payload');
+      if (extra.length) return 'it has members next to payload (' + extra.join(', ') + ')';
+      if ('payload' in data && (typeof data.payload !== 'object' || data.payload === null || Array.isArray(data.payload))) return 'payload is not a JSON object';
+      fields = data.payload || {};
+    }
+    for (const [key, value] of Object.entries(fields)) {
+      if (fields === data && TRANSACTION_DATA_MEMBERS.includes(key)) continue;
+      if (fieldText(value) === null) return 'the field ' + key + ' is a string that reads as JSON';
+    }
+    return '';
+  }
+
+  function fillTransactionBuilder(data) {
+    const listed = transactionDataTypeInfo(data.type) !== null;
+    transactionTemplateType.value = listed ? data.type : '';
+    transactionTemplateCustomType.value = listed ? '' : data.type;
+    fillTransactionHashAlgs(data.transaction_data_hashes_alg || []);
+    transactionTemplateCredentialIDs.value = (data.credential_ids || []).join(', ');
+    transactionTemplateFieldRows.textContent = '';
+    transactionFieldCounter = 0;
+    const fields = isTS12Type(data.type)
+      ? (data.payload || {})
+      : Object.fromEntries(Object.entries(data).filter(([key]) => !TRANSACTION_DATA_MEMBERS.includes(key)));
+    Object.entries(fields).forEach(([key, value]) => addTransactionFieldRow(key, fieldText(value)));
+    updateTransactionTypeFields();
+    if (transactionFieldCounter === 0) addTransactionFieldRow('', '');
+  }
+
+  // transactionDataFromBuilder reads the builder. It throws an Error with a
+  // message for the form.
+  function transactionDataFromBuilder() {
+    const type = selectedTransactionDataType();
+    if (!type) throw new Error('Enter the custom type');
+    const data = { type };
+    const ids = transactionTemplateCredentialIDs.value.split(',').map(id => id.trim()).filter(Boolean);
+    if (ids.length) data.credential_ids = ids;
+    const algs = Array.from(transactionTemplateHashAlgs.querySelectorAll('input:checked'), box => box.value);
+    if (algs.length) data.transaction_data_hashes_alg = algs;
+    const ts12 = isTS12Type(type);
+    const fields = {};
+    transactionTemplateFieldRows.querySelectorAll('.transaction-template-field-row').forEach(row => {
+      const name = row.querySelector('.transaction-template-field-name').value.trim();
+      if (!name) return;
+      if (name in fields) throw new Error('The field ' + name + ' appears twice');
+      if (!ts12 && TRANSACTION_DATA_MEMBERS.includes(name)) throw new Error('Set ' + name + ' above the fields');
+      const raw = row.querySelector('.transaction-template-field-value').value;
+      let value = raw;
+      try { value = JSON.parse(raw); } catch (e) { /* Leave non-JSON input as a string. */ }
+      fields[name] = value;
+    });
+    if (ts12) data.payload = fields; else Object.assign(data, fields);
+    return data;
+  }
+
+  function setTransactionTemplateMode(json) {
+    transactionTemplateModeJSON.checked = json;
+    document.getElementById('transaction-template-mode-builder').checked = !json;
+    transactionTemplateJSONEditor.hidden = !json;
+    transactionTemplateBuilder.hidden = json;
+  }
+
+  function updateTransactionTemplateMode() {
+    const json = transactionTemplateModeJSON.checked;
+    transactionTemplateError.textContent = '';
+    try {
+      if (json) {
+        transactionTemplateJSON.value = JSON.stringify(transactionDataFromBuilder(), null, 2);
+      } else {
+        const data = JSON.parse(transactionTemplateJSON.value.trim() || '{}');
+        const problem = builderProblem(data);
+        if (problem) throw new Error('The builder cannot show this transaction data, because ' + problem + '. Edit it as JSON');
+        fillTransactionBuilder(data);
+      }
+    } catch (e) {
+      transactionTemplateError.textContent = e instanceof SyntaxError ? 'Transaction data is not valid JSON: ' + e.message : e.message;
+      setTransactionTemplateMode(!json);
+      return;
+    }
+    setTransactionTemplateMode(json);
+  }
+  document.getElementById('transaction-template-mode-builder').addEventListener('change', updateTransactionTemplateMode);
+  transactionTemplateModeJSON.addEventListener('change', updateTransactionTemplateMode);
+  transactionTemplateType.addEventListener('change', changeTransactionType);
+  transactionTemplateCustomType.addEventListener('change', changeTransactionType);
+  document.getElementById('transaction-template-add-field').addEventListener('click', () => addTransactionFieldRow('', ''));
+
+  async function openTransactionTemplateEditor(tpl) {
+    transactionTemplatesError.textContent = '';
+    try {
+      await loadTransactionDataTypes();
+    } catch (e) {
+      transactionTemplatesError.textContent = 'Failed to load transaction data types: ' + e.message;
+      return;
+    }
+    transactionTemplateError.textContent = '';
+    transactionTemplateName.value = tpl ? tpl.name : '';
+    transactionTemplateDescription.value = tpl ? (tpl.description || '') : '';
+    fillTransactionTypeSelect();
+    const data = tpl ? tpl.transaction_data : { type: transactionDataTypes.types[0].type, transaction_data_hashes_alg: ['sha-256'] };
+    transactionTemplateJSON.value = JSON.stringify(data, null, 2);
+    const fits = !builderProblem(data);
+    if (fits) fillTransactionBuilder(data);
+    if (fits && !tpl) {
+      transactionTemplateFieldRows.textContent = '';
+      transactionFieldCounter = 0;
+      changeTransactionType();
+    }
+    setTransactionTemplateMode(!fits);
+    showTransactionTemplateWarnings(tpl && tpl.warnings);
+    transactionTemplatesOverlay.classList.remove('active');
+    transactionTemplateOverlay.classList.add('active');
+    transactionTemplateName.focus();
+  }
+
+  function closeTransactionTemplateEditor() {
+    transactionTemplateOverlay.classList.remove('active');
+    openTransactionTemplates();
+  }
+
+  // transactionTemplateRequest is the name and document of PUT
+  // api/transaction-templates/{name}. It throws an Error with a message for
+  // the form.
+  function transactionTemplateRequest() {
+    let data;
+    if (transactionTemplateModeJSON.checked) {
+      try {
+        data = JSON.parse(transactionTemplateJSON.value.trim() || '{}');
+      } catch (e) {
+        throw new Error('Transaction data is not valid JSON: ' + e.message);
+      }
+    } else {
+      data = transactionDataFromBuilder();
+    }
+    const doc = {};
+    const description = transactionTemplateDescription.value.trim();
+    if (description) doc.description = description;
+    doc.transaction_data = data;
+    return { name: transactionTemplateName.value.trim(), doc };
+  }
+
+  eudiDialogs.setCommand(document.getElementById('transaction-template-dialog'), () => {
+    const { name, doc } = transactionTemplateRequest();
+    return {
+      curl: eudiDialogs.curl('PUT', 'api/transaction-templates/' + encodeURIComponent(name), doc),
+      cli: eudiDialogs.cli('eudi templates transactions import -', [['--name', name], ['--remote', eudiDialogs.remoteURL()]]) +
+        eudiDialogs.heredoc(JSON.stringify(doc, null, 2)),
+      yaml: eudiDialogs.yaml(Object.assign({ name }, doc)),
+      yamlNote: 'Save it in the transaction-templates directory of --config or in the file or directory of --transaction-templates. The wallet reads it on every start.',
+    };
+  });
+
+  document.getElementById('transaction-template-new').addEventListener('click', () => openTransactionTemplateEditor(null));
+  document.getElementById('transaction-template-cancel').addEventListener('click', closeTransactionTemplateEditor);
+
+  document.getElementById('transaction-template-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    transactionTemplateError.textContent = '';
+    let request;
+    try {
+      request = transactionTemplateRequest();
+    } catch (e) {
+      transactionTemplateError.textContent = e.message;
+      return;
+    }
+    try {
+      const resp = await fetch('api/transaction-templates/' + encodeURIComponent(request.name), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request.doc),
+      });
+      const result = await resp.json();
+      if (!resp.ok) {
+        transactionTemplateError.textContent = apiErrorText(result, resp);
+        return;
+      }
+      // A template may break TS12 on purpose. It is saved, and the editor
+      // stays open to show why a wallet would refuse it.
+      if (result.warnings && result.warnings.length) {
+        showTransactionTemplateWarnings(result.warnings);
+        return;
+      }
+      closeTransactionTemplateEditor();
+    } catch (e) {
+      transactionTemplateError.textContent = 'Request failed: ' + e.message;
+    }
   });
 
   async function loadLog() {
@@ -3551,7 +4038,63 @@
       if (purposes.length === 0 && policies.length > 0) {
         html += '<div class="consent-purpose" id="consent-privacy-policy-block">' + policyLinks + '</div>';
       }
-      return html;
+      return html + transactionDataHtml();
+    }
+
+    // The presentation authorizes each transaction (OpenID4VP 1.0 §8.4). The
+    // block shows the members defined by the transaction data type.
+    function transactionDataHtml() {
+      return (req.transaction_data || []).map((entry, idx) => {
+        const members = Object.assign({}, entry.data);
+        for (const key of ['type', 'credential_ids', 'transaction_data_hashes_alg']) delete members[key];
+        const id = 'consent-transaction-' + idx;
+        const summary = ts12Summary(entry.type, entry.data && entry.data.payload);
+        return '<div class="consent-purpose consent-transaction" id="' + id + '">' +
+          '<span class="consent-purpose-label" id="' + id + '-label">Transaction to authorize</span>' +
+          (summary ? '<div class="consent-transaction-summary" id="' + id + '-summary">' + escHtml(summary) + '</div>' : '') +
+          '<div class="consent-transaction-type mono" id="' + id + '-type">' + escHtml(entry.type || '(no type)') + '</div>' +
+          (Object.keys(members).length ? '<pre class="consent-transaction-data" id="' + id + '-data">' + escHtml(JSON.stringify(members, null, 2)) + '</pre>' : '') +
+        '</div>';
+      }).join('');
+    }
+
+    // ts12Summary reads the payload of an SCA transaction type of EUDI TS12
+    // v1.0.1 §4.3 as one sentence. It is empty for other types and for
+    // payloads with missing members.
+    function ts12Summary(type, payload) {
+      if (!payload || typeof payload !== 'object') return '';
+      const text = v => (typeof v === 'string' ? v.trim() : '');
+      switch (type) {
+        case 'urn:eudi:sca:payment:1': {
+          const payee = text(payload.payee && payload.payee.name);
+          if (!payee || typeof payload.amount !== 'number' || !text(payload.currency)) return '';
+          let amount;
+          try {
+            amount = new Intl.NumberFormat('en', { style: 'currency', currency: payload.currency }).format(payload.amount);
+          } catch (e) {
+            amount = payload.amount + ' ' + payload.currency;
+          }
+          return 'Pay ' + amount + ' to ' + payee + (payload.recurrence ? ' repeatedly' : '');
+        }
+        case 'urn:eudi:sca:login_risk_transaction:1': {
+          const action = text(payload.action);
+          if (!action) return '';
+          return text(payload.service) ? text(payload.service) + ': ' + action : action;
+        }
+        case 'urn:eudi:sca:account_access:1': {
+          const aisp = payload.aisp || {};
+          const name = text(aisp.brand_name) || text(aisp.legal_name);
+          return name ? 'Give ' + name + ' access to your account data' : 'Give access to your account data';
+        }
+        case 'urn:eudi:sca:emandate:1': {
+          const purpose = text(payload.purpose);
+          const creditor = text(payload.creditor_id);
+          let line = 'Sign a direct debit mandate';
+          if (creditor) line += ' for creditor ' + creditor;
+          return purpose ? line + ': ' + purpose : line;
+        }
+      }
+      return '';
     }
 
     // Allow required claims to be unchecked so developers can test verifier behavior.
@@ -4244,7 +4787,7 @@
       protectedParties = new Set(config.protected_relying_parties || []);
       renderAutoAccept(!!config.auto_accept);
       renderConformance(config);
-      ['conf-mode-select', 'conf-tls-select', 'conf-haip-input', 'conf-arf-input', 'conf-encrypted-input', 'conf-vci-version-select', 'conf-key-attestation-select', 'conf-proof-key-select', 'conf-vci-client-id'].forEach((id) => {
+      ['conf-mode-select', 'conf-tls-select', 'conf-haip-input', 'conf-arf-input', 'conf-encrypted-input', 'conf-transaction-data-input', 'conf-vci-version-select', 'conf-key-attestation-select', 'conf-proof-key-select', 'conf-vci-client-id'].forEach((id) => {
         const el = document.getElementById(id);
         if (el && !el.dataset.wired) {
           el.dataset.wired = '1';
@@ -4321,7 +4864,7 @@
 
   // Conformance settings apply to the wallet process. The public demo displays them without
   // allowing changes.
-  let conformanceDefaults = { validation_mode: 'debug', require_haip: false, require_arf: false, require_encrypted_request: false, vci_version: '1.0', key_attestation_level: '', key_attestation_proof_key: 'kid' };
+  let conformanceDefaults = { validation_mode: 'debug', require_haip: false, require_arf: false, require_encrypted_request: false, transaction_data: false, vci_version: '1.0', key_attestation_level: '', key_attestation_proof_key: 'kid' };
 
   function effectiveConformance() {
     return {
@@ -4330,6 +4873,7 @@
       haip: !!conformanceDefaults.require_haip,
       arf: !!conformanceDefaults.require_arf,
       encrypted: !!conformanceDefaults.require_encrypted_request,
+      transactionData: !!conformanceDefaults.transaction_data,
       vciVersion: conformanceDefaults.vci_version === '1.1' ? '1.1' : '1.0',
       keyAttestationLevel: conformanceDefaults.key_attestation_level || '',
       proofKey: conformanceDefaults.key_attestation_proof_key || 'kid',
@@ -4351,6 +4895,8 @@
     if (mode) { mode.value = eff.mode === 'strict' ? 'strict' : 'debug'; mode.disabled = demoMode; }
     if (haip) { haip.checked = eff.haip; haip.disabled = demoMode; }
     if (enc) { enc.checked = eff.encrypted; enc.disabled = demoMode; }
+    const transactionData = document.getElementById('conf-transaction-data-input');
+    if (transactionData) { transactionData.checked = eff.transactionData; transactionData.disabled = demoMode; }
     if (vci) { vci.value = eff.vciVersion; vci.disabled = demoMode; }
     if (level) { level.dataset.wanted = eff.keyAttestationLevel; level.value = eff.keyAttestationLevel; level.disabled = demoMode; }
     const proofKey = document.getElementById('conf-proof-key-select');
@@ -4386,12 +4932,14 @@
     const level = document.getElementById('conf-key-attestation-select');
     const proofKey = document.getElementById('conf-proof-key-select');
     const clientID = document.getElementById('conf-vci-client-id');
+    const transactionData = document.getElementById('conf-transaction-data-input');
     return {
       validation_mode: mode ? mode.value : undefined,
       tls_verify_override: !tls || tls.value === 'auto' ? null : tls.value === 'true',
       require_haip: haip ? haip.checked : undefined,
       require_arf: arf ? arf.checked : undefined,
       require_encrypted_request: enc ? enc.checked : undefined,
+      transaction_data: transactionData ? transactionData.checked : undefined,
       vci_version: vci ? vci.value : undefined,
       key_attestation_level: level ? level.value : undefined,
       key_attestation_proof_key: proofKey ? proofKey.value : undefined,

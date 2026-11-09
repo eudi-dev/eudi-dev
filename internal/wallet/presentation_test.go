@@ -463,7 +463,7 @@ func TestCreateSDJWTPresentation_ClearTextParentChildIsDisclosed(t *testing.T) {
 		}},
 	}
 
-	token, err := w.createSDJWTPresentation(cred, []string{"address.postal_code"}, "nonce", "client", w.HolderKey)
+	token, err := w.createSDJWTPresentation(cred, []string{"address.postal_code"}, "nonce", "client", w.HolderKey, nil)
 	if err != nil {
 		t.Fatalf("createSDJWTPresentation: %v", err)
 	}
@@ -1285,5 +1285,5 @@ func TestEncryptJWE_A128CBCHS256(t *testing.T) {
 
 // vpToken builds one presentation with its own mdoc generated nonce.
 func vpToken(w *Wallet, match consent.Match, params *oid4vp.Request) (VPTokenResult, error) {
-	return w.createVPToken(match, params, "")
+	return w.createVPToken(match, params, "", nil)
 }

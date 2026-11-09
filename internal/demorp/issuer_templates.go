@@ -28,6 +28,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
 	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
+	"github.com/eudi-dev/eudi-dev/v3/internal/typemetadata"
 	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
 )
 
@@ -53,7 +54,7 @@ func (d *DemoRP) templateConfigurations() []templateConfiguration {
 	configs := make([]templateConfiguration, 0, len(templates))
 	for _, tpl := range templates {
 		if cfg, ok := configurationOf(tpl); ok {
-			configs = append(configs, cfg)
+			configs = append(configs, d.withIssuerVCT(cfg))
 		}
 	}
 	sort.Slice(configs, func(i, j int) bool { return configs[i].id < configs[j].id })
@@ -106,7 +107,7 @@ func (d *DemoRP) templateConfiguration(id string) (templateConfiguration, bool) 
 		return templateConfiguration{}, false
 	}
 	cfg, ok := configurationOf(*tpl)
-	return cfg, ok && cfg.id == id
+	return d.withIssuerVCT(cfg), ok && cfg.id == id
 }
 
 // offeredConfigurationIDs returns every template configuration, the ticket
@@ -251,6 +252,14 @@ func (d *DemoRP) signTemplate(cfg templateConfiguration, holderKey *ecdsa.Public
 	// trust status, since the demo accepts attestations from unknown CAs.
 	if cfg.id == ticketConfigurationID && granted.clientAuth != nil {
 		resolved.Claims["wallet_attestation"] = granted.clientAuth.ticketClaim()
+	}
+	if cfg.id == paymentAccountConfigurationID {
+		document, err := d.paymentAccountTypeMetadata()
+		if err != nil {
+			return "", err
+		}
+		resolved.Claims["vct#integrity"] = typemetadata.Integrity(document)
+		resolved.AlwaysDisclosed = append(resolved.AlwaysDisclosed, "vct#integrity")
 	}
 	spec := provider.IssuedAttestationSpec{Format: cfg.format, VCT: cfg.vct, DocType: cfg.docType}
 	spec.Category = d.wallet.CredentialCategory(&tpl, spec)

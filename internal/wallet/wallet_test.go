@@ -57,7 +57,9 @@ func generateTestWallet(t testing.TB) *Wallet {
 	}
 	w := New(holderKey, issuerKey, false)
 	// Use an isolated store so tests cannot load the developer's templates.
-	w.Templates = NewWalletStore(t.TempDir()).Templates()
+	store := NewWalletStore(t.TempDir())
+	w.Templates = store.Templates()
+	w.TransactionTemplates = store.TransactionTemplates()
 	return w
 }
 

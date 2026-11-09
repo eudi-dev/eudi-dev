@@ -42,6 +42,9 @@ type Document struct {
 	ExtendsIntegrity string    `json:"extends#integrity,omitempty"`
 	Display          []Display `json:"display,omitempty"`
 	Claims           []Claim   `json:"claims,omitempty"`
+	// Category and TransactionDataTypes are EUDI TS12 v1.0.1 §4.1 members.
+	Category             string                         `json:"category,omitempty"`
+	TransactionDataTypes map[string]TransactionDataType `json:"transaction_data_types,omitempty"`
 }
 
 // Display is the display metadata of a type for one locale (§5.5).
@@ -74,6 +77,10 @@ type Metadata struct {
 	Types   []string  `json:"types"`
 	Display []Display `json:"display,omitempty"`
 	Claims  []Claim   `json:"claims,omitempty"`
+	// Category and TransactionDataTypes come from the nearest type that sets
+	// them.
+	Category             string                         `json:"category,omitempty"`
+	TransactionDataTypes map[string]TransactionDataType `json:"transaction_data_types,omitempty"`
 	// Expires is when the documents must be retrieved again (RFC 9111). It is
 	// zero when integrity metadata covers every document (§5.3.4).
 	Expires time.Time `json:"expires,omitzero"`
@@ -280,6 +287,12 @@ func merge(docs []Document, expires time.Time) (*Metadata, error) {
 		// §5.5.2: a type with its own display ignores the extended display.
 		if doc.Display != nil {
 			m.Display = doc.Display
+		}
+		if doc.Category != "" {
+			m.Category = doc.Category
+		}
+		if doc.TransactionDataTypes != nil {
+			m.TransactionDataTypes = doc.TransactionDataTypes
 		}
 		for _, claim := range doc.Claims {
 			j := pathIndex(m.Claims, claim.Path)

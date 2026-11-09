@@ -54,6 +54,8 @@ eudi wallet accept 'openid-credential-offer://...' --tx-code 123456
 | `--client-attestation`  | `false`  | Send the wallet attestation on OID4VCI token requests even when the issuer does not advertise `attest_jwt_client_auth` |
 | `--key-attestation-proof-key` | `kid` | How a jwt proof with a key attestation names its signing key: `kid` `"0"`, `jwk` or `none` |
 | `--vci-version`         | `1.0`    | OpenID4VCI feature level as a client: `1.0` or `1.1` |
+| `--transaction-data`    | `false`  | Accept `transaction_data` in presentation requests (see [transaction data](#transaction-data)) |
+| `--transaction-data-type` | None   | Accept another transaction data type besides the TS12 types. Takes effect only with `--transaction-data` (repeatable) |
 
 Pre-authorized code offers work directly with `wallet accept`. Authorization code offers require a running `wallet serve` instance. Flows with attestation-based client authentication use a client ID derived from the wallet provider key, and other flows use the wallet origin. The redirect URI defaults to the `/callback` endpoint of the wallet origin. Set fixed values with `--vci-client-id` and `--vci-redirect-uri`. The wallet uses PAR and DPoP when advertised by the issuer.
 
@@ -118,6 +120,50 @@ In interactive mode (no `--auto-accept`) the 2 caller types also behave differen
 ## Digital Credentials API
 
 A verifier page can ask for a presentation with the W3C Digital Credentials API (`navigator.credentials.get()`). The eudi-dev browser extension answers these calls with an eudi-dev wallet, so you can test a verifier without a phone. `eudi wallet browser` opens Chrome with the extension loaded. The wallet answers the request at `POST /api/dc-api`. See [browser extension](browser-extension.md) for the installation, what a test with the extension covers and the interface for other test wallets.
+
+## Transaction data
+
+A verifier can ask the wallet to authorize a transaction, such as a payment, with the `transaction_data` request parameter (OpenID4VP 1.0 §5.1). The wallet accepts it only with `--transaction-data`. The Settings dialog and `PUT /api/config/conformance` (`transaction_data`) switch it at runtime. Without it, the wallet treats the parameter as unsupported (§5). Strict mode refuses the request and debug mode logs a warning.
+
+The wallet knows the SCA transaction types of EUDI TS12 v1.0.1: `urn:eudi:sca:payment:1`, `urn:eudi:sca:login_risk_transaction:1`, `urn:eudi:sca:account_access:1` and `urn:eudi:sca:emandate:1`. `--transaction-data-type` adds more types, and `transaction_data_types` sets them at runtime.
+
+The wallet checks each entry:
+
+- it decodes to a JSON object with a known `type` and a non-empty `credential_ids` array (§5.1)
+- each entry in `credential_ids` is the id of a credential query in the DCQL query
+- the referenced queries ask for an SD-JWT VC with holder binding (§8.4, Appendix B.3.3). An mdoc query gets a finding, because no mdoc doctype defines transaction data yet (Appendix B.2.1)
+- `transaction_data_hashes_alg` contains at least one of `sha-256`, `sha-384` and `sha-512` (Appendix B.3.3.1)
+- a TS12 entry has `transaction_data_hashes_alg` and a `payload` object, and no other members (TS12 §4.2)
+- a TS12 payload matches the JSON schema of its type (TS12 §3.2 and §4.3)
+
+Strict mode refuses a request with such a finding. The error is `invalid_transaction_data`. Debug mode warns and still signs every entry that decodes, including one of an unknown type.
+
+The consent dialog shows each transaction with its type and data. For the TS12 types it also sums up the payload in one sentence, such as "Pay €12.50 to Demo Shop". The wallet binds each entry to one presentation (§5.1). It takes the first query in `credential_ids` whose credential has a Key Binding JWT, else the first answered query. The Key Binding JWT of that presentation carries `transaction_data_hashes`, a hash of each entry as received. It also carries `transaction_data_hashes_alg` when the entry lists hash algorithms. The wallet picks the first of `sha-256`, `sha-384` and `sha-512` accepted by all entries of the presentation.
+
+For a TS12 entry the Key Binding JWT also carries `jti`, `response_mode` and `amr` (TS12 §3.6). `jti` is new for each presentation. `response_mode` is the response mode of the answer. That is `direct_post` for a request without one. The wallet does not authenticate the user, so `amr` lists the factors of a typical wallet unit: `[{"knowledge":"pin_6_or_more_digits"},{"possession":"key_in_local_native_wscd"}]`.
+
+The wallet checks that the credential is an SCA Attestation (TS12 §3.2 steps 1 and 2). Its Type Metadata needs the category `urn:eu:europa:ec:eudi:sua:sca` and must list the type in `transaction_data_types`. A failed check is a warning in the activity log, in strict mode too. You can still test a payment with any SD-JWT VC, such as the PID. The demo issuer's Demo Payment Account passes the check. The demo verifier asks for it with **Demo payment account**. Its `vct` is an HTTPS URL on the demo issuer. Its Type Metadata has the SCA category and lists the four TS12 types with their claims and UI labels (TS12 §4.1). The credential carries the document's hash in `vct#integrity`. With an HTTP base URL, the `vct` uses the self-signed HTTPS issuer URL on port+1. See [ADR 0031](../adr/0031-transaction-data-is-opt-in-and-binds-to-sd-jwt.md).
+
+### Transaction templates
+
+Transaction templates are named transaction data entries (OpenID4VP 1.0 §5.1) for any presentation request. The wallet comes with one example for each TS12 type: `payment`, `login`, `account-access` and `emandate`. Open them under **Templates > Transaction templates**. A template of your own replaces the predefined one with the same name. Deleting it brings the predefined one back.
+
+**New transaction template** opens an editor with a name and a description. Its builder has a type, the hash algorithms, optional credential ids and a list of fields. For a TS12 type the fields form the `payload`, and the builder starts with the required fields of the TS12 schema. For any other type the fields sit next to `type`. A value is text or JSON, so `5` is a number and `{"name": "Demo Shop"}` is an object. **JSON** shows the whole entry. Some templates don't fit the builder and open in JSON, such as one with members next to a TS12 `payload`.
+
+The editor's command panel shows the template as a curl call, as an `eudi templates transactions import` command and as a YAML file for `--transaction-templates`. See [configuration files](config-files.md).
+
+The CLI manages the same templates:
+
+```bash
+eudi templates transactions list
+eudi templates transactions show payment
+eudi templates transactions import refund.yaml --name refund
+eudi templates transactions delete refund
+```
+
+A template needs a `type`. The wallet checks a TS12 template against the TS12 rules for an entry (TS12 §4.2 and §4.3) and shows the findings as warnings. It still saves the template. A broken entry tests how a wallet refuses it.
+
+`eudi templates transactions show` prints a template as JSON. Its `transaction_data` member is the entry. Encode it as base64url and add it to the `transaction_data` array of a request. On the demo verifier, check **Transaction data** and pick a template. A form shows the fields of its payload, and **JSON** shows the whole entry. An entry without `credential_ids` gets the query ids of the request. A TS12 entry gets a fresh `transaction_id` and the current time in `date_time`. [Demo issuer and verifier](../public-demo.md#demo-issuer-and-verifier) has the details, and [transaction templates](http-api.md#transaction-templates) has the API.
 
 ## HAIP 1.0 enforcement
 

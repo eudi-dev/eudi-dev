@@ -19,6 +19,11 @@
         text: () => 'Paste a credential offer or a presentation request link and press Process.',
       },
       {
+        target: () => byId('request-credential-btn'),
+        title: 'Request a credential',
+        text: () => 'Pick an attestation type from the attestation catalogue. The wallet asks one of its issuers for the credential without an offer. This is wallet-initiated issuance.',
+      },
+      {
         target: () => byId('issue-btn'),
         title: 'Issue a credential yourself',
         text: () => 'Issue a credential with any type, claims and signing key. Import credential adds one you already have.',
@@ -58,9 +63,9 @@
           : 'Pick debug mode to see what your issuer or verifier gets wrong, or strict mode to refuse it. You also switch HAIP and ARF checks on here.',
       },
       {
-        nav: 'templates-link',
+        nav: 'templates-menu-toggle',
         title: 'Define your own credential types',
-        text: () => 'Define a template with a type, claims and display. Then issue it with Issue credential.',
+        text: () => 'Define a credential template with a type, claims and display. Then issue it with Issue credential. Transaction templates hold transaction data for the demo verifier.',
       },
       {
         nav: 'decoder-link',

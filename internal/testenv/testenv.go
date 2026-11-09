@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -51,7 +52,13 @@ func run(m *testing.M) int {
 		return 1
 	}
 	defer os.RemoveAll(dir)
-	for name, value := range map[string]string{"HOME": dir, "USERPROFILE": dir, "EUDI_DEV_HOME": ""} {
+	// The runtime instance registry lives in the temp directory.
+	tmp := filepath.Join(dir, "tmp")
+	if err := os.Mkdir(tmp, 0o700); err != nil {
+		fmt.Fprintf(os.Stderr, "creating temporary directory: %v\n", err)
+		return 1
+	}
+	for name, value := range map[string]string{"HOME": dir, "USERPROFILE": dir, "EUDI_DEV_HOME": "", "TMPDIR": tmp} {
 		set := func() error { return os.Setenv(name, value) }
 		if value == "" {
 			set = func() error { return os.Unsetenv(name) }

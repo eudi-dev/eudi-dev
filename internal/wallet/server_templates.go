@@ -97,7 +97,14 @@ func (s *Server) handlePutTemplate(w http.ResponseWriter, r *http.Request) {
 			apierror.WriteStatusErr(w, status, err)
 			return
 		}
-		registrar.WriteCatalogError(w, err)
+		switch {
+		case errors.Is(err, credtemplate.ErrConfigured):
+			apierror.WriteStatusErr(w, http.StatusConflict, err)
+		case credtemplate.IsStorageError(err):
+			apierror.WriteStatusErr(w, http.StatusInternalServerError, err)
+		default:
+			registrar.WriteCatalogError(w, err)
+		}
 		return
 	}
 	s.templatesChanged()
@@ -118,8 +125,13 @@ func (s *Server) handleDeleteTemplate(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := s.management().DeleteTemplate(r.PathValue("name")); err != nil {
 		status := http.StatusBadRequest
-		if errors.Is(err, credtemplate.ErrNotFound) {
+		switch {
+		case errors.Is(err, credtemplate.ErrNotFound):
 			status = http.StatusNotFound
+		case errors.Is(err, credtemplate.ErrConfigured):
+			status = http.StatusConflict
+		case credtemplate.IsStorageError(err):
+			status = http.StatusInternalServerError
 		}
 		status = visitorLimitStatus(err, status)
 		apierror.WriteStatusErr(w, status, err)

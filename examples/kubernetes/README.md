@@ -2,18 +2,23 @@
 
 Runs a wallet configured only with YAML files. The files become ConfigMaps, and the wallet reads them at startup. There is no database and no persistent volume. The wallet keeps its state in memory, so a restart goes back to what the files say.
 
-Tested with kind and eudi-dev 3.6.1.
+Variants 1 and 2 need eudi-dev 3.9.0 for `EUDI_DEV_CONFIG`. Variant 3 uses the published chart, tested with 3.6.1.
 
 ## The files
 
-| Folder | Variable | Content |
-|--------|----------|---------|
-| `config/templates` | `EUDI_DEV_TEMPLATES_DIR` | The `employee-card` template and `pid-sdjwt`, which overrides the predefined EUDI PID |
-| `config/credentials` | `EUDI_DEV_CREDENTIALS` | Alice's employee card, issued from the template on every start |
-| `config/catalog` | `EUDI_DEV_CATALOG` | The employee card as an attestation type |
-| `config/relying-parties` | `EUDI_DEV_RELYING_PARTIES` | Example Shop and Example Company as verifiers |
+Each folder becomes a ConfigMap, mounted as a subdirectory of `/config`. The wallet reads all five through `EUDI_DEV_CONFIG=/config`. Each subdirectory is named after its input.
 
-The wallet runs with `EUDI_DEV_DEMO=true`, so the credentials are its baseline. The baseline PID uses the template in `config/templates/pid-sdjwt.yaml`, and a demo reset restores everything. All 3 variants below use these files.
+| Folder | Content |
+|--------|---------|
+| `config/templates` | The `employee-card` template and `pid-sdjwt`, which overrides the predefined EUDI PID |
+| `config/transaction-templates` | `shop-payment`, a TS12 payment for presentation requests |
+| `config/credentials` | Alice's employee card, issued from the template on every start |
+| `config/catalog` | The employee card as an attestation type |
+| `config/relying-parties` | Example Shop and Example Company as verifiers |
+
+The templates and transaction templates come from the files only, so the wallet shows them as "from config" and refuses to change or delete them. Each file has a [JSON Schema](../../docs/schemas) for editor completion. Run `eudi wallet serve --config examples/kubernetes/config --check` to see what the files load before you deploy them.
+
+The wallet runs with `EUDI_DEV_DEMO=true`, so the credentials are its baseline. The baseline PID uses the template in `config/templates/pid-sdjwt.yaml`, and a demo reset restores everything. All 3 variants below use these files. The published chart has no input for transaction templates yet, so variant 3 leaves them out.
 
 The image defaults to memory storage and the public seed `eudi-dev`. The seed keeps the keys the same across restarts, so certificates stay valid. Anyone can derive the same keys, so use this on test systems only.
 

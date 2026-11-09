@@ -1,0 +1,140 @@
+{
+  "$defs": {
+    "registrar.AttestationSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "attestationLoS": {
+          "type": "string"
+        },
+        "bindingType": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "rulebookURI": {
+          "type": "string"
+        },
+        "schemaURIs": {
+          "items": {
+            "$ref": "#/$defs/registrar.SchemaURI"
+          },
+          "type": "array"
+        },
+        "supportedFormats": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "trustedAuthorities": {
+          "items": {
+            "$ref": "#/$defs/registrar.TrustAuthority"
+          },
+          "type": "array"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "registrar.CatalogCredential": {
+      "additionalProperties": false,
+      "properties": {
+        "claims": {
+          "items": {
+            "items": {},
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "format": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "registrar.SchemaURI": {
+      "additionalProperties": false,
+      "properties": {
+        "formatIdentifier": {
+          "type": "string"
+        },
+        "uri": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "registrar.TrustAuthority": {
+      "additionalProperties": false,
+      "properties": {
+        "frameworkType": {
+          "type": "string"
+        },
+        "isLOTE": {
+          "type": "boolean"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "wallet.CatalogFileEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "type": "string"
+        },
+        "credentialIssuer": {
+          "type": "string"
+        },
+        "credentials": {
+          "items": {
+            "$ref": "#/$defs/registrar.CatalogCredential"
+          },
+          "type": "array"
+        },
+        "issuerCA": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "operator": {
+          "type": "boolean"
+        },
+        "removed": {
+          "type": "boolean"
+        },
+        "schema": {
+          "$ref": "#/$defs/registrar.AttestationSchema"
+        },
+        "template": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$id": "https://raw.githubusercontent.com/eudi-dev/eudi-dev/main/docs/schemas/catalog.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "A document of a --catalog file: one attestation type or a list of them.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/wallet.CatalogFileEntry"
+    },
+    {
+      "items": {
+        "$ref": "#/$defs/wallet.CatalogFileEntry"
+      },
+      "type": "array"
+    }
+  ],
+  "title": "eudi-dev catalogue entries"
+}

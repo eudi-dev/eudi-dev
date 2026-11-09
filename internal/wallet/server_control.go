@@ -60,7 +60,28 @@ func (s *Server) SetImprint(page []byte) {
 // SetOperatorRelyingParties sets the registrations from --relying-parties,
 // by their first identifier.
 func (s *Server) SetOperatorRelyingParties(identifiers []string) {
-	s.operatorRelyingParties = identifiers
+	s.operatorRelyingParties.Store(&identifiers)
+}
+
+// ApplyConfig runs apply under the store lock, as a request does, and saves
+// the wallet when apply reports a change, even together with an error. Changes
+// made before the error are already in the wallet.
+func (s *Server) ApplyConfig(apply func() (bool, error)) error {
+	var err error
+	ran := false
+	s.saveMutationThen(func() bool {
+		if err = s.reloadLocked(false); err != nil {
+			return false
+		}
+		ran = true
+		var changed bool
+		changed, err = apply()
+		return changed
+	}, nil)
+	if ran {
+		s.templatesChanged()
+	}
+	return err
 }
 
 // protectedRelyingParty reports whether visitors of the public demo may not
@@ -73,7 +94,11 @@ func (s *Server) protectedRelyingParty(rp registrar.WalletRelyingParty) bool {
 	if registrar.HasIdentifier(rp, demoIdentifier(demoIssuer)) || registrar.HasIdentifier(rp, demoIdentifier(demoVerifier)) {
 		return true
 	}
-	return slices.ContainsFunc(s.operatorRelyingParties, func(id string) bool { return registrar.HasIdentifier(rp, id) })
+	operator := s.operatorRelyingParties.Load()
+	if operator == nil {
+		return false
+	}
+	return slices.ContainsFunc(*operator, func(id string) bool { return registrar.HasIdentifier(rp, id) })
 }
 
 // protectedRelyingParties lists the registrations shown without actions in the

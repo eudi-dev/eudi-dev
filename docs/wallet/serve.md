@@ -305,6 +305,10 @@ Every flag can also be set as `EUDI_DEV_<FLAG>`, with the flag name in upper cas
 | `--catalog`             | None     | Attestation types to pre-register in the catalogue on every start, from a YAML or JSON file, a directory of such files, or stdin (`-`). See [pre-registered catalogue entries](#pre-registered-catalogue-entries) |
 | `--relying-parties`     | None     | Relying parties to register with the wallet's registrar on every start, from a YAML or JSON file, a directory of such files, or stdin (`-`). See [pre-registered relying parties](#pre-registered-relying-parties) |
 | `--templates-dir`       | `<wallet-dir>/templates/` | Credential template directory. Template files are JSON or YAML. See [template files](../templates.md#template-files-and-storage) |
+| `--templates`           | None     | Credential templates to offer, read-only, from a YAML or JSON file, a directory of such files, or stdin (`-`). A file holds one template or several. See [configuration files](config-files.md#templates-from-files) |
+| `--config`              | None     | Directory with the `templates`, `catalog`, `relying-parties` and `credentials` inputs, each as a subdirectory or a `.yaml`, `.yml` or `.json` file of that name. See [configuration files](config-files.md#one-directory-for-all-inputs) |
+| `--config-reload`       | `0`      | Read the configuration files again at this interval, such as `30s`, and apply the changed ones. `0` reads them once at startup. See [reading the files again](config-files.md#reading-the-files-again) |
+| `--check`               | `false`  | Load the configuration into a fresh wallet in memory, print what it holds and exit. See [check the files first](config-files.md#check-the-files-first) |
 | `--pid`                 | `false`  | Generate default EUDI PID credentials on start   |
 | `--key`                 | None     | Override holder key (PEM/JWK)                    |
 | `--issuer-key`          | None     | Issuer key for generated PIDs (PEM/JWK)          |
@@ -335,9 +339,11 @@ Every flag can also be set as `EUDI_DEV_<FLAG>`, with the flag name in upper cas
 | `--trusted-list`        | None     | An external list's URL, or a [list file or directory](#publishing-trusted-lists-from-files), for the [list of trusted lists](#list-of-trusted-lists) (repeatable) |
 | `--client-attestation`  | `false`  | Send the wallet attestation on OID4VCI token requests even when the issuer does not advertise `attest_jwt_client_auth` (see [wallet attestation](issuing.md#wallet-attestation)) |
 | `--key-attestation-proof-key` | `kid` | How a jwt proof with a key attestation names its signing key: `kid` sends `kid` `"0"`, the key's position in `attested_keys`, `jwk` sends the key and `none` sends neither. Change it in the Settings dialog. See [key attestation claims](#key-attestation-claims) |
+| `--transaction-data` | `false` | Accept `transaction_data` in presentation requests. Change it in the Settings dialog. See [transaction data](presenting.md#transaction-data) |
+| `--transaction-data-type` | None | Accept another transaction data type besides the TS12 types. Takes effect only with `--transaction-data` (repeatable) |
 | `--adhoc-display-images` | `false` | Fetch HTTPS display images on demand instead of storing them. The issuer sees each render. See [display images](#display-images) |
 | `--require-encrypted-request` | `false` | Refuse an unencrypted Request Object. The wallet always sends an encryption key in `wallet_metadata`, so this requires the Verifier to use it |
-| `--demo`                | `false`  | Public demo profile: implies `--pid`, `--mode debug`, `--haip`, `--arf` and `--vci-version 1.1` (all overridable), disables process and filesystem endpoints, blocks fetches to loopback and private networks unless `--allow-private-networks` is given. Browser flows keep the consent dialog unless `--auto-accept` is on the command line. API flows auto-accept (see [public demo hosting](../public-demo.md)) |
+| `--demo`                | `false`  | Public demo profile: implies `--pid`, `--mode debug`, `--haip`, `--arf`, `--vci-version 1.1` and `--transaction-data` (all overridable), disables process and filesystem endpoints, blocks fetches to loopback and private networks unless `--allow-private-networks` is given. Browser flows keep the consent dialog unless `--auto-accept` is on the command line. API flows auto-accept (see [public demo hosting](../public-demo.md)) |
 | `--demo-issuer-client-auth` | `required` | Client authentication required by the authorization server of the built-in demo issuer at its PAR and token endpoints: `required` (HAIP 1.0 §4.4.1) or `optional` (also accepts wallets without a wallet attestation). See [public demo hosting](../public-demo.md) |
 | `--demo-issuer-key-attestation` | `optional` | Key attestation required by the credential endpoint of the built-in demo issuer: `optional` (also accepts jwt proofs without a key attestation) or `required` (CIR (EU) 2024/2979 Annex Ib TR_KA-4). See [public demo hosting](../public-demo.md#demo-issuer-as-an-authorization-server) |
 | `--demo-issuer-signing-key`, `--demo-verifier-signing-key` | None | PEM file with an EC private key and its access certificate chain. It signs the demo issuer's metadata or the demo verifier's requests in place of the registrar's access certificate. See [your own access certificate](demo-issuer.md#your-own-access-certificate) |
@@ -390,7 +396,7 @@ credentials:
 
 Every start adds the entries again. Template entries get fresh dates. A credential from an earlier start with the same `id` is replaced, so the wallet holds one copy of each entry. Its revocation status resets with each start.
 
-Only one of `--credentials`, `--catalog` and `--relying-parties` can read stdin. A detached server (`-d`) can't read stdin.
+Only one of `--templates`, `--credentials`, `--catalog` and `--relying-parties` can read stdin. A detached server (`-d`) can't read stdin. [Configuration files](config-files.md) shows how the four inputs work together.
 
 With `--demo` the startup credentials are part of the baseline, so a demo reset restores them with the default PIDs. For a demo where visitors can delete every credential, set `protected: false` on the entries and turn off the default PIDs:
 
@@ -686,7 +692,7 @@ A proxied request connects only to the proxy. The proxy then connects to the des
 
 ## Conformance settings at runtime
 
-**Local wallets** can change the validation mode, HTTPS certificate verification, the HAIP and ARF checks, whether request objects must be encrypted, the [OpenID4VCI version](issuing.md#openid4vci-feature-level) and the key attestation level (see [SECURITY.md](../../SECURITY.md)) at runtime. They can also set or clear a fixed OpenID4VCI client ID. They do this in the **Settings** dialog or through `PUT /api/config/conformance`. The mdoc session transcript is set at startup. `PUT /api/config/preferred-format` changes the [preferred format](http-api.md#preferred-credential-format). Changes apply to every flow until the process restarts. `DELETE /api/config/conformance` restores startup settings.
+**Local wallets** can change the validation mode, HTTPS certificate verification, the HAIP and ARF checks, whether request objects must be encrypted, [transaction data](presenting.md#transaction-data) support and its types, the [OpenID4VCI version](issuing.md#openid4vci-feature-level) and the key attestation level (see [SECURITY.md](../../SECURITY.md)) at runtime. They can also set or clear a fixed OpenID4VCI client ID. They do this in the **Settings** dialog or through `PUT /api/config/conformance`. The mdoc session transcript is set at startup. `PUT /api/config/preferred-format` changes the [preferred format](http-api.md#preferred-credential-format). Changes apply to every flow until the process restarts. `DELETE /api/config/conformance` restores startup settings.
 
 **The public demo** runs the HAIP and ARF checks in debug mode. Violations are warnings and the flow continues. `PUT` and `DELETE /api/config/conformance` return `403`.
 

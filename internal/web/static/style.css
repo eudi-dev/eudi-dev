@@ -802,7 +802,6 @@ main {
 }
 
 .verify-btn:disabled {
-  background: var(--accent);
   opacity: 0.5;
   cursor: default;
 }

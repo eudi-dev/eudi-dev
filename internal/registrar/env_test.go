@@ -57,8 +57,9 @@ func (e *testEnv) RelyingPartyAccessCA() (*ecdsa.PrivateKey, *x509.Certificate, 
 func (e *testEnv) AccessCACRLDistributionPoints() []string {
 	return []string{"http://wallet.example/api/crl/relying-party-access-ca"}
 }
-func (e *testEnv) TemplateLocation() credtemplate.Location { return e.templates }
-func (e *testEnv) MaxRelyingParties() int                  { return e.maxRelyingParties }
+func (e *testEnv) TemplateLocation() credtemplate.Location  { return e.templates }
+func (e *testEnv) IssuedVCT(t credtemplate.Template) string { return t.VCT }
+func (e *testEnv) MaxRelyingParties() int                   { return e.maxRelyingParties }
 func (e *testEnv) TrustedListURL(category string) string {
 	return e.base + "/api/trustlists/" + category
 }

@@ -1,7 +1,8 @@
 // @ts-check
 // The YAML of a dialog's command panel is a file that wallet serve reads at
 // startup. A second wallet started with these files has the template, the
-// relying party and the catalogue entry of the first one.
+// transaction template, the relying party and the catalogue entry of the
+// first one.
 const { test, expect } = require("@playwright/test");
 const { waitForServer } = require("./helpers");
 const { execSync, spawn } = require("child_process");
@@ -16,6 +17,7 @@ const work = fs.mkdtempSync(path.join(os.tmpdir(), "eudi-config-files-e2e-"));
 const templatesDir = path.join(work, "templates");
 const catalogDir = path.join(work, "catalog");
 const partiesDir = path.join(work, "relying-parties");
+const transactionTemplatesDir = path.join(work, "transaction-templates");
 const processes = [];
 
 function serve(base, args) {
@@ -43,7 +45,7 @@ test.describe.configure({ mode: "serial" });
 test.beforeAll(async () => {
   test.setTimeout(120_000);
   execSync(`go build -o ${BINARY} ..`, { cwd: __dirname });
-  for (const dir of [templatesDir, catalogDir, partiesDir]) fs.mkdirSync(dir);
+  for (const dir of [templatesDir, catalogDir, partiesDir, transactionTemplatesDir]) fs.mkdirSync(dir);
   await serve(SOURCE, []);
 });
 
@@ -76,6 +78,7 @@ test("a credential in the wallet fills the template editor, and its YAML is the 
   });
 
   await page.goto(SOURCE);
+  await page.locator("#templates-menu-toggle").click();
   await page.locator("#templates-link").click();
   await page.locator("#template-new").click();
   await page.locator("#issue-template").selectOption(`credential:${credential.id}`);
@@ -83,9 +86,26 @@ test("a credential in the wallet fills the template editor, and its YAML is the 
   await expect(page.locator("#issue-display-name")).toHaveValue("YAML card");
   await expect(page.locator("#template-editor-name")).toHaveValue("yaml-card");
 
-  const yaml = await yamlOf(page, "issue-dialog", "yaml-card.yaml in the templates directory");
+  const yaml = await yamlOf(page, "issue-dialog", "yaml-card.yaml in the templates directory of --config");
   expect(yaml).toContain('active: "yes"');
   fs.writeFileSync(path.join(templatesDir, "yaml-card.yaml"), yaml);
+});
+
+test("the transaction template editor's YAML is a transaction template file", async ({ page }) => {
+  await page.goto(SOURCE);
+  await page.locator("#templates-menu-toggle").click();
+  await page.locator("#transaction-templates-link").click();
+  await page.locator("#transaction-template-new").click();
+  await page.locator("#transaction-template-name").fill("yaml-login");
+  await page.locator("#transaction-template-type").selectOption("urn:eudi:sca:login_risk_transaction:1");
+  // Switching to login replaces the empty payment rows with the required login fields.
+  await expect(page.locator(".transaction-template-field-name")).toHaveCount(2);
+  await expect(page.locator(".transaction-template-field-name").nth(1)).toHaveValue("action");
+  await page.locator(".transaction-template-field-value").nth(0).fill("L-1");
+  await page.locator(".transaction-template-field-value").nth(1).fill("Log in to YAML Bank.");
+  const yaml = await yamlOf(page, "transaction-template-dialog", "transaction-templates directory of --config");
+  expect(yaml).toContain("name: yaml-login");
+  fs.writeFileSync(path.join(transactionTemplatesDir, "yaml-login.yaml"), yaml);
 });
 
 test("the registrar dialog's YAML is a relying party file", async ({ page }) => {
@@ -117,14 +137,34 @@ test("the catalogue dialog's YAML is a catalogue file with its issuer CA", async
   fs.writeFileSync(path.join(catalogDir, "yaml-gym.yaml"), yaml);
 });
 
-test("a wallet started with the YAML files has the template, the relying party and the catalogue entry", async () => {
+test("a wallet started with the YAML files has the templates, the relying party and the catalogue entry", async ({ page }) => {
   test.setTimeout(60_000);
-  await serve(TARGET, ["--templates-dir", templatesDir, "--catalog", catalogDir, "--relying-parties", partiesDir]);
+  // work holds one directory per --config input: templates, transaction-templates, catalog and relying-parties.
+  await serve(TARGET, ["--config", work]);
 
   const template = (await jsonGet(`${TARGET}/api/templates/yaml-card`)).body;
   for (const field of ["format", "vct", "exp", "claims", "always_disclosed", "display"]) {
     expect(template[field]).toEqual(fromCredential[field]);
   }
+  expect(template.configured).toBe(true);
+  const deleted = await fetch(`${TARGET}/api/templates/yaml-card`, { method: "DELETE" });
+  expect(deleted.status).toBe(409);
+  await page.goto(TARGET);
+  await page.locator("#templates-menu-toggle").click();
+  await page.locator("#templates-link").click();
+  await expect(page.locator("#template-row-yaml-card-meta")).toContainText("from config");
+  await expect(page.locator("#template-edit-yaml-card")).toHaveCount(0);
+  await expect(page.locator("#template-delete-yaml-card")).toHaveCount(0);
+
+  const transaction = (await jsonGet(`${TARGET}/api/transaction-templates/yaml-login`)).body;
+  expect(transaction.configured).toBe(true);
+  expect(transaction.transaction_data.payload).toEqual({ transaction_id: "L-1", action: "Log in to YAML Bank." });
+  expect(transaction.warnings).toBeUndefined();
+  await page.locator("#template-close").click();
+  await page.locator("#templates-menu-toggle").click();
+  await page.locator("#transaction-templates-link").click();
+  await expect(page.locator("#transaction-template-row-yaml-login-meta")).toContainText("from config");
+  await expect(page.locator("#transaction-template-edit-yaml-login")).toHaveCount(0);
 
   const party = await jsonGet(`${TARGET}/api/registrar/wrp/NLTEST.00000777`);
   expect(party.status).toBe(200);

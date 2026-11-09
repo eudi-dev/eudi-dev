@@ -15,13 +15,9 @@
 package wallet
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"slices"
 	"strings"
 
-	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
 )
 
@@ -66,17 +62,8 @@ func LoadRelyingPartiesFile(path string) (*RelyingPartiesFile, error) {
 // generate must be in the file. A new intended use identifier would revoke
 // the certificates issued before the restart.
 func parseRelyingPartiesSource(name string, data []byte) ([]registrar.WalletRelyingParty, error) {
-	encoded, err := credtemplate.YAMLToJSON(data)
+	parties, err := decodeStartupItems[registrar.WalletRelyingParty](data)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", name, err)
-	}
-	if bytes.HasPrefix(encoded, []byte{'{'}) {
-		encoded = slices.Concat([]byte{'['}, encoded, []byte{']'})
-	}
-	decoder := json.NewDecoder(bytes.NewReader(encoded))
-	decoder.DisallowUnknownFields()
-	var parties []registrar.WalletRelyingParty
-	if err := decoder.Decode(&parties); err != nil {
 		return nil, fmt.Errorf("%s: expected a relying party or a list of relying parties: %w", name, err)
 	}
 	for i := range parties {

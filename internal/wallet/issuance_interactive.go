@@ -395,6 +395,9 @@ func (w *Wallet) runPresentationInteraction(endpoint string, response map[string
 	}
 
 	prepared, err := w.preparePresentation(authReq, matches)
+	if refusal, ok := asTransactionDataRefusal(err); ok {
+		return interactionErrorOutcome(w.interactionErrorResponse(authReq, oid4vp.ErrorInvalidTransactionData, refusal.Error()))
+	}
 	if err != nil {
 		return nil, fmt.Errorf("creating the presentation for interactive authorization: %w", err)
 	}

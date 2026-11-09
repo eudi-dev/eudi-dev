@@ -1,2 +1,2 @@
-image: ghcr.io/eudi-dev/eudi-dev:v3.6.1
+image: ghcr.io/eudi-dev/eudi-dev:v3.9.0
 baseURL: http://localhost:8085

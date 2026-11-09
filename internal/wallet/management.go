@@ -24,6 +24,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
 	"github.com/eudi-dev/eudi-dev/v3/internal/trustedlists"
+	"github.com/eudi-dev/eudi-dev/v3/internal/txtemplate"
 )
 
 var (
@@ -237,8 +238,8 @@ func (m *Management) ClearLog() error {
 	})
 }
 
-// Templates lists the templates. The templates that visitors can't change
-// show as predefined.
+// Templates lists the templates. Templates protected from visitors show as
+// predefined.
 func (m *Management) Templates() ([]credtemplate.Template, error) {
 	templates, err := credtemplate.List(m.wallet.Templates)
 	for i := range templates {
@@ -278,6 +279,30 @@ func (m *Management) SaveTemplate(tpl credtemplate.Template, entry *registrar.Ca
 
 func (m *Management) DeleteTemplate(name string) error {
 	return m.wallet.DeleteTemplate(name)
+}
+
+// TransactionTemplates lists the transaction templates. Templates protected
+// from visitors show as predefined.
+func (m *Management) TransactionTemplates() ([]txtemplate.Template, error) {
+	templates, err := txtemplate.List(m.wallet.TransactionTemplates)
+	for i := range templates {
+		templates[i].Predefined = templates[i].Predefined || m.wallet.TransactionTemplateFixed(templates[i])
+	}
+	return templates, err
+}
+
+func (m *Management) TransactionTemplate(name string) (txtemplate.Template, error) {
+	tpl, err := txtemplate.Load(m.wallet.TransactionTemplates, name)
+	tpl.Predefined = tpl.Predefined || m.wallet.TransactionTemplateFixed(tpl)
+	return tpl, err
+}
+
+func (m *Management) SaveTransactionTemplate(tpl txtemplate.Template) error {
+	return m.wallet.SaveTransactionTemplate(tpl)
+}
+
+func (m *Management) DeleteTransactionTemplate(name string) error {
+	return m.wallet.DeleteTransactionTemplate(name)
 }
 
 func (m *Management) TrustState() trustedlists.Summary {

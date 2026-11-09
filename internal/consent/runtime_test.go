@@ -15,6 +15,7 @@
 package consent
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -286,5 +287,16 @@ func TestCreateRefusesRequestsBeyondTheOwnerCap(t *testing.T) {
 	}
 	if err := rt.Create(NewRequest(TypePresentation, "carol")); !errors.Is(err, ErrTooManyPending) {
 		t.Errorf("request past the total cap: %v, want ErrTooManyPending", err)
+	}
+}
+
+// The consent dialog shows what the presentation authorizes (OpenID4VP 1.0
+// §8.4).
+func TestDocumentListsTransactionData(t *testing.T) {
+	req := NewRequest(TypePresentation, "")
+	req.TransactionData = []TransactionData{{Type: "urn:eudi:sca:payment:1", CredentialIDs: []string{"pid"}, Data: map[string]any{"payload": map[string]any{"transaction_id": "t1"}}}}
+	got, _ := json.Marshal(marshal(req)["transaction_data"])
+	if want := `[{"type":"urn:eudi:sca:payment:1","credential_ids":["pid"],"data":{"payload":{"transaction_id":"t1"}}}]`; string(got) != want {
+		t.Errorf("transaction_data = %s, want %s", got, want)
 	}
 }

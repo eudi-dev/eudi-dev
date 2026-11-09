@@ -123,7 +123,8 @@ func (e registrarEnv) RelyingPartyAccessCA() (*ecdsa.PrivateKey, *x509.Certifica
 func (e registrarEnv) AccessCACRLDistributionPoints() []string {
 	return e.w.Signer().CRLDistributionPoints(provider.AccessCACRLPath)
 }
-func (e registrarEnv) TemplateLocation() credtemplate.Location { return e.w.Templates }
+func (e registrarEnv) TemplateLocation() credtemplate.Location  { return e.w.Templates }
+func (e registrarEnv) IssuedVCT(t credtemplate.Template) string { return e.w.demoIssuedVCT(t) }
 func (e registrarEnv) MaxRelyingParties() int {
 	e.w.mu.RLock()
 	defer e.w.mu.RUnlock()

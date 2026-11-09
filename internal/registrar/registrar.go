@@ -75,6 +75,9 @@ type Env interface {
 	// party access CA.
 	AccessCACRLDistributionPoints() []string
 	TemplateLocation() credtemplate.Location
+	// IssuedVCT returns the vct issued by the demo issuer for an SD-JWT VC template.
+	// The template's catalogue entry lists it.
+	IssuedVCT(t credtemplate.Template) string
 	// TrustedListURL is where the wallet publishes the trusted list of a
 	// credential category.
 	TrustedListURL(category string) string

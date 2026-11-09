@@ -25,6 +25,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/httpsec"
 	"github.com/eudi-dev/eudi-dev/v3/internal/publicpath"
+	"github.com/eudi-dev/eudi-dev/v3/internal/txtemplate"
 )
 
 // DemoOptions configures the demo profile for a shared, anonymous environment
@@ -111,6 +112,7 @@ const (
 	maxDemoTrustedLists       = 5
 	maxDemoIssuedAttestations = 100
 	maxDemoTemplates          = 50
+	maxDemoTxTemplates        = 50
 	maxDemoRelyingParties     = 500
 	maxDemoCredentialBytes    = 512 << 10
 	// Each request that waits for consent holds a flow for up to
@@ -127,12 +129,13 @@ func (s *Server) SetDemo(opts DemoOptions) error {
 	s.demo = &demoState{opts: opts}
 	s.wallet.publicDemo = true
 	s.wallet.SetCapacity(Capacity{
-		Credentials:        maxDemoCredentials,
-		Deferred:           maxDemoDeferred,
-		IssuedAttestations: maxDemoIssuedAttestations,
-		Templates:          maxDemoTemplates,
-		RelyingParties:     maxDemoRelyingParties,
-		CredentialBytes:    maxDemoCredentialBytes,
+		Credentials:          maxDemoCredentials,
+		Deferred:             maxDemoDeferred,
+		IssuedAttestations:   maxDemoIssuedAttestations,
+		Templates:            maxDemoTemplates,
+		TransactionTemplates: maxDemoTxTemplates,
+		RelyingParties:       maxDemoRelyingParties,
+		CredentialBytes:      maxDemoCredentialBytes,
 	})
 	// Added providers and lists are refused when full, because each one
 	// changes what every check trusts.
@@ -376,6 +379,18 @@ func (s *Server) deleteVisitorTemplates() error {
 			continue
 		}
 		if err := credtemplate.Delete(s.wallet.Templates, t.Name); err != nil {
+			return err
+		}
+	}
+	transactions, err := txtemplate.List(s.wallet.TransactionTemplates)
+	if err != nil {
+		return err
+	}
+	for _, t := range transactions {
+		if !t.Visitor {
+			continue
+		}
+		if err := txtemplate.Delete(s.wallet.TransactionTemplates, t.Name); err != nil {
 			return err
 		}
 	}

@@ -10,7 +10,7 @@ eudi wallet serve --demo --base-url https://eudi-test.dev \
   --status-list --imprint-file imprint.html
 ```
 
-`--demo` turns on `--pid`, `--mode debug`, `--haip`, `--arf` and `--vci-version 1.1`. Explicit flags override them. For example, `--demo --vci-version 1.0` selects OpenID4VCI 1.0.
+`--demo` turns on `--pid`, `--mode debug`, `--haip`, `--arf`, `--vci-version 1.1` and `--transaction-data`. Explicit flags override them. For example, `--demo --vci-version 1.0` selects OpenID4VCI 1.0.
 
 ### Baseline and consent
 
@@ -20,7 +20,7 @@ Browser flows ask for consent. API submissions provide consent directly. A demo 
 
 ### Administrative operations
 
-The public demo returns `403` for shutdown, error injection, log clearing and changes to format, consent or conformance settings. Visitors can save templates. They can't change or delete the predefined templates or the operator's templates (those present at startup). The demo issuer, the demo verifier and the parties from `--relying-parties` are protected. Visitors can't change these registrations. They can't issue or revoke their registration certificates either. Anyone can get an access certificate for these parties. Visitors can't delete the catalogue entries of the predefined templates. The wallet fetches linked images once and stores them. This applies to images from visitors and from issuer metadata. Cards then load images only from the wallet. The demo ignores `--adhoc-display-images`. A demo keeps at most 50 visitor templates, and a reset deletes them. Configuration responses omit host paths and the process ID.
+The public demo returns `403` for shutdown, error injection, log clearing and changes to format, consent or conformance settings. Visitors can save templates. They can't change or delete the predefined templates or the operator's templates (those present at startup). The demo issuer, the demo verifier and the parties from `--relying-parties` are protected. Visitors can't change these registrations. They can't issue or revoke their registration certificates either. Anyone can get an access certificate for these parties. Visitors can't delete the catalogue entries of the predefined templates. The wallet fetches linked images from visitors and from issuer metadata once and stores them. Cards then load images only from the wallet. The demo ignores `--adhoc-display-images`. A demo keeps at most 50 visitor templates and 50 visitor transaction templates. A reset deletes them. Configuration responses omit host paths and the process ID.
 
 ### Outbound connections
 
@@ -69,13 +69,17 @@ Pages opened by the CLI or URL handler keep the supplied browser ID in `sessionS
 
 ## Demo issuer and verifier
 
-Every wallet server includes an issuer at `/issuer` and a verifier at `/verifier`. The issuer offers a Demo Event Ticket through pre-authorized and authorization code flows. The verifier requests the ticket or a PID through OpenID4VP.
+Every wallet server includes an issuer at `/issuer` and a verifier at `/verifier`. The issuer offers a Demo Event Ticket through pre-authorized and authorization code flows. It also offers a Demo Payment Account. That is an SCA Attestation of EUDI TS12 v1.0.1 for payments with transaction data. The verifier requests the ticket, a PID or the payment account through OpenID4VP.
 
 The verifier signs requests delivered from `/verifier/request/{id}` with its access certificate, identifies itself with `x509_hash:` and receives encrypted `direct_post.jwt` responses. It is registered with the wallet's registrar for the credentials of the wallet's templates and sends its registration certificate with each request. You can also send a request without the registration certificate, or with your own key, access certificate and `verifier_info`. Each request has its own encryption key and accepts one verified response. If a response fails verification, the verifier shows the failure and the request stays open. An error response (for example after Deny) also leaves it open. The verifier answers it with a `redirect_uri` back to its page, and the page shows the error. Offers and requests expire after 10 minutes and are kept only in memory.
 
-By default, a PID request accepts either an SD-JWT VC or an mdoc. The ticket is always an SD-JWT VC. With **multiple**, the wallet may send several credentials for each query, such as 2 stored PIDs.
+By default, a PID request accepts either an SD-JWT VC or an mdoc. The ticket and the payment account are always SD-JWT VCs. With **multiple**, the wallet may send several credentials for each query, such as 2 stored PIDs.
 
-**Custom** builds your own request. In the builder you pick the credentials, claims, claim sets, credential sets and the client identifier prefix. An mdoc claim is an element name in the namespace of its doctype. Its **JSON** mode shows the DCQL query and lets you edit it, for example to add claim `values`. The request sends this query unchanged. The verifier checks the response against the query. Without `claim_sets`, the verifier needs every claim. With `claim_sets`, it needs one complete claim set. Each required credential set needs one of its options.
+**Transaction data** works with every request. Check **Transaction data** and pick a template. The form shows a field for each member of the template's payload, such as the amount and the payee of a payment. A TS12 type has no field for the transaction id and the time. An entry without `credential_ids` gets the query ids of the request. A TS12 entry also gets a fresh transaction id and the current time in `date_time`. **JSON** copies the entry into an editor. There you can change anything and add entries with **+ Add template entry**. An empty field leaves its member out. The verifier base64url-encodes each entry into `transaction_data` and checks that a Key Binding JWT carries its hash. For a TS12 type it also checks `jti`, `response_mode` and `amr`. The demo wallet accepts transaction data. A local wallet needs `--transaction-data`.
+
+**Demo payment account** asks for the payment account with a payment. It checks the transaction data box and picks the payment template. The wallet accepts the payment account as an SCA Attestation, so it logs no TS12 warning.
+
+**Custom** builds your own request. In the builder you pick the credentials, claims, claim sets, credential sets and the client identifier prefix. An mdoc claim is an element name in the namespace of its doctype. Its **JSON** mode shows the DCQL query and lets you edit it, for example to add claim `values`. The request sends this query unchanged. The verifier checks the response against the query. Without `claim_sets`, the verifier needs every claim. With `claim_sets`, it needs one complete claim set. Each required credential set needs one of its options. With a payment template, **Query the payment account** replaces the builder's queries with one for the payment account. On another request it switches to **Demo payment account**.
 
 With the status list option, each ticket references a reserved index in the wallet's own status list. The wallet imports the ticket as revocable. After revocation, the demo verifier rejects the next presentation.
 
@@ -86,6 +90,8 @@ The demo starts with 4 PID credentials: the country-independent EUDI PID (`urn:e
 The PID request asks for `urn:eudi:pid:1` and the domestic PID types next to it. Both credentials match it, and the wallet presents one of them. The German PID request asks for `urn:eudi:pid:de:1`. Only the German credential matches it. See [credential type inheritance](wallet.md#credential-type-inheritance).
 
 `POST /verifier/api/requests` selects the PID type through `vct`. Any type under `urn:eudi:pid:` is accepted, including `urn:eudi:pid:fr:1`. National types request SD-JWT VC only. All PID mdocs use the doctype `eu.europa.ec.eudi.pid.1`. The doctype carries no country.
+
+`"type": "payment"` requests the payment account. `transaction_data` takes a list of entries for any `type`. The verifier encodes each one into the request.
 
 To include a ticket, set `ticket` in the same request:
 

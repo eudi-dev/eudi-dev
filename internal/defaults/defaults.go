@@ -14,8 +14,9 @@
 
 // Package defaults holds the built-in data of eudi-dev as files. They use the
 // same formats as an operator's own files: credential templates under
-// templates/, the images and portraits they reference, the credential
-// categories and the registrations of the demo issuer and demo verifier.
+// templates/, transaction data templates under transactions/, the images and
+// portraits they reference, the credential categories and the registrations
+// of the demo issuer and demo verifier.
 package defaults
 
 import (
@@ -28,7 +29,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 )
 
-//go:embed templates images portraits categories.json registrations
+//go:embed templates transactions images portraits categories.json registrations
 var files embed.FS
 
 // EmbeddedPrefix starts a reference to a file of this tree, such as

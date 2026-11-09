@@ -355,6 +355,28 @@ func (c *Client) DeleteTemplate(name string) error {
 	return c.do(http.MethodDelete, apiPath("templates", name), nil, nil)
 }
 
+func (c *Client) TransactionTemplates() ([]map[string]any, error) {
+	var out []map[string]any
+	err := c.do(http.MethodGet, apiPath("transaction-templates"), nil, &out)
+	return out, err
+}
+
+func (c *Client) TransactionTemplate(name string) (map[string]any, error) {
+	var out map[string]any
+	err := c.do(http.MethodGet, apiPath("transaction-templates", name), nil, &out)
+	return out, err
+}
+
+func (c *Client) PutTransactionTemplate(name string, doc any) (map[string]any, error) {
+	var out map[string]any
+	err := c.do(http.MethodPut, apiPath("transaction-templates", name), doc, &out)
+	return out, err
+}
+
+func (c *Client) DeleteTransactionTemplate(name string) error {
+	return c.do(http.MethodDelete, apiPath("transaction-templates", name), nil, nil)
+}
+
 // Certificate exports the remote wallet's CA or TLS certificate. kind is
 // "ca" or "tls", format is "pem" or "jwks".
 func (c *Client) Certificate(kind, format string) ([]byte, error) {

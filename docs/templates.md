@@ -2,7 +2,7 @@
 
 A credential template gives test credentials a name, type (VCT or doc type) and default claims. It can also set an expiry and claims that are always disclosed. The CLI, HTTP API and wallet UI share the same templates.
 
-The binary includes 9 predefined templates. They are ordinary template files in [`internal/defaults/templates/`](../internal/defaults/templates/), so each one also shows the format of a user template:
+The binary includes 10 predefined templates. They are ordinary template files in [`internal/defaults/templates/`](../internal/defaults/templates/), so each one also shows the format of a user template:
 
 | Name | Format | Contents |
 |------|--------|----------|
@@ -15,6 +15,7 @@ The binary includes 9 predefined templates. They are ordinary template files in 
 | `dutch-pid-sdjwt` | sdjwt | Dutch PID (`urn:eudi:pid:nl:1`), which extends the EUDI PID |
 | `dutch-pid-mdoc` | mdoc | Dutch PID (`eu.europa.ec.eudi.pid.1` plus `eu.europa.ec.eudi.pid.nl.1`) |
 | `demo-ticket` | sdjwt | The demo issuer's event ticket (`urn:eudi-test:demo-ticket:1`) |
+| `demo-payment-account` | sdjwt | A payment account. The demo issuer issues it as an SCA Attestation for [transaction data](wallet/presenting.md#transaction-data), with an HTTPS `vct`. Its catalogue entry lists that `vct` |
 
 The `pid-*` templates follow the attribute tables of the [EUDI PID Rulebook v1.7](https://github.com/eu-digital-identity-wallet/eudi-doc-attestation-rulebooks-catalog/blob/6d8f7f8422e5bf6c48186005b6835c078f762a67/rulebooks/pid/pid-rulebook.md) and use its example identity Jan Wijnand ('t Hart). The `german-pid-*` templates follow the [German PID Rulebook 1.0.0 consultation draft](https://bmi.usercontent.opencode.de/eudi-wallet/eidas-2.0-architekturkonzept/content/features/PID/german-pid-rulebook/) and use the ERIKA MUSTERMANN specimen identity. The display description of each predefined PID links to its rulebook.
 
@@ -47,13 +48,15 @@ Predefined templates are compiled into the binary as template files, together wi
 
 Each name has one file. 2 files such as `employee-card.json` and `employee-card.yaml` cause an error, and the error lists both files. The wallet saves templates as JSON. A template saved under the name of a YAML file replaces that file with a JSON file. Deleting a template deletes its file in either format.
 
-`--templates-dir` points the wallet, the issue commands, and the `templates` commands at another directory, for example a folder in your project or a container mount.
+`--templates-dir` points the wallet, the issue commands, and the `templates` commands at another directory, for example a folder in your project. The wallet saves and deletes templates there.
 
 ```bash
 eudi wallet serve --templates-dir ./my-templates
 eudi issue sdjwt --template employee-card --templates-dir ./my-templates
 eudi templates list --templates-dir ./my-templates
 ```
+
+For templates that belong to your configuration, such as a container mount, use `wallet serve --templates` instead. The wallet offers these templates read-only, and a file can hold several of them. See [configuration files](wallet/config-files.md#templates-from-files).
 
 ```json
 {
@@ -106,6 +109,7 @@ All fields except `claims` are optional:
 | `catalog` | The template's own entry in the attestation catalogue, with the fields of a catalogue request. Its category is the template's category. See [catalogue entry in a template file](#catalogue-entry-in-a-template-file) |
 | `predefined` | Set on predefined templates in listings and exports. Ignored on import |
 | `visitor` | Set on templates saved by visitors of the public demo. Visitors can change and delete these templates, and a demo reset removes them |
+| `configured` | Set on templates from `wallet serve --templates` in listings. Ignored on import |
 
 ## Claim values
 

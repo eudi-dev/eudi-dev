@@ -594,6 +594,9 @@ func (w *Wallet) discardCredentials(ids []string) {
 // The entry is added first, because the catalogue can refuse it and a stored
 // template is hard to take back when it replaced another one.
 func (w *Wallet) SaveTemplate(tpl credtemplate.Template, entry *registrar.CatalogAttestation) (string, error) {
+	if err := w.Templates.CheckChangeable(tpl.Name); err != nil {
+		return "", err
+	}
 	if err := w.checkTemplateSave(tpl); err != nil {
 		return "", err
 	}

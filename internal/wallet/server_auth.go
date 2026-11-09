@@ -372,6 +372,10 @@ func (s *Server) submitPresentation(w http.ResponseWriter, authReq *oid4vp.Reque
 	}
 
 	prepared, err := s.wallet.preparePresentation(authReq, matches)
+	if refusal, ok := asTransactionDataRefusal(err); ok {
+		s.log("  REFUSED: %v", refusal)
+		return s.submitAuthorizationError(w, authReq, "refused", oid4vp.ErrorInvalidTransactionData, refusal.Error())
+	}
 	if err != nil {
 		s.log("  ERROR: Presentation preparation failed: %v", err)
 		s.wallet.addProtocolLog("presentation", "presentation_failed", fmt.Sprintf("Presentation preparation failed: %v", err), false, map[string]any{"error": err.Error()})

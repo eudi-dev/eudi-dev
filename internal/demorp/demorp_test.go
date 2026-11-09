@@ -1205,6 +1205,13 @@ func TestVerifierRejectsInjectedDisclosure(t *testing.T) {
 
 func serveDemoStack(t *testing.T, w *wallet.Wallet) (*DemoRP, *httptest.Server) {
 	t.Helper()
+	return serveDemoStackOn(t, w, httptest.NewServer)
+}
+
+// serveDemoStackOn serves the stack with newServer, such as
+// httptest.NewTLSServer for an HTTPS origin.
+func serveDemoStackOn(t *testing.T, w *wallet.Wallet, newServer func(http.Handler) *httptest.Server) (*DemoRP, *httptest.Server) {
+	t.Helper()
 	srv := wallet.NewServer(w, 0, nil)
 
 	var base string
@@ -1218,7 +1225,7 @@ func serveDemoStack(t *testing.T, w *wallet.Wallet) (*DemoRP, *httptest.Server) 
 	d.HandleWellKnown(mux.Handle)
 	mux.Handle("/", srv.Handler())
 
-	ts := httptest.NewServer(mux)
+	ts := newServer(mux)
 	t.Cleanup(ts.Close)
 	base = ts.URL
 	w.BaseURL = ts.URL
@@ -1230,6 +1237,7 @@ func serveDemoStack(t *testing.T, w *wallet.Wallet) (*DemoRP, *httptest.Server) 
 	if w.VCIClientID == "" {
 		w.VCIClientID = ts.URL
 	}
+	w.SetDemoIssuerVCT(d.IssuedVCT)
 	// A running wallet registers the demo parties at startup, under its URL.
 	if _, err := w.RegisterMissingDemoParties(); err != nil {
 		t.Fatal(err)
@@ -2017,14 +2025,19 @@ func TestVerifierRejectsAnImpossibleFormat(t *testing.T) {
 	d, _, _ := newDemoRP(t)
 	h := d.VerifierHandler()
 
-	for _, tc := range []struct{ name, body string }{
-		{"unknown format", `{"type":"pid","format":"jwt_vc_json"}`},
-		{"mdoc ticket", `{"type":"ticket","format":"mdoc"}`},
+	for _, tc := range []struct{ name, body, want string }{
+		{"unknown format", `{"type":"pid","format":"jwt_vc_json"}`, "format"},
+		{"mdoc ticket", `{"type":"ticket","format":"mdoc"}`, "the demo ticket only exists as an SD-JWT VC"},
+		{"mdoc payment account", `{"type":"payment","format":"mdoc"}`, "the demo payment account only exists as an SD-JWT VC"},
+		{"payment account with a ticket", `{"type":"payment","ticket":"combined"}`, "ticket applies only to pid requests"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			code, doc := doJSON(t, h, "POST", "/api/requests", tc.body, map[string]string{"Content-Type": "application/json"})
 			if code != http.StatusBadRequest {
 				t.Fatalf("creating the request = %d %v, want 400", code, doc)
+			}
+			if msg, _ := doc["error_description"].(string); !strings.Contains(msg, tc.want) {
+				t.Errorf("error = %v, want it to mention %q", doc, tc.want)
 			}
 		})
 	}

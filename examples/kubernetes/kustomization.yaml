@@ -17,6 +17,9 @@ configMapGenerator:
     files:
       - config/templates/employee-card.yaml
       - config/templates/pid-sdjwt.yaml
+  - name: eudi-dev-transaction-templates
+    files:
+      - config/transaction-templates/shop-payment.yaml
   - name: eudi-dev-credentials
     files:
       - config/credentials/baseline.yaml
@@ -30,4 +33,4 @@ configMapGenerator:
 
 images:
   - name: ghcr.io/eudi-dev/eudi-dev
-    newTag: v3.6.1
+    newTag: v3.9.0

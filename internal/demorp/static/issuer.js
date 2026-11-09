@@ -288,8 +288,21 @@ document.getElementById("create-btn")
   .addEventListener("click", () => createOffer(grant, txCode, status, authorization, deferred, batch, proofTypes, credential, identity, identityCheck));
 
 const credentialSelect = document.getElementById("credential-select");
+// The payment account is an SCA Attestation (EUDI TS12 v1.0.1 §3) for
+// payments at the demo verifier.
+const PAYMENT_ACCOUNT = "demo-payment-account";
+const NEXT_STEPS = {
+  ticket: "After the wallet accepts the offer, present the ticket at the",
+  payment: "After the wallet accepts the offer, pay with the account at the",
+  other: "After the wallet accepts the offer, present the credential at the",
+};
+const CREDENTIAL_HINT = document.getElementById("credential-hint").textContent;
+const PAYMENT_ACCOUNT_HINT = "An SCA Attestation of EUDI TS12. Its Type Metadata lists the TS12 transaction types, so a wallet can confirm a payment with it.";
 credentialSelect.addEventListener("change", () => {
   credential = credentialSelect.value;
+  const payment = credential === PAYMENT_ACCOUNT;
+  document.getElementById("credential-hint").textContent = payment ? PAYMENT_ACCOUNT_HINT : CREDENTIAL_HINT;
+  document.getElementById("result-next-step").textContent = credential === "" ? NEXT_STEPS.ticket : payment ? NEXT_STEPS.payment : NEXT_STEPS.other;
   document.getElementById("result").style.display = "none";
 });
 

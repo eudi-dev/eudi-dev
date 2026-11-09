@@ -48,6 +48,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
 	"github.com/eudi-dev/eudi-dev/v3/internal/storage"
 	"github.com/eudi-dev/eudi-dev/v3/internal/trustedlists"
+	"github.com/eudi-dev/eudi-dev/v3/internal/txtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/typemetadata"
 )
 
@@ -79,6 +80,7 @@ type Wallet struct {
 	BaseURL            string
 	IssuerURL          string
 	demoIssuerURL      func() string
+	demoIssuerVCT      func(credtemplate.Template) string
 	issuerOffers       issuerOfferCache
 	// publicDemo is set on a public demo. Visitors share the wallet and the
 	// registrar.
@@ -91,7 +93,9 @@ type Wallet struct {
 	storedURLs *[2]string
 	// The zero value uses the default template directory.
 	Templates credtemplate.Location `json:"-"`
-	mu        sync.RWMutex
+	// TransactionTemplates holds the user's transaction data templates.
+	TransactionTemplates txtemplate.Location `json:"-"`
+	mu                   sync.RWMutex
 	// demoRegistrationMu serializes the demo registrations. Concurrent
 	// requests then share one certificate instead of replacing each other's.
 	demoRegistrationMu sync.Mutex
@@ -227,6 +231,10 @@ type ConformanceSettings struct {
 	RequireARF bool `json:"require_arf"`
 	// RequireEncryptedRequest rejects unencrypted request_uri responses.
 	RequireEncryptedRequest bool `json:"require_encrypted_request"`
+	// TransactionData accepts transaction_data (--transaction-data) of the
+	// TS12 types and of TransactionDataTypes (--transaction-data-type).
+	TransactionData      bool     `json:"transaction_data"`
+	TransactionDataTypes []string `json:"transaction_data_types"`
 	// Defaults to 1.0. Version 1.1 enables supported draft features when the
 	// issuer advertises them.
 	VCIVersion VCIVersion `json:"vci_version"`
@@ -263,6 +271,8 @@ type ConformancePatch struct {
 	RequireHAIP             *bool        `json:"require_haip,omitempty"`
 	RequireARF              *bool        `json:"require_arf,omitempty"`
 	RequireEncryptedRequest *bool        `json:"require_encrypted_request,omitempty"`
+	TransactionData         *bool        `json:"transaction_data,omitempty"`
+	TransactionDataTypes    *[]string    `json:"transaction_data_types,omitempty"`
 	VCIVersion              *string      `json:"vci_version,omitempty"`
 	KeyAttestationLevel     *string      `json:"key_attestation_level,omitempty"`
 	ForceClientAttestation  *bool        `json:"force_client_attestation,omitempty"`
@@ -322,10 +332,16 @@ func (w *Wallet) UpdateConformance(p ConformancePatch) error {
 		{p.RequireHAIP, &next.RequireHAIP},
 		{p.RequireARF, &next.RequireARF},
 		{p.RequireEncryptedRequest, &next.RequireEncryptedRequest},
+		{p.TransactionData, &next.TransactionData},
 		{p.ForceClientAttestation, &next.ForceClientAttestation},
 	} {
 		if field.value != nil {
 			*field.target = *field.value
+		}
+	}
+	if p.TransactionDataTypes != nil {
+		if next.TransactionDataTypes, err = ParseTransactionDataTypes(*p.TransactionDataTypes); err != nil {
+			return err
 		}
 	}
 	if p.TLSVerify.Set {
@@ -345,7 +361,13 @@ func (w *Wallet) UpdateConformance(p ConformancePatch) error {
 
 // checks returns the checks for a presentation request under these settings.
 func (c ConformanceSettings) checks() oid4vp.Checks {
-	return oid4vp.Checks{Strict: c.ValidationMode == ValidationModeStrict, HAIP: c.RequireHAIP, ARF: c.RequireARF}
+	return oid4vp.Checks{
+		Strict:               c.ValidationMode == ValidationModeStrict,
+		HAIP:                 c.RequireHAIP,
+		ARF:                  c.RequireARF,
+		TransactionData:      c.TransactionData,
+		TransactionDataTypes: c.TransactionDataTypes,
+	}
 }
 
 type StoredCredential struct {
@@ -1492,7 +1514,7 @@ func (w *Wallet) PutCredential(cred StoredCredential) {
 // wallet publishes them to every visitor. TrustSettings bounds the added
 // providers and lists.
 type Capacity struct {
-	Credentials, Deferred, IssuedAttestations, Templates int
+	Credentials, Deferred, IssuedAttestations, Templates, TransactionTemplates int
 	// RelyingParties bounds the registrar. A full registrar refuses a new
 	// registration.
 	RelyingParties int
@@ -1617,6 +1639,57 @@ func (w *Wallet) DeleteTemplate(name string) error {
 		return visitorLimit("%q is a predefined template, and the public demo can't delete it", name)
 	}
 	return credtemplate.Delete(w.Templates, name)
+}
+
+// TransactionTemplateFixed reports whether visitors can't change the
+// transaction template.
+func (w *Wallet) TransactionTemplateFixed(tpl txtemplate.Template) bool {
+	return w.visitorRules().VisitorTemplates && !tpl.Visitor
+}
+
+func (w *Wallet) transactionTemplateNameFixed(name string) bool {
+	if !w.visitorRules().VisitorTemplates {
+		return false
+	}
+	tpl, err := txtemplate.Load(w.TransactionTemplates, name)
+	return err == nil && w.TransactionTemplateFixed(tpl)
+}
+
+// SaveTransactionTemplate applies the visitor rules and the capacity, then
+// stores the template.
+func (w *Wallet) SaveTransactionTemplate(tpl txtemplate.Template) error {
+	if w.transactionTemplateNameFixed(tpl.Name) {
+		return visitorLimit("%q is a predefined transaction template, and the public demo can't change it. Save your version under another name", tpl.Name)
+	}
+	w.mu.RLock()
+	limit := w.capacity.TransactionTemplates
+	w.mu.RUnlock()
+	if limit > 0 {
+		templates, err := txtemplate.List(w.TransactionTemplates)
+		if err != nil {
+			return err
+		}
+		own := 0
+		for _, existing := range templates {
+			if existing.Visitor && existing.Name != tpl.Name {
+				own++
+			}
+		}
+		if own >= limit {
+			return visitorLimit("the public demo holds at most %d transaction templates. Delete one first", limit)
+		}
+	}
+	tpl.Visitor = w.visitorRules().VisitorTemplates
+	return txtemplate.Save(w.TransactionTemplates, tpl)
+}
+
+// DeleteTransactionTemplate removes a stored transaction template. Deleting
+// an override restores the predefined template.
+func (w *Wallet) DeleteTransactionTemplate(name string) error {
+	if w.transactionTemplateNameFixed(name) {
+		return visitorLimit("%q is a predefined transaction template, and the public demo can't delete it", name)
+	}
+	return txtemplate.Delete(w.TransactionTemplates, name)
 }
 
 // makeCredentialRoomLocked removes the oldest credentials that aren't

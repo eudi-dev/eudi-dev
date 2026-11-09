@@ -1291,10 +1291,87 @@ textarea.form-input {
   flex: 1;
   font-size: 12px;
   color: var(--text-dim);
+  overflow-wrap: anywhere;
 }
 
-#issue-add-claim {
+.transaction-template-json {
+  height: 220px;
+}
+
+
+.transaction-template-warnings {
+  margin: 10px 0 0;
+  padding: 8px 12px 8px 28px;
+  border-radius: 14px;
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+#issue-add-claim,
+#transaction-template-add-field {
   align-self: flex-start;
+}
+
+.claim-row .transaction-template-field-name {
+  flex: 1;
+}
+
+.claim-row .transaction-template-field-value {
+  flex: 2;
+}
+
+@container consent (max-width: 600px) {
+  .template-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    column-gap: 8px;
+  }
+
+  .template-row-name {
+    grid-area: 1 / 1;
+  }
+
+  .template-row-meta {
+    grid-area: 2 / 1;
+    overflow-wrap: break-word;
+  }
+
+  .template-row > .btn {
+    grid-row: 1 / span 2;
+  }
+
+  .transaction-template-field-row {
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+
+  .claim-row .transaction-template-field-name {
+    flex: 1 1 0;
+  }
+
+  .claim-row .transaction-template-field-value {
+    flex: 1 1 100%;
+    order: 1;
+  }
+}
+
+.transaction-template-type {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.transaction-template-hash-algs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+#transaction-template-mode {
+  margin: 12px 0;
 }
 
 .form-error {
@@ -1400,6 +1477,25 @@ textarea.form-input {
   padding: 12px 14px;
   margin-bottom: 12px;
   background: var(--bg-raised);
+}
+
+.consent-transaction-summary {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  overflow-wrap: anywhere;
+}
+
+.consent-transaction-type {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.consent-transaction-data {
+  margin: 8px 0 0;
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .consent-multiple-note {
@@ -3016,6 +3112,7 @@ textarea.form-input {
   margin-bottom: 4px;
 }
 .trust-section-hint {
+  margin-top: 0;
   font-size: 12px;
   color: var(--text-dim);
   margin-bottom: 8px;
@@ -3647,6 +3744,7 @@ textarea.form-input {
 }
 
 .consent-dialog.dialog-maximized .template-editor-json,
+.consent-dialog.dialog-maximized .transaction-template-json,
 .consent-dialog.dialog-maximized #issue-claims,
 .consent-dialog.dialog-maximized .import-textarea {
   height: 60vh;

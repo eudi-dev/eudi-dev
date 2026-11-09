@@ -33,6 +33,10 @@ type Checks struct {
 	Strict bool
 	HAIP   bool
 	ARF    bool
+	// TransactionData accepts transaction_data (OpenID4VP 1.0 §8.4) of the
+	// TS12 types and of TransactionDataTypes.
+	TransactionData      bool
+	TransactionDataTypes []string
 }
 
 // ValidateAuthorizationRequest adds profile checks when the checks require
@@ -79,6 +83,7 @@ func validatePresentationRequestCore(checks Checks, params *Request, payload map
 	list := append(findings.List{}, clientFindings...)
 	list = append(list, requestObjectClaimFindings(params)...)
 	list = append(list, authorizationFindings(params, payload)...)
+	list = append(list, transactionDataFindings(checks, params, payload)...)
 	var advisories findings.List
 	if advisory := unsignedRequestObjectAdvisory(reqObj); advisory.Text != "" {
 		advisories = append(advisories, advisory)
@@ -97,7 +102,7 @@ func validatePresentationRequestCore(checks Checks, params *Request, payload map
 		advisories = append(advisories, dcql.DomesticPIDAdvisories(params.DCQLQuery)...)
 	}
 
-	code := RefusalCode(params)
+	code := RefusalCode(checks, params)
 	if len(list) == 0 {
 		code = ErrorAccessDenied
 	}
@@ -158,11 +163,6 @@ func authorizationFindings(params *Request, payload map[string]any) findings.Lis
 	// Invalid format, meta or query ID fields violate §6.1. This is a request
 	// error.
 	list = append(list, dcql.QueryFindings(params.DCQLQuery)...)
-	// §5: "Wallets that do not support this parameter MUST reject requests
-	// that contain it." §8.4 repeats it.
-	if hasTransactionData(params, payload) {
-		list = append(list, findings.OID4VP.Protocol("§5").New("transaction_data is not supported by this wallet"))
-	}
 	if finding := expectedOriginsFinding(params, payload); finding.Text != "" {
 		list = append(list, finding)
 	}
@@ -220,7 +220,7 @@ func hasKnownClientIDPrefix(clientID string) bool {
 // hasTransactionData finds transaction_data in a request object,
 // a JSON request or the query parameters.
 func hasTransactionData(params *Request, payload map[string]any) bool {
-	_, inQuery := params.FullParams["transaction_data"]
+	_, inQuery := queryTransactionData(params)
 	return inQuery || payloadHasKey(payload, "transaction_data")
 }
 

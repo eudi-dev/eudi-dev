@@ -109,3 +109,9 @@ func VerifyIntegrity(document []byte, metadata string) error {
 	}
 	return fmt.Errorf("the document does not match the integrity metadata %q", metadata)
 }
+
+// Integrity is the sha256 integrity metadata of a document (SD-JWT VC §6).
+func Integrity(document []byte) string {
+	sum := sha256.Sum256(document)
+	return "sha256-" + base64.StdEncoding.EncodeToString(sum[:])
+}

@@ -1,4 +1,4 @@
-{{- range $name := list "templates" "credentials" "catalog" "relying-parties" }}
+{{- range $name := list "templates" "transaction-templates" "credentials" "catalog" "relying-parties" }}
 ---
 apiVersion: v1
 kind: ConfigMap

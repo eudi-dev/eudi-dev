@@ -16,20 +16,17 @@ spec:
               value: http://localhost:8085
             - name: EUDI_DEV_DEMO
               value: "true"
-            - name: EUDI_DEV_TEMPLATES_DIR
-              value: /config/templates
-            - name: EUDI_DEV_CREDENTIALS
-              value: /config/credentials
-            - name: EUDI_DEV_CATALOG
-              value: /config/catalog
-            - name: EUDI_DEV_RELYING_PARTIES
-              value: /config/relying-parties
+            # Each ConfigMap is a subdirectory of /config named after its input.
+            - name: EUDI_DEV_CONFIG
+              value: /config
           ports:
             - name: http
               containerPort: 8085
           volumeMounts:
             - name: templates
               mountPath: /config/templates
+            - name: transaction-templates
+              mountPath: /config/transaction-templates
             - name: credentials
               mountPath: /config/credentials
             - name: catalog
@@ -40,6 +37,9 @@ spec:
         - name: templates
           configMap:
             name: eudi-dev-templates
+        - name: transaction-templates
+          configMap:
+            name: eudi-dev-transaction-templates
         - name: credentials
           configMap:
             name: eudi-dev-credentials

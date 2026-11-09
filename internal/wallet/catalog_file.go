@@ -15,8 +15,6 @@
 package wallet
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -70,17 +68,8 @@ func LoadCatalogFile(path string) (*CatalogFile, error) {
 // parseCatalogSource reads the entries of one file and their issuer CAs. dir
 // resolves a relative IssuerCA path.
 func parseCatalogSource(name, dir string, data []byte) ([]CatalogFileEntry, error) {
-	encoded, err := credtemplate.YAMLToJSON(data)
+	entries, err := decodeStartupItems[CatalogFileEntry](data)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", name, err)
-	}
-	if bytes.HasPrefix(encoded, []byte{'{'}) {
-		encoded = slices.Concat([]byte{'['}, encoded, []byte{']'})
-	}
-	decoder := json.NewDecoder(bytes.NewReader(encoded))
-	decoder.DisallowUnknownFields()
-	var entries []CatalogFileEntry
-	if err := decoder.Decode(&entries); err != nil {
 		return nil, fmt.Errorf("%s: expected a catalogue entry or a list of entries: %w", name, err)
 	}
 	for i := range entries {

@@ -79,6 +79,9 @@ type requestState struct {
 	rawDCQL  map[string]any
 	nonce    string
 	clientID string
+	// transactionData is the transaction_data of the request. Each entry
+	// needs its hash in a Key Binding JWT.
+	transactionData []oid4vp.TransactionData
 	// interactiveEndpoint is set for a request inside an OpenID4VCI 1.1 §6
 	// exchange. The presentation is then bound to that Authorization Challenge
 	// Endpoint (Appendix A.2.5, Appendix A.3.5).
@@ -149,7 +152,7 @@ func (d *DemoRP) handleRequestObject(w http.ResponseWriter, r *http.Request) {
 }
 
 type createRequestBody struct {
-	Type string `json:"type"` // "ticket" (default), "pid", or "custom"
+	Type string `json:"type"` // "ticket" (default), "pid", "payment" or "custom"
 	// Format is "sd-jwt", "mdoc" or "both" (the default) for a PID request.
 	// The ticket exists only as an SD-JWT VC.
 	Format string `json:"format"`
@@ -182,6 +185,9 @@ type createRequestBody struct {
 	// VerifierInfo is the verifier_info array (OpenID4VP 1.0 §5.1) that goes
 	// with SigningKey. Empty sends none.
 	VerifierInfo []any `json:"verifier_info"`
+	// TransactionData are the decoded transaction_data entries of the request
+	// (OpenID4VP 1.0 §5.1). The verifier base64url-encodes each one.
+	TransactionData []map[string]any `json:"transaction_data"`
 	// Delivery "dc_api" returns the argument for navigator.credentials.get()
 	// (OpenID4VP 1.0 Appendix A). Empty or "redirect" returns the wallet URL
 	// and the openid4vp:// URI.
@@ -397,23 +403,19 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 	switch body.Type {
 	case "", "ticket":
 		body.Type = "ticket"
-		if ticketMode != "" {
-			apierror.WriteStatus(w, http.StatusBadRequest, "ticket applies only to pid requests. The request then asks for the ticket next to the PID")
-			return
-		}
-
-		wantSDJWT, _, err := normalizePIDFormat(body.Format)
-		if err != nil {
+		if err := sdJWTOnlyRequest(body.Format, ticketMode, "the demo ticket"); err != nil {
 			apierror.WriteStatusErr(w, http.StatusBadRequest, err)
-			return
-		}
-		// The ticket exists only as an SD-JWT VC.
-		if !wantSDJWT {
-			apierror.WriteStatus(w, http.StatusBadRequest, "the demo ticket only exists as an SD-JWT VC")
 			return
 		}
 		vct = TicketVCT
 		claims = d.ticketClaimNames()
+	case "payment":
+		if err := sdJWTOnlyRequest(body.Format, ticketMode, "the demo payment account"); err != nil {
+			apierror.WriteStatusErr(w, http.StatusBadRequest, err)
+			return
+		}
+		vct = d.paymentAccountVCT()
+		claims = []string{"iban"}
 	case "pid":
 		// An explicit format tests how a wallet handles a request for a format
 		// that it does not hold.
@@ -449,7 +451,7 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	default:
-		apierror.WriteStatus(w, http.StatusBadRequest, "type must be ticket or pid")
+		apierror.WriteStatus(w, http.StatusBadRequest, "type must be ticket, pid, payment or custom")
 		return
 	}
 
@@ -478,6 +480,10 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 	if docType != "" {
 		mdocID = body.Type + "_mdoc"
 		req.queries = append(req.queries, credentialQuery{id: mdocID, format: credtype.FormatMDOC, docType: docType, paths: namePaths(docType, mdocClaims), multiple: body.Multiple})
+	}
+	if req.transactionData, err = encodeTransactionData(body.TransactionData); err != nil {
+		apierror.WriteStatusErr(w, http.StatusBadRequest, err)
+		return
 	}
 	if ticketMode != "" {
 		ticketID = "ticket"
@@ -530,6 +536,22 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 	d.finalizeRequest(w, req, responseURI, base, signingKey, chain, info)
 }
 
+// sdJWTOnlyRequest checks a request for a credential that exists only as an
+// SD-JWT VC.
+func sdJWTOnlyRequest(format, ticketMode, credential string) error {
+	if ticketMode != "" {
+		return errors.New("ticket applies only to pid requests. The request then asks for the ticket next to the PID")
+	}
+	wantSDJWT, _, err := normalizePIDFormat(format)
+	if err != nil {
+		return err
+	}
+	if !wantSDJWT {
+		return fmt.Errorf("%s only exists as an SD-JWT VC", credential)
+	}
+	return nil
+}
+
 func (d *DemoRP) requestSigningMaterial(body createRequestBody) (*ecdsa.PrivateKey, []*x509.Certificate, error) {
 	if strings.TrimSpace(body.SigningKey) == "" {
 		if d.configuredVerifier != nil {
@@ -579,7 +601,7 @@ func (d *DemoRP) finalizeRequest(w http.ResponseWriter, req *requestState, respo
 		"exp":             req.expires.Unix(),
 		"client_id":       req.clientID,
 		"response_type":   "vp_token",
-		"response_mode":   "direct_post.jwt",
+		"response_mode":   req.responseMode(),
 		"response_uri":    responseURI,
 		"nonce":           req.nonce,
 		"state":           req.id,
@@ -589,11 +611,13 @@ func (d *DemoRP) finalizeRequest(w http.ResponseWriter, req *requestState, respo
 	if len(verifierInfo) > 0 {
 		claims["verifier_info"] = verifierInfo
 	}
+	if len(req.transactionData) > 0 {
+		claims["transaction_data"] = req.transactionDataParam()
+	}
 	if req.dcAPIOrigin != "" {
 		// OpenID4VP 1.0 Appendix A.2: the response goes back through the API,
 		// and a signed request lists the origins it may come from. State isn't a
 		// DC API parameter.
-		claims["response_mode"] = "dc_api.jwt"
 		claims["expected_origins"] = []string{req.dcAPIOrigin}
 		delete(claims, "response_uri")
 		delete(claims, "state")
@@ -713,6 +737,10 @@ func (d *DemoRP) createCustomRequest(w http.ResponseWriter, body createRequestBo
 	if body.DCQLQuery != nil {
 		req.queries, req.sets, req.rawDCQL = written, writtenSets, body.DCQLQuery
 	}
+	if req.transactionData, err = encodeTransactionData(body.TransactionData); err != nil {
+		apierror.WriteStatusErr(w, http.StatusBadRequest, err)
+		return
+	}
 	for i, c := range body.Credentials {
 		if body.DCQLQuery != nil {
 			break
@@ -815,26 +843,39 @@ func (d *DemoRP) deliverUnsignedRequest(w http.ResponseWriter, req *requestState
 	if req.dcAPIOrigin != "" {
 		// OpenID4VP 1.0 Appendix A.3.1: the data of an unsigned request holds
 		// the request parameters as JSON.
-		writeCreatedDCAPIRequest(w, req, dcAPIUnsigned, map[string]any{
+		data := map[string]any{
 			"response_type":   "vp_token",
-			"response_mode":   "dc_api.jwt",
+			"response_mode":   req.responseMode(),
 			"nonce":           req.nonce,
 			"dcql_query":      req.dcqlQuery(),
 			"client_metadata": responseEncryptionMetadata(req.encKey),
-		})
+		}
+		if len(req.transactionData) > 0 {
+			data["transaction_data"] = req.transactionDataParam()
+		}
+		writeCreatedDCAPIRequest(w, req, dcAPIUnsigned, data)
 		return
 	}
 
-	params := url.Values{
+	values := url.Values{
 		"client_id":       {req.clientID},
 		"response_type":   {"vp_token"},
-		"response_mode":   {"direct_post.jwt"},
+		"response_mode":   {req.responseMode()},
 		"response_uri":    {responseURI},
 		"nonce":           {req.nonce},
 		"state":           {req.id},
 		"dcql_query":      {string(dcqlJSON)},
 		"client_metadata": {string(metaJSON)},
-	}.Encode()
+	}
+	if len(req.transactionData) > 0 {
+		transactionJSON, err := json.Marshal(req.transactionDataParam())
+		if err != nil {
+			apierror.WriteStatus(w, http.StatusInternalServerError, "encoding transaction_data: "+err.Error())
+			return
+		}
+		values.Set("transaction_data", string(transactionJSON))
+	}
+	params := values.Encode()
 
 	writeCreatedRequest(w, req, base+"/authorize?"+params, "openid4vp://?"+params)
 }
@@ -1257,6 +1298,7 @@ func (d *DemoRP) verifyPresentation(req *requestState, vpToken string) (map[stri
 
 	result := map[string]any{}
 	recorded := false
+	bound := make([]bool, len(req.transactionData))
 	for _, q := range req.queries {
 		trust := d.credentialTrustFor(q)
 		presentations := tokenDoc[q.id]
@@ -1294,7 +1336,7 @@ func (d *DemoRP) verifyPresentation(req *requestState, vpToken string) (map[stri
 			if q.format == credtype.FormatMDOC {
 				claims, err = d.verifyMDOCPresentation(req, presentation, q, itemLabel, trust, log)
 			} else {
-				claims, err = d.verifySDJWTEntry(req, presentation, q, itemLabel, trust, log)
+				claims, err = d.verifySDJWTEntry(req, presentation, q, itemLabel, trust, log, bound)
 			}
 			if err != nil {
 				d.recordPresentation(req, presentation)
@@ -1314,13 +1356,19 @@ func (d *DemoRP) verifyPresentation(req *requestState, vpToken string) (map[stri
 		}
 	}
 	log.group = ""
+	if len(bound) > 0 {
+		if err := check("every transaction is authorized by a presentation", unboundTransactionData(bound)); err != nil {
+			return nil, log.entries, err
+		}
+	}
 	return result, log.entries, nil
 }
 
 // verifySDJWTEntry runs the shared credential checks and checks the requested
-// type, the key binding and the disclosed claims. The label prefix tells ticket
-// checks apart from PID checks.
-func (d *DemoRP) verifySDJWTEntry(req *requestState, presentation string, q credentialQuery, label string, trust validate.Trust, log *checklist) (map[string]any, error) {
+// type, the key binding and the disclosed claims. The label prefix tells
+// ticket checks apart from PID checks. bound marks the transaction data
+// entries with a hash in the key binding JWT.
+func (d *DemoRP) verifySDJWTEntry(req *requestState, presentation string, q credentialQuery, label string, trust validate.Trust, log *checklist, bound []bool) (map[string]any, error) {
 	check := func(name string, err error) error {
 		return log.record(label+name, err)
 	}
@@ -1424,6 +1472,17 @@ func (d *DemoRP) verifySDJWTEntry(req *requestState, presentation string, q cred
 	aud, _ := kbJWT.payload["aud"].(string)
 	if err = check("audience is this verifier", checkPresentationAudience(req, aud)); err != nil {
 		return nil, err
+	}
+	if len(req.transactionData) > 0 {
+		covered, hashErr := checkTransactionDataHashes(req.transactionData, q.id, kbJWT.payload, bound)
+		if err = check("transaction_data_hashes match the request", hashErr); err != nil {
+			return nil, err
+		}
+		if hasTS12Type(covered) {
+			if err = check("the key binding JWT carries the claims of EUDI TS12 §3.6", checkTS12Claims(kbJWT.payload, req.responseMode())); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	disclosed := disclosedClaims(token)

@@ -67,26 +67,33 @@ func TestRefusalCode(t *testing.T) {
 			RequestPayload:       payload,
 		}
 	}
+	supported := Checks{TransactionData: true}
+	payment := request("", map[string]any{"transaction_data": []any{transactionDataEntry(t, ts12Payment)}}, nil)
+	payment.DCQLQuery = transactionDataQuery
+	untyped := request("", map[string]any{"transaction_data": []any{"e30"}}, nil)
 	for _, tt := range []struct {
-		name string
-		req  *Request
-		want string
+		name   string
+		checks Checks
+		req    *Request
+		want   string
 	}{
-		{"no request", nil, ErrorInvalidRequest},
-		{"plain refusal", request("", nil, nil), ErrorInvalidRequest},
-		{"get", request("get", nil, nil), ErrorInvalidRequest},
-		{"post", request("post", nil, nil), ErrorInvalidRequest},
+		{"no request", Checks{}, nil, ErrorInvalidRequest},
+		{"plain refusal", Checks{}, request("", nil, nil), ErrorInvalidRequest},
+		{"get", Checks{}, request("get", nil, nil), ErrorInvalidRequest},
+		{"post", Checks{}, request("post", nil, nil), ErrorInvalidRequest},
 		// §8.5: get and post are case-sensitive.
-		{"upper case method", request("GET", nil, nil), ErrorInvalidRequestURIMethod},
-		{"unknown method", request("put", nil, nil), ErrorInvalidRequestURIMethod},
+		{"upper case method", Checks{}, request("GET", nil, nil), ErrorInvalidRequestURIMethod},
+		{"unknown method", Checks{}, request("put", nil, nil), ErrorInvalidRequestURIMethod},
 		// §8.5 invalid_transaction_data covers unsupported transaction data
-		// types. This wallet supports none.
-		{"transaction_data in the request object", request("", map[string]any{"transaction_data": []any{"e30"}}, nil), ErrorInvalidTransactionData},
-		{"transaction_data in the query", request("", nil, map[string]string{"transaction_data": `["e30"]`}), ErrorInvalidTransactionData},
-		{"method wins over transaction_data", request("PUT", map[string]any{"transaction_data": []any{"e30"}}, nil), ErrorInvalidRequestURIMethod},
+		// and a wallet without transaction data support.
+		{"transaction_data in the request object", Checks{}, request("", map[string]any{"transaction_data": []any{"e30"}}, nil), ErrorInvalidTransactionData},
+		{"transaction_data in the query", Checks{}, request("", nil, map[string]string{"transaction_data": `["e30"]`}), ErrorInvalidTransactionData},
+		{"method wins over transaction_data", Checks{}, request("PUT", map[string]any{"transaction_data": []any{"e30"}}, nil), ErrorInvalidRequestURIMethod},
+		{"supported transaction_data", supported, payment, ErrorInvalidRequest},
+		{"transaction_data without a type", supported, untyped, ErrorInvalidTransactionData},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := RefusalCode(tt.req); got != tt.want {
+			if got := RefusalCode(tt.checks, tt.req); got != tt.want {
 				t.Errorf("RefusalCode = %q, want %q", got, tt.want)
 			}
 		})

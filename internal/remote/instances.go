@@ -15,9 +15,12 @@
 package remote
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"net/url"
 	"os"
@@ -62,21 +65,65 @@ func instancesDir() string {
 	return filepath.Join(configBaseDir(), "instances")
 }
 
-func instanceFile(pid int) string {
-	return filepath.Join(instancesDir(), fmt.Sprintf("%d.json", pid))
+// runtimeInstancesDir is a second registry in the temp directory, one per user
+// and state directory. A container with a read-only root filesystem often has
+// a writable /tmp but no writable home registry. The CLI in the container then
+// still finds its server.
+func runtimeInstancesDir() string {
+	sum := sha256.Sum256([]byte(configBaseDir()))
+	return filepath.Join(os.TempDir(), fmt.Sprintf("eudi-dev-%d-%s", os.Getuid(), hex.EncodeToString(sum[:6])), "instances")
 }
 
-// RegisterInstance writes the file beside its final name and renames it, so
-// discovery never reads a partial entry.
-func RegisterInstance(inst Instance) error {
-	if err := os.MkdirAll(instancesDir(), 0o755); err != nil {
-		return fmt.Errorf("creating instances directory: %w", err)
+// instanceDirs lists the registries for discovery. The runtime registry counts
+// only while it is private to this user.
+func instanceDirs() []string {
+	dirs := []string{instancesDir()}
+	runtimeDir := runtimeInstancesDir()
+	if checkPrivateDir(filepath.Dir(runtimeDir)) == nil && checkPrivateDir(runtimeDir) == nil {
+		dirs = append(dirs, runtimeDir)
 	}
+	return dirs
+}
+
+func instanceFile(dir string, pid int) string {
+	return filepath.Join(dir, fmt.Sprintf("%d.json", pid))
+}
+
+// RegisterInstance records the instance in the home registry and in the
+// runtime registry. It fails only when neither takes the entry.
+func RegisterInstance(inst Instance) error {
 	data, err := json.MarshalIndent(inst, "", "  ")
 	if err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(instancesDir(), ".tmp-*")
+	homeErr := writeInstance(instancesDir(), inst.PID, data)
+	runtimeErr := registerRuntimeInstance(inst.PID, data)
+	if homeErr != nil && runtimeErr != nil {
+		return errors.Join(homeErr, runtimeErr)
+	}
+	return nil
+}
+
+func registerRuntimeInstance(pid int, data []byte) error {
+	dir := runtimeInstancesDir()
+	for _, d := range []string{filepath.Dir(dir), dir} {
+		if err := os.Mkdir(d, 0o700); err != nil && !errors.Is(err, fs.ErrExist) {
+			return fmt.Errorf("creating the runtime instances directory: %w", err)
+		}
+		if err := checkPrivateDir(d); err != nil {
+			return fmt.Errorf("the runtime instances directory: %w", err)
+		}
+	}
+	return writeInstance(dir, pid, data)
+}
+
+// writeInstance writes the file beside its final name and renames it, so
+// discovery never reads a partial entry.
+func writeInstance(dir string, pid int, data []byte) error {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("creating instances directory: %w", err)
+	}
+	tmp, err := os.CreateTemp(dir, ".tmp-*")
 	if err != nil {
 		return fmt.Errorf("creating instance file: %w", err)
 	}
@@ -88,11 +135,12 @@ func RegisterInstance(inst Instance) error {
 	if err := tmp.Close(); err != nil {
 		return fmt.Errorf("writing instance file: %w", err)
 	}
-	return os.Rename(tmp.Name(), instanceFile(inst.PID))
+	return os.Rename(tmp.Name(), instanceFile(dir, pid))
 }
 
 func UnregisterInstance(pid int) {
-	_ = os.Remove(instanceFile(pid))
+	_ = os.Remove(instanceFile(instancesDir(), pid))
+	_ = os.Remove(instanceFile(runtimeInstancesDir(), pid))
 }
 
 func (d *DiscoveredInstance) applyHealth(version map[string]any) {
@@ -142,14 +190,19 @@ func Discover(timeout time.Duration) []DiscoveredInstance {
 	var found []DiscoveredInstance
 	seenPorts := map[int]bool{}
 
-	entries, _ := os.ReadDir(instancesDir())
-	for _, entry := range entries {
-		name := entry.Name()
-		pid, err := strconv.Atoi(strings.TrimSuffix(name, ".json"))
-		if entry.IsDir() || !strings.HasSuffix(name, ".json") || err != nil {
-			continue
+	var registered []string
+	for _, dir := range instanceDirs() {
+		entries, _ := os.ReadDir(dir)
+		for _, entry := range entries {
+			name := entry.Name()
+			if _, err := strconv.Atoi(strings.TrimSuffix(name, ".json")); entry.IsDir() || !strings.HasSuffix(name, ".json") || err != nil {
+				continue
+			}
+			registered = append(registered, filepath.Join(dir, name))
 		}
-		path := filepath.Join(instancesDir(), name)
+	}
+	for _, path := range registered {
+		pid, _ := strconv.Atoi(strings.TrimSuffix(filepath.Base(path), ".json"))
 		if !processAlive(pid) {
 			_ = os.Remove(path)
 			continue

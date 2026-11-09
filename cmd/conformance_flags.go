@@ -49,6 +49,8 @@ type conformanceFlags struct {
 	haip                bool
 	arf                 bool
 	encrypted           bool
+	transactionData     bool
+	transactionTypes    []string
 	clientAttestation   bool
 	proofKey            string
 	vciVersion          string
@@ -70,6 +72,8 @@ func addConformanceFlags(cmd *cobra.Command) *conformanceFlags {
 	flags.StringArrayVar(&f.trustedLists, "trusted-list", nil, trustedListFlagUsage)
 	flags.StringVar(&f.keyAttestationLevel, "key-attestation-level", "", keyAttestationLevelFlagUsage)
 	flags.BoolVar(&f.encrypted, "require-encrypted-request", false, "Reject request objects that are not encrypted. The wallet always sends an encryption key in wallet_metadata, so this only requires the verifier to use it")
+	flags.BoolVar(&f.transactionData, "transaction-data", false, "Accept transaction_data (OpenID4VP 1.0 §5.1) of the EUDI TS12 types and of the --transaction-data-type types. The wallet shows it in the consent dialog and signs its hashes into the key binding JWT of an SD-JWT VC. In debug mode it also binds unknown types and reports them")
+	flags.StringArrayVar(&f.transactionTypes, "transaction-data-type", nil, "Accept another transaction data type besides the TS12 types. Takes effect only with --transaction-data (repeatable)")
 	flags.BoolVar(&f.clientAttestation, "client-attestation", false, "Send the wallet attestation with OpenID4VCI token requests, also when the issuer doesn't advertise attest_jwt_client_auth (advertising it is a SHOULD)")
 	flags.StringVar(&f.proofKey, "key-attestation-proof-key", string(wallet.ProofKeyKID), "How a jwt proof with a key attestation names its signing key: 'kid' sends kid \"0\", its position in attested_keys, as in the OpenID4VCI Appendix F.1 example, 'jwk' sends the key, 'none' sends neither, which Appendix F.1 does not allow")
 	flags.StringVar(&f.vciVersion, "vci-version", string(wallet.VCIVersion10), "OpenID4VCI version: '1.0' (the published version) or '1.1', which also uses features of the 1.1 draft where the issuer supports them")
@@ -90,7 +94,7 @@ func (f *conformanceFlags) changed() []string {
 	return set
 }
 
-var conformanceFlagNames = []string{"haip", "arf", "relying-party-ca", "trusted-list-ca", "trusted-list", "key-attestation-level", "require-encrypted-request", "client-attestation", "key-attestation-proof-key", "vci-version"}
+var conformanceFlagNames = []string{"haip", "arf", "relying-party-ca", "trusted-list-ca", "trusted-list", "key-attestation-level", "require-encrypted-request", "transaction-data", "transaction-data-type", "client-attestation", "key-attestation-proof-key", "vci-version"}
 
 // walletConformance holds the values of the conformance flags: settings for
 // every flow and trust inputs for the ARF checks.
@@ -120,6 +124,10 @@ func (f *conformanceFlags) resolve() (walletConformance, error) {
 	if err != nil {
 		return walletConformance{}, fmt.Errorf("--key-attestation-proof-key: %w", err)
 	}
+	transactionTypes, err := wallet.ParseTransactionDataTypes(f.transactionTypes)
+	if err != nil {
+		return walletConformance{}, fmt.Errorf("--transaction-data-type: %w", err)
+	}
 	var trust trustedlists.Settings
 	for _, list := range f.trustedLists {
 		if format.IsWebURL(list) {
@@ -146,6 +154,8 @@ func (f *conformanceFlags) resolve() (walletConformance, error) {
 			RequireHAIP:             f.haip || f.arf && !f.cmd.Flags().Changed("haip"),
 			RequireARF:              f.arf,
 			RequireEncryptedRequest: f.encrypted,
+			TransactionData:         f.transactionData,
+			TransactionDataTypes:    transactionTypes,
 			VCIVersion:              vciVersion,
 			KeyAttestationLevel:     level,
 			ForceClientAttestation:  f.clientAttestation,
@@ -231,6 +241,10 @@ func settingDifference(flag string, want walletConformance, cfg wallet.Conforman
 		return onOff(cfg.RequireARF, s.RequireARF)
 	case "--require-encrypted-request":
 		return onOff(cfg.RequireEncryptedRequest, s.RequireEncryptedRequest)
+	case "--transaction-data":
+		return onOff(cfg.TransactionData, s.TransactionData)
+	case "--transaction-data-type":
+		return value(strings.Join(cfg.TransactionDataTypes, ", "), strings.Join(s.TransactionDataTypes, ", "))
 	case "--client-attestation":
 		return onOff(cfg.ForceClientAttestation, s.ForceClientAttestation)
 	case "--key-attestation-proof-key":

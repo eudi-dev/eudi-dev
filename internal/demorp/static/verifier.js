@@ -256,6 +256,8 @@ function bindToggle(id, onSelect) {
 }
 
 bindToggle("credential-toggle", (option) => {
+  const previousIDs = queryCredentialIDs();
+  const leavesPayment = credential === "payment" && option.dataset.credential !== "payment";
   credential = option.dataset.credential;
   vct = option.dataset.vct || "";
   const showsFormat = credential === "pid" || vct !== "" || credential === "pid-ticket";
@@ -266,6 +268,10 @@ bindToggle("credential-toggle", (option) => {
   // A custom request sets multiple per credential.
   document.getElementById("multiple-row").hidden = credential === "custom";
   document.getElementById("custom-panel").hidden = credential !== "custom";
+  document.getElementById("transaction-query-payment-account").hidden = credential === "payment";
+  if (credential === "payment") selectPaymentTemplate();
+  if (leavesPayment && paymentPresetEnabled) setTransactionDataEnabled(false);
+  retargetJSONEntries(previousIDs, queryCredentialIDs());
 });
 
 // The X.509 prefixes require a signed request object (OpenID4VP 1.0 §5.9).
@@ -699,6 +705,261 @@ bindToggle("query-mode-toggle", (option) => {
   document.getElementById("query-mode-hint").textContent = QUERY_MODE_HINTS[queryMode];
 });
 
+// The transaction templates come from the wallet server.
+let transactionTemplates = [];
+
+// queryCredentialIDs are the ids of the credential queries of the request
+// (OpenID4VP 1.0 §6.1). A preset names its queries after its type.
+function queryCredentialIDs() {
+  if (credential === "ticket" || credential === "payment") return [credential];
+  // Only an SD-JWT VC carries transaction data (OpenID4VP 1.0 Appendix B.2.1).
+  // A PID request in mdoc format binds its entries to the mdoc query, and a
+  // wallet refuses them.
+  if (credential !== "custom") return pidFormat === "mdoc" ? ["pid_mdoc"] : ["pid"];
+  let query;
+  try {
+    query = queryMode === "json" ? JSON.parse(document.getElementById("dcql-json").value) : builderQuery();
+  } catch (e) {
+    return [];
+  }
+  return ((query && query.credentials) || [])
+    .filter((cred) => cred.format === "dc+sd-jwt")
+    .map((cred) => cred.id)
+    .filter((id) => typeof id === "string");
+}
+
+// The SCA transaction types of EUDI TS12 v1.0.1.
+const TS12_TYPES = new Set(["urn:eudi:sca:payment:1", "urn:eudi:sca:login_risk_transaction:1", "urn:eudi:sca:account_access:1", "urn:eudi:sca:emandate:1"]);
+const TS12_PAYMENT = "urn:eudi:sca:payment:1";
+// The page fills these members of a TS12 payload when it sends the request.
+const GENERATED_MEMBERS = new Set(["transaction_id", "date_time"]);
+
+const TRANSACTION_MODE_HINTS = {
+  form: "The verifier encodes the entry into transaction_data and checks its hash in the response. It adds the query ids. A TS12 entry also gets a fresh transaction id and the current time. A local wallet needs --transaction-data.",
+  json: "A JSON array of entries, sent as they are. Switching from the form copies its entry into the editor. A local wallet needs --transaction-data.",
+};
+let transactionMode = "form";
+
+function selectedTransactionTemplate() {
+  const name = document.getElementById("transaction-template-select").value;
+  return transactionTemplates.find((t) => t.name === name);
+}
+
+// payloadLeaves lists the strings, numbers and booleans of a payload with
+// their paths. Arrays keep the template's value.
+function payloadLeaves(value, path = []) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return [];
+  return Object.entries(value).flatMap(([key, member]) => {
+    const memberPath = [...path, key];
+    if (["string", "number", "boolean"].includes(typeof member)) return [{ path: memberPath, value: member }];
+    return payloadLeaves(member, memberPath);
+  });
+}
+
+// showTransactionFields shows an input for each payload member of the
+// selected template.
+function showTransactionFields() {
+  const template = selectedTransactionTemplate();
+  const fields = document.getElementById("transaction-fields");
+  fields.textContent = "";
+  const payload = template && template.transaction_data.payload;
+  for (const leaf of payloadLeaves(payload)) {
+    if (leaf.path.length === 1 && GENERATED_MEMBERS.has(leaf.path[0]) && TS12_TYPES.has(template.transaction_data.type)) continue;
+    const label = document.createElement("label");
+    label.className = "transaction-field";
+    const name = document.createElement("span");
+    name.textContent = leaf.path.join(".");
+    const input = document.createElement("input");
+    input.id = "transaction-field-" + leaf.path.join("-");
+    input.dataset.path = JSON.stringify(leaf.path);
+    input.dataset.kind = typeof leaf.value;
+    if (typeof leaf.value === "boolean") {
+      input.type = "checkbox";
+      input.checked = leaf.value;
+    } else {
+      input.type = typeof leaf.value === "number" ? "number" : "text";
+      if (typeof leaf.value === "number") input.step = "any";
+      input.value = String(leaf.value);
+    }
+    label.append(name, input);
+    fields.appendChild(label);
+  }
+  const payment = template && template.transaction_data.type === TS12_PAYMENT;
+  document.getElementById("transaction-payment-hint").hidden = !payment;
+}
+
+// applyTransactionFields writes the form into a payload. An empty field
+// leaves its member out.
+function applyTransactionFields(payload) {
+  for (const input of document.querySelectorAll("#transaction-fields input")) {
+    const path = JSON.parse(input.dataset.path);
+    const parent = path.slice(0, -1).reduce((node, key) => node[key], payload);
+    const key = path[path.length - 1];
+    if (input.dataset.kind === "boolean") parent[key] = input.checked;
+    else if (input.value.trim() === "") delete parent[key];
+    else parent[key] = input.dataset.kind === "number" ? Number(input.value) : input.value;
+  }
+}
+
+// freshEntry builds an entry from a template. It gets the query ids unless
+// it sets credential_ids. A TS12 entry also gets a fresh transaction id
+// (TS12 §4.3) and the current time in date_time. The form values apply
+// before the generated ones.
+function freshEntry(template, withForm) {
+  const entry = structuredClone(template.transaction_data);
+  if (!entry.credential_ids) entry.credential_ids = queryCredentialIDs();
+  const payload = entry.payload && typeof entry.payload === "object" ? entry.payload : null;
+  if (!payload) return entry;
+  if (withForm) applyTransactionFields(payload);
+  if (TS12_TYPES.has(entry.type)) {
+    payload.transaction_id = crypto.randomUUID();
+    payload.date_time = new Date().toISOString();
+  }
+  return entry;
+}
+
+// formEntry is the transaction data entry of the form.
+function formEntry() {
+  const template = selectedTransactionTemplate();
+  return template ? freshEntry(template, true) : undefined;
+}
+
+function setTransactionMode(mode) {
+  document.getElementById("transaction-mode-" + mode).click();
+}
+
+bindToggle("transaction-mode-toggle", (option) => {
+  const previous = transactionMode;
+  transactionMode = option.dataset.mode;
+  const json = transactionMode === "json";
+  if (json && previous !== "json") {
+    const entry = formEntry();
+    document.getElementById("transaction-data").value = entry ? JSON.stringify([entry], null, 2) : "[]";
+  }
+  document.getElementById("transaction-fields").hidden = json;
+  document.getElementById("transaction-json-row").hidden = !json;
+  document.getElementById("transaction-data-hint").textContent = TRANSACTION_MODE_HINTS[transactionMode];
+});
+document.getElementById("transaction-data-hint").textContent = TRANSACTION_MODE_HINTS[transactionMode];
+
+// paymentPresetEnabled is true when the payment preset turned on transaction
+// data, so leaving the preset turns it off again.
+let paymentPresetEnabled = false;
+
+function setTransactionDataEnabled(enabled) {
+  document.getElementById("transaction-enabled").checked = enabled;
+  document.getElementById("transaction-editor").hidden = !enabled;
+  paymentPresetEnabled = false;
+}
+
+document.getElementById("transaction-enabled").addEventListener("change", (e) => {
+  setTransactionDataEnabled(e.currentTarget.checked);
+});
+
+// retargetJSONEntries rebinds the JSON entries from the queries of the
+// previous request to the queries of the new one.
+function retargetJSONEntries(previousIDs, ids) {
+  if (transactionMode !== "json") return;
+  const textarea = document.getElementById("transaction-data");
+  let entries;
+  try {
+    entries = JSON.parse(textarea.value);
+  } catch (e) {
+    return;
+  }
+  if (!Array.isArray(entries)) return;
+  const previous = JSON.stringify(previousIDs);
+  let changed = false;
+  for (const entry of entries) {
+    if (entry && JSON.stringify(entry.credential_ids) === previous) {
+      entry.credential_ids = ids;
+      changed = true;
+    }
+  }
+  if (changed) textarea.value = JSON.stringify(entries, null, 2);
+}
+
+// selectPaymentTemplate turns on transaction data with the first payment
+// template for a request for the demo payment account.
+function selectPaymentTemplate() {
+  if (!document.getElementById("transaction-enabled").checked) {
+    setTransactionDataEnabled(true);
+    paymentPresetEnabled = true;
+  }
+  const template = transactionTemplates.find((t) => t.transaction_data.type === TS12_PAYMENT);
+  if (!template) return;
+  document.getElementById("transaction-template-select").value = template.name;
+  showTransactionFields();
+  const textarea = document.getElementById("transaction-data");
+  if (transactionMode === "json" && !textarea.value.trim()) textarea.value = JSON.stringify([formEntry()], null, 2);
+}
+
+// addTransactionTemplate appends an entry of the selected template to the
+// JSON editor.
+function addTransactionTemplate() {
+  const textarea = document.getElementById("transaction-data");
+  let entries = [];
+  if (textarea.value.trim()) {
+    try {
+      entries = JSON.parse(textarea.value);
+    } catch (e) {
+      renderResult({ status: "failed", error: "The transaction data is not valid JSON: " + e.message });
+      return;
+    }
+    if (!Array.isArray(entries)) entries = [entries];
+  }
+  const template = selectedTransactionTemplate();
+  if (!template) return;
+  entries.push(freshEntry(template, false));
+  textarea.value = JSON.stringify(entries, null, 2);
+}
+
+// Without templates the JSON editor is the only way to write an entry.
+function showTemplateControls(shown) {
+  document.getElementById("transaction-template-row").hidden = !shown;
+  document.getElementById("transaction-template-add").hidden = !shown;
+  if (!shown) setTransactionMode("json");
+}
+
+function loadTransactionTemplates() {
+  fetch("../api/transaction-templates")
+    .then((resp) => (resp.ok ? resp.json() : []))
+    .then((templates) => {
+      transactionTemplates = Array.isArray(templates) ? templates : [];
+      const select = document.getElementById("transaction-template-select");
+      select.textContent = "";
+      for (const template of transactionTemplates) {
+        const option = document.createElement("option");
+        option.value = template.name;
+        option.id = "transaction-template-option-" + template.name;
+        option.textContent = template.description ? template.name + ": " + template.description : template.name;
+        select.appendChild(option);
+      }
+      showTemplateControls(transactionTemplates.length > 0);
+      if (credential === "payment") selectPaymentTemplate();
+      showTransactionFields();
+    })
+    .catch(() => showTemplateControls(false));
+}
+
+document.getElementById("transaction-template-add").addEventListener("click", addTransactionTemplate);
+document.getElementById("transaction-template-select").addEventListener("change", showTransactionFields);
+// A payment binds to an SCA Attestation (TS12 §3), such as the demo payment
+// account.
+document.getElementById("transaction-query-payment-account").addEventListener("click", (e) => {
+  if (credential !== "custom") {
+    document.getElementById("credential-payment").click();
+    return;
+  }
+  const previousIDs = queryCredentialIDs();
+  document.getElementById("query-mode-builder").click();
+  document.getElementById("credentials-list").textContent = "";
+  document.getElementById("credential-sets").textContent = "";
+  addCredential({ format: "dc+sd-jwt", type: e.currentTarget.dataset.vct, claims: ["iban"] });
+  retargetJSONEntries(previousIDs, queryCredentialIDs());
+});
+loadTransactionTemplates();
+
 function customRequestBody() {
   const body = { type: "custom", client_id_scheme: clientIDScheme };
   if (queryMode === "json") {
@@ -717,6 +978,26 @@ function customRequestBody() {
   return body;
 }
 
+// transactionData is the transaction_data of the request, or undefined when
+// the request carries none.
+function transactionData() {
+  if (!document.getElementById("transaction-enabled").checked) return undefined;
+  if (transactionMode === "form") {
+    const entry = formEntry();
+    return entry ? [entry] : undefined;
+  }
+  const text = document.getElementById("transaction-data").value.trim();
+  let entries;
+  try {
+    entries = text ? JSON.parse(text) : [];
+  } catch (e) {
+    throw new Error("The transaction data is not valid JSON: " + e.message);
+  }
+  if (!Array.isArray(entries)) entries = [entries];
+  if (entries.length === 0) throw new Error("Add a transaction data entry or uncheck Transaction data.");
+  return entries;
+}
+
 document.getElementById("ticket-hint").textContent = TICKET_HINTS[ticketMode];
 bindToggle("ticket-toggle", (option) => {
   ticketMode = option.dataset.ticket;
@@ -724,7 +1005,9 @@ bindToggle("ticket-toggle", (option) => {
 });
 
 bindToggle("format-toggle", (option) => {
+  const previousIDs = queryCredentialIDs();
   pidFormat = option.dataset.format;
+  retargetJSONEntries(previousIDs, queryCredentialIDs());
   document.getElementById("format-hint").textContent = FORMAT_HINTS[pidFormat];
 });
 
@@ -804,11 +1087,11 @@ document.getElementById("create-request").addEventListener("click", async () => 
       return;
     }
   } else {
-    request = { type: credential === "ticket" ? "ticket" : "pid" };
+    request = { type: credential === "ticket" || credential === "payment" ? credential : "pid" };
     if (vct) {
       request.vct = vct;
     }
-    if (credential !== "ticket") {
+    if (credential !== "ticket" && credential !== "payment") {
       request.format = pidFormat;
     }
     if (credential === "pid-ticket") {
@@ -817,6 +1100,8 @@ document.getElementById("create-request").addEventListener("click", async () => 
     if (document.getElementById("request-multiple").checked) request.multiple = true;
   }
   try {
+    const entries = transactionData();
+    if (entries) request.transaction_data = entries;
     Object.assign(request, identityFields());
   } catch (e) {
     renderResult({ status: "failed", error: e.message });
@@ -896,6 +1181,7 @@ function restoreSelection(request) {
   if (request.type === "custom") option = "custom";
   else if (request.type === "pid" && request.ticket) option = "pid-ticket";
   else if (request.type === "pid") option = "pid";
+  else if (request.type === "payment") option = "payment";
   const national = request.vct && document.querySelector(`#credential-toggle [data-vct="${CSS.escape(request.vct)}"]`);
   const button = national || document.querySelector(`#credential-toggle [data-credential="${option}"]`);
   if (button) button.click();

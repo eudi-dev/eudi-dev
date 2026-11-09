@@ -193,6 +193,11 @@ func (s *Server) writeBrowserAuthorizationError(w http.ResponseWriter, authReq *
 
 func (s *Server) writeBrowserPresentationResult(w http.ResponseWriter, authReq *oid4vp.Request, protocol string, matches []consent.Match) consent.SubmissionResult {
 	result, prepared, err := s.buildBrowserPresentationResult(authReq, protocol, matches)
+	if refusal, ok := asTransactionDataRefusal(err); ok {
+		s.log("  REFUSED: %v", refusal)
+		s.writeBrowserAuthorizationError(w, authReq, protocol, oid4vp.ErrorInvalidTransactionData, refusal.Error(), http.StatusBadRequest)
+		return consent.SubmissionResult{Error: refusal.Error()}
+	}
 	if err != nil {
 		s.log("  ERROR: Digital Credentials API presentation failed: %v", err)
 		s.wallet.addProtocolLog("presentation", "presentation_failed", fmt.Sprintf("Digital Credentials API presentation failed: %v", err), false, map[string]any{"error": err.Error()})

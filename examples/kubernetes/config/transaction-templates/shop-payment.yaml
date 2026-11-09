@@ -1,0 +1,13 @@
+name: shop-payment
+description: A TS12 payment of 49.90 EUR to Example Shop
+transaction_data:
+  type: urn:eudi:sca:payment:1
+  transaction_data_hashes_alg: [sha-256]
+  payload:
+    transaction_id: 3F2504E0-4F89-11D3-9A0C-0305E82C3301
+    payee:
+      name: Example Shop
+      id: NL91ABNA0417164300
+      website: https://shop.example
+    currency: EUR
+    amount: 49.9

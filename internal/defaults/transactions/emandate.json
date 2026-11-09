@@ -1,0 +1,13 @@
+{
+  "description": "A TS12 e-mandate for a monthly direct debit",
+  "transaction_data": {
+    "type": "urn:eudi:sca:emandate:1",
+    "transaction_data_hashes_alg": ["sha-256"],
+    "payload": {
+      "transaction_id": "9E7D3C2B-1A0F-4B8E-A6D5-C4B3A2918F70",
+      "reference_number": "A-98765",
+      "creditor_id": "DE98ZZZ09999999999",
+      "purpose": "Pay the monthly demo subscription"
+    }
+  }
+}

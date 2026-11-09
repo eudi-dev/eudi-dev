@@ -15,6 +15,7 @@
 package credtemplate
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -33,8 +34,8 @@ const (
 
 func TestPredefinedTemplates(t *testing.T) {
 	predefined := PredefinedTemplates()
-	if len(predefined) != 9 {
-		t.Fatalf("expected 9 predefined templates, got %d", len(predefined))
+	if len(predefined) != 10 {
+		t.Fatalf("expected 10 predefined templates, got %d", len(predefined))
 	}
 
 	sdjwt, err := Load("pid-sdjwt", FileLocation(t.TempDir()))
@@ -526,5 +527,27 @@ func TestTheSavedTemplateKeepsTheSourceDisplay(t *testing.T) {
 	saved.Display.Claims["event"] = "changed"
 	if source.Display.Claims["event"] != "Event" {
 		t.Error("the saved template shares its claim labels with the source")
+	}
+}
+
+// The error for a template directory without write access points to
+// --templates.
+func TestSavingIntoAnUnwritableDirectoryPointsToTemplates(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root writes into any directory")
+	}
+	dir := t.TempDir()
+	if err := os.Chmod(dir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+
+	_, err := Save(FileLocation(dir), Template{Name: "employee", Format: "sdjwt", VCT: "urn:example:employee"})
+	var storageErr *StorageError
+	if !errors.As(err, &storageErr) {
+		t.Fatalf("Save error = %v, want a StorageError", err)
+	}
+	if !strings.Contains(err.Error(), "--templates (EUDI_DEV_TEMPLATES)") {
+		t.Errorf("Save error = %v, want the --templates hint", err)
 	}
 }

@@ -41,6 +41,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
 	"github.com/eudi-dev/eudi-dev/v3/internal/storage"
+	"github.com/eudi-dev/eudi-dev/v3/internal/txtemplate"
 )
 
 // WalletStore uses wallet.json on the file backend and separate entities under state/
@@ -198,6 +199,10 @@ func (s *WalletStore) Location() string {
 
 func (s *WalletStore) Templates() credtemplate.Location {
 	return credtemplate.Location{Store: s.backend, Prefix: s.key("templates")}
+}
+
+func (s *WalletStore) TransactionTemplates() txtemplate.Location {
+	return txtemplate.Location{Store: s.backend, Prefix: s.key("transaction-templates")}
 }
 
 func (s *WalletStore) Exists() (bool, error) {
@@ -418,6 +423,7 @@ func (s *WalletStore) load(stored *storage.Blob) (*Wallet, error) {
 	w.signers = provider.NewKeys(s.backend, s.prefix, s.seed)
 	w.runtime = s.runtime()
 	w.Templates = s.Templates()
+	w.TransactionTemplates = s.TransactionTemplates()
 	if err := w.SetCertificateAuthority(caKey, caCert); err != nil {
 		return nil, fmt.Errorf("configuring shared wallet CA: %w", err)
 	}

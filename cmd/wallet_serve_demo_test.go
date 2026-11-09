@@ -177,3 +177,15 @@ func TestTheBannerListsCredentialsLikeTheUI(t *testing.T) {
 		t.Errorf("banner lines %q, want %q", got, want)
 	}
 }
+
+func TestDemoModeAcceptsTransactionData(t *testing.T) {
+	if w := resolveServeProfile(t, []string{"--port", "0", "--demo"}); !w.TransactionData {
+		t.Error("demo did not turn on transaction data")
+	}
+	if w := resolveServeProfile(t, []string{"--port", "0", "--demo", "--transaction-data=false"}); w.TransactionData {
+		t.Error("explicit --transaction-data=false did not win over the demo default")
+	}
+	if w := resolveServeProfile(t, []string{"--port", "0"}); w.TransactionData {
+		t.Error("plain serve accepted transaction data without --transaction-data")
+	}
+}

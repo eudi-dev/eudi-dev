@@ -15,12 +15,15 @@
 package remote
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -32,6 +35,12 @@ func withTempConfigDir(t *testing.T) string {
 	prev := configBaseDir
 	configBaseDir = func() string { return dir }
 	t.Cleanup(func() { configBaseDir = prev })
+	// The runtime instance registry lives in the temp directory.
+	tmp := filepath.Join(dir, "tmp")
+	if err := os.Mkdir(tmp, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TMPDIR", tmp)
 	return dir
 }
 
@@ -111,8 +120,10 @@ func TestDiscoverIncludesActiveRemote(t *testing.T) {
 	}
 
 	live.Close()
-	if err := os.RemoveAll(instancesDir()); err != nil {
-		t.Fatal(err)
+	for _, dir := range []string{instancesDir(), runtimeInstancesDir()} {
+		if err := os.RemoveAll(dir); err != nil {
+			t.Fatal(err)
+		}
 	}
 	for _, di := range Discover(500 * time.Millisecond) {
 		if di.Source == "active" || di.URL == live.URL {
@@ -207,15 +218,15 @@ func TestDiscoverRegistryAndPrune(t *testing.T) {
 		t.Errorf("unexpected instance: %+v", registryHits[0])
 	}
 
-	if _, err := os.Stat(instanceFile(dead)); !os.IsNotExist(err) {
+	if _, err := os.Stat(instanceFile(instancesDir(), dead)); !os.IsNotExist(err) {
 		t.Error("the entry of an exited process was not pruned")
 	}
-	if _, err := os.Stat(instanceFile(self)); err != nil {
+	if _, err := os.Stat(instanceFile(instancesDir(), self)); err != nil {
 		t.Error("live instance file must remain")
 	}
 
 	UnregisterInstance(self)
-	if _, err := os.Stat(instanceFile(self)); !os.IsNotExist(err) {
+	if _, err := os.Stat(instanceFile(instancesDir(), self)); !os.IsNotExist(err) {
 		t.Error("unregister did not remove the instance file")
 	}
 }
@@ -232,7 +243,7 @@ func TestDiscoverKeepsALiveInstanceThatDoesNotAnswer(t *testing.T) {
 	if inst == nil || inst.PID != os.Getpid() {
 		t.Fatalf("InstanceForWalletDir = %+v, want the registered live process", inst)
 	}
-	if _, err := os.Stat(instanceFile(os.Getpid())); err != nil {
+	if _, err := os.Stat(instanceFile(instancesDir(), os.Getpid())); err != nil {
 		t.Fatalf("the entry of a live process was removed: %v", err)
 	}
 }
@@ -290,10 +301,90 @@ func TestDiscoverDedupesStaleRegistryFilesOnSamePort(t *testing.T) {
 	if count != 1 {
 		t.Fatalf("expected exactly one instance for the port, got %d (%v)", count, found)
 	}
-	if _, err := os.Stat(instanceFile(dead)); !os.IsNotExist(err) {
+	if _, err := os.Stat(instanceFile(instancesDir(), dead)); !os.IsNotExist(err) {
 		t.Error("stale registry file for the dead pid not pruned")
 	}
-	if _, err := os.Stat(instanceFile(self)); err != nil {
+	if _, err := os.Stat(instanceFile(instancesDir(), self)); err != nil {
 		t.Error("live instance file must remain")
 	}
+}
+
+func TestDiscoverFindsAnInstanceThroughTheRuntimeRegistryWhenTheHomeIsReadOnly(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("no runtime registry on Windows")
+	}
+	home := withTempConfigDir(t)
+	if err := os.Chmod(home, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(home, 0o700) })
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{"pid": os.Getpid()})
+	}))
+	defer server.Close()
+	port := portOf(t, server.URL)
+
+	if err := RegisterInstance(Instance{PID: os.Getpid(), Port: port, URL: server.URL, StartedAt: time.Now()}); err != nil {
+		t.Fatalf("RegisterInstance() = %v, want the runtime registry to take the entry", err)
+	}
+	if _, err := os.Stat(instanceFile(instancesDir(), os.Getpid())); err == nil {
+		t.Skip("the home is writable, as for root")
+	}
+	found := registryRows(Discover(500 * time.Millisecond))
+	if len(found) != 1 || found[0].URL != server.URL {
+		t.Fatalf("Discover() = %+v, want the instance from the runtime registry", found)
+	}
+
+	UnregisterInstance(os.Getpid())
+	if _, err := os.Stat(instanceFile(runtimeInstancesDir(), os.Getpid())); !os.IsNotExist(err) {
+		t.Errorf("the runtime entry is still there after UnregisterInstance: %v", err)
+	}
+}
+
+func TestDiscoverIgnoresARuntimeRegistryOtherUsersCanWrite(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("no runtime registry on Windows")
+	}
+	withTempConfigDir(t)
+	dir := runtimeInstancesDir()
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(filepath.Dir(dir), 0o777); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeInstance(dir, os.Getpid(), []byte(`{"pid":1,"port":1,"url":"http://127.0.0.1:1"}`)); err != nil {
+		t.Fatal(err)
+	}
+
+	if found := registryRows(Discover(200 * time.Millisecond)); len(found) != 0 {
+		t.Errorf("Discover() = %+v, want nothing from a registry other users can write", found)
+	}
+	if err := registerRuntimeInstance(os.Getpid(), []byte("{}")); err == nil {
+		t.Error("registerRuntimeInstance() wrote into a directory other users can write")
+	}
+}
+
+func portOf(t *testing.T, raw string) int {
+	t.Helper()
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	port, err := strconv.Atoi(parsed.Port())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return port
+}
+
+// registryRows leaves out servers found by the process scan on this machine.
+func registryRows(found []DiscoveredInstance) []DiscoveredInstance {
+	var rows []DiscoveredInstance
+	for _, di := range found {
+		if di.Source == "registry" {
+			rows = append(rows, di)
+		}
+	}
+	return rows
 }

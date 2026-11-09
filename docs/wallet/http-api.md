@@ -211,11 +211,13 @@ The template endpoints use the same storage backend as the `templates` CLI comma
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/templates` | List all templates (predefined and user), including claims |
+| `GET /api/templates` | List all templates (predefined, stored and from `--templates`), including claims. A template from `--templates` has `configured: true` |
 | `GET /api/templates/{name}` | Get one template |
 | `GET /api/templates/{name}/display/{field}` | The `logo` or `background_image` of a template, when it is bundled or a data URI |
 | `PUT /api/templates/{name}` | Create or replace a user template. The body is a full template document. This endpoint also imports shared templates. A `catalog` object also adds the template to the attestation catalogue (see [templates](../templates.md#attestation-catalogue)). For a template with its own `catalog` object, the object replaces that one (see [catalogue entry in a template file](../templates.md#catalogue-entry-in-a-template-file)) |
 | `DELETE /api/templates/{name}` | Delete a user template. Deleting an override of a predefined template restores the predefined version |
+
+`PUT` and `DELETE` answer `409 Conflict` for a template from `wallet serve --templates`. Its file belongs to the operator, and the error shows the file.
 
 ```bash
 curl -X PUT http://localhost:8085/api/templates/employee-card \
@@ -225,6 +227,24 @@ curl -X PUT http://localhost:8085/api/templates/employee-card \
 curl -X POST http://localhost:8085/api/issue \
   -H 'Content-Type: application/json' \
   -d '{"template": "employee-card", "claims": {"employee_id": "E-42"}}'
+```
+
+### Transaction templates
+
+Transaction templates are transaction data entries for presentation requests (see [transaction templates](presenting.md#transaction-templates)). User templates live under the wallet's `transaction-templates/` prefix. A template document has `description` and `transaction_data`. The responses add `name` and `predefined`. They add `configured` for a template from `--transaction-templates` and `warnings` for a TS12 entry with findings. A configured template can't be changed or deleted, and the API answers 409.
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/transaction-templates` | List all transaction templates (predefined and user) |
+| `GET /api/transaction-templates/{name}` | Get one transaction template |
+| `PUT /api/transaction-templates/{name}` | Create or replace a user template. `transaction_data` must be an object with a `type` |
+| `DELETE /api/transaction-templates/{name}` | Delete a user template. Deleting an override of a predefined template restores the predefined version |
+| `GET /api/transaction-data-types` | List the transaction data types for the editor: the TS12 types with the payload fields of their schema, and the types of `--transaction-data-type`. `hash_algs` lists the supported hash algorithms |
+
+```bash
+curl -X PUT http://localhost:8085/api/transaction-templates/refund \
+  -H 'Content-Type: application/json' \
+  -d '{"description": "A refund", "transaction_data": {"type": "urn:eudi:sca:payment:1", "transaction_data_hashes_alg": ["sha-256"], "payload": {"transaction_id": "R-1", "payee": {"name": "Demo Shop", "id": "DE89370400440532013000"}, "currency": "EUR", "amount": 5}}}'
 ```
 
 ### Certificate export
@@ -730,13 +750,13 @@ Discovery includes local instances and the active remote target. A responding re
 
 `GET /api/config` reports the instance version, build, serving URLs, wallet settings and credential count. It identifies the [storage backend](../wallet.md#storage-backends) and whether generated keys use a [seed](../wallet.md#seeded-keys).
 
-The response includes `port`, `build_id`, `version`, `storage`, `seeded_keys`, `attestation_client_id`, `base_url`, `issuer_url`, `status_list_url`, `preferred_format`, `key_attestation_level`, `tls_verify`, `tls_verify_override`, `validation_mode`, `vci_version`, `auto_accept`, `session_transcript`, `vci_client_id`, `require_haip`, `require_arf`, `require_encrypted_request`, `force_client_attestation`, `key_attestation_proof_key`, `adhoc_display_images`, `tls_listener`, `imprint`, `credential_count`, `form_defaults`, `protected_relying_parties` and `news_id`.
+The response includes `port`, `build_id`, `version`, `storage`, `seeded_keys`, `attestation_client_id`, `base_url`, `issuer_url`, `status_list_url`, `preferred_format`, `key_attestation_level`, `tls_verify`, `tls_verify_override`, `validation_mode`, `vci_version`, `auto_accept`, `session_transcript`, `vci_client_id`, `require_haip`, `require_arf`, `require_encrypted_request`, `force_client_attestation`, `key_attestation_proof_key`, `transaction_data`, `transaction_data_types`, `adhoc_display_images`, `tls_listener`, `imprint`, `credential_count`, `form_defaults`, `protected_relying_parties` and `news_id`.
 
 `form_defaults` holds the limits and defaults of the UI forms. `protected_relying_parties` lists the registrations that visitors can't change. On the public demo these are the demo issuer, the demo verifier and the parties from `--relying-parties`. Otherwise the list is empty. `news_id` identifies the current news of the public demo (empty without `--news-file`).
 
 Local instances also report `pid`, `wallet_dir` and `templates_dir`. The public demo hides those fields and adds a `demo` object. Its `consent_api` is `true` with `--demo-consent-api`. `POST /api/shutdown` sends its response before stopping the instance. Requests in flight finish first, like on Ctrl-C.
 
-`PUT /api/config/conformance` changes the settings given in its body. It takes the setting names reported by `GET /api/config`: `validation_mode`, `require_haip`, `require_arf`, `require_encrypted_request`, `vci_version`, `key_attestation_level`, `force_client_attestation`, `key_attestation_proof_key`, `tls_verify_override` and `vci_client_id`. It refuses any other name. With an empty `vci_client_id`, flows with client attestation use the client ID derived from the wallet provider key. It accepts these values for `tls_verify_override`:
+`PUT /api/config/conformance` changes the settings given in its body. It takes the setting names reported by `GET /api/config`: `validation_mode`, `require_haip`, `require_arf`, `require_encrypted_request`, `vci_version`, `key_attestation_level`, `force_client_attestation`, `key_attestation_proof_key`, `transaction_data`, `transaction_data_types`, `tls_verify_override` and `vci_client_id`. It refuses any other name. With an empty `vci_client_id`, flows with client attestation use the client ID derived from the wallet provider key. It accepts these values for `tls_verify_override`:
 
 | Value | HTTPS certificate verification |
 |---|---|

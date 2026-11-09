@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -51,8 +52,9 @@ type VPTokenResult struct {
 
 // createVPToken builds one presentation. mdocNonce is the mdoc generated nonce
 // shared by the whole response (ISO 18013-7). When it is empty, an mdoc
-// presentation generates its own nonce.
-func (w *Wallet) createVPToken(match consent.Match, params *oid4vp.Request, mdocNonce string) (VPTokenResult, error) {
+// presentation generates its own nonce. The presentation authorizes the
+// transaction data entries passed as transactions.
+func (w *Wallet) createVPToken(match consent.Match, params *oid4vp.Request, mdocNonce string, transactions []oid4vp.TransactionData) (VPTokenResult, error) {
 	cred, ok := w.GetCredential(match.CredentialID)
 	if !ok {
 		return VPTokenResult{}, fmt.Errorf("credential %s not found", match.CredentialID)
@@ -85,10 +87,15 @@ func (w *Wallet) createVPToken(match consent.Match, params *oid4vp.Request, mdoc
 	}
 	w.warnFindings("presentation", "undisclosed_claims", subjectPresentation, "The presentation does not disclose every requested claim as asked", undisclosed, nil)
 
+	transactionClaims, err := w.transactionDataClaims(cred, transactions, answerResponseMode(params))
+	if err != nil {
+		return VPTokenResult{}, err
+	}
+
 	switch cred.Format {
 	case credtype.FormatSDJWT:
 		audience := sdJWTAudience(params)
-		token, err := w.createSDJWTPresentation(cred, match.SelectedKeys, params.Nonce, audience, signingKey)
+		token, err := w.createSDJWTPresentation(cred, match.SelectedKeys, params.Nonce, audience, signingKey, transactionClaims)
 		if err != nil {
 			return VPTokenResult{}, err
 		}
@@ -155,7 +162,9 @@ func interactiveAuthorizationAudience(endpoint string) string {
 	return "ia:" + endpoint
 }
 
-func (w *Wallet) createSDJWTPresentation(cred StoredCredential, selectedKeys []string, nonce, clientID string, signingKey *ecdsa.PrivateKey) (string, error) {
+// createSDJWTPresentation adds extraClaims, such as transaction data hashes,
+// to the KB-JWT.
+func (w *Wallet) createSDJWTPresentation(cred StoredCredential, selectedKeys []string, nonce, clientID string, signingKey *ecdsa.PrivateKey, extraClaims map[string]any) (string, error) {
 	parts := strings.Split(cred.Raw, "~")
 	if len(parts) < 1 {
 		return "", fmt.Errorf("invalid SD-JWT format")
@@ -209,7 +218,7 @@ func (w *Wallet) createSDJWTPresentation(cred StoredCredential, selectedKeys []s
 		return "", fmt.Errorf("computing sd_hash: %w", err)
 	}
 
-	kbJWT, err := w.createKBJWT(nonce, clientID, sdHashB64, signingKey)
+	kbJWT, err := w.createKBJWT(nonce, clientID, sdHashB64, signingKey, extraClaims)
 	if err != nil {
 		return "", fmt.Errorf("creating KB-JWT: %w", err)
 	}
@@ -217,7 +226,7 @@ func (w *Wallet) createSDJWTPresentation(cred StoredCredential, selectedKeys []s
 	return withoutKB + kbJWT, nil
 }
 
-func (w *Wallet) createKBJWT(nonce, audience, sdHash string, signingKey *ecdsa.PrivateKey) (string, error) {
+func (w *Wallet) createKBJWT(nonce, audience, sdHash string, signingKey *ecdsa.PrivateKey, extraClaims map[string]any) (string, error) {
 	header := map[string]any{
 		"alg": jws.AlgES256,
 		"typ": sdjwt.TypeKeyBinding,
@@ -229,6 +238,7 @@ func (w *Wallet) createKBJWT(nonce, audience, sdHash string, signingKey *ecdsa.P
 		"nonce":   nonce,
 		"sd_hash": sdHash,
 	}
+	maps.Copy(payload, extraClaims)
 
 	return signJWT(header, payload, signingKey)
 }
@@ -260,7 +270,12 @@ func (w *Wallet) createVPTokenMap(matches []consent.Match, params *oid4vp.Reques
 		}
 	}
 
-	for _, match := range matches {
+	transactions, err := w.bindTransactionData(params, matches)
+	if err != nil {
+		return nil, err
+	}
+
+	for i, match := range matches {
 		// The mdoc path logs its own warning for a missing deviceKey.
 		if match.Unbound && match.Format != credtype.FormatMDOC {
 			finding := findings.OID4VP.Protocol("§6.1").Newf("credential %s has no holder binding, and query %s requires one. Debug mode presents it without key binding", credTypeLabel(match), match.QueryID)
@@ -277,7 +292,7 @@ func (w *Wallet) createVPTokenMap(matches []consent.Match, params *oid4vp.Reques
 				map[string]any{"credential_id": match.CredentialID, "query_id": match.QueryID})
 			params.Findings = append(params.Findings, finding)
 		}
-		tokenResult, err := w.createVPToken(match, params, mdocNonce)
+		tokenResult, err := w.createVPToken(match, params, mdocNonce, transactions[i])
 		if err != nil {
 			return nil, fmt.Errorf("creating VP token for %s: %w", match.QueryID, err)
 		}
@@ -351,10 +366,7 @@ func (w *Wallet) buildAuthorizationResponse(vpResult *VPTokenMapResult, idToken,
 		mdocNonce = vpResult.MDocNonce
 	}
 
-	responseMode := params.ResponseMode
-	if responseMode == "" {
-		responseMode = "direct_post"
-	}
+	responseMode := answerResponseMode(params)
 
 	plain := buildPlainAuthorizationResponse(vpToken, idToken, state)
 
@@ -394,14 +406,20 @@ func (w *Wallet) buildAuthorizationResponse(vpResult *VPTokenMapResult, idToken,
 	}
 }
 
+// answerResponseMode is the response mode of the answer. A request without
+// response_mode gets a direct_post answer.
+func answerResponseMode(params *oid4vp.Request) string {
+	if params.ResponseMode == "" {
+		return "direct_post"
+	}
+	return params.ResponseMode
+}
+
 // RFC 6749 §4.2.2 puts the response in the fragment of the redirect URI.
 var errFragmentWithoutRedirect = errors.New("response_mode fragment needs a redirect_uri")
 
 func (w *Wallet) buildAuthorizationErrorResponse(errorCode, errorDescription, state string, params *oid4vp.Request) (*oid4vp.AuthorizationResponseEnvelope, error) {
-	responseMode := params.ResponseMode
-	if responseMode == "" {
-		responseMode = "direct_post"
-	}
+	responseMode := answerResponseMode(params)
 
 	// A Digital Credentials API error is never encrypted, whatever the response
 	// mode. Appendix A.4 returns it "as an object within the data property". The

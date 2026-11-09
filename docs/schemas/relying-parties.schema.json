@@ -1,0 +1,244 @@
+{
+  "$defs": {
+    "registrar.Identifier": {
+      "additionalProperties": false,
+      "properties": {
+        "identifier": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "registrar.IntendedUse": {
+      "additionalProperties": false,
+      "properties": {
+        "createdAt": {
+          "type": "string"
+        },
+        "credentials": {
+          "items": {
+            "$ref": "#/$defs/registrar.RegisteredCredential"
+          },
+          "type": "array"
+        },
+        "intendedUseIdentifier": {
+          "type": "string"
+        },
+        "privacyPolicy": {
+          "items": {
+            "$ref": "#/$defs/registrar.Policy"
+          },
+          "type": "array"
+        },
+        "purpose": {
+          "items": {
+            "$ref": "#/$defs/registrar.MultiLangString"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "registrar.LegalPerson": {
+      "additionalProperties": false,
+      "properties": {
+        "legalName": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "registrar.MultiLangString": {
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "lang": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "registrar.Policy": {
+      "additionalProperties": false,
+      "properties": {
+        "policyURI": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "registrar.ProvidedAttestation": {
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "registrar.RegisteredClaim": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "items": {},
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "registrar.RegisteredCredential": {
+      "additionalProperties": false,
+      "properties": {
+        "claims": {
+          "items": {
+            "$ref": "#/$defs/registrar.RegisteredClaim"
+          },
+          "type": "array"
+        },
+        "format": {
+          "type": "string"
+        },
+        "meta": {
+          "additionalProperties": {},
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "registrar.SupervisoryAuthority": {
+      "additionalProperties": false,
+      "properties": {
+        "country": {
+          "type": "string"
+        },
+        "email": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "formURI": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        },
+        "phone": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "registrar.WalletRelyingParty": {
+      "additionalProperties": false,
+      "properties": {
+        "country": {
+          "type": "string"
+        },
+        "identifier": {
+          "items": {
+            "$ref": "#/$defs/registrar.Identifier"
+          },
+          "type": "array"
+        },
+        "isPSB": {
+          "type": "boolean"
+        },
+        "legalPerson": {
+          "$ref": "#/$defs/registrar.LegalPerson"
+        },
+        "registryURI": {
+          "type": "string"
+        },
+        "services": {
+          "items": {
+            "$ref": "#/$defs/registrar.WalletRelyingPartyService"
+          },
+          "type": "array"
+        },
+        "supervisoryAuthority": {
+          "$ref": "#/$defs/registrar.SupervisoryAuthority"
+        },
+        "tradeName": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "registrar.WalletRelyingPartyService": {
+      "additionalProperties": false,
+      "properties": {
+        "credentialIssuer": {
+          "type": "string"
+        },
+        "entitlements": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "intendedUses": {
+          "items": {
+            "$ref": "#/$defs/registrar.IntendedUse"
+          },
+          "type": "array"
+        },
+        "isIntermediary": {
+          "type": "boolean"
+        },
+        "providesAttestations": {
+          "items": {
+            "$ref": "#/$defs/registrar.ProvidedAttestation"
+          },
+          "type": "array"
+        },
+        "serviceIdentifier": {
+          "type": "string"
+        },
+        "serviceTradeName": {
+          "type": "string"
+        },
+        "srvDescription": {},
+        "supportURI": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$id": "https://raw.githubusercontent.com/eudi-dev/eudi-dev/main/docs/schemas/relying-parties.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "A document of a --relying-parties file: one relying party registration or a list of them.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/registrar.WalletRelyingParty"
+    },
+    {
+      "items": {
+        "$ref": "#/$defs/registrar.WalletRelyingParty"
+      },
+      "type": "array"
+    }
+  ],
+  "title": "eudi-dev relying parties"
+}

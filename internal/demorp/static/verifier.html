@@ -89,10 +89,20 @@
     #custom-panel { margin-bottom: 18px; }
     .cred { border-radius: 16px; padding: 14px; margin-bottom: 10px; background: var(--bg-raised); }
     .cred-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
-    .cred input[type="text"], #client-id-input, textarea {
+    .cred input[type="text"], #client-id-input, #transaction-fields input:not([type="checkbox"]), textarea {
       font-family: var(--font-mono); font-size: 12px; background: var(--bg-input); color: var(--text);
       border: 1px solid var(--border); border-radius: 18px; padding: 8px 14px; }
     .cred .type-input, #client-id-input { flex: 1; min-width: 160px; }
+    #transaction-panel { margin-bottom: 18px; }
+    #transaction-editor { margin-top: 10px; }
+    #transaction-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; margin-bottom: 8px; }
+    .transaction-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .transaction-field span { font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); }
+    .transaction-field input { min-width: 0; }
+    #transaction-json-row textarea { width: 100%; min-height: 140px; margin-bottom: 8px; }
+    #transaction-template-row { flex-direction: row; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+    #transaction-template-select { flex: 1; min-width: 160px; font-size: 13px; background: var(--bg-input); color: var(--text);
+      border: 1px solid var(--border); border-radius: 18px; padding: 7px 12px; }
     #client-id-row { flex-direction: row; align-items: center; flex-wrap: wrap; }
     .multiple-option { display: inline-flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 500; }
     .multiple-option input { width: 18px; height: 18px; accent-color: var(--accent); }
@@ -140,6 +150,7 @@
         <button type="button" class="toggle-option" id="credential-pid" data-credential="pid" role="radio" aria-checked="false">PID</button>
         {{range .NationalPIDs}}<button type="button" class="toggle-option" id="credential-{{.ID}}" data-credential="{{.ID}}" data-vct="{{.VCT}}" role="radio" aria-checked="false">{{.Label}}</button>
         {{end}}        <button type="button" class="toggle-option" id="credential-pid-ticket" data-credential="pid-ticket" role="radio" aria-checked="false">Demo ticket + PID</button>
+        <button type="button" class="toggle-option" id="credential-payment" data-credential="payment" role="radio" aria-checked="false">Demo payment account</button>
         <button type="button" class="toggle-option" id="credential-custom" data-credential="custom" role="radio" aria-checked="false">Custom</button>
       </div>
     </div>
@@ -195,6 +206,25 @@
         <button type="button" class="btn small" id="add-credential-set">+ Credential set</button>
       </div>
       <textarea id="dcql-json" spellcheck="false" aria-labelledby="query-mode-label" hidden></textarea>
+    </div>
+    <div id="transaction-panel">
+      <label class="multiple-option" id="transaction-enabled-label" title="transaction_data (OpenID4VP 1.0 §5.1)"><input type="checkbox" id="transaction-enabled"> Transaction data</label>
+      <div id="transaction-editor" hidden>
+        <div class="format-row" id="transaction-template-row">
+          <select id="transaction-template-select" aria-label="Transaction template"></select>
+          <div class="toggle" id="transaction-mode-toggle" role="radiogroup" aria-label="Transaction data editor">
+            <button type="button" class="toggle-option selected" id="transaction-mode-form" data-mode="form" role="radio" aria-checked="true">Form</button>
+            <button type="button" class="toggle-option" id="transaction-mode-json" data-mode="json" role="radio" aria-checked="false">JSON</button>
+          </div>
+        </div>
+        <div id="transaction-fields"></div>
+        <div id="transaction-json-row" hidden>
+          <textarea id="transaction-data" spellcheck="false" aria-label="Transaction data JSON"></textarea>
+          <button type="button" class="btn small" id="transaction-template-add">+ Add template entry</button>
+        </div>
+        <p class="format-hint" id="transaction-payment-hint" hidden>A payment must bind to an SCA Attestation, such as the demo payment account. <button type="button" class="btn small" id="transaction-query-payment-account" data-vct="{{.PaymentAccountVCT}}">Query the payment account</button></p>
+        <p class="format-hint" id="transaction-data-hint"></p>
+      </div>
     </div>
     <div class="format-row" id="identity-row">
       <span class="format-label" id="identity-label">Verifier identity</span>

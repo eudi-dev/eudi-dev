@@ -730,7 +730,7 @@ func TestPresentUnboundSDJWTOmitsKeyBinding(t *testing.T) {
 	}
 	// A credential without cnf presents without a KB-JWT, so the token ends
 	// with the final disclosure separator.
-	token, err := w.createSDJWTPresentation(cred, nil, "nonce", "https://verifier.example", key)
+	token, err := w.createSDJWTPresentation(cred, nil, "nonce", "https://verifier.example", key, nil)
 	if err != nil {
 		t.Fatalf("presenting the unbound credential: %v", err)
 	}
@@ -749,7 +749,7 @@ func TestPresentUnboundSDJWTOmitsKeyBinding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolving the bound signing key: %v", err)
 	}
-	btoken, err := w.createSDJWTPresentation(bcred, nil, "nonce", "https://verifier.example", bkey)
+	btoken, err := w.createSDJWTPresentation(bcred, nil, "nonce", "https://verifier.example", bkey, nil)
 	if err != nil {
 		t.Fatalf("presenting the bound credential: %v", err)
 	}

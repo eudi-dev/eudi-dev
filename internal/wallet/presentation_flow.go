@@ -88,7 +88,7 @@ func (w *Wallet) evaluatePresentationRequest(authReq *oid4vp.Request, entry pres
 	}
 	if err != nil {
 		w.reportRefusal(entry.action, "authorization_request_refused", entry.owner, requestRefused, subjectRequest, specCitedSummary(entry.subject, findings.Of(err)), err)
-		return presentationOutcome{invalid: err, invalidCode: oid4vp.RefusalCode(authReq)}
+		return presentationOutcome{invalid: err, invalidCode: oid4vp.RefusalCode(w.Conformance().checks(), authReq)}
 	}
 	// OID4VP 1.0 §8.3.1 lets the wallet send an unencrypted error response
 	// here ("MAY"). The wallet answers only its caller, with invalid_request.
@@ -146,6 +146,9 @@ func (w *Wallet) askPresentationConsent(ctx context.Context, typ, owner, asking 
 		w.flagObtainableCredentials(authReq.DCQLQuery, outcome.options)
 	}
 	consentReq = newPresentationConsent(typ, owner, asking, authReq, outcome.matches, outcome.options)
+	for _, entry := range w.transactionData(authReq) {
+		consentReq.TransactionData = append(consentReq.TransactionData, consent.TransactionData{Type: entry.Type, CredentialIDs: entry.CredentialIDs, Data: entry.Data})
+	}
 	if err := w.Consents().Create(consentReq); err != nil {
 		return nil, nil, false, false, err
 	}

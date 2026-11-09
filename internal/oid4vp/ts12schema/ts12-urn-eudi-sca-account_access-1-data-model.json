@@ -1,0 +1,51 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+        "transaction_id": {
+            "type": "string",
+            "maxLength": 36,
+            "minLength": 1,
+            "examples": [
+                "8D8AC610-566D-4EF0-9C22-186B2A5ED793"
+            ]
+        },
+        "date_time": {
+            "type": "string",
+            "format": "date-time",
+            "examples": [
+                "2025-11-13T20:20:39+00:00"
+            ]
+        },
+        "aisp": {
+            "type": "object",
+            "properties": {
+                "legal_name": {
+                    "type": "string"
+                },
+                "brand_name": {
+                    "type": "string"
+                },
+                "domain_name": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "legal_name",
+                "brand_name",
+                "domain_name"
+            ]
+        },
+        "description": {
+            "type": "string",
+            "maxLength": 140,
+            "examples": [
+                "Grant access to the account's data."
+            ]
+        }
+    },
+    "additionalProperties": false,
+    "required": [
+        "transaction_id"
+    ]
+}

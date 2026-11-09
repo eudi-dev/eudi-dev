@@ -15,18 +15,10 @@
 package wallet
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"io"
-	"os"
-	"path/filepath"
 	"regexp"
 	"slices"
-	"strings"
 	"time"
-
-	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 )
 
 // CredentialsFile lists credentials added to the wallet on every start. An entry
@@ -63,50 +55,22 @@ var credentialsFileID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 // LoadCredentialsFile reads a YAML or JSON credentials file, every .yaml, .yml
 // and .json file of a directory in name order, or stdin for "-".
 func LoadCredentialsFile(path string) (*CredentialsFile, error) {
-	if path == "-" {
-		data, err := io.ReadAll(os.Stdin)
-		if err != nil {
-			return nil, err
-		}
-		return parseCredentialsSource("stdin", data)
-	}
-	info, err := os.Stat(path)
-	if err != nil {
-		return nil, err
-	}
-	if !info.IsDir() {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return nil, err
-		}
-		return parseCredentialsSource(path, data)
-	}
-	entries, err := os.ReadDir(path)
+	sources, err := readStartupSources(path)
 	if err != nil {
 		return nil, err
 	}
 	merged := &CredentialsFile{}
 	seen := map[string]string{}
-	for _, entry := range entries {
-		switch strings.ToLower(filepath.Ext(entry.Name())) {
-		case ".yaml", ".yml", ".json":
-		default:
-			continue
-		}
-		file := filepath.Join(path, entry.Name())
-		data, err := os.ReadFile(file)
-		if err != nil {
-			return nil, err
-		}
-		parsed, err := parseCredentialsSource(file, data)
+	for _, source := range sources {
+		parsed, err := parseCredentialsSource(source.name, source.data)
 		if err != nil {
 			return nil, err
 		}
 		for _, c := range parsed.Credentials {
 			if other, dup := seen[c.ID]; dup {
-				return nil, fmt.Errorf("credential id %q appears in %s and %s", c.ID, other, file)
+				return nil, fmt.Errorf("credential id %q appears in %s and %s", c.ID, other, source.name)
 			}
-			seen[c.ID] = file
+			seen[c.ID] = source.name
 		}
 		merged.Credentials = append(merged.Credentials, parsed.Credentials...)
 	}
@@ -123,17 +87,16 @@ func parseCredentialsSource(name string, data []byte) (*CredentialsFile, error) 
 
 // ParseCredentialsFile reads YAML or JSON. YAML is converted to JSON before
 // decoding, so entries use the template JSON field names and claims get the
-// same value types as an issue API request.
+// same value types as an issue API request. Each YAML document holds a
+// credentials list, and the lists add up.
 func ParseCredentialsFile(data []byte) (*CredentialsFile, error) {
-	encoded, err := credtemplate.YAMLToJSON(data)
+	parts, err := decodeStartupItems[CredentialsFile](data)
 	if err != nil {
 		return nil, err
 	}
-	decoder := json.NewDecoder(bytes.NewReader(encoded))
-	decoder.DisallowUnknownFields()
 	var file CredentialsFile
-	if err := decoder.Decode(&file); err != nil {
-		return nil, err
+	for _, part := range parts {
+		file.Credentials = append(file.Credentials, part.Credentials...)
 	}
 	seen := map[string]bool{}
 	for i, entry := range file.Credentials {

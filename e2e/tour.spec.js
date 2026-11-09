@@ -14,6 +14,7 @@ let newsID;
 
 const TITLES = [
   "Paste an offer or request",
+  "Request a credential",
   "Issue a credential yourself",
   "Try the demo issuer and verifier",
   "Check your credentials",
@@ -25,7 +26,7 @@ const TITLES = [
   "Decode a credential",
 ];
 // The header links behind these steps collapse into the menu on a phone.
-const NAV_STEPS = TITLES.slice(5);
+const NAV_STEPS = TITLES.slice(6);
 
 test.describe.configure({ mode: "serial" });
 
@@ -113,8 +114,8 @@ test("the spotlight covers the element each step is about", async ({ page }) => 
   await openWallet(page);
   await startFromHowTo(page);
   // The activity drawer can be taller than the window, so only its head has to be covered.
-  const targets = ["#offer-input", "#issue-btn", "#actions-hint", ".credential-card", "#activity-toggle",
-    "#trust-link", "#registrar-menu-toggle", "#conformance-link", "#templates-link", "#decoder-link"];
+  const targets = ["#offer-input", "#request-credential-btn", "#issue-btn", "#actions-hint", ".credential-card", "#activity-toggle",
+    "#trust-link", "#registrar-menu-toggle", "#conformance-link", "#templates-menu-toggle", "#decoder-link"];
   for (const selector of targets) {
     await expect.poll(() => spotCovers(page, selector)).toBe(true);
     await page.keyboard.press("ArrowRight");

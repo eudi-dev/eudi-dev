@@ -235,3 +235,36 @@ func TestVerifyIntegrityUsesTheStrongestAlgorithm(t *testing.T) {
 		}
 	}
 }
+
+// EUDI TS12 v1.0.1 §2.3 and §3: an extending type inherits the SCA category
+// and the transaction data types of its base type.
+func TestResolveKeepsTheTS12MembersOfTheNearestType(t *testing.T) {
+	ts := newTypeServer(t, map[string]string{
+		"/base": `{"vct":"{base}/base","category":"urn:eu:europa:ec:eudi:sua:sca","transaction_data_types":{
+			"urn:eudi:sca:payment:1":{"schema":"urn:eudi:sca:payment:1",
+				"claims":[{"path":["payload","transaction_id"],"visualisation":4,"display":[{"lang":"en","label":"Transaction ID"}]}],
+				"ui_labels":{"affirmative_action_label":[{"lang":"en","value":"Confirm payment"}]}}}}`,
+		"/custom": `{"vct":"{base}/custom","extends":"{base}/base"}`,
+	})
+
+	metadata, err := ts.resolver().Resolve(ts.URL+"/custom", "")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if !metadata.IsSCA() {
+		t.Errorf("category = %q, want %q", metadata.Category, SCACategory)
+	}
+	payment, ok := metadata.TransactionDataTypes["urn:eudi:sca:payment:1"]
+	if !ok {
+		t.Fatalf("transaction data types = %v, want the payment type", metadata.TransactionDataTypes)
+	}
+	if string(payment.Schema) != `"urn:eudi:sca:payment:1"` {
+		t.Errorf("schema = %s, want the payment URN", payment.Schema)
+	}
+	if len(payment.Claims) != 1 || payment.Claims[0].Visualisation != 4 || payment.Claims[0].Display[0].Label != "Transaction ID" {
+		t.Errorf("claims = %+v, want transaction_id at level 4", payment.Claims)
+	}
+	if got := payment.UILabels["affirmative_action_label"]; len(got) != 1 || got[0].Value != "Confirm payment" {
+		t.Errorf("affirmative_action_label = %+v", got)
+	}
+}
