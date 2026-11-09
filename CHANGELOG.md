@@ -5,12 +5,26 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.8.1] - Unreleased
+## [3.9.0] - 2026-11-09
+
+### Added
+
+- **Transaction data.** With `--transaction-data`, the wallet accepts `transaction_data` in presentation requests (OpenID4VP 1.0 §5.1). It checks the entries, shows them in the consent dialog and signs their hashes into the Key Binding JWT. It knows the EUDI TS12 SCA transaction types, validates their payloads and adds the TS12 Key Binding JWT claims. `--transaction-data-type` adds more types. Every request on the demo verifier can send transaction data. A form built from a transaction template sets the entry, and a JSON editor takes any entries. The form gives every TS12 entry a fresh transaction id and the current time in `date_time`. The verifier checks the hashes. The consent dialog sums up a TS12 transaction in one sentence, such as "Pay €12.50 to Demo Shop". `--demo` turns on `--transaction-data`. See [transaction data](docs/wallet/presenting.md#transaction-data). Thanks to [drkapusta-dev](https://github.com/drkapusta-dev) for the report (#17).
+- **Transaction templates.** **Templates > Transaction templates** lists named transaction data entries. Its editor builds an entry from a type and fields, or edits it as JSON. For a TS12 type it starts with the required fields. Its command panel shows curl, CLI and YAML. The wallet comes with an example for each TS12 type. `eudi templates transactions` and `/api/transaction-templates` manage them, and `--transaction-templates` (`EUDI_DEV_TRANSACTION_TEMPLATES`) adds read-only ones from files. A template works in any presentation request, and every request on the demo verifier can pick one. See [transaction templates](docs/wallet/presenting.md#transaction-templates).
+- **SCA Attestation check.** The wallet checks that transaction data binds to an SCA Attestation, as EUDI TS12 §3.2 steps 1 and 2 require. The credential's Type Metadata needs the SCA category and must list the transaction type. A failed check is a warning in both modes. You can still test a payment with the PID.
+- **Demo payment account.** The demo issuer offers a Demo Payment Account. It is an SCA Attestation with an HTTPS `vct`, Type Metadata for the four TS12 types, `vct#integrity` and a beige card. The **Demo payment account** request on the demo verifier asks for it together with a payment.
+- **Configuration from one directory.** `wallet serve --config <dir>` (`EUDI_DEV_CONFIG`) reads templates, transaction templates, catalogue entries, relying parties and credentials from one directory, each as a subdirectory or a file named after it. The Kubernetes example uses it. See [configuration files](docs/wallet/config-files.md).
+- **Read-only templates from files.** `--templates` (`EUDI_DEV_TEMPLATES`) offers read-only templates from files. The template list marks them "from config". `--templates-dir` still sets the folder where the wallet keeps its own templates. When the template folder is read-only, saving a template fails with a hint to use `--templates`.
+- **Several items per file.** Every configuration file can hold several YAML documents separated by `---`. `eudi templates import` saves every template of a file.
+- **Check and reload.** `--check` loads the configuration into a fresh wallet in memory, prints what it holds and exits. `--config-reload 30s` applies changed files while the server runs and keeps the previous configuration when a file is broken. At startup the server prints how many items each input loaded.
+- **JSON Schemas.** [`docs/schemas`](docs/schemas) has a JSON Schema for each configuration file, for completion and checks in an editor.
+- **CLI commands in containers.** A server also writes its instance file to the temp directory. `docker exec` commands find it there when the home directory is read-only. Without a running server, a command works on a wallet in memory and warns that its changes are lost.
 
 ### Fixed
 
 - **Button hover colours.** The verify button of the decoder no longer turns grey on hover. The tour buttons and the button of the pending request banner now show a hover state.
 - **Wider verify inputs in the decoder.** The key and trusted list fields fill the verification panel.
+- **Template storage failures.** The API answers a failed write or delete of a template with 500 instead of 400.
 
 ## [3.8.0] - 2026-11-04
 
