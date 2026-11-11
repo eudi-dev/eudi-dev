@@ -5173,7 +5173,8 @@
           name.textContent = entry.entityName;
           links.appendChild(name);
         }
-        const menu = trustListMenu(prefix, url, entry.path ? entry.path.replace(/^\//, '') : url);
+        // The index path already includes the public prefix, so it must not resolve against <base href>.
+        const menu = trustListMenu(prefix, url, entry.path || url);
         links.appendChild(menu);
         detail.appendChild(links);
         if (entry.description) {

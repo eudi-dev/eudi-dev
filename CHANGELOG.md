@@ -5,6 +5,12 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.2] - 2026-11-11
+
+### Fixed
+
+- **Trusted lists in the decoder under a path prefix.** **Open in decoder** in Trust & certificates now works for the wallet's own lists when a proxy such as Istio forwards the path prefix unchanged. The request URL no longer has the prefix twice, which failed with 404.
+
 ## [3.9.1] - 2026-11-11
 
 ### Fixed

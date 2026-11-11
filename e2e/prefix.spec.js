@@ -318,6 +318,43 @@ for (const mode of ["rewrite", "rewrite-header", "keep"]) {
       await page.goto(`${PUBLIC}/decoder/?id=${encodeURIComponent(credentials[0].id)}`);
       await expect(page.locator("#format-badge")).not.toBeEmpty({ timeout: 15_000 });
     });
+
+    test("a trusted list opens in the decoder under the prefix", async ({ page }) => {
+      await page.goto(PUBLIC + "/");
+      await page.getByRole("link", { name: "Trust & certificates" }).click();
+      const popupPromise = page.waitForEvent("popup");
+      await expect(async () => {
+        await page.getByTestId("trust-list-menu").first().click();
+        await expect(page.getByTestId("trust-list-decode").first()).toBeVisible({ timeout: 500 });
+      }).toPass();
+      await page.getByTestId("trust-list-decode").first().click();
+      const decoder = await popupPromise;
+      await expect(decoder.locator("#input")).toHaveValue(/^eyJ/);
+      await decoder.close();
+    });
+
+    test("an external list opens in the decoder under the prefix", async ({ page }) => {
+      const listURL = `http://localhost:${WALLET_PORT}/api/trustlists/pid`;
+      const lists = `${PUBLIC}/api/trust/lists?url=${encodeURIComponent(listURL)}`;
+      await page.request.delete(lists);
+      expect((await page.request.post(`${PUBLIC}/api/trust/lists`, { data: { url: listURL } })).ok()).toBe(true);
+      try {
+        await page.goto(PUBLIC + "/");
+        await page.getByRole("link", { name: "Trust & certificates" }).click();
+        const row = page.locator("#trust-external-lists .trust-links").filter({ has: page.locator(`[title="${listURL}"]`) });
+        const popupPromise = page.waitForEvent("popup");
+        await expect(async () => {
+          await row.getByTestId("trust-list-menu").click();
+          await expect(row.getByTestId("trust-list-decode")).toBeVisible({ timeout: 500 });
+        }).toPass();
+        await row.getByTestId("trust-list-decode").click();
+        const decoder = await popupPromise;
+        await expect(decoder.locator("#input")).toHaveValue(/^eyJ/);
+        await decoder.close();
+      } finally {
+        await page.request.delete(lists);
+      }
+    });
   });
 }
 
