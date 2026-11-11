@@ -184,3 +184,25 @@ claims:
 		t.Fatalf("the parsed template holds date_of_issuance %v, want it empty", parsed.templates[0].Claims["date_of_issuance"])
 	}
 }
+
+// The error for an unknown template names every place the wallet looked,
+// the template files first.
+func TestLoadNamesTheTemplateFilesOfAnUnknownTemplate(t *testing.T) {
+	dir := t.TempDir()
+	loc := FileLocation(dir)
+	parsed, err := ParseConfigured([]ConfiguredFile{
+		{Name: "templates/b.yaml", Data: []byte("name: first-card\nformat: sdjwt\nvct: urn:example:first:1\n")},
+		{Name: "templates/a.yaml", Data: []byte("name: second-card\nformat: sdjwt\nvct: urn:example:second:1\n")},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	loc.Configured = &Configured{}
+	loc.Configured.Set(parsed)
+
+	_, err = Load("third-card", loc)
+	want := `template "third-card" not found (looked in templates/a.yaml, templates/b.yaml, ` + dir + " and the predefined templates, see `templates list`)"
+	if err == nil || err.Error() != want {
+		t.Fatalf("err = %v, want %s", err, want)
+	}
+}

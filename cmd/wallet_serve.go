@@ -156,7 +156,7 @@ Every flag can also be set as EUDI_DEV_<FLAG>, such as EUDI_DEV_BASE_URL for --b
 	cmd.Flags().StringVar(&opts.TemplatesFile, "templates", "", "Credential templates to offer, read-only next to the templates in --templates-dir: a YAML or JSON file, a directory of such files, or '-' for stdin. A file holds one template or several")
 	cmd.Flags().StringVar(&opts.TransactionTemplatesFile, "transaction-templates", "", "Transaction templates to offer, read-only next to the stored ones: a YAML or JSON file, a directory of such files, or '-' for stdin. A file holds one template or several")
 	cmd.Flags().StringVar(&opts.ConfigDir, "config", "", "Directory with the configuration files: templates, transaction-templates, catalog, relying-parties and credentials, each as a subdirectory or as a .yaml, .yml or .json file of that name. An input can't also be set by its own flag")
-	cmd.Flags().DurationVar(&opts.ConfigReload, "config-reload", 0, "Read the configuration files again at this interval, such as 30s, and apply them when they changed. 0 (the default) reads them once at startup")
+	cmd.Flags().DurationVar(&opts.ConfigReload, "config-reload", 0, "Read the configuration files again at this interval, such as 30s, and apply a change once two reads in a row agree. 0 (the default) reads them once at startup")
 	cmd.Flags().BoolVar(&opts.Check, "check", false, "Load the configuration into a fresh wallet in memory, print what it holds and exit without serving")
 	cmd.Flags().BoolVar(&opts.PID, "pid", false, "Issue the default PID credentials (SD-JWT VC and mdoc) at startup")
 	cmd.Flags().StringVar(&opts.KeyPath, "key", "", "Holder private key file (PEM/JWK). Uses the stored key or auto-generates one if omitted")

@@ -179,6 +179,18 @@ Selective disclosure is RFC 9901. The credential profile on top of it is `draft-
 | Session transcript (ISO 18013-7 mode) | Implemented | `--session-transcript iso` |
 | DeviceSigned generation | Implemented | Wallet generates DeviceAuth in DeviceResponse |
 
+## EUDI TS12 v1.0.1 (Strong Customer Authentication)
+
+These checks apply with `--transaction-data`. See [transaction data](wallet/presenting.md#transaction-data).
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| SCA transaction types | Implemented | The wallet knows the four types of §4.3: payment, login and risk transaction, account access and e-mandate. |
+| Transaction data entry | Enforced in strict mode | A TS12 entry needs `transaction_data_hashes_alg` and a `payload` object and has no other members (§4.2). The payload must match the JSON Schema of its type (§3.2 step 4). Strict mode refuses an entry that breaks these rules with `invalid_transaction_data` (OpenID4VP 1.0 §8.5). Debug mode warns and signs the entry |
+| SCA Attestation | Deliberate deviation | The credential that authorizes a TS12 transaction must be an SCA Attestation, or the wallet stops (§3.2 steps 1 and 2). Its Type Metadata needs the category `urn:eu:europa:ec:eudi:sua:sca` and must list the transaction type. The wallet only warns, in both modes, so a payment can be tested with the PID. The demo issuer's Demo Payment Account passes the check ([ADR 0031](adr/0031-transaction-data-is-opt-in-and-binds-to-sd-jwt.md)) |
+| Key Binding JWT claims | Implemented | A presentation with a TS12 entry adds a fresh `jti`, the `response_mode` of the answer and `amr` to its Key Binding JWT (§3.6). The wallet does not authenticate the user, so `amr` lists a PIN and a key in the native key store |
+| mdoc | Refused in strict mode | The wallet knows no mdoc doctype that defines transaction data (OpenID4VP 1.0 Appendix B.2.1). Strict mode refuses a transaction data entry for an mdoc query. Debug mode warns and sends the presentation without it ([ADR 0031](adr/0031-transaction-data-is-opt-in-and-binds-to-sd-jwt.md)) |
+
 ## ETSI TS 119 602 lists of trusted entities
 
 | Feature | Status | Notes |

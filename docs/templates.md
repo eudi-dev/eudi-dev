@@ -2,6 +2,8 @@
 
 A credential template gives test credentials a name, type (VCT or doc type) and default claims. It can also set an expiry and claims that are always disclosed. The CLI, HTTP API and wallet UI share the same templates.
 
+Transaction templates for presentation requests are kept apart from credential templates. See [transaction templates](wallet/presenting.md#transaction-templates).
+
 The binary includes 10 predefined templates. They are ordinary template files in [`internal/defaults/templates/`](../internal/defaults/templates/), so each one also shows the format of a user template:
 
 | Name | Format | Contents |

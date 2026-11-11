@@ -238,14 +238,17 @@ func applyServeConfig(w *wallet.Wallet, next, previous *serveConfig, protectByDe
 }
 
 // watchServeConfig reads the configuration files every interval and calls
-// reload when they differ from the applied configuration. A configuration that
-// doesn't load waits for the next change. One that doesn't apply is tried
-// again on every tick, because the cause can go away, such as a database
-// outage.
+// reload when they differ from the applied configuration and read the same on
+// two ticks in a row. A tick can fall between two file saves. For example, a
+// credential can be saved before the new template it uses, and applying that
+// read would fail. A configuration that doesn't load waits for the next
+// change. One that doesn't apply is tried again on every tick, because the
+// cause can go away, such as a database outage.
 func watchServeConfig(stop <-chan struct{}, applied func() *serveConfig, interval time.Duration, opts *walletServeOptions, reload func(*serveConfig) error, logf func(string, ...any)) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	warned := ""
+	var pending *serveConfig
 	warn := func(format string, err error) {
 		if message := fmt.Sprintf(format, err); message != warned {
 			logf("%s", message)
@@ -261,10 +264,16 @@ func watchServeConfig(stop <-chan struct{}, applied func() *serveConfig, interva
 		next, err := loadServeConfig(opts)
 		if err != nil {
 			warn("  WARNING: the configuration files don't load, so the wallet keeps the previous configuration: %v", err)
+			pending = nil
 			continue
 		}
 		if reflect.DeepEqual(next, applied()) {
 			warned = ""
+			pending = nil
+			continue
+		}
+		if !reflect.DeepEqual(next, pending) {
+			pending = next
 			continue
 		}
 		if err := reload(next); err != nil {

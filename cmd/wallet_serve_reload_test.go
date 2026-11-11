@@ -37,7 +37,7 @@ func startWatcher(t *testing.T, opts *walletServeOptions, reload func(*serveConf
 	t.Helper()
 	var current atomic.Pointer[serveConfig]
 	current.Store(loadTestServeConfig(t, opts))
-	return runWatcher(t, opts, current.Load, func(next *serveConfig) error {
+	return runWatcher(t, opts, 10*time.Millisecond, current.Load, func(next *serveConfig) error {
 		if err := reload(next); err != nil {
 			return err
 		}
@@ -56,7 +56,7 @@ func loadTestServeConfig(t *testing.T, opts *walletServeOptions) *serveConfig {
 }
 
 // runWatcher runs watchServeConfig until the test ends and returns its log.
-func runWatcher(t *testing.T, opts *walletServeOptions, applied func() *serveConfig, reload func(*serveConfig) error) func() []string {
+func runWatcher(t *testing.T, opts *walletServeOptions, interval time.Duration, applied func() *serveConfig, reload func(*serveConfig) error) func() []string {
 	t.Helper()
 	var mu sync.Mutex
 	var logs []string
@@ -64,7 +64,7 @@ func runWatcher(t *testing.T, opts *walletServeOptions, applied func() *serveCon
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		watchServeConfig(stop, applied, 10*time.Millisecond, opts, reload, func(format string, args ...any) {
+		watchServeConfig(stop, applied, interval, opts, reload, func(format string, args ...any) {
 			mu.Lock()
 			defer mu.Unlock()
 			logs = append(logs, fmt.Sprintf(format, args...))
@@ -189,7 +189,7 @@ func TestWatchServeConfigRevertsAPartlyAppliedReload(t *testing.T) {
 	}
 	var current atomic.Pointer[serveConfig]
 	current.Store(&applied)
-	logs := runWatcher(t, opts, current.Load, func(next *serveConfig) error {
+	logs := runWatcher(t, opts, 10*time.Millisecond, current.Load, func(next *serveConfig) error {
 		applied, _, err := applyServeConfig(w, next, current.Load(), false)
 		current.Store(&applied)
 		return err
@@ -210,5 +210,53 @@ func TestWatchServeConfigRevertsAPartlyAppliedReload(t *testing.T) {
 	})
 	if !reflect.DeepEqual(current.Load().relyingParties, first.relyingParties) {
 		t.Fatal("the wallet kept the relying parties of the failed reload")
+	}
+}
+
+// A credential and the new template it names, saved one after the other within
+// one interval, apply together. The watcher may read the files between the two
+// saves, and that read must not apply.
+func TestWatchServeConfigAppliesFilesSavedTogether(t *testing.T) {
+	w := newServingTestWallet(t)
+	w.Templates.Configured = &credtemplate.Configured{}
+	w.TransactionTemplates.Configured = &txtemplate.Configured{}
+	dir := t.TempDir()
+	templates := filepath.Join(dir, "templates.yaml")
+	credentials := filepath.Join(dir, "credentials.yaml")
+	writeConfigFile(t, templates, configTestTemplates)
+	writeConfigFile(t, credentials, "credentials:\n  - id: alice-pid\n    template: pid-sdjwt\n")
+	opts := &walletServeOptions{TemplatesFile: templates, CredentialsFile: credentials}
+	applied, _, err := applyServeConfig(w, loadTestServeConfig(t, opts), nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var current atomic.Pointer[serveConfig]
+	current.Store(&applied)
+	const interval = 100 * time.Millisecond
+	logs := runWatcher(t, opts, interval, current.Load, func(next *serveConfig) error {
+		applied, _, err := applyServeConfig(w, next, current.Load(), false)
+		current.Store(&applied)
+		return err
+	})
+
+	for range 2 {
+		before := len(logs())
+		writeConfigFile(t, credentials, "credentials:\n  - id: third\n    template: third-card\n")
+		time.Sleep(3 * interval / 4)
+		writeConfigFile(t, templates, configTestTemplates+"---\nname: third-card\nformat: sdjwt\nvct: urn:example:third:1\n")
+		waitFor(t, "the reload", func() bool {
+			got := logs()
+			return len(got) > before && strings.Contains(got[len(got)-1], "Configuration reloaded: 3 templates")
+		})
+		if got := logs()[before:]; len(got) != 1 {
+			t.Fatalf("logs = %q, want only the reload", got)
+		}
+		writeConfigFile(t, credentials, "credentials:\n  - id: alice-pid\n    template: pid-sdjwt\n")
+		writeConfigFile(t, templates, configTestTemplates)
+		waitFor(t, "the revert", func() bool { return reflect.DeepEqual(current.Load(), loadTestServeConfig(t, opts)) })
+		// This revert applied just after a tick. Waiting half an interval makes
+		// the test save the credentials file before a tick and the template
+		// file after it.
+		time.Sleep(interval / 2)
 	}
 }

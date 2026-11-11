@@ -95,7 +95,7 @@ docker run -d --name eudi-demo -p 8085:8085 -p 8086:8086 \
 
 The demo persists its state in files on the volume and generates its own keys, so its CA stays private and stable across restarts. Visitors confirm each browser flow, because a demo ignores the image default `EUDI_DEV_AUTO_ACCEPT=true`. With `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=false`, visitors can't make the wallet connect to the host or its networks.
 
-`--demo` turns on `--pid` (4 PID credentials), `--mode debug`, `--haip`, `--arf` and `--vci-version 1.1`. It disables administrative operations and resets the wallet hourly. Change the schedule with `--demo-reset`.
+`--demo` turns on `--pid` (4 PID credentials), `--mode debug`, `--haip`, `--arf`, `--vci-version 1.1` and `--transaction-data`. It disables administrative operations and resets the wallet hourly. Change the schedule with `--demo-reset`.
 
 Open the wallet at `http://localhost:8085`, the issuer at `/issuer/`, the verifier at `/verifier/` or the decoder at `/decoder/`. HTTPS issuer endpoints use port 8086 and a self-signed certificate.
 
@@ -268,6 +268,32 @@ docker run --rm -v wallet-data:/home/app/.eudi-dev -e EUDI_DEV_STORAGE=file -e E
 
 docker run -p 8085:8085 -v wallet-data:/home/app/.eudi-dev -e EUDI_DEV_STORAGE=file -e EUDI_DEV_SEED= -e EUDI_DEV_PID=false ghcr.io/eudi-dev/eudi-dev
 ```
+
+## Transaction templates
+
+Mount a file or folder of [transaction templates](wallet/presenting.md#transaction-templates) and point `EUDI_DEV_TRANSACTION_TEMPLATES` to it. `EUDI_DEV_TRANSACTION_DATA=true` makes the wallet accept transaction data in presentation requests. The demo profile turns it on.
+
+```yaml
+# transaction-templates.yaml
+name: shop-payment
+description: A TS12 payment to Example Shop
+transaction_data:
+  type: urn:eudi:sca:payment:1
+  transaction_data_hashes_alg: [sha-256]
+  payload:
+    transaction_id: 3F2504E0-4F89-11D3-9A0C-0305E82C3301
+    payee: {name: Example Shop, id: NL91ABNA0417164300}
+    currency: EUR
+    amount: 49.9
+```
+
+```bash
+docker run -p 8085:8085 -v ./transaction-templates.yaml:/config/transaction-templates.yaml:ro \
+  -e EUDI_DEV_TRANSACTION_TEMPLATES=/config/transaction-templates.yaml -e EUDI_DEV_TRANSACTION_DATA=true \
+  ghcr.io/eudi-dev/eudi-dev
+```
+
+The wallet's template list marks it as "from config".
 
 ## Testing API
 

@@ -1491,8 +1491,23 @@ textarea.form-input {
   overflow-wrap: anywhere;
 }
 
+.consent-transaction-details summary {
+  display: flex;
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--text-dim);
+  cursor: pointer;
+  list-style: none;
+}
+
+.consent-transaction-details summary::-webkit-details-marker { display: none; }
+.consent-transaction-details summary::after { content: "Show"; margin-left: auto; font-weight: 500; }
+.consent-transaction-details[open] summary::after { content: "Hide"; }
+
 .consent-transaction-data {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
+  max-height: 30vh;
+  overflow: auto;
   font-size: 12px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;

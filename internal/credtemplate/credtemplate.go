@@ -396,7 +396,8 @@ func Load(nameOrPath string, loc Location) (*Template, error) {
 		return &t, nil
 	}
 
-	return nil, fmt.Errorf("template %q not found (looked in %s and the predefined templates, see `templates list`)", nameOrPath, loc)
+	places := append(loc.Configured.files(), loc.String())
+	return nil, fmt.Errorf("template %q not found (looked in %s and the predefined templates, see `templates list`)", nameOrPath, strings.Join(places, ", "))
 }
 
 func Save(loc Location, t Template) (string, error) {

@@ -5,6 +5,14 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.1] - 2026-11-11
+
+### Fixed
+
+- **Compact transactions in the consent dialog.** The data of a transaction now folds away, so the dialog fits small screens and the Digital Credentials API window. A TS12 transaction shows its summary and type, and **Show** opens the data. Other types start open. Long data scrolls inside its box.
+- **Template and credential saved together.** `--config-reload` applies a change once two reads in a row agree. A new template and a credential that uses it no longer fail with "template not found" when the wallet reads the files between the two saves. The error for an unknown template now also names the template files.
+- **Transaction data in the docs.** The serve flags list `--transaction-templates`. The README and the docs index mention transaction data. The demo verifier docs show a request with transaction data. The Docker docs show transaction templates from a file, and the spec compliance page has a TS12 section.
+
 ## [3.9.0] - 2026-11-09
 
 ### Added

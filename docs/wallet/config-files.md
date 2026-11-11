@@ -103,6 +103,8 @@ The keys belong to the wallet in memory and are gone when the check exits. A ser
 
 `--config-reload 30s` reads the files every 30 seconds and applies them when they changed. Only the changed inputs are applied, so an unchanged credentials file doesn't issue its credentials again. A file that doesn't load leaves the wallet as it was. The log shows the error once. When the file loads again, the wallet applies it. An input that loads but can't be applied, for example while the database is down, is tried again every 30 seconds. Without the flag the wallet reads the files once at startup.
 
+A change applies once two reads in a row agree. A new template and a credential that uses it then apply together when you save both files within one interval. A change takes effect after one or two intervals.
+
 A reload works like a start for each input. Changed template files replace all templates from the files, and the same holds for transaction templates. The catalogue and the templates apply together, so one change can move a catalogue entry into a template or back. A changed catalogue file updates its entries and removes those no longer in the file. A changed relying parties file registers the parties again. A changed credentials file adds all its entries again with fresh dates. When one entry fails, the entries before it are already added, and the retry adds them again. A credential or a registration removed from its file stays in the wallet. With `--demo` a demo reset restores the configuration of the last reload.
 
 The reload reads only the inputs found at startup. A new file inside an input directory counts. A new input in the `--config` directory, such as a `catalog.yaml` added later, needs a restart.

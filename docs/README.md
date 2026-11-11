@@ -12,8 +12,8 @@ Guides for using eudi-dev as a wallet, issuer, verifier and CA.
 
 - [Wallet](wallet.md): overview, subcommands, quick start, storage, and credential type inheritance
 - [Wallet server](wallet/serve.md): `wallet serve`, endpoints, trusted lists and `trust`, certificate export, and every serve flag
-- [Configuration files](wallet/config-files.md): templates, catalogue, relying parties and credentials from files, `--config`, `--check` and reloads
-- [Presentation from the wallet](wallet/presenting.md): `wallet accept`, `wallet scan`, invoking by URL, HAIP enforcement
+- [Configuration files](wallet/config-files.md): templates, transaction templates, catalogue, relying parties and credentials from files, `--config`, `--check` and reloads
+- [Presentation from the wallet](wallet/presenting.md): `wallet accept`, `wallet scan`, invoking by URL, HAIP enforcement, transaction data and transaction templates
 - [Browser extension](wallet/browser-extension.md): Digital Credentials API in Chrome, `wallet browser`, what a test covers, the wallet interface
 - [Issuance into the wallet](wallet/issuing.md): sign-in, deferred issuance, renewing, VCI feature level, wallet attestation, interactive authorization
 - [Themes](wallet/themes.md): your own logo and colours on every page of a self-hosted wallet

@@ -4053,7 +4053,11 @@
           '<span class="consent-purpose-label" id="' + id + '-label">Transaction to authorize</span>' +
           (summary ? '<div class="consent-transaction-summary" id="' + id + '-summary">' + escHtml(summary) + '</div>' : '') +
           '<div class="consent-transaction-type mono" id="' + id + '-type">' + escHtml(entry.type || '(no type)') + '</div>' +
-          (Object.keys(members).length ? '<pre class="consent-transaction-data" id="' + id + '-data">' + escHtml(JSON.stringify(members, null, 2)) + '</pre>' : '') +
+          (Object.keys(members).length ?
+            '<details class="consent-transaction-details" id="' + id + '-details"' + (summary ? '' : ' open') + '>' +
+              '<summary id="' + id + '-details-summary">Transaction data</summary>' +
+              '<pre class="consent-transaction-data" id="' + id + '-data" tabindex="0">' + escHtml(JSON.stringify(members, null, 2)) + '</pre>' +
+            '</details>' : '') +
         '</div>';
       }).join('');
     }

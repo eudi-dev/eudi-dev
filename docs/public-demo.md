@@ -91,7 +91,13 @@ The PID request asks for `urn:eudi:pid:1` and the domestic PID types next to it.
 
 `POST /verifier/api/requests` selects the PID type through `vct`. Any type under `urn:eudi:pid:` is accepted, including `urn:eudi:pid:fr:1`. National types request SD-JWT VC only. All PID mdocs use the doctype `eu.europa.ec.eudi.pid.1`. The doctype carries no country.
 
-`"type": "payment"` requests the payment account. `transaction_data` takes a list of entries for any `type`. The verifier encodes each one into the request.
+`"type": "payment"` requests the payment account. `transaction_data` takes a list of entries for any `type`. The verifier encodes each one into the request as given, so a test can also send invalid entries. The page fills in the missing members, but the API does not. Each entry needs `credential_ids` with the query ids of the request. The SD-JWT query has the id of the `type`, such as `payment` or `pid`. The mdoc query adds `_mdoc` to that id, such as `pid_mdoc`. A TS12 entry also needs its own `transaction_id` in the payload. The page also sets `date_time`:
+
+```bash
+curl -X POST http://localhost:8085/verifier/api/requests \
+  -H 'Content-Type: application/json' \
+  -d '{"type": "payment", "transaction_data": [{"type": "urn:eudi:sca:payment:1", "credential_ids": ["payment"], "transaction_data_hashes_alg": ["sha-256"], "payload": {"transaction_id": "T-1", "date_time": "2026-11-11T10:00:00Z", "payee": {"name": "Demo Shop", "id": "DE89370400440532013000"}, "currency": "EUR", "amount": 12.5}}]}'
+```
 
 To include a ticket, set `ticket` in the same request:
 

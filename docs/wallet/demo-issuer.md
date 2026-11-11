@@ -1,6 +1,6 @@
 # Demo issuer and verifier
 
-`wallet serve` includes a demo issuer at `/issuer/` and a demo verifier at `/verifier/`. Their registrations and identities are described in [demo issuer and verifier](registrar.md#demo-issuer-and-verifier). How the issuer works as an authorization server is in [public demo hosting](../public-demo.md#demo-issuer-as-an-authorization-server).
+`wallet serve` includes a demo issuer at `/issuer/` and a demo verifier at `/verifier/`. Their registrations and identities are described in [demo issuer and verifier](registrar.md#demo-issuer-and-verifier). How the issuer works as an authorization server is in [public demo hosting](../public-demo.md#demo-issuer-as-an-authorization-server). The same page describes the Demo Payment Account and how the verifier sends [transaction data](../public-demo.md#demo-issuer-and-verifier).
 
 ## Your own access certificate
 

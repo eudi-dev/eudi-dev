@@ -39,6 +39,8 @@ https://github.com/user-attachments/assets/e915c82c-75f0-4f6b-94eb-cd4a4252a863
 
 **PIDs and credential templates.** The EUDI PID and the German, Italian and Dutch PIDs are built in as SD-JWT VC and mdoc, with sample identities. The Italian and Dutch PIDs are new in 3.0.0. Templates define your own credentials, and `--credentials` (new in 3.0.0) loads them on every start. → [Templates](docs/templates.md), [startup credentials](docs/wallet/serve.md#startup-credentials)
 
+**Transaction data.** (new in 3.9.0) The wallet accepts OpenID4VP `transaction_data`, checks the SCA types of EUDI TS12 and puts the hash of each entry into the Key Binding JWT. The demo verifier fills its requests from transaction templates. The demo issuer offers a payment account as an SCA Attestation. → [Transaction data](docs/wallet/presenting.md#transaction-data), [transaction templates](docs/wallet/presenting.md#transaction-templates)
+
 **A demo issuer and verifier.** The wallet also serves an issuer and a verifier. Both pass the OIDF conformance plans for issuers and verifiers. → [Wallet server](docs/wallet/serve.md), [demo conformance](docs/conformance-run-demorp.md)
 
 **Developer tools.** Decode credentials, requests, offers and trusted lists, validate signatures and status, scan QR codes, generate DCQL queries, and watch live wallet traffic through a proxy. → [Decode](docs/decode.md), [validate](docs/validate.md), [issue](docs/issue.md), [proxy](docs/proxy.md)

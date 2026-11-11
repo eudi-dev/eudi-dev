@@ -306,8 +306,9 @@ Every flag can also be set as `EUDI_DEV_<FLAG>`, with the flag name in upper cas
 | `--relying-parties`     | None     | Relying parties to register with the wallet's registrar on every start, from a YAML or JSON file, a directory of such files, or stdin (`-`). See [pre-registered relying parties](#pre-registered-relying-parties) |
 | `--templates-dir`       | `<wallet-dir>/templates/` | Credential template directory. Template files are JSON or YAML. See [template files](../templates.md#template-files-and-storage) |
 | `--templates`           | None     | Credential templates to offer, read-only, from a YAML or JSON file, a directory of such files, or stdin (`-`). A file holds one template or several. See [configuration files](config-files.md#templates-from-files) |
-| `--config`              | None     | Directory with the `templates`, `catalog`, `relying-parties` and `credentials` inputs, each as a subdirectory or a `.yaml`, `.yml` or `.json` file of that name. See [configuration files](config-files.md#one-directory-for-all-inputs) |
-| `--config-reload`       | `0`      | Read the configuration files again at this interval, such as `30s`, and apply the changed ones. `0` reads them once at startup. See [reading the files again](config-files.md#reading-the-files-again) |
+| `--transaction-templates` | None   | Transaction templates to offer, read-only, from a YAML or JSON file, a directory of such files, or stdin (`-`). See [transaction templates](presenting.md#transaction-templates) |
+| `--config`              | None     | Directory with the `templates`, `transaction-templates`, `catalog`, `relying-parties` and `credentials` inputs, each as a subdirectory or a `.yaml`, `.yml` or `.json` file of that name. See [configuration files](config-files.md#one-directory-for-all-inputs) |
+| `--config-reload`       | `0`      | Read the configuration files again at this interval, such as `30s`, and apply a change once two reads in a row agree. `0` reads them once at startup. See [reading the files again](config-files.md#reading-the-files-again) |
 | `--check`               | `false`  | Load the configuration into a fresh wallet in memory, print what it holds and exit. See [check the files first](config-files.md#check-the-files-first) |
 | `--pid`                 | `false`  | Generate default EUDI PID credentials on start   |
 | `--key`                 | None     | Override holder key (PEM/JWK)                    |
@@ -396,7 +397,7 @@ credentials:
 
 Every start adds the entries again. Template entries get fresh dates. A credential from an earlier start with the same `id` is replaced, so the wallet holds one copy of each entry. Its revocation status resets with each start.
 
-Only one of `--templates`, `--credentials`, `--catalog` and `--relying-parties` can read stdin. A detached server (`-d`) can't read stdin. [Configuration files](config-files.md) shows how the four inputs work together.
+Only one of `--templates`, `--transaction-templates`, `--credentials`, `--catalog` and `--relying-parties` can read stdin. A detached server (`-d`) can't read stdin. [Configuration files](config-files.md) shows how the five inputs work together.
 
 With `--demo` the startup credentials are part of the baseline, so a demo reset restores them with the default PIDs. For a demo where visitors can delete every credential, set `protected: false` on the entries and turn off the default PIDs:
 

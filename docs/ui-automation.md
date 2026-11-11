@@ -265,7 +265,7 @@ The demo verifier at `/verifier/` builds requests for you:
 | Credential to send | `#consent-credential-<credential id>`, a `.consent-credential` with `data-credential-id`, `data-vct`, `data-doctype` |
 | Claim checkboxes | `.consent-claim input` with `data-cred` and `data-claim` |
 | Note on a query with **multiple** | `#consent-multiple-<query id>` |
-| Transaction to authorize | `#consent-transaction-<n>` with `-summary` (TS12 types only), `-type` and `-data` |
+| Transaction to authorize | `#consent-transaction-<n>` with `-summary` (TS12 types only), `-type` and `-data`. The data sits in `-details`, which starts closed when `-summary` is shown. Click `-details-summary` to open it |
 | Query without a matching credential (debug mode) | `#consent-unanswered-<query id>`. **Approve** stays disabled until you pick one |
 | **Approve**, **Deny** | `#consent-approve`, `#consent-deny` |
 

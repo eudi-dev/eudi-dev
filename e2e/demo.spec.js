@@ -2153,6 +2153,9 @@ test.describe("Custom verifier request builder", () => {
     await present(page, schemeURI);
     await expect(page.locator("#consent-transaction-0-summary")).toHaveText("Pay €12.50 to Demo Shop");
     await expect(page.locator("#consent-transaction-0-type")).toHaveText("urn:eudi:sca:payment:1");
+    await expect(page.locator("#consent-transaction-0-data")).toBeHidden();
+    await page.locator("#consent-transaction-0-details-summary").click();
+    await expect(page.locator("#consent-transaction-0-data")).toContainText('"payee"');
     await page.locator("#consent-approve").click();
     await expect(page).toHaveURL(/\/verifier\/\?response_code=/, { timeout: 45_000 });
     expect((await verifierResult(id)).status).toBe("verified");

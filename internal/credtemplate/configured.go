@@ -17,6 +17,8 @@ package credtemplate
 import (
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"sync"
 )
 
@@ -118,6 +120,19 @@ func (c *Configured) lookup(name string) (*Template, bool) {
 		}
 	}
 	return nil, false
+}
+
+// files returns the template files that hold the configured templates,
+// sorted by file name.
+func (c *Configured) files() []string {
+	if c == nil {
+		return nil
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	files := slices.Collect(maps.Values(c.set.source))
+	slices.Sort(files)
+	return slices.Compact(files)
 }
 
 // CheckChangeable reports ErrConfigured for a template that comes from the

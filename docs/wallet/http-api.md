@@ -118,7 +118,7 @@ The wallet answers `200` with the issued credential: `credential_id`, `format`, 
 
 #### Consent requests
 
-`GET /api/requests` lists the pending consent requests. Each has `id`, `type` (`presentation`, `issuance` or `issuance_presentation`), `client_id`, `matched_credentials`, `credential_options` and `mine`. `GET /api/requests/stream` sends a `consent` event for each new request, `wallet-error` for a failed flow, `state` when the stored state changes, and `authorize` with the sign-in `url` of an issuer. Only one tab of a browser gets `authorize`. The page sends its tab id in the `X-Eudi-Tab` header when it approves or submits an offer, and in the `tab` query of the stream. The event goes to the stream with that tab id, otherwise to the newest stream ([ADR-0011](../adr/0011-a-flow-belongs-to-the-browser-that-started-it.md)).
+`GET /api/requests` lists the pending consent requests. Each has `id`, `type` (`presentation`, `issuance` or `issuance_presentation`), `client_id`, `matched_credentials`, `credential_options` and `mine`. A presentation with [transaction data](presenting.md#transaction-data) also has `transaction_data`, each entry with its `type`, `credential_ids` and `data`. `GET /api/requests/stream` sends a `consent` event for each new request, `wallet-error` for a failed flow, `state` when the stored state changes, and `authorize` with the sign-in `url` of an issuer. Only one tab of a browser gets `authorize`. The page sends its tab id in the `X-Eudi-Tab` header when it approves or submits an offer, and in the `tab` query of the stream. An `authorize` event goes to the stream with that tab id. If no stream has that tab id, it goes to the newest stream ([ADR-0011](../adr/0011-a-flow-belongs-to-the-browser-that-started-it.md)).
 
 `POST /api/requests/{id}/approve` takes an optional JSON body:
 
@@ -239,7 +239,7 @@ Transaction templates are transaction data entries for presentation requests (se
 | `GET /api/transaction-templates/{name}` | Get one transaction template |
 | `PUT /api/transaction-templates/{name}` | Create or replace a user template. `transaction_data` must be an object with a `type` |
 | `DELETE /api/transaction-templates/{name}` | Delete a user template. Deleting an override of a predefined template restores the predefined version |
-| `GET /api/transaction-data-types` | List the transaction data types for the editor: the TS12 types with the payload fields of their schema, and the types of `--transaction-data-type`. `hash_algs` lists the supported hash algorithms |
+| `GET /api/transaction-data-types` | List the transaction data types the wallet knows: the TS12 types with the payload fields of their schema, and the types of `--transaction-data-type`. `hash_algs` lists the supported hash algorithms |
 
 ```bash
 curl -X PUT http://localhost:8085/api/transaction-templates/refund \
@@ -727,7 +727,7 @@ Use `--remote local` to bypass routing and access storage directly. While a serv
 
 A running or remote wallet keeps its own store. A command that manages it refuses `--storage`, `--templates-dir` and `--seed`. A remote target from `--remote` or `wallet use` also refuses `--wallet-dir`. Add `--remote local` to use the local store with these flags.
 
-A routed command uses the settings of the running wallet for every step of a flow, including a credential collected later. It refuses a conformance flag with a different value, such as `--mode strict` on a wallet in debug mode. A flag with the wallet's own value passes. A `--relying-party-ca`, `--trusted-list-ca` or `--trusted-list` value already trusted by the wallet passes too. Set the mode, HAIP, ARF and key attestation level on `wallet serve` or with `PUT /api/config/conformance`. Put CAs and lists on the wallet's trusted lists with `trust`. `trust add-ca --list trusted-list-ca` adds the CA of a list operator. The outbound flags `--tls-verify`, `--tls-ca` and the proxy flags follow the same rule on every routed command.
+A routed command uses the settings of the running wallet for every step of a flow, including a credential collected later. It refuses a conformance flag with a different value, such as `--mode strict` on a wallet in debug mode. A flag with the wallet's own value passes. A `--relying-party-ca`, `--trusted-list-ca` or `--trusted-list` value already trusted by the wallet passes too. Set the mode, HAIP, ARF, key attestation level and transaction data on `wallet serve` or with `PUT /api/config/conformance`. Put CAs and lists on the wallet's trusted lists with `trust`. `trust add-ca --list trusted-list-ca` adds the CA of a list operator. The outbound flags `--tls-verify`, `--tls-ca` and the proxy flags follow the same rule on every routed command.
 
 The running wallet answers on its own address and signs with its own issuer. So `wallet accept` and `wallet scan` refuse `--port` and `--docker`, and `issue --wallet` refuses `--iss` and a `--key` without `--cert`.
 
