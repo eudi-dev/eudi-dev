@@ -2787,10 +2787,12 @@ test.describe("Registrar", () => {
 
     // The browser creates the key, and the access certificate is issued for it.
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "eudi-registrar-"));
-    await expect(page.locator("#registrar-pem-label")).toHaveText("Signing key and access certificate chain");
-    fs.writeFileSync(path.join(dir, "verifier.pem"), await page.locator("#registrar-pem").inputValue());
+    await expect(page.locator("#registrar-pem-label")).toHaveText("Signing key and access certificate");
+    const pem = await page.locator("#registrar-pem").inputValue();
+    fs.writeFileSync(path.join(dir, "verifier.pem"), pem);
     expect(execSync("openssl x509 -in verifier.pem -noout -pubkey", { cwd: dir }).toString())
       .toBe(publicKeyOf(dir, "verifier.pem", "pkey"));
+    expect(pem.match(/BEGIN CERTIFICATE/g)).toHaveLength(1);
 
     const verifierInfo = JSON.parse(await page.locator("#registrar-verifier-info").inputValue());
     expect(verifierInfo[0].format).toBe("registration_cert");
@@ -2845,10 +2847,12 @@ test.describe("Registrar", () => {
     await page.locator("#registrar-csr").fill(fs.readFileSync(path.join(dir, "verifier.csr"), "utf8"));
     await page.locator("#registrar-submit").click();
     await expect(page.locator("#registrar-result")).toBeVisible();
-    await expect(page.locator("#registrar-pem-label")).toHaveText("Access certificate chain");
+    await expect(page.locator("#registrar-pem-label")).toHaveText("Access certificate");
     expect(await page.locator("#registrar-pem").inputValue()).not.toContain("PRIVATE KEY");
-    fs.writeFileSync(path.join(dir, "chain.pem"), await page.locator("#registrar-pem").inputValue());
-    expect(execSync("openssl x509 -in chain.pem -noout -pubkey", { cwd: dir }).toString())
+    const certificate = await page.locator("#registrar-pem").inputValue();
+    expect(certificate.match(/BEGIN CERTIFICATE/g)).toHaveLength(1);
+    fs.writeFileSync(path.join(dir, "verifier.pem"), certificate);
+    expect(execSync("openssl x509 -in verifier.pem -noout -pubkey", { cwd: dir }).toString())
       .toBe(publicKeyOf(dir, "verifier.key", "ec"));
   });
 
@@ -3097,7 +3101,7 @@ test.describe("Registrar", () => {
     await expect(page.locator("#registrar-verifier-info")).toBeHidden();
 
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "eudi-registrar-"));
-    await expect(page.locator("#registrar-pem-label")).toHaveText("Signing key and access certificate chain");
+    await expect(page.locator("#registrar-pem-label")).toHaveText("Signing key and access certificate");
     fs.writeFileSync(path.join(dir, "verifier.pem"), await page.locator("#registrar-pem").inputValue());
     expect(execSync("openssl x509 -in verifier.pem -noout -subject", { cwd: dir }).toString()).toMatch(/CN ?= ?Keyless Shop/);
     expect(execSync("openssl x509 -in verifier.pem -noout -pubkey", { cwd: dir }).toString())
@@ -3180,7 +3184,7 @@ test.describe("Registrar", () => {
     await expect(page.locator("#registrar-submit")).toHaveText("✓ Registered");
     await expect(page.locator("#registrar-client-ids-block")).toBeHidden();
     await expect(page.locator("#registrar-verifier-info-block")).toBeHidden();
-    await expect(page.locator("#registrar-pem-label")).toHaveText("Signing key and access certificate chain");
+    await expect(page.locator("#registrar-pem-label")).toHaveText("Signing key and access certificate");
     // ETSI TS 119 472-3 V1.1.1 ISS-MDATA-REG_CERT-4.2.3-04 as adapted by CIR (EU) 2026/1731 Annex XI.
     const issuerInfo = JSON.parse(await page.locator("#registrar-issuer-info").inputValue());
     expect(issuerInfo.map((e) => e.format)).toEqual(["registration_cert"]);

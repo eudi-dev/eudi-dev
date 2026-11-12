@@ -97,7 +97,7 @@ For SD-JWT claims, separate path segments with dots (`address.locality`). For md
 
 ![Registration result](../assets/registrar-result.png)
 
-If the browser created the key, the result PEM contains the key and the access certificate chain. With your own CSR it contains only the chain. The `data` field of the `registration_cert` entry holds the registration certificate. In `verifier_info` it is base64url encoded. In `issuer_info` it is the plain JWT.
+If the browser created the key, the result PEM contains the key and the access certificate. With your own CSR it contains only the certificate. The PEM leaves out the relying party access CA, because that CA is the trust anchor and `x5c` must not carry it (HAIP 1.0 §5). The wallet trusts the CA through its `access-ca` list. The `data` field of the `registration_cert` entry holds the registration certificate. In `verifier_info` it is base64url encoded. In `issuer_info` it is the plain JWT.
 
 Every element has an ID for automated tests:
 
@@ -340,7 +340,7 @@ eudi catalog rm 3f1c3b0d-71ad-496b-9f94-68198503e761
 
 With `--to`, both add the other role to a registered relying party instead. `verifiers add --to` adds an intended use, and `issuers add --to` adds attestation types. On an issuer, the new types are added to the existing ones. Issuing the new certificate revokes the current one. It stays one registration with both roles. The command issues the new registration certificate and prints its `verifier_info` or `issuer_info` value. The other role changes the entitlements of the service, so the registrar revokes the certificates of the first role. `registration-cert` then issues new ones.
 
-`enrol` sends an enrolment like the registrar dialog of the web UI: the registration, an access certificate request with your CSR and the registration certificate to issue, in one step. `--update` changes an existing registration, for example to add an intended use or a service. The registrar dialog of the web UI can show this enrolment as a command. The command prints the access certificate chain and the `verifier_info` or `issuer_info` value.
+`enrol` works like the registrar dialog of the web UI. In one step it sends the registration and your CSR, and the registrar issues the access certificate and the registration certificate. `--update` changes an existing registration, for example to add an intended use or a service. The registrar dialog of the web UI can show this enrolment as a command. The command prints the access certificate and the `verifier_info` or `issuer_info` value.
 
 `access-cert` prints the PEM certificate and writes the client identifiers to stderr: `x509_hash` for the certificate and `x509_san_dns` for each `--dns` name (OpenID4VP 1.0 §5.9.3). The trade name of the service becomes the common name (ETSI TS 119 411-8 GEN-6.1.1-04, ARF Reg_31). The key must be P-256, because HAIP 1.0 §7 requires every wallet to support ES256 for signed presentation requests.
 

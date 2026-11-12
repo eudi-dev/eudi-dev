@@ -209,7 +209,7 @@
         <div class="cli-install-label" id="howto-registrar-registration-label">3. Get a registration certificate (verifier_info or issuer_info)</div>
         <pre id="howto-registrar-registration-endpoint">POST <span class="howto-origin" id="howto-registrar-registration-origin"></span>/api/registrar/registration-certificates</pre>
       </div>
-      <p class="dialog-hint" id="howto-registrar-sign-hint">4. A verifier signs its request object with the access certificate's key, puts the chain in <code>x5c</code> and adds <code>verifier_info</code>. An issuer signs its metadata the same way and adds <code>issuer_info</code>.</p>
+      <p class="dialog-hint" id="howto-registrar-sign-hint">4. A verifier signs its request object with the access certificate's key, puts the access certificate in <code>x5c</code> and adds <code>verifier_info</code>. An issuer signs its metadata the same way and adds <code>issuer_info</code>.</p>
       <div class="cli-install">
         <div class="cli-install-label" id="howto-registrar-cli-label">With the CLI</div>
         <pre class="howto-commands" id="howto-registrar-cli-commands">eudi registrar verifiers add --name "Example Shop" --purpose "Age check" --dcql query.json

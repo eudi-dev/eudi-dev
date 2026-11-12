@@ -6264,8 +6264,9 @@
   function showAccessResult(key, access) {
     document.getElementById('registrar-client-ids').innerHTML = (access.clientIds || []).map((id, i) =>
       '<li><code id="registrar-client-id-' + i + '">' + escHtml(id) + '</code></li>').join('');
-    document.getElementById('registrar-pem-label').textContent = key ? 'Signing key and access certificate chain' : 'Access certificate chain';
-    document.getElementById('registrar-pem').value = key + access.chain;
+    document.getElementById('registrar-pem-label').textContent = key ? 'Signing key and access certificate' : 'Access certificate';
+    // The relying party access CA is the trust anchor, which x5c must not carry (HAIP 1.0 §5).
+    document.getElementById('registrar-pem').value = key + access.certificate;
   }
 
   document.getElementById('registrar-close').addEventListener('click', () => {
@@ -6496,8 +6497,9 @@
   }
 
   // Registering issues both certificates in one step. If a certificate fails,
-  // the registration is deleted again, so a retry starts clean. A key created
-  // in the browser is shown with the chain, because it exists nowhere else.
+  // the registration is deleted again, so a retry starts clean. The dialog shows
+  // a key created in the browser next to the access certificate, because the
+  // key exists nowhere else.
   document.getElementById('registrar-form').addEventListener('submit', async (event) => {
     event.preventDefault();
     const submit = document.getElementById('registrar-submit');

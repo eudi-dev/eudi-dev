@@ -370,8 +370,8 @@ to issue. With --update it changes an existing registration, as PUT
 service.
 
 In the web UI, the command button of the registrar dialog shows this
-enrolment. The output holds the access certificate chain and the
-verifier_info or issuer_info value.`,
+enrolment. The output holds the access certificate and the verifier_info or
+issuer_info value.`,
 		Example: `  eudi registrar enrol enrolment.json
   eudi registrar enrol --update - < enrolment.json`,
 		Args: cobra.ExactArgs(1),
@@ -399,7 +399,7 @@ verifier_info or issuer_info value.`,
 				}
 				fmt.Fprintf(cmd.ErrOrStderr(), "Enrolled %s (%s)\n", result.RelyingParty.TradeName, identifier)
 				if result.Access != nil {
-					_, _ = fmt.Fprint(cmd.OutOrStdout(), result.Access.Chain)
+					_, _ = fmt.Fprint(cmd.OutOrStdout(), result.Access.Certificate)
 				}
 				if result.Registration != nil {
 					info := result.Registration.VerifierInfo

@@ -462,7 +462,7 @@ Open **Registrar** (`#registrar-menu-toggle`), then **Relying parties** (`#regis
 | Own CSR | `#registrar-csr`. `#registrar-csr-help-toggle` shows an OpenSSL command in `#registrar-csr-command` |
 | **Register verifier** or **Register issuer**, error | `#registrar-submit`, `#registrar-error` |
 | Result | `#registrar-result`, `#registrar-result-identifier`, `#registrar-client-id-<n>` |
-| Key and certificate chain | `#registrar-pem`. Without a CSR it holds the private key too |
+| Key and access certificate | `#registrar-pem`. Without a CSR it holds the private key too |
 | `verifier_info` or `issuer_info` | `#registrar-verifier-info`, `#registrar-issuer-info` (JSON) |
 | Relying parties list | `#registrar-search`, `#registrar-filter-verifiers`, `#registrar-filter-issuers`, entries `#registrar-party-<identifier>` |
 | **Issue access certificate** of a service | `#registrar-party-<identifier>-service-<service>-access` (`default` without a service identifier) |

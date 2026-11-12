@@ -16,8 +16,13 @@ package cmd
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -208,6 +213,66 @@ func TestRegistrarAddsTheOtherRoleToARegistration(t *testing.T) {
 	}
 	if out := run("verifiers"); !strings.Contains(out, identifier) {
 		t.Errorf("verifiers %q, want the party", out)
+	}
+}
+
+func TestEnrolPrintsTheAccessCertificateWithoutItsCA(t *testing.T) {
+	resetRemoteTestState(t)
+	t.Cleanup(func() { resetFlags(rootCmd); rootCmd.SetOut(nil) })
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{}, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	enrolment, err := json.Marshal(map[string]any{
+		"relyingParty": map[string]any{
+			"tradeName":   "Example Shop",
+			"country":     "NL",
+			"legalPerson": map[string]any{"legalName": []string{"Example Shop B.V."}},
+			"services": []any{map[string]any{
+				"serviceIdentifier": "checkout",
+				"intendedUses": []any{map[string]any{
+					"purpose":     []any{map[string]any{"lang": "en", "content": "Age check"}},
+					"credentials": []any{map[string]any{"format": "dc+sd-jwt", "meta": map[string]any{"vct_values": []string{"urn:eudi:pid:1"}}, "claims": []any{map[string]any{"path": []string{"birthdate"}}}}},
+				}},
+			}},
+		},
+		"access":       map[string]any{"serviceIdentifier": "checkout", "csr": string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr}))},
+		"registration": map[string]any{"serviceIdentifier": "checkout"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(t.TempDir(), "enrolment.json")
+	if err := os.WriteFile(file, enrolment, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out := captureStdout(t, func() {
+		rootCmd.SetArgs([]string{"registrar", "enrol", file})
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("registrar enrol: %v", err)
+		}
+	})
+	block, rest := pem.Decode([]byte(out))
+	if block == nil || block.Type != "CERTIFICATE" {
+		t.Fatalf("output %q, want the access certificate first", out)
+	}
+	leaf, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !key.PublicKey.Equal(leaf.PublicKey) {
+		t.Fatalf("certificate %s, want the access certificate of the CSR key", leaf.Subject)
+	}
+	if next, _ := pem.Decode(rest); next != nil {
+		t.Fatalf("output has a %s after the access certificate, want only the verifier_info value", next.Type)
+	}
+	var verifierInfo []map[string]any
+	if err := json.Unmarshal(bytes.TrimSpace(rest), &verifierInfo); err != nil || verifierInfo[0]["format"] != "registration_cert" {
+		t.Fatalf("output after the certificate %q, want the verifier_info value", rest)
 	}
 }
 
