@@ -27,6 +27,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
 	"github.com/eudi-dev/eudi-dev/v3/internal/output"
 	"github.com/eudi-dev/eudi-dev/v3/internal/txtemplate"
+	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
 )
 
 var transactionTemplateImportName string
@@ -77,6 +78,56 @@ func transactionTemplateSource(t txtemplate.Template) string {
 		return "predefined"
 	}
 	return "user"
+}
+
+var transactionTemplatesTypesCmd = &cobra.Command{
+	Use:   "types",
+	Args:  cobra.NoArgs,
+	Short: "List the transaction data types the wallet knows",
+	Long: "Lists the SCA transaction types of EUDI TS12 v1.0.1 with the payload members of their schemas. " +
+		"A member marked with * is required. A running wallet also lists the types of its --transaction-data-type. " +
+		"The wallet accepts transaction data only with --transaction-data.",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		svc, err := managedWallet()
+		if err != nil {
+			return err
+		}
+		list, err := svc.TransactionDataTypes()
+		if err != nil {
+			return err
+		}
+		if jsonOutput {
+			output.PrintJSON(list)
+			return nil
+		}
+		tw := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+		fmt.Fprintln(tw, "TYPE\tPAYLOAD")
+		for _, t := range list.Types {
+			fmt.Fprintf(tw, "%s\t%s\n", t.Type, payloadMembers(t))
+		}
+		if err := tw.Flush(); err != nil {
+			return err
+		}
+		fmt.Printf("\nHash algorithms: %s\n", strings.Join(list.HashAlgs, ", "))
+		return nil
+	},
+}
+
+// payloadMembers names the payload members of a TS12 type, the required ones
+// marked with *.
+func payloadMembers(t wallet.TransactionDataType) string {
+	if !t.TS12 {
+		return "(any, added with --transaction-data-type)"
+	}
+	names := make([]string, 0, len(t.Fields))
+	for _, f := range t.Fields {
+		if f.Required {
+			names = append(names, f.Name+"*")
+		} else {
+			names = append(names, f.Name)
+		}
+	}
+	return strings.Join(names, ", ")
 }
 
 var transactionTemplatesShowCmd = &cobra.Command{
@@ -225,6 +276,7 @@ func init() {
 	templatesCmd.AddCommand(transactionTemplatesCmd)
 	transactionTemplatesCmd.AddCommand(transactionTemplatesListCmd)
 	transactionTemplatesCmd.AddCommand(transactionTemplatesShowCmd)
+	transactionTemplatesCmd.AddCommand(transactionTemplatesTypesCmd)
 	transactionTemplatesCmd.AddCommand(transactionTemplatesImportCmd)
 	transactionTemplatesCmd.AddCommand(transactionTemplatesDeleteCmd)
 	transactionTemplatesImportCmd.Flags().StringVar(&transactionTemplateImportName, "name", "", "Save the imported template under this name")

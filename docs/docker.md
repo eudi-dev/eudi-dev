@@ -293,7 +293,7 @@ docker run -p 8085:8085 -v ./transaction-templates.yaml:/config/transaction-temp
   ghcr.io/eudi-dev/eudi-dev
 ```
 
-The wallet's template list marks it as "from config".
+The wallet's template list marks it as "from config". `eudi templates transactions types` lists the TS12 types and their payload members.
 
 ## Testing API
 

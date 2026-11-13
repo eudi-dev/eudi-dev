@@ -17,11 +17,14 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/output"
 	"github.com/eudi-dev/eudi-dev/v3/internal/remote"
@@ -59,6 +62,13 @@ func walletRequestsCmd() *cobra.Command {
 			sortByCreation(pending)
 			for _, r := range pending {
 				fmt.Printf("%s  %s  %s  %s\n", r["id"], r["type"], r["created_at"], r["client_id"])
+				transactions, err := requestTransactions(r)
+				if err != nil {
+					return err
+				}
+				for _, line := range transactions {
+					fmt.Printf("  %s\n", line)
+				}
 			}
 			return nil
 		},
@@ -162,4 +172,35 @@ func sortByCreation(requests []map[string]any) {
 		b, _ := requests[j]["created_at"].(string)
 		return a < b
 	})
+}
+
+// requestTransactions describes the transaction data of a consent request,
+// one line per entry: the type, the credential queries that authorize it and
+// the other members as JSON.
+func requestTransactions(request map[string]any) ([]string, error) {
+	raw, err := json.Marshal(request["transaction_data"])
+	if err != nil {
+		return nil, err
+	}
+	var entries []consent.TransactionData
+	if err := json.Unmarshal(raw, &entries); err != nil {
+		return nil, fmt.Errorf("decoding the transaction data of request %v: %w", request["id"], err)
+	}
+	lines := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		members := maps.Clone(entry.Data)
+		for _, key := range []string{"type", "credential_ids", "transaction_data_hashes_alg"} {
+			delete(members, key)
+		}
+		data, err := json.Marshal(members)
+		if err != nil {
+			return nil, err
+		}
+		line := "transaction " + entry.Type
+		if len(entry.CredentialIDs) > 0 {
+			line += " for " + strings.Join(entry.CredentialIDs, ", ")
+		}
+		lines = append(lines, fmt.Sprintf("%s: %s", line, data))
+	}
+	return lines, nil
 }

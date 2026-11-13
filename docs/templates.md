@@ -293,6 +293,8 @@ eudi templates show employee-card > share-me.json
 eudi templates delete employee-card
 ```
 
+`eudi templates credentials` has the same commands as `eudi templates`. For example, `eudi templates credentials list` does the same as `eudi templates list`. `eudi templates transactions` manages the [transaction templates](wallet/presenting.md#transaction-templates).
+
 `templates import` reads a `.yaml` or `.yml` file as YAML and any other file as JSON. On stdin, input that starts with `{` is JSON and other input is YAML. `templates show` prints JSON for every source format.
 
 All `templates` subcommands accept `--wallet-dir` to target a non-default wallet store. With `--remote <url>` (or after `wallet use <url>`), list, show, save, import, and delete operate on a remote instance's template store through its REST API. See [remote control](wallet/http-api.md#remote-control).

@@ -185,7 +185,7 @@ These checks apply with `--transaction-data`. See [transaction data](wallet/pres
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| SCA transaction types | Implemented | The wallet knows the four types of §4.3: payment, login and risk transaction, account access and e-mandate. |
+| SCA transaction types | Implemented | The wallet knows the four types of §4.3: payment, login and risk transaction, account access and e-mandate. `eudi templates transactions types` lists them with their payload members |
 | Transaction data entry | Enforced in strict mode | A TS12 entry needs `transaction_data_hashes_alg` and a `payload` object and has no other members (§4.2). The payload must match the JSON Schema of its type (§3.2 step 4). Strict mode refuses an entry that breaks these rules with `invalid_transaction_data` (OpenID4VP 1.0 §8.5). Debug mode warns and signs the entry |
 | SCA Attestation | Deliberate deviation | The credential that authorizes a TS12 transaction must be an SCA Attestation, or the wallet stops (§3.2 steps 1 and 2). Its Type Metadata needs the category `urn:eu:europa:ec:eudi:sua:sca` and must list the transaction type. The wallet only warns, in both modes, so a payment can be tested with the PID. The demo issuer's Demo Payment Account passes the check ([ADR 0031](adr/0031-transaction-data-is-opt-in-and-binds-to-sd-jwt.md)) |
 | Key Binding JWT claims | Implemented | A presentation with a TS12 entry adds a fresh `jti`, the `response_mode` of the answer and `amr` to its Key Binding JWT (§3.6). The wallet does not authenticate the user, so `amr` lists a PIN and a key in the native key store |

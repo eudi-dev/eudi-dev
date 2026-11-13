@@ -155,11 +155,14 @@ The editor's command panel shows the template as a curl call, as an `eudi templa
 The CLI manages the same templates:
 
 ```bash
+eudi templates transactions types
 eudi templates transactions list
 eudi templates transactions show payment
 eudi templates transactions import refund.yaml --name refund
 eudi templates transactions delete refund
 ```
+
+`types` lists the transaction data types the wallet accepts. It shows the payload members of each TS12 type and marks the required ones with `*`.
 
 A template needs a `type`. The wallet checks a TS12 template against the TS12 rules for an entry (TS12 §4.2 and §4.3) and shows the findings as warnings. It still saves the template. A broken entry tests how a wallet refuses it.
 

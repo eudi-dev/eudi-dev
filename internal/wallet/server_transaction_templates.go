@@ -19,7 +19,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"slices"
 	"strings"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
@@ -112,35 +111,13 @@ func (s *Server) handleDeleteTransactionTemplate(w http.ResponseWriter, r *http.
 	writeJSON(w, http.StatusOK, map[string]string{"deleted": name})
 }
 
-// transactionDataType is a type offered by the template editor. A TS12 type
-// lists the members of its payload.
-type transactionDataType struct {
-	Type   string                `json:"type"`
-	TS12   bool                  `json:"ts12,omitempty"`
-	Fields []oid4vp.PayloadField `json:"fields,omitempty"`
-}
-
-type transactionDataTypes struct {
-	Types    []transactionDataType `json:"types"`
-	HashAlgs []string              `json:"hash_algs"`
-}
-
 // handleListTransactionDataTypes lists the TS12 types and the types from
 // --transaction-data-type.
 func (s *Server) handleListTransactionDataTypes(w http.ResponseWriter, r *http.Request) {
-	list := transactionDataTypes{HashAlgs: oid4vp.TransactionDataHashAlgs}
-	for _, typ := range oid4vp.TS12TransactionDataTypes {
-		fields, err := oid4vp.TS12PayloadFields(typ)
-		if err != nil {
-			apierror.WriteStatusErr(w, http.StatusInternalServerError, err)
-			return
-		}
-		list.Types = append(list.Types, transactionDataType{Type: typ, TS12: true, Fields: fields})
-	}
-	for _, typ := range s.wallet.Conformance().TransactionDataTypes {
-		if !slices.Contains(oid4vp.TS12TransactionDataTypes, typ) {
-			list.Types = append(list.Types, transactionDataType{Type: typ})
-		}
+	list, err := s.wallet.AcceptedTransactionDataTypes()
+	if err != nil {
+		apierror.WriteStatusErr(w, http.StatusInternalServerError, err)
+		return
 	}
 	writeJSON(w, http.StatusOK, list)
 }

@@ -53,6 +53,7 @@ type walletService interface {
 	DeleteTemplate(name string) error
 	TransactionTemplates() ([]txtemplate.Template, error)
 	TransactionTemplate(name string) (txtemplate.Template, error)
+	TransactionDataTypes() (wallet.TransactionDataTypes, error)
 	SaveTransactionTemplate(tpl txtemplate.Template) error
 	DeleteTransactionTemplate(name string) error
 	Certificate(kind, certFormat string, opts walletCertOptions) ([]byte, error)
@@ -207,6 +208,18 @@ func (r *remoteWallet) TransactionTemplates() ([]txtemplate.Template, error) {
 		templates = append(templates, *tpl)
 	}
 	return templates, nil
+}
+
+func (r *remoteWallet) TransactionDataTypes() (wallet.TransactionDataTypes, error) {
+	doc, err := r.c.TransactionDataTypes()
+	if err != nil {
+		return wallet.TransactionDataTypes{}, err
+	}
+	types, err := decodeDoc[wallet.TransactionDataTypes](doc)
+	if err != nil {
+		return wallet.TransactionDataTypes{}, err
+	}
+	return *types, nil
 }
 
 func (r *remoteWallet) TransactionTemplate(name string) (txtemplate.Template, error) {
@@ -465,6 +478,10 @@ func (l *localWallet) DeleteTemplate(name string) error {
 
 func (l *localWallet) TransactionTemplates() ([]txtemplate.Template, error) {
 	return with(l, func(m *wallet.Management) ([]txtemplate.Template, error) { return m.TransactionTemplates() })
+}
+
+func (l *localWallet) TransactionDataTypes() (wallet.TransactionDataTypes, error) {
+	return with(l, func(m *wallet.Management) (wallet.TransactionDataTypes, error) { return m.TransactionDataTypes() })
 }
 
 func (l *localWallet) TransactionTemplate(name string) (txtemplate.Template, error) {

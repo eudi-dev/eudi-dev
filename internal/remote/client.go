@@ -361,6 +361,12 @@ func (c *Client) TransactionTemplates() ([]map[string]any, error) {
 	return out, err
 }
 
+func (c *Client) TransactionDataTypes() (map[string]any, error) {
+	var out map[string]any
+	err := c.do(http.MethodGet, apiPath("transaction-data-types"), nil, &out)
+	return out, err
+}
+
 func (c *Client) TransactionTemplate(name string) (map[string]any, error) {
 	var out map[string]any
 	err := c.do(http.MethodGet, apiPath("transaction-templates", name), nil, &out)

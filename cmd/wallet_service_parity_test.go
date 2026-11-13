@@ -415,6 +415,13 @@ func parityCases() []parityCase {
 			}
 			return tpl
 		}},
+		{method: "TransactionDataTypes", observe: func(t *testing.T, s walletService) any {
+			types, err := s.TransactionDataTypes()
+			if err != nil {
+				t.Fatal(err)
+			}
+			return types
+		}},
 		{method: "DeleteTransactionTemplate", observe: func(t *testing.T, s walletService) any {
 			saveParityTransactionTemplate(t, s)
 			if err := s.DeleteTransactionTemplate("parity"); err != nil {

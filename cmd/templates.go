@@ -42,12 +42,40 @@ var (
 
 var templatesCmd = &cobra.Command{
 	Use:   "templates",
-	Short: "Manage credential templates",
+	Short: "Manage credential and transaction templates",
 	Long: "Manage credential templates: named, reusable claim sets with per-format defaults. " +
 		"The predefined PID templates and the demo ticket are built in (see `templates list`). User templates are stored " +
-		"with the wallet state (templates/ in the wallet directory on the file backend). Use them with `issue <format> --template <name>`.",
+		"with the wallet state (templates/ in the wallet directory on the file backend). Use them with `issue <format> --template <name>`. " +
+		"`templates credentials` has the same commands as `templates`. " +
+		"`templates transactions` manages the transaction templates for presentation requests.",
 	Args: cobra.NoArgs,
 	RunE: showHelp,
+}
+
+var templatesCredentialsCmd = &cobra.Command{
+	Use:   "credentials",
+	Short: "Manage credential templates, like the plain templates commands",
+	Long:  "Manage credential templates. The list, show, save, import and delete commands here do the same as the plain templates commands.",
+	Args:  cobra.NoArgs,
+	RunE:  showHelp,
+}
+
+// aliasCommand returns a copy of c to add under another parent, because cobra
+// gives a command one parent. The copy shares c's pflag.Flag values, so Changed
+// and registered flag completions apply to both. It copies only the fields the
+// template commands set.
+func aliasCommand(c *cobra.Command) *cobra.Command {
+	alias := &cobra.Command{
+		Use:               c.Use,
+		Short:             c.Short,
+		Long:              c.Long,
+		Example:           c.Example,
+		Args:              c.Args,
+		ValidArgsFunction: c.ValidArgsFunction,
+		RunE:              c.RunE,
+	}
+	alias.Flags().AddFlagSet(c.Flags())
+	return alias
 }
 
 var templatesListCmd = &cobra.Command{
@@ -304,6 +332,11 @@ func init() {
 
 	_ = templatesSaveCmd.RegisterFlagCompletionFunc("from", completeTemplateNames)
 	_ = templatesSaveCmd.RegisterFlagCompletionFunc("format", staticCompletion("sdjwt", "jwt", "mdoc"))
+
+	templatesCmd.AddCommand(templatesCredentialsCmd)
+	for _, c := range []*cobra.Command{templatesListCmd, templatesShowCmd, templatesSaveCmd, templatesImportCmd, templatesDeleteCmd} {
+		templatesCredentialsCmd.AddCommand(aliasCommand(c))
+	}
 	_ = templatesCmd.RegisterFlagCompletionFunc("remote", completeRemoteFlag)
 	_ = templatesCmd.MarkPersistentFlagDirname("wallet-dir")
 	_ = templatesCmd.MarkPersistentFlagDirname("templates-dir")

@@ -249,7 +249,7 @@ See [issuance into the wallet](wallet/issuing.md) for sign-in, renewal, deferred
 
 ## Consent requests
 
-`wallet requests` lists the consent requests of a running wallet server. `approve` and `deny` answer a request by its id, or the newest one of `--type` (`presentation`, `issuance` or `issuance_presentation`). `approve --body` takes the choices as JSON, like `POST /api/requests/{id}/approve`. Without it the wallet sends its automatic selection. A consent dialog can show the matching CLI command with its current choices.
+`wallet requests` lists the consent requests of a running wallet server. `approve` and `deny` answer a request by its id, or the newest request of the given `--type` (`presentation`, `issuance` or `issuance_presentation`). `approve --body` takes the choices as JSON, like `POST /api/requests/{id}/approve`. Without it the wallet sends its automatic selection. A consent dialog can show the matching CLI command with its current choices. For a presentation with transaction data, the list shows each entry below the request, with its type, its credential queries and its data as JSON.
 
 ```bash
 eudi wallet requests                                       # list pending requests

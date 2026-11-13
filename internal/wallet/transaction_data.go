@@ -172,3 +172,37 @@ func scaFindings(cred StoredCredential, entries []oid4vp.TransactionData) findin
 	}
 	return list
 }
+
+// TransactionDataType is a transaction data type the wallet accepts. A TS12
+// type lists the members of its payload.
+type TransactionDataType struct {
+	Type   string                `json:"type"`
+	TS12   bool                  `json:"ts12,omitempty"`
+	Fields []oid4vp.PayloadField `json:"fields,omitempty"`
+}
+
+// TransactionDataTypes are the accepted transaction data types and hash
+// algorithms.
+type TransactionDataTypes struct {
+	Types    []TransactionDataType `json:"types"`
+	HashAlgs []string              `json:"hash_algs"`
+}
+
+// AcceptedTransactionDataTypes lists the TS12 types and the types from
+// --transaction-data-type.
+func (w *Wallet) AcceptedTransactionDataTypes() (TransactionDataTypes, error) {
+	list := TransactionDataTypes{HashAlgs: oid4vp.TransactionDataHashAlgs}
+	for _, typ := range oid4vp.TS12TransactionDataTypes {
+		fields, err := oid4vp.TS12PayloadFields(typ)
+		if err != nil {
+			return TransactionDataTypes{}, err
+		}
+		list.Types = append(list.Types, TransactionDataType{Type: typ, TS12: true, Fields: fields})
+	}
+	for _, typ := range w.Conformance().TransactionDataTypes {
+		if !slices.Contains(oid4vp.TS12TransactionDataTypes, typ) {
+			list.Types = append(list.Types, TransactionDataType{Type: typ})
+		}
+	}
+	return list, nil
+}

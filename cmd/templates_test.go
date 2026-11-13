@@ -17,6 +17,7 @@ package cmd
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -80,6 +81,58 @@ func TestTemplatesSaveListDelete_EndToEnd(t *testing.T) {
 	}
 	if _, err := credtemplate.Load("employee-card", wallet.NewWalletStore(dir).Templates()); err == nil {
 		t.Error("template still loadable after delete")
+	}
+}
+
+func TestTemplatesCredentialsRunsTheTemplatesCommands(t *testing.T) {
+	dir := resetTemplateTestState(t)
+
+	rootCmd.SetArgs([]string{"templates", "credentials", "save", "employee-card",
+		"--format", "sdjwt", "--vct", "urn:example:employee",
+		"--claims", `{"employee_id": "E-1"}`,
+		"--wallet-dir", dir})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("templates credentials save: %v", err)
+	}
+	tpl, err := credtemplate.Load("employee-card", wallet.NewWalletStore(dir).Templates())
+	if err != nil {
+		t.Fatalf("loading saved template: %v", err)
+	}
+	if tpl.VCT != "urn:example:employee" {
+		t.Errorf("vct = %q, want urn:example:employee", tpl.VCT)
+	}
+
+	rootCmd.SetArgs([]string{"templates", "credentials", "delete", "employee-card", "--wallet-dir", dir})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("templates credentials delete: %v", err)
+	}
+	if _, err := credtemplate.Load("employee-card", wallet.NewWalletStore(dir).Templates()); err == nil {
+		t.Error("template still loadable after delete")
+	}
+}
+
+func TestTemplatesCredentialsMatchesThePlainCommands(t *testing.T) {
+	aliases := templatesCredentialsCmd.Commands()
+	if len(aliases) != 5 {
+		t.Fatalf("templates credentials has %d commands, want 5", len(aliases))
+	}
+	for _, alias := range aliases {
+		plain, _, err := templatesCmd.Find([]string{alias.Name()})
+		if err != nil || plain == templatesCmd {
+			t.Fatalf("no plain templates command %q", alias.Name())
+		}
+		if reflect.ValueOf(alias.RunE).Pointer() != reflect.ValueOf(plain.RunE).Pointer() {
+			t.Errorf("%s: RunE differs from the plain command", alias.Name())
+		}
+		if alias.Use != plain.Use || alias.Short != plain.Short {
+			t.Errorf("%s: usage differs from the plain command", alias.Name())
+		}
+		// Cobra adds its own --help flag to each command.
+		plain.LocalNonPersistentFlags().VisitAll(func(f *pflag.Flag) {
+			if f.Name != "help" && alias.Flags().Lookup(f.Name) != f {
+				t.Errorf("%s: flag --%s is not shared", alias.Name(), f.Name)
+			}
+		})
 	}
 }
 

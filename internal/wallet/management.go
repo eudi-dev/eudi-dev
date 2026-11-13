@@ -291,6 +291,10 @@ func (m *Management) TransactionTemplates() ([]txtemplate.Template, error) {
 	return templates, err
 }
 
+func (m *Management) TransactionDataTypes() (TransactionDataTypes, error) {
+	return m.wallet.AcceptedTransactionDataTypes()
+}
+
 func (m *Management) TransactionTemplate(name string) (txtemplate.Template, error) {
 	tpl, err := txtemplate.Load(m.wallet.TransactionTemplates, name)
 	tpl.Predefined = tpl.Predefined || m.wallet.TransactionTemplateFixed(tpl)

@@ -102,3 +102,56 @@ func TestWalletRequestsAnswerTheNewestRequestOfAType(t *testing.T) {
 		t.Errorf("answer %+v, want the denial", answer)
 	}
 }
+
+func TestWalletRequestsShowTheTransactionData(t *testing.T) {
+	resetRemoteTestState(t)
+	holderKey, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	issuerKey, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := wallet.New(holderKey, issuerKey, false)
+	req, _ := pendingConsent(t, w, consent.TypePresentation, time.Now())
+	req.TransactionData = []consent.TransactionData{{
+		Type:          "urn:eudi:sca:payment:1",
+		CredentialIDs: []string{"pid"},
+		Data: map[string]any{
+			"type":           "urn:eudi:sca:payment:1",
+			"credential_ids": []any{"pid"},
+			"payload":        map[string]any{"transaction_id": "T-1", "amount": 12.5},
+		},
+	}}
+	srv := wallet.NewServer(w, 0, nil)
+	srv.ShutdownFunc = func() {}
+	url, err := srv.ListenAndServeBackground()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	listed := captureStdout(t, func() {
+		resetFlags(rootCmd)
+		rootCmd.SetArgs([]string{"wallet", "requests", "--remote", url})
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatal(err)
+		}
+	})
+	want := `  transaction urn:eudi:sca:payment:1 for pid: {"payload":{"amount":12.5,"transaction_id":"T-1"}}`
+	if !strings.Contains(listed, want) {
+		t.Fatalf("list %q, want the line %q", listed, want)
+	}
+}
+
+func TestRequestTransactionsOmitTheMissingCredentialQueries(t *testing.T) {
+	lines, err := requestTransactions(map[string]any{"transaction_data": []any{
+		map[string]any{"type": "urn:example:refund", "data": map[string]any{"type": "urn:example:refund", "amount": 5}},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{`transaction urn:example:refund: {"amount":5}`}; !slices.Equal(lines, want) {
+		t.Errorf("lines %q, want %q", lines, want)
+	}
+}

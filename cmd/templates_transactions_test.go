@@ -22,6 +22,7 @@ import (
 
 	"github.com/spf13/pflag"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/txtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
 )
@@ -89,4 +90,41 @@ func lineWith(text, prefix string) string {
 		}
 	}
 	return ""
+}
+
+func TestTransactionTemplatesTypesListTheAcceptedTypes(t *testing.T) {
+	resetRemoteTestState(t)
+	holderKey, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	issuerKey, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := wallet.New(holderKey, issuerKey, false)
+	w.SetConformance(wallet.ConformanceSettings{TransactionData: true, TransactionDataTypes: []string{"urn:example:refund"}})
+	srv := wallet.NewServer(w, 0, nil)
+	srv.ShutdownFunc = func() {}
+	url, err := srv.ListenAndServeBackground()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	listed := captureStdout(t, func() {
+		resetFlags(rootCmd)
+		rootCmd.SetArgs([]string{"templates", "transactions", "types", "--remote", url})
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatal(err)
+		}
+	})
+	for _, want := range []string{
+		"urn:eudi:sca:login_risk_transaction:1  transaction_id*, date_time, service, action*",
+		"urn:example:refund",
+		"Hash algorithms: sha-256, sha-384, sha-512",
+	} {
+		if !strings.Contains(listed, want) {
+			t.Errorf("types %q, want %q", listed, want)
+		}
+	}
 }
