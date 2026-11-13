@@ -127,6 +127,30 @@ func TestThePagesShowTheProductNames(t *testing.T) {
 	}
 }
 
+// The imprint link gets its target from footer.js, because a server without an
+// imprint page answers 404 there.
+func TestTheImprintLinkHasNoTargetInTheMarkup(t *testing.T) {
+	link := regexp.MustCompile(`<a [^>]*id="imprint-link"[^>]*>`)
+	found := 0
+	for page, sources := range pages {
+		for _, source := range sources {
+			data, err := os.ReadFile(filepath.FromSlash(source))
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, tag := range link.FindAll(data, -1) {
+				found++
+				if !regexp.MustCompile(`^<a data-href="[^"]+" id="imprint-link" hidden>$`).Match(tag) {
+					t.Errorf("%s has the imprint link %s, want a hidden link with data-href only", page, tag)
+				}
+			}
+		}
+	}
+	if found == 0 {
+		t.Fatal("no page has an imprint link")
+	}
+}
+
 // An embedded file must sit in its package, so the logo exists in the
 // built-in theme, in the defaults and in the docs. The copies stay the same.
 func TestTheLogoCopiesMatch(t *testing.T) {

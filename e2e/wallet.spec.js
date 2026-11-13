@@ -1108,6 +1108,44 @@ test.describe("Credential Issuing via UI", () => {
     }
   });
 
+  // A link under the published base URL opens on the page origin at the same
+  // path, also when the rest of the URL looks like a host or a scheme.
+  test("keeps a description link on the page origin", async ({ page }) => {
+    const published = "https://localhost:18926";
+    const links = [
+      `${published}/api/trustlists/pid`,
+      `${published}/%2F%2Fevil.example/x`,
+      `${published}///evil.example/x`,
+      `${published}//////evil.example/x`,
+      `${published}/\\\\evil.example`,
+      `${published}/\\/evil.example`,
+      `${published}/javascript:alert(1)`,
+    ];
+    await page.goto(WALLET_URL);
+    await page.locator("#issue-btn").click();
+    await page.locator("#issue-vct").fill("urn:example:e2e-links");
+    await page.locator("#issue-display-name").fill("Linked Badge");
+    await page.locator("#issue-display-description").fill(links.join(" "));
+    await page.locator("#issue-submit").click();
+    await expect(page.locator("#issue-overlay")).not.toHaveClass(/active/);
+
+    const card = page.locator('.credential-card[data-vct="urn:example:e2e-links"]');
+    await card.locator(".about-btn").click();
+    const anchors = card.locator(".cred-desc-body a");
+    await expect(anchors).toHaveCount(links.length);
+    for (const [i, url] of links.entries()) {
+      await expect(anchors.nth(i)).toHaveText(url);
+      expect(await anchors.nth(i).getAttribute("href")).toBe("./" + url.slice(published.length + 1));
+      const target = await anchors.nth(i).evaluate((a) => ({ origin: a.origin, here: location.origin, path: a.pathname }));
+      expect(target.origin).toBe(target.here);
+      expect(target.path).toBe(new URL(url).pathname);
+    }
+
+    const res = await jsonGet(`${WALLET_URL}/api/credentials`);
+    const issued = res.body.find((c) => c.vct === "urn:example:e2e-links");
+    if (issued) await fetch(`${WALLET_URL}/api/credentials/${issued.id}`, { method: "DELETE" });
+  });
+
   // A status change rebuilds the list twice: once directly and once on the state event.
   for (const [layout, viewport] of [
     ["wide", { width: 1280, height: 300 }],
@@ -3532,7 +3570,7 @@ test.describe("Registrar", () => {
     const pid = page.locator(".registrar-party", { hasText: "EUDI PID" }).first();
     await expect(pid.locator("[id$='-template']")).toHaveText("From a template");
     await expect(pid.locator("[id$='-formats']")).toContainText("dc+sd-jwt: urn:eudi:pid:1");
-    await expect(pid.locator("[id$='-trust']")).toHaveAttribute("href", /\/api\/trustlists\/pid$/);
+    await expect(pid.locator("[id$='-trust']")).toHaveAttribute("href", /^\.\/api\/trustlists\/pid$/);
     await expect(pid.locator("button")).toHaveText(["Delete"]);
 
     await page.locator("#registrar-catalog-add").click();
@@ -3551,11 +3589,11 @@ test.describe("Registrar", () => {
     const card = page.locator(".registrar-party", { hasText: "Library card" });
     await expect(card.locator("[id$='-los']")).toHaveText("Level of security: Moderate");
     await expect(card.locator("[id$='-category']")).toHaveText("Category: EAA");
-    await expect(card.locator("[id$='-trust']")).toHaveAttribute("href", /\/api\/trustlists\/eaa$/);
+    await expect(card.locator("[id$='-trust']")).toHaveAttribute("href", /^\.\/api\/trustlists\/eaa$/);
 
     // The schema link serves SD-JWT VC Type Metadata with the claims.
     const schemaURL = await card.locator("[id$='-schema-0']").getAttribute("href");
-    const typeMetadata = await (await fetch(schemaURL.replace("https://localhost:18926", WALLET_URL))).json();
+    const typeMetadata = await (await fetch(new URL(schemaURL, WALLET_URL + "/"))).json();
     expect(typeMetadata).toEqual({ vct: "urn:example:library:1", name: "Library card", claims: [{ path: ["member_id"] }, { path: ["address", "locality"] }] });
 
     // The registration dialogs suggest the new type.

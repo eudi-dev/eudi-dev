@@ -251,7 +251,7 @@ test.describe("Demo mode consent visibility", () => {
     await page.locator("#pending-review").click();
     await expect(page.locator("#consent-overlay")).toHaveClass(/active/);
     await expect(page.locator("#consent-purpose-0")).toContainText("Shows how a verifier requests and checks credentials");
-    await expect(page.locator("#consent-privacy-policy-0")).toHaveAttribute("href", /\/privacy-policy$/);
+    await expect(page.locator("#consent-privacy-policy-0")).toHaveAttribute("href", /privacy-policy$/);
     await page.locator("#consent-deny").click();
   });
 

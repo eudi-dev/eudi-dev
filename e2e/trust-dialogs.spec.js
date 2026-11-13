@@ -35,6 +35,21 @@ async function openTrust(page) {
   await expect(page.locator("#trust-overlay")).toHaveClass(/active/);
 }
 
+test("a trusted list downloads from the page origin and shows its published URL", async ({ page }) => {
+  await openTrust(page);
+  const link = page.locator("#trust-list-pid-link");
+  await expect(link).toHaveAttribute("href", "/api/trustlists/pid");
+  await expect(link).toHaveAttribute("title", /^https:\/\/localhost:\d+\/api\/trustlists\/pid$/);
+  expect((await page.request.get(new URL(await link.getAttribute("href"), BASE).toString())).ok()).toBe(true);
+});
+
+test("a wallet without an imprint page has no imprint link target", async ({ page }) => {
+  await page.goto(BASE);
+  await expect(page.locator("#footer-version")).not.toBeEmpty();
+  await expect(page.locator("#imprint-link")).toBeHidden();
+  await expect(page.locator("#imprint-link")).not.toHaveAttribute("href");
+});
+
 test("each popup cancels back to the trust dialog without a change", async ({ page, request }) => {
   const before = await (await request.get(`${BASE}/api/trust`)).json();
   await openTrust(page);

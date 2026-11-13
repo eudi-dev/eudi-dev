@@ -174,6 +174,29 @@ for (const mode of ["rewrite", "rewrite-header", "keep"]) {
       expect(session && session.secure).toBe(true);
     });
 
+    // A link under the published base URL keeps the prefix, also when the rest
+    // of the URL starts with a slash.
+    test("a description link stays under the prefix", async ({ page }) => {
+      const vct = `urn:example:prefix-links-${mode}`;
+      await page.goto(PUBLIC + "/");
+      await page.locator("#issue-btn").click();
+      await page.locator("#issue-vct").fill(vct);
+      await page.locator("#issue-display-name").fill("Linked Badge");
+      await page.locator("#issue-display-description").fill(`${PUBLIC}/api/trustlists/pid ${PUBLIC}//x`);
+      await page.locator("#issue-submit").click();
+      await expect(page.locator("#issue-overlay")).not.toHaveClass(/active/);
+
+      const card = page.locator(`.credential-card[data-vct="${vct}"]`);
+      await card.locator(".about-btn").click();
+      const anchors = card.locator(".cred-desc-body a");
+      await expect(anchors).toHaveCount(2);
+      await expect(anchors.nth(0)).toHaveJSProperty("href", PUBLIC + "/api/trustlists/pid");
+      await expect(anchors.nth(1)).toHaveJSProperty("href", PUBLIC + "//x");
+
+      const issued = (await (await page.request.get(PUBLIC + "/api/credentials")).json()).find((c) => c.vct === vct);
+      if (issued) await page.request.delete(PUBLIC + "/api/credentials/" + issued.id);
+    });
+
     test("an open wallet page hears about new requests over its event stream", async ({ page }) => {
       await page.goto(PUBLIC + "/");
       await expect(page.locator(".credential-card").first()).toBeVisible({ timeout: 15_000 });

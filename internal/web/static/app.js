@@ -1707,7 +1707,7 @@
   fetch(basePath + "api/meta")
     .then((res) => res.json())
     .then((meta) => {
-      document.getElementById("imprint-link").href = basePath + "imprint";
+      document.getElementById("imprint-link").dataset.href = basePath + "imprint";
       window.eudiFooter(meta);
       if (meta.wallet) {
         const walletLink = document.getElementById("wallet-link");

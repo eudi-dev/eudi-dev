@@ -22,7 +22,11 @@
       }
     }
     var imprint = document.getElementById('imprint-link');
-    if (imprint && config.imprint) imprint.hidden = false;
+    // The link gets its target only when the server has an imprint page.
+    if (imprint && config.imprint) {
+      imprint.href = imprint.dataset.href;
+      imprint.hidden = false;
+    }
     var sponsor = document.getElementById('sponsor-link');
     if (sponsor) sponsor.hidden = !(config.demo === true || (config.demo && config.demo.enabled));
   }

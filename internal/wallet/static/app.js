@@ -4027,7 +4027,7 @@
       // ARF RPA_10: show the privacy policy with the intended use.
       const policies = isIssuance ? [] : (req.privacy_policies || []);
       const policyLinks = '<span class="consent-privacy-policies" id="consent-privacy-policies">' +
-        policies.filter(isWebURL).map((url, idx) => '<a id="consent-privacy-policy-' + idx + '" href="' + escHtml(url) + '" title="' + escHtml(url) +
+        policies.filter(isWebURL).map((url, idx) => '<a id="consent-privacy-policy-' + idx + '" href="' + escHtml(pageHref(url)) + '" title="' + escHtml(url) +
           '" target="_blank" rel="noopener noreferrer">' + (policies.length > 1 ? 'Privacy policy ' + (idx + 1) : 'Privacy policy') + ' ↗</a>').join('') +
         '</span>';
       const purposes = isIssuance ? [] : (req.purposes || []);
@@ -4706,7 +4706,7 @@
   function linkifyText(s, idPrefix) {
     let n = 0;
     return escHtml(s).replace(/https?:\/\/[^\s<>"']+/g, function (url) {
-      return '<a href="' + url + '" id="' + idPrefix + '-link-' + (n++) + '" target="_blank" rel="noopener">' + url + '</a>';
+      return '<a href="' + pageHref(url) + '" id="' + idPrefix + '-link-' + (n++) + '" target="_blank" rel="noopener">' + url + '</a>';
     });
   }
 
@@ -4771,10 +4771,22 @@
     fill('registrar-access-validity', defaults.access_validity, defaults.access_validity_max);
   }
 
+  let publishedBaseURL = '';
+
+  // pageHref turns a URL under the published base URL into a path relative to
+  // the page. The published base URL can point to another listener or certificate
+  // (ADR-0019). The leading "./" keeps a rest such as "//host" or "javascript:"
+  // a path under the page (RFC 3986 §4.2).
+  function pageHref(url) {
+    if (!publishedBaseURL || !url.startsWith(publishedBaseURL + '/')) return url;
+    return './' + url.slice(publishedBaseURL.length + 1);
+  }
+
   async function loadAppConfig() {
     try {
       const resp = await fetch('api/config');
       const config = await resp.json();
+      publishedBaseURL = (config.base_url || '').replace(/\/+$/, '');
       if (config.version) window.EUDI_VERSION = config.version;
       window.eudiFooter(config);
       if (config.news_id) {
@@ -5163,7 +5175,8 @@
         links.id = prefix;
         const link = document.createElement('a');
         link.id = prefix + '-link';
-        link.href = url;
+        // entry.path is the path of the list on the page origin.
+        link.href = entry.path || url;
         link.textContent = entry.id || 'trusted list';
         link.title = url;
         links.appendChild(link);
@@ -6688,7 +6701,7 @@
   const catalogList = document.getElementById('registrar-catalog-list');
   const catalogSearch = document.getElementById('registrar-catalog-search');
   const catalogLink = (href, text, id) => isWebURL(href)
-    ? '<a href="' + escHtml(href) + '" target="_blank" rel="noopener" id="' + id + '">' + escHtml(text) + ' \u2197</a>'
+    ? '<a href="' + escHtml(pageHref(href)) + '" title="' + escHtml(href) + '" target="_blank" rel="noopener" id="' + id + '">' + escHtml(text) + ' \u2197</a>'
     : '<span id="' + id + '">' + escHtml(text) + '</span>';
 
   // The filters combine: an entry matches when it has one of the selected
