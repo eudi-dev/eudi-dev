@@ -91,7 +91,7 @@ The wallet page shows this name in its title and header. The decoder page shows 
 
 `name` is the only key. The wallet refuses to start with another key in the file.
 
-The name is a text of the pages only. Certificates, trusted lists and credentials keep the names of the test infrastructure, such as "EUDI Dev Wallet PID Provider" and "EUDI Dev Demo Issuer". An organisation states its own names in the configuration: `tradeName` and `legalName` in the [relying parties file](serve.md#pre-registered-relying-parties) and the display names in the credential templates.
+The name appears on the pages only. Certificates, trusted lists and credentials keep the names of the test infrastructure, such as "EUDI Dev Wallet PID Provider" and "EUDI Dev Demo Issuer". An organization states its own names in the configuration: `tradeName` and `legalName` in the [relying parties file](serve.md#pre-registered-relying-parties) and the display names in the credential templates. [`--issuer-name`](serve.md#wallet-serve) sets the name of the wallet's issuer on its pages, in its issuer metadata and on issued credentials.
 
 ## Docker and Kubernetes
 

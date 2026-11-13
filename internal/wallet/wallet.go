@@ -86,6 +86,9 @@ type Wallet struct {
 	// registrar.
 	publicDemo     bool
 	VCIRedirectURI string `json:"-"`
+	// IssuerName is the display name of the wallet's issuer (--issuer-name).
+	// Empty uses the trade name of the demo issuer.
+	IssuerName string `json:"-"`
 	// Callback URLs use this origin when BaseURL is unset.
 	ServingOrigin string `json:"-"`
 	// storedURLs holds the base and issuer URL written by a save while

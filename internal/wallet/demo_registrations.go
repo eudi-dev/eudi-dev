@@ -47,6 +47,16 @@ var (
 	DemoVerifierName = demoVerifier().TradeName
 )
 
+// IssuerDisplayName is the name of the wallet's issuer on its pages, in its
+// issuer metadata and on issued credentials. The registration and the
+// access certificate keep the trade name of the demo issuer.
+func (w *Wallet) IssuerDisplayName() string {
+	if name := strings.TrimSpace(w.IssuerName); name != "" {
+		return name
+	}
+	return DemoIssuerName
+}
+
 // demoRegistrationFile reads a registration of the defaults tree. Each call
 // of the result returns a fresh copy.
 func demoRegistrationFile(name string) func() registrar.WalletRelyingParty {

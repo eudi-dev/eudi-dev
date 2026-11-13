@@ -86,6 +86,7 @@ type walletServeOptions struct {
 	DemoIssuerKeyAttest      string
 	VCIClientID              string
 	VCIRedirectURI           string
+	IssuerName               string
 	Demo                     bool
 	DemoReset                string
 	ImprintFile              string
@@ -173,6 +174,7 @@ Every flag can also be set as EUDI_DEV_<FLAG>, such as EUDI_DEV_BASE_URL for --b
 	cmd.Flags().StringVar(&opts.DemoIssuerClientAuth, "demo-issuer-client-auth", string(demorp.ClientAuthRequired), "Client authentication at the PAR and token endpoints of the demo issuer: 'required' (HAIP 1.0 §4.4.1, the default) or 'optional', which also accepts wallets without a wallet attestation")
 	cmd.Flags().StringVar(&opts.DemoIssuerKeyAttest, "demo-issuer-key-attestation", string(demorp.KeyAttestationOptional), "Key attestation requirement of the demo issuer's credential endpoint: 'optional' (default, also accepts jwt proofs without a key attestation) or 'required' (every proof must carry a key attestation, CIR (EU) 2024/2979 Annex Ib TR_KA-4)")
 	cmd.Flags().StringVar(&opts.VCIClientID, "vci-client-id", "", "Fixed client ID for OID4VCI flows. Unset, flows with attestation-based client authentication use a client ID derived from the wallet provider key, and other flows use the wallet origin")
+	cmd.Flags().StringVar(&opts.IssuerName, "issuer-name", "", "Display name of the wallet's issuer. Shown on its pages, in its issuer metadata and on issued credentials (default: the demo issuer's name)")
 	cmd.Flags().StringVar(&opts.VCIRedirectURI, "vci-redirect-uri", "", "Redirect URI for OpenID4VCI authorization code flows (default /callback of the wallet origin)")
 	cmd.Flags().BoolVar(&opts.Demo, "demo", false, "Public demo profile: implies --pid, --mode debug, --haip, --arf, --vci-version 1.1 and --transaction-data (all overridable), disables process/filesystem endpoints, blocks fetches to loopback and private networks unless --allow-private-networks is given, ignores $EUDI_DEV_AUTO_ACCEPT")
 	addAllowPrivateNetworksFlag(cmd, &opts.AllowPrivateNetworks, "With --demo it also allows loopback. Keep that off on a host that faces the internet. ")
@@ -607,6 +609,7 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	if opts.VCIClientID != "" {
 		w.VCIClientID = strings.TrimSpace(opts.VCIClientID)
 	}
+	w.IssuerName = opts.IssuerName
 	if opts.VCIRedirectURI != "" {
 		w.VCIRedirectURI = opts.VCIRedirectURI
 	}

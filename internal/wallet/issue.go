@@ -258,7 +258,7 @@ func (w *Wallet) IssueCredential(opts IssueOptions) (result *IssueResult, err er
 		if display != nil {
 			w.rememberDisplay(cred, display)
 		}
-		w.rememberIssuerName(cred, DemoIssuerName)
+		w.rememberIssuerName(cred, w.IssuerDisplayName())
 		if registerStatus {
 			w.RegisterStatusEntry(cred.ID, idx)
 		}

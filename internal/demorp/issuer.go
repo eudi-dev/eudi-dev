@@ -243,7 +243,7 @@ func (d *DemoRP) servePage(name string) http.HandlerFunc {
 		w.Header().Set("Cache-Control", "no-cache")
 		_ = page.Execute(w, pageData{
 			WalletName:         webui.WalletName(),
-			IssuerName:         wallet.DemoIssuerName,
+			IssuerName:         d.wallet.IssuerDisplayName(),
 			VerifierName:       wallet.DemoVerifierName,
 			NationalPIDs:       d.nationalPIDs(),
 			ConfiguredIssuer:   d.configuredIssuer != nil,
@@ -284,7 +284,7 @@ func (d *DemoRP) handleIssuerMetadata(w http.ResponseWriter, r *http.Request) {
 		"nonce_endpoint": issuer + "/nonce",
 		"display": []map[string]any{
 			{
-				"name":   wallet.DemoIssuerName,
+				"name":   d.wallet.IssuerDisplayName(),
 				"locale": "en-US",
 				"logo":   map[string]any{"uri": issuer + "/logo.svg", "alt_text": "eudi-dev logo"},
 			},

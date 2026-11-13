@@ -84,7 +84,7 @@ func (w *Wallet) knownIssuers() []KnownIssuer {
 		}
 	}
 	if w.demoIssuerURL != nil {
-		issuers = append(issuers, KnownIssuer{Name: DemoIssuerName, URL: w.demoIssuerURL(), operator: true})
+		issuers = append(issuers, KnownIssuer{Name: w.IssuerDisplayName(), URL: w.demoIssuerURL(), operator: true})
 	}
 	if !w.publicDemo {
 		for _, party := range w.Registrar().RegisteredRelyingParties() {

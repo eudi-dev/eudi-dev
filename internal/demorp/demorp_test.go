@@ -168,6 +168,20 @@ func TestDemoPagesShowTheRegisteredNames(t *testing.T) {
 	}
 }
 
+func TestTheIssuerShowsItsConfiguredName(t *testing.T) {
+	d, w, _ := newDemoRP(t)
+	w.IssuerName = "Example Company"
+	rec := httptest.NewRecorder()
+	d.IssuerHandler().ServeHTTP(rec, httptest.NewRequest("GET", "/", nil))
+	if body := rec.Body.String(); strings.Count(body, "Example Company") != 2 || strings.Contains(body, wallet.DemoIssuerName) {
+		t.Errorf("the issuer page does not show the configured name in the title and the heading:\n%s", body)
+	}
+	_, metadata := doJSON(t, d.IssuerHandler(), "GET", "/.well-known/openid-credential-issuer", "", nil)
+	if display, _ := metadata["display"].([]any); len(display) != 1 || display[0].(map[string]any)["name"] != "Example Company" {
+		t.Errorf("metadata display %v, want the name Example Company", metadata["display"])
+	}
+}
+
 // The verifier page offers every national PID of the wallet's templates.
 func TestTheVerifierPageOffersEveryNationalPID(t *testing.T) {
 	d, _, _ := newDemoRP(t)

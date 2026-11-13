@@ -138,7 +138,7 @@ func buildOpenIDCredentialIssuerMetadata(w *Wallet, issuer string) (map[string]a
 	metadata := map[string]any{
 		"credential_issuer":                   issuer,
 		"credential_endpoint":                 issuer + "/credential",
-		"display":                             []map[string]any{{"name": DemoIssuerName, "locale": "en-US"}},
+		"display":                             []map[string]any{{"name": w.IssuerDisplayName(), "locale": "en-US"}},
 		"credential_configurations_supported": configs,
 	}
 	// Without a registration the metadata has no issuer_info, and a wallet

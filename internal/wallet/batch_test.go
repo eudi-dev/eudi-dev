@@ -166,6 +166,14 @@ func TestGeneratedCredentialsTakeTheNameOfTheWalletIssuer(t *testing.T) {
 			t.Errorf("credential %s has issuer name %q", c.ID, c.IssuerName)
 		}
 	}
+
+	w.IssuerName = "Example Company"
+	if _, err := w.IssueCredential(IssueOptions{Format: "sdjwt", VCT: "urn:example:own"}); err != nil {
+		t.Fatal(err)
+	}
+	if name := w.Credentials[2].IssuerName; name != "Example Company" {
+		t.Errorf("issuer name %q, want the configured name", name)
+	}
 }
 
 func batchTestQuery() map[string]any {

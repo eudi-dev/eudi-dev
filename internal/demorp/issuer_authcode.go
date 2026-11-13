@@ -296,6 +296,7 @@ func (d *DemoRP) loginPage(request *authRequestState, problem string) loginPageD
 		Attestation:    request.clientAttestation,
 		AttestationPoP: request.clientAttestationPoP,
 		Title:          "Sign in",
+		IssuerName:     d.wallet.IssuerDisplayName(),
 		Credentials:    d.configurationNames(request.settings.configIDs),
 		Error:          problem,
 	}
@@ -1123,7 +1124,6 @@ func renderLoginPage(w http.ResponseWriter, r *http.Request, data loginPageData)
 		status = http.StatusBadRequest
 	}
 	w.WriteHeader(status)
-	data.IssuerName = wallet.DemoIssuerName
 	data.Root = issuerOf(r).rootPath()
 	_ = loginPageTemplate.Execute(w, data)
 }
