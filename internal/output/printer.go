@@ -84,6 +84,7 @@ func BuildSDJWTJSON(token *sdjwt.Token) map[string]any {
 		"resolvedClaims": token.ResolvedClaims,
 	}
 	addTokenNotes(out, token)
+	addCertificates(out, tokenCertificates(token))
 	if token.KeyBindingJWT != nil {
 		out["keyBindingJWT"] = map[string]any{
 			"header":  token.KeyBindingJWT.Header,
@@ -138,6 +139,8 @@ func PrintSDJWT(token *sdjwt.Token, opts Options) {
 		printMap(cnf, 1)
 	}
 
+	printCertificateChain("x5c", tokenCertificates(token), opts.Verbose)
+
 	fmt.Println()
 }
 
@@ -148,6 +151,7 @@ func BuildJWTJSON(token *sdjwt.Token) map[string]any {
 		"payload": token.Payload,
 	}
 	addTokenNotes(out, token)
+	addCertificates(out, tokenCertificates(token))
 	return out
 }
 
@@ -167,6 +171,8 @@ func PrintJWT(token *sdjwt.Token, opts Options) {
 	printMap(token.Payload, 1)
 
 	printTokenNotes(token)
+
+	printCertificateChain("x5c", tokenCertificates(token), opts.Verbose)
 
 	fmt.Println()
 }
@@ -231,6 +237,7 @@ func BuildMDOCJSON(doc *mdoc.Document) map[string]any {
 	// Raw COSE integer labels and bytes are hard to read, so the holder key is summarized.
 	out["deviceKey"] = buildDeviceKeyJSON(doc)
 	out["issuerAuth"] = buildIssuerAuthJSON(doc)
+	addCertificates(out, mdocCertificates(doc))
 	out["issuerSignedItems"] = buildIssuerSignedItemsJSON(doc)
 	if doc.DeviceSigned != nil && doc.DeviceSigned.DeviceAuth != nil {
 		out["deviceAuth"] = doc.DeviceSigned.DeviceAuth
@@ -463,6 +470,8 @@ func PrintMDOC(doc *mdoc.Document, opts Options) {
 		printSection("Device Auth")
 		printMap(doc.DeviceSigned.DeviceAuth, 1)
 	}
+
+	printCertificateChain("x5chain", mdocCertificates(doc), opts.Verbose)
 
 	fmt.Println()
 }

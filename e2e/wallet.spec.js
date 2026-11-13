@@ -2075,6 +2075,19 @@ test("a certificate of a credential can be revoked and restored from its card", 
   await expect(page.locator("#certificates-overlay")).not.toHaveClass(/active/);
 });
 
+test("a certificate of a credential opens in the decoder", async ({ page }) => {
+  await page.goto(WALLET_URL);
+  await page.locator("[data-certificates]").first().click();
+  const row = page.locator("#certificate-0");
+  await expect(row).toContainText("Signing certificate");
+  const popupPromise = page.waitForEvent("popup");
+  await row.getByRole("button", { name: "Open in decoder" }).click();
+  const decoder = await popupPromise;
+  await expect(decoder.locator("#format-badge")).toHaveText("X.509");
+  await expect(decoder.locator("#output-certificate-1")).toContainText("digitalSignature");
+  await decoder.close();
+});
+
 test("a trusted list opens in the decoder", async ({ page }) => {
   await page.goto(WALLET_URL);
   await page.getByRole("link", { name: "Trust & certificates" }).click();

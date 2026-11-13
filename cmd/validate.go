@@ -39,7 +39,7 @@ var (
 
 var validateCmd = &cobra.Command{
 	Use:   "validate [input]",
-	Short: "Validate a credential (signature, expiry, revocation)",
+	Short: "Validate a credential or certificate chain (signature, expiry, revocation)",
 	Long: `Decodes and checks a credential. 'decode' only parses and shows it. 'validate'
 also checks:
 
@@ -51,7 +51,11 @@ also checks:
 
 If neither --key nor --trusted-list is provided and the credential carries no
 usable key, signature verification is skipped and the other checks still run.
-This is useful for quick revocation checks without the issuer's key.`,
+This is useful for quick revocation checks without the issuer's key.
+
+For certificates in PEM, x5c or DER form, validate checks the validity
+period of each one, the signature of each one by the next, and revocation.
+--key and --haip do not apply to them.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runValidate,
 }
@@ -113,6 +117,7 @@ func validateTrust() (validate.Trust, error) {
 		trust.Catalogue = w
 		trust.HTTPClient = w.HTTPClient()
 		trust.CertificateProblems = w.CertificateProblems
+		trust.CompleteChain = w.CompletedChain
 	}
 
 	if keyFile != "" {
@@ -153,6 +158,8 @@ func credentialReport(result *validate.Result) jsonReport {
 		return output.BuildSDJWTJSON(result.SDJWT)
 	case validate.FormatJWT:
 		return output.BuildJWTJSON(result.SDJWT)
+	case validate.FormatX509:
+		return output.BuildCertificatesJSON(result.Certificates)
 	}
 	return output.BuildMDOCJSON(result.MDOC)
 }
@@ -163,6 +170,8 @@ func printCredential(result *validate.Result, opts output.Options) {
 		output.PrintSDJWT(result.SDJWT, opts)
 	case validate.FormatJWT:
 		output.PrintJWT(result.SDJWT, opts)
+	case validate.FormatX509:
+		output.PrintCertificates(result.Certificates, opts)
 	default:
 		output.PrintMDOC(result.MDOC, opts)
 	}
@@ -171,6 +180,11 @@ func printCredential(result *validate.Result, opts output.Options) {
 // printValidation prints the checks of the result in text mode, or adds them
 // to the JSON report.
 func printValidation(result *validate.Result, opts output.Options, report jsonReport) {
+	// A certificate chain has no verification printer, so every check prints.
+	if result.Format == validate.FormatX509 {
+		report.add("checks", result.Checks, func() { printChecks(result.Checks) })
+		return
+	}
 	report.add("checks", result.Checks, func() {})
 	if result.HAIPFindings != nil {
 		printHAIPFindings(result.HAIPFindings.Texts(), report)

@@ -69,10 +69,12 @@ type CredentialCertificate struct {
 // ends below the trust anchor. The certificates of the wallet's own CAs complete
 // it.
 func (w *Wallet) credentialChain(cred StoredCredential) []*x509.Certificate {
-	return w.completedChain(embeddedCertificates(cred))
+	return w.CompletedChain(embeddedCertificates(cred))
 }
 
-func (w *Wallet) completedChain(chain []*x509.Certificate) []*x509.Certificate {
+// CompletedChain appends the wallet's own CAs that issued the last certificate
+// of chain, up to its root.
+func (w *Wallet) CompletedChain(chain []*x509.Certificate) []*x509.Certificate {
 	chain = slices.Clone(chain)
 	for len(chain) > 0 {
 		path, err := w.issuerCRLPath(chain[len(chain)-1])
@@ -91,7 +93,7 @@ func (w *Wallet) completedChain(chain []*x509.Certificate) []*x509.Certificate {
 // CertificateProblems reads the CRLs of a chain. The CRLs of this wallet are
 // answered in process.
 func (w *Wallet) CertificateProblems(chain []*x509.Certificate) []certchain.RevocationProblem {
-	return certchain.CheckRevocation(w.completedChain(chain), w.RegistrationStatusClient(), time.Now())
+	return certchain.CheckRevocation(w.CompletedChain(chain), w.RegistrationStatusClient(), time.Now())
 }
 
 // flagRevokedCertificates marks the matches and candidates of a consent
@@ -272,7 +274,7 @@ func (w *Wallet) readCertificateStatus(chain []*x509.Certificate) CertificateSta
 	}
 	// A CRL check needs the issuer of the certificate, and an x5c often ends below
 	// the trust anchor.
-	completed := w.completedChain(chain)
+	completed := w.CompletedChain(chain)
 	if last := completed[len(completed)-1]; len(last.CRLDistributionPoints) > 0 && last.CheckSignatureFrom(last) != nil && status.Status != certificateStatusRevoked {
 		status.Status = certificateStatusUnknown
 		status.Problems = append(status.Problems, fmt.Sprintf("the chain has no issuer of %q, so its CRL can't be checked", last.Subject.CommonName))

@@ -24,6 +24,7 @@
   let lastValidation = null;
   let colorized = false;
   let usedIds = new Set();
+  let credentialCertificates = new Map();
   // The wallet credential ID stays while the content is unchanged, so shared links can use
   // the short form.
   let walletCredential = null;
@@ -442,6 +443,7 @@
     updateBadge(data.format);
     outputEl.innerHTML = "";
     usedIds = new Set();
+    credentialCertificates = certificatesByDER(data);
 
     const summary = extractSummary(data);
     if (summary) {
@@ -460,6 +462,8 @@
       renderJWT(data);
     } else if (fmt === "mso_mdoc") {
       renderMDOC(data);
+    } else if (fmt === "x509") {
+      renderCertificates(data);
     } else {
       outputEl.appendChild(renderJSON(data, "output-json"));
     }
@@ -476,6 +480,9 @@
           if (c.issuing_country) parts.push({ label: "Country", value: String(c.issuing_country) });
         }
       }
+    } else if (data.format === "x509" && data.certificates && data.certificates.length) {
+      parts.push({ label: "Subject", value: data.certificates[0].subject });
+      parts.push({ label: "Issuer", value: data.certificates[0].issuer });
     } else if (data.payload) {
       if (data.payload.iss) parts.push({ label: "Issuer", value: data.payload.iss });
       if (data.payload.sub) parts.push({ label: "Subject", value: data.payload.sub });
@@ -518,6 +525,9 @@
     } else if (format === "mso_mdoc") {
       formatBadge.textContent = "mdoc";
       formatBadge.className = "badge mdoc";
+    } else if (format === "x509") {
+      formatBadge.textContent = "X.509";
+      formatBadge.className = "badge x509";
     } else {
       formatBadge.className = "badge hidden";
     }
@@ -638,17 +648,22 @@
     html += verificationGroup("Passed", "vg-valid", "\u2713", passed, "output-validation-valid");
     html += "</div>";
 
+    // A certificate input is checked against its own chain, not a key or a trusted list.
+    const verifiable = !(lastData && lastData.format === "x509");
     const verifyLabel = sigValid ? "Re-verify signature" : "Verify signature";
-    html += '<details class="verify-details" id="output-verify"><summary id="output-verify-summary">' + verifyLabel + " with a key or trusted list</summary>";
-    html += '<div class="verify-inline" id="output-verify-form">';
-    html += '<label class="verify-label" id="output-verify-key-label">Public Key (PEM or JWK)</label>';
-    html += '<textarea class="verify-input verify-inline-key" id="output-verify-key" rows="3" placeholder="Paste PEM or JWK…" spellcheck="false"></textarea>';
-    html += '<label class="verify-label" id="output-verify-trusted-list-label">Trusted list URL</label>';
-    html += '<input class="verify-input verify-inline-tl" id="output-verify-trusted-list" type="text" placeholder="https://...">';
-    html += '<button class="btn verify-btn verify-inline-btn" id="output-verify-btn">' + verifyLabel + "</button>";
-    html += "</div></details>";
+    if (verifiable) {
+      html += '<details class="verify-details" id="output-verify"><summary id="output-verify-summary">' + verifyLabel + " with a key or trusted list</summary>";
+      html += '<div class="verify-inline" id="output-verify-form">';
+      html += '<label class="verify-label" id="output-verify-key-label">Public Key (PEM or JWK)</label>';
+      html += '<textarea class="verify-input verify-inline-key" id="output-verify-key" rows="3" placeholder="Paste PEM or JWK…" spellcheck="false"></textarea>';
+      html += '<label class="verify-label" id="output-verify-trusted-list-label">Trusted list URL</label>';
+      html += '<input class="verify-input verify-inline-tl" id="output-verify-trusted-list" type="text" placeholder="https://...">';
+      html += '<button class="btn verify-btn verify-inline-btn" id="output-verify-btn">' + verifyLabel + "</button>";
+      html += "</div></details>";
+    }
 
     banner.innerHTML = html;
+    if (!verifiable) return banner;
 
     const verifyInlineBtn = banner.querySelector(".verify-inline-btn");
     const keyInput = banner.querySelector(".verify-inline-key");
@@ -694,9 +709,11 @@
     const hours = Math.floor(diff / 3600000);
     const days = Math.floor(diff / 86400000);
     const months = Math.floor(days / 30);
+    const years = Math.floor(days / 365);
 
     let str;
-    if (months >= 2) str = months + " months";
+    if (years >= 2) str = years + " years";
+    else if (months >= 2) str = months + " months";
     else if (months === 1) str = "1 month";
     else if (days >= 2) str = days + " days";
     else if (days === 1) str = "1 day";
@@ -1006,6 +1023,128 @@
     appendSection("deviceSigned.deviceAuth", deviceAuth, data.deviceAuth || {}, undefined, authBase);
   }
 
+  function renderCertificates(data) {
+    (data.certificates || []).forEach((cert, index) => {
+      const base = reserveSection("output-certificate-" + (index + 1));
+      appendSection("Certificate " + (index + 1), renderCertificate(cert, base), cert, undefined, base);
+    });
+  }
+
+  // An x5c (RFC 7515 §4.1.6) or x5chain (RFC 9360 §2) entry is the base64 DER
+  // of its certificate, and the server also accepts it unpadded.
+  function certificatesByDER(data) {
+    const byDER = new Map();
+    if (data.format === "x509") return byDER;
+    for (const cert of data.certificates || []) {
+      const der = unpaddedBase64((cert.pem || "").replace(/-----[A-Z ]+-----/g, ""));
+      if (der) byDER.set(der, cert);
+    }
+    return byDER;
+  }
+
+  function unpaddedBase64(text) {
+    return text.replace(/\s+/g, "").replace(/=+$/, "");
+  }
+
+  function createCertificateValue(token, cert, quoted, id) {
+    const wrap = document.createElement("span");
+    wrap.className = "certificate-value";
+    const wrapId = setId(wrap, id);
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "embedded-token" + (quoted ? " json-string" : "");
+    setId(button, wrapId + "-toggle");
+    button.setAttribute("data-embedded-format", "x509");
+    button.setAttribute("aria-expanded", "false");
+    button.title = "Show certificate";
+    button.setAttribute("aria-label", "Show certificate " + cert.subject);
+    button.textContent = token.slice(0, CERTIFICATE_HEAD_CHARS) + "…" + (quoted ? '"' : "");
+    const subject = document.createElement("span");
+    subject.className = "certificate-value-subject";
+    // The button's label names the subject already.
+    subject.setAttribute("aria-hidden", "true");
+    subject.textContent = cert.subject;
+    wrap.append(button, subject);
+
+    let card = null;
+    const toggle = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!card) {
+        card = renderCertificate(cert, wrapId + "-certificate", { openable: true });
+        card.classList.add("certificate-inline");
+        button.setAttribute("aria-controls", setId(card, wrapId + "-certificate"));
+        // The array comma goes on the entry's line, before the card.
+        const next = wrap.nextSibling;
+        if (next && next.nodeType === Node.TEXT_NODE && next.textContent === ",") wrap.appendChild(next);
+        wrap.appendChild(card);
+      } else {
+        card.hidden = !card.hidden;
+      }
+      button.setAttribute("aria-expanded", String(!card.hidden));
+    };
+    button.addEventListener("click", toggle);
+    subject.addEventListener("click", toggle);
+    return wrap;
+  }
+
+  function renderCertificate(cert, base, opts) {
+    const el = document.createElement("div");
+    el.className = "certificate";
+    const kv = (key, value, id) => {
+      if (value === undefined || value === null || value === "" || (Array.isArray(value) && value.length === 0)) return;
+      el.appendChild(renderKV(key, Array.isArray(value) ? value.join(", ") : value, base + "-" + id));
+    };
+    kv("Subject", cert.subject, "subject");
+    kv("Issuer", cert.issuer, "issuer");
+    kv("Valid from", cert.notBefore + " (" + relativeTime(new Date(cert.notBefore)) + ")", "not-before");
+    kv("Valid until", cert.notAfter + " (" + relativeTime(new Date(cert.notAfter)) + ")", "not-after");
+    kv("Public key", cert.publicKey, "public-key");
+    kv("Signature", cert.signatureAlgorithm, "signature");
+    kv("Serial number", cert.serialNumber, "serial");
+    if (cert.ca) kv("CA", cert.maxPathLength !== undefined ? "yes, path length " + cert.maxPathLength : "yes", "ca");
+    if (cert.selfSigned) kv("Self-signed", "yes", "self-signed");
+    kv("Key usage", cert.keyUsage, "key-usage");
+    kv("Extended key usage", cert.extendedKeyUsage, "extended-key-usage");
+    kv("Subject alt names", cert.subjectAltNames, "subject-alt-names");
+    kv("Policies", cert.policies, "policies");
+    kv("CRL", cert.crlDistributionPoints, "crl");
+    kv("OCSP", cert.ocspServers, "ocsp");
+    kv("CA issuers", cert.issuingCertificateURLs, "ca-issuers");
+    kv("Subject key id", cert.subjectKeyId, "subject-key-id");
+    kv("Authority key id", cert.authorityKeyId, "authority-key-id");
+    kv("SHA-256", cert.sha256Fingerprint, "sha256");
+    if (cert.extensions && cert.extensions.length) {
+      const names = cert.extensions.map((e) => (e.name || e.oid) + (e.critical ? " (critical)" : ""));
+      kv("Extensions", names, "extensions");
+    }
+
+    const pem = document.createElement("pre");
+    pem.className = "json-block certificate-pem";
+    setId(pem, base + "-pem-text");
+    pem.textContent = cert.pem;
+    const copy = document.createElement("button");
+    copy.className = "copy-btn";
+    setId(copy, base + "-pem-copy");
+    copy.textContent = "Copy PEM";
+    copy.addEventListener("click", () => {
+      navigator.clipboard.writeText(cert.pem).then(() => showToast("PEM copied")).catch(() => showToast("Failed to copy"));
+    });
+    const pemWrap = createSubSection("PEM", pem, base + "-pem");
+    pemWrap.firstChild.appendChild(copy);
+    if (opts && opts.openable) {
+      const open = document.createElement("button");
+      open.className = "copy-btn";
+      setId(open, base + "-open");
+      open.textContent = "Open in decoder";
+      open.addEventListener("click", () => navigateToEmbeddedCredential(cert.pem));
+      pemWrap.firstChild.appendChild(open);
+    }
+    el.appendChild(pemWrap);
+    return el;
+  }
+
   function renderIssuerSignedItem(item, id) {
     const wrap = document.createElement("div");
     wrap.className = "mdoc-item";
@@ -1274,10 +1413,13 @@
   // Long values such as portraits are truncated until expanded, so the rest of the
   // output stays visible.
   const MAX_INLINE_VALUE_CHARS = 300;
+  const CERTIFICATE_HEAD_CHARS = 40;
 
   function createEmbeddedValueElement(value, opts) {
     const quoted = !!(opts && opts.quoted);
     const token = quoted ? JSON.stringify(value) : value;
+    const cert = typeof value === "string" && credentialCertificates.get(unpaddedBase64(value));
+    if (cert) return createCertificateValue(token, cert, quoted, opts.id);
     const el = createValueToken(value, token, quoted, opts);
     if (token.length <= MAX_INLINE_VALUE_CHARS) {
       setId(el, opts.id);

@@ -10,6 +10,26 @@ eudi decoder --port 9090
 
 Paste a credential to see its header, claims and disclosures. The decoder runs the checks of [`validate`](validate.md) on it: signature, expiry, status and the trusted list of its [catalogue entry](validate.md#catalogue-trust). **Share** copies a link with the credential in the URL fragment, so the server never receives it. In the wallet, a link to a stored credential carries only its ID.
 
+## Certificates
+
+Paste an X.509 certificate to read its subject, issuer, validity, key, key usage, policies and extensions. The decoder reads these forms:
+
+- one or more PEM certificates, also next to a private key
+- an `x5c` array, as in a JWT header
+- one `x5c` entry or DER in base64, base64url or hex
+
+Each certificate shows its PEM, ready to copy.
+
+A chain is leaf first, as in `x5c` (RFC 7515 §4.1.6). The decoder runs these checks:
+
+- the validity period of each certificate
+- whether each certificate is signed by the next
+- revocation through the CRLs the certificates name, once the signatures verify
+
+Without a CRL the revocation check is skipped. A single certificate that is not self-signed needs its issuer certificate in the input for the signature and revocation checks. The decoder does not anchor the chain in a trusted list.
+
+In a credential, each entry of the `x5c` header or the mdoc `x5chain` shows the subject of its certificate. Click it to read the certificate in place. **Open in decoder** opens it on its own, with the checks of a pasted chain.
+
 ## Trust
 
 The decoder reads the attestation catalogue of the stored wallet when one exists. It never creates a wallet. It anchors a credential in the trusted lists of its catalogue entry, as described in [catalogue trust](validate.md#catalogue-trust). A registration certificate has no catalogue entry. The decoder anchors it in the lists of registration certificate providers. A registration certificate copied from `verifier_info` is base64url encoded (ETSI TS 119 472-2 RO-16). The decoder, `eudi decode` and `eudi validate` decode it and read the JWT inside. The decoder of a running wallet also uses the lists from `--trusted-list` and the list operators from `--trusted-list-ca`.

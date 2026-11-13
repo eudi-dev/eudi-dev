@@ -35,6 +35,7 @@ const (
 	FormatOID4VCI   CredentialFormat = "oid4vci"
 	FormatOID4VP    CredentialFormat = "oid4vp"
 	FormatTrustList CredentialFormat = "trusted-list"
+	FormatX509      CredentialFormat = "x509"
 	FormatUnknown   CredentialFormat = "unknown"
 )
 
@@ -64,6 +65,10 @@ func Detect(input string) CredentialFormat {
 
 	if strings.HasPrefix(input, "{") {
 		return detectJSONOID4(input)
+	}
+
+	if _, err := Certificates(input); err == nil {
+		return FormatX509
 	}
 
 	detected := DetectEncoding(input)

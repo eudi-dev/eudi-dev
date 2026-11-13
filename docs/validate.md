@@ -1,6 +1,6 @@
 # Validate
 
-Check a credential's signature, expiry and revocation status.
+Check a credential's signature, expiry and revocation status. For a certificate chain in PEM, `x5c` or DER form, it runs the checks described in [the decoder](decoder.md#certificates).
 
 ```bash
 # Full validation with signature verification

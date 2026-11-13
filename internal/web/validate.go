@@ -54,6 +54,8 @@ func Validate(input string, opts ValidateOpts) (map[string]any, error) {
 		decoded = output.BuildJWTJSON(result.SDJWT)
 	case validate.FormatMDOC:
 		decoded = output.BuildMDOCJSON(result.MDOC)
+	case validate.FormatX509:
+		decoded = output.BuildCertificatesJSON(result.Certificates)
 	}
 	decoded["validation"] = map[string]any{"checks": result.Checks}
 	return decoded, nil

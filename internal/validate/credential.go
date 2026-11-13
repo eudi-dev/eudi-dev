@@ -19,9 +19,11 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
+	"github.com/eudi-dev/eudi-dev/v3/internal/certinfo"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
@@ -70,6 +72,7 @@ const (
 	FormatSDJWT = credtype.FormatSDJWT
 	FormatJWT   = "jwt"
 	FormatMDOC  = credtype.FormatMDOC
+	FormatX509  = string(format.FormatX509)
 )
 
 // Options select the checks that run.
@@ -92,6 +95,8 @@ type Result struct {
 	// SDJWT is the parsed SD-JWT VC or JWT. MDOC is the parsed mdoc.
 	SDJWT *sdjwt.Token
 	MDOC  *mdoc.Document
+	// Certificates are pasted certificates, leaf first.
+	Certificates []*x509.Certificate
 	// Checks run in a fixed order: type, expiry, integrity, trusted list,
 	// signature, trust, status, status list signature, haip.
 	Checks []Check
@@ -129,6 +134,9 @@ func (r *Result) add(checks ...Check) {
 func Credential(raw string, trust Trust, opts Options) (*Result, error) {
 	if jwt, ok := format.Base64URLEncodedJWT(raw); ok {
 		raw = jwt
+	}
+	if certs, err := format.Certificates(raw); err == nil {
+		return Certificates(certs, trust, opts), nil
 	}
 	switch format.DetectEncoding(raw) {
 	case format.FormatSDJWT:
@@ -249,13 +257,25 @@ func (v run) certificateRevocation(chain []*x509.Certificate, r *Result) []Check
 	if i := slices.IndexFunc(v.trust.Issuance, func(a *x509.Certificate) bool { return !a.Equal(last) && last.CheckSignatureFrom(a) == nil }); i >= 0 {
 		chain = append(slices.Clone(chain), v.trust.Issuance[i])
 	}
+	if v.trust.CompleteChain != nil {
+		chain = v.trust.CompleteChain(chain)
+	}
 	check := Check{Name: CheckCertificates, Status: Skipped}
-	if v.opts.Offline {
+	// An offline run has no wallet to complete the chain, so a CRL of the last
+	// certificate may still be read online.
+	if v.opts.Offline && slices.ContainsFunc(chain, namesCRL) {
 		check.Detail = "Needs the CRLs of the certificates"
 		check.NeedsNetwork = true
 		return []Check{check}
 	}
+	if !slices.ContainsFunc(chain[:len(chain)-1], namesCRL) {
+		check.Detail = "No certificate with a known issuer names a CRL"
+		return []Check{check}
+	}
 	check.Status, check.Detail = Pass, "No certificate is revoked"
+	if last := chain[len(chain)-1]; namesCRL(last) && !certinfo.SelfSigned(last) {
+		check.Status, check.Detail = Warning, fmt.Sprintf("The CRL of %q needs its issuer certificate", last.Subject.String())
+	}
 	for _, problem := range v.trust.CertificateProblems(chain) {
 		if problem.Revoked {
 			check.Status, check.Detail = Fail, problem.Error()
@@ -264,6 +284,15 @@ func (v run) certificateRevocation(chain []*x509.Certificate, r *Result) []Check
 		check.Status, check.Detail = Warning, problem.Error()
 	}
 	return []Check{check}
+}
+
+// namesCRL tells whether cert names a CRL over http or https.
+// certchain.CheckRevocation reads only such CRLs, and only for a certificate
+// whose issuer follows it in the chain.
+func namesCRL(cert *x509.Certificate) bool {
+	return slices.ContainsFunc(cert.CRLDistributionPoints, func(point string) bool {
+		return strings.HasPrefix(point, "http://") || strings.HasPrefix(point, "https://")
+	})
 }
 
 func (v run) trustedListCheck() []Check {

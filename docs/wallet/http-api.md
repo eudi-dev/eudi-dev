@@ -326,7 +326,7 @@ With memory storage, revocations and withdrawals end with the restart. With a st
 
 `GET /api/credentials/{id}/certificates` lists the chain. If the credential's catalogue entry links a trusted list and the wallet has read it, the chain ends with the trust anchor from that list. This entry has `anchored_by`, the URL of the list.
 
-You can also do this in the wallet UI. Click **Certificates** on a credential to see its certificate chain. You can revoke the certificates of this wallet and withdraw its CAs there. `GET /api/credentials/{id}/certificates` returns the same list.
+You can also do this in the wallet UI. Click **Certificates** on a credential to see its certificate chain. **Open in decoder** shows the content of a certificate. The dialog also lets you revoke the certificates of this wallet and withdraw its CAs. `GET /api/credentials/{id}/certificates` returns the same list.
 
 On the public demo, `POST` revokes only the signing certificate of an attestation provider (EAA, QEAA or Pub-EAA). `revocable` in the certificate list shows which ones qualify. Everyone shares these certificates, so a revocation affects every credential signed with that certificate. The public demo keeps at most 100 revocations. Anyone can undo it, and the next reset removes it.
 

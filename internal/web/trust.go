@@ -35,6 +35,7 @@ func resolveTrust(opts ValidateOpts) validate.Trust {
 			trust.Catalogue = w
 			trust.HTTPClient = w.HTTPClient()
 			trust.CertificateProblems = w.CertificateProblems
+			trust.CompleteChain = w.CompletedChain
 		}
 	}
 	trust.Err = addSuppliedTrust(&trust, opts)

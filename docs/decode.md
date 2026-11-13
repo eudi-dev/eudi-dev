@@ -1,6 +1,6 @@
 # Decode
 
-Inspect credentials (SD-JWT, JWT VC, mdoc), OpenID4VCI/VP requests, and ETSI trusted lists. The format is detected from the input.
+Inspect credentials (SD-JWT, JWT VC, mdoc), OpenID4VCI/VP requests, ETSI trusted lists and X.509 certificates. The format is detected from the input.
 
 ```bash
 # Credentials
@@ -25,16 +25,23 @@ cat offer.json | eudi decode
 # ETSI trusted lists
 eudi decode trusted-list.jwt
 eudi decode -f trusted-list https://example.com/trusted-list.jwt
+
+# X.509 certificates: PEM, an x5c array or entry, DER in base64, base64url or hex
+eudi decode cert.pem
+eudi decode '["MIIC..."]'
 ```
+
+A credential shows the certificates of its `x5c` header or mdoc `x5chain` after its claims. With `--json`, the `x5c` header and the mdoc `x5chain` both list base64 DER entries, and `certificates` holds their content. `-v` adds serial number, signature algorithm, key ids, fingerprint and PEM. The checks of a certificate input are described in [the decoder](decoder.md#certificates).
 
 ## Auto-detection order
 
 1. **URI schemes**: `openid-credential-offer://` / `haip-vci://` / `eu-eaa-offer://` (VCI), `openid4vp://` / `haip-vp://` / `eudi-openid4vp://` / `eu-eaap://` (VP)
 2. **HTTP(S) URL with OID4 query params**: `credential_offer` / `credential_offer_uri` (VCI), `client_id` / `response_type` / `request_uri` (VP)
-3. **SD-JWT**: contains `~` separator
-4. **mdoc**: hex or base64url encoded CBOR
-5. **JSON**: inspected for a trusted list `LoTE` object and for OID4 marker keys (`credential_issuer` → VCI, `client_id` → VP)
-6. **JWT**: 3 dot-separated parts. Payload inspected for the same markers
+3. **JSON**: inspected for a trusted list `LoTE` object and for OID4 marker keys (`credential_issuer` → VCI, `client_id` → VP)
+4. **X.509**: input that parses as certificates (PEM, an `x5c` array, or DER in base64, base64url or hex)
+5. **SD-JWT**: contains `~` separator
+6. **mdoc**: hex or base64url encoded CBOR
+7. **JWT**: 3 dot-separated parts. Payload inspected for the same markers
 
 ## Format override
 
@@ -48,7 +55,7 @@ eudi decode -f vci 'openid-credential-offer://...'
 eudi decode -f vp request.jwt
 ```
 
-Accepted values: `sdjwt` (or `sd-jwt`), `jwt`, `mdoc` (or `mso_mdoc`), `vci` (or `oid4vci`), `vp` (or `oid4vp`), `trusted-list` (or `trust`).
+Accepted values: `sdjwt` (or `sd-jwt`), `jwt`, `mdoc` (or `mso_mdoc`), `vci` (or `oid4vci`), `vp` (or `oid4vp`), `trusted-list` (or `trust`), `x509` (or `certificate`).
 
 ## QR code scanning
 
@@ -65,7 +72,7 @@ eudi decode --screen
 
 | Flag             | Description                                                  |
 |------------------|--------------------------------------------------------------|
-| `-f`, `--format` | Set the format: `sdjwt`, `jwt`, `mdoc`, `vci`, `vp`, `trusted-list` |
+| `-f`, `--format` | Set the format: `sdjwt`, `jwt`, `mdoc`, `vci`, `vp`, `trusted-list`, `x509` |
 | `--qr`           | Decode QR from a PNG or JPEG image file                      |
 | `--screen`       | Open interactive screen region selector and decode a QR code from the selection (macOS and Linux) |
 

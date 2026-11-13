@@ -81,3 +81,95 @@ func TestDecodeReadsABase64URLEncodedJWT(t *testing.T) {
 		t.Errorf("output %q, want the payload of the JWT", out)
 	}
 }
+
+func TestDecodeShowsAnX5CArray(t *testing.T) {
+	t.Cleanup(func() { jsonOutput = false })
+	caKey, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ca, err := mock.GenerateNamedCACert(caKey, "Decode CA")
+	if err != nil {
+		t.Fatal(err)
+	}
+	x5c := `["` + base64.StdEncoding.EncodeToString(ca.Raw) + `"]`
+	resetRemoteTestState(t)
+
+	var runErr error
+	out := captureStdout(t, func() {
+		rootCmd.SetArgs([]string{"decode", "--json", x5c})
+		runErr = rootCmd.Execute()
+	})
+	if runErr != nil {
+		t.Fatalf("decode: %v", runErr)
+	}
+	for _, want := range []string{`"format": "x509"`, `"subject": "C=NL, O=EUDI Dev Test CA, CN=Decode CA"`, `"selfSigned": true`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output lacks %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestValidateReportsACertificateAsJSON(t *testing.T) {
+	t.Cleanup(func() { jsonOutput = false })
+	caKey, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ca, err := mock.GenerateNamedCACert(caKey, "Validate CA")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resetRemoteTestState(t)
+
+	var runErr error
+	out := captureStdout(t, func() {
+		rootCmd.SetArgs([]string{"validate", "--json", base64.StdEncoding.EncodeToString(ca.Raw)})
+		runErr = rootCmd.Execute()
+	})
+	if runErr != nil {
+		t.Fatalf("validate: %v", runErr)
+	}
+	if !strings.Contains(out, `"format": "x509"`) || !strings.Contains(out, "CN=Validate CA") {
+		t.Errorf("output %q, want the certificate report", out)
+	}
+}
+
+func TestValidatePrintsTheChecksOfACertificate(t *testing.T) {
+	caKey, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ca, err := mock.GenerateNamedCACert(caKey, "Validate CA")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resetRemoteTestState(t)
+
+	var runErr error
+	out := captureStdout(t, func() {
+		rootCmd.SetArgs([]string{"validate", base64.StdEncoding.EncodeToString(ca.Raw)})
+		runErr = rootCmd.Execute()
+	})
+	if runErr != nil {
+		t.Fatalf("validate: %v", runErr)
+	}
+	for _, want := range []string{"✓ expiry: Valid until", "✓ signature: The certificate is self-signed"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output lacks %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestDecodeWithFormatX509NeedsACertificate(t *testing.T) {
+	resetRemoteTestState(t)
+	t.Cleanup(func() { decodeFormat = "" })
+	jwt := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none"}`)) + "." + base64.RawURLEncoding.EncodeToString([]byte(`{}`)) + "."
+
+	rootCmd.SetArgs([]string{"decode", "-f", "x509", jwt})
+	err := rootCmd.Execute()
+
+	if err == nil || !strings.Contains(err.Error(), "not a certificate") {
+		t.Errorf("error %v, want that the input is not a certificate", err)
+	}
+}

@@ -19,7 +19,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/sha256"
 	"crypto/sha512"
-	"crypto/x509"
 	"encoding/base64"
 	"fmt"
 	"strconv"
@@ -257,43 +256,31 @@ func NameCOSEHeader(header map[string]any) map[string]any {
 			}
 		}
 		if label == "x5chain" || label == "x5bag" {
-			value = describeCertificates(value)
+			value = encodeCertificates(value)
 		}
 		out[label] = value
 	}
 	return out
 }
 
-func describeCertificates(value any) any {
-	var ders [][]byte
+// encodeCertificates gives the DER certificates in the base64 form of an x5c
+// entry (RFC 7515 §4.1.6), so both chains read the same.
+func encodeCertificates(value any) any {
 	switch v := value.(type) {
 	case []byte:
-		ders = [][]byte{v}
+		return []any{base64.StdEncoding.EncodeToString(v)}
 	case []any:
+		out := make([]any, 0, len(v))
 		for _, entry := range v {
 			if der, ok := entry.([]byte); ok {
-				ders = append(ders, der)
+				out = append(out, base64.StdEncoding.EncodeToString(der))
+			} else {
+				out = append(out, entry)
 			}
 		}
-	default:
-		return value
+		return out
 	}
-	out := make([]any, 0, len(ders))
-	for _, der := range ders {
-		cert, err := x509.ParseCertificate(der)
-		if err != nil {
-			out = append(out, fmt.Sprintf("%d bytes (unparseable)", len(der)))
-			continue
-		}
-		out = append(out, map[string]any{
-			"subject":   cert.Subject.String(),
-			"issuer":    cert.Issuer.String(),
-			"notAfter":  cert.NotAfter.Format("2006-01-02"),
-			"serial":    cert.SerialNumber.String(),
-			"algorithm": cert.SignatureAlgorithm.String(),
-		})
-	}
-	return out
+	return value
 }
 
 // NameCOSEKey replaces numeric COSE_Key labels with registered names for display.

@@ -1111,6 +1111,7 @@
       button.addEventListener('click', run);
       actions.appendChild(button);
     };
+    addAction('Open in decoder', 'decode', () => window.open('decoder/#credential=' + encodeURIComponent(certificate.certificate.trim()), '_blank'));
     if (certificate.revoked) {
       addAction('Undo revocation', 'undo', () => changeCertificate('DELETE', 'api/certificates/revocations/' + certificate.serial));
     } else if (certificate.revocable) {

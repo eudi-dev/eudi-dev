@@ -41,6 +41,9 @@ type Trust struct {
 	// CertificateProblems reads the CRLs of a credential's certificates. Without
 	// it the certificate revocation check is skipped.
 	CertificateProblems func([]*x509.Certificate) []certchain.RevocationProblem
+	// CompleteChain appends the issuer certificates that CertificateProblems
+	// uses, so the check sees the same chain.
+	CompleteChain func([]*x509.Certificate) []*x509.Certificate
 	// Supplied is set once the caller supplies a key or a trusted list, even
 	// a list without services.
 	Supplied bool

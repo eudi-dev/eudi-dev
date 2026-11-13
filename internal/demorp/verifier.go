@@ -1510,6 +1510,7 @@ func (d *DemoRP) credentialTrust() validate.Trust {
 		HTTPClient: d.wallet.HTTPClient(),
 
 		CertificateProblems: d.wallet.CertificateProblems,
+		CompleteChain:       d.wallet.CompletedChain,
 	}
 }
 

@@ -220,6 +220,62 @@ main {
   color: var(--purple);
 }
 
+.badge.x509 {
+  background: color-mix(in srgb, var(--cyan) 16%, var(--bg-surface));
+  color: var(--cyan);
+}
+
+.certificate-pem {
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.certificate-value-subject {
+  color: var(--cyan);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  margin-left: 8px;
+}
+
+.certificate-inline[hidden] {
+  display: none;
+}
+
+.certificate .json-line {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.certificate-inline {
+  display: block;
+  word-break: normal;
+  margin: 6px 0 8px;
+  padding: 8px 12px;
+  white-space: normal;
+  background: var(--bg-surface);
+  border-left: 3px solid var(--cyan);
+  border-radius: 8px;
+}
+
+.certificate .copy-btn {
+  margin-left: 8px;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 1px 10px;
+  border-radius: 999px;
+}
+
+.certificate .copy-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
 .input-editor {
   flex: 1;
   position: relative;

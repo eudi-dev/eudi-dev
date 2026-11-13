@@ -106,6 +106,62 @@ test.describe("Get the CLI dialog", () => {
   });
 });
 
+test.describe("Certificate decoding", () => {
+  test("shows a pasted PEM certificate and its x5c form", async ({ page }) => {
+    const pem = readFileSync(
+      path.join(__dirname, "../internal/web/testdata/certificate.pem"),
+      "utf8"
+    );
+    const der = pem.replace(/-----[A-Z ]+-----|\s/g, "");
+    await page.goto("/");
+
+    for (const input of [pem, JSON.stringify([der])]) {
+      await page.locator("#input").fill(input);
+      await expect(page.locator("#format-badge")).toHaveText("X.509");
+      await expect(page.locator("#output-summary")).toContainText("CN=Decoder Test CA");
+      const cert = page.locator("#output-certificate-1");
+      await expect(cert).toContainText("Certificate 1");
+      await expect(cert).toContainText("keyCertSign, cRLSign");
+      await expect(cert).toContainText("Self-signed: yes");
+      await expect(page.locator("#output-certificate-1-pem-text")).toHaveText(pem);
+      await expect(page.locator(".validity-banner")).toContainText("Signature");
+      await expect(page.locator("#output-verify")).toHaveCount(0);
+    }
+  });
+
+  test("opens an x5c entry of a credential inline", async ({ page }) => {
+    const pem = readFileSync(
+      path.join(__dirname, "../internal/web/testdata/certificate.pem"),
+      "utf8"
+    );
+    const der = pem.replace(/-----[A-Z ]+-----|\s/g, "");
+    await page.goto("/");
+    await page.locator("#input").fill(
+      makeJWT({ alg: "ES256", typ: "JWT", x5c: [der] }, { iss: "https://issuer.example" })
+    );
+
+    const header = page.locator('#output .section[data-section="header"]');
+    const entry = header.locator('[data-embedded-format="x509"]');
+    await expect(header.locator(".certificate-value-subject")).toHaveText(
+      "C=DE, O=EUDI Dev Test, CN=Decoder Test CA"
+    );
+
+    await entry.click();
+    const card = header.locator(".certificate-inline");
+    await expect(card).toContainText("keyCertSign, cRLSign");
+    await expect(card.locator(".certificate-pem")).toHaveText(pem);
+    await expect(entry).toHaveAttribute("aria-expanded", "true");
+    await entry.click();
+    await expect(card).toBeHidden();
+    await expect(entry).toHaveAttribute("aria-expanded", "false");
+    await entry.click();
+
+    await card.getByRole("button", { name: "Open in decoder" }).click();
+    await expect(page.locator("#format-badge")).toHaveText("X.509");
+    await expect(page.locator("#output-certificate-1")).toContainText("Self-signed: yes");
+  });
+});
+
 test.describe("JWT decoding", () => {
   test("decodes a trust-list JWT and displays its payload", async ({ page }) => {
     const jwt = readFileSync(

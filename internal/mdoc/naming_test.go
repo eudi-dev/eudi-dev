@@ -24,6 +24,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/base64"
 	"math/big"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -99,57 +100,27 @@ func testCertDER(t *testing.T) []byte {
 	return der
 }
 
-// Certificates show as readable details. A malformed chain stays visible for
-// inspection.
-func TestNameCOSEHeaderDescribesCertificates(t *testing.T) {
+// Certificates become base64 x5c entries, also when they do not parse.
+func TestNameCOSEHeaderEncodesCertificates(t *testing.T) {
 	der := testCertDER(t)
-
-	t.Run("a single certificate", func(t *testing.T) {
-		named := NameCOSEHeader(map[string]any{"33": der})
-		chain, ok := named["x5chain"].([]any)
-		if !ok || len(chain) != 1 {
-			t.Fatalf("x5chain = %#v, want one described certificate", named["x5chain"])
-		}
-		desc, ok := chain[0].(map[string]any)
-		if !ok {
-			t.Fatalf("entry = %#v, want a description map", chain[0])
-		}
-		if desc["subject"] != "CN=Test Document Signer" {
-			t.Errorf("subject = %v", desc["subject"])
-		}
-		if desc["issuer"] != "CN=Test IACA" {
-			t.Errorf("issuer = %v", desc["issuer"])
-		}
-		if desc["serial"] != "4242" {
-			t.Errorf("serial = %v, want 4242", desc["serial"])
-		}
-	})
-
-	t.Run("a chain of several", func(t *testing.T) {
-		named := NameCOSEHeader(map[string]any{"33": []any{der, der}})
-		chain, ok := named["x5chain"].([]any)
-		if !ok || len(chain) != 2 {
-			t.Fatalf("x5chain = %#v, want two entries", named["x5chain"])
-		}
-	})
-
-	t.Run("bytes that are not a certificate", func(t *testing.T) {
-		named := NameCOSEHeader(map[string]any{"33": []byte("nonsense")})
-		chain, ok := named["x5chain"].([]any)
-		if !ok || len(chain) != 1 {
-			t.Fatalf("x5chain = %#v", named["x5chain"])
-		}
-		if _, isString := chain[0].(string); !isString {
-			t.Errorf("entry = %#v, want it reported as unparseable", chain[0])
-		}
-	})
-
-	t.Run("something that is neither", func(t *testing.T) {
-		named := NameCOSEHeader(map[string]any{"33": 42})
-		if named["x5chain"] != 42 {
-			t.Errorf("x5chain = %#v, want the value passed through", named["x5chain"])
-		}
-	})
+	encoded := base64.StdEncoding.EncodeToString(der)
+	tests := map[string]struct {
+		value any
+		want  any
+	}{
+		"a single certificate":      {value: der, want: []any{encoded}},
+		"a chain of several":        {value: []any{der, der}, want: []any{encoded, encoded}},
+		"bytes that do not parse":   {value: []byte("nonsense"), want: []any{base64.StdEncoding.EncodeToString([]byte("nonsense"))}},
+		"a value that is not bytes": {value: 42, want: 42},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			named := NameCOSEHeader(map[string]any{"33": tc.value})
+			if !reflect.DeepEqual(named["x5chain"], tc.want) {
+				t.Errorf("x5chain = %#v, want %#v", named["x5chain"], tc.want)
+			}
+		})
+	}
 }
 
 func TestNameCOSEKey(t *testing.T) {
