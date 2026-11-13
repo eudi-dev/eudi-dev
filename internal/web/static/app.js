@@ -820,6 +820,11 @@
       appendSection("Key Binding JWT", kb, data.keyBindingJWT, "kb-jwt", kbBase);
     }
 
+    if (data.delegation) {
+      const base = reserveSection("output-delegation");
+      appendSection("Delegation (" + data.delegation.format + ")", renderJSONBlock(data.delegation, { timestampKeys: TIMESTAMP_FIELDS }, base + "-json"), data.delegation, "delegation", base);
+    }
+
     if (data.warnings && data.warnings.length > 0) {
       const notes = reserveSection("output-notes");
       const w = document.createElement("div");

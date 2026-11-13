@@ -92,14 +92,19 @@ func (w *Wallet) createVPToken(match consent.Match, params *oid4vp.Request, mdoc
 		return VPTokenResult{}, err
 	}
 
+	delegation, err := w.delegation(transactions, transactionClaims)
+	if err != nil {
+		return VPTokenResult{}, err
+	}
+
 	switch cred.Format {
 	case credtype.FormatSDJWT:
 		audience := sdJWTAudience(params)
-		token, err := w.createSDJWTPresentation(cred, match.SelectedKeys, params.Nonce, audience, signingKey, transactionClaims)
+		token, err := w.createSDJWTPresentation(cred, match.SelectedKeys, params.Nonce, audience, signingKey, transactionClaims, delegation)
 		if err != nil {
 			return VPTokenResult{}, err
 		}
-		log.Printf("[VP] SD-JWT presentation created: %d disclosures selected, aud=%s", len(match.SelectedKeys), audience)
+		log.Printf("[VP] SD-JWT presentation created: %d disclosures selected, aud=%s, delegation=%t", len(match.SelectedKeys), audience, delegation != nil)
 		return VPTokenResult{Token: token}, nil
 	case credtype.FormatJWTVC:
 		log.Printf("[VP] Plain JWT presentation (no selective disclosure)")
@@ -163,8 +168,9 @@ func interactiveAuthorizationAudience(endpoint string) string {
 }
 
 // createSDJWTPresentation adds extraClaims, such as transaction data hashes,
-// to the KB-JWT.
-func (w *Wallet) createSDJWTPresentation(cred StoredCredential, selectedKeys []string, nonce, clientID string, signingKey *ecdsa.PrivateKey, extraClaims map[string]any) (string, error) {
+// to the KB-JWT. With a delegation the KB-JWT is a KB-SD-JWT and the result is
+// a Delegate SD-JWT (draft-ietf-oauth-delegate-sd-jwt-00 §5.1.1).
+func (w *Wallet) createSDJWTPresentation(cred StoredCredential, selectedKeys []string, nonce, clientID string, signingKey *ecdsa.PrivateKey, extraClaims map[string]any, delegation *sdjwt.KBSDJWT) (string, error) {
 	parts := strings.Split(cred.Raw, "~")
 	if len(parts) < 1 {
 		return "", fmt.Errorf("invalid SD-JWT format")
@@ -209,6 +215,13 @@ func (w *Wallet) createSDJWTPresentation(cred StoredCredential, selectedKeys []s
 	// optional, so it is presented without a KB-JWT as issuer_jwt~disc~.
 	if !credentialHolderBinding(cred.Raw).Bound {
 		return withoutKB, nil
+	}
+
+	if delegation != nil {
+		kb := *delegation
+		kb.Claims = map[string]any{"iat": time.Now().Unix(), "aud": clientID, "nonce": nonce}
+		maps.Copy(kb.Claims, extraClaims)
+		return sdjwt.Delegate(withoutKB, kb, signingKey)
 	}
 
 	// sd_hash covers the SD-JWT without the KB-JWT. RFC 9901 §4.3 hashes it with

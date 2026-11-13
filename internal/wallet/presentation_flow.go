@@ -151,7 +151,12 @@ func (w *Wallet) askPresentationConsent(ctx context.Context, typ, owner, asking 
 	}
 	consentReq = newPresentationConsent(typ, owner, asking, authReq, outcome.matches, outcome.options)
 	for _, entry := range w.transactionData(authReq) {
-		consentReq.TransactionData = append(consentReq.TransactionData, consent.TransactionData{Type: entry.Type, CredentialIDs: entry.CredentialIDs, Data: entry.Data})
+		shown := consent.TransactionData{Type: entry.Type, CredentialIDs: entry.CredentialIDs, Data: entry.Data}
+		if w.delegates() && w.canDelegate(entry, consentReq.MatchedCreds) {
+			shown.DelegatePayload = entry.DelegatePayload()
+			shown.Summary = oid4vp.DelegateSummary(shown.DelegatePayload)
+		}
+		consentReq.TransactionData = append(consentReq.TransactionData, shown)
 	}
 	if err := w.Consents().Create(consentReq); err != nil {
 		return nil, nil, false, false, err

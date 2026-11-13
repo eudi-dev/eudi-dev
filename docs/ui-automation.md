@@ -265,7 +265,7 @@ The demo verifier at `/verifier/` builds requests for you:
 | Credential to send | `#consent-credential-<credential id>`, a `.consent-credential` with `data-credential-id`, `data-vct`, `data-doctype` |
 | Claim checkboxes | `.consent-claim input` with `data-cred` and `data-claim` |
 | Note on a query with **multiple** | `#consent-multiple-<query id>` |
-| Transaction to authorize | `#consent-transaction-<n>` with `-summary` (TS12 types only), `-type` and `-data`. The data sits in `-details`, which starts closed when `-summary` is shown. Click `-details-summary` to open it |
+| Transaction to authorize | `#consent-transaction-<n>` with `-summary` (TS12 types and `delegate`), `-type` and `-data`. A `delegate` entry also has `-experimental` with the note about the draft and `-delegate-payload` with the decoded delegate payload. The data sits in `-details`, which starts closed when `-summary` is shown. Click `-details-summary` to open it |
 | Query without a matching credential (debug mode) | `#consent-unanswered-<query id>`. **Approve** stays disabled until you pick one |
 | **Approve**, **Deny** | `#consent-approve`, `#consent-deny` |
 
@@ -430,7 +430,7 @@ The wallet serves the [decoder](decoder.md) at `/decoder/`. Open it with a token
 |---|---|
 | Input | `#input` |
 | Format | `#format-badge` |
-| Decoded sections | `#output .section[data-section="header"]`, `"payload"`, `"signature"`, `"kb-jwt"`, `"disc-<n>"` |
+| Decoded sections | `#output .section[data-section="header"]`, `"payload"`, `"signature"`, `"kb-jwt"`, `"delegation"`, `"disc-<n>"` |
 | Checks | `.validity-banner`, items `.vg-item` with `data-check` |
 | Verify with a key or trusted list | `#output-verify-summary` opens it. `#output-verify-key`, `#output-verify-trusted-list`, `#output-verify-btn` |
 | **Share**, **Clear** | `#share-btn` (copies a link), `#clear-btn` |

@@ -155,7 +155,11 @@ func storedWallet() (*wallet.Wallet, error) {
 func credentialReport(result *validate.Result) jsonReport {
 	switch result.Format {
 	case validate.FormatSDJWT:
-		return output.BuildSDJWTJSON(result.SDJWT)
+		report := output.BuildSDJWTJSON(result.SDJWT)
+		if result.Delegation != nil {
+			report["delegation"] = output.BuildDelegationJSON(result.Delegation)
+		}
+		return report
 	case validate.FormatJWT:
 		return output.BuildJWTJSON(result.SDJWT)
 	case validate.FormatX509:
@@ -168,6 +172,9 @@ func printCredential(result *validate.Result, opts output.Options) {
 	switch result.Format {
 	case validate.FormatSDJWT:
 		output.PrintSDJWT(result.SDJWT, opts)
+		if result.Delegation != nil {
+			output.PrintDelegation(result.Delegation)
+		}
 	case validate.FormatJWT:
 		output.PrintJWT(result.SDJWT, opts)
 	case validate.FormatX509:
@@ -246,6 +253,9 @@ func printValidation(result *validate.Result, opts output.Options, report jsonRe
 	} else if c, ok := result.Find(validate.CheckStatus); ok && (c.Status == validate.Fail || c.Status == validate.Warning) {
 		report.text(func() { printCheck(c) })
 	}
+	if c, ok := result.Find(validate.CheckDelegation); ok {
+		report.text(func() { fmt.Printf("  %s Delegation: %s\n", checkMark(c.Status), c.Detail) })
+	}
 }
 
 func printCheck(c validate.Check) {
@@ -259,7 +269,7 @@ func printCheck(c validate.Check) {
 // validationError fails on the credential's own checks. The catalogue trust
 // and HAIP checks are informational.
 func validationError(result *validate.Result) error {
-	failing := []string{validate.CheckType, validate.CheckIntegrity, validate.CheckSignature, validate.CheckCertificates, validate.CheckExpiry, validate.CheckStatus}
+	failing := []string{validate.CheckType, validate.CheckIntegrity, validate.CheckSignature, validate.CheckCertificates, validate.CheckExpiry, validate.CheckStatus, validate.CheckDelegation}
 	for _, c := range result.Checks {
 		if c.Status != validate.Fail || !slices.Contains(failing, c.Name) {
 			continue

@@ -241,6 +241,10 @@ type ConformanceSettings struct {
 	// TS12 types and of TransactionDataTypes (--transaction-data-type).
 	TransactionData      bool     `json:"transaction_data"`
 	TransactionDataTypes []string `json:"transaction_data_types"`
+	// DelegateSDJWT accepts the transaction data type delegate and answers it
+	// with a Delegate SD-JWT (--delegate-sd-jwt, ADR 0033). It
+	// follows draft-ietf-oauth-delegate-sd-jwt-00 and is set at startup only.
+	DelegateSDJWT bool `json:"delegate_sd_jwt"`
 	// Defaults to 1.0. Version 1.1 enables supported draft features when the
 	// issuer advertises them.
 	VCIVersion VCIVersion `json:"vci_version"`
@@ -372,7 +376,7 @@ func (c ConformanceSettings) checks() oid4vp.Checks {
 		HAIP:                 c.RequireHAIP,
 		ARF:                  c.RequireARF,
 		TransactionData:      c.TransactionData,
-		TransactionDataTypes: c.TransactionDataTypes,
+		TransactionDataTypes: c.acceptedTransactionDataTypes(),
 	}
 }
 

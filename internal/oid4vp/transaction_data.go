@@ -181,6 +181,9 @@ func transactionDataFindings(checks Checks, params *Request, payload map[string]
 		if slices.Contains(TS12TransactionDataTypes, entry.Type) {
 			list = append(list, ts12Findings(label, entry)...)
 		}
+		if entry.Type == DelegateTransactionDataType && checks.acceptsTransactionDataType(entry.Type) {
+			list = append(list, entry.DelegateFindings(entry.PreferredHashAlg())...)
+		}
 	}
 	return list
 }
@@ -220,16 +223,9 @@ func (c Checks) acceptsTransactionDataType(typ string) bool {
 // TS12 type adds the claims of TS12 §3.6. responseMode is the response mode of
 // the answer.
 func TransactionDataClaims(entries []TransactionData, responseMode string) (map[string]any, error) {
-	alg := ""
-	for _, candidate := range TransactionDataHashAlgs {
-		if !slices.ContainsFunc(entries, func(e TransactionData) bool { return !e.acceptsHashAlg(candidate) }) {
-			alg = candidate
-			break
-		}
-	}
+	alg, common := transactionDataHashAlg(entries)
 	var algErr error
-	if alg == "" {
-		alg = defaultTransactionDataHashAlg
+	if !common {
 		algErr = &findings.Error{Summary: "no common hash algorithm for transaction data", Findings: findings.List{
 			findings.OID4VP.Protocol("Appendix B.3.3.1").New("the transaction data entries of one presentation have no common hash algorithm supported by this wallet"),
 		}}
@@ -254,6 +250,24 @@ func TransactionDataClaims(entries []TransactionData, responseMode string) (map[
 		addTS12Claims(claims, responseMode)
 	}
 	return claims, algErr
+}
+
+// TransactionDataHashAlg is the hash algorithm of transaction_data_hashes for
+// the entries of one presentation. It is the first algorithm in
+// TransactionDataHashAlgs that every entry accepts. If there is none, it is
+// sha-256.
+func TransactionDataHashAlg(entries []TransactionData) string {
+	alg, _ := transactionDataHashAlg(entries)
+	return alg
+}
+
+func transactionDataHashAlg(entries []TransactionData) (alg string, common bool) {
+	for _, candidate := range TransactionDataHashAlgs {
+		if !slices.ContainsFunc(entries, func(e TransactionData) bool { return !e.acceptsHashAlg(candidate) }) {
+			return candidate, true
+		}
+	}
+	return defaultTransactionDataHashAlg, false
 }
 
 func (e TransactionData) acceptsHashAlg(alg string) bool {

@@ -56,6 +56,7 @@ eudi wallet accept 'openid-credential-offer://...' --tx-code 123456
 | `--vci-version`         | `1.0`    | OpenID4VCI feature level as a client: `1.0` or `1.1` |
 | `--transaction-data`    | `false`  | Accept `transaction_data` in presentation requests (see [transaction data](#transaction-data)) |
 | `--transaction-data-type` | None   | Accept another transaction data type besides the TS12 types. Takes effect only with `--transaction-data` (repeatable) |
+| `--delegate-sd-jwt` | `false` | Experimental. Accept the transaction data type `delegate` and answer it with a [Delegate SD-JWT](#delegation-with-a-delegate-sd-jwt) (draft-ietf-oauth-delegate-sd-jwt-00). Takes effect only with `--transaction-data` |
 
 Pre-authorized code offers work directly with `wallet accept`. Authorization code offers require a running `wallet serve` instance. Flows with attestation-based client authentication use a client ID derived from the wallet provider key, and other flows use the wallet origin. The redirect URI defaults to the `/callback` endpoint of the wallet origin. Set fixed values with `--vci-client-id` and `--vci-redirect-uri`. The wallet uses PAR and DPoP when advertised by the issuer.
 
@@ -143,6 +144,49 @@ The consent dialog shows each transaction with its type and data. For the TS12 t
 For a TS12 entry the Key Binding JWT also carries `jti`, `response_mode` and `amr` (TS12 §3.6). `jti` is new for each presentation. `response_mode` is the response mode of the answer. That is `direct_post` for a request without one. The wallet does not authenticate the user, so `amr` lists the factors of a typical wallet unit: `[{"knowledge":"pin_6_or_more_digits"},{"possession":"key_in_local_native_wscd"}]`.
 
 The wallet checks that the credential is an SCA Attestation (TS12 §3.2 steps 1 and 2). Its Type Metadata needs the category `urn:eu:europa:ec:eudi:sua:sca` and must list the type in `transaction_data_types`. A failed check is a warning in the activity log, in strict mode too. You can still test a payment with any SD-JWT VC, such as the PID. The demo issuer's Demo Payment Account passes the check. The demo verifier asks for it with **Demo payment account**. Its `vct` is an HTTPS URL on the demo issuer. Its Type Metadata has the SCA category and lists the four TS12 types with their claims and UI labels (TS12 §4.1). The credential carries the document's hash in `vct#integrity`. With an HTTP base URL, the `vct` uses the self-signed HTTPS issuer URL on port+1. See [ADR 0031](../adr/0031-transaction-data-is-opt-in-and-binds-to-sd-jwt.md).
+
+### Delegation with a Delegate SD-JWT
+
+The wallet can delegate an SD-JWT VC to another key, such as the key of an agent. The feature is experimental and off by default. It follows draft-ietf-oauth-delegate-sd-jwt-00. A later draft can change the format. Start the wallet with both flags:
+
+```bash
+eudi wallet serve --transaction-data --delegate-sd-jwt
+```
+
+A verifier asks for a delegation with a transaction data entry of the type `delegate` (§7.1 of the draft):
+
+```json
+{
+  "type": "delegate",
+  "credential_ids": ["pid"],
+  "format": "dSD-JWT+KB",
+  "delegate_payload_disclosure": "<base64url of [salt, delegate payload]>",
+  "delegate_disclosures": ["<disclosure>", "<disclosure>"]
+}
+```
+
+The Delegate Payload is a JSON object. Its `cnf` claim holds the key of the Delegate Holder, and `exp` ends the delegation. Some of its claims can be selectively disclosed. Their disclosures go into `delegate_disclosures`.
+
+The wallet checks the entry:
+
+- `format` is `dSD-JWT` or `dSD-JWT+KB`
+- `delegate_payload_disclosure` decodes to `[salt, object]` (§5.1.3)
+- every digest inside the Delegate Payload has its disclosure in `delegate_disclosures`, and every disclosure matches a digest
+- the Delegate Payload of a `dSD-JWT+KB` entry has a `cnf` claim (§5.1.4)
+
+Strict mode refuses a request with such a finding. The error is `invalid_transaction_data`. Debug mode warns and still signs when the entry has a `delegate_payload_disclosure`.
+
+The consent dialog sums up the entry in one sentence, such as "Delegate this credential to the key aISfTcr9M_Zd09AXGAAeFxnLbFY6lBa87UN515wm5d4 until 2026-11-13 13:00 UTC". The key is the JWK thumbprint (RFC 7638) of `cnf`. The details show the entry and the decoded delegate payload.
+
+The wallet answers with a dSD-JWT in `vp_token` (§5.1.1). A KB-SD-JWT takes the place of the Key Binding JWT:
+
+```
+<Issuer-signed JWT>~<Disclosure 1>~...~<Disclosure N>~~<KB-SD-JWT>~<delegate payload disclosure>~<delegate disclosure 1>~...~<delegate disclosure M>~
+```
+
+The wallet signs the KB-SD-JWT with the `cnf` key of the credential. Its `typ` is `kb-sd-jwt+kb` for the format `dSD-JWT+KB` and `kb+sd-jwt` for `dSD-JWT`. Its payload has `iat`, `aud`, `nonce`, `sd_hash`, `_sd_alg`, `delegate_payload` and `transaction_data_hashes`. `delegate_payload` is an array with the digest of each Delegate Payload disclosure. `_sd_alg` is the hash algorithm of `transaction_data_hashes`. The wallet copies the disclosures of the entry into the answer unchanged.
+
+The Delegate Holder presents a `dSD-JWT+KB` chain later. It keeps the disclosures meant for the verifier and appends a Key Binding JWT signed with its own key. `eudi decode` and `eudi validate` show the components of such a chain. See [ADR-0033](../adr/0033-delegate-transaction-data-is-answered-with-a-delegate-sd-jwt.md).
 
 ### Transaction templates
 

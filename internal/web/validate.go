@@ -50,6 +50,9 @@ func Validate(input string, opts ValidateOpts) (map[string]any, error) {
 	switch result.Format {
 	case validate.FormatSDJWT:
 		decoded = output.BuildSDJWTJSON(result.SDJWT)
+		if result.Delegation != nil {
+			decoded["delegation"] = output.BuildDelegationJSON(result.Delegation)
+		}
 	case validate.FormatJWT:
 		decoded = output.BuildJWTJSON(result.SDJWT)
 	case validate.FormatMDOC:

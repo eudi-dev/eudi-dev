@@ -801,6 +801,9 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	if w.TransactionData {
 		types := append(slices.Clone(oid4vp.TS12TransactionDataTypes), w.TransactionDataTypes...)
 		fmt.Printf("  Transactions:  transaction_data accepted (%s)\n", strings.Join(types, ", "))
+		if w.DelegateSDJWT {
+			fmt.Printf("  Experimental:  Delegate SD-JWT (draft-ietf-oauth-delegate-sd-jwt-00) for the type delegate\n")
+		}
 	}
 	if w.RequireHAIP {
 		fmt.Printf("  HAIP:          enforced (presentations: x509_hash, direct_post.jwt, DCQL, signed request object, P-256 response encryption)\n")

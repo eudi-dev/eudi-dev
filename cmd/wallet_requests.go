@@ -200,6 +200,9 @@ func requestTransactions(request map[string]any) ([]string, error) {
 		if len(entry.CredentialIDs) > 0 {
 			line += " for " + strings.Join(entry.CredentialIDs, ", ")
 		}
+		if entry.Summary != "" {
+			line += " (" + entry.Summary + ")"
+		}
 		lines = append(lines, fmt.Sprintf("%s: %s", line, data))
 	}
 	return lines, nil

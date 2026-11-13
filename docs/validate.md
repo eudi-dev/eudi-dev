@@ -28,6 +28,7 @@ eudi validate credential.txt
 | `status` | The entry in the credential's status list |
 | `status list signature` | Whether a trusted list anchors the status list |
 | `haip` | The HAIP 1.0 rules for an SD-JWT VC (only with `--haip`) |
+| `delegation` | The KB-SD-JWTs and the Key Binding JWT of the Delegate Holder in a Delegate SD-JWT (draft-ietf-oauth-delegate-sd-jwt-00 §6). The other checks cover its SD-JWT |
 
 The validity check allows one minute of clock skew. A credential issued in the future gets a warning.
 

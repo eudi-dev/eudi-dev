@@ -119,6 +119,11 @@ type TransactionData struct {
 	Type          string         `json:"type"`
 	CredentialIDs []string       `json:"credential_ids"`
 	Data          map[string]any `json:"data"`
+	// Summary is one sentence about a delegate entry. The command line prints
+	// it. The dialog builds its own summaries.
+	Summary string `json:"summary,omitempty"`
+	// DelegatePayload is the decoded Delegate Payload of a delegate entry.
+	DelegatePayload map[string]any `json:"delegate_payload,omitempty"`
 }
 
 type Match struct {

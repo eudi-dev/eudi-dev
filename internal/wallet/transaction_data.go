@@ -24,6 +24,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
+	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
 	"github.com/eudi-dev/eudi-dev/v3/internal/typemetadata"
 )
 
@@ -49,13 +50,16 @@ func asTransactionDataRefusal(err error) (*transactionDataRefusal, bool) {
 }
 
 // ParseTransactionDataTypes trims the registered transaction data types and
-// drops duplicates.
+// drops duplicates. The type delegate has its own switch (ADR 0033).
 func ParseTransactionDataTypes(raw []string) ([]string, error) {
 	var types []string
 	for _, typ := range raw {
 		typ = strings.TrimSpace(typ)
 		if typ == "" {
 			return nil, fmt.Errorf("a transaction data type must not be empty")
+		}
+		if typ == oid4vp.DelegateTransactionDataType {
+			return nil, fmt.Errorf("the type %s is experimental. Start the wallet with --delegate-sd-jwt", typ)
 		}
 		if !slices.Contains(types, typ) {
 			types = append(types, typ)
@@ -151,6 +155,77 @@ func (w *Wallet) transactionDataClaims(cred StoredCredential, entries []oid4vp.T
 	return claims, err
 }
 
+// delegates reports whether the wallet answers a delegate entry with a
+// dSD-JWT (ADR 0033).
+func (w *Wallet) delegates() bool {
+	return w.Conformance().DelegateSDJWT
+}
+
+// acceptedTransactionDataTypes are the registered types, with delegate when
+// Delegate SD-JWT is on.
+func (c ConformanceSettings) acceptedTransactionDataTypes() []string {
+	if !c.DelegateSDJWT {
+		return c.TransactionDataTypes
+	}
+	return append(slices.Clone(c.TransactionDataTypes), oid4vp.DelegateTransactionDataType)
+}
+
+// delegation is the KB-SD-JWT for the delegate entries among entries
+// (draft-ietf-oauth-delegate-sd-jwt-00 §7.1). claims are the Key Binding JWT
+// claims of the same presentation. The result is nil when the presentation
+// has no Key Binding JWT, when no entry has a delegate payload disclosure and
+// when Delegate SD-JWT is off.
+//
+// §7.1: "Multiple delegate transaction_data MAY be included in the same
+// request. In that case, each MUST have their digest included in the
+// delegate_payload."
+func (w *Wallet) delegation(entries []oid4vp.TransactionData, claims map[string]any) (*sdjwt.KBSDJWT, error) {
+	if claims == nil || !w.delegates() {
+		return nil, nil
+	}
+	// §7.1: "_sd_alg may use any hash algorithm specified for hashing the
+	// transaction_data."
+	sdAlg := oid4vp.TransactionDataHashAlg(entries)
+	kb := &sdjwt.KBSDJWT{Type: sdjwt.TypeKBSDJWT, SDAlg: sdAlg}
+	var delegates []oid4vp.TransactionData
+	for _, entry := range entries {
+		delegation, ok := entry.Delegation()
+		if !ok {
+			continue
+		}
+		if delegation.Format == sdjwt.FormatDelegateKB {
+			kb.Type = sdjwt.TypeKBSDJWTKB
+		}
+		kb.Payloads = append(kb.Payloads, sdjwt.DelegatedPayload{Disclosure: delegation.PayloadDisclosure, Disclosures: delegation.Disclosures})
+		delegates = append(delegates, entry)
+	}
+	if len(delegates) == 0 {
+		return nil, nil
+	}
+	var list findings.List
+	for _, entry := range delegates {
+		// The request validation checked the entry under its preferred
+		// algorithm.
+		if sdAlg != entry.PreferredHashAlg() {
+			list = append(list, entry.DelegateFindings(sdAlg)...)
+		}
+		// One KB-SD-JWT signs every delegate payload. Its typ applies to each
+		// of them. §5.1.4: "If the typ is KB-SD-JWT+KB then the Delegate
+		// Payload MUST include a cnf claim."
+		if delegation, _ := entry.Delegation(); kb.Type == sdjwt.TypeKBSDJWTKB && delegation.Format != sdjwt.FormatDelegateKB && entry.DelegatePayload()["cnf"] == nil {
+			list = append(list, findings.DelegateSDJWT.Protocol("§5.1.4").Newf("%s shares a KB-SD-JWT of typ %s with another entry, but its delegate payload has no cnf claim", entry.Label(), sdjwt.TypeKBSDJWTKB))
+		}
+	}
+	if len(list) > 0 {
+		err := w.reportDeviation(deviation{action: "presentation", event: "transaction_data_delegate", subject: subjectPresentation,
+			summary: "These delegate transaction data entries can't share one KB-SD-JWT", findings: list})
+		if err != nil {
+			return nil, refuseTransactionData(err)
+		}
+	}
+	return kb, nil
+}
+
 // scaFindings are the failures of EUDI TS12 v1.0.1 §3.2 steps 1 and 2 for the
 // entries bound to cred. TS12 requires the wallet to cease processing. Both
 // steps are warnings (ADR 0031).
@@ -188,8 +263,8 @@ type TransactionDataTypes struct {
 	HashAlgs []string              `json:"hash_algs"`
 }
 
-// AcceptedTransactionDataTypes lists the TS12 types and the types from
-// --transaction-data-type.
+// AcceptedTransactionDataTypes lists the TS12 types, the types from
+// --transaction-data-type and delegate when Delegate SD-JWT is on.
 func (w *Wallet) AcceptedTransactionDataTypes() (TransactionDataTypes, error) {
 	list := TransactionDataTypes{HashAlgs: oid4vp.TransactionDataHashAlgs}
 	for _, typ := range oid4vp.TS12TransactionDataTypes {
@@ -199,10 +274,28 @@ func (w *Wallet) AcceptedTransactionDataTypes() (TransactionDataTypes, error) {
 		}
 		list.Types = append(list.Types, TransactionDataType{Type: typ, TS12: true, Fields: fields})
 	}
-	for _, typ := range w.Conformance().TransactionDataTypes {
+	for _, typ := range w.Conformance().acceptedTransactionDataTypes() {
 		if !slices.Contains(oid4vp.TS12TransactionDataTypes, typ) {
 			list.Types = append(list.Types, TransactionDataType{Type: typ})
 		}
 	}
 	return list, nil
+}
+
+// canDelegate reports whether entry is a delegate entry and its matched
+// credential can delegate. Only an SD-JWT with a holder key (cnf) can sign a
+// KB-SD-JWT. Another credential answers with a plain presentation.
+func (w *Wallet) canDelegate(entry oid4vp.TransactionData, matches []consent.Match) bool {
+	if _, ok := entry.Delegation(); !ok {
+		return false
+	}
+	for _, match := range matches {
+		if match.Format != credtype.FormatSDJWT || !slices.Contains(entry.CredentialIDs, match.QueryID) {
+			continue
+		}
+		if cred, ok := w.GetCredential(match.CredentialID); ok && credentialHolderBinding(cred.Raw).Bound {
+			return true
+		}
+	}
+	return false
 }

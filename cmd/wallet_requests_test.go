@@ -155,3 +155,19 @@ func TestRequestTransactionsOmitTheMissingCredentialQueries(t *testing.T) {
 		t.Errorf("lines %q, want %q", lines, want)
 	}
 }
+
+func TestRequestTransactionsShowTheSummaryOfADelegation(t *testing.T) {
+	lines, err := requestTransactions(map[string]any{"transaction_data": []any{
+		map[string]any{
+			"type": "delegate", "credential_ids": []any{"pid"}, "summary": "Delegate this credential to the key abc until 2026-11-13 13:00 UTC",
+			"data": map[string]any{"type": "delegate", "format": "dSD-JWT+KB"},
+		},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{`transaction delegate for pid (Delegate this credential to the key abc until 2026-11-13 13:00 UTC): {"format":"dSD-JWT+KB"}`}
+	if !slices.Equal(lines, want) {
+		t.Errorf("lines %q, want %q", lines, want)
+	}
+}

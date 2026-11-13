@@ -134,6 +134,7 @@ var (
 	HAIP           = newSpec("HAIP 1.0").sections("https://openid.net/specs/openid4vc-high-assurance-interoperability-profile-1_0.html")
 	SDJWTVC        = Draft("SD-JWT VC", "draft-ietf-oauth-sd-jwt-vc-19")
 	FirstPartyApps = Draft("First-Party Apps", "draft-ietf-oauth-first-party-apps-04")
+	DelegateSDJWT  = Draft("Delegate SD-JWT", "draft-ietf-oauth-delegate-sd-jwt-00")
 	ISO180135      = newSpec("ISO 18013-5")
 	TS12           = newSpec("EUDI TS12").versioned("v1.0.1")
 	ETSI119475     = newSpec("ETSI TS 119 475").versioned("V1.2.1")

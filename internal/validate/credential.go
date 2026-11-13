@@ -66,6 +66,7 @@ const (
 	CheckCertificates    = "certificate revocation"
 	CheckStatusSignature = "status list signature"
 	CheckHAIP            = "haip"
+	CheckDelegation      = "delegation"
 )
 
 // Credential formats of a Result.
@@ -96,6 +97,8 @@ type Result struct {
 	// SDJWT is the parsed SD-JWT VC or JWT. MDOC is the parsed mdoc.
 	SDJWT *sdjwt.Token
 	MDOC  *mdoc.Document
+	// Delegation is the chain of a Delegate SD-JWT. SDJWT is its SD-JWT.
+	Delegation *sdjwt.Delegation
 	// Certificates are pasted certificates, leaf first.
 	Certificates []*x509.Certificate
 	// Checks run in a fixed order: type, expiry, integrity, trusted list,
@@ -145,6 +148,9 @@ func Credential(raw string, trust Trust, opts Options) (*Result, error) {
 	}
 	switch format.DetectEncoding(raw) {
 	case format.FormatSDJWT:
+		if sdjwt.IsDelegation(raw) {
+			return delegation(raw, trust, opts)
+		}
 		token, err := sdjwt.Inspect(raw)
 		if err != nil {
 			return nil, fmt.Errorf("parsing SD-JWT: %w", err)
@@ -165,6 +171,39 @@ func Credential(raw string, trust Trust, opts Options) (*Result, error) {
 		return MDOC(doc, trust, opts), nil
 	}
 	return nil, fmt.Errorf("unable to auto-detect credential format (not JWT, SD-JWT, or mdoc)")
+}
+
+// delegation validates the SD-JWT of a Delegate SD-JWT and adds the delegation
+// check for its KB-SD-JWTs (draft-ietf-oauth-delegate-sd-jwt-00 §6).
+func delegation(raw string, trust Trust, opts Options) (*Result, error) {
+	d, err := sdjwt.ParseDelegation(raw)
+	if err != nil {
+		return unreadableDelegation(raw, err, trust, opts)
+	}
+	r := SDJWT(d.Credential, trust, opts)
+	r.Delegation = d
+	check := Check{Name: CheckDelegation, Status: Pass, Detail: fmt.Sprintf("%s with %d KB-SD-JWT", d.Format(), len(d.Links))}
+	if len(d.Links) > 1 {
+		check.Detail += "s"
+	}
+	if err := d.VerifyChain(sdjwt.DelegationOptions{Now: opts.Now}); err != nil {
+		check.Status, check.Detail = Fail, err.Error()
+	}
+	r.add(check)
+	return r, nil
+}
+
+// unreadableDelegation validates the SD-JWT before the first empty component
+// and fails the delegation check with the parse error.
+func unreadableDelegation(raw string, chainErr error, trust Trust, opts Options) (*Result, error) {
+	credential, _, _ := strings.Cut(strings.TrimSpace(raw), "~~")
+	token, err := sdjwt.ParseLenient(credential + "~")
+	if err != nil {
+		return nil, fmt.Errorf("parsing Delegate SD-JWT: %w", err)
+	}
+	r := SDJWT(token, trust, opts)
+	r.add(Check{Name: CheckDelegation, Status: Fail, Detail: chainErr.Error()})
+	return r, nil
 }
 
 // SDJWT validates a parsed SD-JWT VC.

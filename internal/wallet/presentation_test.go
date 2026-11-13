@@ -463,7 +463,7 @@ func TestCreateSDJWTPresentation_ClearTextParentChildIsDisclosed(t *testing.T) {
 		}},
 	}
 
-	token, err := w.createSDJWTPresentation(cred, []string{"address.postal_code"}, "nonce", "client", w.HolderKey, nil)
+	token, err := w.createSDJWTPresentation(cred, []string{"address.postal_code"}, "nonce", "client", w.HolderKey, nil, nil)
 	if err != nil {
 		t.Fatalf("createSDJWTPresentation: %v", err)
 	}

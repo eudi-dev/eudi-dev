@@ -1491,6 +1491,12 @@ textarea.form-input {
   overflow-wrap: anywhere;
 }
 
+.consent-transaction-note {
+  color: var(--text-dim);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
 .consent-transaction-details summary {
   display: flex;
   margin-top: 6px;
