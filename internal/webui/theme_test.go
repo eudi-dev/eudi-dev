@@ -23,6 +23,8 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+
+	"github.com/eudi-dev/eudi-dev/v3/internal/config"
 )
 
 func get(t *testing.T, path string) *httptest.ResponseRecorder {
@@ -161,10 +163,56 @@ func TestAThemeServesOnlyItsFontsAndImages(t *testing.T) {
 }
 
 func TestAThemeNeedsAThemeFile(t *testing.T) {
-	if _, err := LoadTheme(t.TempDir()); err == nil || !strings.Contains(err.Error(), "has no theme.css, logo or favicon") {
+	if _, err := LoadTheme(t.TempDir()); err == nil || !strings.Contains(err.Error(), "has no theme.css, theme.yaml, logo or favicon") {
 		t.Errorf("empty directory: %v, want an error", err)
 	}
 	if _, err := LoadTheme(filepath.Join(t.TempDir(), "missing")); err == nil {
 		t.Error("missing directory: want an error")
+	}
+}
+
+// theme.yaml sets the wallet name. The decoder page shows it too.
+func TestAThemeSetsTheWalletName(t *testing.T) {
+	wallet := []byte("<title>" + config.WalletName + "</title>")
+	decoder := []byte("<title>" + config.DecoderName + "</title>")
+	if string(Brand(wallet)) != string(wallet) || WalletName() != config.WalletName {
+		t.Errorf("without a theme: %s, %s, want the built-in name", Brand(wallet), WalletName())
+	}
+
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "theme.yaml"), "name: Example <Wallet>\n")
+	useTheme(t, dir)
+	if got := string(Brand(wallet)); got != "<title>Example &lt;Wallet&gt;</title>" {
+		t.Errorf("wallet page: %s", got)
+	}
+	if got := string(Brand(decoder)); got != "<title>Example &lt;Wallet&gt; Decoder</title>" {
+		t.Errorf("decoder page: %s", got)
+	}
+	write(t, filepath.Join(dir, "theme.yaml"), "name: "+config.WalletName+" Plus\n")
+	if got, want := string(Brand(decoder)), "<title>"+config.WalletName+" Plus Decoder</title>"; got != want {
+		t.Errorf("decoder page: %s, want %s", got, want)
+	}
+	write(t, filepath.Join(dir, "theme.yaml"), "name: Example <Wallet>\n")
+	rec := httptest.NewRecorder()
+	FileServer(fstest.MapFS{"index.html": {Data: wallet}}).ServeHTTP(rec, httptest.NewRequest("GET", "/", nil))
+	if rec.Body.String() != "<title>Example &lt;Wallet&gt;</title>" || !strings.HasPrefix(rec.Header().Get("Content-Type"), "text/html") {
+		t.Errorf("served page: %s (%s)", rec.Body.String(), rec.Header().Get("Content-Type"))
+	}
+
+	write(t, filepath.Join(dir, "theme.yaml"), "name: Example\n")
+	if WalletName() != "Example" {
+		t.Errorf("after a change: %s, want Example", WalletName())
+	}
+	write(t, filepath.Join(dir, "theme.yaml"), "name: [")
+	if WalletName() != config.WalletName {
+		t.Errorf("with a broken theme.yaml: %s, want the built-in name", WalletName())
+	}
+}
+
+func TestAThemeRefusesAnUnknownField(t *testing.T) {
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "theme.yaml"), "title: Example\n")
+	if _, err := LoadTheme(dir); err == nil || !strings.Contains(err.Error(), "theme.yaml") {
+		t.Errorf("unknown field: %v, want an error that mentions theme.yaml", err)
 	}
 }

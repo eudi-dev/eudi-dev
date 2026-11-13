@@ -198,8 +198,8 @@ func (d *DemoRP) serveStatic(name string) http.HandlerFunc {
 // pageData fills the demo pages with the registered names of the demo
 // parties and the national PIDs of the wallet's templates.
 type pageData struct {
-	IssuerName, VerifierName string
-	NationalPIDs             []nationalPID
+	WalletName, IssuerName, VerifierName string
+	NationalPIDs                         []nationalPID
 	// ConfiguredIssuer and ConfiguredVerifier report an identity given at
 	// startup, so the pages describe that one as registered.
 	ConfiguredIssuer, ConfiguredVerifier bool
@@ -242,6 +242,7 @@ func (d *DemoRP) servePage(name string) http.HandlerFunc {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-cache")
 		_ = page.Execute(w, pageData{
+			WalletName:         webui.WalletName(),
 			IssuerName:         wallet.DemoIssuerName,
 			VerifierName:       wallet.DemoVerifierName,
 			NationalPIDs:       d.nationalPIDs(),

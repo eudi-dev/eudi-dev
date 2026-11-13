@@ -16,7 +16,9 @@ package webui
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"html"
 	"io"
 	"io/fs"
 	"net/http"
@@ -26,15 +28,19 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"go.yaml.in/yaml/v3"
+
+	"github.com/eudi-dev/eudi-dev/v3/internal/config"
 	"github.com/eudi-dev/eudi-dev/v3/internal/httpsec"
 )
 
-// A theme is a directory with theme.css, a logo and a favicon. Every file is
-// optional. A missing token or file comes from the built-in eudi-dev theme in
-// theme/.
+// A theme is a directory with theme.css, theme.yaml, a logo and a favicon.
+// Every file is optional. A missing token, text or file comes from the
+// built-in eudi-dev theme in theme/.
 const (
 	themeRoot   = "theme"
 	themeCSS    = "theme.css"
+	themeTexts  = "theme.yaml"
 	logoName    = "logo"
 	faviconName = "favicon"
 )
@@ -61,10 +67,64 @@ func LoadTheme(dir string) (*Theme, error) {
 		return nil, err
 	}
 	t := &Theme{files: root.FS()}
-	if t.css() == nil && t.find(logoName, logoTypes) == "" && t.find(faviconName, faviconTypes) == "" {
-		return nil, fmt.Errorf("theme %s has no theme.css, logo or favicon", dir)
+	texts, err := t.texts()
+	if err != nil {
+		return nil, err
+	}
+	if t.css() == nil && texts == (Texts{}) && t.find(logoName, logoTypes) == "" && t.find(faviconName, faviconTypes) == "" {
+		return nil, fmt.Errorf("theme %s has no theme.css, theme.yaml, logo or favicon", dir)
 	}
 	return t, nil
+}
+
+// Texts are the texts of a theme, set in theme.yaml.
+type Texts struct {
+	// Name is the wallet name in the title and the header of the pages.
+	Name string `yaml:"name"`
+}
+
+// texts reads theme.yaml. An unknown field is an error (ADR-0032).
+func (t *Theme) texts() (Texts, error) {
+	f, err := t.files.Open(themeTexts)
+	if errors.Is(err, fs.ErrNotExist) {
+		return Texts{}, nil
+	}
+	if err != nil {
+		return Texts{}, err
+	}
+	defer func() { _ = f.Close() }()
+	decoder := yaml.NewDecoder(io.LimitReader(f, maxThemeFile))
+	decoder.KnownFields(true)
+	var texts Texts
+	if err := decoder.Decode(&texts); err != nil && !errors.Is(err, io.EOF) {
+		return Texts{}, fmt.Errorf("%s: %w", themeTexts, err)
+	}
+	texts.Name = strings.TrimSpace(texts.Name)
+	return texts, nil
+}
+
+// WalletName is the wallet name of the theme, or the built-in name. A
+// theme.yaml that stops loading while the server runs keeps the built-in
+// name.
+func WalletName() string {
+	if t := active.Load(); t != nil {
+		if texts, err := t.texts(); err == nil && texts.Name != "" {
+			return texts.Name
+		}
+	}
+	return config.WalletName
+}
+
+// Brand puts the wallet name of the theme into a static page. The decoder
+// page shows the wallet name followed by "Decoder".
+func Brand(page []byte) []byte {
+	name := WalletName()
+	if name == config.WalletName {
+		return page
+	}
+	name = html.EscapeString(name)
+	// One pass, so a name that contains the built-in name is not replaced again.
+	return []byte(strings.NewReplacer(config.DecoderName, name+" Decoder", config.WalletName, name).Replace(string(page)))
 }
 
 func (t *Theme) css() []byte {

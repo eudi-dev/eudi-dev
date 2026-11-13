@@ -300,7 +300,7 @@ func (s *Server) setupRoutes() {
 		s.routeRoots[name] = true
 	}
 	index, _ := fs.ReadFile(sub, "index.html")
-	s.route("/", noStaleCache(s.withBrowserSession(publicpath.ServeIndex(index, webui.FileServer(sub)))))
+	s.route("/", noStaleCache(s.withBrowserSession(publicpath.ServeIndex(func() []byte { return webui.Brand(index) }, webui.FileServer(sub)))))
 }
 
 func (s *Server) route(pattern string, h http.Handler) {

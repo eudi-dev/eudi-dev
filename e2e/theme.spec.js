@@ -1,6 +1,6 @@
 // @ts-check
 // An operator's theme brands every page: the example theme in
-// examples/themes/acme sets a few colours and the logo.
+// examples/themes/acme sets a few colours, the logo and the wallet name.
 const { test, expect } = require("@playwright/test");
 const { waitForServer } = require("./helpers");
 const { execSync, spawn } = require("child_process");
@@ -52,6 +52,15 @@ for (const [name, url] of [["wallet", "/"], ["decoder", "/decoder/"], ["demo iss
     expect(await token(page, "--bg-surface")).toBe("#ffffff");
   });
 }
+
+test("the pages show the wallet name of the theme", async ({ page }) => {
+  await page.goto(BASE);
+  await expect(page).toHaveTitle("Acme Wallet");
+  await expect(page.locator("#header-title")).toHaveText("Acme Wallet");
+  await page.goto(BASE + "/decoder/");
+  await expect(page).toHaveTitle("Acme Wallet Decoder");
+  await expect(page.locator("#header-title")).toHaveText("Acme Wallet Decoder");
+});
 
 test("the favicon is the theme logo", async ({ page, request }) => {
   await page.goto(BASE);

@@ -332,10 +332,10 @@ func (w *locationWriter) Flush() {
 
 func (w *locationWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
-// ServeIndex serves index for "/" and files for everything else. Under a path prefix
-// the index gets a <base href>. Its relative links then also work for a browser URL
+// ServeIndex serves files. Under a path prefix it serves index() for "/" with a
+// <base href>. Its relative links then also work for a browser URL
 // without a trailing slash, such as /some/context.
-func ServeIndex(index []byte, files http.Handler) http.Handler {
+func ServeIndex(index func() []byte, files http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		prefix := Prefix(r)
 		if prefix == "" || r.URL.Path != "/" {
@@ -344,7 +344,7 @@ func ServeIndex(index []byte, files http.Handler) http.Handler {
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		//nolint:gosec // G705: prefix matches prefixPattern and injectBase escapes it.
-		_, _ = w.Write(injectBase(index, prefix))
+		_, _ = w.Write(injectBase(index(), prefix))
 	})
 }
 

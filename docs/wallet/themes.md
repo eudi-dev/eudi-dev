@@ -1,10 +1,11 @@
 # Themes
 
-A theme changes the logo and the colours of every page of a self-hosted wallet: the wallet, the decoder, the demo issuer, the demo verifier and the registrar. It is a directory with up to three files:
+A theme changes the logo, the colours and the wallet name of every page of a self-hosted wallet: the wallet, the decoder, the demo issuer, the demo verifier and the registrar. It is a directory with up to 4 files:
 
 ```
 acme/
   theme.css      colours and fonts
+  theme.yaml     wallet name
   logo.svg       or logo.png, logo.webp, logo.jpg
   favicon.svg    or favicon.png, favicon.ico
 ```
@@ -77,6 +78,20 @@ The wallet also serves the fonts and images of the theme directory. `theme.css` 
 ```
 
 The wallet serves only fonts (`.woff2`, `.woff`, `.ttf`, `.otf`) and images (`.svg`, `.png`, `.webp`, `.jpg`, `.gif`, `.avif`, `.ico`) up to 4 MiB each. It never serves hidden files or files outside the theme directory, not even through a symlink.
+
+## Wallet name
+
+`theme.yaml` sets the wallet name:
+
+```yaml
+name: Acme Wallet
+```
+
+The wallet page shows this name in its title and header. The decoder page shows it followed by "Decoder". Without `theme.yaml` the name is "EUDI Dev Wallet".
+
+`name` is the only key. The wallet refuses to start with another key in the file.
+
+The name is a text of the pages only. Certificates, trusted lists and credentials keep the names of the test infrastructure, such as "EUDI Dev Wallet PID Provider" and "EUDI Dev Demo Issuer". An organisation states its own names in the configuration: `tradeName` and `legalName` in the [relying parties file](serve.md#pre-registered-relying-parties) and the display names in the credential templates.
 
 ## Docker and Kubernetes
 
