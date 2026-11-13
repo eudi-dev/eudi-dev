@@ -108,24 +108,31 @@ func TestAnUnreadableDigitalCredentialsAPICallIsLogged(t *testing.T) {
 }
 
 // OID4VP 1.0 Appendix A.2 lists the parameters of the Digital Credentials
-// API. The wallet ignores the others and warns.
+// API. The wallet ignores the others and warns. The warnings share one log
+// entry with the other findings about the request.
 func TestParametersTheDigitalCredentialsAPIDoesNotUseAreWarnings(t *testing.T) {
 	srv := newTestServer(t, true)
 	call := map[string]any{"digital": map[string]any{"requests": []any{map[string]any{
 		"protocol": "openid4vp-v1-unsigned",
 		"data": unsignedPIDRequest(map[string]any{
 			"state": "s", "response_uri": "https://verifier.example/cb", "client_id": "x509_hash:abc", "expected_origins": []any{"https://verifier.example"},
+			"colour": "red",
 		}),
 	}}}}
 	if rec := sendDCAPICall(t, srv, context.Background(), call, nil); rec.Code != http.StatusOK {
 		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 	}
-	entry := findLogEntry(srv.wallet.GetLog(), "dc_api_parameter")
-	if entry == nil || entry.Severity != "warning" {
-		t.Fatalf("entry %+v, want a warning", entry)
+	var entries []LogEntry
+	for _, entry := range srv.wallet.GetLog() {
+		if entry.Severity == "warning" {
+			entries = append(entries, entry)
+		}
 	}
-	findings := strings.Join(entry.Details["findings"].([]string), "\n")
-	for _, want := range []string{"response_uri", "state", "client_id MUST be omitted", "expected_origins is not for unsigned requests"} {
+	if len(entries) != 1 || entries[0].Details["event"] != "authorization_request_finding" {
+		t.Fatalf("warnings %+v, want one findings entry", entries)
+	}
+	findings := strings.Join(entries[0].Details["findings"].([]string), "\n")
+	for _, want := range []string{"response_uri", "state", "client_id MUST be omitted", "expected_origins is not for unsigned requests", "colour"} {
 		if !strings.Contains(findings, want) {
 			t.Errorf("findings %q miss %q", findings, want)
 		}

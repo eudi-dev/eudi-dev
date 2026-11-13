@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"slices"
 	"strings"
 	"time"
 
@@ -70,6 +71,11 @@ const requestRefused = "The wallet refused the request"
 func (w *Wallet) evaluatePresentationRequest(authReq *oid4vp.Request, entry presentationEntry) presentationOutcome {
 	w.PrepareARFChecks(authReq)
 	list, err := oid4vp.ValidateAuthorizationRequest(w.Conformance().checks(), authReq)
+	// All findings about the request share one entry, so the activity log
+	// shows one row for the protocol findings and one for the registration
+	// findings. A refused request has its findings in the refusal entry.
+	requestFindings := slices.Concat(list, authReq.Warnings, oid4vp.UndefinedRequestParameterFindings(authReq))
+	w.warnFindings(entry.action, "authorization_request_finding", subjectRequest, specCitedSummary(entry.subject, requestFindings), requestFindings, nil)
 	var authenticated *oid4vp.AuthenticatedRefusal
 	// The verifier gets the error only if the wallet can encrypt it for an
 	// encrypted response mode. Otherwise only the caller gets the refusal.
@@ -103,8 +109,6 @@ func (w *Wallet) evaluatePresentationRequest(authReq *oid4vp.Request, entry pres
 	}
 
 	authReq.Findings = list
-	w.warnFindings(entry.action, "authorization_request_finding", subjectRequest, specCitedSummary(entry.subject, list), list, nil)
-	w.warnUndefinedRequestParameters(entry.action, authReq)
 
 	if !oid4vp.ResponseTypeRequiresVP(authReq.ResponseType) {
 		return presentationOutcome{}
