@@ -1225,3 +1225,87 @@ func TestAKeptDemoVerifierRegistrationFollowsTheTemplates(t *testing.T) {
 		t.Errorf("trade name = %q, want the edit kept", verifier.TradeName)
 	}
 }
+
+// Without template entries in the catalogue the demo verifier has no
+// credential to request, and its registration stays as it is.
+func TestADemoVerifierWithoutCredentialsKeepsItsRegistration(t *testing.T) {
+	w := generateTestWallet(t)
+	if _, err := w.RegisterMissingDemoParties(); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := w.Registrar().RelyingParty(demoIdentifier(demoVerifier))
+	// Removing an entry removes every entry of its type.
+	for {
+		entries := w.Registrar().CatalogAttestations()
+		i := slices.IndexFunc(entries, func(e registrar.CatalogAttestation) bool { return e.Template })
+		if i < 0 {
+			break
+		}
+		if err := w.Registrar().DeleteCatalogAttestation(entries[i].Schema.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	changed, err := w.FollowDemoTemplates()
+	if err != nil {
+		t.Fatalf("following the templates: %v", err)
+	}
+	if changed {
+		t.Error("the registrations changed")
+	}
+	after, _ := w.Registrar().RelyingParty(demoIdentifier(demoVerifier))
+	if got, want := len(after.Services[0].IntendedUses[0].Credentials), len(before.Services[0].IntendedUses[0].Credentials); got != want {
+		t.Errorf("the registration has %d credentials, want %d", got, want)
+	}
+}
+
+// The registrar refuses a party if one of its intended uses has no credential.
+func TestADemoPartyWithOneEmptyIntendedUseKeepsItsRegistration(t *testing.T) {
+	w := generateTestWallet(t)
+	if _, err := w.RegisterMissingDemoParties(); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := w.Registrar().RelyingParty(demoIdentifier(demoVerifier))
+	party := demoParty{build: func() (registrar.WalletRelyingParty, error) {
+		rp, err := w.demoVerifierRegistration()
+		if err != nil {
+			return rp, err
+		}
+		uses := rp.Services[0].IntendedUses
+		empty := uses[0]
+		empty.IntendedUseIdentifier = "empty"
+		empty.Credentials = nil
+		rp.Services[0].IntendedUses = append(slices.Clone(uses), empty)
+		return rp, nil
+	}}
+	for _, sync := range []demoSync{demoOverwrite, demoRegisterMissing, demoFollowTemplates} {
+		changed, err := w.ensureDemoRegistration(party, sync)
+		if err != nil || changed {
+			t.Fatalf("sync %d: changed %v, error %v", sync, changed, err)
+		}
+	}
+	after, _ := w.Registrar().RelyingParty(demoIdentifier(demoVerifier))
+	if got, want := len(after.Services[0].IntendedUses), len(before.Services[0].IntendedUses); got != want {
+		t.Errorf("the registration has %d intended uses, want %d", got, want)
+	}
+}
+
+func TestADemoPartyWithoutCredentialsThatNeverRegisteredStaysUnregistered(t *testing.T) {
+	w := generateTestWallet(t)
+	party := demoParty{build: func() (registrar.WalletRelyingParty, error) {
+		rp, err := w.demoVerifierRegistration()
+		if err != nil {
+			return rp, err
+		}
+		rp.Services[0].IntendedUses[0].Credentials = nil
+		return rp, nil
+	}}
+	for _, sync := range []demoSync{demoOverwrite, demoRegisterMissing, demoFollowTemplates} {
+		changed, err := w.ensureDemoRegistration(party, sync)
+		if err != nil || changed {
+			t.Fatalf("sync %d: changed %v, error %v", sync, changed, err)
+		}
+	}
+	if _, ok := w.Registrar().RelyingParty(demoIdentifier(demoVerifier)); ok {
+		t.Error("the demo verifier is registered")
+	}
+}

@@ -288,6 +288,11 @@ func (w *Wallet) ensureDemoRegistration(party demoParty, sync demoSync) (bool, e
 	if err != nil {
 		return false, err
 	}
+	// The registrar refuses an intended use without a credential. A party
+	// without requested credentials keeps its stored registration.
+	if !requestsCredentials(rp) {
+		return false, nil
+	}
 	id := rp.Identifier[0].Identifier
 	var updated bool
 	if stored, exists := w.Registrar().RelyingParty(id); exists && sync != demoOverwrite {
@@ -315,6 +320,17 @@ func (w *Wallet) ensureDemoRegistration(party demoParty, sync demoSync) (bool, e
 		updated = updated || issued
 	}
 	return updated, nil
+}
+
+func requestsCredentials(rp registrar.WalletRelyingParty) bool {
+	for _, service := range rp.Services {
+		for _, use := range service.IntendedUses {
+			if len(use.Credentials) == 0 {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func decodeInfo(value, name string) ([]any, error) {
