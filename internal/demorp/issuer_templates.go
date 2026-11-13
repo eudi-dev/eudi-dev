@@ -16,6 +16,7 @@ package demorp
 
 import (
 	"crypto/ecdsa"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -133,11 +134,14 @@ func (d *DemoRP) templateConfiguration(id string) (templateConfiguration, bool) 
 }
 
 // offeredConfigurationIDs returns every template configuration, the ticket
-// first.
+// first. The first one is the default of an offer and of an authorization
+// request.
 func (d *DemoRP) offeredConfigurationIDs() []string {
-	ids := []string{ticketConfigurationID}
+	var ids []string
 	for _, cfg := range d.templateConfigurations() {
-		if cfg.id != ticketConfigurationID {
+		if cfg.id == ticketConfigurationID {
+			ids = slices.Insert(ids, 0, cfg.id)
+		} else {
 			ids = append(ids, cfg.id)
 		}
 	}
@@ -296,12 +300,16 @@ func (d *DemoRP) signTemplate(cfg templateConfiguration, holderKey *ecdsa.Public
 }
 
 // offerConfigurationIDs checks the configurations requested for an offer. An
-// empty request means the ticket.
+// empty request gets the Demo Event Ticket, or the first template when the
+// wallet has no ticket template.
 func (d *DemoRP) offerConfigurationIDs(requested []string) ([]string, error) {
-	if len(requested) == 0 {
-		return []string{ticketConfigurationID}, nil
-	}
 	offered := d.offeredConfigurationIDs()
+	if len(offered) == 0 {
+		return nil, errors.New("this issuer has no credential template")
+	}
+	if len(requested) == 0 {
+		return offered[:1], nil
+	}
 	ids := make([]string, 0, len(requested))
 	for _, id := range requested {
 		if !slices.Contains(offered, id) {

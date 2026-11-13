@@ -1309,3 +1309,17 @@ func TestADemoPartyWithoutCredentialsThatNeverRegisteredStaysUnregistered(t *tes
 		t.Error("the demo verifier is registered")
 	}
 }
+
+func TestANoBuiltinsWalletRegistersNoDemoVerifier(t *testing.T) {
+	w := generateTestWallet(t)
+	w.NoBuiltins = true
+	if _, err := w.RegisterMissingDemoParties(); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := w.Registrar().RelyingParty(demoIdentifier(demoVerifier)); ok {
+		t.Error("the demo verifier is registered")
+	}
+	if _, ok := w.Registrar().RelyingParty(demoIdentifier(demoIssuer)); !ok {
+		t.Error("the issuer is not registered")
+	}
+}

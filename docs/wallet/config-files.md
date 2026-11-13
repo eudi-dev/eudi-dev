@@ -99,6 +99,19 @@ The configuration loads into a fresh wallet:
 
 The keys belong to the wallet in memory and are gone when the check exits. A server prints the summary when it starts.
 
+## Configured content alone
+
+`--no-builtins` serves your content without the built-in templates and the demo verifier. Use it for a showcase with its own credential types.
+
+- The built-in credential and transaction templates are left out. The catalogue lists your entries and the entries of your templates.
+- `/verifier/` answers with 404, and the wallet registers no demo verifier. A demo verifier registered by an earlier start stays until you remove it.
+- The issuer at `/issuer/` offers your templates. A request without a credential configuration gets your template named `demo-ticket` if there is one. Otherwise it gets the first of your templates, sorted by name.
+- The wallet page shows no links to the demo issuer and the demo verifier.
+
+The issuer keeps its registration under `NLTEST.00000000`, because its access certificate comes from that registration. `--issuer-name` sets the name on its pages and credentials.
+
+`--pid` then needs a PID template of your own. `--demo` can't run with `--no-builtins`.
+
 ## Reading the files again
 
 `--config-reload 30s` reads the files every 30 seconds and applies them when they changed. Only the changed inputs are applied, so an unchanged credentials file doesn't issue its credentials again. A file that doesn't load leaves the wallet as it was. The log shows the error once. When the file loads again, the wallet applies it. An input that loads but can't be applied, for example while the database is down, is tried again every 30 seconds. Without the flag the wallet reads the files once at startup.

@@ -87,6 +87,7 @@ type walletServeOptions struct {
 	VCIClientID              string
 	VCIRedirectURI           string
 	IssuerName               string
+	NoBuiltins               bool
 	Demo                     bool
 	DemoReset                string
 	ImprintFile              string
@@ -157,6 +158,7 @@ Every flag can also be set as EUDI_DEV_<FLAG>, such as EUDI_DEV_BASE_URL for --b
 	cmd.Flags().StringVar(&opts.TemplatesFile, "templates", "", "Credential templates to offer, read-only next to the templates in --templates-dir: a YAML or JSON file, a directory of such files, or '-' for stdin. A file holds one template or several")
 	cmd.Flags().StringVar(&opts.TransactionTemplatesFile, "transaction-templates", "", "Transaction templates to offer, read-only next to the stored ones: a YAML or JSON file, a directory of such files, or '-' for stdin. A file holds one template or several")
 	cmd.Flags().StringVar(&opts.ConfigDir, "config", "", "Directory with the configuration files: templates, transaction-templates, catalog, relying-parties and credentials, each as a subdirectory or as a .yaml, .yml or .json file of that name. An input can't also be set by its own flag")
+	cmd.Flags().BoolVar(&opts.NoBuiltins, "no-builtins", false, "Leave out the built-in templates and the demo verifier. The wallet serves only the content from --config")
 	cmd.Flags().DurationVar(&opts.ConfigReload, "config-reload", 0, "Read the configuration files again at this interval, such as 30s, and apply a change once two reads in a row agree. 0 (the default) reads them once at startup")
 	cmd.Flags().BoolVar(&opts.Check, "check", false, "Load the configuration into a fresh wallet in memory, print what it holds and exit without serving")
 	cmd.Flags().BoolVar(&opts.PID, "pid", false, "Issue the default PID credentials (SD-JWT VC and mdoc) at startup")
@@ -483,6 +485,9 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	if opts.ConfigReload > 0 && len(stdinFlags) > 0 {
 		return fmt.Errorf("--config-reload reads the files again, but stdin can be read only once. Pass a file to %s", stdinFlags[0])
 	}
+	if opts.NoBuiltins && opts.Demo {
+		return fmt.Errorf("--demo and --no-builtins can't be used together. --demo serves the built-in content")
+	}
 	if opts.Check && opts.Detached {
 		return fmt.Errorf("--check exits after loading the configuration, so it can't run detached")
 	}
@@ -543,6 +548,9 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	}
 	w.Templates.Configured = &credtemplate.Configured{}
 	w.TransactionTemplates.Configured = &txtemplate.Configured{}
+	w.NoBuiltins = opts.NoBuiltins
+	w.Templates.WithoutPredefined = opts.NoBuiltins
+	w.TransactionTemplates.WithoutPredefined = opts.NoBuiltins
 	if opts.KeyPath != "" {
 		holderKey, err := loadWalletECKey(opts.KeyPath, "holder")
 		if err != nil {
@@ -896,7 +904,9 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	w.SetDemoIssuer(demoRP.IssuerID)
 	w.SetDemoIssuerVCT(demoRP.IssuedVCT)
 	srv.Mount("/issuer", demoRP.IssuerHandler())
-	srv.Mount("/verifier", demoRP.VerifierHandler())
+	if !opts.NoBuiltins {
+		srv.Mount("/verifier", demoRP.VerifierHandler())
+	}
 	demoRP.HandleWellKnown(srv.Handle)
 	if err := srv.CheckBasePath(); err != nil {
 		return err

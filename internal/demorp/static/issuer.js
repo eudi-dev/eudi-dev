@@ -106,9 +106,10 @@ const AUTHORIZATION_HINTS = {
 };
 
 // Credentials need a status reference before the wallet can revoke them.
+const NO_BUILTINS = "noBuiltins" in document.documentElement.dataset;
 const STATUS_HINTS = {
-  "": "No status reference. The ticket can't be revoked.",
-  true: "On this wallet's status list. Revoke it in the wallet to test the demo verifier.",
+  "": NO_BUILTINS ? "No status reference. The credential can't be revoked." : "No status reference. The ticket can't be revoked.",
+  true: "On this wallet's status list." + (NO_BUILTINS ? "" : " Revoke it in the wallet to test the demo verifier."),
 };
 
 const DEFERRED_HINTS = {
@@ -320,6 +321,10 @@ fetch(".well-known/openid-credential-issuer")
       option.value = id;
       option.textContent = (display.name || id) + " (" + id + ", " + entry.format + ")";
       credentialSelect.appendChild(option);
+    }
+    if (!configurations["demo-ticket"] && credentialSelect.options.length > 1) {
+      credentialSelect.remove(0);
+      credentialSelect.dispatchEvent(new Event("change"));
     }
   })
   .catch(() => {});

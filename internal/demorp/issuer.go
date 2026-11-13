@@ -209,6 +209,9 @@ type pageData struct {
 	// PaymentAccountVCT is the vct of the demo payment account. The verifier
 	// page queries it for payments.
 	PaymentAccountVCT string
+	// NoBuiltins is set when the wallet runs without built-in content. The
+	// issuer page then shows no Demo Event Ticket and no demo verifier.
+	NoBuiltins bool
 }
 
 // nationalPID is a PID type that extends the EUDI PID. The verifier page
@@ -250,6 +253,7 @@ func (d *DemoRP) servePage(name string) http.HandlerFunc {
 			ConfiguredVerifier: d.configuredVerifier != nil,
 			StatusList:         d.statusListURI() != "",
 			PaymentAccountVCT:  d.paymentAccountVCT(),
+			NoBuiltins:         d.wallet.NoBuiltins,
 		})
 	}
 }

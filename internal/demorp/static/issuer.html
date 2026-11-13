@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en"{{if .NoBuiltins}} data-no-builtins{{end}}>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" href="theme/favicon">
   <title>{{.IssuerName}}</title>
-  <meta name="description" content="Demo credential issuer of the {{.WalletName}}: issues a Demo Event Ticket over OpenID4VCI to any test wallet.">
+  <meta name="description" content="Demo credential issuer of the {{.WalletName}}: issues {{if .NoBuiltins}}credentials from the wallet's templates{{else}}a Demo Event Ticket{{end}} over OpenID4VCI to any test wallet.">
   <link rel="stylesheet" href="tokens.css">
   <link rel="stylesheet" href="theme/theme.css">
   <link rel="stylesheet" href="link-qr.css">
@@ -90,7 +90,7 @@
         <div class="subtitle" id="header-subtitle" style="margin-bottom:0">A minimal OpenID4VCI issuer for demo purposes</div>
       </div>
     </div>
-    <p id="intro">Offers the Demo Event Ticket and the credential templates of this wallet over OpenID4VCI.</p>
+    <p id="intro">Offers {{if not .NoBuiltins}}the Demo Event Ticket and {{end}}the credential templates of this wallet over OpenID4VCI.</p>
     <div class="grant-row" id="credential-row">
       <label class="grant-label" id="credential-label" for="credential-select">Credential</label>
       <select id="credential-select" aria-label="Credential configuration to offer">
@@ -146,7 +146,7 @@
         <button type="button" class="toggle-option selected" id="status-with" data-status="true" role="radio" aria-checked="true">With</button>
       </div>
     </div>
-    <p class="grant-hint" id="status-hint">On this wallet's status list. Revoke it in the wallet to test the demo verifier.</p>
+    <p class="grant-hint" id="status-hint">On this wallet's status list.{{if not .NoBuiltins}} Revoke it in the wallet to test the demo verifier.{{end}}</p>
     {{- end}}
     <div class="grant-row" id="deferred-row">
       <span class="grant-label" id="deferred-label">Issuance</span>
@@ -218,12 +218,12 @@
         <div class="label" id="issuer-id-label">Credential issuer</div>
         <pre id="issuer-id">…</pre>
       </details>
-      <p id="result-hint" class="result-hint"><span id="result-next-step">After the wallet accepts the offer, present the ticket at the</span> <a href="../verifier/" id="result-verifier-link">demo verifier</a>.</p>
+      <p id="result-hint" class="result-hint"{{if .NoBuiltins}} hidden{{end}}><span id="result-next-step">After the wallet accepts the offer, present the ticket at the</span> <a href="../verifier/" id="result-verifier-link">demo verifier</a>.</p>
     </div>
     <div class="error" id="error" hidden></div>
     <div class="links">
       <a href="../" id="wallet-ui-link">Wallet</a>
-      <a href="../verifier/" id="verifier-link">Demo verifier</a>
+      <a href="../verifier/" id="verifier-link"{{if .NoBuiltins}} hidden{{end}}>Demo verifier</a>
       <a href="../decoder/" id="decoder-link">Decoder</a>
     </div>
     <footer class="site-footer page-footer">

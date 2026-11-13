@@ -118,6 +118,25 @@ type Location struct {
 	// replace a stored or predefined template of the same name and can't be
 	// changed through the location.
 	Configured *Configured
+	// WithoutPredefined leaves the built-in templates out of the location.
+	WithoutPredefined bool
+}
+
+// predefined returns the built-in templates of the location.
+func (l Location) predefined() []Template {
+	if l.WithoutPredefined {
+		return nil
+	}
+	return PredefinedTemplates()
+}
+
+func (l Location) predefinedTemplate(name string) (Template, bool) {
+	for _, t := range l.predefined() {
+		if t.Name == name {
+			return t, true
+		}
+	}
+	return Template{}, false
 }
 
 func FileLocation(dir string) Location {
@@ -128,6 +147,7 @@ func (l Location) orDefault() Location {
 	if l.Store == nil {
 		loc := FileLocation(filepath.Join(config.BaseDir(), "wallet", "templates"))
 		loc.Configured = l.Configured
+		loc.WithoutPredefined = l.WithoutPredefined
 		return loc
 	}
 	return l
@@ -316,7 +336,7 @@ func List(loc Location) ([]Template, error) {
 	loc = loc.orDefault()
 
 	byName := make(map[string]Template)
-	for _, t := range PredefinedTemplates() {
+	for _, t := range loc.predefined() {
 		byName[t.Name] = t
 	}
 
@@ -392,7 +412,7 @@ func Load(nameOrPath string, loc Location) (*Template, error) {
 		return nil, err
 	}
 
-	if t, ok := Predefined(nameOrPath); ok {
+	if t, ok := loc.predefinedTemplate(nameOrPath); ok {
 		return &t, nil
 	}
 
@@ -486,7 +506,7 @@ func Delete(loc Location, name string) error {
 	if !errors.Is(err, fs.ErrNotExist) {
 		return &StorageError{err}
 	}
-	if _, ok := Predefined(name); ok {
+	if _, ok := loc.predefinedTemplate(name); ok {
 		return fmt.Errorf("template %q is predefined and cannot be deleted", name)
 	}
 	return fmt.Errorf("template %q %w in %s", name, ErrNotFound, loc)

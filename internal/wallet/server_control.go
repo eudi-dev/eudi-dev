@@ -262,6 +262,7 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 	config["imprint"] = len(s.imprintHTML) > 0
 	config["protected_relying_parties"] = s.protectedRelyingParties()
 	config["news_id"] = s.newsID()
+	config["no_builtins"] = s.wallet.NoBuiltins
 	// False when an external TLS terminator serves the issuer URL. In that case
 	// the built-in listener and its certificate are unused.
 	config["tls_listener"] = s.issuerPort > 0

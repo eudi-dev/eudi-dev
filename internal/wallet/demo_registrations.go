@@ -177,10 +177,11 @@ func (w *Wallet) FollowDemoTemplates() (bool, error) {
 
 func (w *Wallet) registerDemoParties(sync demoSync) (bool, error) {
 	changed := false
-	for _, party := range []demoParty{
-		{w.demoIssuerRegistration, followIssuedTypes},
-		{w.demoVerifierRegistration, followRegisteredCredentials},
-	} {
+	parties := []demoParty{{w.demoIssuerRegistration, followIssuedTypes}}
+	if !w.NoBuiltins {
+		parties = append(parties, demoParty{w.demoVerifierRegistration, followRegisteredCredentials})
+	}
+	for _, party := range parties {
 		updated, err := w.ensureDemoRegistration(party, sync)
 		if err != nil {
 			return changed, err

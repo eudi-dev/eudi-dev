@@ -16,15 +16,20 @@ package cmd
 
 import (
 	"encoding/pem"
+	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/spf13/pflag"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v3/internal/remote"
 	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
 )
 
@@ -309,5 +314,85 @@ func TestWalletServeStopsOnABadCatalogueEntry(t *testing.T) {
 	err = rootCmd.Execute()
 	if err == nil || !strings.Contains(err.Error(), catalog) || !strings.Contains(err.Error(), `"Diploma"`) {
 		t.Fatalf("error = %v, want one naming the file and the entry", err)
+	}
+}
+
+func resetServeFlags(t *testing.T) {
+	t.Helper()
+	serveCmd, _, err := rootCmd.Find([]string{"wallet", "serve"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Earlier tests leave flag values on the shared command.
+	serveCmd.Flags().VisitAll(func(f *pflag.Flag) {
+		if slice, ok := f.Value.(pflag.SliceValue); ok {
+			_ = slice.Replace(nil)
+		} else {
+			_ = f.Value.Set(f.DefValue)
+		}
+		f.Changed = false
+	})
+	clearFlagEnv(t)
+	t.Setenv("HOME", t.TempDir())
+	walletDir = ""
+	t.Cleanup(func() { walletDir = "" })
+}
+
+func TestWalletServeRefusesNoBuiltinsWithDemo(t *testing.T) {
+	resetServeFlags(t)
+
+	rootCmd.SetArgs([]string{"wallet", "serve", "--wallet-dir", filepath.Join(t.TempDir(), "wallet"), "--no-register", "--no-builtins", "--demo"})
+	err := rootCmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "--demo and --no-builtins can't be used together") {
+		t.Fatalf("error = %v, want one refusing --demo with --no-builtins", err)
+	}
+}
+
+func TestANoBuiltinsWalletServesNoDemoVerifier(t *testing.T) {
+	resetServeFlags(t)
+	port, err := findFreePresentationPortPair(23200)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := fmt.Sprintf("http://localhost:%d", port)
+
+	rootCmd.SetArgs([]string{"wallet", "serve", "--wallet-dir", filepath.Join(t.TempDir(), "wallet"), "--no-register", "--no-builtins", "--port", strconv.Itoa(port)})
+	done := make(chan error, 1)
+	go func() { done <- rootCmd.Execute() }()
+	t.Cleanup(func() {
+		_ = remote.NewClient(base).Shutdown()
+		select {
+		case <-done:
+		case <-time.After(10 * time.Second):
+			t.Error("the server kept running after POST /api/shutdown")
+		}
+	})
+
+	status := func(path string) int {
+		t.Helper()
+		deadline := time.Now().Add(20 * time.Second)
+		for {
+			resp, err := http.Get(base + path)
+			if err == nil {
+				_ = resp.Body.Close()
+				return resp.StatusCode
+			}
+			select {
+			case err := <-done:
+				done <- err
+				t.Fatalf("wallet serve stopped: %v", err)
+			default:
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("GET %s: %v", path, err)
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+	}
+	if got := status("/issuer"); got != http.StatusOK {
+		t.Errorf("GET /issuer: status %d, want 200", got)
+	}
+	if got := status("/verifier"); got != http.StatusNotFound {
+		t.Errorf("GET /verifier: status %d, want 404", got)
 	}
 }

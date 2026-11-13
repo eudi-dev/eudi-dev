@@ -65,7 +65,8 @@
       {
         nav: 'templates-menu-toggle',
         title: 'Define your own credential types',
-        text: () => 'Define a credential template with a type, claims and display. Then issue it with Issue credential. Transaction templates hold transaction data for the demo verifier.',
+        text: () => 'Define a credential template with a type, claims and display. Then issue it with Issue credential.'
+          + (byId('actions-hint').hidden ? '' : ' Transaction templates hold transaction data for the demo verifier.'),
       },
       {
         nav: 'decoder-link',

@@ -121,8 +121,10 @@ type authGrant struct {
 // of the offer given by issuer_state, else the configurations listed in
 // authorization_details and scope (OpenID4VCI 1.0 §5.1.1, §5.1.2).
 // authorization_details next to an issuer_state narrow the offer. A request
-// without any gets the ticket, the default scope of this server (RFC 6749
-// §3.3). It returns the OAuth error of an unknown name.
+// without scope or authorization_details gets the default scope of this server
+// (RFC 6749 §3.3): the Demo Event Ticket, or the first template when the
+// wallet has no ticket template. An unknown configuration returns an OAuth
+// error.
 func (d *DemoRP) resolveAuthGrant(identity *issuerIdentity, grant authGrant, scope, authorizationDetails string) (authGrant, map[string]string) {
 	detailIDs, errResp := parseAuthorizationDetails(authorizationDetails)
 	if errResp != nil {

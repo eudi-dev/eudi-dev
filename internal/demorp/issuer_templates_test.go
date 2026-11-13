@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -357,6 +358,50 @@ func TestTheDemoIssuerPassesTheARFChecksForATemplateAddedLater(t *testing.T) {
 	for _, entry := range w.GetLog() {
 		if strings.Contains(entry.Detail, "RPRC_23") {
 			t.Errorf("ARF finding: %s", entry.Detail)
+		}
+	}
+}
+
+// Without the ticket template, an offer defaults to the first of the wallet's
+// own templates by name.
+func TestAnIssuerWithoutPredefinedTemplatesOffersItsOwn(t *testing.T) {
+	d, w, _ := newDemoRP(t)
+	w.Templates = credtemplate.FileLocation(t.TempDir())
+	w.Templates.WithoutPredefined = true
+	if _, err := d.offerConfigurationIDs(nil); err == nil {
+		t.Error("an issuer without a template makes an offer")
+	}
+	for _, name := range []string{"badge", "access-card"} {
+		tpl := credtemplate.Template{Name: name, Format: "sdjwt", VCT: "urn:example:" + name + ":1", Claims: map[string]any{"name": "Anna Example"}}
+		if _, err := credtemplate.Save(w.Templates, tpl); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got, want := d.offeredConfigurationIDs(), []string{"access-card", "badge"}; !slices.Equal(got, want) {
+		t.Errorf("offered configurations = %v, want %v", got, want)
+	}
+	ids, err := d.offerConfigurationIDs(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(ids, []string{"access-card"}) {
+		t.Errorf("the default offer is %v, want access-card", ids)
+	}
+}
+
+// With --no-builtins, the issuer page lists only the wallet's own credential
+// templates.
+func TestTheIssuerPageOfANoBuiltinsWalletListsItsOwnTemplates(t *testing.T) {
+	w := customTestWallet(t)
+	w.NoBuiltins = true
+	_, ts := serveDemoStack(t, w)
+	page := getText(t, ts.URL+"/issuer/")
+	for _, text := range []string{
+		`<p id="intro">Offers the credential templates of this wallet over OpenID4VCI.</p>`,
+		"issues credentials from the wallet's templates over OpenID4VCI to any test wallet.",
+	} {
+		if !strings.Contains(page, text) {
+			t.Errorf("the page lacks %q", text)
 		}
 	}
 }

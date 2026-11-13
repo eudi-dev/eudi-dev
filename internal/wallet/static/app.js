@@ -4798,6 +4798,9 @@
         document.getElementById('tls-row-label').hidden = true;
         document.getElementById('tls-row').hidden = true;
       }
+      ['actions-hint', 'howto-demo-hint', 'howto-extension-demo-hint'].forEach((id) => {
+        document.getElementById(id).hidden = !!config.config_only;
+      });
       applyFormDefaults(config.form_defaults || {});
       demoMode = !!(config.demo && config.demo.enabled);
       consentAPI = !demoMode || Boolean(config.demo.consent_api);

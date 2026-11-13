@@ -83,6 +83,25 @@ type Location struct {
 	// Configured holds the templates of the operator's transaction template
 	// files. They can't be changed through the location.
 	Configured *Configured
+	// WithoutPredefined leaves the built-in templates out of the location.
+	WithoutPredefined bool
+}
+
+// predefined returns the built-in templates of the location.
+func (l Location) predefined() []Template {
+	if l.WithoutPredefined {
+		return nil
+	}
+	return Predefined()
+}
+
+func (l Location) predefinedTemplate(name string) (Template, bool) {
+	for _, t := range l.predefined() {
+		if t.Name == name {
+			return t, true
+		}
+	}
+	return Template{}, false
 }
 
 func (l Location) key(name string) string {
@@ -116,22 +135,13 @@ func Predefined() []Template {
 	return templates
 }
 
-func predefined(name string) (Template, bool) {
-	for _, t := range Predefined() {
-		if t.Name == name {
-			return t, true
-		}
-	}
-	return Template{}, false
-}
-
 // List returns the predefined and the stored templates, sorted by name. A
 // stored template replaces a predefined one of the same name. Unreadable
 // templates are reported as an error, and the readable ones are still
 // returned.
 func List(loc Location) ([]Template, error) {
 	byName := map[string]Template{}
-	for _, t := range Predefined() {
+	for _, t := range loc.predefined() {
 		byName[t.Name] = t
 	}
 	var errs []error
@@ -180,7 +190,7 @@ func Load(loc Location, name string) (Template, error) {
 			return t, err
 		}
 	}
-	if t, ok := predefined(name); ok {
+	if t, ok := loc.predefinedTemplate(name); ok {
 		return t, nil
 	}
 	return Template{}, fmt.Errorf("transaction template %q %w", name, ErrNotFound)
@@ -235,7 +245,7 @@ func Delete(loc Location, name string) error {
 		}
 		return nil
 	}
-	if _, ok := predefined(name); ok {
+	if _, ok := loc.predefinedTemplate(name); ok {
 		return fmt.Errorf("transaction template %q is predefined and cannot be deleted", name)
 	}
 	return fmt.Errorf("transaction template %q %w", name, ErrNotFound)

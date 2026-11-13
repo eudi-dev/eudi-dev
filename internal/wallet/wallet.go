@@ -86,6 +86,9 @@ type Wallet struct {
 	// registrar.
 	publicDemo     bool
 	VCIRedirectURI string `json:"-"`
+	// NoBuiltins serves only the configured content (--no-builtins). The
+	// wallet has no built-in templates and no demo verifier.
+	NoBuiltins bool `json:"-"`
 	// IssuerName is the display name of the wallet's issuer (--issuer-name).
 	// Empty uses the trade name of the demo issuer.
 	IssuerName string `json:"-"`
@@ -837,6 +840,9 @@ func (w *Wallet) IsProtected(id string) bool {
 // one of them gives the type.
 func (w *Wallet) baselinePIDTypes() []string {
 	var types []string
+	if w.Templates.WithoutPredefined {
+		return nil
+	}
 	for _, predefined := range credtemplate.PredefinedTemplates() {
 		if format, _ := credtemplate.NormalizeFormat(predefined.Format); !predefined.Baseline || format != "sdjwt" {
 			continue

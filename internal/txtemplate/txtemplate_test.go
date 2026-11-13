@@ -113,3 +113,22 @@ func TestSaveRefusesTemplatesWithoutNameOrType(t *testing.T) {
 		}
 	}
 }
+
+func TestALocationWithoutPredefinedTemplatesHoldsOnlyItsOwn(t *testing.T) {
+	loc := memoryLocation()
+	loc.WithoutPredefined = true
+	tpl := Template{Name: "refund", TransactionData: map[string]any{"type": "urn:example:refund"}}
+	if err := Save(loc, tpl); err != nil {
+		t.Fatal(err)
+	}
+	templates, err := List(loc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(templates) != 1 || templates[0].Name != "refund" {
+		t.Errorf("templates = %+v, want only refund", templates)
+	}
+	if _, err := Load(loc, Predefined()[0].Name); !errors.Is(err, ErrNotFound) {
+		t.Errorf("loading a predefined template: %v, want not found", err)
+	}
+}

@@ -551,3 +551,21 @@ func TestSavingIntoAnUnwritableDirectoryPointsToTemplates(t *testing.T) {
 		t.Errorf("Save error = %v, want the --templates hint", err)
 	}
 }
+
+func TestALocationWithoutPredefinedTemplatesHoldsOnlyItsOwn(t *testing.T) {
+	loc := FileLocation(t.TempDir())
+	loc.WithoutPredefined = true
+	if _, err := Save(loc, Template{Name: "badge", Format: "sdjwt", VCT: "urn:example:badge:1", Claims: map[string]any{"name": "Anna Example"}}); err != nil {
+		t.Fatal(err)
+	}
+	templates, err := List(loc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(templates) != 1 || templates[0].Name != "badge" {
+		t.Errorf("templates = %+v, want only badge", templates)
+	}
+	if _, err := Load("pid-sdjwt", loc); err == nil {
+		t.Error("the location loads a predefined template")
+	}
+}
