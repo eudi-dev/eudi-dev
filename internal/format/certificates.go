@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"strings"
 )
 
@@ -40,10 +41,14 @@ func Certificates(input string) ([]*x509.Certificate, error) {
 			return nil, errNoCertificate
 		}
 		certs := make([]*x509.Certificate, 0, len(entries))
-		for _, entry := range entries {
+		for i, entry := range entries {
 			cert, err := derCertificate(entry)
-			if err != nil {
+			if errors.Is(err, errNoCertificate) {
+				// Arrays of other values, such as a vp_token, are not x5c.
 				return nil, err
+			}
+			if err != nil {
+				return nil, &CertificateError{Index: i + 1, Count: len(entries), Err: err}
 			}
 			certs = append(certs, cert)
 		}
@@ -58,40 +63,52 @@ func Certificates(input string) ([]*x509.Certificate, error) {
 
 var errNoCertificate = errors.New("the input is not a certificate")
 
+// CertificateError reports a PEM CERTIFICATE block or an x5c entry that
+// doesn't parse. A bare base64 value that fails to parse can be another
+// format, such as an mdoc, so it gives a plain parse error instead.
+type CertificateError struct {
+	// Index counts from 1 in the order of the input.
+	Index, Count int
+	Err          error
+}
+
+func (e *CertificateError) Error() string {
+	return fmt.Sprintf("certificate %d of %d: %v", e.Index, e.Count, e.Err)
+}
+
+func (e *CertificateError) Unwrap() error { return e.Err }
+
 func pemCertificates(input string) ([]*x509.Certificate, error) {
-	var certs []*x509.Certificate
-	rest := []byte(input)
-	for {
-		var block *pem.Block
-		block, rest = pem.Decode(rest)
+	// Splitting at each marker keeps the numbering right when a block's base64
+	// is broken, because pem.Decode skips such a block without an error.
+	const marker = "-----BEGIN CERTIFICATE-----"
+	blocks := strings.Split(input, marker)[1:]
+	certs := make([]*x509.Certificate, 0, len(blocks))
+	for i, text := range blocks {
+		block, _ := pem.Decode([]byte(marker + text))
 		if block == nil {
-			break
-		}
-		if block.Type != "CERTIFICATE" {
-			continue
+			return nil, &CertificateError{Index: i + 1, Count: len(blocks), Err: errors.New("the PEM block doesn't decode")}
 		}
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
-			return nil, err
+			return nil, &CertificateError{Index: i + 1, Count: len(blocks), Err: err}
 		}
 		certs = append(certs, cert)
-	}
-	if len(certs) == 0 {
-		return nil, errNoCertificate
 	}
 	return certs, nil
 }
 
-// derCertificate gives the parse error of the first encoding that decodes,
-// so a certificate with an unsupported curve names that curve. Hex comes
-// first because hex digits are base64 characters too, while base64 DER
-// starts with "MI", which is not hex.
+// derCertificate tries hex, base64 and base64url. Only bytes that start with
+// an ASN.1 SEQUENCE (X.690 §8.9, tag 0x30) count as a certificate. For such
+// bytes it returns the parse error, so the user learns, for example, that the
+// curve is unsupported. Hex comes first because hex digits are base64
+// characters too, while base64 DER starts with "MI", which is not hex.
 func derCertificate(encoded string) (*x509.Certificate, error) {
 	encoded = strings.Join(strings.Fields(encoded), "")
 	var parseErr error
 	for _, decode := range []func(string) ([]byte, error){hex.DecodeString, DecodeBase64Std, DecodeBase64URL} {
 		der, err := decode(encoded)
-		if err != nil {
+		if err != nil || len(der) == 0 || der[0] != 0x30 {
 			continue
 		}
 		cert, err := x509.ParseCertificate(der)

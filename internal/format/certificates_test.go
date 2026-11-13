@@ -128,3 +128,44 @@ func TestCertificatesNamesTheParseError(t *testing.T) {
 		t.Errorf("error %v, want the parse error of the certificate", err)
 	}
 }
+
+func TestCertificatesNamesTheBrokenCertificate(t *testing.T) {
+	leaf := testCertificate(t, "leaf").Raw
+	broken := leaf[:len(leaf)-8]
+	pemOf := func(der []byte) string {
+		return string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}))
+	}
+	tests := []struct {
+		name, input, want string
+	}{
+		{"PEM bundle", pemOf(leaf) + pemOf(broken), "certificate 2 of 2: "},
+		{"x5c array", `["` + base64.StdEncoding.EncodeToString(leaf) + `", "` + base64.StdEncoding.EncodeToString(broken) + `"]`, "certificate 2 of 2: "},
+		{"cut off PEM", pemOf(leaf) + "-----BEGIN CERTIFICATE-----\nMIIB\n", "certificate 2 of 2: the PEM block doesn't decode"},
+		{"broken base64 before a good block", "-----BEGIN CERTIFICATE-----\n!!!!\n-----END CERTIFICATE-----\n" + pemOf(leaf), "certificate 1 of 2: the PEM block doesn't decode"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := Certificates(tt.input)
+			if err == nil || !strings.HasPrefix(err.Error(), tt.want) {
+				t.Errorf("error %v, want it to start with %q", err, tt.want)
+			}
+			if Detect(tt.input) != FormatX509 {
+				t.Errorf("detected %s, want %s", Detect(tt.input), FormatX509)
+			}
+		})
+	}
+}
+
+// A bare base64 value that doesn't parse as a certificate can be an mdoc,
+// and a JSON array can be a vp_token, so both are left to the other formats.
+func TestOtherInputIsNotDetectedAsCertificate(t *testing.T) {
+	der := testCertificate(t, "leaf").Raw
+	for name, input := range map[string]string{
+		"broken bare DER":     base64.StdEncoding.EncodeToString(der[:len(der)-8]),
+		"vp_token of SD-JWTs": `["eyJhbGciOiJFUzI1NiJ9.eyJhIjoxfQ.c2ln~"]`,
+	} {
+		if got := Detect(input); got == FormatX509 {
+			t.Errorf("%s: detected %s", name, got)
+		}
+	}
+}

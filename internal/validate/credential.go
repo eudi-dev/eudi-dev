@@ -16,6 +16,7 @@ package validate
 
 import (
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -129,14 +130,18 @@ func (r *Result) add(checks ...Check) {
 	r.Checks = append(r.Checks, checks...)
 }
 
-// Credential validates a raw SD-JWT VC, JWT or mdoc. It fails only when the
-// input is none of these. Every finding is a check of the result.
+// Credential validates a raw SD-JWT VC, JWT, mdoc or X.509 certificates. It
+// fails when the input is none of these or a certificate in it doesn't parse.
+// All other findings are checks of the result.
 func Credential(raw string, trust Trust, opts Options) (*Result, error) {
 	if jwt, ok := format.Base64URLEncodedJWT(raw); ok {
 		raw = jwt
 	}
+	var certErr *format.CertificateError
 	if certs, err := format.Certificates(raw); err == nil {
 		return Certificates(certs, trust, opts), nil
+	} else if errors.As(err, &certErr) {
+		return nil, err
 	}
 	switch format.DetectEncoding(raw) {
 	case format.FormatSDJWT:

@@ -18,6 +18,7 @@ package format
 import (
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/url"
 	"strings"
 	"unicode/utf8"
@@ -67,7 +68,8 @@ func Detect(input string) CredentialFormat {
 		return detectJSONOID4(input)
 	}
 
-	if _, err := Certificates(input); err == nil {
+	var certErr *CertificateError
+	if _, err := Certificates(input); err == nil || errors.As(err, &certErr) {
 		return FormatX509
 	}
 

@@ -144,7 +144,7 @@ func runDecode(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if detected == format.FormatX509 {
+	if decodeFormat != "" && detected == format.FormatX509 {
 		if _, err := format.Certificates(raw); err != nil {
 			return fmt.Errorf("--format x509: %w", err)
 		}

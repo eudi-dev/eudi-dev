@@ -84,6 +84,17 @@ func TestCredentialReadsPastedCertificates(t *testing.T) {
 	}
 }
 
+func TestCredentialNamesABrokenPastedCertificate(t *testing.T) {
+	chain := newTestChain(t)
+	broken := string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: chain.ca.Raw[:len(chain.ca.Raw)-8]}))
+
+	_, err := Credential(pemOf(chain.leaf)+broken, Trust{}, Options{Offline: true})
+
+	if err == nil || !strings.HasPrefix(err.Error(), "certificate 2 of 2: ") {
+		t.Errorf("error %v, want the parse error of certificate 2", err)
+	}
+}
+
 func TestCertificateChecks(t *testing.T) {
 	chain := newTestChain(t)
 	tests := []struct {
