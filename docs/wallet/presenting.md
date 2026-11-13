@@ -15,7 +15,7 @@ Detects the URI type and starts the matching flow:
 
 EUDI issuance uses `eu-eaa-offer://` under [ETSI TS 119 472-3 V1.1.1](https://www.etsi.org/deliver/etsi_ts/119400_119499/11947203/01.01.01_60/ts_11947203v010101p.pdf), requirement GEN-REQ-4.1-06. All 3 offer schemes accept `credential_offer` and `credential_offer_uri` parameters.
 
-In interactive mode (the default), OID4VP requests start a temporary consent UI server and open it in the browser. With `--auto-accept`, the wallet submits one credential per credential query (the most recently issued match), or all matching ones when the query sets `multiple: true`.
+In interactive mode (the default), OID4VP requests start a temporary consent UI server and open it in the browser. With `--auto-accept`, the wallet submits one credential per credential query (the most recently issued match), or all matching ones when the query sets `multiple: true`. A credential revoked or suspended on the wallet's status list comes after the valid ones, so the wallet presents it only when no valid credential matches. The consent dialog still offers it.
 
 When a verifier responds to a presentation with a `redirect_uri`, the wallet prints the URL and opens it in a browser. A scripted run, or a host without a desktop, only prints it. `--no-open` disables opening.
 

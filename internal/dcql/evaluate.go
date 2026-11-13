@@ -53,6 +53,10 @@ type Credential struct {
 	Bound bool
 	// IssuedAt orders renewed credentials first. A zero time sorts last.
 	IssuedAt time.Time
+	// Revoked is set when the wallet's own status list marks the credential
+	// with any status other than valid. Such a credential sorts after the
+	// valid ones.
+	Revoked bool
 }
 
 // Options holds the wallet settings for evaluating a query.
@@ -215,6 +219,8 @@ func Evaluate(query map[string]any, credentials []Credential, opts Options) ([]c
 	if preferredFormat != "" {
 		sortMatchesByPreferredFormat(matches, preferredFormat)
 	}
+
+	sortMatchesValidFirst(matches, credentials)
 
 	sortMatchesTrustedFirst(matches)
 
@@ -439,6 +445,23 @@ func sortMatchesNewestFirst(matches []consent.Match, credentials []Credential) {
 			return b.IsZero()
 		}
 		return a.After(b)
+	})
+}
+
+// Prefer credentials that are neither revoked nor suspended. The user can
+// still pick a revoked one.
+func sortMatchesValidFirst(matches []consent.Match, credentials []Credential) {
+	revoked := make(map[string]bool)
+	for _, c := range credentials {
+		if c.Revoked {
+			revoked[c.ID] = true
+		}
+	}
+	sort.SliceStable(matches, func(i, j int) bool {
+		if matches[i].QueryID != matches[j].QueryID {
+			return false
+		}
+		return !revoked[matches[i].CredentialID] && revoked[matches[j].CredentialID]
 	})
 }
 

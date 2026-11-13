@@ -16,6 +16,7 @@ package dcql
 
 import (
 	"testing"
+	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
 )
@@ -169,6 +170,34 @@ func TestPreferredFormatSortIsStable(t *testing.T) {
 		if order[i] != want[i] {
 			t.Fatalf("order = %v, want %v (preferred first, input order kept within each group)", order, want)
 		}
+	}
+}
+
+func TestAValidCredentialIsPresentedBeforeARevokedOne(t *testing.T) {
+	query := map[string]any{"credentials": []any{map[string]any{
+		"id": "q", "format": "dc+sd-jwt", "meta": map[string]any{"vct_values": []any{"urn:example:card:1"}},
+	}}}
+	card := func(id string, issued int64, revoked bool) Credential {
+		return Credential{ID: id, Format: "dc+sd-jwt", VCT: "urn:example:card:1", Bound: true, IssuedAt: time.Unix(issued, 0), Revoked: revoked}
+	}
+	matches, options := Evaluate(query, []Credential{card("valid", 1000, false), card("revoked", 2000, true)}, Options{})
+	if len(matches) != 1 || matches[0].CredentialID != "valid" {
+		t.Fatalf("matches = %+v, want the valid credential", matches)
+	}
+	if got := options.Queries[0].Candidates; len(got) != 2 || got[1].CredentialID != "revoked" {
+		t.Errorf("candidates = %+v, want the revoked credential as second choice", got)
+	}
+}
+
+func TestARevokedCredentialInThePreferredFormatComesAfterAValidOne(t *testing.T) {
+	matches := []consent.Match{
+		{QueryID: "q", CredentialID: "revoked-sdjwt", Format: "dc+sd-jwt"},
+		{QueryID: "q", CredentialID: "valid-mdoc", Format: "mso_mdoc"},
+	}
+	sortMatchesByPreferredFormat(matches, "dc+sd-jwt")
+	sortMatchesValidFirst(matches, []Credential{{ID: "revoked-sdjwt", Revoked: true}, {ID: "valid-mdoc"}})
+	if matches[0].CredentialID != "valid-mdoc" {
+		t.Errorf("first match = %q, want the valid credential", matches[0].CredentialID)
 	}
 }
 

@@ -34,6 +34,9 @@ func (w *Wallet) matchDCQL(query map[string]any) ([]consent.Match, *consent.Cred
 	creds := make([]dcql.Credential, len(credentials))
 	for i, cred := range credentials {
 		creds[i] = dcqlCredential(cred)
+		if entry, ok := w.StatusEntryFor(cred.ID); ok {
+			creds[i].Revoked = entry.Status != 0
+		}
 	}
 	// The conformance API can change these settings while a query runs.
 	return dcql.Evaluate(query, creds, dcql.Options{
