@@ -5,6 +5,20 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.10.0] - 2026-11-13
+
+### Added
+
+- **Transaction data types in the CLI.** `eudi templates transactions types` lists the TS12 types with their payload members and the types added with `--transaction-data-type`.
+- **`templates credentials` commands.** The credential template commands are now also under `eudi templates credentials`, next to `eudi templates transactions`. The plain `eudi templates` commands still work.
+- **Transaction data in `wallet requests`.** The list shows each transaction of a presentation request with its type, its credential queries and its data.
+- **Certificates in the decoder.** The decoder, `eudi decode` and `eudi validate` show the content of pasted certificates in PEM, `x5c` or DER form, and check the chain. In a credential, an entry of `x5c` or `x5chain` opens its certificate in place. Each certificate in the **Certificates** dialog of a credential opens in the decoder. See [the decoder](docs/decoder.md#certificates).
+
+### Changed
+
+- **`x5chain` in the JSON output.** `eudi decode --json` and the decoder give the `x5chain` entries of an mdoc in base64, like `x5c`. The certificate details are in `certificates`.
+- **Revocation without a CRL.** When no certificate of a chain names a CRL, the revocation check is skipped instead of passing.
+
 ## [3.9.3] - 2026-11-12
 
 ### Fixed
