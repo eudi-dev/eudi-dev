@@ -46,6 +46,28 @@ type templateConfiguration struct {
 	template credtemplate.Template
 }
 
+// displayName is the display name of the template, else the configuration
+// id.
+func (c templateConfiguration) displayName() string {
+	if display := c.template.Display; display != nil && display.Name != "" {
+		return display.Name
+	}
+	return c.id
+}
+
+// configurationNames returns the display name for each configuration id.
+func (d *DemoRP) configurationNames(ids []string) []string {
+	names := make([]string, 0, len(ids))
+	for _, id := range ids {
+		name := id
+		if cfg, ok := d.templateConfiguration(id); ok {
+			name = cfg.displayName()
+		}
+		names = append(names, name)
+	}
+	return names
+}
+
 // templateConfigurations lists the templates that the demo issuer can issue,
 // sorted by name. It skips templates that are neither SD-JWT nor mdoc.
 func (d *DemoRP) templateConfigurations() []templateConfiguration {
@@ -143,11 +165,8 @@ func (d *DemoRP) credentialConfigurations(id *issuerIdentity) map[string]any {
 			entry["credential_signing_alg_values_supported"] = []int{-7}
 			entry["cryptographic_binding_methods_supported"] = []string{"cose_key"}
 		}
-		display := map[string]any{"name": cfg.id, "locale": "en-US"}
+		display := map[string]any{"name": cfg.displayName(), "locale": "en-US"}
 		if tpl := cfg.template.Display; tpl != nil {
-			if tpl.Name != "" {
-				display["name"] = tpl.Name
-			}
 			if tpl.Description != "" {
 				display["description"] = tpl.Description
 			}

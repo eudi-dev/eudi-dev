@@ -769,6 +769,39 @@ func TestLoginPageAllowsTheRedirectTarget(t *testing.T) {
 	}
 }
 
+func TestSignInPageShowsTheRequestedCredentials(t *testing.T) {
+	d, _, holderKey := newDemoRP(t)
+	d.SetClientAuthMode(ClientAuthOptional)
+	h := d.IssuerHandler()
+
+	form := url.Values{
+		"client_id":             {"http://wallet.example"},
+		"response_type":         {"code"},
+		"code_challenge_method": {"S256"},
+		"code_challenge":        {format.EncodeBase64URL(make([]byte, 32))},
+		"redirect_uri":          {"http://wallet.example/cb"},
+		"scope":                 {"demo-payment-account pid-sdjwt"},
+	}
+	par := httptest.NewRequest(http.MethodPost, "/par", strings.NewReader(form.Encode()))
+	par.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	par.Header.Set("DPoP", dpopProof(t, holderKey, "POST", demoIssuerID+"/par"))
+	pushed := httptest.NewRecorder()
+	h.ServeHTTP(pushed, par)
+	var pushedDoc struct {
+		RequestURI string `json:"request_uri"`
+	}
+	if err := json.Unmarshal(pushed.Body.Bytes(), &pushedDoc); err != nil || pushed.Code != http.StatusCreated {
+		t.Fatalf("pushing the authorization request: %d %s", pushed.Code, pushed.Body.String())
+	}
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/authorize?request_uri="+url.QueryEscape(pushedDoc.RequestURI), nil))
+	want := "Your wallet is collecting <strong>Demo Payment Account</strong> and <strong>EUDI PID</strong>. Sign in to continue."
+	if !strings.Contains(rec.Body.String(), want) {
+		t.Errorf("the sign-in page does not say %q\nbody = %s", want, rec.Body.String())
+	}
+}
+
 // Keep the submitted client authentication visible in the sign-in debug panel.
 func TestLoginPageDebugPanelShowsClientAuthentication(t *testing.T) {
 	d, _, holderKey := newDemoRP(t)

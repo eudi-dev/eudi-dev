@@ -281,7 +281,11 @@ func (d *DemoRP) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 		writeAuthorizeError(w, "client_id does not match the pushed authorization request")
 		return
 	}
-	renderLoginPage(w, r, loginPageData{
+	renderLoginPage(w, r, d.loginPage(request, ""))
+}
+
+func (d *DemoRP) loginPage(request *authRequestState, problem string) loginPageData {
+	return loginPageData{
 		Action:         "authorize",
 		RequestURI:     request.requestURI,
 		RedirectURI:    request.redirectURI,
@@ -289,7 +293,9 @@ func (d *DemoRP) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 		Attestation:    request.clientAttestation,
 		AttestationPoP: request.clientAttestationPoP,
 		Title:          "Sign in",
-	})
+		Credentials:    d.configurationNames(request.settings.configIDs),
+		Error:          problem,
+	}
 }
 
 // handlePushedAuthorizationRequest implements RFC 9126. Client authentication
@@ -401,16 +407,7 @@ func (d *DemoRP) handleAuthorizeSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !validDemoAccount(r.PostFormValue("username"), r.PostFormValue("password")) {
-		renderLoginPage(w, r, loginPageData{
-			Action:         "authorize",
-			RequestURI:     request.requestURI,
-			RedirectURI:    request.redirectURI,
-			ClientID:       request.clientID,
-			Attestation:    request.clientAttestation,
-			AttestationPoP: request.clientAttestationPoP,
-			Title:          "Sign in",
-			Error:          "Wrong account. The demo accepts alice / alice.",
-		})
+		renderLoginPage(w, r, d.loginPage(request, "Wrong account. The demo accepts alice / alice."))
 		return
 	}
 	// The account that signed in is the holder.
@@ -1029,6 +1026,7 @@ type loginPageData struct {
 	Attestation    string
 	AttestationPoP string
 	IssuerName     string
+	Credentials    []string
 	// Root leads from the page to the wallet root. The page sits deeper below
 	// the identifiers of the unregistered and own identities.
 	Root string
@@ -1072,7 +1070,7 @@ input { font:inherit; font-size:14px; width:100%; height:42px; padding:0 18px; b
 <body>
 <div class="card">
   <h1 id="login-title">{{.Title}}</h1>
-  <p id="login-explanation">Your wallet is collecting a Demo Event Ticket. Sign in to approve it.</p>
+  <p id="login-explanation">Your wallet is collecting {{range $i, $name := .Credentials}}{{if $i}}{{if eq (len (slice $.Credentials $i)) 1}} and {{else}}, {{end}}{{end}}<strong>{{$name}}</strong>{{end}}. Sign in to continue.</p>
   <details class="debug" id="login-debug">
     <summary id="login-debug-summary">Client authentication (debug)</summary>
     <div class="body">
