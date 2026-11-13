@@ -117,6 +117,8 @@ func TestWatchServeConfigReloadsChangedFilesAndSkipsBrokenOnes(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("the changed file was not reloaded")
 	}
+	// The watcher logs the reload after reload returns.
+	waitFor(t, "the reload message", func() bool { return len(logs()) >= 2 })
 	got := logs()
 	if len(got) != 2 || !strings.Contains(got[0], "don't load, so the wallet keeps the previous configuration") || !strings.Contains(got[1], "Configuration reloaded: 3 templates") {
 		t.Fatalf("logs = %q, want one warning for the broken file and then the reload", got)
@@ -197,20 +199,24 @@ func TestWatchServeConfigRevertsAPartlyAppliedReload(t *testing.T) {
 
 	writeConfigFile(t, parties, "identifier: [{identifier: NLTEST.00000072}]\ntradeName: Second shop\nlegalPerson: {legalName: [Second shop B.V.]}\n")
 	writeConfigFile(t, credentials, "credentials:\n  - id: bob\n    template: no-such-template\n")
-	waitFor(t, "the failed apply", func() bool { return len(logs()) > 0 })
+	waitFor(t, "the failed apply", func() bool {
+		return slices.ContainsFunc(logs(), func(line string) bool {
+			return strings.Contains(line, "applying the changed configuration files failed")
+		})
+	})
 	if !reflect.DeepEqual(current.Load().relyingParties, loadTestServeConfig(t, opts).relyingParties) {
 		t.Fatal("the second relying parties file did not apply")
 	}
 
 	writeConfigFile(t, parties, firstParties)
 	writeConfigFile(t, credentials, goodCredentials)
+	// The watcher can tick twice between the two saves. Both reads then see
+	// the original relying parties and the broken credentials. The relying
+	// parties apply and the credentials fail again. After the second save the
+	// files match the applied configuration, so no reload is logged.
 	waitFor(t, "the reverted files", func() bool {
-		got := logs()
-		return strings.Contains(got[len(got)-1], "Configuration reloaded")
+		return reflect.DeepEqual(current.Load(), first)
 	})
-	if !reflect.DeepEqual(current.Load().relyingParties, first.relyingParties) {
-		t.Fatal("the wallet kept the relying parties of the failed reload")
-	}
 }
 
 // A credential and the new template it names, saved one after the other within
