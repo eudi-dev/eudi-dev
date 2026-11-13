@@ -148,7 +148,10 @@ func (d *DemoRP) resolveAuthGrant(identity *issuerIdentity, grant authGrant, sco
 	if err != nil {
 		return grant, oauthError("invalid_scope", err.Error())
 	}
-	grant.settings = offerSettings{configIDs: configIDs, authorization: authorizationBrowser, issuer: identity}
+	grant.settings = offerSettings{
+		configIDs: configIDs, authorization: authorizationBrowser, issuer: identity,
+		withStatus: d.statusWithoutOffer && d.statusListURI() != "",
+	}
 	return grant, nil
 }
 

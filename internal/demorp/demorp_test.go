@@ -1904,6 +1904,18 @@ func TestAnAuthorizationFlowIssuesWhatItsRequestNames(t *testing.T) {
 	}
 }
 
+func TestAFlowWithoutAnOfferGetsAStatusReferenceWithStatusList(t *testing.T) {
+	d, w, _ := newDemoRP(t)
+	w.IssuerURL = "https://demo.example"
+	if grant, errResp := d.resolveAuthGrant(registeredIssuer, authGrant{}, "pid-sdjwt", ""); errResp != nil || grant.settings.withStatus {
+		t.Errorf("without --status-list: %+v, %v, want no status", grant.settings, errResp)
+	}
+	d.SetStatusWithoutOffer(true)
+	if grant, errResp := d.resolveAuthGrant(registeredIssuer, authGrant{}, "pid-sdjwt", ""); errResp != nil || !grant.settings.withStatus {
+		t.Errorf("with --status-list: %+v, %v, want a status", grant.settings, errResp)
+	}
+}
+
 // A grant is redeemed once, and an empty grant key matches no offer.
 func TestAGrantIsRedeemedOnce(t *testing.T) {
 	d, _, _ := newDemoRP(t)

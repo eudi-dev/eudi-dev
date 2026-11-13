@@ -530,7 +530,7 @@ curl -X POST http://localhost:8085/api/credentials \
 
 ### Status list
 
-PID credentials from `wallet serve --pid` carry a `status.status_list` claim pointing to the wallet's HTTPS status list endpoint. `--status-list` enables this for other generated credentials. The URI in the credential is `https://<host>:<port+1>/api/statuslist`.
+PID credentials from `wallet serve --pid` carry a `status.status_list` claim pointing to the wallet's HTTPS status list endpoint. `--status-list` enables this for other generated credentials. With it the demo issuer also adds the reference to a credential requested without an offer, such as one from **Request credential**. An offer sets the reference with its own status option. The URI in the credential is `https://<host>:<port+1>/api/statuslist`.
 
 The default issuer URL is `https://localhost:<port+1>`. It serves `/.well-known/jwt-vc-issuer`, signed or unsigned `/.well-known/openid-credential-issuer` metadata, and `/api/registrar/wrp` registration data. Certificates use the shared wallet CA.
 

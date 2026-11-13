@@ -68,6 +68,9 @@ type DemoRP struct {
 	// clientAuth is the client authentication the demo authorization server
 	// requires from a wallet. The zero value is ClientAuthRequired.
 	clientAuth ClientAuthMode
+	// statusWithoutOffer adds a status reference to a credential requested
+	// without an offer (--status-list).
+	statusWithoutOffer bool
 	// keyAttestation is whether the credential endpoint requires a key
 	// attestation. The zero value is KeyAttestationOptional.
 	keyAttestation KeyAttestationMode
@@ -141,6 +144,13 @@ func New(w *wallet.Wallet, baseURL func() string) *DemoRP {
 // because the authorization server metadata publishes the mode.
 func (d *DemoRP) SetClientAuthMode(mode ClientAuthMode) {
 	d.clientAuth = mode
+}
+
+// SetStatusWithoutOffer gives a credential requested without an offer a
+// reference to the wallet status list. An offer sets this itself. Call it
+// before serving.
+func (d *DemoRP) SetStatusWithoutOffer(on bool) {
+	d.statusWithoutOffer = on
 }
 
 // SetVerifierTrustAnchors sets extra CAs for issuer certificate chains. The

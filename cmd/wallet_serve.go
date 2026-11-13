@@ -164,7 +164,7 @@ Every flag can also be set as EUDI_DEV_<FLAG>, such as EUDI_DEV_BASE_URL for --b
 	cmd.Flags().StringVar(&opts.SessionTranscript, "session-transcript", "oid4vp", "mdoc session transcript mode: 'oid4vp' (OID4VP 1.0, default) or 'iso' (ISO 18013-7)")
 	cmd.Flags().BoolVar(&opts.Register, "register", false, "Register OS URL scheme handlers (openid4vp://, eudi-openid4vp://, haip-vp://, eu-eaap://, openid-credential-offer://, haip-vci://, eu-eaa-offer://)")
 	cmd.Flags().BoolVar(&opts.NoRegister, "no-register", false, "Skip URL scheme registration (overrides --register)")
-	cmd.Flags().BoolVar(&opts.StatusList, "status-list", false, "Embed status list references in generated credentials")
+	cmd.Flags().BoolVar(&opts.StatusList, "status-list", false, "Embed status list references in generated credentials. Credentials requested from the demo issuer without an offer get one too")
 	cmd.Flags().StringVar(&opts.BaseURL, "base-url", "", "Public URL of the wallet, optionally with a path prefix such as https://example.com/eudi. The HTTPS endpoints use the same host")
 	cmd.Flags().BoolVar(&opts.Docker, "docker", false, "Use host.docker.internal instead of localhost for both HTTP and HTTPS wallet endpoint URLs")
 	opts.Conformance = addConformanceFlags(cmd)
@@ -882,6 +882,7 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	})
 	demoRP.SetClientAuthMode(clientAuthMode)
 	demoRP.SetKeyAttestationMode(keyAttestationMode)
+	demoRP.SetStatusWithoutOffer(opts.StatusList)
 	demoRP.SetVerifierTrustAnchors(verifierTrustAnchors)
 	if issuerIdentity != nil {
 		demoRP.SetIssuerIdentity(issuerIdentity)
