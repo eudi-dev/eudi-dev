@@ -5,6 +5,13 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.10.1] - 2026-11-13
+
+### Fixed
+
+- **Certificates that don't parse.** The decoder, `eudi decode` and `eudi validate` name the broken certificate of a PEM bundle or an `x5c` array, for example "certificate 2 of 3: x509: malformed certificate". Before, a broken PEM certificate gave "unable to auto-detect".
+- **Findings of a request in the activity log.** All findings about a presentation request now share one entry. The log shows one row for the protocol findings and one for the registration findings, so a Digital Credentials API request no longer spreads its warnings over several rows.
+
 ## [3.10.0] - 2026-11-13
 
 ### Added
