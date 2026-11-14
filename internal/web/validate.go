@@ -46,20 +46,7 @@ func Validate(input string, opts ValidateOpts) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	var decoded map[string]any
-	switch result.Format {
-	case validate.FormatSDJWT:
-		decoded = output.BuildSDJWTJSON(result.SDJWT)
-		if result.Delegation != nil {
-			decoded["delegation"] = output.BuildDelegationJSON(result.Delegation)
-		}
-	case validate.FormatJWT:
-		decoded = output.BuildJWTJSON(result.SDJWT)
-	case validate.FormatMDOC:
-		decoded = output.BuildMDOCJSON(result.MDOC)
-	case validate.FormatX509:
-		decoded = output.BuildCertificatesJSON(result.Certificates)
-	}
+	decoded := output.BuildCredentialJSON(result)
 	decoded["validation"] = map[string]any{"checks": result.Checks}
 	return decoded, nil
 }

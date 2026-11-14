@@ -431,6 +431,7 @@ The wallet serves the [decoder](decoder.md) at `/decoder/`. Open it with a token
 | Input | `#input` |
 | Format | `#format-badge` |
 | Decoded sections | `#output .section[data-section="header"]`, `"payload"`, `"signature"`, `"kb-jwt"`, `"delegation"`, `"disc-<n>"` |
+| Delegate SD-JWT | `#output-delegation-intro`. The timeline is `#output-delegation-chain` with one `.chain-step` per part in `#output-delegation-chain-step-<n>`, counted from 0. Each KB-SD-JWT is `#output-delegation-link-<n>` with `-typ`, `-signer`, `-delegate-key`, `-until`, `-vct`, `-delegate-payload` and the button `-open`. The Key Binding JWT of the Delegate Holder is `#output-delegation-kb-jwt` with `-signer`, `-aud`, `-nonce`, `-iat` and `-open`. In the raw view they are `#raw-view-delegation-link-<n>` and `#raw-view-delegation-kb-jwt` |
 | Checks | `.validity-banner`, items `.vg-item` with `data-check` |
 | Verify with a key or trusted list | `#output-verify-summary` opens it. `#output-verify-key`, `#output-verify-trusted-list`, `#output-verify-btn` |
 | **Share**, **Clear** | `#share-btn` (copies a link), `#clear-btn` |

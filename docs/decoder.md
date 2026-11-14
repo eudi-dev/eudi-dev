@@ -10,6 +10,20 @@ eudi decoder --port 9090
 
 Paste a credential to see its header, claims and disclosures. The decoder runs the checks of [`validate`](validate.md) on it: signature, expiry, status and the trusted list of its [catalogue entry](validate.md#catalogue-trust). **Share** copies a link with the credential in the URL fragment, so the server never receives it. In the wallet, a link to a stored credential carries only its ID.
 
+## Delegate SD-JWT
+
+The decoder reads a Delegate SD-JWT (draft-ietf-oauth-delegate-sd-jwt-00, experimental). Such a chain has 3 kinds of parts:
+
+- the SD-JWT of the credential with its disclosures
+- one KB-SD-JWT per delegation, with its Delegate Payload and the JWK thumbprint (RFC 7638) of the delegate key
+- the Key Binding JWT of the Delegate Holder, in a `dSD-JWT+KB` chain
+
+The input view gives each KB-SD-JWT and the Key Binding JWT its own color. The **Delegate SD-JWT** section starts with the chain as a timeline, one step per part. Each step shows its `typ`, the key that signed it, the key it delegates to, its expiry and its limits. A key keeps the same letter and color in every step. A mark shows whether the signature and the binding to the step before pass. When a step fails, the steps after it are not trusted. Below the timeline, each KB-SD-JWT and the Key Binding JWT has a box with its payload. **Open in decoder** shows one part on its own. Hovering over a step or a part highlights it in the input. The `delegation` check of [`validate`](validate.md) verifies the signatures and the links between the parts.
+
+`eudi decode` and `eudi validate` print the same steps as text, and `--json` has them in `chain`.
+
+A KB-SD-JWT on its own, with `typ` `kb+sd-jwt` or `kb-sd-jwt+kb` (§5.1.4), is shown as a KB-SD-JWT with its step of the chain. Its `type` check passes, and its expiry comes from the Delegate Payload. The checks for a credential don't run. Its signature can only be checked with the whole chain.
+
 ## Certificates
 
 Paste an X.509 certificate to read its subject, issuer, validity, key, key usage, policies and extensions. The decoder reads these forms:

@@ -96,7 +96,7 @@ func runValidate(cmd *cobra.Command, args []string) error {
 	}
 	var report jsonReport
 	if opts.JSON {
-		report = credentialReport(result)
+		report = output.BuildCredentialJSON(result)
 		defer output.PrintJSON(report)
 	} else {
 		printCredential(result, opts)
@@ -152,28 +152,16 @@ func storedWallet() (*wallet.Wallet, error) {
 	return w, err
 }
 
-func credentialReport(result *validate.Result) jsonReport {
-	switch result.Format {
-	case validate.FormatSDJWT:
-		report := output.BuildSDJWTJSON(result.SDJWT)
-		if result.Delegation != nil {
-			report["delegation"] = output.BuildDelegationJSON(result.Delegation)
-		}
-		return report
-	case validate.FormatJWT:
-		return output.BuildJWTJSON(result.SDJWT)
-	case validate.FormatX509:
-		return output.BuildCertificatesJSON(result.Certificates)
-	}
-	return output.BuildMDOCJSON(result.MDOC)
-}
-
 func printCredential(result *validate.Result, opts output.Options) {
 	switch result.Format {
 	case validate.FormatSDJWT:
-		output.PrintSDJWT(result.SDJWT, opts)
-		if result.Delegation != nil {
-			output.PrintDelegation(result.Delegation)
+		if result.Chain != nil && result.Chain.Format == validate.FormatKBSDJWT {
+			output.PrintKBSDJWT(result.SDJWT, opts)
+		} else {
+			output.PrintSDJWT(result.SDJWT, opts)
+		}
+		if result.Chain != nil {
+			output.PrintChain(output.BuildChainJSON(result.Chain))
 		}
 	case validate.FormatJWT:
 		output.PrintJWT(result.SDJWT, opts)

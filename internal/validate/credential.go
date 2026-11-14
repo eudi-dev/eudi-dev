@@ -99,6 +99,9 @@ type Result struct {
 	MDOC  *mdoc.Document
 	// Delegation is the chain of a Delegate SD-JWT. SDJWT is its SD-JWT.
 	Delegation *sdjwt.Delegation
+	// Chain is the result of each part of a Delegate SD-JWT or of a
+	// KB-SD-JWT on its own. It is nil for any other credential.
+	Chain *Chain
 	// Certificates are pasted certificates, leaf first.
 	Certificates []*x509.Certificate
 	// Checks run in a fixed order: type, expiry, integrity, trusted list,
@@ -155,12 +158,18 @@ func Credential(raw string, trust Trust, opts Options) (*Result, error) {
 		if err != nil {
 			return nil, fmt.Errorf("parsing SD-JWT: %w", err)
 		}
+		if isKBSDJWT(token) {
+			return KBSDJWT(token, opts), nil
+		}
 		return SDJWT(token, trust, opts), nil
 	case format.FormatJWT:
 		// sdjwt reports a broken JWT part as "parsing JWT" already.
 		token, err := sdjwt.Inspect(raw)
 		if err != nil {
 			return nil, err
+		}
+		if isKBSDJWT(token) {
+			return KBSDJWT(token, opts), nil
 		}
 		return JWT(token, trust, opts), nil
 	case format.FormatMDOC:
@@ -186,11 +195,43 @@ func delegation(raw string, trust Trust, opts Options) (*Result, error) {
 	if len(d.Links) > 1 {
 		check.Detail += "s"
 	}
-	if err := d.VerifyChain(sdjwt.DelegationOptions{Now: opts.Now}); err != nil {
+	report := d.Inspect(sdjwt.DelegationOptions{Now: opts.Now})
+	if err := report.Err(); err != nil {
 		check.Status, check.Detail = Fail, err.Error()
 	}
 	r.add(check)
+	r.Chain = delegationChain(d, report, r)
 	return r, nil
+}
+
+// isKBSDJWT reports a KB-SD-JWT by its typ (draft-ietf-oauth-delegate-sd-jwt-00
+// §5.1.4).
+func isKBSDJWT(token *sdjwt.Token) bool {
+	typ := headerTyp(token.Header)
+	return format.JOSETypeIs(typ, sdjwt.TypeKBSDJWT) || format.JOSETypeIs(typ, sdjwt.TypeKBSDJWTKB)
+}
+
+// KBSDJWT validates a KB-SD-JWT on its own. The key that signs it is in the
+// part before it, so only the whole chain checks the signature. The checks of
+// a credential, such as the status, do not apply.
+func KBSDJWT(token *sdjwt.Token, opts Options) *Result {
+	v := newRun(Trust{}, opts)
+	r := &Result{Format: FormatSDJWT, SDJWT: token, Chain: kbSDJWTChain(token)}
+	r.add(
+		Check{Name: CheckType, Status: Pass, Detail: headerTyp(token.Header)},
+		kbSDJWTValidity(token, v.now),
+		CheckSDJWTIntegrity(token),
+		Check{Name: CheckSignature, Status: Skipped, Detail: "Checked with the whole chain"},
+	)
+	return r
+}
+
+// kbSDJWTValidity reads nbf and exp from the Delegate Payload.
+// draft-ietf-oauth-delegate-sd-jwt-00 §6 step 3.1: "Treat the Delegate Payload
+// as the JWT Payload for finding all claims other than the _sd_alg claim."
+func kbSDJWTValidity(token *sdjwt.Token, now time.Time) Check {
+	payload := sdjwt.NewDelegationLink(token).Payload
+	return validityCheck(unixClaim(payload, "nbf"), unixClaim(token.Payload, "iat"), expiry(payload), now, "The Delegate Payload has no exp claim")
 }
 
 // unreadableDelegation validates the SD-JWT before the first empty component

@@ -186,7 +186,7 @@ The wallet answers with a dSD-JWT in `vp_token` (§5.1.1). A KB-SD-JWT takes the
 
 The wallet signs the KB-SD-JWT with the `cnf` key of the credential. Its `typ` is `kb-sd-jwt+kb` for the format `dSD-JWT+KB` and `kb+sd-jwt` for `dSD-JWT`. Its payload has `iat`, `aud`, `nonce`, `sd_hash`, `_sd_alg`, `delegate_payload` and `transaction_data_hashes`. `delegate_payload` is an array with the digest of each Delegate Payload disclosure. `_sd_alg` is the hash algorithm of `transaction_data_hashes`. The wallet copies the disclosures of the entry into the answer unchanged.
 
-The Delegate Holder presents a `dSD-JWT+KB` chain later. It keeps the disclosures meant for the verifier and appends a Key Binding JWT signed with its own key. `eudi decode` and `eudi validate` show the components of such a chain. See [ADR-0033](../adr/0033-delegate-transaction-data-is-answered-with-a-delegate-sd-jwt.md).
+The Delegate Holder presents a `dSD-JWT+KB` chain later. It keeps the disclosures meant for the verifier and appends a Key Binding JWT signed with its own key. `eudi decode` and `eudi validate` show each step of such a chain, as described in [the decoder](../decoder.md#delegate-sd-jwt). See [ADR-0033](../adr/0033-delegate-transaction-data-is-answered-with-a-delegate-sd-jwt.md).
 
 ### Transaction templates
 

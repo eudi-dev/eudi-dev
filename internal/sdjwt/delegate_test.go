@@ -769,3 +769,45 @@ func TestInspectDelegatePayload(t *testing.T) {
 		})
 	}
 }
+
+func TestInspectReportsEachStep(t *testing.T) {
+	f := newDelegationFixture(t)
+	credential := f.credential("sha-256", nil)
+	first := f.link(credential, linkSpec{typ: TypeKBSDJWTKB, signer: f.holder, delegate: f.agent})
+	// The cnf of the first Delegate Payload is the agent key, so the holder
+	// key does not verify the second KB-SD-JWT.
+	second := f.link(first, linkSpec{typ: TypeKBSDJWTKB, signer: f.holder, delegate: f.subject})
+	third := f.link(second, linkSpec{typ: TypeKBSDJWTKB, signer: f.subject, delegate: f.agent, change: func(payload map[string]any, _ *[]string) {
+		payload["sd_hash"] = "AAAA"
+	}})
+	raw := chain(f.keyBinding(third, f.agent, nil), credential, first, second, third)
+	d, err := ParseDelegation(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	report := d.Inspect(DelegationOptions{Now: delegationNow})
+	if report.Credential != nil {
+		t.Errorf("Credential = %v, want nil", report.Credential)
+	}
+	if len(report.Links) != 3 {
+		t.Fatalf("got %d link steps, want 3", len(report.Links))
+	}
+	if report.Links[0].Failed() {
+		t.Errorf("link 1 failed: %+v", report.Links[0])
+	}
+	if step := report.Links[1]; step.Signature == nil || step.Binding != nil || step.Other != nil {
+		t.Errorf("link 2 = %+v, want only a signature error", step)
+	}
+	if step := report.Links[2]; step.Signature != nil || step.Binding == nil || step.Other != nil {
+		t.Errorf("link 3 = %+v, want only a binding error", step)
+	}
+	if report.KeyBinding == nil || report.KeyBinding.Failed() {
+		t.Errorf("KeyBinding = %+v, want a passing step", report.KeyBinding)
+	}
+	if err := report.Err(); err == nil || !strings.HasPrefix(err.Error(), "KB-SD-JWT 2: ") {
+		t.Errorf("Err() = %v, want the error of KB-SD-JWT 2", err)
+	}
+	if got, want := report.Err().Error(), d.VerifyChain(DelegationOptions{Now: delegationNow}).Error(); got != want {
+		t.Errorf("Err() = %q, VerifyChain = %q", got, want)
+	}
+}

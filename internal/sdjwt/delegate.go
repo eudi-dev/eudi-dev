@@ -106,7 +106,7 @@ func ParseDelegation(raw string) (*Delegation, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", linkLabel(i), err)
 		}
-		d.Links = append(d.Links, &DelegationLink{Token: token, Payload: disclosedDelegatePayload(token)})
+		d.Links = append(d.Links, NewDelegationLink(token))
 	}
 	return d, nil
 }
@@ -144,6 +144,11 @@ func delegationSegments(components []string) ([]string, error) {
 
 func linkLabel(index int) string {
 	return fmt.Sprintf("KB-SD-JWT %d", index+1)
+}
+
+// NewDelegationLink reads the Delegate Payload of a parsed KB-SD-JWT.
+func NewDelegationLink(token *Token) *DelegationLink {
+	return &DelegationLink{Token: token, Payload: disclosedDelegatePayload(token)}
 }
 
 func disclosedDelegatePayload(token *Token) map[string]any {
@@ -189,82 +194,136 @@ func VerifyDelegation(raw string, issuerKey crypto.PublicKey, opts DelegationOpt
 // the validity period. VerifyDelegation also verifies the signature of the
 // Issuer-signed JWT.
 func (d *Delegation) VerifyChain(opts DelegationOptions) error {
-	now := opts.Now
-	if now.IsZero() {
-		now = time.Now()
-	}
 	// §6 step 5.1: "If the credential is a dSD-JWT (without Key Binding), the
 	// Verifier MUST reject the presentation".
 	if opts.RequireKeyBinding && d.KeyBindingJWT == nil {
 		return fmt.Errorf("the presentation is a dSD-JWT, but Key Binding is required")
 	}
-	if err := processedError(d.Credential, d.Credential.ResolvedClaims, now); err != nil {
-		return fmt.Errorf("SD-JWT: %w", err)
+	return d.Inspect(opts).Err()
+}
+
+// DelegationReport is the result of each component of a chain.
+// Delegation.Inspect returns it.
+type DelegationReport struct {
+	// Credential is the first error of the checks of the Disclosures and the
+	// validity period of the SD-JWT.
+	Credential error
+	// Links has one DelegationStep for each KB-SD-JWT, in chain order.
+	Links []DelegationStep
+	// KeyBinding is the DelegationStep of the Key Binding JWT of the Delegate
+	// Holder. It is nil for a dSD-JWT.
+	KeyBinding *DelegationStep
+}
+
+// DelegationStep is the result of one KB-SD-JWT or Key Binding JWT. Each
+// error is nil when its check passes.
+type DelegationStep struct {
+	// Signature reports the signature with the cnf key of the preceding
+	// component (§6 step 3.1).
+	Signature error
+	// Binding reports the sd_hash or issuer_jwt_hash over the preceding
+	// component (§6 steps 3.3 and 3.4).
+	Binding error
+	// Other is the first error of the other checks, such as the typ and the
+	// claims.
+	Other error
+	// first is the error that VerifyChain reports for the step.
+	first error
+}
+
+func (s *DelegationStep) record(field *error, err error) {
+	if err == nil {
+		return
 	}
+	if *field == nil {
+		*field = err
+	}
+	if s.first == nil {
+		s.first = err
+	}
+}
+
+// Failed reports whether a check of the step failed.
+func (s DelegationStep) Failed() bool {
+	return s.first != nil
+}
+
+// Err is the first error in chain order, the error that VerifyChain returns.
+func (r DelegationReport) Err() error {
+	if r.Credential != nil {
+		return fmt.Errorf("SD-JWT: %w", r.Credential)
+	}
+	for i, step := range r.Links {
+		if step.first != nil {
+			return fmt.Errorf("%s: %w", linkLabel(i), step.first)
+		}
+	}
+	if r.KeyBinding != nil && r.KeyBinding.first != nil {
+		return fmt.Errorf("the Key Binding JWT of the Delegate Holder: %w", r.KeyBinding.first)
+	}
+	return nil
+}
+
+// Inspect runs the checks of VerifyChain and reports each component on its
+// own. A step after a failing step is still checked.
+func (d *Delegation) Inspect(opts DelegationOptions) DelegationReport {
+	now := opts.Now
+	if now.IsZero() {
+		now = time.Now()
+	}
+	r := DelegationReport{Credential: processedError(d.Credential, d.Credential.ResolvedClaims, now)}
 	preceding, precedingClaims := d.Credential, d.Credential.ResolvedClaims
 	for i, link := range d.Links {
 		// §6 steps 3.5 and 4.2 allow the typ kb+sd-jwt only for the final
 		// KB-SD-JWT of a dSD-JWT.
 		final := i == len(d.Links)-1 && d.KeyBindingJWT == nil
-		if err := link.verify(preceding, precedingClaims, final, now); err != nil {
-			return fmt.Errorf("%s: %w", linkLabel(i), err)
+		step := link.check(preceding, precedingClaims, final, now)
+		if final {
+			step.record(&step.Other, bindingError(link.Token.Payload, opts))
 		}
+		r.Links = append(r.Links, step)
 		preceding, precedingClaims = link.Token, link.Payload
 	}
-	if d.KeyBindingJWT == nil {
-		if err := bindingError(preceding.Payload, opts); err != nil {
-			return fmt.Errorf("%s: %w", linkLabel(len(d.Links)-1), err)
-		}
-		return nil
+	if d.KeyBindingJWT != nil {
+		step := d.checkKeyBinding(preceding, precedingClaims, opts)
+		r.KeyBinding = &step
 	}
-	if err := d.verifyKeyBinding(preceding, precedingClaims, opts); err != nil {
-		return fmt.Errorf("the Key Binding JWT of the Delegate Holder: %w", err)
-	}
-	return nil
+	return r
 }
 
-// verify runs §6 steps 3.1 to 3.5 on one KB-SD-JWT. preceding is the SD-JWT or
+// check runs §6 steps 3.1 to 3.5 on one KB-SD-JWT. preceding is the SD-JWT or
 // KB-SD-JWT before it, and precedingClaims are its processed claims.
-func (l *DelegationLink) verify(preceding *Token, precedingClaims map[string]any, final bool, now time.Time) error {
+func (l *DelegationLink) check(preceding *Token, precedingClaims map[string]any, final bool, now time.Time) DelegationStep {
+	var s DelegationStep
 	typ, _ := l.Token.Header["typ"].(string)
 	withKeyBinding := format.JOSETypeIs(typ, TypeKBSDJWTKB)
 	switch {
 	case withKeyBinding:
 	case !final:
-		return fmt.Errorf("typ is %q. A KB-SD-JWT followed by another component needs %q", typ, TypeKBSDJWTKB)
+		s.record(&s.Other, fmt.Errorf("typ is %q. A KB-SD-JWT followed by another component needs %q", typ, TypeKBSDJWTKB))
 	case !format.JOSETypeIs(typ, TypeKBSDJWT):
-		return fmt.Errorf("typ is %q, expected %q or %q", typ, TypeKBSDJWT, TypeKBSDJWTKB)
+		s.record(&s.Other, fmt.Errorf("typ is %q, expected %q or %q", typ, TypeKBSDJWT, TypeKBSDJWTKB))
 	}
 	// §6 step 3.1: "The cnf claim of the preceding component is used as the
 	// Issuer public key."
-	key, err := confirmationKey(precedingClaims)
-	if err != nil {
-		return fmt.Errorf("the preceding component %w", err)
-	}
-	if err := verifySignature(l.Token, key); err != nil {
-		return err
+	if key, err := confirmationKey(precedingClaims); err != nil {
+		s.record(&s.Signature, fmt.Errorf("the preceding component %w", err))
+	} else {
+		s.record(&s.Signature, verifySignature(l.Token, key))
 	}
 	// §5.1.4: "KB-SD-JWTs MUST conform to all the requirements of a KB-JWT".
-	if err := keyBindingClaimsError(l.Token.Payload); err != nil {
-		return err
-	}
-	if err := l.delegatePayloadError(); err != nil {
-		return err
-	}
-	if err := processedError(l.Token, l.Payload, now); err != nil {
-		return err
-	}
-	if err := precedingHashError(l.Token.Payload, preceding); err != nil {
-		return err
-	}
+	s.record(&s.Other, keyBindingClaimsError(l.Token.Payload))
+	s.record(&s.Other, l.delegatePayloadError())
+	s.record(&s.Other, processedError(l.Token, l.Payload, now))
+	s.record(&s.Binding, precedingHashError(l.Token.Payload, preceding))
 	// §5.1.4: "If the typ is KB-SD-JWT+KB then the Delegate Payload MUST
 	// include a cnf claim."
 	if withKeyBinding {
 		if _, err := confirmationKey(l.Payload); err != nil {
-			return fmt.Errorf("the typ is %q, but the Delegate Payload %w", TypeKBSDJWTKB, err)
+			s.record(&s.Other, fmt.Errorf("the typ is %q, but the Delegate Payload %w", TypeKBSDJWTKB, err))
 		}
 	}
-	return nil
+	return s
 }
 
 // delegatePayloadError checks delegate_payload against §5.1.4 and §6 step 3.2.
@@ -338,34 +397,30 @@ func precedingHashError(payload map[string]any, preceding *Token) error {
 	return nil
 }
 
-// verifyKeyBinding checks the Key Binding JWT of the Delegate Holder (§6 steps
+// checkKeyBinding checks the Key Binding JWT of the Delegate Holder (§6 steps
 // 5.2 and 5.3). last is the final KB-SD-JWT and delegatePayload its Delegate
 // Payload.
-func (d *Delegation) verifyKeyBinding(last *Token, delegatePayload map[string]any, opts DelegationOptions) error {
+func (d *Delegation) checkKeyBinding(last *Token, delegatePayload map[string]any, opts DelegationOptions) DelegationStep {
+	var s DelegationStep
 	kb := d.KeyBindingJWT
 	if typ, _ := kb.Header["typ"].(string); !format.JOSETypeIs(typ, TypeKeyBinding) {
-		return fmt.Errorf("typ is %q, expected %q", typ, TypeKeyBinding)
+		s.record(&s.Other, fmt.Errorf("typ is %q, expected %q", typ, TypeKeyBinding))
 	}
-	key, err := confirmationKey(delegatePayload)
-	if err != nil {
-		return fmt.Errorf("the final Delegate Payload %w", err)
+	if key, err := confirmationKey(delegatePayload); err != nil {
+		s.record(&s.Signature, fmt.Errorf("the final Delegate Payload %w", err))
+	} else {
+		s.record(&s.Signature, verifySignature(&Token{Raw: kb.Raw, Header: kb.Header}, key))
 	}
-	if err := verifySignature(&Token{Raw: kb.Raw, Header: kb.Header}, key); err != nil {
-		return err
-	}
-	if err := keyBindingClaimsError(kb.Payload); err != nil {
-		return err
-	}
+	s.record(&s.Other, keyBindingClaimsError(kb.Payload))
 	// §5.1.3: "the REQUIRED sd_hash is calculated over the preceding KB-SD-JWT
 	// and its associated disclosures."
-	want, err := SDHash(last.Raw, last.SDAlg())
-	if err != nil {
-		return err
+	if want, err := SDHash(last.Raw, last.SDAlg()); err != nil {
+		s.record(&s.Binding, err)
+	} else if got, _ := kb.Payload["sd_hash"].(string); got != want {
+		s.record(&s.Binding, fmt.Errorf("sd_hash does not match the final KB-SD-JWT and its Disclosures"))
 	}
-	if got, _ := kb.Payload["sd_hash"].(string); got != want {
-		return fmt.Errorf("sd_hash does not match the final KB-SD-JWT and its Disclosures")
-	}
-	return bindingError(kb.Payload, opts)
+	s.record(&s.Other, bindingError(kb.Payload, opts))
+	return s
 }
 
 // keyBindingClaimsError checks the claims that RFC 9901 §4.3 requires in a

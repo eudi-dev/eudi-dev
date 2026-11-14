@@ -162,6 +162,113 @@ test.describe("Certificate decoding", () => {
   });
 });
 
+test.describe("Delegate SD-JWT decoding", () => {
+  test("shows the payload of each part of the chain and opens it in the decoder", async ({ page }) => {
+    const chain = readFileSync(path.join(__dirname, "fixtures/delegate-sd-jwt-kb.txt"), "utf8").trim();
+    const link = chain.slice(0, chain.lastIndexOf("~")).split("~~")[1] + "~";
+    await page.goto("/");
+    await page.locator("#input").fill(chain);
+    const delegation = page.locator('#output .section[data-section="delegation"]');
+    await expect(delegation.locator(".section-header")).toContainText("Delegate SD-JWT (dSD-JWT+KB)");
+    await expect(page.locator("#output-delegation-intro")).toContainText("draft-ietf-oauth-delegate-sd-jwt-00");
+    await expect(page.locator("#output-delegation-link-1-title")).toContainText("KB-SD-JWT 1");
+    await expect(page.locator("#output-delegation-link-1-delegate-payload")).toContainText("urn:example:mandate:1");
+    await expect(page.locator("#output-delegation-kb-jwt-title")).toContainText("Key Binding JWT");
+    await expect(page.locator("#output-delegation-kb-jwt-payload")).toContainText("https://verifier.example");
+
+    await page.locator("#output-delegation-link-1").hover();
+    await expect(page.locator("#raw-view-delegation-link-1")).toHaveClass(/highlight/);
+    await expect(page.locator("#raw-view-delegation-kb-jwt")).not.toHaveClass(/highlight/);
+
+    await page.locator("#output-delegation-link-1-open").click();
+    await expect(page.locator("#input")).toHaveValue(link);
+    await expect(page.locator("#format-badge")).toHaveText("KB-SD-JWT");
+    await expect(page.locator(".validity-banner")).toContainText("kb-sd-jwt+kb");
+    await expect(page.locator(".vg-violations")).toHaveCount(0);
+    await expect(page.locator('#output .section[data-section="delegation"] .section-header')).toContainText("Delegation (KB-SD-JWT)");
+    const step = page.locator("#output-delegation-chain-steps > .chain-step");
+    await expect(step).toHaveCount(1);
+    await expect(step).toContainText("Signed by");
+    await expect(step).toContainText("The delegate key of the part before it");
+    await expect(step.locator(".key-issuer")).toHaveCount(0);
+    await expect(step.locator(".key-letter")).toHaveText(["A"]);
+  });
+
+  test("shows a chain with 1 KB-SD-JWT as a timeline", async ({ page }) => {
+    const chain = readFileSync(path.join(__dirname, "fixtures/delegate-sd-jwt-kb.txt"), "utf8").trim();
+    await page.goto("/");
+    await page.locator("#input").fill(chain);
+    const steps = page.locator("#output-delegation-chain-steps > .chain-step");
+    await expect(steps).toHaveCount(3);
+    await expect(steps.nth(0)).toContainText("SD-JWT");
+    await expect(steps.nth(0).locator(".key-letter")).toHaveText(["I", "A"]);
+    await expect(steps.nth(1)).toContainText("KB-SD-JWT 1");
+    await expect(steps.nth(1).locator(".key-letter")).toHaveText(["A", "B"]);
+    await expect(steps.nth(1).locator(".mark-pass")).toHaveText(["✓Signature", "✓Binding"]);
+    await expect(steps.nth(2)).toContainText("Key Binding JWT");
+    await expect(steps.nth(2)).toContainText("nonce");
+    await expect(page.locator("#output-delegation-chain .status-fail")).toHaveCount(0);
+
+    await steps.nth(0).hover();
+    await expect(page.locator("#raw-view-chain-credential")).toHaveClass(/highlight/);
+    await steps.nth(2).hover();
+    await expect(page.locator("#raw-view-delegation-kb-jwt")).toHaveClass(/highlight/);
+    await expect(page.locator("#raw-view-chain-credential")).not.toHaveClass(/highlight/);
+  });
+
+  test("marks the failing step of a chain with 3 KB-SD-JWTs and the steps after it", async ({ page }) => {
+    const chain = readFileSync(path.join(__dirname, "fixtures/delegate-sd-jwt-broken.txt"), "utf8").trim();
+    await page.goto("/");
+    await page.locator("#input").fill(chain);
+    const steps = page.locator("#output-delegation-chain-steps > .chain-step");
+    await expect(steps).toHaveCount(4);
+    await expect(steps.nth(1)).toHaveClass(/status-pass/);
+    await expect(steps.nth(2)).toHaveClass(/status-fail/);
+    await expect(steps.nth(2)).toContainText("Expected signer");
+    await expect(steps.nth(2).locator(".step-note-fail")).toHaveText("The signature does not match key B. KB-SD-JWT 1 delegates to key B.");
+    await expect(steps.nth(3)).toHaveClass(/status-untrusted/);
+    await expect(steps.nth(3)).toContainText("Not trusted because KB-SD-JWT 2 fails.");
+    await expect(page.locator(".vg-violations")).toContainText("Delegation");
+
+    for (const n of [1, 2, 3]) {
+      await expect(page.locator("#raw-view-delegation-link-" + n)).toHaveCount(1);
+    }
+    await steps.nth(3).hover();
+    await expect(page.locator("#raw-view-delegation-link-3")).toHaveClass(/highlight/);
+  });
+
+  test("shows the limits of a chain with 3 KB-SD-JWTs", async ({ page }) => {
+    const chain = readFileSync(path.join(__dirname, "fixtures/delegate-sd-jwt-3-links.txt"), "utf8").trim();
+    await page.goto("/");
+    await page.locator("#input").fill(chain);
+    const steps = page.locator("#output-delegation-chain-steps > .chain-step");
+    await expect(steps).toHaveCount(4);
+    await expect(page.locator("#output-delegation-chain .status-fail")).toHaveCount(0);
+    await expect(steps.nth(1)).toContainText("max_amount 500 EUR");
+    await expect(steps.nth(2)).toContainText("max_amount 100 EUR");
+    await expect(steps.nth(3)).toContainText("No one. The chain ends here.");
+    await expect(steps.nth(3).locator(".key-letter")).toHaveText(["C"]);
+
+    // Raw view: the credential, then each KB-SD-JWT after an empty component.
+    const raw = await page.locator("#raw-view").textContent();
+    expect(raw).toBe(chain);
+  });
+
+  // RFC 9901 §4: an SD-JWT has no empty component. Without a KB-SD-JWT after
+  // it, the input is a malformed SD-JWT.
+  test("treats an empty component without a KB-SD-JWT as a malformed SD-JWT", async ({ page }) => {
+    const chain = readFileSync(path.join(__dirname, "fixtures/delegate-sd-jwt-kb.txt"), "utf8").trim();
+    const [issuerJWT, disclosure] = chain.split("~");
+    await page.goto("/");
+    for (const text of [issuerJWT + "~" + disclosure + "~~", issuerJWT + "~~" + issuerJWT + "~"]) {
+      await page.locator("#input").fill(text);
+      await expect(page.locator("#output")).toContainText("parsing SD-JWT: invalid SD-JWT: component");
+      await expect(page.locator("#raw-view-delegation-link-1")).toHaveCount(0);
+      await expect(page.locator('#output .section[data-section="delegation"]')).toHaveCount(0);
+    }
+  });
+});
+
 test.describe("JWT decoding", () => {
   test("decodes a trust-list JWT and displays its payload", async ({ page }) => {
     const jwt = readFileSync(

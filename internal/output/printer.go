@@ -95,12 +95,22 @@ func BuildSDJWTJSON(token *sdjwt.Token) map[string]any {
 }
 
 func PrintSDJWT(token *sdjwt.Token, opts Options) {
+	printSDJWT("SD-JWT Credential", token, opts)
+}
+
+// PrintKBSDJWT prints a KB-SD-JWT on its own
+// (draft-ietf-oauth-delegate-sd-jwt-00 §5.1.4).
+func PrintKBSDJWT(token *sdjwt.Token, opts Options) {
+	printSDJWT("KB-SD-JWT", token, opts)
+}
+
+func printSDJWT(title string, token *sdjwt.Token, opts Options) {
 	if opts.JSON {
 		PrintJSON(BuildSDJWTJSON(token))
 		return
 	}
 
-	headerColor.Println("SD-JWT Credential")
+	headerColor.Println(title)
 	headerColor.Println(strings.Repeat("─", 50))
 
 	printSection("Header")
@@ -165,27 +175,6 @@ func BuildDelegationJSON(d *sdjwt.Delegation) map[string]any {
 		out["keyBindingJWT"] = map[string]any{"header": d.KeyBindingJWT.Header, "payload": d.KeyBindingJWT.Payload}
 	}
 	return out
-}
-
-// PrintDelegation prints the components after the SD-JWT of a Delegate SD-JWT.
-func PrintDelegation(d *sdjwt.Delegation) {
-	headerColor.Printf("Delegation (%s)\n", d.Format())
-	headerColor.Println(strings.Repeat("─", 50))
-	for i, link := range d.Links {
-		printSection(fmt.Sprintf("KB-SD-JWT %d Header", i+1))
-		printMap(link.Token.Header, 1)
-		printSection(fmt.Sprintf("KB-SD-JWT %d Payload", i+1))
-		printMap(link.Token.Payload, 1)
-		if link.Payload != nil {
-			printSection(fmt.Sprintf("Delegate Payload %d", i+1))
-			printMap(link.Payload, 1)
-		}
-	}
-	if d.KeyBindingJWT != nil {
-		printSection("Key Binding JWT of the Delegate Holder")
-		printMap(d.KeyBindingJWT.Payload, 1)
-	}
-	fmt.Println()
 }
 
 func BuildJWTJSON(token *sdjwt.Token) map[string]any {

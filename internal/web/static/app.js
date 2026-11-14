@@ -30,6 +30,7 @@
   let walletCredential = null;
 
   const DISC_COLORS = 8;
+  const DLINK_COLORS = 3;
 
   const TIMESTAMP_FIELDS = new Set(["exp", "iat", "nbf", "auth_time", "updated_at"]);
 
@@ -124,8 +125,6 @@
     }
   });
 
-  let sectionRanges = [];
-
   function idPart(text) {
     return String(text).replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || "empty";
   }
@@ -152,89 +151,102 @@
 
   function updateRawView() {
     const text = input.value.trim();
-    sectionRanges = [];
     if (!text) {
       rawView.innerHTML = '<span id="raw-view-empty" style="color:var(--text-dim);font-style:italic">No input</span>';
       return;
     }
-
-    const parts = text.split("~");
-    const jwtPart = parts[0];
-    const jwtSegments = jwtPart.split(".");
-
-    if (jwtSegments.length >= 2) {
-      let html = "";
-      let pos = 0;
-      let sepCount = 0;
-      const separator = (ch) => '<span class="jwt-separator" id="raw-view-sep-' + sepCount++ + '">' + ch + "</span>";
-
-      sectionRanges.push({ start: pos, end: pos + jwtSegments[0].length, section: "header" });
-      html += '<span class="jwt-header" id="raw-view-header" data-section="header">' + escapeHtml(jwtSegments[0]) + "</span>";
-      pos += jwtSegments[0].length;
-
-      html += separator(".");
-      pos += 1;
-
-      sectionRanges.push({ start: pos, end: pos + jwtSegments[1].length, section: "payload" });
-      html += '<span class="jwt-payload" id="raw-view-payload" data-section="payload">' + escapeHtml(jwtSegments[1]) + "</span>";
-      pos += jwtSegments[1].length;
-
-      if (jwtSegments.length > 2) {
-        html += separator(".");
-        pos += 1;
-        const sigText = jwtSegments.slice(2).join(".");
-        sectionRanges.push({ start: pos, end: pos + sigText.length, section: "signature" });
-        html += '<span class="jwt-signature" id="raw-view-signature" data-section="signature">' + escapeHtml(sigText) + "</span>";
-        pos += sigText.length;
-      }
-
-      let kbJwtIndex = -1;
-      if (parts.length > 1) {
-        for (let i = parts.length - 1; i >= 1; i--) {
-          if (parts[i] && parts[i].includes(".")) {
-            kbJwtIndex = i;
-            break;
-          }
-        }
-      }
-
-      let discIdx = 0;
-      for (let i = 1; i < parts.length; i++) {
-        html += separator("~");
-        pos += 1;
-        if (parts[i]) {
-          if (i === kbJwtIndex) {
-            const kbSegs = parts[i].split(".");
-            sectionRanges.push({ start: pos, end: pos + parts[i].length, section: "kb-jwt" });
-            html += '<span id="raw-view-kb-jwt" data-section="kb-jwt">';
-            html += '<span class="jwt-header" id="raw-view-kb-jwt-header">' + escapeHtml(kbSegs[0]) + "</span>";
-            if (kbSegs.length > 1) {
-              html += separator(".");
-              html += '<span class="jwt-payload" id="raw-view-kb-jwt-payload">' + escapeHtml(kbSegs[1]) + "</span>";
-            }
-            if (kbSegs.length > 2) {
-              html += separator(".");
-              html += '<span class="jwt-signature" id="raw-view-kb-jwt-signature">' + escapeHtml(kbSegs.slice(2).join(".")) + "</span>";
-            }
-            html += "</span>";
-            pos += parts[i].length;
-          } else {
-            const colorIdx = discIdx % DISC_COLORS;
-            sectionRanges.push({ start: pos, end: pos + parts[i].length, section: "disc-" + discIdx });
-            html += '<span class="jwt-disc-' + colorIdx + '" id="raw-view-disc-' + discIdx + '" data-section="disc-' + discIdx + '">' + escapeHtml(parts[i]) + "</span>";
-            pos += parts[i].length;
-            discIdx++;
-          }
-        }
-      }
-
-      rawView.innerHTML = html;
-    } else {
+    if (text.split("~")[0].split(".").length < 2) {
       rawView.innerHTML = escapeHtml(text);
+      return;
     }
+    let sepCount = 0;
+    const separator = (ch) => '<span class="jwt-separator" id="raw-view-sep-' + sepCount++ + '">' + ch + "</span>";
+    const chain = rawChain(text);
+    rawView.innerHTML = chain ? chainRawHTML(chain, separator) : sdJwtRawHTML(text, separator);
+  }
+
+  // rawChain returns the parts of the decoded Delegate SD-JWT when they make
+  // up the input. The input then reads credential, "~" and KB-SD-JWT for each
+  // link, and the Key Binding JWT (draft-ietf-oauth-delegate-sd-jwt-00
+  // §5.1.1). Until the decoder answers, the input shows as one SD-JWT.
+  function rawChain(text) {
+    const parts = lastData && lastData.delegation && lastData.chain && lastData.chain.parts;
+    if (!parts || !parts.length || parts[0].kind !== "sd-jwt") return null;
+    const links = parts.filter((p) => p.kind === "kb-sd-jwt");
+    const kb = parts.find((p) => p.kind === "kb-jwt");
+    const joined = parts[0].raw + links.map((p) => "~" + p.raw).join("") + (kb ? kb.raw : "");
+    return joined === text ? { credential: parts[0].raw, links: links.map((p) => p.raw), keyBindingJWT: kb ? kb.raw : "" } : null;
+  }
+
+  function chainRawHTML(chain, separator) {
+    let html = '<span id="raw-view-chain-credential" data-section="chain-credential">' + sdJwtRawHTML(chain.credential, separator) + "</span>";
+    chain.links.forEach((link, i) => {
+      const n = i + 1;
+      html += separator("~");
+      const parts = link.split("~").map((part) => escapeHtml(part));
+      html += '<span class="jwt-dlink-' + (i % DLINK_COLORS) + '" id="raw-view-delegation-link-' + n + '" data-section="delegation-link-' + n + '">' +
+        parts.join(separator("~")) + "</span>";
+    });
+    if (chain.keyBindingJWT) {
+      html += '<span class="jwt-dkb" id="raw-view-delegation-kb-jwt" data-section="delegation-kb-jwt">' + escapeHtml(chain.keyBindingJWT) + "</span>";
+    }
+    return html;
+  }
+
+  // sdJwtRawHTML colors a JWT or an SD-JWT: header, payload, signature, each
+  // disclosure and the Key Binding JWT.
+  function sdJwtRawHTML(text, separator) {
+    const parts = text.split("~");
+    const jwtSegments = parts[0].split(".");
+    let html = '<span class="jwt-header" id="raw-view-header" data-section="header">' + escapeHtml(jwtSegments[0]) + "</span>";
+    html += separator(".");
+    html += '<span class="jwt-payload" id="raw-view-payload" data-section="payload">' + escapeHtml(jwtSegments[1]) + "</span>";
+    if (jwtSegments.length > 2) {
+      html += separator(".");
+      html += '<span class="jwt-signature" id="raw-view-signature" data-section="signature">' + escapeHtml(jwtSegments.slice(2).join(".")) + "</span>";
+    }
+
+    let kbJwtIndex = -1;
+    for (let i = parts.length - 1; i >= 1; i--) {
+      if (parts[i] && parts[i].includes(".")) {
+        kbJwtIndex = i;
+        break;
+      }
+    }
+
+    let discIdx = 0;
+    for (let i = 1; i < parts.length; i++) {
+      html += separator("~");
+      if (!parts[i]) continue;
+      if (i === kbJwtIndex) {
+        const kbSegs = parts[i].split(".");
+        html += '<span id="raw-view-kb-jwt" data-section="kb-jwt">';
+        html += '<span class="jwt-header" id="raw-view-kb-jwt-header">' + escapeHtml(kbSegs[0]) + "</span>";
+        if (kbSegs.length > 1) {
+          html += separator(".");
+          html += '<span class="jwt-payload" id="raw-view-kb-jwt-payload">' + escapeHtml(kbSegs[1]) + "</span>";
+        }
+        if (kbSegs.length > 2) {
+          html += separator(".");
+          html += '<span class="jwt-signature" id="raw-view-kb-jwt-signature">' + escapeHtml(kbSegs.slice(2).join(".")) + "</span>";
+        }
+        html += "</span>";
+      } else {
+        html += '<span class="jwt-disc-' + (discIdx % DISC_COLORS) + '" id="raw-view-disc-' + discIdx + '" data-section="disc-' + discIdx + '">' + escapeHtml(parts[i]) + "</span>";
+        discIdx++;
+      }
+    }
+    return html;
   }
 
   let lastHoveredSection = null;
+
+  // A raw part of a Delegate SD-JWT has a step in the chain and a summary box.
+  function hoverTargets(sec) {
+    const section = outputEl.querySelector('.section[data-section="' + sec + '"]');
+    const parts = outputEl.querySelectorAll('.chain-step[data-section="' + sec + '"], .delegation-part[data-section="' + sec + '"]');
+    return (section ? [section] : []).concat(Array.from(parts));
+  }
 
   function clearHoverHighlight() {
     if (!lastHoveredSection) return;
@@ -249,8 +261,7 @@
       const item = outputEl.querySelector('.disclosure-item[data-disc-index="' + idx + '"]');
       if (item) item.classList.remove("highlight");
     } else {
-      const target = outputEl.querySelector('.section[data-section="' + sec + '"]');
-      if (target) target.classList.remove("highlight");
+      hoverTargets(sec).forEach((target) => target.classList.remove("highlight"));
     }
   }
 
@@ -267,8 +278,7 @@
       const item = outputEl.querySelector('.disclosure-item[data-disc-index="' + idx + '"]');
       if (item) item.classList.add("highlight");
     } else {
-      const target = outputEl.querySelector('.section[data-section="' + sec + '"]');
-      if (target) target.classList.add("highlight");
+      hoverTargets(sec).forEach((target) => target.classList.add("highlight"));
     }
   }
 
@@ -368,7 +378,11 @@
     lastValidation = data.validation || null;
     renderedSeq = seq;
     showResult(data, opts);
-    showColorized();
+    if (colorized) {
+      updateRawView();
+    } else {
+      showColorized();
+    }
   }
 
   function showDecodeError(message) {
@@ -441,6 +455,7 @@
 
   function showResult(data, opts) {
     updateBadge(data.format);
+    if (data.chain && data.chain.format === "KB-SD-JWT") formatBadge.textContent = "KB-SD-JWT";
     outputEl.innerHTML = "";
     usedIds = new Set();
     credentialCertificates = certificatesByDER(data);
@@ -551,10 +566,11 @@
     return CHECK_NAMES[name] || name.charAt(0).toUpperCase() + name.slice(1);
   }
 
-  // A passing type check shows the typ value. It keeps its case.
+  // A passing type check shows the typ value and a passing delegation check
+  // starts with the format name. Both keep their case.
   function checkDetail(c) {
     const detail = c.detail || "";
-    if (c.name === "type" && c.status === "pass") return detail;
+    if ((c.name === "type" || c.name === "delegation") && c.status === "pass") return detail;
     return detail.charAt(0).toUpperCase() + detail.slice(1);
   }
 
@@ -822,7 +838,10 @@
 
     if (data.delegation) {
       const base = reserveSection("output-delegation");
-      appendSection("Delegation (" + data.delegation.format + ")", renderJSONBlock(data.delegation, { timestampKeys: TIMESTAMP_FIELDS }, base + "-json"), data.delegation, "delegation", base);
+      appendSection("Delegate SD-JWT (" + data.delegation.format + ")", renderDelegation(data.delegation, data.chain, base), data.delegation, "delegation", base);
+    } else if (data.chain) {
+      const base = reserveSection("output-delegation");
+      appendSection("Delegation (" + data.chain.format + ")", renderChain(data.chain.parts, base + "-chain"), data.chain, "delegation", base);
     }
 
     if (data.warnings && data.warnings.length > 0) {
@@ -1271,6 +1290,169 @@
     section.appendChild(header);
     section.appendChild(body);
     outputEl.appendChild(section);
+  }
+
+  // renderDelegation shows a Delegate SD-JWT (draft-ietf-oauth-delegate-sd-jwt-00
+  // §5.1.1) as a timeline of its parts. A box below it shows the payload of
+  // each KB-SD-JWT and of the Key Binding JWT. Each part opens on its own in
+  // the decoder.
+  function renderDelegation(delegation, chain, base) {
+    const wrap = document.createElement("div");
+    const nowrap = (text) => '<span class="nowrap">' + escapeHtml(text) + "</span>";
+    const note = (html, id) => {
+      const p = document.createElement("div");
+      p.className = "format-note delegation-note";
+      setId(p, id);
+      p.innerHTML = html;
+      return p;
+    };
+    const links = delegation.kbSdJwts || [];
+    const parts = (chain && chain.parts) || [];
+    const linkParts = parts.filter((p) => p.kind === "kb-sd-jwt");
+    const kbPart = parts.find((p) => p.kind === "kb-jwt");
+    wrap.appendChild(note(nowrap("Delegate SD-JWT") + " is an experimental format (" + nowrap("draft-ietf-oauth-delegate-sd-jwt-00") + "). " +
+      "The chain starts with the " + nowrap("SD-JWT") + " shown above and has " +
+      (links.length === 1
+        ? "1 " + nowrap("KB-SD-JWT") + ". It delegates the credential to another key."
+        : links.length + " " + nowrap("KB-SD-JWTs") + ". Each one delegates the credential to the next key.") +
+      (delegation.keyBindingJWT ? " The Delegate Holder signs the Key Binding JWT at the end." : ""), base + "-intro"));
+    if (parts.length) wrap.appendChild(renderChain(parts, base + "-chain"));
+    links.forEach((link, i) => {
+      if (!linkParts[i] || !link.delegatePayload) return;
+      const id = base + "-link-" + (i + 1);
+      const part = delegationPart(linkParts[i], "delegation-link-" + (i + 1), id);
+      part.appendChild(createSubSection("Delegate Payload", renderJSONBlock(link.delegatePayload, { timestampKeys: TIMESTAMP_FIELDS }, id + "-delegate-payload-json"), id + "-delegate-payload"));
+      wrap.appendChild(part);
+    });
+    if (delegation.keyBindingJWT && kbPart) {
+      const id = base + "-kb-jwt";
+      const part = delegationPart(kbPart, "delegation-kb-jwt", id);
+      part.appendChild(createSubSection("Payload", renderJSONBlock(delegation.keyBindingJWT.payload, { timestampKeys: TIMESTAMP_FIELDS }, id + "-payload-json"), id + "-payload"));
+      wrap.appendChild(part);
+    }
+    return wrap;
+  }
+
+  const CHAIN_SECTIONS = { "sd-jwt": () => "chain-credential", "kb-sd-jwt": (i) => "delegation-link-" + i, "kb-jwt": () => "delegation-kb-jwt" };
+  const CHAIN_MARK_ICONS = { pass: "✓", fail: "✗", not_checked: "○" };
+
+  // renderChain draws the timeline of a Delegate SD-JWT from the chain member
+  // of the decoder response. A key keeps its letter and color in every step.
+  function renderChain(parts, id) {
+    const wrap = document.createElement("div");
+    wrap.className = "chain-diagram";
+    const wrapId = setId(wrap, id);
+    const legend = document.createElement("p");
+    legend.className = "chain-legend";
+    setId(legend, wrapId + "-legend");
+    legend.textContent = "The same letter means the same key.";
+    wrap.appendChild(legend);
+    const list = document.createElement("ol");
+    list.className = "chain";
+    setId(list, wrapId + "-steps");
+    parts.forEach((p, i) => list.appendChild(renderChainStep(p, i, wrapId + "-step-" + i)));
+    wrap.appendChild(list);
+    return wrap;
+  }
+
+  function chainStepStatus(p) {
+    if (p.signature.status === "fail" || (p.binding && p.binding.status === "fail") || p.problem) return "fail";
+    if (!p.trusted) return "untrusted";
+    if (p.signature.status === "not_checked") return "skip";
+    return "pass";
+  }
+
+  function renderChainStep(p, index, id) {
+    const section = CHAIN_SECTIONS[p.kind](index);
+    const step = document.createElement("li");
+    step.className = "chain-step status-" + chainStepStatus(p);
+    step.setAttribute("data-section", section);
+    setId(step, id);
+    step.innerHTML = '<span class="rail" aria-hidden="true"><span class="rail-dot"></span></span>';
+    const card = document.createElement("div");
+    card.className = "step-card";
+    let head = '<div class="step-head"><span class="step-title">' + escapeHtml(p.label) + '</span><code class="typ">' + escapeHtml(p.typ) + "</code>";
+    head += '<span class="marks">' + chainMark(p.signature) + (p.binding ? chainMark(p.binding) : "") + "</span></div>";
+    const fact = (label, html, cls) => "<div><dt>" + escapeHtml(label) + "</dt><dd" + (cls ? ' class="' + cls + '"' : "") + ">" + html + "</dd></div>";
+    let facts = '<dl class="facts">';
+    facts += fact(p.signerLabel, p.signer ? keyChip(p.signer) : p.kind === "sd-jwt" ? issuerChip(p.signerText) : '<span class="key-none">' + escapeHtml(p.signerText) + "</span>");
+    facts += fact(p.delegateLabel, p.delegate ? keyChip(p.delegate) : '<span class="key-none">' + escapeHtml(p.delegateText) + "</span>");
+    facts += fact(p.untilLabel, escapeHtml(p.until), "mono");
+    facts += fact(p.limitsLabel, '<span class="limits">' + p.limits.map((l) =>
+      '<span class="limit"><span class="limit-key">' + escapeHtml(l.name) + "</span> " + breakableValue(l.value) + "</span>").join("") + "</span>");
+    facts += "</dl>";
+    let notes = "";
+    if (p.signature.status === "fail") notes += '<div class="step-note step-note-fail">' + escapeHtml(p.signature.detail) + "</div>";
+    if (p.binding && p.binding.status === "fail") notes += '<div class="step-note step-note-fail">' + escapeHtml(p.binding.detail) + "</div>";
+    if (p.problem) notes += '<div class="step-note step-note-fail">' + escapeHtml(p.problem) + "</div>";
+    if (p.trustDetail) notes += '<div class="step-note">' + escapeHtml(p.trustDetail) + "</div>";
+    card.innerHTML = head + facts + notes;
+    step.appendChild(card);
+    const spans = () => rawView.querySelectorAll('[data-section="' + section + '"]');
+    step.addEventListener("mouseenter", () => {
+      step.classList.add("highlight");
+      spans().forEach((s) => s.classList.add("highlight"));
+    });
+    step.addEventListener("mouseleave", () => {
+      step.classList.remove("highlight");
+      spans().forEach((s) => s.classList.remove("highlight"));
+    });
+    return step;
+  }
+
+  function chainMark(check) {
+    return '<span class="mark mark-' + check.status + '" title="' + escapeHtml(check.detail) + '"><span class="mark-icon">' +
+      CHAIN_MARK_ICONS[check.status] + "</span>" + escapeHtml(check.label) + "</span>";
+  }
+
+  // keyChip shows a key by its letter and a shortened JWK thumbprint (RFC 7638).
+  function keyChip(key) {
+    const thumb = key.thumbprint.slice(0, 8) + "…" + key.thumbprint.slice(-6);
+    return '<span class="key-chip k-' + escapeHtml(key.label.toLowerCase()) + '" title="Key ' + escapeHtml(key.label) + ", JWK thumbprint " + escapeHtml(key.thumbprint) +
+      '"><span class="key-letter">' + escapeHtml(key.label) + '</span><span class="key-thumb">' + escapeHtml(thumb) + "</span></span>";
+  }
+
+  // issuerChip shows the issuer as the signer of the SD-JWT. The chain holds
+  // no key of the issuer.
+  function issuerChip(text) {
+    return '<span class="key-chip key-issuer" title="' + escapeHtml(text) + '"><span class="key-letter">I</span><span class="key-thumb">' + escapeHtml(text) + "</span></span>";
+  }
+
+  // breakableValue lets a URL or URN wrap after a colon or a slash.
+  function breakableValue(value) {
+    return escapeHtml(value).replace(/([:/])(?!\/)/g, "$1<wbr>");
+  }
+
+  // delegationPart is the box of one part of a Delegate SD-JWT. It
+  // highlights its span in the raw view and opens the part in the decoder.
+  function delegationPart(chainPart, section, id) {
+    const part = document.createElement("div");
+    part.className = "delegation-part";
+    part.setAttribute("data-section", section);
+    const partId = setId(part, id);
+    const head = document.createElement("div");
+    head.className = "delegation-part-title";
+    setId(head, partId + "-title");
+    head.textContent = chainPart.label;
+    const open = document.createElement("button");
+    open.className = "copy-btn";
+    setId(open, partId + "-open");
+    open.textContent = "Open in decoder";
+    open.addEventListener("click", () => navigateToEmbeddedCredential(chainPart.raw));
+    head.appendChild(open);
+    part.appendChild(head);
+    const span = () => rawView.querySelector('[data-section="' + section + '"]');
+    part.addEventListener("mouseenter", () => {
+      part.classList.add("highlight");
+      const s = span();
+      if (s) s.classList.add("highlight");
+    });
+    part.addEventListener("mouseleave", () => {
+      part.classList.remove("highlight");
+      const s = span();
+      if (s) s.classList.remove("highlight");
+    });
+    return part;
   }
 
   function createSubSection(title, contentEl, id) {
