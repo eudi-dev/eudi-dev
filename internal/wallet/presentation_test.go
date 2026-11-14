@@ -27,11 +27,11 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jwe"
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 func testEncJWK(t *testing.T, pub *ecdsa.PublicKey) map[string]any {
@@ -255,6 +255,9 @@ func TestCreateVPToken_SDJWT(t *testing.T) {
 	}
 	if _, ok := parsed.KeyBindingJWT.Payload["sd_hash"]; !ok {
 		t.Error("expected sd_hash in KB-JWT payload")
+	}
+	if err := sdjwt.VerifyKeyBinding(parsed, sdjwt.KeyBinding{Audience: "https://verifier.example", Nonce: "test-nonce"}); err != nil {
+		t.Errorf("key binding: %v", err)
 	}
 
 	discNames := make(map[string]bool)

@@ -28,7 +28,7 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"github.com/veraison/go-cose"
 
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/internal/coseutil"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 )
 
@@ -316,7 +316,7 @@ func signCWTWithType(t *testing.T, key *ecdsa.PrivateKey, uri string, typ any) [
 // this label.
 type esp256Signer struct{ cose.Signer }
 
-func (esp256Signer) Algorithm() cose.Algorithm { return mdoc.AlgorithmESP256 }
+func (esp256Signer) Algorithm() cose.Algorithm { return coseutil.ESP256 }
 
 // HAIP 1.0 §7 lists -9 next to -7 for ECDSA with P-256 and SHA-256.
 func TestCheck_AcceptsAnESP256CWT(t *testing.T) {

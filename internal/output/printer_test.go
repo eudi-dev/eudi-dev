@@ -24,9 +24,10 @@ import (
 
 	"github.com/fatih/color"
 
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/internal/mdoctest"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 func captureOutput(fn func()) string {
@@ -358,11 +359,9 @@ func TestBuildMDOCJSON_NoMSO(t *testing.T) {
 
 func TestBuildMDOCJSON_WithDeviceAuth(t *testing.T) {
 	doc := &mdoc.Document{
-		DocType:    "test.doctype",
-		NameSpaces: map[string][]mdoc.IssuerSignedItem{},
-		DeviceSigned: &mdoc.DeviceSigned{
-			DeviceAuth: map[string]any{"type": "deviceSignature"},
-		},
+		DocType:      "test.doctype",
+		NameSpaces:   map[string][]mdoc.IssuerSignedItem{},
+		DeviceSigned: &mdoc.DeviceSigned{RawDeviceAuth: []byte{0xa1, 0x64, 't', 'y', 'p', 'e', 0x63, 's', 'i', 'g'}},
 	}
 
 	result := BuildMDOCJSON(doc)
@@ -371,8 +370,8 @@ func TestBuildMDOCJSON_WithDeviceAuth(t *testing.T) {
 	if !ok {
 		t.Fatalf("deviceAuth should be a map, got %T", result["deviceAuth"])
 	}
-	if da["type"] != "deviceSignature" {
-		t.Errorf("deviceAuth.type = %v, want deviceSignature", da["type"])
+	if da["type"] != "sig" {
+		t.Errorf("deviceAuth.type = %v, want sig", da["type"])
 	}
 }
 
@@ -390,18 +389,7 @@ func TestBuildMDOCJSON_NoDeviceAuth(t *testing.T) {
 }
 
 func TestBuildMDOCJSON_WithStatus(t *testing.T) {
-	doc := &mdoc.Document{
-		DocType:    "test.doctype",
-		NameSpaces: map[string][]mdoc.IssuerSignedItem{},
-		IssuerAuth: &mdoc.IssuerAuth{
-			MSO: &mdoc.MSO{
-				Version:         "1.0",
-				DigestAlgorithm: "SHA-256",
-				DocType:         "test.doctype",
-				Status:          map[string]any{"uri": "https://status.example"},
-			},
-		},
-	}
+	doc := mdoctest.WithMSO(t, map[string]any{"status": map[string]any{"uri": "https://status.example"}})
 
 	result := BuildMDOCJSON(doc)
 
@@ -413,18 +401,7 @@ func TestBuildMDOCJSON_WithStatus(t *testing.T) {
 }
 
 func TestBuildMDOCJSON_WithDeviceKeyInfo(t *testing.T) {
-	doc := &mdoc.Document{
-		DocType:    "test.doctype",
-		NameSpaces: map[string][]mdoc.IssuerSignedItem{},
-		IssuerAuth: &mdoc.IssuerAuth{
-			MSO: &mdoc.MSO{
-				Version:         "1.0",
-				DigestAlgorithm: "SHA-256",
-				DocType:         "test.doctype",
-				DeviceKeyInfo:   map[string]any{"kty": "EC"},
-			},
-		},
-	}
+	doc := mdoctest.WithMSO(t, map[string]any{"deviceKeyInfo": map[string]any{"kty": "EC"}})
 
 	result := BuildMDOCJSON(doc)
 
@@ -834,9 +811,7 @@ func TestBuildMDOCJSON_DeviceBinding(t *testing.T) {
 	})
 
 	t.Run("unreadable device key", func(t *testing.T) {
-		doc := &mdoc.Document{IssuerAuth: &mdoc.IssuerAuth{MSO: &mdoc.MSO{
-			DeviceKeyInfo: map[string]any{"deviceKey": map[string]any{"1": int64(3)}},
-		}}}
+		doc := mdoctest.WithMSO(t, map[string]any{"deviceKeyInfo": map[string]any{"deviceKey": map[int]int{1: 3}}})
 		key := BuildMDOCJSON(doc)["deviceKey"].(map[string]any)
 		if key["bound"] != true {
 			t.Error("a credential naming a device key is bound, even if it cannot be read")

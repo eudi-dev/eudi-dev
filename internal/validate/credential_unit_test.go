@@ -21,9 +21,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/internal/mdoctest"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 func mustFind(t *testing.T, r *Result, name string) Check {
@@ -36,19 +37,9 @@ func mustFind(t *testing.T, r *Result, name string) Check {
 }
 
 func TestCredential_MDOCStatusWrapping(t *testing.T) {
-	// MSO.Status is the inner {"status_list": ...} object.
-	doc := &mdoc.Document{
-		IssuerAuth: &mdoc.IssuerAuth{
-			MSO: &mdoc.MSO{
-				Status: map[string]any{
-					"status_list": map[string]any{
-						"idx": float64(42),
-						"uri": "https://example.com/statuslist",
-					},
-				},
-			},
-		},
-	}
+	doc := mdoctest.WithMSO(t, map[string]any{"status": map[string]any{
+		"status_list": map[string]any{"idx": 42, "uri": "https://example.com/statuslist"},
+	}})
 
 	result := mustFind(t, MDOC(doc, Trust{}, Options{Status: false}), CheckStatus)
 	if result.Status != "skipped" {
@@ -156,7 +147,7 @@ func TestCredential_SuppliedTrustWithoutAnchorsFailsTheSignature(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	doc, err := mdoc.Parse(mustMDOC(t, key, leaf))
+	doc, err := mdoc.ParseLenient(mustMDOC(t, key, leaf))
 	if err != nil {
 		t.Fatal(err)
 	}

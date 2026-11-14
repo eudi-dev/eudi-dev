@@ -25,9 +25,9 @@ import (
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
 )
 
 // The parser can skip invalid items and duplicate element identifiers. Selecting by
@@ -136,7 +136,7 @@ func TestISOResponseSignsEveryMDocOverTheReportedNonce(t *testing.T) {
 		if len(tokens) != 1 {
 			t.Fatalf("query %s has %d presentations, want 1", m.QueryID, len(tokens))
 		}
-		doc, err := mdoc.Parse(tokens[0])
+		doc, err := mdoc.ParseLenient(tokens[0])
 		if err != nil {
 			t.Fatalf("query %s: parsing the DeviceResponse: %v", m.QueryID, err)
 		}

@@ -27,9 +27,9 @@ import (
 
 	"github.com/fxamacker/cbor/v2"
 
-	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/internal/verifyreport"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
 )
 
 func TestGenerateMDOC_DefaultClaims(t *testing.T) {
@@ -54,7 +54,7 @@ func TestGenerateMDOC_DefaultClaims(t *testing.T) {
 		t.Fatal("empty output")
 	}
 
-	doc, err := mdoc.Parse(result)
+	doc, err := mdoc.ParseLenient(result)
 	if err != nil {
 		t.Fatalf("mdoc.Parse: %v", err)
 	}
@@ -92,7 +92,7 @@ func TestGenerateMDOC_DefaultClaims(t *testing.T) {
 		t.Errorf("expected digest alg SHA-256, got %s", doc.IssuerAuth.MSO.DigestAlgorithm)
 	}
 
-	verifyResult := mdoc.Verify(doc, &key.PublicKey)
+	verifyResult := verifyreport.MDOC(doc, &key.PublicKey)
 	if !verifyResult.SignatureValid {
 		t.Errorf("COSE signature verification failed: %v", verifyResult.Errors)
 	}
@@ -120,7 +120,7 @@ func TestGenerateMDOC_JSONClaimsGetTheirCBORTypes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	doc, err := mdoc.Parse(result)
+	doc, err := mdoc.ParseLenient(result)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +160,7 @@ func TestGenerateMDOC_PIDClaims(t *testing.T) {
 		t.Fatalf("GenerateMDOC: %v", err)
 	}
 
-	doc, err := mdoc.Parse(result)
+	doc, err := mdoc.ParseLenient(result)
 	if err != nil {
 		t.Fatalf("mdoc.Parse: %v", err)
 	}
@@ -192,7 +192,7 @@ func TestGenerateMDOC_PIDClaims(t *testing.T) {
 		t.Errorf("expected place_of_birth.locality Amsterdam, got %v", bp["locality"])
 	}
 
-	verifyResult := mdoc.Verify(doc, &key.PublicKey)
+	verifyResult := verifyreport.MDOC(doc, &key.PublicKey)
 	if !verifyResult.SignatureValid {
 		t.Errorf("COSE signature verification failed: %v", verifyResult.Errors)
 	}
@@ -218,7 +218,7 @@ func TestGenerateMDOC_CustomClaims(t *testing.T) {
 		t.Fatalf("GenerateMDOC: %v", err)
 	}
 
-	doc, err := mdoc.Parse(result)
+	doc, err := mdoc.ParseLenient(result)
 	if err != nil {
 		t.Fatalf("mdoc.Parse: %v", err)
 	}
@@ -227,7 +227,7 @@ func TestGenerateMDOC_CustomClaims(t *testing.T) {
 		t.Errorf("expected docType com.example.test, got %s", doc.DocType)
 	}
 
-	verifyResult := mdoc.Verify(doc, &key.PublicKey)
+	verifyResult := verifyreport.MDOC(doc, &key.PublicKey)
 	if !verifyResult.SignatureValid {
 		t.Errorf("COSE signature verification failed: %v", verifyResult.Errors)
 	}
@@ -251,7 +251,7 @@ func TestGenerateMDOC_EmptyClaims(t *testing.T) {
 		t.Fatalf("GenerateMDOC: %v", err)
 	}
 
-	doc, err := mdoc.Parse(result)
+	doc, err := mdoc.ParseLenient(result)
 	if err != nil {
 		t.Fatalf("mdoc.Parse: %v", err)
 	}
@@ -261,7 +261,7 @@ func TestGenerateMDOC_EmptyClaims(t *testing.T) {
 		t.Errorf("expected 0 claims, got %d", len(ns))
 	}
 
-	verifyResult := mdoc.Verify(doc, &key.PublicKey)
+	verifyResult := verifyreport.MDOC(doc, &key.PublicKey)
 	if !verifyResult.SignatureValid {
 		t.Errorf("COSE signature verification failed: %v", verifyResult.Errors)
 	}
@@ -285,7 +285,7 @@ func TestGenerateMDOC_ValidityInfo(t *testing.T) {
 		t.Fatalf("GenerateMDOC: %v", err)
 	}
 
-	doc, err := mdoc.Parse(result)
+	doc, err := mdoc.ParseLenient(result)
 	if err != nil {
 		t.Fatalf("mdoc.Parse: %v", err)
 	}
@@ -331,12 +331,12 @@ func TestGenerateMDOC_WrongKeyFailsVerify(t *testing.T) {
 		t.Fatalf("GenerateMDOC: %v", err)
 	}
 
-	doc, err := mdoc.Parse(result)
+	doc, err := mdoc.ParseLenient(result)
 	if err != nil {
 		t.Fatalf("mdoc.Parse: %v", err)
 	}
 
-	verifyResult := mdoc.Verify(doc, &key2.PublicKey)
+	verifyResult := verifyreport.MDOC(doc, &key2.PublicKey)
 	if verifyResult.SignatureValid {
 		t.Error("COSE signature should not verify with a different key")
 	}
@@ -436,7 +436,7 @@ func TestGenerateMDOC_ClaimValuesPreserved(t *testing.T) {
 		t.Fatalf("GenerateMDOC: %v", err)
 	}
 
-	doc, err := mdoc.Parse(result)
+	doc, err := mdoc.ParseLenient(result)
 	if err != nil {
 		t.Fatalf("mdoc.Parse: %v", err)
 	}
@@ -471,7 +471,7 @@ func TestGenerateMDOC_CustomExpiresIn(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	doc, err := mdoc.Parse(result)
+	doc, err := mdoc.ParseLenient(result)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -500,7 +500,7 @@ func TestGenerateMDOC_WithValidFrom(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	doc, err := mdoc.Parse(result)
+	doc, err := mdoc.ParseLenient(result)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -590,7 +590,7 @@ func TestGenerateMDOC_DatesAreTagged(t *testing.T) {
 	}
 
 	// Parsing unwraps the tags, so the wallet sees plain strings for claim matching.
-	doc, err := mdoc.Parse(result)
+	doc, err := mdoc.ParseLenient(result)
 	if err != nil {
 		t.Fatalf("mdoc.Parse: %v", err)
 	}
@@ -639,11 +639,11 @@ func TestGenerateMDOC_X5ChainOmitsTheRoot(t *testing.T) {
 		t.Fatalf("GenerateMDOC: %v", err)
 	}
 
-	doc, err := mdoc.Parse(raw)
+	doc, err := mdoc.ParseLenient(raw)
 	if err != nil {
 		t.Fatalf("mdoc.Parse: %v", err)
 	}
-	certs, err := certchain.FromCOSE(doc.IssuerAuth.ProtectedHeader, doc.IssuerAuth.UnprotectedHeader)
+	certs, err := doc.IssuerCertificates()
 	if err != nil {
 		t.Fatalf("reading x5chain: %v", err)
 	}
@@ -723,7 +723,7 @@ func TestGenerateMDOCBindsHolderKeysOfEveryCurve(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			doc, err := mdoc.Parse(result)
+			doc, err := mdoc.ParseLenient(result)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -1,5 +1,5 @@
 ---
-status: accepted (expected to be revisited, see Direction)
+status: superseded by [ADR-0034](0034-the-credential-format-packages-are-public.md)
 ---
 
 # Everything lives under internal/

@@ -16,9 +16,10 @@ package wallet
 
 import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
 	"github.com/eudi-dev/eudi-dev/v3/internal/validate"
+	"github.com/eudi-dev/eudi-dev/v3/internal/verifyreport"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 // Holder binding states in a credential summary. Only this_wallet is
@@ -56,11 +57,11 @@ func jwtIssuerClaim(raw string) string {
 // mdocIssuerCertIdentity shows the document signer's CommonName, or its full
 // subject when the CommonName is empty.
 func mdocIssuerCertIdentity(raw string) map[string]any {
-	doc, err := mdoc.Parse(raw)
+	doc, err := mdoc.ParseLenient(raw)
 	if err != nil {
 		return nil
 	}
-	certs, err := validate.ExtractMDOCX5ChainCertificates(doc)
+	certs, err := doc.IssuerCertificates()
 	if err != nil || len(certs) == 0 {
 		return nil
 	}
@@ -104,13 +105,13 @@ func jwtSignatureState(raw string) map[string]any {
 // mdocSignatureState verifies an mdoc against its document signer leaf.
 // Without an x5chain it still reports the algorithm from the COSE header.
 func mdocSignatureState(raw string) map[string]any {
-	doc, err := mdoc.Parse(raw)
+	doc, err := mdoc.ParseLenient(raw)
 	if err != nil {
 		return nil
 	}
-	certs, err := validate.ExtractMDOCX5ChainCertificates(doc)
+	certs, err := doc.IssuerCertificates()
 	if err == nil && len(certs) > 0 {
-		res := mdoc.Verify(doc, certs[0].PublicKey)
+		res := verifyreport.MDOC(doc, certs[0].PublicKey)
 		if res.Algorithm == "" {
 			return nil
 		}
@@ -119,14 +120,12 @@ func mdocSignatureState(raw string) map[string]any {
 			"self_consistent": res.SignatureValid,
 		}
 	}
-	// Verify reads the algorithm from the protected header before it needs
-	// the key, so a nil key still yields the algorithm.
-	res := mdoc.Verify(doc, nil)
-	if res.Algorithm == "" {
+	algorithm, err := doc.SignatureAlgorithm()
+	if err != nil || algorithm == "" {
 		return nil
 	}
 	return map[string]any{
-		"algorithm":       res.Algorithm,
+		"algorithm":       algorithm,
 		"self_consistent": false,
 	}
 }

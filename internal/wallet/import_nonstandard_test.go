@@ -22,7 +22,7 @@ import (
 
 func nonStandardCredential(t *testing.T) string {
 	t.Helper()
-	raw, err := os.ReadFile("../sdjwt/testdata/nested_sd_alg.txt")
+	raw, err := os.ReadFile("../../pkg/sdjwt/testdata/nested_sd_alg.txt")
 	if err != nil {
 		t.Fatal(err)
 	}

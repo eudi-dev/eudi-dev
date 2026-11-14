@@ -32,9 +32,9 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
 	"github.com/eudi-dev/eudi-dev/v3/internal/validate"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 // Credential is a stored credential as the matcher sees it.
@@ -1399,11 +1399,11 @@ func extractCredentialCertificates(cred Credential) ([]*x509.Certificate, error)
 		}
 		return validate.X5CCertificates(token.Header)
 	case credtype.FormatMDOC:
-		doc, err := mdoc.Parse(cred.Raw)
+		doc, err := mdoc.ParseLenient(cred.Raw)
 		if err != nil {
 			return nil, err
 		}
-		return validate.ExtractMDOCX5ChainCertificates(doc)
+		return doc.IssuerCertificates()
 	default:
 		return nil, nil
 	}
@@ -1436,7 +1436,7 @@ func ChainKey(cred Credential, anchors []*x509.Certificate) (crypto.PublicKey, e
 			return nil, fmt.Errorf("x5c chain validation failed: %w", err)
 		}
 	case credtype.FormatMDOC:
-		doc, parseErr := mdoc.Parse(cred.Raw)
+		doc, parseErr := mdoc.ParseLenient(cred.Raw)
 		if parseErr != nil {
 			return nil, fmt.Errorf("failed to parse mdoc: %w", parseErr)
 		}

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 // SD-JWT VC draft-08 requires the issuer identifier in the signing leaf's SANs.

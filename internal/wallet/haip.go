@@ -21,8 +21,8 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/netaddr"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
 	"github.com/eudi-dev/eudi-dev/v3/internal/validate"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 // ValidateHAIPIssuanceCompliance checks a credential offer and the issuer's

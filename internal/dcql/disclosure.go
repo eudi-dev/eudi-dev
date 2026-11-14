@@ -19,7 +19,7 @@ import (
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 // alwaysDisclosed returns the keys that every presentation of cred sends. A

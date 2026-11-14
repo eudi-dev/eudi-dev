@@ -23,7 +23,7 @@ import (
 	"testing"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 func TestTemplatesListIncludesPredefined(t *testing.T) {

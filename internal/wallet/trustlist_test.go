@@ -29,8 +29,9 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
 	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
 	"github.com/eudi-dev/eudi-dev/v3/internal/validate"
+	"github.com/eudi-dev/eudi-dev/v3/internal/verifyreport"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 // generateEAATrustListJWT signs an EAA list with the CA as its
@@ -74,7 +75,7 @@ func TestGenerateTrustListJWT_ValidSignature(t *testing.T) {
 		t.Fatalf("Parse: %v", err)
 	}
 
-	result := sdjwt.Verify(token, &caKey.PublicKey)
+	result := verifyreport.SDJWT(token, &caKey.PublicKey)
 	if !result.SignatureValid {
 		t.Errorf("expected valid signature, got errors: %v", result.Errors)
 	}
@@ -395,7 +396,7 @@ func TestGenerateTrustListJWT_WrongKeyVerification(t *testing.T) {
 	}
 
 	token, _ := sdjwt.Parse(jwt)
-	result := sdjwt.Verify(token, &otherKey.PublicKey)
+	result := verifyreport.SDJWT(token, &otherKey.PublicKey)
 	if result.SignatureValid {
 		t.Error("expected invalid signature with wrong key")
 	}
@@ -448,7 +449,7 @@ func checkCategoryLists(t *testing.T, w *Wallet) {
 			certificates := list.Entities[0].Services[0].Certificates
 			_, chainErr := validate.ExtractAndValidateX5C(token.Header, certificates)
 			signedByListedKey := slices.ContainsFunc(certificates, func(c lote.CertInfo) bool {
-				return sdjwt.Verify(token, c.PublicKey).SignatureValid
+				return verifyreport.SDJWT(token, c.PublicKey).SignatureValid
 			})
 			if chainErr == nil || signedByListedKey {
 				lists = append(lists, category)

@@ -30,10 +30,10 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
 	"github.com/eudi-dev/eudi-dev/v3/internal/trustedlists"
 	"github.com/eudi-dev/eudi-dev/v3/internal/validate"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 // Roles of a certificate in a chain.
@@ -294,11 +294,11 @@ func certificateRole(cert *x509.Certificate) string {
 
 func embeddedCertificates(cred StoredCredential) []*x509.Certificate {
 	if cred.Format == credtype.FormatMDOC {
-		doc, err := mdoc.Parse(cred.Raw)
+		doc, err := mdoc.ParseLenient(cred.Raw)
 		if err != nil {
 			return nil
 		}
-		certs, _ := validate.ExtractMDOCX5ChainCertificates(doc)
+		certs, _ := doc.IssuerCertificates()
 		return certs
 	}
 	token, err := sdjwt.ParseLenient(cred.Raw)

@@ -35,6 +35,10 @@ Guides for using eudi-dev as a wallet, issuer, verifier and CA.
 - [Decoder](decoder.md): the web UI for decoding and validating credentials
 - [DCQL](dcql.md): generate a DCQL query from a credential
 
+## Go packages
+
+- [Go packages](go-packages.md): parse and verify mdoc and SD-JWT VC credentials in your own Go program
+
 ## Deployment
 
 - [Docker](docker.md): run the wallet, issuer, and verifier in containers

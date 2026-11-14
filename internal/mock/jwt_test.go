@@ -20,7 +20,8 @@ import (
 	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/internal/verifyreport"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 func TestGenerateJWT_DefaultClaims(t *testing.T) {
@@ -92,7 +93,7 @@ func TestGenerateJWT_DefaultClaims(t *testing.T) {
 		}
 	}
 
-	verifyResult := sdjwt.Verify(token, &key.PublicKey)
+	verifyResult := verifyreport.SDJWT(token, &key.PublicKey)
 	if !verifyResult.SignatureValid {
 		t.Errorf("signature verification failed: %v", verifyResult.Errors)
 	}
@@ -138,7 +139,7 @@ func TestGenerateJWT_WrongKeyFailsVerify(t *testing.T) {
 		t.Fatalf("sdjwt.Parse: %v", err)
 	}
 
-	verifyResult := sdjwt.Verify(token, &key2.PublicKey)
+	verifyResult := verifyreport.SDJWT(token, &key2.PublicKey)
 	if verifyResult.SignatureValid {
 		t.Error("signature should not verify with a different key")
 	}

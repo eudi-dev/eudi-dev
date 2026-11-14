@@ -23,9 +23,9 @@ import (
 	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/validate"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
 )
 
 func testMDoc(t *testing.T, cfg mock.MDOCConfig) *mdoc.Document {
@@ -34,7 +34,7 @@ func testMDoc(t *testing.T, cfg mock.MDOCConfig) *mdoc.Document {
 	if err != nil {
 		t.Fatalf("GenerateMDOC: %v", err)
 	}
-	doc, err := mdoc.Parse(raw)
+	doc, err := mdoc.ParseLenient(raw)
 	if err != nil {
 		t.Fatalf("mdoc.Parse: %v", err)
 	}

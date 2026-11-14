@@ -37,6 +37,7 @@ import (
 	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
+	"github.com/eudi-dev/eudi-dev/v3/internal/verifyreport"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
@@ -51,8 +52,8 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
 	"github.com/eudi-dev/eudi-dev/v3/internal/regcert"
 	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
 	"github.com/eudi-dev/eudi-dev/v3/internal/validate"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 func newTestServer(t testing.TB, autoAccept bool) *Server {
@@ -162,7 +163,7 @@ func verifyCompactJWTSignatureWithX5CLeaf(t *testing.T, raw string, header map[s
 		t.Fatal("expected x5c entries in JWT header")
 	}
 	leafCert := certs[0]
-	result := sdjwt.Verify(token, leafCert.PublicKey)
+	result := verifyreport.SDJWT(token, leafCert.PublicKey)
 	if result == nil || !result.SignatureValid {
 		t.Fatal("expected compact JWT signature to verify with x5c leaf")
 	}

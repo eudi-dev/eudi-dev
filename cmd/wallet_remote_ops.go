@@ -25,12 +25,12 @@ import (
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/config"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc/scheme"
 	"github.com/eudi-dev/eudi-dev/v3/internal/output"
 	"github.com/eudi-dev/eudi-dev/v3/internal/remote"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
 	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 func docString(m map[string]any, key string) string {
@@ -321,7 +321,7 @@ func printCredentialDoc(cred map[string]any, decoded bool) error {
 		}
 		output.PrintSDJWT(token, opts)
 	case credtype.FormatMDOC:
-		doc, err := mdoc.Parse(raw)
+		doc, err := mdoc.ParseLenient(raw)
 		if err != nil {
 			return err
 		}

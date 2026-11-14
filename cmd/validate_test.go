@@ -33,12 +33,13 @@ import (
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/internal/mdoctest"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
 	"github.com/eudi-dev/eudi-dev/v3/internal/statuslist"
 	"github.com/eudi-dev/eudi-dev/v3/internal/validate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 func generateCACert(t *testing.T) (*x509.Certificate, *ecdsa.PrivateKey, []byte) {
@@ -233,13 +234,7 @@ func TestExtractAndValidateMDOCX5Chain_TrustedSingleCert(t *testing.T) {
 	caCert, caKey, caDER := generateCACert(t)
 	_, _, leafDER := generateLeafCert(t, caCert, caKey)
 
-	doc := &mdoc.Document{
-		IssuerAuth: &mdoc.IssuerAuth{
-			UnprotectedHeader: map[any]any{
-				int64(33): leafDER,
-			},
-		},
-	}
+	doc := mdoctest.WithHeader(t, map[any]any{int64(33): leafDER})
 
 	tlCerts := []lote.CertInfo{
 		{PublicKey: caCert.PublicKey, Raw: caDER},
@@ -258,13 +253,7 @@ func TestExtractAndValidateMDOCX5Chain_TrustedCertArray(t *testing.T) {
 	caCert, caKey, caDER := generateCACert(t)
 	_, _, leafDER := generateLeafCert(t, caCert, caKey)
 
-	doc := &mdoc.Document{
-		IssuerAuth: &mdoc.IssuerAuth{
-			UnprotectedHeader: map[any]any{
-				int64(33): []any{leafDER},
-			},
-		},
-	}
+	doc := mdoctest.WithHeader(t, map[any]any{int64(33): []any{leafDER}})
 
 	tlCerts := []lote.CertInfo{
 		{PublicKey: caCert.PublicKey, Raw: caDER},
@@ -285,13 +274,7 @@ func TestExtractAndValidateMDOCX5Chain_UntrustedChain(t *testing.T) {
 
 	otherCACert, _, otherCADER := generateCACert(t)
 
-	doc := &mdoc.Document{
-		IssuerAuth: &mdoc.IssuerAuth{
-			UnprotectedHeader: map[any]any{
-				int64(33): leafDER,
-			},
-		},
-	}
+	doc := mdoctest.WithHeader(t, map[any]any{int64(33): leafDER})
 
 	tlCerts := []lote.CertInfo{
 		{PublicKey: otherCACert.PublicKey, Raw: otherCADER},
@@ -304,11 +287,7 @@ func TestExtractAndValidateMDOCX5Chain_UntrustedChain(t *testing.T) {
 }
 
 func TestExtractAndValidateMDOCX5Chain_NoX5Chain(t *testing.T) {
-	doc := &mdoc.Document{
-		IssuerAuth: &mdoc.IssuerAuth{
-			UnprotectedHeader: map[any]any{},
-		},
-	}
+	doc := mdoctest.WithHeader(t, map[any]any{})
 
 	tlCerts := []lote.CertInfo{
 		{Raw: []byte("dummy")},
@@ -332,32 +311,6 @@ func TestExtractAndValidateMDOCX5Chain_NoIssuerAuth(t *testing.T) {
 	}
 	if key != nil {
 		t.Error("expected nil key when no issuerAuth")
-	}
-}
-
-func TestExtractAndValidateMDOCX5Chain_Uint64Label(t *testing.T) {
-	caCert, caKey, caDER := generateCACert(t)
-	_, _, leafDER := generateLeafCert(t, caCert, caKey)
-
-	// Some CBOR decoders use uint64 for the label.
-	doc := &mdoc.Document{
-		IssuerAuth: &mdoc.IssuerAuth{
-			UnprotectedHeader: map[any]any{
-				uint64(33): leafDER,
-			},
-		},
-	}
-
-	tlCerts := []lote.CertInfo{
-		{PublicKey: caCert.PublicKey, Raw: caDER},
-	}
-
-	key, err := validate.ExtractAndValidateMDOCX5Chain(doc, tlCerts)
-	if err != nil {
-		t.Fatalf("validate.ExtractAndValidateMDOCX5Chain() error: %v", err)
-	}
-	if key == nil {
-		t.Fatal("expected non-nil key")
 	}
 }
 

@@ -39,8 +39,8 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
 	"github.com/eudi-dev/eudi-dev/v3/internal/validate"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 var preferredCredentialResponseEncryptionAlgs = []string{jwe.AlgECDHES}
@@ -722,8 +722,7 @@ func verifySignedIssuerMetadata(token *sdjwt.Token, issuer string) error {
 	if err != nil {
 		return err
 	}
-	result := sdjwt.Verify(token, certs[0].PublicKey)
-	if result == nil || !result.SignatureValid {
+	if err := sdjwt.Verify(token, certs[0].PublicKey); err != nil {
 		return fmt.Errorf("issuer metadata signature is invalid")
 	}
 	if err := verifyIssuerMetadataChainTrust(certs); err != nil {

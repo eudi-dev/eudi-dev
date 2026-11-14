@@ -18,7 +18,7 @@ import (
 	"crypto/x509"
 	"testing"
 
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
 )
 
 // CIR (EU) 2024/2979 Annex II EAA-6.2.10.1-06.1, as amended by CIR (EU)
@@ -35,7 +35,7 @@ func TestTheMdocStatusListNamesTheAnchorOfItsSigner(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	doc, err := mdoc.Parse(res.Credential.Raw)
+	doc, err := mdoc.ParseLenient(res.Credential.Raw)
 	if err != nil {
 		t.Fatal(err)
 	}

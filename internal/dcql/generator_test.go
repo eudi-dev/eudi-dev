@@ -19,8 +19,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 func TestFromSDJWT(t *testing.T) {

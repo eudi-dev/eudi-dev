@@ -40,7 +40,7 @@ The KB-SD-JWT has these properties:
 
 The wallet copies `delegate_payload_disclosure` and `delegate_disclosures` into the answer unchanged. Several `delegate` entries bound to one presentation share one KB-SD-JWT (§7.1).
 
-`internal/sdjwt` builds and verifies the chain. `sdjwt.VerifyDelegation` runs the steps of §6 for any number of KB-SD-JWTs and for the final Key Binding JWT of a dSD-JWT+KB. `eudi decode`, `eudi validate` and the decoder show the components of a chain and add a `delegation` check.
+`pkg/sdjwt/delegate` builds and verifies the chain. `delegate.Verify` runs steps 1 to 5 of §6 for any number of KB-SD-JWTs and for the Key Binding JWT of the Delegate Holder in a dSD-JWT+KB. It verifies the Issuer-signed JWT with a key from the caller. The caller decides whether it trusts that key and whether the delegation fits its own policy. Step 5.1 rejects a dSD-JWT only when the caller requires Key Binding. `eudi decode`, `eudi validate` and the decoder show the components of a chain and add a `delegation` check.
 
 The wallet implements the compact serialization for SD-JWT VC. The JSON serialization (§5.1.2) and mdoc are outside this decision.
 

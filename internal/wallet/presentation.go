@@ -33,7 +33,8 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt/delegate"
 )
 
 // sessionTranscriptFor is the transcript mode of a presentation: its own, or
@@ -170,7 +171,7 @@ func interactiveAuthorizationAudience(endpoint string) string {
 // createSDJWTPresentation adds extraClaims, such as transaction data hashes,
 // to the KB-JWT. With a delegation the KB-JWT is a KB-SD-JWT and the result is
 // a Delegate SD-JWT (draft-ietf-oauth-delegate-sd-jwt-00 §5.1.1).
-func (w *Wallet) createSDJWTPresentation(cred StoredCredential, selectedKeys []string, nonce, clientID string, signingKey *ecdsa.PrivateKey, extraClaims map[string]any, delegation *sdjwt.KBSDJWT) (string, error) {
+func (w *Wallet) createSDJWTPresentation(cred StoredCredential, selectedKeys []string, nonce, clientID string, signingKey *ecdsa.PrivateKey, extraClaims map[string]any, delegation *delegate.KBSDJWT) (string, error) {
 	parts := strings.Split(cred.Raw, "~")
 	if len(parts) < 1 {
 		return "", fmt.Errorf("invalid SD-JWT format")
@@ -221,7 +222,7 @@ func (w *Wallet) createSDJWTPresentation(cred StoredCredential, selectedKeys []s
 		kb := *delegation
 		kb.Claims = map[string]any{"iat": time.Now().Unix(), "aud": clientID, "nonce": nonce}
 		maps.Copy(kb.Claims, extraClaims)
-		return sdjwt.Delegate(withoutKB, kb, signingKey)
+		return delegate.Append(withoutKB, kb, signingKey)
 	}
 
 	// sd_hash covers the SD-JWT without the KB-JWT. RFC 9901 §4.3 hashes it with

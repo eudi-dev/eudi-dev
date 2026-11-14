@@ -20,8 +20,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 func TestCheckMDOCIntegrity_AllMatch(t *testing.T) {
@@ -216,7 +216,7 @@ func inspected(t *testing.T, payload map[string]any, disclosures ...string) *sdj
 	for _, d := range disclosures {
 		raw += d + "~"
 	}
-	token, err := sdjwt.Inspect(raw)
+	token, err := sdjwt.ParseLenient(raw)
 	if err != nil {
 		t.Fatal(err)
 	}

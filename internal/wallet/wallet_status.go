@@ -24,8 +24,8 @@ import (
 	"slices"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/statuslist"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
 )
 
 // SetCredentialStatus accepts values from 0 through 255 as draft-ietf-oauth-status-list §7
@@ -335,7 +335,7 @@ func (w *Wallet) StatusEntryFor(credID string) (StatusEntry, bool) {
 func CredentialStatusRef(c StoredCredential) *statuslist.StatusRef {
 	switch c.Format {
 	case credtype.FormatMDOC:
-		doc, err := mdoc.Parse(c.Raw)
+		doc, err := mdoc.ParseLenient(c.Raw)
 		if err != nil || doc.StatusClaims() == nil {
 			return nil
 		}

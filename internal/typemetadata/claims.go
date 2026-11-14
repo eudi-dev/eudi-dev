@@ -18,7 +18,7 @@ import (
 	"fmt"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 // node is a claim selected by a path in the SD-JWT as issued.

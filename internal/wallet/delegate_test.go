@@ -32,7 +32,8 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt/delegate"
 )
 
 // delegateWallet accepts the transaction data type delegate (ADR-0033).
@@ -86,7 +87,7 @@ func newMandate(t *testing.T, agent *ecdsa.PublicKey, sdAlg string) mandate {
 	}
 	m.payload = testDisclosure(t, "salt-p", claims)
 	m.entry = map[string]any{
-		"type": "delegate", "credential_ids": []any{"pid"}, "format": sdjwt.FormatDelegateKB,
+		"type": "delegate", "credential_ids": []any{"pid"}, "format": delegate.FormatDSDJWTKB,
 		"delegate_payload_disclosure": m.payload, "delegate_disclosures": []any{m.audiences[0], m.audiences[1]},
 	}
 	return m
@@ -136,7 +137,7 @@ func TestDelegateTransactionDataIsAnsweredWithADelegateSDJWT(t *testing.T) {
 		t.Errorf("the KB-SD-JWT is followed by %q, want the disclosures of the entry unchanged", kbSDJWT[strings.Index(kbSDJWT, "~"):])
 	}
 
-	delegation, err := sdjwt.VerifyDelegation(token, &w.IssuerKey.PublicKey, sdjwt.DelegationOptions{Audience: "https://verifier.example", Nonce: "n"})
+	delegation, err := delegate.Verify(token, &w.IssuerKey.PublicKey, delegate.Options{Audience: "https://verifier.example", Nonce: "n", MaxAge: time.Minute})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,11 +146,11 @@ func TestDelegateTransactionDataIsAnsweredWithADelegateSDJWT(t *testing.T) {
 	if got := len(delegation.Credential.Disclosures); got != 2 {
 		t.Errorf("the SD-JWT has %d disclosures, want given_name and family_name", got)
 	}
-	if delegation.Format() != sdjwt.FormatDelegate || len(delegation.Links) != 1 {
+	if delegation.Format() != delegate.FormatDSDJWT || len(delegation.Links) != 1 {
 		t.Fatalf("format = %s with %d KB-SD-JWTs, want a dSD-JWT with 1", delegation.Format(), len(delegation.Links))
 	}
 	link := delegation.Links[0]
-	if want := map[string]any{"typ": sdjwt.TypeKBSDJWTKB, "alg": "ES256"}; !reflect.DeepEqual(link.Token.Header, want) {
+	if want := map[string]any{"typ": delegate.TypeKBSDJWTKB, "alg": "ES256"}; !reflect.DeepEqual(link.Token.Header, want) {
 		t.Errorf("KB-SD-JWT header = %v, want %v", link.Token.Header, want)
 	}
 	payload := link.Token.Payload
@@ -193,8 +194,8 @@ func TestDelegateHolderPresentsTheDelegateSDJWT(t *testing.T) {
 	}
 	t.Logf("dSD-JWT+KB: %s", presented+kbJWT)
 
-	delegation, err := sdjwt.VerifyDelegation(presented+kbJWT, &w.IssuerKey.PublicKey,
-		sdjwt.DelegationOptions{Audience: "https://supplier.example", Nonce: "n-2", RequireKeyBinding: true})
+	delegation, err := delegate.Verify(presented+kbJWT, &w.IssuerKey.PublicKey,
+		delegate.Options{Audience: "https://supplier.example", Nonce: "n-2", MaxAge: time.Minute, RequireKeyBinding: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -206,7 +207,7 @@ func TestDelegateHolderPresentsTheDelegateSDJWT(t *testing.T) {
 
 func delegationHeaderAndPayload(t *testing.T, token string) (map[string]any, map[string]any) {
 	t.Helper()
-	delegation, err := sdjwt.ParseDelegation(token)
+	delegation, err := delegate.Parse(token)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,13 +219,13 @@ func delegationHeaderAndPayload(t *testing.T, token string) (map[string]any, map
 func TestDelegateFormatSelectsTheKBSDJWTType(t *testing.T) {
 	w, cred := delegateWallet(t, "strict")
 	m := newMandate(t, nil, "sha-256")
-	m.entry["format"] = sdjwt.FormatDelegate
+	m.entry["format"] = delegate.FormatDSDJWT
 	token, _, err := presentDelegation(t, w, cred, m.entry)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if header, _ := delegationHeaderAndPayload(t, token); header["typ"] != sdjwt.TypeKBSDJWT {
-		t.Errorf("typ = %v, want %s", header["typ"], sdjwt.TypeKBSDJWT)
+	if header, _ := delegationHeaderAndPayload(t, token); header["typ"] != delegate.TypeKBSDJWT {
+		t.Errorf("typ = %v, want %s", header["typ"], delegate.TypeKBSDJWT)
 	}
 }
 
@@ -242,7 +243,7 @@ func TestDelegateSDAlgIsTheTransactionDataHashAlg(t *testing.T) {
 	if payload["_sd_alg"] != "sha-384" || payload["transaction_data_hashes_alg"] != "sha-384" {
 		t.Errorf("_sd_alg = %v, transaction_data_hashes_alg = %v, want sha-384 for both", payload["_sd_alg"], payload["transaction_data_hashes_alg"])
 	}
-	if _, err := sdjwt.VerifyDelegation(token, &w.IssuerKey.PublicKey, sdjwt.DelegationOptions{Audience: "https://verifier.example", Nonce: "n"}); err != nil {
+	if _, err := delegate.Verify(token, &w.IssuerKey.PublicKey, delegate.Options{Audience: "https://verifier.example", Nonce: "n", MaxAge: time.Minute}); err != nil {
 		t.Error(err)
 	}
 }
@@ -280,7 +281,7 @@ func TestADelegateEntryGetsAKeyBindingJWTWithoutDelegateSDJWT(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sdjwt.IsDelegation(token) {
+	if delegate.IsChain(token) {
 		t.Fatalf("the vp_token is a dSD-JWT: %s", token)
 	}
 	entryHash, _ := sdjwt.SDHash(encoded[0], "sha-256")
@@ -295,7 +296,7 @@ func TestADelegateEntryGetsAKeyBindingJWTWithoutDelegateSDJWT(t *testing.T) {
 func TestDelegateEntriesThatDoNotFitOneKBSDJWTAreRefused(t *testing.T) {
 	withoutCnf := func(t *testing.T) []map[string]any {
 		plain := newMandate(t, nil, "sha-256")
-		plain.entry["format"] = sdjwt.FormatDelegate
+		plain.entry["format"] = delegate.FormatDSDJWT
 		return []map[string]any{newMandate(t, &agentKey(t).PublicKey, "sha-256").entry, plain.entry}
 	}
 	otherAlg := func(t *testing.T) []map[string]any {
@@ -317,7 +318,7 @@ func TestDelegateEntriesThatDoNotFitOneKBSDJWTAreRefused(t *testing.T) {
 		want    string
 	}{
 		{"digests under another algorithm than _sd_alg", digestsUnderAnotherAlg, "the Delegate Payload of transaction_data[0] contains the sha-384 digest"},
-		{"a payload without cnf under kb-sd-jwt+kb", withoutCnf, "shares a KB-SD-JWT of typ kb-sd-jwt+kb with another entry, but its delegate payload has no cnf claim"},
+		{"a payload without cnf under kb-sd-jwt+kb", withoutCnf, "shares a KB-SD-JWT of typ kb-sd-jwt+kb with another entry, but its Delegate Payload has no cnf claim"},
 		{"entries without a common hash algorithm", otherAlg, "have no common hash algorithm"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -336,7 +337,7 @@ func TestDelegateEntriesThatDoNotFitOneKBSDJWTAreRefused(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !sdjwt.IsDelegation(token) {
+			if !delegate.IsChain(token) {
 				t.Errorf("the debug wallet answered without a KB-SD-JWT: %s", token)
 			}
 		})
@@ -377,7 +378,7 @@ func TestTheVerifierReceivesTheDelegateSDJWT(t *testing.T) {
 	if err := json.Unmarshal([]byte(verifier.received(t).Get("vp_token")), &vpToken); err != nil || len(vpToken["pid"]) != 1 {
 		t.Fatalf("vp_token = %v (%v), want one presentation for pid", vpToken, err)
 	}
-	delegation, err := sdjwt.VerifyDelegation(vpToken["pid"][0], &srv.wallet.IssuerKey.PublicKey, sdjwt.DelegationOptions{Audience: "redirect_uri:" + verifier.URL, Nonce: "n"})
+	delegation, err := delegate.Verify(vpToken["pid"][0], &srv.wallet.IssuerKey.PublicKey, delegate.Options{Audience: "redirect_uri:" + verifier.URL, Nonce: "n", MaxAge: time.Minute})
 	if err != nil {
 		t.Fatal(err)
 	}

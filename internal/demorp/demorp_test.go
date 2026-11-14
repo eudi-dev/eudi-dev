@@ -41,13 +41,13 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jwe"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
 	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
 	"github.com/eudi-dev/eudi-dev/v3/internal/statuslist"
 	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 // The German PID types come from the predefined templates.
@@ -2201,7 +2201,7 @@ func TestVerifierReportsTheReceivedMDOCPresentation(t *testing.T) {
 	if presentation == "" {
 		t.Fatal("the result carries no presentation")
 	}
-	doc, err := mdoc.Parse(presentation)
+	doc, err := mdoc.ParseLenient(presentation)
 	if err != nil {
 		t.Fatalf("the reported presentation does not parse as a DeviceResponse: %v", err)
 	}

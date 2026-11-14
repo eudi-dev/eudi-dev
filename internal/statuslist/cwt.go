@@ -27,7 +27,7 @@ import (
 	"github.com/veraison/go-cose"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/internal/coseutil"
 )
 
 // COSE tags from RFC 9052 section 2 and the CWT tag from RFC 8392 section 6.
@@ -86,9 +86,9 @@ func parseCWTStatusListToken(body []byte, opts CheckOptions) (*statusListToken, 
 		return nil, fmt.Errorf("the status list token's protected header has no algorithm: %w", err)
 	}
 	switch alg {
-	case cose.AlgorithmES256, mdoc.AlgorithmESP256, cose.AlgorithmES384:
+	case cose.AlgorithmES256, coseutil.ESP256, cose.AlgorithmES384:
 	default:
-		return nil, fmt.Errorf("the status list token is signed with %s, which is not one of the accepted algorithms ES256, ESP256 and ES384", mdoc.COSEAlgorithmName(alg))
+		return nil, fmt.Errorf("the status list token is signed with %s, which is not one of the accepted algorithms ES256, ESP256 and ES384", coseutil.AlgorithmName(alg))
 	}
 
 	certs, err := certchain.FromCOSE(map[any]any(msg.Headers.Protected), map[any]any(msg.Headers.Unprotected))
@@ -105,7 +105,7 @@ func parseCWTStatusListToken(body []byte, opts CheckOptions) (*statusListToken, 
 
 	verified := false
 	for _, key := range candidates.keys {
-		verifier, err := mdoc.NewCOSEVerifier(alg, key)
+		verifier, err := coseutil.NewVerifier(alg, key)
 		if err != nil {
 			continue
 		}
@@ -115,7 +115,7 @@ func parseCWTStatusListToken(body []byte, opts CheckOptions) (*statusListToken, 
 		}
 	}
 	if !verified {
-		return nil, fmt.Errorf("the status list token's %s signature does not verify", mdoc.COSEAlgorithmName(alg))
+		return nil, fmt.Errorf("the status list token's %s signature does not verify", coseutil.AlgorithmName(alg))
 	}
 
 	tok := &statusListToken{

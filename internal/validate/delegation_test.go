@@ -24,7 +24,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt/delegate"
 )
 
 // delegated is a dSD-JWT (draft-ietf-oauth-delegate-sd-jwt-00 §5.1.1). The
@@ -36,9 +36,9 @@ func delegated(t *testing.T, chain issuerChain, signer, holder *ecdsa.PrivateKey
 	if err != nil {
 		t.Fatal(err)
 	}
-	raw, err := sdjwt.Delegate(credential, sdjwt.KBSDJWT{
-		Type:     sdjwt.TypeKBSDJWT,
-		Payloads: []sdjwt.DelegatedPayload{{Disclosure: format.EncodeBase64URL(payload)}},
+	raw, err := delegate.Append(credential, delegate.KBSDJWT{
+		Type:     delegate.TypeKBSDJWT,
+		Payloads: []delegate.PayloadDisclosure{{Disclosure: format.EncodeBase64URL(payload)}},
 		Claims:   map[string]any{"iat": time.Now().Unix(), "aud": "https://verifier.example", "nonce": "n"},
 	}, signer)
 	if err != nil {
@@ -60,7 +60,7 @@ func TestADelegateSDJWTGetsTheChecksOfItsSDJWTAndADelegationCheck(t *testing.T) 
 	if c, _ := result.Find(CheckSignature); c.Status != Pass {
 		t.Errorf("signature check = %+v, want pass", c)
 	}
-	if c, _ := result.Find(CheckDelegation); c.Status != Pass || c.Detail != "dSD-JWT with 1 KB-SD-JWT" {
+	if c, _ := result.Find(CheckDelegation); c.Status != Pass || c.Detail != "dSD-JWT with 1 KB-SD-JWT. The binding to a request was not checked." {
 		t.Errorf("delegation check = %+v, want pass", c)
 	}
 	if got := result.Delegation.Links[0].Payload["vct"]; got != "urn:example:mandate:1" {
@@ -89,9 +89,9 @@ func TestTheDelegationCheckCountsEveryKBSDJWT(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		raw, err := sdjwt.Delegate(preceding, sdjwt.KBSDJWT{
+		raw, err := delegate.Append(preceding, delegate.KBSDJWT{
 			Type:     typ,
-			Payloads: []sdjwt.DelegatedPayload{{Disclosure: format.EncodeBase64URL(disclosure)}},
+			Payloads: []delegate.PayloadDisclosure{{Disclosure: format.EncodeBase64URL(disclosure)}},
 			Claims:   map[string]any{"iat": time.Now().Unix(), "aud": "https://verifier.example", "nonce": "n"},
 		}, signer)
 		if err != nil {
@@ -100,11 +100,11 @@ func TestTheDelegationCheckCountsEveryKBSDJWT(t *testing.T) {
 		return raw
 	}
 	credential := chain.sdjwt(t, mock.SDJWTConfig{HolderKey: &holder.PublicKey})
-	first := link(credential, sdjwt.TypeKBSDJWTKB, map[string]any{"vct": "urn:example:mandate:1", "cnf": map[string]any{"jwk": jwk}}, holder)
-	second := link(first, sdjwt.TypeKBSDJWT, map[string]any{"vct": "urn:example:mandate:2"}, agent)
+	first := link(credential, delegate.TypeKBSDJWTKB, map[string]any{"vct": "urn:example:mandate:1", "cnf": map[string]any{"jwk": jwk}}, holder)
+	second := link(first, delegate.TypeKBSDJWT, map[string]any{"vct": "urn:example:mandate:2"}, agent)
 
 	result := validated(t, second, Trust{}, Options{Offline: true})
-	if c, _ := result.Find(CheckDelegation); c.Status != Pass || c.Detail != "dSD-JWT with 2 KB-SD-JWTs" {
+	if c, _ := result.Find(CheckDelegation); c.Status != Pass || c.Detail != "dSD-JWT with 2 KB-SD-JWTs. The binding to a request was not checked." {
 		t.Errorf("delegation check = %+v, want pass with 2 KB-SD-JWTs", c)
 	}
 }

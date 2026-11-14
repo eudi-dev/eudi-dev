@@ -19,9 +19,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
 )
 
 // The expected bytes come from the worked example in OpenID4VCI 1.1 Appendix A.2.5.

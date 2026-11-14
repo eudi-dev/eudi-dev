@@ -22,7 +22,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/delegatepayload"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt/delegate"
 )
 
 // The kinds of a ChainPart.
@@ -38,7 +39,7 @@ const FormatKBSDJWT = "KB-SD-JWT"
 // Chain is the result of each part of a Delegate SD-JWT
 // (draft-ietf-oauth-delegate-sd-jwt-00) or of a KB-SD-JWT on its own.
 type Chain struct {
-	// Format is sdjwt.FormatDelegate, sdjwt.FormatDelegateKB or
+	// Format is delegate.FormatDSDJWT, delegate.FormatDSDJWTKB or
 	// FormatKBSDJWT.
 	Format string
 	// Parts are the signed parts in chain order.
@@ -123,7 +124,7 @@ func (k chainKeys) key(thumbprint string) *ChainKey {
 // delegationChain builds the Chain of a Delegate SD-JWT. r is the result of
 // its SD-JWT. report holds the results of the KB-SD-JWTs and the Key Binding
 // JWT.
-func delegationChain(c *sdjwt.Delegation, report sdjwt.DelegationReport, r *Result) *Chain {
+func delegationChain(c *delegate.Chain, report delegate.Report, r *Result) *Chain {
 	keys := chainKeys{}
 	credential := ChainPart{
 		Kind:      PartSDJWT,
@@ -180,7 +181,7 @@ func delegationChain(c *sdjwt.Delegation, report sdjwt.DelegationReport, r *Resu
 
 // setStep fills the checks of a KB-SD-JWT or Key Binding JWT from its step.
 // claim is the hash claim that binds the part to preceding.
-func (p *ChainPart) setStep(step sdjwt.DelegationStep, preceding ChainPart, claim string) {
+func (p *ChainPart) setStep(step delegate.Step, preceding ChainPart, claim string) {
 	p.Signature = PartCheck{Status: Pass, Detail: fmt.Sprintf("Signed with the %s of %s.", keyRole(preceding), partName(preceding))}
 	if step.Signature != nil {
 		p.Signature = PartCheck{Status: Fail, Detail: signatureFailure(step.Signature, preceding)}
@@ -251,7 +252,7 @@ func credentialSignature(r *Result) PartCheck {
 // kbSDJWTChain is the Chain of a KB-SD-JWT on its own. Its signer and the
 // hash over the part before it are in the part before it.
 func kbSDJWTChain(token *sdjwt.Token) *Chain {
-	payload := sdjwt.NewDelegationLink(token).Payload
+	payload := delegate.NewLink(token).Payload
 	keys := chainKeys{}
 	notChecked := PartCheck{Status: Skipped, Detail: "Checked with the whole chain."}
 	part := ChainPart{

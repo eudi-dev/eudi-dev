@@ -24,8 +24,8 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
 	"github.com/eudi-dev/eudi-dev/v3/internal/typemetadata"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt/delegate"
 )
 
 // transactionDataRefusal is a strict-mode refusal of transaction data after
@@ -179,24 +179,24 @@ func (c ConformanceSettings) acceptedTransactionDataTypes() []string {
 // §7.1: "Multiple delegate transaction_data MAY be included in the same
 // request. In that case, each MUST have their digest included in the
 // delegate_payload."
-func (w *Wallet) delegation(entries []oid4vp.TransactionData, claims map[string]any) (*sdjwt.KBSDJWT, error) {
+func (w *Wallet) delegation(entries []oid4vp.TransactionData, claims map[string]any) (*delegate.KBSDJWT, error) {
 	if claims == nil || !w.delegates() {
 		return nil, nil
 	}
 	// §7.1: "_sd_alg may use any hash algorithm specified for hashing the
 	// transaction_data."
 	sdAlg := oid4vp.TransactionDataHashAlg(entries)
-	kb := &sdjwt.KBSDJWT{Type: sdjwt.TypeKBSDJWT, SDAlg: sdAlg}
+	kb := &delegate.KBSDJWT{Type: delegate.TypeKBSDJWT, SDAlg: sdAlg}
 	var delegates []oid4vp.TransactionData
 	for _, entry := range entries {
 		delegation, ok := entry.Delegation()
 		if !ok {
 			continue
 		}
-		if delegation.Format == sdjwt.FormatDelegateKB {
-			kb.Type = sdjwt.TypeKBSDJWTKB
+		if delegation.Format == delegate.FormatDSDJWTKB {
+			kb.Type = delegate.TypeKBSDJWTKB
 		}
-		kb.Payloads = append(kb.Payloads, sdjwt.DelegatedPayload{Disclosure: delegation.PayloadDisclosure, Disclosures: delegation.Disclosures})
+		kb.Payloads = append(kb.Payloads, delegate.PayloadDisclosure{Disclosure: delegation.PayloadDisclosure, Disclosures: delegation.Disclosures})
 		delegates = append(delegates, entry)
 	}
 	if len(delegates) == 0 {
@@ -212,8 +212,8 @@ func (w *Wallet) delegation(entries []oid4vp.TransactionData, claims map[string]
 		// One KB-SD-JWT signs every delegate payload. Its typ applies to each
 		// of them. §5.1.4: "If the typ is KB-SD-JWT+KB then the Delegate
 		// Payload MUST include a cnf claim."
-		if delegation, _ := entry.Delegation(); kb.Type == sdjwt.TypeKBSDJWTKB && delegation.Format != sdjwt.FormatDelegateKB && entry.DelegatePayload()["cnf"] == nil {
-			list = append(list, findings.DelegateSDJWT.Protocol("§5.1.4").Newf("%s shares a KB-SD-JWT of typ %s with another entry, but its delegate payload has no cnf claim", entry.Label(), sdjwt.TypeKBSDJWTKB))
+		if delegation, _ := entry.Delegation(); kb.Type == delegate.TypeKBSDJWTKB && delegation.Format != delegate.FormatDSDJWTKB && entry.DelegatePayload()["cnf"] == nil {
+			list = append(list, findings.DelegateSDJWT.Protocol("§5.1.4").Newf("%s shares a KB-SD-JWT of typ %s with another entry, but its Delegate Payload has no cnf claim", entry.Label(), delegate.TypeKBSDJWTKB))
 		}
 	}
 	if len(list) > 0 {

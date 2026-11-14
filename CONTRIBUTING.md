@@ -25,7 +25,7 @@ go test -coverprofile=coverage.out ./...
 go tool cover -func=coverage.out
 
 # Specific package
-go test ./internal/sdjwt/...
+go test ./pkg/sdjwt/...
 
 # Verbose
 go test -v -count=1 ./internal/wallet/...
@@ -63,6 +63,7 @@ The Docker specs (`docker.spec.js`) need a running Docker daemon. Skip them with
 - Imports: stdlib first, then external deps, then internal packages (enforced by goimports)
 - Use `internal/jsonutil` for type assertions on `map[string]any`
 - Defaults (ports, timeouts) go in `internal/config/defaults.go`
+- `pkg/` is public API. An exported declaration there uses only types from the standard library and `pkg/` (ADR-0034)
 
 ## Test patterns
 

@@ -28,9 +28,11 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
 	"github.com/eudi-dev/eudi-dev/v3/internal/statuslist"
+	"github.com/eudi-dev/eudi-dev/v3/internal/verifyreport"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt/delegate"
 )
 
 // Check is one step of a credential validation.
@@ -98,7 +100,7 @@ type Result struct {
 	SDJWT *sdjwt.Token
 	MDOC  *mdoc.Document
 	// Delegation is the chain of a Delegate SD-JWT. SDJWT is its SD-JWT.
-	Delegation *sdjwt.Delegation
+	Delegation *delegate.Chain
 	// Chain is the result of each part of a Delegate SD-JWT or of a
 	// KB-SD-JWT on its own. It is nil for any other credential.
 	Chain *Chain
@@ -110,8 +112,8 @@ type Result struct {
 
 	// SDJWTVerify or MDOCVerify is the signature verification behind the
 	// signature check. SignatureSource identifies the verifying key.
-	SDJWTVerify     *sdjwt.VerifyResult
-	MDOCVerify      *mdoc.VerifyResult
+	SDJWTVerify     *verifyreport.SDJWTResult
+	MDOCVerify      *verifyreport.MDOCResult
 	SignatureSource string
 	// Catalogue is the anchoring by the credential's catalogue entry. It is
 	// nil when the catalogue was not consulted or has no entry.
@@ -151,10 +153,10 @@ func Credential(raw string, trust Trust, opts Options) (*Result, error) {
 	}
 	switch format.DetectEncoding(raw) {
 	case format.FormatSDJWT:
-		if sdjwt.IsDelegation(raw) {
+		if delegate.IsChain(raw) {
 			return delegation(raw, trust, opts)
 		}
-		token, err := sdjwt.Inspect(raw)
+		token, err := sdjwt.ParseLenient(raw)
 		if err != nil {
 			return nil, fmt.Errorf("parsing SD-JWT: %w", err)
 		}
@@ -164,7 +166,7 @@ func Credential(raw string, trust Trust, opts Options) (*Result, error) {
 		return SDJWT(token, trust, opts), nil
 	case format.FormatJWT:
 		// sdjwt reports a broken JWT part as "parsing JWT" already.
-		token, err := sdjwt.Inspect(raw)
+		token, err := sdjwt.ParseLenient(raw)
 		if err != nil {
 			return nil, err
 		}
@@ -173,7 +175,7 @@ func Credential(raw string, trust Trust, opts Options) (*Result, error) {
 		}
 		return JWT(token, trust, opts), nil
 	case format.FormatMDOC:
-		doc, err := mdoc.Parse(raw)
+		doc, err := mdoc.ParseLenient(raw)
 		if err != nil {
 			return nil, fmt.Errorf("parsing mdoc: %w", err)
 		}
@@ -185,7 +187,7 @@ func Credential(raw string, trust Trust, opts Options) (*Result, error) {
 // delegation validates the SD-JWT of a Delegate SD-JWT and adds the delegation
 // check for its KB-SD-JWTs (draft-ietf-oauth-delegate-sd-jwt-00 §6).
 func delegation(raw string, trust Trust, opts Options) (*Result, error) {
-	d, err := sdjwt.ParseDelegation(raw)
+	d, err := delegate.Parse(raw)
 	if err != nil {
 		return unreadableDelegation(raw, err, trust, opts)
 	}
@@ -195,7 +197,8 @@ func delegation(raw string, trust Trust, opts Options) (*Result, error) {
 	if len(d.Links) > 1 {
 		check.Detail += "s"
 	}
-	report := d.Inspect(sdjwt.DelegationOptions{Now: opts.Now})
+	check.Detail += ". The binding to a request was not checked."
+	report := d.Inspect(delegate.Options{Now: opts.Now})
 	if err := report.Err(); err != nil {
 		check.Status, check.Detail = Fail, err.Error()
 	}
@@ -208,7 +211,7 @@ func delegation(raw string, trust Trust, opts Options) (*Result, error) {
 // §5.1.4).
 func isKBSDJWT(token *sdjwt.Token) bool {
 	typ := headerTyp(token.Header)
-	return format.JOSETypeIs(typ, sdjwt.TypeKBSDJWT) || format.JOSETypeIs(typ, sdjwt.TypeKBSDJWTKB)
+	return format.JOSETypeIs(typ, delegate.TypeKBSDJWT) || format.JOSETypeIs(typ, delegate.TypeKBSDJWTKB)
 }
 
 // KBSDJWT validates a KB-SD-JWT on its own. The key that signs it is in the
@@ -230,7 +233,7 @@ func KBSDJWT(token *sdjwt.Token, opts Options) *Result {
 // draft-ietf-oauth-delegate-sd-jwt-00 §6 step 3.1: "Treat the Delegate Payload
 // as the JWT Payload for finding all claims other than the _sd_alg claim."
 func kbSDJWTValidity(token *sdjwt.Token, now time.Time) Check {
-	payload := sdjwt.NewDelegationLink(token).Payload
+	payload := delegate.NewLink(token).Payload
 	return validityCheck(unixClaim(payload, "nbf"), unixClaim(token.Payload, "iat"), expiry(payload), now, "The Delegate Payload has no exp claim")
 }
 
@@ -292,7 +295,7 @@ func MDOC(doc *mdoc.Document, trust Trust, opts Options) *Result {
 	cat := v.catalogue(format.EncodeBase64URL(doc.Raw))
 	r.add(v.mdocSignature(doc, cat, r), v.trustCheck(cat, r))
 	r.add(v.status(doc.StatusClaims(), statuslist.FormatCWT, cat, r)...)
-	chain, _ := ExtractMDOCX5ChainCertificates(doc)
+	chain, _ := doc.IssuerCertificates()
 	r.add(v.certificateRevocation(chain, r)...)
 	return r
 }

@@ -20,11 +20,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
 	"github.com/eudi-dev/eudi-dev/v3/internal/certinfo"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 func BuildCertificatesJSON(certs []*x509.Certificate) map[string]any {
@@ -51,7 +50,7 @@ func PrintCertificates(certs []*x509.Certificate, opts Options) {
 // tokenCertificates are the x5c certificates of a JWT header. A header
 // without x5c, or with one that does not parse, has none.
 func tokenCertificates(token *sdjwt.Token) []*x509.Certificate {
-	certs, err := certchain.FromX5C(token.Header["x5c"])
+	certs, err := token.IssuerCertificates()
 	if err != nil {
 		return nil
 	}
@@ -60,10 +59,7 @@ func tokenCertificates(token *sdjwt.Token) []*x509.Certificate {
 
 // mdocCertificates are the x5chain certificates of the issuerAuth.
 func mdocCertificates(doc *mdoc.Document) []*x509.Certificate {
-	if doc.IssuerAuth == nil {
-		return nil
-	}
-	certs, err := certchain.FromCOSE(doc.IssuerAuth.ProtectedHeader, doc.IssuerAuth.UnprotectedHeader)
+	certs, err := doc.IssuerCertificates()
 	if err != nil {
 		return nil
 	}

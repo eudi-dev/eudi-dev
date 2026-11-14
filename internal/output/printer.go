@@ -26,12 +26,16 @@ import (
 
 	"github.com/fatih/color"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/cborview"
+	"github.com/eudi-dev/eudi-dev/v3/internal/coseutil"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
 	"github.com/eudi-dev/eudi-dev/v3/internal/validity"
+	"github.com/eudi-dev/eudi-dev/v3/internal/verifyreport"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt/delegate"
 )
 
 var (
@@ -157,7 +161,7 @@ func printSDJWT(title string, token *sdjwt.Token, opts Options) {
 // BuildDelegationJSON lists the KB-SD-JWTs of a Delegate SD-JWT and, for a
 // dSD-JWT+KB, the Key Binding JWT of the Delegate Holder
 // (draft-ietf-oauth-delegate-sd-jwt-00 §5.1.1).
-func BuildDelegationJSON(d *sdjwt.Delegation) map[string]any {
+func BuildDelegationJSON(d *delegate.Chain) map[string]any {
 	links := make([]map[string]any, 0, len(d.Links))
 	for _, link := range d.Links {
 		entry := map[string]any{
@@ -248,8 +252,8 @@ func BuildMDOCJSON(doc *mdoc.Document) map[string]any {
 			}
 			msoOut["validityInfo"] = vi
 		}
-		if mso.Status != nil {
-			msoOut["status"] = mso.Status
+		if status := mdocStatus(doc); status != nil {
+			msoOut["status"] = status
 		}
 		if len(mso.ValueDigests) > 0 {
 			digests := make(map[string]any, len(mso.ValueDigests))
@@ -262,8 +266,8 @@ func BuildMDOCJSON(doc *mdoc.Document) map[string]any {
 			}
 			msoOut["valueDigests"] = digests
 		}
-		if mso.DeviceKeyInfo != nil {
-			msoOut["deviceKeyInfo"] = mso.DeviceKeyInfo
+		if info := deviceKeyInfo(doc); info != nil {
+			msoOut["deviceKeyInfo"] = info
 		}
 		out["mso"] = msoOut
 	}
@@ -272,8 +276,8 @@ func BuildMDOCJSON(doc *mdoc.Document) map[string]any {
 	out["issuerAuth"] = buildIssuerAuthJSON(doc)
 	addCertificates(out, mdocCertificates(doc))
 	out["issuerSignedItems"] = buildIssuerSignedItemsJSON(doc)
-	if doc.DeviceSigned != nil && doc.DeviceSigned.DeviceAuth != nil {
-		out["deviceAuth"] = doc.DeviceSigned.DeviceAuth
+	if auth := deviceAuth(doc); auth != nil {
+		out["deviceAuth"] = auth
 		out["deviceAuthType"] = deviceAuthType(doc)
 	}
 	return out
@@ -286,10 +290,11 @@ func buildIssuerAuthJSON(doc *mdoc.Document) map[string]any {
 	out := map[string]any{
 		"structure": "COSE_Sign1 [protected, unprotected, payload, signature]",
 	}
-	if named := mdoc.NameCOSEHeader(cborKeyedMap(doc.IssuerAuth.ProtectedHeader)); named != nil {
+	protected, unprotected := cborview.Sign1Headers(doc.IssuerAuth.RawCOSE)
+	if named := coseutil.NameHeader(cborKeyedMap(protected)); named != nil {
 		out["protected"] = named
 	}
-	if named := mdoc.NameCOSEHeader(cborKeyedMap(doc.IssuerAuth.UnprotectedHeader)); named != nil {
+	if named := coseutil.NameHeader(cborKeyedMap(unprotected)); named != nil {
 		out["unprotected"] = named
 	}
 	out["payload"] = "the Mobile Security Object, below"
@@ -347,11 +352,11 @@ func buildIssuerSignedItemsJSON(doc *mdoc.Document) map[string]any {
 }
 
 func buildDeviceKeyJSON(doc *mdoc.Document) map[string]any {
-	if doc.IssuerAuth == nil || doc.IssuerAuth.MSO == nil || doc.IssuerAuth.MSO.DeviceKeyInfo == nil {
+	if doc.IssuerAuth == nil || doc.IssuerAuth.MSO == nil || deviceKeyInfo(doc) == nil {
 		return map[string]any{"bound": false}
 	}
 	out := map[string]any{"bound": true}
-	if named := mdoc.NameCOSEKey(deviceKeyMap(doc)); named != nil {
+	if named := coseutil.NameKey(deviceKeyMap(doc)); named != nil {
 		out["coseKey"] = named
 	}
 	key, err := mdoc.DeviceKey(doc)
@@ -366,11 +371,31 @@ func buildDeviceKeyJSON(doc *mdoc.Document) map[string]any {
 }
 
 func deviceKeyMap(doc *mdoc.Document) map[string]any {
+	key, _ := deviceKeyInfo(doc)["deviceKey"].(map[string]any)
+	return key
+}
+
+// The mdoc package keeps the bytes of these maps. The functions below decode
+// them for display.
+
+func deviceKeyInfo(doc *mdoc.Document) map[string]any {
 	if doc.IssuerAuth == nil || doc.IssuerAuth.MSO == nil {
 		return nil
 	}
-	key, _ := doc.IssuerAuth.MSO.DeviceKeyInfo["deviceKey"].(map[string]any)
-	return key
+	info, _ := cborview.Map(doc.IssuerAuth.Payload)["deviceKeyInfo"].(map[string]any)
+	return info
+}
+
+func mdocStatus(doc *mdoc.Document) map[string]any {
+	status, _ := doc.StatusClaims()["status"].(map[string]any)
+	return status
+}
+
+func deviceAuth(doc *mdoc.Document) map[string]any {
+	if doc.DeviceSigned == nil {
+		return nil
+	}
+	return cborview.Map(doc.DeviceSigned.RawDeviceAuth)
 }
 
 func deviceAuthType(doc *mdoc.Document) string {
@@ -379,7 +404,7 @@ func deviceAuthType(doc *mdoc.Document) string {
 		return ""
 	case len(doc.DeviceSigned.RawDeviceSignature) > 0:
 		return "deviceSignature"
-	case doc.DeviceSigned.DeviceAuth["deviceMac"] != nil:
+	case deviceAuth(doc)["deviceMac"] != nil:
 		return "deviceMac"
 	default:
 		return "unknown"
@@ -387,8 +412,9 @@ func deviceAuthType(doc *mdoc.Document) string {
 }
 
 // A credential without a device key cannot be presented with device authentication.
-func printDeviceKey(doc *mdoc.Document, mso *mdoc.MSO, opts Options) {
-	if mso.DeviceKeyInfo == nil {
+func printDeviceKey(doc *mdoc.Document, opts Options) {
+	info := deviceKeyInfo(doc)
+	if info == nil {
 		printSection("Device Key")
 		dimColor.Println("  none (the credential is not bound to a holder key)")
 		return
@@ -397,7 +423,7 @@ func printDeviceKey(doc *mdoc.Document, mso *mdoc.MSO, opts Options) {
 	key, err := mdoc.DeviceKey(doc)
 	if err != nil {
 		printKV("Key", dimColor.Sprintf("unreadable: %v", err), 1)
-		printMap(mso.DeviceKeyInfo, 1)
+		printMap(info, 1)
 		return
 	}
 	printKV("Type", "EC "+key.Curve.Params().Name, 1)
@@ -405,7 +431,7 @@ func printDeviceKey(doc *mdoc.Document, mso *mdoc.MSO, opts Options) {
 		printKV("Thumbprint", thumbprint, 1)
 	}
 	if opts.Verbose {
-		printMap(mso.DeviceKeyInfo, 1)
+		printMap(info, 1)
 	}
 }
 
@@ -415,7 +441,7 @@ func printDeviceAuth(doc *mdoc.Document, opts Options) {
 		return
 	}
 	printSection("Device Authentication")
-	if doc.DeviceSigned == nil || len(doc.DeviceSigned.DeviceAuth) == 0 {
+	if len(deviceAuth(doc)) == 0 {
 		dimColor.Println("  none (the response carries no holder signature)")
 		return
 	}
@@ -423,7 +449,7 @@ func printDeviceAuth(doc *mdoc.Document, opts Options) {
 	case len(doc.DeviceSigned.RawDeviceSignature) > 0:
 		printKV("Type", "deviceSignature (COSE_Sign1)", 1)
 		dimColor.Println("    signed over the session transcript of the request it answers")
-	case doc.DeviceSigned.DeviceAuth["deviceMac"] != nil:
+	case deviceAuth(doc)["deviceMac"] != nil:
 		printKV("Type", "deviceMac (COSE_Mac0)", 1)
 	default:
 		dimColor.Println("  present, but neither deviceSignature nor deviceMac")
@@ -471,12 +497,12 @@ func PrintMDOC(doc *mdoc.Document, opts Options) {
 			}
 		}
 
-		if mso.Status != nil {
+		if status := mdocStatus(doc); status != nil {
 			printSection("Status")
-			printMap(mso.Status, 1)
+			printMap(status, 1)
 		}
 
-		printDeviceKey(doc, mso, opts)
+		printDeviceKey(doc, opts)
 	}
 
 	printDeviceAuth(doc, opts)
@@ -499,9 +525,9 @@ func PrintMDOC(doc *mdoc.Document, opts Options) {
 		}
 	}
 
-	if doc.DeviceSigned != nil && doc.DeviceSigned.DeviceAuth != nil {
+	if auth := deviceAuth(doc); auth != nil {
 		printSection("Device Auth")
-		printMap(doc.DeviceSigned.DeviceAuth, 1)
+		printMap(auth, 1)
 	}
 
 	printCertificateChain("x5chain", mdocCertificates(doc), opts.Verbose)
@@ -509,7 +535,7 @@ func PrintMDOC(doc *mdoc.Document, opts Options) {
 	fmt.Println()
 }
 
-func PrintVerifyResultSDJWT(r *sdjwt.VerifyResult, opts Options) {
+func PrintVerifyResultSDJWT(r *verifyreport.SDJWTResult, opts Options) {
 	if opts.JSON {
 		PrintJSON(r)
 		return
@@ -540,7 +566,7 @@ func PrintVerifyResultSDJWT(r *sdjwt.VerifyResult, opts Options) {
 	}
 }
 
-func PrintVerifyResultMDOC(r *mdoc.VerifyResult, opts Options) {
+func PrintVerifyResultMDOC(r *verifyreport.MDOCResult, opts Options) {
 	if opts.JSON {
 		PrintJSON(r)
 		return

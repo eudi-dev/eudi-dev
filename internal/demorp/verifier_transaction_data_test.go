@@ -19,8 +19,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
 	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 const paymentRequest = `{"type":"custom",` +

@@ -39,16 +39,16 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
 	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
 	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
 	"github.com/eudi-dev/eudi-dev/v3/internal/qr"
 	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
 	"github.com/eudi-dev/eudi-dev/v3/internal/trustedlists"
 	"github.com/eudi-dev/eudi-dev/v3/internal/typemetadata"
 	"github.com/eudi-dev/eudi-dev/v3/internal/validate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
 	"github.com/eudi-dev/eudi-dev/v3/internal/webui"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 // The German PID extends the base SD-JWT PID type. It answers a request for
@@ -1567,7 +1567,7 @@ func (d *DemoRP) verifyMDOCPresentation(req *requestState, presentation string, 
 	check := func(name string, err error) error {
 		return log.record(label+name, err)
 	}
-	doc, err := mdoc.Parse(presentation)
+	doc, err := mdoc.ParseLenient(presentation)
 	if err = check("presentation parses as an mdoc DeviceResponse", err); err != nil {
 		return nil, err
 	}

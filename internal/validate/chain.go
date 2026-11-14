@@ -23,7 +23,7 @@ import (
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/certchain"
 	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
 )
 
 // ValidateCertChain checks that the leaf certs[0] chains to one of the trust
@@ -83,23 +83,9 @@ func ExtractAndValidateMDOCX5Chain(doc *mdoc.Document, tlCerts []lote.CertInfo) 
 	if len(tlCerts) == 0 {
 		return nil, nil
 	}
-	certs, err := parseMDOCX5ChainCerts(doc)
+	certs, err := doc.IssuerCertificates()
 	if err != nil || len(certs) == 0 {
 		return nil, err
 	}
 	return ValidateCertChain(certs, tlCerts)
-}
-
-// ExtractMDOCX5ChainCertificates returns the certificates in the x5chain
-// header (label 33) of an mdoc.
-func ExtractMDOCX5ChainCertificates(doc *mdoc.Document) ([]*x509.Certificate, error) {
-	return parseMDOCX5ChainCerts(doc)
-}
-
-// parseMDOCX5ChainCerts reads the x5chain of the MSO's COSE_Sign1.
-func parseMDOCX5ChainCerts(doc *mdoc.Document) ([]*x509.Certificate, error) {
-	if doc == nil || doc.IssuerAuth == nil {
-		return nil, nil
-	}
-	return certchain.FromCOSE(doc.IssuerAuth.ProtectedHeader, doc.IssuerAuth.UnprotectedHeader)
 }

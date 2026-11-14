@@ -20,7 +20,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 func generateForTest(t *testing.T, cfg SDJWTConfig) string {

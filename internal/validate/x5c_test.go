@@ -20,8 +20,7 @@ import (
 	"testing"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 func TestExtractAndValidateJWKX5C(t *testing.T) {
@@ -128,62 +127,4 @@ func TestCanResolveJWTIssuerMetadata(t *testing.T) {
 	if CanResolveJWTIssuerMetadata(nil) {
 		t.Error("a nil token was reported as resolvable")
 	}
-}
-
-// COSE decoders return the x5chain label as an int64 or a uint64. A single
-// certificate is a bare byte string.
-func TestExtractMDOCX5ChainCertificates(t *testing.T) {
-	caCert, caKey, caDER := generateCACert(t)
-	_, _, leafDER := generateLeafCert(t, caCert, caKey)
-
-	withHeader := func(header map[any]any) *mdoc.Document {
-		return &mdoc.Document{IssuerAuth: &mdoc.IssuerAuth{UnprotectedHeader: header}}
-	}
-
-	t.Run("a single certificate under an int64 label", func(t *testing.T) {
-		certs, err := ExtractMDOCX5ChainCertificates(withHeader(map[any]any{int64(33): leafDER}))
-		if err != nil {
-			t.Fatalf("ExtractMDOCX5ChainCertificates: %v", err)
-		}
-		if len(certs) != 1 {
-			t.Fatalf("certificates = %d, want 1", len(certs))
-		}
-	})
-
-	t.Run("a chain under a uint64 label", func(t *testing.T) {
-		certs, err := ExtractMDOCX5ChainCertificates(withHeader(map[any]any{uint64(33): []any{leafDER, caDER}}))
-		if err != nil {
-			t.Fatalf("ExtractMDOCX5ChainCertificates: %v", err)
-		}
-		if len(certs) != 2 {
-			t.Fatalf("certificates = %d, want 2", len(certs))
-		}
-	})
-
-	t.Run("no issuer authentication", func(t *testing.T) {
-		certs, err := ExtractMDOCX5ChainCertificates(&mdoc.Document{})
-		if err != nil || certs != nil {
-			t.Errorf("certs = %v, err = %v, want both empty", certs, err)
-		}
-	})
-
-	t.Run("no x5chain in the header", func(t *testing.T) {
-		certs, err := ExtractMDOCX5ChainCertificates(withHeader(map[any]any{int64(1): int64(-7)}))
-		if err != nil || certs != nil {
-			t.Errorf("certs = %v, err = %v, want both empty", certs, err)
-		}
-	})
-
-	// RFC 9360 §2 allows a byte string or an array of byte strings.
-	t.Run("an x5chain of an unexpected shape", func(t *testing.T) {
-		if _, err := ExtractMDOCX5ChainCertificates(withHeader(map[any]any{int64(33): "a string"})); err == nil {
-			t.Error("a text x5chain was accepted")
-		}
-	})
-
-	t.Run("bytes that are not a certificate", func(t *testing.T) {
-		if _, err := ExtractMDOCX5ChainCertificates(withHeader(map[any]any{int64(33): []byte("nope")})); err == nil {
-			t.Error("unparseable DER was accepted")
-		}
-	})
 }

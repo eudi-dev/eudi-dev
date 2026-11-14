@@ -27,12 +27,12 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/regcert"
 	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
 	"github.com/eudi-dev/eudi-dev/v3/internal/trustedlists"
 	"github.com/eudi-dev/eudi-dev/v3/internal/validate"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 // catalogueEntryFor returns the catalogue entry that lists format with one of
@@ -257,13 +257,13 @@ func validateWithAnchors(cred StoredCredential, anchors []*x509.Certificate) err
 		if err != nil {
 			return err
 		}
-		valid = sdjwt.Verify(token, key).SignatureValid
+		valid = sdjwt.Verify(token, key) == nil
 	case credtype.FormatMDOC:
-		doc, err := mdoc.Parse(cred.Raw)
+		doc, err := mdoc.ParseLenient(cred.Raw)
 		if err != nil {
 			return err
 		}
-		valid = mdoc.Verify(doc, key).SignatureValid
+		valid = mdoc.Verify(doc, key) == nil
 	}
 	if !valid {
 		return fmt.Errorf("the signature does not verify with the key of its certificate")
@@ -337,7 +337,7 @@ func receivedCredential(raw string) StoredCredential {
 		}
 		return StoredCredential{Format: credtype.FormatSDJWT, VCT: jsonutil.Text(token.Payload["vct"]), Claims: token.ResolvedClaims, Raw: raw}
 	}
-	doc, err := mdoc.Parse(raw)
+	doc, err := mdoc.ParseLenient(raw)
 	if err != nil {
 		return StoredCredential{}
 	}

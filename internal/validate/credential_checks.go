@@ -26,10 +26,11 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
 	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
 	"github.com/eudi-dev/eudi-dev/v3/internal/statuslist"
 	"github.com/eudi-dev/eudi-dev/v3/internal/validity"
+	"github.com/eudi-dev/eudi-dev/v3/internal/verifyreport"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 // jwtValidity reads exp and nbf from the issuer-signed payload. SD-JWT VC
@@ -160,7 +161,7 @@ func (v run) jwtSignature(token *sdjwt.Token, c catalogueState, r *Result) Check
 	// signature verified with that list.
 	if a, ok := v.catalogueAnchors(c); ok {
 		if key, err := ExtractAndValidateX5C(token.Header, lote.CertInfos(a.IssuanceAnchors)); err == nil && key != nil {
-			if res := sdjwt.Verify(token, key); res.SignatureValid {
+			if res := verifyreport.SDJWT(token, key); res.SignatureValid {
 				r.SDJWTVerify, r.SignatureSource = res, SourceX5CChain
 				return Check{Name: CheckSignature, Status: Pass, Detail: "Valid, " + res.Algorithm}
 			}
@@ -237,7 +238,7 @@ func failedDetail(source string, errs []string) string {
 	}
 	var reasons []string
 	for _, e := range errs {
-		if e != sdjwt.ErrSignatureInvalid {
+		if e != sdjwt.ErrSignature.Error() {
 			reasons = append(reasons, e)
 		}
 	}
@@ -257,7 +258,7 @@ func (v run) mdocSignature(doc *mdoc.Document, c catalogueState, r *Result) Chec
 	if check, empty := v.emptyTrust(); empty {
 		return check
 	}
-	chain, err := ExtractMDOCX5ChainCertificates(doc)
+	chain, err := doc.IssuerCertificates()
 	if err != nil {
 		return Check{Name: CheckSignature, Status: Fail, Detail: fmt.Sprintf("Reading the x5chain: %v", err)}
 	}
@@ -271,7 +272,7 @@ func (v run) mdocSignature(doc *mdoc.Document, c catalogueState, r *Result) Chec
 		if leaf, err := certchain.Verify(chain, anchors); err != nil {
 			reasons = append(reasons, fmt.Sprintf("certificate chain not trusted: %v", err))
 		} else {
-			res := mdoc.Verify(doc, leaf.PublicKey)
+			res := verifyreport.MDOC(doc, leaf.PublicKey)
 			r.MDOCVerify, r.SignatureSource = res, SourceX5CChain
 			if res.SignatureValid {
 				return Check{Name: CheckSignature, Status: Pass, Detail: validVia(res.Algorithm, SourceX5CChain)}
@@ -281,7 +282,7 @@ func (v run) mdocSignature(doc *mdoc.Document, c catalogueState, r *Result) Chec
 	}
 
 	for _, key := range v.trust.Keys {
-		res := mdoc.Verify(doc, key)
+		res := verifyreport.MDOC(doc, key)
 		r.MDOCVerify, r.SignatureSource = res, SourceProvidedKey
 		if res.SignatureValid {
 			return Check{Name: CheckSignature, Status: Pass, Detail: validVia(res.Algorithm, SourceProvidedKey)}
@@ -289,7 +290,7 @@ func (v run) mdocSignature(doc *mdoc.Document, c catalogueState, r *Result) Chec
 	}
 
 	if !v.trust.Supplied && len(chain) > 0 {
-		res := mdoc.Verify(doc, chain[0].PublicKey)
+		res := verifyreport.MDOC(doc, chain[0].PublicKey)
 		r.MDOCVerify, r.SignatureSource = res, SourceX5CLeaf
 		if res.SignatureValid {
 			return Check{Name: CheckSignature, Status: Pass, Detail: validVia(res.Algorithm, SourceX5CLeaf)}

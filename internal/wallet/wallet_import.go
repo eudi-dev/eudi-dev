@@ -28,10 +28,10 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
 	"github.com/eudi-dev/eudi-dev/v3/internal/statuslist"
 	"github.com/eudi-dev/eudi-dev/v3/internal/validate"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 // Commands accept unambiguous prefixes of these IDs. Generation panics only if system
@@ -309,7 +309,7 @@ func jwtVCType(payload map[string]any) string {
 }
 
 func (w *Wallet) parseMDocEntry(raw, group, bindingKeyPEM string) (StoredCredential, error) {
-	doc, err := mdoc.Parse(raw)
+	doc, err := mdoc.ParseLenient(raw)
 	if err != nil {
 		return StoredCredential{}, fmt.Errorf("parsing mdoc: %w", err)
 	}
@@ -383,7 +383,7 @@ func (c *StoredCredential) Rehydrate() error {
 		c.issuedAt = jwtIssuedAt(payload)
 
 	case credtype.FormatMDOC:
-		doc, err := mdoc.Parse(c.Raw)
+		doc, err := mdoc.ParseLenient(c.Raw)
 		if err != nil {
 			return fmt.Errorf("parsing mdoc: %w", err)
 		}

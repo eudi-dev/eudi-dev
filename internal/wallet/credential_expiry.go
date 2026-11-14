@@ -19,8 +19,8 @@ import (
 	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 // renewalMargin is how long before expiry a credential is renewed. It only
@@ -32,7 +32,7 @@ const renewalMargin = time.Minute
 func CredentialValidity(cred StoredCredential) (notBefore, expiry time.Time) {
 	switch cred.Format {
 	case credtype.FormatMDOC:
-		doc, err := mdoc.Parse(cred.Raw)
+		doc, err := mdoc.ParseLenient(cred.Raw)
 		if err != nil || doc.IssuerAuth == nil || doc.IssuerAuth.MSO == nil || doc.IssuerAuth.MSO.ValidityInfo == nil {
 			return time.Time{}, time.Time{}
 		}
@@ -106,7 +106,7 @@ func CredentialIssuedAt(cred StoredCredential) time.Time {
 	}
 	switch cred.Format {
 	case credtype.FormatMDOC:
-		doc, err := mdoc.Parse(cred.Raw)
+		doc, err := mdoc.ParseLenient(cred.Raw)
 		if err != nil {
 			return time.Time{}
 		}

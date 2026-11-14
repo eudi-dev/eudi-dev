@@ -30,12 +30,13 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
 	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
 	"github.com/eudi-dev/eudi-dev/v3/internal/validate"
+	"github.com/eudi-dev/eudi-dev/v3/internal/verifyreport"
 	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 // The German PID types come from the predefined templates.
@@ -635,7 +636,7 @@ func TestIssueSDJWT_WithKeyFile(t *testing.T) {
 	}
 
 	token := issuedSDJWT(t, "issue", "sdjwt", "--key", keyFile)
-	if result := sdjwt.Verify(token, &key.PublicKey); !result.SignatureValid {
+	if result := verifyreport.SDJWT(token, &key.PublicKey); !result.SignatureValid {
 		t.Errorf("the credential does not verify with the key from --key: %v", result.Errors)
 	}
 }
@@ -1119,7 +1120,7 @@ func issuedSDJWT(t *testing.T, args ...string) *sdjwt.Token {
 
 func issuedMDOC(t *testing.T, args ...string) *mdoc.Document {
 	t.Helper()
-	doc, err := mdoc.Parse(issuedCredential(t, args...))
+	doc, err := mdoc.ParseLenient(issuedCredential(t, args...))
 	if err != nil {
 		t.Fatalf("parsing the issued mdoc: %v", err)
 	}

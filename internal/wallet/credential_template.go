@@ -24,9 +24,9 @@ import (
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 // TemplateFromCredential returns a template that issues credentials like
@@ -58,7 +58,7 @@ func TemplateFromCredential(cred StoredCredential, image func(uri string) string
 		tpl.DocType = cred.DocType
 		// Claims of the doc type's own namespace need no prefix. The others
 		// keep it (namespace:element).
-		doc, err := mdoc.Parse(cred.Raw)
+		doc, err := mdoc.ParseLenient(cred.Raw)
 		if err != nil {
 			return credtemplate.Template{}, fmt.Errorf("parsing the mdoc: %w", err)
 		}

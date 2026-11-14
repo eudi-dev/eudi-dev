@@ -18,13 +18,14 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
 )
 
 // holderBinding is the holder key that the issuer put in a credential. It
@@ -84,25 +85,16 @@ func sdJWTHolderBinding(raw string) holderBinding {
 }
 
 func mdocHolderBinding(raw string) holderBinding {
-	doc, err := mdoc.Parse(raw)
+	doc, err := mdoc.ParseLenient(raw)
 	if err != nil {
 		return holderBinding{}
 	}
 	key, err := mdoc.DeviceKey(doc)
 	if err != nil {
-		return holderBinding{Bound: mdocNamesDeviceKey(doc)}
+		// An mdoc with an unreadable device key is still bound to a holder.
+		return holderBinding{Bound: !errors.Is(err, mdoc.ErrNoDeviceKey)}
 	}
 	return holderBinding{Bound: true, Key: key}
-}
-
-// mdocNamesDeviceKey reports whether the MSO contains a device key. It tells an
-// mdoc without holder binding apart from an mdoc with an unreadable device key.
-func mdocNamesDeviceKey(doc *mdoc.Document) bool {
-	if doc == nil || doc.IssuerAuth == nil || doc.IssuerAuth.MSO == nil {
-		return false
-	}
-	_, ok := doc.IssuerAuth.MSO.DeviceKeyInfo["deviceKey"]
-	return ok
 }
 
 type confirmationJWK struct {

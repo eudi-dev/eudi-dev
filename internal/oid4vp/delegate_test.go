@@ -22,7 +22,7 @@ import (
 	"testing"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 var delegateJWK = map[string]any{
@@ -77,9 +77,9 @@ func TestDelegateFindings(t *testing.T) {
 		{"an unknown format", with(valid, "format", "dc+sd-jwt"), "draft-ietf-oauth-delegate-sd-jwt-00 §7.1: format of transaction_data[0] must be dSD-JWT or dSD-JWT+KB"},
 		{"no delegate_payload_disclosure", with(valid, "delegate_payload_disclosure", nil), "draft-ietf-oauth-delegate-sd-jwt-00 §7.1: transaction_data[0] has no delegate_payload_disclosure string"},
 		// §5.1.3: the base64url encoding of [salt, JSON Object Payload].
-		{"a payload disclosure that is not base64url JSON", with(valid, "delegate_payload_disclosure", "*"), "draft-ietf-oauth-delegate-sd-jwt-00 §5.1.3: transaction_data[0]: the delegate payload disclosure does not decode"},
-		{"a payload disclosure with a claim name", with(valid, "delegate_payload_disclosure", delegateDisclosure(t, "s", "mandate", map[string]any{})), "draft-ietf-oauth-delegate-sd-jwt-00 §5.1.3: transaction_data[0]: the delegate payload disclosure must decode to [salt, JSON object]"},
-		{"a payload that is not an object", with(valid, "delegate_payload_disclosure", delegateDisclosure(t, "s", "mandate")), "draft-ietf-oauth-delegate-sd-jwt-00 §5.1.3: transaction_data[0]: the delegate payload disclosure must decode to [salt, JSON object]"},
+		{"a payload disclosure that is not base64url JSON", with(valid, "delegate_payload_disclosure", "*"), "draft-ietf-oauth-delegate-sd-jwt-00 §5.1.3: transaction_data[0]: delegate_payload_disclosure does not decode"},
+		{"a payload disclosure with a claim name", with(valid, "delegate_payload_disclosure", delegateDisclosure(t, "s", "mandate", map[string]any{})), "draft-ietf-oauth-delegate-sd-jwt-00 §5.1.3: transaction_data[0]: delegate_payload_disclosure must decode to [salt, JSON object]"},
+		{"a payload that is not an object", with(valid, "delegate_payload_disclosure", delegateDisclosure(t, "s", "mandate")), "draft-ietf-oauth-delegate-sd-jwt-00 §5.1.3: transaction_data[0]: delegate_payload_disclosure must decode to [salt, JSON object]"},
 		{"delegate_disclosures that is not an array of strings", with(valid, "delegate_disclosures", []any{1}), "draft-ietf-oauth-delegate-sd-jwt-00 §7.1: delegate_disclosures of transaction_data[0] must be an array of strings"},
 		// §7.1: "The delegate payload MUST NOT contain any disclosures not
 		// provided in delegate_disclosures."
@@ -88,7 +88,7 @@ func TestDelegateFindings(t *testing.T) {
 		{"a disclosure without a digest", with(valid, "delegate_disclosures", []any{valid["delegate_disclosures"].([]any)[0], delegateDisclosure(t, "s", "extra")}), "RFC 9901 §7.1: delegate_disclosures[1] of transaction_data[0] does not match any sha-256 digest in the Delegate Payload"},
 		// §5.1.4: "If the typ is KB-SD-JWT+KB then the Delegate Payload MUST
 		// include a cnf claim."
-		{"a dSD-JWT+KB entry without cnf", with(with(valid, "delegate_payload_disclosure", withoutCnf), "delegate_disclosures", nil), "draft-ietf-oauth-delegate-sd-jwt-00 §5.1.4: transaction_data[0] asks for a dSD-JWT+KB, but its delegate payload has no cnf claim"},
+		{"a dSD-JWT+KB entry without cnf", with(with(valid, "delegate_payload_disclosure", withoutCnf), "delegate_disclosures", nil), "draft-ietf-oauth-delegate-sd-jwt-00 §5.1.4: transaction_data[0] asks for a dSD-JWT+KB, but its Delegate Payload has no cnf claim"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			req := transactionDataRequest(transactionDataEntry(t, tt.entry))
@@ -139,5 +139,66 @@ func TestDelegatePayloadAndSummary(t *testing.T) {
 	payment := NewTransactionData("", ts12Payment)
 	if payment.DelegatePayload() != nil || DelegateSummary(payment.DelegatePayload()) != "" {
 		t.Error("an entry of another type has a delegate payload or summary")
+	}
+}
+
+func TestInspectDelegatePayload(t *testing.T) {
+	digest := func(disclosure string) string {
+		t.Helper()
+		digest, err := sdjwt.SDHash(disclosure, "sha-384")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return digest
+	}
+	first := delegateDisclosure(t, "salt-1", "https://one.example")
+	second := delegateDisclosure(t, "salt-2", "https://two.example")
+	payload := delegateDisclosure(t, "salt-p", map[string]any{"vct": "urn:example:mandate:1", "audiences": []any{
+		map[string]any{"...": digest(first)}, map[string]any{"...": digest(second)},
+	}})
+
+	t.Run("complete", func(t *testing.T) {
+		got, err := inspectDelegatePayload(payload, []string{first, second}, "sha-384")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got.MissingDigests) != 0 || len(got.Unreferenced) != 0 {
+			t.Errorf("missing %v, unreferenced %v, want none", got.MissingDigests, got.Unreferenced)
+		}
+		if want := []any{"https://one.example", "https://two.example"}; !reflect.DeepEqual(got.Claims["audiences"], want) {
+			t.Errorf("audiences = %v, want %v", got.Claims["audiences"], want)
+		}
+	})
+	t.Run("digest without Disclosure", func(t *testing.T) {
+		got, err := inspectDelegatePayload(payload, []string{first}, "sha-384")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := []string{digest(second)}; !reflect.DeepEqual(got.MissingDigests, want) {
+			t.Errorf("MissingDigests = %v, want %v", got.MissingDigests, want)
+		}
+		if want := []any{"https://one.example"}; !reflect.DeepEqual(got.Claims["audiences"], want) {
+			t.Errorf("audiences = %v, want %v", got.Claims["audiences"], want)
+		}
+	})
+	t.Run("Disclosure without digest", func(t *testing.T) {
+		got, err := inspectDelegatePayload(payload, []string{first, second, delegateDisclosure(t, "salt-3", "extra")}, "sha-384")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := []int{2}; !reflect.DeepEqual(got.Unreferenced, want) {
+			t.Errorf("Unreferenced = %v, want %v", got.Unreferenced, want)
+		}
+	})
+	for name, disclosure := range map[string]string{
+		"not base64url":         "*",
+		"object claim":          delegateDisclosure(t, "salt", "mandate", map[string]any{}),
+		"array element of text": delegateDisclosure(t, "salt", "mandate"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := inspectDelegatePayload(disclosure, nil, "sha-256"); err == nil {
+				t.Fatal("inspectDelegatePayload succeeded")
+			}
+		})
 	}
 }

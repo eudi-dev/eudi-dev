@@ -20,10 +20,10 @@ import (
 	"testing"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
 )
 
 // mdocDeviceAuthVerifies presents the first mdoc of the wallet and checks its
@@ -47,7 +47,7 @@ func mdocDeviceAuthVerifies(t *testing.T, w *Wallet, params *oid4vp.Request, thu
 	if err != nil {
 		t.Fatalf("building the transcript: %v", err)
 	}
-	doc, err := mdoc.Parse(result.TokenMap[matches[0].QueryID][0])
+	doc, err := mdoc.ParseLenient(result.TokenMap[matches[0].QueryID][0])
 	if err != nil {
 		t.Fatalf("parsing the DeviceResponse: %v", err)
 	}

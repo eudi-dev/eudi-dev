@@ -28,11 +28,11 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
 	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
 	"github.com/eudi-dev/eudi-dev/v3/internal/storage"
 	"github.com/eudi-dev/eudi-dev/v3/internal/validate"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 // openV272Wallet opens a copy of a state directory written by eudi-dev 2.7.2
@@ -136,11 +136,11 @@ func TestTheEAAListAnchorsTheEAAsOfAnEudiDev272Wallet(t *testing.T) {
 				t.Fatal(err)
 			}
 		case "mso_mdoc":
-			doc, err := mdoc.Parse(cred.Raw)
+			doc, err := mdoc.ParseLenient(cred.Raw)
 			if err != nil {
 				t.Fatal(err)
 			}
-			chain, err = validate.ExtractMDOCX5ChainCertificates(doc)
+			chain, err = doc.IssuerCertificates()
 			if err != nil {
 				t.Fatal(err)
 			}

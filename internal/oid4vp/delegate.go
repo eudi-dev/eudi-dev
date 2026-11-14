@@ -15,14 +15,19 @@
 package oid4vp
 
 import (
+	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt/delegate"
 )
 
 // DelegateTransactionDataType is the transaction data type of
@@ -68,8 +73,8 @@ func (e TransactionData) DelegateFindings(sdAlg string) findings.List {
 	label := e.Label()
 	var list findings.List
 	delegateFormat, _ := e.Data["format"].(string)
-	if delegateFormat != sdjwt.FormatDelegate && delegateFormat != sdjwt.FormatDelegateKB {
-		list = append(list, findings.DelegateSDJWT.Protocol("§7.1").Newf("format of %s must be %s or %s", label, sdjwt.FormatDelegate, sdjwt.FormatDelegateKB))
+	if delegateFormat != delegate.FormatDSDJWT && delegateFormat != delegate.FormatDSDJWTKB {
+		list = append(list, findings.DelegateSDJWT.Protocol("§7.1").Newf("format of %s must be %s or %s", label, delegate.FormatDSDJWT, delegate.FormatDSDJWTKB))
 	}
 	if value, present := e.Data["delegate_disclosures"]; present && jsonutil.Strings(value) == nil {
 		list = append(list, findings.DelegateSDJWT.Protocol("§7.1").Newf("delegate_disclosures of %s must be an array of strings", label))
@@ -78,7 +83,7 @@ func (e TransactionData) DelegateFindings(sdAlg string) findings.List {
 	if !ok {
 		return append(list, findings.DelegateSDJWT.Protocol("§7.1").Newf("%s has no delegate_payload_disclosure string", label))
 	}
-	inspection, err := sdjwt.InspectDelegatePayload(delegation.PayloadDisclosure, delegation.Disclosures, sdAlg)
+	inspection, err := inspectDelegatePayload(delegation.PayloadDisclosure, delegation.Disclosures, sdAlg)
 	if err != nil {
 		return append(list, findings.DelegateSDJWT.Protocol("§5.1.3").Newf("%s: %v", label, err))
 	}
@@ -93,10 +98,74 @@ func (e TransactionData) DelegateFindings(sdAlg string) findings.List {
 	}
 	// §5.1.4: "If the typ is KB-SD-JWT+KB then the Delegate Payload MUST
 	// include a cnf claim."
-	if delegateFormat == sdjwt.FormatDelegateKB && jsonutil.GetMap(inspection.Claims, "cnf") == nil {
-		list = append(list, findings.DelegateSDJWT.Protocol("§5.1.4").Newf("%s asks for a %s, but its delegate payload has no cnf claim", label, sdjwt.FormatDelegateKB))
+	if delegateFormat == delegate.FormatDSDJWTKB && jsonutil.GetMap(inspection.Claims, "cnf") == nil {
+		list = append(list, findings.DelegateSDJWT.Protocol("§5.1.4").Newf("%s asks for a %s, but its Delegate Payload has no cnf claim", label, delegate.FormatDSDJWTKB))
 	}
 	return list
+}
+
+// delegatePayloadInspection is the result of inspectDelegatePayload.
+type delegatePayloadInspection struct {
+	// Claims is the Delegate Payload with its Disclosures applied.
+	Claims map[string]any
+	// MissingDigests are the digests in the Delegate Payload without a
+	// Disclosure.
+	MissingDigests []string
+	// Unreferenced are the positions of the Disclosures without a digest in
+	// the Delegate Payload.
+	Unreferenced []int
+}
+
+// inspectDelegatePayload decodes a Delegate Payload Disclosure and matches it
+// with disclosures under sdAlg. §5.1.3: "The delegate payload disclosure is an
+// Array disclosure, which is the base64url encoding of [salt, JSON Object
+// Payload]."
+//
+// It reads the payload in its KB-SD-JWT form, as an unsigned SD-JWT with
+// delegate_payload as its only claim.
+func inspectDelegatePayload(payloadDisclosure string, disclosures []string, sdAlg string) (*delegatePayloadInspection, error) {
+	decoded, err := format.DecodeBase64URL(payloadDisclosure)
+	if err != nil {
+		return nil, fmt.Errorf("delegate_payload_disclosure does not decode: %w", err)
+	}
+	var elements []any
+	if err := json.Unmarshal(decoded, &elements); err != nil {
+		return nil, fmt.Errorf("delegate_payload_disclosure does not decode: %w", err)
+	}
+	if len(elements) != 2 {
+		return nil, fmt.Errorf("delegate_payload_disclosure must decode to [salt, JSON object]")
+	}
+	if _, isObject := elements[1].(map[string]any); !isObject {
+		return nil, fmt.Errorf("delegate_payload_disclosure must decode to [salt, JSON object]")
+	}
+	payloadDigest, err := sdjwt.SDHash(payloadDisclosure, sdAlg)
+	if err != nil {
+		return nil, err
+	}
+	header, _ := json.Marshal(map[string]any{"alg": "none"})
+	payload, _ := json.Marshal(map[string]any{
+		"_sd_alg": sdAlg, "delegate_payload": []any{map[string]any{"...": payloadDigest}},
+	})
+	components := append([]string{format.EncodeBase64URL(header) + "." + format.EncodeBase64URL(payload) + ".", payloadDisclosure}, disclosures...)
+	token, err := sdjwt.ParseLenient(strings.Join(components, "~") + "~")
+	if err != nil {
+		return nil, fmt.Errorf("the disclosures of the Delegate Payload do not decode: %w", err)
+	}
+
+	inspection := &delegatePayloadInspection{}
+	referenced := sdjwt.ReferencedDigests(token)
+	delete(referenced, payloadDigest)
+	for i, disclosure := range token.Disclosures[1:] {
+		if !referenced[disclosure.Digest] {
+			inspection.Unreferenced = append(inspection.Unreferenced, i)
+		}
+		delete(referenced, disclosure.Digest)
+	}
+	inspection.MissingDigests = slices.Sorted(maps.Keys(referenced))
+	if disclosed, _ := token.ResolvedClaims["delegate_payload"].([]any); len(disclosed) == 1 {
+		inspection.Claims, _ = disclosed[0].(map[string]any)
+	}
+	return inspection, nil
 }
 
 // DelegatePayload is the decoded Delegate Payload of a delegate entry. It is
@@ -106,7 +175,7 @@ func (e TransactionData) DelegatePayload() map[string]any {
 	if !ok {
 		return nil
 	}
-	inspection, err := sdjwt.InspectDelegatePayload(delegation.PayloadDisclosure, delegation.Disclosures, e.PreferredHashAlg())
+	inspection, err := inspectDelegatePayload(delegation.PayloadDisclosure, delegation.Disclosures, e.PreferredHashAlg())
 	if err != nil {
 		return nil
 	}

@@ -21,9 +21,9 @@ import (
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/dcql"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
-	"github.com/eudi-dev/eudi-dev/v3/internal/mdoc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/output"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 var dcqlCmd = &cobra.Command{
@@ -69,7 +69,7 @@ func runDCQL(cmd *cobra.Command, args []string) error {
 		query = dcql.FromJWT(token)
 
 	case format.FormatMDOC:
-		doc, err := mdoc.Parse(raw)
+		doc, err := mdoc.ParseLenient(raw)
 		if err != nil {
 			return fmt.Errorf("parsing mdoc: %w", err)
 		}

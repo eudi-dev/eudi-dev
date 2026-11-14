@@ -26,7 +26,8 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
 	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/internal/verifyreport"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 func CanResolveJWTIssuerMetadata(token *sdjwt.Token) bool {
@@ -136,14 +137,14 @@ func jwkPublicKey(jwk map[string]any) (crypto.PublicKey, error) {
 
 // verifyWithIssuerMetadata verifies the token with the first metadata key
 // that matches its signature.
-func verifyWithIssuerMetadata(token *sdjwt.Token, metadata KeyMetadata, tlCerts []lote.CertInfo, clients ...*http.Client) (*sdjwt.VerifyResult, string, error) {
+func verifyWithIssuerMetadata(token *sdjwt.Token, metadata KeyMetadata, tlCerts []lote.CertInfo, clients ...*http.Client) (*verifyreport.SDJWTResult, string, error) {
 	keys, source, err := ResolveJWTIssuerMetadataKeys(token, metadata, tlCerts, clients...)
 	if err != nil || len(keys) == 0 {
 		return nil, "", err
 	}
-	var result *sdjwt.VerifyResult
+	var result *verifyreport.SDJWTResult
 	for _, key := range keys {
-		if result = sdjwt.Verify(token, key); result.SignatureValid {
+		if result = verifyreport.SDJWT(token, key); result.SignatureValid {
 			break
 		}
 	}
@@ -173,32 +174,32 @@ const (
 // the whole trust, so a key that fails is not replaced by a metadata key. The
 // leaf step keeps validation offline for credentials that carry their issuer
 // certificate.
-func VerifyJWTSignature(token *sdjwt.Token, metadata KeyMetadata, pubKeys []crypto.PublicKey, tlCerts []lote.CertInfo, clients ...*http.Client) (*sdjwt.VerifyResult, string, error) {
+func VerifyJWTSignature(token *sdjwt.Token, metadata KeyMetadata, pubKeys []crypto.PublicKey, tlCerts []lote.CertInfo, clients ...*http.Client) (*verifyreport.SDJWTResult, string, error) {
 	return verifyJWTSignature(token, pubKeys, tlCerts, &metadata, clients...)
 }
 
 // VerifyJWTSignatureOffline uses only supplied keys and certificates. This path must
 // complete without network access.
-func VerifyJWTSignatureOffline(token *sdjwt.Token, pubKeys []crypto.PublicKey, tlCerts []lote.CertInfo) (*sdjwt.VerifyResult, string, error) {
+func VerifyJWTSignatureOffline(token *sdjwt.Token, pubKeys []crypto.PublicKey, tlCerts []lote.CertInfo) (*verifyreport.SDJWTResult, string, error) {
 	return verifyJWTSignature(token, pubKeys, tlCerts, nil)
 }
 
 // verifyJWTSignature looks up keys in the issuer's metadata only when metadata
 // is set.
-func verifyJWTSignature(token *sdjwt.Token, pubKeys []crypto.PublicKey, tlCerts []lote.CertInfo, metadata *KeyMetadata, clients ...*http.Client) (*sdjwt.VerifyResult, string, error) {
+func verifyJWTSignature(token *sdjwt.Token, pubKeys []crypto.PublicKey, tlCerts []lote.CertInfo, metadata *KeyMetadata, clients ...*http.Client) (*verifyreport.SDJWTResult, string, error) {
 	if token == nil {
 		return nil, "", fmt.Errorf("token is nil")
 	}
 
 	x5cKey, chainErr := ExtractAndValidateX5C(token.Header, tlCerts)
 	if x5cKey != nil {
-		return sdjwt.Verify(token, x5cKey), SourceX5CChain, nil
+		return verifyreport.SDJWT(token, x5cKey), SourceX5CChain, nil
 	}
 
-	var best *sdjwt.VerifyResult
+	var best *verifyreport.SDJWTResult
 	bestSource := SourceProvidedKey
 	for _, key := range pubKeys {
-		result := sdjwt.Verify(token, key)
+		result := verifyreport.SDJWT(token, key)
 		best = result
 		if result.SignatureValid {
 			return result, SourceProvidedKey, nil
@@ -213,7 +214,7 @@ func verifyJWTSignature(token *sdjwt.Token, pubKeys []crypto.PublicKey, tlCerts 
 			return nil, "", err
 		}
 		if leafKey != nil {
-			result := sdjwt.Verify(token, leafKey)
+			result := verifyreport.SDJWT(token, leafKey)
 			if result.SignatureValid {
 				return result, SourceX5CLeaf, nil
 			}

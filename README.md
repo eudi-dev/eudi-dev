@@ -140,7 +140,7 @@ When to use something else:
 
 - To certify your own implementation, use the [OpenID Foundation certification program](https://openid.net/certification/).
 - To test a wallet, point it at one of the hosted issuer or verifier services above.
-- To ship a product, use an SDK. The Go packages in this repository are internal (`internal/`).
+- To ship a product, use an SDK. To parse and verify credentials in Go, you can import the [mdoc and SD-JWT packages](docs/go-packages.md) of this repository.
 - For proximity flows (BLE, NFC), use Multipaz. eudi-dev implements OID4VP over HTTP.
 - To read a single credential, use a hosted decoder.
 

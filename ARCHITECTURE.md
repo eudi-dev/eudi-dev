@@ -7,7 +7,8 @@ Terms are defined in [CONTEXT.md](CONTEXT.md).
 ```
 main.go        Entry point
 cmd/           CLI commands (Cobra), one file per command or command group
-internal/      Everything else (ADR-0007)
+pkg/           Importable packages: mdoc, sdjwt and sdjwt/delegate (ADR-0034)
+internal/      Everything else
 e2e/           Playwright tests against a running wallet server
 examples/      Keycloak and web-wallet integration examples
 ```
@@ -17,9 +18,11 @@ examples/      Keycloak and web-wallet integration examples
 | Package | Responsibility |
 |---|---|
 | `apierror` | The JSON error object of the HTTP APIs (RFC 6749 §5.2 shape) |
+| `cborview` | CBOR decoding for display: string keys, unwrapped tags and the headers of a COSE_Sign1 |
 | `certchain` | Certificate chains of JOSE (x5c) and COSE (x5chain) messages and their verification against trust anchors |
 | `config` | Defaults (ports, timeouts) and the product names written into certificates and trusted lists |
 | `consent` | Consent requests, the credential options of a presentation, the selection logic and the in-memory runtime of pending requests (ADR-0011) |
+| `coseutil` | COSE algorithm names and verifiers, and display names of COSE headers and keys |
 | `credtemplate` | Credential templates, predefined and user-supplied |
 | `credtype` | The EUDI credential type identifiers and which type extends which |
 | `dcql` | DCQL query parsing, evaluation, generation |
@@ -33,7 +36,8 @@ examples/      Keycloak and web-wallet integration examples
 | `jws` | JWS signing (ES256) and verification (ES, RS and PS families), shared by signer and verifier (ADR-0008) |
 | `keys` | PEM and JWK key loading and conversion |
 | `lote` | Lists of trusted entities (ETSI TS 119 602): parsing, signing and the certificates of their services |
-| `mdoc` | mdoc parsing (CBOR) and COSE_Sign1 verification |
+| `pkg/mdoc` | mdoc parsing (CBOR), COSE_Sign1 verification, value digests, device authentication and session transcripts. Importable |
+| `mdoctest` | Unsigned mdoc documents for tests |
 | `mock` | Credential, key and certificate generation (SD-JWT, mdoc, JWT, CAs and leaf certificates) for the wallet's issuers and CAs |
 | `netaddr` | Which hosts are local to the machine running eudi-dev |
 | `news` | The operator's news for visitors of a public demo |
@@ -47,7 +51,8 @@ examples/      Keycloak and web-wallet integration examples
 | `regcert` | Checks of the registration certificates of verifiers and issuers (ETSI TS 119 475) and their binding to access certificates |
 | `registrar` | Relying party registrar (TS05 v1.5): registrations, access certificates (ETSI TS 119 411-8), registration certificates (ETSI TS 119 475), their status list, and the catalogue of attestations (EC TS11) |
 | `remote` | Remote wallet control (REST client, instance discovery) |
-| `sdjwt` | SD-JWT parsing, disclosure resolution, verification |
+| `pkg/sdjwt` | SD-JWT parsing, disclosure resolution and verification. Importable |
+| `pkg/sdjwt/delegate` | Delegate SD-JWT chains: parsing, verification and creation (ADR-0033). Importable |
 | `serverlog` | Console output as JSON log records |
 | `statuslist` | Token Status List encoding and decoding, in JWT and CWT form |
 | `storage` | Blob storage backed by files, memory or Postgres (ADR-0016) |
@@ -56,9 +61,10 @@ examples/      Keycloak and web-wallet integration examples
 | `urlhandler` | Registration of the wallet as the operating system handler for OID4VP and OID4VCI URL schemes |
 | `validate` | The credential checks shared by `validate` and the web decoder: type, validity, digests, signature, catalogue trust, revocation and HAIP |
 | `validity` | Time claims against the current time, with one clock skew rule |
+| `verifyreport` | Turns the errors of `pkg/sdjwt` and `pkg/mdoc` into the signature and validity result shown by `validate` and the decoder |
 | `wallet` | Wallet state (persisted through `storage`), HTTP server, presentation and issuance flows, the issuer role and the ARF checks of issuers and credentials |
 | `web` | Decoder and validator web UI |
-| `webui` | Files every page shares: colour tokens and the theme script |
+| `webui` | Files that all pages share: color tokens, the theme script and the theme texts |
 
 ## Flows
 
@@ -88,7 +94,7 @@ The wallet proves possession of its holder key, receives the credential and impo
 | [0004](docs/adr/0004-outbound-fetches-are-policed-at-dial-time.md) | Outbound fetches are policed at dial time |
 | [0005](docs/adr/0005-the-server-reloads-its-store-on-every-request.md) | The server reloads its store on every request |
 | [0006](docs/adr/0006-one-binary-plays-wallet-issuer-verifier-and-ca.md) | One binary plays wallet, issuer, verifier and CA |
-| [0007](docs/adr/0007-everything-lives-under-internal.md) | Everything lives under `internal/` |
+| [0007](docs/adr/0007-everything-lives-under-internal.md) | Everything lives under `internal/` (superseded by 0034) |
 | [0008](docs/adr/0008-jws-verification-uses-go-jose-jwe-stays-hand-written.md) | JWS verification uses go-jose, JWE stays hand-written |
 | [0009](docs/adr/0009-signatures-are-verified-but-not-anchored-to-a-pre-registered-trust-list.md) | Signature checks have no configured trust anchors |
 | [0010](docs/adr/0010-spec-conformance-is-checked-before-and-after-every-change.md) | Spec conformance is checked before and after every change |
@@ -109,6 +115,13 @@ The wallet proves possession of its holder key, receives the credential and impo
 | [0025](docs/adr/0025-the-current-specification-is-definitive.md) | The current specification is definitive |
 | [0026](docs/adr/0026-built-in-defaults-are-data-in-operator-formats.md) | Built-in defaults are data in operator formats |
 | [0027](docs/adr/0027-the-cli-groups-commands-by-role.md) | The CLI groups commands by role |
+| [0028](docs/adr/0028-each-demo-issuer-identity-is-its-own-issuer.md) | Each demo issuer identity is its own issuer |
+| [0029](docs/adr/0029-findings-carry-a-rule-and-a-group.md) | Findings carry a rule and a group |
+| [0030](docs/adr/0030-wallet-initiated-issuance-reuses-the-offer-flow.md) | Wallet-initiated issuance reuses the offer flow |
+| [0031](docs/adr/0031-transaction-data-is-opt-in-and-binds-to-sd-jwt.md) | Transaction data is opt-in and binds to SD-JWT VC |
+| [0032](docs/adr/0032-configuration-files-are-read-only-inputs.md) | Configuration files are read-only inputs |
+| [0033](docs/adr/0033-delegate-transaction-data-is-answered-with-a-delegate-sd-jwt.md) | Delegate transaction data is answered with a Delegate SD-JWT |
+| [0034](docs/adr/0034-the-credential-format-packages-are-public.md) | The credential format packages are public |
 
 ## Related
 

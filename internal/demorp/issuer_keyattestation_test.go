@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
-	"github.com/eudi-dev/eudi-dev/v3/internal/sdjwt"
+	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
 // keyAttestation signs a key attestation (OpenID4VCI 1.0 Appendix D.1) of the
