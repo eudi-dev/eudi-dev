@@ -25,8 +25,6 @@ import (
 	"net/http"
 	"slices"
 	"strings"
-
-	"github.com/eudi-dev/eudi-dev/v3/internal/config"
 )
 
 //go:embed tokens.css theme.js footer.js dialog-tools.js dialog-tools.css fonts/*.woff2 fonts/LICENSE.txt theme/*
@@ -57,7 +55,7 @@ func FileServer(base fs.FS) http.Handler {
 			serveTheme(w, r, name)
 			return
 		}
-		if r.URL.Path == "/" && WalletName() != config.WalletName {
+		if r.URL.Path == "/" && !activeTexts().empty() {
 			if index, err := fs.ReadFile(base, "index.html"); err == nil {
 				w.Header().Set("Content-Type", "text/html; charset=utf-8")
 				w.Header().Set("Cache-Control", "no-cache")

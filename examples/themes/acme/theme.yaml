@@ -1,1 +1,14 @@
 name: Acme Wallet
+edition: Test
+product:
+  name: Acme Wallet Kit
+  version: 1.4.0
+  url: https://acme.example/wallet-kit
+nav:
+  links:
+    - label: Scenarios
+      url: https://acme.example/scenarios
+    - label: Demo issuer
+      url: issuer/
+  hide:
+    - get-cli

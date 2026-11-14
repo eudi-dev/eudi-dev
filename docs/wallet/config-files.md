@@ -106,7 +106,7 @@ The keys belong to the wallet in memory and are gone when the check exits. A ser
 - The built-in credential and transaction templates are left out. The catalogue lists your entries and the entries of your templates.
 - `/verifier/` answers with 404, and the wallet registers no demo verifier. A demo verifier registered by an earlier start stays until you remove it.
 - The issuer at `/issuer/` offers your templates. A request without a credential configuration gets your template named `demo-ticket` if there is one. Otherwise it gets the first of your templates, sorted by name.
-- The wallet page shows no links to the demo issuer and the demo verifier.
+- The wallet page shows no links to the demo issuer and the demo verifier. A [theme](themes.md#demo-hints) can give these hints its own links.
 
 The issuer keeps its registration under `NLTEST.00000000`, because its access certificate comes from that registration. `--issuer-name` sets the name on its pages and credentials.
 

@@ -204,8 +204,41 @@ func TestAThemeSetsTheWalletName(t *testing.T) {
 		t.Errorf("after a change: %s, want Example", WalletName())
 	}
 	write(t, filepath.Join(dir, "theme.yaml"), "name: [")
-	if WalletName() != config.WalletName {
-		t.Errorf("with a broken theme.yaml: %s, want the built-in name", WalletName())
+	if WalletName() != "Example" {
+		t.Errorf("with a broken theme.yaml: %s, want the last name that loaded", WalletName())
+	}
+}
+
+func TestAnUnchangedThemeYAMLIsParsedOnce(t *testing.T) {
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "theme.yaml"), "name: Example\n")
+	useTheme(t, dir)
+	_ = WalletName()
+	first := active.Load().parsed.Load()
+	if first == nil || WalletName() != "Example" || active.Load().parsed.Load() != first {
+		t.Error("a second page request parsed the unchanged theme.yaml again")
+	}
+}
+
+// Only the wallet page gets the description.
+func TestAThemeDescribesTheWalletPage(t *testing.T) {
+	meta := `<meta name="description" content="Built-in text.">`
+	wallet := []byte("<title>" + config.WalletName + "</title>" + meta)
+	decoder := []byte("<title>" + config.DecoderName + "</title>" + meta)
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "theme.yaml"), "description: Wallet of \"Example\" for $1 & more\n")
+	useTheme(t, dir)
+	want := "<title>" + config.WalletName + `</title><meta name="description" content="Wallet of &#34;Example&#34; for $1 &amp; more">`
+	if got := string(Brand(wallet)); got != want {
+		t.Errorf("wallet page: %s, want %s", got, want)
+	}
+	if got := string(Brand(decoder)); got != string(decoder) {
+		t.Errorf("decoder page: %s", got)
+	}
+	rec := httptest.NewRecorder()
+	FileServer(fstest.MapFS{"index.html": {Data: wallet}}).ServeHTTP(rec, httptest.NewRequest("GET", "/", nil))
+	if rec.Body.String() != want {
+		t.Errorf("served page: %s", rec.Body.String())
 	}
 }
 
@@ -214,5 +247,144 @@ func TestAThemeRefusesAnUnknownField(t *testing.T) {
 	write(t, filepath.Join(dir, "theme.yaml"), "title: Example\n")
 	if _, err := LoadTheme(dir); err == nil || !strings.Contains(err.Error(), "theme.yaml") {
 		t.Errorf("unknown field: %v, want an error that mentions theme.yaml", err)
+	}
+}
+
+const (
+	walletHeader  = `<head></head><h1 id="header-title">EUDI Dev Wallet</h1><a href="#" id="get-cli-link">Get the CLI</a><a href="https://github.com/eudi-dev/eudi-dev" target="_blank" rel="noopener" id="github-link">GitHub</a>`
+	decoderHeader = `<head></head><h1 id="header-title">EUDI Dev Decoder</h1><a href="../" id="wallet-link" hidden>Wallet</a><a href="https://github.com/eudi-dev/eudi-dev" id="github-link" target="_blank" rel="noopener">GitHub</a>`
+)
+
+// The edition is a tag after the wallet name in the header.
+func TestAThemeSetsAnEditionTag(t *testing.T) {
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "theme.yaml"), "edition: <Business>\n")
+	useTheme(t, dir)
+	page := "<title>" + config.WalletName + "</title>" + walletHeader
+	got := string(Brand([]byte(page)))
+	if want := `<h1 id="header-title">EUDI Dev Wallet</h1><span class="edition-tag" id="edition-tag">&lt;Business&gt;</span>`; !strings.Contains(got, want) {
+		t.Errorf("wallet page: %s, want %s", got, want)
+	}
+	if !strings.HasPrefix(got, "<title>"+config.WalletName+"</title>") {
+		t.Errorf("wallet page: %s, want the title unchanged", got)
+	}
+	if got := string(Brand([]byte(decoderHeader))); !strings.Contains(got, `Decoder</h1><span class="edition-tag" id="edition-tag">`) {
+		t.Errorf("decoder page: %s, want the tag", got)
+	}
+}
+
+// Theme links come after the built-in entries. A relative URL resolves against
+// the wallet page, also on the decoder page one level below.
+func TestAThemeChangesTheHeaderMenu(t *testing.T) {
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "theme.yaml"), `
+product:
+  name: Example Kit
+  url: https://example.com/kit?a=1&b=2
+nav:
+  links:
+    - label: Scenarios & <more>
+      url: https://example.com/scenarios
+    - label: Issuer
+      url: issuer/
+  hide: [get-cli, registrar]
+`)
+	useTheme(t, dir)
+	external := `<a href="https://example.com/scenarios" target="_blank" rel="noopener" class="theme-nav-link" id="theme-nav-link-0">Scenarios &amp; &lt;more&gt;</a>`
+	github := `<a href="https://example.com/kit?a=1&amp;b=2" target="_blank" rel="noopener" id="github-link">GitHub</a>`
+	hide := `<head><style id="theme-nav-hide">#get-cli-link,#registrar-menu{display:none !important}</style></head>`
+
+	wallet := string(Brand([]byte(walletHeader)))
+	for _, want := range []string{github + external + `<a href="issuer/" class="theme-nav-link" id="theme-nav-link-1">Issuer</a>`, hide} {
+		if !strings.Contains(wallet, want) {
+			t.Errorf("wallet page: %s, want %s", wallet, want)
+		}
+	}
+	decoder := string(Brand([]byte(decoderHeader)))
+	for _, want := range []string{external + `<a href="../issuer/" class="theme-nav-link" id="theme-nav-link-1">Issuer</a>`, `href="https://example.com/kit?a=1&amp;b=2" id="github-link"`, hide} {
+		if !strings.Contains(decoder, want) {
+			t.Errorf("decoder page: %s, want %s", decoder, want)
+		}
+	}
+}
+
+// The footer script reads the theme's product.
+func TestAThemeSetsTheProduct(t *testing.T) {
+	if got := get(t, "/theme/texts.json").Body.String(); got != "{}" {
+		t.Errorf("without a theme: %s, want {}", got)
+	}
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "theme.yaml"), "product:\n  name: Example Kit\n  version: 0.1.0\n  url: https://example.com/kit\n")
+	useTheme(t, dir)
+	rec := get(t, "/theme/texts.json")
+	if want := `{"product":{"name":"Example Kit","version":"0.1.0","url":"https://example.com/kit"}}`; rec.Body.String() != want || rec.Header().Get("Content-Type") != "application/json" {
+		t.Errorf("texts.json: %s (%s), want %s", rec.Body.String(), rec.Header().Get("Content-Type"), want)
+	}
+}
+
+// The demo hints of the wallet page link to the theme's pages.
+func TestAThemeSetsTheDemoHintLinks(t *testing.T) {
+	page := `<a href="issuer/" id="actions-hint-issuer-link">Get one</a><a href="verifier/" id="actions-hint-verifier-link">Present</a>` +
+		`<a href="issuer/" target="_blank" id="howto-demo-issuer-link">demo issuer</a><a href="verifier/" target="_blank" id="howto-demo-verifier-link">demo verifier</a>` +
+		`<a href="verifier/" target="_blank" id="howto-extension-verifier-link">demo verifier</a>`
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "theme.yaml"), "demo:\n  issuer: https://example.com/issuer?a=1&b=2\n")
+	useTheme(t, dir)
+	want := `<a href="https://example.com/issuer?a=1&amp;b=2" id="actions-hint-issuer-link" data-theme-link>Get one</a><a href="verifier/" id="actions-hint-verifier-link">Present</a>` +
+		`<a href="https://example.com/issuer?a=1&amp;b=2" target="_blank" id="howto-demo-issuer-link" data-theme-link>demo issuer</a><a href="verifier/" target="_blank" id="howto-demo-verifier-link">demo verifier</a>` +
+		`<a href="verifier/" target="_blank" id="howto-extension-verifier-link">demo verifier</a>`
+	if got := string(Brand([]byte(page))); got != want {
+		t.Errorf("with demo.issuer: %s, want %s", got, want)
+	}
+	write(t, filepath.Join(dir, "theme.yaml"), "demo:\n  verifier: scenarios/\n")
+	if got := string(Brand([]byte(page))); !strings.Contains(got, `<a href="scenarios/" id="actions-hint-verifier-link" data-theme-link>`) || !strings.Contains(got, `<a href="issuer/" id="actions-hint-issuer-link">`) {
+		t.Errorf("with demo.verifier: %s", got)
+	}
+}
+
+// The theme sets the text of the demo hint and replaces its links.
+func TestAThemeSetsTheDemoHintTextAndLinks(t *testing.T) {
+	page := `<span id="actions-hint-text">No offer at hand? </span><a href="issuer/" id="actions-hint-issuer-link">Get one from the demo issuer</a>` +
+		`<span class="hint-separator"> &middot; </span><a href="verifier/" id="actions-hint-verifier-link">Present to the demo verifier</a>` +
+		`<a href="issuer/" target="_blank" id="howto-demo-issuer-link">demo issuer</a>`
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "theme.yaml"), "demo:\n  issuer: case-1/\n  hint:\n    text: New here?\n    links:\n      - label: Start the demo with case 1\n        url: https://acme.example/cases/1?a=1&b=2\n      - label: All test scenarios & more\n        url: scenarios/\n")
+	useTheme(t, dir)
+	want := `<span id="actions-hint-text">New here? </span><a href="https://acme.example/cases/1?a=1&amp;b=2" id="actions-hint-link-0" data-theme-link>Start the demo with case 1</a>` +
+		`<span class="hint-separator"> &middot; </span><a href="scenarios/" id="actions-hint-link-1" data-theme-link>All test scenarios &amp; more</a>` +
+		`<a href="case-1/" target="_blank" id="howto-demo-issuer-link" data-theme-link>demo issuer</a>`
+	if got := string(Brand([]byte(page))); got != want {
+		t.Errorf("got %s, want %s", got, want)
+	}
+	write(t, filepath.Join(dir, "theme.yaml"), "name: Acme\n")
+	if got := string(Brand([]byte(page))); got != page {
+		t.Errorf("without demo keys: %s, want %s", got, page)
+	}
+}
+
+func TestAThemeRefusesInvalidEntries(t *testing.T) {
+	for name, tc := range map[string]struct{ yaml, want string }{
+		"long edition":            {"edition: " + strings.Repeat("x", maxEditionRunes+1), "edition is longer than 24 characters"},
+		"product without a name":  {"product:\n  version: 1.0.0", "product needs a name"},
+		"script product URL":      {"product:\n  name: Kit\n  url: javascript:alert(1)", "product.url must be an http or https URL"},
+		"script link":             {"nav:\n  links:\n    - label: Run\n      url: javascript:alert(1)", "nav.links[0].url must be an http or https URL or a path relative to the wallet page"},
+		"link from the host root": {"nav:\n  links:\n    - label: Root\n      url: /scenarios", "nav.links[0].url"},
+		"link to another host":    {"nav:\n  links:\n    - label: Host\n      url: //example.com", "nav.links[0].url"},
+		"link to a parent":        {"nav:\n  links:\n    - label: Up\n      url: ../scenarios", "nav.links[0].url"},
+		"inner parent link":       {"nav:\n  links:\n    - label: Up\n      url: issuer/../../x", "nav.links[0].url"},
+		"encoded parent link":     {"nav:\n  links:\n    - label: Up\n      url: '%2e%2e/x'", "nav.links[0].url"},
+		"backslash parent link":   {"nav:\n  links:\n    - label: Up\n      url: 'issuer\\..\\..\\x'", "nav.links[0].url"},
+		"parent demo link":        {"demo:\n  verifier: ../verifier/", "demo.verifier must be"},
+		"link without a label":    {"nav:\n  links:\n    - url: issuer/", "nav.links[0] needs a label"},
+		"script demo link":        {"demo:\n  issuer: javascript:alert(1)", "demo.issuer must be an http or https URL or a path relative to the wallet page"},
+		"long demo hint":          {"demo:\n  hint:\n    text: " + strings.Repeat("x", maxLabelRunes+1), "demo.hint.text is longer than 40 characters"},
+		"script hint link":        {"demo:\n  hint:\n    links:\n      - label: Run\n        url: javascript:alert(1)", "demo.hint.links[0].url must be an http or https URL or a path relative to the wallet page"},
+		"unknown entry":           {"nav:\n  hide: [wallet]", `nav.hide lists the unknown entry "wallet". Known entries: decoder, get-cli, github, how-to-use, registrar, settings, templates, trust`},
+	} {
+		dir := t.TempDir()
+		write(t, filepath.Join(dir, "theme.yaml"), tc.yaml+"\n")
+		if _, err := LoadTheme(dir); err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("%s: %v, want %q", name, err, tc.want)
+		}
 	}
 }

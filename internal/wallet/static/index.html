@@ -77,8 +77,7 @@
       </div>
       <p class="conf-hint" id="request-credential-result" role="status" hidden></p>
       <div class="actions-hint" id="actions-hint">
-        No offer at hand? <a href="issuer/" id="actions-hint-issuer-link">Get one from the demo issuer</a>
-        &middot; <a href="verifier/" id="actions-hint-verifier-link">Present to the demo verifier</a>
+        <span id="actions-hint-text">No offer at hand? </span><a href="issuer/" id="actions-hint-issuer-link">Get one from the demo issuer</a><span class="hint-separator"> &middot; </span><a href="verifier/" id="actions-hint-verifier-link">Present to the demo verifier</a>
       </div>
     </div>
 
@@ -197,7 +196,7 @@
         <pre id="howto-register-command">eudi wallet register</pre>
       </div>
       <p class="dialog-hint" id="howto-register-hint">After <code>wallet register</code>, the system opens <code>openid4vp://</code>, <code>eudi-openid4vp://</code>, <code>haip-vp://</code>, <code>eu-eaap://</code>, <code>openid-credential-offer://</code>, <code>haip-vci://</code> and <code>eu-eaa-offer://</code> links in this wallet. See the <a data-doc="docs/wallet.md" target="_blank" rel="noopener" id="howto-wallet-docs-link">wallet documentation</a> for all endpoints.</p>
-      <p class="dialog-hint" id="howto-demo-hint">Try the <a href="issuer/" target="_blank" id="howto-demo-issuer-link">demo issuer</a> or <a href="verifier/" target="_blank" id="howto-demo-verifier-link">demo verifier</a>.</p>
+      <p class="dialog-hint" id="howto-demo-hint">Try the <a href="issuer/" target="_blank" id="howto-demo-issuer-link">demo issuer</a><span class="hint-separator"> or </span><a href="verifier/" target="_blank" id="howto-demo-verifier-link">demo verifier</a>.</p>
       </div>
       <div class="howto-panel" role="tabpanel" id="howto-panel-registrar" aria-labelledby="howto-tab-registrar" hidden>
       <p class="dialog-hint" id="howto-registrar-intro">Register your verifier or issuer with the wallet's registrar. You get an access certificate and a registration certificate. With <code>--arf</code> the wallet checks both, as the ARF requires.</p>

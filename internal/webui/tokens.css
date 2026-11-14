@@ -144,3 +144,18 @@
   max-width: 160px;
   object-fit: contain;
 }
+
+/* The edition tag of a theme, next to the wallet name. */
+.edition-tag {
+  padding: 3px 7px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-dim);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
+}

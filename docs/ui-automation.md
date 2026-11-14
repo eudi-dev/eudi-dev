@@ -71,7 +71,7 @@ E2E tests: [`demo.spec.js`](../e2e/demo.spec.js), tests *the tab the scheme hand
 
 ### Selectors
 
-Every control has a stable `id`. In ids built from data, each character outside `A-Z`, `a-z`, `0-9`, `_` and `-` becomes `_`. Lists carry `data-*` attributes, and the activity log uses `data-testid`. Theme and screen width don't change ids. At phone width, header links move behind **☰ Menu** (`#header-menu-toggle`). Open it first in a narrow viewport.
+Every control has a stable `id`. In ids built from data, each character outside `A-Z`, `a-z`, `0-9`, `_` and `-` becomes `_`. Lists carry `data-*` attributes, and the activity log uses `data-testid`. Theme and screen width don't change ids. At phone width, header links move behind **☰ Menu** (`#header-menu-toggle`). Open it first in a narrow viewport. A [theme](wallet/themes.md) can add the edition tag `#edition-tag`, the header links `#theme-nav-link-<n>` counted from 0 and the product name `#footer-product` in the footer.
 
 All dialogs are `.consent-overlay` elements. An open dialog has the class `active`. Wait for it with `toHaveClass(/active/)` and for its end with `not.toHaveClass(/active/)`.
 

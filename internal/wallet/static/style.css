@@ -77,6 +77,10 @@ header .btn,
   margin-left: -18px;
 }
 
+.header-left h1 + .edition-tag {
+  margin-left: -20px;
+}
+
 .header-links {
   display: flex;
   align-items: center;

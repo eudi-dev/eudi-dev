@@ -4802,8 +4802,15 @@
         document.getElementById('tls-row-label').hidden = true;
         document.getElementById('tls-row').hidden = true;
       }
+      // --no-builtins leaves the demo pages out. A hint stays visible when the
+      // theme sets one of its links.
       ['actions-hint', 'howto-demo-hint', 'howto-extension-demo-hint'].forEach((id) => {
-        document.getElementById(id).hidden = !!config.config_only;
+        const hint = document.getElementById(id);
+        const links = Array.from(hint.querySelectorAll('a'));
+        const shown = links.filter((link) => !config.no_builtins || link.hasAttribute('data-theme-link'));
+        links.forEach((link) => { link.hidden = !shown.includes(link); });
+        hint.querySelectorAll('.hint-separator').forEach((separator) => { separator.hidden = shown.length < links.length; });
+        hint.hidden = shown.length === 0;
       });
       applyFormDefaults(config.form_defaults || {});
       demoMode = !!(config.demo && config.demo.enabled);
