@@ -74,7 +74,7 @@ func (m *Management) Credential(id string) (map[string]any, error) {
 	if !ok {
 		return nil, ErrCredentialNotFound
 	}
-	return m.wallet.CredentialSummaryWithBatch(cred), nil
+	return m.wallet.credentialSummaryWithBatch(cred, true), nil
 }
 
 func (m *Management) ImportCredential(raw string) (map[string]any, error) {
@@ -284,7 +284,7 @@ func (m *Management) DeleteTemplate(name string) error {
 // TransactionTemplates lists the transaction templates. Templates protected
 // from visitors show as predefined.
 func (m *Management) TransactionTemplates() ([]txtemplate.Template, error) {
-	templates, err := txtemplate.List(m.wallet.TransactionTemplates)
+	templates, err := txtemplate.List(m.wallet.transactionTemplateLocation())
 	for i := range templates {
 		templates[i].Predefined = templates[i].Predefined || m.wallet.TransactionTemplateFixed(templates[i])
 	}
@@ -296,7 +296,7 @@ func (m *Management) TransactionDataTypes() (TransactionDataTypes, error) {
 }
 
 func (m *Management) TransactionTemplate(name string) (txtemplate.Template, error) {
-	tpl, err := txtemplate.Load(m.wallet.TransactionTemplates, name)
+	tpl, err := txtemplate.Load(m.wallet.transactionTemplateLocation(), name)
 	tpl.Predefined = tpl.Predefined || m.wallet.TransactionTemplateFixed(tpl)
 	return tpl, err
 }

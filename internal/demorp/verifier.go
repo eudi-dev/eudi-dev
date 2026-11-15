@@ -108,7 +108,10 @@ type requestState struct {
 	status string // pending | verified | failed
 	err    string
 	claims map[string]any
-	checks []map[string]any
+	// delegations holds the delegation of each verified Delegate SD-JWT,
+	// under the key of its claims.
+	delegations map[string]any
+	checks      []map[string]any
 	// presentation is kept for the decoder even if verification fails.
 	presentation string
 }
@@ -481,7 +484,7 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 		mdocID = body.Type + "_mdoc"
 		req.queries = append(req.queries, credentialQuery{id: mdocID, format: credtype.FormatMDOC, docType: docType, paths: namePaths(docType, mdocClaims), multiple: body.Multiple})
 	}
-	if req.transactionData, err = encodeTransactionData(body.TransactionData); err != nil {
+	if req.transactionData, err = d.requestTransactionData(body.TransactionData); err != nil {
 		apierror.WriteStatusErr(w, http.StatusBadRequest, err)
 		return
 	}
@@ -737,7 +740,7 @@ func (d *DemoRP) createCustomRequest(w http.ResponseWriter, body createRequestBo
 	if body.DCQLQuery != nil {
 		req.queries, req.sets, req.rawDCQL = written, writtenSets, body.DCQLQuery
 	}
-	if req.transactionData, err = encodeTransactionData(body.TransactionData); err != nil {
+	if req.transactionData, err = d.requestTransactionData(body.TransactionData); err != nil {
 		apierror.WriteStatusErr(w, http.StatusBadRequest, err)
 		return
 	}
@@ -1031,6 +1034,9 @@ func (d *DemoRP) handleRequestStatus(w http.ResponseWriter, r *http.Request) {
 			"checks":  req.checks,
 			"request": req.selection,
 		}
+		if len(req.delegations) > 0 {
+			doc["delegations"] = req.delegations
+		}
 		// The decoder input keeps key binding and device authentication.
 		if req.presentation != "" {
 			doc["presentation"] = req.presentation
@@ -1135,8 +1141,8 @@ func (d *DemoRP) recordResponse(req *requestState, form url.Values) (bool, error
 
 	// The page shows a failure. Anyone can encrypt a response to the request's
 	// public key, so only a verified presentation answers the request.
-	claims, checks, err := d.verifyPresentation(req, string(vpToken))
-	return d.finishRequest(req, claims, checks, err, err == nil), nil
+	claims, delegations, checks, err := d.verifyPresentation(req, string(vpToken))
+	return d.finishRequest(req, claims, delegations, checks, err, err == nil), nil
 }
 
 // writeAnswered refuses a second response. The nonce is fixed per request, so
@@ -1231,7 +1237,7 @@ func (d *DemoRP) declineRequest(req *requestState, reason string) bool {
 	}
 	req.status = "declined"
 	req.err = reason
-	req.claims, req.checks = nil, nil
+	req.claims, req.delegations, req.checks = nil, nil, nil
 	return true
 }
 
@@ -1244,7 +1250,7 @@ func (d *DemoRP) recordPresentation(req *requestState, presentation string) {
 // finishRequest records the result of a response unless another response
 // answered the request first. An answer ends the request, and it accepts no
 // further response.
-func (d *DemoRP) finishRequest(req *requestState, claims map[string]any, checks []map[string]any, err error, answer bool) bool {
+func (d *DemoRP) finishRequest(req *requestState, claims, delegations map[string]any, checks []map[string]any, err error, answer bool) bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if req.answered {
@@ -1252,6 +1258,7 @@ func (d *DemoRP) finishRequest(req *requestState, claims map[string]any, checks 
 	}
 	req.answered = answer
 	req.claims = claims
+	req.delegations = delegations
 	req.checks = checks
 	if err != nil {
 		req.status = "failed"
@@ -1266,37 +1273,38 @@ func (d *DemoRP) finishRequest(req *requestState, claims map[string]any, checks 
 // verifyPresentation validates the PID entry of the vp_token and the ticket
 // entry if requested. Each issuer signature must chain to a trusted CA. Each
 // key binding must cover the nonce and audience of this request.
-func (d *DemoRP) verifyPresentation(req *requestState, vpToken string) (map[string]any, []map[string]any, error) {
+func (d *DemoRP) verifyPresentation(req *requestState, vpToken string) (map[string]any, map[string]any, []map[string]any, error) {
 	log := &checklist{}
 	check := log.record
 
 	if strings.TrimSpace(vpToken) == "" {
-		return nil, log.entries, check("vp_token present", fmt.Errorf("the response carried no vp_token"))
+		return nil, nil, log.entries, check("vp_token present", fmt.Errorf("the response carried no vp_token"))
 	}
 	var tokenDoc map[string][]string
 	if err := json.Unmarshal([]byte(vpToken), &tokenDoc); err != nil {
-		return nil, log.entries, check("vp_token parses", fmt.Errorf("vp_token is not a JSON object of query id to presentations: %w", err))
+		return nil, nil, log.entries, check("vp_token parses", fmt.Errorf("vp_token is not a JSON object of query id to presentations: %w", err))
 	}
 
 	answered := map[string]bool{}
 	for id, presentations := range tokenDoc {
 		i := slices.IndexFunc(req.queries, func(q credentialQuery) bool { return q.id == id })
 		if i < 0 {
-			return nil, log.entries, check("vp_token answers only requested queries", fmt.Errorf("the request has no credential query %q", id))
+			return nil, nil, log.entries, check("vp_token answers only requested queries", fmt.Errorf("the request has no credential query %q", id))
 		}
 		log.group = req.queries[i].label()
 		err := check("vp_token entries hold presentations", errIf(len(presentations) == 0, "the vp_token entry %q is empty. OpenID4VP 1.0 §8.1 asks for an array of one or more presentations", id))
 		log.group = ""
 		if err != nil {
-			return nil, log.entries, err
+			return nil, nil, log.entries, err
 		}
 		answered[id] = true
 	}
 	if err := check("vp_token satisfies the credential query", req.unsatisfied(answered)); err != nil {
-		return nil, log.entries, err
+		return nil, nil, log.entries, err
 	}
 
 	result := map[string]any{}
+	var delegations map[string]any
 	recorded := false
 	bound := make([]bool, len(req.transactionData))
 	for _, q := range req.queries {
@@ -1321,7 +1329,7 @@ func (d *DemoRP) verifyPresentation(req *requestState, vpToken string) (map[stri
 		if !q.multiple {
 			if err := check(label+"vp_token holds exactly one presentation",
 				errIf(len(presentations) != 1, "expected 1 presentation, got %d", len(presentations))); err != nil {
-				return nil, log.entries, err
+				return nil, nil, log.entries, err
 			}
 		}
 		var answers []any
@@ -1331,18 +1339,24 @@ func (d *DemoRP) verifyPresentation(req *requestState, vpToken string) (map[stri
 				itemLabel = fmt.Sprintf("%s[%d]: ", q.label(), i)
 				log.group = fmt.Sprintf("%s[%d]", q.label(), i)
 			}
-			var claims map[string]any
+			var claims, delegation map[string]any
 			var err error
 			if q.format == credtype.FormatMDOC {
 				claims, err = d.verifyMDOCPresentation(req, presentation, q, itemLabel, trust, log)
 			} else {
-				claims, err = d.verifySDJWTEntry(req, presentation, q, itemLabel, trust, log, bound)
+				claims, delegation, err = d.verifySDJWTEntry(req, presentation, q, itemLabel, trust, log, bound)
 			}
 			if err != nil {
 				d.recordPresentation(req, presentation)
-				return nil, log.entries, err
+				return nil, nil, log.entries, err
 			}
 			answers = append(answers, claims)
+			if delegation != nil {
+				if delegations == nil {
+					delegations = map[string]any{}
+				}
+				delegations[q.delegationKey(i)] = delegation
+			}
 		}
 		switch {
 		case q.multiple:
@@ -1358,24 +1372,26 @@ func (d *DemoRP) verifyPresentation(req *requestState, vpToken string) (map[stri
 	log.group = ""
 	if len(bound) > 0 {
 		if err := check("every transaction is authorized by a presentation", unboundTransactionData(bound)); err != nil {
-			return nil, log.entries, err
+			return nil, nil, log.entries, err
 		}
 	}
-	return result, log.entries, nil
+	return result, delegations, log.entries, nil
 }
 
 // verifySDJWTEntry runs the shared credential checks and checks the requested
 // type, the key binding and the disclosed claims. The label prefix tells
 // ticket checks apart from PID checks. bound marks the transaction data
-// entries with a hash in the key binding JWT.
-func (d *DemoRP) verifySDJWTEntry(req *requestState, presentation string, q credentialQuery, label string, trust validate.Trust, log *checklist, bound []bool) (map[string]any, error) {
+// entries with a hash in the key binding JWT. A Delegate SD-JWT also returns
+// its delegation.
+func (d *DemoRP) verifySDJWTEntry(req *requestState, presentation string, q credentialQuery, label string, trust validate.Trust, log *checklist, bound []bool) (map[string]any, map[string]any, error) {
 	check := func(name string, err error) error {
 		return log.record(label+name, err)
 	}
 
-	token, err := sdjwt.Parse(presentation)
+	delegates := d.wallet.Conformance().Delegates()
+	token, chain, err := parsePresentedSDJWT(presentation, delegates)
 	if err = check("presentation parses as SD-JWT", err); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for _, warning := range token.Warnings {
 		log.warn(label+"credential is well-formed (RFC 9901)", fmt.Errorf("%s", warning))
@@ -1396,13 +1412,13 @@ func (d *DemoRP) verifySDJWTEntry(req *requestState, presentation string, q cred
 		switch {
 		case errors.As(err, &processing):
 			// §5.7 and §7.4 reject the credential.
-			return nil, check("Type Metadata of the credential", err)
+			return nil, nil, check("Type Metadata of the credential", err)
 		case err != nil:
 			log.warn(label+"Type Metadata of the credential", err)
 		default:
 			problems := metadata.ValidatePresentation(token.Payload, token.Disclosures)
 			if err = check("credential follows its Type Metadata", errIf(len(problems) > 0, "%s", strings.Join(problems.Texts(), " "))); err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			gotTypes = append(gotTypes, metadata.Types...)
 		}
@@ -1410,13 +1426,54 @@ func (d *DemoRP) verifySDJWTEntry(req *requestState, presentation string, q cred
 	if err = check("credential type matches the request",
 		errIf(!slices.ContainsFunc(expected, answers),
 			"vct is %q, requested %s", gotVCT, strings.Join(expected, " or "))); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if err = log.credential(label, validate.SDJWT(token, trust, credentialChecks)); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
+	var kbPayload map[string]any
+	if chain != nil {
+		kbPayload, err = d.checkDelegation(req, q, chain, check)
+	} else {
+		kbPayload, err = checkKeyBinding(req, presentation, token, check)
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	if delegates && chain == nil {
+		warnWithoutDelegation(req, q, label, log)
+	}
+	if len(req.transactionData) > 0 {
+		covered, hashErr := checkTransactionDataHashes(req.transactionData, q.id, kbPayload, bound)
+		if err = check("transaction_data_hashes match the request", hashErr); err != nil {
+			return nil, nil, err
+		}
+		if hasTS12Type(covered) {
+			if err = check("the key binding JWT carries the claims of EUDI TS12 §3.6", checkTS12Claims(kbPayload, req.responseMode())); err != nil {
+				return nil, nil, err
+			}
+		}
+	}
+	if chain != nil {
+		bindDelegateEntries(req.transactionData, q.id, bound)
+	}
+
+	disclosed := disclosedClaims(token)
+	if err = check(q.checkClaims(disclosed, "requested claims were disclosed")); err != nil {
+		return nil, nil, err
+	}
+	if chain != nil {
+		return disclosed, d.delegationResult(chain), nil
+	}
+	return disclosed, nil, nil
+}
+
+// checkKeyBinding checks the Key Binding JWT of an SD-JWT+KB (RFC 9901 §7.3)
+// and returns its payload.
+func checkKeyBinding(req *requestState, presentation string, token *sdjwt.Token, check func(string, error) error) (map[string]any, error) {
+	var err error
 	kb := token.KeyBindingJWT
 	if err = check("key binding JWT present", errIf(kb == nil, "the presentation has no key binding JWT")); err != nil {
 		return nil, err
@@ -1473,24 +1530,7 @@ func (d *DemoRP) verifySDJWTEntry(req *requestState, presentation string, q cred
 	if err = check("audience is this verifier", checkPresentationAudience(req, aud)); err != nil {
 		return nil, err
 	}
-	if len(req.transactionData) > 0 {
-		covered, hashErr := checkTransactionDataHashes(req.transactionData, q.id, kbJWT.payload, bound)
-		if err = check("transaction_data_hashes match the request", hashErr); err != nil {
-			return nil, err
-		}
-		if hasTS12Type(covered) {
-			if err = check("the key binding JWT carries the claims of EUDI TS12 §3.6", checkTS12Claims(kbJWT.payload, req.responseMode())); err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	disclosed := disclosedClaims(token)
-	if err = check(q.checkClaims(disclosed, "requested claims were disclosed")); err != nil {
-		return nil, err
-	}
-
-	return disclosed, nil
+	return kbJWT.payload, nil
 }
 
 // credentialChecks are the shared checks of a presented credential. The

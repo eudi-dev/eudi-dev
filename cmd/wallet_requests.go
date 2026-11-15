@@ -25,6 +25,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
+	"github.com/eudi-dev/eudi-dev/v3/internal/delegatepayload"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/output"
 	"github.com/eudi-dev/eudi-dev/v3/internal/remote"
@@ -200,8 +201,15 @@ func requestTransactions(request map[string]any) ([]string, error) {
 		if len(entry.CredentialIDs) > 0 {
 			line += " for " + strings.Join(entry.CredentialIDs, ", ")
 		}
-		if entry.Summary != "" {
-			line += " (" + entry.Summary + ")"
+		if entry.DelegatePayload != nil {
+			line += " (Delegate this credential"
+			if entry.DelegateKeyThumbprint != "" {
+				line += " to the key " + entry.DelegateKeyThumbprint
+			}
+			if exp, ok := delegatepayload.Expiry(entry.DelegatePayload); ok {
+				line += " until " + exp.Format("2006-01-02 15:04 UTC")
+			}
+			line += ")"
 		}
 		lines = append(lines, fmt.Sprintf("%s: %s", line, data))
 	}

@@ -300,7 +300,7 @@ func TestVerifyPresentationRefusesUnknownQueryIDs(t *testing.T) {
 	d := New(twoPIDWallet(t), func() string { return "https://verifier.example" })
 	req := &requestState{queries: []credentialQuery{{id: "cred_0", format: "dc+sd-jwt", vct: PIDVCT}}}
 
-	_, _, err := d.verifyPresentation(req, `{"cred_0":["a~"],"other":["b~"]}`)
+	_, _, _, err := d.verifyPresentation(req, `{"cred_0":["a~"],"other":["b~"]}`)
 	if err == nil || !strings.Contains(err.Error(), `no credential query "other"`) {
 		t.Fatalf("error = %v", err)
 	}

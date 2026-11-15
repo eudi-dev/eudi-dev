@@ -159,7 +159,7 @@ func TestRequestTransactionsOmitTheMissingCredentialQueries(t *testing.T) {
 func TestRequestTransactionsShowTheSummaryOfADelegation(t *testing.T) {
 	lines, err := requestTransactions(map[string]any{"transaction_data": []any{
 		map[string]any{
-			"type": "delegate", "credential_ids": []any{"pid"}, "summary": "Delegate this credential to the key abc until 2026-11-13 13:00 UTC",
+			"type": "delegate", "credential_ids": []any{"pid"}, "delegate_key_thumbprint": "abc", "delegate_payload": map[string]any{"exp": float64(1794574800)},
 			"data": map[string]any{"type": "delegate", "format": "dSD-JWT+KB"},
 		},
 	}})

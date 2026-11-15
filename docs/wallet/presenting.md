@@ -177,7 +177,7 @@ The wallet checks the entry:
 
 Strict mode refuses a request with such a finding. The error is `invalid_transaction_data`. Debug mode warns and still signs when the entry has a `delegate_payload_disclosure`.
 
-The consent dialog sums up the entry in one sentence, such as "Delegate this credential to the key aISfTcr9M_Zd09AXGAAeFxnLbFY6lBa87UN515wm5d4 until 2026-11-13 13:00 UTC". The key is the JWK thumbprint (RFC 7638) of `cnf`. The details show the entry and the decoded delegate payload.
+The consent dialog sums up the entry in one sentence, such as "Delegate this credential to the key aISfTcr9…5wm5d4 until Nov 13, 2026, 2:00 PM GMT+1". The key is the JWK thumbprint (RFC 7638) of `cnf`, shortened. The time is in the local time zone of the browser. The details show the limits of the Delegate Payload and the full thumbprint. Only an SD-JWT with a `cnf` key can delegate. For another credential, the dialog shows the entry as plain transaction data, and the wallet answers with a plain presentation.
 
 The wallet answers with a dSD-JWT in `vp_token` (§5.1.1). A KB-SD-JWT takes the place of the Key Binding JWT:
 
@@ -189,9 +189,40 @@ The wallet signs the KB-SD-JWT with the `cnf` key of the credential. Its `typ` i
 
 The Delegate Holder presents a `dSD-JWT+KB` chain later. It keeps the disclosures meant for the verifier and appends a Key Binding JWT signed with its own key. `eudi decode` and `eudi validate` show each step of such a chain, as described in [the decoder](../decoder.md#delegate-sd-jwt). See [ADR-0033](../adr/0033-delegate-transaction-data-is-answered-with-a-delegate-sd-jwt.md).
 
+While Delegate SD-JWT is on, the wallet lists the transaction template `delegation`. It holds the Delegate Payload as the plain JSON object `delegate_payload`:
+
+```json
+{
+  "type": "delegate",
+  "format": "dSD-JWT+KB",
+  "delegate_payload": { "purpose": "Order office supplies", "max_amount": 250, "currency": "EUR" }
+}
+```
+
+#### Delegation records
+
+For each Delegate SD-JWT, the wallet stores a delegation record with the credential. It holds:
+
+- the name and the `client_id` of the requester
+- `aud` and `iat` of the KB-SD-JWT
+- the format, `dSD-JWT` or `dSD-JWT+KB`
+- the disclosed claim paths of the credential
+- each Delegate Payload with its `exp` and the JWK and thumbprint of its `cnf` key
+- the dSD-JWT sent by the wallet
+
+Several `delegate` entries of one presentation share one KB-SD-JWT, so they are one record. A delegation is active until the `exp` of its Delegate Payload or until the credential is revoked. A Delegate Payload without `exp` never expires. Ended records stay listed.
+
+The credential card counts the active delegations, for example "1 active delegation". **Delegations** on the card lists the records. [`eudi wallet delegations <id>`](../wallet.md#wallet-delegations-id) lists them on the command line. `GET /api/credentials/{id}` returns them in [`delegations`](http-api.md#delegations).
+
+The draft defines no way to revoke a single delegation. The Delegate Holder can present the chain until the `exp` of the Delegate Payload. Only a revoked credential ends its delegations, because a verifier checks the status of the credential in the chain. A deleted credential stays valid at the Delegate Holder. The wallet warns before it deletes or revokes a credential with active delegations.
+
+A credential keeps up to 50 records. Beyond that the wallet drops the oldest expired record, or the oldest record when none has expired. A renewed credential keeps its records, and the copies of a batch share them. When the wallet makes room for new credentials and removes a copy of a batch, the remaining copies keep its records. A demo reset removes the records of the seeded credentials.
+
+The demo verifier turns `delegate_payload` into `delegate_payload_disclosure` for each request, with a fresh salt. A payload without `cnf` gets the key of the demo verifier. A payload without `exp` gets an `exp` 1 hour ahead. The result shows a `delegation` entry with the format of the answer, the format for the Delegate Holder, the delegate key, the end of the delegation in UTC and the Delegate Payload.
+
 ### Transaction templates
 
-Transaction templates are named transaction data entries (OpenID4VP 1.0 §5.1) for any presentation request. They belong to transaction data, an [experimental feature](serve.md#experimental-features). The wallet comes with one example for each TS12 type: `payment`, `login`, `account-access` and `emandate`. Open them under **Templates > Transaction templates**. A template of your own replaces the predefined one with the same name. Deleting it brings the predefined one back.
+Transaction templates are named transaction data entries (OpenID4VP 1.0 §5.1) for any presentation request. They belong to transaction data, an [experimental feature](serve.md#experimental-features). The wallet comes with one example for each TS12 type: `payment`, `login`, `account-access` and `emandate`. With [Delegate SD-JWT](#delegation-with-a-delegate-sd-jwt) on, it also lists `delegation`. Open them under **Templates > Transaction templates**. A template of your own replaces the predefined one with the same name. Deleting it brings the predefined one back.
 
 **New transaction template** opens an editor with a name and a description. Its builder has a type, the hash algorithms, optional credential ids and a list of fields. For a TS12 type the fields form the `payload`, and the builder starts with the required fields of the TS12 schema. For any other type the fields sit next to `type`. A value is text or JSON, so `5` is a number and `{"name": "Demo Shop"}` is an object. **JSON** shows the whole entry. Some templates don't fit the builder and open in JSON, such as one with members next to a TS12 `payload`.
 

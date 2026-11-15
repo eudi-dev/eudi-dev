@@ -235,7 +235,7 @@ func (d *DemoRP) continueInteractiveAuthorization(w http.ResponseWriter, r *http
 
 	// §6.2.1.4 requires the presentation to be bound to the authorization
 	// session. The session nonce provides that binding.
-	claims, _, verifyErr := d.verifyPresentation(session.request, string(vpToken))
+	claims, _, _, verifyErr := d.verifyPresentation(session.request, string(vpToken))
 	if verifyErr != nil {
 		log.Printf("[Demo issuer] interactive authorization: presentation refused: %v", verifyErr)
 		writeJSON(w, http.StatusBadRequest, oauthError("access_denied", "the presentation could not be verified: "+verifyErr.Error()))

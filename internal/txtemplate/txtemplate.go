@@ -85,12 +85,18 @@ type Location struct {
 	Configured *Configured
 	// WithoutPredefined leaves the built-in templates out of the location.
 	WithoutPredefined bool
+	// Delegation adds the built-in delegation template. The wallet sets it
+	// while Delegate SD-JWT and transaction data are on.
+	Delegation bool
 }
 
 // predefined returns the built-in templates of the location.
 func (l Location) predefined() []Template {
 	if l.WithoutPredefined {
 		return nil
+	}
+	if l.Delegation {
+		return append(Predefined(), Delegation())
 	}
 	return Predefined()
 }
@@ -133,6 +139,27 @@ func Predefined() []Template {
 		templates = append(templates, t)
 	}
 	return templates
+}
+
+// DelegationName is the name of the built-in delegation template.
+const DelegationName = "delegation"
+
+// Delegation is the built-in template of the transaction data type delegate
+// (draft-ietf-oauth-delegate-sd-jwt-00 §7.1). It holds the Delegate Payload
+// as the object delegate_payload. A verifier encodes it into
+// delegate_payload_disclosure for each request, because the disclosure needs
+// a fresh salt, the key of the Delegate Holder and a current exp.
+func Delegation() Template {
+	data, err := defaults.ReadFile("delegate/" + DelegationName + ".json")
+	if err != nil {
+		panic(fmt.Sprintf("reading the predefined delegation template: %v", err))
+	}
+	t, err := parse(data, DelegationName)
+	if err != nil {
+		panic(fmt.Sprintf("predefined delegation template: %v", err))
+	}
+	t.Predefined = true
+	return t
 }
 
 // List returns the predefined and the stored templates, sorted by name. A

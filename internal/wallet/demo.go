@@ -382,7 +382,7 @@ func (s *Server) deleteVisitorTemplates() error {
 			return err
 		}
 	}
-	transactions, err := txtemplate.List(s.wallet.TransactionTemplates)
+	transactions, err := txtemplate.List(s.wallet.transactionTemplateLocation())
 	if err != nil {
 		return err
 	}
@@ -390,7 +390,7 @@ func (s *Server) deleteVisitorTemplates() error {
 		if !t.Visitor {
 			continue
 		}
-		if err := txtemplate.Delete(s.wallet.TransactionTemplates, t.Name); err != nil {
+		if err := txtemplate.Delete(s.wallet.transactionTemplateLocation(), t.Name); err != nil {
 			return err
 		}
 	}

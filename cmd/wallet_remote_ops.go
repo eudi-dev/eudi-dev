@@ -218,6 +218,9 @@ func credStatusLabel(cred map[string]any) string {
 	if protected, _ := cred["protected"].(bool); protected {
 		parts = append(parts, "protected")
 	}
+	if label := activeDelegationsLabel(cred); label != "" {
+		parts = append(parts, label)
+	}
 	// Show the batch size because the wallet rotates copies while the listing shows
 	// only the holder copy.
 	if batch, _ := cred["batch"].(bool); batch {
@@ -274,7 +277,12 @@ func printCredentialDoc(cred map[string]any, decoded bool) error {
 	raw := docString(cred, "raw")
 	if !decoded {
 		// This form prints only the credential string so it can be piped.
-		printResult(cred, func() { fmt.Println(raw) })
+		printResult(cred, func() {
+			fmt.Println(raw)
+			if label := activeDelegationsLabel(cred); label != "" {
+				fmt.Fprintf(os.Stderr, "%s. See eudi wallet delegations %s.\n", label, docString(cred, "id"))
+			}
+		})
 		return nil
 	}
 	// Show a readable validity label because the decoded payload uses Unix timestamps.
@@ -291,6 +299,10 @@ func printCredentialDoc(cred map[string]any, decoded bool) error {
 				validity = "valid for " + credValidityLabel(cred) + ", until " + when.Local().Format(time.RFC1123)
 			}
 			fmt.Printf("Validity: %s\n", validity)
+			printed = true
+		}
+		if label := activeDelegationsLabel(cred); label != "" {
+			fmt.Printf("Delegations: %s\n", label)
 			printed = true
 		}
 		if isBatch, _ := cred["batch"].(bool); isBatch {

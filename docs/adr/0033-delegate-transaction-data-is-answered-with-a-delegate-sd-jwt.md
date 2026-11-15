@@ -42,6 +42,10 @@ The wallet copies `delegate_payload_disclosure` and `delegate_disclosures` into 
 
 `pkg/sdjwt/delegate` builds and verifies the chain. `delegate.Verify` runs steps 1 to 5 of §6 for any number of KB-SD-JWTs and for the Key Binding JWT of the Delegate Holder in a dSD-JWT+KB. It verifies the Issuer-signed JWT with a key from the caller. The caller decides whether it trusts that key and whether the delegation fits its own policy. Step 5.1 rejects a dSD-JWT only when the caller requires Key Binding. `eudi decode`, `eudi validate` and the decoder show the components of a chain and add a `delegation` check.
 
+The predefined transaction template `delegation` is listed while the feature is on. Each request needs a fresh salt, the key of the Delegate Holder and a current `exp`. The template therefore holds the Delegate Payload as the plain object `delegate_payload`. The demo verifier encodes it into `delegate_payload_disclosure` for each request. A payload without `cnf` gets the key of the demo verifier. A payload without `exp` gets an `exp` 1 hour ahead. The demo verifier verifies the chain of the answer. It also checks that the KB-SD-JWT carries the digest of each requested Delegate Payload.
+
+For each Delegate SD-JWT, the wallet stores a delegation record with the credential. Every storage backend keeps these records. The draft defines no revocation of a single delegation, so the record is the only place where the user sees which delegations are still valid. It holds the requester, `aud`, `iat` (as `signed_at`), the format, the disclosed claim paths, each Delegate Payload with its `cnf` key and `exp`, and the dSD-JWT. A delegation is active until the `exp` of its Delegate Payload. The credential card counts the active ones, and a dialog lists all records. The wallet warns before it deletes or revokes a credential with active delegations. A deleted credential stays valid at the Delegate Holder. A revoked credential ends its delegations. A credential keeps up to 50 records.
+
 The wallet implements the compact serialization for SD-JWT VC. The JSON serialization (§5.1.2) and mdoc are outside this decision.
 
 ## Consequences

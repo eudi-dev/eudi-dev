@@ -64,6 +64,11 @@ func TestDelegateFindings(t *testing.T) {
 	supported := Checks{TransactionData: true, TransactionDataTypes: []string{DelegateTransactionDataType}, DelegateSDJWT: true}
 	valid := delegateEntry(t, "sha-256")
 	withoutCnf := delegateDisclosure(t, "salt-p", map[string]any{"vct": "urn:example:mandate:1"})
+	withExp := func(exp any) map[string]any {
+		payload := delegateDisclosure(t, "salt-p", map[string]any{"vct": "urn:example:mandate:1", "exp": exp, "cnf": map[string]any{"jwk": delegateJWK}})
+		return with(with(valid, "delegate_payload_disclosure", payload), "delegate_disclosures", nil)
+	}
+	const expRange = "RFC 7519 §4.1.4: the exp of the Delegate Payload of transaction_data[0] must be a NumericDate from 0 to 253402300799"
 	for _, tt := range []struct {
 		name  string
 		entry map[string]any
@@ -89,6 +94,10 @@ func TestDelegateFindings(t *testing.T) {
 		// §5.1.4: "If the typ is KB-SD-JWT+KB then the Delegate Payload MUST
 		// include a cnf claim."
 		{"a dSD-JWT+KB entry without cnf", with(with(valid, "delegate_payload_disclosure", withoutCnf), "delegate_disclosures", nil), "draft-ietf-oauth-delegate-sd-jwt-00 §5.1.4: transaction_data[0] asks for a dSD-JWT+KB, but its Delegate Payload has no cnf claim"},
+		{"the last exp in range", withExp(253402300799), ""},
+		{"an exp after the year 9999", withExp(253402300800), expRange},
+		{"a negative exp", withExp(-1e12), expRange},
+		{"an exp that is not a number", withExp("tomorrow"), expRange},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			req := transactionDataRequest(transactionDataEntry(t, tt.entry))
@@ -127,23 +136,14 @@ func TestDelegateIsAnOrdinaryTypeWithoutDelegateSDJWT(t *testing.T) {
 	}
 }
 
-func TestDelegatePayloadAndSummary(t *testing.T) {
+func TestDelegatePayload(t *testing.T) {
 	entry := NewTransactionData("", delegateEntry(t, "sha-256"))
 	payload := entry.DelegatePayload()
 	if want := []any{"https://verifier.example"}; !reflect.DeepEqual(payload["audiences"], want) {
 		t.Errorf("audiences = %v, want %v", payload["audiences"], want)
 	}
-	// RFC 7638 thumbprint of delegateJWK.
-	want := "Delegate this credential to the key aISfTcr9M_Zd09AXGAAeFxnLbFY6lBa87UN515wm5d4 until 2026-11-13 13:00 UTC"
-	if got := DelegateSummary(payload); got != want {
-		t.Errorf("DelegateSummary = %q, want %q", got, want)
-	}
-	if got := DelegateSummary(map[string]any{"vct": "urn:example:mandate:1"}); got != "Delegate this credential" {
-		t.Errorf("DelegateSummary without cnf and exp = %q", got)
-	}
-	payment := NewTransactionData("", ts12Payment)
-	if payment.DelegatePayload() != nil || DelegateSummary(payment.DelegatePayload()) != "" {
-		t.Error("an entry of another type has a delegate payload or summary")
+	if NewTransactionData("", ts12Payment).DelegatePayload() != nil {
+		t.Error("an entry of another type has a delegate payload")
 	}
 }
 

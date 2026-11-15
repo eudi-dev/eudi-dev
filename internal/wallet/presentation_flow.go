@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
+	"github.com/eudi-dev/eudi-dev/v3/internal/delegatepayload"
 	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
 )
@@ -154,7 +155,8 @@ func (w *Wallet) askPresentationConsent(ctx context.Context, typ, owner, asking 
 		shown := consent.TransactionData{Type: entry.Type, CredentialIDs: entry.CredentialIDs, Data: entry.Data}
 		if w.Conformance().Delegates() && w.canDelegate(entry, consentReq.MatchedCreds) {
 			shown.DelegatePayload = entry.DelegatePayload()
-			shown.Summary = oid4vp.DelegateSummary(shown.DelegatePayload)
+			shown.DelegateKeyThumbprint = delegatepayload.KeyThumbprint(shown.DelegatePayload)
+			shown.DelegateLimits = delegatepayload.Limits(shown.DelegatePayload)
 		}
 		consentReq.TransactionData = append(consentReq.TransactionData, shown)
 	}
@@ -181,12 +183,12 @@ func (w *Wallet) preparePresentation(authReq *oid4vp.Request, matches []consent.
 
 	if oid4vp.ResponseTypeContains(authReq.ResponseType, "vp_token") || authReq.ResponseType == "" {
 		w.renewExpiring(matches)
-		// A batch credential's use count changes, so it is saved under the
-		// store lock.
+		// The use count of a batch credential and the delegation records
+		// change, so they are saved under the store lock.
 		var err error
 		w.saveChange(func() bool {
 			prepared.VPResult, err = w.createVPTokenMap(matches, authReq)
-			return w.takeBatchStateDirty()
+			return w.takePresentationStateDirty()
 		})
 		if err != nil {
 			return nil, fmt.Errorf("creating VP token map: %w", err)

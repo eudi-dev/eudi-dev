@@ -20,12 +20,11 @@ import (
 	"maps"
 	"slices"
 	"strings"
-	"time"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/delegatepayload"
 	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
-	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
 	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt/delegate"
 )
@@ -100,6 +99,13 @@ func (e TransactionData) DelegateFindings(sdAlg string) findings.List {
 	// include a cnf claim."
 	if delegateFormat == delegate.FormatDSDJWTKB && jsonutil.GetMap(inspection.Claims, "cnf") == nil {
 		list = append(list, findings.DelegateSDJWT.Protocol("§5.1.4").Newf("%s asks for a %s, but its Delegate Payload has no cnf claim", label, delegate.FormatDSDJWTKB))
+	}
+	// RFC 7519 §4.1.4: exp is a NumericDate. The wallet stores it as a time
+	// in RFC 3339, which ends at the year 9999.
+	if value, present := inspection.Claims["exp"]; present {
+		if exp, isNumber := value.(float64); !isNumber || exp < 0 || exp > delegatepayload.MaxNumericDate {
+			list = append(list, findings.RFC(7519).Protocol("§4.1.4").Newf("the exp of the Delegate Payload of %s must be a NumericDate from 0 to %d", label, delegatepayload.MaxNumericDate))
+		}
 	}
 	return list
 }
@@ -180,22 +186,4 @@ func (e TransactionData) DelegatePayload() map[string]any {
 		return nil
 	}
 	return inspection.Claims
-}
-
-// DelegateSummary describes a Delegate Payload in one sentence. It shows the
-// receiving key and when the delegation ends. It is empty without a payload.
-func DelegateSummary(payload map[string]any) string {
-	if payload == nil {
-		return ""
-	}
-	summary := "Delegate this credential"
-	if jwk := jsonutil.GetMap(jsonutil.GetMap(payload, "cnf"), "jwk"); jwk != nil {
-		if thumbprint, err := keys.Thumbprint(jwk); err == nil {
-			summary += " to the key " + format.EncodeBase64URL(thumbprint)
-		}
-	}
-	if exp, ok := jsonutil.GetFloat64(payload, "exp"); ok {
-		summary += fmt.Sprintf(" until %s", time.Unix(int64(exp), 0).UTC().Format("2006-01-02 15:04 UTC"))
-	}
-	return summary
 }

@@ -347,6 +347,9 @@ func (w *Wallet) storeRenewedBatch(id string, fresh StoredCredential, copies []b
 	fresh.Display = old.Display
 	fresh.BatchGroup = old.BatchGroup
 	fresh.LastPresentedAt = old.LastPresentedAt
+	// Delegations signed before a renewal stay valid. The renewed credential
+	// keeps their records.
+	fresh.Delegations = trimDelegationRecords(w.delegationRecordsLocked(old), time.Now())
 	if fresh.BatchGroup == "" && len(copies) > 0 {
 		fresh.BatchGroup = newCredentialID()
 	}
@@ -487,7 +490,7 @@ func (w *Wallet) recordBatchPresentation(id string) {
 			if w.Credentials[i].BatchGroup != "" {
 				w.Credentials[i].Uses++
 				w.Credentials[i].LastPresentedAt = time.Now()
-				w.batchDirty = true
+				w.presentationDirty = true
 			}
 			return
 		}

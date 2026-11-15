@@ -64,6 +64,12 @@
     .claims-group th { font-family: var(--font-mono); font-size: 12px; font-weight: 600; text-align: left; padding: 10px 0 2px; border-bottom: 1px solid var(--border); }
     .claims-group:first-child th { padding-top: 0; }
     .claim-json { font-family: var(--font-mono); font-size: 12px; white-space: pre-wrap; }
+    .claim-block td { white-space: normal; color: inherit; font-family: inherit; font-size: inherit; }
+    .claim-block-name { font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); }
+    /* A width of 0 keeps the block out of the column widths of the table. */
+    .claim-block-body { width: 0; min-width: 100%; }
+    /* The JSON keeps its lines and indentation and scrolls sideways. */
+    .claim-block .claim-json { white-space: pre; overflow-x: auto; }
     /* A row sets its own display. That outranks the hidden attribute. */
     [hidden] { display: none !important; }
     .format-row { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-bottom: 6px; }
@@ -223,6 +229,7 @@
           <button type="button" class="btn small" id="transaction-template-add">+ Add template entry</button>
         </div>
         <p class="format-hint" id="transaction-payment-hint" hidden>A payment must bind to an SCA Attestation, such as the demo payment account. <button type="button" class="btn small" id="transaction-query-payment-account" data-vct="{{.PaymentAccountVCT}}">Query the payment account</button></p>
+        <p class="format-hint" id="transaction-delegate-hint" hidden><span class="experimental-tag" id="transaction-delegate-tag">Experimental</span> The verifier encodes delegate_payload into delegate_payload_disclosure (draft-ietf-oauth-delegate-sd-jwt-00 §5.1.3). A payload without cnf gets the key of the verifier as cnf. A payload without exp gets an exp 1 hour from now. A local wallet needs --transaction-data and --delegate-sd-jwt (or --experimental).</p>
         <p class="format-hint" id="transaction-data-hint"></p>
       </div>
     </div>

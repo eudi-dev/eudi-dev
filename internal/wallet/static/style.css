@@ -1501,6 +1501,10 @@ textarea.form-input {
   margin-top: 4px;
 }
 
+.consent-transaction-details > .consent-transaction-note {
+  margin: 10px 0;
+}
+
 .consent-transaction-details summary {
   display: flex;
   margin-top: 6px;
@@ -3535,6 +3539,10 @@ textarea.form-input {
   vertical-align: 1px;
 }
 
+.consent-title > .experimental-tag {
+  vertical-align: 0.25em;
+}
+
 @media (min-width: 641px) {
   .settings-panel .conformance-table {
     table-layout: fixed;
@@ -3896,6 +3904,215 @@ textarea.form-input {
 
   .certificate-actions {
     justify-content: flex-start;
+  }
+}
+
+.delegations-credential {
+  margin: -8px 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.delegation-row {
+  display: block;
+  padding: 0;
+}
+
+.delegation-row + .delegation-row::before {
+  content: none;
+}
+
+/* The date pill sits next to the verifier name, and the delegate lines use
+   the full width of the row below them. */
+.delegation-toggle {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: flex-start;
+  gap: 0 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.delegation-toggle:hover {
+  background: var(--bg-hover);
+}
+
+.delegation-toggle .certificate-info {
+  display: contents;
+}
+
+.delegation-toggle .certificate-name {
+  display: block;
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.delegation-toggle .conf-hint {
+  display: block;
+  grid-column: 1 / -1;
+}
+
+.delegation-toggle .delegation-summary {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.delegation-toggle .status-badge {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  margin: 2px 0 0;
+}
+
+.delegation-toggle .ic-chev {
+  grid-column: 3;
+  grid-row: 1;
+  width: 13px;
+  height: 13px;
+  margin-top: 5px;
+  color: var(--text-dim);
+  transition: transform 0.2s ease;
+}
+
+.delegation-toggle[aria-expanded="true"] .ic-chev,
+.delegations-expired-toggle[aria-expanded="true"] .ic-chev {
+  transform: rotate(180deg);
+}
+
+.delegation-limit-json {
+  margin: 0;
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.delegation-details {
+  padding: 0 12px 12px;
+}
+
+.delegation-fields {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 12px;
+  font-size: 12px;
+}
+
+.delegation-field-label {
+  color: var(--text-dim);
+}
+
+.delegation-field-value {
+  overflow-wrap: anywhere;
+}
+
+.delegation-details .certificate-actions {
+  justify-content: flex-start;
+  margin-top: 10px;
+}
+
+.delegations-expired-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 12px;
+}
+
+.delegations-expired-toggle .ic {
+  display: block;
+  width: 13px;
+  height: 13px;
+  transition: transform 0.2s ease;
+}
+
+.delegation-ended .certificate-name,
+.delegation-ended .conf-hint {
+  color: var(--text-dim);
+}
+
+/* A pair moves to the next line as a whole. Only a pair longer than the
+   line wraps inside its value. */
+.delegation-pair {
+  display: inline-block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.delegation-row .nowrap,
+.delegation-confirm-warning .nowrap,
+.consent-transaction .nowrap,
+.conformance-table .nowrap {
+  white-space: nowrap;
+}
+
+/* A base64url value breaks at any character, so a "-" inside it does not
+   look like a hyphenated word. */
+.delegation-row .break-anywhere,
+.consent-transaction .break-anywhere {
+  word-break: break-all;
+}
+
+#delegations-expired .delegation-row:first-child {
+  margin-top: 12px;
+}
+
+.consent-transaction-limits {
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+.delegation-confirm-warning {
+  margin: 0 0 16px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+#delegation-confirm-overlay {
+  z-index: 110;
+}
+
+@media (max-width: 480px) {
+  .delegation-toggle {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .delegation-toggle .ic-chev {
+    grid-column: 2;
+  }
+
+  .delegation-toggle .conf-hint,
+  .delegation-toggle .status-badge {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    justify-self: start;
+  }
+
+  .delegation-toggle .status-badge {
+    margin-top: 6px;
+  }
+
+  .delegation-fields {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .delegation-field-value {
+    margin-bottom: 6px;
+  }
+
+  /* Three buttons don't fit in one row, so each takes the full width. */
+  #delegation-confirm-dialog .consent-buttons:has(#delegation-confirm-revoke:not([hidden])) .btn {
+    flex: 1 1 100%;
   }
 }
 

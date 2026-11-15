@@ -21,6 +21,7 @@ For interaction diagrams of the implemented OID4VP and OID4VCI flows, see [docs/
 | `serve`      | Start the wallet server with its web UI |
 | `list`       | List stored credentials |
 | `show`       | Show a stored credential by ID (raw or decoded) |
+| `delegations` | Experimental. List the delegations of a credential. See [Delegation records](wallet/presenting.md#delegation-records) |
 | `import`     | Import an SD-JWT, JWT VC or mdoc credential from a file, stdin or a raw string |
 | `remove`     | Remove a credential by its ID |
 | `accept`     | Accept an OID4VP presentation request or OID4VCI credential offer (auto-detected) |
@@ -189,6 +190,30 @@ eudi wallet show --decoded --json <id> # JSON output
 | Flag        | Default | Description                                          |
 |-------------|---------|------------------------------------------------------|
 | `--decoded` | `false` | Show human-readable decoded output instead of raw    |
+
+A credential with active delegations shows "1 active delegation" or the count in the `STATUS` column of `wallet list`. `wallet show --decoded` prints it in a `Delegations` line. `wallet show` prints it on stderr, so the raw credential on stdout stays the same.
+
+## `wallet delegations <id>`
+
+Experimental. Lists the active delegations of a credential, the newest first. Each one shows the verifier, the end of the delegation, its limits and the short delegate key, as in the **Delegations** dialog. The limits show an object or an array by its name alone. `--all` adds the delegations that ended, after the active ones. `--json` prints the records as `GET /api/credentials/{id}` returns them in [`delegations`](wallet/http-api.md#delegations).
+
+```bash
+eudi wallet delegations <id>
+eudi wallet delegations --all <id>
+eudi wallet delegations --json <id>
+```
+
+```
+Acme Shop
+  Until Sun, 15 Nov 2026 16:29:42 CET
+  agent, currency: EUR, max_amount: 250, purpose: Order office supplies, key: rezr_f2z…hsKj0U
+```
+
+A credential without active delegations prints "This credential has no active delegation." With `--all` and no records at all, it prints "This credential has no delegation records." In both cases the command exits with 0. An unknown ID fails as in `wallet show`.
+
+| Flag    | Default | Description                              |
+|---------|---------|------------------------------------------|
+| `--all` | `false` | Also list the delegations that ended     |
 
 ## `wallet logs`
 

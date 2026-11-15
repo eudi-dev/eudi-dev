@@ -132,3 +132,39 @@ func TestALocationWithoutPredefinedTemplatesHoldsOnlyItsOwn(t *testing.T) {
 		t.Errorf("loading a predefined template: %v, want not found", err)
 	}
 }
+
+// draft-ietf-oauth-delegate-sd-jwt-00 §7.1 defines the type and the format.
+func TestALocationListsTheDelegationTemplateOnlyWithDelegation(t *testing.T) {
+	names := func(loc Location) []string {
+		templates, err := List(loc)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var names []string
+		for _, tpl := range templates {
+			names = append(names, tpl.Name)
+		}
+		return names
+	}
+	if got := names(Location{}); slices.Contains(got, DelegationName) {
+		t.Errorf("templates = %v, want no %s", got, DelegationName)
+	}
+	if got := names(Location{Delegation: true, WithoutPredefined: true}); len(got) != 0 {
+		t.Errorf("templates without the built-in ones = %v, want none", got)
+	}
+	loc := Location{Delegation: true}
+	if got := names(loc); !slices.Contains(got, DelegationName) || len(got) != len(Predefined())+1 {
+		t.Errorf("templates = %v, want the built-in ones and %s", got, DelegationName)
+	}
+	tpl, err := Load(loc, DelegationName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data := tpl.TransactionData
+	if _, isObject := data["delegate_payload"].(map[string]any); !tpl.Predefined || tpl.Type() != oid4vp.DelegateTransactionDataType || data["format"] != "dSD-JWT+KB" || !isObject {
+		t.Errorf("template = %+v, want a predefined delegate entry with a delegate_payload object", tpl)
+	}
+	if _, ok := data["credential_ids"]; ok {
+		t.Error("the template sets credential_ids, which belong to the verifier's query")
+	}
+}

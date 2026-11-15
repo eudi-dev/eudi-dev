@@ -388,9 +388,18 @@ func (w *Wallet) CredentialSummaryWithStatus(c StoredCredential) map[string]any 
 // CredentialSummaryWithBatch adds batch counts for list and detail responses. Issue and
 // import responses use the plain status summary.
 func (w *Wallet) CredentialSummaryWithBatch(c StoredCredential) map[string]any {
+	return w.credentialSummaryWithBatch(c, false)
+}
+
+// credentialSummaryWithBatch adds the delegation records with withRecords,
+// for the detail response.
+func (w *Wallet) credentialSummaryWithBatch(c StoredCredential, withRecords bool) map[string]any {
 	summary := w.CredentialSummaryWithStatus(c)
 	if c.BatchGroup != "" {
 		summary["batch_size"] = w.BatchGroupSize(c.BatchGroup)
+	}
+	if delegations := w.delegationSummary(c, withRecords); delegations != nil {
+		summary["delegations"] = delegations
 	}
 	return summary
 }

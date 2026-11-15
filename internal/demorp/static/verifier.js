@@ -115,12 +115,19 @@ function renderResult(doc) {
   const claims = document.getElementById("claims");
   const label = document.getElementById("claims-label");
   if (doc.status === "verified" && doc.claims) {
-    claims.innerHTML = Object.entries(doc.claims).map(([k, v], i) => {
+    const delegations = doc.delegations || {};
+    const shown = Object.entries(doc.claims).map(([k, v], i) => {
       const id = `claims-${i}-${idPart(k)}`;
       if (!isPlainObject(v)) return claimRowHTML(id, k, v);
       const rows = Object.entries(v).map(([name, value], j) => claimRowHTML(`${id}-${j}-${idPart(name)}`, name, value));
-      return `<tr class="claims-group" id="${id}"><th colspan="2" id="${id}-name">${esc(k)}</th></tr>` + rows.join("");
-    }).join("");
+      return `<tr class="claims-group" id="${id}"><th colspan="2" id="${id}-name">${esc(k)}</th></tr>` + delegationRowHTML(id, delegations[k]) + rows.join("");
+    });
+    // A delegation without a claims group, such as one of several presentations, gets its own group.
+    Object.entries(delegations).filter(([k]) => !isPlainObject(doc.claims[k])).forEach(([k, delegation], i) => {
+      const id = `delegations-${i}-${idPart(k)}`;
+      shown.push(`<tr class="claims-group" id="${id}"><th colspan="2" id="${id}-name">${esc(k)}</th></tr>` + delegationRowHTML(id, delegation));
+    });
+    claims.innerHTML = shown.join("");
     claims.hidden = false;
     label.hidden = false;
   } else {
@@ -139,6 +146,14 @@ function claimRowHTML(id, name, value) {
     ? `<div class="claim-json" id="${id}-json">${esc(JSON.stringify(value, null, 2))}</div>`
     : esc(value);
   return `<tr id="${id}"><td id="${id}-name">${esc(name)}</td><td id="${id}-value">${shown}</td></tr>`;
+}
+
+// The delegation row spans both columns with its value below the name, so its
+// long value does not set the width of the name column for the claim rows.
+function delegationRowHTML(groupID, delegation) {
+  if (!delegation) return "";
+  const id = `${groupID}-delegation`;
+  return `<tr id="${id}" class="claim-block"><td colspan="2"><div class="claim-block-body"><div class="claim-block-name" id="${id}-name">delegation</div><div id="${id}-value"><div class="claim-json" id="${id}-json">${esc(JSON.stringify(delegation, null, 2))}</div></div></div></td></tr>`;
 }
 
 // The decoder link carries the complete presentation, because the wallet does
@@ -740,6 +755,17 @@ const TRANSACTION_MODE_HINTS = {
 };
 let transactionMode = "form";
 
+// The transaction data type of draft-ietf-oauth-delegate-sd-jwt-00 §7.1.
+const DELEGATE_TYPE = "delegate";
+
+// templatePayload is the object behind the form fields of an entry. A
+// delegate entry holds it as delegate_payload, and the verifier encodes it
+// into delegate_payload_disclosure.
+function templatePayload(entry) {
+  const payload = entry.type === DELEGATE_TYPE ? entry.delegate_payload : entry.payload;
+  return payload && typeof payload === "object" ? payload : null;
+}
+
 function selectedTransactionTemplate() {
   const name = document.getElementById("transaction-template-select").value;
   return transactionTemplates.find((t) => t.name === name);
@@ -762,7 +788,7 @@ function showTransactionFields() {
   const template = selectedTransactionTemplate();
   const fields = document.getElementById("transaction-fields");
   fields.textContent = "";
-  const payload = template && template.transaction_data.payload;
+  const payload = template && templatePayload(template.transaction_data);
   for (const leaf of payloadLeaves(payload)) {
     if (leaf.path.length === 1 && GENERATED_MEMBERS.has(leaf.path[0]) && TS12_TYPES.has(template.transaction_data.type)) continue;
     const label = document.createElement("label");
@@ -786,6 +812,7 @@ function showTransactionFields() {
   }
   const payment = template && template.transaction_data.type === TS12_PAYMENT;
   document.getElementById("transaction-payment-hint").hidden = !payment;
+  document.getElementById("transaction-delegate-hint").hidden = !(template && template.transaction_data.type === DELEGATE_TYPE);
 }
 
 // applyTransactionFields writes the form into a payload. An empty field
@@ -808,7 +835,7 @@ function applyTransactionFields(payload) {
 function freshEntry(template, withForm) {
   const entry = structuredClone(template.transaction_data);
   if (!entry.credential_ids) entry.credential_ids = queryCredentialIDs();
-  const payload = entry.payload && typeof entry.payload === "object" ? entry.payload : null;
+  const payload = templatePayload(entry);
   if (!payload) return entry;
   if (withForm) applyTransactionFields(payload);
   if (TS12_TYPES.has(entry.type)) {

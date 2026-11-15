@@ -105,6 +105,7 @@ func init() {
 	walletCmd.AddCommand(walletServeCmd())
 	walletCmd.AddCommand(walletListCmd())
 	walletCmd.AddCommand(walletShowCmd())
+	walletCmd.AddCommand(walletDelegationsCmd())
 	walletCmd.AddCommand(walletImportCmd())
 	walletCmd.AddCommand(walletRemoveCmd())
 	walletCmd.AddCommand(walletAcceptCmd())

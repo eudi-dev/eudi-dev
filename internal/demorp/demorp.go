@@ -103,6 +103,9 @@ type DemoRP struct {
 	// requestEncryptionKey decrypts credential requests. Its public key is
 	// the credential_request_encryption key of the issuer metadata.
 	requestEncryptionKey *ecdsa.PrivateKey
+	// delegateKey is the key of the verifier as a Delegate Holder. A delegate
+	// payload built by the verifier carries it as cnf.
+	delegateKey *ecdsa.PrivateKey
 	// seenJTIs holds a hash of the jti of each accepted DPoP proof and
 	// attestation PoP with its scope until its iat leaves the freshness window.
 	seenJTIs map[string]time.Time
@@ -133,6 +136,7 @@ func New(w *wallet.Wallet, baseURL func() string) *DemoRP {
 		offerIssuers:         make(map[string]*issuerIdentity),
 		nonceKey:             randomBytes(32),
 		requestEncryptionKey: mustGenerateKey(),
+		delegateKey:          mustGenerateKey(),
 		seenJTIs:             make(map[string]time.Time),
 		deferred:             make(map[string]*deferredTicket),
 		deferredDelay:        deferredReadyDelay,

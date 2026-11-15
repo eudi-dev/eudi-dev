@@ -450,6 +450,13 @@
         '" title="No holder key in the credential.">No key binding</span>';
     }
 
+    let delegationsBadge = '';
+    const activeDelegations = cred.delegations ? cred.delegations.active : 0;
+    if (activeDelegations > 0) {
+      delegationsBadge = '<span class="status-badge status-valid" id="' + idPrefix + 'delegations-badge-' + domID(cred.id) +
+        '" title="Delegations of this credential that have not ended.">' + delegationCount(activeDelegations, 'active') + '</span>';
+    }
+
     const display = cred.display || {};
     const cp = idPrefix + 'credential-' + domID(cred.id) + '-';
     const logoImg = display.logo_uri
@@ -488,7 +495,7 @@
           nameHtml +
           (cred.issuer_name ? '<span class="cred-issuer" id="' + cp + 'issuer-name">' + escHtml(cred.issuer_name) + '</span>' : '') +
         '</div>' +
-        '<div class="cred-pills">' + protectedBadge + statusBadge + certificateBadge + expiryBadge + signatureBadge + keyBindingBadge + '</div>' +
+        '<div class="cred-pills">' + protectedBadge + statusBadge + certificateBadge + expiryBadge + signatureBadge + keyBindingBadge + delegationsBadge + '</div>' +
         '<div class="cred-meta">' +
           idMeta + issuedMeta + typeMeta + issuerMeta +
         '</div>' +
@@ -595,11 +602,15 @@
           '</button>'
         : '';
       const certificatesBtn = '<button class="btn btn-sm" id="certificates-' + domID(cred.id) + '" data-certificates="' + escHtml(cred.id) + '">Certificates</button>';
+      const delegationsBtn = cred.delegations
+        ? '<button class="btn btn-sm" id="delegations-' + domID(cred.id) + '" data-delegations="' + escHtml(cred.id) + '">Delegations</button>'
+        : '';
       const actionsHtml = '<div class="credential-actions">' +
           aboutBtn +
           revokeBtn +
           checkBtn +
           certificatesBtn +
+          delegationsBtn +
           (isProtected ? '' : '<button class="btn btn-danger btn-sm" id="delete-' + domID(cred.id) + '" data-delete="' + escHtml(cred.id) + '">Delete</button>') +
         '</div>';
       // The flipped card hides the About button, so phones need a Back control inside the
@@ -630,15 +641,22 @@
       card.querySelector('.card-face').addEventListener('click', openDecoder);
       const del = card.querySelector('[data-delete]');
       if (del) {
-        del.addEventListener('click', () => deleteCredential(cred.id));
+        del.addEventListener('click', () => confirmWithDelegations(cred, 'delete', () => deleteCredential(cred.id)));
       }
       const revoke = card.querySelector('[data-revoke]');
       if (revoke) {
-        revoke.addEventListener('click', () => setCredentialStatus(cred.id, st.status === 0 ? 1 : 0));
+        revoke.addEventListener('click', () => {
+          if (st.status !== 0) setCredentialStatus(cred.id, 0);
+          else confirmWithDelegations(cred, 'revoke', () => setCredentialStatus(cred.id, 1));
+        });
       }
       const certificatesButton = card.querySelector('[data-certificates]');
       if (certificatesButton) {
         certificatesButton.addEventListener('click', () => openCertificates(cred.id));
+      }
+      const delegationsButton = card.querySelector('[data-delegations]');
+      if (delegationsButton) {
+        delegationsButton.addEventListener('click', () => openDelegations(cred));
       }
       const check = card.querySelector('[data-check-status]');
       if (check) {
@@ -1149,6 +1167,196 @@
     } catch (e) {
       showErrorDialog('Revoking or withdrawing the certificate failed', e.message);
     }
+  }
+
+  function delegationCount(count, kind) {
+    return count + ' ' + kind + (count === 1 ? ' delegation' : ' delegations');
+  }
+
+  const delegationTimeOptions = { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' };
+
+  function delegationTime(value) {
+    return new Date(value).toLocaleString(undefined, delegationTimeOptions);
+  }
+
+  function credentialName(cred) {
+    return (cred.display && cred.display.name) || cred.vct || cred.doctype || cred.format;
+  }
+
+  // A delegation ends when it expires or when its credential is revoked.
+  function delegationEnded(record) {
+    return record.expired || record.revoked;
+  }
+
+  // delegationTimeHTML may break the line between the date and the time, but
+  // never inside either of them.
+  function delegationTimeHTML(value) {
+    const parts = new Intl.DateTimeFormat(undefined, delegationTimeOptions).formatToParts(new Date(value));
+    const timeStart = parts.findIndex((part) => part.type === 'hour' || part.type === 'dayPeriod');
+    const dateEnd = Math.max(...['year', 'month', 'day'].map((type) => parts.findIndex((part) => part.type === type)));
+    const nowrap = (list) => '<span class="nowrap">' + escHtml(list.map((part) => part.value).join('').trim()) + '</span>';
+    if (timeStart <= dateEnd) return nowrap(parts);
+    return nowrap(parts.slice(0, timeStart)) + ' ' + nowrap(parts.slice(timeStart));
+  }
+
+  async function delegationRecords(id) {
+    const resp = await fetch('api/credentials/' + encodeURIComponent(id));
+    const detail = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(apiErrorText(detail, resp));
+    return (detail.delegations && detail.delegations.records) || [];
+  }
+
+  async function openDelegations(cred) {
+    const list = document.getElementById('delegations-list');
+    list.textContent = '';
+    document.getElementById('delegations-credential').textContent = credentialName(cred);
+    document.getElementById('delegations-overlay').classList.add('active');
+    try {
+      const records = await delegationRecords(cred.id);
+      const active = records.filter(record => !delegationEnded(record));
+      const ended = records.filter(delegationEnded);
+      if (!active.length) {
+        list.innerHTML = '<p class="dialog-hint" id="delegations-none">This credential has no active delegation.</p>';
+      }
+      active.forEach(record => list.appendChild(delegationRow(record)));
+      if (ended.length) {
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'btn btn-sm delegations-expired-toggle';
+        toggle.id = 'delegations-expired-toggle';
+        toggle.innerHTML = '<span id="delegations-expired-label">' + escHtml(delegationCount(ended.length, 'ended')) + '</span>' + descIcon('ic-chev', '<path d="M6 9l6 6 6-6"/>');
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.setAttribute('aria-controls', 'delegations-expired');
+        const group = document.createElement('div');
+        group.id = 'delegations-expired';
+        group.hidden = true;
+        ended.forEach(record => group.appendChild(delegationRow(record)));
+        toggle.addEventListener('click', () => {
+          group.hidden = !group.hidden;
+          toggle.setAttribute('aria-expanded', String(!group.hidden));
+        });
+        list.appendChild(toggle);
+        list.appendChild(group);
+      }
+    } catch (e) {
+      showErrorDialog('Loading the delegations failed', e.message);
+    }
+  }
+
+  function delegateSummaryHTML(entry) {
+    let html = 'Delegate this credential';
+    if (entry.delegate_key_thumbprint) html += ' to the key <span class="nowrap">' + escHtml(shortThumbprint(entry.delegate_key_thumbprint)) + '</span>';
+    if (typeof entry.delegate_payload.exp === 'number') html += ' until ' + delegationTimeHTML(entry.delegate_payload.exp * 1000);
+    return html;
+  }
+
+  function shortThumbprint(value) {
+    return value.length > 16 ? value.slice(0, 8) + '…' + value.slice(-6) : value;
+  }
+
+  // The summary shows an object or array limit by its name alone, so it stays
+  // short. The open row shows its value.
+  function delegateLineHTML(delegated) {
+    const parts = (delegated.limits || []).map(limit => (limit.json ? limit.name : limit.name + ': ' + limit.value));
+    if (delegated.key_thumbprint) parts.push('key: ' + shortThumbprint(delegated.key_thumbprint));
+    return parts.map((part, i) => '<span class="delegation-pair">' + escHtml(part + (i < parts.length - 1 ? ',' : '')) + '</span>').join(' ');
+  }
+
+  function delegateLimitHTML(limit) {
+    if (!limit.json) return escHtml(limit.value);
+    return '<pre class="delegation-limit-json">' + escHtml(JSON.stringify(JSON.parse(limit.value), null, 2)) + '</pre>';
+  }
+
+  function delegationRow(record) {
+    const row = document.createElement('div');
+    row.className = 'certificate-row delegation-row';
+    row.id = 'delegation-' + domID(record.id);
+    row.dataset.testid = 'delegation-row';
+    let pill;
+    if (record.revoked) {
+      pill = '<span class="status-badge status-revoked" id="' + row.id + '-until">Credential revoked</span>';
+    } else if (record.expired) {
+      pill = '<span class="status-badge status-expired" id="' + row.id + '-until">Expired ' + escHtml(delegationTime(record.expires_at)) + '</span>';
+    } else {
+      pill = '<span class="status-badge status-valid" id="' + row.id + '-until">' + (record.expires_at ? 'Until ' + escHtml(delegationTime(record.expires_at)) : 'No expiry') + '</span>';
+    }
+    if (delegationEnded(record)) row.classList.add('delegation-ended');
+    const delegates = record.delegates || [];
+    const field = (key, label, value, mono) => '<div class="delegation-field-label" id="' + row.id + '-' + key + '-label">' + label + '</div>' +
+      '<div class="delegation-field-value' + (mono ? ' mono' : '') + '" id="' + row.id + '-' + key + '">' + value + '</div>';
+    row.innerHTML = '<button type="button" class="delegation-toggle" id="' + row.id + '-toggle" aria-expanded="false" aria-controls="' + row.id + '-details">' +
+        '<span class="certificate-info" id="' + row.id + '-info">' +
+          '<span class="certificate-name" id="' + row.id + '-name">' + escHtml(record.name) + '</span>' +
+          delegates.map((delegated, i) => '<span class="conf-hint delegation-summary" id="' + row.id + '-summary-' + i + '">' + delegateLineHTML(delegated) + '</span>').join('') +
+        '</span>' + pill + descIcon('ic-chev', '<path d="M6 9l6 6 6-6"/>') +
+      '</button>' +
+      '<div class="delegation-details" id="' + row.id + '-details" hidden>' +
+        '<div class="delegation-fields" id="' + row.id + '-fields">' +
+          delegates.map((delegated, i) => (delegated.limits || []).map((limit, j) =>
+            field('limit-' + i + '-' + j, escHtml(limit.name), delegateLimitHTML(limit), false)).join('')).join('') +
+          field('client', 'Requested by', '<span class="break-anywhere">' + escHtml(record.client_id || record.name) + '</span>', true) +
+          field('signed', 'Signed', escHtml(delegationTime(record.signed_at)), false) +
+          field('format', 'Format', escHtml(record.format), true) +
+          field('disclosed', 'Disclosed claims', (record.disclosed || []).map(escHtml).join(', ') || 'None', true) +
+          delegates.filter(delegated => delegated.key_thumbprint).map((delegated, i) => field('key-' + i, 'Delegate key', '<span class="break-anywhere">' + escHtml(delegated.key_thumbprint) + '</span>', true)).join('') +
+        '</div>' +
+        '<div class="certificate-actions" id="' + row.id + '-actions">' +
+          '<button type="button" class="btn btn-sm" id="' + row.id + '-decode">Open in decoder</button>' +
+        '</div>' +
+      '</div>';
+    const toggle = row.querySelector('.delegation-toggle');
+    const details = row.querySelector('.delegation-details');
+    toggle.addEventListener('click', () => {
+      details.hidden = !details.hidden;
+      toggle.setAttribute('aria-expanded', String(!details.hidden));
+    });
+    row.querySelector('#' + row.id + '-decode').addEventListener('click', () => window.open('decoder/#credential=' + encodeURIComponent(record.chain), '_blank'));
+    return row;
+  }
+
+  let delegationConfirmed = null;
+
+  // A deleted credential stays valid at the Delegate Holder (ADR-0033), so the
+  // user confirms first.
+  async function confirmWithDelegations(cred, action, run) {
+    if (!cred.delegations || !cred.delegations.active) {
+      run();
+      return;
+    }
+    let active;
+    try {
+      active = (await delegationRecords(cred.id)).filter(record => !delegationEnded(record));
+    } catch (e) {
+      showErrorDialog('Loading the delegations failed', e.message);
+      return;
+    }
+    if (!active.length) {
+      run();
+      return;
+    }
+    const one = active.length === 1;
+    let html = one
+      ? 'This credential is delegated to ' + escHtml(active[0].name) + (active[0].expires_at ? ' until ' + delegationTimeHTML(active[0].expires_at) : ' with no expiry') + '.'
+      : 'This credential has ' + delegationCount(active.length, 'active') + '.';
+    const st = cred.status;
+    const revocable = !!(st && st.managed && st.status === 0 && cred.protected !== true);
+    const revokeInstead = document.getElementById('delegation-confirm-revoke');
+    const confirm = document.getElementById('delegation-confirm-ok');
+    if (action === 'delete') {
+      html += ' Deleting the credential does not end ' + (one ? 'the delegation' : 'them') + '.' + (revocable ? ' Revoke the credential to end ' + (one ? 'it' : 'them') + '.' : '');
+      confirm.textContent = 'Delete';
+      confirm.className = 'btn btn-danger';
+    } else {
+      html += ' Revoking the credential also ends ' + (one ? 'the delegation' : 'its delegations') + '.';
+      confirm.textContent = 'Revoke';
+      confirm.className = 'btn';
+    }
+    revokeInstead.hidden = action !== 'delete' || !revocable;
+    document.getElementById('delegation-confirm-title').textContent = (action === 'delete' ? 'Delete ' : 'Revoke ') + credentialName(cred) + '?';
+    document.getElementById('delegation-confirm-warning').innerHTML = html;
+    delegationConfirmed = { run, revoke: () => setCredentialStatus(cred.id, 1) };
+    document.getElementById('delegation-confirm-overlay').classList.add('active');
+    document.getElementById('delegation-confirm-title').focus();
   }
 
   async function deleteCredential(id) {
@@ -4049,20 +4257,26 @@
         const members = Object.assign({}, entry.data);
         for (const key of ['type', 'credential_ids', 'transaction_data_hashes_alg']) delete members[key];
         const id = 'consent-transaction-' + idx;
-        const summary = entry.summary || ts12Summary(entry.type, entry.data && entry.data.payload);
+        const summary = entry.delegate_payload ? delegateSummaryHTML(entry) : escHtml(ts12Summary(entry.type, entry.data && entry.data.payload));
+        const tagTitle = entry.delegate_payload
+          ? 'Delegate SD-JWT is experimental. It follows draft-ietf-oauth-delegate-sd-jwt-00. Its behavior can change in any release.'
+          : 'Transaction data is experimental. It follows OpenID4VP 1.0 §5.1 and EUDI TS12 v1.0.1. Its behavior can change in any release.';
         return '<div class="consent-purpose consent-transaction" id="' + id + '">' +
           '<span class="consent-purpose-label" id="' + id + '-label">Transaction to authorize ' +
             '<span class="experimental-tag" id="' + id + '-tag" title="' + tagTitle + '">Experimental</span></span>' +
-          (summary ? '<div class="consent-transaction-summary" id="' + id + '-summary">' + escHtml(summary) + '</div>' : '') +
-          '<div class="consent-transaction-type mono" id="' + id + '-type">' + escHtml(entry.type || '(no type)') + '</div>' +
-          (entry.delegate_payload ?
-            '<div class="consent-transaction-note" id="' + id + '-experimental">The wallet answers with a Delegate SD-JWT (draft-ietf-oauth-delegate-sd-jwt-00).</div>' : '') +
+          (summary ? '<div class="consent-transaction-summary" id="' + id + '-summary">' + summary + '</div>' : '') +
+          (entry.delegate_payload ? '' : '<div class="consent-transaction-type mono" id="' + id + '-type">' + escHtml(entry.type || '(no type)') + '</div>') +
           (Object.keys(members).length ?
             '<details class="consent-transaction-details" id="' + id + '-details"' + (summary ? '' : ' open') + '>' +
               '<summary id="' + id + '-details-summary">Transaction data</summary>' +
-              '<pre class="consent-transaction-data" id="' + id + '-data" tabindex="0">' + escHtml(JSON.stringify(members, null, 2)) + '</pre>' +
-              (entry.delegate_payload ?
-                '<pre class="consent-transaction-data" id="' + id + '-delegate-payload" tabindex="0">' + escHtml(JSON.stringify({ delegate_payload: entry.delegate_payload }, null, 2)) + '</pre>' : '') +
+              (entry.delegate_limits && entry.delegate_limits.length ?
+                '<div class="delegation-fields consent-transaction-limits" id="' + id + '-limits">' + entry.delegate_limits.map((limit, i) =>
+                  '<div class="delegation-field-label" id="' + id + '-limit-' + i + '-label">' + escHtml(limit.name) + '</div>' +
+                  '<div class="delegation-field-value" id="' + id + '-limit-' + i + '">' + delegateLimitHTML(limit) + '</div>').join('') + '</div>' : '') +
+              (entry.delegate_payload ? '' :
+                '<pre class="consent-transaction-data" id="' + id + '-data" tabindex="0">' + escHtml(JSON.stringify(members, null, 2)) + '</pre>') +
+              (entry.delegate_key_thumbprint ?
+                '<div class="consent-transaction-note" id="' + id + '-delegate-key">Delegate key <span class="mono break-anywhere">' + escHtml(entry.delegate_key_thumbprint) + '</span></div>' : '') +
             '</details>' : '') +
         '</div>';
       }).join('');
@@ -7174,6 +7388,24 @@
     certificatesOverlay.classList.remove('active');
   });
   makeModal(certificatesOverlay, document.getElementById('certificates-close'));
+
+  const delegationsOverlay = document.getElementById('delegations-overlay');
+  document.getElementById('delegations-close').addEventListener('click', () => {
+    delegationsOverlay.classList.remove('active');
+  });
+  makeModal(delegationsOverlay, document.getElementById('delegations-close'));
+
+  const delegationConfirmOverlay = document.getElementById('delegation-confirm-overlay');
+  const closeDelegationConfirm = (pick) => {
+    delegationConfirmOverlay.classList.remove('active');
+    const confirmed = delegationConfirmed;
+    delegationConfirmed = null;
+    if (confirmed && pick) confirmed[pick]();
+  };
+  document.getElementById('delegation-confirm-cancel').addEventListener('click', () => closeDelegationConfirm(''));
+  document.getElementById('delegation-confirm-revoke').addEventListener('click', () => closeDelegationConfirm('revoke'));
+  document.getElementById('delegation-confirm-ok').addEventListener('click', () => closeDelegationConfirm('run'));
+  makeModal(delegationConfirmOverlay, document.getElementById('delegation-confirm-cancel'));
 
   const cliOverlay = document.getElementById('cli-overlay');
   document.getElementById('get-cli-link').addEventListener('click', (event) => {

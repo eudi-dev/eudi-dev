@@ -2165,6 +2165,158 @@ test.describe("Custom verifier request builder", () => {
     expect((await verifierResult(id)).status).toBe("verified");
   });
 
+  // A disclosed claim named delegation is a claim like any other. Only the
+  // delegations member of the result holds a delegation.
+  test("a disclosed claim named delegation shows as a claim row", async ({ page }) => {
+    const vct = "urn:example:delegation-claim-e2e";
+    const issued = await postJSON("/api/issue", { format: "sdjwt", vct, claims: { given_name: "Erika", delegation: { role: "deputy" } } });
+    expect(issued.status).toBe(201);
+
+    await page.goto(`${BASE}/verifier/`);
+    await page.locator('#credential-toggle [data-credential="custom"]').click();
+    await page.locator("#credentials-list .type-input").fill(vct);
+    await page.locator(".claim-input").nth(1).fill("delegation");
+    const [resp] = await Promise.all([
+      page.waitForResponse((r) => r.url().endsWith("/verifier/api/requests") && r.request().method() === "POST"),
+      page.locator("#create-request").click(),
+    ]);
+    const { transaction_id: id } = await resp.json();
+    const schemeURI = (await page.locator("#scheme-uri").textContent()) || "";
+
+    await present(page, schemeURI);
+    await page.locator("#consent-approve").click();
+    await expect(page).toHaveURL(/\/verifier\/\?response_code=/, { timeout: 45_000 });
+
+    const result = await verifierResult(id);
+    expect(result.status).toBe("verified");
+    expect(result.claims.cred_0.delegation).toEqual({ role: "deputy" });
+    expect(result.delegations).toBeUndefined();
+    await expect(page.locator("#claims-0-cred-0-0-delegation")).not.toHaveClass("claim-block");
+    await expect(page.locator("#claims-0-cred-0-0-delegation-name")).toHaveText("delegation");
+    await expect(page.locator("#claims-0-cred-0-0-delegation-json")).toContainText('"role": "deputy"');
+  });
+
+  // draft-ietf-oauth-delegate-sd-jwt-00 §7: the wallet answers a delegate
+  // entry with a Delegate SD-JWT. The demo verifier sets its own key as the
+  // delegate key (ADR-0033). The wallet stores a delegation record with the credential.
+  test("the delegation template makes the wallet answer with a Delegate SD-JWT and record it", async ({ page }) => {
+    const issued = await postJSON("/api/issue", { format: "sdjwt", vct: "urn:example:delegation-e2e", claims: { given_name: "Erika", nationalities: ["DE"] } });
+    expect(issued.status).toBe(201);
+    const credential = issued.body.id;
+
+    await page.goto(`${BASE}/verifier/`);
+    await page.locator('#credential-toggle [data-credential="custom"]').click();
+    await page.locator("#credentials-list .type-input").fill("urn:example:delegation-e2e");
+    await page.locator("#transaction-enabled").check();
+    await expect(page.locator("#transaction-template-option-delegation")).toBeAttached();
+    await page.locator("#transaction-template-select").selectOption("delegation");
+    await expect(page.locator("#transaction-delegate-hint")).toBeVisible();
+    await expect(page.locator("#transaction-delegate-tag")).toHaveText("Experimental");
+    await expect(page.locator("#transaction-field-purpose")).toHaveValue("Order office supplies");
+    await page.locator("#transaction-field-max_amount").fill("400");
+    await page.locator("#transaction-mode-json").click();
+    const [entry] = JSON.parse(await page.locator("#transaction-data").inputValue());
+    expect(entry).toMatchObject({ type: "delegate", format: "dSD-JWT+KB", credential_ids: ["cred_0"] });
+    expect(entry.delegate_payload).toEqual({ purpose: "Order office supplies", max_amount: 400, currency: "EUR" });
+    entry.delegate_payload.agent = { id: "urn:example:agent:1", operator: "Acme" };
+    await page.locator("#transaction-data").fill(JSON.stringify([entry]));
+
+    const [resp] = await Promise.all([
+      page.waitForResponse((r) => r.url().endsWith("/verifier/api/requests") && r.request().method() === "POST"),
+      page.locator("#create-request").click(),
+    ]);
+    const { transaction_id: id } = await resp.json();
+    const schemeURI = (await page.locator("#scheme-uri").textContent()) || "";
+
+    await present(page, schemeURI);
+    await expect(page.locator("#consent-transaction-0-label")).toHaveText("Transaction to authorize Experimental");
+    await expect(page.locator("#consent-transaction-0-summary")).toContainText("Delegate this credential to the key");
+    await expect(page.locator("#consent-transaction-0-limits")).toBeHidden();
+    await page.locator("#consent-transaction-0-details-summary").click();
+    await expect(page.locator("#consent-transaction-0-details #consent-transaction-0-limits")).toBeVisible();
+    await expect(page.locator("#consent-transaction-0-limits .delegation-field-label")).toHaveText(["agent", "currency", "max_amount", "purpose"]);
+    await expect(page.locator("#consent-transaction-0-limit-2")).toHaveText("400");
+    await expect(page.locator("#consent-transaction-0-limit-0 pre")).toHaveText(JSON.stringify(entry.delegate_payload.agent, null, 2));
+    await page.locator("#consent-approve").click();
+    await expect(page).toHaveURL(/\/verifier\/\?response_code=/, { timeout: 45_000 });
+
+    const result = await verifierResult(id);
+    expect(result.checks.filter((c) => !c.ok)).toEqual([]);
+    expect(result.status).toBe("verified");
+    expect(result.checks.map((c) => c.name)).toContain("cred_0: Delegate SD-JWT chain verifies (draft-ietf-oauth-delegate-sd-jwt-00 §6)");
+    expect(result.presentation).toContain("~~");
+    const delegation = result.delegations.cred_0;
+    expect(delegation).toMatchObject({ format: "dSD-JWT", "format for the Delegate Holder": "dSD-JWT+KB", "key holder": "this verifier" });
+    expect(delegation.payload).toMatchObject({ purpose: "Order office supplies", max_amount: 400, currency: "EUR", agent: entry.delegate_payload.agent });
+    expect(Date.parse(delegation["valid until"].replace(" UTC", "Z").replace(" ", "T")) - Date.now()).toBeGreaterThan(50 * 60_000);
+    await expect(page.locator("#status")).toHaveAttribute("data-status", "verified");
+    await expect(page.locator("#claims-0-cred-0-delegation")).toHaveClass("claim-block");
+    await expect(page.locator("#claims-0-cred-0-delegation-json")).toContainText('"format": "dSD-JWT"');
+    await expect(page.locator("#claims-0-cred-0-delegation-json")).toContainText("this verifier");
+
+    await page.goto(BASE);
+    const card = page.locator(`#credential-${credential}`);
+    await expect(page.locator(`#delegations-badge-${credential}`)).toHaveText("1 active delegation");
+    await expect(page.locator(`#delegations-badge-${credential}`)).toHaveAttribute("title", /have not ended/);
+    await page.locator(`#delegations-${credential}`).click();
+    await expect(page.locator("#delegations-overlay")).toHaveClass(/active/);
+    await expect(page.locator("#delegations-title")).toContainText("Delegations");
+    await expect(page.locator("#delegations-tag")).toHaveText("Experimental");
+    await expect(page.locator("#delegations-credential")).toHaveText("urn:example:delegation-e2e");
+    const rows = page.locator('#delegations-list [data-testid="delegation-row"]');
+    await expect(rows).toHaveCount(1);
+    const row = `#${await rows.getAttribute("id")}`;
+    await expect(page.locator(`${row}-name`)).toHaveText("EUDI Dev Demo Verifier");
+    await expect(page.locator(`${row}-summary-0`)).toHaveText(/^agent, currency: EUR, max_amount: 400, purpose: Order office supplies, key: \S+$/);
+    await expect(page.locator(`${row}-until`)).toHaveText(/^Until /);
+    await expect(page.locator(`${row}-toggle`)).toHaveAttribute("aria-expanded", "false");
+    await expect(page.locator(`${row}-details`)).toBeHidden();
+    const chevron = page.locator(`${row}-toggle .ic-chev`);
+    await expect(chevron).toBeVisible();
+    await page.locator(`${row}-toggle`).click();
+    await expect(page.locator(`${row}-toggle`)).toHaveAttribute("aria-expanded", "true");
+    await expect.poll(() => chevron.evaluate((el) => new DOMMatrix(getComputedStyle(el).transform).a)).toBeCloseTo(-1);
+    await expect(page.locator(`${row}-limit-0-0-label`)).toHaveText("agent");
+    await expect(page.locator(`${row}-limit-0-0 pre`)).toHaveText(JSON.stringify(entry.delegate_payload.agent, null, 2));
+    await expect(page.locator(`${row}-limit-0-2`)).toHaveText("400");
+    await expect(page.locator(`${row}-client`)).toHaveText(/^x509_hash:/);
+    await expect(page.locator(`${row}-format`)).toHaveText("dSD-JWT+KB");
+    await expect(page.locator(`${row}-disclosed`)).toHaveText("given_name, nationalities");
+    const [decoder] = await Promise.all([page.waitForEvent("popup"), page.locator(`${row}-decode`).click()]);
+    expect(decodeURIComponent(decoder.url())).toContain(`/decoder/#credential=${result.presentation}`);
+    await decoder.close();
+    await page.locator("#delegations-close").click();
+    await expect(page.locator("#delegations-overlay")).not.toHaveClass(/active/);
+
+    await page.locator(`#revoke-${credential}`).click();
+    await expect(page.locator("#delegation-confirm-overlay")).toHaveClass(/active/);
+    await expect(page.locator("#delegation-confirm-title")).toHaveText("Revoke urn:example:delegation-e2e?");
+    await expect(page.locator("#delegation-confirm-warning")).toHaveText(
+      /^This credential is delegated to EUDI Dev Demo Verifier until .+\. Revoking the credential also ends the delegation\.$/
+    );
+    await expect(page.locator("#delegation-confirm-revoke")).toBeHidden();
+    await page.locator("#delegation-confirm-cancel").click();
+    await expect(card).toHaveAttribute("data-status", "active");
+
+    await page.locator(`#delete-${credential}`).click();
+    await expect(page.locator("#delegation-confirm-title")).toHaveText("Delete urn:example:delegation-e2e?");
+    await expect(page.locator("#delegation-confirm-warning")).toHaveText(
+      /^This credential is delegated to EUDI Dev Demo Verifier until .+\. Deleting the credential does not end the delegation\. Revoke the credential to end it\.$/
+    );
+    await page.locator("#delegation-confirm-revoke").click();
+    await expect(page.locator("#delegation-confirm-overlay")).not.toHaveClass(/active/);
+    await expect(card).toHaveAttribute("data-status", "revoked");
+    await expect(page.locator(`#delegations-badge-${credential}`)).toHaveCount(0);
+    await page.locator(`#delegations-${credential}`).click();
+    await expect(page.locator(`${row}-until`)).toHaveText("Credential revoked");
+    await page.locator("#delegations-close").click();
+
+    // The revocation ended the delegation, so nothing warns before the delete.
+    await page.locator(`#delete-${credential}`).click();
+    await expect(card).toHaveCount(0);
+    await expect(page.locator("#delegation-confirm-overlay")).not.toHaveClass(/active/);
+  });
+
   // TS12 §3.2: a payment binds to an SCA Attestation. The demo payment account
   // is one, so the wallet logs no SCA warning for it.
   test("a payment with its own amount and payee binds to the demo payment account", async ({ page }) => {

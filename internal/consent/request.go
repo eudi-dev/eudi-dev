@@ -23,6 +23,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/delegatepayload"
 	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 )
@@ -119,11 +120,13 @@ type TransactionData struct {
 	Type          string         `json:"type"`
 	CredentialIDs []string       `json:"credential_ids"`
 	Data          map[string]any `json:"data"`
-	// Summary is one sentence about a delegate entry. The command line prints
-	// it. The dialog builds its own summaries.
-	Summary string `json:"summary,omitempty"`
 	// DelegatePayload is the decoded Delegate Payload of a delegate entry.
 	DelegatePayload map[string]any `json:"delegate_payload,omitempty"`
+	// DelegateKeyThumbprint is the JWK thumbprint (RFC 7638) of the cnf key of
+	// DelegatePayload.
+	DelegateKeyThumbprint string `json:"delegate_key_thumbprint,omitempty"`
+	// DelegateLimits are the members of DelegatePayload as labels and values.
+	DelegateLimits []delegatepayload.Limit `json:"delegate_limits,omitempty"`
 }
 
 type Match struct {

@@ -231,7 +231,7 @@ curl -X POST http://localhost:8085/api/issue \
 
 ### Transaction templates
 
-Transaction templates are transaction data entries for presentation requests (see [transaction templates](presenting.md#transaction-templates)). User templates live under the wallet's `transaction-templates/` prefix. A template document has `description` and `transaction_data`. The responses add `name` and `predefined`. They add `configured` for a template from `--transaction-templates` and `warnings` for a TS12 entry with findings. A configured template can't be changed or deleted, and the API answers 409.
+Transaction templates are transaction data entries for presentation requests (see [transaction templates](presenting.md#transaction-templates)). User templates live under the wallet's `transaction-templates/` prefix. A template document has `description` and `transaction_data`. The responses add `name` and `predefined`. They add `configured` for a template from `--transaction-templates` and `warnings` for a TS12 entry with findings. A configured template can't be changed or deleted, and the API answers 409. The predefined template `delegation` is listed while Delegate SD-JWT is on.
 
 | Endpoint | Description |
 |----------|-------------|
@@ -570,6 +570,46 @@ The endpoint accepts any Status Type from 0 to 255, for example SUSPENDED (`2`) 
 The GET response contains `status`, `managed`, `uri`, `idx`, and `source` (`wallet` for the wallet's own list, `remote` for a fetched external list). For an external list it adds `signatureInfo`, `trustAnchored`, `warnings` and `haipFindings`. It returns 404 for credentials without any status list reference, 422 for a malformed reference, and 502 when an external status list cannot be fetched. HAIP 1.0 §6.1 requires an `x5c` header on the status list token. Without it, a wallet in strict mode with `--haip` answers 422. Otherwise the finding is listed in `haipFindings`.
 
 Credential listings (`GET /api/credentials` and `GET /api/credentials/{id}`) include a `status` object for credentials that carry a status list reference: `uri` and `idx` from the credential, `managed` (true when the entry is on this wallet's own status list), and the current `status` value for managed entries.
+
+### Delegations
+
+A credential with [delegation records](presenting.md#delegation-records) has a `delegations` object in both listings. `active` counts the delegations that have not ended, and `total` counts all records. `GET /api/credentials/{id}` adds `records`, the active ones first:
+
+```json
+{
+  "active": 1,
+  "total": 1,
+  "records": [
+    {
+      "id": "0f3c1c1e9a5b4d7e",
+      "name": "EUDI Dev Demo Verifier",
+      "client_id": "x509_hash:Zq1...",
+      "aud": "x509_hash:Zq1...",
+      "format": "dSD-JWT+KB",
+      "signed_at": "2026-11-15T10:00:00Z",
+      "disclosed": ["given_name"],
+      "expired": false,
+      "expires_at": "2026-11-15T11:00:00Z",
+      "delegates": [
+        {
+          "key_thumbprint": "aISfTcr9M_Zd09AXGAAeFxnLbFY6lBa87UN515wm5d4",
+          "jwk": { "kty": "EC", "crv": "P-256", "x": "...", "y": "..." },
+          "payload": { "purpose": "Order office supplies", "max_amount": 250, "currency": "EUR", "exp": 1794740400 },
+          "expires_at": "2026-11-15T11:00:00Z",
+          "limits": [
+            { "name": "currency", "value": "EUR" },
+            { "name": "max_amount", "value": "250" },
+            { "name": "purpose", "value": "Order office supplies" }
+          ]
+        }
+      ],
+      "chain": "<dSD-JWT>"
+    }
+  ]
+}
+```
+
+`expires_at` of a record is the latest `exp` of its delegates. It is absent when a delegate has no `exp`, and the record then never expires. `revoked` is present and `true` only when the credential is revoked on the wallet's own status list. That ends every delegation of the credential. `limits` lists the claims of the Delegate Payload other than `cnf`, `exp`, `nbf` and `iat`. A credential without records has no `delegations` object.
 
 `GET /api/statuslist` serves the Status List Token on both wallet ports. `Accept: application/statuslist+cwt` selects CWT. Other requests receive JWT, including requests that prefer both formats equally. The endpoint enables CORS for browser clients (section 8.1). Historical queries with `time` return `501` because the wallet keeps no history (section 8.4).
 

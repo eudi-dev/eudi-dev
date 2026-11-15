@@ -131,15 +131,16 @@ type Wallet struct {
 	crlFault            CRLFault
 	runtime             *consent.Runtime
 	signers             *provider.Keys
-	// Marks batch use counts for saving so rotation survives restart.
-	batchDirty bool
+	// Marks batch use counts and delegation records for saving. Both must
+	// survive a restart.
+	presentationDirty bool
 }
 
-func (w *Wallet) takeBatchStateDirty() bool {
+func (w *Wallet) takePresentationStateDirty() bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	dirty := w.batchDirty
-	w.batchDirty = false
+	dirty := w.presentationDirty
+	w.presentationDirty = false
 	return dirty
 }
 
@@ -410,9 +411,11 @@ type StoredCredential struct {
 	BindingKeyPEM string `json:"binding_key,omitempty"`
 	// Present a random copy among those with the lowest use count. After every copy
 	// has been used, the batch cycles through them again (EUDI ARF method C, ISSU_52).
-	Uses            int                `json:"uses,omitempty"`
-	LastPresentedAt time.Time          `json:"last_presented_at,omitempty"`
-	Disclosures     []sdjwt.Disclosure `json:"-"`
+	Uses            int       `json:"uses,omitempty"`
+	LastPresentedAt time.Time `json:"last_presented_at,omitempty"`
+	// One record for each Delegate SD-JWT signed with the key of this copy.
+	Delegations []DelegationRecord `json:"delegations,omitempty"`
+	Disclosures []sdjwt.Disclosure `json:"-"`
 	// Parsed issuance time, cached for sorting.
 	issuedAt   time.Time
 	NameSpaces map[string][]mdoc.IssuerSignedItem `json:"-"`
@@ -1654,6 +1657,14 @@ func (w *Wallet) DeleteTemplate(name string) error {
 	return credtemplate.Delete(w.Templates, name)
 }
 
+// transactionTemplateLocation is the location of the transaction templates.
+// It has the delegation template while Delegate SD-JWT is on.
+func (w *Wallet) transactionTemplateLocation() txtemplate.Location {
+	loc := w.TransactionTemplates
+	loc.Delegation = w.Conformance().Delegates()
+	return loc
+}
+
 // TransactionTemplateFixed reports whether visitors can't change the
 // transaction template.
 func (w *Wallet) TransactionTemplateFixed(tpl txtemplate.Template) bool {
@@ -1664,7 +1675,7 @@ func (w *Wallet) transactionTemplateNameFixed(name string) bool {
 	if !w.visitorRules().VisitorTemplates {
 		return false
 	}
-	tpl, err := txtemplate.Load(w.TransactionTemplates, name)
+	tpl, err := txtemplate.Load(w.transactionTemplateLocation(), name)
 	return err == nil && w.TransactionTemplateFixed(tpl)
 }
 
@@ -1678,7 +1689,7 @@ func (w *Wallet) SaveTransactionTemplate(tpl txtemplate.Template) error {
 	limit := w.capacity.TransactionTemplates
 	w.mu.RUnlock()
 	if limit > 0 {
-		templates, err := txtemplate.List(w.TransactionTemplates)
+		templates, err := txtemplate.List(w.transactionTemplateLocation())
 		if err != nil {
 			return err
 		}
@@ -1693,7 +1704,7 @@ func (w *Wallet) SaveTransactionTemplate(tpl txtemplate.Template) error {
 		}
 	}
 	tpl.Visitor = w.visitorRules().VisitorTemplates
-	return txtemplate.Save(w.TransactionTemplates, tpl)
+	return txtemplate.Save(w.transactionTemplateLocation(), tpl)
 }
 
 // DeleteTransactionTemplate removes a stored transaction template. Deleting
@@ -1702,7 +1713,7 @@ func (w *Wallet) DeleteTransactionTemplate(name string) error {
 	if w.transactionTemplateNameFixed(name) {
 		return visitorLimit("%q is a predefined transaction template, and the public demo can't delete it", name)
 	}
-	return txtemplate.Delete(w.TransactionTemplates, name)
+	return txtemplate.Delete(w.transactionTemplateLocation(), name)
 }
 
 // makeCredentialRoomLocked removes the oldest credentials that aren't
@@ -1716,7 +1727,8 @@ func (w *Wallet) makeCredentialRoomLocked() {
 		if i < 0 {
 			return
 		}
-		oldest := w.Credentials[i].ID
-		w.deleteCredentialsLocked(func(c StoredCredential) bool { return c.ID == oldest })
+		oldest := w.Credentials[i]
+		w.moveDelegationsLocked(oldest)
+		w.deleteCredentialsLocked(func(c StoredCredential) bool { return c.ID == oldest.ID })
 	}
 }

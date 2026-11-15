@@ -152,3 +152,38 @@ func TestAStorageFailureOfATransactionTemplateIsAServerError(t *testing.T) {
 		t.Errorf("body = %s, want the --transaction-templates hint", rec.Body.String())
 	}
 }
+
+// The delegation template follows the Delegate SD-JWT setting at runtime.
+// Delegate SD-JWT needs transaction data.
+func TestTheDelegationTemplateIsListedWhileDelegateSDJWTIsOn(t *testing.T) {
+	srv := newTestServer(t, false)
+	for _, tc := range []struct {
+		body   string
+		listed bool
+	}{
+		{"", false},
+		{`{"delegate_sd_jwt":true}`, false},
+		{`{"transaction_data":true}`, true},
+		{`{"delegate_sd_jwt":false}`, false},
+	} {
+		if tc.body != "" {
+			if resp := serverRequest(t, srv, http.MethodPut, "/api/config/conformance", tc.body); resp.Code != http.StatusOK {
+				t.Fatalf("PUT %s = %d: %s", tc.body, resp.Code, resp.Body.String())
+			}
+		}
+		listed := false
+		for _, item := range decodeJSONArray(t, serverRequest(t, srv, http.MethodGet, "/api/transaction-templates", "")) {
+			listed = listed || item.(map[string]any)["name"] == txtemplate.DelegationName
+		}
+		if listed != tc.listed {
+			t.Errorf("after %q: delegation listed = %v, want %v", tc.body, listed, tc.listed)
+		}
+		want := http.StatusNotFound
+		if tc.listed {
+			want = http.StatusOK
+		}
+		if resp := serverRequest(t, srv, http.MethodGet, "/api/transaction-templates/"+txtemplate.DelegationName, ""); resp.Code != want {
+			t.Errorf("after %q: GET = %d, want %d", tc.body, resp.Code, want)
+		}
+	}
+}

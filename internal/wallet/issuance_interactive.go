@@ -370,6 +370,7 @@ func (w *Wallet) runPresentationInteraction(endpoint string, response map[string
 	if err != nil {
 		return nil, err
 	}
+	authReq.Session = setup.owner
 	w.addPresentationRequestLogEntry(authReq)
 
 	outcome := w.evaluatePresentationRequest(authReq, presentationEntry{

@@ -29,7 +29,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 )
 
-//go:embed templates transactions images portraits categories.json registrations
+//go:embed templates transactions delegate images portraits categories.json registrations
 var files embed.FS
 
 // EmbeddedPrefix starts a reference to a file of this tree, such as

@@ -250,6 +250,7 @@ The demo verifier at `/verifier/` builds requests for you:
 | Transaction template picker | `#transaction-template-select` (options `#transaction-template-option-<name>`) |
 | Transaction data editor | `#transaction-mode-form`, `#transaction-mode-json` |
 | Payload fields of the template | `#transaction-field-<path>`, the path joined with `-`, such as `#transaction-field-amount` and `#transaction-field-payee-name` |
+| Hint for a `delegate` template | `#transaction-delegate-hint` with the tag `#transaction-delegate-tag` |
 | Transaction data as JSON | `#transaction-data` (JSON array), `#transaction-template-add` appends an entry of the template |
 | Query the demo payment account | `#transaction-query-payment-account` |
 | **Create request** | `#create-request` |
@@ -265,7 +266,7 @@ The demo verifier at `/verifier/` builds requests for you:
 | Credential to send | `#consent-credential-<credential id>`, a `.consent-credential` with `data-credential-id`, `data-vct`, `data-doctype` |
 | Claim checkboxes | `.consent-claim input` with `data-cred` and `data-claim` |
 | Note on a query with **multiple** | `#consent-multiple-<query id>` |
-| Transaction to authorize | `#consent-transaction-<n>` with `-summary` (TS12 types and `delegate`), `-type`, `-data` and the tag "Experimental" in `-tag`. A `delegate` entry also has `-experimental` with the note about the draft and `-delegate-payload` with the decoded delegate payload. The data sits in `-details`, which starts closed when `-summary` is shown. Click `-details-summary` to open it |
+| Transaction to authorize | `#consent-transaction-<n>` with `-summary` (TS12 types and `delegate`) and the tag "Experimental" in `-tag`. Every type except `delegate` also has `-type` and `-data`. A `delegate` entry has `-limits` with the claims of the Delegate Payload (`-limit-<i>-label` and `-limit-<i>`) and `-delegate-key`. The data sits in `-details`, which starts closed when `-summary` is shown. Click `-details-summary` to open it |
 | Query without a matching credential (debug mode) | `#consent-unanswered-<query id>`. **Approve** stays disabled until you pick one |
 | **Approve**, **Deny** | `#consent-approve`, `#consent-deny` |
 
@@ -328,9 +329,10 @@ The demo verifier polls for the result and shows it on its page.
 | Passed checks | `#checks-passed` (collapsed), opened with `#checks-passed-summary` |
 | Check groups per credential | `.check-group`, headed with the query ID |
 | Disclosed claims | `#claims` (table), rows `#claims-<n>-<claim>`. A claim with an object value, such as the ticket, is a heading row followed by a row per member, `#claims-<n>-<claim>-<m>-<member>` |
+| Delegation of a Delegate SD-JWT | `#claims-<n>-<query id>-delegation`, the first row below the heading row of its credential |
 | The presentation in the decoder | `#presentation-link` |
 
-API: `GET /verifier/api/requests/{transaction id}` returns `status`, `checks` and `claims`. `POST /verifier/api/requests` with `{"type": "pid"}` creates a request and returns `transaction_id`, `wallet_url` and `scheme_uri`.
+API: `GET /verifier/api/requests/{transaction id}` returns `status`, `checks` and `claims`. For a Delegate SD-JWT it also returns `delegations`, with the delegation under the query ID. `POST /verifier/api/requests` with `{"type": "pid"}` creates a request and returns `transaction_id`, `wallet_url` and `scheme_uri`.
 
 E2E tests: [`demo.spec.js`](../e2e/demo.spec.js), tests *a response with a ticket and a PID lists the checks of each credential* and *the redirect shows the requested credential and folds the passed checks*.
 
@@ -415,8 +417,48 @@ E2E tests: [`wallet.spec.js`](../e2e/wallet.spec.js), tests *activity starts col
 | Certificate status | `#certificate-status-<credential id>` |
 | Status badge | `#status-<credential id>` |
 | **About** (description) | `#about-<credential id>` |
+| **Delegations**, on a credential with delegation records | `#delegations-<credential id>` |
+| Number of active delegations, such as "1 active delegation" | `#delegations-badge-<credential id>` |
 
 Protected credentials have no **Delete** or **Revoke**. After **Revoke**, the card has `data-status="revoked"`.
+
+**Delete** and **Revoke** ask first when the credential has active delegations:
+
+| Element | Selector |
+|---|---|
+| Dialog | `#delegation-confirm-overlay` (class `active` while open) with `#delegation-confirm-dialog` |
+| Title and warning | `#delegation-confirm-title`, `#delegation-confirm-warning` |
+| **Cancel** | `#delegation-confirm-cancel` |
+| **Revoke instead**, for a delete when the wallet can revoke the credential | `#delegation-confirm-revoke` |
+| **Delete** or **Revoke** | `#delegation-confirm-ok` |
+
+### Delegations dialog
+
+`#delegations-<credential id>` opens the [delegation records](wallet/presenting.md#delegation-records) of a credential.
+
+| Element | Selector |
+|---|---|
+| Dialog | `#delegations-overlay` (class `active` while open) with `#delegations-dialog` |
+| Title, tag "Experimental" and credential name | `#delegations-title`, `#delegations-tag`, `#delegations-credential` |
+| Intro | `#delegations-hint` |
+| Records | `#delegations-list [data-testid="delegation-row"]`. Each row has the id `delegation-<record id>` |
+| Open or close a row | `#delegation-<record id>-toggle` with `aria-expanded` |
+| Requester, limits of delegate `<n>` and expiry | `#delegation-<record id>-name`, `-summary-<n>`, `-until` |
+| Details of an open row | `#delegation-<record id>-details` with `-client`, `-signed`, `-disclosed` and `-key-<n>` |
+| **Open in decoder** | `#delegation-<record id>-decode` |
+| Show the expired records | `#delegations-expired-toggle` with `aria-expanded`. The records are in `#delegations-expired` |
+| Note for a credential with expired records only | `#delegations-none` |
+| **Close** | `#delegations-close` |
+
+```js
+await page.locator(`#delegations-${id}`).click();
+const row = page.locator('#delegations-list [data-testid="delegation-row"]').first();
+await row.locator(".delegation-toggle").click();
+```
+
+API: `GET /api/credentials/{id}` (see [delegations](wallet/http-api.md#delegations)).
+
+E2E test: [`demo.spec.js`](../e2e/demo.spec.js), test *the delegation template makes the wallet answer with a Delegate SD-JWT and record it*.
 
 API: `DELETE /api/credentials/{id}` and `POST /api/credentials/{id}/status` with `{"status": 1}` (see [status list](wallet/http-api.md#status-list)).
 

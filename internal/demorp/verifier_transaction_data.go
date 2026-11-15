@@ -26,6 +26,17 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
 
+// requestTransactionData is the transaction data of a request. With Delegate
+// SD-JWT on, it encodes the delegate_payload object of a delegate entry first.
+func (d *DemoRP) requestTransactionData(entries []map[string]any) ([]oid4vp.TransactionData, error) {
+	if d.wallet.Conformance().Delegates() {
+		if err := d.encodeDelegatePayloads(entries); err != nil {
+			return nil, err
+		}
+	}
+	return encodeTransactionData(entries)
+}
+
 // encodeTransactionData base64url-encodes the page's transaction data entries
 // for the transaction_data parameter (OpenID4VP 1.0 §5.1). The verifier sends
 // them as given, so a test can also send invalid entries.

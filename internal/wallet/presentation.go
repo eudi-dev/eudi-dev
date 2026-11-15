@@ -49,6 +49,8 @@ func (w *Wallet) sessionTranscriptFor(params *oid4vp.Request) oid4vp.SessionTran
 type VPTokenResult struct {
 	Token     string
 	MDocNonce string // only set for ISO mode mdoc
+	// Delegation describes Token when it is a Delegate SD-JWT.
+	Delegation *DelegationRecord
 }
 
 // createVPToken builds one presentation. mdocNonce is the mdoc generated nonce
@@ -106,7 +108,15 @@ func (w *Wallet) createVPToken(match consent.Match, params *oid4vp.Request, mdoc
 			return VPTokenResult{}, err
 		}
 		log.Printf("[VP] SD-JWT presentation created: %d disclosures selected, aud=%s, delegation=%t", len(match.SelectedKeys), audience, delegation != nil)
-		return VPTokenResult{Token: token}, nil
+		result := VPTokenResult{Token: token}
+		if delegation != nil && delegate.IsChain(token) {
+			record, err := newDelegationRecord(token, delegation.Type, transactions, params, match.SelectedKeys)
+			if err != nil {
+				return VPTokenResult{}, fmt.Errorf("recording the delegation: %w", err)
+			}
+			result.Delegation = &record
+		}
+		return result, nil
 	case credtype.FormatJWTVC:
 		log.Printf("[VP] Plain JWT presentation (no selective disclosure)")
 		return VPTokenResult{Token: cred.Raw}, nil
@@ -315,6 +325,9 @@ func (w *Wallet) createVPTokenMap(matches []consent.Match, params *oid4vp.Reques
 			result.MDocNonce = tokenResult.MDocNonce
 		}
 		w.recordBatchPresentation(match.CredentialID)
+		if tokenResult.Delegation != nil {
+			w.recordDelegation(match.CredentialID, *tokenResult.Delegation)
+		}
 	}
 
 	log.Printf("[VP] VP token map created: queries=%v", mapKeys(result.TokenMap))

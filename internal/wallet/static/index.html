@@ -368,6 +368,30 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
     </div>
   </div>
 
+  <div class="consent-overlay" id="delegations-overlay">
+    <div class="consent-dialog" role="dialog" aria-modal="true" aria-labelledby="delegations-title" id="delegations-dialog">
+      <div class="consent-title" id="delegations-title" tabindex="-1">Delegations <span class="experimental-tag" id="delegations-tag" title="Delegate SD-JWT is experimental. It follows draft-ietf-oauth-delegate-sd-jwt-00. Its behavior can change in any release.">Experimental</span></div>
+      <div class="delegations-credential" id="delegations-credential"></div>
+      <p class="dialog-hint" id="delegations-hint">A delegation stays valid until it expires. Revoking the credential ends all its delegations.</p>
+      <div class="certificate-list" id="delegations-list"></div>
+      <div class="consent-buttons">
+        <button class="btn" id="delegations-close" data-dialog-close>Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="consent-overlay" id="delegation-confirm-overlay">
+    <div class="consent-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delegation-confirm-title" aria-describedby="delegation-confirm-warning" id="delegation-confirm-dialog">
+      <div class="consent-title" id="delegation-confirm-title" tabindex="-1"></div>
+      <p class="consent-mismatch delegation-confirm-warning" id="delegation-confirm-warning"></p>
+      <div class="consent-buttons">
+        <button type="button" class="btn" id="delegation-confirm-cancel" data-dialog-close>Cancel</button>
+        <button type="button" class="btn" id="delegation-confirm-revoke">Revoke instead</button>
+        <button type="button" class="btn btn-danger" id="delegation-confirm-ok">Delete</button>
+      </div>
+    </div>
+  </div>
+
   <div class="consent-overlay" id="trust-overlay">
     <div class="consent-dialog" role="dialog" aria-modal="true" aria-labelledby="trust-title" id="trust-dialog">
       <div class="consent-title" id="trust-title" tabindex="-1">Trust &amp; certificates</div>

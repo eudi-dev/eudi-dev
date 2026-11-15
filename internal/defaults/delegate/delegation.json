@@ -1,0 +1,12 @@
+{
+  "description": "Delegates the credential to the verifier's key (draft-ietf-oauth-delegate-sd-jwt-00)",
+  "transaction_data": {
+    "type": "delegate",
+    "format": "dSD-JWT+KB",
+    "delegate_payload": {
+      "purpose": "Order office supplies",
+      "max_amount": 250,
+      "currency": "EUR"
+    }
+  }
+}

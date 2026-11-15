@@ -401,7 +401,7 @@ func TestStrictModeRefusesADelegationWithoutAConfirmationKey(t *testing.T) {
 	}
 }
 
-func TestTheConsentRequestSumsUpADelegation(t *testing.T) {
+func TestTheConsentRequestCarriesTheDelegatePayloadAndKey(t *testing.T) {
 	srv := delegateServer(t)
 	srv.wallet.AutoAccept = false
 	agent := agentKey(t)
@@ -421,11 +421,15 @@ func TestTheConsentRequestSumsUpADelegation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(shown.Summary, "Delegate this credential to the key ") || !strings.HasSuffix(shown.Summary, " UTC") {
-		t.Errorf("summary = %q, want the key and the end of the delegation", shown.Summary)
-	}
 	if shown.DelegatePayload["vct"] != "urn:example:agent-mandate:1" {
 		t.Errorf("delegate payload = %v, want the decoded payload", shown.DelegatePayload)
+	}
+	thumbprint, err := jwkThumbprint(&agent.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if shown.DelegateKeyThumbprint != thumbprint {
+		t.Errorf("delegate key thumbprint = %q, want %q", shown.DelegateKeyThumbprint, thumbprint)
 	}
 }
 

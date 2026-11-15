@@ -207,7 +207,7 @@ func TestVerifierCustomRequestRefusesSeveralPresentationsWithoutMultiple(t *test
 	d := New(twoPIDWallet(t), func() string { return "https://verifier.example" })
 	req := &requestState{queries: []credentialQuery{{id: "cred_0", format: "dc+sd-jwt", vct: PIDVCT, resultKey: "cred_0"}}}
 
-	_, checks, err := d.verifyPresentation(req, `{"cred_0":["a~","b~"]}`)
+	_, _, checks, err := d.verifyPresentation(req, `{"cred_0":["a~","b~"]}`)
 	if err == nil || !strings.Contains(err.Error(), "expected 1 presentation, got 2") {
 		t.Fatalf("error = %v, checks %v", err, checks)
 	}
