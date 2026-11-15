@@ -5,6 +5,35 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.11.0] - 2026-11-15
+
+### Added
+
+- **Go packages for mdoc and SD-JWT.** `pkg/mdoc` and `pkg/sdjwt` are importable from other Go programs. They parse credentials and verify signatures, digests, validity periods and key binding. `Parse` rejects a credential that breaks its specification. `ParseLenient` keeps it for display. Each verification failure has its own error for `errors.Is`. See [Go packages](docs/go-packages.md) and ADR-0034.
+- **Delegate SD-JWT (experimental).** With `--transaction-data --delegate-sd-jwt`, the wallet answers the transaction data type `delegate` with a Delegate SD-JWT (draft-ietf-oauth-delegate-sd-jwt-00). While it is off, `delegate` is an ordinary type, as in 3.10.1. The wallet then also lists the transaction template `delegation`. The demo verifier turns it into a `delegate` entry, adds its own key when the template has no `cnf` and verifies the answer. The Go package `pkg/sdjwt/delegate` reads, verifies and creates the chains. It can change in a minor release until the draft is final. See [Delegation with a Delegate SD-JWT](docs/wallet/presenting.md#delegation-with-a-delegate-sd-jwt).
+- **Delegation records.** For each Delegate SD-JWT, the wallet stores a delegation record with the credential. The credential card counts the active delegations, and **Delegations** lists them. The wallet warns before it deletes or revokes a credential with active delegations. `eudi wallet delegations <id>` lists them, and `eudi wallet list` and `eudi wallet show` count them. See [Delegation records](docs/wallet/presenting.md#delegation-records).
+- **Experimental features.** Transaction data and Delegate SD-JWT are experimental. `--experimental` turns on all experimental features, and a feature flag on the command line wins. Delegate SD-JWT needs transaction data. The Settings dialog and `PUT /api/config/conformance` switch each feature. The wallet warns at startup for each one that is on, and the UI marks them with the tag "Experimental". `--demo` turns on all of them. See [Experimental features](docs/wallet/serve.md#experimental-features).
+- **Delegate SD-JWT in the decoder.** The decoder, `eudi decode` and `eudi validate` show the chain of a Delegate SD-JWT: the credential, every KB-SD-JWT with its Delegate Payload and the Key Binding JWT of the Delegate Holder. Each step shows the key that signed it, the key it delegates to and the result of its checks. `--json` has the same steps in `chain`. A KB-SD-JWT on its own is shown as a KB-SD-JWT with its step of the chain.
+- **Wallet name and description in a theme.** `theme.yaml` sets the wallet name on all pages and the meta description of the wallet page. See [Themes](docs/wallet/themes.md#wallet-name-and-description).
+- **Edition tag, header menu and product in a theme.** `theme.yaml` sets an edition tag next to the wallet name, adds and hides header menu entries, and shows a product built on eudi-dev in the footer in place of the eudi-dev version. See [Themes](docs/wallet/themes.md#edition-tag).
+- **Demo hints in a theme.** `demo.issuer` and `demo.verifier` in `theme.yaml` set the link targets of the demo hints on the wallet page. `demo.hint` sets the text and the links of the hint below the wallet actions. A hint with links from the theme also shows under `--no-builtins`. See [Themes](docs/wallet/themes.md#demo-hints).
+- **`--issuer-name`.** Sets the display name of the wallet's issuer on its pages, in its issuer metadata and on issued credentials.
+- **`--no-builtins`.** Leaves out the built-in templates and the demo verifier. The wallet serves only the content from `--config`. See [Configuration files](docs/wallet/config-files.md).
+
+### Changed
+
+- **Settings tabs.** The Settings dialog groups its settings in the tabs General, OpenID4VP, OpenID4VCI, Error simulation and Experimental.
+
+### Fixed
+
+- **Links to the wallet's own pages.** They stay on the origin of the current page. The imprint link appears only when the server has an imprint page.
+- **Issuer sign-in page.** The page lists the requested credentials.
+- **Revoked credentials in a presentation.** When several credentials match a request, the wallet offers a valid one before a revoked one.
+- **Status reference without an offer.** Under `--status-list`, a credential requested without a credential offer gets a status reference too.
+- **Demo verifier registration.** The registration stays when the catalogue has no entries for its templates.
+- **JSON in the consent screen and in Delegations.** Transaction data and delegation limits show in a box and keep their indentation. A long line scrolls inside the box.
+- **Settings on a phone.** On a screen up to 640 pixels wide, each setting sits on its own row below its label. A long value in a select box wraps.
+
 ## [3.10.1] - 2026-11-13
 
 ### Fixed
