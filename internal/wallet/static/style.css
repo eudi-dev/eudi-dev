@@ -3277,19 +3277,44 @@ textarea.form-input {
   .candidate .cred-meta {
     display: none;
   }
-  /* A fixed layout makes long setting labels and select values wrap inside the
-     dialog. */
-  .conformance-table {
-    table-layout: fixed;
+  .conf-toggle {
+    align-items: flex-start;
   }
-  .conformance-table td:first-child {
-    width: 38%;
-  }
+}
+
+@media (max-width: 640px) {
   .conf-input {
     max-width: 100%;
   }
-  .conf-toggle {
-    align-items: flex-start;
+  /* Each label goes above its control, so the control takes the full row, a
+     long value wraps and an Experimental tag stays beside its label. A table
+     row cannot stack its cells, so the rows are flex boxes. */
+  .conformance-table,
+  .conformance-table tbody {
+    display: block;
+  }
+  .conformance-table tr {
+    display: flex;
+    flex-direction: column;
+    border-bottom: 1px solid var(--border-dialog);
+  }
+  .conformance-table tr:last-child {
+    border-bottom: 0;
+  }
+  .conformance-table td {
+    border-bottom: 0;
+  }
+  .conformance-table td:first-child {
+    width: auto;
+    padding-bottom: 0;
+  }
+  .conformance-table td:last-child {
+    padding-top: 4px;
+  }
+  .conformance-table .conf-input {
+    width: 100%;
+    white-space: normal;
+    border-radius: 16px;
   }
 }
 
