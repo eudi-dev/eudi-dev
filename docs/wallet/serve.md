@@ -342,12 +342,13 @@ Every flag can also be set as `EUDI_DEV_<FLAG>`, with the flag name in upper cas
 | `--trusted-list`        | None     | An external list's URL, or a [list file or directory](#publishing-trusted-lists-from-files), for the [list of trusted lists](#list-of-trusted-lists) (repeatable) |
 | `--client-attestation`  | `false`  | Send the wallet attestation on OID4VCI token requests even when the issuer does not advertise `attest_jwt_client_auth` (see [wallet attestation](issuing.md#wallet-attestation)) |
 | `--key-attestation-proof-key` | `kid` | How a jwt proof with a key attestation names its signing key: `kid` sends `kid` `"0"`, the key's position in `attested_keys`, `jwk` sends the key and `none` sends neither. Change it in the Settings dialog. See [key attestation claims](#key-attestation-claims) |
-| `--transaction-data` | `false` | Accept `transaction_data` in presentation requests. Change it in the Settings dialog. See [transaction data](presenting.md#transaction-data) |
+| `--experimental` | `false` | Turn on all [experimental features](#experimental-features). A feature flag on the same command line overrides it. Change it in the Settings dialog |
+| `--transaction-data` | `false` | Experimental. Accept `transaction_data` in presentation requests. Change it in the Settings dialog. See [transaction data](presenting.md#transaction-data) |
 | `--transaction-data-type` | None | Accept another transaction data type besides the TS12 types. Takes effect only with `--transaction-data` (repeatable) |
-| `--delegate-sd-jwt` | `false` | Experimental. Accept the transaction data type `delegate` and answer it with a [Delegate SD-JWT](presenting.md#delegation-with-a-delegate-sd-jwt) (draft-ietf-oauth-delegate-sd-jwt-00). Takes effect only with `--transaction-data` |
+| `--delegate-sd-jwt` | `false` | Experimental. Accept the transaction data type `delegate` and answer it with a [Delegate SD-JWT](presenting.md#delegation-with-a-delegate-sd-jwt) (draft-ietf-oauth-delegate-sd-jwt-00). Takes effect only with `--transaction-data`. Change it in the Settings dialog |
 | `--adhoc-display-images` | `false` | Fetch HTTPS display images on demand instead of storing them. The issuer sees each render. See [display images](#display-images) |
 | `--require-encrypted-request` | `false` | Refuse an unencrypted Request Object. The wallet always sends an encryption key in `wallet_metadata`, so this requires the Verifier to use it |
-| `--demo`                | `false`  | Public demo profile: implies `--pid`, `--mode debug`, `--haip`, `--arf`, `--vci-version 1.1` and `--transaction-data` (all overridable), disables process and filesystem endpoints, blocks fetches to loopback and private networks unless `--allow-private-networks` is given. Browser flows keep the consent dialog unless `--auto-accept` is on the command line. API flows auto-accept (see [public demo hosting](../public-demo.md)) |
+| `--demo`                | `false`  | Public demo profile: implies `--pid`, `--mode debug`, `--haip`, `--arf`, `--vci-version 1.1` and `--experimental` (all overridable), disables process and filesystem endpoints, blocks fetches to loopback and private networks unless `--allow-private-networks` is given. Browser flows keep the consent dialog unless `--auto-accept` is on the command line. API flows auto-accept (see [public demo hosting](../public-demo.md)) |
 | `--demo-issuer-client-auth` | `required` | Client authentication required by the authorization server of the built-in demo issuer at its PAR and token endpoints: `required` (HAIP 1.0 §4.4.1) or `optional` (also accepts wallets without a wallet attestation). See [public demo hosting](../public-demo.md) |
 | `--demo-issuer-key-attestation` | `optional` | Key attestation required by the credential endpoint of the built-in demo issuer: `optional` (also accepts jwt proofs without a key attestation) or `required` (CIR (EU) 2024/2979 Annex Ib TR_KA-4). See [public demo hosting](../public-demo.md#demo-issuer-as-an-authorization-server) |
 | `--demo-issuer-signing-key`, `--demo-verifier-signing-key` | None | PEM file with an EC private key and its access certificate chain. It signs the demo issuer's metadata or the demo verifier's requests in place of the registrar's access certificate. See [your own access certificate](demo-issuer.md#your-own-access-certificate) |
@@ -694,9 +695,20 @@ A proxied request connects only to the proxy. The proxy then connects to the des
 
 `level` is `WARN` or `ERROR` for warning and error lines and `INFO` otherwise. `component` identifies the part of the wallet that logged the line, such as `VCI`, `VP`, `DCQL` or `Demo issuer`. A multi-line entry, such as a token response, stays one record. The default `text` prints the colored console output.
 
+## Experimental features
+
+An experimental feature follows a specification that can still change. Its behavior can change in any release. Every experimental feature is off by default.
+
+| Feature | Flag | Setting | Specification |
+|---------|------|---------|---------------|
+| [Transaction data](presenting.md#transaction-data) | `--transaction-data` | `transaction_data` | OpenID4VP 1.0 §5.1 and EUDI TS12 v1.0.1 |
+| [Delegate SD-JWT](presenting.md#delegation-with-a-delegate-sd-jwt) | `--delegate-sd-jwt` | `delegate_sd_jwt` | draft-ietf-oauth-delegate-sd-jwt-00 |
+
+`--experimental` and `--demo` turn on all of them. A feature flag on the command line wins. `--experimental --delegate-sd-jwt=false` leaves Delegate SD-JWT off. Delegate SD-JWT works only while transaction data is on. The wallet prints a warning at startup for each feature in effect. The **Experimental** tab of the **Settings** dialog has the same switches and one for all of them.
+
 ## Conformance settings at runtime
 
-**Local wallets** can change the validation mode, HTTPS certificate verification, the HAIP and ARF checks, whether request objects must be encrypted, [transaction data](presenting.md#transaction-data) support and its types, the [OpenID4VCI version](issuing.md#openid4vci-feature-level) and the key attestation level (see [SECURITY.md](../../SECURITY.md)) at runtime. They can also set or clear a fixed OpenID4VCI client ID. They do this in the **Settings** dialog or through `PUT /api/config/conformance`. The mdoc session transcript is set at startup. `PUT /api/config/preferred-format` changes the [preferred format](http-api.md#preferred-credential-format). Changes apply to every flow until the process restarts. `DELETE /api/config/conformance` restores startup settings.
+**Local wallets** can change the validation mode, HTTPS certificate verification, the HAIP and ARF checks, whether request objects must be encrypted, the [experimental features](#experimental-features), the transaction data types, the [OpenID4VCI version](issuing.md#openid4vci-feature-level) and the key attestation level (see [SECURITY.md](../../SECURITY.md)) at runtime. They can also set or clear a fixed OpenID4VCI client ID. They do this in the **Settings** dialog or through `PUT /api/config/conformance`. The mdoc session transcript is set at startup. `PUT /api/config/preferred-format` changes the [preferred format](http-api.md#preferred-credential-format). Changes apply to every flow until the process restarts. `DELETE /api/config/conformance` restores startup settings.
 
 **The public demo** runs the HAIP and ARF checks in debug mode. Violations are warnings and the flow continues. `PUT` and `DELETE /api/config/conformance` return `403`.
 

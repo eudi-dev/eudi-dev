@@ -40,6 +40,28 @@ func TestConformancePatchUsesTheReportedNames(t *testing.T) {
 	}
 }
 
+// Each experimental feature has its own switch. A reset restores the startup
+// values.
+func TestTheExperimentalFeaturesChangeAtRuntimeAndReset(t *testing.T) {
+	srv := newTestServer(t, false)
+	for _, tc := range []struct {
+		method, body                   string
+		transactionData, delegateSDJWT bool
+	}{
+		{http.MethodPut, `{"transaction_data":true}`, true, false},
+		{http.MethodPut, `{"delegate_sd_jwt":true}`, true, true},
+		{http.MethodDelete, "", false, false},
+	} {
+		if resp := serverRequest(t, srv, tc.method, "/api/config/conformance", tc.body); resp.Code != http.StatusOK {
+			t.Fatalf("%s %s answered %d: %s", tc.method, tc.body, resp.Code, resp.Body.String())
+		}
+		config := decodeJSON(t, serverRequest(t, srv, http.MethodGet, "/api/config", ""))
+		if config["transaction_data"] != tc.transactionData || config["delegate_sd_jwt"] != tc.delegateSDJWT {
+			t.Errorf("after %s %s: transaction_data %v, delegate_sd_jwt %v", tc.method, tc.body, config["transaction_data"], config["delegate_sd_jwt"])
+		}
+	}
+}
+
 // The settings dialog can clear a fixed client ID. A reset restores
 // --vci-client-id.
 func TestTheClientIDChangesAtRuntimeAndResets(t *testing.T) {

@@ -37,6 +37,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
+	"github.com/eudi-dev/eudi-dev/v3/internal/experimental"
 	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jsonutil"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
@@ -237,14 +238,12 @@ type ConformanceSettings struct {
 	RequireARF bool `json:"require_arf"`
 	// RequireEncryptedRequest rejects unencrypted request_uri responses.
 	RequireEncryptedRequest bool `json:"require_encrypted_request"`
-	// TransactionData accepts transaction_data (--transaction-data) of the
-	// TS12 types and of TransactionDataTypes (--transaction-data-type).
-	TransactionData      bool     `json:"transaction_data"`
+	// The experimental features, such as TransactionData (--transaction-data)
+	// and DelegateSDJWT (--delegate-sd-jwt).
+	experimental.Settings
+	// TransactionDataTypes are the types that TransactionData accepts besides
+	// the TS12 types (--transaction-data-type).
 	TransactionDataTypes []string `json:"transaction_data_types"`
-	// DelegateSDJWT accepts the transaction data type delegate and answers it
-	// with a Delegate SD-JWT (--delegate-sd-jwt, ADR 0033). It
-	// follows draft-ietf-oauth-delegate-sd-jwt-00 and is set at startup only.
-	DelegateSDJWT bool `json:"delegate_sd_jwt"`
 	// Defaults to 1.0. Version 1.1 enables supported draft features when the
 	// issuer advertises them.
 	VCIVersion VCIVersion `json:"vci_version"`
@@ -277,18 +276,18 @@ type ConformanceDocument struct {
 // of ConformanceSettings. Setting TLSVerify to null returns to the default of
 // the validation mode.
 type ConformancePatch struct {
-	ValidationMode          *string      `json:"validation_mode,omitempty"`
-	RequireHAIP             *bool        `json:"require_haip,omitempty"`
-	RequireARF              *bool        `json:"require_arf,omitempty"`
-	RequireEncryptedRequest *bool        `json:"require_encrypted_request,omitempty"`
-	TransactionData         *bool        `json:"transaction_data,omitempty"`
-	TransactionDataTypes    *[]string    `json:"transaction_data_types,omitempty"`
-	VCIVersion              *string      `json:"vci_version,omitempty"`
-	KeyAttestationLevel     *string      `json:"key_attestation_level,omitempty"`
-	ForceClientAttestation  *bool        `json:"force_client_attestation,omitempty"`
-	KeyAttestationProofKey  *string      `json:"key_attestation_proof_key,omitempty"`
-	TLSVerify               NullableBool `json:"tls_verify_override"`
-	VCIClientID             *string      `json:"vci_client_id,omitempty"`
+	ValidationMode          *string `json:"validation_mode,omitempty"`
+	RequireHAIP             *bool   `json:"require_haip,omitempty"`
+	RequireARF              *bool   `json:"require_arf,omitempty"`
+	RequireEncryptedRequest *bool   `json:"require_encrypted_request,omitempty"`
+	experimental.Patch
+	TransactionDataTypes   *[]string    `json:"transaction_data_types,omitempty"`
+	VCIVersion             *string      `json:"vci_version,omitempty"`
+	KeyAttestationLevel    *string      `json:"key_attestation_level,omitempty"`
+	ForceClientAttestation *bool        `json:"force_client_attestation,omitempty"`
+	KeyAttestationProofKey *string      `json:"key_attestation_proof_key,omitempty"`
+	TLSVerify              NullableBool `json:"tls_verify_override"`
+	VCIClientID            *string      `json:"vci_client_id,omitempty"`
 }
 
 // NullableBool tells an absent member from null. Set reports that the member
@@ -342,13 +341,13 @@ func (w *Wallet) UpdateConformance(p ConformancePatch) error {
 		{p.RequireHAIP, &next.RequireHAIP},
 		{p.RequireARF, &next.RequireARF},
 		{p.RequireEncryptedRequest, &next.RequireEncryptedRequest},
-		{p.TransactionData, &next.TransactionData},
 		{p.ForceClientAttestation, &next.ForceClientAttestation},
 	} {
 		if field.value != nil {
 			*field.target = *field.value
 		}
 	}
+	p.Patch.Apply(&next.Settings)
 	if p.TransactionDataTypes != nil {
 		if next.TransactionDataTypes, err = ParseTransactionDataTypes(*p.TransactionDataTypes); err != nil {
 			return err
@@ -377,6 +376,7 @@ func (c ConformanceSettings) checks() oid4vp.Checks {
 		ARF:                  c.RequireARF,
 		TransactionData:      c.TransactionData,
 		TransactionDataTypes: c.acceptedTransactionDataTypes(),
+		DelegateSDJWT:        c.Delegates(),
 	}
 }
 

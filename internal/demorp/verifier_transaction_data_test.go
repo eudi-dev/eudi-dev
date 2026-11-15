@@ -19,6 +19,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/experimental"
 	"github.com/eudi-dev/eudi-dev/v3/internal/wallet"
 	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
@@ -31,7 +32,7 @@ const paymentRequest = `{"type":"custom",` +
 func acceptTransactionData(t *testing.T, w *wallet.Wallet) {
 	t.Helper()
 	enabled := true
-	if err := w.UpdateConformance(wallet.ConformancePatch{TransactionData: &enabled}); err != nil {
+	if err := w.UpdateConformance(wallet.ConformancePatch{Patch: experimental.Patch{TransactionData: &enabled}}); err != nil {
 		t.Fatal(err)
 	}
 }

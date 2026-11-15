@@ -25,6 +25,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/experimental"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
 )
@@ -570,7 +571,7 @@ func TestStrictModeAnswersInvalidTransactionDataOverTheDCAPI(t *testing.T) {
 func enableTestTransactionData(t *testing.T, srv *Server) {
 	t.Helper()
 	enabled, types := true, []string{"urn:example:test"}
-	if err := srv.wallet.UpdateConformance(ConformancePatch{TransactionData: &enabled, TransactionDataTypes: &types}); err != nil {
+	if err := srv.wallet.UpdateConformance(ConformancePatch{Patch: experimental.Patch{TransactionData: &enabled}, TransactionDataTypes: &types}); err != nil {
 		t.Fatal(err)
 	}
 }

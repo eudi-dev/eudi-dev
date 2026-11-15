@@ -243,6 +243,15 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
     <div class="consent-dialog" id="conformance-dialog">
       <div class="consent-title" id="conformance-title">Settings</div>
       <p class="dialog-hint" id="conf-intro" hidden>Fixed settings on the public demo.</p>
+      <div class="howto-tabs settings-tabs" id="conf-tabs" role="tablist" aria-label="Settings">
+        <button type="button" class="howto-tab active" role="tab" id="conf-tab-general" aria-selected="true" aria-controls="conf-panel-general">General</button>
+        <button type="button" class="howto-tab" role="tab" id="conf-tab-vp" aria-selected="false" aria-controls="conf-panel-vp" tabindex="-1">OpenID4VP</button>
+        <button type="button" class="howto-tab" role="tab" id="conf-tab-vci" aria-selected="false" aria-controls="conf-panel-vci" tabindex="-1">OpenID4VCI</button>
+        <button type="button" class="howto-tab" role="tab" id="conf-tab-faults" aria-selected="false" aria-controls="conf-panel-faults" tabindex="-1">Error simulation</button>
+        <button type="button" class="howto-tab" role="tab" id="conf-tab-experimental" aria-selected="false" aria-controls="conf-panel-experimental" tabindex="-1">Experimental</button>
+      </div>
+      <div class="settings-panels" id="conf-panels">
+      <div class="settings-panel" role="tabpanel" id="conf-panel-general" aria-labelledby="conf-tab-general">
       <table class="conformance-table" id="conformance-table">
         <tr><td id="conf-mode-name">Validation mode</td><td>
           <select id="conf-mode-select" class="conf-input" aria-labelledby="conf-mode-name" aria-describedby="conf-mode-hint">
@@ -265,23 +274,28 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
         <tr><td id="conf-arf-name">ARF</td><td>
           <label class="conf-toggle" id="conf-arf-label" title="Access and registration certificates, revocation, over-asking and the trusted lists of received credentials (--arf)"><input type="checkbox" id="conf-arf-input"> Check verifier and issuer certificates</label>
         </td></tr>
+      </table>
+      </div>
+      <div class="settings-panel" role="tabpanel" id="conf-panel-vp" aria-labelledby="conf-tab-vp" hidden>
+      <table class="conformance-table" id="conf-vp-table">
         <tr><td id="conf-encrypted-name">Request objects</td><td>
           <label class="conf-toggle" id="conf-encrypted-label" title="The wallet always sends an encryption key in wallet_metadata. This setting makes the verifier use it (--require-encrypted-request)"><input type="checkbox" id="conf-encrypted-input"> Refuse unencrypted request objects</label>
         </td></tr>
-        <tr><td id="conf-transaction-data-name">Transaction data</td><td>
-          <label class="conf-toggle" id="conf-transaction-data-label" title="Accept transaction_data of the TS12 types and of the types registered with --transaction-data-type, and sign its hashes into the Key Binding JWT (--transaction-data)"><input type="checkbox" id="conf-transaction-data-input"> Accept transaction data</label>
-        </td></tr>
+        <tr><td id="conf-transcript-name">mdoc session transcript</td><td id="conf-transcript" title="Set at startup with --session-transcript">—</td></tr>
+        <tr><td id="conf-format-name">Preferred format</td><td id="conf-format" title="Used when credentials in several formats match. Set at startup or with PUT /api/config/preferred-format">—</td></tr>
+      </table>
+      </div>
+      <div class="settings-panel" role="tabpanel" id="conf-panel-vci" aria-labelledby="conf-tab-vci" hidden>
+      <table class="conformance-table" id="conf-vci-table">
         <tr><td id="conf-vci-version-name">OpenID4VCI version</td><td>
           <select id="conf-vci-version-select" class="conf-input" aria-labelledby="conf-vci-version-name">
             <option value="1.0">1.0</option>
             <option value="1.1">1.1 draft (where the issuer supports it)</option>
           </select>
         </td></tr>
-        <tr><td id="conf-transcript-name">mdoc session transcript</td><td id="conf-transcript" title="Set at startup with --session-transcript">—</td></tr>
         <tr id="conf-vci-client-id-row"><td id="conf-vci-client-id-name">OpenID4VCI client ID</td><td>
           <input type="text" id="conf-vci-client-id" class="conf-input mono" placeholder="Derived from the wallet provider key" aria-labelledby="conf-vci-client-id-name" title="A fixed client ID for OID4VCI flows (--vci-client-id). If empty, flows with client attestation use a client ID derived from the wallet provider key">
         </td></tr>
-        <tr><td id="conf-format-name">Preferred format</td><td id="conf-format" title="Used when credentials in several formats match. Set at startup or with PUT /api/config/preferred-format">—</td></tr>
         <tr><td id="conf-key-attestation-name">Key attestation level</td><td>
           <select id="conf-key-attestation-select" class="conf-input" aria-labelledby="conf-key-attestation-name" title="Sets key_storage and user_authentication in the key attestation (OpenID4VCI Appendix D.2)">
             <option value="">Match the issuer's requirements</option>
@@ -295,6 +309,10 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
             <option value="none">None (Appendix F.1 requires one)</option>
           </select>
         </td></tr>
+      </table>
+      </div>
+      <div class="settings-panel" role="tabpanel" id="conf-panel-faults" aria-labelledby="conf-tab-faults" hidden>
+      <table class="conformance-table" id="conf-faults-table">
         <tr id="conf-crl-fault-row"><td id="conf-crl-fault-name">CRL fault</td><td>
           <select id="conf-crl-fault-select" class="conf-input" aria-labelledby="conf-crl-fault-name" aria-describedby="conf-crl-fault-hint">
             <option value="">None</option>
@@ -306,6 +324,21 @@ eudi registrar issuers add --name "Example University" --attestation dc+sd-jwt:u
           <div class="conf-hint" id="conf-crl-fault-hint">The fault stays until you set this back to None or reset the settings.</div>
         </td></tr>
       </table>
+      </div>
+      <div class="settings-panel" role="tabpanel" id="conf-panel-experimental" aria-labelledby="conf-tab-experimental" hidden>
+      <table class="conformance-table" id="conf-experimental-table">
+        <tr id="conf-experimental-row"><td id="conf-experimental-name">Experimental features</td><td>
+          <label class="conf-toggle" id="conf-experimental-label" title="Turn every experimental feature on or off (--experimental)"><input type="checkbox" id="conf-experimental-input"> All experimental features</label>
+        </td></tr>
+        <tr id="conf-transaction-data-row"><td><span id="conf-transaction-data-name">Transaction data</span> <span class="experimental-tag" id="conf-transaction-data-tag" title="Transaction data is experimental. It follows OpenID4VP 1.0 §5.1 and EUDI TS12 v1.0.1. Its behavior can change in any release.">Experimental</span></td><td>
+          <label class="conf-toggle" id="conf-transaction-data-label" title="The wallet accepts transaction data and signs its hashes into the Key Binding JWT of an SD-JWT VC. (--transaction-data)"><input type="checkbox" id="conf-transaction-data-input"> <span>Accept transaction data</span></label>
+        </td></tr>
+        <tr id="conf-delegate-sd-jwt-row"><td><span id="conf-delegate-sd-jwt-name">Delegate <span class="nowrap">SD-JWT</span></span> <span class="experimental-tag" id="conf-delegate-sd-jwt-tag" title="Delegate SD-JWT is experimental. It follows draft-ietf-oauth-delegate-sd-jwt-00. Its behavior can change in any release.">Experimental</span></td><td>
+          <label class="conf-toggle" id="conf-delegate-sd-jwt-label" title="The wallet accepts the transaction data type delegate and answers it with a Delegate SD-JWT. It works only while &quot;Accept transaction data&quot; is on. (--delegate-sd-jwt)"><input type="checkbox" id="conf-delegate-sd-jwt-input"> <span>Accept delegation requests</span></label>
+        </td></tr>
+      </table>
+      </div>
+      </div>
       <div class="consent-buttons">
         <button class="btn" id="conf-reset">Reset to startup settings</button>
         <button class="btn" id="conformance-close" data-dialog-close>Close</button>
@@ -896,7 +929,7 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
 
   <div class="consent-overlay" id="transaction-templates-overlay">
     <div class="consent-dialog" role="dialog" aria-modal="true" aria-labelledby="transaction-templates-title" id="transaction-templates-dialog">
-      <div class="consent-title" id="transaction-templates-title" tabindex="-1">Transaction templates</div>
+      <div class="consent-title" id="transaction-templates-title" tabindex="-1">Transaction templates <span class="experimental-tag" id="transaction-templates-tag" title="Transaction data is experimental. It follows OpenID4VP 1.0 §5.1 and EUDI TS12 v1.0.1. Its behavior can change in any release." hidden>Experimental</span></div>
       <p class="dialog-hint" id="transaction-templates-hint">Transaction data entries for presentation requests.</p>
       <div id="transaction-templates-list" class="templates-list"></div>
       <div class="form-error" id="transaction-templates-error" role="alert"></div>

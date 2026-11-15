@@ -12,7 +12,7 @@ The wallet supports the type `delegate` as an opt-in exception to ADR-0013. The 
 - It builds on 3 mechanisms of the wallet: SD-JWT disclosures, the Key Binding JWT and OpenID4VP transaction data.
 - Developers of agents and verifiers need a test wallet that produces the chain.
 
-Support is experimental and off by default. It needs `--transaction-data` ([ADR-0031](0031-transaction-data-is-opt-in-and-binds-to-sd-jwt.md)) and `--delegate-sd-jwt`. The switch is set at startup only, and `--transaction-data-type` refuses the type `delegate`. The flag name, the documentation and the consent dialog say that the feature follows a draft. Without the switch the wallet treats `delegate` like any unknown type: strict mode refuses the request, and debug mode signs its hash into a Key Binding JWT.
+Support is experimental and off by default. It needs `--transaction-data` ([ADR-0031](0031-transaction-data-is-opt-in-and-binds-to-sd-jwt.md)) and `--delegate-sd-jwt`. `--experimental` turns on both. The Settings dialog and `PUT /api/config/conformance` (`delegate_sd_jwt`) change the switch at runtime. The flag help, a warning at startup, the documentation and the consent dialog say that the feature is experimental. Without the switch, `delegate` is an ordinary transaction data type. The wallet accepts it only when `--transaction-data-type` lists it, and then signs the entry's hash into the Key Binding JWT without the §7.1 checks. An unlisted `delegate` is an unknown type. Strict mode refuses the request, and debug mode signs the hash into a Key Binding JWT.
 
 With the switch on, the wallet checks each `delegate` entry against §7.1:
 

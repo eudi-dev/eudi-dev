@@ -204,11 +204,52 @@ test.describe("Wallet Dashboard", () => {
     await expect.poll(configMode).toBe(before);
   });
 
+  test("the settings dialog groups its controls in tabs", async ({ page }) => {
+    await page.goto(WALLET_URL);
+    await page.click("#conformance-link");
+    const tabs = page.locator("#conf-tabs [role=tab]");
+    await expect(tabs).toHaveText(["General", "OpenID4VP", "OpenID4VCI", "Error simulation", "Experimental"]);
+    const panels = {
+      general: "#conf-mode-select",
+      vp: "#conf-encrypted-input",
+      vci: "#conf-proof-key-select",
+      faults: "#conf-crl-fault-select",
+      experimental: "#conf-experimental-input",
+    };
+    const dialog = page.locator("#conformance-dialog");
+    const height = (await dialog.boundingBox()).height;
+    for (const [name, control] of Object.entries(panels)) {
+      await page.click(`#conf-tab-${name}`);
+      await expect(page.locator(`#conf-tab-${name}`)).toHaveAttribute("aria-selected", "true");
+      await expect(page.locator(control)).toBeVisible();
+      for (const other of Object.keys(panels).filter((key) => key !== name)) {
+        await expect(page.locator(`#conf-panel-${other}`)).toBeHidden();
+      }
+      expect((await dialog.boundingBox()).height).toBe(height);
+    }
+
+    await page.locator("#conf-tab-experimental").press("ArrowRight");
+    await expect(page.locator("#conf-tab-general")).toBeFocused();
+    await expect(page.locator("#conf-tab-general")).toHaveAttribute("aria-selected", "true");
+    await page.locator("#conf-tab-general").press("ArrowLeft");
+    await expect(page.locator("#conf-tab-experimental")).toBeFocused();
+    await expect(page.locator("#conf-panel-experimental")).toBeVisible();
+    await page.locator("#conf-tab-experimental").press("Home");
+    await expect(page.locator("#conf-tab-general")).toBeFocused();
+    await expect(page.locator("#conf-panel-general")).toBeVisible();
+    await page.locator("#conf-tab-general").press("End");
+    await expect(page.locator("#conf-tab-experimental")).toBeFocused();
+    await expect(page.locator("#conf-panel-experimental")).toBeVisible();
+    await page.click("#conf-tab-general");
+    await page.click("#conformance-close");
+  });
+
   test("the settings dialog sets a fixed client ID and clears it again", async ({ page }) => {
     await page.goto(WALLET_URL);
     const clientID = async () =>
       (await page.evaluate(async () => (await (await fetch("/api/config")).json()).vci_client_id));
     await page.click("#conformance-link");
+    await page.click("#conf-tab-vci");
     const input = page.locator("#conf-vci-client-id");
     try {
       await expect(input).toBeEnabled();
@@ -229,6 +270,7 @@ test.describe("Wallet Dashboard", () => {
     const proofKey = async () =>
       (await page.evaluate(async () => (await (await fetch("/api/config")).json()).key_attestation_proof_key));
     await page.click("#conformance-link");
+    await page.click("#conf-tab-vci");
     const select = page.locator("#conf-proof-key-select");
     try {
       await expect(select).toBeEnabled();
@@ -2261,6 +2303,7 @@ test("copying a trusted list URL shows that it was copied", async ({ page, conte
 test("the settings set and clear a CRL fault", async ({ page }) => {
   await page.goto(WALLET_URL);
   await page.locator("#conformance-link").click();
+  await page.locator("#conf-tab-faults").click();
   await page.locator("#conf-crl-fault-select").selectOption("unavailable");
   await expect.poll(async () => (await fetch(`${WALLET_URL}/api/crl`)).status).toBe(503);
   await page.locator("#conf-crl-fault-select").selectOption("");

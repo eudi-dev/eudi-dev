@@ -1720,6 +1720,9 @@ test.describe("Settings dialog", () => {
     await expect(page.locator("#conf-mode-hint")).toHaveText("Warn and continue");
 
     await expect(page.locator("#conformance-title")).toHaveText("Settings");
+    await expect(page.locator("#conf-tab-faults")).toBeHidden();
+    await page.locator("#conf-tab-vci").click();
+    await expect(page.locator("#conf-vci-table")).toBeVisible();
     await expect(page.locator("#conf-vci-client-id-row")).toBeHidden();
 
     await page.locator("#conformance-close").click();
@@ -1733,6 +1736,7 @@ test.describe("Settings dialog", () => {
     });
     await page.goto(BASE);
     await page.locator("#conformance-link").click();
+    await page.locator("#conf-tab-vci").click();
     await expect(page.locator("#conf-vci-client-id-row")).toBeVisible();
     await expect(page.locator("#conf-vci-client-id")).toHaveValue("registered-wallet");
     await expect(page.locator("#conf-vci-client-id")).toBeDisabled();

@@ -38,6 +38,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/config"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/demorp"
+	"github.com/eudi-dev/eudi-dev/v3/internal/experimental"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/imprint"
 	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
@@ -178,7 +179,7 @@ Every flag can also be set as EUDI_DEV_<FLAG>, such as EUDI_DEV_BASE_URL for --b
 	cmd.Flags().StringVar(&opts.VCIClientID, "vci-client-id", "", "Fixed client ID for OID4VCI flows. Unset, flows with attestation-based client authentication use a client ID derived from the wallet provider key, and other flows use the wallet origin")
 	cmd.Flags().StringVar(&opts.IssuerName, "issuer-name", "", "Display name of the wallet's issuer. Shown on its pages, in its issuer metadata and on issued credentials (default: the demo issuer's name)")
 	cmd.Flags().StringVar(&opts.VCIRedirectURI, "vci-redirect-uri", "", "Redirect URI for OpenID4VCI authorization code flows (default /callback of the wallet origin)")
-	cmd.Flags().BoolVar(&opts.Demo, "demo", false, "Public demo profile: implies --pid, --mode debug, --haip, --arf, --vci-version 1.1 and --transaction-data (all overridable), disables process/filesystem endpoints, blocks fetches to loopback and private networks unless --allow-private-networks is given, ignores $EUDI_DEV_AUTO_ACCEPT")
+	cmd.Flags().BoolVar(&opts.Demo, "demo", false, "Public demo profile: implies --pid, --mode debug, --haip, --arf, --vci-version 1.1 and --experimental (all overridable), disables process/filesystem endpoints, blocks fetches to loopback and private networks unless --allow-private-networks is given, ignores $EUDI_DEV_AUTO_ACCEPT")
 	addAllowPrivateNetworksFlag(cmd, &opts.AllowPrivateNetworks, "With --demo it also allows loopback. Keep that off on a host that faces the internet. ")
 	cmd.Flags().StringVar(&opts.DemoReset, "demo-reset", "1h", "When to restore the clean demo baseline: an interval (24h), a daily wall-clock time (00:00), or one with a timezone (\"00:00 Europe/Berlin\"). 0 disables. Requires --demo")
 	cmd.Flags().StringVar(&opts.Theme, "theme", "", "Theme directory with theme.css, theme.yaml, a logo and a favicon. Missing files and colors come from the built-in theme. See docs/wallet/themes.md")
@@ -263,11 +264,16 @@ func serveConformance(cmd *cobra.Command, opts *walletServeOptions) (walletConfo
 		if !cmd.Flags().Changed("vci-version") {
 			f.vciVersion = string(wallet.VCIVersion11)
 		}
-		if !cmd.Flags().Changed("transaction-data") {
-			f.transactionData = true
+		if !cmd.Flags().Changed(experimental.AllFlag) {
+			f.experimental = true
 		}
 	}
-	return opts.Conformance.resolve()
+	conformance, err := opts.Conformance.resolve()
+	if err != nil {
+		return walletConformance{}, err
+	}
+	experimental.Warn(cmd.ErrOrStderr(), conformance.settings.Effective())
+	return conformance, nil
 }
 
 // servingConfigWarnings flags persisted serving config that cannot work in
@@ -801,9 +807,6 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	if w.TransactionData {
 		types := append(slices.Clone(oid4vp.TS12TransactionDataTypes), w.TransactionDataTypes...)
 		fmt.Printf("  Transactions:  transaction_data accepted (%s)\n", strings.Join(types, ", "))
-		if w.DelegateSDJWT {
-			fmt.Printf("  Experimental:  Delegate SD-JWT (draft-ietf-oauth-delegate-sd-jwt-00) for the type delegate\n")
-		}
 	}
 	if w.RequireHAIP {
 		fmt.Printf("  HAIP:          enforced (presentations: x509_hash, direct_post.jwt, DCQL, signed request object, P-256 response encryption)\n")

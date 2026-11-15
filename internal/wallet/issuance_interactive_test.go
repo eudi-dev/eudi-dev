@@ -26,6 +26,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/experimental"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
@@ -641,7 +642,7 @@ func TestInteractiveAuthorizationRefusesTransactionDataAfterConsent(t *testing.T
 	w := newInteractiveWallet(t)
 	w.ValidationMode = ValidationModeStrict
 	enabled, types := true, []string{"urn:example:test"}
-	if err := w.UpdateConformance(ConformancePatch{TransactionData: &enabled, TransactionDataTypes: &types}); err != nil {
+	if err := w.UpdateConformance(ConformancePatch{Patch: experimental.Patch{TransactionData: &enabled}, TransactionDataTypes: &types}); err != nil {
 		t.Fatal(err)
 	}
 	issuer := newInteractiveIssuer(t, w)

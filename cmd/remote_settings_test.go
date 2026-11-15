@@ -15,6 +15,7 @@
 package cmd
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -26,6 +27,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eudi-dev/eudi-dev/v3/internal/experimental"
 
 	"github.com/spf13/cobra"
 
@@ -146,13 +149,27 @@ func TestRunningWalletComparesConformanceFlags(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "--haip is set on the running wallet") || !strings.Contains(err.Error(), "--relying-party-ca names 1 CA certificates the running wallet does not trust") {
 		t.Fatalf("differing flags: %v", err)
 	}
+
+	w.SetConformance(wallet.ConformanceSettings{ValidationMode: wallet.ValidationModeDebug, Settings: experimental.Settings{TransactionData: true}})
+	transactionData := walletConformance{settings: w.Conformance()}
+	if err := checkRemoteSettings(c, []string{"--experimental", "--transaction-data", "--delegate-sd-jwt"}, transactionData); err != nil {
+		t.Fatalf("experimental flags with the wallet's own values were refused: %v", err)
+	}
+	all := transactionData
+	all.settings.DelegateSDJWT = true
+	if err := checkRemoteSettings(c, []string{"--experimental"}, all); err == nil || !strings.Contains(err.Error(), "--experimental: Delegate SD-JWT is off on the running wallet") {
+		t.Fatalf("--experimental against a wallet without Delegate SD-JWT: %v", err)
+	}
+	if err := checkRemoteSettings(c, []string{"--delegate-sd-jwt"}, all); err == nil || !strings.Contains(err.Error(), "--delegate-sd-jwt is off on the running wallet") {
+		t.Fatalf("--delegate-sd-jwt against a wallet without it: %v", err)
+	}
 }
 
 // accept, scan and serve share the conformance flags, and the flags apply
 // every setting to the wallet.
 func TestConformanceFlagsApplyEverySetting(t *testing.T) {
 	for _, cmd := range []*cobra.Command{walletAcceptCmd(), walletScanCmd(), walletServeCmd()} {
-		for _, name := range conformanceFlagNames {
+		for _, name := range conformanceFlagNames() {
 			if cmd.Flags().Lookup(name) == nil {
 				t.Errorf("%s has no --%s", cmd.Name(), name)
 			}
@@ -173,6 +190,57 @@ func TestConformanceFlagsApplyEverySetting(t *testing.T) {
 	got := w.Conformance()
 	if !got.RequireHAIP || !got.RequireARF || !got.RequireEncryptedRequest || !got.ForceClientAttestation || got.VCIVersion != wallet.VCIVersion11 || got.KeyAttestationLevel != "none" || got.KeyAttestationProofKey != wallet.ProofKeyNone {
 		t.Errorf("applied %+v", got)
+	}
+}
+
+// wallet serve warns on stderr about each experimental feature that has an
+// effect.
+const (
+	transactionDataWarning = "warning: Transaction data is experimental (--transaction-data). Its behavior can change in any release.\n"
+	delegateSDJWTWarning   = "warning: Delegate SD-JWT is experimental (--delegate-sd-jwt). Its behavior can change in any release.\n"
+)
+
+// --experimental turns on every experimental feature. A feature flag on the
+// command wins. The settings keep each switch, and wallet serve warns once
+// about each feature that has an effect.
+func TestExperimentalFlagsSetTheFeaturesAndWarnOnStderr(t *testing.T) {
+	for _, tc := range []struct {
+		args            []string
+		transactionData bool
+		delegateSDJWT   bool
+	}{
+		{nil, false, false},
+		{[]string{"--transaction-data"}, true, false},
+		{[]string{"--transaction-data", "--delegate-sd-jwt"}, true, true},
+		{[]string{"--delegate-sd-jwt"}, false, true},
+		{[]string{"--experimental"}, true, true},
+		{[]string{"--experimental", "--delegate-sd-jwt=false"}, true, false},
+		{[]string{"--experimental", "--transaction-data=false"}, false, true},
+		{[]string{"--experimental=false", "--transaction-data"}, true, false},
+	} {
+		cmd, opts := walletServeCmdWithOptions()
+		var stderr bytes.Buffer
+		cmd.SetErr(&stderr)
+		if err := cmd.ParseFlags(tc.args); err != nil {
+			t.Fatal(err)
+		}
+		conformance, err := serveConformance(cmd, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := ""
+		if tc.transactionData {
+			want += transactionDataWarning
+			if tc.delegateSDJWT {
+				want += delegateSDJWTWarning
+			}
+		}
+		if stderr.String() != want {
+			t.Errorf("%v: stderr %q, want %q", tc.args, stderr.String(), want)
+		}
+		if s := conformance.settings; s.TransactionData != tc.transactionData || s.DelegateSDJWT != tc.delegateSDJWT {
+			t.Errorf("%v: settings %+v", tc.args, s.Settings)
+		}
 	}
 }
 

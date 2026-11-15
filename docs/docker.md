@@ -95,7 +95,7 @@ docker run -d --name eudi-demo -p 8085:8085 -p 8086:8086 \
 
 The demo persists its state in files on the volume and generates its own keys, so its CA stays private and stable across restarts. Visitors confirm each browser flow, because a demo ignores the image default `EUDI_DEV_AUTO_ACCEPT=true`. With `EUDI_DEV_ALLOW_PRIVATE_NETWORKS=false`, visitors can't make the wallet connect to the host or its networks.
 
-`--demo` turns on `--pid` (4 PID credentials), `--mode debug`, `--haip`, `--arf`, `--vci-version 1.1` and `--transaction-data`. It disables administrative operations and resets the wallet hourly. Change the schedule with `--demo-reset`.
+`--demo` turns on `--pid` (4 PID credentials), `--mode debug`, `--haip`, `--arf`, `--vci-version 1.1` and `--experimental` (every [experimental feature](wallet/serve.md#experimental-features)). It disables administrative operations and resets the wallet hourly. Change the schedule with `--demo-reset`.
 
 Open the wallet at `http://localhost:8085`, the issuer at `/issuer/`, the verifier at `/verifier/` or the decoder at `/decoder/`. HTTPS issuer endpoints use port 8086 and a self-signed certificate.
 

@@ -10,7 +10,7 @@ eudi wallet serve --demo --base-url https://eudi-test.dev \
   --status-list --imprint-file imprint.html
 ```
 
-`--demo` turns on `--pid`, `--mode debug`, `--haip`, `--arf`, `--vci-version 1.1` and `--transaction-data`. Explicit flags override them. For example, `--demo --vci-version 1.0` selects OpenID4VCI 1.0.
+`--demo` turns on `--pid`, `--mode debug`, `--haip`, `--arf`, `--vci-version 1.1` and `--experimental` (every [experimental feature](wallet/serve.md#experimental-features)). Explicit flags override them. For example, `--demo --vci-version 1.0` selects OpenID4VCI 1.0.
 
 ### Baseline and consent
 

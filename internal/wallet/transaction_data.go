@@ -49,17 +49,14 @@ func asTransactionDataRefusal(err error) (*transactionDataRefusal, bool) {
 	return refusal, errors.As(err, &refusal)
 }
 
-// ParseTransactionDataTypes trims the registered transaction data types and
-// drops duplicates. The type delegate has its own switch (ADR 0033).
+// ParseTransactionDataTypes trims the --transaction-data-type types and drops
+// duplicates.
 func ParseTransactionDataTypes(raw []string) ([]string, error) {
 	var types []string
 	for _, typ := range raw {
 		typ = strings.TrimSpace(typ)
 		if typ == "" {
 			return nil, fmt.Errorf("a transaction data type must not be empty")
-		}
-		if typ == oid4vp.DelegateTransactionDataType {
-			return nil, fmt.Errorf("the type %s is experimental. Start the wallet with --delegate-sd-jwt", typ)
 		}
 		if !slices.Contains(types, typ) {
 			types = append(types, typ)
@@ -155,16 +152,10 @@ func (w *Wallet) transactionDataClaims(cred StoredCredential, entries []oid4vp.T
 	return claims, err
 }
 
-// delegates reports whether the wallet answers a delegate entry with a
-// dSD-JWT (ADR 0033).
-func (w *Wallet) delegates() bool {
-	return w.Conformance().DelegateSDJWT
-}
-
-// acceptedTransactionDataTypes are the registered types, with delegate when
-// Delegate SD-JWT is on.
+// acceptedTransactionDataTypes are the --transaction-data-type types, with
+// delegate when the wallet delegates.
 func (c ConformanceSettings) acceptedTransactionDataTypes() []string {
-	if !c.DelegateSDJWT {
+	if !c.Delegates() || slices.Contains(c.TransactionDataTypes, oid4vp.DelegateTransactionDataType) {
 		return c.TransactionDataTypes
 	}
 	return append(slices.Clone(c.TransactionDataTypes), oid4vp.DelegateTransactionDataType)
@@ -173,14 +164,14 @@ func (c ConformanceSettings) acceptedTransactionDataTypes() []string {
 // delegation is the KB-SD-JWT for the delegate entries among entries
 // (draft-ietf-oauth-delegate-sd-jwt-00 §7.1). claims are the Key Binding JWT
 // claims of the same presentation. The result is nil when the presentation
-// has no Key Binding JWT, when no entry has a delegate payload disclosure and
+// has no Key Binding JWT, when no entry has a delegate payload disclosure, or
 // when Delegate SD-JWT is off.
 //
 // §7.1: "Multiple delegate transaction_data MAY be included in the same
 // request. In that case, each MUST have their digest included in the
 // delegate_payload."
 func (w *Wallet) delegation(entries []oid4vp.TransactionData, claims map[string]any) (*delegate.KBSDJWT, error) {
-	if claims == nil || !w.delegates() {
+	if claims == nil || !w.Conformance().Delegates() {
 		return nil, nil
 	}
 	// §7.1: "_sd_alg may use any hash algorithm specified for hashing the

@@ -369,7 +369,7 @@ curl -X DELETE http://localhost:8085/api/crl/fault
 | `expired`       | The CRL has a `nextUpdate` in the past                      |
 | `bad-signature` | The CRL is signed with the wrong key                        |
 
-`next_update_seconds` sets the `nextUpdate` of the CRL (default 7 days). You can set it without a `fault`. `GET /api/crl/fault` returns the current fault. You can also set a fault under **Settings** in the wallet UI. The public demo blocks `PUT` and `DELETE`.
+`next_update_seconds` sets the `nextUpdate` of the CRL (default 7 days). You can set it without a `fault`. `GET /api/crl/fault` returns the current fault. You can also set a fault under **Settings** > **Error simulation** in the wallet UI. The public demo blocks `PUT` and `DELETE`.
 
 ### Issuer metadata and trusted lists
 
@@ -750,13 +750,13 @@ Discovery includes local instances and the active remote target. A responding re
 
 `GET /api/config` reports the instance version, build, serving URLs, wallet settings and credential count. It identifies the [storage backend](../wallet.md#storage-backends) and whether generated keys use a [seed](../wallet.md#seeded-keys).
 
-The response includes `port`, `build_id`, `version`, `storage`, `seeded_keys`, `attestation_client_id`, `base_url`, `issuer_url`, `status_list_url`, `preferred_format`, `key_attestation_level`, `tls_verify`, `tls_verify_override`, `validation_mode`, `vci_version`, `auto_accept`, `session_transcript`, `vci_client_id`, `require_haip`, `require_arf`, `require_encrypted_request`, `force_client_attestation`, `key_attestation_proof_key`, `transaction_data`, `transaction_data_types`, `delegate_sd_jwt`, `adhoc_display_images`, `tls_listener`, `imprint`, `credential_count`, `form_defaults`, `protected_relying_parties`, `news_id` and `config_only`.
+The response includes `port`, `build_id`, `version`, `storage`, `seeded_keys`, `attestation_client_id`, `base_url`, `issuer_url`, `status_list_url`, `preferred_format`, `key_attestation_level`, `tls_verify`, `tls_verify_override`, `validation_mode`, `vci_version`, `auto_accept`, `session_transcript`, `vci_client_id`, `require_haip`, `require_arf`, `require_encrypted_request`, `force_client_attestation`, `key_attestation_proof_key`, `transaction_data`, `transaction_data_types`, `delegate_sd_jwt`, `adhoc_display_images`, `tls_listener`, `imprint`, `credential_count`, `form_defaults`, `protected_relying_parties`, `news_id` and `no_builtins`.
 
-`form_defaults` holds the limits and defaults of the UI forms. `protected_relying_parties` lists the registrations that visitors can't change. On the public demo these are the demo issuer, the demo verifier and the parties from `--relying-parties`. Otherwise the list is empty. `news_id` identifies the current news of the public demo (empty without `--news-file`). `config_only` is true with `--config-only`.
+`form_defaults` holds the limits and defaults of the UI forms. `protected_relying_parties` lists the registrations that visitors can't change. On the public demo these are the demo issuer, the demo verifier and the parties from `--relying-parties`. Otherwise the list is empty. `news_id` identifies the current news of the public demo (empty without `--news-file`). `no_builtins` is true with `--no-builtins`.
 
 Local instances also report `pid`, `wallet_dir` and `templates_dir`. The public demo hides those fields and adds a `demo` object. Its `consent_api` is `true` with `--demo-consent-api`. `POST /api/shutdown` sends its response before stopping the instance. Requests in flight finish first, like on Ctrl-C.
 
-`PUT /api/config/conformance` changes the settings given in its body. It takes the setting names reported by `GET /api/config`: `validation_mode`, `require_haip`, `require_arf`, `require_encrypted_request`, `vci_version`, `key_attestation_level`, `force_client_attestation`, `key_attestation_proof_key`, `transaction_data`, `transaction_data_types`, `tls_verify_override` and `vci_client_id`. It refuses any other name. With an empty `vci_client_id`, flows with client attestation use the client ID derived from the wallet provider key. It accepts these values for `tls_verify_override`:
+`PUT /api/config/conformance` changes the settings given in its body. It takes the setting names reported by `GET /api/config`: `validation_mode`, `require_haip`, `require_arf`, `require_encrypted_request`, `vci_version`, `key_attestation_level`, `force_client_attestation`, `key_attestation_proof_key`, `transaction_data`, `transaction_data_types`, `delegate_sd_jwt`, `tls_verify_override` and `vci_client_id`. It refuses any other name. With an empty `vci_client_id`, flows with client attestation use the client ID derived from the wallet provider key. It accepts these values for `tls_verify_override`:
 
 | Value | HTTPS certificate verification |
 |---|---|

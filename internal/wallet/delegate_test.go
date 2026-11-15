@@ -20,6 +20,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/json"
+	"net/http"
 	"net/url"
 	"reflect"
 	"slices"
@@ -28,6 +29,7 @@ import (
 	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
+	"github.com/eudi-dev/eudi-dev/v3/internal/experimental"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/jws"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
@@ -427,17 +429,44 @@ func TestTheConsentRequestSumsUpADelegation(t *testing.T) {
 	}
 }
 
-// The type delegate has its own switch, so the list of registered types
-// refuses it (ADR 0033).
-func TestDelegateIsNoRegisteredType(t *testing.T) {
-	w, _ := transactionDataWallet(t, "strict")
-	types := []string{oid4vp.DelegateTransactionDataType}
-	err := w.UpdateConformance(ConformancePatch{TransactionDataTypes: &types})
-	if err == nil || !strings.Contains(err.Error(), "--delegate-sd-jwt") {
-		t.Fatalf("err = %v, want a pointer to --delegate-sd-jwt", err)
+// Without Delegate SD-JWT, delegate is an ordinary transaction data type
+// (ADR-0033). Listed in --transaction-data-type, it gets an SD-JWT+KB that
+// signs the entry's hash, even when the entry breaks §7.1.
+func TestAListedDelegateTypeIsOrdinaryWithoutDelegateSDJWT(t *testing.T) {
+	srv := newStrictTestServer(t, true)
+	resp := serverRequest(t, srv, http.MethodPut, "/api/config/conformance", `{"transaction_data":true,"transaction_data_types":["delegate"]}`)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("PUT answered %d: %s", resp.Code, resp.Body.String())
 	}
-	if w.delegates() {
-		t.Error("the wallet answers delegate entries without the switch")
+	if got := srv.wallet.Conformance().TransactionDataTypes; !slices.Equal(got, []string{"delegate"}) {
+		t.Errorf("transaction data types = %v, want [delegate]", got)
+	}
+	verifier := newCaptureVerifier(t)
+	entry := newMandate(t, nil, "sha-256").entry
+	authorizeRequest(t, srv, delegateAuthorizationRequest(t, verifier.URL, entry))
+
+	var vpToken map[string][]string
+	if err := json.Unmarshal([]byte(verifier.received(t).Get("vp_token")), &vpToken); err != nil || len(vpToken["pid"]) != 1 {
+		t.Fatalf("vp_token = %v (%v), want one presentation for pid", vpToken, err)
+	}
+	token := vpToken["pid"][0]
+	if delegate.IsChain(token) {
+		t.Fatalf("the vp_token is a dSD-JWT: %s", token)
+	}
+	entryHash, _ := sdjwt.SDHash(encodedTransactionData(t, entry), "sha-256")
+	if got := keyBindingPayload(t, token)["transaction_data_hashes"]; !reflect.DeepEqual(got, []any{entryHash}) {
+		t.Errorf("transaction_data_hashes = %v, want [%s]", got, entryHash)
+	}
+}
+
+func TestDelegateSDJWTNeedsTransactionData(t *testing.T) {
+	w := generateTestWalletWithPID(t)
+	on := true
+	if err := w.UpdateConformance(ConformancePatch{Patch: experimental.Patch{DelegateSDJWT: &on}}); err != nil {
+		t.Fatal(err)
+	}
+	if w.Conformance().Delegates() || slices.Contains(w.Conformance().acceptedTransactionDataTypes(), oid4vp.DelegateTransactionDataType) {
+		t.Error("the wallet accepts delegate without transaction data")
 	}
 }
 

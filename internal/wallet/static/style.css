@@ -3506,6 +3506,50 @@ textarea.form-input {
   box-shadow: var(--shadow-segment);
 }
 
+.settings-tabs {
+  display: flex;
+}
+
+.settings-tabs .howto-tab {
+  flex: 1 1 auto;
+  padding: 6px 12px;
+}
+
+/* The panels share one grid cell and a hidden panel keeps its space, so the
+   dialog keeps its size when the tab changes. */
+.settings-panels {
+  display: grid;
+}
+
+.settings-panel {
+  grid-area: 1 / 1;
+}
+
+.settings-panel[hidden] {
+  display: block !important;
+  visibility: hidden;
+}
+
+.conformance-table .experimental-tag,
+.consent-purpose-label > .experimental-tag {
+  vertical-align: 1px;
+}
+
+@media (min-width: 641px) {
+  .settings-panel .conformance-table {
+    table-layout: fixed;
+  }
+  .settings-panel .conformance-table td:first-child {
+    width: 42%;
+  }
+  .settings-panel .conf-input {
+    max-width: 100%;
+  }
+  .settings-panel input.conf-input {
+    width: 100%;
+  }
+}
+
 .howto-panel pre {
   white-space: pre-wrap;
   overflow-wrap: break-word;

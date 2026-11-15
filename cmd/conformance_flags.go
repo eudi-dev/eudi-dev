@@ -24,6 +24,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/experimental"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/keys"
 	"github.com/eudi-dev/eudi-dev/v3/internal/remote"
@@ -49,9 +50,8 @@ type conformanceFlags struct {
 	haip                bool
 	arf                 bool
 	encrypted           bool
-	transactionData     bool
+	experimental        bool
 	transactionTypes    []string
-	delegateSDJWT       bool
 	clientAttestation   bool
 	proofKey            string
 	vciVersion          string
@@ -73,9 +73,11 @@ func addConformanceFlags(cmd *cobra.Command) *conformanceFlags {
 	flags.StringArrayVar(&f.trustedLists, "trusted-list", nil, trustedListFlagUsage)
 	flags.StringVar(&f.keyAttestationLevel, "key-attestation-level", "", keyAttestationLevelFlagUsage)
 	flags.BoolVar(&f.encrypted, "require-encrypted-request", false, "Reject request objects that are not encrypted. The wallet always sends an encryption key in wallet_metadata, so this only requires the verifier to use it")
-	flags.BoolVar(&f.transactionData, "transaction-data", false, "Accept transaction_data (OpenID4VP 1.0 §5.1) of the EUDI TS12 types and of the --transaction-data-type types. The wallet shows it in the consent dialog and signs its hashes into the key binding JWT of an SD-JWT VC. In debug mode it also binds unknown types and reports them")
+	flags.BoolVar(&f.experimental, experimental.AllFlag, false, "Turn on all experimental features. A feature flag on the same command line overrides it")
+	for _, feature := range experimental.All() {
+		flags.Bool(feature.Flag, false, feature.Help)
+	}
 	flags.StringArrayVar(&f.transactionTypes, "transaction-data-type", nil, "Accept another transaction data type besides the TS12 types. Takes effect only with --transaction-data (repeatable)")
-	flags.BoolVar(&f.delegateSDJWT, "delegate-sd-jwt", false, "Experimental: accept the transaction data type delegate and answer it with a Delegate SD-JWT (draft-ietf-oauth-delegate-sd-jwt-00). The draft can change without notice. Takes effect only with --transaction-data")
 	flags.BoolVar(&f.clientAttestation, "client-attestation", false, "Send the wallet attestation with OpenID4VCI token requests, also when the issuer doesn't advertise attest_jwt_client_auth (advertising it is a SHOULD)")
 	flags.StringVar(&f.proofKey, "key-attestation-proof-key", string(wallet.ProofKeyKID), "How a jwt proof with a key attestation names its signing key: 'kid' sends kid \"0\", its position in attested_keys, as in the OpenID4VCI Appendix F.1 example, 'jwk' sends the key, 'none' sends neither, which Appendix F.1 does not allow")
 	flags.StringVar(&f.vciVersion, "vci-version", string(wallet.VCIVersion10), "OpenID4VCI version: '1.0' (the published version) or '1.1', which also uses features of the 1.1 draft where the issuer supports them")
@@ -89,14 +91,20 @@ func (f *conformanceFlags) changed() []string {
 		set = append(set, "--mode")
 	}
 	f.cmd.Flags().Visit(func(flag *pflag.Flag) {
-		if slices.Contains(conformanceFlagNames, flag.Name) {
+		if slices.Contains(conformanceFlagNames(), flag.Name) {
 			set = append(set, "--"+flag.Name)
 		}
 	})
 	return set
 }
 
-var conformanceFlagNames = []string{"haip", "arf", "relying-party-ca", "trusted-list-ca", "trusted-list", "key-attestation-level", "require-encrypted-request", "transaction-data", "transaction-data-type", "delegate-sd-jwt", "client-attestation", "key-attestation-proof-key", "vci-version"}
+func conformanceFlagNames() []string {
+	names := []string{"haip", "arf", "relying-party-ca", "trusted-list-ca", "trusted-list", "key-attestation-level", "require-encrypted-request", "transaction-data-type", "client-attestation", "key-attestation-proof-key", "vci-version", experimental.AllFlag}
+	for _, feature := range experimental.All() {
+		names = append(names, feature.Flag)
+	}
+	return names
+}
 
 // walletConformance holds the values of the conformance flags: settings for
 // every flow and trust inputs for the ARF checks.
@@ -156,9 +164,7 @@ func (f *conformanceFlags) resolve() (walletConformance, error) {
 			RequireHAIP:             f.haip || f.arf && !f.cmd.Flags().Changed("haip"),
 			RequireARF:              f.arf,
 			RequireEncryptedRequest: f.encrypted,
-			TransactionData:         f.transactionData,
 			TransactionDataTypes:    transactionTypes,
-			DelegateSDJWT:           f.delegateSDJWT,
 			VCIVersion:              vciVersion,
 			KeyAttestationLevel:     level,
 			ForceClientAttestation:  f.clientAttestation,
@@ -171,6 +177,13 @@ func (f *conformanceFlags) resolve() (walletConformance, error) {
 	}
 	if c.trust.ListCAPEM, err = loadPEMCertificates("trusted-list-ca", f.trustListCAs); err != nil {
 		return walletConformance{}, err
+	}
+	for _, feature := range experimental.All() {
+		on := f.experimental
+		if f.cmd.Flags().Changed(feature.Flag) {
+			on, _ = f.cmd.Flags().GetBool(feature.Flag)
+		}
+		feature.Set(&c.settings.Settings, on)
 	}
 	return c, nil
 }
@@ -235,6 +248,19 @@ func settingDifference(flag string, want walletConformance, cfg wallet.Conforman
 		}
 		return fmt.Sprintf("%s is %s on the running wallet", flag, have)
 	}
+	for _, feature := range experimental.All() {
+		have, wanted := feature.On(cfg.Settings), feature.On(s.Settings)
+		if flag == "--"+feature.Flag {
+			return onOff(have, wanted)
+		}
+		if flag == "--"+experimental.AllFlag && have != wanted {
+			state := map[bool]string{true: "on", false: "off"}[have]
+			return fmt.Sprintf("%s: %s is %s on the running wallet", flag, feature.Name, state)
+		}
+	}
+	if flag == "--"+experimental.AllFlag {
+		return ""
+	}
 	switch flag {
 	case "--mode":
 		return value(string(cfg.ValidationMode), string(s.ValidationMode))
@@ -244,12 +270,8 @@ func settingDifference(flag string, want walletConformance, cfg wallet.Conforman
 		return onOff(cfg.RequireARF, s.RequireARF)
 	case "--require-encrypted-request":
 		return onOff(cfg.RequireEncryptedRequest, s.RequireEncryptedRequest)
-	case "--transaction-data":
-		return onOff(cfg.TransactionData, s.TransactionData)
 	case "--transaction-data-type":
 		return value(strings.Join(cfg.TransactionDataTypes, ", "), strings.Join(s.TransactionDataTypes, ", "))
-	case "--delegate-sd-jwt":
-		return onOff(cfg.DelegateSDJWT, s.DelegateSDJWT)
 	case "--client-attestation":
 		return onOff(cfg.ForceClientAttestation, s.ForceClientAttestation)
 	case "--key-attestation-proof-key":

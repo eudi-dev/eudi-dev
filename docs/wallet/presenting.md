@@ -54,7 +54,8 @@ eudi wallet accept 'openid-credential-offer://...' --tx-code 123456
 | `--client-attestation`  | `false`  | Send the wallet attestation on OID4VCI token requests even when the issuer does not advertise `attest_jwt_client_auth` |
 | `--key-attestation-proof-key` | `kid` | How a jwt proof with a key attestation names its signing key: `kid` `"0"`, `jwk` or `none` |
 | `--vci-version`         | `1.0`    | OpenID4VCI feature level as a client: `1.0` or `1.1` |
-| `--transaction-data`    | `false`  | Accept `transaction_data` in presentation requests (see [transaction data](#transaction-data)) |
+| `--experimental`        | `false`  | Turn on every [experimental feature](serve.md#experimental-features). A feature flag on the command line wins |
+| `--transaction-data`    | `false`  | Experimental. Accept `transaction_data` in presentation requests (see [transaction data](#transaction-data)) |
 | `--transaction-data-type` | None   | Accept another transaction data type besides the TS12 types. Takes effect only with `--transaction-data` (repeatable) |
 | `--delegate-sd-jwt` | `false` | Experimental. Accept the transaction data type `delegate` and answer it with a [Delegate SD-JWT](#delegation-with-a-delegate-sd-jwt) (draft-ietf-oauth-delegate-sd-jwt-00). Takes effect only with `--transaction-data` |
 
@@ -124,7 +125,7 @@ A verifier page can ask for a presentation with the W3C Digital Credentials API 
 
 ## Transaction data
 
-A verifier can ask the wallet to authorize a transaction, such as a payment, with the `transaction_data` request parameter (OpenID4VP 1.0 §5.1). The wallet accepts it only with `--transaction-data`. The Settings dialog and `PUT /api/config/conformance` (`transaction_data`) switch it at runtime. Without it, the wallet treats the parameter as unsupported (§5). Strict mode refuses the request and debug mode logs a warning.
+A verifier can ask the wallet to authorize a transaction, such as a payment, with the `transaction_data` request parameter (OpenID4VP 1.0 §5.1). Transaction data is an [experimental feature](serve.md#experimental-features). The wallet accepts it only with `--transaction-data`. The Settings dialog and `PUT /api/config/conformance` (`transaction_data`) switch it at runtime. Without it, the wallet treats the parameter as unsupported (§5). Strict mode refuses the request and debug mode logs a warning.
 
 The wallet knows the SCA transaction types of EUDI TS12 v1.0.1: `urn:eudi:sca:payment:1`, `urn:eudi:sca:login_risk_transaction:1`, `urn:eudi:sca:account_access:1` and `urn:eudi:sca:emandate:1`. `--transaction-data-type` adds more types, and `transaction_data_types` sets them at runtime.
 
@@ -147,7 +148,7 @@ The wallet checks that the credential is an SCA Attestation (TS12 §3.2 steps 1 
 
 ### Delegation with a Delegate SD-JWT
 
-The wallet can delegate an SD-JWT VC to another key, such as the key of an agent. The feature is experimental and off by default. It follows draft-ietf-oauth-delegate-sd-jwt-00. A later draft can change the format. Start the wallet with both flags:
+The wallet can delegate an SD-JWT VC to another key, such as the key of an agent. It is an [experimental feature](serve.md#experimental-features) and off by default. It follows draft-ietf-oauth-delegate-sd-jwt-00. A later draft can change the format. Start the wallet with both flags:
 
 ```bash
 eudi wallet serve --transaction-data --delegate-sd-jwt
@@ -190,7 +191,7 @@ The Delegate Holder presents a `dSD-JWT+KB` chain later. It keeps the disclosure
 
 ### Transaction templates
 
-Transaction templates are named transaction data entries (OpenID4VP 1.0 §5.1) for any presentation request. The wallet comes with one example for each TS12 type: `payment`, `login`, `account-access` and `emandate`. Open them under **Templates > Transaction templates**. A template of your own replaces the predefined one with the same name. Deleting it brings the predefined one back.
+Transaction templates are named transaction data entries (OpenID4VP 1.0 §5.1) for any presentation request. They belong to transaction data, an [experimental feature](serve.md#experimental-features). The wallet comes with one example for each TS12 type: `payment`, `login`, `account-access` and `emandate`. Open them under **Templates > Transaction templates**. A template of your own replaces the predefined one with the same name. Deleting it brings the predefined one back.
 
 **New transaction template** opens an editor with a name and a description. Its builder has a type, the hash algorithms, optional credential ids and a list of fields. For a TS12 type the fields form the `payload`, and the builder starts with the required fields of the TS12 schema. For any other type the fields sit next to `type`. A value is text or JSON, so `5` is a number and `{"name": "Demo Shop"}` is an object. **JSON** shows the whole entry. Some templates don't fit the builder and open in JSON, such as one with members next to a TS12 `payload`.
 

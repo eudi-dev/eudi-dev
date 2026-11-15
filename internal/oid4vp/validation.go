@@ -37,6 +37,10 @@ type Checks struct {
 	// TS12 types and of TransactionDataTypes.
 	TransactionData      bool
 	TransactionDataTypes []string
+	// DelegateSDJWT checks a delegate entry against
+	// draft-ietf-oauth-delegate-sd-jwt-00 §7.1. Without it a delegate entry is
+	// an entry of an ordinary type.
+	DelegateSDJWT bool
 }
 
 // ValidateAuthorizationRequest adds profile checks when the checks require

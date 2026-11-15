@@ -61,7 +61,7 @@ func delegateEntry(t *testing.T, sdAlg string) map[string]any {
 }
 
 func TestDelegateFindings(t *testing.T) {
-	supported := Checks{TransactionData: true, TransactionDataTypes: []string{DelegateTransactionDataType}}
+	supported := Checks{TransactionData: true, TransactionDataTypes: []string{DelegateTransactionDataType}, DelegateSDJWT: true}
 	valid := delegateEntry(t, "sha-256")
 	withoutCnf := delegateDisclosure(t, "salt-p", map[string]any{"vct": "urn:example:mandate:1"})
 	for _, tt := range []struct {
@@ -111,14 +111,19 @@ func TestDelegateFindings(t *testing.T) {
 	}
 }
 
-// Without --delegate-sd-jwt, delegate is an unsupported transaction data type
-// (ADR-0033).
-func TestDelegateIsUnsupportedWithoutDelegateSDJWT(t *testing.T) {
+// Without --delegate-sd-jwt, delegate is an ordinary transaction data type
+// (ADR-0033). The wallet accepts it only from --transaction-data-type and
+// skips the §7.1 checks.
+func TestDelegateIsAnOrdinaryTypeWithoutDelegateSDJWT(t *testing.T) {
 	req := transactionDataRequest(transactionDataEntry(t, with(delegateEntry(t, "sha-256"), "format", nil)))
 	got := transactionDataFindings(Checks{TransactionData: true}, req, req.RequestPayload).Texts()
 	want := []string{`OID4VP 1.0 §8.5: transaction_data[0] has the unsupported type "delegate"`}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("findings = %q, want %q", got, want)
+	}
+	listed := Checks{TransactionData: true, TransactionDataTypes: []string{DelegateTransactionDataType}}
+	if got := transactionDataFindings(listed, req, req.RequestPayload).Texts(); len(got) > 0 {
+		t.Errorf("findings = %q, want none for a listed type", got)
 	}
 }
 

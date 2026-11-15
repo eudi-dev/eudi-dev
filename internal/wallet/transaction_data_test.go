@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
+	"github.com/eudi-dev/eudi-dev/v3/internal/experimental"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vp"
@@ -44,7 +45,7 @@ func transactionDataWallet(t *testing.T, mode string) (*Wallet, StoredCredential
 	t.Helper()
 	w := generateTestWalletWithPID(t)
 	enabled := true
-	if err := w.UpdateConformance(ConformancePatch{ValidationMode: &mode, TransactionData: &enabled}); err != nil {
+	if err := w.UpdateConformance(ConformancePatch{ValidationMode: &mode, Patch: experimental.Patch{TransactionData: &enabled}}); err != nil {
 		t.Fatal(err)
 	}
 	i := slices.IndexFunc(w.GetCredentials(), func(c StoredCredential) bool { return c.Format == "dc+sd-jwt" })

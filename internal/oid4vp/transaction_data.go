@@ -181,7 +181,7 @@ func transactionDataFindings(checks Checks, params *Request, payload map[string]
 		if slices.Contains(TS12TransactionDataTypes, entry.Type) {
 			list = append(list, ts12Findings(label, entry)...)
 		}
-		if entry.Type == DelegateTransactionDataType && checks.acceptsTransactionDataType(entry.Type) {
+		if entry.Type == DelegateTransactionDataType && checks.DelegateSDJWT {
 			list = append(list, entry.DelegateFindings(entry.PreferredHashAlg())...)
 		}
 	}

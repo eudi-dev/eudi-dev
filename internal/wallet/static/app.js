@@ -4051,11 +4051,12 @@
         const id = 'consent-transaction-' + idx;
         const summary = entry.summary || ts12Summary(entry.type, entry.data && entry.data.payload);
         return '<div class="consent-purpose consent-transaction" id="' + id + '">' +
-          '<span class="consent-purpose-label" id="' + id + '-label">Transaction to authorize</span>' +
+          '<span class="consent-purpose-label" id="' + id + '-label">Transaction to authorize ' +
+            '<span class="experimental-tag" id="' + id + '-tag" title="' + tagTitle + '">Experimental</span></span>' +
           (summary ? '<div class="consent-transaction-summary" id="' + id + '-summary">' + escHtml(summary) + '</div>' : '') +
           '<div class="consent-transaction-type mono" id="' + id + '-type">' + escHtml(entry.type || '(no type)') + '</div>' +
           (entry.delegate_payload ?
-            '<div class="consent-transaction-note" id="' + id + '-experimental">Experimental. The wallet answers with a Delegate SD-JWT (draft-ietf-oauth-delegate-sd-jwt-00).</div>' : '') +
+            '<div class="consent-transaction-note" id="' + id + '-experimental">The wallet answers with a Delegate SD-JWT (draft-ietf-oauth-delegate-sd-jwt-00).</div>' : '') +
           (Object.keys(members).length ?
             '<details class="consent-transaction-details" id="' + id + '-details"' + (summary ? '' : ' open') + '>' +
               '<summary id="' + id + '-details-summary">Transaction data</summary>' +
@@ -4818,7 +4819,7 @@
       protectedParties = new Set(config.protected_relying_parties || []);
       renderAutoAccept(!!config.auto_accept);
       renderConformance(config);
-      ['conf-mode-select', 'conf-tls-select', 'conf-haip-input', 'conf-arf-input', 'conf-encrypted-input', 'conf-transaction-data-input', 'conf-vci-version-select', 'conf-key-attestation-select', 'conf-proof-key-select', 'conf-vci-client-id'].forEach((id) => {
+      ['conf-mode-select', 'conf-tls-select', 'conf-haip-input', 'conf-arf-input', 'conf-encrypted-input', 'conf-experimental-input', 'conf-transaction-data-input', 'conf-delegate-sd-jwt-input', 'conf-vci-version-select', 'conf-key-attestation-select', 'conf-proof-key-select', 'conf-vci-client-id'].forEach((id) => {
         const el = document.getElementById(id);
         if (el && !el.dataset.wired) {
           el.dataset.wired = '1';
@@ -4895,7 +4896,7 @@
 
   // Conformance settings apply to the wallet process. The public demo displays them without
   // allowing changes.
-  let conformanceDefaults = { validation_mode: 'debug', require_haip: false, require_arf: false, require_encrypted_request: false, transaction_data: false, vci_version: '1.0', key_attestation_level: '', key_attestation_proof_key: 'kid' };
+  let conformanceDefaults = { validation_mode: 'debug', require_haip: false, require_arf: false, require_encrypted_request: false, vci_version: '1.0', key_attestation_level: '', key_attestation_proof_key: 'kid' };
 
   function effectiveConformance() {
     return {
@@ -4904,7 +4905,6 @@
       haip: !!conformanceDefaults.require_haip,
       arf: !!conformanceDefaults.require_arf,
       encrypted: !!conformanceDefaults.require_encrypted_request,
-      transactionData: !!conformanceDefaults.transaction_data,
       vciVersion: conformanceDefaults.vci_version === '1.1' ? '1.1' : '1.0',
       keyAttestationLevel: conformanceDefaults.key_attestation_level || '',
       proofKey: conformanceDefaults.key_attestation_proof_key || 'kid',
@@ -4926,8 +4926,17 @@
     if (mode) { mode.value = eff.mode === 'strict' ? 'strict' : 'debug'; mode.disabled = demoMode; }
     if (haip) { haip.checked = eff.haip; haip.disabled = demoMode; }
     if (enc) { enc.checked = eff.encrypted; enc.disabled = demoMode; }
-    const transactionData = document.getElementById('conf-transaction-data-input');
-    if (transactionData) { transactionData.checked = eff.transactionData; transactionData.disabled = demoMode; }
+    const on = experimentalFeatures.filter((setting) => {
+      const input = experimentalInput(setting);
+      input.checked = !!conformanceDefaults[setting];
+      input.disabled = demoMode;
+      return input.checked;
+    });
+    const experimental = document.getElementById('conf-experimental-input');
+    experimental.checked = on.length > 0 && on.length === experimentalFeatures.length;
+    experimental.indeterminate = on.length > 0 && !experimental.checked;
+    experimental.disabled = demoMode;
+    document.getElementById('transaction-templates-tag').hidden = !conformanceDefaults.transaction_data;
     if (vci) { vci.value = eff.vciVersion; vci.disabled = demoMode; }
     if (level) { level.dataset.wanted = eff.keyAttestationLevel; level.value = eff.keyAttestationLevel; level.disabled = demoMode; }
     const proofKey = document.getElementById('conf-proof-key-select');
@@ -4963,19 +4972,21 @@
     const level = document.getElementById('conf-key-attestation-select');
     const proofKey = document.getElementById('conf-proof-key-select');
     const clientID = document.getElementById('conf-vci-client-id');
-    const transactionData = document.getElementById('conf-transaction-data-input');
-    return {
+    const experimental = {};
+    experimentalFeatures.forEach((setting) => {
+      experimental[setting] = experimentalInput(setting).checked;
+    });
+    return Object.assign(experimental, {
       validation_mode: mode ? mode.value : undefined,
       tls_verify_override: !tls || tls.value === 'auto' ? null : tls.value === 'true',
       require_haip: haip ? haip.checked : undefined,
       require_arf: arf ? arf.checked : undefined,
       require_encrypted_request: enc ? enc.checked : undefined,
-      transaction_data: transactionData ? transactionData.checked : undefined,
       vci_version: vci ? vci.value : undefined,
       key_attestation_level: level ? level.value : undefined,
       key_attestation_proof_key: proofKey ? proofKey.value : undefined,
       vci_client_id: clientID ? clientID.value.trim() : undefined,
-    };
+    });
   }
 
   async function setServerConformance(values) {
@@ -4996,6 +5007,11 @@
       const haip = document.getElementById('conf-haip-input');
       if (haip) haip.checked = true;
     }
+    if (event && event.target && event.target.id === 'conf-experimental-input') {
+      experimentalFeatures.forEach((setting) => {
+        experimentalInput(setting).checked = event.target.checked;
+      });
+    }
     renderConformanceHints();
     if (demoMode) return;
     setServerConformance(currentControlValues());
@@ -5008,6 +5024,12 @@
       .then((r) => (r.ok ? r.json() : null))
       .then((c) => { if (c) conformanceDefaults = Object.assign({}, conformanceDefaults, c); applyConformanceToControls(); })
       .catch(() => { applyConformanceToControls(); });
+  }
+
+  const experimentalFeatures = ['transaction_data', 'delegate_sd_jwt'];
+
+  function experimentalInput(setting) {
+    return document.getElementById('conf-' + setting.replace(/_/g, '-') + '-input');
   }
 
   function renderConformance(config) {
@@ -5027,7 +5049,7 @@
     if (intro) intro.hidden = !demoMode;
     const reset = document.getElementById('conf-reset');
     if (reset) reset.hidden = demoMode;
-    document.getElementById('conf-crl-fault-row').hidden = demoMode;
+    document.getElementById('conf-tab-faults').hidden = demoMode;
   }
 
   function describeReset(demo) {
@@ -7067,7 +7089,38 @@
     }
   });
 
+  // The arrow keys move between the visible tabs of a tab list, and Home and
+  // End go to the first and last one (WAI-ARIA Authoring Practices, Tabs).
+  function setupTabs(tablist) {
+    const tabs = Array.from(tablist.querySelectorAll('[role="tab"]'));
+    const select = (tab) => tabs.forEach((t) => {
+      const selected = t === tab;
+      t.classList.toggle('active', selected);
+      t.setAttribute('aria-selected', String(selected));
+      t.tabIndex = selected ? 0 : -1;
+      document.getElementById(t.getAttribute('aria-controls')).hidden = !selected;
+    });
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => select(tab));
+      tab.addEventListener('keydown', (event) => {
+        const visible = tabs.filter((t) => !t.hidden);
+        const i = visible.indexOf(tab);
+        const next = {
+          ArrowRight: visible[(i + 1) % visible.length],
+          ArrowLeft: visible[(i + visible.length - 1) % visible.length],
+          Home: visible[0],
+          End: visible[visible.length - 1],
+        }[event.key];
+        if (!next) return;
+        event.preventDefault();
+        select(next);
+        next.focus();
+      });
+    });
+  }
+
   const conformanceOverlay = document.getElementById('conformance-overlay');
+  setupTabs(document.getElementById('conf-tabs'));
   document.getElementById('conformance-link').addEventListener('click', (event) => {
     event.preventDefault();
     conformanceOverlay.classList.add('active');
@@ -7147,25 +7200,7 @@
     document.getElementById('howto-extension-store-hint').hidden = appBase.href === 'https://eudi-test.dev/';
     howtoOverlay.classList.add('active');
   });
-  const howtoTabs = Array.from(howtoOverlay.querySelectorAll('.howto-tab'));
-  function selectHowtoTab(tab) {
-    howtoTabs.forEach((t) => {
-      const selected = t === tab;
-      t.classList.toggle('active', selected);
-      t.setAttribute('aria-selected', String(selected));
-      t.tabIndex = selected ? 0 : -1;
-      document.getElementById(t.getAttribute('aria-controls')).hidden = !selected;
-    });
-  }
-  howtoTabs.forEach((tab, i) => {
-    tab.addEventListener('click', () => selectHowtoTab(tab));
-    tab.addEventListener('keydown', (event) => {
-      if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
-      const next = howtoTabs[(i + (event.key === 'ArrowRight' ? 1 : howtoTabs.length - 1)) % howtoTabs.length];
-      selectHowtoTab(next);
-      next.focus();
-    });
-  });
+  setupTabs(document.getElementById('howto-tabs'));
   document.getElementById('howto-close').addEventListener('click', () => {
     howtoOverlay.classList.remove('active');
   });

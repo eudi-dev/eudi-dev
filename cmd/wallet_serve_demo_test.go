@@ -178,14 +178,19 @@ func TestTheBannerListsCredentialsLikeTheUI(t *testing.T) {
 	}
 }
 
-func TestDemoModeAcceptsTransactionData(t *testing.T) {
-	if w := resolveServeProfile(t, []string{"--port", "0", "--demo"}); !w.TransactionData {
-		t.Error("demo did not turn on transaction data")
+// The public demo turns on every experimental feature. A feature flag on
+// the command wins.
+func TestDemoModeTurnsOnTheExperimentalFeatures(t *testing.T) {
+	if w := resolveServeProfile(t, []string{"--port", "0", "--demo"}); !w.TransactionData || !w.DelegateSDJWT {
+		t.Errorf("demo: experimental features %+v, want all on", w.Conformance().Settings)
 	}
-	if w := resolveServeProfile(t, []string{"--port", "0", "--demo", "--transaction-data=false"}); w.TransactionData {
-		t.Error("explicit --transaction-data=false did not win over the demo default")
+	if w := resolveServeProfile(t, []string{"--port", "0", "--demo", "--transaction-data=false"}); w.TransactionData || !w.DelegateSDJWT {
+		t.Errorf("--transaction-data=false with the demo: %+v", w.Conformance().Settings)
 	}
-	if w := resolveServeProfile(t, []string{"--port", "0"}); w.TransactionData {
-		t.Error("plain serve accepted transaction data without --transaction-data")
+	if w := resolveServeProfile(t, []string{"--port", "0", "--demo", "--experimental=false"}); len(w.Conformance().Active()) != 0 {
+		t.Errorf("--experimental=false with the demo: %+v", w.Conformance().Settings)
+	}
+	if w := resolveServeProfile(t, []string{"--port", "0"}); len(w.Conformance().Active()) != 0 {
+		t.Errorf("plain serve: %+v, want every experimental feature off", w.Conformance().Settings)
 	}
 }

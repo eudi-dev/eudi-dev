@@ -265,7 +265,7 @@ The demo verifier at `/verifier/` builds requests for you:
 | Credential to send | `#consent-credential-<credential id>`, a `.consent-credential` with `data-credential-id`, `data-vct`, `data-doctype` |
 | Claim checkboxes | `.consent-claim input` with `data-cred` and `data-claim` |
 | Note on a query with **multiple** | `#consent-multiple-<query id>` |
-| Transaction to authorize | `#consent-transaction-<n>` with `-summary` (TS12 types and `delegate`), `-type` and `-data`. A `delegate` entry also has `-experimental` with the note about the draft and `-delegate-payload` with the decoded delegate payload. The data sits in `-details`, which starts closed when `-summary` is shown. Click `-details-summary` to open it |
+| Transaction to authorize | `#consent-transaction-<n>` with `-summary` (TS12 types and `delegate`), `-type`, `-data` and the tag "Experimental" in `-tag`. A `delegate` entry also has `-experimental` with the note about the draft and `-delegate-payload` with the decoded delegate payload. The data sits in `-details`, which starts closed when `-summary` is shown. Click `-details-summary` to open it |
 | Query without a matching credential (debug mode) | `#consent-unanswered-<query id>`. **Approve** stays disabled until you pick one |
 | **Approve**, **Deny** | `#consent-approve`, `#consent-deny` |
 
@@ -365,7 +365,7 @@ await expect(page.locator('.credential-card[data-vct="urn:example:member:1"]')).
 
 **Templates** (`#templates-link`) lists the credential templates and the transaction templates. Rows are `template-row-<name>` with `template-edit-<name>` and `template-delete-<name>`. `#template-new` opens the same form with a name field (`#template-editor-name`).
 
-Transaction template rows are `transaction-template-row-<name>` with `transaction-template-edit-<name>` and, for user templates, `transaction-template-delete-<name>`. `#transaction-template-new` opens the editor `#transaction-template-dialog` with `#transaction-template-name`, `#transaction-template-description`, `#transaction-template-json` and `#transaction-template-save`. Findings of a TS12 template show as `#transaction-template-warning-<n>`, and the editor stays open.
+While transaction data is on, the title of the transaction templates has the tag `#transaction-templates-tag`. Transaction template rows are `transaction-template-row-<name>` with `transaction-template-edit-<name>` and, for user templates, `transaction-template-delete-<name>`. `#transaction-template-new` opens the editor `#transaction-template-dialog` with `#transaction-template-name`, `#transaction-template-description`, `#transaction-template-json` and `#transaction-template-save`. Findings of a TS12 template show as `#transaction-template-warning-<n>`, and the editor stays open.
 
 API: `POST /api/issue` (see [credential issuance](wallet/http-api.md#credential-issuance)) and `PUT /api/templates/{name}` (see [credential templates](wallet/http-api.md#credential-templates)).
 
@@ -519,14 +519,15 @@ E2E tests: [`wallet.spec.js`](../e2e/wallet.spec.js), test *trust dialog adds a 
 
 ## Settings
 
-**Settings** (`#conformance-link`) opens `#conformance-overlay`. A local wallet applies each change at once. A demo shows the settings read-only.
+**Settings** (`#conformance-link`) opens `#conformance-overlay`. The dialog has the tabs `#conf-tab-general`, `#conf-tab-vp`, `#conf-tab-vci`, `#conf-tab-faults` and `#conf-tab-experimental`. Select a tab before you use its controls. A local wallet applies each change at once. A demo shows the settings read-only.
 
 | Control | Selector |
 |---|---|
 | Validation mode | `#conf-mode-select` (`strict`, `debug`) |
 | HTTPS certificates | `#conf-tls-select` (`auto`, `true`, `false`) |
 | HAIP, ARF, encrypted request objects | `#conf-haip-input`, `#conf-arf-input`, `#conf-encrypted-input` |
-| Transaction data | `#conf-transaction-data-input` |
+| All experimental features | `#conf-experimental-input`. It is indeterminate while only some features are on |
+| One experimental feature | `#conf-<flag>-input` in the row `#conf-<flag>-row`, with the name in `#conf-<flag>-name` and the tag in `#conf-<flag>-tag`: `#conf-transaction-data-input`, `#conf-delegate-sd-jwt-input` |
 | OpenID4VCI version, key attestation level | `#conf-vci-version-select`, `#conf-key-attestation-select` |
 | OpenID4VCI client ID | `#conf-vci-client-id`. When it is empty, flows with client attestation use a client ID derived from the wallet provider key. A demo shows the row only for a fixed client ID |
 | **Reset to startup settings**, **Close** | `#conf-reset`, `#conformance-close` |

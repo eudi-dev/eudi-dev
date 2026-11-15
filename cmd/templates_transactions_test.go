@@ -20,6 +20,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/experimental"
+
 	"github.com/spf13/pflag"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
@@ -103,7 +105,7 @@ func TestTransactionTemplatesTypesListTheAcceptedTypes(t *testing.T) {
 		t.Fatal(err)
 	}
 	w := wallet.New(holderKey, issuerKey, false)
-	w.SetConformance(wallet.ConformanceSettings{TransactionData: true, TransactionDataTypes: []string{"urn:example:refund"}})
+	w.SetConformance(wallet.ConformanceSettings{Settings: experimental.Settings{TransactionData: true}, TransactionDataTypes: []string{"urn:example:refund"}})
 	srv := wallet.NewServer(w, 0, nil)
 	srv.ShutdownFunc = func() {}
 	url, err := srv.ListenAndServeBackground()
