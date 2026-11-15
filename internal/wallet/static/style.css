@@ -1518,13 +1518,28 @@ textarea.form-input {
 .consent-transaction-details summary::after { content: "Show"; margin-left: auto; font-weight: 500; }
 .consent-transaction-details[open] summary::after { content: "Hide"; }
 
-.consent-transaction-data {
+/* JSON keeps its indentation. A long line scrolls inside the box. */
+.consent-transaction-data,
+.delegation-limit-json {
+  box-sizing: border-box;
+  max-width: 100%;
   margin: 6px 0 0;
-  max-height: 30vh;
+  padding: 8px 10px;
   overflow: auto;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-family: var(--font-mono);
   font-size: 12px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  white-space: pre;
+}
+
+.consent-transaction-data {
+  max-height: 30vh;
+}
+
+.delegation-limit-json {
+  margin: 0;
 }
 
 .consent-multiple-note {
@@ -4012,14 +4027,6 @@ textarea.form-input {
 .delegation-toggle[aria-expanded="true"] .ic-chev,
 .delegations-expired-toggle[aria-expanded="true"] .ic-chev {
   transform: rotate(180deg);
-}
-
-.delegation-limit-json {
-  margin: 0;
-  font-family: var(--font-mono, monospace);
-  font-size: 12px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
 }
 
 .delegation-details {
