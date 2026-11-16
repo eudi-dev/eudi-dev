@@ -338,16 +338,6 @@ func resetServeFlags(t *testing.T) {
 	t.Cleanup(func() { walletDir = "" })
 }
 
-func TestWalletServeRefusesNoBuiltinsWithDemo(t *testing.T) {
-	resetServeFlags(t)
-
-	rootCmd.SetArgs([]string{"wallet", "serve", "--wallet-dir", filepath.Join(t.TempDir(), "wallet"), "--no-register", "--no-builtins", "--demo"})
-	err := rootCmd.Execute()
-	if err == nil || !strings.Contains(err.Error(), "--demo and --no-builtins can't be used together") {
-		t.Fatalf("error = %v, want one refusing --demo with --no-builtins", err)
-	}
-}
-
 func TestANoBuiltinsWalletServesNoDemoVerifier(t *testing.T) {
 	resetServeFlags(t)
 	port, err := findFreePresentationPortPair(23200)

@@ -110,7 +110,7 @@ The keys belong to the wallet in memory and are gone when the check exits. A ser
 
 The issuer keeps its registration under `NLTEST.00000000`, because its access certificate comes from that registration. `--issuer-name` sets the name on its pages and credentials.
 
-`--pid` then needs a PID template of your own. `--demo` can't run with `--no-builtins`.
+`--pid` then needs a PID template of your own, and `--demo` doesn't turn it on. The demo still protects the parties and credentials from `--config`.
 
 ## Reading the files again
 

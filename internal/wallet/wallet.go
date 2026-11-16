@@ -844,11 +844,12 @@ func (w *Wallet) IsProtected(id string) bool {
 
 // baselinePIDTypes lists the types of the predefined SD-JWT templates marked
 // baseline, the country-independent PID first. A user template that replaces
-// one of them gives the type.
+// one of them gives the type. Without the predefined templates, the baseline
+// is the PID of the operator's own templates.
 func (w *Wallet) baselinePIDTypes() []string {
 	var types []string
 	if w.Templates.WithoutPredefined {
-		return nil
+		return []string{credtype.PIDVCT}
 	}
 	for _, predefined := range credtemplate.PredefinedTemplates() {
 		if format, _ := credtemplate.NormalizeFormat(predefined.Format); !predefined.Baseline || format != "sdjwt" {

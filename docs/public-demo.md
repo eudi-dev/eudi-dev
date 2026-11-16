@@ -10,11 +10,11 @@ eudi wallet serve --demo --base-url https://eudi-test.dev \
   --status-list --imprint-file imprint.html
 ```
 
-`--demo` turns on `--pid`, `--mode debug`, `--haip`, `--arf`, `--vci-version 1.1` and `--experimental` (every [experimental feature](wallet/serve.md#experimental-features)). Explicit flags override them. For example, `--demo --vci-version 1.0` selects OpenID4VCI 1.0.
+`--demo` turns on `--pid` (not with `--no-builtins`), `--mode debug`, `--haip`, `--arf`, `--vci-version 1.1` and `--experimental` (every [experimental feature](wallet/serve.md#experimental-features)). Explicit flags override them. For example, `--demo --vci-version 1.0` selects OpenID4VCI 1.0.
 
 ### Baseline and consent
 
-The server starts without opening a browser and loads protected PID credentials from the bundled templates. User templates with the same names, including those in `--templates-dir`, override the baseline used at startup and reset.
+The server starts without opening a browser and loads protected PID credentials from the bundled templates. User templates with the same names, including those in `--templates-dir`, override the baseline used at startup and reset. With `--no-builtins`, the demo serves only the content from `--config`.
 
 Browser flows ask for consent. API submissions provide consent directly. A demo approves browser flows without asking only with `--auto-accept` on the command line. It ignores `EUDI_DEV_AUTO_ACCEPT` and warns at start when the flag is given. Each consent dialog appears in the browser session that started the flow. Requests without a browser ID appear in a shared banner where any visitor can answer them. Only the web UI answers consent requests, so an API or CLI client doesn't answer another visitor's request by mistake. A client can still claim to be the web UI, so this check is not access control. `--demo-consent-api` (`EUDI_DEV_DEMO_CONSENT_API=true`) lets API and CLI clients answer consent requests too.
 
@@ -42,7 +42,7 @@ Use `--mode strict` to reject violations, or `--haip=false` and `--arf=false` to
 
 Resets run every hour by default. `--demo-reset` accepts an interval such as `24h`, a daily time such as `00:00`, or a time with a zone such as `"00:00 Europe/Berlin"`. `0` disables resets. Daily schedules follow local time, including daylight saving changes, and retain their schedule across restarts.
 
-A reset removes visitor credentials, registered relying parties and the providers and lists added to the trusted lists. It then registers the demo issuer, the demo verifier and the parties from `--relying-parties` again. It regenerates the protected PID baseline, removes certificate revocations and clears the activity log. The CA, keys and URLs stay stable. The credential signing certificate is renewed.
+A reset removes visitor credentials, registered relying parties and the providers and lists added to the trusted lists. It then registers the demo issuer, the demo verifier and the parties from `--relying-parties` again. With `--no-builtins` there is no demo verifier. A reset regenerates the protected PID baseline if there is one. It removes certificate revocations and clears the activity log. The CA, keys and URLs stay stable. The credential signing certificate is renewed.
 
 ## Browser hardening
 

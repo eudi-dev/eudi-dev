@@ -179,7 +179,7 @@ Every flag can also be set as EUDI_DEV_<FLAG>, such as EUDI_DEV_BASE_URL for --b
 	cmd.Flags().StringVar(&opts.VCIClientID, "vci-client-id", "", "Fixed client ID for OID4VCI flows. Unset, flows with attestation-based client authentication use a client ID derived from the wallet provider key, and other flows use the wallet origin")
 	cmd.Flags().StringVar(&opts.IssuerName, "issuer-name", "", "Display name of the wallet's issuer. Shown on its pages, in its issuer metadata and on issued credentials (default: the demo issuer's name)")
 	cmd.Flags().StringVar(&opts.VCIRedirectURI, "vci-redirect-uri", "", "Redirect URI for OpenID4VCI authorization code flows (default /callback of the wallet origin)")
-	cmd.Flags().BoolVar(&opts.Demo, "demo", false, "Public demo profile: implies --pid, --mode debug, --haip, --arf, --vci-version 1.1 and --experimental (all overridable), disables process/filesystem endpoints, blocks fetches to loopback and private networks unless --allow-private-networks is given, ignores $EUDI_DEV_AUTO_ACCEPT")
+	cmd.Flags().BoolVar(&opts.Demo, "demo", false, "Public demo profile: implies --pid (not with --no-builtins), --mode debug, --haip, --arf, --vci-version 1.1 and --experimental (all overridable), disables process/filesystem endpoints, blocks fetches to loopback and private networks unless --allow-private-networks is given, ignores $EUDI_DEV_AUTO_ACCEPT")
 	addAllowPrivateNetworksFlag(cmd, &opts.AllowPrivateNetworks, "With --demo it also allows loopback. Keep that off on a host that faces the internet. ")
 	cmd.Flags().StringVar(&opts.DemoReset, "demo-reset", "1h", "When to restore the clean demo baseline: an interval (24h), a daily wall-clock time (00:00), or one with a timezone (\"00:00 Europe/Berlin\"). 0 disables. Requires --demo")
 	cmd.Flags().StringVar(&opts.Theme, "theme", "", "Theme directory with theme.css, theme.yaml, a logo and a favicon. Missing files and colors come from the built-in theme. See docs/wallet/themes.md")
@@ -249,7 +249,8 @@ func loadVerifierTrustAnchors(paths []string) ([]*x509.Certificate, error) {
 func serveConformance(cmd *cobra.Command, opts *walletServeOptions) (walletConformance, error) {
 	if opts.Demo {
 		f := opts.Conformance
-		if !cmd.Flags().Changed("pid") {
+		// The PID baseline needs the built-in PID templates.
+		if !cmd.Flags().Changed("pid") && !opts.NoBuiltins {
 			opts.PID = true
 		}
 		if !cmd.Flags().Changed("mode") {
@@ -490,9 +491,6 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	}
 	if opts.ConfigReload > 0 && len(stdinFlags) > 0 {
 		return fmt.Errorf("--config-reload reads the files again, but stdin can be read only once. Pass a file to %s", stdinFlags[0])
-	}
-	if opts.NoBuiltins && opts.Demo {
-		return fmt.Errorf("--demo and --no-builtins can't be used together. --demo serves the built-in content")
 	}
 	if opts.Check && opts.Detached {
 		return fmt.Errorf("--check exits after loading the configuration, so it can't run detached")

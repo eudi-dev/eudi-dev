@@ -1247,3 +1247,34 @@ func testCertWithKeyDER(dnsNames []string) (*ecdsa.PrivateKey, string, []byte) {
 	der, _ := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
 	return key, base64.StdEncoding.EncodeToString(der), der
 }
+
+func TestTheBaselineWithoutPredefinedTemplatesUsesTheOperatorsPID(t *testing.T) {
+	w := generateTestWallet(t)
+	w.Templates.WithoutPredefined = true
+	if err := w.GenerateProtectedDefaults(); err == nil {
+		t.Fatal("generated a baseline without a PID template")
+	}
+
+	for _, name := range []string{"pid-sdjwt", "pid-mdoc"} {
+		pid, err := credtemplate.Load(name, credtemplate.FileLocation(t.TempDir()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		pid.Predefined = false
+		if _, err := credtemplate.Save(w.Templates, *pid); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := w.GenerateProtectedDefaults(); err != nil {
+		t.Fatalf("generating the baseline: %v", err)
+	}
+	var protected int
+	for _, c := range w.GetCredentials() {
+		if c.Protected && c.VCT == credtype.PIDVCT {
+			protected++
+		}
+	}
+	if protected != 1 {
+		t.Errorf("the baseline holds %d protected SD-JWT PIDs, want 1", protected)
+	}
+}

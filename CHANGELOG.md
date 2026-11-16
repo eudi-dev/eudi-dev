@@ -5,6 +5,12 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.11.1] - 2026-11-16
+
+### Changed
+
+- **`--demo` with `--no-builtins`.** A public demo can serve only the content from `--config`. `--demo` then doesn't turn on `--pid`. See [Configuration files](docs/wallet/config-files.md#configured-content-alone).
+
 ## [3.11.0] - 2026-11-15
 
 ### Added

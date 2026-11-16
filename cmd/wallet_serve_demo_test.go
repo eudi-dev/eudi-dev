@@ -144,6 +144,10 @@ func TestDemoModePIDBaselineIsOverridable(t *testing.T) {
 	if disabled.PID {
 		t.Error("explicit --pid=false did not win over the demo default")
 	}
+	_, noBuiltins := resolveServeProfileWithOptions(t, []string{"--port", "0", "--demo", "--no-builtins"})
+	if noBuiltins.PID {
+		t.Error("demo implied the PID baseline under --no-builtins, which has no PID template")
+	}
 	_, plain := resolveServeProfileWithOptions(t, []string{"--port", "0"})
 	if plain.PID {
 		t.Error("plain serve seeded a PID baseline nobody asked for")
