@@ -125,6 +125,7 @@ Input is a file path, a URL, a raw credential string or stdin. `--json` prints o
 | Tool | What it tests | Runs locally | Scriptable |
 |---|---|---|---|
 | **eudi-dev** | your issuer or verifier | yes | CLI and HTTP API |
+| [eudi.tools](https://eudi.tools) | your issuer or verifier, hands-on | no, hosted (state stays in your browser) | no, web UI |
 | [Animo OpenID4VC Playground](https://playground.animo.id/) | your wallet | self-hostable | no, web UI |
 | [EUDIPLO Playground](https://playground.eudi-wallet.org/) | your wallet | self-hostable | no, web UI |
 | [EUDI reference issuer and verifier](https://docs.eudi.dev/latest/test/issuer/) | your wallet | issuer only | no, web UI |
