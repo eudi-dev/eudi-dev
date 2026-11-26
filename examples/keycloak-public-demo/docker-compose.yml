@@ -13,7 +13,7 @@ x-hardening: &hardening
 services:
   keycloak-demo:
     <<: *hardening
-    image: ${KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.8.1}
+    image: ${KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.8.2-3}
     command:
       - start
       - --db=dev-file

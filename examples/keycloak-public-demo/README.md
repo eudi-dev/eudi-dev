@@ -30,7 +30,7 @@ Keys live in `state/`, which `deploy.sh` keeps on the host. All variants share t
 
 | Setting | Default | Purpose |
 | --- | --- | --- |
-| `KEYCLOAK_IMAGE` | `quay.io/keycloak/keycloak:26.8.1` | The image to run |
+| `KEYCLOAK_IMAGE` | `quay.io/keycloak/keycloak:26.8.2-3` | The image to run |
 | `KEYCLOAK_FEATURES` | All features the demo uses | Keycloak refuses to start with an unknown feature, so older versions need a shorter list |
 | `KEYCLOAK_BUILD` | The reported version | The name in the page footer |
 | `KEYCLOAK_BUILD_URL` | None | The build's pull request. The page shows it as a headline link |
