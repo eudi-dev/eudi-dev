@@ -386,3 +386,23 @@ func TestANoBuiltinsWalletServesNoDemoVerifier(t *testing.T) {
 		t.Errorf("GET /verifier: status %d, want 404", got)
 	}
 }
+
+// Section 5.1 of draft-ietf-oauth-status-list makes ttl a positive number of
+// seconds, so the flag accepts whole seconds only.
+func TestValidateStatusListTiming(t *testing.T) {
+	for _, tc := range []struct {
+		ttl, lifetime time.Duration
+		wantErr       string
+	}{
+		{12 * time.Hour, 24 * time.Hour, ""},
+		{48 * time.Hour, 24 * time.Hour, ""},
+		{0, time.Hour, "--status-list-ttl"},
+		{1500 * time.Millisecond, time.Hour, "--status-list-ttl"},
+		{time.Minute, 0, "--status-list-lifetime"},
+	} {
+		err := validateStatusListTiming(tc.ttl, tc.lifetime)
+		if tc.wantErr == "" && err != nil || tc.wantErr != "" && (err == nil || !strings.Contains(err.Error(), tc.wantErr)) {
+			t.Errorf("ttl %s, lifetime %s: error %v, want %q", tc.ttl, tc.lifetime, err, tc.wantErr)
+		}
+	}
+}

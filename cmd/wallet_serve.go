@@ -49,6 +49,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
 	"github.com/eudi-dev/eudi-dev/v3/internal/remote"
 	"github.com/eudi-dev/eudi-dev/v3/internal/serverlog"
+	"github.com/eudi-dev/eudi-dev/v3/internal/statuslist"
 	"github.com/eudi-dev/eudi-dev/v3/internal/storage"
 	"github.com/eudi-dev/eudi-dev/v3/internal/txtemplate"
 	"github.com/eudi-dev/eudi-dev/v3/internal/urlhandler"
@@ -78,6 +79,8 @@ type walletServeOptions struct {
 	Register                 bool
 	NoRegister               bool
 	StatusList               bool
+	StatusListTTL            time.Duration
+	StatusListLifetime       time.Duration
 	BaseURL                  string
 	Docker                   bool
 	PreferredFormat          string
@@ -169,6 +172,8 @@ Every flag can also be set as EUDI_DEV_<FLAG>, such as EUDI_DEV_BASE_URL for --b
 	cmd.Flags().BoolVar(&opts.Register, "register", false, "Register OS URL scheme handlers (openid4vp://, eudi-openid4vp://, haip-vp://, eu-eaap://, openid-credential-offer://, haip-vci://, eu-eaa-offer://)")
 	cmd.Flags().BoolVar(&opts.NoRegister, "no-register", false, "Skip URL scheme registration (overrides --register)")
 	cmd.Flags().BoolVar(&opts.StatusList, "status-list", false, "Embed status list references in generated credentials. Credentials requested from the demo issuer without an offer get one too")
+	cmd.Flags().DurationVar(&opts.StatusListTTL, "status-list-ttl", statuslist.DefaultTTL, "ttl claim of the wallet's status list token: how long a verifier may cache it, in whole seconds such as 300s or 1h")
+	cmd.Flags().DurationVar(&opts.StatusListLifetime, "status-list-lifetime", statuslist.DefaultLifetime, "Time from iat to exp of the wallet's status list token, such as 24h. The wallet signs a fresh token for each request")
 	cmd.Flags().StringVar(&opts.BaseURL, "base-url", "", "Public URL of the wallet, optionally with a path prefix such as https://example.com/eudi. The HTTPS endpoints use the same host")
 	cmd.Flags().BoolVar(&opts.Docker, "docker", false, "Use host.docker.internal instead of localhost for both HTTP and HTTPS wallet endpoint URLs")
 	opts.Conformance = addConformanceFlags(cmd)
@@ -210,6 +215,21 @@ func applyServeEnv(flags *pflag.FlagSet, opts *walletServeOptions) error {
 			return err
 		}
 		flag.Changed = false
+	}
+	return nil
+}
+
+// validateStatusListTiming checks the status list flags. Section 5.1 of
+// draft-ietf-oauth-status-list makes ttl a positive number of seconds.
+func validateStatusListTiming(ttl, lifetime time.Duration) error {
+	if ttl < time.Second || ttl%time.Second != 0 {
+		return fmt.Errorf("--status-list-ttl must be a whole number of seconds and at least 1s, got %s", ttl)
+	}
+	if lifetime <= 0 {
+		return fmt.Errorf("--status-list-lifetime must be positive, got %s", lifetime)
+	}
+	if ttl > lifetime {
+		fmt.Fprintf(os.Stderr, "warning: --status-list-ttl %s is longer than --status-list-lifetime %s, so a cached status list token expires before a verifier fetches a new one\n", ttl, lifetime)
 	}
 	return nil
 }
@@ -489,6 +509,9 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	if opts.ConfigReload < 0 {
 		return fmt.Errorf("--config-reload must not be negative")
 	}
+	if err := validateStatusListTiming(opts.StatusListTTL, opts.StatusListLifetime); err != nil {
+		return err
+	}
 	if opts.ConfigReload > 0 && len(stdinFlags) > 0 {
 		return fmt.Errorf("--config-reload reads the files again, but stdin can be read only once. Pass a file to %s", stdinFlags[0])
 	}
@@ -622,6 +645,8 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 		w.VCIClientID = strings.TrimSpace(opts.VCIClientID)
 	}
 	w.IssuerName = opts.IssuerName
+	w.StatusListTTL = opts.StatusListTTL
+	w.StatusListLifetime = opts.StatusListLifetime
 	if opts.VCIRedirectURI != "" {
 		w.VCIRedirectURI = opts.VCIRedirectURI
 	}

@@ -27,12 +27,13 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 )
 
-// The provider regenerates the list on each request. The expiry ends a cached copy.
-const tokenLifetime = 24 * time.Hour
+// DefaultLifetime is the time from iat to exp. The provider regenerates the
+// list on each request. The expiry ends a cached copy.
+const DefaultLifetime = 24 * time.Hour
 
-// defaultTTL is the ttl claim in seconds. Section 5.1 RECOMMENDS the claim, and
-// its example uses 12 hours.
-const defaultTTL = 43200
+// DefaultTTL is the ttl claim. Section 5.1 RECOMMENDS the claim, and its
+// example uses 12 hours.
+const DefaultTTL = 12 * time.Hour
 
 type StatusListConfig struct {
 	// URI is the status list token URI, used as the "sub" claim. Section 5.1:
@@ -45,8 +46,10 @@ type StatusListConfig struct {
 	// Zero means 1.
 	Bits int
 	// TTL is the caching time-to-live in seconds (RECOMMENDED by Section 5.1).
-	// Defaults to 43200 (12h).
+	// Zero means DefaultTTL.
 	TTL int
+	// Lifetime is the time from iat to exp. Zero means DefaultLifetime.
+	Lifetime time.Duration
 	// CertChain is included as x5c (JWT) or x5chain (CWT) when set.
 	CertChain []*x509.Certificate
 	// IssuedAt overrides the iat claim. The zero value means time.Now().
@@ -62,9 +65,16 @@ func (c StatusListConfig) issuer() string {
 
 func (c StatusListConfig) ttl() int {
 	if c.TTL <= 0 {
-		return defaultTTL
+		return int(DefaultTTL / time.Second)
 	}
 	return c.TTL
+}
+
+func (c StatusListConfig) lifetime() time.Duration {
+	if c.Lifetime <= 0 {
+		return DefaultLifetime
+	}
+	return c.Lifetime
 }
 
 func (c StatusListConfig) issuedAt() time.Time {
@@ -104,7 +114,7 @@ func GenerateStatusListJWT(bitstring []byte, signingKey *ecdsa.PrivateKey, cfg S
 		"sub": cfg.URI,
 		"iss": cfg.issuer(),
 		"iat": now.Unix(),
-		"exp": now.Add(tokenLifetime).Unix(),
+		"exp": now.Add(cfg.lifetime()).Unix(),
 		"ttl": cfg.ttl(),
 		"status_list": map[string]any{
 			"bits": bits,
