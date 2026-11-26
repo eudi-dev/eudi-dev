@@ -2723,8 +2723,8 @@
     });
     const required = fields.filter(f => f.required).map(f => f.name);
     transactionTemplateFieldsHint.textContent = isTS12Type(type)
-      ? 'The payload of this TS12 type' + (required.length ? '. Required: ' + required.join(', ') + '.' : '.')
-      : 'Members next to type.';
+      ? 'Each field goes into the payload.' + (required.length ? ' Required: ' + required.join(', ') + '.' : '')
+      : 'Each field goes into the transaction data at the top level.';
   }
 
   // addRequiredTransactionFields adds a row for each required field of the

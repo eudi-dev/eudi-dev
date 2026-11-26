@@ -979,7 +979,7 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
           <label class="form-checkbox" id="transaction-template-mode-json-label"><input type="radio" name="transaction-template-mode" id="transaction-template-mode-json" value="json"> JSON</label>
         </div>
         <div class="form-grid" id="transaction-template-builder">
-          <label class="form-label" for="transaction-template-type" id="transaction-template-type-label">Type</label>
+          <label class="form-label form-label-top" for="transaction-template-type" id="transaction-template-type-label">Type</label>
           <div class="transaction-template-type" id="transaction-template-type-editor">
             <select id="transaction-template-type" class="form-input"></select>
             <input type="text" id="transaction-template-custom-type" class="form-input" aria-label="Custom type" placeholder="e.g. urn:example:refund" hidden>
@@ -990,10 +990,10 @@ openssl req -new -key verifier.key -subj "/" -out verifier.csr</pre>
           <input type="text" id="transaction-template-credential-ids" class="form-input" placeholder="Optional, comma separated">
           <span class="form-label form-label-top" id="transaction-template-fields-label">Fields</span>
           <div class="claims-editor" id="transaction-template-fields-editor">
-            <p class="form-hint" id="transaction-template-fields-hint"></p>
             <div id="transaction-template-field-rows"></div>
             <datalist id="transaction-template-field-names"></datalist>
             <button type="button" class="btn btn-sm" id="transaction-template-add-field">+ Add field</button>
+            <p class="form-hint" id="transaction-template-fields-hint"></p>
           </div>
         </div>
         <div class="form-grid" id="transaction-template-json-editor" hidden>
