@@ -5,6 +5,12 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`--status-list-ttl` and `--status-list-lifetime`.** `wallet serve` sets the `ttl` claim and the `exp` of its status list token. The defaults stay at 12 hours and 24 hours. Like every flag, they also read `EUDI_DEV_STATUS_LIST_TTL` and `EUDI_DEV_STATUS_LIST_LIFETIME`. See [wallet serve](docs/wallet/serve.md).
+
 ## [3.11.1] - 2026-11-16
 
 ### Changed

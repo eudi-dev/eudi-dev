@@ -90,6 +90,11 @@ type Wallet struct {
 	// NoBuiltins serves only the configured content (--no-builtins). The
 	// wallet has no built-in templates and no demo verifier.
 	NoBuiltins bool `json:"-"`
+	// StatusListTTL and StatusListLifetime set the ttl and exp claims of the
+	// wallet's status list (--status-list-ttl, --status-list-lifetime). Zero
+	// uses the defaults of the statuslist package.
+	StatusListTTL      time.Duration `json:"-"`
+	StatusListLifetime time.Duration `json:"-"`
 	// IssuerName is the display name of the wallet's issuer (--issuer-name).
 	// Empty uses the trade name of the demo issuer.
 	IssuerName string `json:"-"`

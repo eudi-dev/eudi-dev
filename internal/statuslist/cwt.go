@@ -238,7 +238,7 @@ func GenerateStatusListCWT(bitstring []byte, signingKey *ecdsa.PrivateKey, cfg S
 		cwtClaimIssuer:     cfg.issuer(),
 		cwtClaimSubject:    cfg.URI,
 		cwtClaimIssuedAt:   now.Unix(),
-		cwtClaimExpiration: now.Add(tokenLifetime).Unix(),
+		cwtClaimExpiration: now.Add(cfg.lifetime()).Unix(),
 		cwtClaimTTL:        cfg.ttl(),
 		cwtClaimStatusList: map[string]any{
 			"bits": bits,

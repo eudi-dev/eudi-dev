@@ -26,6 +26,9 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/veraison/go-cose"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
@@ -355,5 +358,46 @@ func TestGenerateStatusListJWTEmbedsSigningKeyMatchingX5C(t *testing.T) {
 	}
 	if _, ok := header["x5c"]; !ok {
 		t.Error("x5c must still be present: it is what anchors the key in a trust anchor")
+	}
+}
+
+// Section 5.1 and 5.2: the configured ttl and exp reach both token formats.
+func TestGenerateStatusList_ConfiguredTTLAndLifetime(t *testing.T) {
+	key := generateTestKey(t)
+	issued := time.Unix(1_800_000_000, 0)
+	cfg := StatusListConfig{URI: "https://example.com/statuslists/1", TTL: 300, Lifetime: time.Hour, IssuedAt: issued}
+
+	jwt, err := GenerateStatusListJWT(make([]byte, 16), key, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payloadBytes, err := format.DecodeBase64URL(strings.Split(jwt, ".")[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["ttl"] != float64(300) || payload["exp"] != float64(issued.Add(time.Hour).Unix()) {
+		t.Errorf("JWT ttl = %v, exp = %v, want 300 and iat + 1h", payload["ttl"], payload["exp"])
+	}
+
+	token, err := GenerateStatusListCWT(make([]byte, 16), key, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var msg cose.Sign1Message
+	if err := msg.UnmarshalCBOR(token); err != nil {
+		t.Fatal(err)
+	}
+	var claims map[any]any
+	if err := cwtDecMode.Unmarshal(msg.Payload, &claims); err != nil {
+		t.Fatal(err)
+	}
+	ttl, _ := asInt(cwtClaim(claims, cwtClaimTTL))
+	exp, _ := asInt(cwtClaim(claims, cwtClaimExpiration))
+	if ttl != 300 || int64(exp) != issued.Add(time.Hour).Unix() {
+		t.Errorf("CWT ttl = %d, exp = %d, want 300 and iat + 1h", ttl, exp)
 	}
 }

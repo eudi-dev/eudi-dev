@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
 	"github.com/eudi-dev/eudi-dev/v3/internal/provider"
@@ -254,6 +255,8 @@ func (s *Server) handleStatusList(w http.ResponseWriter, r *http.Request) {
 		URI:       s.wallet.StatusListURL(),
 		Issuer:    s.wallet.StatusListIssuer(),
 		Bits:      bits,
+		TTL:       int(s.wallet.StatusListTTL / time.Second),
+		Lifetime:  s.wallet.StatusListLifetime,
 		CertChain: certChain,
 	}
 

@@ -246,8 +246,8 @@ func TestGenerateStatusListCWT_Structure(t *testing.T) {
 	if cwtClaim(claims, cwtClaimExpiration) == nil {
 		t.Error("claim 4 (expiration time) is recommended and must be set")
 	}
-	if got, _ := asInt(cwtClaim(claims, cwtClaimTTL)); got != defaultTTL {
-		t.Errorf("claim 65534 (time to live) = %d, want %d", got, defaultTTL)
+	if got, _ := asInt(cwtClaim(claims, cwtClaimTTL)); got != 43200 {
+		t.Errorf("claim 65534 (time to live) = %d, want 43200", got)
 	}
 
 	sl, ok := cwtClaim(claims, cwtClaimStatusList).(map[any]any)
