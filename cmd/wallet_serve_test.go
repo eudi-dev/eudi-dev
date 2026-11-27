@@ -388,7 +388,8 @@ func TestANoBuiltinsWalletServesNoDemoVerifier(t *testing.T) {
 }
 
 // Section 5.1 of draft-ietf-oauth-status-list makes ttl a positive number of
-// seconds, so the flag accepts whole seconds only.
+// seconds, and exp is written in whole seconds. Both flags accept whole
+// seconds only.
 func TestValidateStatusListTiming(t *testing.T) {
 	for _, tc := range []struct {
 		ttl, lifetime time.Duration
@@ -399,6 +400,8 @@ func TestValidateStatusListTiming(t *testing.T) {
 		{0, time.Hour, "--status-list-ttl"},
 		{1500 * time.Millisecond, time.Hour, "--status-list-ttl"},
 		{time.Minute, 0, "--status-list-lifetime"},
+		{time.Minute, 90*time.Minute + 500*time.Millisecond, "--status-list-lifetime"},
+		{time.Minute, 500 * time.Millisecond, "--status-list-lifetime"},
 	} {
 		err := validateStatusListTiming(tc.ttl, tc.lifetime)
 		if tc.wantErr == "" && err != nil || tc.wantErr != "" && (err == nil || !strings.Contains(err.Error(), tc.wantErr)) {

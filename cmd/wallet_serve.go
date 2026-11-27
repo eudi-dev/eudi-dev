@@ -173,7 +173,7 @@ Every flag can also be set as EUDI_DEV_<FLAG>, such as EUDI_DEV_BASE_URL for --b
 	cmd.Flags().BoolVar(&opts.NoRegister, "no-register", false, "Skip URL scheme registration (overrides --register)")
 	cmd.Flags().BoolVar(&opts.StatusList, "status-list", false, "Embed status list references in generated credentials. Credentials requested from the demo issuer without an offer get one too")
 	cmd.Flags().DurationVar(&opts.StatusListTTL, "status-list-ttl", statuslist.DefaultTTL, "ttl claim of the wallet's status list token: how long a verifier may cache it, in whole seconds such as 300s or 1h")
-	cmd.Flags().DurationVar(&opts.StatusListLifetime, "status-list-lifetime", statuslist.DefaultLifetime, "Time from iat to exp of the wallet's status list token, such as 24h. The wallet signs a fresh token for each request")
+	cmd.Flags().DurationVar(&opts.StatusListLifetime, "status-list-lifetime", statuslist.DefaultLifetime, "Time from iat to exp of the wallet's status list token, in whole seconds such as 24h. The wallet signs a fresh token for each request")
 	cmd.Flags().StringVar(&opts.BaseURL, "base-url", "", "Public URL of the wallet, optionally with a path prefix such as https://example.com/eudi. The HTTPS endpoints use the same host")
 	cmd.Flags().BoolVar(&opts.Docker, "docker", false, "Use host.docker.internal instead of localhost for both HTTP and HTTPS wallet endpoint URLs")
 	opts.Conformance = addConformanceFlags(cmd)
@@ -220,13 +220,14 @@ func applyServeEnv(flags *pflag.FlagSet, opts *walletServeOptions) error {
 }
 
 // validateStatusListTiming checks the status list flags. Section 5.1 of
-// draft-ietf-oauth-status-list makes ttl a positive number of seconds.
+// draft-ietf-oauth-status-list makes ttl a positive number of seconds. The
+// wallet writes exp in whole seconds, so a fraction of the lifetime would be cut off.
 func validateStatusListTiming(ttl, lifetime time.Duration) error {
 	if ttl < time.Second || ttl%time.Second != 0 {
 		return fmt.Errorf("--status-list-ttl must be a whole number of seconds and at least 1s, got %s", ttl)
 	}
-	if lifetime <= 0 {
-		return fmt.Errorf("--status-list-lifetime must be positive, got %s", lifetime)
+	if lifetime < time.Second || lifetime%time.Second != 0 {
+		return fmt.Errorf("--status-list-lifetime must be a whole number of seconds and at least 1s, got %s", lifetime)
 	}
 	if ttl > lifetime {
 		fmt.Fprintf(os.Stderr, "warning: --status-list-ttl %s is longer than --status-list-lifetime %s, so a cached status list token expires before a verifier fetches a new one\n", ttl, lifetime)
