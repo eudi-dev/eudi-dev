@@ -12,6 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Windows has no XDG desktop entries, and the link test needs a privilege
+// that Windows grants only in developer mode.
+
+//go:build !windows
+
 package urlhandler
 
 import (

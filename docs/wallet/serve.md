@@ -281,7 +281,7 @@ Example discovery response:
 
 The example leaves out the `qeaa`, `pub-eaa`, `access-ca` and `registrar` entries.
 
-`--register` also registers OS URL scheme handlers. `openid4vp://`, `eudi-openid4vp://`, `haip-vp://`, `eu-eaap://`, `openid-credential-offer://`, `haip-vci://` and `eu-eaa-offer://` links then open the wallet on macOS and Linux. On Windows, `--register` is a no-op.
+`--register` also registers OS URL scheme handlers. `openid4vp://`, `eudi-openid4vp://`, `haip-vp://`, `eu-eaap://`, `openid-credential-offer://`, `haip-vci://` and `eu-eaa-offer://` links then open the wallet on macOS, Linux and Windows.
 
 ```bash
 eudi wallet serve

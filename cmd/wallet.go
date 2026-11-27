@@ -397,9 +397,9 @@ func walletRemoveCmd() *cobra.Command {
 func walletRegisterCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "register [wallet-serve-flags...]",
-		Short: "Register the OS URL scheme handlers (macOS and Linux, a no-op elsewhere)",
+		Short: "Register the OS URL scheme handlers (macOS, Linux and Windows)",
 		Long: "Registers this wallet as the handler for the OpenID4VP and OpenID4VCI URL\n" +
-			"schemes on macOS and Linux. On other systems it does nothing.\n" +
+			"schemes on macOS, Linux and Windows. On other systems it does nothing.\n" +
 			"\n" +
 			"The arguments are saved. When you click a link and no wallet server is\n" +
 			"running, the handler starts `wallet serve` with them.\n" +
@@ -489,7 +489,7 @@ func walletUnregisterCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "unregister",
 		Args:  cobra.NoArgs,
-		Short: "Remove the OS URL scheme handlers (macOS and Linux, a no-op elsewhere)",
+		Short: "Remove the OS URL scheme handlers (macOS, Linux and Windows)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			unreg, err := urlhandler.Unregister()
 			if err != nil {
@@ -503,6 +503,9 @@ func walletUnregisterCmd() *cobra.Command {
 				removed := unreg.AppBundle
 				if removed == "" {
 					removed = unreg.DesktopFile
+				}
+				if removed == "" {
+					removed = "the scheme keys in " + unreg.RegistryKey
 				}
 				fmt.Printf("Unregistered URL scheme handlers and removed %s\n", removed)
 			})
@@ -522,6 +525,9 @@ func printRegistration(reg urlhandler.Registration) {
 	}
 	if reg.DesktopFile != "" {
 		fmt.Printf("  Desktop:    %s\n", reg.DesktopFile)
+	}
+	if reg.RegistryKey != "" {
+		fmt.Printf("  Registry:   %s\n", reg.RegistryKey)
 	}
 	fmt.Printf("  Handler:    %s\n", reg.Handler)
 	fmt.Printf("  Binary:     %s\n", reg.Binary)

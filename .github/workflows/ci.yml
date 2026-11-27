@@ -127,6 +127,25 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage-filtered.out
 
+  # The OS integration (registry, console, screen capture) only runs on
+  # Windows itself. The rest of the suite still assumes a Unix system.
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test the OS integration
+        run: |
+          go test ./internal/urlhandler/... ./internal/qr/...
+          go test ./cmd -run "Register|OpenURL"
+
   container:
     runs-on: ubuntu-latest
     steps:
