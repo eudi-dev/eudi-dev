@@ -176,9 +176,9 @@ func TestAnIssuedCredentialReachesTheWaitingDialog(t *testing.T) {
 		t.Errorf("answered dialog changed: %+v", answered.CredentialOptions)
 	}
 	select {
-	case req := <-announced:
-		if req.ID != waiting.ID || !req.Updated {
-			t.Errorf("announced %s, want the waiting dialog", req.ID)
+	case a := <-announced:
+		if a.Request.ID != waiting.ID || !a.Updated {
+			t.Errorf("announced %s, want the update of the waiting dialog", a.Request.ID)
 		}
 	default:
 		t.Error("the update was not announced")

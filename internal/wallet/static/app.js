@@ -1025,8 +1025,11 @@
     const later = results.filter(r => r.pending).length;
     const failed = results.filter(r => r.error).length;
     const added = results.filter(r => r.credential_id && !r.pending && !r.error).length;
+    const discarded = results.filter(r => r.discarded).length;
     if (added === results.length && added > 0) return true;
-    if (later === results.length) {
+    if (discarded > 0 && added + discarded === results.length) {
+      status.textContent = 'The wallet did not keep the credential.';
+    } else if (later === results.length) {
       status.textContent = 'The issuer will deliver the credential later.';
     } else if (failed > 0) {
       status.textContent = 'Added ' + added + ' of ' + results.length + ' formats. See the activity log.';
@@ -3604,6 +3607,14 @@
 
   // An error from an earlier request must not replace an active consent dialog.
   let consentRequestOpen = false;
+  // The Authorization Error Response codes of OpenID4VP 1.0 §8.5.
+  const PRESENTATION_ERROR_CODES = [
+    'access_denied', 'invalid_request', 'invalid_client', 'invalid_scope',
+    'vp_formats_not_supported', 'invalid_request_uri_method', 'invalid_transaction_data', 'wallet_unavailable',
+  ];
+  // The Notification Request events of OpenID4VCI 1.0 §11.1.
+  const NOTIFICATION_EVENTS = ['credential_accepted', 'credential_failure', 'credential_deleted'];
+
   // Ignore late fetch results for dialogs that have been replaced.
   let consentRequestID = null;
   // The submitting handler closes its own dialog after receiving the result. Background
@@ -3991,6 +4002,28 @@
       (req.credential_options.queries || []).length > 0 ? req.credential_options : null;
     const selection = { editing: false, setChoices: [], picks: {}, claims: {}, claimSets: {}, showNonMatching: {}, showClaimSets: {}, unfolded: {} };
     let submitting = false;
+    // The error response the user can send instead of a presentation. The
+    // one-shot error override of POST api/next-error fills it in.
+    const preset = req.next_error || null;
+    const errorChoice = {
+      open: !!preset,
+      code: preset ? (PRESENTATION_ERROR_CODES.includes(preset.error) ? preset.error : '') : 'access_denied',
+      custom: preset && !PRESENTATION_ERROR_CODES.includes(preset.error) ? preset.error : '',
+      description: preset ? preset.error_description || '' : '',
+    };
+    // The event the wallet sends to the issuer's Notification Endpoint
+    // (OpenID4VCI 1.0 §11.1). The one-shot override of
+    // POST api/next-notification or the notification of POST api/offers
+    // fills it in.
+    const presetNotification = req.notification || null;
+    const notificationChoice = {
+      open: !!presetNotification,
+      event: presetNotification ? presetNotification.event : 'credential_failure',
+      description: presetNotification ? presetNotification.event_description || '' : '',
+    };
+    const notificationDiscards = () => notificationChoice.open && notificationChoice.event !== 'credential_accepted';
+    // The edit screen hides the error choice, so Deny then sends no error.
+    const sendsError = () => !isIssuance && !selection.editing && errorChoice.open;
     // An optional set answered only by non-matching credentials starts skipped,
     // because auto-accept skips it too.
     function defaultSetChoices(opts) {
@@ -4728,14 +4761,26 @@
       html = editScreenHtml();
     }
 
+    const offersError = !isIssuance && !selection.editing;
+    if (offersError) html += errorFieldsHtml();
+    if (isIssuance) html += notificationFieldsHtml();
+
     html += '<div class="consent-buttons">' +
-      '<button class="btn btn-danger" id="consent-deny">Deny</button>' +
-      '<button class="btn btn-primary" id="consent-approve">Approve</button>' +
+      (offersError ? errorToggleHtml() : '') +
+      (isIssuance ? notificationToggleHtml() : '') +
+      '<span class="consent-decision">' +
+      '<button class="btn btn-danger" id="consent-deny">' + (sendsError() ? 'Send error' : 'Deny') + '</button>' +
+      '<button class="btn btn-primary" id="consent-approve">' + (notificationDiscards() ? 'Approve and discard' : 'Approve') + '</button>' +
+      '</span>' +
     '</div>';
 
-    // A redraw replaces the focused control. Its replacement takes the focus.
+    // A redraw replaces the focused control. Its replacement takes the focus
+    // and the typed transaction code.
     const focusedID = consentDialog.contains(document.activeElement) ? document.activeElement.id : '';
+    const typedTxCode = document.getElementById('offer-tx-code-input')?.value;
     consentDialog.innerHTML = html;
+    const txCodeInput = document.getElementById('offer-tx-code-input');
+    if (txCodeInput && typedTxCode) txCodeInput.value = typedTxCode;
     const refocus = focusedID && document.getElementById(focusedID);
     if (refocus) refocus.focus();
     hideMoreForShortDescriptions(consentDialog);
@@ -4811,10 +4856,30 @@
       }
     });
 
+    wireErrorChoice();
+    wireNotificationChoice();
+
     document.getElementById('consent-deny').addEventListener('click', async () => {
+      // A deny without a body sends the preset error, so a closed choice
+      // sends an empty object.
+      let denyInit = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' };
+      if (sendsError()) {
+        const code = errorChoice.code || errorChoice.custom.trim();
+        if (!code) {
+          const custom = document.getElementById('consent-error-custom');
+          custom.classList.add('input-error');
+          custom.focus();
+          return;
+        }
+        denyInit = {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ error: code, error_description: errorChoice.description.trim() }),
+        };
+      }
       consentSubmitting = true;
       try {
-        const resp = await fetch(approveURL(req.id, '/deny'), { method: 'POST' });
+        const resp = await fetch(approveURL(req.id, '/deny'), denyInit);
         const result = await resp.json().catch(() => ({}));
         if (!resp.ok) {
           showAPIError('This request could not be denied', result, resp);
@@ -4833,13 +4898,102 @@
     }
 
 
+    // The toggle sits in the button row, so a closed choice costs no height.
+    function errorToggleHtml() {
+      return '<button type="button" class="link-btn consent-error-toggle" id="consent-error-toggle" aria-expanded="' + errorChoice.open + '" aria-controls="consent-error-fields">' +
+        (errorChoice.open ? 'Send no error' : 'Answer with an error') + '</button>';
+    }
+
+    function errorFieldsHtml() {
+      let html = '';
+      if (errorChoice.open) {
+        html += '<div class="consent-error-fields" id="consent-error-fields">' +
+          '<label class="form-label" for="consent-error-code">Error</label>' +
+          '<select class="form-input" id="consent-error-code">' +
+          PRESENTATION_ERROR_CODES.map(code =>
+            '<option value="' + code + '"' + (errorChoice.code === code ? ' selected' : '') + '>' + code + '</option>').join('') +
+          '<option value=""' + (errorChoice.code === '' ? ' selected' : '') + '>Other code</option>' +
+          '</select>';
+        if (errorChoice.code === '') {
+          html += '<label class="form-label" for="consent-error-custom">Code</label>' +
+            '<input class="form-input" id="consent-error-custom" autocomplete="off" spellcheck="false" value="' + escHtml(errorChoice.custom) + '">';
+        }
+        html += '<label class="form-label" for="consent-error-description">Description</label>' +
+          '<input class="form-input" id="consent-error-description" autocomplete="off" placeholder="Optional" value="' + escHtml(errorChoice.description) + '">';
+        const hints = [];
+        if (req.dc_api) hints.push('The Digital Credentials API carries only the error code.');
+        if (preset) hints.push('Set by the error override of POST /api/next-error.');
+        if (hints.length) html += '<p class="form-hint">' + hints.join(' ') + '</p>';
+        html += '</div>';
+      }
+      return html;
+    }
+
+    function notificationToggleHtml() {
+      return '<button type="button" class="link-btn consent-error-toggle" id="consent-notification-toggle" aria-expanded="' + notificationChoice.open + '" aria-controls="consent-notification-fields">' +
+        (notificationChoice.open ? 'Send credential_accepted' : 'Choose the notification') + '</button>';
+    }
+
+    function notificationFieldsHtml() {
+      if (!notificationChoice.open) return '';
+      const endpoint = req.offer_details && req.offer_details.notification_endpoint;
+      let html = '<div class="consent-error-fields" id="consent-notification-fields">' +
+        '<label class="form-label" for="consent-notification-event">Tell the issuer</label>' +
+        '<select class="form-input" id="consent-notification-event">' +
+        NOTIFICATION_EVENTS.map(event =>
+          '<option value="' + event + '"' + (notificationChoice.event === event ? ' selected' : '') + '>' + event + '</option>').join('') +
+        '</select>' +
+        '<label class="form-label" for="consent-notification-description">Description</label>' +
+        '<input class="form-input" id="consent-notification-description" autocomplete="off" placeholder="Optional" value="' + escHtml(notificationChoice.description) + '">';
+      const hints = [];
+      if (notificationDiscards()) hints.push('The wallet receives the credential and does not keep it.');
+      if (!endpoint) hints.push('This issuer has no Notification Endpoint, so the wallet sends nothing.');
+      if (presetNotification) hints.push('Set by the notification override or the API call.');
+      if (hints.length) html += '<p class="form-hint">' + hints.join(' ') + '</p>';
+      return html + '</div>';
+    }
+
+    function wireNotificationChoice() {
+      const toggle = document.getElementById('consent-notification-toggle');
+      if (!toggle) return;
+      toggle.addEventListener('click', () => { notificationChoice.open = !notificationChoice.open; renderDialog(); });
+      const event = document.getElementById('consent-notification-event');
+      if (event) event.addEventListener('change', () => { notificationChoice.event = event.value; renderDialog(); });
+      const description = document.getElementById('consent-notification-description');
+      if (description) description.addEventListener('input', () => { notificationChoice.description = description.value; });
+    }
+
+    function wireErrorChoice() {
+      const toggle = document.getElementById('consent-error-toggle');
+      if (!toggle) return;
+      toggle.addEventListener('click', () => { errorChoice.open = !errorChoice.open; renderDialog(); });
+      const code = document.getElementById('consent-error-code');
+      if (code) code.addEventListener('change', () => { errorChoice.code = code.value; renderDialog(); });
+      const custom = document.getElementById('consent-error-custom');
+      if (custom) custom.addEventListener('input', () => {
+        errorChoice.custom = custom.value;
+        custom.classList.remove('input-error');
+      });
+      const description = document.getElementById('consent-error-description');
+      if (description) description.addEventListener('input', () => { errorChoice.description = description.value; });
+    }
+
     // approveRequestBody is the body of POST api/requests/{id}/approve with the
     // dialog's choices. With alternatives the dialog has no claim checkboxes,
     // so the body uses the tracked selection.
     function approveRequestBody() {
       if (isIssuance) {
         const txCodeInput = document.getElementById('offer-tx-code-input');
-        return txCodeInput ? { tx_code: txCodeInput.value.trim() } : {};
+        const body = txCodeInput ? { tx_code: txCodeInput.value.trim() } : {};
+        if (notificationChoice.open) {
+          body.notification = { event: notificationChoice.event };
+          const description = notificationChoice.description.trim();
+          if (description) body.notification.event_description = description;
+        } else if (presetNotification) {
+          // An approval without a notification sends the preset.
+          body.notification = { event: 'credential_accepted' };
+        }
+        return body;
       }
       const selected = {};
       if (options) {
@@ -5334,11 +5488,15 @@
     }
   }
 
+  // A refresh rebuilds the menus, so the copy result is kept by menu.
+  const trustListCopyResults = new Map();
+
   function trustListMenu(prefix, url, source, extra = []) {
     const menu = document.createElement('details');
     menu.className = 'trust-list-menu';
     menu.id = prefix + '-menu';
     menu.innerHTML = '<summary class="btn btn-sm" id="' + prefix + '-menu-toggle" data-testid="trust-list-menu">Actions</summary><div class="trust-list-menu-items" id="' + prefix + '-menu-items"></div>';
+    menu.firstElementChild.textContent = trustListCopyResults.get(prefix) || 'Actions';
     // The menu of the last row opens below the scrolled part of the dialog.
     menu.addEventListener('toggle', () => {
       if (menu.open) menu.lastElementChild.scrollIntoView({ block: 'nearest' });
@@ -5356,14 +5514,22 @@
       menu.lastElementChild.appendChild(item);
     };
     addMenuItem('Copy URL', 'copy', async () => {
-      const toggle = menu.firstElementChild;
+      const show = (text) => {
+        const toggle = document.getElementById(prefix + '-menu-toggle');
+        if (toggle) toggle.textContent = text;
+      };
+      let result = 'Copied!';
       try {
         await navigator.clipboard.writeText(url);
-        toggle.textContent = 'Copied!';
       } catch (e) {
-        toggle.textContent = 'Copy failed';
+        result = 'Copy failed';
       }
-      setTimeout(() => { toggle.textContent = 'Actions'; }, 2000);
+      trustListCopyResults.set(prefix, result);
+      show(result);
+      setTimeout(() => {
+        trustListCopyResults.delete(prefix);
+        show('Actions');
+      }, 2000);
     });
     addMenuItem('Open in decoder', 'decode', () => openListInDecoder(source));
     extra.forEach(([label, id, run]) => addMenuItem(label, id, run));

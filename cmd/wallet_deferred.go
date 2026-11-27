@@ -109,6 +109,8 @@ deferred credential. The next automatic attempt then comes one interval later.`,
 					continue
 				}
 				switch {
+				case result["discarded"] == true:
+					fmt.Printf("Collected deferred issuance %s and did not keep the credential\n", id)
 				case result["collected"] == true:
 					fmt.Printf("Collected %v credential (ID: %v)\n", result["format"], result["credential_id"])
 				case result["abandoned"] == true:

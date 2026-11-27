@@ -115,6 +115,9 @@ type DemoRP struct {
 	// deferred holds accepted issuances that are not delivered yet, keyed by
 	// the transaction id. The wallet polls with that id.
 	deferred map[string]*deferredTicket
+	// notifications holds the issued notification ids with the events the
+	// wallet reported for them.
+	notifications map[string]*issuedNotification
 	// templateWarning is the last logged template read failure.
 	templateWarning string
 	// deferredDelay is how long a deferred issuance stays pending.
@@ -139,6 +142,7 @@ func New(w *wallet.Wallet, baseURL func() string) *DemoRP {
 		delegateKey:          mustGenerateKey(),
 		seenJTIs:             make(map[string]time.Time),
 		deferred:             make(map[string]*deferredTicket),
+		notifications:        make(map[string]*issuedNotification),
 		deferredDelay:        deferredReadyDelay,
 	}
 }
@@ -213,6 +217,11 @@ func (d *DemoRP) pruneLocked() {
 	for txID, t := range d.deferred {
 		if now.After(t.expires) {
 			delete(d.deferred, txID)
+		}
+	}
+	for id, n := range d.notifications {
+		if now.After(n.expires) {
+			delete(d.notifications, id)
 		}
 	}
 	for id, r := range d.requests {

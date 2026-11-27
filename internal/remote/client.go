@@ -32,6 +32,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
 	"github.com/eudi-dev/eudi-dev/v3/internal/config"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 )
 
 type Client struct {
@@ -422,13 +423,17 @@ func (c *Client) Present(uri string, interactive bool, sessionTranscript string)
 
 // AcceptOffer sends a credential offer URI to the remote wallet. A
 // pre-authorized grant with a transaction code needs txCode. An empty txCode
-// is omitted so the wallet keeps its stored code. With interactive
+// is omitted so the wallet keeps its stored code. notification picks the
+// event for the issuer, and nil leaves it to the wallet. With interactive
 // set, the wallet shows its consent dialog.
-func (c *Client) AcceptOffer(uri, txCode string, interactive bool) (map[string]any, error) {
+func (c *Client) AcceptOffer(uri, txCode string, notification *oid4vc.Notification, interactive bool) (map[string]any, error) {
 	var out map[string]any
 	body := map[string]any{"uri": uri}
 	if txCode != "" {
 		body["tx_code"] = txCode
+	}
+	if notification != nil {
+		body["notification"] = notification
 	}
 	// Issuance requests can outlast an ordinary API call.
 	timeout := config.SlowRequestTimeout

@@ -130,7 +130,7 @@ sequenceDiagram
 | `grants.authorization_code.issuer_state` | Forwarded into the PAR request when present. |
 | `token_endpoint_auth_methods_supported` | The wallet supports `none`, `private_key_jwt`, `attest_jwt_client_auth` and `attest_jwt_client_auth_dpop`. `client_secret_*` methods are rejected, since the wallet holds no client secret. |
 | `transaction_id` + `deferred_credential_endpoint` | The wallet takes this branch after a deferred credential response. |
-| `notification_id` + `notification_endpoint` | When both are present, the wallet sends a notification after a successful import. |
+| `notification_id` + `notification_endpoint` | When both are present, the wallet sends a notification after it receives the credential. The event is `credential_accepted` unless the user chose another one. |
 
 ## Interactive Authorization (OpenID4VCI 1.1)
 

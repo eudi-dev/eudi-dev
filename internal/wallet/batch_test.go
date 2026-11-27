@@ -67,11 +67,11 @@ func storeTestBatch(t *testing.T, w *Wallet, keys []*ecdsa.PrivateKey) {
 // returns the primary credential.
 func storeTestResponse(t *testing.T, w *Wallet, keys []*ecdsa.PrivateKey, credResp map[string]any) *StoredCredential {
 	t.Helper()
-	primary, _, err := w.storeIssuedCredential(credResp, credentialDelivery{proofKeys: keys, report: ignoreFindings})
+	delivered, err := w.storeIssuedCredential(credResp, credentialDelivery{proofKeys: keys, report: ignoreFindings})
 	if err != nil {
 		t.Fatalf("storing the credential response: %v", err)
 	}
-	return primary
+	return delivered.stored
 }
 
 // renewTestCredential stores a credential response as the renewal of id.
@@ -81,11 +81,11 @@ func renewTestCredential(t *testing.T, w *Wallet, id string, keys []*ecdsa.Priva
 	for _, raw := range raws {
 		entries = append(entries, map[string]any{"credential": raw})
 	}
-	renewed, _, err := w.storeIssuedCredential(map[string]any{"credentials": entries}, credentialDelivery{proofKeys: keys, replaceID: id, report: ignoreFindings})
+	delivered, err := w.storeIssuedCredential(map[string]any{"credentials": entries}, credentialDelivery{proofKeys: keys, replaceID: id, report: ignoreFindings})
 	if err != nil {
 		t.Fatalf("renewing %s: %v", id, err)
 	}
-	return renewed
+	return delivered.stored
 }
 
 // OpenID4VCI 1.0 §12.2.4: display in the issuer metadata names the issuer.
@@ -118,7 +118,7 @@ func TestIssuedCredentialsKeepTheIssuerName(t *testing.T) {
 	}
 	store := func(replaceID, name string) *StoredCredential {
 		t.Helper()
-		primary, _, err := w.storeIssuedCredential(map[string]any{"credentials": raws}, credentialDelivery{
+		delivered, err := w.storeIssuedCredential(map[string]any{"credentials": raws}, credentialDelivery{
 			metadata:  named(name),
 			proofKeys: keys,
 			replaceID: replaceID,
@@ -127,7 +127,7 @@ func TestIssuedCredentialsKeepTheIssuerName(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return primary
+		return delivered.stored
 	}
 
 	primary := store("", "First Name")

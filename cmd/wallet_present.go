@@ -44,6 +44,9 @@ type dispatchOID4Opts struct {
 	autoAccept        bool
 	sessionTranscript string
 	txCode            string
+	// notification is the event for the issuer's Notification Endpoint, or
+	// nil for the wallet's own choice.
+	notification *oid4vc.Notification
 	// conformance is what the conformance flags set. conformanceFlags lists
 	// the flags set on the command line. A running wallet refuses the ones
 	// that differ from its own settings.
@@ -285,7 +288,7 @@ func processCredentialOffer(uri string, opts dispatchOID4Opts) error {
 	}
 	opts.conformance.apply(w)
 
-	result, err := w.ProcessCredentialOfferWithOptions(uri, wallet.OfferOptions{TxCode: opts.txCode, ResolvedOffer: opts.resolvedOffer})
+	result, err := w.ProcessCredentialOfferWithOptions(uri, wallet.OfferOptions{TxCode: opts.txCode, ResolvedOffer: opts.resolvedOffer, Notification: opts.notification})
 	if err != nil {
 		return fmt.Errorf("processing credential offer: %w", err)
 	}
@@ -311,6 +314,8 @@ func printIssuanceResult(result *wallet.IssuanceResult, server string) {
 		} else {
 			fmt.Fprintln(humanOut(), "Run 'eudi wallet serve' and accept the offer there to have the wallet collect it in the background.")
 		}
+	} else if result.Discarded {
+		fmt.Fprintf(humanOut(), "Received a credential from %s and did not keep it\n", result.Issuer)
 	} else {
 		fmt.Fprintf(humanOut(), "Received %s credential from %s (ID: %s)\n", result.Format, result.Issuer, result.CredentialID)
 		if result.VerificationDetail != "" {
@@ -320,6 +325,9 @@ func printIssuanceResult(result *wallet.IssuanceResult, server string) {
 			}
 			fmt.Fprintln(humanOut())
 		}
+	}
+	if result.Notification != nil {
+		fmt.Fprintf(humanOut(), "Notified the issuer: %s\n", result.Notification.Event)
 	}
 	if jsonOutput {
 		output.PrintJSON(result)

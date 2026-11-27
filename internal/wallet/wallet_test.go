@@ -446,8 +446,8 @@ func TestSubscribe(t *testing.T) {
 
 	select {
 	case received := <-ch:
-		if received.ID != "test-req" {
-			t.Errorf("expected request ID test-req, got %s", received.ID)
+		if received.Request.ID != "test-req" {
+			t.Errorf("expected request ID test-req, got %s", received.Request.ID)
 		}
 	case <-time.After(time.Second):
 		t.Fatal("timeout waiting for subscriber notification")

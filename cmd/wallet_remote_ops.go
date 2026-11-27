@@ -25,6 +25,7 @@ import (
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/config"
 	"github.com/eudi-dev/eudi-dev/v3/internal/credtype"
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc/scheme"
 	"github.com/eudi-dev/eudi-dev/v3/internal/output"
 	"github.com/eudi-dev/eudi-dev/v3/internal/remote"
@@ -348,7 +349,7 @@ func printCredentialDoc(cred map[string]any, decoded bool) error {
 	return nil
 }
 
-func remoteAccept(c *remote.Client, uri, txCode, sessionTranscript string, interactive bool) error {
+func remoteAccept(c *remote.Client, uri, txCode string, notification *oid4vc.Notification, sessionTranscript string, interactive bool) error {
 	isVCI := isCredentialOfferURI(uri)
 	if interactive {
 		enlistBrowser(c)
@@ -356,7 +357,7 @@ func remoteAccept(c *remote.Client, uri, txCode, sessionTranscript string, inter
 	var result map[string]any
 	var err error
 	if isVCI {
-		result, err = c.AcceptOffer(uri, txCode, interactive)
+		result, err = c.AcceptOffer(uri, txCode, notification, interactive)
 	} else {
 		result, err = c.Present(uri, interactive, sessionTranscript)
 	}

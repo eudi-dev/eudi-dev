@@ -143,6 +143,9 @@ type offerSettings struct {
 	// also to a wallet that asked without authorization_details, as Keycloak
 	// does. OpenID4VCI 1.0 §6.2 lets the Authorization Server return them.
 	alwaysIdentifiers bool
+	// offerID names the offer on the issuer page. A sign-in that started
+	// without an offer leaves it empty.
+	offerID string
 }
 
 // IssuerHandler returns the demo issuer. Mount it with the /issuer prefix
@@ -154,6 +157,7 @@ func (d *DemoRP) IssuerHandler() http.Handler {
 	mux.HandleFunc("POST /token", d.handleToken)
 	mux.HandleFunc("POST /credential", d.handleCredential)
 	mux.HandleFunc("POST /deferred_credential", d.handleDeferredCredential)
+	mux.HandleFunc("POST /notification", d.handleNotification)
 	mux.HandleFunc("GET /.well-known/openid-credential-issuer", d.handleIssuerMetadata)
 	mux.HandleFunc("GET /logo.svg", d.handleLogo)
 	mux.HandleFunc("GET /templates/{id}/{field}", d.handleTemplateImage)
@@ -176,6 +180,7 @@ func (d *DemoRP) IssuerHandler() http.Handler {
 	page.HandleFunc("GET /link-qr.js", d.serveStatic("static/link-qr.js"))
 	page.HandleFunc("GET /link-qr.css", d.serveStatic("static/link-qr.css"))
 	page.HandleFunc("POST /api/offers", d.handleCreateOffer)
+	page.HandleFunc("GET /api/offers/{id}/notifications", d.handleOfferNotifications)
 	page.Handle("/", mux)
 	// GuardAPI covers only the page's calls to /api/. Wallets on other
 	// origins call the protocol endpoints.
@@ -280,6 +285,7 @@ func (d *DemoRP) handleIssuerMetadata(w http.ResponseWriter, r *http.Request) {
 		"credential_issuer":            issuer,
 		"credential_endpoint":          issuer + "/credential",
 		"deferred_credential_endpoint": issuer + "/deferred_credential",
+		"notification_endpoint":        issuer + "/notification",
 		// Wallets read client authentication, PAR and DPoP metadata from the
 		// authorization server, so the issuer lists itself.
 		"authorization_servers": []string{issuer},
@@ -384,8 +390,9 @@ func (d *DemoRP) handleCreateOffer(w http.ResponseWriter, r *http.Request) {
 	d.mu.Lock()
 	d.pruneLocked()
 	makeRoom(d.offers, func(o *offerState) time.Time { return o.expires })
+	id := randToken()
 	offer := &offerState{
-		id: randToken(),
+		id: id,
 		offerSettings: offerSettings{
 			configIDs:         configIDs,
 			withStatus:        withStatus,
@@ -395,6 +402,7 @@ func (d *DemoRP) handleCreateOffer(w http.ResponseWriter, r *http.Request) {
 			issuer:            identity,
 			identityCheck:     check,
 			alwaysIdentifiers: r.URL.Query().Get("credential_identifiers") == "always",
+			offerID:           id,
 		},
 		expires: time.Now().Add(entryTTL),
 	}
@@ -889,7 +897,10 @@ func (d *DemoRP) handleCredential(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, oauthError("server_error", signErr.Error()))
 		return
 	}
-	writeCredentialResponse(w, http.StatusOK, map[string]any{"credentials": credentials}, encryption)
+	writeCredentialResponse(w, http.StatusOK, map[string]any{
+		"credentials":     credentials,
+		"notification_id": d.newNotificationID(token, granted),
+	}, encryption)
 }
 
 // signBatch signs one credential per holder key (issuedKeys).

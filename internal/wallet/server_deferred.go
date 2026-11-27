@@ -36,6 +36,9 @@ func (s *Server) handleCollectDeferred(w http.ResponseWriter, r *http.Request) {
 		"pending":   attempt.Pending,
 		"abandoned": attempt.Abandoned,
 	}
+	if attempt.Discarded {
+		out["discarded"] = true
+	}
 	if attempt.Credential != nil {
 		out["credential_id"] = attempt.Credential.ID
 		out["format"] = attempt.Credential.Format

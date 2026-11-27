@@ -209,7 +209,7 @@ func demoBlockedRoute(r *http.Request) bool {
 	switch {
 	case r.Method == http.MethodPost && p == "/api/shutdown":
 		return true
-	case (r.Method == http.MethodPost || r.Method == http.MethodDelete) && p == "/api/next-error":
+	case (r.Method == http.MethodPost || r.Method == http.MethodDelete) && (p == "/api/next-error" || p == "/api/next-notification"):
 		return true
 	case (r.Method == http.MethodPut || r.Method == http.MethodDelete) && p == "/api/crl/fault":
 		return true

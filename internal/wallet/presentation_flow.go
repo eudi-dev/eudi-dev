@@ -55,6 +55,9 @@ type presentationOutcome struct {
 	refusal *presentationRefusal
 	matches []consent.Match
 	options *consent.CredentialOptions
+	// nextError is the one-shot error override. The consent dialog offers it.
+	nextError        *consent.NextErrorOverride
+	restoreNextError func()
 }
 
 // presentationRefusal is an error the wallet sends to the verifier. status
@@ -103,16 +106,19 @@ func (w *Wallet) evaluatePresentationRequest(authReq *oid4vp.Request, entry pres
 		w.reportRefusal(entry.action, "response_encryption_unavailable", entry.owner, "The response cannot be encrypted", subjectRequest, "", err)
 		return presentationOutcome{invalid: err, invalidCode: oid4vp.ErrorInvalidRequest}
 	}
-	// The override answers only a valid request.
-	if override := w.Consents().ConsumeNextError(); override != nil {
-		w.AddLog(entry.action, fmt.Sprintf("Returned error override: %s", override.Error), false)
-		return presentationOutcome{refusal: &presentationRefusal{status: "error", code: override.Error, description: override.ErrorDescription}}
+	// The override answers only a valid request. With a person deciding, the
+	// consent dialog offers it instead.
+	if !entry.interactive {
+		if override, _ := w.Consents().ConsumeNextError(entry.owner); override != nil {
+			w.AddLog(entry.action, fmt.Sprintf("Returned error override: %s", override.Error), false)
+			return presentationOutcome{refusal: &presentationRefusal{status: "error", code: override.Error, description: override.ErrorDescription}}
+		}
 	}
 
 	authReq.Findings = list
 
 	if !oid4vp.ResponseTypeRequiresVP(authReq.ResponseType) {
-		return presentationOutcome{}
+		return w.withNextError(presentationOutcome{}, entry)
 	}
 	// OID4VP 1.0 §5.5 leaves the scope values to the Wallet, and this wallet
 	// defines none. §8.5 answers an unknown one with invalid_scope.
@@ -138,19 +144,35 @@ func (w *Wallet) evaluatePresentationRequest(authReq *oid4vp.Request, entry pres
 		code, description := unsatisfiableQueryError(authReq.DCQLQuery)
 		return presentationOutcome{refusal: &presentationRefusal{status: "no_match", code: code, description: description}}
 	}
+	return w.withNextError(outcome, entry)
+}
+
+// withNextError hands the one-shot error override to the consent dialog of
+// an interactive request. A request that ends without a dialog leaves the
+// override for the next dialog.
+func (w *Wallet) withNextError(outcome presentationOutcome, entry presentationEntry) presentationOutcome {
+	if entry.interactive {
+		outcome.nextError, outcome.restoreNextError = w.Consents().ConsumeNextError(entry.owner)
+	}
 	return outcome
 }
 
+// deniedPresentation is the error response for a denial without a chosen
+// error (OpenID4VP 1.0 §8.5).
+var deniedPresentation = consent.NextErrorOverride{Error: oid4vp.ErrorAccessDenied, ErrorDescription: "User denied presentation"}
+
 // askPresentationConsent shows the consent dialog and waits for the
-// decision. answered is false after the timeout or when ctx ends. The caller
-// reports the submission on the request's SubmissionCh. An error means the
-// dialog was not shown, because too many requests wait for consent.
-func (w *Wallet) askPresentationConsent(ctx context.Context, typ, owner, asking string, authReq *oid4vp.Request, outcome presentationOutcome, timeout time.Duration, shown func(*consent.Request)) (consentReq *consent.Request, matches []consent.Match, approved, answered bool, err error) {
+// decision. denial is the error response for a denied presentation and nil
+// for an approved one. answered is false after the timeout or when ctx ends.
+// The caller reports the submission on the request's SubmissionCh. An error
+// means the dialog was not shown, because too many requests wait for consent.
+func (w *Wallet) askPresentationConsent(ctx context.Context, typ, owner, asking string, authReq *oid4vp.Request, outcome presentationOutcome, timeout time.Duration, shown func(*consent.Request)) (consentReq *consent.Request, matches []consent.Match, denial *consent.NextErrorOverride, answered bool, err error) {
 	w.flagRevokedCertificates(outcome.matches, outcome.options)
 	if offersIssuance(authReq) {
 		w.flagObtainableCredentials(authReq.DCQLQuery, outcome.options)
 	}
 	consentReq = newPresentationConsent(typ, owner, asking, authReq, outcome.matches, outcome.options)
+	consentReq.NextError = outcome.nextError
 	for _, entry := range w.transactionData(authReq) {
 		shown := consent.TransactionData{Type: entry.Type, CredentialIDs: entry.CredentialIDs, Data: entry.Data}
 		if w.Conformance().Delegates() && w.canDelegate(entry, consentReq.MatchedCreds) {
@@ -161,18 +183,28 @@ func (w *Wallet) askPresentationConsent(ctx context.Context, typ, owner, asking 
 		consentReq.TransactionData = append(consentReq.TransactionData, shown)
 	}
 	if err := w.Consents().Create(consentReq); err != nil {
-		return nil, nil, false, false, err
+		if outcome.restoreNextError != nil {
+			outcome.restoreNextError()
+		}
+		return nil, nil, nil, false, err
 	}
 	if shown != nil {
 		shown(consentReq)
 	}
 	result, answered := w.awaitConsent(ctx, consentReq, timeout)
-	if !answered || !result.Approved {
-		return consentReq, nil, false, answered, nil
+	if !answered {
+		return consentReq, nil, nil, false, nil
+	}
+	if !result.Approved {
+		if result.Error != nil {
+			return consentReq, nil, result.Error, true, nil
+		}
+		denied := deniedPresentation
+		return consentReq, nil, &denied, true, nil
 	}
 	// The answers can change while the dialog is open, so they come from the
 	// request.
-	return consentReq, w.consentedMatches(consentReq, consentReq.MatchedCreds, result), true, true, nil
+	return consentReq, w.consentedMatches(consentReq, consentReq.MatchedCreds, result), nil, true, nil
 }
 
 // preparePresentation creates the vp_token and the requested id_token.

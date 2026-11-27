@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"testing"
 	"time"
+
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 )
 
 func TestRuntime_NotifyError(t *testing.T) {
@@ -94,28 +96,127 @@ func TestRuntime_ForgetError(t *testing.T) {
 	}
 }
 
-func TestRuntime_SetAndConsumeNextError(t *testing.T) {
+func TestAnOverrideIsTakenOnce(t *testing.T) {
 	rt := NewRuntime()
+	rt.SetNextError(nil, &NextErrorOverride{Error: "test_error", ErrorDescription: "desc"})
 
-	if e := rt.ConsumeNextError(); e != nil {
-		t.Error("expected nil")
+	if e, _ := rt.ConsumeNextError(""); e == nil || e.Error != "test_error" || e.ErrorDescription != "desc" {
+		t.Fatalf("override = %+v, want test_error with its description", e)
+	}
+	if e, _ := rt.ConsumeNextError(""); e != nil {
+		t.Errorf("second take = %+v, want none", e)
+	}
+}
+
+// ADR-0011: visitors of a shared wallet keep their overrides apart. A caller
+// without a browser, such as CI, sets the override for the next flow of any
+// caller.
+func TestAnOverrideGoesToTheOwnerThatSetIt(t *testing.T) {
+	rt := NewRuntime()
+	rt.SetNextNotification([]string{"alice"}, &oid4vc.Notification{Event: oid4vc.NotificationFailure})
+
+	if n, _ := rt.ConsumeNextNotification("bob"); n != nil {
+		t.Fatalf("bob took %+v, want none", n)
+	}
+	if n, _ := rt.ConsumeNextNotification(""); n != nil {
+		t.Fatalf("a flow without an owner took %+v, want none", n)
+	}
+	if n, _ := rt.ConsumeNextNotification("alice"); n == nil {
+		t.Fatal("alice took nothing, want her override")
 	}
 
-	rt.SetNextError(&NextErrorOverride{Error: "test_error", ErrorDescription: "desc"})
+	rt.SetNextError(nil, &NextErrorOverride{Error: "unowned"})
+	rt.SetNextError([]string{"alice"}, &NextErrorOverride{Error: "alice"})
+	if e, _ := rt.ConsumeNextError("alice"); e == nil || e.Error != "alice" {
+		t.Fatalf("alice took %+v, want her own override first", e)
+	}
+	if e, _ := rt.ConsumeNextError("bob"); e == nil || e.Error != "unowned" {
+		t.Fatalf("bob took %+v, want the override without an owner", e)
+	}
+}
 
-	e := rt.ConsumeNextError()
-	if e == nil {
-		t.Fatal("expected error")
+// A page opened by the CLI has the browser's cookie and the CLI's owner. A
+// flow of either takes the override once.
+func TestAnOverrideOfTwoOwnersIsTakenOnce(t *testing.T) {
+	rt := NewRuntime()
+	rt.SetNextError([]string{"cookie", "cli"}, &NextErrorOverride{Error: "both"})
+
+	if e, _ := rt.ConsumeNextError("cli"); e == nil || e.Error != "both" {
+		t.Fatalf("cli flow took %+v, want the override", e)
 	}
-	if e.Error != "test_error" {
-		t.Errorf("wrong error: %s", e.Error)
+	if e, _ := rt.ConsumeNextError("cookie"); e != nil {
+		t.Errorf("cookie flow took %+v after the cli flow, want none", e)
 	}
-	if e.ErrorDescription != "desc" {
-		t.Errorf("wrong description: %s", e.ErrorDescription)
+}
+
+func TestClearingRemovesOnlyTheCallersOverride(t *testing.T) {
+	rt := NewRuntime()
+	rt.SetNextError(nil, &NextErrorOverride{Error: "unowned"})
+	rt.SetNextError([]string{"alice"}, &NextErrorOverride{Error: "alice"})
+	rt.SetNextError([]string{"bob"}, nil)
+	rt.SetNextError([]string{"alice"}, nil)
+
+	if e, _ := rt.ConsumeNextError("alice"); e == nil || e.Error != "unowned" {
+		t.Fatalf("alice took %+v after clearing, want the override without an owner", e)
+	}
+}
+
+func TestAnUnusedOwnedOverrideExpires(t *testing.T) {
+	o := make(overrides[NextErrorOverride])
+	start := time.Now()
+	o.set([]string{"alice"}, &NextErrorOverride{Error: "alice"}, start)
+	o.set(nil, &NextErrorOverride{Error: "unowned"}, start)
+
+	later := start.Add(lastErrorRetention + time.Second)
+	if stored := o.take("alice", later); stored == nil || stored.value.Error != "unowned" {
+		t.Fatalf("alice took %+v later, want the override without an owner", stored)
+	}
+}
+
+func TestARestoreKeepsANewerOverride(t *testing.T) {
+	rt := NewRuntime()
+	rt.SetNextError([]string{"alice"}, &NextErrorOverride{Error: "old"})
+	_, restore := rt.ConsumeNextError("alice")
+	rt.SetNextError([]string{"alice"}, &NextErrorOverride{Error: "new"})
+	restore()
+
+	if e, _ := rt.ConsumeNextError("alice"); e == nil || e.Error != "new" {
+		t.Fatalf("alice took %+v, want the newer override", e)
+	}
+	if e, _ := rt.ConsumeNextError("alice"); e != nil {
+		t.Errorf("alice took %+v after that, want none", e)
 	}
 
-	if e2 := rt.ConsumeNextError(); e2 != nil {
-		t.Error("expected nil after consume")
+	_, restore = rt.ConsumeNextError("alice")
+	rt.SetNextError(nil, &NextErrorOverride{Error: "unowned"})
+	restore()
+	if e, _ := rt.ConsumeNextError("bob"); e == nil || e.Error != "unowned" {
+		t.Fatalf("bob took %+v, want the override without an owner kept", e)
+	}
+}
+
+func TestARestoredOverrideIsTakenAgain(t *testing.T) {
+	rt := NewRuntime()
+	rt.SetNextError([]string{"alice"}, &NextErrorOverride{Error: "alice"})
+	_, restore := rt.ConsumeNextError("alice")
+	restore()
+
+	if e, _ := rt.ConsumeNextError("alice"); e == nil || e.Error != "alice" {
+		t.Fatalf("alice took %+v, want the restored override", e)
+	}
+}
+
+func TestManyOwnersKeepTheOverrideWithoutAnOwner(t *testing.T) {
+	rt := NewRuntime()
+	rt.SetNextError(nil, &NextErrorOverride{Error: "unowned"})
+	for i := range maxStoredErrors + 5 {
+		rt.SetNextError([]string{fmt.Sprintf("visitor-%d", i), fmt.Sprintf("cli-%d", i)}, &NextErrorOverride{Error: "visitor"})
+	}
+	if len(rt.nextErrors) > maxStoredErrors {
+		t.Errorf("%d overrides stored, want at most %d", len(rt.nextErrors), maxStoredErrors)
+	}
+	if e, _ := rt.ConsumeNextError(""); e == nil || e.Error != "unowned" {
+		t.Errorf("override without an owner = %+v, want it kept", e)
 	}
 }
 
@@ -182,8 +283,8 @@ func TestRuntime_Subscribe(t *testing.T) {
 
 	select {
 	case received := <-ch:
-		if received.ID != "sub-test" {
-			t.Errorf("wrong ID: %s", received.ID)
+		if received.Request.ID != "sub-test" {
+			t.Errorf("wrong ID: %s", received.Request.ID)
 		}
 	case <-time.After(time.Second):
 		t.Fatal("timeout waiting for subscription notification")
@@ -200,7 +301,7 @@ func TestRuntime_Subscribe_Unsubscribe(t *testing.T) {
 
 	select {
 	case got := <-ch:
-		t.Fatalf("received request %s after unsubscribing", got.ID)
+		t.Fatalf("received request %s after unsubscribing", got.Request.ID)
 	default:
 	}
 }
@@ -298,5 +399,25 @@ func TestDocumentListsTransactionData(t *testing.T) {
 	got, _ := json.Marshal(marshal(req)["transaction_data"])
 	if want := `[{"type":"urn:eudi:sca:payment:1","credential_ids":["pid"],"data":{"payload":{"transaction_id":"t1"}}}]`; string(got) != want {
 		t.Errorf("transaction_data = %s, want %s", got, want)
+	}
+}
+
+// An update can come before a stream reads the new request. The stream must
+// still announce the request as new, or the page shows only a banner.
+func TestARequestUpdatedBeforeItIsReadIsAnnouncedAsNew(t *testing.T) {
+	rt := NewRuntime()
+	ch, unsub := rt.Subscribe()
+	defer unsub()
+
+	if err := rt.Create(&Request{ID: "waiting", Status: StatusPending}); err != nil {
+		t.Fatal(err)
+	}
+	rt.UpdateOptions("waiting", nil, &CredentialOptions{})
+
+	if first := <-ch; first.Updated {
+		t.Error("the new request was announced as an update")
+	}
+	if second := <-ch; !second.Updated {
+		t.Error("the update was announced as a new request")
 	}
 }

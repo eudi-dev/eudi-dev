@@ -87,7 +87,7 @@ func (w *Wallet) RenewCredential(id string) (renewed *StoredCredential, err erro
 	if err != nil {
 		return nil, err
 	}
-	renewed, _, err = w.storeIssuedCredential(credResp, credentialDelivery{
+	delivered, err := w.storeIssuedCredential(credResp, credentialDelivery{
 		metadata:  metadata,
 		renewal:   renewal,
 		proofKeys: proofKeys,
@@ -104,7 +104,7 @@ func (w *Wallet) RenewCredential(id string) (renewed *StoredCredential, err erro
 	if err != nil {
 		return nil, err
 	}
-	return renewed, nil
+	return delivered.stored, nil
 }
 
 func (s *Server) RenewCredential(id string) (*StoredCredential, error) {

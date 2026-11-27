@@ -98,7 +98,7 @@ func (s *Server) handleBrowserPresentationAPI(w http.ResponseWriter, r *http.Req
 	s.allowSlowResponse(w, config.ConsentTimeout)
 	ctx, done := s.dcapi.track(r.Context(), r.Header.Get(CallIDHeader), requestOwner(r))
 	defer done()
-	consentReq, matches, approved, answered, err := s.wallet.askPresentationConsent(ctx, consent.TypePresentation, requestOwner(r), authReq.ClientID, authReq, outcome, config.ConsentTimeout, func(req *consent.Request) {
+	consentReq, matches, denial, answered, err := s.wallet.askPresentationConsent(ctx, consent.TypePresentation, requestOwner(r), authReq.ClientID, authReq, outcome, config.ConsentTimeout, func(req *consent.Request) {
 		s.triggerUIRequest(req.ID)
 		if s.onConsentRequest != nil {
 			s.onConsentRequest(req)
@@ -118,10 +118,10 @@ func (s *Server) handleBrowserPresentationAPI(w http.ResponseWriter, r *http.Req
 		apierror.Write(w, http.StatusConflict, apierror.Conflict, reason)
 	case !answered:
 		s.answerConsentTimeout(w, "presentation", consentReq)
-	case !approved:
-		s.logDeniedPresentation(authReq)
-		consentReq.SubmissionCh <- consent.SubmissionResult{StatusCode: http.StatusOK, Error: oid4vp.ErrorAccessDenied}
-		s.writeBrowserAuthorizationError(w, authReq, protocol, oid4vp.ErrorAccessDenied, "User denied presentation", http.StatusBadGateway)
+	case denial != nil:
+		s.logDeniedPresentation(authReq, denial)
+		consentReq.SubmissionCh <- consent.SubmissionResult{StatusCode: http.StatusOK, Error: denial.Error}
+		s.writeBrowserAuthorizationError(w, authReq, protocol, denial.Error, denial.ErrorDescription, http.StatusBadGateway)
 	default:
 		consentReq.SubmissionCh <- s.writeBrowserPresentationResult(w, authReq, protocol, matches)
 	}

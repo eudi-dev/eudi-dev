@@ -35,6 +35,12 @@ Besides the identity, an offer sets how the issuer handles it:
 
 The metadata comes from the issuer identifier, and one identifier serves the same metadata for every offer. So an offer with "jwt only" gets an identifier of its own under `/issuer/variant/`. It presents itself like the chosen identity. An identifier created for one offer advertises that offer's copies as `batch_size`. With a single copy it leaves out `batch_credential_issuance` and supports no batch issuance. See [ADR 0028](../adr/0028-each-demo-issuer-identity-is-its-own-issuer.md).
 
+## Notifications and errors
+
+The demo issuer publishes a Notification Endpoint at `/issuer/notification` (OpenID4VCI 1.0 §11). Each Credential Response carries a `notification_id`, a deferred one too (§9.2). The issuer page lists each event the wallet sends for the offer, with its `event_description`. `GET /issuer/api/offers/{id}/notifications` returns them. Choose the event in the wallet's consent dialog or with [the notification override](http-api.md#one-shot-notification-override).
+
+The demo verifier shows an error response with its code and description, such as "The wallet declined: invalid_request (The nonce is reused)". The consent dialog chooses the error with **Answer with an error**. Through the Digital Credentials API the verifier gets only the code (OpenID4VP 1.0 Appendix A.4).
+
 ## Client attestation audience
 
 The `aud` of the client attestation PoP must be the issuer identifier (ABCA draft-07 §5.2, draft-10 §5.1). The demo issuer also accepts the URL of the endpoint the wallet called, and logs a warning. A wallet with that mistake can then still finish the flow.

@@ -2559,6 +2559,58 @@ test.describe("Verifier redirect after an error response", () => {
     expect(page.url()).toBe(`${WALLET_URL}/`);
   });
 
+  test("an error chosen in the consent dialog reaches the verifier", async ({ page }) => {
+    await page.goto(WALLET_URL);
+    await page.locator("#offer-input").fill(requestFor("urn:eudi:pid:1"));
+    await page.locator("#process-btn").click();
+    await expect(page.locator("#consent-deny")).toHaveText("Deny");
+    await page.locator("#consent-error-toggle").click();
+    await expect(page.locator("#consent-deny")).toHaveText("Send error");
+    await page.locator("#consent-error-code").selectOption("invalid_transaction_data");
+    await page.locator("#consent-error-description").fill("The amount is too high");
+    await page.locator("#consent-deny").click();
+
+    await page.waitForURL(`${verifierURL}/continue`);
+    expect(received.get("error")).toBe("invalid_transaction_data");
+    expect(received.get("error_description")).toBe("The amount is too high");
+  });
+
+  test("another error code needs a value before it is sent", async ({ page }) => {
+    await page.goto(WALLET_URL);
+    await page.locator("#offer-input").fill(requestFor("urn:eudi:pid:1"));
+    await page.locator("#process-btn").click();
+    await page.locator("#consent-error-toggle").click();
+    await page.locator("#consent-error-code").selectOption("");
+    const custom = page.locator("#consent-error-custom");
+    await page.locator("#consent-deny").click();
+    await expect(custom).toHaveClass(/input-error/);
+    await expect(custom).toBeFocused();
+
+    await custom.fill("temporarily_unavailable");
+    await page.locator("#consent-deny").click();
+    await page.waitForURL(`${verifierURL}/continue`);
+    expect(received.get("error")).toBe("temporarily_unavailable");
+  });
+
+  // In interactive mode the one-shot override fills the dialog, and the
+  // person still decides.
+  test("the next-error override fills the consent dialog", async ({ page, request }) => {
+    await request.post(`${WALLET_URL}/api/next-error`, { data: { error: "wallet_unavailable", error_description: "Busy" } });
+    await page.goto(WALLET_URL);
+    await page.locator("#offer-input").fill(requestFor("urn:eudi:pid:1"));
+    await page.locator("#process-btn").click();
+
+    await expect(page.locator("#consent-error-toggle")).toHaveAttribute("aria-expanded", "true");
+    await expect(page.locator("#consent-error-code")).toHaveValue("wallet_unavailable");
+    await expect(page.locator("#consent-error-description")).toHaveValue("Busy");
+    await expect(page.locator("#consent-error-fields")).toContainText("POST /api/next-error");
+    await page.locator("#consent-deny").click();
+
+    await page.waitForURL(`${verifierURL}/continue`);
+    expect(received.get("error")).toBe("wallet_unavailable");
+    expect(received.get("error_description")).toBe("Busy");
+  });
+
   // With consent the dialog asks for a pick (see the non-matching tests below).
   // Auto-accept refuses the request.
   test("a request without a matching credential continues at the verifier", async ({ page, request }) => {
@@ -4032,5 +4084,96 @@ test.describe("Commands in dialogs", () => {
     // The issuer CA went on the category's trusted list from stdin.
     const trust = (await jsonGet(`${WALLET_URL}/api/trust`)).body;
     expect(JSON.stringify(trust)).toContain("Gym membership issuer");
+  });
+});
+
+test.describe("Notification choice in the consent dialog", () => {
+  let issuer;
+  let issuerURL;
+  let notificationEndpoint;
+
+  test.beforeAll(async () => {
+    issuer = http.createServer((req, res) => {
+      if (req.url !== "/.well-known/openid-credential-issuer") {
+        res.writeHead(404).end();
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({
+        credential_issuer: issuerURL,
+        credential_endpoint: issuerURL + "/credential",
+        ...(notificationEndpoint ? { notification_endpoint: issuerURL + "/notification" } : {}),
+        credential_configurations_supported: {
+          badge: { format: "dc+sd-jwt", vct: "urn:example:e2e-badge" },
+        },
+      }));
+    });
+    await new Promise((resolve) => issuer.listen(0, "127.0.0.1", resolve));
+    issuerURL = `http://127.0.0.1:${issuer.address().port}`;
+  });
+
+  test.afterAll(async () => {
+    await denyPendingRequests();
+    await new Promise((resolve) => issuer.close(resolve));
+  });
+
+  test.beforeEach(async ({ request }) => {
+    await denyPendingRequests();
+    await request.delete(`${WALLET_URL}/api/next-notification`);
+    notificationEndpoint = true;
+  });
+
+  // The POST waits for the consent decision, so it is not awaited.
+  async function openOffer(page) {
+    jsonPost(`${WALLET_URL}/api/offers`, {
+      uri: "openid-credential-offer://?credential_offer=" + encodeURIComponent(JSON.stringify({
+        credential_issuer: issuerURL,
+        credential_configuration_ids: ["badge"],
+        grants: { "urn:ietf:params:oauth:grant-type:pre-authorized_code": { "pre-authorized_code": "code" } },
+      })),
+      interactive: true,
+    }).catch(() => {});
+    await page.goto(`${WALLET_URL}/?focus=overview&request=${await waitForPendingRequest()}`);
+  }
+
+  async function approveBody(page) {
+    const [approve] = await Promise.all([
+      page.waitForRequest((r) => r.method() === "POST" && new URL(r.url()).pathname.endsWith("/approve")),
+      page.locator("#consent-approve").click(),
+    ]);
+    return approve.postDataJSON();
+  }
+
+  test("the next-notification override fills the dialog", async ({ page, request }) => {
+    await request.post(`${WALLET_URL}/api/next-notification`, { data: { event: "credential_failure", event_description: "Storage is full" } });
+    await openOffer(page);
+
+    await expect(page.locator("#consent-notification-toggle")).toHaveAttribute("aria-expanded", "true");
+    await expect(page.locator("#consent-notification-event")).toHaveValue("credential_failure");
+    await expect(page.locator("#consent-notification-description")).toHaveValue("Storage is full");
+    await expect(page.locator("#consent-notification-fields")).toContainText("does not keep it");
+    await expect(page.locator("#consent-notification-fields")).toContainText("Set by the notification override");
+    await expect(page.locator("#consent-approve")).toHaveText("Approve and discard");
+
+    expect((await approveBody(page)).notification).toEqual({ event: "credential_failure", event_description: "Storage is full" });
+  });
+
+  test("closing the choice sends credential_accepted", async ({ page }) => {
+    await openOffer(page);
+    await expect(page.locator("#consent-notification-toggle")).toHaveText("Choose the notification");
+    await page.locator("#consent-notification-toggle").click();
+    await page.locator("#consent-notification-event").selectOption("credential_deleted");
+    await expect(page.locator("#consent-approve")).toHaveText("Approve and discard");
+    await page.locator("#consent-notification-toggle").click();
+    await expect(page.locator("#consent-notification-fields")).toHaveCount(0);
+    await expect(page.locator("#consent-approve")).toHaveText("Approve");
+
+    expect((await approveBody(page)).notification).toBeUndefined();
+  });
+
+  test("an issuer without a Notification Endpoint gets nothing", async ({ page }) => {
+    notificationEndpoint = false;
+    await openOffer(page);
+    await page.locator("#consent-notification-toggle").click();
+    await expect(page.locator("#consent-notification-fields")).toContainText("This issuer has no Notification Endpoint");
   });
 });

@@ -65,6 +65,7 @@ async function createOffer(grant, txCode, status, authorization, deferred, batch
     const resp = await fetch("api/offers" + query, init);
     const doc = await resp.json();
     if (!resp.ok) throw new Error(doc.error_description || doc.error || resp.status);
+    watchNotifications(doc.id);
     if (delivery === "dc_api") {
       await sendWithDCAPI(doc);
       return;
@@ -84,6 +85,51 @@ async function createOffer(grant, txCode, status, authorization, deferred, batch
     errEl.textContent = "Creating the offer failed: " + e.message;
     errEl.hidden = false;
   }
+}
+
+const NOTIFICATION_POLL_MS = 2000;
+// The issuer keeps an offer and its notifications for ten minutes.
+const NOTIFICATION_WATCH_MS = 10 * 60 * 1000;
+let notificationTimer = null;
+
+// The wallet tells the issuer what it did with the credentials at the
+// Notification Endpoint (OpenID4VCI 1.0 section 11). The page shows each event.
+function watchNotifications(offerID) {
+  clearInterval(notificationTimer);
+  const list = document.getElementById("offer-notifications");
+  list.replaceChildren();
+  list.dataset.key = "";
+  list.hidden = true;
+  const until = Date.now() + NOTIFICATION_WATCH_MS;
+  const poll = async () => {
+    if (Date.now() > until) {
+      clearInterval(notificationTimer);
+      return;
+    }
+    try {
+      const resp = await fetch("api/offers/" + encodeURIComponent(offerID) + "/notifications");
+      if (!resp.ok) return;
+      showNotifications((await resp.json()).notifications || []);
+    } catch {
+      // The next poll tries again.
+    }
+  };
+  notificationTimer = setInterval(poll, NOTIFICATION_POLL_MS);
+}
+
+function showNotifications(notifications) {
+  const list = document.getElementById("offer-notifications");
+  const key = JSON.stringify(notifications);
+  if (key === list.dataset.key) return;
+  list.dataset.key = key;
+  list.replaceChildren(...notifications.map((n) => {
+    const line = document.createElement("div");
+    line.className = "offer-notification" + (n.event === "credential_accepted" ? "" : " failed");
+    line.textContent = "The wallet sent " + n.event +
+      (n.event_description ? " (" + n.event_description + ")" : "");
+    return line;
+  }));
+  list.hidden = notifications.length === 0;
 }
 
 function randomDigits(n) {

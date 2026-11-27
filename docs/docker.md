@@ -164,6 +164,7 @@ Set `-e EUDI_DEV_LOG_FORMAT=json` to write one JSON record per line for a log co
 | `/api/statuslist` | GET | Status List Token on both HTTP and HTTPS. JWT by default, CWT for a client sending `Accept: application/statuslist+cwt` (`--status-list` only controls whether generated credentials reference the list) |
 | `/api/templates`, `/api/templates/<name>` | GET/PUT/DELETE | List and manage [credential templates](templates.md) |
 | `/api/next-error` | POST/DELETE | Set or clear a one-shot error override |
+| `/api/next-notification` | POST/DELETE | Set or clear the event the next offer sends the issuer |
 | `/api/config/preferred-format` | PUT | Set credential format preference (`dc+sd-jwt` / `mso_mdoc` / `jwt_vc_json` / empty) |
 | `/api/config` | GET | Instance introspection (PID baseline, directories, URLs, behavior) |
 | `/api/shutdown` | POST | Stop the wallet server process |
@@ -299,7 +300,7 @@ The wallet's template list marks it as "from config". `eudi templates transactio
 
 ### Error simulation
 
-Set a one-shot error response. The next OID4VP request returns it, then normal behavior resumes.
+Set a one-shot error response. The next OID4VP request returns it, then normal behavior resumes. In interactive mode the consent dialog offers it instead (see [the one-shot error override](wallet/http-api.md#one-shot-error-override)).
 
 ```bash
 # Set up error for next request
@@ -309,6 +310,14 @@ curl -X POST http://localhost:8085/api/next-error \
 
 # Clear without consuming
 curl -X DELETE http://localhost:8085/api/next-error
+```
+
+The next offer can tell the issuer `credential_failure` or `credential_deleted` instead of `credential_accepted`. The wallet then does not keep the credential (see [the one-shot notification override](wallet/http-api.md#one-shot-notification-override)).
+
+```bash
+curl -X POST http://localhost:8085/api/next-notification \
+  -H 'Content-Type: application/json' \
+  -d '{"event": "credential_failure", "event_description": "Storage is full"}'
 ```
 
 ### Format preference

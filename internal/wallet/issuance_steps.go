@@ -256,26 +256,47 @@ type credentialDelivery struct {
 	replaceID string
 	// deferredID is the deferred issuance completed by this credential.
 	deferredID string
-	access     resourceAccess
+	// notification is the event chosen for the Notification Endpoint. An
+	// event that Discards leaves the credentials out of the wallet. Nil
+	// sends credential_accepted for stored credentials.
+	notification *oid4vc.Notification
+	access       resourceAccess
 	// logSummary starts the activity log line, as in "Imported credential".
 	logSummary string
 	logDetails map[string]any
 	report     func(...findings.Finding)
 }
 
-// storeIssuedCredential returns the stored primary credential and its raw
-// form. The credentials are stored and saved in one change under the store
-// lock, so a reload during the network calls of the flow keeps them.
-func (w *Wallet) storeIssuedCredential(credResp map[string]any, d credentialDelivery) (*StoredCredential, string, error) {
-	// OpenID4VCI 1.0 §11.1: the wallet tells the issuer whether it kept the
-	// credential (credential_accepted) or refused it (credential_failure).
+// issuedDelivery is the outcome of a credential response. stored is the
+// primary credential and is nil when the chosen notification discarded the
+// credentials. notified is the event the issuer's Notification Endpoint accepted,
+// or nil.
+type issuedDelivery struct {
+	stored   *StoredCredential
+	raw      string
+	notified *oid4vc.Notification
+}
+
+// storeIssuedCredential stores the received credentials and tells the issuer.
+// The credentials are stored and saved in one change under the store lock, so
+// a reload during the network calls of the flow keeps them.
+func (w *Wallet) storeIssuedCredential(credResp map[string]any, d credentialDelivery) (issuedDelivery, error) {
 	stored, raw, err := w.storeReceivedCredential(credResp, d)
-	event := "credential_accepted"
-	if err != nil {
-		event = "credential_failure"
+	// OpenID4VCI 1.0 §11.1: credential_accepted when the wallet stored the
+	// credentials, credential_failure when it could not. A chosen event
+	// replaces credential_accepted.
+	n := oid4vc.Notification{Event: oid4vc.NotificationAccepted}
+	if d.notification != nil {
+		n = *d.notification
 	}
-	w.notifyCredential(event, d.metadata, credResp, d.access.accessToken, d.access.authScheme, d.access.dpopKey, d.access.nonce)
-	return stored, raw, err
+	if err != nil {
+		n = oid4vc.Notification{Event: oid4vc.NotificationFailure}
+	}
+	out := issuedDelivery{stored: stored, raw: raw}
+	if w.notifyCredential(n, d.notification != nil, d.metadata, credResp, d.access) {
+		out.notified = &n
+	}
+	return out, err
 }
 
 func (w *Wallet) storeReceivedCredential(credResp map[string]any, d credentialDelivery) (*StoredCredential, string, error) {
@@ -304,6 +325,11 @@ func (w *Wallet) storeReceivedCredential(credResp map[string]any, d credentialDe
 	primary.IssuerName, _ = issuerDisplay(d.metadata)
 	if d.display == nil {
 		d.display = typeDisplay(typed.metadata)
+	}
+
+	if d.notification != nil && d.notification.Discards() {
+		w.discardIssuedCredential(primary, d, issuer)
+		return nil, batch.primary, nil
 	}
 
 	var stored []StoredCredential
@@ -335,6 +361,22 @@ func (w *Wallet) storeReceivedCredential(credResp map[string]any, d credentialDe
 	return &stored[0], batch.primary, nil
 }
 
+// discardIssuedCredential leaves checked credentials out of the wallet, as the
+// chosen notification asked. A deferred issuance that they complete ends.
+func (w *Wallet) discardIssuedCredential(primary StoredCredential, d credentialDelivery, issuer string) {
+	w.saveChange(func() bool {
+		if d.deferredID != "" {
+			w.RemoveDeferredIssuance(d.deferredID)
+		}
+		details := map[string]any{"issuer": issuer, "format": primary.Format, "notification_event": d.notification.Event}
+		for key, value := range d.logDetails {
+			details[key] = value
+		}
+		w.addProtocolLog("issuance", "credential_discarded", fmt.Sprintf("Did not keep the credential from %s", issuer), true, details)
+		return true
+	})
+}
+
 // issuanceSession holds the state shared by the token and credential requests
 // of one offer.
 type issuanceSession struct {
@@ -345,8 +387,11 @@ type issuanceSession struct {
 	renewal CredentialRenewal
 	// additional are further configurations under the same authorization.
 	additional []string
-	nonces     *dpopNonceState
-	report     func(...findings.Finding)
+	// notification is the event chosen for the Notification Endpoint. Nil
+	// sends the default.
+	notification *oid4vc.Notification
+	nonces       *dpopNonceState
+	report       func(...findings.Finding)
 }
 
 // issueWithToken ends a pre-authorized and an authorization code issuance. A
@@ -444,6 +489,7 @@ func (w *Wallet) issueConfiguration(s issuanceSession, grant *accessGrant) (*Iss
 			display:       display,
 			grant:         grant,
 			proofKeys:     proofKeys,
+			notification:  s.notification,
 		})
 		if err != nil {
 			return nil, err
@@ -451,11 +497,12 @@ func (w *Wallet) issueConfiguration(s issuanceSession, grant *accessGrant) (*Iss
 		return w.recordDeferredIssuance(pending), nil
 	}
 
-	imported, raw, err := w.storeIssuedCredential(credResp, credentialDelivery{
-		metadata:  s.metadata,
-		renewal:   renewal,
-		display:   display,
-		proofKeys: proofKeys,
+	delivered, err := w.storeIssuedCredential(credResp, credentialDelivery{
+		metadata:     s.metadata,
+		renewal:      renewal,
+		display:      display,
+		proofKeys:    proofKeys,
+		notification: s.notification,
 		access: resourceAccess{
 			accessToken: grant.accessToken,
 			authScheme:  grant.authScheme,
@@ -469,15 +516,19 @@ func (w *Wallet) issueConfiguration(s issuanceSession, grant *accessGrant) (*Iss
 	if err != nil {
 		return nil, err
 	}
-	if credFormat == "" {
-		credFormat = imported.Format
+	if delivered.stored == nil {
+		return &IssuanceResult{Format: credFormat, Issuer: renewal.Issuer, Discarded: true, Notification: delivered.notified}, nil
 	}
-	verificationStatus, verificationDetail := verifyImportedJWTMetadataSignature(raw, w.HTTPClient())
+	if credFormat == "" {
+		credFormat = delivered.stored.Format
+	}
+	verificationStatus, verificationDetail := verifyImportedJWTMetadataSignature(delivered.raw, w.HTTPClient())
 	return &IssuanceResult{
-		CredentialID:       imported.ID,
+		CredentialID:       delivered.stored.ID,
 		Format:             credFormat,
 		Issuer:             renewal.Issuer,
 		VerificationStatus: verificationStatus,
 		VerificationDetail: verificationDetail,
+		Notification:       delivered.notified,
 	}, nil
 }

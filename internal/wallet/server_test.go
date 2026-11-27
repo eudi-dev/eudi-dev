@@ -553,6 +553,7 @@ func TestAPIErrorsUseTheErrorObject(t *testing.T) {
 		{"preferred format malformed body", "PUT", "/api/config/preferred-format", "not json", http.StatusBadRequest, "invalid_request", "invalid JSON body"},
 		{"auto accept malformed body", "PUT", "/api/config/auto-accept", "not json", http.StatusBadRequest, "invalid_request", "invalid JSON body"},
 		{"next error malformed body", "POST", "/api/next-error", "not json", http.StatusBadRequest, "invalid_request", "invalid JSON body"},
+		{"next error without a code", "POST", "/api/next-error", `{"error_description":"testing"}`, http.StatusBadRequest, "invalid_request", "error is required"},
 		{"conformance unknown field", "PUT", "/api/config/conformance", `{"bogus":true}`, http.StatusBadRequest, "invalid_request", "invalid conformance settings"},
 		{"template unknown", "GET", "/api/templates/missing", "", http.StatusNotFound, "not_found", ""},
 		{"trust entity malformed body", "POST", "/api/trust/entities", "not json", http.StatusBadRequest, "invalid_request", "invalid JSON body"},

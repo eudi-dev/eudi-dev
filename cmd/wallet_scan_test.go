@@ -22,6 +22,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 )
 
 func TestAcceptOID4URIRoutesToRemote(t *testing.T) {
@@ -118,5 +120,57 @@ func TestRemoteAcceptPrintsTextAndRefusesListenerFlags(t *testing.T) {
 		if err := acceptOID4URI(vp, opts); err == nil || !strings.Contains(err.Error(), "--remote local") {
 			t.Errorf("remote accept with --port %v, --docker %v, --listen %v: %v, want a refusal", opts.portExplicit, opts.docker, opts.listenExplicit, err)
 		}
+	}
+}
+
+// --notification travels to a running wallet in the offer request.
+func TestAcceptSendsTheChosenNotificationToTheRemoteWallet(t *testing.T) {
+	resetRemoteTestState(t)
+	var mu sync.Mutex
+	var got map[string]any
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"discarded":true,"issuer":"https://issuer.example"}`)
+	}))
+	defer ts.Close()
+	remoteFlag = ts.URL
+	t.Cleanup(func() { remoteFlag = "" })
+
+	chosen, err := notificationFlags{event: "credential_failure", description: "Storage is full"}.resolve()
+	if err != nil {
+		t.Fatal(err)
+	}
+	offer := "openid-credential-offer://?credential_offer=%7B%22credential_issuer%22%3A%22https%3A%2F%2Fissuer.example%22%7D"
+	if err := acceptOID4URI(offer, dispatchOID4Opts{autoAccept: true, notification: chosen}); err != nil {
+		t.Fatalf("acceptOID4URI: %v", err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	n, _ := got["notification"].(map[string]any)
+	if n["event"] != "credential_failure" || n["event_description"] != "Storage is full" {
+		t.Fatalf("offer request = %v, want the chosen notification", got)
+	}
+}
+
+func TestNotificationFlagsRefuseInvalidInput(t *testing.T) {
+	for _, tc := range []struct {
+		flags notificationFlags
+		want  string
+	}{
+		{notificationFlags{event: "credential_stored"}, "event must be"},
+		{notificationFlags{description: "no event"}, "needs --notification"},
+		{notificationFlags{event: "credential_failure", description: "a \\ backslash"}, "event_description must not contain"},
+	} {
+		if _, err := tc.flags.resolve(); err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("%+v: error %v, want one with %q", tc.flags, err, tc.want)
+		}
+	}
+	presentation := "openid4vp://?client_id=x509_hash:abc&request_uri=https://verifier.example/req"
+	err := acceptOID4URI(presentation, dispatchOID4Opts{notification: &oid4vc.Notification{Event: "credential_accepted"}})
+	if err == nil || !strings.Contains(err.Error(), "applies only to a credential offer") {
+		t.Errorf("a presentation request with --notification: error %v, want one about credential offers", err)
 	}
 }

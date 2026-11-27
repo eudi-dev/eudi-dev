@@ -223,6 +223,9 @@ func (d *DemoRP) continueInteractiveAuthorization(w http.ResponseWriter, r *http
 	// §6.2.1.1: a wallet that cannot satisfy the request answers with an
 	// Authorization Error Response.
 	if refusal, _ := response["error"].(string); refusal != "" {
+		if description, _ := response["error_description"].(string); description != "" {
+			refusal += " (" + description + ")"
+		}
 		writeJSON(w, http.StatusBadRequest, oauthError("access_denied", "the wallet did not present a credential: "+refusal))
 		return
 	}

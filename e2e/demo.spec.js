@@ -1033,6 +1033,39 @@ test.describe("Verifier request types", () => {
     await expect(page.locator("#credential-pid")).toHaveAttribute("aria-checked", "true");
   });
 
+  test("an error chosen in the wallet shows on the verifier page with its description", async ({ page }) => {
+    await page.goto(`${BASE}/verifier/`);
+    await createVerifierRequest(page, "pid");
+    await expect(page.locator("#wallet-link")).toHaveAttribute("href", /request_uri=/);
+    await page.goto(await page.locator("#wallet-link").getAttribute("href"));
+    await expect(page.locator("#consent-overlay")).toHaveClass(/active/);
+
+    await page.locator("#consent-error-toggle").click();
+    await page.locator("#consent-error-code").selectOption("wallet_unavailable");
+    await page.locator("#consent-error-description").fill("The wallet is offline");
+    await expect(page.locator("#consent-deny")).toHaveText("Send error");
+    await denyAtVerifier(page);
+    await expect(page.locator("#status")).toHaveAttribute("data-status", "declined", { timeout: 15000 });
+    await expect(page.locator("#status")).toHaveText("✗ The wallet declined: wallet_unavailable (The wallet is offline)");
+  });
+
+  test("the issuer page shows the notification chosen in the wallet", async ({ page, context }) => {
+    await createIssuerOffer(page);
+    const wallet = await context.newPage();
+    await wallet.goto(await page.locator("#wallet-link").getAttribute("href"));
+    await expect(wallet.locator("#consent-overlay")).toHaveClass(/active/);
+
+    await wallet.locator("#consent-notification-toggle").click();
+    await wallet.locator("#consent-notification-event").selectOption("credential_failure");
+    await wallet.locator("#consent-notification-description").fill("Storage is full");
+    await expect(wallet.locator("#consent-notification-fields")).toContainText("does not keep it");
+    await wallet.locator("#consent-approve", { hasText: "Approve and discard" }).click();
+    await expect(wallet.locator("#consent-overlay")).not.toHaveClass(/active/, { timeout: 15000 });
+
+    await expect(page.locator("#offer-notifications")).toContainText("credential_failure", { timeout: 15000 });
+    await expect(page.locator("#offer-notifications")).toContainText("Storage is full");
+  });
+
   test("a response with a ticket and a PID lists the checks of each credential", async ({ page }) => {
     const offer = await postJSON("/issuer/api/offers", {});
     expect((await postJSON("/api/offers", { uri: offer.body.scheme_uri })).status).toBe(200);

@@ -36,6 +36,7 @@
     .result { margin-top: 18px; display: none; }
     .result-hint { margin-top: 12px; color: var(--text-dim); font-size: 13px; }
     .result-hint.failed { color: var(--danger, var(--red)); }
+    .offer-notification.failed { color: var(--danger, var(--red)); }
     .label { font-size: 13px; font-weight: 600; color: var(--text-dim); margin: 12px 0 6px; }
     .tx-code { font-family: var(--font-mono); font-size: 14px; font-weight: 600; letter-spacing: 0.08em; color: var(--text); }
     .copy-btn { font: inherit; padding: 0; border: 0; background: none; color: var(--link); cursor: pointer; }
@@ -220,6 +221,7 @@
       </details>
       <p id="result-hint" class="result-hint"{{if .NoBuiltins}} hidden{{end}}><span id="result-next-step">After the wallet accepts the offer, present the ticket at the</span> <a href="../verifier/" id="result-verifier-link">demo verifier</a>.</p>
     </div>
+    <div class="result-hint" id="offer-notifications" hidden></div>
     <div class="error" id="error" hidden></div>
     <div class="links">
       <a href="../" id="wallet-ui-link">Wallet</a>

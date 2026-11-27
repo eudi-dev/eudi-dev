@@ -66,6 +66,10 @@ type Request struct {
 	Nonce        string
 	ResponseURI  string
 	DCQLQuery    map[string]any
+	// DCAPI marks a presentation answered through the Digital Credentials
+	// API. Its error response carries only the error code (OpenID4VP 1.0
+	// Appendix A.4).
+	DCAPI bool
 	// Findings are the checks on the verifier or issuer that failed in debug
 	// mode. The consent dialog shows them in a collapsed list.
 	Findings findings.List
@@ -95,9 +99,12 @@ type Request struct {
 	// RegisteredName is the relying party name of the registration
 	// certificate bound to the request's access certificate.
 	RegisteredName string
-	// Updated tells an open dialog to keep the user's selection when the event
-	// stream announces this request again.
-	Updated bool
+	// NextError is the one-shot error override that this dialog consumed. The
+	// dialog offers it as the answer, and the user still decides.
+	NextError *NextErrorOverride
+	// Notification is the one-shot notification override that this offer
+	// dialog consumed. The dialog preselects it, and the user still decides.
+	Notification *oid4vc.Notification
 }
 
 // NewRequest is a pending request of typ that belongs to owner. An empty
@@ -235,6 +242,13 @@ type Result struct {
 	// ConfigurationID is the credential configuration picked from an offer
 	// that lists several.
 	ConfigurationID string
+	// Error is the error response the user chose to send instead of
+	// access_denied when denying a presentation.
+	Error *NextErrorOverride
+	// Notification is the event the user chose to send to the issuer's
+	// Notification Endpoint (OpenID4VCI 1.0 §11). Nil keeps the wallet's
+	// default.
+	Notification *oid4vc.Notification
 }
 
 type SubmissionResult struct {
@@ -248,6 +262,9 @@ type SubmissionResult struct {
 	Pending       bool   `json:"pending,omitempty"`
 	TransactionID string `json:"transaction_id,omitempty"`
 	RetryInterval string `json:"retry_interval,omitempty"`
+	// Discarded means the wallet received the credentials and did not keep
+	// them, as the chosen notification asked.
+	Discarded bool `json:"discarded,omitempty"`
 }
 
 func marshal(r *Request) map[string]any {
@@ -258,7 +275,6 @@ func marshal(r *Request) map[string]any {
 		"client_id":           r.ClientID,
 		"created_at":          r.CreatedAt.Format(time.RFC3339),
 		"matched_credentials": r.MatchedCreds,
-		"updated":             r.Updated,
 	}
 	if r.Nonce != "" {
 		m["nonce"] = r.Nonce
@@ -305,6 +321,15 @@ func marshal(r *Request) map[string]any {
 	if r.RegisteredName != "" {
 		m["registered_name"] = r.RegisteredName
 	}
+	if r.DCAPI {
+		m["dc_api"] = true
+	}
+	if r.NextError != nil {
+		m["next_error"] = r.NextError
+	}
+	if r.Notification != nil {
+		m["notification"] = r.Notification
+	}
 	return m
 }
 
@@ -340,6 +365,9 @@ type OfferDetails struct {
 	TxCodeDescription string              `json:"tx_code_description,omitempty"`
 	Credentials       []OfferedCredential `json:"credentials,omitempty"`
 	MetadataError     string              `json:"metadata_error,omitempty"`
+	// NotificationEndpoint is the issuer's Notification Endpoint
+	// (OpenID4VCI 1.0 §11). Without one the wallet sends no event.
+	NotificationEndpoint string `json:"notification_endpoint,omitempty"`
 	// Findings are the metadata, ARF and catalogue findings about the issuer.
 	// The ARF requires the wallet to warn the user before it requests the
 	// credential.

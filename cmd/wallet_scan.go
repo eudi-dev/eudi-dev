@@ -78,6 +78,9 @@ func acceptOID4URI(uri string, opts dispatchOID4Opts) error {
 	if len(opts.conformance.trust.FileLists) > 0 {
 		return errors.New("--trusted-list takes a file only with wallet serve, which publishes the list")
 	}
+	if opts.notification != nil && !isCredentialOfferURI(uri) {
+		return errors.New("--notification applies only to a credential offer")
+	}
 	c, err := remoteClientIfConfigured()
 	if err != nil {
 		return err
@@ -95,7 +98,7 @@ func acceptOID4URI(uri string, opts dispatchOID4Opts) error {
 		if transcript == string(oid4vp.SessionTranscriptOID4VP) {
 			transcript = ""
 		}
-		return remoteAccept(c, uri, opts.txCode, transcript, !opts.autoAccept)
+		return remoteAccept(c, uri, opts.txCode, opts.notification, transcript, !opts.autoAccept)
 	}
 	w := &wallet.Wallet{}
 	opts.conformance.apply(w)
@@ -132,6 +135,7 @@ func walletAcceptCmd() *cobra.Command {
 		autoAccept        bool
 		sessionTranscript string
 		txCode            string
+		notification      notificationFlags
 		conformanceFlags  *conformanceFlags
 		docker            bool
 		listen            string
@@ -161,6 +165,10 @@ its next request.`,
 			if err != nil {
 				return err
 			}
+			chosen, err := notification.resolve()
+			if err != nil {
+				return err
+			}
 			return acceptOID4URI(args[0], dispatchOID4Opts{
 				port:              port,
 				portExplicit:      cmd.Flags().Changed("port"),
@@ -169,6 +177,7 @@ its next request.`,
 				autoAccept:        autoAccept,
 				sessionTranscript: sessionTranscript,
 				txCode:            txCode,
+				notification:      chosen,
 				docker:            docker,
 				conformance:       conformance,
 				conformanceFlags:  conformanceFlags.changed(),
@@ -182,6 +191,7 @@ its next request.`,
 	addListenFlag(cmd, &listen, "--docker binds 0.0.0.0 unless this flag or the variable is set. ")
 	cmd.Flags().StringVar(&sessionTranscript, "session-transcript", "oid4vp", "mdoc session transcript mode: 'oid4vp' (OID4VP 1.0, default) or 'iso' (ISO 18013-7)")
 	cmd.Flags().StringVar(&txCode, "tx-code", "", "Transaction code for OID4VCI pre-authorized code flow")
+	notification.add(cmd)
 	conformanceFlags = addConformanceFlags(cmd)
 	return cmd
 }
@@ -193,6 +203,7 @@ func walletScanCmd() *cobra.Command {
 		autoAccept        bool
 		sessionTranscript string
 		txCode            string
+		notification      notificationFlags
 		conformanceFlags  *conformanceFlags
 		docker            bool
 		listen            string
@@ -249,6 +260,10 @@ func walletScanCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			chosen, err := notification.resolve()
+			if err != nil {
+				return err
+			}
 			return acceptOID4URI(content, dispatchOID4Opts{
 				port:              port,
 				portExplicit:      cmd.Flags().Changed("port"),
@@ -257,6 +272,7 @@ func walletScanCmd() *cobra.Command {
 				autoAccept:        autoAccept,
 				sessionTranscript: sessionTranscript,
 				txCode:            txCode,
+				notification:      chosen,
 				docker:            docker,
 				conformance:       conformance,
 				conformanceFlags:  conformanceFlags.changed(),
@@ -271,6 +287,32 @@ func walletScanCmd() *cobra.Command {
 	addListenFlag(cmd, &listen, "--docker binds 0.0.0.0 unless this flag or the variable is set. ")
 	cmd.Flags().StringVar(&sessionTranscript, "session-transcript", "oid4vp", "mdoc session transcript mode: 'oid4vp' (OID4VP 1.0, default) or 'iso' (ISO 18013-7)")
 	cmd.Flags().StringVar(&txCode, "tx-code", "", "Transaction code for OID4VCI pre-authorized code flow")
+	notification.add(cmd)
 	conformanceFlags = addConformanceFlags(cmd)
 	return cmd
+}
+
+// notificationFlags pick the event the wallet sends to the issuer's
+// Notification Endpoint (OpenID4VCI 1.0 §11.1).
+type notificationFlags struct {
+	event, description string
+}
+
+func (f *notificationFlags) add(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&f.event, "notification", "", "Event for the issuer's Notification Endpoint: "+strings.Join(oid4vc.NotificationEvents, ", ")+". "+oid4vc.NotificationFailure+" and "+oid4vc.NotificationDeleted+" leave the credential out of the wallet")
+	cmd.Flags().StringVar(&f.description, "notification-description", "", "event_description sent with --notification")
+}
+
+func (f notificationFlags) resolve() (*oid4vc.Notification, error) {
+	if f.event == "" {
+		if f.description != "" {
+			return nil, errors.New("--notification-description needs --notification")
+		}
+		return nil, nil
+	}
+	n := &oid4vc.Notification{Event: f.event, EventDescription: f.description}
+	if err := n.Validate(); err != nil {
+		return nil, fmt.Errorf("--notification: %w", err)
+	}
+	return n, nil
 }

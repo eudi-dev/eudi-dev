@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/findings"
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 )
 
 // Keep resolved requests long enough for late polling, then prune them. Consent
@@ -100,19 +101,29 @@ func (rt *Runtime) Create(req *Request) error {
 		return ErrTooManyPending
 	}
 	rt.requests[req.ID] = req
-	subs := make([]chan *Request, 0, len(rt.subscribers))
-	for _, ch := range rt.subscribers {
-		subs = append(subs, ch)
-	}
+	rt.announceLocked(Announcement{Request: req})
 	rt.mu.Unlock()
+	return nil
+}
 
-	for _, ch := range subs {
+// Announcement is a request sent to the event streams. Updated marks a
+// request announced again with new options, so an open dialog keeps the
+// user's selection. The flag travels with the announcement because a stream
+// can read a new request after its update.
+type Announcement struct {
+	Request *Request
+	Updated bool
+}
+
+// announceLocked sends without blocking, so a stream that stops reading
+// can't hold up a flow.
+func (rt *Runtime) announceLocked(a Announcement) {
+	for _, ch := range rt.subscribers {
 		select {
-		case ch <- req:
+		case ch <- a:
 		default:
 		}
 	}
-	return nil
 }
 
 // Pending returns the requests that wait for an answer.
@@ -146,19 +157,8 @@ func (rt *Runtime) UpdateOptions(id string, matches []Match, options *Credential
 	}
 	req.MatchedCreds = matches
 	req.CredentialOptions = options
-	req.Updated = true
-	subs := make([]chan *Request, 0, len(rt.subscribers))
-	for _, ch := range rt.subscribers {
-		subs = append(subs, ch)
-	}
+	rt.announceLocked(Announcement{Request: req, Updated: true})
 	rt.mu.Unlock()
-
-	for _, ch := range subs {
-		select {
-		case ch <- req:
-		default:
-		}
-	}
 	return true
 }
 
@@ -221,8 +221,8 @@ func (rt *Runtime) AttachedUIs() int {
 	return len(rt.subscribers)
 }
 
-func (rt *Runtime) Subscribe() (<-chan *Request, func()) {
-	ch := make(chan *Request, 16)
+func (rt *Runtime) Subscribe() (<-chan Announcement, func()) {
+	ch := make(chan Announcement, 16)
 	rt.mu.Lock()
 	rt.subID++
 	id := rt.subID
@@ -431,20 +431,6 @@ func errorSlots(owners []string) []string {
 	return append(append([]string{}, owners...), "")
 }
 
-func (rt *Runtime) SetNextError(e *NextErrorOverride) {
-	rt.mu.Lock()
-	defer rt.mu.Unlock()
-	rt.nextError = e
-}
-
-func (rt *Runtime) ConsumeNextError() *NextErrorOverride {
-	rt.mu.Lock()
-	defer rt.mu.Unlock()
-	e := rt.nextError
-	rt.nextError = nil
-	return e
-}
-
 // SubscribeState signals carry no payload. Subscribers reload the wallet data.
 func (rt *Runtime) SubscribeState() (<-chan struct{}, func()) {
 	ch := make(chan struct{}, 1)
@@ -516,7 +502,8 @@ const lastErrorRetention = 10 * time.Minute
 // entries expire.
 const maxStoredErrors = 64
 
-// NextErrorOverride applies to the next presentation request only.
+// NextErrorOverride is an Authorization Error Response (OpenID4VP 1.0 §8.5)
+// that the wallet sends instead of a presentation.
 type NextErrorOverride struct {
 	Error            string `json:"error"`
 	ErrorDescription string `json:"error_description"`
@@ -529,8 +516,9 @@ type Runtime struct {
 	requests           map[string]*Request
 	maxPending         int
 	maxPendingPerOwner int
-	nextError          *NextErrorOverride
-	subscribers        map[int64]chan *Request
+	nextErrors         overrides[NextErrorOverride]
+	nextNotifications  overrides[oid4vc.Notification]
+	subscribers        map[int64]chan Announcement
 	subID              int64
 	errSubscribers     map[int64]chan Error
 	errSubID           int64
@@ -546,12 +534,14 @@ func NewRuntime() *Runtime {
 	return &Runtime{
 		requests:          make(map[string]*Request),
 		maxPending:        DefaultMaxPending,
-		subscribers:       make(map[int64]chan *Request),
+		subscribers:       make(map[int64]chan Announcement),
 		errSubscribers:    make(map[int64]chan Error),
 		stateSubscribers:  make(map[int64]chan struct{}),
 		authSubscribers:   make(map[int64]authSubscriber),
 		authCodeCallbacks: make(map[string]chan url.Values),
 		lastErrors:        make(map[string]*storedError),
+		nextErrors:        make(overrides[NextErrorOverride]),
+		nextNotifications: make(overrides[oid4vc.Notification]),
 	}
 }
 

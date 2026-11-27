@@ -102,6 +102,20 @@ for (const [version, dir] of Object.entries(extensions)) {
   }
 }
 
+// OpenID4VP 1.0 Appendix A.4 returns an error with its code only.
+test("an error chosen in the wallet window reaches the verifier as its code", async () => {
+  await withExtension(async (context) => {
+    const { page, walletWindow } = await startDCAPIRequest(context);
+    await walletWindow.locator("#consent-error-toggle").click();
+    await walletWindow.locator("#consent-error-code").selectOption("invalid_request");
+    await expect(walletWindow.locator("#consent-error-fields")).toContainText("only the error code");
+    await walletWindow.locator("#consent-deny", { hasText: "Send error" }).click();
+    await expect(page.locator("#status")).toHaveAttribute("data-status", "declined", { timeout: 15_000 });
+    await expect(page.locator("#status")).toHaveText("✗ The wallet declined: invalid_request");
+    await expect.poll(() => walletWindow.isClosed()).toBe(true);
+  });
+});
+
 test("an unsigned request hides the client ID scheme and the identity", async ({ page }) => {
   await page.goto(`${BASE}/verifier/`);
   await page.locator("#credential-custom").click();
@@ -252,6 +266,17 @@ test("the extension answers navigator.credentials.create() with the wallet", asy
     await expect(page.locator(".log-entry", { hasText: "Received a Digital Credentials API call" }).first()).toBeAttached();
     const credentials = await (await fetch(`${BASE}/api/credentials`)).json();
     expect(credentials.some((c) => c.vct === "urn:eudi-test:demo-ticket:1" && c.issuer_name === "EUDI Dev Demo Issuer")).toBe(true);
+  });
+});
+
+test("a notification chosen in the wallet window shows on the issuer page", async () => {
+  await withExtension(async (context) => {
+    const { page, walletWindow } = await startDCAPIOffer(context);
+    await walletWindow.locator("#consent-notification-toggle").click();
+    await walletWindow.locator("#consent-notification-event").selectOption("credential_deleted");
+    await walletWindow.locator("#consent-approve", { hasText: "Approve and discard" }).click();
+    await expect(page.locator("#dc-api-status")).toHaveText("The wallet took the offer.", { timeout: 15_000 });
+    await expect(page.locator("#offer-notifications")).toHaveText("The wallet sent credential_deleted", { timeout: 15_000 });
   });
 });
 

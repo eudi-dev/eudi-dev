@@ -386,13 +386,13 @@ func (w *Wallet) runPresentationInteraction(endpoint string, response map[string
 		return interactionErrorOutcome(w.interactionErrorResponse(authReq, outcome.refusal.code, outcome.refusal.description))
 	}
 
-	matches, approved, err := w.awaitInteractivePresentationConsent(setup.cancelled, endpoint, authReq, outcome, setup.presentationConsented, setup.owner)
+	matches, denial, err := w.awaitInteractivePresentationConsent(setup.cancelled, endpoint, authReq, outcome, setup.presentationConsented, setup.owner)
 	if err != nil {
 		return nil, err
 	}
-	if !approved {
-		w.AddLog("issuance", "Denied the presentation the issuer asked for", false)
-		return interactionErrorOutcome(w.interactionErrorResponse(authReq, oid4vp.ErrorAccessDenied, "user denied the presentation"))
+	if denial != nil {
+		w.AddLog("issuance", "Denied the presentation the issuer asked for with "+denial.Error, false)
+		return interactionErrorOutcome(w.interactionErrorResponse(authReq, denial.Error, denial.ErrorDescription))
 	}
 
 	prepared, err := w.preparePresentation(authReq, matches)
@@ -532,9 +532,10 @@ func derivedOrigin(rawURL string) string {
 // awaitInteractivePresentationConsent asks the user to approve a
 // presentation required by the issuer for issuance. Consent to receive a
 // credential does not cover disclosing one, so this is a separate prompt.
-func (w *Wallet) awaitInteractivePresentationConsent(cancelled <-chan struct{}, endpoint string, authReq *oid4vp.Request, outcome presentationOutcome, consented bool, owner string) ([]consent.Match, bool, error) {
+// denial is the error response for a denied presentation.
+func (w *Wallet) awaitInteractivePresentationConsent(cancelled <-chan struct{}, endpoint string, authReq *oid4vp.Request, outcome presentationOutcome, consented bool, owner string) ([]consent.Match, *consent.NextErrorOverride, error) {
 	if w.AutoAcceptSetting() || consented {
-		return outcome.matches, true, nil
+		return outcome.matches, nil, nil
 	}
 
 	// An unsigned request carries no client_id (Appendix A.2). The prompt then
@@ -553,20 +554,20 @@ func (w *Wallet) awaitInteractivePresentationConsent(cancelled <-chan struct{}, 
 		}
 	}()
 	// On a shared wallet the browser that started issuance gets this prompt.
-	consentReq, matches, approved, answered, err := w.askPresentationConsent(ctx, consent.TypeIssuancePresentation, owner, asking, authReq, outcome, interactiveAuthorizationConsentTimeout, nil)
+	consentReq, matches, denial, answered, err := w.askPresentationConsent(ctx, consent.TypeIssuancePresentation, owner, asking, authReq, outcome, interactiveAuthorizationConsentTimeout, nil)
 	if err != nil {
-		return nil, false, err
+		return nil, nil, err
 	}
 	if !answered && ctx.Err() != nil {
 		consentReq.SubmissionCh <- consent.SubmissionResult{Error: "cancelled"}
-		return nil, false, errSignInCancelled
+		return nil, nil, errSignInCancelled
 	}
 	if !answered {
 		consentReq.SubmissionCh <- consent.SubmissionResult{Error: "consent timeout"}
-		return nil, false, fmt.Errorf("no answer to the presentation the issuer asked for")
+		return nil, nil, fmt.Errorf("no answer to the presentation the issuer asked for")
 	}
 	consentReq.SubmissionCh <- consent.SubmissionResult{StatusCode: 200}
-	return matches, approved, nil
+	return matches, denial, nil
 }
 
 func (w *Wallet) addPresentationRequestLogEntry(authReq *oid4vp.Request) {

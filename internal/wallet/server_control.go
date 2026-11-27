@@ -30,6 +30,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 	"github.com/eudi-dev/eudi-dev/v3/internal/news"
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 	"github.com/eudi-dev/eudi-dev/v3/internal/registrar"
 )
 
@@ -298,12 +299,35 @@ func (s *Server) handleSetNextError(w http.ResponseWriter, r *http.Request) {
 		apierror.InvalidJSON(w, err)
 		return
 	}
-	s.wallet.Consents().SetNextError(&body)
+	if body.Error == "" {
+		apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, "error is required")
+		return
+	}
+	s.wallet.Consents().SetNextError(callerOwners(r), &body)
 	writeJSON(w, http.StatusOK, body)
 }
 
 func (s *Server) handleClearNextError(w http.ResponseWriter, r *http.Request) {
-	s.wallet.Consents().SetNextError(nil)
+	s.wallet.Consents().SetNextError(callerOwners(r), nil)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleSetNextNotification(w http.ResponseWriter, r *http.Request) {
+	var body oid4vc.Notification
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		apierror.InvalidJSON(w, err)
+		return
+	}
+	if err := body.Validate(); err != nil {
+		apierror.WriteErr(w, http.StatusBadRequest, apierror.InvalidRequest, err)
+		return
+	}
+	s.wallet.Consents().SetNextNotification(callerOwners(r), &body)
+	writeJSON(w, http.StatusOK, body)
+}
+
+func (s *Server) handleClearNextNotification(w http.ResponseWriter, r *http.Request) {
+	s.wallet.Consents().SetNextNotification(callerOwners(r), nil)
 	w.WriteHeader(http.StatusNoContent)
 }
 

@@ -27,6 +27,7 @@ import (
 	"github.com/eudi-dev/eudi-dev/v3/internal/apierror"
 	"github.com/eudi-dev/eudi-dev/v3/internal/config"
 	"github.com/eudi-dev/eudi-dev/v3/internal/consent"
+	"github.com/eudi-dev/eudi-dev/v3/internal/oid4vc"
 )
 
 func (s *Server) handleListRequests(w http.ResponseWriter, r *http.Request) {
@@ -96,11 +97,13 @@ func (s *Server) handleRequestStream(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			flusher.Flush()
-		case req := <-reqCh:
-			if !consent.Owns(owners, req, namedRequest(r)) {
+		case announced := <-reqCh:
+			if !consent.Owns(owners, announced.Request, namedRequest(r)) {
 				continue
 			}
-			data, err := json.Marshal(s.wallet.Consents().DocFor(req, owners))
+			doc := s.wallet.Consents().DocFor(announced.Request, owners)
+			doc["updated"] = announced.Updated
+			data, err := json.Marshal(doc)
 			if err != nil {
 				continue
 			}
@@ -185,6 +188,9 @@ func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
 		Picks      map[string]consentPick `json:"picks"`
 		SetChoices []int                  `json:"set_choices"`
 		ClaimSets  map[string]int         `json:"claim_sets"`
+		// Notification is the event for the issuer's Notification Endpoint
+		// (OpenID4VCI 1.0 §11) of an offer.
+		Notification *oid4vc.Notification `json:"notification"`
 	}
 	if r.Body != nil {
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil && !errors.Is(err, io.EOF) {
@@ -219,6 +225,10 @@ func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
 			apierror.WriteErr(w, http.StatusBadRequest, apierror.InvalidRequest, err)
 			return
 		}
+		if err := validateApprovedNotification(pending, body.Notification); err != nil {
+			apierror.WriteErr(w, http.StatusBadRequest, apierror.InvalidRequest, err)
+			return
+		}
 	}
 
 	req, ok := s.wallet.Consents().Resolve(id, consent.StatusApproved)
@@ -241,6 +251,7 @@ func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
 		Picks:           picks,
 		SetChoices:      body.SetChoices,
 		ClaimSetChoices: body.ClaimSets,
+		Notification:    body.Notification,
 	}
 
 	s.allowSlowResponse(w, config.SlowRequestTimeout)
@@ -252,6 +263,9 @@ func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
 		}, submission.RedirectURI)
 		if submission.Error != "" {
 			out["error"] = submission.Error
+		}
+		if submission.Discarded {
+			out["discarded"] = true
 		}
 		if len(submission.Findings) > 0 {
 			out["findings"] = submission.Findings.Texts()
@@ -279,8 +293,27 @@ func (s *Server) handleDenyRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("id")
-	if pending, ok := s.wallet.Consents().Get(id); ok && !consent.Owns(callerOwners(r), pending, namedRequest(r)) {
+	pending, ok := s.wallet.Consents().Get(id)
+	if ok && !consent.Owns(callerOwners(r), pending, namedRequest(r)) {
 		apierror.Write(w, http.StatusNotFound, apierror.NotFound, "request not found")
+		return
+	}
+	// The body is optional and replaces access_denied with another error
+	// response. Without a body the wallet sends the error the dialog shows.
+	var chosen consent.NextErrorOverride
+	err := json.NewDecoder(r.Body).Decode(&chosen)
+	if err != nil && !errors.Is(err, io.EOF) {
+		apierror.InvalidJSON(w, err)
+		return
+	}
+	noBody := errors.Is(err, io.EOF)
+	if chosen.Error == "" && chosen.ErrorDescription != "" {
+		apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, "error_description needs an error")
+		return
+	}
+	// OpenID4VCI 1.0 has no error response for a declined offer.
+	if chosen.Error != "" && ok && pending.Type == consent.TypeIssuance {
+		apierror.Write(w, http.StatusBadRequest, apierror.InvalidRequest, "a credential offer has no error response to send")
 		return
 	}
 	req, ok := s.wallet.Consents().Resolve(id, consent.StatusDenied)
@@ -293,7 +326,13 @@ func (s *Server) handleDenyRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req.ResultCh <- consent.Result{Approved: false}
+	result := consent.Result{Approved: false}
+	if chosen.Error != "" {
+		result.Error = &chosen
+	} else if noBody {
+		result.Error = req.NextError
+	}
+	req.ResultCh <- result
 
 	// OpenID4VP 1.0 §8.2: the verifier can answer the Authorization Error Response
 	// with a redirect_uri, and the wallet must send the user agent there.
@@ -344,4 +383,16 @@ func (p *consentPick) UnmarshalJSON(data []byte) error {
 	}
 	*p = many
 	return nil
+}
+
+// validateApprovedNotification checks the notification of an approval. Only an
+// offer leads to a Notification Request (OpenID4VCI 1.0 §11).
+func validateApprovedNotification(pending *consent.Request, n *oid4vc.Notification) error {
+	if n == nil {
+		return nil
+	}
+	if pending.Type != consent.TypeIssuance {
+		return errors.New("only a credential offer has a notification to send")
+	}
+	return n.Validate()
 }

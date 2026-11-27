@@ -59,6 +59,9 @@ type DeferredIssuance struct {
 	// key is fresh and exists only here. Each credential is matched back to
 	// one of them.
 	ProofKeyPEMs []string `json:"proof_keys,omitempty"`
+	// Notification is the event chosen for the Notification Endpoint when
+	// the credential arrives (OpenID4VCI 1.0 §11).
+	Notification *oid4vc.Notification `json:"notification,omitempty"`
 }
 
 // Interval is how long to wait between attempts, as the issuer asked.
@@ -86,6 +89,7 @@ type deferredTransaction struct {
 	display       *oid4vc.CredentialDisplay
 	grant         *accessGrant
 	proofKeys     []*ecdsa.PrivateKey
+	notification  *oid4vc.Notification
 }
 
 // deferredInterval reads the interval of a deferred answer (OID4VCI 1.0 §8.3
@@ -131,6 +135,7 @@ func newDeferredIssuance(t deferredTransaction) (*DeferredIssuance, error) {
 		CreatedAt:            now,
 		NextAttemptAt:        now.Add(t.interval),
 		ProofKeyPEMs:         pems,
+		Notification:         t.notification,
 	}, nil
 }
 

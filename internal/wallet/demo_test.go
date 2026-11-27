@@ -58,6 +58,8 @@ func TestDemoBlocksAdminEndpoints(t *testing.T) {
 		{"POST", "/api/shutdown", ""},
 		{"POST", "/api/next-error", `{"error":"access_denied"}`},
 		{"DELETE", "/api/next-error", ""},
+		{"POST", "/api/next-notification", `{"event":"credential_failure"}`},
+		{"DELETE", "/api/next-notification", ""},
 		{"PUT", "/api/config/preferred-format", `{"preferred_format":"dc+sd-jwt"}`},
 		{"PUT", "/api/config/auto-accept", `{"enabled":true}`},
 	}

@@ -268,6 +268,8 @@ func (s *Server) setupRoutes() {
 
 	s.routeFunc("POST /api/next-error", s.withFreshStore(s.handleSetNextError))
 	s.routeFunc("DELETE /api/next-error", s.withFreshStore(s.handleClearNextError))
+	s.routeFunc("POST /api/next-notification", s.withFreshStore(s.handleSetNextNotification))
+	s.routeFunc("DELETE /api/next-notification", s.withFreshStore(s.handleClearNextNotification))
 	s.routeFunc("PUT /api/config/preferred-format", s.withFreshStore(s.handleSetPreferredFormat))
 	s.routeFunc("PUT /api/config/auto-accept", s.withFreshStore(s.handleSetAutoAccept))
 	s.routeFunc("PUT /api/config/conformance", s.withFreshStore(s.handleSetConformance))

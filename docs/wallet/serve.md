@@ -22,7 +22,7 @@ For `credential_offer_uri`, the wallet fetches the offer for the dialog and agai
 
 If the offer requires a transaction code and none is given, issuance fails before the wallet uses the pre-authorized code. This applies to API callers and to `--auto-accept` too. The error gives the required code length and input mode.
 
-After storing a credential, the wallet calls the issuer's Notification Endpoint if the issuer publishes one. The endpoint is optional (OpenID4VCI 1.0 §11). A rejected call logs a warning and the credential stays in the wallet. The warning quotes the response and compares it with §11.3 (an Authorization Error Response for a rejected token, a 400 for a bad `notification_id`).
+After it receives a credential, the wallet sends `credential_accepted` to the issuer's Notification Endpoint if the issuer publishes one. The consent dialog, `wallet accept --notification` and [`/api/next-notification`](http-api.md#one-shot-notification-override) choose another event. The endpoint is optional (OpenID4VCI 1.0 §11). A rejected call logs a warning. After a rejected `credential_accepted` the credential stays in the wallet. The warning quotes the response and compares it with §11.3 (an Authorization Error Response for a rejected token, a 400 for a bad `notification_id`).
 
 The purpose and privacy policy in the presentation consent dialog come from the verifier's registration certificate. The certificate must belong to the access certificate that signed the request object (see [wallet checks](registrar.md#wallet-checks)). `--arf` checks the registration certificate (see [ARF checks](presenting.md#arf-checks)).
 

@@ -193,14 +193,17 @@ func TestClientEndpoints(t *testing.T) {
 			wantBody: `{"uri":"openid4vp://request"}`,
 		},
 		{
-			name:       "AcceptOffer",
-			call:       func(c *Client) error { _, err := c.AcceptOffer("openid-credential-offer://x", "", false); return err },
+			name: "AcceptOffer",
+			call: func(c *Client) error {
+				_, err := c.AcceptOffer("openid-credential-offer://x", "", nil, false)
+				return err
+			},
 			wantMethod: http.MethodPost, wantPath: "/api/offers",
 			wantBody: `{"uri":"openid-credential-offer://x"}`,
 		},
 		{
 			name:       "AcceptOffer with a transaction code",
-			call:       func(c *Client) error { _, err := c.AcceptOffer("offer://x", "123456", false); return err },
+			call:       func(c *Client) error { _, err := c.AcceptOffer("offer://x", "123456", nil, false); return err },
 			wantMethod: http.MethodPost, wantPath: "/api/offers",
 			wantBody: `{"tx_code":"123456","uri":"offer://x"}`,
 		},
@@ -456,7 +459,7 @@ func TestPresentAndAcceptOfferSendInteractive(t *testing.T) {
 		t.Errorf("interactive Present body = %q, want interactive:true", r.body)
 	}
 
-	if _, err := c.AcceptOffer("openid-credential-offer://x", "", true); err != nil {
+	if _, err := c.AcceptOffer("openid-credential-offer://x", "", nil, true); err != nil {
 		t.Fatalf("AcceptOffer: %v", err)
 	}
 	if !strings.Contains(r.body, `"interactive":true`) {

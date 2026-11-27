@@ -64,6 +64,7 @@ func newPresentationConsent(typ, owner, clientID string, authReq *oid4vp.Request
 	req.Nonce = authReq.Nonce
 	req.ResponseURI = authReq.ResponseURI
 	req.DCQLQuery = authReq.DCQLQuery
+	req.DCAPI = oid4vp.IsDCAPIResponseMode(answerResponseMode(authReq))
 	req.Findings = authReq.Findings
 	req.CredentialOptions = options
 	req.NoIssuance = !offersIssuance(authReq)

@@ -22,6 +22,10 @@ Only one of the owner's open tabs navigates. The issuer accepts a pushed authori
 
 Errors follow the consent routing rules. Consent requests without an owner appear in the shared banner. A tab opened by a local wallet can answer its request directly using the request ID in its URL.
 
+## One-shot overrides follow the owner
+
+`/api/next-error` and `/api/next-notification` store the override under the session cookie and the `X-Eudi-Owner` of the call. A flow takes its owner's override first and then one without an owner. Visitors of a shared wallet then do not answer each other's flows. CI or curl without an owner still set the override for the next flow of any caller. An override of a browser expires after 10 minutes, so a forgotten one does not answer a much later flow. A public demo refuses both endpoints.
+
 ## The redirect carries the request id
 
 When the wallet redirects a browser, the URL includes the request id. A call with that id can answer the request. This lets a browser without the cookie (inside a cross-site frame, or with cookies turned off) still complete its flow. The id is unguessable and the wallet sent it to that browser, so it works as a capability token.

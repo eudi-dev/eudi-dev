@@ -181,13 +181,16 @@ func (s *Server) collectDueDeferredCredentials(now time.Time) error {
 }
 
 type DeferredAttempt struct {
-	Collected     bool              `json:"collected"`
-	Credential    *StoredCredential `json:"credential,omitempty"`
-	Pending       bool              `json:"pending,omitempty"`
-	NextAttemptAt time.Time         `json:"next_attempt_at,omitempty"`
-	Interval      string            `json:"interval,omitempty"`
-	Abandoned     bool              `json:"abandoned,omitempty"`
-	Reason        string            `json:"reason,omitempty"`
+	Collected  bool              `json:"collected"`
+	Credential *StoredCredential `json:"credential,omitempty"`
+	// Discarded means the credential arrived and the chosen notification left
+	// it out of the wallet.
+	Discarded     bool      `json:"discarded,omitempty"`
+	Pending       bool      `json:"pending,omitempty"`
+	NextAttemptAt time.Time `json:"next_attempt_at,omitempty"`
+	Interval      string    `json:"interval,omitempty"`
+	Abandoned     bool      `json:"abandoned,omitempty"`
+	Reason        string    `json:"reason,omitempty"`
 }
 
 // attemptDeferredCollection imports a completed credential, reschedules a
@@ -276,11 +279,12 @@ func (s *Server) attemptDeferredCollection(pending DeferredIssuance) DeferredAtt
 
 	// §9.2 lets the Deferred Credential Response carry a notification_id of
 	// its own, defined in §8.3.
-	imported, _, err := s.wallet.storeIssuedCredential(credResp, credentialDelivery{
-		metadata:  metadata,
-		renewal:   pending.CredentialRenewal,
-		display:   display,
-		proofKeys: proofKeys,
+	delivered, err := s.wallet.storeIssuedCredential(credResp, credentialDelivery{
+		metadata:     metadata,
+		renewal:      pending.CredentialRenewal,
+		display:      display,
+		proofKeys:    proofKeys,
+		notification: pending.Notification,
 		access: resourceAccess{
 			accessToken: pending.AccessToken,
 			authScheme:  pending.AuthScheme,
@@ -295,9 +299,13 @@ func (s *Server) attemptDeferredCollection(pending DeferredIssuance) DeferredAtt
 	if err != nil {
 		return s.abandonDeferred(pending, err.Error())
 	}
-	s.log("  Collected:     deferred %s credential from %s", imported.Format, pending.Issuer)
+	if delivered.stored == nil {
+		s.log("  Discarded:     deferred credential from %s", pending.Issuer)
+		return DeferredAttempt{Collected: true, Discarded: true}
+	}
+	s.log("  Collected:     deferred %s credential from %s", delivered.stored.Format, pending.Issuer)
 	s.wallet.refreshWaitingPresentations()
-	return DeferredAttempt{Collected: true, Credential: imported}
+	return DeferredAttempt{Collected: true, Credential: delivered.stored}
 }
 
 // handleDeferredAttemptError reschedules a pending record or a transient

@@ -1510,31 +1510,42 @@ func deferredIssuancePending(out map[string]any) (bool, time.Duration) {
 	return false, 0
 }
 
-// notifyCredentialAccepted reports a stored credential to the issuer's
-// Notification Endpoint. §11: "Support for this endpoint is OPTIONAL. The
-// Issuer cannot assume that a notification will be sent for every issued
-// Credential since the use of this Endpoint is not mandatory for the Wallet."
-// The credential is already stored, so an unanswered notification is only
-// logged.
-func (w *Wallet) notifyCredential(event string, metadata, credResp map[string]any, accessToken, authScheme string, dpopKey *ecdsa.PrivateKey, nonce *string) {
+// notifyCredential reports what the wallet did with the received credentials
+// to the issuer's Notification Endpoint. §11: "Support for this endpoint is
+// OPTIONAL. The Issuer cannot assume that a notification will be sent for
+// every issued Credential since the use of this Endpoint is not mandatory for
+// the Wallet." The outcome is already settled, so an unanswered notification
+// is only logged. chosen means a person or an API caller picked the event, so
+// a notification that cannot be sent gets a log entry. It returns whether the
+// issuer accepted the notification.
+func (w *Wallet) notifyCredential(n oid4vc.Notification, chosen bool, metadata, credResp map[string]any, access resourceAccess) bool {
 	notificationID, _ := credResp["notification_id"].(string)
 	notificationEndpoint, _ := metadata["notification_endpoint"].(string)
 	if notificationID == "" || notificationEndpoint == "" {
-		return
+		if chosen {
+			reason := "the issuer metadata has no notification_endpoint"
+			if notificationEndpoint != "" {
+				reason = "the credential response has no notification_id"
+			}
+			w.addProtocolLog("issuance", "notification_skipped", fmt.Sprintf("Did not send %s, because %s", n.Event, reason), false, map[string]any{
+				"notification_event": n.Event,
+			})
+		}
+		return false
 	}
 	var sent http.Header
-	status, respBody, err := sendNotificationWithDPoP(notificationEndpoint, accessToken, authScheme, notificationID, event, dpopKey, nonce, w.HTTPClient(), &sent)
+	status, respBody, err := sendNotificationWithDPoP(notificationEndpoint, access, notificationID, n, w.HTTPClient(), &sent)
 	requestDetails := map[string]any{
 		"direction":          "outbound",
 		"method":             "POST",
 		"url":                notificationEndpoint,
 		"endpoint":           "notification",
 		"notification_id":    notificationID,
-		"notification_event": event,
+		"notification_event": n.Event,
 	}
 	addRequestHeaders(requestDetails, sent)
 	w.addProtocolLog("issuance", "notification_request", fmt.Sprintf("Send credential notification to %s", notificationEndpoint), true, requestDetails,
-		&LogPayload{Label: "Request", Body: notificationRequestBody(notificationID, event)})
+		&LogPayload{Label: "Request", Body: notificationRequestBody(notificationID, n)})
 	if err != nil {
 		w.addProtocolLog("issuance", "notification_response", fmt.Sprintf("Notification response from %s", notificationEndpoint), false, map[string]any{
 			"direction": "inbound",
@@ -1553,15 +1564,23 @@ func (w *Wallet) notifyCredential(event string, metadata, credResp map[string]an
 			details["error_code"] = code
 		}
 		w.addProtocolWarning("issuance", "notification_failed",
-			"The issuer did not accept the notification for this credential. The credential is stored anyway. "+reading,
+			"The issuer did not accept the notification for this credential. "+notificationOutcome(n)+" "+reading,
 			details)
-		return
+		return false
 	}
 	w.addProtocolLog("issuance", "notification_response", fmt.Sprintf("Notification response from %s", notificationEndpoint), true, map[string]any{
 		"direction": "inbound",
 		"url":       notificationEndpoint,
 		"endpoint":  "notification",
 	}, &LogPayload{Label: "Response", Body: string(respBody)})
+	return true
+}
+
+func notificationOutcome(n oid4vc.Notification) string {
+	if n.Discards() {
+		return "The wallet did not keep the credential."
+	}
+	return "The credential is stored anyway."
 }
 
 // readNotificationRefusal explains a Notification Endpoint answer against
@@ -1598,17 +1617,23 @@ func readNotificationRefusal(status int, body []byte) (string, string) {
 	}
 }
 
-func notificationRequestBody(notificationID, event string) map[string]any {
-	return map[string]any{"notification_id": notificationID, "event": event}
+// notificationRequestBody is a Notification Request (§11.1). event_description
+// is OPTIONAL, so an empty one is left out.
+func notificationRequestBody(notificationID string, n oid4vc.Notification) map[string]any {
+	body := map[string]any{"notification_id": notificationID, "event": n.Event}
+	if n.EventDescription != "" {
+		body["event_description"] = n.EventDescription
+	}
+	return body
 }
 
-func sendNotificationWithDPoP(endpoint, accessToken, authScheme, notificationID, event string, dpopKey *ecdsa.PrivateKey, nonce *string, client *http.Client, sent *http.Header) (int, []byte, error) {
-	body, err := json.Marshal(notificationRequestBody(notificationID, event))
+func sendNotificationWithDPoP(endpoint string, access resourceAccess, notificationID string, n oid4vc.Notification, client *http.Client, sent *http.Header) (int, []byte, error) {
+	body, err := json.Marshal(notificationRequestBody(notificationID, n))
 	if err != nil {
 		return 0, nil, fmt.Errorf("marshaling notification request: %w", err)
 	}
 	// §11.2 requires a 2xx and only RECOMMENDS 204, so any 2xx is a success.
-	respBody, statusCode, err := doDPoPRequest("POST", endpoint, "application/json", "", body, authScheme, accessToken, dpopKey, nonce, nil, client, sent)
+	respBody, statusCode, err := doDPoPRequest("POST", endpoint, "application/json", "", body, access.authScheme, access.accessToken, access.dpopKey, access.nonce, nil, client, sent)
 	if err != nil {
 		return statusCode, respBody, err
 	}

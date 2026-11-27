@@ -113,12 +113,13 @@ curl -X POST http://localhost:8085/api/presentations \
 | `tx_code` | string | Transaction code of a pre-authorized code offer |
 | `credential_configuration_id` | string | The configuration to request when the offer lists several. Default is the first |
 | `interactive` | bool | Show the consent dialog and wait for an answer |
+| `notification` | object | The body of [`/api/next-notification`](#one-shot-notification-override) for this offer |
 
-The wallet answers `200` with the issued credential: `credential_id`, `format`, `issuer`, the `verification_status` and `findings`. A deferred credential answers `202` with `pending`, `transaction_id` and `retry_interval`. An offer that needs a sign-in at the issuer answers `202` with `status` `authorization_required`, the `authorization_url` and an `offer_id`. Poll `GET /api/offers/{offer_id}` until its `status` is `completed`, `deferred` or `failed` (see [sign-in during issuance](issuing.md#sign-in-during-issuance)).
+The wallet answers `200` with the issued credential: `credential_id`, `format`, `issuer`, the `verification_status` and `findings`. `notification` names the event the issuer accepted. With `credential_failure` or `credential_deleted` the answer has `discarded` `true` and no `credential_id`. A deferred credential answers `202` with `pending`, `transaction_id` and `retry_interval`. An offer that needs a sign-in at the issuer answers `202` with `status` `authorization_required`, the `authorization_url` and an `offer_id`. Poll `GET /api/offers/{offer_id}` until its `status` is `completed`, `deferred` or `failed` (see [sign-in during issuance](issuing.md#sign-in-during-issuance)).
 
 #### Consent requests
 
-`GET /api/requests` lists the pending consent requests. Each has `id`, `type` (`presentation`, `issuance` or `issuance_presentation`), `client_id`, `matched_credentials`, `credential_options` and `mine`. A presentation with [transaction data](presenting.md#transaction-data) also has `transaction_data`, each entry with its `type`, `credential_ids` and `data`. `GET /api/requests/stream` sends a `consent` event for each new request, `wallet-error` for a failed flow, `state` when the stored state changes, and `authorize` with the sign-in `url` of an issuer. Only one tab of a browser gets `authorize`. The page sends its tab id in the `X-Eudi-Tab` header when it approves or submits an offer, and in the `tab` query of the stream. An `authorize` event goes to the stream with that tab id. If no stream has that tab id, it goes to the newest stream ([ADR-0011](../adr/0011-a-flow-belongs-to-the-browser-that-started-it.md)).
+`GET /api/requests` lists the pending consent requests. Each has `id`, `type` (`presentation`, `issuance` or `issuance_presentation`), `client_id`, `matched_credentials`, `credential_options` and `mine`. A presentation with [transaction data](presenting.md#transaction-data) also has `transaction_data`, each entry with its `type`, `credential_ids` and `data`. A presentation has `next_error` when the [error override](#one-shot-error-override) set its error. A presentation through the Digital Credentials API has `dc_api` `true`. Its error response carries only the error code (OpenID4VP 1.0 Appendix A.4). An offer has `offer_details` with the issuer's `notification_endpoint`, and `notification` when an override set the event. `GET /api/requests/stream` sends a `consent` event for each new request, `wallet-error` for a failed flow, `state` when the stored state changes, and `authorize` with the sign-in `url` of an issuer. Only one tab of a browser gets `authorize`. The page sends its tab id in the `X-Eudi-Tab` header when it approves or submits an offer, and in the `tab` query of the stream. An `authorize` event goes to the stream with that tab id. If no stream has that tab id, it goes to the newest stream ([ADR-0011](../adr/0011-a-flow-belongs-to-the-browser-that-started-it.md)).
 
 `POST /api/requests/{id}/approve` takes an optional JSON body:
 
@@ -130,8 +131,9 @@ The wallet answers `200` with the issued credential: `credential_id`, `format`, 
 | `selected_claims` | object | Claim paths to disclose per credential ID |
 | `tx_code` | string | Transaction code of an offer |
 | `credential_configuration_id` | string | The configuration to request from an offer |
+| `notification` | object | The event an offer sends the issuer, like the body of [`/api/next-notification`](#one-shot-notification-override). Without it the offer sends the event of the request's `notification`, or else `credential_accepted` |
 
-Approval answers `200` with `status` `approved`, the verifier's `redirect_uri` and `status_code`, and an `error` when the submission failed. A deferred credential reports `status` `pending` with `transaction_id` and `retry_interval`. `POST /api/requests/{id}/deny` answers `200` with `status` `denied` and the verifier's `redirect_uri`. A request that timed out or was answered already returns `409`. A public demo answers both endpoints only for its web UI and refuses other clients with `403`, unless the operator starts it with `--demo-consent-api`.
+Approval answers `200` with `status` `approved`, the verifier's `redirect_uri` and `status_code`, and an `error` when the submission failed. An offer that the chosen notification discards has `discarded` `true`. A deferred credential reports `status` `pending` with `transaction_id` and `retry_interval`. `POST /api/requests/{id}/deny` answers `200` with `status` `denied` and the verifier's `redirect_uri`. Without a body it sends the verifier the request's `next_error`, or else `access_denied`. To send another error, pass the body of [`/api/next-error`](#one-shot-error-override), such as `{"error": "invalid_transaction_data", "error_description": "The amount is too high"}`. A credential offer has no error response, so its deny takes no body. A request that timed out or was answered already returns `409`. A public demo answers both endpoints only for its web UI and refuses other clients with `403`, unless the operator starts it with `--demo-consent-api`.
 
 `GET /api/version` returns `version`, `build_id` and, outside the public demo, the `pid` of the server process.
 
@@ -431,7 +433,7 @@ These endpoints are available on both wallet ports. Anyone with access to the wa
 
 ### One-shot error override
 
-Pre-program the wallet to return an error for the next presentation request, even in auto-accept mode. The override applies only to a request that passes validation, and only once.
+Pre-program the wallet to return an error for the next presentation request. The override applies only to a request that passes validation, and only once. In auto-accept mode, and for requests sent through the API, the wallet answers with the error right away. In interactive mode the override waits for the next consent dialog, and the dialog shows the error as its answer. **Send error** sends it, and **Approve** still presents the credentials. A presentation that an issuer asks for during issuance works the same way. The wallet then sends the error to the issuer in `openid4vp_response` (OpenID4VCI 1.1 §6.2.1.1).
 
 **Set override:**
 
@@ -441,7 +443,7 @@ curl -X POST http://localhost:8085/api/next-error \
   -d '{"error": "access_denied", "error_description": "User denied consent"}'
 ```
 
-The next OID4VP authorization request returns the configured error:
+In auto-accept mode the next OID4VP authorization request returns the configured error:
 
 ```json
 {
@@ -459,10 +461,29 @@ Strict mode with `--arf` answers the same way when it refuses a request signed w
 curl -X DELETE http://localhost:8085/api/next-error
 ```
 
+An override belongs to the session cookie and the `X-Eudi-Owner` header of the call that set it. Only flows with that cookie or that owner use it, so visitors of a shared wallet keep their overrides apart. The browser extension has its own `X-Eudi-Owner`, so its flows use an override only when it was set with that header or without an owner. An override set without either, such as from curl or CI, applies to the next flow of any caller. A flow takes its own override first. An override of a browser expires after 10 minutes, and one without an owner stays until a flow uses it. `DELETE` clears the override of the caller. A public demo refuses both endpoints with `403`.
+
 | Method   | Path              | Body                                                        | Description                |
 |----------|-------------------|-------------------------------------------------------------|----------------------------|
 | `POST`   | `/api/next-error` | `{"error": "...", "error_description": "..."}`              | Set one-shot error override |
 | `DELETE` | `/api/next-error` | None                                                        | Clear override              |
+
+### One-shot notification override
+
+After a credential offer the wallet tells the issuer's Notification Endpoint what it did with the credential (OpenID4VCI 1.0 §11). By default the event is `credential_accepted`, or `credential_failure` when the wallet could not store the credential. The override picks the event for the next offer:
+
+```bash
+curl -X POST http://localhost:8085/api/next-notification \
+  -H 'Content-Type: application/json' \
+  -d '{"event": "credential_failure", "event_description": "Storage is full"}'
+```
+
+`event` is `credential_accepted`, `credential_failure` or `credential_deleted`. `event_description` is optional and allows printable ASCII without `"` and `\` (§11.1). With `credential_failure` or `credential_deleted` the wallet receives the credential and does not keep it. A deferred credential gets the event when the wallet collects it. In auto-accept mode, and for offers sent through the API, the next offer uses the override. In interactive mode the consent dialog shows it as its choice, and the user still decides. An issuer without a Notification Endpoint gets nothing, and the activity log notes the skipped event. A renewal always sends `credential_accepted`. Like the error override, it belongs to the caller that set it.
+
+| Method   | Path                     | Body                                          | Description                        |
+|----------|--------------------------|-----------------------------------------------|------------------------------------|
+| `POST`   | `/api/next-notification` | `{"event": "...", "event_description": "..."}` | Set one-shot notification override |
+| `DELETE` | `/api/next-notification` | None                                          | Clear override                     |
 
 ### Preferred credential format
 

@@ -108,6 +108,7 @@ Paste the offer URI into the actions bar and click **Process**. The wallet then 
 | **You will receive** claims | `#offer-credential-<configuration id>-claims`, rows `.consent-claim-name` and `.offer-claim-label` |
 | Credential description and **More** | `#offer-description-<configuration id>`, `#offer-description-<configuration id>-toggle` |
 | Transaction code | `#offer-tx-code-input`, `#offer-tx-code-description` |
+| **Choose the notification** | `#consent-notification-toggle`. It shows `#consent-notification-event` with the OpenID4VCI 1.0 §11.1 events and `#consent-notification-description`. With `credential_failure` or `credential_deleted`, **Approve** reads **Approve and discard** |
 | **Approve**, **Deny** | `#consent-approve`, `#consent-deny` |
 
 An empty transaction code keeps the dialog open and marks the input with the class `input-error`.
@@ -144,6 +145,7 @@ The demo issuer at `/issuer/` creates offers for the Demo Event Ticket and the w
 | Issuer identity | `#identity-toggle [data-identity="registered"]`, `"unregistered"`, `"unsigned"`, `"own"` with `#signing-key` and `#issuer-info` |
 | **Create offer** | `#create-btn` |
 | Result | `#result`, with `#wallet-link`, `#scheme-uri`, and `#offer-uri` and `#issuer-id` in the collapsed `#offer-details` |
+| Events from the wallet's Notification Request | `#offer-notifications`, one `.offer-notification` each |
 | Error | `#error` |
 
 ```js
@@ -268,6 +270,7 @@ The demo verifier at `/verifier/` builds requests for you:
 | Note on a query with **multiple** | `#consent-multiple-<query id>` |
 | Transaction to authorize | `#consent-transaction-<n>` with `-summary` (TS12 types and `delegate`) and the tag "Experimental" in `-tag`. Every type except `delegate` also has `-type` and `-data`. A `delegate` entry has `-limits` with the claims of the Delegate Payload (`-limit-<i>-label` and `-limit-<i>`) and `-delegate-key`. The data sits in `-details`, which starts closed when `-summary` is shown. Click `-details-summary` to open it |
 | Query without a matching credential (debug mode) | `#consent-unanswered-<query id>`. **Approve** stays disabled until you pick one |
+| **Answer with an error** | `#consent-error-toggle`. It shows `#consent-error-code` with the OpenID4VP 1.0 §8.5 codes, `#consent-error-custom` for **Other code** and `#consent-error-description`. **Deny** then reads **Send error**. Through the Digital Credentials API the verifier gets only the code |
 | **Approve**, **Deny** | `#consent-approve`, `#consent-deny` |
 
 Uncheck a claim to withhold it. The verifier then receives the presentation without that claim. Some claims are always sent, such as a plain SD-JWT claim or any claim of a `jwt_vc_json` credential. Their checkbox is disabled, and the row has the class `consent-claim-fixed`.

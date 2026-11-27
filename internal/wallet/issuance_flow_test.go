@@ -48,7 +48,10 @@ type mockIssuerOpts struct {
 	captureNotification func(*http.Request, []byte)
 	// refusesNotification publishes a Notification Endpoint that answers every
 	// call with 404.
-	refusesNotification       bool
+	refusesNotification bool
+	// acceptsNotification publishes a Notification Endpoint that answers 204
+	// (OpenID4VCI 1.0 §11.2).
+	acceptsNotification       bool
 	tokenAuthorizationDetails []any
 	// credentialResponse is the JSON answer of the credential endpoint. When
 	// nil, the endpoint returns a single SD-JWT credential.
@@ -132,7 +135,7 @@ func setupMockIssuer(t *testing.T, w *Wallet, opts mockIssuerOpts) (*httptest.Se
 				meta["credential_configurations_supported"].(map[string]any)[id] = map[string]any{"format": configFormat, "vct": "urn:test:credential"}
 				meta["deferred_credential_endpoint"] = serverURL + "/deferred"
 			}
-			if opts.refusesNotification {
+			if opts.refusesNotification || opts.acceptsNotification {
 				meta["notification_endpoint"] = serverURL + "/notification"
 			}
 			if opts.nonceEndpoint {
@@ -231,6 +234,10 @@ func setupMockIssuer(t *testing.T, w *Wallet, opts mockIssuerOpts) (*httptest.Se
 			if opts.captureNotification != nil {
 				raw, _ := io.ReadAll(r.Body)
 				opts.captureNotification(r, raw)
+			}
+			if opts.acceptsNotification {
+				rw.WriteHeader(http.StatusNoContent)
+				return
 			}
 			rw.WriteHeader(http.StatusNotFound)
 			json.NewEncoder(rw).Encode(map[string]any{"message": "Could not find any entity of type \"Session\""})

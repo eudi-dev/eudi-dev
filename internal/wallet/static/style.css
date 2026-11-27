@@ -2123,6 +2123,29 @@ textarea.form-input {
   text-decoration: none;
 }
 
+/* The toggle takes the free space left of the buttons. In a narrow row it
+   wraps onto its own line and the two buttons stay together. */
+.consent-buttons .consent-error-toggle {
+  margin-right: auto;
+  align-self: center;
+  font-size: 13px;
+}
+
+.consent-decision {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.consent-error-fields {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 16px;
+  font-size: 13px;
+}
+
 .consent-buttons {
   display: flex;
   flex-wrap: wrap;
@@ -3461,7 +3484,8 @@ textarea.form-input {
   letter-spacing: normal;
   color: var(--text-dim);
 }
-.offer-tx-code input.input-error {
+.offer-tx-code input.input-error,
+.consent-error-fields input.input-error {
   border-color: var(--danger);
 }
 .offer-description {

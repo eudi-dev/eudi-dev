@@ -98,6 +98,11 @@ type IssuanceResult struct {
 	FindingDetails []findings.Finding `json:"finding_details,omitempty"`
 	// Additional holds the results of AdditionalConfigurations.
 	Additional []*IssuanceResult `json:"additional,omitempty"`
+	// Discarded means the wallet received the credentials and did not keep
+	// them, as Notification chose. CredentialID is then empty.
+	Discarded bool `json:"discarded,omitempty"`
+	// Notification is the event the wallet sent to the Notification Endpoint.
+	Notification *oid4vc.Notification `json:"notification,omitempty"`
 }
 
 type OfferOptions struct {
@@ -137,6 +142,14 @@ type OfferOptions struct {
 	// ConfigurationID is the entry of credential_configuration_ids chosen by
 	// the user or the API caller. Empty requests the first entry.
 	ConfigurationID string
+	// Notification is the event the wallet sends to the issuer's Notification
+	// Endpoint (OpenID4VCI 1.0 §11) for the received credentials. An event
+	// that Discards leaves them out of the wallet. Nil takes the next
+	// notification override, or else credential_accepted.
+	Notification *oid4vc.Notification
+	// notificationDecided is set when the consent dialog already took the
+	// override.
+	notificationDecided bool
 
 	// findings collects the debug findings of the flow for its result.
 	findings *findings.List
@@ -234,6 +247,9 @@ func (w *Wallet) ProcessCredentialOffer(offerURI string) (*IssuanceResult, error
 func (w *Wallet) ProcessCredentialOfferWithOptions(offerURI string, opts OfferOptions) (*IssuanceResult, error) {
 	var list findings.List
 	opts.findings = &list
+	if opts.Notification == nil && !opts.notificationDecided {
+		opts.Notification, _ = w.Consents().ConsumeNextNotification(opts.Owner)
+	}
 	result, err := w.processCredentialOffer(offerURI, opts)
 	if result != nil && result.Findings == nil {
 		result.Findings = list
@@ -363,9 +379,10 @@ func (w *Wallet) processCredentialOffer(offerURI string, opts OfferOptions) (_ *
 			AuthorizationServer: oauthIssuer(oauthMeta, tokenEndpoint),
 			ReusePolicy:         w.reuseOption(metadata, configID),
 		},
-		additional: opts.AdditionalConfigurations,
-		nonces:     &dpopNonceState{},
-		report:     opts.addFindings,
+		additional:   opts.AdditionalConfigurations,
+		notification: opts.Notification,
+		nonces:       &dpopNonceState{},
+		report:       opts.addFindings,
 	}
 
 	// A pre-authorized flow can take its token endpoint from the issuer

@@ -189,7 +189,7 @@ func (s *Server) autoAccepts(authReq *oid4vp.Request) bool {
 // nil when the wallet refuses to ask.
 func (s *Server) awaitPresentationConsent(w http.ResponseWriter, authReq *oid4vp.Request, outcome presentationOutcome, shown func(*consent.Request)) {
 	s.allowSlowResponse(w, config.ConsentTimeout)
-	consentReq, matches, approved, answered, err := s.wallet.askPresentationConsent(context.Background(), consent.TypePresentation, authReq.Session, authReq.ClientID, authReq, outcome, config.ConsentTimeout, func(req *consent.Request) {
+	consentReq, matches, denial, answered, err := s.wallet.askPresentationConsent(context.Background(), consent.TypePresentation, authReq.Session, authReq.ClientID, authReq, outcome, config.ConsentTimeout, func(req *consent.Request) {
 		s.triggerUIRequest(req.ID)
 		if s.onConsentRequest != nil {
 			s.onConsentRequest(req)
@@ -206,9 +206,9 @@ func (s *Server) awaitPresentationConsent(w http.ResponseWriter, authReq *oid4vp
 		s.refuseBusy(w, err)
 	case !answered:
 		s.answerConsentTimeout(w, "presentation", consentReq)
-	case !approved:
-		s.logDeniedPresentation(authReq)
-		consentReq.SubmissionCh <- s.submitAuthorizationError(w, authReq, "denied", oid4vp.ErrorAccessDenied, "User denied presentation")
+	case denial != nil:
+		s.logDeniedPresentation(authReq, denial)
+		consentReq.SubmissionCh <- s.submitAuthorizationError(w, authReq, "denied", denial.Error, denial.ErrorDescription)
 	default:
 		s.log("  Consent:       approved")
 		consentReq.SubmissionCh <- s.submitPresentation(w, authReq, matches)
@@ -231,9 +231,9 @@ func (s *Server) answerConsentTimeout(w http.ResponseWriter, action string, req 
 	apierror.Write(w, http.StatusGatewayTimeout, apierror.ConsentTimeout, "consent timeout")
 }
 
-func (s *Server) logDeniedPresentation(authReq *oid4vp.Request) {
-	s.log("  Consent:       denied")
-	s.wallet.AddLog("presentation", fmt.Sprintf("Denied presentation to %s", authReq.ClientID), false)
+func (s *Server) logDeniedPresentation(authReq *oid4vp.Request, denial *consent.NextErrorOverride) {
+	s.log("  Consent:       denied with %s", denial.Error)
+	s.wallet.AddLog("presentation", fmt.Sprintf("Denied presentation to %s with %s", authReq.ClientID, denial.Error), false)
 }
 
 // Browser navigations redirect to the UI immediately. Their consent flows finish in

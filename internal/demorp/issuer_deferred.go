@@ -143,5 +143,9 @@ func (d *DemoRP) handleDeferredCredential(w http.ResponseWriter, r *http.Request
 		writeJSON(w, http.StatusInternalServerError, oauthError("server_error", err.Error()))
 		return
 	}
-	writeCredentialResponse(w, http.StatusOK, map[string]any{"credentials": credentials}, encryption)
+	// §9.2 lets a deferred response carry the notification_id.
+	writeCredentialResponse(w, http.StatusOK, map[string]any{
+		"credentials":     credentials,
+		"notification_id": d.newNotificationID(token, pending.granted),
+	}, encryption)
 }

@@ -56,6 +56,7 @@ func (w *Wallet) describeCredentialOffer(ctx context.Context, offer *oid4vc.Cred
 		details.MetadataError = err.Error()
 	} else {
 		details.IssuerName, details.IssuerLogo = issuerDisplay(metadata)
+		details.NotificationEndpoint, _ = metadata["notification_endpoint"].(string)
 		details.IssuerLogo = w.embedDisplayImage(images, details.IssuerLogo, "issuer_logo")
 		details.ARFFindings = w.issuerARFCheck(metadata, signerChain, offer.CredentialConfigurationIDs)
 		refusal = details.ARFFindings

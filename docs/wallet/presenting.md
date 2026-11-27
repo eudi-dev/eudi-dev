@@ -42,6 +42,8 @@ eudi wallet accept 'openid-credential-offer://...' --tx-code 123456
 | `--mode`                | `debug`  | Validation mode: `debug` or `strict`             |
 | `--session-transcript`  | `oid4vp` | mdoc session transcript mode: `oid4vp` or `iso`  |
 | `--tx-code`             | None     | Transaction code for OID4VCI pre-authorized code flow |
+| `--notification`        | None     | Event for the issuer's Notification Endpoint: `credential_accepted`, `credential_failure` or `credential_deleted`. The last two leave the credential out of the wallet (see [the notification override](http-api.md#one-shot-notification-override)) |
+| `--notification-description` | None | `event_description` sent with `--notification` |
 | `--docker`              | `false`  | Serve the trust and status lists under `host.docker.internal` for verifiers in a container. The server then binds `0.0.0.0` unless `--listen` sets another address |
 | `--listen`              | `$EUDI_DEV_LISTEN`, else `127.0.0.1` | IP address the local server binds (see [listen address](serve.md#listen-address)) |
 | `--key-attestation-level` | Issuer requirements | Test claims for key storage and user authentication: issuer requirements (default), `none`, or a level such as `iso_18045_high`. See [key attestation claims](serve.md#key-attestation-claims) |
@@ -85,7 +87,7 @@ eudi wallet scan --screen --auto-accept # approves a presentation without asking
 
 The wallet handling the flow fetches the offer and prompts for a transaction code when one is required. For a local flow, the CLI prompts when stdin is a terminal and `--tx-code` was not given. See [ADR-0012](../adr/0012-every-entry-point-runs-the-same-flow.md).
 
-`wallet scan` uses the persistent `wallet --mode` setting and accepts the same `--auto-accept`, `--tx-code`, `--haip`, `--arf`, `--relying-party-ca`, `--trusted-list-ca` and `--trusted-list` flags as `accept`.
+`wallet scan` uses the persistent `wallet --mode` setting and accepts the same `--auto-accept`, `--tx-code`, `--notification`, `--haip`, `--arf`, `--relying-party-ca`, `--trusted-list-ca` and `--trusted-list` flags as `accept`.
 
 ## Wallet invocation by URL
 

@@ -89,8 +89,8 @@ func TestWalletStore_LoadOrCreateSharesRuntimeForSameStore(t *testing.T) {
 
 	select {
 	case got := <-requestCh:
-		if got.ID != "shared-request" {
-			t.Fatalf("expected shared request, got %q", got.ID)
+		if got.Request.ID != "shared-request" {
+			t.Fatalf("expected shared request, got %q", got.Request.ID)
 		}
 	case <-time.After(time.Second):
 		t.Fatal("timeout waiting for shared request")

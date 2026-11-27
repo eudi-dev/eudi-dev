@@ -192,6 +192,10 @@ func (s *Server) applyOfferOutcome(owner string, result *IssuanceResult, err err
 		return
 	}
 
+	if result.Discarded {
+		s.log("  Discarded:     credential from %s", result.Issuer)
+		return
+	}
 	s.log("  Received:      %s credential from %s", result.Format, result.Issuer)
 	if result.VerificationDetail != "" {
 		s.log("  Verification:  %s [%s]", result.VerificationDetail, result.VerificationStatus)
@@ -278,10 +282,19 @@ func (s *Server) handleOfferAPI(w http.ResponseWriter, r *http.Request) {
 		Interactive bool   `json:"interactive,omitempty"`
 		// ConfigurationID picks one of the offer's credential_configuration_ids.
 		ConfigurationID string `json:"credential_configuration_id,omitempty"`
+		// Notification is the event for the issuer's Notification Endpoint
+		// (OpenID4VCI 1.0 §11).
+		Notification *oid4vc.Notification `json:"notification,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		apierror.InvalidJSON(w, err)
 		return
+	}
+	if body.Notification != nil {
+		if err := body.Notification.Validate(); err != nil {
+			apierror.WriteErr(w, http.StatusBadRequest, apierror.InvalidRequest, err)
+			return
+		}
 	}
 
 	// Clear the previous failure when a new request starts. Otherwise the UI would
@@ -296,6 +309,7 @@ func (s *Server) handleOfferAPI(w http.ResponseWriter, r *http.Request) {
 		Owner:           requestOwner(r),
 		Tab:             requestTab(r),
 		ConfigurationID: body.ConfigurationID,
+		Notification:    body.Notification,
 	}, false, !body.Interactive)
 }
 
@@ -320,7 +334,14 @@ func (s *Server) processOfferURI(ctx context.Context, w http.ResponseWriter, uri
 			return
 		}
 
+		// The dialog preselects the event of the request, or else the override.
+		consentReq.Notification = opts.Notification
+		restore := func() {}
+		if opts.Notification == nil {
+			consentReq.Notification, restore = s.wallet.Consents().ConsumeNextNotification(opts.Owner)
+		}
 		if err := s.wallet.Consents().Create(consentReq); err != nil {
+			restore()
 			s.refuseBusy(w, err)
 			return
 		}
@@ -377,6 +398,13 @@ func (s *Server) awaitOfferConsent(ctx context.Context, w http.ResponseWriter, c
 		if answer.ConfigurationID != "" {
 			opts.ConfigurationID = answer.ConfigurationID
 		}
+		// An approval without a notification keeps the event the dialog
+		// shows.
+		opts.Notification = answer.Notification
+		if opts.Notification == nil {
+			opts.Notification = consentReq.Notification
+		}
+		opts.notificationDecided = true
 		opts.ResolvedOffer = consentReq.ResolvedOffer
 		opts.Owner = approvingOwner(consentReq.Owner, answer.Owner)
 		opts.Tab = answer.Tab
@@ -408,7 +436,7 @@ func (s *Server) awaitOfferConsent(ctx context.Context, w http.ResponseWriter, c
 			return
 		}
 
-		consentReq.SubmissionCh <- consent.SubmissionResult{StatusCode: http.StatusOK}
+		consentReq.SubmissionCh <- consent.SubmissionResult{StatusCode: http.StatusOK, Discarded: result.Discarded}
 		writeJSON(w, http.StatusOK, result)
 	}
 
