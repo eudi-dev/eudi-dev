@@ -82,6 +82,9 @@ func TestRegisterWritesPluggableProtocolKeys(t *testing.T) {
 		if got := readValue(t, path, "URL Protocol"); got != "" {
 			t.Errorf("%s: URL Protocol = %q, want empty", scheme, got)
 		}
+		if got := readValue(t, path+`\shell\open`, "FriendlyAppName"); got != handlerAppName {
+			t.Errorf("%s: FriendlyAppName = %q, want %q", scheme, got, handlerAppName)
+		}
 		want, _ := handlerCommand(reg.Binary)
 		if got := readValue(t, path+`\shell\open\command`, ""); got != want {
 			t.Errorf("%s: command %q, want %q", scheme, got, want)

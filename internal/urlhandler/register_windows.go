@@ -41,6 +41,9 @@ var (
 // registrations of other wallets alone.
 const ownerValue = "EUDIDevHandler"
 
+// handlerAppName is the name a browser shows when it asks to open a link.
+const handlerAppName = "EUDI Dev Wallet"
+
 // Register makes this executable the handler of the URL schemes for the
 // current user. A clicked link runs 'wallet open-url'.
 func Register(opts Options) (Registration, error) {
@@ -76,10 +79,13 @@ func Register(opts Options) (Registration, error) {
 func writeSchemeKey(scheme, binary, command string) error {
 	path := classesRoot + `\` + scheme
 	values := []struct{ key, name, value string }{
-		{path, "", "URL:EUDI Dev Wallet (" + scheme + ")"},
+		{path, "", "URL:" + handlerAppName + " (" + scheme + ")"},
 		{path, "URL Protocol", ""},
 		{path, ownerValue, handlerScriptVersion},
 		{path + `\DefaultIcon`, "", `"` + binary + `",0`},
+		// Browsers name the handler with AssocQueryString(ASSOCSTR_FRIENDLYAPPNAME),
+		// which falls back to the file name for a binary without a version resource.
+		{path + `\shell\open`, "FriendlyAppName", handlerAppName},
 		{path + `\shell\open\command`, "", command},
 	}
 	for _, v := range values {
