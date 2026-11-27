@@ -127,8 +127,8 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage-filtered.out
 
-  # The OS integration (registry, console) only runs on Windows itself. The
-  # rest of the suite still assumes a Unix system.
+  # The OS integration (registry, console, screen capture) only runs on
+  # Windows itself. The rest of the suite still assumes a Unix system.
   windows:
     runs-on: windows-latest
     steps:
@@ -143,7 +143,7 @@ jobs:
 
       - name: Test the OS integration
         run: |
-          go test ./internal/urlhandler/...
+          go test ./internal/urlhandler/... ./internal/qr/...
           go test ./cmd -run "Register|OpenURL"
 
   container:
