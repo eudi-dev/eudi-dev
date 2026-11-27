@@ -238,7 +238,9 @@ func TestWatchServeConfigAppliesFilesSavedTogether(t *testing.T) {
 	}
 	var current atomic.Pointer[serveConfig]
 	current.Store(&applied)
-	const interval = 100 * time.Millisecond
+	// The second save must come within one interval of the first, also on a
+	// busy CI runner.
+	const interval = 400 * time.Millisecond
 	logs := runWatcher(t, opts, interval, current.Load, func(next *serveConfig) error {
 		applied, _, err := applyServeConfig(w, next, current.Load(), false)
 		current.Store(&applied)
@@ -248,7 +250,7 @@ func TestWatchServeConfigAppliesFilesSavedTogether(t *testing.T) {
 	for range 2 {
 		before := len(logs())
 		writeConfigFile(t, credentials, "credentials:\n  - id: third\n    template: third-card\n")
-		time.Sleep(3 * interval / 4)
+		time.Sleep(interval / 2)
 		writeConfigFile(t, templates, configTestTemplates+"---\nname: third-card\nformat: sdjwt\nvct: urn:example:third:1\n")
 		waitFor(t, "the reload", func() bool {
 			got := logs()
