@@ -69,6 +69,7 @@ type Registration struct {
 	Registered  bool     `json:"registered"`
 	AppBundle   string   `json:"app_bundle,omitempty"`
 	DesktopFile string   `json:"desktop_file,omitempty"`
+	RegistryKey string   `json:"registry_key,omitempty"`
 	Handler     string   `json:"handler,omitempty"`
 	Binary      string   `json:"binary,omitempty"`
 	AutoAccept  bool     `json:"auto_accept"`
@@ -83,4 +84,5 @@ type Unregistration struct {
 	Unregistered bool   `json:"unregistered"`
 	AppBundle    string `json:"app_bundle,omitempty"`
 	DesktopFile  string `json:"desktop_file,omitempty"`
+	RegistryKey  string `json:"registry_key,omitempty"`
 }

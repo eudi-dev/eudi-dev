@@ -5,6 +5,12 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **URL scheme handlers on Windows.** `wallet register` and `wallet serve --register` register the OpenID4VP and OpenID4VCI schemes for the current user below `HKEY_CURRENT_USER\Software\Classes`, without administrator rights. A clicked link reaches the wallet through `wallet open-url`, as on Linux. `wallet unregister` removes only the keys it wrote. See [Wallet](docs/wallet.md).
+
 ## [3.12.0] - 2026-11-27
 
 ### Added

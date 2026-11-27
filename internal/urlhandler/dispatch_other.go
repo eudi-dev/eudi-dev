@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build !unix
+//go:build !unix && !windows
 
 package urlhandler
 
@@ -22,6 +22,8 @@ import (
 )
 
 func detach(*exec.Cmd) {}
+
+func noWindow(*exec.Cmd) {}
 
 func terminate(pid int) error {
 	p, err := os.FindProcess(pid)

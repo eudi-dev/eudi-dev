@@ -295,5 +295,6 @@ func (d *Dispatcher) runCommand(args []string) error {
 	cmd := exec.Command(d.Binary, args...)
 	cmd.Stdout = d.Log
 	cmd.Stderr = d.Log
+	noWindow(cmd)
 	return cmd.Run()
 }

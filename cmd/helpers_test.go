@@ -212,6 +212,7 @@ func TestEffectivePresentationPort(t *testing.T) {
 func TestRegisteredWalletListenerBaseURL(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	handlerDir := filepath.Join(home, ".eudi-dev")
 	if err := os.MkdirAll(handlerDir, 0755); err != nil {
 		t.Fatal(err)

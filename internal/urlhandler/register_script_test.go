@@ -12,6 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// The macOS handler script needs bash, and the symlink tests need a privilege
+// that Windows grants only in developer mode.
+
+//go:build !windows
+
 package urlhandler
 
 import (

@@ -57,6 +57,11 @@ func walletOpenURLCmd() *cobra.Command {
 					log = io.MultiWriter(os.Stderr, f)
 				}
 			}
+			// io.MultiWriter stops at the first failing writer, and stderr
+			// fails once the console is gone.
+			if releaseOwnConsole() {
+				log = file
+			}
 			fmt.Fprintf(log, "%s open-url %s\n", time.Now().Format(time.RFC3339), args[0])
 			err = urlhandler.NewDispatcher(opts, binary, Version, remote.Active(), openBrowser, log).Dispatch(args[0])
 			if err != nil {

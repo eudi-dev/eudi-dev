@@ -92,11 +92,11 @@ eudi wallet logs -f
 # Import a credential from a file
 eudi wallet import credential.txt
 
-# Register URL scheme handlers so openid4vp:// links open the wallet on macOS and Linux
+# Register URL scheme handlers so openid4vp:// links open the wallet on macOS, Linux and Windows
 eudi wallet register
 ```
 
-On Windows, `wallet register` and `wallet unregister` are no-ops. Open copied protocol links with `eudi wallet accept '<uri>'`. Credential offers support `openid-credential-offer://`, `haip-vci://` and EUDI `eu-eaa-offer://`.
+On Windows, `wallet register` writes a key per scheme below `HKEY_CURRENT_USER\Software\Classes`. It needs no administrator rights. A clicked link runs `eudi.exe wallet open-url`, which hides its console window and logs to `url-handler.log` in the eudi-dev directory. `wallet unregister` removes only the keys it wrote. If you chose another app for a scheme in Settings › Apps › Default apps, Windows keeps sending links there, and `wallet register` names those schemes. Credential offers support `openid-credential-offer://`, `haip-vci://` and EUDI `eu-eaa-offer://`.
 
 While `wallet use <url>` sets a remote target, the URL handler sends clicked links to that instance. It opens the remote consent UI in the browser. `wallet use local` routes links back to the local wallet server.
 

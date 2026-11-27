@@ -12,28 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build darwin || linux
+//go:build !windows
 
-package urlhandler
+package cmd
 
-import (
-	"encoding/json"
-	"fmt"
-	"os"
-
-	"github.com/eudi-dev/eudi-dev/v3/internal/config"
-)
-
-func saveOptions(opts Options) error {
-	data, err := json.MarshalIndent(opts, "", "  ")
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(config.BaseDir(), 0o755); err != nil {
-		return fmt.Errorf("creating config directory: %w", err)
-	}
-	if err := os.WriteFile(optionsPath(), append(data, '\n'), 0o600); err != nil {
-		return fmt.Errorf("writing handler options: %w", err)
-	}
-	return nil
-}
+// releaseOwnConsole is for Windows, where a clicked link opens a console.
+func releaseOwnConsole() bool { return false }
