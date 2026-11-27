@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib" // registers the pgx database/sql driver
@@ -32,6 +33,11 @@ import (
 const (
 	postgresTable    = "eudi_dev_state"
 	postgresVersions = "eudi_dev_state_version"
+
+	// database/sql keeps two idle connections by default. A wallet serving
+	// parallel requests would then dial for most queries.
+	postgresIdleConns    = 16
+	postgresConnIdleTime = time.Minute
 )
 
 type postgresStore struct {
@@ -55,6 +61,8 @@ func openPostgres(dsn string) (Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("opening postgres storage: %w", err)
 	}
+	db.SetMaxIdleConns(postgresIdleConns)
+	db.SetConnMaxIdleTime(postgresConnIdleTime)
 	store, loaded := postgresPools.LoadOrStore(dsn, &postgresStore{db: db, label: postgresLabel(dsn)})
 	if loaded {
 		_ = db.Close()
