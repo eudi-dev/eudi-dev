@@ -5,11 +5,26 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [3.12.0] - 2026-11-27
 
 ### Added
 
-- **`--status-list-ttl` and `--status-list-lifetime`.** `wallet serve` sets the `ttl` claim and the `exp` of its status list token. The defaults stay at 12 hours and 24 hours. Like every flag, they also read `EUDI_DEV_STATUS_LIST_TTL` and `EUDI_DEV_STATUS_LIST_LIFETIME`. See [wallet serve](docs/wallet/serve.md).
+- **Error responses from the consent dialog.** **Answer with an error** sends the verifier an OpenID4VP 1.0 §8.5 error code of your choice, with an optional description. Through the Digital Credentials API the verifier gets only the code (Appendix A.4).
+- **Notification choice.** The offer dialog, `wallet accept --notification` and the HTTP API choose the event the wallet sends to the issuer's Notification Endpoint (OpenID4VCI 1.0 §11). With `credential_failure` or `credential_deleted` the wallet does not keep the credential. Like the error override, it applies only to the browser that set it. See [the one-shot notification override](docs/wallet/http-api.md#one-shot-notification-override).
+- **Notifications at the demo issuer.** The demo issuer publishes a Notification Endpoint, and its page lists the events the wallet sends for an offer. See [notifications and errors](docs/wallet/demo-issuer.md#notifications-and-errors).
+- **`--status-list-ttl` and `--status-list-lifetime`.** `wallet serve` sets the `ttl` claim and the `exp` of its status list token. The defaults stay at 12 hours and 24 hours. Like every flag, they also read `EUDI_DEV_STATUS_LIST_TTL` and `EUDI_DEV_STATUS_LIST_LIFETIME`. See [wallet serve](docs/wallet/serve.md). Thanks to [Julian Dreissig](https://github.com/thirtified) for the contribution (#27).
+
+### Changed
+
+- **`/api/next-error` in interactive mode.** The override fills the consent dialog, and you still decide. In auto-accept mode the wallet answers with the error right away. `/api/next-error` refuses a body without `error`. On a shared wallet the override applies only to the browser that set it. An override set without a browser, such as from CI, applies to the next flow of any caller. See [the one-shot error override](docs/wallet/http-api.md#one-shot-error-override).
+
+### Fixed
+
+- **Transaction template fields.** The transaction template dialog says where each field goes, and its labels line up with their fields.
+- **Postgres storage under load.** The wallet keeps idle database connections open. Before, a busy wallet opened a new connection for most queries, and some of them failed.
+- **Consent dialog during an issuance.** A presentation request that arrived while the wallet stored a credential could show only the "waiting for consent" banner. The dialog now opens.
+- **Copied trusted list URL.** The "Copied!" label stays for its two seconds when the trusted lists refresh.
+- **Certificates in a decoded trusted list.** The decoder opens the certificates of a trusted list's services and of its pointers to other lists in place, like the x5c certificates of its signer.
 
 ## [3.11.1] - 2026-11-16
 
