@@ -22,6 +22,7 @@ import (
 
 	"github.com/eudi-dev/eudi-dev/v3/internal/certinfo"
 	"github.com/eudi-dev/eudi-dev/v3/internal/format"
+	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
 	"github.com/eudi-dev/eudi-dev/v3/pkg/mdoc"
 	"github.com/eudi-dev/eudi-dev/v3/pkg/sdjwt"
 )
@@ -64,6 +65,45 @@ func mdocCertificates(doc *mdoc.Document) []*x509.Certificate {
 		return nil
 	}
 	return certs
+}
+
+// listCertificates are the certificates a list of trusted entities names in
+// its services (ETSI TS 119 602 V1.1.1 §6.6.3) and in its pointers to other
+// lists (§6.3.13), each once. A JWT that is no such list names none.
+func listCertificates(raw string) []*x509.Certificate {
+	list, err := lote.Parse(raw)
+	if err != nil {
+		return nil
+	}
+	var infos []lote.CertInfo
+	if list.SchemeInfo != nil {
+		for _, pointer := range list.SchemeInfo.Pointers {
+			infos = append(infos, pointer.Certificates...)
+		}
+	}
+	for _, entity := range list.Entities {
+		for _, service := range entity.Services {
+			infos = append(infos, service.Certificates...)
+		}
+	}
+	seen := make(map[string]bool, len(infos))
+	var certs []*x509.Certificate
+	for _, info := range infos {
+		if seen[string(info.Raw)] {
+			continue
+		}
+		seen[string(info.Raw)] = true
+		if cert, err := x509.ParseCertificate(info.Raw); err == nil {
+			certs = append(certs, cert)
+		}
+	}
+	return certs
+}
+
+func addListCertificates(out map[string]any, certs []*x509.Certificate) {
+	if len(certs) > 0 {
+		out["listCertificates"] = certinfo.DescribeAll(certs)
+	}
 }
 
 func addCertificates(out map[string]any, certs []*x509.Certificate) {

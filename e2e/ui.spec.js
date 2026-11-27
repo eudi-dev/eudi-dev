@@ -160,6 +160,39 @@ test.describe("Certificate decoding", () => {
     await expect(page.locator("#format-badge")).toHaveText("X.509");
     await expect(page.locator("#output-certificate-1")).toContainText("Self-signed: yes");
   });
+
+  test("opens a service certificate of a trusted list inline", async ({ page }) => {
+    const pem = readFileSync(
+      path.join(__dirname, "../internal/web/testdata/certificate.pem"),
+      "utf8"
+    );
+    const der = pem.replace(/-----[A-Z ]+-----|\s/g, "");
+    await page.goto("/");
+    await page.locator("#input").fill(
+      makeJWT({ alg: "ES256", typ: "JWT" }, {
+        LoTE: {
+          ListAndSchemeInformation: { LoTEVersionIdentifier: 1 },
+          TrustedEntitiesList: [{
+            TrustedEntityInformation: { TEName: [{ lang: "en", value: "Bolt" }] },
+            TrustedEntityServices: [{
+              ServiceInformation: {
+                ServiceTypeIdentifier: "http://uri.etsi.org/19602/SvcType/PID/Issuance",
+                ServiceDigitalIdentity: { X509Certificates: [{ val: der }] },
+              },
+            }],
+          }],
+        },
+      })
+    );
+
+    const payload = page.locator('#output .section[data-section="payload"]');
+    const entry = payload.locator('[data-embedded-format="x509"]');
+    await expect(payload.locator(".certificate-value-subject")).toHaveText(
+      "C=DE, O=EUDI Dev Test, CN=Decoder Test CA"
+    );
+    await entry.click();
+    await expect(payload.locator(".certificate-inline .certificate-pem")).toHaveText(pem);
+  });
 });
 
 test.describe("Delegate SD-JWT decoding", () => {

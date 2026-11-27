@@ -15,14 +15,19 @@
 package web
 
 import (
+	"crypto/ecdsa"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 	"time"
 
+	"github.com/eudi-dev/eudi-dev/v3/internal/certinfo"
+	"github.com/eudi-dev/eudi-dev/v3/internal/lote"
 	"github.com/eudi-dev/eudi-dev/v3/internal/mock"
 )
 
@@ -273,4 +278,87 @@ func TestDecode_SDJWTIncludesIssuerMetadataValidation(t *testing.T) {
 	if signature.Status != "pass" {
 		t.Fatalf("expected signature pass, got %v", signature)
 	}
+}
+
+func newCA(t *testing.T, name string) (*ecdsa.PrivateKey, *x509.Certificate) {
+	t.Helper()
+	key, err := mock.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cert, err := mock.GenerateNamedCACert(key, name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return key, cert
+}
+
+func der(cert *x509.Certificate) string {
+	return base64.StdEncoding.EncodeToString(cert.Raw)
+}
+
+func listCertificateSubjects(t *testing.T, raw string) []string {
+	t.Helper()
+	result, err := Decode(raw)
+	if err != nil {
+		t.Fatalf("Decode() error: %v", err)
+	}
+	certs, _ := result["listCertificates"].([]certinfo.Certificate)
+	subjects := make([]string, 0, len(certs))
+	for _, cert := range certs {
+		subjects = append(subjects, cert.Subject)
+	}
+	return subjects
+}
+
+// The decoder shows the certificates of a list's services (ETSI TS 119 602
+// V1.1.1 §6.6.3) next to its signer chain, so each one opens in place.
+func TestDecodeListsTheCertificatesOfATrustedListsServices(t *testing.T) {
+	key, signer := newCA(t, "Acme List Operator")
+	_, issuance := newCA(t, "Bolt PID CA")
+	_, revocation := newCA(t, "Bolt Status CA")
+	raw, err := lote.Sign(key, signer, lote.Options{
+		OperatorName: "Acme",
+		Entities:     []lote.Entity{{Name: "Bolt", Issuance: []string{der(issuance), der(issuance)}, Revocation: []string{der(revocation)}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	subjects := listCertificateSubjects(t, raw)
+	if want := []string{subject(signer), subject(issuance), subject(revocation)}; !slices.Equal(subjects, want) {
+		t.Errorf("list certificates = %v, want %v", subjects, want)
+	}
+}
+
+// A pointer to another list carries the certificate of that list's signer
+// (ETSI TS 119 602 V1.1.1 §6.3.13).
+func TestDecodeListsTheCertificateOfAPointedToList(t *testing.T) {
+	key, signer := newCA(t, "Acme List Operator")
+	_, pointed := newCA(t, "Crate List Operator")
+	raw, err := lote.SignList(key, signer, time.Now(), map[string]any{"ListAndSchemeInformation": map[string]any{
+		"PointersToOtherLoTE": []map[string]any{lote.PointerEntry("https://lists.example/pid", lote.PIDProvidersListType, "Crate", "EU", der(pointed))},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if subjects := listCertificateSubjects(t, raw); len(subjects) != 1 || subjects[0] != subject(pointed) {
+		t.Errorf("list certificates = %v, want the pointed-to list's signer", subjects)
+	}
+}
+
+func TestDecodeListsNoCertificatesForAPlainJWT(t *testing.T) {
+	jwt := buildTestJWT(t, map[string]any{"alg": "none"}, map[string]any{"sub": "alice"})
+	result, err := Decode(jwt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := result["listCertificates"]; ok {
+		t.Errorf("a plain JWT has list certificates: %v", result["listCertificates"])
+	}
+}
+
+func subject(cert *x509.Certificate) string {
+	return certinfo.Describe(cert).Subject
 }

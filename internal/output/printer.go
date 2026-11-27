@@ -189,6 +189,7 @@ func BuildJWTJSON(token *sdjwt.Token) map[string]any {
 	}
 	addTokenNotes(out, token)
 	addCertificates(out, tokenCertificates(token))
+	addListCertificates(out, listCertificates(token.Raw))
 	return out
 }
 

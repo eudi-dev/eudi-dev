@@ -1055,11 +1055,12 @@
   }
 
   // An x5c (RFC 7515 §4.1.6) or x5chain (RFC 9360 §2) entry is the base64 DER
-  // of its certificate, and the server also accepts it unpadded.
+  // of its certificate, and the server also accepts it unpadded. So is the val
+  // of a trusted list's X509Certificates (ETSI TS 119 602 V1.1.1 §6.6.3).
   function certificatesByDER(data) {
     const byDER = new Map();
     if (data.format === "x509") return byDER;
-    for (const cert of data.certificates || []) {
+    for (const cert of (data.certificates || []).concat(data.listCertificates || [])) {
       const der = unpaddedBase64((cert.pem || "").replace(/-----[A-Z ]+-----/g, ""));
       if (der) byDER.set(der, cert);
     }
